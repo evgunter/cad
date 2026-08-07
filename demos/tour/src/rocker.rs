@@ -22,12 +22,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tolerance};
-use profile::{
+use pncad::geom_core::{Point2, Tolerance};
+use pncad::profile::{
     ArcSweep, FilletLegShape, LoopBuilder, Profile, ProfileLoop, SegmentKind, SketchPlane,
     ValidatedProfile,
 };
-use sweep::{Extrusion, extrude};
+use pncad::sweep::{Extrusion, extrude};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -173,7 +173,7 @@ pub fn profile<S: Scalar>() -> ValidatedProfile<S> {
 }
 
 /// The plate: profile extruded 1/2 m.
-pub fn rocker<S: Scalar>() -> topo::Body<S> {
+pub fn rocker<S: Scalar>() -> pncad::topo::Body<S> {
     extrude(&profile::<S>(), Extrusion::Distance(S::from_f64(0.5)))
         .expect("extrude rocker")
         .body

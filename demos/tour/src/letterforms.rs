@@ -28,10 +28,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tolerance, Vec3};
-use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
-use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanBody, BooleanResult, validate_pseudomanifold};
+use pncad::geom_core::{Point2, Point3, Tolerance, Vec3};
+use pncad::profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use pncad::sweep::{Extrusion, extrude};
+use pncad::topo::{Body, BooleanBody, BooleanResult, validate_pseudomanifold};
 
 use crate::booleans::{check, expect_seamed, try_intersect};
 use crate::scalar::Scalar;
@@ -223,7 +223,7 @@ fn narrate_naive<S: Scalar>() {
     let BooleanResult::Body(bb) = r else {
         panic!("declared naive 2-way cannot be empty");
     };
-    let v = topo::mass_properties(&bb.body)
+    let v = pncad::topo::mass_properties(&bb.body)
         .expect("declared naive volume")
         .volume
         .f();

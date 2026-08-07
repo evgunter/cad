@@ -53,10 +53,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Point3, Tolerance, Vec3};
-use profile::SketchPlane;
-use sweep::skin::{SectionSegments, loft_geometry, sweep_geometry};
-use sweep::{SketchSegment, segment_curve};
+use pncad::geom_core::{Affine3, Point2, Point3, Tolerance, Vec3};
+use pncad::profile::SketchPlane;
+use pncad::sweep::skin::{SectionSegments, loft_geometry, sweep_geometry};
+use pncad::sweep::{SketchSegment, segment_curve};
 
 use crate::{SceneBody, Stop, View};
 
@@ -260,9 +260,10 @@ pub fn stops() -> Vec<Stop> {
         up: 'z',
     };
 
-    let prism = sweep::loft_body::<f64>(&prism_sections(), &lofted_at_z(&[0.0, 1.0, 2.0]), 2)
-        .expect("shape (iii) loft builds")
-        .body;
+    let prism =
+        pncad::sweep::loft_body::<f64>(&prism_sections(), &lofted_at_z(&[0.0, 1.0, 2.0]), 2)
+            .expect("shape (iii) loft builds")
+            .body;
     // Montage-v2 spacing: z = 0/0.15/2, not the corpus fixture's
     // 0/1/3. Measured on the #218 sheet, 0/1/3 was invisible as a
     // pair member: its bulge peaks at 48.8% of height with half-width
@@ -273,9 +274,10 @@ pub fn stops() -> Vec<Stop> {
     // dramatically (numbers in the stop's note). The corpus fixture
     // keeps 0/1/3 — this scene now LEADS the corpus, the s_duct/lily
     // precedent.
-    let nonuniform = sweep::loft_body::<f64>(&prism_sections(), &lofted_at_z(&[0.0, 0.15, 2.0]), 2)
-        .expect("the non-uniform loft builds")
-        .body;
+    let nonuniform =
+        pncad::sweep::loft_body::<f64>(&prism_sections(), &lofted_at_z(&[0.0, 0.15, 2.0]), 2)
+            .expect("the non-uniform loft builds")
+            .body;
 
     // The S path (#218 review; DEMOTED to standalone at montage-v2):
     // two opposed quarter arcs of radius R in the world x = 0 plane,
@@ -304,9 +306,9 @@ pub fn stops() -> Vec<Stop> {
             Point3::new(0.0, S_R + S_R * ph.sin(), 2.0 * S_R - S_R * ph.cos())
         }))
         .collect();
-    let path =
-        geom_curves::NurbsCurve3::interpolate(&s_points, 3).expect("the S path interpolates");
-    let s_duct = sweep::sweep_body::<f64>(
+    let path = pncad::geom_curves::NurbsCurve3::interpolate(&s_points, 3)
+        .expect("the S path interpolates");
+    let s_duct = pncad::sweep::sweep_body::<f64>(
         &quad([
             (-ELBOW_H, -ELBOW_H),
             (ELBOW_H, -ELBOW_H),
@@ -336,7 +338,7 @@ pub fn stops() -> Vec<Stop> {
                     section is NOT an affine image of the squares (affine maps preserve \
                     parallelism; the trapezoid has a non-parallel pair), so the four \
                     walls are genuinely curved NURBS patches, not ruled strips",
-            ops: "sweep::loft_body(square, trapezoid, square @ z = 0/1/2, v_degree 2)",
+            ops: "pncad::sweep::loft_body(square, trapezoid, square @ z = 0/1/2, v_degree 2)",
             delta: 6e-3,
             note: Some(
                 "the corpus fixture VERBATIM (step-export/tests/common/mod.rs::loft_prism, \
@@ -365,7 +367,7 @@ pub fn stops() -> Vec<Stop> {
                     Same skin-fit lane whose synthesized weight channel used to land \
                     an ulp off 1.0 on non-uniform spacings and refuse at assembly \
                     (#207)",
-            ops: "sweep::loft_body(square, trapezoid, square @ z = 0/0.15/2, v_degree 2)",
+            ops: "pncad::sweep::loft_body(square, trapezoid, square @ z = 0/0.15/2, v_degree 2)",
             delta: 6e-3,
             note: Some(
                 "the scene LEADS the corpus since montage-v2 (the s_duct/lily \
@@ -412,7 +414,7 @@ pub fn stops() -> Vec<Stop> {
                     (each station turns the profile by the minimal rotation carrying \
                     the start tangent to its own; on a planar path that rotation axis \
                     is fixed, so the square never rolls)",
-            ops: "sweep::sweep_body(square(h = 0.25), S path (two opposed R = 2 \
+            ops: "pncad::sweep::sweep_body(square(h = 0.25), S path (two opposed R = 2 \
                   quarter arcs, degree-3 interpolant through 17 exact points), \
                   13 stations, v_degree 3)",
             delta: 5e-3,
@@ -469,8 +471,8 @@ pub fn stops() -> Vec<Stop> {
             Point3::new(tc_a * t, tc_b * t * t, tc_c * t * t * t)
         })
         .collect();
-    let cubic_path =
-        geom_curves::NurbsCurve3::interpolate(&cubic_points, 3).expect("the cubic interpolates");
+    let cubic_path = pncad::geom_curves::NurbsCurve3::interpolate(&cubic_points, 3)
+        .expect("the cubic interpolates");
     // Profile plane normal to the start tangent (the same frame
     // recipe the narration uses).
     let place = {
@@ -486,7 +488,7 @@ pub fn stops() -> Vec<Stop> {
         let u = u / u.norm();
         SketchPlane::from_frame(cubic_path.eval(lo), u, n.cross(u)).placement
     };
-    let twisted = sweep::sweep_body::<f64>(
+    let twisted = pncad::sweep::sweep_body::<f64>(
         &quad([
             (-ELBOW_H, -ELBOW_H),
             (ELBOW_H, -ELBOW_H),
@@ -558,7 +560,7 @@ pub fn stops() -> Vec<Stop> {
                 the planar S (s_duct, standalone), which two glued partial revolves \
                 could fake. The square visibly rolls as the bend plane turns: the \
                 path-following frame carries it through the spine's torsion",
-        ops: "sweep::sweep_body(square(h = 0.25), twisted cubic (At, Bt^2, Ct^3), \
+        ops: "pncad::sweep::sweep_body(square(h = 0.25), twisted cubic (At, Bt^2, Ct^3), \
               A/B/C = 2.2/1.3/1.5, degree-3 interpolant through 33 exact points, \
               17 stations, v_degree 3)",
         delta: 5e-3,

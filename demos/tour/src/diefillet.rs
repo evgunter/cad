@@ -30,12 +30,12 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::build::fillet_edges;
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::Body;
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use pncad::geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec2, Vec3};
+use pncad::profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use pncad::sweep::fillet::build::fillet_edges;
+use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use pncad::topo::Body;
+use pncad::topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -102,7 +102,7 @@ fn ball<S: Scalar>(c: Vec3<S>, pole: Vec3<S>) -> Body<S> {
         if y.dot(pole).lo() > 0.0 {
             b
         } else {
-            topo::transform_rigid(
+            pncad::topo::transform_rigid(
                 &b,
                 &Affine3::rotation_about_axis(
                     origin,
@@ -113,13 +113,13 @@ fn ball<S: Scalar>(c: Vec3<S>, pole: Vec3<S>) -> Body<S> {
             .unwrap()
         }
     } else {
-        topo::transform_rigid(
+        pncad::topo::transform_rigid(
             &b,
             &Affine3::rotation_about_axis(origin, rot.normalize(), y.dot(pole).acos()),
         )
         .unwrap()
     };
-    topo::transform_rigid(&placed, &Affine3::translation(c)).unwrap()
+    pncad::topo::transform_rigid(&placed, &Affine3::translation(c)).unwrap()
 }
 
 fn layout(n: u32) -> Vec<(f64, f64)> {
@@ -170,7 +170,7 @@ pub fn pipped<S: Scalar>() -> Body<S> {
             BooleanOp::Union,
             &tool,
             &ball::<S>(*c, *n),
-            &topo::BooleanDeclarations::none(),
+            &pncad::topo::BooleanDeclarations::none(),
             SweepStrategy::Realized,
         )
         .expect("the pip tool assembles")
@@ -183,7 +183,7 @@ pub fn pipped<S: Scalar>() -> Body<S> {
         BooleanOp::Subtract,
         &cube::<S>(),
         &tool,
-        &topo::BooleanDeclarations::none(),
+        &pncad::topo::BooleanDeclarations::none(),
         SweepStrategy::Realized,
     )
     .expect("the pips cut")
@@ -203,7 +203,7 @@ pub fn composed<S: Scalar>() -> Body<S> {
             pipped
                 .get_curve_geom(e.curve)
                 .and_then(|g| g.certified())
-                .is_some_and(|c| matches!(c.carrier(), geom_curves::Curve3::Line { .. }))
+                .is_some_and(|c| matches!(c.carrier(), pncad::geom_curves::Curve3::Line { .. }))
         })
         .map(|(k, _)| k)
         .collect();
@@ -219,8 +219,8 @@ pub fn composed<S: Scalar>() -> Body<S> {
                 blanked
                     .get_surface(blanked.get_face(f)?.surface)
                     .map(|s| match s {
-                        geom_surfaces::Surface::Plane { .. } => 0u8,
-                        geom_surfaces::Surface::Sphere { .. } => 1,
+                        pncad::geom_surfaces::Surface::Plane { .. } => 0u8,
+                        pncad::geom_surfaces::Surface::Sphere { .. } => 1,
                         _ => 2,
                     })
             };
@@ -248,7 +248,7 @@ fn blank_volume() -> f64 {
 
 pub fn stops() -> Vec<Stop> {
     let blank = blank::<f64>();
-    let vol = topo::mass_properties(&blank).unwrap().volume;
+    let vol = pncad::topo::mass_properties(&blank).unwrap().volume;
     let want = blank_volume();
     assert!(
         (vol - want).abs() < 1e-9 * want,
@@ -261,11 +261,11 @@ pub fn stops() -> Vec<Stop> {
     );
     assert_eq!((f, e, v), (26, 48, 24));
     let pipped = pipped::<f64>();
-    let pip_vol = topo::mass_properties(&pipped).unwrap().volume;
+    let pip_vol = pncad::topo::mass_properties(&pipped).unwrap().volume;
     let composed = composed::<f64>();
-    let comp = topo::mass_properties(&composed).unwrap();
+    let comp = pncad::topo::mass_properties(&composed).unwrap();
     assert_eq!(
-        topo::validate_geometric(&composed),
+        pncad::topo::validate_geometric(&composed),
         Ok(()),
         "the composed die is tier-3 valid"
     );

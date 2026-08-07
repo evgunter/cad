@@ -30,8 +30,8 @@ mod scalar;
 mod skinned;
 mod tube;
 
-use mesh::validate::{check_mesh, signed_volume, triangle_count};
-use topo::{Body, ContactRecords};
+use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
+use pncad::topo::{Body, ContactRecords};
 
 /// One body of a tour scene: its own STL/STEP exports, its own
 /// validation posture. `contacts` is `Some` exactly when the body is a
@@ -163,9 +163,9 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
     let label = &sb.name;
 
     // Tiers 1 + 2 on every body.
-    topo::validate(&sb.body)
+    pncad::topo::validate(&sb.body)
         .unwrap_or_else(|e| panic!("{label}: tier-1 structural validation failed: {e:?}"));
-    topo::validate_closed(&sb.body)
+    pncad::topo::validate_closed(&sb.body)
         .unwrap_or_else(|e| panic!("{label}: tier-2 closed-solid validation failed: {e:?}"));
 
     // Tier 3 / 3′: boolean results validate AS THEY ARE, with the
@@ -173,12 +173,12 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
     // geometric gate (on contact-free bodies the two gates agree).
     match &sb.contacts {
         Some(contacts) => {
-            topo::validate_pseudomanifold(&sb.body, contacts).unwrap_or_else(|e| {
+            pncad::topo::validate_pseudomanifold(&sb.body, contacts).unwrap_or_else(|e| {
                 panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}")
             });
         }
         None => {
-            topo::validate_geometric(&sb.body)
+            pncad::topo::validate_geometric(&sb.body)
                 .unwrap_or_else(|e| panic!("{label}: tier-3 geometric validation failed: {e:?}"));
         }
     }
@@ -199,11 +199,11 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
     // contribute certified quadrature enclosures: `volume` is then a
     // bracket midpoint with half-width `volume_pad` (0.0 on
     // closed-form bodies).
-    let props = topo::mass_properties(&sb.body).expect("mass properties");
+    let props = pncad::topo::mass_properties(&sb.body).expect("mass properties");
 
     // Tessellate, self-check the mesh, and compare its signed volume
     // against the exact one as an end-to-end sanity ribbon.
-    let mesh = mesh::tessellate(&sb.body, delta).expect("tessellate");
+    let mesh = pncad::mesh::tessellate(&sb.body, delta).expect("tessellate");
     check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: check_mesh failed: {e:?}"));
     let v_mesh = signed_volume(&mesh);
     assert!(v_mesh > 0.0, "{label}: mesh signed volume must be positive");
@@ -227,7 +227,7 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
     let stl_name = format!("{label}.stl");
     let stl_path = format!("{outdir}/{stl_name}");
     let mut stl_buf = Vec::new();
-    stl::write_binary(&mesh, &mut stl_buf)
+    pncad::stl::write_binary(&mesh, &mut stl_buf)
         .unwrap_or_else(|e| panic!("{label}: STL write failed: {e:?}"));
     std::fs::write(&stl_path, &stl_buf).expect("write stl");
     let stl = stl_name.clone();
@@ -240,9 +240,9 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
     // a refusal anywhere here is now a regression rather than a
     // narrated frontier.
     let step_name = format!("{label}.step");
-    let step = match step_export::step_string(
+    let step = match pncad::step_export::step_string(
         &sb.body,
-        &step_export::StepOptions {
+        &pncad::step_export::StepOptions {
             product_name: label.clone(),
             ..Default::default()
         },
@@ -260,9 +260,9 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
         // arm is kept, not deleted: it is what keeps a future curved
         // frontier from being silently dropped from the manifest.
         Err(
-            e @ (step_export::StepExportError::UnsupportedSurface { .. }
-            | step_export::StepExportError::UnsupportedCurve { .. }
-            | step_export::StepExportError::CurvedShellClassification { .. }),
+            e @ (pncad::step_export::StepExportError::UnsupportedSurface { .. }
+            | pncad::step_export::StepExportError::UnsupportedCurve { .. }
+            | pncad::step_export::StepExportError::CurvedShellClassification { .. }),
         ) => {
             assert!(
                 !sb.step_expected,
@@ -440,7 +440,7 @@ fn main() {
     let (box_stop, box_body) = projectbox::stop();
     run(&box_stop);
 
-    println!("\n-- the cutaway (the first `topo::split` in the tour) --");
+    println!("\n-- the cutaway (the first `pncad::topo::split` in the tour) --");
     for stop in cutaway::stops(&box_body) {
         run(&stop);
     }

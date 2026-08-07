@@ -19,17 +19,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point3, Tolerance, Vec3};
-use profile::{Profile, ProfileLoop, SketchPlane};
-use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanResultKind};
+use pncad::geom_core::{Point3, Tolerance, Vec3};
+use pncad::profile::{Profile, ProfileLoop, SketchPlane};
+use pncad::sweep::{Extrusion, extrude};
+use pncad::topo::{Body, BooleanResultKind};
 
 use crate::booleans::{Verdict, check, describe, expect_seamed};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 
-fn p2<S: Scalar>(x: f64, y: f64) -> geom_core::Point2<S> {
-    geom_core::Point2::new(S::from_f64(x), S::from_f64(y))
+fn p2<S: Scalar>(x: f64, y: f64) -> pncad::geom_core::Point2<S> {
+    pncad::geom_core::Point2::new(S::from_f64(x), S::from_f64(y))
 }
 
 /// The one box builder: axis-aligned `[x0,x1] x [y0,y1] x [z0,z1]`,
@@ -63,7 +63,7 @@ pub fn slab<S: Scalar>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<S> {
 /// Pips are straight square pockets (extrude is straight-only;
 /// spherical pips await M5 curved booleans — the ratified OQ6
 /// acceptance target). Stays translation-authored by ruling.
-pub(crate) fn die<S: Scalar>() -> (topo::BooleanBody<S>, String) {
+pub(crate) fn die<S: Scalar>() -> (pncad::topo::BooleanBody<S>, String) {
     const H: f64 = 0.125; // pip half-span; pocket 0.25 square, 0.125 deep
     const IN: (f64, f64) = (0.875, 1.5); // pocket span outward through +face
     const OUT: (f64, f64) = (-1.5, -0.875); // …and through the −face
@@ -91,7 +91,7 @@ pub(crate) fn die<S: Scalar>() -> (topo::BooleanBody<S>, String) {
         ("-y=4", four, ny),
     ];
     let cube = slab((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0));
-    let mut acc: Option<topo::BooleanBody<S>> = None;
+    let mut acc: Option<pncad::topo::BooleanBody<S>> = None;
     let mut pips = 0u32;
     for (label, centers, make) in faces {
         for (a, b) in centers {
@@ -155,7 +155,7 @@ fn leg<S: Scalar>(cx: f64, cy: f64, z_top: f64) -> Body<S> {
 /// maximal operands. Attempt 1 (coplanar touch, undeclared) now
 /// refuses at the coincidence door — rung (b), value equality never
 /// classifies — and the narration says so.
-pub(crate) fn table<S: Scalar>() -> (topo::BooleanBody<S>, String) {
+pub(crate) fn table<S: Scalar>() -> (pncad::topo::BooleanBody<S>, String) {
     let top: Body<S> = slab(TOP_X, TOP_Y, TOP_Z);
     let leg_vol = |z_top: f64| (2.0 * LEG_HALF) * (2.0 * LEG_HALF) * z_top;
 
@@ -205,7 +205,7 @@ pub(crate) fn table<S: Scalar>() -> (topo::BooleanBody<S>, String) {
     // Each aligned leg: FULL footprint under the top, overlapping
     // 0.05 up into it.
     let per_leg_gain = leg_vol(z_top) - (2.0 * LEG_HALF) * (2.0 * LEG_HALF) * 0.05;
-    let mut acc: Option<topo::BooleanBody<S>> = None;
+    let mut acc: Option<pncad::topo::BooleanBody<S>> = None;
     let mut expected = top_vol();
     for (cx, cy) in corners {
         expected += per_leg_gain;
@@ -256,7 +256,7 @@ pub fn voidbox_narration() {
          exactly; the void is INTERNAL — the montage panel is retired for the \
          cutaway split, which shows interiors honestly"
     );
-    match step_export::step_string(&b.body, &step_export::StepOptions::default()) {
+    match pncad::step_export::step_string(&b.body, &pncad::step_export::StepOptions::default()) {
         Ok(_) => {
             println!("   STEP export of the voided body: OK (unexpected — update this narration)");
         }
@@ -268,7 +268,7 @@ pub fn voidbox_narration() {
 /// samples its containment-fallback predicates too; the STEP-refusal
 /// narration stays in the f64-only wrapper above — the STEP writer is
 /// f64 by design).
-pub(crate) fn voidbox<S: Scalar>() -> topo::BooleanBody<S> {
+pub(crate) fn voidbox<S: Scalar>() -> pncad::topo::BooleanBody<S> {
     let outer: Body<S> = slab((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let inner: Body<S> = slab((0.5, 1.5), (0.5, 1.5), (0.5, 1.5));
     match check(crate::booleans::try_subtract(&outer, &inner), 7.0) {

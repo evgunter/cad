@@ -10,9 +10,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tolerance, Vec2};
-use profile::{LoopBuilder, Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use pncad::geom_core::{Point2, Tolerance, Vec2};
+use pncad::profile::{
+    LoopBuilder, Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile,
+};
+use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -49,7 +51,7 @@ fn circle<S: Scalar>(cx: f64, cy: f64, r: f64) -> ProfileLoop<S> {
 }
 
 /// L-bracket: polyline + one fillet arc at the inner corner, extruded.
-pub fn bracket<S: Scalar>() -> topo::Body<S> {
+pub fn bracket<S: Scalar>() -> pncad::topo::Body<S> {
     // The inner corner (1, 1) carries an r = 0.5 tangent fillet,
     // authored through the CONSTRUCTIVE path (#101): `fillet` computes
     // the tangent points (1.5, 1)/(1, 1.5) and the arc bulge exactly
@@ -78,7 +80,7 @@ pub fn bracket<S: Scalar>() -> topo::Body<S> {
 }
 
 /// Rectangular plate with two circular holes: a genus-2 extrusion.
-pub fn plate<S: Scalar>() -> topo::Body<S> {
+pub fn plate<S: Scalar>() -> pncad::topo::Body<S> {
     let outer = ProfileLoop::polygon([p2(-3.0, -1.5), p2(3.0, -1.5), p2(3.0, 1.5), p2(-3.0, 1.5)]);
     let holes = vec![circle(-1.5, 0.0, 0.7), circle(1.5, 0.0, 0.7)];
     let mut loops = vec![outer];
@@ -93,7 +95,7 @@ pub fn plate<S: Scalar>() -> topo::Body<S> {
 /// swept surface is a sphere zone; an OFF-axis arc carrier sweeps a
 /// ring torus — see the sheave, which showcases exactly that), conical
 /// flared lip — fully revolved about the y axis.
-pub fn vase<S: Scalar>() -> topo::Body<S> {
+pub fn vase<S: Scalar>() -> pncad::topo::Body<S> {
     // Belly arc: circle of radius 1.3 centered at (0, 0.8) — on the
     // axis — from (1.2, 0.3) through (1.3, 0.8) to (0.5, 2.0).
     let lp = LoopBuilder::start(p2(0.0, 0.0))
@@ -117,7 +119,7 @@ pub fn vase<S: Scalar>() -> topo::Body<S> {
 /// stop carries all four analytic surface kinds (plane, cylinder,
 /// cone, torus), which is why the pulley (plane/cylinder/cone only)
 /// retired into it at the #91 revision pass. Center bore → genus 1.
-pub fn sheave<S: Scalar>() -> (topo::Body<S>, String) {
+pub fn sheave<S: Scalar>() -> (pncad::topo::Body<S>, String) {
     let lp = LoopBuilder::start(p2(0.4, 0.0))
         .line_to(p2(0.9, 0.0))
         .line_to(p2(0.9, 0.25))
@@ -133,7 +135,7 @@ pub fn sheave<S: Scalar>() -> (topo::Body<S>, String) {
         .line_to(p2(0.9, 1.0))
         .line_to(p2(0.4, 1.0))
         .close();
-    let body: topo::Body<S> = revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+    let body: pncad::topo::Body<S> = revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
         .expect("revolve sheave")
         .body;
     // Closed-form volume by Pappus (independent derivation, exact
@@ -142,7 +144,7 @@ pub fn sheave<S: Scalar>() -> (topo::Body<S>, String) {
     //   V = 2*pi*(1997/1200) - (189/1000)*pi^2.
     let pi = core::f64::consts::PI;
     let oracle = 2.0 * (1997.0 / 1200.0) * pi - 0.189 * pi * pi;
-    let v = topo::mass_properties(&body)
+    let v = pncad::topo::mass_properties(&body)
         .expect("sheave mass properties")
         .volume
         .f();
@@ -151,18 +153,18 @@ pub fn sheave<S: Scalar>() -> (topo::Body<S>, String) {
         rel < 1e-12,
         "sheave volume {v} vs closed-form {oracle} (rel {rel:.3e})"
     );
-    let kind_count = |pred: fn(&topo::Surface<S>) -> bool| {
+    let kind_count = |pred: fn(&pncad::topo::Surface<S>) -> bool| {
         body.faces()
             .filter(|(_, f)| body.get_surface(f.surface).is_some_and(pred))
             .count()
     };
     assert_eq!(
-        kind_count(|s| matches!(s, topo::Surface::Torus { .. })),
+        kind_count(|s| matches!(s, pncad::topo::Surface::Torus { .. })),
         1,
         "the groove must be a torus wall"
     );
     assert_eq!(
-        kind_count(|s| matches!(s, topo::Surface::Cone { .. })),
+        kind_count(|s| matches!(s, pncad::topo::Surface::Cone { .. })),
         2,
         "the rim shoulders must be cone walls"
     );
@@ -180,7 +182,7 @@ pub fn sheave<S: Scalar>() -> (topo::Body<S>, String) {
 /// partial revolve — a curved trough with wedge caps at both ends,
 /// annular rims, and four cylinder bands. A more interesting partial
 /// revolve than the old plain rectangle, still boolean-free.
-pub fn chute<S: Scalar>() -> (topo::Body<S>, String) {
+pub fn chute<S: Scalar>() -> (pncad::topo::Body<S>, String) {
     let lp = ProfileLoop::polygon([
         p2(1.0, 0.0),
         p2(1.75, 0.0),
@@ -191,7 +193,7 @@ pub fn chute<S: Scalar>() -> (topo::Body<S>, String) {
         p2(1.1875, 0.625),
         p2(1.0, 0.625),
     ]);
-    let body: topo::Body<S> = revolve(
+    let body: pncad::topo::Body<S> = revolve(
         &validated(vec![lp]),
         axis_y(),
         Revolution::Partial(S::from_f64(3.0 * core::f64::consts::FRAC_PI_2)),
@@ -201,7 +203,7 @@ pub fn chute<S: Scalar>() -> (topo::Body<S>, String) {
     // Pappus for the partial sweep (independent derivation, exact):
     // profile first moment 429/1024, angle 3pi/2 => V = (1287/2048)pi.
     let oracle = (1287.0 / 2048.0) * core::f64::consts::PI;
-    let v = topo::mass_properties(&body)
+    let v = pncad::topo::mass_properties(&body)
         .expect("chute mass properties")
         .volume
         .f();
@@ -228,7 +230,7 @@ fn stop(
     delta: f64,
     view: View,
     color: [f64; 3],
-    body: topo::Body<f64>,
+    body: pncad::topo::Body<f64>,
     note: Option<String>,
 ) -> Stop {
     Stop {

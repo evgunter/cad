@@ -35,10 +35,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tolerance, Vec3};
-use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
-use sweep::{Extrusion, extrude};
-use topo::Body;
+use pncad::geom_core::{Point2, Point3, Tolerance, Vec3};
+use pncad::profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use pncad::sweep::{Extrusion, extrude};
+use pncad::topo::Body;
 
 use crate::booleans::{check, expect_seamed, try_intersect};
 use crate::scalar::Scalar;
@@ -131,7 +131,7 @@ fn z_prism<S: Scalar>() -> Body<S> {
 
 /// Builds the A × Z intersect result (generic — the Probe sweep runs
 /// the same construction).
-pub(crate) fn build<S: Scalar>() -> topo::BooleanBody<S> {
+pub(crate) fn build<S: Scalar>() -> pncad::topo::BooleanBody<S> {
     expect_seamed(
         "A x Z intersect (counter-hole A)",
         check(try_intersect(&a_prism::<S>(), &z_prism::<S>()), V_AZ),
