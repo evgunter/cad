@@ -441,23 +441,23 @@ fn apex_cone(
             |uv| uv.x,
         );
         let v_b = crate::chart::uv_of(&face.surface, solid.vertices[&base_v]).map(|uv| uv.y);
-        if let (Some(p), Some(v_b)) = (p, v_b) {
-            if v_b != 0.0 {
-                let ru = circle_use.forward == p;
-                let ccw = ru != (v_b > 0.0);
-                if face.sense != ccw {
-                    return Err(StepImportError::Topology {
-                        id: face.id,
-                        what: "an ORIENTATION-INVERTED degenerate-apex cone face: its stated \
-                               same_sense and the winding of its own loop (base-rim chart \
-                               direction against the rim's side of the apex) disagree, so \
-                               the solid it describes is inside out. This importer will not \
-                               re-tessellate it as stated — the kernel's tier-3 curved \
-                               sense gate (check 6) refuses the inside-out face it would \
-                               build — and import returns certified bodies, so the refusal \
-                               fires here, before any body exists",
-                    });
-                }
+        if let (Some(p), Some(v_b)) = (p, v_b)
+            && v_b != 0.0
+        {
+            let ru = circle_use.forward == p;
+            let ccw = ru != (v_b > 0.0);
+            if face.sense != ccw {
+                return Err(StepImportError::Topology {
+                    id: face.id,
+                    what: "an ORIENTATION-INVERTED degenerate-apex cone face: its stated \
+                           same_sense and the winding of its own loop (base-rim chart \
+                           direction against the rim's side of the apex) disagree, so \
+                           the solid it describes is inside out. This importer will not \
+                           re-tessellate it as stated — the kernel's tier-3 curved \
+                           sense gate (check 6) refuses the inside-out face it would \
+                           build — and import returns certified bodies, so the refusal \
+                           fires here, before any body exists",
+                });
             }
         }
     }

@@ -401,7 +401,7 @@ fn a1_cone_apex_flip_senses() {
     );
     let err = import_step(&text, &ImportOptions::default())
         .err()
-        .expect("an inside-out cone_apex must refuse pre-body (M6-6 rider)");
+        .unwrap_or_else(|| panic!("an inside-out cone_apex must refuse pre-body (M6-6 rider)"));
     let s = err.to_string();
     println!("a1cas refused: {}", &s[..s.len().min(110)]);
     assert!(
@@ -425,7 +425,7 @@ fn a1_control_cylinder_sense_flip() {
     // refuses the body, and the import rider refuses pre-body.
     let err = import_step(&text, &ImportOptions::default())
         .err()
-        .expect("an inside-out cylinder wall must refuse pre-body (M6-6 rider)");
+        .unwrap_or_else(|| panic!("an inside-out cylinder wall must refuse pre-body (M6-6 rider)"));
     let s = err.to_string();
     println!("a1cyl refused: {}", &s[..s.len().min(110)]);
     assert!(
