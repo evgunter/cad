@@ -668,8 +668,6 @@ pub(crate) struct LineFilletTrims<T: Real> {
     /// tan(φ/2): the corner's signed half-turn — its sign is the turn
     /// side σ (positive = left/counterclockwise).
     pub half_tan: T,
-    /// The tangent setback `r·|tan(φ/2)|` from the corner along each leg.
-    pub setback: T,
     /// The incoming leg's fit classification (`fillet_leg_fit`,
     /// exact-order band): `Positive` emits the straight piece + declared
     /// joint, `Zero` suppresses both (exact fit).
@@ -739,7 +737,6 @@ pub(crate) fn line_line_fillet_trims<T: Real + Decide + Bounds>(
         t2,
         bulge,
         half_tan,
-        setback,
         fit_in,
         fit_out,
     })
