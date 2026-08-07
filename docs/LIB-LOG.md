@@ -42,8 +42,8 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
 
 | Unit | Spec | Model (draw) | Lane | Status |
 |---|---|---|---|---|
-| U1 façade | docs/LIB-U1-SPEC.md | OPUS (block LIB-1 draw byte 13 = opus,fable; difficulty S logged pre-draw) | lib-u1 | dispatched 2026-08-06 |
-| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | dispatched 2026-08-06 |
+| U1 façade | docs/LIB-U1-SPEC.md | OPUS (block LIB-1 draw byte 13 = opus,fable; difficulty S logged pre-draw) | lib-u1 | PR #232 OPEN 27/27 green (impl ~158k tok, ~1h); blinded review in flight (lane lib-u1-review) 2026-08-07 |
+| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | PR-1 in progress: algebra core + lattice + lowering committed on lib/u2-paths; extracted line_line_fillet_trims from LoopBuilder::fillet (shared closed form, behavior-preserving) |
 
 ## Orchestrator decisions (LB-numbered)
 
