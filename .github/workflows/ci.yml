@@ -843,9 +843,10 @@ jobs:
   # findings; this job can only fail on harness breakage (sweep or
   # parse failure), a hygiene regression, or the #99 litmus no longer
   # firing. The committed baseline + threshold provenance:
-  # docs/k-report-data/m4-eps-*.csv.gz and tools/k-lint/src/lib.rs
-  # (docs/K-REPORT.md M4 addendum has the histogram + percentile
-  # reasoning).
+  # docs/k-report-data/m7-eps-*.csv.gz and tools/k-lint/src/lib.rs
+  # (docs/K-REPORT.md M7 addendum has the histogram, the percentile
+  # re-argument, and the ε-coupled ruling; the m4-/m5- baselines stay
+  # committed as the durable record).
   k-lint:
     name: k-lint (advisory)
     runs-on: ubuntu-latest
@@ -878,6 +879,6 @@ jobs:
       - name: large-K lint (advisory — prints, never fails on findings)
         run: |
           cd tools/k-lint && cargo run -- \
-            ../../target/k-fresh/m4-eps-1e-6.csv \
-            ../../target/k-fresh/m4-eps-1e-9.csv \
-            ../../target/k-fresh/m4-eps-1e-12.csv
+            ../../target/k-fresh/k-eps-1e-6.csv \
+            ../../target/k-fresh/k-eps-1e-9.csv \
+            ../../target/k-fresh/k-eps-1e-12.csv
