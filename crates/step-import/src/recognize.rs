@@ -350,3 +350,232 @@ pub(crate) fn chart_flipped(patch: &NurbsSurface<f64>, promoted: &Surface<f64>) 
     let grad = geom_brep::implicit_gradient(promoted, jet.point);
     nurbs_normal.dot(grad) < 0.0
 }
+
+/// **R1 adversarial review probes (PR #264)** — NOT part of the PR;
+/// these live on the review branch only. They feed the recognizer
+/// hostile patches to falsify the certification claims by execution.
+/// P1/P2 FAIL as of 35aa0c0: the sampled certificate has no
+/// between-samples envelope (spec D-c says "schedule + envelope"), so
+/// a patch exact at the 9×9 grid but bulging between samples PROMOTES
+/// silently wrong.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod review_probes {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    const EPS_IN: f64 = 1e-9;
+
+    /// A piecewise-quadratic C0 spline in u (double interior knots →
+    /// per-span Bézier, endpoints interpolated), degree 1 in v: base
+    /// plane z = 0 on [0,8]×[0,1], with per-span mid control points
+    /// lifted to `bulge` (alternating sign so the net centroid stays
+    /// on z = 0). The surface passes EXACTLY through z = 0 at every
+    /// integer u — which is exactly the 9-point certification grid on
+    /// this domain — and reaches z = bulge/2 at span midpoints.
+    fn bulged_plane(bulge: f64, weights_value: f64) -> NurbsSurface<f64> {
+        let mut knots = vec![0.0, 0.0, 0.0];
+        for k in 1..8 {
+            knots.push(k as f64);
+            knots.push(k as f64);
+        }
+        knots.extend([8.0, 8.0, 8.0]);
+        let ku = KnotVector::clamped(knots, 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut control = Vec::new();
+        for i in 0..17 {
+            let u = i as f64 / 2.0;
+            let z = if i % 2 == 1 {
+                if (i / 2) % 2 == 0 { bulge } else { -bulge }
+            } else {
+                0.0
+            };
+            control.push(Point3::new(u, 0.0, z));
+            control.push(Point3::new(u, 1.0, z));
+        }
+        NurbsSurface::new(ku, kv, control, vec![weights_value; 34]).unwrap()
+    }
+
+    /// **P1 — the missing between-samples envelope, plane/rational
+    /// track.** Uniform weights 2.0 route the polynomial geometry
+    /// onto the sampled track; the patch lies on z = 0 at every
+    /// certification sample but bulges to ±0.25 between them.
+    #[test]
+    fn p1_rational_plane_bulge_between_samples() {
+        let patch = bulged_plane(0.5, 2.0);
+        let z_mid = patch.eval(0.5, 0.5).z.abs();
+        assert!(z_mid > 0.2, "the bulge is real: {z_mid}");
+        match recognize(&patch, EPS_IN) {
+            Recognition::Promoted { residual, kind, .. } => panic!(
+                "PROMOTED a patch that deviates {z_mid} from the plane \
+                 (kind {kind:?}, certified residual {residual:e}) — the fixed \
+                 9x9 grid missed every bulge; no between-samples envelope"
+            ),
+            other => println!("stayed unpromoted: {other:?}"),
+        }
+    }
+
+    /// **P1b — same construction, non-rational.** The hull sup-bound
+    /// track must catch it (control points deviate by `bulge`).
+    #[test]
+    fn p1b_nonrational_plane_bulge_is_caught_by_the_hull() {
+        let patch = bulged_plane(0.5, 1.0);
+        match recognize(&patch, EPS_IN) {
+            Recognition::Promoted { kind, residual, .. } => {
+                panic!("hull track promoted the bulged net: {kind:?} at {residual:e}")
+            }
+            other => println!("hull track refused, as designed: {other:?}"),
+        }
+    }
+
+    /// **P2 — the missing envelope, cylinder track (non-rational).**
+    /// Integer-u samples lie EXACTLY on the unit cylinder (the whole
+    /// 9×9 grid and the estimator's three azimuth samples); span-mid
+    /// control points pushed radially bulge ~0.15 off the cylinder
+    /// between samples. Every cylinder certificate is grid-only, so a
+    /// missing envelope PROMOTES a non-cylinder silently.
+    #[test]
+    fn p2_cylinder_bulge_between_samples() {
+        let mut knots = vec![0.0, 0.0, 0.0];
+        for k in 1..8 {
+            knots.push(k as f64);
+            knots.push(k as f64);
+        }
+        knots.extend([8.0, 8.0, 8.0]);
+        let ku = KnotVector::clamped(knots, 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let step = core::f64::consts::FRAC_PI_2 / 8.0;
+        let mut control = Vec::new();
+        for i in 0..17 {
+            let theta = (i as f64 / 2.0) * step;
+            let r = if i % 2 == 1 { 1.3 } else { 1.0 };
+            let (x, y) = (r * theta.cos(), r * theta.sin());
+            control.push(Point3::new(x, y, 0.0));
+            control.push(Point3::new(x, y, 1.0));
+        }
+        let patch = NurbsSurface::new(ku, kv, control, vec![1.0; 34]).unwrap();
+        let p = patch.eval(0.5, 0.5);
+        let dev = ((p.x * p.x + p.y * p.y).sqrt() - 1.0).abs();
+        assert!(dev > 0.05, "the bulge is real: {dev}");
+        match recognize(&patch, EPS_IN) {
+            Recognition::Promoted { kind, residual, .. } => panic!(
+                "PROMOTED a bulged non-cylinder (true radial deviation {dev}) as \
+                 {kind:?} with certified residual {residual:e} — the fixed 9x9 \
+                 grid sampled only the exact-cylinder points"
+            ),
+            other => println!("stayed unpromoted: {other:?}"),
+        }
+    }
+
+    /// **P3 — the ε_in boundary on the hull track.** One control
+    /// point of an otherwise exact plane lifted by δ; the fitted
+    /// plane's residual is 5δ/6 on this 6-point net.
+    #[test]
+    fn p3_near_plane_boundary_behavior() {
+        let patch_with = |delta: f64| {
+            let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let control = vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+                Point3::new(0.5, 0.0, delta),
+                Point3::new(0.5, 1.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+            ];
+            NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap()
+        };
+        match recognize(&patch_with(0.5 * EPS_IN), EPS_IN) {
+            Recognition::Promoted { kind, residual, .. } => {
+                assert_eq!(kind, PromotedKind::Plane);
+                assert!(residual <= EPS_IN, "truthful residual: {residual:e}");
+            }
+            other => panic!("0.5×ε_in must promote: {other:?}"),
+        }
+        match recognize(&patch_with(2.0 * EPS_IN), EPS_IN) {
+            Recognition::Promoted { kind, residual, .. } => {
+                panic!("2×ε_in promoted as {kind:?} at {residual:e}")
+            }
+            other => println!("2×ε_in stayed unpromoted: {other:?}"),
+        }
+        match recognize(&patch_with(1.2 * EPS_IN), EPS_IN) {
+            Recognition::Promoted { residual, .. } => {
+                println!("boundary case promoted at residual {residual:e}")
+            }
+            other => println!("boundary case stayed unpromoted: {other:?}"),
+        }
+    }
+
+    /// **P4 — a rational EXACT plane goes through the sampled grid
+    /// (dual-track) and still promotes.**
+    #[test]
+    fn p4_rational_exact_plane_promotes_via_the_sampled_track() {
+        let patch = bulged_plane(0.0, 3.0);
+        match recognize(&patch, EPS_IN) {
+            Recognition::Promoted { kind, residual, .. } => {
+                assert_eq!(kind, PromotedKind::Plane);
+                assert!(residual <= 1e-15, "exact plane: {residual:e}");
+            }
+            other => panic!("the rational exact plane must promote: {other:?}"),
+        }
+    }
+
+    /// **P5 — a genuinely freeform patch stays NURBS, and D9: two
+    /// runs are bit-identical.**
+    #[test]
+    fn p5_freeform_stays_nurbs_and_recognition_is_deterministic() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let mut control = Vec::new();
+        for i in 0..4 {
+            for j in 0..3 {
+                let (x, y) = (i as f64, j as f64);
+                control.push(Point3::new(x, y, (1.3 * x + 0.7 * y).sin()));
+            }
+        }
+        let patch = NurbsSurface::new(ku, kv, control, vec![1.0; 12]).unwrap();
+        match recognize(&patch, EPS_IN) {
+            Recognition::StaysNurbs | Recognition::IllConditioned { .. } => {}
+            Recognition::Promoted { kind, residual, .. } => {
+                panic!("freeform patch promoted as {kind:?} at {residual:e}")
+            }
+        }
+        let promoting = bulged_plane(0.0, 2.0);
+        let (a, b) = (recognize(&promoting, EPS_IN), recognize(&promoting, EPS_IN));
+        match (a, b) {
+            (
+                Recognition::Promoted {
+                    surface: sa,
+                    residual: ra,
+                    ..
+                },
+                Recognition::Promoted {
+                    surface: sb,
+                    residual: rb,
+                    ..
+                },
+            ) => {
+                assert_eq!(ra.to_bits(), rb.to_bits(), "residual bits");
+                assert_eq!(
+                    format!("{sa:?}"),
+                    format!("{sb:?}"),
+                    "surface bits (debug repr)"
+                );
+            }
+            other => panic!("both runs must promote identically: {other:?}"),
+        }
+    }
+
+    /// **P6 — Plane wins the selection order on an exactly planar
+    /// patch** (structural pin of the D-c2 preference's plane-first
+    /// arm; a genuinely double-certifying patch is not authorable
+    /// without the cylinder estimator succeeding on a plane).
+    #[test]
+    fn p6_plane_wins_the_selection_order() {
+        let patch = bulged_plane(0.0, 1.0);
+        match recognize(&patch, EPS_IN) {
+            Recognition::Promoted { kind, .. } => assert_eq!(kind, PromotedKind::Plane),
+            other => panic!("the exact plane promotes: {other:?}"),
+        }
+    }
+}
