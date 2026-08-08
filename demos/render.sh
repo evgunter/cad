@@ -261,6 +261,11 @@ publish() {
     done
     for f in "$stage"/*.fail.txt; do
         [ -e "$f" ] || continue
+        name=$(basename "$f" .fail.txt)
+        # The scene produced no frame this pass, so any frame left from
+        # an earlier one goes: the sheet must show the labeled failure,
+        # not a stale cell that no longer corresponds to anything.
+        rm -f "$rd/$name.png"
         mv -f "$f" "$rd/"
     done
 }
