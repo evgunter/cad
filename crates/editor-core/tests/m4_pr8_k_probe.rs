@@ -21,7 +21,8 @@
 //! merged corpus+demos CSV stays attributable (the demo sweep — the
 //! tour binary's `k-probe` mode — namespaces `demo/<scene>`).
 //! `scripts/k_probe_sweep.sh` runs both and merges; the committed
-//! baseline lives in `docs/k-report-data/m4-eps-<ε>.csv`.
+//! baseline lives in `docs/k-report-data/m7-eps-<ε>.csv.gz`
+//! (the m4-/m5- rows stay committed as the historical record).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

@@ -19,12 +19,20 @@
 //! baseline floor at 1e-9 and 1e-12. The FIXED bracket's margin
 //! (~1.1e-16, a definite Zero) must stay clean at every row — the
 //! lint separates the two brackets exactly as #99 hindsight demands.
+//!
+//! This contract is the BINDING lower bound on the M7 floor refresh
+//! (`BASELINE_FLOOR_MARGIN`, now 4.0e-5): the floor may never be cut
+//! below 2.315e-6, or the datum goes definite-and-clean at 1e-9 and
+//! 1e-12 and the lint stops earning its name. Current clearance: 1.2
+//! decades. `carrier_line_circle` is also deliberately NOT an
+//! ε-coupled family — the #99 margin is a model-scale distance, so it
+//! must answer to the metre floor.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::k_stats::{self, Probe};
 use geom_core::{Point2, Tolerance};
-use k_lint::{Reason, lint_sample};
+use k_lint::{BASELINE_FLOOR_MARGIN, Reason, is_eps_coupled, lint_sample};
 use profile::{LoopBuilder, Profile, ProfileLoop, SketchPlane};
 
 fn p2(x: f64, y: f64) -> Point2<Probe> {
@@ -99,6 +107,14 @@ fn old_bracket_datum_lights_up_at_every_eps_row() {
         (2.31e-6..2.32e-6).contains(&margin),
         "the resurrected #99 margin moved: {margin:e} (expected ~2.315e-6)"
     );
+    // The floor refresh's binding lower bound, asserted rather than
+    // documented: cut the floor below this datum and the two definite
+    // rows below go clean.
+    assert!(
+        !is_eps_coupled("carrier_line_circle") && margin < BASELINE_FLOOR_MARGIN,
+        "the baseline floor {BASELINE_FLOOR_MARGIN:e} no longer covers \
+         the #99 datum {margin:e} — the litmus contract is broken"
+    );
 
     for (zero, escalate) in EPS_ROWS {
         // The outcome the kernel records at this row: in-band at
@@ -108,7 +124,7 @@ fn old_bracket_datum_lights_up_at_every_eps_row() {
         } else {
             "positive"
         };
-        let reasons = lint_sample(margin, zero, escalate, outcome);
+        let reasons = lint_sample("carrier_line_circle", margin, zero, escalate, outcome);
         assert!(
             !reasons.is_empty(),
             "the #99 datum must light up the lint at eps={zero:e} \
@@ -142,7 +158,7 @@ fn fixed_bracket_stays_clean_at_every_eps_row() {
     );
     for (zero, escalate) in EPS_ROWS {
         // Rounding noise classifies Zero at every supported ε.
-        let reasons = lint_sample(margin, zero, escalate, "zero");
+        let reasons = lint_sample("carrier_line_circle", margin, zero, escalate, "zero");
         assert!(
             reasons.is_empty(),
             "the FIXED bracket must lint clean at eps={zero:e}: {reasons:?}"

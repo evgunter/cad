@@ -345,9 +345,9 @@ klint_tool() {
 klint_advisory() {
   scripts/k_probe_sweep.sh target/k-fresh || return 1
   (cd tools/k-lint && cargo run -- \
-    ../../target/k-fresh/m4-eps-1e-6.csv \
-    ../../target/k-fresh/m4-eps-1e-9.csv \
-    ../../target/k-fresh/m4-eps-1e-12.csv)
+    ../../target/k-fresh/k-eps-1e-6.csv \
+    ../../target/k-fresh/k-eps-1e-9.csv \
+    ../../target/k-fresh/k-eps-1e-12.csv)
 }
 
 # Rows always run (discipline greps are cheap; rustfmt is --all by design

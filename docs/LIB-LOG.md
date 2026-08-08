@@ -43,7 +43,7 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
 | Unit | Spec | Model (draw) | Lane | Status |
 |---|---|---|---|---|
 | U1 façade | docs/LIB-U1-SPEC.md | OPUS (block LIB-1 draw byte 13 = opus,fable; difficulty S logged pre-draw) | lib-u1 | **MERGED #232** (27/27; A/B row recorded at merge). Review APPROVE-WITH-FIXES 0/2/3, rubric 5/3/3; fix pass complete (guard pin proven by executed falsification; Band into prelude; 2 honest closure exceptions). Residue filed: #234 (DuplicateName unnameable), serde_json::Value exception flagged for U9 (see backlog note), #235 (stale .holder cosmetics). Lanes cleaned. |
-| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | PR-1 delivered: PR #233 OPEN, CI 26/1-skip green (impl ~364k tok, ~4.1h); 11 numbered findings; blinded review in flight (lane lib-u2-review) |
+| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | **PR-1 MERGED #233** (26/1-skip; A/B row recorded at merge — review 1/1/3, rubric 5/4/5; sign-domain gates landed via the crash-surviving lane diff, adopted by a finisher). **PR-2 MERGED #238** (review APPROVE 0/0/3, rubric 5/4/5, zero silent devs; all seven claims independently re-executed incl. the bracket's exact ulp drift). **UNIT U2 CLOSED.** NOTE-3 pickup banked: the zero-geometry-diff contract has no re-runnable in-repo pin — bank a differential regression row as a U3 rider. |
 
 ## Orchestrator decisions (LB-numbered)
 
@@ -81,6 +81,28 @@ Findings that feed the profiles-as-programs representation draft
   (anchor-consistent scenes lower bit-identically; others change
   SAID not shape and need per-scene care).
 
+**PR-2's corpus-scale walls (report §6; the richest v2 input yet):**
+
+1. **Directors-as-angles are ulp-dirty** (sin_cos quantization) —
+   the corpus's ONE line×line fillet (bracket, the #101 showcase)
+   could not move because .angle(PI) carries 1.22e-16 into the
+   ray; chord-derived directions are exact. Exactness depends on
+   which spelling bound the ray.
+2. **Missing arc binding modes**: via-point (4 loops) and
+   centre-first (2 loops, one with documented carrier intent).
+3. **Closed carriers unauthorable** (4 plain circles — the
+   corpus's most common raw shape); finding 7 generalizes to any
+   closed-carrier/both-sides-tangent loop.
+4. **Arc-carrier fillets** (rocker's 5: arc×line, arc×arc) all
+   outside the v1 line×line door.
+5. **No far-end-anchor spelling** for a post-fillet side ending
+   at a sharp vertex.
+6. Polygon/rect sugar is the single most-wanted verb (12 of 26
+   loop sites are polygons; slab's extents tuples are already
+   dimension expressions the chain re-flattens).
+7. "Algebra-authored ≠ validated" (junction checks are local;
+   the bowtie authors cleanly) — an honest doc point, not a bug.
+
 ## U9 backlog notes (accumulating)
 
 - `MigrationStep`'s `serde_json::Value` payload is the one closure
@@ -89,6 +111,22 @@ Findings that feed the profiles-as-programs representation draft
   gets a typed wrapper.
 - `BooleanOp` name collision (topo's in the prelude, editor_core's
   by path) — revisit if bindings prefer the document-layer one.
+
+## Incident log
+
+- **2026-08-07 (day): WSL CRASH** (Evan, evening). Symptoms as
+  seen from this side: the U2 PR-1 fix pass died TWICE to stream
+  stalls ("no progress for 600s"), then the orchestrator session
+  itself was down ~10h. Probable trigger: machine load (the U1
+  fix agent had measured load 14–19 under three concurrent
+  lanes; the U1 fix-pass byte-identity re-run was blocked 4×
+  by the same contention). Crash-window battery results were
+  already treated as suspect; ~151 lines of partial fix work in
+  the lib-u2 lane survived intact. On resume: monitors re-armed,
+  state re-verified (#233 OPEN/MERGEABLE, main unmoved at
+  e7213f6), one fresh finisher dispatched — ONE build-running
+  agent at a time until WSL stability is understood; width-1
+  slot locks remain the ceiling for anything heavier.
 
 ## Resting state (2026-08-06)
 
