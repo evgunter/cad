@@ -296,3 +296,11 @@ spec is the orchestrator's next writing task.
   schema-free. The geom-core Length<T> name collision is a named
   spec risk. Difficulties pre-logged: U7-v1 = M, U8a = M. Draws:
   U7 → LIB-3 slot 2 (OPUS), U8a → LIB-3 slot 3 (fable).
+
+- **Note (Evan, in-chat 2026-08-08)**: LB7/LB8 confirmed as
+  sequencing-class. When the geometric-selector follow-up is
+  designed, it should RE-HOME GQ7's selection-filter portion out
+  of GUI-DESIGN into the library design docs — Evan: "a bunch of
+  general-usefulness stuff got originally mentioned in
+  GUI-DESIGN even though it's more broadly applicable." The GUI
+  becomes a consumer of the general mechanism, not its owner.
