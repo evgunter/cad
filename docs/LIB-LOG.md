@@ -43,7 +43,7 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
 | Unit | Spec | Model (draw) | Lane | Status |
 |---|---|---|---|---|
 | U1 façade | docs/LIB-U1-SPEC.md | OPUS (block LIB-1 draw byte 13 = opus,fable; difficulty S logged pre-draw) | lib-u1 | **MERGED #232** (27/27; A/B row recorded at merge). Review APPROVE-WITH-FIXES 0/2/3, rubric 5/3/3; fix pass complete (guard pin proven by executed falsification; Band into prelude; 2 honest closure exceptions). Residue filed: #234 (DuplicateName unnameable), serde_json::Value exception flagged for U9 (see backlog note), #235 (stale .holder cosmetics). Lanes cleaned. |
-| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | **PR-1 MERGED #233** (26/1-skip; A/B row recorded at merge — review 1/1/3, rubric 5/4/5; sign-domain gates landed via the crash-surviving lane diff, adopted by a finisher). **PR-2 (tour rework) dispatched** on branch lib/u2-demos, same arm; per-scene disposition + byte-diff census + v2 evidence report required. |
+| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | **PR-1 MERGED #233** (26/1-skip; A/B row recorded at merge — review 1/1/3, rubric 5/4/5; sign-domain gates landed via the crash-surviving lane diff, adopted by a finisher). **PR-2 delivered: #238 OPEN** (impl ~157k tok, ~1.4h): 12 loop sites moved (bit-identical lowering), 13 gap-named raw, 1 measured-raw (bracket: sin(PI) director quantization, 1 ulp into the fillet wall — kept raw per the measure-first rule), byte-identity at all 3 ε rows; SIX-item v2 wall list delivered (see accumulator). Blinded review in flight. |
 
 ## Orchestrator decisions (LB-numbered)
 
@@ -80,6 +80,28 @@ Findings that feed the profiles-as-programs representation draft
   defines the bit-identity expectation for PR-2's scene rework
   (anchor-consistent scenes lower bit-identically; others change
   SAID not shape and need per-scene care).
+
+**PR-2's corpus-scale walls (report §6; the richest v2 input yet):**
+
+1. **Directors-as-angles are ulp-dirty** (sin_cos quantization) —
+   the corpus's ONE line×line fillet (bracket, the #101 showcase)
+   could not move because .angle(PI) carries 1.22e-16 into the
+   ray; chord-derived directions are exact. Exactness depends on
+   which spelling bound the ray.
+2. **Missing arc binding modes**: via-point (4 loops) and
+   centre-first (2 loops, one with documented carrier intent).
+3. **Closed carriers unauthorable** (4 plain circles — the
+   corpus's most common raw shape); finding 7 generalizes to any
+   closed-carrier/both-sides-tangent loop.
+4. **Arc-carrier fillets** (rocker's 5: arc×line, arc×arc) all
+   outside the v1 line×line door.
+5. **No far-end-anchor spelling** for a post-fillet side ending
+   at a sharp vertex.
+6. Polygon/rect sugar is the single most-wanted verb (12 of 26
+   loop sites are polygons; slab's extents tuples are already
+   dimension expressions the chain re-flattens).
+7. "Algebra-authored ≠ validated" (junction checks are local;
+   the bowtie authors cleanly) — an honest doc point, not a bug.
 
 ## U9 backlog notes (accumulating)
 
