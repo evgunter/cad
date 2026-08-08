@@ -304,3 +304,18 @@ spec is the orchestrator's next writing task.
   general-usefulness stuff got originally mentioned in
   GUI-DESIGN even though it's more broadly applicable." The GUI
   becomes a consumer of the general mechanism, not its owner.
+
+**SWITCH spec drafted (2026-08-08, PR #263 — OPEN, awaiting two
+Evan inputs)**: (1) PROFILES-V2 §V3 REVISED — the naming-stability
+claim was contradicted by the required measurement
+(canonicalization is geometry-dependent; lex-band crossings
+renumber; posture = the M6-5 freeze doctrine, Vanished fail-loud);
+(2) corpus-authorability dent to VQ1(b) — boss's 3-arc split and
+the die half-disc are same-carrier-by-design, chain-unauthorable
+forever; recommendation = split-control primitives in the
+circle() lowering style; half-disc equator-vertex measurement
+ordered first. Spec staging: 3 PRs as TWO A/B units (SWITCH-P
+profile L, SWITCH-E editor-core+lift XL); hard-sequenced behind
+the G2 finisher (path.rs) and U8a (Unit type). Drafter also
+re-verified f64-resolution and found memo hashing already
+satisfies V3 via resolved-bits convention.
