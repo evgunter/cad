@@ -2854,8 +2854,7 @@ mod r1_review_probes {
     fn quasi_uniform_synthesis_matches_stated_integer_knots_bitwise() {
         // degree 2, 5 control points → spans = 3 → [0,0,0,1,2,3,3,3].
         let synth = quasi_uniform_knots(1, 2, 5).unwrap();
-        let stated =
-            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap();
+        let stated = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap();
         assert_eq!(
             format!("{synth:?}"),
             format!("{stated:?}"),
