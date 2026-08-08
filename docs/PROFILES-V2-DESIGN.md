@@ -409,37 +409,51 @@ taken: U3 (SectionSegments retirement) should target the program
 form directly, per LQ2's "or the v2 program form directly, given
 LQ4".
 
-**Round-1 sharpening — (b) vs (c), for Evan's lean-(b).** Four
-facts the lean should weigh:
+**Round-1/2 sharpening — (b) vs (c), for Evan's lean-(b). REVISED:
+round 2's probe landed** — the round-1 claim "the bowtie forces a
+raw seat in every option" was WRONG and is retracted. The bowtie's
+junctions are all locally sharp and legal, so the algebra authors it
+happily and only global `validate` refuses it (PR-2's own
+observation: "algebra-authored ≠ validated"); moreover the demo is a
+KERNEL-layer tour scene (LoopBuilder-direct) that no document ever
+persists, and the raw kernel layer stays public under every option
+regardless (§V6). A chain-only v4 schema is genuinely reachable
+under full (b) growth. The corrected decision surface:
 
-1. **(b) alone cannot be complete.** The bowtie is a raw loop
-   forever BY DESIGN (it demos the raw layer's fail-loud validate),
-   so the v4 schema admits a raw-vocabulary seat under EVERY option
-   — (b) included. The real decision is therefore never "does raw
-   exist at rest"; it is only **"do raw arguments get Exprs"**.
-2. Given the raw seat is forced, Expr-bearing raw args are nearly
-   free (V2's table applies verbatim to vertex coords, bulges,
-   raw-fillet radii) — and they deliver the census's actual
-   pressure points (plate's hole centers and radius) AT the switch,
-   instead of after vocabulary growth catches up.
-3. **What (b) gates**: the schema switch, and through it U9
-   (bindings ship against v2, LQ4). The cheap growth (circle,
-   arc_via, arc_center, far-end anchor — closed forms already
-   exist as `sugar::bulge_from_via`/`bulge_from_center`) is not
-   the gate; the expensive tail is rocker's five arc-carrier
-   fillets (line×arc / arc×arc corner construction), the one item
-   with real geometric risk. (b) puts that on the critical path of
-   the entire bindings program.
-4. **The options converge under the recommended package**: rule
-   (c) for the schema AND authorize (b)'s cheap subset immediately
-   as follow-on authoring units. The corpus's raw census then
-   shrinks 14 → ~4 loops (rocker + bowtie) before bindings ship —
-   (b)'s uniform-definition story arrives where it is cheap,
-   without gating the switch on the risky item. Under this package
-   (c) is not "raw as a permanent peer"; it is "the schema is
-   complete on day one, chain coverage grows on its own schedule,
-   and the lift tool MEASURES the convergence" (each new binding
-   mode turns refusals into lifts, §V5).
+- **(b)'s virtue — the cleaner end state**: one vocabulary,
+  accidental-tangency-unrepresentable EVERYWHERE, no
+  weaker-guarantee sibling in the schema. This matters most at
+  RELEASE, because post-release there are no clean breaks (LQ7):
+  whatever vocabulary the schema ships with is permanent surface.
+- **(b)'s cost — the gate**: the switch, and with it Expr-bearing
+  profiles, the parametric payoff, and U9 (bindings ship against
+  v2, LQ4), queue behind vocabulary growth INCLUDING the one item
+  with real geometric risk (rocker's five arc-carrier fillets:
+  line×arc / arc×arc corner construction). The cheap growth
+  (circle, arc_via, arc_center, far-end anchor — closed forms
+  already exist as `sugar::bulge_from_via`/`bulge_from_center`) is
+  not the gate; that tail is.
+- **(c)'s virtue**: schema complete and parametric value delivered
+  AT the switch (plate's hole centers/radius become Exprs
+  immediately — the census's pressure points); risky geometry off
+  the critical path; the lift tool measures chain-coverage
+  convergence (§V5).
+- **(c)'s cost, properly stated**: a second vocabulary with weaker
+  guarantees (declarations are claims, `TangencyContradicted`
+  reachable) — which, if it survives to release, is permanent.
+
+**The reversibility rider that reconciles them (recommended
+package, revised):** pre-release breaks are free (LQ7a). Rule (c)
+now, authorize the cheap growth immediately, and add a
+**pre-release review point**: if chain coverage reaches the whole
+corpus before release (growth wins the race), the raw vocabulary is
+REMOVED in a clean break and (b)'s end state ships; if not, raw
+ships Expr-bearing rather than gating release on rocker's closed
+forms. This dominates (b)-first in every branch except one: if the
+raw vocabulary should never exist even TRANSIENTLY (so corpus and
+binding code never grow raw-program habits whose later removal is
+churn). Whether that transient existence is acceptable is the
+actual VQ1 ruling.
 
 ## V5. The v1→program lift — tool status post-clean-break (PROPOSED FIRM)
 
