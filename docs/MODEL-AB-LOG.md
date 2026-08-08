@@ -300,6 +300,9 @@ current distribution + settle the ε-coupled-family rule; the 102
 advisory flags/run are the symptom) = **M**. Draw follows this log
 entry. DRAWN: byte 47 → (opus, fable) — the k-lint floor refresh
 gets OPUS; fable remainder → the next M7-eligible dispatch.
+REMAINDER ASSIGNED (2026-08-07): the band-seam re-mint unit
+(ftc_11 + cq_red_cube flip back to imports); difficulty logged
+PRE-ASSIGNMENT from the substrate inventory = **M**.
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
