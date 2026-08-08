@@ -236,6 +236,198 @@ motifs are BUILDER FUNCTIONS over the one chain
 associative at the language level, no second path value, no glue
 seam to value-match.
 
+## 2a. G1 vocabulary growth, 2026-08-08 — ratified via PROFILES-V2-DESIGN VQ1(b)
+
+PROFILES-V2-DESIGN §V7's VQ1 ruling is **(b)-direct**: the algebra
+grows until the persisted corpus authors fully, BEFORE the schema
+switch. This section is that growth's cheap set — five constructors,
+all closed-form, all lowering to the same v1 form §2 lowers to. The
+evidence is LIB-U2 PR-2's corpus-scale wall list (LIB-LOG accumulator):
+W1 directors-as-angles are ulp-dirty, W2 missing arc binding modes,
+W5 no far-end-anchor spelling. W4 (arc-carrier fillets — the rocker's
+five) is explicitly NOT here; it is G2.
+
+Nothing in §2 is revised. The lattice, the entry rule, the seam rule,
+the fillet's DOF count and PQ4 all stand exactly as ratified; these are
+additions to the surface, and each one states below what it consumes,
+what it determines, and what it refuses.
+
+### The two exactness contracts
+
+Every constructor here obeys both, and they are what make the growth
+safe to migrate a byte-identical corpus onto:
+
+1. **Authored points are stored verbatim.** A point the author types is
+   emitted as itself. Every derived quantity — bulges, rays, corners,
+   trim points — is computed at LOWERING, from those authored points.
+   Nothing computed is ever re-typed by the author, which is why the
+   algebra and a hand-built chain given the same authored points agree
+   bit for bit, not merely to tolerance.
+2. **Direction-exact rays.** A director may fix an ANGLE (and derive
+   its ray) or fix a RAY directly. The second spelling exists because
+   the first cannot be exact: `sin_cos` quantizes, so `.angle(PI)`
+   yields `(-1, 1.2246e-16)` and carries that ulp into every corner
+   downstream. Where a ray is what the author means, the ray is what
+   gets stored.
+
+### 1. `circle(center, r)` — a complete-loop program form
+
+**Consumes** a centre and a radius. **Determines** the whole loop: it
+IS the profile loop, not a chain step, so there is no tip to continue
+from and no verb that follows it.
+
+It authors **no seam**. That is the load-bearing property. PQ4 (§6: a
+closed loop's seam sits at a junction or fillet; closing mid-side is
+refused) is a rule about CHAINS, and it is untouched — a chain still
+cannot close mid-carrier. The conventional split into two semicircles
+at the ±x poles is the primitive's PRIVATE lowering, exactly the M2
+closed-carrier precedent: a detail of how a closed carrier reaches a
+vertex+bulge document, not a junction anyone said. The two joints are
+same-carrier identities, so nothing is declared tangent — there is no
+tangency to declare, it is one circle.
+
+The primitive offers no control over the split, deliberately. A demo
+that needs a particular split (the tour's boss wants three 120° arcs so
+a boolean can cross a three-face rim seam) is asking for a specific
+lowering, which is a raw-chain question, not an authoring one.
+
+**Refusals**: `r` not definitely positive (`NonpositiveCircleRadius`),
+through the same funnel as the other sign gates.
+
+**Composition**: a circle is one loop among others — profiles mix
+circle loops and chain loops freely. §6's mixed-authoring rule is read
+at LOOP granularity, as it always was: no loop is half raw.
+
+### 2. `arc_via(via, end)` — the arc through a point
+
+**Consumes** a positioned tip, a through-point, and an endpoint.
+**Determines** the arc through those three points. A free arc: the
+junction semantics are `arc_to`'s exactly — on a directed point the §4
+item 1 check runs against the arc's start tangent; `arc_via(v, Start)`
+is a sharp arc seam; on a fillet arrival it refuses `ArcArrivalFillet`
+(§7).
+
+The through-point is authored but is NOT a chain vertex — it is the
+bulge's input, and the bulge is derived at lowering by the existing
+inscribed-angle closed form. This is the first constructor where an
+authored point is not itself on the emitted chain, and the §4 item 3
+invariant survives intact: the through-point lies on the final PATH
+(it is on the arc), just not at a vertex.
+
+**Refusals**: a through-point within ε_input of the chord LINE
+(`ArcViaCollinear`) — one refusal for the whole collinear class,
+on-chord, beyond-the-end and on-endpoint alike, because all three make
+the same statement (three collinear points name no arc) and the
+recourse is the same (move it off the chord, or author a line);
+coincident endpoints (`DegenerateArcChord`).
+
+### 3. `arc_center(center, end, winding)` — the arc about a centre
+
+**Consumes** a positioned tip, a centre, an endpoint, and a winding.
+**Determines** the arc from tip to end about that centre, with the
+winding selecting which of the two.
+
+The winding is **structural** (`Ccw` | `Cw`), not a number whose sign
+the author has to get right. The choice is discrete, so it is spelled
+discretely — the same reasoning that makes `.tangent()` a verb rather
+than an angle that happens to match.
+
+This is the centre-INTENT spelling: a lantern's belly is *the sphere's
+own arc about the globe centre*, and authoring it this way says so,
+rather than fitting an arc and hoping its carrier lands on the sphere.
+
+**Equidistance is CHECKED, never repaired.** |tip − centre| and
+|end − centre| go through the funnel; a definite mismatch refuses
+`ArcCenterNotEquidistant`, naming both radii. Silently re-projecting
+the centre onto the endpoints' bisector — or an endpoint onto the
+circle — would MOVE AN AUTHORED POINT, which §4 item 3 forbids
+outright. Three points that contradict each other are a bug in the
+authoring, and the algebra's job is to say which two disagree, not to
+pick a winner. An undecidable margin escalates; it is not rounded into
+agreement.
+
+**Refusals**: the equidistance mismatch above; a centre within ε_input
+of an endpoint (`DegenerateArcCenter` — no radius, so the winding
+selects nothing); coincident endpoints (`DegenerateArcChord` — a full
+turn is a closed carrier, which is `circle`'s business, not a leg's).
+
+### 4. `to(anchor)` on a bound arrival direction — the far-end anchor
+
+**Consumes** a fillet arrival whose direction is bound, plus a point.
+**Determines** the arrival side's position bit AND the side's end: the
+side runs from its trim point and STOPS at `anchor`. Lattice-wise
+`Angle → Point` (directed flavor), which is why it belongs to the `to`
+family: like `.to(dp)`, it is the one-step form of a binding that would
+otherwise take two.
+
+W5 was a gap in EXPRESSION, not in geometry. §2 already says every side
+is anchored by a real on-path point plus a direction, and
+`.angle(θ).at(p)` binds exactly that pair — the arrival carrier is the
+line through `p` in direction θ, the corner is still the carrier
+intersection, never authored. What was missing was only the ability for
+the side to STOP at its anchor: `.at(p)` leaves the tip Directed at
+`p`, and every continuation runs PAST it, so a side whose natural end
+is its far vertex had to be authored as a synthetic mid-side anchor
+plus a length — a point that is not a vertex, and a number nobody
+measured. `.angle(θ).to(p)` determines exactly what `.angle(θ).at(p)`
+determines; it adds no geometry, no new DOF, and no new corner rule.
+
+Consequently the fillet resolution, its corner gates, and the anchor
+fit checks are `.at(p)`'s, unchanged, and `p` is on the final path
+either way, authored once. The result is a directed point (incoming
+tangent θ), so the next verb's junction check runs as after any leg.
+An exact trim fit — the arc reaching `anchor` with no straight run left
+— emits no degenerate segment: the side simply IS the arc, mirroring
+how the incoming side's exact fit is already handled.
+
+The direction must be bound FIRST: with the anchor as the terminus, the
+side's carrier is what the director supplies.
+
+**Refusals**: reached at the ENTRY, where the direction is bound but no
+side is waiting to be ended, it refuses `FarEndAnchorWithoutFillet` —
+the entry authors its first side with `.at(p)`, and the seam is
+authored at the back (§2's entry rule).
+
+**Open, deliberately**: a `Start`-targeting far-end form
+(`.fillet(r).angle(θ).to(Start)` — an arrival side ending at the entry
+vertex) is well-defined by the same reading and is NOT in this surface.
+It is a second closing spelling, and the corpus has no case for it; if
+one appears, it is an addition here, not an improvisation at the call
+site.
+
+### 5. `toward(dx, dy)` — the exact director
+
+**Consumes** the same angular DOF as `.angle(θ)` — the SAME lattice
+slot, set at most once per side, with the same §4 item 1 junction check
+on a directed point and the same fillet resolution on a bound arrival.
+**Determines** the departure ray directly.
+
+`(dx, dy)` is normalized and the unit ray stored VERBATIM, with no trig
+round-trip. Axis-aligned and Pythagorean directions are therefore
+exact: `.toward(-1, 0)` gives `(-1, 0)`, where `.angle(PI)` gives
+`(-1, 1.2246e-16)`. Only the components' RATIO is read — the magnitude
+is not a length and binds nothing — so the author never has to
+normalize by hand.
+
+This kills the W1 drift class at its source. The corpus's one line×line
+fillet (the bracket, the #101 showcase) could not move to the algebra
+under LIB-U2 PR-2 because its corner is reached through a director, and
+an angle-spelled axis ray put both lowered trim vertices 1 ulp off the
+hand chain. With `.toward` the corner comes out exactly, and the
+bracket lowers bit-identically.
+
+**Refusals**: `(0, 0)`, and any norm within ε_input of zero, refuse
+`ZeroDirection`. The sub-ε case is refused rather than normalized
+because normalizing such a vector amplifies its own noise into the ray
+— and since only the ratio matters, the recourse costs nothing: scale
+the components up.
+
+**Representation note**: the angle slot's PAYLOAD widens to
+angle-or-direction (both are carried: the ray for every ray
+construction, the angle for the arithmetic `.turn(δ)` and arc end
+tangents genuinely need). §5's shape is unchanged — one struct, two
+optional bits, fields private, binders the only constructors.
+
 ## 3. Surface vocabulary
 
 | Form | Lattice transition | Notes |
@@ -255,6 +447,12 @@ seam to value-match.
 | `tangent_arc_to(p)` | Directed → Point | the unique tangent arc |
 | `nurbs_reversed(curve)` / `nurbs_mirrored(curve)` | Directed → Point | structural variants of rigid placement |
 | `.turn(δ)` | directed point → Directed | `.angle(incoming + δ)`; `turn(0)` refuses → `.tangent()`; `turn(±π)` hits the reverse class |
+| **TIER 0 — G1 VOCABULARY GROWTH** (§2a; VQ1(b)) | | |
+| `circle(c, r)` | — → complete loop | closed-carrier program form; authors no seam, so PQ4 is untouched |
+| `arc_via(via, p)` | Point → Point | the arc through three authored points; bulge derived at lowering |
+| `arc_center(c, p, winding)` | Point → Point | centre-intent arc; winding structural; equidistance checked, never repaired |
+| `.to(p)` on a bound arrival direction | Angle → Point | the far-end anchor: the arrival side ENDS at its authored anchor |
+| `.toward(dx, dy)` | Point → Directed; Open → Angle | the exact director — same slot as `.angle`, ray stored verbatim |
 
 All-rounded square (4 anchors + 4 directions; every mᵢ a real
 on-path point, e.g. a side midpoint):
@@ -290,7 +488,14 @@ parallel/non-intersecting, corner behind the ray);
 for the entry point under a seam fillet);
 `FilletCarrierUnsupported` (NURBS-adjacent fillets); the
 overdetermined tangent-line close; `TangencyContradicted` from the
-verify layer as today.
+verify layer as today. From §2a: `NonpositiveCircleRadius`;
+`ZeroDirection`; `ArcViaCollinear`; `DegenerateArcChord`;
+`ArcCenterNotEquidistant`; `DegenerateArcCenter`;
+`FarEndAnchorWithoutFillet`. Compile-time, from §2a: `circle`'s result
+is a loop, so no chain verb follows it; `.toward` is a second director
+exactly as `.angle` is; the new arc modes are legs from a Point, so
+they are ill-typed on a Directed tip; the far-end `.to(p)` needs the
+position slot empty and the angle slot bound.
 
 ## 4. Safety invariants
 
