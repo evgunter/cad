@@ -1333,7 +1333,12 @@ impl Open {
 /// components carries meaning, so the recourse is free — scale them up.
 fn unit_from_components<T: Decide>(dx: T, dy: T) -> Result<Dir<T>, PathError<T>> {
     let band = linear_band()?;
-    let norm = (dx * dx + dy * dy).sqrt();
+    // `powi(2)`, never `dx * dx`: a director's components straddle zero
+    // by construction (every axis direction has a zero component), and
+    // the plain product treats its factors as independent, so an
+    // interval enclosure picks up a spurious negative lower bound and
+    // poisons this `sqrt` (memories/interval-square-poison.md).
+    let norm = (dx.powi(2) + dy.powi(2)).sqrt();
     match decide("path_director_norm", Length::of(norm), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(PathError::ZeroDirection { dx, dy }),
