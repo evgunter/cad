@@ -657,12 +657,37 @@ fn seam_vertex_on_loop(
             t += TAU;
         }
         if t < spec.t1 {
-            crossing = Some((u.edge, t));
+            crossing = Some((u.edge, t, q));
             break;
         }
     }
-    if let Some((edge, t)) = crossing {
+    if let Some((edge, t, q)) = crossing {
         let (first, second, mid_v) = split_at_param(solid, edge, t, mint);
+        // The split vertex must be the EXACT crossing point `q` (rim
+        // centre + radius · u_ref, no trigonometry), not the carrier's
+        // trig evaluation at `t` — the evaluation carries up-to-a-ulp
+        // dust off the half-plane, and the dust would shift the
+        // re-derived parameters of a re-import (the writer round-trip
+        // must be a fixed point). For the same reason both halves'
+        // parameter intervals are re-derived from their endpoint
+        // POSITIONS through the exact convention a re-import applies
+        // (`geometry::endpoint_params`): a half whose minted interval
+        // crossed the period boundary would otherwise carry a
+        // parameter representative shifted by 2π from the one the
+        // re-import derives — the same arc, but not bit-identical
+        // under evaluation.
+        solid.vertices.insert(mid_v, q);
+        for half in [first, second] {
+            let spec = &solid.edges[&half];
+            let self_loop = spec.start == spec.end;
+            let (ps, pe) = (solid.vertices[&spec.start], solid.vertices[&spec.end]);
+            let (t0, t1) =
+                crate::geometry::endpoint_params(half, &spec.carrier, ps, pe, self_loop)?;
+            if let Some(spec) = solid.edges.get_mut(&half) {
+                spec.t0 = t0;
+                spec.t1 = t1;
+            }
+        }
         // Patch EVERY face — including this band's own loops (the rim
         // may be shared with the neighbouring face, or with another
         // band whose mint runs later).
