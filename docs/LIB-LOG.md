@@ -128,6 +128,31 @@ Findings that feed the profiles-as-programs representation draft
   agent at a time until WSL stability is understood; width-1
   slot locks remain the ceiling for anything heavier.
 
+## Program state at the U2-close seam (2026-08-08)
+
+- **U1 + U2 both MERGED** (#232, #233, #238); A/B rows recorded.
+- **PROFILES-V2-DESIGN RATIFIED (#242 MERGED, 2026-08-08)** after
+  a three-round conversation: round 1 accepted the drift-proof
+  driver construction + serde-as-transport; round 2's probe
+  RETRACTED the bowtie-forces-raw-seat claim; round 3 Evan
+  delegated VQ1 — **RULED (b)-DIRECT** (chain-only schema; the
+  additive-vs-subtractive LQ7 asymmetry decides: raw can be added
+  later additively, removal has a pre-release deadline).
+  **Revised ladder consequence**: vocabulary-growth units precede
+  the switch — **G1** (cheap set: circle primitive, arc_via,
+  arc_center, far-end anchor, VQ4 exact directors) then **G2**
+  (arc-carrier fillet modes; sizing starts by measuring sugar's
+  existing arc-leg fillet forms, M5 S2/#137); then the SWITCH
+  unit(s) (schema v4 chain-only, replay driver, Expr binding,
+  slot addressing); U9 queues behind the switch (Evan: no hurry).
+  U5/U6/U7/U8 remain freely schedulable around them.
+- **U3 dispatched** (fable, block LIB-2 first draw; spec
+  docs/LIB-U3-SPEC.md from the executed census at
+  cad-work/u3-census.md). Sole build agent per the WSL posture.
+- Next in judgment scope after U3: U5 (read-back), U6/U7
+  (relations/selection); U4 wants its LQ3 measured spec; U8→U9
+  queue behind GQ5 + the v2 ruling.
+
 ## Resting state (2026-08-06)
 
 Slots: 1 = lib-u1 (Opus), 2 = lib-u2 (fable). Monitors:
