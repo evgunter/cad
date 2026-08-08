@@ -570,10 +570,11 @@ about geometric truth. That is precisely why S8 is a selection rule
 and not a Q1 predicate, and the lift inherits that status unchanged —
 no funnel entry, no escalation arm, no error.
 
-### Two stated walls (LB4, LB5)
+### Three stated walls (LB4, LB5, and one mechanism wall)
 
-Named here because they are the unit's measured evidence, not
-oversights:
+Named here because they are the unit's evidence, not oversights. The
+first two are ratified rulings; the third is an implementation
+consequence reported for ratification, not an implementer's taste:
 
 - **Line × circle derived corners are anchor-rounding-dependent**
   (0–4 ulps, measured). Where a site's natural anchors do not land
@@ -585,6 +586,20 @@ oversights:
   that a `.to(Start)` seam retrim would eat and that §4 item 4/PQ4
   correctly refuse to reproduce as a mid-carrier junction. The EYE
   migrates: its sharp tip is the two-carrier junction `.to_on` keeps.
+- **A STRAIGHT arrival off an ARC departure is refused** (typed,
+  naming the carrier doors). This is a mechanism wall, not a geometric
+  one: the lifted ladder reads the S8 diagnostic channel, so its
+  `Bounds` bound propagates to every caller of any door that can
+  resolve an arc-carrier fillet — and the ratified discipline confines
+  that bound to the one boundary file, which the generic
+  `.at`/`.angle`/`.to` doors are not. Consequences: a loop may have at
+  most one straight side (the entry's), and the rocker's arc→line
+  corners could not migrate on this route even had LB4 allowed them.
+  It is unreachable from any chain authored before §2b existed. Two
+  ways out exist — admit the path state machine to the allowlist as a
+  second entry, or erase the capability into a function pointer fixed
+  at `.fillet(r)` (which puts `.fillet` itself behind `Bounds`) — and
+  both are ratification calls.
 
 ## 3. Surface vocabulary
 
