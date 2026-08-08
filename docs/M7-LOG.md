@@ -1007,3 +1007,34 @@ k-lint cell + hosted-green citation, then presenting to Evan via a
 docs-only PR with the explicit closure affordance. After his
 ruling: the two M7 units (band-seam re-mint takes the block M7-9
 fable remainder), the M7 walk, and M8's opening (C7).
+
+## Seam entry (2026-08-08): M6 CLOSED; k-lint GATED; M7-5 MERGED — one unit left before the walk
+
+**M6 CLOSED** (Evan's lgtm on #243's affordance, comment 5224869607;
+the ratified walk is docs/M6-EXIT-WALK.md; carried-items register =
+#250). Riding the same ruling: **the k-lint row is a GATE** (#253 —
+exit-2 findings voice carrying the interpretation discipline, exit-1
+harness voice, baseline gates green; #250 row closed).
+
+**M7-5 (band-seam re-mint) MERGED as #252** — both wild refusal
+fixtures import first-class; census/oracles exact; the project's
+second NOT-MERGEABLE-AS-IS (A/B row has the prose: the unwired
+import-path backstop, the ~18° winding window minting silent
+complements, the unpinned refusal — all closed, re-review APPROVE,
+window proven GONE by dense sweep). Beyond-scope fact recorded in
+#252's body: ordinary (non-band) imported solids get NO tier
+validation at import — worth its own conversation before the M7
+walk treats "imports are tier-valid at rest" as a blanket claim.
+
+**A/B state**: v3 triples adopted (M7-10 open: byte 205 →
+opus,fable,opus; slot 0 = the gate flip, MERGED, excluded class);
+M7-9 completed as a v2 pair (KLINT opus + M7-5 fable, both rows
+recorded at merge under the v3 discipline). Dual-review count:
+U3 = 1, M7-5 = 2 (single review, verified G1 unmerged at merge);
+the NEXT blinded-lane merge (likely G1 or stage-1) is row 3 → R2.
+
+**Runway**: stage-1 NURBS recognition (M7-10 fable slot; substrate
+→ spec → dispatch) → the M7 EXIT WALK (present to Evan) → M8 opens
+with C7 per the standing ruling. Banked/watch: #235 (stale slot
+holders — cosmetic), the FreeCAD per-scene timeout, #222, #214
+riders, Q9 (fuse burning: the lib program approaches U9/U10).
