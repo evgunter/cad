@@ -368,6 +368,11 @@ implementation rows only) = **S**. Draw follows this entry. DRAWN: byte 205 (no
 rejection), 205 mod 3 = 1 → block M7-10 arm order (opus, fable,
 opus) — the gate flip (slot 0) gets OPUS; fable rides slot 1
 (stage-1 recognition, next dispatch); opus remainder in slot 2.
+SLOT 1 DISPATCHED (2026-08-08): stage-1 NURBS recognition
+(always-promote per the #256 ruling — no recognition option;
+promoted-fixed-point re-pins; QUASI_UNIFORM vocabulary unlock;
+plane+cylinder kinds); difficulty logged PRE-DISPATCH from the
+substrate inventory = **M**. Arm = FABLE (the drawn slot-1).
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
