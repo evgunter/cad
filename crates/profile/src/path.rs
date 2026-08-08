@@ -1380,7 +1380,14 @@ impl<T: Decide> Core<T> {
                     let head = self.head()?;
                     let bulge = bulge_from_center(head, t.t1, centre, sweep);
                     let radius = (t.t1 - centre).norm_squared().sqrt();
-                    self.push_arc(t.t1, bulge, ArcData { center: centre, radius })?;
+                    self.push_arc(
+                        t.t1,
+                        bulge,
+                        ArcData {
+                            center: centre,
+                            radius,
+                        },
+                    )?;
                 }
             }
             self.declare_last();

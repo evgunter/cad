@@ -64,12 +64,12 @@ use super::{
     junction_check, linear_band,
 };
 use crate::ProfileLoop;
-use crate::sugar::bulge_from_center;
 use crate::fillet_select::nearest_joint;
 use crate::k_stats::decide;
+use crate::sugar::bulge_from_center;
 use crate::sugar::{
-    ArcFilletCandidate, ArcFilletOutcome, ArcSweep, ArcTrimRefusal, FilletLegShape, arc_fillet_trims,
-    signed_swept,
+    ArcFilletCandidate, ArcFilletOutcome, ArcSweep, ArcTrimRefusal, FilletLegShape,
+    arc_fillet_trims, signed_swept,
 };
 use crate::validate::FilletLegCarrier;
 
@@ -443,10 +443,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     }
     // (3) the ratified construction at each surviving corner, fed
     // exactly the arguments the builder door would have taken.
-    let (in_shape, out_shape) = (
-        incoming.carrier.leg_shape(),
-        arrival.carrier.leg_shape(),
-    );
+    let (in_shape, out_shape) = (incoming.carrier.leg_shape(), arrival.carrier.leg_shape());
     let mut joints: Vec<ArcFilletCandidate<T>> = Vec::new();
     let mut legs_of: Vec<Option<(Point2<T>, ArcSweep)>> = Vec::new();
     for corner in kept {
@@ -635,9 +632,13 @@ impl<T: Decide + Bounds> PartialPath<T, NoPos, NoAng> {
     ) -> Result<PartialPath<T, HasPos<Plain>, HasAng>, PathError<T>> {
         let band = linear_band()?;
         let dir = carrier_tangent(p, centre, winding, band)?;
-        let pending = self.core.pending.take().ok_or(PathError::OverdeterminedJunction {
-            site: "arc-carrier fillet arrival without an opened fillet",
-        })?;
+        let pending = self
+            .core
+            .pending
+            .take()
+            .ok_or(PathError::OverdeterminedJunction {
+                site: "arc-carrier fillet arrival without an opened fillet",
+            })?;
         let trims = resolve(
             departure_side(&pending),
             arrival_side(p, centre, winding),
@@ -710,9 +711,13 @@ impl<T: Decide + Bounds> PartialPath<T, NoPos, NoAng> {
         // The arrival's END tangent is the carrier's tangent at the
         // entry point — the incoming half of the seam junction.
         let end_ang = carrier_tangent(start_pos, centre, winding, band)?;
-        let pending = self.core.pending.take().ok_or(PathError::OverdeterminedJunction {
-            site: "arc-carrier close without an opened fillet",
-        })?;
+        let pending = self
+            .core
+            .pending
+            .take()
+            .ok_or(PathError::OverdeterminedJunction {
+                site: "arc-carrier close without an opened fillet",
+            })?;
         let trims = resolve(
             departure_side(&pending),
             arrival_side(start_pos, centre, winding),
