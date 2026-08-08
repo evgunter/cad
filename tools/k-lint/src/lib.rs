@@ -2,9 +2,12 @@
 //! K-telemetry CSVs (the `scripts/k_probe_sweep.sh` output — every
 //! predicate decision of the Band 4 corpus + the demo scenes at the
 //! recording scalar) and FLAGS margins that crowd a decision boundary.
-//! **Advisory in its first iteration: the CI row prints flags and
-//! never fails on them** (it fails only on harness breakage — missing
-//! or malformed input).
+//! **The CI row is a GATE: a finding fails it.** A firing lint is
+//! evidence that the margin DISTRIBUTION moved — possibly that a
+//! threshold or the baseline is stale — never a licence to nudge
+//! geometry until the lint goes quiet; the CLI prints that discipline
+//! and its recourse on every failure (`main.rs`). Harness breakage
+//! (missing or malformed input) fails with its own distinct voice.
 //!
 //! # What gets flagged
 //!
@@ -36,7 +39,7 @@
 //! are order/degeneracy decisions with their own scale, not
 //! coincidence classifications — their margins are not commensurate
 //! with the ε machinery this lint watches. Rule (1) is outcome-based
-//! and exempt from the gate.
+//! and exempt from that ambient-band guard.
 //!
 //! # Threshold provenance (baseline: docs/k-report-data/m7-eps-*.csv.gz)
 //!
@@ -235,11 +238,13 @@ pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 /// round whose width clears the target, so the leftover headroom is
 /// whatever that round happened to land on. 8.9% of headroom on such a
 /// minimum is weak protection by construction, and a future sweep may
-/// legitimately dip under 150·ε and print advisory flags with nothing
-/// wrong. That is the rule working (the margin really is close to the
-/// band), not the constant being mis-cut — but it means this threshold
-/// should be re-derived from a larger population, not merely re-rounded,
-/// before the lint is ever flipped to gating.
+/// legitimately dip under 150·ε and fire the row with nothing wrong.
+/// That is the rule working (the margin really is close to the band),
+/// not the constant being mis-cut. So this is the threshold whose
+/// firing is likeliest to be threshold staleness rather than a
+/// distribution change: it wants re-derivation from a larger
+/// population, not a re-rounding — and never a geometry tweak (the
+/// CLI's recourse (1), `main.rs`).
 pub const EPS_COUPLED_FLOOR_RATIO: f64 = 1.5e2;
 
 /// Whether `predicate` is one of the [`EPS_COUPLED_PREDICATES`].
@@ -317,8 +322,9 @@ pub struct Scan {
     pub proximity_capped: Option<(f64, f64)>,
 }
 
-/// A malformed input line (harness breakage — this FAILS the CI row;
-/// findings never do).
+/// A malformed input line: HARNESS BREAKAGE — the lint could not run.
+/// Findings fail the CI row too, but in their own voice and with their
+/// own exit code (`main.rs`); the two are never blurred.
 #[derive(Debug)]
 pub struct ParseError {
     pub line: usize,
@@ -377,7 +383,9 @@ pub fn lint_sample(
 /// # Errors
 ///
 /// The first malformed line — bad column count, unparseable float, or
-/// an UNKNOWN outcome string (harness breakage; findings never error).
+/// an UNKNOWN outcome string — harness breakage. A FINDING is never an
+/// `Err`: it comes back in [`Scan::flags`], and the CLI turns it into
+/// its own failure voice.
 pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     let mut flags = Vec::new();
     let mut scanned = 0usize;
