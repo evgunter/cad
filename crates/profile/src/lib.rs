@@ -115,6 +115,7 @@
 //! data *values*, which validation catches with typed errors — never a
 //! guess (the poison policy of `geom_core::real`).
 
+mod fillet_select;
 pub mod k_stats;
 pub mod path;
 mod seg;
