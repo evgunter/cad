@@ -180,3 +180,12 @@ The v2 representation design conversation is QUEUED behind U2
 PR-2's merge (ruling 3 above). Next units in judgment scope after
 U1/U2: U3 (SectionSegments retirement) and U5 (read-back) are the
 natural nexts; U7 unblocked (M6-5 merged #219/#220).
+
+**Dual-review sample #1 = G1** (2026-08-08): post-amendment
+implementation rows are U3 (1), M7-5 (2; the other orchestrator's
+KLINT-GATE correctly excluded as CI-infra), G1 (3) → G1 draws the
+first dual sample. R1 and R2 both in flight against the same head
+(lanes lib-g1-review / lib-g1-review2), identical briefs, R2
+blinded to R1's existence and report. Both rubric triples and
+finding counts will be recorded R1/R2 in the row; fix pass off
+the adjudicated union.
