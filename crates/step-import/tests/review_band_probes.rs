@@ -173,6 +173,12 @@ fn r1_inside_out_torus_band_never_imports_green() {
         Err(e) => eprintln!("inside-out band refused: {e}"),
         Ok(StepImport::Solid { body, .. }) => {
             let mp = topo::mass_properties(&body);
+            eprintln!(
+                "tier1 {:?} tier2 {:?} tier3 {:?}",
+                topo::validate(&body),
+                topo::validate_closed(&body),
+                topo::validate_geometric(&body)
+            );
             panic!(
                 "inside-out torus band imported GREEN: census {:?}, volume {:?}",
                 census(&body),
@@ -251,6 +257,12 @@ fn r1_defect_wrap_misread_on_washer90() {
             eprintln!(
                 "washer90 imported: census {:?} volume {v:?} (true {v_true:e})",
                 census(&body)
+            );
+            eprintln!(
+                "tier1 {:?} tier2 {:?} tier3 {:?}",
+                topo::validate(&body),
+                topo::validate_closed(&body),
+                topo::validate_geometric(&body)
             );
             let v = v.unwrap();
             assert!(
