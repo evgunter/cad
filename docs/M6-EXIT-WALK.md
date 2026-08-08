@@ -1,10 +1,12 @@
 # M6 exit walk — criteria vs evidence
 
-**STATUS: ASSEMBLED (2026-08-07) and presented for Evan's closure
-ruling. Every criterion is dispositioned against main's tip
-(79db554, the #239 merge — full-matrix run 31242416671 GREEN).
-Closure is Evan's call; this document becomes M6's done-state of
-record on his 👍 on the presentation PR's closure comment.**
+**STATUS: RATIFIED — M6 IS CLOSED (Evan, 2026-08-08, PR #243
+comment 5224869607: "lgtm!"). This document is M6's done-state of
+record. Every criterion was dispositioned against main's tip at
+presentation (79db554, the #239 merge — full-matrix run
+31242416671 GREEN). Follow-ups from the same ruling: the M6
+carried-items register issue, and the k-lint gate flip with the
+interpretation-discipline message (Evan's design, same comment).**
 
 **How to read this.** Criteria are quoted **verbatim** from
 `docs/M6-PLAN.md` — the six numbered units, the "also in scope when
