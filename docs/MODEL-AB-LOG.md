@@ -325,3 +325,6 @@ U1 dispatched first → OPUS; U2 = fable remainder.
 Block LIB-2 draw (2026-08-08): byte 134 → (fable, opus).
 Difficulty logged pre-draw: U3 SectionSegments retirement = M.
 U3 dispatched first → fable; opus = remainder for the next unit.
+G1 rides block LIB-2's remainder (2026-08-08): U3 took the fable
+first slot; G1 = OPUS remainder. Difficulty logged pre-dispatch:
+G1 vocabulary-growth cheap set = M.

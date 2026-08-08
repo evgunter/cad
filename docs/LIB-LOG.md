@@ -131,14 +131,21 @@ Findings that feed the profiles-as-programs representation draft
 ## Program state at the U2-close seam (2026-08-08)
 
 - **U1 + U2 both MERGED** (#232, #233, #238); A/B rows recorded.
-- **The v2 design conversation is OPEN as PR #242**
-  (docs/PROFILES-V2-DESIGN.md) — AWAITING EVAN: VQ1 ruling
-  (raw-loop status; recommendation = two vocabularies under one
-  program umbrella), VQ2–VQ9 yes/nos, firm-section sign-off.
-  Watchlist + away-channel monitor armed. Work continues stacked:
-  nothing in U3 depends on the VQ1 answer (retiring
-  SectionSegments targets the profile vocabulary either way; if
-  VQ1(c) rules, U3's door types absorb it at its own spec level).
+- **PROFILES-V2-DESIGN RATIFIED (#242 MERGED, 2026-08-08)** after
+  a three-round conversation: round 1 accepted the drift-proof
+  driver construction + serde-as-transport; round 2's probe
+  RETRACTED the bowtie-forces-raw-seat claim; round 3 Evan
+  delegated VQ1 — **RULED (b)-DIRECT** (chain-only schema; the
+  additive-vs-subtractive LQ7 asymmetry decides: raw can be added
+  later additively, removal has a pre-release deadline).
+  **Revised ladder consequence**: vocabulary-growth units precede
+  the switch — **G1** (cheap set: circle primitive, arc_via,
+  arc_center, far-end anchor, VQ4 exact directors) then **G2**
+  (arc-carrier fillet modes; sizing starts by measuring sugar's
+  existing arc-leg fillet forms, M5 S2/#137); then the SWITCH
+  unit(s) (schema v4 chain-only, replay driver, Expr binding,
+  slot addressing); U9 queues behind the switch (Evan: no hurry).
+  U5/U6/U7/U8 remain freely schedulable around them.
 - **U3 dispatched** (fable, block LIB-2 first draw; spec
   docs/LIB-U3-SPEC.md from the executed census at
   cad-work/u3-census.md). Sole build agent per the WSL posture.
