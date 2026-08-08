@@ -275,8 +275,7 @@ fn try_cylinder(
     let b = qb - q0;
     let axb = a.cross(b);
     let denom = 2.0 * axb.norm_squared();
-    let center =
-        q0 + (axb.cross(a) * b.norm_squared() + b.cross(axb) * a.norm_squared()) / denom;
+    let center = q0 + (axb.cross(a) * b.norm_squared() + b.cross(axb) * a.norm_squared()) / denom;
     let radial = q0 - center;
     let radius = radial.norm();
     if !(radius.is_finite() && radius > 0.0) {

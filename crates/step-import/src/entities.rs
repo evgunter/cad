@@ -21,10 +21,10 @@ use geom_surfaces::{NurbsSurface, Surface};
 
 use crate::chart;
 use crate::error::StepImportError;
-use crate::recognize;
 use crate::geometry;
 use crate::normalize;
 use crate::parse::{Instance, Record, StepFile, Value};
+use crate::recognize;
 use crate::units::{self, UnitKind};
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 
@@ -1161,12 +1161,14 @@ impl<'a> Resolver<'a> {
                         sense = !sense;
                     }
                     let census = bounds_census(&bound_specs, edges);
-                    self.normalizations.borrow_mut().push(StructureNormalization {
-                        face: id,
-                        kind: NormalizationKind::SurfacePromotion { to: kind, residual },
-                        file_census: census,
-                        kernel_census: census,
-                    });
+                    self.normalizations
+                        .borrow_mut()
+                        .push(StructureNormalization {
+                            face: id,
+                            kind: NormalizationKind::SurfacePromotion { to: kind, residual },
+                            file_census: census,
+                            kernel_census: census,
+                        });
                     surface = promoted;
                 }
                 recognize::Recognition::StaysNurbs => {}
