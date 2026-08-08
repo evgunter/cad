@@ -296,6 +296,22 @@ persisted.**
   (lex-band crossings) is documented and the acceptance scene
   pins a stable case and a Vanished case. Canonicalization
   itself is out of the switch's fence.
+  **REVISED AGAIN (round 2, Evan's seamlessness question): the
+  renumbering class can be ELIMINATED for program loops, by
+  construction.** A chain program has an intrinsic start (the
+  entry vertex) and an authored direction — so profile-entity
+  NAMING for program-defined loops anchors to PROGRAM-STRUCTURAL
+  positions (step indices), not to the geometry-derived lex-min
+  rotation. Structure decides, geometry never (the C6 shape,
+  now real): parameter edits cannot renumber, because nothing
+  geometric enters the index. Orientation is likewise stable
+  within valid parameter ranges (winding sign is continuous and
+  a zero-area crossing refuses as degenerate before any flip).
+  The lex-min canonicalization survives wherever a
+  geometry-canonical form is genuinely needed internally, but
+  stops being the naming substrate for program loops. Scope: the
+  SWITCH unit's editor-core PR; the freeze doctrine remains the
+  backstop for STRUCTURAL edits, as everywhere.
 
 Alternative (persist the cache alongside the program, "segments as
 provenance in the file") — rejected above on the strict-door + D9
