@@ -244,15 +244,51 @@ fn chart_direction(
     ((hi - lo).abs() > 0.1).then_some(hi > lo)
 }
 
-/// Runs both normalizations over one shell (module docs).
+/// Runs the shell normalizations (module docs). `eps_in` is the
+/// file's own declared uncertainty in kernel metres — the band mint's
+/// budget for recognizing an existing rim vertex as already sitting
+/// at the seam azimuth.
 pub(crate) fn normalize_shell(
     solid: &mut SolidSpec,
+    eps_in: f64,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
+    band_seam(solid, eps_in, mint, sink)?;
     apex_cone(solid, mint, sink)?;
     full_torus(solid, mint, sink)?;
     wall_inversion(solid)
+}
+
+/// **The seamless periodic band** (M7-5): a cylinder/torus face whose
+/// two bounds each wrap the chart's full u period with no seam
+/// generator between them, tagged by detection at
+/// [`crate::entities`]'s face gate. Re-minted as ONE single-loop face
+/// whose loop uses a minted seam generator twice — the shape a
+/// natively revolved wall carries.
+fn band_seam(
+    solid: &mut SolidSpec,
+    _eps_in: f64,
+    _mint: &mut dyn FnMut() -> u64,
+    _sink: &mut Vec<StructureNormalization>,
+) -> Result<(), StepImportError> {
+    // Interim (M7-5 sub-unit 1): detection is live and the mint lands
+    // in the next sub-unit, so a tagged face refuses HERE, typed —
+    // never assembled with its two full-period bounds (the body would
+    // not be tier-3 measurable).
+    for face in &solid.faces {
+        if face.band {
+            return Err(StepImportError::Topology {
+                id: face.id,
+                what: "a curved ADVANCED_FACE recognized as a seamless periodic band \
+                       (two full-period rim bounds, no seam generator): the M7-5 seam \
+                       mint re-mints this at shell level; until it lands the face \
+                       refuses rather than assembling a body that is not tier-3 \
+                       measurable",
+            });
+        }
+    }
+    Ok(())
 }
 
 /// **The cylinder/cone wall orientation cross-check** (M6-6 rider, the
@@ -543,6 +579,7 @@ fn apex_cone(
                 },
             ],
         }],
+        band: false,
     };
     let face_b = FaceSpec {
         id: face_entity,
@@ -562,6 +599,7 @@ fn apex_cone(
                 in_use,
             ],
         }],
+        band: false,
     };
     solid.faces[face_id] = face_a;
     solid.faces.insert(face_id + 1, face_b);
@@ -817,6 +855,7 @@ fn full_torus(
             outer: true,
             uses: vec![u(rim.edge, rs), u(h1, q), u(rim_id, !rs), u(h1, !q)],
         }],
+        band: false,
     };
     let face_b = FaceSpec {
         id: face_entity,
@@ -826,6 +865,7 @@ fn full_torus(
             outer: true,
             uses: vec![u(rim_id, rs), u(h2, q), u(rim.edge, !rs), u(h2, !q)],
         }],
+        band: false,
     };
     solid.faces[fi] = face_a;
     solid.faces.insert(fi + 1, face_b);
