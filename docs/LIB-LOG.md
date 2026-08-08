@@ -197,3 +197,13 @@ the §2a PQ4-phrasing clause, and the missing in-band gate rows.
 First reviewer-variance data point: HIGH agreement on the
 consequential finding, disjoint tails. Fix pass dispatched off
 the union.
+
+**G2 dispatched** (2026-08-08, OPUS — first slot of triple LIB-3
+(opus,opus,fable), L pre-logged; lane lib-g2, branch
+lib/g2-arcfillets, spec docs/LIB-G2-SPEC.md from the executed
+census). Risk item named in the brief: derived-corner bitwise
+exactness for the rocker differentials. G2 = post-amendment row 4
+(single review); remainders (opus, fable) bank for the next two
+units. After G2: the SWITCH unit (schema v4 + replay driver +
+Expr binding per PROFILES-V2) is the ladder's next rung — its
+spec is the orchestrator's next writing task.
