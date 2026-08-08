@@ -23,7 +23,9 @@
 //! that [`crate::Profile::validate`] rejects with typed errors — the
 //! sugar never guesses and never panics.
 
-use geom_core::{Band, Bounds, Decide, Indeterminate, Length, Point2, Real, Sign, Tolerance, Vec2};
+use geom_core::{
+    Band, BandError, Bounds, Decide, Indeterminate, Length, Point2, Real, Sign, Tolerance, Vec2,
+};
 
 use crate::k_stats::decide;
 use crate::validate::{EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, ProfileError};
@@ -303,45 +305,35 @@ impl<T: Real> LoopBuilder<T> {
     where
         T: Decide + Bounds,
     {
-        let v1 = corner - self.head();
-        let v2 = next - corner;
-        // powi(2)-discipline squares (interval lane: a straddling-zero
-        // factor must not poison the enclosure — memories/
-        // interval-square-poison.md); norm_squared is powi inside.
-        let m = (v1.norm_squared() * v2.norm_squared()).sqrt();
-        let half_tan = v1.perp_dot(v2) / (m + v1.dot(v2));
-        let bulge = half_tan / (T::one() + (T::one() + half_tan.powi(2)).sqrt());
-        let setback = radius * half_tan.abs();
-        let len1 = v1.norm_squared().sqrt();
-        let len2 = v2.norm_squared().sqrt();
-        // The exact-order band (validate module docs): no representable
-        // f64 lies strictly inside it, so f64 classification is total.
-        let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
-        let fit = |len: T, leg: FilletLeg| -> Result<Sign, ProfileError> {
-            match decide("fillet_leg_fit", Length::of(len - setback), exact) {
-                Ok(Sign::Negative) => Err(ProfileError::FilletDoesNotFit {
-                    leg,
-                    carrier: FilletLegCarrier::Line,
-                    setback: setback.lo(),
-                    leg_length: len.lo(),
-                }),
-                Ok(sign) => Ok(sign),
-                Err(source) => Err(ProfileError::Escalated {
-                    site: EscalationSite::Fillet,
-                    source,
-                }),
-            }
-        };
-        let fit_in = fit(len1, FilletLeg::Incoming)?;
-        let fit_out = fit(len2, FilletLeg::Outgoing)?;
-        let t2 = corner + v2 * (setback / len2);
+        // This door owns the bracket-read diagnostics (`.lo()`): the
+        // shared trim helper stays evaluation-only (no `Bounds`) so
+        // the PATHS lowering can call it too (Bounds scope rule).
+        let trims =
+            line_line_fillet_trims(self.head(), corner, next, radius).map_err(|refusal| {
+                match refusal {
+                    TrimRefusal::DoesNotFit {
+                        leg,
+                        setback,
+                        leg_length,
+                    } => ProfileError::FilletDoesNotFit {
+                        leg,
+                        carrier: FilletLegCarrier::Line,
+                        setback: setback.lo(),
+                        leg_length: leg_length.lo(),
+                    },
+                    TrimRefusal::Escalated(source) => ProfileError::Escalated {
+                        site: EscalationSite::Fillet,
+                        source,
+                    },
+                    TrimRefusal::Band(e) => ProfileError::Band(e),
+                }
+            })?;
         let mut chain = self;
-        if fit_in == Sign::Positive {
-            let t1 = corner - v1 * (setback / len1);
-            chain = chain.line_to(t1).declare_tangent();
+        if trims.fit_in == Sign::Positive {
+            chain = chain.line_to(trims.t1).declare_tangent();
         }
-        chain = chain.arc_to(t2, bulge);
-        if fit_out == Sign::Positive {
+        chain = chain.arc_to(trims.t2, trims.bulge);
+        if trims.fit_out == Sign::Positive {
             chain = chain.declare_tangent();
         }
         Ok(chain)
@@ -677,6 +669,119 @@ impl<T: Real> LoopBuilder<T> {
         let bulge = bulge_from_center(self.head(), first, center, sweep);
         self.close_with_bulge(bulge)
     }
+}
+
+/// The line×line fillet's computed trim geometry — the output of
+/// [`line_line_fillet_trims`], shared verbatim by [`LoopBuilder::fillet`]
+/// and the PATHS algebra's lowering (`crate::path`) so both doors emit
+/// bit-identical geometry from one closed form (LIB-U2 PR-1; the same
+/// one-door discipline `fillet_corner`'s line×line delegation states).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct LineFilletTrims<T: Real> {
+    /// The incoming tangent point `corner − setback·v̂₁`. Meaningful only
+    /// when `fit_in` is `Positive` (an exact-fit side has `t1` at the
+    /// head itself and emits no straight piece; a shorter leg never gets
+    /// here — the fit gate refuses first).
+    pub t1: Point2<T>,
+    /// The outgoing tangent point `corner + setback·v̂₂` — always the
+    /// fillet arc's end.
+    pub t2: Point2<T>,
+    /// The fillet arc's bulge tan(φ/4), by the quarter-angle identity on
+    /// `half_tan` (see [`LoopBuilder::fillet`]'s docs).
+    pub bulge: T,
+    /// tan(φ/2): the corner's signed half-turn — its sign is the turn
+    /// side σ (positive = left/counterclockwise).
+    pub half_tan: T,
+    /// The incoming leg's fit classification (`fillet_leg_fit`,
+    /// exact-order band): `Positive` emits the straight piece + declared
+    /// joint, `Zero` suppresses both (exact fit).
+    pub fit_in: Sign,
+    /// The outgoing leg's fit classification, same rule.
+    pub fit_out: Sign,
+}
+
+/// A refusal from [`line_line_fillet_trims`], carried at the scalar so
+/// the helper itself needs no bracket read (Bounds scope rule): each
+/// door maps it into its own error vocabulary —
+/// [`LoopBuilder::fillet`] to [`ProfileError`] with `.lo()`
+/// diagnostics (this file is the ratified fillet-gate seam), the PATHS
+/// lowering to `PathError` with scalar payloads.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum TrimRefusal<T: Real> {
+    /// A Negative `fillet_leg_fit`: the tangent setback exceeds the
+    /// (first, in incoming→outgoing order) overrun leg's extent.
+    DoesNotFit {
+        /// The overrun leg.
+        leg: FilletLeg,
+        /// The tangent setback from the corner along the leg.
+        setback: T,
+        /// The overrun leg's extent.
+        leg_length: T,
+    },
+    /// An in-band or poisoned fit margin (doubled-back corners and
+    /// zero legs land here).
+    Escalated(Indeterminate),
+    /// The exact-order band could not be formed (unreachable for the
+    /// built-in band).
+    Band(BandError),
+}
+
+/// The ratified line×line fillet closed form (#101 review MAJOR-1;
+/// docs on [`LoopBuilder::fillet`]), extracted verbatim so the algebra
+/// lowering and the builder door share one code path: with legs
+/// v₁ = corner − head, v₂ = next − corner, computes tan(φ/2), the arc
+/// bulge, the setback, both `fillet_leg_fit` gates (exact-order band),
+/// and the tangent points.
+///
+/// # Errors
+///
+/// [`TrimRefusal`], mapped by each door — see its docs.
+pub(crate) fn line_line_fillet_trims<T: Decide>(
+    head: Point2<T>,
+    corner: Point2<T>,
+    next: Point2<T>,
+    radius: T,
+) -> Result<LineFilletTrims<T>, TrimRefusal<T>> {
+    let v1 = corner - head;
+    let v2 = next - corner;
+    // powi(2)-discipline squares (interval lane: a straddling-zero
+    // factor must not poison the enclosure — memories/
+    // interval-square-poison.md); norm_squared is powi inside.
+    let m = (v1.norm_squared() * v2.norm_squared()).sqrt();
+    let half_tan = v1.perp_dot(v2) / (m + v1.dot(v2));
+    let bulge = half_tan / (T::one() + (T::one() + half_tan.powi(2)).sqrt());
+    let setback = radius * half_tan.abs();
+    let len1 = v1.norm_squared().sqrt();
+    let len2 = v2.norm_squared().sqrt();
+    // The exact-order band (validate module docs): no representable
+    // f64 lies strictly inside it, so f64 classification is total.
+    let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(TrimRefusal::Band)?;
+    let fit = |len: T, leg: FilletLeg| -> Result<Sign, TrimRefusal<T>> {
+        match decide("fillet_leg_fit", Length::of(len - setback), exact) {
+            Ok(Sign::Negative) => Err(TrimRefusal::DoesNotFit {
+                leg,
+                setback,
+                leg_length: len,
+            }),
+            Ok(sign) => Ok(sign),
+            Err(source) => Err(TrimRefusal::Escalated(source)),
+        }
+    };
+    let fit_in = fit(len1, FilletLeg::Incoming)?;
+    let fit_out = fit(len2, FilletLeg::Outgoing)?;
+    // t1's division is guarded by use: it is consumed only on a Positive
+    // fit (len1 > setback ≥ 0 ⇒ len1 > 0); on other fits the value may
+    // be poison and is dead — total evaluation code, no branch.
+    let t1 = corner - v1 * (setback / len1);
+    let t2 = corner + v2 * (setback / len2);
+    Ok(LineFilletTrims {
+        t1,
+        t2,
+        bulge,
+        half_tan,
+        fit_in,
+        fit_out,
+    })
 }
 
 // ------------------------------------------------------------------
