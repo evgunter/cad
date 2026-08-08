@@ -333,6 +333,7 @@ dependencies = [
  "mesh",
  "profile",
  "proptest",
+ "quantity",
  "rayon",
  "serde",
  "serde_json",
