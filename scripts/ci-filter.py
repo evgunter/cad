@@ -57,7 +57,7 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_STL=true|false            watertight (admesh) row
   RUN_STEP_EXPORT=true|false    step import (freecad) row
   RUN_INTERVAL_BACKEND=true|false   interval-transcendentals' own workspace
-  RUN_K_LINT=true|false         k-lint (advisory) row
+  RUN_K_LINT=true|false         k-lint (gate) row
 """
 
 from __future__ import annotations

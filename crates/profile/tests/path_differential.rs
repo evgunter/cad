@@ -380,3 +380,233 @@ fn arrival_bound_by_line_to_matches_loopbuilder() {
     assert_loops_identical(&algebra, &hand);
     assert_validate_identically(&algebra, &hand);
 }
+
+// ------------------------------------------------------------------
+// LIB-G1 vocabulary growth: each new constructor against its
+// hand-built raw twin, bit for bit.
+// ------------------------------------------------------------------
+
+/// G1-1 — the circle primitive lowers to the corpus's existing
+/// convention bit-for-bit: two semicircles at the ±x poles, east first,
+/// bulge 1, counterclockwise, nothing declared (the two joints are
+/// same-carrier identities, not tangencies).
+#[test]
+fn circle_matches_the_raw_corpus_convention() {
+    for (cx, cy, r) in [(0.0, 0.0, 1.0), (-1.5, 0.0, 0.7), (2.0, 2.0, 0.5)] {
+        let algebra = profile::circle(p2(cx, cy), r).unwrap();
+        let hand = ProfileLoop::new(vec![
+            profile::ProfileVertex {
+                pos: p2(cx + r, cy),
+                bulge: 1.0,
+            },
+            profile::ProfileVertex {
+                pos: p2(cx - r, cy),
+                bulge: 1.0,
+            },
+        ]);
+        assert_loops_identical(&algebra, &hand);
+        assert_validate_identically(&algebra, &hand);
+    }
+}
+
+/// G1-2 — `arc_via` against `LoopBuilder::arc_to_via`: the two doors
+/// feed the same three authored points to the same closed form, so the
+/// derived bulge agrees bit-for-bit and the endpoints are verbatim.
+#[test]
+fn arc_via_matches_loopbuilder_arc_to_via() {
+    let (a, via, b) = (p2(0.0, 0.0), p2(1.0, 1.0), p2(2.0, 0.0));
+    let algebra = Open.at(a).arc_via(via, b).unwrap().line_to(Start).unwrap();
+    let hand = LoopBuilder::start(a).arc_to_via(via, b).close();
+    assert_loops_identical(&algebra, &hand);
+    assert_validate_identically(&algebra, &hand);
+}
+
+/// G1-2, closing — `arc_via(v, Start)` against `close_arc_via`: the
+/// two-arc crescent (the lily leaf's shape), whose seam and tip are
+/// both sharp arc-onto-arc junctions.
+#[test]
+fn arc_via_closing_matches_loopbuilder_close_arc_via() {
+    let (a, b) = (p2(0.0, 0.0), p2(2.0, 0.0));
+    let (out, back) = (p2(1.0, 0.5), p2(1.0, 0.1));
+    let algebra = Open
+        .at(a)
+        .arc_via(out, b)
+        .unwrap()
+        .arc_via(back, Start)
+        .unwrap();
+    let hand = LoopBuilder::start(a).arc_to_via(out, b).close_arc_via(back);
+    assert_loops_identical(&algebra, &hand);
+    assert_validate_identically(&algebra, &hand);
+}
+
+/// G1-3 — `arc_center` against `LoopBuilder::arc_to_center`, BOTH
+/// windings: the winding is structural, and it is the only thing that
+/// distinguishes the minor arc from the major one on the same three
+/// authored points.
+#[test]
+fn arc_center_matches_loopbuilder_in_both_windings() {
+    let (a, c, b) = (p2(1.0, 0.0), p2(0.0, 0.0), p2(0.0, 1.0));
+    for winding in [profile::ArcSweep::Ccw, profile::ArcSweep::Cw] {
+        let algebra = Open
+            .at(a)
+            .arc_center(c, b, winding)
+            .unwrap()
+            .line_to(c)
+            .unwrap()
+            .line_to(Start)
+            .unwrap();
+        let hand = LoopBuilder::start(a)
+            .arc_to_center(b, c, winding)
+            .line_to(c)
+            .close();
+        assert_loops_identical(&algebra, &hand);
+    }
+    // The minor-arc (Ccw) pie slice is a simple loop, so it also
+    // validates identically; the Cw major arc sweeps past its own
+    // chord and is a shape question, not an authoring one.
+    let algebra = Open
+        .at(a)
+        .arc_center(c, b, profile::ArcSweep::Ccw)
+        .unwrap()
+        .line_to(c)
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    let hand = LoopBuilder::start(a)
+        .arc_to_center(b, c, profile::ArcSweep::Ccw)
+        .line_to(c)
+        .close();
+    assert_validate_identically(&algebra, &hand);
+}
+
+/// G1-4 + G1-5, the acceptance row: **the BRACKET** — the corpus's one
+/// line×line fillet, the #101 showcase, which LIB-U2 PR-2 MEASURED as
+/// unmovable. It needed both new constructors at once: the corner is
+/// reached by an axis director (`.toward(-1, 0)`, where `.angle(PI)`
+/// carried sin(π) = 1.22e-16 into the ray), and the filleted side ends
+/// at its authored far vertex (`.to(p2(1, 3))`, where the old surface
+/// had only a synthetic mid-side anchor plus a length).
+///
+/// With both, the algebra lowers to the raw chain bit-for-bit.
+#[test]
+fn bracket_matches_loopbuilder_via_toward_and_far_end_anchor() {
+    let corner = p2(1.0, 1.0);
+    let far = p2(1.0, 3.0);
+    let r = 0.5;
+    let algebra = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(3.0, 0.0))
+        .unwrap()
+        .line_to(p2(3.0, 1.0))
+        .unwrap()
+        .toward(-1.0, 0.0)
+        .unwrap()
+        .fillet(r)
+        .unwrap()
+        .toward(0.0, 1.0)
+        .unwrap()
+        .to(far)
+        .unwrap()
+        .line_to(p2(0.0, 3.0))
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    let hand = LoopBuilder::start(p2(0.0, 0.0))
+        .line_to(p2(3.0, 0.0))
+        .line_to(p2(3.0, 1.0))
+        .fillet(corner, far, r)
+        .unwrap()
+        .line_to(far)
+        .line_to(p2(0.0, 3.0))
+        .close();
+    assert_loops_identical(&algebra, &hand);
+    assert_validate_identically(&algebra, &hand);
+}
+
+/// The same bracket said with ANGLE directors instead — the drift this
+/// constructor exists to kill, measured rather than asserted away. The
+/// authored points still land verbatim; the DERIVED trim vertices do
+/// not, because `.angle(PI)` fixes an angle and the ray comes back
+/// through `sin_cos`.
+#[test]
+fn angle_directors_drift_where_toward_is_exact() {
+    let far = p2(1.0, 3.0);
+    let r = 0.5;
+    let build = |exact: bool| {
+        let tip = Open
+            .at(p2(0.0, 0.0))
+            .line_to(p2(3.0, 0.0))
+            .unwrap()
+            .line_to(p2(3.0, 1.0))
+            .unwrap();
+        let opened = if exact {
+            tip.toward(-1.0, 0.0).unwrap()
+        } else {
+            tip.angle(std::f64::consts::PI).unwrap()
+        }
+        .fillet(r)
+        .unwrap();
+        let arrival = if exact {
+            opened.toward(0.0, 1.0).unwrap()
+        } else {
+            opened.angle(std::f64::consts::FRAC_PI_2).unwrap()
+        };
+        arrival
+            .to(far)
+            .unwrap()
+            .line_to(p2(0.0, 3.0))
+            .unwrap()
+            .line_to(Start)
+            .unwrap()
+    };
+    let exact = build(true);
+    let drifted = build(false);
+    // Same shape to any tolerance anyone could care about …
+    for (a, b) in exact.vertices.iter().zip(&drifted.vertices) {
+        assert!((a.pos - b.pos).norm_squared().sqrt() < 1e-12);
+        assert!((a.bulge - b.bulge).abs() < 1e-12);
+    }
+    // … and NOT the same bits: the two trim vertices differ, which is
+    // exactly the SAID-not-shape drift that kept the bracket raw.
+    let same_bits = exact.vertices.iter().zip(&drifted.vertices).all(|(a, b)| {
+        a.pos.x.to_bits() == b.pos.x.to_bits() && a.pos.y.to_bits() == b.pos.y.to_bits()
+    });
+    assert!(
+        !same_bits,
+        "the angle-director spelling is expected to drift; if it no longer does, \
+         the exactness claim needs re-measuring, not silently widening"
+    );
+}
+
+/// G1-5, the exactness pin itself: an axis-aligned `.toward` builds the
+/// ray verbatim, so a leg along it lands on exact coordinates — no
+/// `sin_cos` residue anywhere in the emitted geometry.
+#[test]
+fn toward_axis_rays_are_exact() {
+    let cases = [
+        (1.0, 0.0, p2(2.0, 0.0)),
+        (-1.0, 0.0, p2(-2.0, 0.0)),
+        (0.0, 1.0, p2(0.0, 2.0)),
+        (0.0, -1.0, p2(0.0, -2.0)),
+        // A Pythagorean direction normalizes exactly too (3,4)/5.
+        (3.0, 4.0, p2(1.2, 1.6)),
+    ];
+    for (dx, dy, expected) in cases {
+        // A third vertex perpendicular to the leg keeps the loop
+        // non-degenerate; only vertex 1 is under test.
+        let third = p2(expected.x - dy, expected.y + dx);
+        let lowered = Open
+            .at(p2(0.0, 0.0))
+            .toward(dx, dy)
+            .unwrap()
+            .line(2.0)
+            .unwrap()
+            .line_to(third)
+            .unwrap()
+            .line_to(Start)
+            .unwrap();
+        let v = lowered.vertices[1].pos;
+        assert_eq!(v.x.to_bits(), expected.x.to_bits(), "toward({dx},{dy}) x");
+        assert_eq!(v.y.to_bits(), expected.y.to_bits(), "toward({dx},{dy}) y");
+    }
+}

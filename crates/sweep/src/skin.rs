@@ -89,7 +89,7 @@ pub enum SkinError {
         what: &'static str,
     },
     /// A section failed the profile crate's validation door — the
-    /// same gate every extruded/revolved profile passes (LIB-U3: one
+    /// same gate every extruded/revolved profile passes (one
     /// profile vocabulary for all four body ops, so a section that
     /// would not extrude does not skin either). Open chains are not a
     /// case this door can meet: [`ProfileLoop`] closes by
@@ -815,17 +815,16 @@ pub struct LoftGeometry {
 /// vocabulary — outer boundary first, holes after, each a
 /// [`ProfileLoop`] (closed by construction; segment `j` runs from
 /// vertex `j` to vertex `(j + 1) mod n`, carrying vertex `j`'s
-/// bulge). LIB-U3: the same vocabulary extrude and revolve speak —
-/// `SectionSegments`' double-typed endpoints are retired, so an
-/// interior joint whose two namings disagree is unrepresentable.
+/// bulge) — the same vocabulary extrude and revolve speak. Each
+/// interior joint has exactly one naming, so a walls-vs-caps
+/// disagreement is unrepresentable.
 pub type Section = Vec<ProfileLoop<f64>>;
 
 /// The section's world-space traversal data for segment `j`: the
 /// `(a, b, bulge)` triple as a [`SketchSegment`], exactly the lowered
-/// form [`segment_curve`] consumes (the LIB-U3 internal vestige,
-/// justified: `segment_curve` stays public as the U4 path-leg door,
-/// and routing every wall through it keeps the produced NURBS
-/// byte-identical with the retired chain form).
+/// form [`segment_curve`] consumes (`segment_curve` stays public as
+/// the exact-path-leg door, and routing every wall through it keeps
+/// the produced NURBS on one code path).
 fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f64> {
     let vs = lp.vertices();
     let a = vs[j];
@@ -841,7 +840,7 @@ fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f
     }
 }
 
-/// Validates every section at the door (LIB-U3): each section runs
+/// Validates every section at the door: each section runs
 /// through [`Profile::validate`] against its own placement — the
 /// same gate extrude and revolve profiles pass — and the CANONICAL
 /// loops (outer counterclockwise first, holes clockwise, canonical
