@@ -18,23 +18,11 @@ use geom_core::{Affine3, Point2, Point3, Tolerance, Vec3};
 use geom_surfaces::Surface;
 use mesh::cert::dist_point_triangle;
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
-use sweep::skin::SectionSegments;
 use sweep::{SketchSegment, loft_body, segment_curve, sweep_body};
 use topo::Body;
 
-/// `common/mod.rs::quad`, constant for constant.
-fn quad(pts: [(f64, f64); 4]) -> SectionSegments {
-    let seg = |a: (f64, f64), b: (f64, f64)| SketchSegment::Line {
-        a: Point2::new(a.0, a.1),
-        b: Point2::new(b.0, b.1),
-    };
-    vec![vec![
-        seg(pts[0], pts[1]),
-        seg(pts[1], pts[2]),
-        seg(pts[2], pts[3]),
-        seg(pts[3], pts[0]),
-    ]]
-}
+mod common;
+use common::quad;
 
 /// The `loft_prism` corpus body (#212): squares at z = 0 and 2, the
 /// non-affine trapezoid at z = 1, v-degree 2 — walls degree 1×2,

@@ -24,10 +24,11 @@ use geom_curves::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_surfaces::Surface;
 use mesh::TessellateError;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::skin::SectionSegments;
-use sweep::{Extrusion, SketchSegment, extrude, loft_body};
+use sweep::{Extrusion, extrude, loft_body};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, HalfEdgeKey};
+
+mod common;
 
 // ---- The certified fitted cache (topo/tests/fixture/mod.rs, f64 +
 // cache-only) --------------------------------------------------------
@@ -159,18 +160,7 @@ fn build_fitted_cache() -> Option<PcurveCache<f64>> {
 
 /// `loft_prism` (the m7_nurbs_trimmed suite's constant).
 fn loft_prism() -> Body<f64> {
-    let quad = |pts: [(f64, f64); 4]| -> SectionSegments {
-        let seg = |a: (f64, f64), b: (f64, f64)| SketchSegment::Line {
-            a: Point2::new(a.0, a.1),
-            b: Point2::new(b.0, b.1),
-        };
-        vec![vec![
-            seg(pts[0], pts[1]),
-            seg(pts[1], pts[2]),
-            seg(pts[2], pts[3]),
-            seg(pts[3], pts[0]),
-        ]]
-    };
+    let quad = common::quad;
     let sections = vec![
         quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
         quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]),

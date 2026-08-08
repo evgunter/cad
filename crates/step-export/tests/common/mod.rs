@@ -765,19 +765,13 @@ pub fn loft_prism() -> Body<f64> {
         .body
 }
 
-/// A closed four-segment polyline section (one loop, four lines) —
-/// the plainest INTEGRAL profile: unit weights, no arc anywhere.
-fn quad(pts: [(f64, f64); 4]) -> sweep::SectionSegments {
-    let seg = |a: (f64, f64), b: (f64, f64)| sweep::SketchSegment::Line {
-        a: Point2::new(a.0, a.1),
-        b: Point2::new(b.0, b.1),
-    };
-    vec![vec![
-        seg(pts[0], pts[1]),
-        seg(pts[1], pts[2]),
-        seg(pts[2], pts[3]),
-        seg(pts[3], pts[0]),
-    ]]
+/// A closed four-line quad section (one loop) in the LIB-U3 profile
+/// vocabulary — the plainest INTEGRAL profile: unit weights, no arc
+/// anywhere.
+fn quad(pts: [(f64, f64); 4]) -> sweep::Section {
+    vec![ProfileLoop::polygon(
+        pts.iter().map(|&(x, y)| Point2::new(x, y)),
+    )]
 }
 
 /// The prism loft's end section: the square `[-1, 1]²`.
