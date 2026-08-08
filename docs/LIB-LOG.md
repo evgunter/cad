@@ -197,3 +197,102 @@ the §2a PQ4-phrasing clause, and the missing in-band gate rows.
 First reviewer-variance data point: HIGH agreement on the
 consequential finding, disjoint tails. Fix pass dispatched off
 the union.
+
+**G2 dispatched** (2026-08-08, OPUS — first slot of triple LIB-3
+(opus,opus,fable), L pre-logged; lane lib-g2, branch
+lib/g2-arcfillets, spec docs/LIB-G2-SPEC.md from the executed
+census). Risk item named in the brief: derived-corner bitwise
+exactness for the rocker differentials. G2 = post-amendment row 4
+(single review); remainders (opus, fable) bank for the next two
+units. After G2: the SWITCH unit (schema v4 + replay driver +
+Expr binding per PROFILES-V2) is the ladder's next rung — its
+spec is the orchestrator's next writing task.
+
+## G2 findings-back rulings (LB3–LB6, 2026-08-08; high-confidence
+## elaboration class — Evan retroactive, veto window on #259)
+
+- **LB3 (the Bounds blocker)**: the compound-Bounds allowlist
+  EXTENDS to one new file — a `path` arc-fillet submodule
+  confining the lifted-S8-ladder call — carrying sugar.rs's
+  ratified justification verbatim (same rule, same diagnostic
+  channel, representation-level selection between
+  already-classified constructions; never a re-decision of
+  geometry). This PRESERVES the S8 amendment (plain deterministic
+  selection, no funnel entry) — the decide-predicate route would
+  violate it and refuse-multi-candidate forecloses the eye. The
+  G2 fence is amended: the ONE allowlist line for that file is
+  permitted, reported.
+- **LB4 (anchor lottery)**: NO anchor-fitting, ever. The
+  squared-radius circle×circle form is ruled IN as the design
+  (structurally exact — the correct closed form, not fitting).
+  Sites migrate only where their NATURAL anchors (design-stated
+  points, provenance reported per site) land bitwise; others stay
+  raw with the wall named — the bracket precedent extended.
+  "Line×circle corner derivation is anchor-rounding-dependent" is
+  a named wall and v2-accumulator evidence.
+- **LB5 (seam-at-fillet)**: the rocker OUTLINE stays raw — its
+  mid-arc seam vertex is authored topology (one vertex, one
+  lateral face) that the algebra's seam-fillet retrim would eat
+  and PQ4/item-4 correctly refuses to reproduce as a mid-carrier
+  junction. Wall named; v2 evidence. The EYE migrates (its sharp
+  tip is a genuine two-carrier junction that the new Start
+  spelling keeps).
+- **LB6 (naming fork)**: `.to_on(Start, centre, winding)`
+  accepted — the addition §2a item 4 was deliberately left open
+  for; distinct from `.to(Start)` (same-carrier retrim) by
+  exactly the two-carrier-junction distinction the implementer
+  identified.
+
+- **LB3 AMENDED (2026-08-08, from Evan's factoring question on
+  #259)**: the selection family (nearest_candidate + the lifted
+  joint ladder) moves to its own shared module
+  (`profile::fillet_select`-shaped, allowlisted with the S8
+  justification, both doors call it) rather than living per-door.
+  End state: THREE allowlisted files — sugar.rs boundary, path
+  boundary, fillet_select — each with a purpose-matched one-line
+  justification. Rationale: the discipline tracks type-level
+  bounds, so boundary files can't leave the allowlist, but the
+  selection family is a coherent design object with two consumers
+  and future S8-family growth lands there. Implementer redirected
+  mid-flight; the extraction's bitwise pin guards the move.
+
+- **LB3 correction (implementer finding, accepted)**: TWO
+  boundary allowlist entries, not three, and NO CI change —
+  `fillet_select.rs` uses sole-bound `T: Bounds`, which the
+  ratified rule permits everywhere (the tripwire matches only
+  compound bounds). The factoring SHRINKS the discipline
+  surface. §3 surface still to land; its design is fully
+  recorded (#259/#261/report), so a fresh finisher rebuilds it
+  mechanically. G2 session errors self-reported honestly (slot
+  held ~2h across a branch switch; ~250 lines lost to an
+  over-broad rm) — both recorded for the A/B row's fix-pass
+  narrative.
+
+- **LB7 (U7 scope, from the census)**: U7-v1 ships STRUCTURAL
+  selectors only — role-path-shape queries over the ratified
+  RoleSeg vocabulary (RimEdge(Top,_), Seam{Cap,Band}, …),
+  all_faces/all_vertices materializer siblings, and the missing
+  pncad doors (NameTable/EntityKind/EntityRef/all_edges/
+  edge_name-family exports — StableName is currently write-only
+  at the façade). Everything stays a MATERIALIZER (evaluate →
+  resolve → store Vec<StableName>) per the M6-5 freeze doctrine;
+  no live queries in recipes. GEOMETRIC predicates (carrier
+  kind, adjacent-surface pairs, convexity, position) are
+  DEFERRED to a designed follow-up: they are decided-predicate
+  sites under DESIGN.md's margins discipline and interact with
+  unratified GQ7 — shipping them library-first would de-facto
+  ratify GUI selection mechanics. Structural-first forecloses
+  nothing (geometric selectors add later under their own
+  design); the naming collision with profile::fillet_select is
+  noted — U7's module gets a distinct name.
+
+- **LB8 (U8 split, from the census)**: U8's display-unit STORAGE
+  (per-literal units → ExprKind::Literal/WireExpr/bit_eq/schema
+  v4) collides with the SWITCH unit's surface — the schema
+  breaks ONCE, so U8b (storage + full 25mm round-trip) FOLDS
+  INTO the switch unit's spec. U8a (quantity newtypes at the D6
+  boundary, unit table, formatter-with-unit-as-argument, the
+  checking text parser against the current AST) ships now,
+  schema-free. The geom-core Length<T> name collision is a named
+  spec risk. Difficulties pre-logged: U7-v1 = M, U8a = M. Draws:
+  U7 → LIB-3 slot 2 (OPUS), U8a → LIB-3 slot 3 (fable).
