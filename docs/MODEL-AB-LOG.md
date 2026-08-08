@@ -387,3 +387,7 @@ U3 dispatched first → fable; opus = remainder for the next unit.
 G1 rides block LIB-2's remainder (2026-08-08): U3 took the fable
 first slot; G1 = OPUS remainder. Difficulty logged pre-dispatch:
 G1 vocabulary-growth cheap set = M.
+Block LIB-3 (2026-08-08) — FIRST v3 TRIPLE: byte 44 (<252, accepted)
+→ fable position 2: (opus, opus, fable). Difficulty logged
+pre-draw: G2 arc-carrier fillets = L. G2 dispatched first → OPUS;
+remainders (opus, fable) bank for the next two units.
