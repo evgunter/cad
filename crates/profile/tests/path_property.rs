@@ -815,29 +815,52 @@ fn the_carrier_bound_lens_lowers_and_keeps_its_authored_point() {
         .expect("the carrier-bound lens validates");
 }
 
-/// A radius too large for the lens: no tangent circle of that radius
-/// sits at the derived corner, and the algebra says so in the
-/// CONSTRUCTOR's own vocabulary rather than flattening it.
+/// A radius far too large for the lens refuses typed — and this is the
+/// **§3c evidence row**: the refusal carries the arc side's CARRIER
+/// KIND, so the diagnostic is metered in that carrier's own currency
+/// (an arc-length setback and an ANGULAR margin in radians) instead of
+/// a bare linear number that means nothing on a circle.
 #[test]
-fn an_oversized_carrier_fillet_refuses_typed() {
+fn an_oversized_carrier_fillet_refuses_with_the_arc_sides_angular_story() {
     let err = lens(5.0).unwrap_err();
+    let PathError::AnchorOutsideTrimmedExtent {
+        carrier, setback, ..
+    } = err
+    else {
+        panic!("expected the anchor-fit refusal, got {err:?}");
+    };
+    let profile::FilletLegCarrier::Arc {
+        radius,
+        angular_margin,
+    } = carrier
+    else {
+        panic!("an arc side must report an arc carrier, got {carrier:?}");
+    };
+    assert!((radius - 1.0).abs() < 1e-12, "the lens's lobes are R = 1");
     assert!(
-        matches!(err, PathError::NoCornerForFillet { .. }),
-        "expected a no-corner refusal, got {err:?}"
+        angular_margin < 0.0,
+        "an overrun leg's angular margin is negative: {angular_margin}"
     );
+    // The setback is an ARC LENGTH on this side, so it exceeds the
+    // leg's swept extent rather than some linear distance.
+    assert!(setback > 0.0, "arc-length setback: {setback}");
 }
 
 /// Carriers that never meet name their own reason — distinct from the
 /// tangency knife edge, which still reports `CarriersParallel`.
+///
+/// Note this needs `.at_on`, not `.to_on`: a `to_on` close anchors BOTH
+/// carriers at the entry point, so they always share it and can never
+/// be disjoint. Independent anchors are what make the case reachable.
 #[test]
 fn carriers_that_do_not_meet_refuse_typed() {
     // Two unit circles 10 m apart: disjoint, no corner anywhere.
     let refused = Open
-        .at_on(p2(0.0, -1.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
+        .at_on(p2(1.0, 0.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
         .unwrap()
         .fillet(0.25)
         .unwrap()
-        .to_on(Start, p2(10.0, 0.0), profile::ArcSweep::Ccw);
+        .at_on(p2(11.0, 0.0), p2(10.0, 0.0), profile::ArcSweep::Ccw);
     assert!(
         matches!(
             refused,
@@ -916,7 +939,7 @@ fn the_new_arc_carrier_gates_escalate_in_band() {
         .at(p2(0.0, 0.0))
         .toward(1.0, 0.0)
         .unwrap()
-        .fillet(0.5)
+        .fillet(0.3)
         .unwrap()
         .at_on(anchor, centre, profile::ArcSweep::Ccw);
     assert!(
@@ -933,13 +956,13 @@ fn the_new_arc_carrier_gates_decide_outside_the_band() {
     let centre = p2(2.0, -2.0);
     let r = 8.0f64.sqrt();
     // Well ahead of the corner: decided, and the fillet resolves.
-    let theta = std::f64::consts::FRAC_PI_4 + 0.4;
+    let theta = std::f64::consts::FRAC_PI_4 + 0.9;
     let anchor = p2(centre.x + r * theta.cos(), centre.y + r * theta.sin());
     assert!(
         Open.at(p2(0.0, 0.0))
             .toward(1.0, 0.0)
             .unwrap()
-            .fillet(0.5)
+            .fillet(0.3)
             .unwrap()
             .at_on(anchor, centre, profile::ArcSweep::Ccw)
             .is_ok(),
@@ -952,7 +975,7 @@ fn the_new_arc_carrier_gates_decide_outside_the_band() {
         .at(p2(0.0, 0.0))
         .toward(1.0, 0.0)
         .unwrap()
-        .fillet(0.5)
+        .fillet(0.3)
         .unwrap()
         .at_on(anchor, centre, profile::ArcSweep::Ccw);
     assert!(

@@ -427,7 +427,15 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     tol: Tolerance,
 ) -> Result<ArcFilletTrims<T>, PathError<T>> {
     let band = Band::new(tol.eps, tol.k * tol.eps).map_err(PathError::Band)?;
-    let mut refused: Option<PathError<T>> = None;
+    // Two refusal channels, deliberately. A corner the GATES discard is
+    // the weaker story — the author's anchors simply do not bracket it,
+    // and the other root is usually the one they meant. A corner that
+    // PASSED the gates and then failed to admit a tangent circle is the
+    // real answer, so it outranks the gate refusal when both happened.
+    // (Reporting the gate's refusal there would say "no corner ahead of
+    // you" about a corner that is in fact ahead of you.)
+    let mut gate_refused: Option<PathError<T>> = None;
+    let mut build_refused: Option<PathError<T>> = None;
     // (1/2) derive, then gate — advance on the incoming side, reach on
     // the arrival side. A rejected corner is remembered, not returned:
     // the OTHER root may be the author's corner.
@@ -439,8 +447,8 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             Ok(()) => kept.push(corner),
             Err(e @ PathError::Escalated { .. }) => return Err(e),
             Err(e) => {
-                if refused.is_none() {
-                    refused = Some(e);
+                if gate_refused.is_none() {
+                    gate_refused = Some(e);
                 }
             }
         }
@@ -479,17 +487,17 @@ pub(crate) fn resolve<T: Decide + Bounds>(
                 return Err(PathError::Escalated { source });
             }
             Err(refusal) => {
-                if refused.is_none() {
-                    refused = Some(map_refusal(refusal, radius));
+                if build_refused.is_none() {
+                    build_refused = Some(map_refusal(refusal, radius));
                 }
             }
         }
     }
     // (4) the lifted ladder over the flattened joint space.
     if joints.is_empty() {
-        return Err(match refused {
-            Some(e) => e,
-            None => no_corner(PathNoCornerReason::CarriersDoNotMeet, radius),
+        return Err(match (build_refused, gate_refused) {
+            (Some(e), _) | (None, Some(e)) => e,
+            (None, None) => no_corner(PathNoCornerReason::CarriersDoNotMeet, radius),
         });
     }
     let picked = nearest_joint(&joints);

@@ -731,7 +731,9 @@ fn the_derived_circle_by_circle_corner_lands_on_the_authored_one() {
 #[test]
 fn line_by_arc_carrier_fillet_matches_loopbuilder_fillet_corner() {
     let centre = p2(2.0, -2.0);
-    let r = 0.5;
+    // r ≤ 0.414 here: the turn onto the arc is sharp (≈135°) and the
+    // offset carriers separate above that — measured, not guessed.
+    let r = 0.3;
     let algebra = Open
         .at(p2(0.0, 0.0))
         .toward(1.0, 0.0)
@@ -767,7 +769,7 @@ fn the_advance_gate_discards_the_root_at_the_incoming_anchor() {
         .at(p2(0.0, 0.0))
         .toward(1.0, 0.0)
         .unwrap()
-        .fillet(0.5)
+        .fillet(0.3)
         .unwrap()
         .to_on(Start, p2(2.0, -2.0), ArcSweep::Ccw)
         .unwrap();
@@ -776,5 +778,10 @@ fn the_advance_gate_discards_the_root_at_the_incoming_anchor() {
     // origin (which would have put it behind the entry).
     let t1 = lowered.vertices[1].pos;
     assert!(t1.x > 3.0 && t1.x < 4.0, "trim point on side 1: {t1:?}");
-    assert_eq!(t1.y.to_bits(), 0.0f64.to_bits(), "side 1 is the ray y = 0");
+    // On the ray y = 0 to rounding: `t1` is the offset-carrier centre
+    // pushed back by the offset normal, so its y is a cancellation
+    // residue, not a stored zero. The hand door computes the SAME
+    // residue — the differential row above pins that bitwise — so the
+    // claim here is the geometric one, not a bit pattern.
+    assert!(t1.y.abs() < 1e-15, "side 1 rides the ray y = 0: {t1:?}");
 }
