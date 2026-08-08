@@ -285,3 +285,14 @@ spec is the orchestrator's next writing task.
   nothing (geometric selectors add later under their own
   design); the naming collision with profile::fillet_select is
   noted — U7's module gets a distinct name.
+
+- **LB8 (U8 split, from the census)**: U8's display-unit STORAGE
+  (per-literal units → ExprKind::Literal/WireExpr/bit_eq/schema
+  v4) collides with the SWITCH unit's surface — the schema
+  breaks ONCE, so U8b (storage + full 25mm round-trip) FOLDS
+  INTO the switch unit's spec. U8a (quantity newtypes at the D6
+  boundary, unit table, formatter-with-unit-as-argument, the
+  checking text parser against the current AST) ships now,
+  schema-free. The geom-core Length<T> name collision is a named
+  spec risk. Difficulties pre-logged: U7-v1 = M, U8a = M. Draws:
+  U7 → LIB-3 slot 2 (OPUS), U8a → LIB-3 slot 3 (fable).
