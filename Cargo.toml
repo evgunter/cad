@@ -21,6 +21,7 @@ members = [
     "crates/geom-curves",
     "crates/geom-surfaces",
     "crates/mesh",
+    "crates/pncad",
     "crates/profile",
     "crates/step-export",
     "crates/step-import",
