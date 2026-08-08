@@ -15,39 +15,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::SketchSegment;
 use geom_core::{Affine3, Point2, Tolerance, Vec3};
 use geom_surfaces::Surface;
 use profile::{Profile, ProfileLoop, SketchPlane};
-use sweep::skin::{SectionSegments, lift_surface, loft_geometry};
+use sweep::skin::{lift_surface, loft_geometry};
 use sweep::{Extrusion, extrude};
 use topo::{FaceSurface, validate_geometric};
+
+mod common;
 
 /// A three-section loft of a square, middle section scaled — the
 /// acceptance shape's wall set (§5's "at least one non-affine pair").
 fn geometry() -> sweep::LoftGeometry {
-    let chain = |s: f64| -> SectionSegments {
-        let p = |x: f64, y: f64| Point2::new(x * s, y * s);
-        vec![vec![
-            SketchSegment::Line {
-                a: p(0.0, 0.0),
-                b: p(2.0, 0.0),
-            },
-            SketchSegment::Arc {
-                a: p(2.0, 0.0),
-                b: p(2.0, 1.0),
-                bulge: 0.25,
-            },
-            SketchSegment::Line {
-                a: p(2.0, 1.0),
-                b: p(0.0, 1.0),
-            },
-            SketchSegment::Line {
-                a: p(0.0, 1.0),
-                b: p(0.0, 0.0),
-            },
-        ]]
-    };
+    let chain = common::chain;
     let places = [0.0, 1.0, 2.0].map(|z| Affine3::translation(Vec3::new(0.0, 0.0, z)));
     loft_geometry(&[chain(1.0), chain(1.6), chain(1.0)], &places, 2).expect("the loft skins")
 }

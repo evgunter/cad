@@ -1,0 +1,35 @@
+//! Shared section-authoring helpers for the sweep test corpus
+//! (LIB-U3): loft/sweep sections in the profile vocabulary, one copy
+//! per crate — this module collapses the formerly byte-identical
+//! per-file `quad()`/`chain()` clones. Cross-crate constant
+//! deduplication (the 1/16-offset table relation) is LIB-U6's
+//! territory, deliberately not built here.
+
+#![allow(dead_code)]
+
+use geom_core::Point2;
+use sweep::{ProfileLoop, ProfileVertex, Section};
+
+/// A closed four-line quad section (one loop, four vertices) — the
+/// plainest INTEGRAL profile: unit weights, no arc anywhere.
+pub fn quad(pts: [(f64, f64); 4]) -> Section {
+    vec![ProfileLoop::polygon(
+        pts.iter().map(|&(x, y)| Point2::new(x, y)),
+    )]
+}
+
+/// The M5 PR 10 review section: a square-with-an-arc loop scaled by
+/// `s` — three lines and one bulge-0.25 arc, so the skin exercises
+/// the rational lane.
+pub fn chain(s: f64) -> Section {
+    let v = |x: f64, y: f64, bulge: f64| ProfileVertex {
+        pos: Point2::new(x * s, y * s),
+        bulge,
+    };
+    vec![ProfileLoop::new(vec![
+        v(0.0, 0.0, 0.0),
+        v(2.0, 0.0, 0.25),
+        v(2.0, 1.0, 0.0),
+        v(0.0, 1.0, 0.0),
+    ])]
+}
