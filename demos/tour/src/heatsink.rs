@@ -24,12 +24,11 @@ use pncad::editor_core::{
     ProfileDesc, RecipeNodeId, SlotId, ValuePayload, apply, evaluate,
 };
 use pncad::geom_core::{Point3, Vec3};
-use pncad::profile::{Profile, ProfileLoop, SketchPlane};
+use pncad::profile::{Profile, SketchPlane};
 
 use crate::booleans::{check, expect_seamed, try_union};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::authoring::p2;
 
 const BASE_VOL: f64 = 3.0 * 1.0 * 0.25;
 /// Per-fin material gain: 0.1875 x 0.75 footprint, 0.8125 tall, minus
@@ -45,11 +44,12 @@ struct Recipe {
 fn build_doc() -> Recipe {
     let base_profile = Profile::new(
         SketchPlane::xy(),
-        vec![ProfileLoop::polygon([
-            p2(0.0, 0.0),
-            p2(3.0, 0.0),
-            p2(3.0, 1.0),
-            p2(0.0, 1.0),
+        // Algebra-authored (LIB-U2 PR-2).
+        vec![crate::paths::path_polygon(&[
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 1.0),
+            (0.0, 1.0),
         ])],
     );
     // Fin sketch sits at z = 0.1875 — 1/16 INSIDE the 0.25-thick base.
@@ -60,11 +60,12 @@ fn build_doc() -> Recipe {
     );
     let fin_profile = Profile::new(
         fin_plane,
-        vec![ProfileLoop::polygon([
-            p2(0.25, 0.125),
-            p2(0.4375, 0.125),
-            p2(0.4375, 0.875),
-            p2(0.25, 0.875),
+        // Algebra-authored (LIB-U2 PR-2).
+        vec![crate::paths::path_polygon(&[
+            (0.25, 0.125),
+            (0.4375, 0.125),
+            (0.4375, 0.875),
+            (0.25, 0.875),
         ])],
     );
     let mut doc: Doc<ProfileDesc> = Doc::empty();

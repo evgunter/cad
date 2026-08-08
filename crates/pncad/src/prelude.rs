@@ -43,6 +43,7 @@ pub use profile::{
     ArcSweep, FilletLegShape, LoopBuilder, Profile, ProfileError, ProfileLoop, ProfileVertex,
     SegmentKind, SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
+pub use profile::{Open, PartialPath, PathError, Start}; // the PATHS authoring algebra (LIB-U2)
 
 // --- 3. The four body operations ------------------------------
 pub use sweep::fillet::{FilletError, Filleted, fillet_edges};

@@ -35,7 +35,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::{Point2, Point3, Vec3};
+use pncad::geom_core::{Point3, Vec3};
 use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::Body;
@@ -69,12 +69,11 @@ const A_OUTLINE: [(f64, f64); 8] = [
 /// prism is genus 1 before the boolean ever runs.
 const A_COUNTER: [(f64, f64); 3] = [(0.90625, 1.4375), (1.09375, 1.4375), (1.0, 2.0)];
 
+/// Letterform polygons, authored through the PATHS algebra (LIB-U2
+/// PR-2): same vertices, same loop — said as a chain of `line_to`s
+/// closing at `Start`.
 fn lp<S: Scalar>(poly: &[(f64, f64)]) -> ProfileLoop<S> {
-    ProfileLoop::polygon(
-        poly.iter()
-            .map(|&(x, y)| Point2::new(S::from_f64(x), S::from_f64(y)))
-            .collect::<Vec<_>>(),
-    )
+    crate::paths::path_polygon(poly)
 }
 
 /// The A prism: xy sketch at z = -1/16, extruded 2.125 along +z
