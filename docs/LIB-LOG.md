@@ -43,7 +43,7 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
 | Unit | Spec | Model (draw) | Lane | Status |
 |---|---|---|---|---|
 | U1 façade | docs/LIB-U1-SPEC.md | OPUS (block LIB-1 draw byte 13 = opus,fable; difficulty S logged pre-draw) | lib-u1 | **MERGED #232** (27/27; A/B row recorded at merge). Review APPROVE-WITH-FIXES 0/2/3, rubric 5/3/3; fix pass complete (guard pin proven by executed falsification; Band into prelude; 2 honest closure exceptions). Residue filed: #234 (DuplicateName unnameable), serde_json::Value exception flagged for U9 (see backlog note), #235 (stale .holder cosmetics). Lanes cleaned. |
-| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | PR-1 delivered: PR #233 OPEN, CI 26/1-skip green (impl ~364k tok, ~4.1h); 11 numbered findings; blinded review in flight (lane lib-u2-review) |
+| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | **PR-1 MERGED #233** (26/1-skip; A/B row recorded at merge — review 1/1/3, rubric 5/4/5; sign-domain gates landed via the crash-surviving lane diff, adopted by a finisher). **PR-2 (tour rework) dispatched** on branch lib/u2-demos, same arm; per-scene disposition + byte-diff census + v2 evidence report required. |
 
 ## Orchestrator decisions (LB-numbered)
 
@@ -89,6 +89,22 @@ Findings that feed the profiles-as-programs representation draft
   gets a typed wrapper.
 - `BooleanOp` name collision (topo's in the prelude, editor_core's
   by path) — revisit if bindings prefer the document-layer one.
+
+## Incident log
+
+- **2026-08-07 (day): WSL CRASH** (Evan, evening). Symptoms as
+  seen from this side: the U2 PR-1 fix pass died TWICE to stream
+  stalls ("no progress for 600s"), then the orchestrator session
+  itself was down ~10h. Probable trigger: machine load (the U1
+  fix agent had measured load 14–19 under three concurrent
+  lanes; the U1 fix-pass byte-identity re-run was blocked 4×
+  by the same contention). Crash-window battery results were
+  already treated as suspect; ~151 lines of partial fix work in
+  the lib-u2 lane survived intact. On resume: monitors re-armed,
+  state re-verified (#233 OPEN/MERGEABLE, main unmoved at
+  e7213f6), one fresh finisher dispatched — ONE build-running
+  agent at a time until WSL stability is understood; width-1
+  slot locks remain the ceiling for anything heavier.
 
 ## Resting state (2026-08-06)
 
