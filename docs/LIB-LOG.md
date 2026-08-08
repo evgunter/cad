@@ -330,3 +330,16 @@ satisfies V3 via resolved-bits convention.
   supersedes the search on the authored path (search remains
   only for computed values, where the information genuinely
   does not exist).
+
+- **LB10 (G2 finisher's mechanism wall)**: the
+  straight-arrival-off-arc-departure refusal is ACCEPTED as a
+  recorded wall (§2b) — no corpus consumer exists (rocker's
+  outline is raw per LB5), it is unreachable from pre-existing
+  programs, and both escape routes (path.rs as a second
+  compound-Bounds allowlist entry; capability erasure putting
+  .fillet behind Bounds) enlarge exactly the audit surface LB3's
+  confinement exists to keep small. Revisit with a concrete use
+  case, PATHS §7 posture; the two-route menu is recorded in §2b.
+  Also noted from the finisher: the setsid lesson (harness
+  timeout kills the process group — slot-queued runs need
+  setsid to survive) goes to the lane-ops memory at next seam.
