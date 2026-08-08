@@ -9,7 +9,10 @@
 use geom_brep::SketchSegment;
 use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec3};
 use geom_surfaces::NurbsSurface;
-use sweep::skin::{SectionSegments, lift_surface, loft_geometry, segment_curve, sweep_geometry};
+use sweep::skin::{lift_surface, loft_geometry, segment_curve, sweep_geometry};
+
+mod common;
+use common::chain;
 
 fn contained(surface: &NurbsSurface<f64>, grid: usize) {
     let lifted = lift_surface::<Interval>(surface).expect("lifts");
@@ -29,29 +32,6 @@ fn contained(surface: &NurbsSurface<f64>, grid: usize) {
             }
         }
     }
-}
-
-fn chain(s: f64) -> SectionSegments {
-    let p = |x: f64, y: f64| Point2::new(x * s, y * s);
-    vec![vec![
-        SketchSegment::Line {
-            a: p(0.0, 0.0),
-            b: p(2.0, 0.0),
-        },
-        SketchSegment::Arc {
-            a: p(2.0, 0.0),
-            b: p(2.0, 1.0),
-            bulge: 0.25,
-        },
-        SketchSegment::Line {
-            a: p(2.0, 1.0),
-            b: p(0.0, 1.0),
-        },
-        SketchSegment::Line {
-            a: p(0.0, 1.0),
-            b: p(0.0, 0.0),
-        },
-    ]]
 }
 
 #[test]

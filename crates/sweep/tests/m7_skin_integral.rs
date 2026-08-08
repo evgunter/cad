@@ -27,41 +27,22 @@ use core::f64::consts::{FRAC_PI_2, PI};
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use geom_curves::NurbsCurve3;
 use geom_curves::fit::interpolate_columns;
-use sweep::skin::{LoftGeometry, SectionSegments, loft_geometry, segment_curve, sweep_geometry};
+use sweep::skin::{LoftGeometry, Section, loft_geometry, segment_curve, sweep_geometry};
 use sweep::{SketchSegment, loft_body, sweep_body};
 
-/// A closed square chain of half-width `h`, centred on the sketch
+mod common;
+use common::quad;
+
+/// A closed square section of half-width `h`, centred on the sketch
 /// origin — the plainest possible INTEGRAL profile (four lines, unit
 /// weights, no arc anywhere).
-fn square(h: f64) -> SectionSegments {
-    let seg = |a: (f64, f64), b: (f64, f64)| SketchSegment::Line {
-        a: Point2::new(a.0, a.1),
-        b: Point2::new(b.0, b.1),
-    };
-    let p = [(-h, -h), (h, -h), (h, h), (-h, h)];
-    vec![vec![
-        seg(p[0], p[1]),
-        seg(p[1], p[2]),
-        seg(p[2], p[3]),
-        seg(p[3], p[0]),
-    ]]
+fn square(h: f64) -> Section {
+    quad([(-h, -h), (h, -h), (h, h), (-h, h)])
 }
 
 /// The `loft_prism` corpus sections: squares at the ends, a NON-AFFINE
 /// trapezoid in the middle (so the walls are genuinely curved in v).
-fn prism_sections() -> Vec<SectionSegments> {
-    let quad = |pts: [(f64, f64); 4]| -> SectionSegments {
-        let seg = |a: (f64, f64), b: (f64, f64)| SketchSegment::Line {
-            a: Point2::new(a.0, a.1),
-            b: Point2::new(b.0, b.1),
-        };
-        vec![vec![
-            seg(pts[0], pts[1]),
-            seg(pts[1], pts[2]),
-            seg(pts[2], pts[3]),
-            seg(pts[3], pts[0]),
-        ]]
-    };
+fn prism_sections() -> Vec<Section> {
     vec![
         quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
         quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]),

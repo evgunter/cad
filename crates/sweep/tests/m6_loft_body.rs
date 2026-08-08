@@ -15,24 +15,15 @@
 // Panicking is a test's failure mechanism (workspace lint policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod common;
+
+use common::quad;
 use geom_core::{Affine3, Vec3};
-use sweep::{SectionSegments, SketchSegment, loft_body};
+use sweep::{Section, loft_body};
 
 /// The shape (iii) acceptance sections: squares at z = 0 and z = 2,
 /// a trapezoid at z = 1.
-fn shape_iii_sections() -> (Vec<SectionSegments>, Vec<Affine3<f64>>) {
-    let quad = |pts: [(f64, f64); 4]| -> SectionSegments {
-        let seg = |a: (f64, f64), b: (f64, f64)| SketchSegment::Line {
-            a: geom_core::Point2::new(a.0, a.1),
-            b: geom_core::Point2::new(b.0, b.1),
-        };
-        vec![vec![
-            seg(pts[0], pts[1]),
-            seg(pts[1], pts[2]),
-            seg(pts[2], pts[3]),
-            seg(pts[3], pts[0]),
-        ]]
-    };
+fn shape_iii_sections() -> (Vec<Section>, Vec<Affine3<f64>>) {
     let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     let sections = vec![quad(square), quad(trapezoid), quad(square)];

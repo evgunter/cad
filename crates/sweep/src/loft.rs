@@ -64,9 +64,7 @@ use topo::{
 };
 
 use crate::extrude::{SweptSeg, cap_points, face_surface_key, rim_spec, swept_segments};
-use crate::skin::{
-    LoftGeometry, SectionSegments, SkinError, lift_surface, loft_geometry, sweep_places,
-};
+use crate::skin::{LoftGeometry, Section, SkinError, lift_surface, loft_geometry, sweep_places};
 
 /// Everything [`loft_body`]/[`sweep_body`] built, keyed — the
 /// [`crate::Extruded`] bundle one operation over.
@@ -199,31 +197,28 @@ fn lift_affine<T: Real>(a: &Affine3<f64>) -> Affine3<T> {
     }
 }
 
-/// One end section as a profile at `T`, reconstructed from its chains
-/// (each segment's start vertex carries the segment's bulge) and run
-/// through the profile crate's own validation door — a section that
-/// would not extrude does not loft either.
+/// One end section as a profile at `T` — the section IS a profile
+/// now (LIB-U3), so this is the exact `f64 → T` embedding of its
+/// loops (positions, bulges, and declared-tangent joints — the
+/// declarations travel and are re-verified in the evaluation scalar)
+/// run through the profile crate's own validation door: a section
+/// that would not extrude does not loft either.
 fn end_profile<T: Decide>(
-    chains: &SectionSegments,
+    section: &Section,
     place: &Affine3<f64>,
 ) -> Result<ValidatedProfile<T>, LoftError> {
-    let loops = chains
+    let loops = section
         .iter()
-        .map(|chain| {
-            let vertices = chain
+        .map(|lp| ProfileLoop {
+            vertices: lp
+                .vertices
                 .iter()
-                .map(|seg| match *seg {
-                    geom_brep::SketchSegment::Line { a, .. } => ProfileVertex {
-                        pos: geom_core::Point2::new(T::from_f64(a.x), T::from_f64(a.y)),
-                        bulge: T::zero(),
-                    },
-                    geom_brep::SketchSegment::Arc { a, bulge, .. } => ProfileVertex {
-                        pos: geom_core::Point2::new(T::from_f64(a.x), T::from_f64(a.y)),
-                        bulge: T::from_f64(bulge),
-                    },
+                .map(|v| ProfileVertex {
+                    pos: geom_core::Point2::new(T::from_f64(v.pos.x), T::from_f64(v.pos.y)),
+                    bulge: T::from_f64(v.bulge),
                 })
-                .collect();
-            ProfileLoop::new(vertices)
+                .collect(),
+            tangent_joints: lp.tangent_joints.clone(),
         })
         .collect();
     Profile::new(SketchPlane::new(lift_affine(place)), loops)
@@ -244,7 +239,7 @@ fn world<T: Real>(place: &Affine3<T>, p: geom_core::Point2<T>) -> Point3<T> {
 /// [`LoftError`] — every door named on the enum.
 #[allow(clippy::too_many_lines)] // one construction, kept whole like extrude's
 fn assemble<T: Decide>(
-    sections: &[SectionSegments],
+    sections: &[Section],
     places: &[Affine3<f64>],
     geometry: &LoftGeometry,
 ) -> Result<Lofted<T>, LoftError> {
@@ -553,7 +548,7 @@ fn assemble<T: Decide>(
 ///
 /// [`LoftError`] — every door named on the enum.
 pub fn loft_body<T: Decide>(
-    sections: &[SectionSegments],
+    sections: &[Section],
     places: &[Affine3<f64>],
     v_degree: usize,
 ) -> Result<Lofted<T>, LoftError> {
@@ -571,15 +566,14 @@ pub fn loft_body<T: Decide>(
 /// [`SkinError::PathTangentReversal`] arriving through
 /// [`LoftError::Skin`].
 pub fn sweep_body<T: Decide>(
-    profile: &SectionSegments,
+    profile: &[ProfileLoop<f64>],
     place: Affine3<f64>,
     path: &geom_curves::NurbsCurve3<f64>,
     stations: usize,
     v_degree: usize,
 ) -> Result<Lofted<T>, LoftError> {
     let places = sweep_places(place, path, stations).map_err(LoftError::Skin)?;
-    let sections: Vec<SectionSegments> =
-        core::iter::repeat_n(profile.clone(), places.len()).collect();
+    let sections: Vec<Section> = core::iter::repeat_n(profile.to_vec(), places.len()).collect();
     let geometry = loft_geometry(&sections, &places, v_degree).map_err(LoftError::Skin)?;
     assemble(&sections, &places, &geometry)
 }

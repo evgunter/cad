@@ -16,6 +16,15 @@ pub fn eps() -> f64 {
     Tolerance::get().eps
 }
 
+/// A one-loop, four-line quad SECTION for the loft/sweep doors
+/// (LIB-U3 profile vocabulary) — the crate's single copy of the
+/// formerly per-file `quad()` clones.
+pub fn quad(pts: [(f64, f64); 4]) -> sweep::Section {
+    vec![ProfileLoop::polygon(
+        pts.iter().map(|&(x, y)| Point2::new(x, y)),
+    )]
+}
+
 pub fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }

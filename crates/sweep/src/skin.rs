@@ -48,6 +48,7 @@ use geom_core::{Affine3, COINCIDENCE_RECOURSE, Point2, Point3, Real, Vec3};
 use geom_curves::NurbsCurve3;
 use geom_curves::fit::{FitError, interpolate_columns};
 use geom_surfaces::NurbsSurface;
+use profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
 
 /// The quarter-turn ceiling on one rational-quadratic arc span: every
 /// sub-arc of a converted profile arc is at most this wide, so the
@@ -87,23 +88,18 @@ pub enum SkinError {
         /// Which count disagreed (`"loops"` or `"segments"`).
         what: &'static str,
     },
-    /// Open and closed sections were mixed. A closed chain's skin is a
-    /// tube, an open one's is a strip; the two have different topology
-    /// and no correspondence between them.
-    ///
-    /// Reachable at the LIBRARY door (M5 PR 10 fix pass, review
-    /// MIN-1): [`SectionSegments`] is a raw chain, so an open path
-    /// chain mixed with closed profile chains is expressible and is
-    /// refused here. (The RECIPE layer cannot express it — a validated
-    /// profile's loop is always closed — which is why the arm needs a
-    /// library-level row rather than a node-level one.)
-    OpenClosedMixed {
-        /// The first section whose closedness differs from section 0.
+    /// A section failed the profile crate's validation door — the
+    /// same gate every extruded/revolved profile passes (LIB-U3: one
+    /// profile vocabulary for all four body ops, so a section that
+    /// would not extrude does not skin either). Open chains are not a
+    /// case this door can meet: [`ProfileLoop`] closes by
+    /// construction, so the former open/closed-mixed refusal has
+    /// nothing left to refuse and the mixed skin is unrepresentable.
+    SectionProfile {
+        /// The offending section.
         section: usize,
-        /// Which loop disagreed.
-        loop_index: usize,
-        /// Whether section 0's chain is closed.
-        expected_closed: bool,
+        /// The profile door's typed refusal.
+        source: ProfileError,
     },
     /// A section curve does not live on the unit parameter domain the
     /// compatibility pass requires (`[0, 1]`, clamped).
@@ -191,17 +187,12 @@ impl core::fmt::Display for SkinError {
                 "skin: section {section} has {found} {what}, section 0 has {expected} — a \
                  skin matches like to like by index; supply sections with the same shape"
             ),
-            Self::OpenClosedMixed {
-                section,
-                loop_index,
-                expected_closed,
-            } => write!(
-                f,
-                "skin: section {section} loop {loop_index} is {} where section 0 is {} — \
-                 a tube and a strip have no correspondence",
-                if *expected_closed { "open" } else { "closed" },
-                if *expected_closed { "closed" } else { "open" }
-            ),
+            Self::SectionProfile { section, source } => {
+                write!(
+                    f,
+                    "skin: section {section} failed profile validation: {source}"
+                )
+            }
             Self::DomainNotUnit { section, domain } => write!(
                 f,
                 "skin: section {section} lives on [{}, {}], not the unit domain the \
@@ -820,46 +811,79 @@ pub struct LoftGeometry {
     pub sections: Vec<Vec<Vec<NurbsCurve3<f64>>>>,
 }
 
-/// One section of a loft, as this module needs it: the segments of
-/// each loop, already in world space through the section's placement.
-pub type SectionSegments = Vec<Vec<SketchSegment<f64>>>;
+/// One section of a loft or sweep: its loops in the profile
+/// vocabulary — outer boundary first, holes after, each a
+/// [`ProfileLoop`] (closed by construction; segment `j` runs from
+/// vertex `j` to vertex `(j + 1) mod n`, carrying vertex `j`'s
+/// bulge). LIB-U3: the same vocabulary extrude and revolve speak —
+/// `SectionSegments`' double-typed endpoints are retired, so an
+/// interior joint whose two namings disagree is unrepresentable.
+pub type Section = Vec<ProfileLoop<f64>>;
 
-/// Whether a segment chain closes on itself — the last segment's end
-/// is the first segment's start, by EXACT coordinate identity (C6
-/// structure selection, not a tolerance question: the caller either
-/// built a loop or built a path, and a near-miss is a different chain,
-/// refused downstream as a discontinuity rather than guessed at here).
-fn chain_is_closed(chain: &[SketchSegment<f64>]) -> bool {
-    let (Some(first), Some(last)) = (chain.first(), chain.last()) else {
-        return false;
-    };
-    let start = match *first {
-        SketchSegment::Line { a, .. } | SketchSegment::Arc { a, .. } => a,
-    };
-    let end = match *last {
-        SketchSegment::Line { b, .. } | SketchSegment::Arc { b, .. } => b,
-    };
-    start.x == end.x && start.y == end.y
+/// The section's world-space traversal data for segment `j`: the
+/// `(a, b, bulge)` triple as a [`SketchSegment`], exactly the lowered
+/// form [`segment_curve`] consumes (the LIB-U3 internal vestige,
+/// justified: `segment_curve` stays public as the U4 path-leg door,
+/// and routing every wall through it keeps the produced NURBS
+/// byte-identical with the retired chain form).
+fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f64> {
+    let vs = lp.vertices();
+    let a = vs[j];
+    let b = vs[(j + 1) % vs.len()];
+    if a.bulge == 0.0 {
+        SketchSegment::Line { a: a.pos, b: b.pos }
+    } else {
+        SketchSegment::Arc {
+            a: a.pos,
+            b: b.pos,
+            bulge: a.bulge,
+        }
+    }
 }
 
-/// Builds the definitional walls of a loft (§10.3) from section
-/// segment chains and their placements.
+/// Validates every section at the door (LIB-U3): each section runs
+/// through [`Profile::validate`] against its own placement — the
+/// same gate extrude and revolve profiles pass — and the CANONICAL
+/// loops (outer counterclockwise first, holes clockwise, canonical
+/// start vertex) are what the skin consumes, so the walls and the
+/// body assembly's caps read the same traversal by construction.
+fn validate_sections(
+    sections: &[Section],
+    places: &[Affine3<f64>],
+) -> Result<Vec<ValidatedProfile<f64>>, SkinError> {
+    sections
+        .iter()
+        .zip(places)
+        .enumerate()
+        .map(|(i, (loops, place))| {
+            Profile::new(SketchPlane::new(*place), loops.clone())
+                .validate(geom_core::Tolerance::get())
+                .map_err(|source| SkinError::SectionProfile { section: i, source })
+        })
+        .collect()
+}
+
+/// Builds the definitional walls of a loft (§10.3) from profile-loop
+/// sections and their placements.
 ///
-/// `sections[k][l][j]` is section `k`, loop `l`, segment `j`, in the
-/// section's own sketch coordinates; `places[k]` is that section's
-/// rigid placement. Every section must present the same loop and
-/// segment counts — the correspondence is BY INDEX, and there is no
-/// honest way to guess one that was not given.
+/// `sections[k][l]` is section `k`, loop `l` (a [`ProfileLoop`]) in
+/// the section's own sketch coordinates; `places[k]` is that
+/// section's rigid placement. Every section must present the same
+/// loop and vertex counts — the correspondence is BY INDEX, and there
+/// is no honest way to guess one that was not given. Each section
+/// passes [`Profile::validate`] at the door (fail loud — a section
+/// that would not extrude does not skin either), and the canonical
+/// loops are what get skinned.
 ///
 /// # Errors
 ///
 /// [`SkinError::TooFewSections`], [`SkinError::SectionShapeMismatch`]
 /// naming the disagreeing section and count,
-/// [`SkinError::OpenClosedMixed`] for a chain that closes where its
-/// counterpart does not, [`SkinError::BadDegree`], and every refusal
+/// [`SkinError::SectionProfile`] for a section the profile door
+/// refuses, [`SkinError::BadDegree`], and every refusal
 /// [`segment_curve`], [`make_compatible`] and [`skin`] carry.
 pub fn loft_geometry(
-    sections: &[SectionSegments],
+    sections: &[Section],
     places: &[Affine3<f64>],
     v_degree: usize,
 ) -> Result<LoftGeometry, SkinError> {
@@ -881,34 +905,24 @@ pub fn loft_geometry(
             sections: k,
         });
     }
-    let loops = sections[0].len();
-    for (i, s) in sections.iter().enumerate().skip(1) {
-        if s.len() != loops {
+    let validated = validate_sections(sections, places)?;
+    let loops = validated[0].loops().len();
+    for (i, s) in validated.iter().enumerate().skip(1) {
+        if s.loops().len() != loops {
             return Err(SkinError::SectionShapeMismatch {
                 section: i,
                 expected: loops,
-                found: s.len(),
+                found: s.loops().len(),
                 what: "loops",
             });
         }
-        for (l, chain) in s.iter().enumerate() {
-            if chain.len() != sections[0][l].len() {
+        for (l, lp) in s.loops().iter().enumerate() {
+            if lp.vertices().len() != validated[0].loops()[l].vertices().len() {
                 return Err(SkinError::SectionShapeMismatch {
                     section: i,
-                    expected: sections[0][l].len(),
-                    found: chain.len(),
+                    expected: validated[0].loops()[l].vertices().len(),
+                    found: lp.vertices().len(),
                     what: "segments",
-                });
-            }
-            // A closed chain skins to a tube, an open one to a strip:
-            // matching them by index would silently produce a surface
-            // that is neither.
-            let expected_closed = chain_is_closed(&sections[0][l]);
-            if chain_is_closed(chain) != expected_closed {
-                return Err(SkinError::OpenClosedMixed {
-                    section: i,
-                    loop_index: l,
-                    expected_closed,
                 });
             }
         }
@@ -917,14 +931,15 @@ pub fn loft_geometry(
     let mut kept = Vec::with_capacity(loops);
     let mut params: Option<Vec<f64>> = None;
     for l in 0..loops {
-        let mut loop_walls = Vec::with_capacity(sections[0][l].len());
-        let mut loop_sections = Vec::with_capacity(sections[0][l].len());
-        for j in 0..sections[0][l].len() {
-            let raw: Vec<NurbsCurve3<f64>> = sections
+        let n_segments = validated[0].loops()[l].vertices().len();
+        let mut loop_walls = Vec::with_capacity(n_segments);
+        let mut loop_sections = Vec::with_capacity(n_segments);
+        for j in 0..n_segments {
+            let raw: Vec<NurbsCurve3<f64>> = validated
                 .iter()
                 .zip(places)
                 .enumerate()
-                .map(|(i, (s, place))| segment_curve(i, s[l][j], *place))
+                .map(|(i, (s, place))| segment_curve(i, vertex_segment(&s.loops()[l], j), *place))
                 .collect::<Result<_, _>>()?;
             let compat = make_compatible(&raw)?;
             // The v-parameterization is the SURFACE's, not one strip's:
@@ -1002,14 +1017,14 @@ pub fn loft_geometry(
 // the refusal arm, not slip through a negated comparison.
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn sweep_geometry(
-    profile: &SectionSegments,
+    profile: &[ProfileLoop<f64>],
     place: Affine3<f64>,
     path: &NurbsCurve3<f64>,
     stations: usize,
     v_degree: usize,
 ) -> Result<LoftGeometry, SkinError> {
     let places = sweep_places(place, path, stations)?;
-    let sections: Vec<SectionSegments> = core::iter::repeat_n(profile.clone(), stations).collect();
+    let sections: Vec<Section> = core::iter::repeat_n(profile.to_vec(), stations).collect();
     loft_geometry(&sections, &places, v_degree)
 }
 
