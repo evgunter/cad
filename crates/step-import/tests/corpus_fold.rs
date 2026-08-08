@@ -35,13 +35,18 @@ mod common;
 use common::{fixture, import_body};
 use step_import::{NormalizationKind, PromotedKind};
 
+/// One fold fixture's promotion pin: the fixture name, its two
+/// promoted faces with their kinds, and the residual ceiling both
+/// certify under.
+type FixturePromotionRow = (&'static str, [(u64, PromotedKind); 2], f64);
+
 /// The fold fixtures and their measured promotions: (face, kind) with
 /// the residual ceiling. The residuals are the walls' true distance
 /// from their planes as the loft builder left them (~1e-16 m — exact
 /// up to f64 rounding of the section arithmetic), pinned by ceiling
 /// rather than by bits so an unrelated last-bit wiggle in the builder
 /// does not break the corpus row.
-const FOLD_PROMOTIONS: [(&str, [(u64, PromotedKind); 2], f64); 2] = [
+const FOLD_PROMOTIONS: [FixturePromotionRow; 2] = [
     (
         "nonuniform_loft",
         [(104, PromotedKind::Plane), (142, PromotedKind::Plane)],
