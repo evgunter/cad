@@ -776,3 +776,139 @@ fn the_new_funnel_gates_decide_outside_the_band() {
         Err(PathError::ArcViaCollinear { .. })
     ));
 }
+
+// ------------------------------------------------------------------
+// LIB-G2 §3: the arc-carrier fillet family.
+// ------------------------------------------------------------------
+
+/// A unit lens like the rocker eye's, parameterised by the fillet
+/// radius: entry on the right lobe, one fillet, close on the left.
+fn lens(r: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    let tip = 0.75f64.sqrt();
+    Open.at_on(p2(0.0, -tip), p2(-0.5, 0.0), profile::ArcSweep::Ccw)?
+        .fillet(r)?
+        .to_on(Start, p2(0.5, 0.0), profile::ArcSweep::Ccw)
+}
+
+/// The eye program lowers, validates, and puts every AUTHORED point on
+/// the final path: the entry anchor is vertex 0, bit for bit, and the
+/// two derived tangent points are the only other vertices — the corner
+/// itself is never a vertex, because it is never authored.
+#[test]
+fn the_carrier_bound_lens_lowers_and_keeps_its_authored_point() {
+    let tip = 0.75f64.sqrt();
+    let lowered = lens(0.25).unwrap();
+    assert_eq!(lowered.vertices.len(), 3, "entry + two tangent points");
+    assert_eq!(lowered.vertices[0].pos.x.to_bits(), 0.0f64.to_bits());
+    assert_eq!(lowered.vertices[0].pos.y.to_bits(), (-tip).to_bits());
+    // No vertex sits at the DERIVED corner (0, +tip): it is filleted
+    // away, and the algebra never had a chance to author it.
+    for v in &lowered.vertices {
+        assert!(
+            (v.pos.y - tip).abs() > 1e-9 || v.pos.x.abs() > 1e-9,
+            "the derived corner must not appear as a vertex: {:?}",
+            v.pos
+        );
+    }
+    Profile::new(SketchPlane::xy(), vec![lowered])
+        .validate(Tolerance::get())
+        .expect("the carrier-bound lens validates");
+}
+
+/// A radius too large for the lens: no tangent circle of that radius
+/// sits at the derived corner, and the algebra says so in the
+/// CONSTRUCTOR's own vocabulary rather than flattening it.
+#[test]
+fn an_oversized_carrier_fillet_refuses_typed() {
+    let err = lens(5.0).unwrap_err();
+    assert!(
+        matches!(err, PathError::NoCornerForFillet { .. }),
+        "expected a no-corner refusal, got {err:?}"
+    );
+}
+
+/// Carriers that never meet name their own reason — distinct from the
+/// tangency knife edge, which still reports `CarriersParallel`.
+#[test]
+fn carriers_that_do_not_meet_refuse_typed() {
+    // Two unit circles 10 m apart: disjoint, no corner anywhere.
+    let refused = Open
+        .at_on(p2(0.0, -1.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
+        .unwrap()
+        .fillet(0.25)
+        .unwrap()
+        .to_on(Start, p2(10.0, 0.0), profile::ArcSweep::Ccw);
+    assert!(
+        matches!(
+            refused,
+            Err(PathError::NoCornerForFillet {
+                reason: profile::path::PathNoCornerReason::CarriersDoNotMeet,
+                ..
+            })
+        ),
+        "expected CarriersDoNotMeet, got {refused:?}"
+    );
+}
+
+/// An anchor at its own carrier's centre names no tangent, so the
+/// binder refuses before any fillet can be authored against it.
+#[test]
+fn a_carrier_anchor_at_the_centre_refuses_typed() {
+    let refused = Open.at_on(p2(0.0, 0.0), p2(0.0, 0.0), profile::ArcSweep::Ccw);
+    assert!(
+        matches!(refused, Err(PathError::DegenerateArcCenter { .. })),
+        "expected DegenerateArcCenter, got {refused:?}"
+    );
+}
+
+/// A side bound on a carrier RUNS ALONG IT: verbs that would leave the
+/// carrier refuse, naming the ones that do not.
+#[test]
+fn leaving_a_bound_carrier_refuses_and_names_the_door() {
+    let tip = Open
+        .at_on(p2(0.0, -1.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
+        .unwrap();
+    let err = tip.clone().line(1.0).unwrap_err();
+    assert!(matches!(err, PathError::ArcCarrierSpelling { .. }));
+    assert!(err.to_string().contains(".fillet(r)"), "{err}");
+    let err = tip.tangent_arc_to(p2(1.0, 1.0)).unwrap_err();
+    assert!(matches!(err, PathError::ArcCarrierSpelling { .. }));
+}
+
+/// **G1 NOTE-2's lesson, applied to G2's new gates**: an undecidable
+/// margin escalates typed rather than guessing, on the carrier-meet
+/// gate and on the angular advance/reach gates alike.
+#[test]
+fn the_new_arc_carrier_gates_escalate_in_band() {
+    let tol = Tolerance::get();
+    let band = tol.eps * ((1.0 + tol.k) / 2.0);
+
+    // path_carrier_meet: two unit circles exactly 2 m apart are
+    // externally tangent; nudged into the band they are undecidable.
+    let refused = Open
+        .at_on(p2(0.0, -1.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
+        .unwrap()
+        .fillet(0.25)
+        .unwrap()
+        .to_on(Start, p2(2.0 + band, 0.0), profile::ArcSweep::Ccw);
+    assert!(
+        matches!(refused, Err(PathError::Escalated { .. })),
+        "in-band carrier separation must escalate, got {refused:?}"
+    );
+
+    // path_corner_advance_arc / path_corner_reach_arc: the DERIVED
+    // corner sitting within the band of the anchor itself. The lens's
+    // own carriers meet at the anchor exactly, so a corner an in-band
+    // distance ahead of it cannot be classified as ahead or behind.
+    let eps_ang = band;
+    let refused = Open
+        .at_on(p2(0.0, -1.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
+        .unwrap()
+        .fillet(0.25)
+        .unwrap()
+        .to_on(Start, p2(eps_ang, 0.0), profile::ArcSweep::Ccw);
+    assert!(
+        matches!(refused, Err(PathError::Escalated { .. })),
+        "an in-band angular advance must escalate, got {refused:?}"
+    );
+}

@@ -245,6 +245,31 @@
 //!     .fillet(0.5).unwrap().angle(1.0).unwrap().to(Start);
 //! ```
 //!
+//! **G2**: the carrier binders are ARRIVAL-side forms too. `.at_on`
+//! needs both slots empty (it binds both), so it is ill-typed on a tip
+//! whose position is already bound …
+//!
+//! ```compile_fail,E0599
+//! use geom_core::Point2;
+//! use profile::{ArcSweep, Open};
+//! let p = Open.at(Point2::new(0.0, 0.0_f64))
+//!     .at_on(Point2::new(1.0, 0.0), Point2::new(0.0, 0.0), ArcSweep::Ccw);
+//! ```
+//!
+//! … and `.to_on` is closing, so nothing continues from its result:
+//!
+//! ```compile_fail,E0599
+//! use geom_core::Point2;
+//! use profile::{ArcSweep, Open, Start};
+//! let done = Open.at_on(Point2::new(0.0, -1.0_f64), Point2::new(0.0, 0.0), ArcSweep::Ccw)
+//!     .unwrap()
+//!     .fillet(0.25)
+//!     .unwrap()
+//!     .to_on(Start, Point2::new(1.0, 0.0), ArcSweep::Ccw)
+//!     .unwrap();
+//! let more = done.line_to(Point2::new(1.0, 1.0));
+//! ```
+//!
 //! Use after close (closing verbs consume the path):
 //!
 //! ```compile_fail,E0382

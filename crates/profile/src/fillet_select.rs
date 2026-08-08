@@ -202,4 +202,37 @@ mod tests {
         // The single-survivor path funnels through the same rule.
         assert_eq!(nearest_candidate(&[[3.0, 4.0]]), 0);
     }
+
+    /// The LIFT is the same ladder, and this pins that identity rather
+    /// than restating it: `nearest_joint` over candidates carrying a
+    /// given setback list agrees with `nearest_candidate` over that
+    /// list, index for index, including the cross-corner case the
+    /// builder door can never produce (a joint space whose winner sits
+    /// at a LATER corner).
+    #[test]
+    fn nearest_joint_is_the_same_ladder_over_the_flattened_pairs() {
+        use crate::sugar::ArcFilletCandidate;
+        use geom_core::{Point2, Sign};
+        let mk = |sb: [f64; 2]| ArcFilletCandidate {
+            t1: Point2::new(0.0, 0.0),
+            t2: Point2::new(0.0, 0.0),
+            bulge: 0.0,
+            center: Point2::new(0.0, 0.0),
+            fit_in: Sign::Positive,
+            fit_out: Sign::Positive,
+            setbacks: sb,
+        };
+        // Corner A's two survivors, then corner B's one: the winner is
+        // across the corner boundary, which is the whole point of the
+        // lift.
+        let rows = [[2.0, 2.0], [3.0, 1.5], [0.5, 0.5]];
+        let joints: Vec<_> = rows.iter().map(|r| mk(*r)).collect();
+        assert_eq!(nearest_joint(&joints), 2);
+        assert_eq!(nearest_joint(&joints), nearest_candidate(&rows));
+        // Rung 3's non-equivariant residual survives the lift verbatim:
+        // identical pairs keep the first-classified joint.
+        let tied = [[1.5, 2.5], [1.5, 2.5]];
+        let joints: Vec<_> = tied.iter().map(|r| mk(*r)).collect();
+        assert_eq!(nearest_joint(&joints), 0);
+    }
 }
