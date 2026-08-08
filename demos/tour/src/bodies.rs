@@ -58,6 +58,17 @@ pub fn bracket<S: Scalar>() -> pncad::topo::Body<S> {
     // demo's authoring path, not just a convenience. (The 1.146 datum
     // itself lives on as the large-K lint's litmus fixture —
     // tools/k-lint.)
+    //
+    // Stays raw under LIB-U2 PR-2 — MEASURED, not assumed: the PATHS
+    // spelling reaches this corner only through an angle director
+    // (`.angle(PI).fillet(0.5)` — the corner is never authored), and
+    // `unit(PI)` carries sin(PI) = 1.22e-16 into the departure ray, so
+    // the computed corner and both lowered trim vertices land 1 ulp
+    // off the hand chain (trim y = 1 + 2.2e-16, arc bulge d = 5.6e-17)
+    // — a SAID-not-shape drift this rework's zero-geometry-diff
+    // contract refuses (finding 10: bit-identity holds where ray
+    // directions are chord-derived; an authored-angle axis ray is
+    // not).
     let lp = LoopBuilder::start(p2(0.0, 0.0))
         .line_to(p2(3.0, 0.0))
         .line_to(p2(3.0, 1.0))
