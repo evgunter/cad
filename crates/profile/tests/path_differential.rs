@@ -713,3 +713,68 @@ fn the_derived_circle_by_circle_corner_lands_on_the_authored_one() {
         "the radius form is expected to MISS by an ulp — that is why the squared form is the rule"
     );
 }
+
+/// **Line × arc**, the second G2 combination: a straight side 1 running
+/// east from the entry, one fillet, and a `to_on` close that comes back
+/// over the circle through the entry point.
+///
+/// The corner is DERIVED by the ray×circle form and is exact here by
+/// construction — the ray `y = 0` meets the circle about `(2, −2)`
+/// through the origin at `(0,0)` and `(4,0)`, both representable. The
+/// first is the anchor itself and the advance gate discards it (a
+/// corner is not ahead of its own anchor); the second is the corner a
+/// hand author would write, and this row pins that the algebra reaches
+/// it bit for bit.
+///
+/// LB4's wall is about the corners that are NOT exact this way; where
+/// the natural anchors do land, line×arc migrates like any other site.
+#[test]
+fn line_by_arc_carrier_fillet_matches_loopbuilder_fillet_corner() {
+    let centre = p2(2.0, -2.0);
+    let r = 0.5;
+    let algebra = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0)
+        .unwrap()
+        .fillet(r)
+        .unwrap()
+        .to_on(Start, centre, ArcSweep::Ccw)
+        .unwrap();
+    let hand = LoopBuilder::start(p2(0.0, 0.0))
+        .fillet_corner(
+            FilletLegShape::Line,
+            p2(4.0, 0.0),
+            FilletLegShape::Arc {
+                center: centre,
+                sweep: ArcSweep::Ccw,
+            },
+            p2(0.0, 0.0),
+            r,
+            Tolerance::get(),
+        )
+        .unwrap()
+        .close_arc_center(centre, ArcSweep::Ccw);
+    assert_loops_identical(&algebra, &hand);
+    assert_validate_identically(&algebra, &hand);
+}
+
+/// The advance gate discards the ray×circle root that sits AT the
+/// incoming anchor, so the pair is resolved by the gates rather than by
+/// a value comparison — and the surviving root is the far one.
+#[test]
+fn the_advance_gate_discards_the_root_at_the_incoming_anchor() {
+    let lowered = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0)
+        .unwrap()
+        .fillet(0.5)
+        .unwrap()
+        .to_on(Start, p2(2.0, -2.0), ArcSweep::Ccw)
+        .unwrap();
+    // Vertex 1 is the trim point on the straight side: it must sit
+    // short of the FAR corner (4, 0), not of the discarded one at the
+    // origin (which would have put it behind the entry).
+    let t1 = lowered.vertices[1].pos;
+    assert!(t1.x > 3.0 && t1.x < 4.0, "trim point on side 1: {t1:?}");
+    assert_eq!(t1.y.to_bits(), 0.0f64.to_bits(), "side 1 is the ray y = 0");
+}

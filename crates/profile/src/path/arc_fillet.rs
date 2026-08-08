@@ -438,7 +438,11 @@ pub(crate) fn resolve<T: Decide + Bounds>(
         {
             Ok(()) => kept.push(corner),
             Err(e @ PathError::Escalated { .. }) => return Err(e),
-            Err(e) => drop(refused.get_or_insert(e)),
+            Err(e) => {
+                if refused.is_none() {
+                    refused = Some(e);
+                }
+            }
         }
     }
     // (3) the ratified construction at each surviving corner, fed
@@ -474,7 +478,11 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             Err(ArcTrimRefusal::Escalated(source)) => {
                 return Err(PathError::Escalated { source });
             }
-            Err(refusal) => drop(refused.get_or_insert(map_refusal(refusal, radius))),
+            Err(refusal) => {
+                if refused.is_none() {
+                    refused = Some(map_refusal(refusal, radius));
+                }
+            }
         }
     }
     // (4) the lifted ladder over the flattened joint space.
