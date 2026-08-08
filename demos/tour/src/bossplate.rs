@@ -46,10 +46,17 @@ fn plate<S: Scalar>() -> Body<S> {
 /// z = 0.4 (strictly inside the plate), extruded 1.2 → pokes out to
 /// z = 1.6.
 fn boss<S: Scalar>() -> Body<S> {
-    // Stays raw under LIB-U2 PR-2: a full circle split into three
-    // 120-degree arcs of ONE carrier — every joint is a same-carrier
-    // identity and the seam is mid-carrier (PQ4), both refused by the
-    // PATHS algebra by design.
+    // Stays raw after LIB-G1 — MEASURED deviation 1, not assumed. The
+    // circle primitive would author this circle happily, but its
+    // private lowering is the conventional TWO-semicircle split, and
+    // this boss is deliberately split into THREE 120-degree arcs of one
+    // carrier: the stop's whole point is a transverse curved boolean
+    // crossing a three-face rim seam, and the assertion below pins the
+    // count. Migrating would change the topology the demo exists to
+    // show — a geometry diff, which this rework's contract refuses. The
+    // primitive offers no seam-count argument BY DESIGN (it authors no
+    // seam at all), so the raw chain stays the way to say "this
+    // particular split".
     let b120 = (core::f64::consts::PI / 6.0).tan();
     let at = |deg: f64| {
         let th = deg.to_radians();
