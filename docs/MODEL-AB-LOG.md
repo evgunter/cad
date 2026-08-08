@@ -373,6 +373,12 @@ SLOT 1 DISPATCHED (2026-08-08): stage-1 NURBS recognition
 promoted-fixed-point re-pins; QUASI_UNIFORM vocabulary unlock;
 plane+cylinder kinds); difficulty logged PRE-DISPATCH from the
 substrate inventory = **M**. Arm = FABLE (the drawn slot-1).
+SLOT 2 DISPATCHED (2026-08-08): kernel-lane per-scene render
+timeout (the #224 follow-up — the FreeCAD warm-session deadlock;
+fresh-process-per-scene + kill-and-retry, scripts-side);
+difficulty logged PRE-DISPATCH = **S**. Arm = OPUS (the slot-2
+remainder); orchestrator-review class expected (render infra, GUARD
+precedent) — if so the row is EXCLUDED like GUARD/KLINT-GATE.
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
