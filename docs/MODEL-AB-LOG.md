@@ -18,6 +18,21 @@ amended:
   "block-N draw". Design, specs, adversarial reviews, and fix-pass
   rulings stay Fable regardless. The fix pass runs as the
   implementer's agent, so it inherits the arm.
+- **Protocol v3 (Evan, 2026-08-08, post-bayes-readout): TRIPLES.**
+  Blocks are now the shuffled multiset {opus, opus, fable} —
+  rationale: the readout shows no quality separation, a consistent
+  lean toward opus on findings and cost, and modest power loss at
+  2:1 (~12% contrast-variance inflation), so allocation shifts
+  toward the cheaper arm while keeping a live fable stream for
+  drift detection. Draw: one /dev/urandom byte, REJECT values
+  ≥252 (redraw — avoids modulo bias), then byte mod 3 = fable's
+  position (0/1/2). Difficulty still logged pre-draw per
+  dispatch. Everything else unchanged (blinding, Fable for
+  design/specs/reviews/rulings, record-at-merge, per-phase
+  recording discipline). **Transition**: blocks in flight at the
+  amendment complete as v2 pairs (LIB-2's opus remainder = G1;
+  the M7 series' current block likewise); triples start at each
+  series' next block.
 - **Record-at-merge (adopted post-M5 per the readout's
   recommendation):** the row is recorded AT MERGE, not at
   next-touch; a missing rubric or silent-deviation count is a merge
