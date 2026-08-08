@@ -1,0 +1,23 @@
+# ORACLE: FreeCAD 1.1.2 (Libs 1.1.2R20260723), `Part.Shape().read(path)`,
+# run 2026-08-07 on the UNMODIFIED upstream file (before the provenance
+# comment was added). Volume is FreeCAD's `Shape.Volume`, in mm3. The wild
+# has no closed forms this oracle could be checked against in general —
+# though THIS file happens to have one (a 10 mm cube plus a r=5 h=10 mm
+# cylinder, 1000 + 250π mm3), which both readers match to ~1e-16 relative.
+ORACLE_SOLIDS=2
+ORACLE_SHELLS=2
+ORACLE_FACES=9
+ORACLE_EDGES=15
+ORACLE_VERTICES=10
+ORACLE_VOLUME_MM3=1785.3981633974481
+
+# CENSUS DIVERGENCE. Open CASCADE heals the seamless cylinder band by
+# adding a seam edge between the rims' EXISTING vertices — re-charting
+# the seam to the vertex azimuth (half a turn from the file's u_ref).
+# The kernel's band re-mint (M7-5, D1) keeps the seam SPATIALLY at the
+# surface's own u_ref half-plane, so it splits both rims there instead:
+# +2 rim-split edges and +2 seam vertices over OCC's counts (band face
+# #54: file 2 edges/2 vertices -> kernel 5 edges/4 vertices, seam
+# generator included; OCC: 3 edges/2 vertices for the same region).
+KERNEL_EDGES=17
+KERNEL_VERTICES=12
