@@ -35,8 +35,9 @@ mod common;
 
 use common::import_body;
 use geom_core::{Affine3, Point2, Vec3};
+use profile::{ProfileLoop, ProfileVertex};
 use step_import::{ImportOptions, StepImport, import_step};
-use sweep::{SectionSegments, SketchSegment, loft_body};
+use sweep::{Section, loft_body};
 
 /// The arc-bearing profile loft the substrate measured (one bulged
 /// side per section → 3 non-rational walls + 1 RATIONAL wall): the
@@ -44,22 +45,18 @@ use sweep::{SectionSegments, SketchSegment, loft_body};
 /// volume refusal, which is exactly the state its import must land
 /// in.
 fn native_arc_loft() -> topo::Body<f64> {
-    let arc_section = |s: f64| -> SectionSegments {
-        let seg = |a: (f64, f64), b: (f64, f64)| SketchSegment::Line {
-            a: Point2::new(a.0, a.1),
-            b: Point2::new(b.0, b.1),
+    let arc_section = |s: f64| -> Section {
+        let v = |x: f64, y: f64, bulge: f64| ProfileVertex {
+            pos: Point2::new(x, y),
+            bulge,
         };
-        vec![vec![
-            seg((-s, -s), (s, -s)),
-            SketchSegment::Arc {
-                a: Point2::new(s, -s),
-                b: Point2::new(s, s),
-                // tan(π/8): a quarter-circle bulge-out.
-                bulge: 0.4142135623730951,
-            },
-            seg((s, s), (-s, s)),
-            seg((-s, s), (-s, -s)),
-        ]]
+        vec![ProfileLoop::new(vec![
+            v(-s, -s, 0.0),
+            // tan(π/8) on the +x side: a quarter-circle bulge-out.
+            v(s, -s, 0.4142135623730951),
+            v(s, s, 0.0),
+            v(-s, s, 0.0),
+        ])]
     };
     let sections = vec![arc_section(1.0), arc_section(1.25), arc_section(1.0)];
     let places = vec![

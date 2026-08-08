@@ -18,10 +18,18 @@ cost — measured, not vibed ("with actual random numbers").
 **Standing instructions:**
 
 - Applies to implementation tasks dispatched after 2026-07-25.
-  Current protocol is v2: blocked randomization (opus/fable pairs,
-  shuffled per block), pre-draw difficulty logging, blinded
-  reviewers, fixed-rubric CODE QUALITY REPORT in every review, row
-  recorded AT MERGE. Details in the log.
+  **Current protocol is v3 (2026-08-08): blocked randomization
+  over TRIPLES {opus, opus, fable}** (unbiased urandom draw for
+  fable's position — reject bytes ≥252, mod 3), pre-draw
+  difficulty logging, blinded reviewers, fixed-rubric CODE
+  QUALITY REPORT in every review, row recorded AT MERGE.
+  In-flight v2 pair blocks completed as pairs. Details in the log.
+- **Recording discipline (2026-08-08, from the bayes-analysis
+  readout)**: tokens AND wall-clock recorded PER PHASE (impl /
+  fix / review) at merge for every row, gaps annotated; ≥1 line
+  of prose per MAJOR; "silent" = silent spec deviation only;
+  record who ran the fix pass. Full text in the log's protocol
+  section.
 - **Blinding vs merge-only collision (2026-08-02, ruled)**: the
   harness's Co-Authored-By trailer NAMES THE MODEL — in an
   implementer lane that breaks blinding. Implementer briefs say "NO

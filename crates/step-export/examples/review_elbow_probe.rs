@@ -9,7 +9,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use step_export::{StepOptions, step_string};
-use sweep::{SketchSegment, sweep_body};
+use sweep::{ProfileLoop, SketchSegment, sweep_body};
 
 const R: f64 = 3.0;
 const H: f64 = 0.25;
@@ -17,17 +17,10 @@ const STATIONS: usize = 9;
 const V_DEGREE: usize = 3;
 
 fn duplicate_elbow() -> topo::Body<f64> {
-    let seg = |a: (f64, f64), b: (f64, f64)| SketchSegment::Line {
-        a: Point2::new(a.0, a.1),
-        b: Point2::new(b.0, b.1),
-    };
-    let p = [(-H, -H), (H, -H), (H, H), (-H, H)];
-    let profile = vec![vec![
-        seg(p[0], p[1]),
-        seg(p[1], p[2]),
-        seg(p[2], p[3]),
-        seg(p[3], p[0]),
-    ]];
+    // LIB-U3: the profile vocabulary — same square, loop form.
+    let profile = vec![ProfileLoop::polygon(
+        [(-H, -H), (H, -H), (H, H), (-H, H)].map(|(x, y)| Point2::new(x, y)),
+    )];
     let path = sweep::skin::segment_curve(
         0,
         SketchSegment::Arc {

@@ -927,7 +927,7 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
 fn section_of(
     doc: &crate::doc::Doc<ProfileDesc>,
     id: RecipeNodeId,
-) -> Result<(sweep::SectionSegments, Affine3<f64>), NodeErrorKind> {
+) -> Result<(sweep::Section, Affine3<f64>), NodeErrorKind> {
     let Some(Node::Profile(desc)) = doc.nodes.get(&id) else {
         return Err(NodeErrorKind::WrongOperand {
             input: id,
@@ -935,37 +935,18 @@ fn section_of(
             found: "not a profile node",
         });
     };
-    // The profile's own validation door still runs: a section that
-    // would not extrude does not skin either.
+    // The profile's own validation door still runs first, so a bad
+    // section reads as a profile error at the NODE (the §2
+    // compatibility contract) before the library door re-gates it.
     let validated = desc
         .embed::<f64>()
         .validate(Tolerance::get())
         .map_err(NodeErrorKind::Profile)?;
     let place = validated.plane().placement;
-    let chains = desc
-        .0
-        .loops
-        .iter()
-        .map(|lp| {
-            let n = lp.vertices.len();
-            (0..n)
-                .map(|j| {
-                    let a = lp.vertices[j];
-                    let b = lp.vertices[(j + 1) % n];
-                    if a.bulge == 0.0 {
-                        sweep::SketchSegment::Line { a: a.pos, b: b.pos }
-                    } else {
-                        sweep::SketchSegment::Arc {
-                            a: a.pos,
-                            b: b.pos,
-                            bulge: a.bulge,
-                        }
-                    }
-                })
-                .collect()
-        })
-        .collect();
-    Ok((chains, place))
+    // LIB-U3: the sections ARE the stored profile loops — the
+    // double-endpoint chain synthesis is gone; positions, bulges, and
+    // declared-tangent joints hand through verbatim.
+    Ok((desc.0.loops.clone(), place))
 }
 
 /// A structural (Count) slot, refused typed when absent or unusable.

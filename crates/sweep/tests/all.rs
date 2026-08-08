@@ -38,6 +38,8 @@ mod extrude_interval;
 mod issue93_az_intersect;
 #[path = "k_report.rs"]
 mod k_report;
+#[path = "lib_u3_sections.rs"]
+mod lib_u3_sections;
 #[path = "m3_pr5_extrude_booleans.rs"]
 mod m3_pr5_extrude_booleans;
 #[path = "m5_pr10_frontier.rs"]
