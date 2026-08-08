@@ -153,5 +153,8 @@ CAD") until Q9 ratifies the real name — chosen greppable on purpose.
 At rename time: grep for `pncad`, AND audit `cad` occurrences
 broadly (workspace paths, repo name, doc prose, lane scripts'
 hardcoded clone URL) — Evan's note: many `cad` occurrences should
-ultimately become the real name. Q9 becomes genuinely imminent
-before U9/U10 (wheels + docs are the public-name surface).
+ultimately become the real name. Q9 timing RELAXED (Evan,
+2026-08-08): keep `pncad` (or another recorded greppable
+placeholder) "up until the last minute" — the rename is a
+mechanical pre-release step, not a U9/U10 gate; only the actual
+RELEASE needs the real name.
