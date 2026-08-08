@@ -129,13 +129,18 @@ pub use extrude::{ExtrudeError, Extruded, Extrusion, extrude};
 pub use loft::{LoftError, Lofted, loft_body, sweep_body};
 pub use revolve::tube::{TubeError, TubeWindow, tube_along_arc};
 pub use revolve::{Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, revolve};
-// `SketchSegment` is re-exported because `SectionSegments` names it:
-// a caller building loft sections must be able to spell the type
-// without depending on `geom-brep` directly (editor-core does not).
+// `SketchSegment` is re-exported for `segment_curve`, the retained
+// 2-D-segment → 3-D-curve door (step-export builds exact arc path
+// legs through it — the LIB-U4 exact-path territory): a caller must
+// be able to spell its input without depending on `geom-brep`
+// directly. Loft/sweep SECTIONS no longer speak it (LIB-U3): they
+// are `Section`s — `profile::ProfileLoop` lists, re-exported here so
+// section authors need not depend on `profile` directly.
 pub use geom_brep::SketchSegment;
+pub use profile::{ProfileLoop, ProfileVertex};
 pub use skin::{
-    LoftGeometry, SectionSegments, SkinError, lift_surface, loft_geometry, make_compatible,
-    segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
+    LoftGeometry, Section, SkinError, lift_surface, loft_geometry, make_compatible, segment_curve,
+    skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
 };
 
 pub mod fillet;

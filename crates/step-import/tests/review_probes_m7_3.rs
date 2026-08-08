@@ -26,17 +26,10 @@ fn solid(text: &str, who: &str) -> topo::Body<f64> {
 
 /// The committed fixture's native twin (step-export/tests/common).
 fn native_loft_prism() -> topo::Body<f64> {
-    let quad = |pts: [(f64, f64); 4]| -> sweep::SectionSegments {
-        let seg = |a: (f64, f64), b: (f64, f64)| sweep::SketchSegment::Line {
-            a: Point2::new(a.0, a.1),
-            b: Point2::new(b.0, b.1),
-        };
-        vec![vec![
-            seg(pts[0], pts[1]),
-            seg(pts[1], pts[2]),
-            seg(pts[2], pts[3]),
-            seg(pts[3], pts[0]),
-        ]]
+    let quad = |pts: [(f64, f64); 4]| -> sweep::Section {
+        vec![profile::ProfileLoop::polygon(
+            pts.iter().map(|&(x, y)| Point2::new(x, y)),
+        )]
     };
     let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
@@ -109,21 +102,17 @@ fn probe_all_unit_weight_rational_instance_imports_identically() {
 /// arc rims are not mintable, and the arc carrier no longer lies on
 /// the (now non-rational) wall. Must refuse typed, never launder.
 fn native_arc_loft_for_probe() -> topo::Body<f64> {
-    let arc_section = |s: f64| -> sweep::SectionSegments {
-        let seg = |a: (f64, f64), b: (f64, f64)| sweep::SketchSegment::Line {
-            a: Point2::new(a.0, a.1),
-            b: Point2::new(b.0, b.1),
+    let arc_section = |s: f64| -> sweep::Section {
+        let v = |x: f64, y: f64, bulge: f64| profile::ProfileVertex {
+            pos: Point2::new(x, y),
+            bulge,
         };
-        vec![vec![
-            seg((-s, -s), (s, -s)),
-            sweep::SketchSegment::Arc {
-                a: Point2::new(s, -s),
-                b: Point2::new(s, s),
-                bulge: 0.4142135623730951,
-            },
-            seg((s, s), (-s, s)),
-            seg((-s, s), (-s, -s)),
-        ]]
+        vec![profile::ProfileLoop::new(vec![
+            v(-s, -s, 0.0),
+            v(s, -s, 0.4142135623730951),
+            v(s, s, 0.0),
+            v(-s, s, 0.0),
+        ])]
     };
     let sections = vec![arc_section(1.0), arc_section(1.25), arc_section(1.0)];
     let places = vec![
