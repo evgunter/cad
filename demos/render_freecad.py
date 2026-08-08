@@ -3,14 +3,14 @@
 Runs under `freecadcmd` with QT_QPA_PLATFORM=offscreen — no display,
 no Xvfb; `saveImage` goes through Coin's offscreen renderer (the
 console's "No valid GL context found!" spam is the interactive
-viewport failing, harmlessly). ONE freecadcmd session renders every
-scene (startup is ~a minute; per-scene cost is small).
+viewport failing, harmlessly).
 
 Reads <outdir>/scenes.json (written by the tour). TWO source modes,
 one per montage lane (#159: "our tessellation vs FreeCAD"):
 
-  default      — import each body's STL mesh: the facets on screen are
-                 the KERNEL'S OWN tessellation (the kernel montage lane).
+  mesh         — import each body's STL mesh: the facets on screen are
+                 the KERNEL'S OWN tessellation (the kernel montage
+                 lane); the default when no mode keyword is given.
                  Since M5 PR 13 every body exports STEP, so the old
                  prefer-STEP rule would have made this lane 100% OCC
                  tessellation — the STL source is now unconditional.
@@ -18,16 +18,19 @@ one per montage lane (#159: "our tessellation vs FreeCAD"):
                  re-tessellate it: the FreeCAD/OCC reference lane
                  (export -> OCC import -> render, dogfooded end-to-end).
 
-`scene=NAME` renders exactly one scene (the STEP lane drives one
-freecadcmd process per scene with a timeout — a stalled import then
-costs one cell, not the montage). Both selectors are BARE keywords,
-not --flags: freecadcmd's own option parser rejects unknown dashed
-tokens and its --pass passthrough drops them too (probed on 1.1.2),
-while bare positionals arrive in sys.argv untouched. Camera = the
-manifest's (elev, azim, up) — matplotlib `view_init` semantics, so
-all renderers frame scenes identically.
+`scene=NAME` renders exactly one scene, which is how render.sh drives
+BOTH lanes: one freecadcmd process per scene under a per-scene budget,
+because a warm session that renders many scenes deadlocks partway
+through (#224 follow-up). Rendering several scenes in one invocation
+still works, for hand runs.
 
-Usage: QT_QPA_PLATFORM=offscreen freecadcmd render_freecad.py [step] [scene=NAME] <outdir> <renderdir>
+Both selectors are BARE keywords, not --flags: freecadcmd's own option
+parser rejects unknown dashed tokens and its --pass passthrough drops
+them too (probed on 1.1.2), while bare positionals arrive in sys.argv
+untouched. Camera = the manifest's (elev, azim, up) — matplotlib
+`view_init` semantics, so all renderers frame scenes identically.
+
+Usage: QT_QPA_PLATFORM=offscreen freecadcmd render_freecad.py [mesh|step] [scene=NAME] <outdir> <renderdir>
 """
 
 import json
@@ -86,12 +89,12 @@ def camera_rotation(elev, azim, up):
 def import_bodies(doc, scenes, outdir, use_step):
     """Import every scene's bodies into ONE document, hidden.
 
-    One document for the whole session: per-scene newDocument/
-    closeDocument cycling races the (event-loop-deferred) view
-    provider setup offscreen — observed as blank frames and hangs —
-    while a single warm document with visibility toggling is stable.
-    (The STEP lane still gets process-level isolation: render.sh runs
-    one freecadcmd per scene, each with this one warm document.)
+    One document per invocation: per-scene newDocument/closeDocument
+    cycling races the (event-loop-deferred) view provider setup
+    offscreen — observed as blank frames and hangs — while a single
+    warm document with visibility toggling is stable. Isolation
+    between scenes is process-level instead: render.sh runs one
+    freecadcmd per scene, each with this one warm document.
     Returns {scene name: [objects]}.
     """
     by_scene = {}
@@ -147,7 +150,9 @@ def main():
     args = sys.argv[1:]
     use_step = "step" in args
     only = next((a.split("=", 1)[1] for a in args if a.startswith("scene=")), None)
-    pos = [a for a in args if a != "step" and not a.startswith("scene=")]
+    pos = [
+        a for a in args if a not in ("mesh", "step") and not a.startswith("scene=")
+    ]
     outdir, renderdir = Path(pos[-2]), Path(pos[-1])
     renderdir.mkdir(parents=True, exist_ok=True)
     scenes = json.loads((outdir / "scenes.json").read_text())
@@ -165,12 +170,9 @@ def main():
     missing = [str(p) for p in done if not p.exists()]
     if missing:
         raise SystemExit(f"missing renders: {missing}")
-    # Sentinel for render.sh (full kernel-lane pass only): freecadcmd's
-    # Qt teardown can crash after a fully successful run, so exit
-    # status alone is not the signal. Single-scene STEP-lane runs are
-    # judged by their PNG existing instead.
-    if only is None and not use_step:
-        (renderdir / ".freecad_ok").write_text(f"{len(done)}\n")
+    # No success sentinel: freecadcmd's Qt teardown can crash after a
+    # fully successful run, so render.sh judges every scene by its PNG
+    # existing, never by the exit status.
     print(f"freecad render complete: {len(done)} scenes")
     # Skip FreeCAD/Qt teardown (known offscreen destructor crash).
     sys.stdout.flush()
