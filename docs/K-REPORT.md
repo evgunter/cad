@@ -300,7 +300,9 @@ decade of any band edge at any ε row.
 *Historical, left as written. The thresholds and rule set below are the
 M4 originals; both were revised on 2026-08-07 — see "M7 addendum: the
 large-K lint's floor refresh" at the end of this report for the current
-constants (floor 4.0e-5, rule 4, rule 2's cap).*
+constants (floor 4.0e-5, rule 4, rule 2's cap) and for the CI row's
+current posture: it is a **gate**, not the advisory row described
+below.*
 
 `tools/k-lint` (workspace-excluded tooling — thresholds are lint
 policy, never kernel ε) scans freshly regenerated sweep CSVs and
@@ -915,5 +917,27 @@ corpus has now grown fine enough to prove it.
 | `cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test` | green — 8 unit + 2 litmus |
 | #99 litmus | fires at every supported ε row (in-band 1e-6; below floor 1e-9, 1e-12) |
 
-**The lint stays ADVISORY.** Flipping it to gating is the project
-owner's call and is deliberately not made here.
+### The row is a GATE
+
+**`k-lint (gate)` fails on a finding** (ruled by the project owner, PR
+#243). The CI row — hosted `.github/workflows/ci.yml`, local
+`scripts/ci-local.sh` — is red whenever any margin in a fresh sweep
+crowds a decision boundary; harness breakage still fails it in its own
+distinct voice, and the two exit codes differ (2 vs 1) so they can
+never be confused for one another.
+
+**The failure message is the contract, not the exit code.** A fired
+lint is evidence about the MARGIN DISTRIBUTION — the thresholds above
+say a region should be empty and a sample landed there — and it is
+just as likely to mean the threshold or the baseline is stale as it is
+to mean anything about the geometry. Recourse, in order: re-derive the
+baseline and thresholds per the snapshot contract this addendum
+demonstrates (fresh sweep at a stated head, percentile choice
+re-argued, committed rows byte-reproduced — the `EPS_COUPLED_FLOOR_RATIO`
+constant is the likeliest to want it, being the minimum of 108 draws
+with 8.9% of headroom); or, if re-derivation is not warranted, demote
+the row to advisory in both wirings with a recorded justification.
+**Changing geometry to get under a lint threshold is the one forbidden
+move** — it destroys precisely the evidence the row exists to collect.
+The CLI prints this on every failure; the three exit voices are pinned
+by `tools/k-lint/tests/cli_contract.rs`.
