@@ -749,6 +749,21 @@ struct ArcData<T: Real> {
     radius: T,
 }
 
+/// A tangent arc leg's derived geometry (the fields
+/// `tangent_arc_geom` resolves in one pass, named rather than
+/// returned as a wide tuple).
+#[derive(Clone, Copy, Debug)]
+struct TangentArcGeom<T: Real> {
+    /// The arc's bulge, tan(Δ/2).
+    bulge: T,
+    /// The arc's end tangent (departure + 2Δ).
+    end_ang: Dir<T>,
+    /// The arc's carrier circle.
+    carrier: ArcData<T>,
+    /// The chord length, meters (the junction check's lever cap).
+    chord: T,
+}
+
 /// A bound direction: the angle in radians **and** the unit vector the
 /// rays are actually built from.
 ///
@@ -1634,7 +1649,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         &self,
         p: Point2<T>,
         closing: bool,
-    ) -> Result<(T, Dir<T>, ArcData<T>, T), PathError<T>> {
+    ) -> Result<TangentArcGeom<T>, PathError<T>> {
         let (at, ang) = self.dep()?;
         let d = p - at;
         let u = ang.unit;
@@ -1666,19 +1681,24 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         }
         let end_ang = Dir::from_angle(ang.ang + delta + delta);
         let chord = d.norm_squared().sqrt();
-        Ok((bulge, end_ang, carrier, chord))
+        Ok(TangentArcGeom {
+            bulge,
+            end_ang,
+            carrier,
+            chord,
+        })
     }
 
     fn tangent_arc_to_point(
         mut self,
         p: Point2<T>,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        let (bulge, end_ang, carrier, chord) = self.tangent_arc_geom(p, false)?;
-        self.core.push_arc(p, bulge, carrier)?;
-        let arm = carrier.radius.min(chord);
+        let g = self.tangent_arc_geom(p, false)?;
+        self.core.push_arc(p, g.bulge, g.carrier)?;
+        let arm = g.carrier.radius.min(g.chord);
         Ok(in_state(
             self.core,
-            leg_end_tip(p, end_ang, arm, Some(carrier)),
+            leg_end_tip(p, g.end_ang, arm, Some(g.carrier)),
         ))
     }
 
@@ -1689,18 +1709,18 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         let start_ang = self.core.start_ang.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry direction is bound",
         })?;
-        let (bulge, end_ang, carrier, chord) = self.tangent_arc_geom(start_pos, true)?;
-        let arm = carrier.radius.min(chord);
+        let g = self.tangent_arc_geom(start_pos, true)?;
+        let arm = g.carrier.radius.min(g.chord);
         junction_check(
             &Incoming {
-                ang: end_ang,
+                ang: g.end_ang,
                 arm,
-                carrier: Some(carrier),
+                carrier: Some(g.carrier),
             },
             start_ang,
             false,
         )?;
-        self.core.set_leaving(bulge, FirstSeg::Arc)?;
+        self.core.set_leaving(g.bulge, FirstSeg::Arc)?;
         Ok(self.core.build())
     }
 }
