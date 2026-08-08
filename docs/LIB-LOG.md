@@ -146,9 +146,18 @@ Findings that feed the profiles-as-programs representation draft
   unit(s) (schema v4 chain-only, replay driver, Expr binding,
   slot addressing); U9 queues behind the switch (Evan: no hurry).
   U5/U6/U7/U8 remain freely schedulable around them.
-- **U3 dispatched** (fable, block LIB-2 first draw; spec
-  docs/LIB-U3-SPEC.md from the executed census at
-  cad-work/u3-census.md). Sole build agent per the WSL posture.
+- **U3 MERGED #245** (2026-08-08; A/B row at merge — review
+  APPROVE 0/0/3, zero silent devs, all claims independently
+  re-executed; the base was found to silently BUILD an invalid
+  interior section where the branch refuses typed). One
+  vocabulary for all four body ops; SectionSegments deleted;
+  the census's split-brain door closed structurally. NOTE
+  riders banked for the G-series: error-precedence doc line,
+  per-call loop clone. Lanes lib-u3/lib-u3-review cleaned.
+- **G1 in flight** (opus, LIB-2 remainder): the five cheap
+  vocabulary constructors + corpus migration + PATHS-DESIGN
+  addendum. Post-amendment A/B row count: U3 = row 1, G1 will
+  be row 2 — the row AFTER G1 gets the first dual review.
 - Next in judgment scope after U3: U5 (read-back), U6/U7
   (relations/selection); U4 wants its LQ3 measured spec; U8→U9
   queue behind GQ5 + the v2 ruling.
