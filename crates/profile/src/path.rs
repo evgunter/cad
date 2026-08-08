@@ -276,9 +276,12 @@ impl sealed::Sealed for Start {}
 
 /// Why a fillet's virtual corner does not exist (PATHS-DESIGN §2's
 /// DOF check: parallel/non-intersecting carriers, or an intersection
-/// behind the ray start, refuse typed).
+/// behind the ray start, refuse typed). Named `Path…` to keep it
+/// distinct from the crate-root [`crate::NoCornerReason`] (the verify
+/// layer's fillet-constructor vocabulary) — different doors, different
+/// conditions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NoCornerReason {
+pub enum PathNoCornerReason {
     /// The incoming ray and the arrival carrier are parallel at
     /// tolerance (which includes the tangent/anti-tangent corner —
     /// there is no corner to cut; PATHS routes the declaration through
@@ -353,10 +356,10 @@ pub enum PathError<T: Real> {
         margin: T,
     },
     /// The fillet's virtual corner does not exist (see
-    /// [`NoCornerReason`]).
+    /// [`PathNoCornerReason`]).
     NoCornerForFillet {
         /// Which structural condition failed.
-        reason: NoCornerReason,
+        reason: PathNoCornerReason,
         /// The requested radius, meters (diagnostic).
         radius: T,
     },
@@ -383,6 +386,26 @@ pub enum PathError<T: Real> {
     /// an arrival point): arc-arrival fillets are out of scope in v1
     /// (PATHS-DESIGN §7).
     ArcArrivalFillet,
+    /// A leg length that is not definitely positive: a negative length
+    /// would run the side BACKWARD, detaching the tip's anchored
+    /// on-path points from the final path (§4 item 3's invariant,
+    /// broken silently — the verify layer cannot see intent); a
+    /// sub-ε_input length is a degenerate segment. Classified through
+    /// the funnel (`path_leg_length`).
+    NonpositiveLeg {
+        /// The refused length, meters (scalar-typed payload).
+        length: T,
+    },
+    /// A fillet radius that is not definitely positive: r = 0
+    /// degenerates the arc and a negative r mirrors the tangent points
+    /// past the corner — either way the declared-tangent construction
+    /// the fillet promises does not exist. Classified through the
+    /// funnel (`path_fillet_radius`) at `.fillet(r)` itself, before an
+    /// arrival can be authored against it.
+    NonpositiveFilletRadius {
+        /// The refused radius, meters (scalar-typed payload).
+        radius: T,
+    },
     /// A junction/corner classification could not be decided at this
     /// scalar (in-band margin or poisoned input) — the reified
     /// predicate escalation, typed (never a guess).
@@ -445,15 +468,15 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::NoCornerForFillet { reason, radius } => {
                 let what = match reason {
-                    NoCornerReason::CarriersParallel => {
+                    PathNoCornerReason::CarriersParallel => {
                         "the incoming ray and the arrival carrier are parallel at tolerance — \
                          no corner exists (if they are meant to run tangentially, author the \
                          tangency: .tangent(), or the seam fillet at the seam)"
                     }
-                    NoCornerReason::BehindIncomingRay => {
+                    PathNoCornerReason::BehindIncomingRay => {
                         "the carrier intersection lies behind the incoming ray's start"
                     }
-                    NoCornerReason::BehindArrivalAnchor => {
+                    PathNoCornerReason::BehindArrivalAnchor => {
                         "the carrier intersection does not lie behind the arrival side's anchor"
                     }
                 };
@@ -479,6 +502,19 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 f,
                 "a fillet arrival cannot be an arc side in v1 (PATHS-DESIGN §7): bind the \
                  arrival with a direction (.angle) or a line (line_to), not arc_to"
+            ),
+            Self::NonpositiveLeg { length } => write!(
+                f,
+                "a leg must advance the tip by a definitely positive length (got {length:?} m): \
+                 a negative length runs the side backward and detaches anchored points from \
+                 the final path (every authored point lies on the final path, authored once); \
+                 a sub-tolerance length is a degenerate segment"
+            ),
+            Self::NonpositiveFilletRadius { radius } => write!(
+                f,
+                "a fillet needs a definitely positive radius (got {radius:?} m): r = 0 \
+                 degenerates the arc and a negative r mirrors the tangent points past the \
+                 corner — no tangent construction exists to declare"
             ),
             Self::Escalated { source } => write!(f, "path junction classification: {source}"),
             Self::Band(e) => write!(f, "path tolerance band: {e}"),
@@ -858,7 +894,7 @@ impl<T: Decide> Core<T> {
         match decide("path_corner_turn", Length::levered(cross, wn), band) {
             Ok(Sign::Zero) => {
                 return Err(PathError::NoCornerForFillet {
-                    reason: NoCornerReason::CarriersParallel,
+                    reason: PathNoCornerReason::CarriersParallel,
                     radius: pending.radius,
                 });
             }
@@ -873,7 +909,7 @@ impl<T: Decide> Core<T> {
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 return Err(PathError::NoCornerForFillet {
-                    reason: NoCornerReason::BehindIncomingRay,
+                    reason: PathNoCornerReason::BehindIncomingRay,
                     radius: pending.radius,
                 });
             }
@@ -883,7 +919,7 @@ impl<T: Decide> Core<T> {
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 return Err(PathError::NoCornerForFillet {
-                    reason: NoCornerReason::BehindArrivalAnchor,
+                    reason: PathNoCornerReason::BehindArrivalAnchor,
                     radius: pending.radius,
                 });
             }
@@ -954,8 +990,12 @@ impl<T: Decide> Core<T> {
 ///
 /// Values are moved through every verb (the chain is linear); closing
 /// verbs consume the path and return the lowered [`ProfileLoop`], so
-/// use-after-close is ill-typed. Repeated motifs are builder
-/// functions over the one chain
+/// use-after-close is ill-typed. `Clone` FORKS the chain: both forks
+/// are ordinary on-lattice values sharing the authored prefix, each
+/// continuable and closable independently (motif exploration); every
+/// lowered result still passes through the verify layer on its own —
+/// forking mints no new closure door and no unverified state.
+/// Repeated motifs are builder functions over the one chain
 /// (`fn motif(p: PartialPath<f64, HasPos<Plain>, HasAng>) -> …`) —
 /// there is no concatenation operator and no second path value.
 #[derive(Clone, Debug)]
@@ -1158,11 +1198,23 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     /// (`.tangent().line(len)` after a line) IS the same carrier and
     /// refuses [`PathError::SameCarrierJunction`] — extend the
     /// original leg instead.
+    ///
+    /// `len` must classify definitely positive
+    /// ([`PathError::NonpositiveLeg`] otherwise): a negative length
+    /// would run the side backward, silently detaching the tip's
+    /// anchored points from the final path — the §4 item 3 invariant
+    /// is gated here, at the one verb that takes a signed length.
     pub fn line(
         mut self,
         len: T,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         let (at, ang) = self.dep()?;
+        let band = linear_band()?;
+        match decide("path_leg_length", Length::of(len), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => return Err(PathError::NonpositiveLeg { length: len }),
+            Err(source) => return Err(PathError::Escalated { source }),
+        }
         if self.tip.ang_by_tangent
             && let Some(inc) = self.tip.pos.as_ref().and_then(|p| p.incoming.as_ref())
             && inc.carrier.is_none()
@@ -1184,8 +1236,19 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     /// virtual corner, trimming both — the corner is never authored
     /// (it exists only as the carrier intersection), and authoring a
     /// point then filleting it away is unrepresentable.
+    ///
+    /// `radius` must classify definitely positive
+    /// ([`PathError::NonpositiveFilletRadius`] otherwise), gated here —
+    /// before an arrival can be authored against a fillet that has no
+    /// tangent construction to offer.
     pub fn fillet(mut self, radius: T) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
         let (at, ang) = self.dep()?;
+        let band = linear_band()?;
+        match decide("path_fillet_radius", Length::of(radius), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => return Err(PathError::NonpositiveFilletRadius { radius }),
+            Err(source) => return Err(PathError::Escalated { source }),
+        }
         self.core.pending = Some(PendingFillet {
             origin: at,
             ang,

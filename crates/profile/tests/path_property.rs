@@ -2,10 +2,15 @@
 //!
 //! - every authored point lies on the final path (targets are
 //!   vertices bit-for-bit; anchors lie on their trimmed side);
-//! - lowered loops always pass the junction verifier —
-//!   tangency-by-construction means the declared flags can never be
-//!   caught lying (`UndeclaredTangency`/`TangencyContradicted` are
-//!   unreachable from the algebra);
+//! - the verify layer's two tangency refusals
+//!   (`UndeclaredTangency`/`TangencyContradicted`) are unreachable
+//!   from the typed surface: tangency enters only by construction
+//!   (declared flags are never claims about independently-typed
+//!   numbers), and the sign-domain doors that could fake a
+//!   construction (negative leg length, non-positive fillet radius)
+//!   refuse typed at authoring. Other verify doors (simplicity,
+//!   degeneracy) still judge the SHAPE — the lattice guarantees the
+//!   authoring, never the geometry;
 //! - refusals are typed, never panics (`clippy::panic` is denied in
 //!   the lib; proptest exercises the near-tangent bands and the
 //!   corner gates for totality);
@@ -195,12 +200,16 @@ fn turn_zero_refuses_toward_tangent() {
 }
 
 #[test]
-fn turn_pi_refuses_as_cusp() {
+fn turn_pi_refuses_as_cusp_naming_131() {
     let leg = Open.at(p2(0.0, 0.0)).line_to(p2(2.0, 0.0)).unwrap();
-    assert!(matches!(
-        leg.turn(std::f64::consts::PI),
-        Err(PathError::JunctionCusp { .. })
-    ));
+    let err = leg.turn(std::f64::consts::PI).unwrap_err();
+    assert!(matches!(err, PathError::JunctionCusp { .. }));
+    // §4 item 1: the refusal names #131 as the (absent) front door —
+    // pinned here, not just carried in prose.
+    assert!(
+        err.to_string().contains("#131"),
+        "cusp refusal must name #131: {err}"
+    );
 }
 
 #[test]
@@ -334,4 +343,62 @@ fn tangent_seam_closes_via_tangent_arc() {
     // (4, 1) and at Start are definitely sharp; the verifier confirms
     // every flag.
     assert_eq!(loop_.tangent_joints.len(), 2);
+}
+
+// ------------------------------------------------------------------
+// Sign-domain gates (review MAJOR-1 / MINOR-1, PR #233): the reviewer's
+// R6/R7 attack shapes, adopted verbatim — every row that once built a
+// lying loop now refuses TYPED at the offending verb.
+// ------------------------------------------------------------------
+
+/// MAJOR-1 regression (reviewer probe R6, verbatim shape): a negative
+/// continuation length after a fillet used to build a loop that PASSED
+/// the verify layer with the authored anchor ~0.5 m off the final path
+/// (§4 item 3 broken silently). The length now classifies through the
+/// funnel and refuses at `line(-0.5)` itself.
+#[test]
+fn negative_leg_length_refuses_typed_r6() {
+    let north = std::f64::consts::FRAC_PI_2;
+    let refused = Open
+        .at(p2(0.0, -1.0))
+        .angle(0.0)
+        .unwrap()
+        .fillet(0.25)
+        .unwrap()
+        .at(p2(1.0, 0.0))
+        .unwrap()
+        .angle(north)
+        .unwrap()
+        .line(-0.5);
+    assert!(matches!(refused, Err(PathError::NonpositiveLeg { .. })));
+}
+
+/// MINOR-1 regression: a zero-length leg is a degenerate segment —
+/// refused at authoring, not left for the verify layer.
+#[test]
+fn zero_leg_length_refuses_typed() {
+    let leg = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0))
+        .unwrap()
+        .angle(std::f64::consts::FRAC_PI_2)
+        .unwrap();
+    assert!(matches!(
+        leg.line(0.0),
+        Err(PathError::NonpositiveLeg { .. })
+    ));
+}
+
+/// MINOR-1 regression (reviewer probe R7, verbatim shape): r = 0 and
+/// r < 0 used to author successfully and be caught only downstream;
+/// the radius now classifies through the funnel at `.fillet(r)`.
+#[test]
+fn nonpositive_fillet_radius_refuses_typed_r7() {
+    for r in [-0.5, 0.0] {
+        let refused = Open.at(p2(0.0, 0.0)).angle(0.0).unwrap().fillet(r);
+        assert!(
+            matches!(refused, Err(PathError::NonpositiveFilletRadius { .. })),
+            "r = {r} must refuse at the fillet verb"
+        );
+    }
 }
