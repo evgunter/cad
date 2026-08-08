@@ -189,3 +189,15 @@ first dual sample. R1 and R2 both in flight against the same head
 blinded to R1's existence and report. Both rubric triples and
 finding counts will be recorded R1/R2 in the row; fix pass off
 the adjudicated union.
+
+**Dual-review sample #1 result (G1/#254)**: R1 and R2 CONVERGED —
+both APPROVE-WITH-FIXES, both independently found the identical
+MAJOR (Zero-fit far-end anchor emits an unauthored outgoing
+tangency declaration → spurious TangencyContradicted on legal
+sharp continuations; §4-item-2 declaration-without-construction).
+Complementary residue: R1 got the §3 table ordering + merge
+footprint notes; R2 got the t2-vs-anchor verbatim-vertexhood gap,
+the §2a PQ4-phrasing clause, and the missing in-band gate rows.
+First reviewer-variance data point: HIGH agreement on the
+consequential finding, disjoint tails. Fix pass dispatched off
+the union.
