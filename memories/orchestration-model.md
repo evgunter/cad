@@ -84,4 +84,15 @@ git history and the M-logs):**
   builds/tests" (waiter-parking is endemic without it).
 - **Reviews**: assign reviewers explicit claims to falsify; promote
   reviewer suites into CI after the fix pass
-  ([[review-and-dependency-policy]]).
+  ([[review-and-dependency-policy]]). Dual-review sampling per the
+  A/B v3 amendment: every 3rd merged BLINDED-LANE implementation
+  row (both orchestrators' series combined, merge order on main)
+  gets an independent R2 — same brief, own lane, no R1 access;
+  fix pass consumes the adjudicated union.
+- **Two standing brief lines (Evan, 2026-08-08)**: (i) k-lint
+  discipline — "if the k-lint gate fires, do NOT change geometry
+  to silence it; a fired lint is distribution evidence — re-derive
+  the baseline per the K-REPORT runbook or escalate to the
+  orchestrator" (his design, #243 comment 5224869607); (ii)
+  comment style — comments state the INVARIANT, not the history:
+  no retired-type archaeology, no unit tags (#245 nit → #251).
