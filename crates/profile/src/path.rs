@@ -175,7 +175,10 @@ use core::marker::PhantomData;
 use geom_core::{Band, Decide, Indeterminate, Length, Point2, Real, Sign, Tolerance, Vec2};
 
 use crate::k_stats::decide;
-use crate::sugar::{LineFilletTrims, TrimRefusal, line_line_fillet_trims};
+use crate::sugar::{
+    ArcSweep, LineFilletTrims, TrimRefusal, bulge_from_center, bulge_from_via,
+    line_line_fillet_trims,
+};
 use crate::validate::FilletLeg;
 use crate::{ProfileLoop, ProfileVertex};
 
@@ -406,6 +409,68 @@ pub enum PathError<T: Real> {
         /// The refused radius, meters (scalar-typed payload).
         radius: T,
     },
+    /// A [`circle`] radius that is not definitely positive: r = 0 is a
+    /// point and r < 0 names no circle. Classified through the funnel
+    /// (`path_circle_radius`), consistent with the other sign gates.
+    NonpositiveCircleRadius {
+        /// The refused radius, meters (scalar-typed payload).
+        radius: T,
+    },
+    /// A director spelled as components named no direction: the norm of
+    /// `(dx, dy)` is within ε_input of zero
+    /// ([`PartialPath::toward`]). Only the components' ratio is read,
+    /// so the recourse is free — scale them up.
+    ZeroDirection {
+        /// The refused x component.
+        dx: T,
+        /// The refused y component.
+        dy: T,
+    },
+    /// An `arc_via` through-point is within ε_input of the CHORD LINE:
+    /// the three points name no arc. On the chord the construction
+    /// degenerates to the straight segment; off the far end it
+    /// degenerates to the same line traversed as a ±π turn (an
+    /// astronomically large carrier). One refusal for the whole
+    /// collinear class — the recourse is to move the through-point off
+    /// the chord, or to author the straight segment as a line.
+    ArcViaCollinear {
+        /// The through-point's signed perpendicular offset from the
+        /// chord line, meters.
+        offset: T,
+    },
+    /// An arc leg's endpoints are within ε_input of each other: the
+    /// chord is degenerate, so neither the via nor the centre form
+    /// determines an arc (a full turn is a closed carrier, which is
+    /// [`circle`]'s business, not a chain leg's — PQ4).
+    DegenerateArcChord {
+        /// The chord length, meters.
+        chord: T,
+    },
+    /// An `arc_center` centre is not equidistant from the two
+    /// endpoints: the authored data contradicts itself. Refused, never
+    /// repaired — silently re-projecting the centre (or the endpoint)
+    /// onto a fitted circle would move an AUTHORED point, which §4
+    /// item 3 forbids. The recourse is to fix whichever of the three
+    /// authored points is wrong.
+    ArcCenterNotEquidistant {
+        /// |tip − centre|, meters.
+        tip_radius: T,
+        /// |end − centre|, meters.
+        end_radius: T,
+    },
+    /// An `arc_center` centre is within ε_input of an endpoint: the
+    /// carrier has no radius, so the winding selects nothing.
+    DegenerateArcCenter {
+        /// The classified radius, meters.
+        radius: T,
+    },
+    /// The far-end-anchor form (`.angle(θ).to(p)` / `.toward(..).to(p)`)
+    /// was reached with no opened fillet — at the ENTRY, where the
+    /// direction is bound but no side is waiting to be terminated. The
+    /// form ends an ARRIVAL side at its own anchor; the entry authors
+    /// the first side with `.at(p)` and the seam is authored at the
+    /// back (PATHS-DESIGN §2's entry rule).
+    FarEndAnchorWithoutFillet,
     /// A junction/corner classification could not be decided at this
     /// scalar (in-band margin or poisoned input) — the reified
     /// predicate escalation, typed (never a guess).
@@ -516,6 +581,52 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  degenerates the arc and a negative r mirrors the tangent points past the \
                  corner — no tangent construction exists to declare"
             ),
+            Self::NonpositiveCircleRadius { radius } => write!(
+                f,
+                "a circle needs a definitely positive radius (got {radius:?} m): r = 0 is a \
+                 point and r < 0 names no circle"
+            ),
+            Self::ZeroDirection { dx, dy } => write!(
+                f,
+                "a director spelled as components must name a direction (got \
+                 ({dx:?}, {dy:?}), whose norm is within tolerance of zero): only the ratio \
+                 of the components is read, so scaling them up costs nothing"
+            ),
+            Self::ArcViaCollinear { offset } => write!(
+                f,
+                "the through-point lies on the chord line (offset {offset:?} m, within \
+                 tolerance of zero): three collinear points name no arc — move the \
+                 through-point off the chord, or author the straight segment as a line"
+            ),
+            Self::DegenerateArcChord { chord } => write!(
+                f,
+                "an arc leg's endpoints are within tolerance of each other (chord {chord:?} \
+                 m): a leg spans a chord, and a closed carrier is a circle primitive, not a \
+                 chain leg (PATHS-DESIGN §6, PQ4)"
+            ),
+            Self::ArcCenterNotEquidistant {
+                tip_radius,
+                end_radius,
+            } => write!(
+                f,
+                "the authored centre is not equidistant from the arc's endpoints \
+                 (|tip - centre| = {tip_radius:?} m, |end - centre| = {end_radius:?} m): the \
+                 three authored points contradict each other. Nothing is re-projected — an \
+                 authored point is never moved to make a construction work; fix whichever \
+                 of the three is wrong"
+            ),
+            Self::DegenerateArcCenter { radius } => write!(
+                f,
+                "the authored centre is within tolerance of an endpoint (radius {radius:?} \
+                 m): the carrier has no radius, so the winding selects nothing"
+            ),
+            Self::FarEndAnchorWithoutFillet => write!(
+                f,
+                "the far-end-anchor form ends an ARRIVAL side at its own anchor, and no \
+                 fillet is open here: the entry authors its first side with .at(p), and the \
+                 seam is authored at the back by the verb that targets Start \
+                 (PATHS-DESIGN §2's entry rule)"
+            ),
             Self::Escalated { source } => write!(f, "path junction classification: {source}"),
             Self::Band(e) => write!(f, "path tolerance band: {e}"),
             Self::UnderdeterminedLeg { site } => write!(
@@ -548,24 +659,67 @@ struct ArcData<T: Real> {
     radius: T,
 }
 
+/// A bound direction: the angle in radians **and** the unit vector the
+/// rays are actually built from.
+///
+/// The two are carried together because they are not interchangeable at
+/// the bit level (the G1 VQ4 exactness contract). A director spelled as
+/// an ANGLE fixes θ and derives the ray by `sin_cos`, so an axis
+/// direction picks up the quantization of π (`unit(PI).y = 1.22e-16`);
+/// a director spelled as COMPONENTS ([`PartialPath::toward`]) fixes the
+/// ray exactly — `(-1, 0)` normalizes to itself — and derives θ by
+/// `atan2` only for the angle arithmetic (`.turn(δ)`, arc end tangents)
+/// that genuinely needs a number. Every ray construction reads
+/// [`Dir::unit`]; nothing rebuilds a ray from [`Dir::ang`], so
+/// exactness survives every hop it can.
+#[derive(Clone, Copy, Debug)]
+struct Dir<T: Real> {
+    /// The direction's angle, radians.
+    ang: T,
+    /// The unit ray — exact when the director authored components.
+    unit: Vec2<T>,
+}
+
+impl<T: Real> Dir<T> {
+    /// A director spelled as an angle: the ray is the `sin_cos`
+    /// round-trip (the historic `.angle(θ)` behaviour, bit-for-bit).
+    fn from_angle(ang: T) -> Self {
+        Self {
+            ang,
+            unit: unit(ang),
+        }
+    }
+
+    /// A director spelled as an already-unit ray: the ray is stored
+    /// verbatim and the angle derived from it.
+    fn from_unit(u: Vec2<T>) -> Self {
+        Self {
+            ang: u.y.atan2(u.x),
+            unit: u,
+        }
+    }
+}
+
 /// A directed point's intrinsic incoming data: the arriving leg's end
-/// tangent (angle, radians), the leg's lever arm (extent capped by its
-/// carrier radius — the junction check's meters lever), and its
-/// carrier kind.
+/// tangent, the leg's lever arm (extent capped by its carrier radius —
+/// the junction check's meters lever), and its carrier kind.
 #[derive(Clone, Copy, Debug)]
 struct Incoming<T: Real> {
-    ang: T,
+    ang: Dir<T>,
     arm: T,
     carrier: Option<ArcData<T>>,
 }
 
 /// The one-struct tip of PATHS-DESIGN §5: `pos: Option<PosData>`,
-/// `ang: Option<T>`; the position data's optional incoming tangent is
+/// `ang: Option<…>`; the position data's optional incoming tangent is
 /// what the junction check reads at runtime (one generic function).
+/// G1 constructor 5 widens the angle slot's PAYLOAD to a [`Dir`]
+/// (angle-or-direction — one slot, two spellings); the §5 shape is
+/// unchanged: still one struct, still exactly two optional bits.
 #[derive(Clone, Debug)]
 struct Tip<T: Real> {
     pos: Option<PosData<T>>,
-    ang: Option<T>,
+    ang: Option<Dir<T>>,
     /// Whether the bound angle was inherited by `.tangent()` (the
     /// declared-tangency continuations; drives the §4 item 4 checks).
     ang_by_tangent: bool,
@@ -595,7 +749,7 @@ enum FirstSeg {
 #[derive(Clone, Debug)]
 struct PendingFillet<T: Real> {
     origin: Point2<T>,
-    ang: T,
+    ang: Dir<T>,
     radius: T,
     /// The ray was bound by `.tangent()` (its origin joint is already
     /// declared).
@@ -613,7 +767,7 @@ struct Core<T: Real> {
     verts: Vec<ProfileVertex<T>>,
     tangent: Vec<usize>,
     start_pos: Option<Point2<T>>,
-    start_ang: Option<T>,
+    start_ang: Option<Dir<T>>,
     first_seg: FirstSeg,
     pending: Option<PendingFillet<T>>,
     /// The carrier of the last emitted segment when it is an arc.
@@ -768,12 +922,12 @@ fn arc_carrier<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> ArcData<T> {
 /// flavor (a Start-targeting straight closer).
 fn junction_check<T: Decide>(
     inc: &Incoming<T>,
-    dep: T,
+    dep: Dir<T>,
     line_close: bool,
 ) -> Result<(), PathError<T>> {
     let band = linear_band()?;
-    let u_in = unit(inc.ang);
-    let u_dep = unit(dep);
+    let u_in = inc.ang.unit;
+    let u_dep = dep.unit;
     let turn = u_in.perp_dot(u_dep);
     match decide("path_junction_turn", Length::levered(turn, inc.arm), band) {
         Ok(Sign::Zero) => {
@@ -874,9 +1028,9 @@ impl<T: Decide> Core<T> {
     fn resolve_fillet(
         &mut self,
         arr_pos: Point2<T>,
-        arr_ang: T,
+        arr_ang: Dir<T>,
         seam: bool,
-    ) -> Result<(), PathError<T>> {
+    ) -> Result<(ArcData<T>, Sign), PathError<T>> {
         let pending = self
             .pending
             .take()
@@ -884,8 +1038,8 @@ impl<T: Decide> Core<T> {
                 site: "fillet resolution without an opened fillet",
             })?;
         let band = linear_band()?;
-        let u1 = unit(pending.ang);
-        let u2 = unit(arr_ang);
+        let u1 = pending.ang.unit;
+        let u2 = arr_ang.unit;
         let w = arr_pos - pending.origin;
         let wn = w.norm_squared().sqrt();
         // (1) parallel/tangent carriers admit no corner: the turn
@@ -976,7 +1130,7 @@ impl<T: Decide> Core<T> {
             self.push_arc(trims.t2, trims.bulge, arc)?;
             self.declare_last();
         }
-        Ok(())
+        Ok((arc, trims.fit_out))
     }
 }
 
@@ -1016,7 +1170,7 @@ fn in_state<T: Real, P, A>(core: Core<T>, tip: Tip<T>) -> PartialPath<T, P, A> {
 }
 
 /// A directed-point tip minted by a leg end.
-fn leg_end_tip<T: Real>(at: Point2<T>, ang: T, arm: T, carrier: Option<ArcData<T>>) -> Tip<T> {
+fn leg_end_tip<T: Real>(at: Point2<T>, ang: Dir<T>, arm: T, carrier: Option<ArcData<T>>) -> Tip<T> {
     Tip {
         pos: Some(PosData {
             at,
@@ -1050,15 +1204,92 @@ impl Open {
     /// Binds the entry direction first: `Open → Angle` (radians, in
     /// the sketch plane; position pending).
     pub fn angle<T: Real>(self, theta: T) -> PartialPath<T, NoPos, HasAng> {
+        self.director(Dir::from_angle(theta))
+    }
+
+    /// Binds the entry direction first as exact COMPONENTS
+    /// (`Open → Angle`): the direction-valued alternative to
+    /// [`angle`](Self::angle) — see [`PartialPath::toward`] for the
+    /// exactness contract and the refusal.
+    pub fn toward<T: Decide>(
+        self,
+        dx: T,
+        dy: T,
+    ) -> Result<PartialPath<T, NoPos, HasAng>, PathError<T>> {
+        Ok(self.director(unit_from_components(dx, dy)?))
+    }
+
+    fn director<T: Real>(self, dir: Dir<T>) -> PartialPath<T, NoPos, HasAng> {
         in_state(
             Core::empty(),
             Tip {
                 pos: None,
-                ang: Some(theta),
+                ang: Some(dir),
                 ang_by_tangent: false,
             },
         )
     }
+}
+
+/// The shared director-from-components construction (G1 constructor 5):
+/// normalizes `(dx, dy)` and stores the unit ray VERBATIM — no trig
+/// round-trip, so an axis-aligned or Pythagorean direction is exact
+/// (`(-1, 0)` → `(-1, 0)`; `(3, 4)` → `(0.6, 0.8)`).
+///
+/// The norm is classified through the funnel on the linear band and
+/// must be definitely positive: `(0, 0)` names no direction at all, and
+/// a norm within ε_input of zero cannot be normalized without
+/// amplifying its own noise into the ray. Only the RATIO of the
+/// components carries meaning, so the recourse is free — scale them up.
+fn unit_from_components<T: Decide>(dx: T, dy: T) -> Result<Dir<T>, PathError<T>> {
+    let band = linear_band()?;
+    let norm = (dx * dx + dy * dy).sqrt();
+    match decide("path_director_norm", Length::of(norm), band) {
+        Ok(Sign::Positive) => {}
+        Ok(_) => return Err(PathError::ZeroDirection { dx, dy }),
+        Err(source) => return Err(PathError::Escalated { source }),
+    }
+    Ok(Dir::from_unit(Vec2::new(dx / norm, dy / norm)))
+}
+
+/// The circle primitive (G1 constructor 1): a **one-step complete-loop
+/// program form**, not a chain — `circle(center, r)` IS the whole loop,
+/// so it returns the lowered [`ProfileLoop`] directly and there is
+/// nothing to continue, close, or bind.
+///
+/// **It authors no seam.** That is the whole point, and it is what
+/// keeps PQ4 (PATHS-DESIGN §6: a chain's seam sits at a junction or
+/// fillet, never mid-carrier) untouched: a chain still cannot close
+/// mid-carrier, because the split this primitive uses is not authored
+/// at all. The conventional split — two semicircles at the ±x poles,
+/// counterclockwise — is the primitive's PRIVATE lowering, exactly the
+/// M2 closed-carrier precedent: a detail of how a closed carrier
+/// reaches a vertex+bulge document, not a junction anyone said. The two
+/// joints are same-carrier identities, so nothing is declared tangent
+/// (there is no tangency to declare — it is one circle).
+///
+/// `radius` must classify definitely positive
+/// ([`PathError::NonpositiveCircleRadius`]), through the same funnel as
+/// the other sign gates. A circle is one loop among others: profiles
+/// mix circle loops and chain loops freely (per-loop wholesale, which
+/// is the mixed-authoring rule of §6 read at loop granularity).
+pub fn circle<T: Decide>(center: Point2<T>, radius: T) -> Result<ProfileLoop<T>, PathError<T>> {
+    let band = linear_band()?;
+    match decide("path_circle_radius", Length::of(radius), band) {
+        Ok(Sign::Positive) => {}
+        Ok(_) => return Err(PathError::NonpositiveCircleRadius { radius }),
+        Err(source) => return Err(PathError::Escalated { source }),
+    }
+    Ok(ProfileLoop::new(vec![
+        ProfileVertex {
+            pos: Point2::new(center.x + radius, center.y),
+            bulge: T::one(),
+        },
+        ProfileVertex {
+            pos: Point2::new(center.x - radius, center.y),
+            bulge: T::one(),
+        },
+    ]))
 }
 
 impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
@@ -1114,19 +1345,43 @@ impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
     /// its fillet arc tangentially by construction; the entry's check
     /// happens at the seam). On a fillet arrival whose position is
     /// already bound, completing the direction resolves the fillet.
-    pub fn angle(mut self, theta: T) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
+    pub fn angle(self, theta: T) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
+        self.director(Dir::from_angle(theta))
+    }
+
+    /// The direction-valued director (G1 constructor 5): binds the same
+    /// angular DOF as [`angle`](Self::angle) — the same lattice slot,
+    /// set at most once per side — from exact COMPONENTS instead of an
+    /// angle. `(dx, dy)` is normalized and the unit ray stored verbatim,
+    /// so the departure never makes a trig round-trip: `.toward(-1, 0)`
+    /// gives the ray `(-1, 0)` exactly, where `.angle(PI)` gives
+    /// `(-1, 1.2246e-16)` and carries that ulp into every corner and
+    /// trim point downstream. Only the components' RATIO is read
+    /// (magnitude is not a length and binds nothing).
+    ///
+    /// `(0, 0)` — and any norm within ε_input of zero — refuses
+    /// [`PathError::ZeroDirection`]: it names no direction, and the
+    /// recourse is free, since scaling the components changes nothing
+    /// else. Junction/fillet semantics are otherwise identical to
+    /// [`angle`](Self::angle), including the §4 item 1 check on a
+    /// directed point and the fillet resolution on a bound arrival.
+    pub fn toward(self, dx: T, dy: T) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
+        self.director(unit_from_components(dx, dy)?)
+    }
+
+    fn director(mut self, dir: Dir<T>) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
         if let Some(pos) = &self.tip.pos {
             if let Some(inc) = &pos.incoming {
-                junction_check(inc, theta, false)?;
+                junction_check(inc, dir, false)?;
             }
             let at = pos.at;
             if self.core.pending.is_some() {
-                self.core.resolve_fillet(at, theta, false)?;
+                self.core.resolve_fillet(at, dir, false)?;
             } else if self.core.start_ang.is_none() {
-                self.core.start_ang = Some(theta);
+                self.core.start_ang = Some(dir);
             }
         }
-        self.tip.ang = Some(theta);
+        self.tip.ang = Some(dir);
         self.tip.ang_by_tangent = false;
         Ok(in_state(self.core, self.tip))
     }
@@ -1164,7 +1419,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                 site: "turn on a tip without incoming data",
             },
         )?;
-        let theta = inc.ang + delta;
+        let theta = Dir::from_angle(inc.ang.ang + delta);
         junction_check(&inc, theta, false)?;
         self.tip.ang = Some(theta);
         self.tip.ang_by_tangent = false;
@@ -1179,7 +1434,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
 impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     /// The bound tip pose (backstopped: unreachable-missing data is a
     /// typed error, never a panic).
-    fn dep(&self) -> Result<(Point2<T>, T), PathError<T>> {
+    fn dep(&self) -> Result<(Point2<T>, Dir<T>), PathError<T>> {
         let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
             site: "directed tip without a position",
         })?;
@@ -1221,7 +1476,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         {
             return Err(PathError::SameCarrierJunction { margin: T::zero() });
         }
-        let end = at + unit(ang) * len;
+        let end = at + ang.unit * len;
         let head = self.core.head()?;
         self.core.push_line(end)?;
         let arm = (end - head).norm_squared().sqrt();
@@ -1284,10 +1539,10 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         &self,
         p: Point2<T>,
         closing: bool,
-    ) -> Result<(T, T, ArcData<T>, T), PathError<T>> {
+    ) -> Result<(T, Dir<T>, ArcData<T>, T), PathError<T>> {
         let (at, ang) = self.dep()?;
         let d = p - at;
-        let u = unit(ang);
+        let u = ang.unit;
         let along = u.dot(d);
         let across = u.perp_dot(d);
         let delta = across.atan2(along);
@@ -1314,7 +1569,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
                 Some(prev) => refuse_identical_carriers(prev, &carrier)?,
             }
         }
-        let end_ang = ang + delta + delta;
+        let end_ang = Dir::from_angle(ang.ang + delta + delta);
         let chord = d.norm_squared().sqrt();
         Ok((bulge, end_ang, carrier, chord))
     }
@@ -1382,6 +1637,61 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         Tgt::arc_from(self, target, bulge)
     }
 
+    /// The arc THROUGH a point (G1 constructor 2): the unique arc
+    /// through (current tip, `via`, target). A free arc — the junction
+    /// semantics are `arc_to`'s exactly: on a directed point the §4
+    /// item 1 check runs on the arc's start tangent; `arc_via(v, Start)`
+    /// is the sharp arc seam; on a fillet arrival it refuses
+    /// [`PathError::ArcArrivalFillet`] (§7).
+    ///
+    /// All three points are AUTHORED and stored verbatim — the two
+    /// endpoints as chain vertices, the through-point only as the
+    /// bulge's input. The bulge is derived at lowering by the existing
+    /// closed form [`crate::bulge_from_via`] (inscribed angle,
+    /// tan(Δ/2)), never re-typed by the author; a hand chain's
+    /// `LoopBuilder::arc_to_via` feeds that same function the same three
+    /// points, so the two doors emit the same bits.
+    ///
+    /// Refusals beyond `arc_to`'s: a through-point within ε_input of
+    /// the chord LINE ([`PathError::ArcViaCollinear`] — the whole
+    /// collinear class, on-chord and beyond-the-end alike), and
+    /// coincident endpoints ([`PathError::DegenerateArcChord`]).
+    pub fn arc_via<Tgt: ArcViaTarget<T, F>>(self, via: Point2<T>, target: Tgt) -> Tgt::Out {
+        Tgt::arc_via_from(self, via, target)
+    }
+
+    /// The arc ABOUT a centre (G1 constructor 3): from the current tip
+    /// about `center` to the target, with `winding` selecting which of
+    /// the two arcs. The winding is a STRUCTURAL argument
+    /// ([`ArcSweep::Ccw`] / [`ArcSweep::Cw`]), not a number to get the
+    /// sign of — the choice is discrete, so it is spelled discretely.
+    /// This is the centre-intent spelling: a lantern's belly is *the
+    /// sphere's own arc about the globe centre*, and authoring it this
+    /// way says so, rather than fitting an arc and hoping the carrier
+    /// lands on the sphere.
+    ///
+    /// **Equidistance is checked, never repaired**: |tip − centre| and
+    /// |end − centre| go through the funnel, and a definite mismatch
+    /// refuses [`PathError::ArcCenterNotEquidistant`]. Silently
+    /// re-projecting the centre onto the endpoints' bisector (or an
+    /// endpoint onto the circle) would move an authored point, which §4
+    /// item 3 forbids — three points that contradict each other are a
+    /// bug in the authoring, and the refusal says which two disagree.
+    ///
+    /// The bulge is derived at lowering by [`crate::bulge_from_center`],
+    /// bit-for-bit as `LoopBuilder::arc_to_center` derives it. Junction
+    /// semantics are `arc_to`'s; `arc_center(c, Start, w)` is the sharp
+    /// arc seam. A centre within ε_input of an endpoint refuses
+    /// [`PathError::DegenerateArcCenter`].
+    pub fn arc_center<Tgt: ArcCenterTarget<T, F>>(
+        self,
+        center: Point2<T>,
+        target: Tgt,
+        winding: ArcSweep,
+    ) -> Tgt::Out {
+        Tgt::arc_center_from(self, center, target, winding)
+    }
+
     fn tip_pos(&self) -> Result<&PosData<T>, PathError<T>> {
         self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
             site: "point tip without a position",
@@ -1395,7 +1705,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let pos = self.tip_pos()?;
         let at = pos.at;
         let d = p - at;
-        let gamma = d.y.atan2(d.x);
+        let gamma = Dir::from_angle(d.y.atan2(d.x));
         if self.core.pending.is_some() {
             self.core.resolve_fillet(at, gamma, false)?;
         } else {
@@ -1418,7 +1728,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         })?;
         let at = self.tip_pos()?.at;
         let d = start_pos - at;
-        let gamma = d.y.atan2(d.x);
+        let gamma = Dir::from_angle(d.y.atan2(d.x));
         if self.core.pending.is_some() {
             self.core.resolve_fillet(at, gamma, false)?;
         } else if let Some(inc) = &self.tip_pos()?.incoming {
@@ -1440,14 +1750,92 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         Ok(self.core.build())
     }
 
+    /// The chord length, gated definitely positive: every arc leg spans
+    /// a chord, and a closed carrier is [`circle`]'s business (PQ4).
+    fn arc_chord(&self, end: Point2<T>) -> Result<T, PathError<T>> {
+        let at = self.tip_pos()?.at;
+        let band = linear_band()?;
+        let chord = (end - at).norm_squared().sqrt();
+        match decide("path_arc_chord", Length::of(chord), band) {
+            Ok(Sign::Positive) => Ok(chord),
+            Ok(_) => Err(PathError::DegenerateArcChord { chord }),
+            Err(source) => Err(PathError::Escalated { source }),
+        }
+    }
+
+    /// [`arc_via`](Self::arc_via)'s derived bulge: the collinear gate
+    /// (the through-point's signed perpendicular offset from the chord
+    /// LINE, meters — zero for on-chord and beyond-the-end alike, which
+    /// is why one refusal covers the class), then the existing closed
+    /// form on the three authored points.
+    fn arc_via_bulge(&self, via: Point2<T>, end: Point2<T>) -> Result<T, PathError<T>> {
+        let at = self.tip_pos()?.at;
+        let chord_len = self.arc_chord(end)?;
+        let band = linear_band()?;
+        let offset = (end - at).perp_dot(via - at) / chord_len;
+        match decide("path_arc_via_offset", Length::of(offset), band) {
+            Ok(Sign::Zero) => return Err(PathError::ArcViaCollinear { offset }),
+            Ok(_) => {}
+            Err(source) => return Err(PathError::Escalated { source }),
+        }
+        Ok(bulge_from_via(at, via, end))
+    }
+
+    /// [`arc_center`](Self::arc_center)'s derived bulge: both radii
+    /// gated definitely positive, then equidistance gated definitely
+    /// ZERO (a definite mismatch refuses; an undecidable one escalates —
+    /// neither is repaired), then the existing closed form.
+    fn arc_center_bulge(
+        &self,
+        center: Point2<T>,
+        end: Point2<T>,
+        winding: ArcSweep,
+    ) -> Result<T, PathError<T>> {
+        let at = self.tip_pos()?.at;
+        let band = linear_band()?;
+        let r_tip = (at - center).norm_squared().sqrt();
+        let r_end = (end - center).norm_squared().sqrt();
+        for radius in [r_tip, r_end] {
+            match decide("path_arc_center_radius", Length::of(radius), band) {
+                Ok(Sign::Positive) => {}
+                Ok(_) => return Err(PathError::DegenerateArcCenter { radius }),
+                Err(source) => return Err(PathError::Escalated { source }),
+            }
+        }
+        match decide("path_arc_center_equidistant", Length::of(r_tip - r_end), band) {
+            Ok(Sign::Zero) => {}
+            Ok(_) => {
+                return Err(PathError::ArcCenterNotEquidistant {
+                    tip_radius: r_tip,
+                    end_radius: r_end,
+                });
+            }
+            Err(source) => return Err(PathError::Escalated { source }),
+        }
+        self.arc_chord(end)?;
+        Ok(bulge_from_center(at, end, center, winding))
+    }
+
+    /// The target point a closing verb resolves to (the entry pose's
+    /// position — [`Start`] by reference, never re-typed).
+    fn start_target(&self) -> Result<Point2<T>, PathError<T>> {
+        self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
+            site: "close before the entry position is bound",
+        })
+    }
+
     /// The arc's derived angles: chord direction γ, included angle
     /// θ = 4·atan(b), start tangent γ − θ/2, end tangent γ + θ/2.
-    fn arc_angles(at: Point2<T>, target: Point2<T>, bulge: T) -> (T, T, T) {
+    fn arc_angles(at: Point2<T>, target: Point2<T>, bulge: T) -> (Dir<T>, Dir<T>, T) {
         let d = target - at;
         let gamma = d.y.atan2(d.x);
         let theta = bulge.atan() * T::from_f64(4.0);
         let half = theta / T::from_f64(2.0);
-        (gamma - half, gamma + half, d.norm_squared().sqrt())
+        (
+            Dir::from_angle(gamma - half),
+            Dir::from_angle(gamma + half),
+            d.norm_squared().sqrt(),
+        )
     }
 
     fn arc_to_point(
@@ -1503,6 +1891,75 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         )?;
         self.core.set_leaving(bulge, FirstSeg::Arc)?;
         Ok(self.core.build())
+    }
+}
+
+impl<T: Decide> PartialPath<T, NoPos, HasAng> {
+    /// **The far-end anchor** (G1 constructor 4, the W5 wall): binds an
+    /// arrival side's position bit to `anchor` AND ends the side there —
+    /// the `to`-family's combined step, read on the arrival side.
+    ///
+    /// PATHS-DESIGN §3 already says every side is anchored by a real
+    /// on-path point plus a direction, and `.angle(θ).at(p)` binds
+    /// exactly that pair. What was missing was only the ability for the
+    /// side to STOP at its anchor: `.at(p)` leaves the tip Directed at
+    /// `p`, and the only continuations run PAST it, so a side whose
+    /// natural end is its far vertex had to be authored as a synthetic
+    /// mid-side anchor plus a length — a point that is not a vertex, and
+    /// a number nobody measured. `.to(p)` says the natural thing: this
+    /// side ends at `p`.
+    ///
+    /// It adds no geometry and no new determination — `.angle(θ).to(p)`
+    /// fixes exactly what `.angle(θ).at(p)` fixes (the arrival carrier
+    /// is the line through `p` in direction θ; the corner is still the
+    /// carrier intersection, never authored). The difference is where
+    /// the leg terminates, so the fillet resolution, its corner gates,
+    /// and the anchor-fit checks are all `.at(p)`'s, unchanged; `p` is
+    /// on the final path either way, authored once. The result is a
+    /// directed point (incoming tangent θ), so the next verb's junction
+    /// check runs exactly as after any leg.
+    ///
+    /// The direction must be bound FIRST (`.angle(θ).to(p)` /
+    /// `.toward(dx, dy).to(p)`): with the anchor as the terminus, the
+    /// side's carrier is what the director supplies. An exact trim fit —
+    /// the fillet arc reaching `anchor` with no straight run left — is
+    /// not an error: the side simply IS the arc, no degenerate segment
+    /// is emitted, and the tip carries the arc as its incoming carrier.
+    ///
+    /// At the ENTRY (direction bound, no fillet open) there is no
+    /// arrival side to end, and this refuses
+    /// [`PathError::FarEndAnchorWithoutFillet`] — the entry authors its
+    /// first side with `.at(p)`, and the seam is authored at the back
+    /// (§2's entry rule). Targeting [`Start`] with the far-end form is
+    /// deliberately NOT in this surface; see the module docs.
+    pub fn to(
+        mut self,
+        anchor: Point2<T>,
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+        let dir = self.tip.ang.ok_or(PathError::UnderdeterminedLeg {
+            site: "far-end anchor on a tip without a bound direction",
+        })?;
+        if self.core.pending.is_none() {
+            return Err(PathError::FarEndAnchorWithoutFillet);
+        }
+        let (arc, fit_out) = self.core.resolve_fillet(anchor, dir, false)?;
+        if fit_out == Sign::Positive {
+            let head = self.core.head()?;
+            let arm = (anchor - head).norm_squared().sqrt();
+            self.core.push_line(anchor)?;
+            Ok(in_state(self.core, leg_end_tip(anchor, dir, arm, None)))
+        } else {
+            // Exact fit: the trim reached the anchor, so the arc IS the
+            // whole side. Emitting a zero-length straight piece here
+            // would mint the degenerate segment the fit gate exists to
+            // avoid — the incoming side's `Zero` fit is suppressed the
+            // same way inside `resolve_fillet`.
+            let head = self.core.head()?;
+            Ok(in_state(
+                self.core,
+                leg_end_tip(head, dir, arc.radius, Some(arc)),
+            ))
+        }
     }
 }
 
@@ -1577,6 +2034,85 @@ impl<T: Decide, F: Flavor> ArcTarget<T, F> for Point2<T> {
 impl<T: Decide, F: Flavor> ArcTarget<T, F> for Start {
     type Out = Result<ProfileLoop<T>, PathError<T>>;
     fn arc_from(path: PartialPath<T, HasPos<F>, NoAng>, _target: Self, bulge: T) -> Self::Out {
+        path.arc_to_start(bulge)
+    }
+}
+
+/// A [`PartialPath::arc_via`] target: an authored absolute point, or
+/// [`Start`] (the sharp arc seam through the via-point). Sealed.
+pub trait ArcViaTarget<T: Decide, F: Flavor>: sealed::Sealed {
+    /// A directed point for an interior target; the closed loop for
+    /// [`Start`].
+    type Out;
+    #[doc(hidden)]
+    fn arc_via_from(
+        path: PartialPath<T, HasPos<F>, NoAng>,
+        via: Point2<T>,
+        target: Self,
+    ) -> Self::Out;
+}
+
+impl<T: Decide, F: Flavor> ArcViaTarget<T, F> for Point2<T> {
+    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
+    fn arc_via_from(
+        path: PartialPath<T, HasPos<F>, NoAng>,
+        via: Point2<T>,
+        target: Self,
+    ) -> Self::Out {
+        let bulge = path.arc_via_bulge(via, target)?;
+        path.arc_to_point(target, bulge)
+    }
+}
+
+impl<T: Decide, F: Flavor> ArcViaTarget<T, F> for Start {
+    type Out = Result<ProfileLoop<T>, PathError<T>>;
+    fn arc_via_from(
+        path: PartialPath<T, HasPos<F>, NoAng>,
+        via: Point2<T>,
+        _target: Self,
+    ) -> Self::Out {
+        let bulge = path.arc_via_bulge(via, path.start_target()?)?;
+        path.arc_to_start(bulge)
+    }
+}
+
+/// A [`PartialPath::arc_center`] target: an authored absolute point, or
+/// [`Start`] (the sharp arc seam about the centre). Sealed.
+pub trait ArcCenterTarget<T: Decide, F: Flavor>: sealed::Sealed {
+    /// A directed point for an interior target; the closed loop for
+    /// [`Start`].
+    type Out;
+    #[doc(hidden)]
+    fn arc_center_from(
+        path: PartialPath<T, HasPos<F>, NoAng>,
+        center: Point2<T>,
+        target: Self,
+        winding: ArcSweep,
+    ) -> Self::Out;
+}
+
+impl<T: Decide, F: Flavor> ArcCenterTarget<T, F> for Point2<T> {
+    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
+    fn arc_center_from(
+        path: PartialPath<T, HasPos<F>, NoAng>,
+        center: Point2<T>,
+        target: Self,
+        winding: ArcSweep,
+    ) -> Self::Out {
+        let bulge = path.arc_center_bulge(center, target, winding)?;
+        path.arc_to_point(target, bulge)
+    }
+}
+
+impl<T: Decide, F: Flavor> ArcCenterTarget<T, F> for Start {
+    type Out = Result<ProfileLoop<T>, PathError<T>>;
+    fn arc_center_from(
+        path: PartialPath<T, HasPos<F>, NoAng>,
+        center: Point2<T>,
+        _target: Self,
+        winding: ArcSweep,
+    ) -> Self::Out {
+        let bulge = path.arc_center_bulge(center, path.start_target()?, winding)?;
         path.arc_to_start(bulge)
     }
 }

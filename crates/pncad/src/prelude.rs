@@ -43,7 +43,13 @@ pub use profile::{
     ArcSweep, FilletLegShape, LoopBuilder, Profile, ProfileError, ProfileLoop, ProfileVertex,
     SegmentKind, SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
-pub use profile::{Open, PartialPath, PathError, Start}; // the PATHS authoring algebra (LIB-U2)
+// The PATHS authoring algebra (LIB-U2), with the LIB-G1 vocabulary
+// growth: `circle` (the one-step closed-carrier program form) and the
+// target traits the new arc binding modes dispatch through.
+pub use profile::{
+    ArcCenterTarget, ArcTarget, ArcViaTarget, LineTarget, Open, PartialPath, PathError, Start,
+    TangentArcTarget, circle,
+};
 
 // --- 3. The four body operations ------------------------------
 pub use sweep::fillet::{FilletError, Filleted, fillet_edges};
