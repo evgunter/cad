@@ -27,9 +27,16 @@ fn the_unit_table_is_the_whole_closed_set_and_reads_as_data() {
     let mm = unit_by_symbol("mm").expect("mm row");
     assert_eq!(mm.quantity, UnitQuantity::Length);
     assert_eq!(mm.factor, MILLI);
-    assert_eq!(unit_by_symbol("deg").expect("deg row").quantity, UnitQuantity::Angle);
+    assert_eq!(
+        unit_by_symbol("deg").expect("deg row").quantity,
+        UnitQuantity::Angle
+    );
     assert_eq!(unit_by_symbol("furlong"), None);
-    assert_eq!(unit_by_symbol("MM"), None, "symbols are case-sensitive data");
+    assert_eq!(
+        unit_by_symbol("MM"),
+        None,
+        "symbols are case-sensitive data"
+    );
 }
 
 #[test]
@@ -136,7 +143,10 @@ fn values_with_no_preimage_in_the_asked_unit_fall_back_to_canonical() {
         if x2 > x1.next_up() {
             let skipped = x1.next_up();
             let text = fmt_length(skipped, MM).unwrap();
-            assert!(text.ends_with(" m"), "expected canonical fallback, got {text:?}");
+            assert!(
+                text.ends_with(" m"),
+                "expected canonical fallback, got {text:?}"
+            );
             assert_eq!(parse_back(&text, ["m", "m"]).to_bits(), skipped.to_bits());
             return;
         }

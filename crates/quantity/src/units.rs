@@ -134,14 +134,7 @@ pub const RAD: AngleUnit = AngleUnit {
 /// The whole closed unit table, as data — the expression text parser's
 /// suffix vocabulary and the formatter's display vocabulary are both
 /// exactly this list.
-pub const UNITS: [UnitDef; 6] = [
-    MM.def(),
-    CM.def(),
-    M.def(),
-    IN.def(),
-    DEG.def(),
-    RAD.def(),
-];
+pub const UNITS: [UnitDef; 6] = [MM.def(), CM.def(), M.def(), IN.def(), DEG.def(), RAD.def()];
 
 /// The table row for a surface symbol, or `None` when the symbol is
 /// not one of the six.
