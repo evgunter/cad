@@ -255,3 +255,15 @@ spec is the orchestrator's next writing task.
   selection family is a coherent design object with two consumers
   and future S8-family growth lands there. Implementer redirected
   mid-flight; the extraction's bitwise pin guards the move.
+
+- **LB3 correction (implementer finding, accepted)**: TWO
+  boundary allowlist entries, not three, and NO CI change —
+  `fillet_select.rs` uses sole-bound `T: Bounds`, which the
+  ratified rule permits everywhere (the tripwire matches only
+  compound bounds). The factoring SHRINKS the discipline
+  surface. §3 surface still to land; its design is fully
+  recorded (#259/#261/report), so a fresh finisher rebuilds it
+  mechanically. G2 session errors self-reported honestly (slot
+  held ~2h across a branch switch; ~250 lines lost to an
+  over-broad rm) — both recorded for the A/B row's fix-pass
+  narrative.
