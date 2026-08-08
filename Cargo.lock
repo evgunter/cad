@@ -1273,6 +1273,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "quantity"
+version = "0.0.0"
+dependencies = [
+ "proptest",
+]
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
