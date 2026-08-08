@@ -243,7 +243,9 @@ fn promoted_cylinder_gates_and_the_near_miss_stay_nurbs() {
     // 5·ε_in", not "√2, moved 5·ε_in").
     let eps = geom_core::Tolerance::get().eps;
     const CENTER_X_TOKEN: &str = "1.414213562373095";
-    let base: f64 = CENTER_X_TOKEN.parse().expect("the writer's own token parses");
+    let base: f64 = CENTER_X_TOKEN
+        .parse()
+        .expect("the writer's own token parses");
     let near_miss = text.replace(
         &format!("#114 = CARTESIAN_POINT('', ({CENTER_X_TOKEN}, 0.0, 1.0));"),
         &format!(
