@@ -73,6 +73,14 @@ git history and the M-logs):**
 - **State-sync PRs (Evan, #96)**: the orchestrator branch must not
   accumulate a large unmerged delta — open a docs-only PR to main
   at every pipeline seam.
+- **Local clippy verification is only real from a COLD lint state
+  for touched crates** (2026-08-08, #264's triple-red lesson):
+  cargo replays cached diagnostics at their recording-time
+  severity, so a target linted warm under an allow-warnings
+  invocation passes a later `-D warnings` run un-relinted — a
+  clean exit is a FALSE NEGATIVE. Brief line: verify with
+  `cargo clean -p <touched-crates> && cargo clippy <CI's exact
+  crate list> --all-targets -- -D warnings`.
 - **Every subagent spec header**: OUTPUT DISCIPLINE (≤~150 lines
   per tool call, chunked reads, skeleton-first writes, reports
   ≤150 lines — the 64k output limit kills agents that draft whole
