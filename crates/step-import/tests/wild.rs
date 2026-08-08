@@ -358,7 +358,8 @@ fn the_committed_corpus_still_carries_the_dialects_it_was_chosen_for() {
     // corpus carries both QUASI_UNIFORM forms (dm1's 31 curves + 5
     // surfaces), read with synthesized clamped knots.
     assert!(
-        any(&|t| t.contains("QUASI_UNIFORM_CURVE")) && any(&|t| t.contains("QUASI_UNIFORM_SURFACE")),
+        any(&|t| t.contains("QUASI_UNIFORM_CURVE"))
+            && any(&|t| t.contains("QUASI_UNIFORM_SURFACE")),
         "the QUASI_UNIFORM vocabulary"
     );
     // Leg E: an EDGE_CURVE stated against its carrier.

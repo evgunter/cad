@@ -29,7 +29,9 @@ use step_import::{
     ImportOptions, NormalizationKind, PromotedKind, StepImport, StepImportError, import_step,
 };
 
-fn promotions(normalizations: &[step_import::StructureNormalization]) -> Vec<(u64, PromotedKind, f64)> {
+fn promotions(
+    normalizations: &[step_import::StructureNormalization],
+) -> Vec<(u64, PromotedKind, f64)> {
     normalizations
         .iter()
         .filter_map(|n| match n.kind {
@@ -115,7 +117,10 @@ fn quasi_uniform_vocabulary_reads_the_same_surface() {
         common::census(&body),
         "census identical across the vocabulary"
     );
-    assert_eq!(base_promos, promos, "identical promotions (bit-identical patches)");
+    assert_eq!(
+        base_promos, promos,
+        "identical promotions (bit-identical patches)"
+    );
     let (v1, v2) = (
         topo::mass_properties(&base).unwrap().volume,
         topo::mass_properties(&body).unwrap().volume,

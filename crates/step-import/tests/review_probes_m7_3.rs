@@ -429,7 +429,9 @@ fn probe_rim_same_sense_flip_is_honest() {
 fn probe_reexport_promotion_divergence() {
     let orig = fixture("loft_prism", "step");
     let StepImport::Solid {
-        body, normalizations, ..
+        body,
+        normalizations,
+        ..
     } = import(&orig).expect("loft_prism imports")
     else {
         panic!("loft_prism must import as a solid");
@@ -462,12 +464,18 @@ fn probe_reexport_promotion_divergence() {
     let out = step_export::step_string(&body, &options).expect("re-export");
     let count = |s: &str, pat: &str| s.matches(pat).count();
     assert_eq!(
-        (count(&orig, "= PLANE("), count(&orig, "B_SPLINE_SURFACE_WITH_KNOTS(")),
+        (
+            count(&orig, "= PLANE("),
+            count(&orig, "B_SPLINE_SURFACE_WITH_KNOTS(")
+        ),
         (2, 4),
         "committed: 2 cap planes + 4 spline walls"
     );
     assert_eq!(
-        (count(&out, "= PLANE("), count(&out, "B_SPLINE_SURFACE_WITH_KNOTS(")),
+        (
+            count(&out, "= PLANE("),
+            count(&out, "B_SPLINE_SURFACE_WITH_KNOTS(")
+        ),
         (4, 2),
         "re-export: the two promoted walls state their planes"
     );

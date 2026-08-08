@@ -105,7 +105,10 @@ fn the_folds_divergence_is_exactly_the_reported_promotion() {
             "{name}: committed vocabulary — 2 cap planes + 4 spline walls"
         );
         assert_eq!(
-            (count(&out, "= PLANE("), count(&out, "B_SPLINE_SURFACE_WITH_KNOTS(")),
+            (
+                count(&out, "= PLANE("),
+                count(&out, "B_SPLINE_SURFACE_WITH_KNOTS(")
+            ),
             (4, 2),
             "{name}: the re-export's divergence is the two promoted walls"
         );
