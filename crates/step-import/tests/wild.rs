@@ -474,10 +474,15 @@ fn wild_refusals_are_typed_and_name_their_class() {
 /// azimuth splits nowhere (ftc_11's cylinders), every other rim
 /// splits once (cq's two rims; ftc_11's tori, whose rim vertices sit
 /// at −π/2 and π), and every band gains exactly one seam edge.
+/// One pinned band mapping: the `ADVANCED_FACE` entity id, the
+/// boundary census the file states for it, and the census the re-mint
+/// leaves — each census as (faces, edges, vertices).
+type BandCensusRow = (u64, (usize, usize, usize), (usize, usize, usize));
+
 #[test]
 fn the_band_re_mint_reports_its_normalizations() {
     use step_import::{FaceCensus, NormalizationKind};
-    let rows: [(&str, &[(u64, (usize, usize, usize), (usize, usize, usize))]); 2] = [
+    let rows: [(&str, &[BandCensusRow]); 2] = [
         (
             "occ-oss/cq_red_cube_blue_cylinder.step",
             // One cylinder band; both rim vertices half a turn from
