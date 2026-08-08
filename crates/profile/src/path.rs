@@ -81,6 +81,34 @@
 //! run) supplies ε_input for every junction classification — the
 //! ratified surface has no per-call tolerance slot.
 //!
+//! # Vocabulary growth (LIB-G1)
+//!
+//! Five constructors added under the PROFILES-V2 VQ1(b) ruling — the
+//! algebra grows until the persisted corpus authors fully — and
+//! documented as the §2 addendum of `docs/PATHS-DESIGN.md`:
+//!
+//! - [`circle`] — the closed-carrier PROGRAM FORM. Not a chain: it
+//!   authors no seam, so PQ4 is untouched, and the conventional split
+//!   is its private lowering.
+//! - [`arc_via`](PartialPath::arc_via) — the arc through a point.
+//! - [`arc_center`](PartialPath::arc_center) — the arc about a centre,
+//!   with a structural winding; equidistance checked, never repaired.
+//! - `to(anchor)` on a bound arrival direction — the **far-end
+//!   anchor**: the arrival side ends AT its authored anchor, with no
+//!   synthetic mid-side point and no measured length.
+//! - [`toward`](PartialPath::toward) — the direction-valued director:
+//!   axis-aligned rays are exact, where `.angle(θ)` round-trips through
+//!   `sin_cos`.
+//!
+//! Two exactness contracts hold across all five. **Authored points are
+//! stored verbatim**: every point the author types is emitted as itself,
+//! and every derived quantity (bulges, rays, corners, trims) is computed
+//! at lowering — nothing computed is ever re-typed by the author, so the
+//! algebra and a hand chain fed the same authored points agree bit for
+//! bit. **Direction-exact rays**: a director spelled as components fixes
+//! the ray, not an angle, so no trig round-trip stands between the
+//! authoring and the geometry.
+//!
 //! # Not in this lowering (v1 scope)
 //!
 //! NURBS legs (`nurbs_in_place`, `nurbs(curve)` and variants,
@@ -153,6 +181,68 @@
 //! ```compile_fail,E0599
 //! use profile::Open;
 //! let p = Open.angle(0.0_f64).line(1.0);
+//! ```
+//!
+//! The widened director surface is the SAME slot, so `.toward` is a
+//! second director on a Directed tip exactly as `.angle` is:
+//!
+//! ```compile_fail,E0599
+//! use geom_core::Point2;
+//! use profile::Open;
+//! let p = Open.at(Point2::new(0.0, 0.0)).angle(0.0).unwrap().toward(1.0, 0.0);
+//! ```
+//!
+//! ```compile_fail,E0599
+//! use geom_core::Point2;
+//! use profile::Open;
+//! let p = Open.at(Point2::new(0.0_f64, 0.0)).toward(1.0, 0.0).unwrap().toward(0.0, 1.0);
+//! ```
+//!
+//! The new arc modes are legs from a Point, so they are ill-typed on a
+//! Directed tip (the departure is already bound):
+//!
+//! ```compile_fail,E0599
+//! use geom_core::Point2;
+//! use profile::Open;
+//! let p = Open.at(Point2::new(0.0, 0.0)).angle(0.0).unwrap()
+//!     .arc_via(Point2::new(1.0, 1.0), Point2::new(2.0, 0.0));
+//! ```
+//!
+//! ```compile_fail,E0599
+//! use geom_core::Point2;
+//! use profile::{ArcSweep, Open};
+//! let p = Open.at(Point2::new(0.0, 0.0)).angle(0.0).unwrap()
+//!     .arc_center(Point2::new(1.0, 0.0), Point2::new(2.0, 0.0), ArcSweep::Ccw);
+//! ```
+//!
+//! `circle` is a complete-loop PROGRAM FORM, not a chain: there is no
+//! tip to continue from, so no chain verb exists on its result:
+//!
+//! ```compile_fail,E0599
+//! use geom_core::Point2;
+//! let loop_ = profile::circle(Point2::new(0.0, 0.0), 1.0).unwrap();
+//! let more = loop_.line_to(Point2::new(1.0, 0.0));
+//! ```
+//!
+//! The far-end anchor is an ARRIVAL-side form: it needs the position
+//! slot empty and the angle slot bound, so it is ill-typed on a
+//! Directed tip (position already bound) …
+//!
+//! ```compile_fail,E0308
+//! use geom_core::Point2;
+//! use profile::Open;
+//! let p = Open.at(Point2::new(0.0, 0.0)).angle(0.0).unwrap()
+//!     .to(Point2::new(1.0, 0.0));
+//! ```
+//!
+//! … and its `Start` spelling is deliberately absent (the seam fillet
+//! `.fillet(r).to(Start)` is the closing form, from the unbound Open):
+//!
+//! ```compile_fail,E0277
+//! use geom_core::Point2;
+//! use profile::{Open, Start};
+//! let p = Open.at(Point2::new(0.0, 0.0)).angle(0.0).unwrap()
+//!     .fillet(0.5).unwrap().angle(1.0).unwrap().to(Start);
 //! ```
 //!
 //! Use after close (closing verbs consume the path):

@@ -402,3 +402,206 @@ fn nonpositive_fillet_radius_refuses_typed_r7() {
         );
     }
 }
+
+// ------------------------------------------------------------------
+// LIB-G1 vocabulary growth: sign gates, refusal rows, and the two
+// invariants the new constructors have to keep.
+// ------------------------------------------------------------------
+
+/// G1-1 — a circle validates as a one-step complete loop, and its
+/// radius classifies through the funnel like every other sign gate.
+#[test]
+fn circle_validates_and_refuses_nonpositive_radius() {
+    let c = profile::circle(p2(1.0, 2.0), 0.75).unwrap();
+    validate_ok(&c);
+    assert_eq!(c.vertices.len(), 2);
+    assert!(
+        c.tangent_joints.is_empty(),
+        "a circle's two joints are same-carrier identities, not declared tangencies"
+    );
+    for r in [-1.0, 0.0] {
+        assert!(
+            matches!(
+                profile::circle(p2(0.0, 0.0), r),
+                Err(PathError::NonpositiveCircleRadius { .. })
+            ),
+            "r = {r} must refuse at the circle primitive"
+        );
+    }
+}
+
+/// G1-1, the PQ4 pin: the circle primitive authors NO seam, so it
+/// changes nothing about what a CHAIN may do. A chain that tries to
+/// close on the carrier it is already riding still refuses — the
+/// mid-carrier seam decision (PATHS-DESIGN §6) is untouched.
+#[test]
+fn circle_primitive_leaves_pq4_refusing_for_chains() {
+    // A tangent-arc close onto the same carrier the tip arrived on is
+    // the closed-carrier split said as a chain: carrier identity, and
+    // still refused.
+    let refused = Open
+        .at(p2(1.0, 0.0))
+        .arc_to(p2(-1.0, 0.0), 1.0)
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(Start);
+    assert!(
+        matches!(refused, Err(PathError::SameCarrierJunction { .. })),
+        "a chain closing on its own carrier still refuses: {refused:?}"
+    );
+}
+
+/// G1-2 — the collinear class refuses as ONE refusal, whether the
+/// through-point sits on the chord, beyond its far end, or on an
+/// endpoint (all three are "on the chord line").
+#[test]
+fn arc_via_refuses_the_whole_collinear_class() {
+    let (a, b) = (p2(0.0, 0.0), p2(2.0, 0.0));
+    for via in [p2(1.0, 0.0), p2(3.0, 0.0), p2(-1.0, 0.0), p2(0.0, 0.0)] {
+        let refused = Open.at(a).arc_via(via, b);
+        assert!(
+            matches!(refused, Err(PathError::ArcViaCollinear { .. })),
+            "via {via:?} on the chord line must refuse"
+        );
+    }
+}
+
+/// G1-2/G1-3 — a leg spans a chord: coincident endpoints refuse in both
+/// new arc modes (a closed carrier is the circle primitive's business).
+#[test]
+fn arc_modes_refuse_a_degenerate_chord() {
+    let a = p2(1.0, 0.0);
+    assert!(matches!(
+        Open.at(a).arc_via(p2(0.0, 1.0), a),
+        Err(PathError::DegenerateArcChord { .. })
+    ));
+    assert!(matches!(
+        Open.at(a)
+            .arc_center(p2(0.0, 0.0), a, profile::ArcSweep::Ccw),
+        Err(PathError::DegenerateArcChord { .. })
+    ));
+}
+
+/// G1-3 — equidistance is CHECKED, and a definite mismatch refuses
+/// typed. Nothing is re-projected: the refusal reports both radii and
+/// leaves all three authored points where the author put them.
+#[test]
+fn arc_center_refuses_a_definite_equidistance_mismatch() {
+    let refused =
+        Open.at(p2(1.0, 0.0))
+            .arc_center(p2(0.0, 0.0), p2(0.0, 2.0), profile::ArcSweep::Ccw);
+    match refused {
+        Err(PathError::ArcCenterNotEquidistant {
+            tip_radius,
+            end_radius,
+        }) => {
+            assert!((tip_radius - 1.0).abs() < 1e-12);
+            assert!((end_radius - 2.0).abs() < 1e-12);
+        }
+        other => panic!("expected an equidistance refusal, got {other:?}"),
+    }
+    // A centre on an endpoint has no radius for the winding to select.
+    assert!(matches!(
+        Open.at(p2(1.0, 0.0))
+            .arc_center(p2(1.0, 0.0), p2(0.0, 1.0), profile::ArcSweep::Ccw),
+        Err(PathError::DegenerateArcCenter { .. })
+    ));
+}
+
+/// G1-3 — an exactly-equidistant centre proceeds, and the authored
+/// endpoints land on the path verbatim (the §4 item 3 invariant, on the
+/// mode that takes a point which is NOT on the path).
+#[test]
+fn arc_center_stores_its_authored_endpoints_verbatim() {
+    let (a, c, b) = (p2(3.0, 0.0), p2(0.0, 0.0), p2(0.0, 3.0));
+    let lowered = Open
+        .at(a)
+        .arc_center(c, b, profile::ArcSweep::Ccw)
+        .unwrap()
+        .line_to(c)
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    validate_ok(&lowered);
+    assert_eq!(lowered.vertices[0].pos.x.to_bits(), a.x.to_bits());
+    assert_eq!(lowered.vertices[1].pos.x.to_bits(), b.x.to_bits());
+    assert_eq!(lowered.vertices[1].pos.y.to_bits(), b.y.to_bits());
+}
+
+/// G1-5 — a director spelled as components must name a direction.
+#[test]
+fn toward_refuses_a_zero_direction() {
+    assert!(matches!(
+        Open.toward(0.0, 0.0_f64),
+        Err(PathError::ZeroDirection { .. })
+    ));
+    assert!(matches!(
+        Open.at(p2(0.0, 0.0)).toward(0.0, 0.0_f64),
+        Err(PathError::ZeroDirection { .. })
+    ));
+}
+
+/// G1-5 — `toward` binds the SAME slot as `angle`, so it runs the same
+/// §4 item 1 junction check on a directed point: a components-spelled
+/// tangent continuation refuses exactly as an angle-spelled one does.
+#[test]
+fn toward_runs_the_same_junction_check_as_angle() {
+    let leg = Open.at(p2(0.0, 0.0)).line_to(p2(2.0, 0.0)).unwrap();
+    assert!(matches!(
+        leg.clone().toward(1.0, 0.0),
+        Err(PathError::JunctionTangent { .. })
+    ));
+    assert!(matches!(
+        leg.toward(-1.0, 0.0),
+        Err(PathError::JunctionCusp { .. })
+    ));
+}
+
+/// G1-4 — the far-end anchor ends the arrival side AT its authored
+/// point, which is therefore a vertex, bit-for-bit (§4 item 3), and
+/// needs neither a synthetic mid-side anchor nor a measured length.
+#[test]
+fn far_end_anchor_makes_its_authored_point_a_vertex() {
+    let far = p2(1.0, 3.0);
+    let lowered = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(3.0, 0.0))
+        .unwrap()
+        .line_to(p2(3.0, 1.0))
+        .unwrap()
+        .toward(-1.0, 0.0)
+        .unwrap()
+        .fillet(0.5)
+        .unwrap()
+        .toward(0.0, 1.0)
+        .unwrap()
+        .to(far)
+        .unwrap()
+        .line_to(p2(0.0, 3.0))
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    validate_ok(&lowered);
+    assert!(
+        lowered
+            .vertices
+            .iter()
+            .any(|v| v.pos.x.to_bits() == far.x.to_bits() && v.pos.y.to_bits() == far.y.to_bits()),
+        "the authored far vertex must be on the path verbatim"
+    );
+}
+
+/// G1-4 — at the ENTRY there is no arrival side to end, so the far-end
+/// form refuses typed rather than silently meaning something else
+/// (PATHS-DESIGN §2's entry rule).
+#[test]
+fn far_end_anchor_refuses_at_the_entry() {
+    assert!(matches!(
+        Open.angle(0.0_f64).to(p2(1.0, 0.0)),
+        Err(PathError::FarEndAnchorWithoutFillet)
+    ));
+    assert!(matches!(
+        Open.toward(1.0, 0.0_f64).unwrap().to(p2(1.0, 0.0)),
+        Err(PathError::FarEndAnchorWithoutFillet)
+    ));
+}
