@@ -127,12 +127,16 @@
 //! - **Edge sense**: `EDGE_CURVE` `same_sense` `.F.` composes into the
 //!   half-edge direction; no carrier is ever reversed.
 //!
-//! Two things the wild states that this reader still refuses, both
-//! named at the point of refusal: a curved face carrying rings —
-//! Open CASCADE's seamless periodic band — because `topo` has no
-//! volume construction for one and the body would not be tier-3
-//! valid; and edges the D7 ladder cannot certify, which is the same
-//! refusal it has always been.
+//! What the wild states that this reader still refuses is named at
+//! the point of refusal: a curved face carrying a genuine interior
+//! ring — `topo` has no volume construction for one, so the body
+//! would not be tier-3 valid — and edges the D7 ladder cannot
+//! certify, the same refusal it has always been. Open CASCADE's
+//! seamless periodic band, formerly in this list, NORMALIZES since
+//! M7-5: cylinder and torus bands take the seam re-mint
+//! ([`NormalizationKind::SeamlessPeriodicBand`]); band shapes on
+//! other charts keep a typed refusal naming that re-mint as the
+//! recourse.
 
 mod adopt;
 mod assemble;
@@ -196,6 +200,25 @@ pub enum NormalizationKind {
     /// (check 6, M6-6) refuses the inside-out face adoption would
     /// build, so the refusal fires pre-body instead.
     FullPeriodTorus,
+    /// A **seamless periodic band** (M7-5): a cylinder or torus
+    /// lateral face stated as its two full-period rim bounds with NO
+    /// seam generator between them (Open CASCADE never splits a
+    /// periodic face on export). The kernel's face model has one outer
+    /// loop plus rings, and a curved face with a ring has no volume
+    /// construction (`RingOnCurvedFace`), so the band cannot adopt as
+    /// stated. Re-minted as the kernel's own shape for the same locus:
+    /// ONE single-loop face whose loop walks one rim, the minted seam
+    /// generator (the surface's u_ref ruling for a cylinder, its u_ref
+    /// meridian arc for a torus), the other rim, and the generator
+    /// again reversed — the seam edge used twice, exactly what a
+    /// natively revolved wall carries. Where a rim has no vertex at
+    /// the u_ref azimuth it is split there first, and the split
+    /// propagates to every face sharing that rim. The face's winding
+    /// is DERIVED (each rim's chart-u direction against `same_sense`);
+    /// an orientation-inverted cylinder band refuses typed pre-body,
+    /// and a torus band's winding × sense pair selects which of the
+    /// two v-intervals between its rims the face covers.
+    SeamlessPeriodicBand,
 }
 
 /// A **reported structure normalization** (D7 stage-3 repair, in its
@@ -215,7 +238,12 @@ pub struct StructureNormalization {
     pub kind: NormalizationKind,
     /// The census the file states for that region.
     pub file_census: FaceCensus,
-    /// The census the kernel minted in its place.
+    /// The census as THIS mint left the region — a mint-event value,
+    /// not an at-rest one: a later normalization may split an edge the
+    /// region shares (a band's rim shared with a neighbouring band)
+    /// and the earlier record is not revised. The records' deltas sum
+    /// to the body's totals exactly; per-face at-rest counts are the
+    /// body's to answer.
     pub kernel_census: FaceCensus,
 }
 
@@ -331,6 +359,7 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
                 Some(map) => topo::transform_rigid(&body, &map)
                     .map_err(|source| StepImportError::Placement { source })?,
             };
+            band_backstop(&body, &model.normalizations)?;
             Ok(StepImport::Solid {
                 body,
                 eps_in,
@@ -342,4 +371,47 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
             eps_in,
         }),
     }
+}
+
+/// **The band re-mint's geometric backstop, executed** (M7-5, R1 fix
+/// pass MAJ-1). The torus band's winding × `same_sense` decode is
+/// face-locally a region SELECTION; its documented backstop against a
+/// coherently inside-out file is the kernel's tier-3 gates (curved
+/// sense check 6, the +V volume-sign invariant). The import path runs
+/// no tier validation for ordinary solids — adoption certifies every
+/// edge description, but tiers 1–3 are the caller's at rest — so for
+/// a body that went through the band mint, the backstop must actually
+/// RUN before the body ships: `StepImport::Solid` documents
+/// tier-validity at rest, and an inside-out band would otherwise
+/// import certify-green with a negative volume. Definite geometric
+/// falsehoods refuse typed; the in-band escalation kinds are declines
+/// (the same taxonomy the wild every-ε obligation uses) and pass.
+fn band_backstop(
+    body: &topo::Body<f64>,
+    normalizations: &[StructureNormalization],
+) -> Result<(), StepImportError> {
+    if !normalizations
+        .iter()
+        .any(|n| n.kind == NormalizationKind::SeamlessPeriodicBand)
+    {
+        return Ok(());
+    }
+    if let Err(errors) = topo::validate_geometric(body) {
+        let definite: Vec<topo::ValidationError> = errors
+            .into_iter()
+            .filter(|e| {
+                !matches!(
+                    e,
+                    topo::ValidationError::VolumeUncomputable { .. }
+                        | topo::ValidationError::PlanarFaceEscalated { .. }
+                        | topo::ValidationError::PlanarBoundaryEscalated { .. }
+                        | topo::ValidationError::CensusEscalated { .. }
+                )
+            })
+            .collect();
+        if !definite.is_empty() {
+            return Err(StepImportError::BandGeometryInvalid { errors: definite });
+        }
+    }
+    Ok(())
 }

@@ -72,6 +72,13 @@ pub(crate) struct SolidSpec {
     pub(crate) edges: BTreeMap<u64, EdgeSpec>,
     /// Every vertex referenced, keyed by `VERTEX_POINT` id.
     pub(crate) vertices: BTreeMap<u64, Point3<f64>>,
+    /// Edge ids of seam generators MINTED by the band re-mint
+    /// (M7-5): D1 states each one spatially as its surface's u_ref
+    /// half-plane, so adoption must certify it as
+    /// [`geom_brep::EdgeGeometry::Seam`] or refuse — the conventional
+    /// mapped-curve fallback is withheld for these ids
+    /// ([`crate::adopt`]).
+    pub(crate) band_seams: std::collections::BTreeSet<u64>,
 }
 
 /// One `ADVANCED_FACE`.
@@ -88,6 +95,14 @@ pub(crate) struct FaceSpec {
     /// The bounds: outer first (`FACE_OUTER_BOUND`), rings after in
     /// stored order.
     pub(crate) loops: Vec<LoopSpec>,
+    /// True for a detected SEAMLESS periodic band (M7-5): a
+    /// cylinder/torus face whose two bounds each wrap the chart's full
+    /// u period, with no seam generator between them. Tagged at
+    /// [`Resolver::face`] and consumed at shell level by
+    /// [`crate::normalize::band_seam`], which re-mints the face as one
+    /// single-loop face joined by a minted seam generator (and clears
+    /// the tag); a tagged face never reaches assembly.
+    pub(crate) band: bool,
 }
 
 /// One `FACE_BOUND` / `FACE_OUTER_BOUND` as read: what the file said
@@ -1112,34 +1127,51 @@ impl<'a> Resolver<'a> {
         // naming the face, rather than at the far end holding a body
         // whose volume nothing can compute.
         //
-        // What arrives this way is not a hole: it is Open CASCADE's
-        // SEAMLESS periodic face — a cylinder's lateral band, or a
-        // fillet torus's, stated as its two rim circles with no seam
-        // generator between them. The kernel's own writer never emits
-        // one (it splits a periodic face at its seam), and the remedy
-        // is the same family as the sphere/cone/torus re-mints already
-        // in `normalize`: split the band into half-faces joined by
-        // minted generators at a chosen azimuth. That is a unit of
-        // work, not a line, and it is recorded rather than guessed at.
-        //
-        // A multi-ring NURBS face (M7-3) refuses HERE too, and its
-        // frontier is deeper still: outerness inference needs a chart
-        // inversion (`chart::uv_of`) that no NURBS surface has, and
-        // the kernel has no trimmed-NURBS volume construction either
-        // -- wild rational multi-ring faces (dm1-id-214's 11 trim
-        // rings) are stage-1 recognition territory, banked. The
-        // exported class never reaches this gate: every loft wall is
-        // single-bound, outer by definition below.
+        // What can also arrive this way is not a hole: it is Open
+        // CASCADE's SEAMLESS periodic face — a cylinder's lateral
+        // band, or a fillet torus's, stated as its two rim circles
+        // with no seam generator between them. The kernel's own
+        // writer never emits one (it splits a periodic face at its
+        // seam). Since M7-5 the cylinder and torus cases NORMALIZE:
+        // the shape is recognized here (two bounds, each wrapping the
+        // chart's full u period) and tagged through to shell level,
+        // where `normalize::band_seam` re-mints the face as one
+        // single-loop face joined by a minted seam generator at the
+        // surface's own u_ref azimuth — the edge-free sphere's
+        // license, recorded as a `StructureNormalization`. The band
+        // face has no outer bound to infer (its two rims are not
+        // inside one another — `SeamDependent` both ways), so it
+        // returns before the outerness walk; the mint's single loop
+        // is outer by construction.
         if loops.len() > 1 && !matches!(surface, Surface::Plane { .. }) {
+            if is_periodic_band(&surface, &loops, edges) {
+                return Ok(vec![FaceSpec {
+                    id,
+                    surface,
+                    sense,
+                    loops,
+                    band: true,
+                }]);
+            }
+            // A multi-ring NURBS face (M7-3) refuses HERE, and its
+            // frontier is deeper still: outerness inference needs a
+            // chart inversion (`chart::uv_of`) that no NURBS surface
+            // has, and the kernel has no trimmed-NURBS volume
+            // construction either — wild rational multi-ring faces
+            // (dm1-id-214's 11 trim rings) are stage-1 recognition
+            // territory, banked. The exported class never reaches
+            // this gate: every loft wall is single-bound, outer by
+            // definition below.
             return Err(StepImportError::Topology {
                 id,
-                what: "a curved ADVANCED_FACE with more than one bound — either an \
-                       interior ring on a curved patch or Open CASCADE's seamless \
-                       periodic band (two rim circles, no seam generator). The kernel \
-                       has no volume construction for a curved face with rings, so \
-                       adopting it would hand back a body that is not tier-3 valid; \
-                       re-minting the band as half-faces is the remedy and is not \
-                       done here",
+                what: "a curved ADVANCED_FACE with more than one bound that is not a \
+                       recognized periodic band — either an interior ring on a curved \
+                       patch (the kernel has no volume construction for a curved face \
+                       with rings, so adopting it would hand back a body that is not \
+                       tier-3 valid) or a seamless periodic band on a chart the M7-5 \
+                       band re-mint does not cover (cylinder and torus bands \
+                       normalize; a cone or sphere-zone band would take the same \
+                       seam-generator re-mint, extended to its chart)",
             });
         }
         let outer = self.outer_bound_index(id, &surface, &loops, &bound_specs, edges)?;
@@ -1152,6 +1184,7 @@ impl<'a> Resolver<'a> {
             surface,
             sense,
             loops,
+            band: false,
         }])
     }
 
@@ -1399,6 +1432,7 @@ impl<'a> Resolver<'a> {
                     },
                 ],
             }],
+            band: false,
         };
         // Each lune walks one meridian down and the other back up. The
         // face's `same_sense` is honored, not healed: a reversed face
@@ -1674,11 +1708,13 @@ impl<'a> Resolver<'a> {
             faces,
             edges,
             vertices,
+            band_seams: std::collections::BTreeSet::new(),
         };
         // The reported structure normalizations for periodic faces the
         // kernel cannot represent as stated (Leg C).
         normalize::normalize_shell(
             &mut solid,
+            self.eps_in,
             &mut || self.mint_id(),
             &mut self.normalizations.borrow_mut(),
         )?;
@@ -1697,6 +1733,87 @@ impl<'a> Resolver<'a> {
         }
         Ok(curves)
     }
+}
+
+/// Whether a multi-bound curved face is Open CASCADE's SEAMLESS
+/// periodic band (M7-5): a cylinder or torus face with exactly two
+/// bounds, each a closed chain whose chart image wraps the full u
+/// period exactly once, the two in opposite directions (any coherent
+/// band's rims oppose, whichever `same_sense` the face states).
+///
+/// The recognition is chain-agnostic — a rim may be one self-loop
+/// circle (every fixture's shape) or several arcs — because it reads
+/// the CHART, not the chain: each use is sampled along its own
+/// parameter interval through the kernel's chart inverse
+/// ([`chart::uv_of`]) and the loop's total u displacement is
+/// accumulated with unwrapping. Anything that does not read cleanly
+/// (a point off the chart, a step too long to unwrap) is simply not
+/// detected as a band and takes the gate's typed refusal — detection
+/// never guesses.
+fn is_periodic_band(
+    surface: &Surface<f64>,
+    loops: &[LoopSpec],
+    edges: &BTreeMap<u64, EdgeSpec>,
+) -> bool {
+    if !matches!(surface, Surface::Cylinder { .. } | Surface::Torus { .. }) {
+        return false;
+    }
+    let [a, b] = loops else {
+        return false;
+    };
+    let (Some(wa), Some(wb)) = (
+        loop_u_wrap(surface, a, edges),
+        loop_u_wrap(surface, b, edges),
+    ) else {
+        return false;
+    };
+    // Full-period wrap, once, each way. The 1e-6 rad slack is a
+    // recognition tolerance on a TOPOLOGICAL count (the wrap number is
+    // an integer multiple of 2π up to sampling arithmetic), not a
+    // geometric budget — nothing minted depends on it.
+    let full = |w: f64| (w.abs() - core::f64::consts::TAU).abs() < 1e-6;
+    full(wa) && full(wb) && wa * wb < 0.0
+}
+
+/// The loop's total signed chart-u displacement: each use sampled
+/// along its traversal, mapped through [`chart::uv_of`], adjacent
+/// samples unwrapped across the seam. `None` when any sample misses
+/// the chart or two adjacent samples are more than a quarter period
+/// apart (too sparse to unwrap without guessing).
+fn loop_u_wrap(
+    surface: &Surface<f64>,
+    lp: &LoopSpec,
+    edges: &BTreeMap<u64, EdgeSpec>,
+) -> Option<f64> {
+    use core::f64::consts::{PI, TAU};
+    // 16 steps per edge puts adjacent samples of a full-period rim
+    // ~0.39 rad apart — far inside the unwrap threshold below.
+    const STEPS: usize = 16;
+    let mut total = 0.0;
+    let mut prev: Option<f64> = None;
+    for use_ in &lp.uses {
+        let spec = edges.get(&use_.edge)?;
+        for k in 0..=STEPS {
+            let f = k as f64 / STEPS as f64;
+            let f = if use_.forward { f } else { 1.0 - f };
+            let t = spec.t0 + (spec.t1 - spec.t0) * f;
+            let u = chart::uv_of(surface, spec.carrier.eval(t))?.x;
+            if let Some(p) = prev {
+                let mut d = u - p;
+                if d > PI {
+                    d -= TAU;
+                } else if d < -PI {
+                    d += TAU;
+                }
+                if d.abs() > PI / 2.0 {
+                    return None;
+                }
+                total += d;
+            }
+            prev = Some(u);
+        }
+    }
+    Some(total)
 }
 
 /// How deep a chain of `CONVERSION_BASED_UNIT`s may nest before the
