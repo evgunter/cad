@@ -749,6 +749,36 @@ struct ArcData<T: Real> {
     radius: T,
 }
 
+/// What the arrival side does once its fillet resolves — the one bit
+/// that decides whether the fillet arc's OUTGOING joint is a declared
+/// tangency or a free junction.
+///
+/// The arc is tangent to the arrival carrier at `t2` by construction.
+/// Whether that makes the joint AT `t2` a tangency depends on what the
+/// chain emits next, which only the calling verb knows:
+///
+/// - [`Continues`](ArrivalKind::Continues) — an `.at`/`.angle`/`line_to`
+///   arrival: the tip stays Directed on the arrival side, so EVERY
+///   continuation departs along the arrival ray and is tangent to the
+///   arc by construction. The algebra declares what a hand author would
+///   have to declare manually.
+/// - [`EndsAtAnchor`](ArrivalKind::EndsAtAnchor) — the far-end anchor:
+///   the side STOPS, so the tip is a directed point whose next
+///   direction is free. With a Positive fit the straight run to the
+///   anchor still rides the carrier and the joint at `t2` is a genuine
+///   tangency; with an exact (Zero) fit there is no run at all, the
+///   arc's end IS the side's end, and declaring it would claim a
+///   tangency against an arbitrary next side — §4 item 2's
+///   declaration-without-construction. Gated exactly as the hand door
+///   gates its own outgoing declaration (`sugar.rs`, `fit_out`).
+/// - [`Seam`](ArrivalKind::Seam) — the `.to(Start)` close.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ArrivalKind {
+    Continues,
+    EndsAtAnchor,
+    Seam,
+}
+
 /// A tangent arc leg's derived geometry (the fields
 /// `tangent_arc_geom` resolves in one pass, named rather than
 /// returned as a wide tuple).
@@ -1134,7 +1164,7 @@ impl<T: Decide> Core<T> {
         &mut self,
         arr_pos: Point2<T>,
         arr_ang: Dir<T>,
-        seam: bool,
+        kind: ArrivalKind,
     ) -> Result<(ArcData<T>, Sign), PathError<T>> {
         let pending = self
             .pending
@@ -1186,7 +1216,7 @@ impl<T: Decide> Core<T> {
         }
         // (3) a seam fillet lands on side 1, which must be a straight
         // carrier (arc-arrival fillets are out of scope, §7).
-        if seam && self.first_seg != FirstSeg::Line {
+        if kind == ArrivalKind::Seam && self.first_seg != FirstSeg::Line {
             return Err(PathError::SeamFilletOntoArc);
         }
         let corner = pending.origin + u1 * t_ray;
@@ -1220,7 +1250,7 @@ impl<T: Decide> Core<T> {
         // must declare manually). Seam: the arc IS the closing
         // segment; the entry vertex retrims to its end and joint 0 is
         // the constructed seam tangency.
-        if seam {
+        if kind == ArrivalKind::Seam {
             self.set_leaving(trims.bulge, FirstSeg::Arc)?;
             match self.verts.first_mut() {
                 Some(v0) => v0.pos = trims.t2,
@@ -1233,7 +1263,16 @@ impl<T: Decide> Core<T> {
             self.tangent.push(0);
         } else {
             self.push_arc(trims.t2, trims.bulge, arc)?;
-            self.declare_last();
+            // The outgoing joint is declared only when something
+            // tangent actually follows it (see [`ArrivalKind`]): a
+            // continuing arrival always rides the arrival ray, and a
+            // far-end side does too WHILE it still has a straight run
+            // left. On an exact fit the far-end side ends here, and the
+            // next direction is free — declaring would be a claim, not
+            // a construction.
+            if kind == ArrivalKind::Continues || trims.fit_out == Sign::Positive {
+                self.declare_last();
+            }
         }
         Ok((arc, trims.fit_out))
     }
@@ -1415,7 +1454,7 @@ impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
     pub fn at(mut self, p: Point2<T>) -> Result<PartialPath<T, HasPos<Plain>, A>, PathError<T>> {
         match (self.tip.ang, self.core.pending.is_some()) {
             (Some(theta), true) => {
-                self.core.resolve_fillet(p, theta, false)?;
+                self.core.resolve_fillet(p, theta, ArrivalKind::Continues)?;
             }
             (Some(theta), false) => {
                 self.core.seed(p);
@@ -1486,7 +1525,7 @@ impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
             }
             let at = pos.at;
             if self.core.pending.is_some() {
-                self.core.resolve_fillet(at, dir, false)?;
+                self.core.resolve_fillet(at, dir, ArrivalKind::Continues)?;
             } else if self.core.start_ang.is_none() {
                 self.core.start_ang = Some(dir);
             }
@@ -1822,7 +1861,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let d = p - at;
         let gamma = Dir::from_angle(d.y.atan2(d.x));
         if self.core.pending.is_some() {
-            self.core.resolve_fillet(at, gamma, false)?;
+            self.core
+                .resolve_fillet(at, gamma, ArrivalKind::Continues)?;
         } else {
             if let Some(inc) = &self.tip_pos()?.incoming {
                 junction_check(inc, gamma, false)?;
@@ -1845,7 +1885,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let d = start_pos - at;
         let gamma = Dir::from_angle(d.y.atan2(d.x));
         if self.core.pending.is_some() {
-            self.core.resolve_fillet(at, gamma, false)?;
+            self.core
+                .resolve_fillet(at, gamma, ArrivalKind::Continues)?;
         } else if let Some(inc) = &self.tip_pos()?.incoming {
             junction_check(inc, gamma, true)?;
         }
@@ -2040,10 +2081,18 @@ impl<T: Decide> PartialPath<T, NoPos, HasAng> {
     ///
     /// The direction must be bound FIRST (`.angle(θ).to(p)` /
     /// `.toward(dx, dy).to(p)`): with the anchor as the terminus, the
-    /// side's carrier is what the director supplies. An exact trim fit —
-    /// the fillet arc reaching `anchor` with no straight run left — is
-    /// not an error: the side simply IS the arc, no degenerate segment
-    /// is emitted, and the tip carries the arc as its incoming carrier.
+    /// side's carrier is what the director supplies.
+    ///
+    /// **Exact trim fit** — the fillet arc reaching `anchor` with no
+    /// straight run left — is not an error. The side simply IS the arc:
+    /// no degenerate segment is emitted, the tip carries the arc as its
+    /// incoming carrier, the arc's outgoing joint is left UNDECLARED
+    /// (the side ends here, so the next direction is free — declaring
+    /// would be a claim, not a construction), and the authored anchor is
+    /// ABSORBED into the tangent point the fit gate just classified as
+    /// coincident with it, rather than emitted as a second vertex a
+    /// hair away. That absorption is the hand door's behaviour too, and
+    /// keeping it is what keeps the two doors emitting identical bits.
     ///
     /// At the ENTRY (direction bound, no fillet open) there is no
     /// arrival side to end, and this refuses
@@ -2061,7 +2110,9 @@ impl<T: Decide> PartialPath<T, NoPos, HasAng> {
         if self.core.pending.is_none() {
             return Err(PathError::FarEndAnchorWithoutFillet);
         }
-        let (arc, fit_out) = self.core.resolve_fillet(anchor, dir, false)?;
+        let (arc, fit_out) = self
+            .core
+            .resolve_fillet(anchor, dir, ArrivalKind::EndsAtAnchor)?;
         if fit_out == Sign::Positive {
             let head = self.core.head()?;
             let arm = (anchor - head).norm_squared().sqrt();
@@ -2069,10 +2120,17 @@ impl<T: Decide> PartialPath<T, NoPos, HasAng> {
             Ok(in_state(self.core, leg_end_tip(anchor, dir, arm, None)))
         } else {
             // Exact fit: the trim reached the anchor, so the arc IS the
-            // whole side. Emitting a zero-length straight piece here
-            // would mint the degenerate segment the fit gate exists to
-            // avoid — the incoming side's `Zero` fit is suppressed the
-            // same way inside `resolve_fillet`.
+            // whole side. Two consequences, both handled rather than
+            // inherited. (1) No straight piece is emitted — a
+            // zero-length segment is the degeneracy the fit gate exists
+            // to avoid. (2) The arc's outgoing joint is NOT declared
+            // (`ArrivalKind::EndsAtAnchor` suppressed it): the side ends
+            // here, so the next direction is free and a declaration
+            // would claim a tangency nobody constructed. (3) The side's
+            // last vertex is the tangent point `t2`, which the fit gate
+            // has just classified as coincident with `anchor` — the
+            // authored anchor is ABSORBED into it rather than emitted
+            // twice, exactly as the hand door absorbs its `next`.
             let head = self.core.head()?;
             Ok(in_state(
                 self.core,
@@ -2097,7 +2155,8 @@ impl<T: Decide> PartialPath<T, NoPos, NoAng> {
         let start_ang = self.core.start_ang.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry direction is bound",
         })?;
-        self.core.resolve_fillet(start_pos, start_ang, true)?;
+        self.core
+            .resolve_fillet(start_pos, start_ang, ArrivalKind::Seam)?;
         Ok(self.core.build())
     }
 }

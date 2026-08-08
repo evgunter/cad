@@ -605,3 +605,161 @@ fn far_end_anchor_refuses_at_the_entry() {
         Err(PathError::FarEndAnchorWithoutFillet)
     ));
 }
+
+// ------------------------------------------------------------------
+// LIB-G1 fix pass: the far-end anchor's EXACT-FIT branch (both
+// reviewers' MAJOR-1). When the fillet trim reaches the authored
+// anchor exactly, the side IS the arc — so the arc's outgoing joint
+// must be a FREE junction, not a declared tangency.
+// ------------------------------------------------------------------
+
+/// A right-angle corner at (1, 1) with r = 0.5: the setback is exactly
+/// r, so an anchor at (1, 1.5) is the outgoing tangent point and the
+/// fit classifies Zero. Returns the path sitting on that exact fit.
+fn exact_fit_far_end() -> PartialPath<f64, HasPos<WithIncoming>, profile::path::NoAng> {
+    Open.at(p2(0.0, 0.0))
+        .line_to(p2(3.0, 0.0))
+        .unwrap()
+        .line_to(p2(3.0, 1.0))
+        .unwrap()
+        .toward(-1.0, 0.0)
+        .unwrap()
+        .fillet(0.5)
+        .unwrap()
+        .toward(0.0, 1.0)
+        .unwrap()
+        .to(p2(1.0, 1.5))
+        .unwrap()
+}
+
+/// A SHARP continuation off an exact-fit far-end side validates. Before
+/// the fix the arc's outgoing joint carried an inherited declaration,
+/// and this legitimate authoring was refused `TangencyContradicted` by
+/// the verify layer — a declaration nobody constructed (§4 item 2).
+#[test]
+fn exact_fit_far_end_allows_a_sharp_continuation() {
+    let lowered = exact_fit_far_end()
+        .line_to(p2(0.0, 3.0))
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    validate_ok(&lowered);
+}
+
+/// … and a TANGENT continuation off the same tip still declares exactly
+/// once and still validates: suppressing the inherited flag removed a
+/// false claim, it did not remove the real construction.
+#[test]
+fn exact_fit_far_end_allows_a_tangent_continuation() {
+    let lowered = exact_fit_far_end()
+        .tangent()
+        .line(0.75)
+        .unwrap()
+        .line_to(p2(0.0, 3.0))
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    validate_ok(&lowered);
+}
+
+/// The exact-fit branch's vertex rule, pinned (both reviewers' MINOR-1):
+/// the side's last vertex is the fillet's tangent point, and the
+/// authored anchor is ABSORBED into it — coincident to within the fit
+/// gate's own classification, not emitted as a second vertex. The
+/// POSITIVE-fit branch, by contrast, emits the anchor verbatim.
+#[test]
+fn exact_fit_far_end_absorbs_its_anchor_into_the_tangent_point() {
+    let anchor = p2(1.0, 1.5);
+    let lowered = exact_fit_far_end()
+        .line_to(p2(0.0, 3.0))
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    validate_ok(&lowered);
+    let nearest = lowered
+        .vertices
+        .iter()
+        .map(|v| (v.pos - anchor).norm_squared().sqrt())
+        .fold(f64::INFINITY, f64::min);
+    assert!(
+        nearest <= Tolerance::get().eps,
+        "the authored anchor must coincide with an emitted vertex (got {nearest} m)"
+    );
+    // No zero-length segment was minted for the absorbed anchor.
+    for w in lowered.vertices.windows(2) {
+        let d = (w[1].pos - w[0].pos).norm_squared().sqrt();
+        assert!(d > Tolerance::get().eps, "degenerate segment of {d} m");
+    }
+}
+
+/// LIB-G1 fix pass (R2 NOTE-2): the new funnel gates' IN-BAND rows. A
+/// margin between ε_input and K·ε_input is undecidable at this scalar,
+/// and every one of the three new gates must ESCALATE typed rather than
+/// guess — the reified-predicate contract, on the paths that previously
+/// had only decided-Yes and decided-No coverage.
+#[test]
+fn the_new_funnel_gates_escalate_in_band() {
+    let tol = Tolerance::get();
+    // Squarely inside (ε, K·ε): undecidable at this scalar.
+    let band = tol.eps * ((1.0 + tol.k) / 2.0);
+
+    // toward: a norm in the band names no decidable direction.
+    assert!(
+        matches!(Open.toward(band, 0.0), Err(PathError::Escalated { .. })),
+        "sub-band director norm must escalate"
+    );
+
+    // arc_center: an equidistance mismatch in the band.
+    let refused =
+        Open.at(p2(1.0, 0.0))
+            .arc_center(p2(0.0, 0.0), p2(0.0, 1.0 + band), profile::ArcSweep::Ccw);
+    assert!(
+        matches!(refused, Err(PathError::Escalated { .. })),
+        "in-band equidistance mismatch must escalate, got {refused:?}"
+    );
+
+    // arc_via: a through-point in the band off the chord line.
+    let refused = Open.at(p2(0.0, 0.0)).arc_via(p2(1.0, band), p2(2.0, 0.0));
+    assert!(
+        matches!(refused, Err(PathError::Escalated { .. })),
+        "in-band via offset must escalate, got {refused:?}"
+    );
+}
+
+/// The decided sides of the same three gates, for contrast: a margin
+/// comfortably ABOVE K·ε proceeds, one comfortably below ε refuses with
+/// the gate's own typed error (never an escalation).
+#[test]
+fn the_new_funnel_gates_decide_outside_the_band() {
+    let tol = Tolerance::get();
+    let big = tol.eps * tol.k * 1000.0;
+    let tiny = tol.eps / 1000.0;
+
+    assert!(Open.toward(big, 0.0_f64).is_ok());
+    assert!(matches!(
+        Open.toward(tiny, 0.0_f64),
+        Err(PathError::ZeroDirection { .. })
+    ));
+
+    assert!(matches!(
+        Open.at(p2(1.0, 0.0))
+            .arc_center(p2(0.0, 0.0), p2(0.0, 1.0 + big), profile::ArcSweep::Ccw),
+        Err(PathError::ArcCenterNotEquidistant { .. })
+    ));
+    assert!(
+        Open.at(p2(1.0, 0.0))
+            .arc_center(p2(0.0, 0.0), p2(0.0, 1.0 + tiny), profile::ArcSweep::Ccw)
+            .is_ok(),
+        "a sub-epsilon radius difference is definitely equidistant"
+    );
+
+    assert!(
+        Open.at(p2(0.0, 0.0))
+            .arc_via(p2(1.0, big), p2(2.0, 0.0))
+            .is_ok()
+    );
+    assert!(matches!(
+        Open.at(p2(0.0, 0.0)).arc_via(p2(1.0, tiny), p2(2.0, 0.0)),
+        Err(PathError::ArcViaCollinear { .. })
+    ));
+}

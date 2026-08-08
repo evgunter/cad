@@ -286,6 +286,15 @@ vertex+bulge document, not a junction anyone said. The two joints are
 same-carrier identities, so nothing is declared tangent — there is no
 tangency to declare, it is one circle.
 
+§6's PQ4 entry records that same M2 precedent as "considered and
+declined", so the citation deserves one clause: what was declined is
+the CHAIN relaxation — letting an authored loop close mid-carrier,
+which would have touched the one-authored-side-one-carrier discipline
+germ matching and the merge ladders lean on. Nothing here reopens it.
+This primitive is not a chain and authors no seam, so the chain rule
+stands untouched and a chain closing on its own carrier still refuses
+(pinned by test).
+
 The primitive offers no control over the split, deliberately. A demo
 that needs a particular split (the tour's boss wants three 120° arcs so
 a boolean can cross a three-face rim seam) is asking for a specific
@@ -441,18 +450,17 @@ optional bits, fields private, binders the only constructors.
 | `line(len)` / arc legs / `nurbs_in_place(len1, …)` / `nurbs(curve)` | Directed → Point | legs |
 | `.fillet(r)` | Directed → Open | the only corner primitive |
 | `Start` | directed-point VALUE | targeting it closes, structurally |
+| `.toward(dx, dy)` | Point → Directed; Open → Angle | **G1** — the exact director: same slot as `.angle`, ray stored verbatim |
+| `.to(p)` on a bound arrival direction | Angle → Point | **G1** — the far-end anchor: the arrival side ENDS at its authored anchor |
+| `circle(c, r)` | — → complete loop | **G1** — closed-carrier program form; a whole loop, not a chain step; authors no seam, so PQ4 is untouched |
 | **TIER 1 — SUGAR** (one call each; expands to core; adds no semantics) | | |
 | `line_to(p)` | Point → Point (also from arrivals) | `.angle(toward p).line(dist)` |
 | `arc_to(p, bulge)` | Point → Point | direction from chord + bulge (M2 convention) |
 | `tangent_arc_to(p)` | Directed → Point | the unique tangent arc |
 | `nurbs_reversed(curve)` / `nurbs_mirrored(curve)` | Directed → Point | structural variants of rigid placement |
 | `.turn(δ)` | directed point → Directed | `.angle(incoming + δ)`; `turn(0)` refuses → `.tangent()`; `turn(±π)` hits the reverse class |
-| **TIER 0 — G1 VOCABULARY GROWTH** (§2a; VQ1(b)) | | |
-| `circle(c, r)` | — → complete loop | closed-carrier program form; authors no seam, so PQ4 is untouched |
-| `arc_via(via, p)` | Point → Point | the arc through three authored points; bulge derived at lowering |
-| `arc_center(c, p, winding)` | Point → Point | centre-intent arc; winding structural; equidistance checked, never repaired |
-| `.to(p)` on a bound arrival direction | Angle → Point | the far-end anchor: the arrival side ENDS at its authored anchor |
-| `.toward(dx, dy)` | Point → Directed; Open → Angle | the exact director — same slot as `.angle`, ray stored verbatim |
+| `arc_via(via, p)` | Point → Point | **G1** — the arc through three authored points; bulge derived at lowering |
+| `arc_center(c, p, winding)` | Point → Point | **G1** — centre-intent arc; winding structural; equidistance checked, never repaired |
 
 All-rounded square (4 anchors + 4 directions; every mᵢ a real
 on-path point, e.g. a side midpoint):
