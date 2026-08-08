@@ -54,34 +54,25 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::geom_core::{Affine3, Point2, Point3, Tolerance, Vec3};
-use pncad::profile::SketchPlane;
-use pncad::sweep::skin::{SectionSegments, loft_geometry, sweep_geometry};
+use pncad::profile::{ProfileLoop, ProfileVertex, SketchPlane};
+use pncad::sweep::skin::{Section, loft_geometry, sweep_geometry};
 use pncad::sweep::{SketchSegment, segment_curve};
 
 use crate::{SceneBody, Stop, View};
 
-/// A square-with-an-arc section, scaled by `s`.
-fn chain(s: f64) -> SectionSegments {
-    let p = |x: f64, y: f64| Point2::new(x * s, y * s);
-    vec![vec![
-        SketchSegment::Line {
-            a: p(0.0, 0.0),
-            b: p(2.0, 0.0),
-        },
-        SketchSegment::Arc {
-            a: p(2.0, 0.0),
-            b: p(2.0, 1.0),
-            bulge: 0.25,
-        },
-        SketchSegment::Line {
-            a: p(2.0, 1.0),
-            b: p(0.0, 1.0),
-        },
-        SketchSegment::Line {
-            a: p(0.0, 1.0),
-            b: p(0.0, 0.0),
-        },
-    ]]
+/// A square-with-an-arc section, scaled by `s` (LIB-U3 profile
+/// vocabulary: one loop, the arc as vertex 1's bulge).
+fn chain(s: f64) -> Section {
+    let v = |x: f64, y: f64, bulge: f64| ProfileVertex {
+        pos: Point2::new(x * s, y * s),
+        bulge,
+    };
+    vec![ProfileLoop::new(vec![
+        v(0.0, 0.0, 0.0),
+        v(2.0, 0.0, 0.25),
+        v(2.0, 1.0, 0.0),
+        v(0.0, 1.0, 0.0),
+    ])]
 }
 
 /// The tour's loft + sweep stop.
@@ -190,20 +181,13 @@ pub fn narration() {
 // ---- The scene constructions (corpus fixtures, constant for
 // constant — `step-export/tests/common/mod.rs`) -------------------
 
-/// A closed four-segment polyline section (one loop, four lines) —
-/// the plainest INTEGRAL profile: unit weights, no arc anywhere.
-/// `common/mod.rs::quad`, verbatim.
-fn quad(pts: [(f64, f64); 4]) -> SectionSegments {
-    let seg = |a: (f64, f64), b: (f64, f64)| SketchSegment::Line {
-        a: Point2::new(a.0, a.1),
-        b: Point2::new(b.0, b.1),
-    };
-    vec![vec![
-        seg(pts[0], pts[1]),
-        seg(pts[1], pts[2]),
-        seg(pts[2], pts[3]),
-        seg(pts[3], pts[0]),
-    ]]
+/// A closed four-line quad section (one loop) — the plainest
+/// INTEGRAL profile: unit weights, no arc anywhere.
+/// `common/mod.rs::quad`, verbatim (LIB-U3 profile vocabulary).
+fn quad(pts: [(f64, f64); 4]) -> Section {
+    vec![ProfileLoop::polygon(
+        pts.iter().map(|&(x, y)| Point2::new(x, y)),
+    )]
 }
 
 /// The prism's end sections (`common/mod.rs::PRISM_SQUARE`).
@@ -228,7 +212,7 @@ fn lofted_at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
 
 /// The square/trapezoid/square section stack both loft scenes share —
 /// the minimal pair's shared half.
-fn prism_sections() -> Vec<SectionSegments> {
+fn prism_sections() -> Vec<Section> {
     vec![
         quad(PRISM_SQUARE),
         quad(PRISM_TRAPEZOID),
