@@ -690,6 +690,11 @@ pub(crate) struct ArcFilletCandidate<T: Real> {
     pub t2: Point2<T>,
     /// The fillet arc's bulge tan(θ/4).
     pub bulge: T,
+    /// The fillet arc's own centre — the offset-carrier intersection
+    /// this candidate IS. Carried for the algebra door's §4 item 4
+    /// carrier-identity checks; no emitted coordinate reads it, and the
+    /// builder door ignores it.
+    pub center: Point2<T>,
     /// The incoming leg's `fillet_leg_fit` classification: `Positive`
     /// emits the trimmed piece + declared joint, `Zero` suppresses both.
     pub fit_in: Sign,
@@ -896,6 +901,7 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
                 t1,
                 t2,
                 bulge: fillet_bulge(t1, t2, center, radius, sgn),
+                center,
                 fit_in,
                 fit_out,
                 setbacks: [sb_in, sb_out],
