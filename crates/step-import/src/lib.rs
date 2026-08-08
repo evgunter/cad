@@ -196,6 +196,25 @@ pub enum NormalizationKind {
     /// (check 6, M6-6) refuses the inside-out face adoption would
     /// build, so the refusal fires pre-body instead.
     FullPeriodTorus,
+    /// A **seamless periodic band** (M7-5): a cylinder or torus
+    /// lateral face stated as its two full-period rim bounds with NO
+    /// seam generator between them (Open CASCADE never splits a
+    /// periodic face on export). The kernel's face model has one outer
+    /// loop plus rings, and a curved face with a ring has no volume
+    /// construction (`RingOnCurvedFace`), so the band cannot adopt as
+    /// stated. Re-minted as the kernel's own shape for the same locus:
+    /// ONE single-loop face whose loop walks one rim, the minted seam
+    /// generator (the surface's u_ref ruling for a cylinder, its u_ref
+    /// meridian arc for a torus), the other rim, and the generator
+    /// again reversed — the seam edge used twice, exactly what a
+    /// natively revolved wall carries. Where a rim has no vertex at
+    /// the u_ref azimuth it is split there first, and the split
+    /// propagates to every face sharing that rim. The face's winding
+    /// is DERIVED (each rim's chart-u direction against `same_sense`);
+    /// an orientation-inverted cylinder band refuses typed pre-body,
+    /// and a torus band's winding × sense pair selects which of the
+    /// two v-intervals between its rims the face covers.
+    SeamlessPeriodicBand,
 }
 
 /// A **reported structure normalization** (D7 stage-3 repair, in its

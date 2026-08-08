@@ -7,10 +7,12 @@
 //!
 //! Open CASCADE never splits a periodic face: a full cylinder wall, a
 //! full cone, and a whole torus each arrive as ONE `ADVANCED_FACE`
-//! whose loop uses its seam edge twice. Most of that is fine — the
-//! importer's manifold precondition and the seam adoption rung were
-//! built for exactly that shape, and the cylinder and the truncated
-//! cone assemble and certify as stated. Two shapes do not:
+//! whose loop uses its seam edge twice — when the exporter kept the
+//! seam at all. Most of that is fine — the importer's manifold
+//! precondition and the seam adoption rung were built for exactly
+//! that shape, and the cylinder and the truncated cone assemble and
+//! certify as stated when the file states the seam. Three shapes do
+//! not:
 //!
 //! - **The apex cone.** Its lateral face is `(seam, base circle,
 //!   seam)`, and the seam's far end is the apex — a vertex with ONE
@@ -27,21 +29,40 @@
 //!   contribution reads its own `Δu` off a rim that appears with both
 //!   orientations — the volume comes back with the right magnitude and
 //!   the wrong SIGN, which tier 3 catches as `NegativeVolume`.
+//! - **The seamless band** (M7-5). A cylinder or torus lateral face
+//!   stated as its two full-period rim bounds with NO seam generator
+//!   at all. The kernel's face model is one outer loop plus rings,
+//!   and a curved face carrying a ring has no volume construction
+//!   (`RingOnCurvedFace`), so adopting the second rim as a ring would
+//!   hand back a body that is not tier-3 measurable. Detection tags
+//!   the shape at the face gate ([`crate::entities`]); [`band_seam`]
+//!   re-mints it here.
 //!
 //! # What this module does about it
 //!
 //! The same D7 stage-3 repair the edge-free sphere takes: the LOCUS is
 //! fully explained by the file's own surfaces and carriers and is
-//! adopted unchanged — every minted curve is either a sub-arc of a
-//! carrier the file states or that carrier's half-turn rotation about
-//! the face's own axis, never a new shape — and only the
-//! boundary-graph tessellation is re-minted, into the splitting a
-//! natively built body carries (the kernel's own cone is two lateral
-//! half-faces; its own torus is two half-faces). The census mapping is
-//! carried out as [`crate::StructureNormalization`] data.
+//! adopted unchanged — only the boundary-graph tessellation is
+//! re-minted, into the splitting a natively built body carries (the
+//! kernel's own cone is two lateral half-faces; its own torus is two
+//! half-faces; its own revolved wall is ONE face whose loop uses its
+//! seam edge twice). The census mapping is carried out as
+//! [`crate::StructureNormalization`] data.
+//!
+//! What a mint may state that the file did not is bounded and named:
+//! the apex cone's and whole torus's minted curves are each either a
+//! sub-arc of a carrier the file states or that carrier's half-turn
+//! rotation about the face's own axis; the band's seam generator is a
+//! NEW carrier — the surface's own `u_ref` ruling (cylinder) or
+//! `u_ref` meridian arc (torus), the same license under which the
+//! edge-free sphere's re-mint ([`crate::entities`]) states its two
+//! meridian circles from nothing but the surface's own fields. In
+//! every case the minted curve lies ON the file's stated surface by
+//! construction and is certified there by the same adoption gates as
+//! any file-stated edge; no minted curve is a new shape.
 //!
 //! Anything that does not match these shapes exactly is left alone —
-//! this is a bounded repair of two named cases, not a licence to
+//! this is a bounded repair of three named cases, not a licence to
 //! re-tessellate.
 //!
 //! # Orientation is derived, never minted
@@ -68,6 +89,12 @@
 //! would build, and import returns certified bodies, so the
 //! orientation-inverted diagnosis fires HERE, pre-body, with the
 //! whole-torus refusal's typed story.
+//!
+//! [`band_seam`] (M7-5) reads its winding the same way — each rim's
+//! chart-u direction against `same_sense` — before it re-mints: an
+//! inverted cylinder band refuses typed pre-body, and a torus band's
+//! reading selects which of the two v-intervals between its rims the
+//! face covers (its docs say why that is the honest maximum there).
 
 use std::collections::BTreeMap;
 
@@ -182,9 +209,24 @@ fn split_at_midpoint(
     mint: &mut dyn FnMut() -> u64,
 ) -> (u64, u64, u64) {
     let spec = &solid.edges[&edge];
+    let tm = (spec.t0 + spec.t1) / 2.0;
+    split_at_param(solid, edge, tm, mint)
+}
+
+/// Splits `edge` at the interior carrier parameter `tm` (the caller
+/// guarantees `t0 < tm < t1`), minting the new vertex and the two
+/// halves. Answers `(first, second, new vertex)` — the
+/// [`split_at_midpoint`] contract at an arbitrary parameter (M7-5:
+/// the band mint splits rims at the seam azimuth, not the midpoint).
+fn split_at_param(
+    solid: &mut SolidSpec,
+    edge: u64,
+    tm: f64,
+    mint: &mut dyn FnMut() -> u64,
+) -> (u64, u64, u64) {
+    let spec = &solid.edges[&edge];
     let (t0, t1, start, end) = (spec.t0, spec.t1, spec.start, spec.end);
     let carrier = spec.carrier.clone();
-    let tm = (t0 + t1) / 2.0;
     let mid_v = mint();
     solid.vertices.insert(mid_v, carrier.eval(tm));
     let (first, second) = (mint(), mint());
@@ -264,31 +306,376 @@ pub(crate) fn normalize_shell(
 /// two bounds each wrap the chart's full u period with no seam
 /// generator between them, tagged by detection at
 /// [`crate::entities`]'s face gate. Re-minted as ONE single-loop face
-/// whose loop uses a minted seam generator twice — the shape a
-/// natively revolved wall carries.
+/// whose loop walks one rim, the minted seam generator, the other
+/// rim, and the generator again reversed — the seam edge used twice,
+/// the shape a natively revolved wall carries.
+///
+/// The seam azimuth is the surface's own `u_ref` azimuth, ALWAYS
+/// (spec D1): `EdgeGeometry::Seam` is defined spatially as the locus
+/// in the closed u_ref half-plane and certification meters
+/// SeamHalfplane/SeamSide against it, so re-charting `u_ref` to dodge
+/// a split would mutate imported geometry beyond need. Where a rim
+/// has no vertex at that azimuth, the rim is split there
+/// ([`split_at_param`]) and the split propagates to EVERY face
+/// sharing the rim ([`expand_split_uses`]) — load-bearing for shared
+/// rims between adjacent bands.
+///
+/// The winding is derived, never assumed (spec D2, the module's
+/// orientation doctrine): each rim's chart-u direction is read
+/// through the kernel's own chart inverse and the two must OPPOSE
+/// (every coherent band boundary's property). Against `same_sense`
+/// they determine the face:
+///
+/// - **Cylinder** — `v` is not periodic, so exactly one region lies
+///   between the rims and the winding is a pure cross-check: the CCW
+///   boundary of the chart rectangle traverses its low-`v` rim in
+///   `+u`, so a face whose derived winding disagrees with its stated
+///   `same_sense` describes an inside-out solid and REFUSES typed
+///   here, pre-body (the whole-torus posture; the kernel's tier-3
+///   curved sense gate stays the backstop).
+/// - **Torus** — `v` IS periodic, so the two rims bound TWO
+///   complementary regions and the winding × sense pair is not a
+///   redundant check but the file's only statement of WHICH: the
+///   region runs v-increasing from the rim whose traversal is `+u`
+///   (for `same_sense`) or `−u` (for a reversed face). Both ISO
+///   encodings of one region decode identically; the encoding that
+///   would be "inverted" is, face-locally, a legitimate statement of
+///   the complementary region, so there is nothing left to refuse —
+///   a file that misstates its region builds a body whose locus its
+///   own neighbours contradict, which the kernel's tier-3 gates and
+///   the oracle volume row catch. What DOES refuse here, typed, is
+///   every unreadable winding: nothing is guessed.
+///
+/// The minted seam generator is the cylinder's `u_ref` ruling (a
+/// Line segment) or the torus's `u_ref` meridian (a minor-circle
+/// arc): NEW carriers, not sub-arcs of file-stated ones — the same
+/// license as the edge-free sphere's minted meridians (module docs).
 fn band_seam(
     solid: &mut SolidSpec,
-    _eps_in: f64,
-    _mint: &mut dyn FnMut() -> u64,
-    _sink: &mut Vec<StructureNormalization>,
+    eps_in: f64,
+    mint: &mut dyn FnMut() -> u64,
+    sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
-    // Interim (M7-5 sub-unit 1): detection is live and the mint lands
-    // in the next sub-unit, so a tagged face refuses HERE, typed —
-    // never assembled with its two full-period bounds (the body would
-    // not be tier-3 measurable).
-    for face in &solid.faces {
-        if face.band {
-            return Err(StepImportError::Topology {
-                id: face.id,
-                what: "a curved ADVANCED_FACE recognized as a seamless periodic band \
-                       (two full-period rim bounds, no seam generator): the M7-5 seam \
-                       mint re-mints this at shell level; until it lands the face \
-                       refuses rather than assembling a body that is not tier-3 \
-                       measurable",
-            });
+    for fi in 0..solid.faces.len() {
+        if solid.faces[fi].band {
+            mint_band(solid, fi, eps_in, mint, sink)?;
+            solid.faces[fi].band = false;
         }
     }
     Ok(())
+}
+
+/// The vertex a use STARTS at.
+fn use_start(solid: &SolidSpec, use_: EdgeUse) -> u64 {
+    let spec = &solid.edges[&use_.edge];
+    if use_.forward { spec.start } else { spec.end }
+}
+
+/// The boundary census of one face's loops as they stand: distinct
+/// edges and distinct endpoint vertices.
+fn face_boundary_census(solid: &SolidSpec, fi: usize) -> (usize, usize) {
+    let mut edges = std::collections::BTreeSet::new();
+    let mut vertices = std::collections::BTreeSet::new();
+    for lp in &solid.faces[fi].loops {
+        for u in &lp.uses {
+            edges.insert(u.edge);
+            let spec = &solid.edges[&u.edge];
+            vertices.insert(spec.start);
+            vertices.insert(spec.end);
+        }
+    }
+    (edges.len(), vertices.len())
+}
+
+/// One tagged band face's re-mint ([`band_seam`] docs).
+fn mint_band(
+    solid: &mut SolidSpec,
+    fi: usize,
+    eps_in: f64,
+    mint: &mut dyn FnMut() -> u64,
+    sink: &mut Vec<StructureNormalization>,
+) -> Result<(), StepImportError> {
+    let face_id = solid.faces[fi].id;
+    let surface = solid.faces[fi].surface.clone();
+    let sense = solid.faces[fi].sense;
+    // Detection tagged only these two chart kinds (spec D3).
+    let (s_axis, s_u_ref, torus) = match surface {
+        Surface::Cylinder { axis, u_ref, .. } => (axis, u_ref, None),
+        Surface::Torus {
+            axis,
+            u_ref,
+            center,
+            major_radius,
+            minor_radius,
+        } => (axis, u_ref, Some((center, major_radius, minor_radius))),
+        _ => {
+            return Err(StepImportError::Topology {
+                id: face_id,
+                what: "internal: a face tagged as a periodic band on a chart the band \
+                       detection does not recognize",
+            });
+        }
+    };
+    let (entry_edges, entry_vertices) = face_boundary_census(solid, fi);
+    if solid.faces[fi].loops.len() != 2 {
+        return Err(StepImportError::Topology {
+            id: face_id,
+            what: "internal: a face tagged as a periodic band without exactly two \
+                   bounds",
+        });
+    }
+    let undecidable = || StepImportError::Topology {
+        id: face_id,
+        what: "a seamless periodic band whose winding its own geometry cannot state \
+               (a rim carrier that does not invert onto the chart, or one too short \
+               to read a direction from): the orientation of the re-mint would be a \
+               guess, and D7 forbids guessing it",
+    };
+    // ---- Each rim loop's derived chart-u direction and v level ----
+    let mut rim = Vec::with_capacity(2);
+    for li in 0..2 {
+        let lp = &solid.faces[fi].loops[li];
+        for u in &lp.uses {
+            let spec = &solid.edges[&u.edge];
+            let coaxial = match spec.carrier {
+                Curve3::Circle { axis: n, .. } => n.dot(s_axis).abs() > 0.5,
+                _ => false,
+            };
+            if !coaxial {
+                return Err(StepImportError::Topology {
+                    id: face_id,
+                    what: "a seamless periodic band whose rim chain is not made of \
+                           circles coaxial with the surface — outside the M7-5 band \
+                           re-mint's minted class (its splits and seam endpoints are \
+                           exact only on coaxial rims); extending the band re-mint to \
+                           this rim shape is the recourse",
+                });
+            }
+        }
+        let use0 = lp.uses[0];
+        let spec = &solid.edges[&use0.edge];
+        let raises = chart_direction(&surface, &spec.carrier, spec.t0, spec.t1, |uv| uv.x)
+            .ok_or_else(undecidable)?;
+        let p0 = solid.vertices[&use_start(solid, use0)];
+        let v = crate::chart::uv_of(&surface, p0).ok_or_else(undecidable)?.y;
+        rim.push((use0.forward == raises, v));
+    }
+    if rim[0].0 == rim[1].0 {
+        return Err(StepImportError::Topology {
+            id: face_id,
+            what: "a seamless periodic band whose two rims traverse the chart's u in \
+                   the SAME direction — no coherent band boundary does that, so the \
+                   face's winding contradicts itself and the re-mint refuses rather \
+                   than guessing",
+        });
+    }
+    // The region's start rim: the loop the face's boundary traverses
+    // in +u when `same_sense` (the CCW rectangle's low edge), in −u
+    // when reversed — the region runs v-INCREASING from it (band_seam
+    // docs; for the torus this SELECTS the v-interval, wrapping
+    // allowed).
+    let ls = usize::from(rim[0].0 != sense);
+    let le = 1 - ls;
+    if torus.is_none() {
+        let (v_s, v_e) = (rim[ls].1, rim[le].1);
+        if v_s == v_e {
+            return Err(undecidable());
+        }
+        if v_s > v_e {
+            return Err(StepImportError::Topology {
+                id: face_id,
+                what: "an ORIENTATION-INVERTED cylinder band face: its stated \
+                       same_sense and the derived winding of its rims (their chart-u \
+                       directions against their levels) disagree, so the solid it \
+                       describes is inside out. The re-mint will not re-tessellate it \
+                       right-side-out — that would launder the inversion — and the \
+                       kernel's tier-3 curved sense gate (check 6) would refuse the \
+                       built body; import returns certified bodies, so the refusal \
+                       fires here, before any body exists",
+            });
+        }
+    }
+    // Note which rims already carry a vertex at the seam azimuth
+    // BEFORE any surgery, then ensure both do.
+    let mut splits = 0usize;
+    let mut seam_v = [0u64; 2];
+    for li in [ls, le] {
+        seam_v[li] = seam_vertex_on_loop(solid, fi, li, &surface, eps_in, mint, &mut splits)?;
+    }
+    let (p_start, p_end) = (solid.vertices[&seam_v[ls]], solid.vertices[&seam_v[le]]);
+    if (p_end - p_start).norm() <= eps_in {
+        return Err(StepImportError::Topology {
+            id: face_id,
+            what: "a seamless periodic band whose two rims meet at the seam azimuth — \
+                   the seam generator would be a point, so the band is degenerate and \
+                   the re-mint refuses",
+        });
+    }
+    // ---- The minted seam generator (band_seam docs) ---------------
+    let gen_id = mint();
+    let carrier = match torus {
+        None => Curve3::Line {
+            origin: p_start,
+            dir: s_axis,
+        },
+        Some((center, major_radius, minor_radius)) => Curve3::Circle {
+            center: crate::geometry::plus_zero_point(center + s_u_ref * major_radius),
+            axis: crate::geometry::plus_zero(s_u_ref.cross(s_axis)),
+            radius: minor_radius,
+            u_ref: s_u_ref,
+        },
+    };
+    let (t0, t1) = crate::geometry::endpoint_params(gen_id, &carrier, p_start, p_end, false)?;
+    solid.edges.insert(
+        gen_id,
+        EdgeSpec {
+            start: seam_v[ls],
+            end: seam_v[le],
+            carrier,
+            t0,
+            t1,
+            // A minted edge: the importer states its own
+            // start → end, so there is no sense to compose.
+            reversed: false,
+        },
+    );
+    // ---- The single loop: [rim_s…, seam⁺, rim_e…, seam⁻] ----------
+    //
+    // The chart rectangle's boundary (CCW about the chart normal for
+    // `same_sense`, its reversal otherwise): out of the start rim's
+    // seam vertex round its whole period, up the seam generator, round
+    // the end rim, and back down the generator — both rims keep their
+    // FILE-stated uses verbatim (the derived winding above is what
+    // certifies they already run the right way), merely rotated to
+    // start at their seam vertex.
+    let rotate = |solid: &SolidSpec, li: usize, at: u64| -> Result<Vec<EdgeUse>, StepImportError> {
+        let uses = &solid.faces[fi].loops[li].uses;
+        let k = uses.iter().position(|u| use_start(solid, *u) == at).ok_or(
+            StepImportError::Topology {
+                id: face_id,
+                what: "internal: a band rim lost its seam vertex during the re-mint",
+            },
+        )?;
+        let mut out = uses.clone();
+        out.rotate_left(k);
+        Ok(out)
+    };
+    let mut uses = rotate(solid, ls, seam_v[ls])?;
+    uses.push(EdgeUse {
+        edge: gen_id,
+        forward: true,
+    });
+    uses.extend(rotate(solid, le, seam_v[le])?);
+    uses.push(EdgeUse {
+        edge: gen_id,
+        forward: false,
+    });
+    solid.faces[fi].loops = vec![LoopSpec { outer: true, uses }];
+    sink.push(StructureNormalization {
+        face: face_id,
+        kind: NormalizationKind::SeamlessPeriodicBand,
+        file_census: FaceCensus {
+            faces: 1,
+            edges: entry_edges,
+            vertices: entry_vertices,
+        },
+        // Each rim split replaces one edge by two (+1) and mints one
+        // vertex; the seam generator is one more edge. The face count
+        // is UNCHANGED — the band stays one face, now with a seam.
+        kernel_census: FaceCensus {
+            faces: 1,
+            edges: entry_edges + splits + 1,
+            vertices: entry_vertices + splits,
+        },
+    });
+    Ok(())
+}
+
+/// The vertex of loop `li` of face `fi` at the surface's u_ref (seam)
+/// azimuth — an existing rim vertex when one sits in the u_ref
+/// half-plane within ε_in (spec D1: the file's own interpretation
+/// budget), else minted by splitting the rim arc that crosses the
+/// azimuth, propagating the split to every sharing face.
+fn seam_vertex_on_loop(
+    solid: &mut SolidSpec,
+    fi: usize,
+    li: usize,
+    surface: &Surface<f64>,
+    eps_in: f64,
+    mint: &mut dyn FnMut() -> u64,
+    splits: &mut usize,
+) -> Result<u64, StepImportError> {
+    use core::f64::consts::TAU;
+    let face_id = solid.faces[fi].id;
+    let s_u_ref = match *surface {
+        Surface::Cylinder { u_ref, .. } | Surface::Torus { u_ref, .. } => u_ref,
+        _ => {
+            return Err(StepImportError::Topology {
+                id: face_id,
+                what: "internal: a band seam-vertex walk on a chart the band \
+                       detection does not recognize",
+            });
+        }
+    };
+    // An existing vertex already in the half-plane: measured
+    // SPATIALLY, as certification will meter it — the distance from
+    // the vertex to the surface's own u = 0 locus at the vertex's v.
+    for u in &solid.faces[fi].loops[li].uses {
+        let vid = use_start(solid, *u);
+        let p = solid.vertices[&vid];
+        if let Some(uv) = crate::chart::uv_of(surface, p)
+            && (surface.eval(0.0, uv.y) - p).norm() <= eps_in
+        {
+            return Ok(vid);
+        }
+    }
+    // No vertex there: split the rim arc whose parameter interval
+    // crosses the azimuth. The crossing point is EXACT — the rim is a
+    // coaxial circle (the caller checked), so the u_ref half-plane
+    // meets it at `rim center + rim radius · u_ref`, and the carrier
+    // parameter of that point comes from the same angle convention as
+    // [`crate::geometry::endpoint_params`].
+    let mut crossing = None;
+    for u in &solid.faces[fi].loops[li].uses {
+        let spec = &solid.edges[&u.edge];
+        let Curve3::Circle {
+            center,
+            axis: n,
+            radius,
+            u_ref: uc,
+        } = spec.carrier
+        else {
+            // The caller checked every rim carrier is a coaxial
+            // circle; anything else lands in the typed refusal below.
+            continue;
+        };
+        let q = crate::geometry::plus_zero_point(center + s_u_ref * radius);
+        let w = q - center;
+        let vr = n.cross(uc);
+        let mut t = w.dot(vr).atan2(w.dot(uc));
+        while t <= spec.t0 {
+            t += TAU;
+        }
+        if t < spec.t1 {
+            crossing = Some((u.edge, t));
+            break;
+        }
+    }
+    if let Some((edge, t)) = crossing {
+        let (first, second, mid_v) = split_at_param(solid, edge, t, mint);
+        // Patch EVERY face — including this band's own loops (the rim
+        // may be shared with the neighbouring face, or with another
+        // band whose mint runs later).
+        expand_split_uses(solid, edge, first, second, &[]);
+        *splits += 1;
+        return Ok(mid_v);
+    }
+    Err(StepImportError::Topology {
+        id: face_id,
+        what: "a seamless periodic band rim with no vertex at the seam azimuth and no \
+               arc crossing it — the loop does not wrap the period it was detected \
+               to, so the re-mint refuses rather than guessing",
+    })
 }
 
 /// **The cylinder/cone wall orientation cross-check** (M6-6 rider, the
