@@ -711,7 +711,20 @@ still the stale M4-era 1.5e-3 with ~102 advisory flags/run").
   durable record.
 - **Wall clock** (this box, warm deps, one build slot): 78 s to build
   the probe binaries, 32 s for the whole three-row sweep, ~60 s to lint
-  all three rows.
+  all three rows. Not evidence of anything — a cold run (full rebuild
+  after a main merge) is ~8–13 min on the same box.
+- **Snapshot semantics, stated precisely.** Like `m4-*` and `m5-*`,
+  these rows are a snapshot cut at a stated head, not a moving mirror
+  of main. Every number in this addendum was reproduced BYTE-IDENTICALLY
+  by a fresh sweep at the head where the baseline was cut. Main has
+  since added one predicate — `path_junction_turn` (demo tour paths),
+  293 samples/row across 10 demo scenes, every margin |m| ≥ 2.5 m, all
+  definite. A fresh sweep at that later main is +293 rows and still
+  lints **0 flags at all three ε rows**; the floor, the empty gap, the
+  ε-independent population's P0 and the ε-coupled ratio are untouched,
+  which is exactly the property a threshold snapshot is supposed to
+  have. Re-cutting the baseline on every main merge is neither the M4/M5
+  precedent nor useful; re-cut it when the DISTRIBUTION moves.
 
 | ε row | samples | zero | definite (ambient) | indet. | invalid | in (ε, Kε) |
 |-------|--------:|-----:|---------:|-------:|--------:|-----------:|
@@ -898,6 +911,7 @@ corpus has now grown fine enough to prove it.
 |---|---|
 | fresh sweep, 3 ε rows, new rules | **0 flags** (1 792 902 / 1 792 926 / 1 792 950 samples) |
 | committed `m7-eps-*.csv.gz`, decompressed, 3 ε rows | **0 flags**, same counts |
+| fresh sweep at a LATER main (post-`demos/tour` paths) | **0 flags** (1 793 195 / 1 793 219 / 1 793 243) |
 | `cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test` | green — 8 unit + 2 litmus |
 | #99 litmus | fires at every supported ε row (in-band 1e-6; below floor 1e-9, 1e-12) |
 

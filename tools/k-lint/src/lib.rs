@@ -52,6 +52,14 @@
 //! ε-coupled family below samples more often at tighter ε (K-REPORT
 //! Finding M5-1). Everything else is geometry, not tolerance.
 //!
+//! These rows are a SNAPSHOT at the head where they were cut, not a
+//! mirror of main — same contract as `m4-*` and `m5-*`. A fresh sweep
+//! at a later main can carry additional predicates (e.g.
+//! `path_junction_turn`, +293 samples/row, every |m| ≥ 2.5 m) and still
+//! lint 0 at every row; the baseline is re-cut when the DISTRIBUTION
+//! moves — a new floor, a filled gap, an ε-coupled family — not on
+//! every merge.
+//!
 //! The ε-INDEPENDENT distribution is still sharply bimodal (full
 //! histogram: docs/K-REPORT.md, M7 addendum) — 1,348,461 ambient
 //! definite samples, the same COUNT at all three rows:
