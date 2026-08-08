@@ -4,8 +4,9 @@ Status: **RATIFIED** (design conversation PR #242, three rounds with
 Evan 2026-08-08: drift-proofing construction accepted round 1;
 round-2 probe retracted the bowtie claim; round 3 delegated VQ1 to
 orchestrator judgment — **RULED (b)-direct**, see §V7 VQ1 for the
-ruling and rationale). VQ2–VQ9 adopted as recommended
-(retroactive-review class). Sequencing consequence: the
+ruling and rationale). VQ2–VQ9 reviewed in detail and
+AGREED by Evan (PR #242 round 4, 2026-08-08) — full sign-off, not
+retroactive. Sequencing consequence: the
 vocabulary-growth units precede the switch; U9 queues behind it
 (Evan: no hurry). Drafted per LIBRARY-DESIGN §L8 ruling 3 on the
 merged evidence of #233/#238. House register: proposals firm where
