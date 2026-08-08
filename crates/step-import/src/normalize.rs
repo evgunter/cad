@@ -399,15 +399,25 @@ fn mint_band(
     let surface = solid.faces[fi].surface.clone();
     let sense = solid.faces[fi].sense;
     // Detection tagged only these two chart kinds (spec D3).
-    let (s_axis, s_u_ref, torus) = match surface {
-        Surface::Cylinder { axis, u_ref, .. } => (axis, u_ref, None),
+    let (s_axis, s_u_ref, axis_point, torus) = match surface {
+        Surface::Cylinder {
+            origin,
+            axis,
+            u_ref,
+            ..
+        } => (axis, u_ref, origin, None),
         Surface::Torus {
             axis,
             u_ref,
             center,
             major_radius,
             minor_radius,
-        } => (axis, u_ref, Some((center, major_radius, minor_radius))),
+        } => (
+            axis,
+            u_ref,
+            center,
+            Some((center, major_radius, minor_radius)),
+        ),
         _ => {
             return Err(StepImportError::Topology {
                 id: face_id,
@@ -427,38 +437,73 @@ fn mint_band(
     let undecidable = || StepImportError::Topology {
         id: face_id,
         what: "a seamless periodic band whose winding its own geometry cannot state \
-               (a rim carrier that does not invert onto the chart, or one too short \
-               to read a direction from): the orientation of the re-mint would be a \
-               guess, and D7 forbids guessing it",
+               (a rim vertex that does not invert onto the chart, or coincident rim \
+               levels): the orientation of the re-mint would be a guess, and D7 \
+               forbids guessing it",
     };
     // ---- Each rim loop's derived chart-u direction and v level ----
+    //
+    // The direction read is STRUCTURAL, never sampled (R1 fix pass):
+    // every rim carrier is required here to be a circle coaxial with
+    // the surface within the file's own budget, and a coaxial circle
+    // traversed in its increasing parameter raises the chart azimuth
+    // exactly when its own axis points ALONG the surface axis — the
+    // sign of n · axis, composed with the use's direction. A sampled
+    // read (`chart_direction`) has two defects on this class the
+    // review executed: a rim vertex in the (0.4π, 0.5π] azimuth
+    // window puts the two samples astride the u = ±π wrap (direction
+    // read INVERTED — a silent complement-region mint), and a rim
+    // already split by a NEIGHBOUR band's mint can leave `uses[0]`
+    // shorter than the sampler's step floor (a spurious undecidable
+    // refusal on a valid solid). The structural read has neither
+    // failure mode and is exact on the class the mint admits.
+    //
+    // The coaxiality that licenses it is GATED within the file's own
+    // ε_in budget, not a loose classifier: a tilt moves rim points
+    // off the iso-v circle by ~radius·|n × axis| and an off-axis
+    // centre by its offset, so both are held to ε_in — a
+    // Villarceau-tilted rim takes the typed band refusal here rather
+    // than a generic certification message downstream.
     let mut rim = Vec::with_capacity(2);
     for li in 0..2 {
         let lp = &solid.faces[fi].loops[li];
-        for u in &lp.uses {
+        let mut raises = None;
+        for (ui, u) in lp.uses.iter().enumerate() {
             let spec = &solid.edges[&u.edge];
             let coaxial = match spec.carrier {
-                Curve3::Circle { axis: n, .. } => n.dot(s_axis).abs() > 0.5,
+                Curve3::Circle {
+                    center,
+                    axis: n,
+                    radius,
+                    ..
+                } => {
+                    let d = center - axis_point;
+                    let off_axis = (d - s_axis * d.dot(s_axis)).norm();
+                    let tilt = radius * n.cross(s_axis).norm();
+                    if ui == 0 {
+                        raises = Some(u.forward == (n.dot(s_axis) > 0.0));
+                    }
+                    tilt <= eps_in && off_axis <= eps_in
+                }
                 _ => false,
             };
             if !coaxial {
                 return Err(StepImportError::Topology {
                     id: face_id,
                     what: "a seamless periodic band whose rim chain is not made of \
-                           circles coaxial with the surface — outside the M7-5 band \
-                           re-mint's minted class (its splits and seam endpoints are \
-                           exact only on coaxial rims); extending the band re-mint to \
-                           this rim shape is the recourse",
+                           circles coaxial with the surface within the file's own \
+                           interpretation budget — outside the M7-5 band re-mint's \
+                           minted class (its winding read, splits and seam endpoints \
+                           are exact only on coaxial rims); extending the band \
+                           re-mint to this rim shape is the recourse",
                 });
             }
         }
+        let raises = raises.ok_or_else(undecidable)?;
         let use0 = lp.uses[0];
-        let spec = &solid.edges[&use0.edge];
-        let raises = chart_direction(&surface, &spec.carrier, spec.t0, spec.t1, |uv| uv.x)
-            .ok_or_else(undecidable)?;
         let p0 = solid.vertices[&use_start(solid, use0)];
         let v = crate::chart::uv_of(&surface, p0).ok_or_else(undecidable)?.y;
-        rim.push((use0.forward == raises, v));
+        rim.push((raises, v));
     }
     if rim[0].0 == rim[1].0 {
         return Err(StepImportError::Topology {
@@ -539,6 +584,13 @@ fn mint_band(
             reversed: false,
         },
     );
+    // The mint's whole point is D1's spatial statement — this edge IS
+    // the u_ref half-plane seam — so adoption must certify it as
+    // `EdgeGeometry::Seam` or refuse; a silent downgrade to the
+    // conventional mapped-curve rung would import a body whose "seam"
+    // is off the half-plane (R1 fix pass, m2). Recorded here, enforced
+    // in [`crate::adopt`].
+    solid.band_seams.insert(gen_id);
     // ---- The single loop: [rim_s…, seam⁺, rim_e…, seam⁻] ----------
     //
     // The chart rectangle's boundary (CCW about the chart normal for
