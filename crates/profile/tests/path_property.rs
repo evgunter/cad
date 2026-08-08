@@ -269,18 +269,29 @@ fn trim_eating_an_anchor_refuses_typed() {
     ));
 }
 
+/// **G2**: `ArcArrivalFillet` is RETIRED — an arc arrival is no longer
+/// "out of scope in v1", it is spelled by the carrier binder. The door
+/// that used to refuse it now names the door that does the job.
 #[test]
-fn arc_arrival_refuses_typed() {
+fn an_arc_leg_from_a_bound_arrival_names_the_carrier_binder() {
     let arrival = bent_tip().fillet(0.5).unwrap().at(p2(4.0, 2.0)).unwrap();
-    assert!(matches!(
-        arrival.arc_to(p2(5.0, 3.0), 0.4),
-        Err(PathError::ArcArrivalFillet)
-    ));
+    let err = arrival.arc_to(p2(5.0, 3.0), 0.4).unwrap_err();
+    assert!(matches!(err, PathError::ArcCarrierSpelling { .. }));
+    assert!(
+        err.to_string().contains(".at_on(p, centre, winding)"),
+        "the refusal must name the door that binds an arc arrival: {err}"
+    );
 }
 
+/// **G2**: `SeamFilletOntoArc` is RETIRED into the same spelling
+/// refusal. `.to(Start)` still needs a straight first side, because it
+/// RETRIMS the entry vertex (LB5: that vertex is authored topology);
+/// the case that wants an arc carrier at the seam has its own door,
+/// `.to_on(Start, centre, winding)`, which keeps the vertex.
 #[test]
-fn seam_fillet_onto_an_arc_first_side_refuses_typed() {
-    // Side 1 is an arc leg — a seam fillet cannot land on it in v1.
+fn a_seam_fillet_onto_an_arc_first_side_names_the_closing_door() {
+    // Side 1 is an arc leg — retrimming the entry would slide it off
+    // its own carrier.
     let tip = Open
         .at(p2(0.0, 0.0))
         .arc_to(p2(4.0, 0.0), 0.3)
@@ -292,10 +303,12 @@ fn seam_fillet_onto_an_arc_first_side_refuses_typed() {
         .angle(3.5)
         .unwrap();
     let arrival = tip.fillet(0.3).unwrap();
-    assert!(matches!(
-        arrival.to(Start),
-        Err(PathError::SeamFilletOntoArc)
-    ));
+    let err = arrival.to(Start).unwrap_err();
+    assert!(matches!(err, PathError::ArcCarrierSpelling { .. }));
+    assert!(
+        err.to_string().contains(".to_on(Start, centre, winding)"),
+        "the refusal must name the close that KEEPS the entry vertex: {err}"
+    );
 }
 
 #[test]
