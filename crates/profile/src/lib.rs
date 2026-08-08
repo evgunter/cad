@@ -116,12 +116,14 @@
 //! guess (the poison policy of `geom_core::real`).
 
 pub mod k_stats;
+pub mod path;
 mod seg;
 mod sugar;
 mod validate;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Real, Vec3};
 
+pub use path::{Open, PartialPath, PathError, Start};
 pub use sugar::{ArcSweep, FilletLegShape, LoopBuilder, bulge_from_center, bulge_from_via};
 pub use validate::{
     ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
