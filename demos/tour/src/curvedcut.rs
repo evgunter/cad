@@ -29,7 +29,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::geom_core::{Point2, Point3, Tolerance, Vec3};
-use pncad::profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use pncad::profile::{Profile, SketchPlane, ValidatedProfile};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::splitting::{SplitPart, SplitPlane, split};
 use pncad::topo::{Body, Curve3, EdgeGeometry};
@@ -48,20 +48,9 @@ const PHI: f64 = 0.3;
 /// extrudes to a cylinder whose two wall faces share ONE cylinder
 /// surface.
 fn disc<S: Scalar>() -> ValidatedProfile<S> {
-    // Stays raw under LIB-U2 PR-2: a closed carrier split at
-    // conventional points (PQ4 mid-carrier seam, same-carrier joints)
-    // is refused by the PATHS algebra by design.
+    // Algebra-authored (LIB-G1): the one-step circle program form.
     let p2 = |x: f64, y: f64| Point2::new(S::from_f64(x), S::from_f64(y));
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(-R, 0.0),
-            bulge: S::from_f64(1.0),
-        },
-        ProfileVertex {
-            pos: p2(R, 0.0),
-            bulge: S::from_f64(1.0),
-        },
-    ]);
+    let lp = pncad::profile::circle(p2(0.0, 0.0), S::from_f64(R)).expect("disc radius is positive");
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .expect("the disc profile validates")
