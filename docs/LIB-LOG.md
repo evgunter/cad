@@ -267,3 +267,21 @@ spec is the orchestrator's next writing task.
   held ~2h across a branch switch; ~250 lines lost to an
   over-broad rm) — both recorded for the A/B row's fix-pass
   narrative.
+
+- **LB7 (U7 scope, from the census)**: U7-v1 ships STRUCTURAL
+  selectors only — role-path-shape queries over the ratified
+  RoleSeg vocabulary (RimEdge(Top,_), Seam{Cap,Band}, …),
+  all_faces/all_vertices materializer siblings, and the missing
+  pncad doors (NameTable/EntityKind/EntityRef/all_edges/
+  edge_name-family exports — StableName is currently write-only
+  at the façade). Everything stays a MATERIALIZER (evaluate →
+  resolve → store Vec<StableName>) per the M6-5 freeze doctrine;
+  no live queries in recipes. GEOMETRIC predicates (carrier
+  kind, adjacent-surface pairs, convexity, position) are
+  DEFERRED to a designed follow-up: they are decided-predicate
+  sites under DESIGN.md's margins discipline and interact with
+  unratified GQ7 — shipping them library-first would de-facto
+  ratify GUI selection mechanics. Structural-first forecloses
+  nothing (geometric selectors add later under their own
+  design); the naming collision with profile::fillet_select is
+  noted — U7's module gets a distinct name.
