@@ -876,39 +876,87 @@ fn leaving_a_bound_carrier_refuses_and_names_the_door() {
 }
 
 /// **G1 NOTE-2's lesson, applied to G2's new gates**: an undecidable
-/// margin escalates typed rather than guessing, on the carrier-meet
-/// gate and on the angular advance/reach gates alike.
+/// margin escalates typed rather than guessing — on the carrier-meet
+/// gate AND on the angular advance/reach gates, the paths that would
+/// otherwise have only decided-Yes and decided-No coverage.
 #[test]
 fn the_new_arc_carrier_gates_escalate_in_band() {
     let tol = Tolerance::get();
+    // Squarely inside (ε, K·ε): undecidable at this scalar.
     let band = tol.eps * ((1.0 + tol.k) / 2.0);
 
-    // path_carrier_meet: two unit circles exactly 2 m apart are
-    // externally tangent; nudged into the band they are undecidable.
+    // path_carrier_meet: two unit circles whose centres sit `band`
+    // FURTHER apart than 2 — externally tangent to within the band, so
+    // whether they cross at all cannot be classified here.
     let refused = Open
-        .at_on(p2(0.0, -1.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
+        .at_on(p2(1.0, 0.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
         .unwrap()
         .fillet(0.25)
         .unwrap()
-        .to_on(Start, p2(2.0 + band, 0.0), profile::ArcSweep::Ccw);
+        .at_on(
+            p2(1.0 + band, 0.0),
+            p2(2.0 + band, 0.0),
+            profile::ArcSweep::Ccw,
+        );
     assert!(
         matches!(refused, Err(PathError::Escalated { .. })),
         "in-band carrier separation must escalate, got {refused:?}"
     );
 
-    // path_corner_advance_arc / path_corner_reach_arc: the DERIVED
-    // corner sitting within the band of the anchor itself. The lens's
-    // own carriers meet at the anchor exactly, so a corner an in-band
-    // distance ahead of it cannot be classified as ahead or behind.
-    let eps_ang = band;
+    // path_corner_reach_arc: the ray y = 0 meets the circle about
+    // (2, −2) through the origin at (0,0) and (4,0). Put the ARRIVAL
+    // anchor an in-band ARC LENGTH ahead of the surviving corner (4,0):
+    // whether the corner really lies behind its anchor is then
+    // undecidable, and the angular gate must say so.
+    let centre = p2(2.0, -2.0);
+    let r = 8.0f64.sqrt();
+    let theta = std::f64::consts::FRAC_PI_4 + band / r;
+    let anchor = p2(centre.x + r * theta.cos(), centre.y + r * theta.sin());
     let refused = Open
-        .at_on(p2(0.0, -1.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0)
         .unwrap()
-        .fillet(0.25)
+        .fillet(0.5)
         .unwrap()
-        .to_on(Start, p2(eps_ang, 0.0), profile::ArcSweep::Ccw);
+        .at_on(anchor, centre, profile::ArcSweep::Ccw);
     assert!(
         matches!(refused, Err(PathError::Escalated { .. })),
-        "an in-band angular advance must escalate, got {refused:?}"
+        "an in-band angular reach must escalate, got {refused:?}"
+    );
+}
+
+/// The DECIDED sides of the same gates, for contrast: a margin
+/// comfortably above K·ε proceeds, and one comfortably below refuses
+/// with the gate's own typed refusal — never an escalation.
+#[test]
+fn the_new_arc_carrier_gates_decide_outside_the_band() {
+    let centre = p2(2.0, -2.0);
+    let r = 8.0f64.sqrt();
+    // Well ahead of the corner: decided, and the fillet resolves.
+    let theta = std::f64::consts::FRAC_PI_4 + 0.4;
+    let anchor = p2(centre.x + r * theta.cos(), centre.y + r * theta.sin());
+    assert!(
+        Open.at(p2(0.0, 0.0))
+            .toward(1.0, 0.0)
+            .unwrap()
+            .fillet(0.5)
+            .unwrap()
+            .at_on(anchor, centre, profile::ArcSweep::Ccw)
+            .is_ok(),
+        "a decided angular reach must resolve"
+    );
+    // Well BEHIND the corner: decided the other way, typed refusal.
+    let theta = std::f64::consts::FRAC_PI_4 - 0.4;
+    let anchor = p2(centre.x + r * theta.cos(), centre.y + r * theta.sin());
+    let refused = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0)
+        .unwrap()
+        .fillet(0.5)
+        .unwrap()
+        .at_on(anchor, centre, profile::ArcSweep::Ccw);
+    assert!(
+        matches!(refused, Err(PathError::NoCornerForFillet { .. })),
+        "a decided-behind arrival anchor must refuse typed, got {refused:?}"
     );
 }
