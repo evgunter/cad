@@ -1,15 +1,28 @@
 # LIB-SWITCH spec — profiles-as-programs v2: the schema-v4 representation switch
 
-Status: **DRAFT — awaiting two Evan inputs before it binds** (see
-the PR that introduced this file): (1) acknowledgment of the
-PROFILES-V2 §V3 naming-claim revision the drafting recon forced;
-(2) the corpus-authorability disposition (finding: two persisted
-corpus loops are chain-unauthorable BY DESIGN — boss's 3×120°
-split, the die half-disc — denting VQ1(b)'s "corpus authors
-fully" premise; the spec's §5-1 carries proposed dispositions,
-recommendation = split-control primitives in the circle()
-lowering style). Dispatch is additionally hard-sequenced behind
-the G2 finisher (path.rs collision) and U8a (the Unit type).
+Status: **BINDING, with dispatch hard-sequenced behind the G2
+finisher (path.rs collision) and U8a (the Unit type).** The two
+design inputs resolved on PR #263 (Evan, 2026-08-08):
+
+1. **Program-anchored naming (approved)**: profile-entity naming
+   for program loops anchors to PROGRAM-STRUCTURAL positions
+   (step indices) — nothing geometric enters the index, so
+   parameter edits cannot renumber, by construction. §V3 (round
+   2) is the authority; SWITCH-E implements it. Read this spec's
+   §6 under that resolution (the renumbering-class documentation
+   collapses for program loops; the freeze doctrine remains the
+   structural-edit backstop).
+2. **Corpus representation (delegated; ruled here)**: corpus
+   artifacts' representations are free to change as long as the
+   geometry is representable. Ruling: (a) `circle_split(center,
+   r, n, phase)` for closed carriers — boss migrates to it
+   (Evan's lean, orchestrator's recommendation). The half-disc
+   is MEASUREMENT-GATED per §5-1: if its equator vertex is not
+   load-bearing for band naming, RE-AUTHOR at the clean break
+   (preferred — no new vocabulary); if it is, the
+   declared-subdivision step (a structural vertex, not a
+   junction claim) is the fallback form. Read §5-1 under this
+   ruling.
 
 Mandate: implement docs/PROFILES-V2-DESIGN.md (RATIFIED #242; VQ1
 RULED (b)-direct — chain-only v4 schema; VQ2–VQ9 recommendations
