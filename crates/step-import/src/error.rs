@@ -198,6 +198,20 @@ pub enum StepImportError {
         /// The transform op's error, displayed.
         source: topo::TransformError,
     },
+    /// A body carrying a band re-mint failed the kernel's tier-3
+    /// geometric validation at import (M7-5, R1 fix pass). The band
+    /// mint's torus region decode leans by design on the kernel's
+    /// geometric gates (curved sense check 6, the +V volume-sign
+    /// invariant) as its backstop, so those gates RUN at import for
+    /// band-normalized bodies and a definite geometric falsehood
+    /// refuses here — `StepImport::Solid` documents tier-validity at
+    /// rest, and shipping a tier-3-false body would push the failure
+    /// downstream (the D4 anti-pattern). In-band escalations
+    /// (declines, not falsehoods) pass through unchanged.
+    BandGeometryInvalid {
+        /// The tier-3 verdicts, verbatim.
+        errors: Vec<topo::ValidationError>,
+    },
 }
 
 impl fmt::Display for StepImportError {
@@ -287,6 +301,14 @@ impl fmt::Display for StepImportError {
                     "step import: pcurve re-mint on the adopted body: {source}"
                 )
             }
+            Self::BandGeometryInvalid { errors } => write!(
+                f,
+                "step import: a seamless-periodic-band re-mint produced a body the \
+                 kernel's tier-3 geometric validation refuses ({errors:?}) — the band \
+                 mint's region decode leans on these gates (curved sense check 6, the \
+                 volume-sign invariant), so the refusal fires at import rather than \
+                 shipping a tier-3-false body"
+            ),
             Self::Placement { source } => write!(
                 f,
                 "step import: the assembly's rigid placement of the imported body \
