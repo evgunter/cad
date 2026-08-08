@@ -333,16 +333,23 @@ demos_hygiene() {
   (cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
 }
 
-# M4 PR 8b spec D3: the large-K fragility lint (mirrors ci.yml's
-# `k-lint` job). Two rows: the tool's own hygiene + tests (the #99
-# litmus MUST fire — that part gates), then the fresh probe sweep +
-# the ADVISORY lint (prints flags, exits 0 on findings; fails only on
-# harness breakage). Thresholds + provenance: tools/k-lint/src/lib.rs,
-# docs/K-REPORT.md M4 addendum.
+# Spec D3: the large-K fragility lint (mirrors ci.yml's `k-lint` job —
+# hosted and local must not drift, which is this script's whole point).
+# Two rows: the tool's own hygiene + tests (the #99 litmus MUST fire),
+# then the fresh probe sweep + the LINT GATE — a flagged margin fails
+# the row (exit 2, with the interpretation discipline printed);
+# harness breakage fails it in its own voice (exit 1).
+#
+# On a failure, read the tool's message before touching geometry: a
+# fired lint is evidence that the margin DISTRIBUTION moved, and the
+# recourse is re-derivation or a recorded demotion, never a geometry
+# nudge. Thresholds + provenance: tools/k-lint/src/lib.rs,
+# docs/K-REPORT.md ("M7 addendum (2026-08-07): the large-K lint's
+# floor refresh").
 klint_tool() {
   (cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 }
-klint_advisory() {
+klint_gate() {
   scripts/k_probe_sweep.sh target/k-fresh || return 1
   (cd tools/k-lint && cargo run -- \
     ../../target/k-fresh/k-eps-1e-6.csv \
@@ -388,7 +395,7 @@ run_row_if "$RUN_INTERVAL_BACKEND" "interval backend crate" interval_backend
 # kernel crate — no minimal root set, so these run whenever anything builds.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
 run_row_if "$RUN_K_LINT" "k-lint tool (fmt+clippy+litmus)" klint_tool
-run_row_if "$RUN_K_LINT" "k-lint sweep + advisory lint"    klint_advisory
+run_row_if "$RUN_K_LINT" "k-lint sweep + gate"             klint_gate
 # Root package stl: the acceptance example and its whole (dev-)dependency
 # chain profile -> sweep -> topo -> mesh live under it.
 run_row_if "$RUN_STL" "watertight (admesh)"          watertight

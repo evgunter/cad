@@ -838,17 +838,26 @@ jobs:
         env:
           CAD_TOLERANCE_EPS: ${{ matrix.eps }}
 
-  # M4 PR 8b spec D3: the large-K fragility lint. ADVISORY first
-  # iteration — the lint tool prints flags and always exits 0 on
-  # findings; this job can only fail on harness breakage (sweep or
-  # parse failure), a hygiene regression, or the #99 litmus no longer
-  # firing. The committed baseline + threshold provenance:
+  # Spec D3: the large-K fragility lint. A GATE — a flagged margin
+  # fails this row (the tool exits 2 and prints the interpretation
+  # discipline; harness breakage exits 1 in its own voice). The row
+  # also fails on a hygiene regression or the #99 litmus no longer
+  # firing.
+  #
+  # READ THE FAILURE BEFORE TOUCHING GEOMETRY: a fired lint is evidence
+  # that the margin DISTRIBUTION moved — possibly that a threshold or
+  # the baseline is stale. Recourse is re-derivation (docs/K-REPORT.md,
+  # "M7 addendum (2026-08-07): the large-K lint's floor refresh"), or a
+  # recorded demotion to advisory; never a geometry nudge to get under
+  # the threshold. The tool prints all of this on failure.
+  #
+  # The committed baseline + threshold provenance:
   # docs/k-report-data/m7-eps-*.csv.gz and tools/k-lint/src/lib.rs
   # (docs/K-REPORT.md M7 addendum has the histogram, the percentile
   # re-argument, and the ε-coupled ruling; the m4-/m5- baselines stay
   # committed as the durable record).
   k-lint:
-    name: k-lint (advisory)
+    name: k-lint (gate)
     runs-on: ubuntu-latest
     needs: filter
     # No minimal root set, deliberately: this is the ONLY job that compiles
@@ -876,7 +885,7 @@ jobs:
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
       - name: K-telemetry probe sweep (corpus + demo scenes, 3 eps rows)
         run: scripts/k_probe_sweep.sh target/k-fresh
-      - name: large-K lint (advisory — prints, never fails on findings)
+      - name: large-K lint (gate — a flagged margin fails this row)
         run: |
           cd tools/k-lint && cargo run -- \
             ../../target/k-fresh/k-eps-1e-6.csv \
