@@ -90,6 +90,22 @@ Findings that feed the profiles-as-programs representation draft
 - `BooleanOp` name collision (topo's in the prelude, editor_core's
   by path) — revisit if bindings prefer the document-layer one.
 
+## Incident log
+
+- **2026-08-07 (day): WSL CRASH** (Evan, evening). Symptoms as
+  seen from this side: the U2 PR-1 fix pass died TWICE to stream
+  stalls ("no progress for 600s"), then the orchestrator session
+  itself was down ~10h. Probable trigger: machine load (the U1
+  fix agent had measured load 14–19 under three concurrent
+  lanes; the U1 fix-pass byte-identity re-run was blocked 4×
+  by the same contention). Crash-window battery results were
+  already treated as suspect; ~151 lines of partial fix work in
+  the lib-u2 lane survived intact. On resume: monitors re-armed,
+  state re-verified (#233 OPEN/MERGEABLE, main unmoved at
+  e7213f6), one fresh finisher dispatched — ONE build-running
+  agent at a time until WSL stability is understood; width-1
+  slot locks remain the ceiling for anything heavier.
+
 ## Resting state (2026-08-06)
 
 Slots: 1 = lib-u1 (Opus), 2 = lib-u2 (fable). Monitors:
