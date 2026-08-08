@@ -1186,6 +1186,7 @@ dependencies = [
  "geom-surfaces",
  "mesh",
  "profile",
+ "quantity",
  "step-export",
  "step-import",
  "stl",
