@@ -23,6 +23,7 @@ mod diefillet;
 mod heatsink;
 mod letterforms;
 mod lily;
+mod paths;
 mod probe;
 mod projectbox;
 mod rocker;
