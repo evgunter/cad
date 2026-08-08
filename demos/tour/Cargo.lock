@@ -60,6 +60,7 @@ dependencies = [
  "geom-core",
  "geom-surfaces",
  "profile",
+ "quantity",
  "rayon",
  "serde",
  "serde_json",
@@ -179,6 +180,7 @@ dependencies = [
  "geom-surfaces",
  "mesh",
  "profile",
+ "quantity",
  "step-export",
  "step-import",
  "stl",
@@ -201,6 +203,10 @@ version = "0.0.0"
 dependencies = [
  "geom-core",
 ]
+
+[[package]]
+name = "quantity"
+version = "0.0.0"
 
 [[package]]
 name = "quote"

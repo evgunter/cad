@@ -19,15 +19,27 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::collections::BTreeMap;
+
 use pncad::editor_core::{
-    CancelToken, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Expr, Node, PatternKind,
-    ProfileDesc, RecipeNodeId, SlotId, ValuePayload, apply, evaluate,
+    CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Expr, Node, PatternKind, ProfileDesc,
+    RecipeNodeId, SlotId, ValuePayload, apply, evaluate, parse_expr,
 };
 use pncad::geom_core::{Point3, Vec3};
 use pncad::profile::{Profile, SketchPlane};
 
 use crate::booleans::{check, expect_seamed, try_union};
 use crate::scalar::Scalar;
+
+/// The U8a text door, no params in scope: the tour's expressions are
+/// authored the way a user would type them (`250 mm`, `5`) and go
+/// through the checking parser. The canonical-meter BITS are unchanged
+/// (250·10⁻³ lands on the same dyadic 0.25 the tour used to hand-write
+/// — pinned in editor-core's u8a_parse suite), so this is a SAID
+/// change: exports stay byte-identical.
+fn pe(src: &str) -> Expr {
+    parse_expr(src, &BTreeMap::new()).expect("tour expression")
+}
 use crate::{SceneBody, Stop, View};
 
 const BASE_VOL: f64 = 3.0 * 1.0 * 0.25;
@@ -79,7 +91,7 @@ fn build_doc() -> Recipe {
         &mut doc,
         Node::Extrude {
             profile: base_p,
-            distance: Expr::literal(0.25, Dimension::Length).unwrap(),
+            distance: pe("250 mm"),
         },
     );
     let fin_p = insert(&mut doc, Node::Profile(ProfileDesc(fin_profile)));
@@ -87,18 +99,17 @@ fn build_doc() -> Recipe {
         &mut doc,
         Node::Extrude {
             profile: fin_p,
-            distance: Expr::literal(0.8125, Dimension::Length).unwrap(),
+            distance: pe("812.5 mm"),
         },
     );
-    let scalar = |v: f64| Expr::literal(v, Dimension::Scalar).unwrap();
     let pattern = insert(
         &mut doc,
         Node::Pattern {
             input: fin_e,
-            count: Expr::count(5),
+            count: pe("5"),
             kind: PatternKind::Linear {
-                direction: [scalar(1.0), scalar(0.0), scalar(0.0)],
-                spacing: Expr::literal(0.3125, Dimension::Length).unwrap(),
+                direction: [pe("1.0"), pe("0.0"), pe("0.0")],
+                spacing: pe("312.5 mm"),
             },
         },
     );
@@ -155,7 +166,7 @@ pub(crate) fn probe_solids<S: Scalar>() -> Vec<pncad::topo::BooleanBody<S>> {
             &DocEdit::SetStructuralParam {
                 node: r.pattern,
                 slot: SlotId::Count,
-                expr: Expr::count(n as i64),
+                expr: pe(&format!("{n}")),
             },
         )
         .expect("count edit");
@@ -186,7 +197,7 @@ pub fn stops() -> Vec<Stop> {
             &DocEdit::SetStructuralParam {
                 node: r.pattern,
                 slot: SlotId::Count,
-                expr: Expr::count(n as i64),
+                expr: pe(&format!("{n}")),
             },
         )
         .expect("count edit");
