@@ -1,16 +1,16 @@
 # PROFILES-V2-DESIGN: profiles as programs — the representation switch
 
-Status: **DESIGN CONVERSATION — awaiting Evan's rulings.** Drafted
-2026-08-08 per LIBRARY-DESIGN §L8 ruling 3 (the draft waited for U2's
-algebra + the corpus rework; both merged — #233, #238 — and their
-measured findings are this doc's evidence base). This PR does NOT
-self-merge: VQ1 is a genuinely open fork whose answer shapes the
-schema, and #104's commitment wording may need a carve-out depending
-on the ruling. **The asks:** a ruling on VQ1 (V4 — the central
-question), yes/no on the VQ2–VQ9 recommendations (each is one line in
-§V7), and sign-off on the PROPOSED-FIRM sections. House register:
-proposals are firm where the evidence decides them, OPEN where real
-alternatives survive; every OPEN carries a recommendation.
+Status: **RATIFIED** (design conversation PR #242, three rounds with
+Evan 2026-08-08: drift-proofing construction accepted round 1;
+round-2 probe retracted the bowtie claim; round 3 delegated VQ1 to
+orchestrator judgment — **RULED (b)-direct**, see §V7 VQ1 for the
+ruling and rationale). VQ2–VQ9 adopted as recommended
+(retroactive-review class). Sequencing consequence: the
+vocabulary-growth units precede the switch; U9 queues behind it
+(Evan: no hurry). Drafted per LIBRARY-DESIGN §L8 ruling 3 on the
+merged evidence of #233/#238. House register: proposals firm where
+the evidence decides them; the V4 option analysis is retained as
+the record of the central decision.
 
 ## Grounding (committed; this doc does not re-litigate)
 
@@ -524,11 +524,30 @@ owed to users as a promise; not run at load, ever (clean break).
 Each OPEN carries a recommendation; PROPOSED-FIRM items above are
 restated here only where a reviewer might want to reopen them.
 
-- **VQ1 — raw loops' status (OPEN, central).** Options and evidence
-  in V4. Recommend (c): two Expr-bearing constructor vocabularies
-  under one program umbrella; cheap algebra growth (circle,
-  arc_via, arc_center) as a decoupled follow-on; arc-carrier
-  fillets banked additive with rocker as the use case.
+- **VQ1 — raw loops' status: RULED — (b) DIRECT** (Evan delegated
+  the call, PR #242 round 3, 2026-08-08: "use your judgment …
+  no particular hurry … seems like less work overall to just do
+  (b)"; orchestrator ruling recorded here). The deciding argument,
+  sharper than rounds 1–2 found: **schema evolution under LQ7 is
+  asymmetric.** If a genuine raw-at-rest need ever emerges, adding
+  a raw vocabulary is an ADDITIVE extension — legal even
+  post-release; removing one (the (c)-then-review path) is
+  SUBTRACTIVE and must happen pre-release or never. Chain-only
+  forecloses nothing; two-vocabulary creates removal debt on a
+  deadline. With Evan's no-hurry weighting, (c)'s one remaining
+  virtue (earlier parametric delivery) loses to less total work
+  (one wire vocabulary, one Expr surface, one driver, one slot
+  scheme) and the cleaner end state. Consequences: (1) the
+  vocabulary-growth units PRECEDE the switch — the cheap set
+  (circle primitive, arc_via, arc_center, far-end anchor, VQ4
+  exact directors) first, then the arc-carrier fillet modes
+  (measure sugar's existing arc-leg fillet forms, M5 S2/#137,
+  before sizing — the closed forms may largely exist); (2) the
+  switch lands chain-only when the persisted corpus authors fully
+  (kernel-layer validate-refusal demos like the bowtie never
+  persist and stay LoopBuilder-direct, §V6); (3) U9 queues behind
+  the switch per LQ4, accepted under no-hurry; (4) the V4 §
+  option analysis is retained as the record of why.
 - **VQ2 — do derived-segment caches persist? (OPEN, lean firm NO.)**
   V3's strict-door + D9 argument. Reopen only if load-time replay
   cost surprises at corpus scale (it should not; programs are tens
