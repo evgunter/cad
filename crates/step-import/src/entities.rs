@@ -21,6 +21,7 @@ use geom_surfaces::{NurbsSurface, Surface};
 
 use crate::chart;
 use crate::error::StepImportError;
+use crate::recognize;
 use crate::geometry;
 use crate::normalize;
 use crate::parse::{Instance, Record, StepFile, Value};
@@ -634,6 +635,18 @@ impl<'a> Resolver<'a> {
                     u_ref,
                 })
             }
+            "QUASI_UNIFORM_SURFACE" => {
+                let expected = "QUASI_UNIFORM_SURFACE(name, u_degree, v_degree, \
+                                ((points)), form, u_closed, v_closed, self_intersect)";
+                let [_, du, dv, points, _, _, _, _] = args.as_slice() else {
+                    return Err(StepImportError::MalformedRecord { id, expected });
+                };
+                let (nu, nv, control) = self.control_net(id, points, expected)?;
+                let weights = vec![1.0; control.len()];
+                let ku = quasi_uniform_knots(id, as_usize(id, du, expected)?, nu)?;
+                let kv = quasi_uniform_knots(id, as_usize(id, dv, expected)?, nv)?;
+                self.nurbs_surface(id, ku, kv, control, weights)
+            }
             "B_SPLINE_SURFACE_WITH_KNOTS" => {
                 let expected = "B_SPLINE_SURFACE_WITH_KNOTS(name, u_degree, v_degree, \
                                 ((points)), form, u_closed, v_closed, self_intersect, \
@@ -782,10 +795,12 @@ impl<'a> Resolver<'a> {
     }
 
     /// An `EDGE_CURVE`'s (or curve set's) curve reference → the kernel
-    /// carrier, exact. Covers the writer's four printers: `LINE`,
+    /// carrier, exact. Covers the writer's four printers — `LINE`,
     /// `CIRCLE`, `ELLIPSE`, `B_SPLINE_CURVE_WITH_KNOTS` (simple
     /// non-rational form and the `RATIONAL_B_SPLINE_CURVE` complex
-    /// instance).
+    /// instance) — plus the knots-implied `QUASI_UNIFORM_CURVE`
+    /// sub-type ([`quasi_uniform_knots`]), which the writer never
+    /// emits but I-DEAS-lineage translators do.
     fn curve(&self, from: u64, id: u64) -> Result<Curve3<f64>, StepImportError> {
         let instance = self.instance(from, id)?;
         if instance.records.len() > 1 {
@@ -870,6 +885,18 @@ impl<'a> Resolver<'a> {
                     minor: self.as_length(id, minor, expected)?,
                     u_ref,
                 })
+            }
+            "QUASI_UNIFORM_CURVE" => {
+                let expected = "QUASI_UNIFORM_CURVE(name, degree, (points), form, \
+                                closed, self_intersect)";
+                let [_, degree, points, _, _, _] = args.as_slice() else {
+                    return Err(StepImportError::MalformedRecord { id, expected });
+                };
+                let control = self.control_points(id, points, expected)?;
+                let knots =
+                    quasi_uniform_knots(id, as_usize(id, degree, expected)?, control.len())?;
+                let weights = vec![1.0; control.len()];
+                self.nurbs(id, knots, control, weights)
             }
             "B_SPLINE_CURVE_WITH_KNOTS" => {
                 let expected = "B_SPLINE_CURVE_WITH_KNOTS(name, degree, (points), \
@@ -1093,8 +1120,8 @@ impl<'a> Resolver<'a> {
             return Err(StepImportError::MalformedRecord { id, expected });
         };
         let surface_id = as_ref(id, surface_ref, expected)?;
-        let surface = self.surface(id, surface_id)?;
-        let sense = as_bool(id, same_sense, expected)?;
+        let mut surface = self.surface(id, surface_id)?;
+        let mut sense = as_bool(id, same_sense, expected)?;
         let mut bound_specs = Vec::new();
         for bound in as_list(id, bounds, expected)? {
             let bound_id = as_ref(id, bound, expected)?;
@@ -1105,6 +1132,48 @@ impl<'a> Resolver<'a> {
                 id,
                 what: "an ADVANCED_FACE with no bounds",
             });
+        }
+        // **D7 stage-1 surface recognition (ruling #256).** Every NURBS
+        // surface is tested for promotion HERE — at the face, before
+        // the multi-bound gate below, which is exactly the gate a
+        // promoted plane's trim rings must reach as a Plane (a
+        // normalize-level pass would be too late; the refusal fires in
+        // this function). Promotion is verified-not-trusted: it fires
+        // iff the recognizer's residual certifies at ε_in, and a patch
+        // that certifies nowhere stays NURBS silently — the state
+        // whose import behavior this crate already documents. The
+        // promotion is reported through the normalizations channel
+        // (census identity; the recorded residual bounds the motion),
+        // and the face's `same_sense` composes with the chart
+        // orientation so the promoted chart means what the NURBS chart
+        // meant.
+        let mut ill_conditioned = None;
+        if let Surface::Nurbs(ref patch) = surface
+            && !patch.is_placeholder()
+        {
+            match recognize::recognize(patch.as_ref(), self.eps_in) {
+                recognize::Recognition::Promoted {
+                    surface: promoted,
+                    residual,
+                    kind,
+                } => {
+                    if recognize::chart_flipped(patch.as_ref(), &promoted) {
+                        sense = !sense;
+                    }
+                    let census = bounds_census(&bound_specs, edges);
+                    self.normalizations.borrow_mut().push(StructureNormalization {
+                        face: id,
+                        kind: NormalizationKind::SurfacePromotion { to: kind, residual },
+                        file_census: census,
+                        kernel_census: census,
+                    });
+                    surface = promoted;
+                }
+                recognize::Recognition::StaysNurbs => {}
+                recognize::Recognition::IllConditioned { kind, margin } => {
+                    ill_conditioned = Some((kind, margin));
+                }
+            }
         }
         // The edge-free closed face: one VERTEX_LOOP and nothing else.
         if bound_specs.iter().any(|b| b.vertex_loop.is_some()) {
@@ -1153,23 +1222,36 @@ impl<'a> Resolver<'a> {
                     band: true,
                 }]);
             }
-            // A multi-ring NURBS face (M7-3) refuses HERE, and its
-            // frontier is deeper still: outerness inference needs a
-            // chart inversion (`chart::uv_of`) that no NURBS surface
-            // has, and the kernel has no trimmed-NURBS volume
-            // construction either — wild rational multi-ring faces
-            // (dm1-id-214's 11 trim rings) are stage-1 recognition
-            // territory, banked. The exported class never reaches
-            // this gate: every loft wall is single-bound, outer by
-            // definition below.
+            // A multi-bound curved face refuses HERE — and since D7
+            // stage-1 recognition (above), a NURBS surface reaches
+            // this gate only AFTER promotion was tried: rings on
+            // promoted PLANES have already left through the
+            // plane-guard on this branch, so what refuses is rings on
+            // genuinely curved patches — promoted cylinders included
+            // (the kernel has no volume construction for a curved
+            // face with rings) — and rings on NURBS that certified as
+            // no implemented analytic kind. Where the face could ONLY
+            // import by promotion and the recognizer's estimator was
+            // ill-conditioned at ε_in, the refusal is D7's typed
+            // ambiguity instead of this bare topology one.
+            if let Some((kind, margin)) = ill_conditioned {
+                return Err(StepImportError::RecognitionAmbiguous {
+                    id,
+                    surface: surface_id,
+                    kind,
+                    margin,
+                });
+            }
             return Err(StepImportError::Topology {
                 id,
                 what: "a curved ADVANCED_FACE with more than one bound that is not a \
-                       recognized periodic band — either an interior ring on a curved \
-                       patch (the kernel has no volume construction for a curved face \
-                       with rings, so adopting it would hand back a body that is not \
-                       tier-3 valid) or a seamless periodic band on a chart the M7-5 \
-                       band re-mint does not cover (cylinder and torus bands \
+                       recognized periodic band — an interior ring on a curved patch \
+                       (a promoted cylinder's, or a NURBS patch's that certified as no \
+                       implemented analytic kind at ε_in — stage-1 recognition \
+                       promotes certified planes and cylinders, and rings on promoted \
+                       planes import; the kernel has no volume construction for a \
+                       curved face with rings) or a seamless periodic band on a chart \
+                       the M7-5 band re-mint does not cover (cylinder and torus bands \
                        normalize; a cone or sphere-zone band would take the same \
                        seam-generator re-mint, extended to its chart)",
             });
@@ -1750,6 +1832,67 @@ impl<'a> Resolver<'a> {
 /// (a point off the chart, a step too long to unwrap) is simply not
 /// detected as a band and takes the gate's typed refusal — detection
 /// never guesses.
+/// The boundary-graph census a face's stated bounds contribute — the
+/// identity census a surface promotion records on both sides of its
+/// mapping (the promotion changes the surface DESCRIPTION, never the
+/// tessellation). Distinct edges and distinct vertices over every
+/// bound; a `VERTEX_LOOP` bound contributes its one vertex.
+fn bounds_census(bounds: &[BoundSpec], edges: &BTreeMap<u64, EdgeSpec>) -> FaceCensus {
+    let mut edge_ids = std::collections::BTreeSet::new();
+    let mut vertex_ids = std::collections::BTreeSet::new();
+    for bound in bounds {
+        if let Some(v) = bound.vertex_loop {
+            vertex_ids.insert(v);
+        }
+        for u in &bound.uses {
+            edge_ids.insert(u.edge);
+            if let Some(spec) = edges.get(&u.edge) {
+                vertex_ids.insert(spec.start);
+                vertex_ids.insert(spec.end);
+            }
+        }
+    }
+    FaceCensus {
+        faces: 1,
+        edges: edge_ids.len(),
+        vertices: vertex_ids.len(),
+    }
+}
+
+/// The implied clamped knot vector of a `QUASI_UNIFORM_CURVE` /
+/// `QUASI_UNIFORM_SURFACE` record, synthesized closed-form.
+///
+/// ISO 10303-42's `quasi_uniform_knots` states the SHAPE, not the
+/// values: end knots at multiplicity `degree + 1`, interior knots at
+/// multiplicity 1, evenly spaced. Any even spacing describes the same
+/// locus up to an affine reparameterization (which nothing downstream
+/// observes — parameter intervals are re-derived against the carrier,
+/// pcurves are re-minted), so the synthesis fixes integer spacing
+/// `0, 1, …, control_points − degree` as the canonical instance. No ε
+/// enters: the knots are exact small integers.
+fn quasi_uniform_knots(
+    id: u64,
+    degree: usize,
+    control_points: usize,
+) -> Result<KnotVector, StepImportError> {
+    let expected = "a quasi-uniform B-spline with more control points than its \
+                    degree (fewer describe no spline of that degree)";
+    if control_points <= degree {
+        return Err(StepImportError::MalformedRecord { id, expected });
+    }
+    let spans = control_points - degree;
+    let mut flat = Vec::with_capacity(control_points + degree + 1);
+    flat.extend(std::iter::repeat_n(0.0, degree + 1));
+    for k in 1..spans {
+        flat.push(k as f64);
+    }
+    flat.extend(std::iter::repeat_n(spans as f64, degree + 1));
+    KnotVector::clamped(flat, degree).map_err(|_| StepImportError::MalformedRecord {
+        id,
+        expected: "a clamped knot vector synthesized from the quasi-uniform shape",
+    })
+}
+
 fn is_periodic_band(
     surface: &Surface<f64>,
     loops: &[LoopSpec],
@@ -2631,7 +2774,18 @@ fn unit_pass_resolver(file: &StepFile) -> Resolver<'_> {
 }
 
 /// Resolves the parsed file into a [`Model`] (module docs).
-pub(crate) fn resolve(file: &StepFile) -> Result<Model, StepImportError> {
+///
+/// `eps_override` is [`crate::ImportOptions::eps_in`], plumbed to the
+/// resolver so the per-call override governs INTERPRETATION — D7's
+/// contract for ε_in (stage-1 surface recognition decides promotion at
+/// it; the direction/frame verbatim-adoption windows and the placement
+/// rigidity check spend the same budget). The model still carries the
+/// file's own declared uncertainty, which is what
+/// [`crate::StepImport::eps_in`] reports when no override was given.
+pub(crate) fn resolve(
+    file: &StepFile,
+    eps_override: Option<f64>,
+) -> Result<Model, StepImportError> {
     let r = unit_pass_resolver(file);
 
     // The header must declare a schema (Part 21's FILE_SCHEMA). The
@@ -2656,11 +2810,12 @@ pub(crate) fn resolve(file: &StepFile) -> Result<Model, StepImportError> {
         file,
         length_scale: units.length_scale,
         angle_scale: units.angle_scale,
-        // A file with no declared uncertainty gets no interpretation
+        // The override wins where given (doc above). A file with no
+        // declared uncertainty and no override gets no interpretation
         // budget here; the shape pass below refuses first when there
         // is nothing to import, and `MissingUncertainty` is raised
         // after it, when a body really was on the table.
-        eps_in: units.uncertainty_m.unwrap_or(0.0),
+        eps_in: eps_override.unwrap_or(units.uncertainty_m.unwrap_or(0.0)),
         // Past every stated id, so minted topology cannot collide.
         next_id: std::cell::Cell::new(
             file.data

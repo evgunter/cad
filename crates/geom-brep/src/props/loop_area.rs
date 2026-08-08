@@ -3,7 +3,7 @@
 
 use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Vec3};
-use geom_curves::Curve3;
+use geom_curves::{Curve3, NurbsCurve3};
 
 use super::{LoopEdge, PropsError};
 
@@ -21,11 +21,25 @@ use super::{LoopEdge, PropsError};
 /// - ellipse arc (M5 PR 5): the same form with `R² → a·b` —
 ///   `(P−C)×dP = a·b·dθ·axis` exactly (the eccentric-anomaly
 ///   parameterization's constant areal rate), so
-///   `(1/2)·[(C − ref)×(p1 − p0) + a·b·(t1 − t0)·axis]`.
+///   `(1/2)·[(C − ref)×(p1 − p0) + a·b·(t1 − t0)·axis]`;
+/// - **non-rational B-spline** (D7 stage-1 promotion made this a
+///   reachable at-rest state: a promoted plane keeps its parsed
+///   spline boundary carriers): per knot span the integrand
+///   `(P − ref)×P′` is a POLYNOMIAL of degree `2k − 1`, and the fixed
+///   `k`-point Gauss–Legendre rule integrates that degree **exactly**
+///   — a closed form in the same sense as the arc's, not a truncated
+///   approximation (fixed nodes, fixed evaluation order, D9; the only
+///   error is f64 rounding). Rational carriers keep the typed
+///   refusal — their integrand is not polynomial, and no at-rest
+///   analytic-surface body carries one whose face flux is answered
+///   here (a rational NURBS *wall* declines tier 3 by surface kind
+///   before any boundary integral runs).
 ///
 /// # Errors
 ///
-/// [`PropsError::Unimplemented`] on a `Nurbs` carrier.
+/// [`PropsError::Unimplemented`] on a rational `Nurbs` carrier;
+/// [`PropsError::QuadratureUnsupported`] past the Gauss table's
+/// degree inventory.
 pub fn loop_vector_area<T: SpanLocate>(
     edges: &[LoopEdge<T>],
     ref_point: Point3<T>,
@@ -60,7 +74,7 @@ pub fn loop_vector_area<T: SpanLocate>(
                 let chord = e.p1() - e.p0();
                 (w.cross(chord) + axis * (major * minor * (e.t1 - e.t0))) * half
             }
-            Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
+            Curve3::Nurbs(ref payload) => nurbs_vector_area(payload, e.t0, e.t1, ref_point)?,
         };
         // Reversed traversal flips the line integral's sign.
         acc = if e.forward {
@@ -70,6 +84,87 @@ pub fn loop_vector_area<T: SpanLocate>(
         };
     }
     Ok(acc)
+}
+
+/// The fixed Gauss–Legendre rules on `[−1, 1]`, by node count `n`
+/// (exact through polynomial degree `2n − 1`). The inventory covers
+/// the exportable spline degrees with headroom; past it the caller
+/// refuses typed rather than truncating.
+fn gauss_rule(n: usize) -> Option<(&'static [f64], &'static [f64])> {
+    const X2: f64 = 0.577_350_269_189_625_8; // 1/√3
+    const X3: f64 = 0.774_596_669_241_483_4; // √(3/5)
+    const W3A: f64 = 8.0 / 9.0;
+    const W3B: f64 = 5.0 / 9.0;
+    const X4A: f64 = 0.339_981_043_584_856_3;
+    const X4B: f64 = 0.861_136_311_594_052_6;
+    const W4A: f64 = 0.652_145_154_862_546_1;
+    const W4B: f64 = 0.347_854_845_137_453_9;
+    const X5A: f64 = 0.538_469_310_105_683_1;
+    const X5B: f64 = 0.906_179_845_938_664_0;
+    const W5O: f64 = 0.568_888_888_888_888_9;
+    const W5A: f64 = 0.478_628_670_499_366_5;
+    const W5B: f64 = 0.236_926_885_056_189_1;
+    match n {
+        1 => Some((&[0.0], &[2.0])),
+        2 => Some((&[-X2, X2], &[1.0, 1.0])),
+        3 => Some((&[-X3, 0.0, X3], &[W3B, W3A, W3B])),
+        4 => Some((&[-X4B, -X4A, X4A, X4B], &[W4B, W4A, W4A, W4B])),
+        5 => Some((&[-X5B, -X5A, 0.0, X5A, X5B], &[W5B, W5A, W5O, W5A, W5B])),
+        _ => None,
+    }
+}
+
+/// `(1/2)∫_{t0}^{t1} (P(t) − ref)×P′(t) dt` for a **non-rational**
+/// B-spline carrier, exact (module docs of [`loop_vector_area`]: the
+/// per-span polynomial integrand meets the fixed `k`-point Gauss rule
+/// that integrates its degree exactly).
+///
+/// Span walking is generic-scalar sound: the covered span range comes
+/// from [`SpanLocate::locate_spans`] at the interval's ends, each
+/// span's sub-interval is clipped with the scalar's own total
+/// `min`/`max` (Q1: no raw comparisons), and a span the interval does
+/// not reach clips to length ≤ 0, whose `max(0)` half-length zeroes
+/// its contribution identically — no value branching anywhere.
+fn nurbs_vector_area<T: SpanLocate>(
+    curve: &NurbsCurve3<T>,
+    t0: T,
+    t1: T,
+    ref_point: Point3<T>,
+) -> Result<Vec3<T>, PropsError> {
+    if curve.weights().iter().any(|w| *w != 1.0) {
+        return Err(PropsError::Unimplemented);
+    }
+    let degree = curve.degree().max(1);
+    let Some((nodes, weights)) = gauss_rule(degree) else {
+        return Err(PropsError::QuadratureUnsupported {
+            what: "a non-rational B-spline boundary carrier of degree > 5 — the exact \
+                   Gauss inventory covers the exportable degrees; extend the table \
+                   before integrating higher",
+        });
+    };
+    let kv = curve.knots();
+    let lo_spans = t0.locate_spans(kv);
+    let hi_spans = t1.locate_spans(kv);
+    let first = lo_spans.first.min(hi_spans.first);
+    let last = lo_spans.last.max(hi_spans.last);
+    let half = T::from_f64(0.5);
+    let mut acc = Vec3::zero();
+    for span in first..=last {
+        if !kv.span_is_nonempty(span) {
+            continue;
+        }
+        let lo = t0.max(T::from_f64(kv.knots()[span]));
+        let hi = t1.min(T::from_f64(kv.knots()[span + 1]));
+        let half_len = ((hi - lo) * half).max(T::zero());
+        let mid = (lo + hi) * half;
+        for (x, w) in nodes.iter().zip(weights) {
+            let t = mid + half_len * T::from_f64(*x);
+            let p = curve.eval_in_span(span, t);
+            let d = curve.deriv_in_span(span, t);
+            acc = acc + (p - ref_point).cross(d) * (half_len * T::from_f64(*w));
+        }
+    }
+    Ok(acc * half)
 }
 
 #[cfg(test)]
