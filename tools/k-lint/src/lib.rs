@@ -15,9 +15,10 @@
 //!    at ANY supported ε row" — the sweep runs all three supported ε
 //!    rows, so every row is linted at its own recorded band):
 //!    a definite non-zero margin within [`PROXIMITY_FACTOR`] of the
-//!    escalation threshold (`|m| < 10² · Kε`), or a zero-classified
-//!    margin within [`PROXIMITY_FACTOR`] below the coincidence
-//!    threshold (`|m| > ε / 10²`).
+//!    escalation threshold (`|m| < 10² · Kε`, **capped at**
+//!    [`BASELINE_FLOOR_MARGIN`] — see "Rule (2)'s discrimination
+//!    floor"), or a zero-classified margin within [`PROXIMITY_FACTOR`]
+//!    below the coincidence threshold (`|m| > ε / 10²`).
 //! 3. **Below the baseline floor** — a definite non-zero margin
 //!    smaller than [`BASELINE_FLOOR_MARGIN`], the bottom edge of the
 //!    committed baseline's ε-INDEPENDENT distribution (see "Threshold
@@ -130,6 +131,41 @@
 //! ε-coupled predicate is not on it, so it stays under rules (2) and
 //! (3) and flags loudly until someone rules on it — the fail-loud
 //! direction.
+//!
+//! # Rule (2)'s discrimination floor
+//!
+//! Rules (2)-above and (3) are two thresholds on the SAME quantity — a
+//! definite ε-independent margin — one in band units (`10²·Kε`), one in
+//! metres (the corpus's measured floor). Rule (2) says something rule
+//! (3) does not only while `10²·Kε < BASELINE_FLOOR_MARGIN`: there it
+//! catches margins that are BOTH far below the corpus's honest-feature
+//! floor AND near the band, which is strictly stronger. When the
+//! inequality flips, rule (2) degenerates into a second, UNCALIBRATED
+//! floor sitting above the calibrated one, and it then flags exactly
+//! the corpus's own known fine-feature population — including the very
+//! samples the floor was cut from.
+//!
+//! At the ratified K = 10 that flip happens at the loosest supported
+//! row: `10²·Kε = 1e-3 m` at ε = 1e-6, 25× above the M7 floor of
+//! 4.0e-5 m. Measured on the M7 baseline, the uncapped rule prints 54
+//! flags there — every one a `volume_backstop` sample between 4.80e-5
+//! and 9.50e-4 m on corpus/die, corpus/die_pips, corpus/die_composed,
+//! demo/die and demo/projectbox_cutaway, all of them ε-independent, all
+//! of them above the floor, none of them moving — and 0 flags at 1e-9
+//! and 1e-12, where the rule still discriminates.
+//!
+//! So rule (2)-above is capped at [`BASELINE_FLOOR_MARGIN`]
+//! ([`proximity_above_threshold`]). This is a statement about the
+//! rule's discriminating power, not a family exemption: every margin
+//! below the floor still answers to BOTH rules, rule (1) still catches
+//! any sample that actually escalates, and the cap is inert at both
+//! rows where rule (2) is the stronger statement. What is genuinely
+//! true at ε = 1e-6 — that this corpus's finest honest features sit
+//! less than a decade above the escalation band, i.e. that 1e-6 is a
+//! loose ε for a sub-millimetre corpus — is a fact about the ε choice,
+//! not about any one sample. The CLI therefore never suppresses it
+//! silently: it prints the cap and both numbers on every file where it
+//! binds ([`Scan::proximity_capped`]).
 
 /// Ratio rules apply only to ambient (ε-scale) bands; the exact
 /// tie-break bands the kernel also records are 5e-324 / 1e-100 —
@@ -162,6 +198,15 @@ pub const EPS_COUPLED_FLOOR_RATIO: f64 = 1.5e2;
 #[must_use]
 pub fn is_eps_coupled(predicate: &str) -> bool {
     EPS_COUPLED_PREDICATES.contains(&predicate)
+}
+
+/// Rule (2)'s definite-side threshold at a row whose escalation
+/// threshold is `band_escalate`: `10²·Kε`, capped at
+/// [`BASELINE_FLOOR_MARGIN`] where the raw ratio stops discriminating
+/// (module docs, "Rule (2)'s discrimination floor").
+#[must_use]
+pub fn proximity_above_threshold(band_escalate: f64) -> f64 {
+    (band_escalate * PROXIMITY_FACTOR).min(BASELINE_FLOOR_MARGIN)
 }
 
 /// Why a sample was flagged.
@@ -211,6 +256,19 @@ pub struct Flag {
     pub reasons: Vec<Reason>,
 }
 
+/// The result of linting one CSV.
+#[derive(Debug)]
+pub struct Scan {
+    /// Samples considered (every non-header, non-empty line).
+    pub scanned: usize,
+    pub flags: Vec<Flag>,
+    /// `Some((10²·Kε, floor))` when this file's ambient rows are loose
+    /// enough that rule (2)'s definite arm was capped at the baseline
+    /// floor. The CLI PRINTS this — the cap is never silent (module
+    /// docs, "Rule (2)'s discrimination floor").
+    pub proximity_capped: Option<(f64, f64)>,
+}
+
 /// A malformed input line (harness breakage — this FAILS the CI row;
 /// findings never do).
 #[derive(Debug)]
@@ -252,7 +310,7 @@ pub fn lint_sample(
                     reasons.push(Reason::BelowEpsCoupledFloor);
                 }
             } else {
-                if m < band_escalate * PROXIMITY_FACTOR {
+                if m < proximity_above_threshold(band_escalate) {
                     reasons.push(Reason::NearBandAbove);
                 }
                 if m < BASELINE_FLOOR_MARGIN {
@@ -272,9 +330,10 @@ pub fn lint_sample(
 ///
 /// The first malformed line — bad column count, unparseable float, or
 /// an UNKNOWN outcome string (harness breakage; findings never error).
-pub fn lint_csv(text: &str) -> Result<(usize, Vec<Flag>), ParseError> {
+pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     let mut flags = Vec::new();
     let mut scanned = 0usize;
+    let mut proximity_capped = None;
     for (i, line) in text.lines().enumerate() {
         if i == 0 {
             if line != "shape,predicate,margin,band_zero,band_escalate,outcome" {
@@ -317,6 +376,14 @@ pub fn lint_csv(text: &str) -> Result<(usize, Vec<Flag>), ParseError> {
             return Err(err());
         }
         scanned += 1;
+        // Record (once) that rule (2)-above is running capped on this
+        // file's ambient rows, so the CLI can say so out loud.
+        if band_zero >= AMBIENT_BAND_MIN && proximity_capped.is_none() {
+            let raw = band_escalate * PROXIMITY_FACTOR;
+            if raw > BASELINE_FLOOR_MARGIN {
+                proximity_capped = Some((raw, BASELINE_FLOOR_MARGIN));
+            }
+        }
         let reasons = lint_sample(pred, margin, band_zero, band_escalate, out);
         if !reasons.is_empty() {
             flags.push(Flag {
@@ -329,7 +396,11 @@ pub fn lint_csv(text: &str) -> Result<(usize, Vec<Flag>), ParseError> {
             });
         }
     }
-    Ok((scanned, flags))
+    Ok(Scan {
+        scanned,
+        flags,
+        proximity_capped,
+    })
 }
 
 #[cfg(test)]
@@ -412,9 +483,7 @@ mod tests {
         assert!(!is_eps_coupled("volume_backstop"));
         // The three baseline minima of `props_quad_converged`
         // (8.3952e-4 / 1.6467e-7 / 3.3595e-10 at 1e-6 / 1e-9 / 1e-12):
-        // all CLEAN under rule (4), all of them would have flagged
-        // under the metre floor, and the 1e-9/1e-12 ones under rule (2)
-        // as well.
+        // all CLEAN under rule (4).
         for (m, zero, esc) in [
             (8.3952e-4, 1e-6, 1e-5),
             (1.6467e-7, 1e-9, 1e-8),
@@ -424,8 +493,13 @@ mod tests {
                 lint_sample("props_quad_converged", m, zero, esc, "positive").is_empty(),
                 "baseline ε-coupled minimum {m:e} must lint clean at ε={zero:e}"
             );
-            assert!(
-                !lint_sample("volume_backstop", m, zero, esc, "positive").is_empty(),
+        }
+        // The two tight rows are what makes the exemption load-bearing:
+        // the SAME margins under the metre rules flag on both counts.
+        for (m, zero, esc) in [(1.6467e-7, 1e-9, 1e-8), (3.3595e-10, 1e-12, 1e-11)] {
+            assert_eq!(
+                lint_sample("volume_backstop", m, zero, esc, "positive"),
+                vec![Reason::NearBandAbove, Reason::BelowBaselineFloor],
                 "the SAME margin under the metre rules must flag"
             );
         }
@@ -438,6 +512,32 @@ mod tests {
         // ceiling and sits just above rule (2)'s 10²·Kε — the
         // tautology rule (4) replaces.
         assert!(lint_sample("props_quad_converged", 1.024e-9, 1e-12, 1e-11, "positive").is_empty());
+    }
+
+    #[test]
+    fn rule_two_above_is_capped_at_the_baseline_floor() {
+        // Where the raw ratio still discriminates (10²·Kε below the
+        // floor), the cap is inert.
+        assert!((proximity_above_threshold(1e-8) - 1e-6).abs() < 1e-20);
+        assert!((proximity_above_threshold(1e-11) - 1e-9).abs() < 1e-24);
+        // At ε = 1e-6 the raw ratio is 1e-3 — 25× the floor — so it caps.
+        assert!((proximity_above_threshold(1e-5) - BASELINE_FLOOR_MARGIN).abs() < 1e-20);
+        // The M7 baseline's ε-independent floor sample (`volume_backstop`,
+        // corpus/die_pips) at the 1e-6 row: honest feature, above the
+        // floor, no longer flagged by the degenerate ratio.
+        assert!(lint_sample("volume_backstop", 4.7965e-5, 1e-6, 1e-5, "positive").is_empty());
+        // …but a margin BELOW the floor still gets BOTH rules at that
+        // row — the cap is not an exemption.
+        assert_eq!(
+            lint_sample("volume_backstop", 3.9e-5, 1e-6, 1e-5, "positive"),
+            vec![Reason::NearBandAbove, Reason::BelowBaselineFloor]
+        );
+        // …and rule (1) is untouched wherever a sample actually
+        // escalates.
+        assert_eq!(
+            lint_sample("volume_backstop", 5e-6, 1e-6, 1e-5, "indeterminate"),
+            vec![Reason::InBand]
+        );
     }
 
     #[test]
@@ -454,8 +554,18 @@ mod tests {
         let csv = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
                    demo/x,p1,2e0,1e-9,1e-8,positive\n\
                    demo/x,p2,2.315e-6,1e-6,9.999999999999999e-6,indeterminate\n";
-        let (scanned, flags) = lint_csv(csv).expect("valid csv");
+        let scan = lint_csv(csv).expect("valid csv");
+        let (scanned, flags) = (scan.scanned, scan.flags);
         assert_eq!(scanned, 2);
+        // The 1e-6 row's band is loose enough that rule (2)-above ran
+        // capped — and the scan says so.
+        assert_eq!(
+            scan.proximity_capped,
+            Some((
+                9.999999999999999e-6 * PROXIMITY_FACTOR,
+                BASELINE_FLOOR_MARGIN
+            ))
+        );
         assert_eq!(flags.len(), 1);
         assert_eq!(flags[0].predicate, "p2");
         assert_eq!(flags[0].reasons, vec![Reason::InBand]);
