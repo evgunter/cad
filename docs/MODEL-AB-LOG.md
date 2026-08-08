@@ -356,6 +356,17 @@ REMAINDER ASSIGNED (2026-08-07): the band-seam re-mint unit
 (ftc_11 + cq_red_cube flip back to imports); difficulty logged
 PRE-ASSIGNMENT from the substrate inventory = **M**.
 
+Block M7-10 (2026-08-08) — FIRST M7 TRIPLE under v3: difficulty
+logged PRE-DRAW for slot 1: the k-lint gate flip (advisory→failing
+row with Evan's interpretation-discipline message, #243 comment
+5224869607; CI-infra class, no blinded lane, excluded from
+comparison per the row-16/41 precedent — and therefore NOT counted
+in the dual-review every-3rd, which counts blinded-lane
+implementation rows only) = **S**. Draw follows this entry. DRAWN: byte 205 (no
+rejection), 205 mod 3 = 1 → block M7-10 arm order (opus, fable,
+opus) — the gate flip (slot 0) gets OPUS; fable rides slot 1
+(stage-1 recognition, next dispatch); opus remainder in slot 2.
+
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
 Block LIB-1 draw (2026-08-06): byte 13 → (opus, fable).
