@@ -857,3 +857,19 @@ M7 (STEP adoption) runs with its own plan/log; the two milestones'
 records coexist in docs/ because the milestones ran concurrently.
 Closure and any re-banking of the remaining units await Evan's
 exit-walk ruling.
+
+## M6 CLOSED (2026-08-08)
+
+**Ratified by Evan on the exit-walk presentation (PR #243, comment
+5224869607, "lgtm!").** The walk — every M6-PLAN criterion verbatim,
+11 MET / 1 MET-WITH-RECORDED-HONESTY / carried items all with named
+owners, plus the 15-row globe-lily disposition appendix — is the
+done-state of record at docs/M6-EXIT-WALK.md. Rulings riding the
+same comment: (i) a consolidated M6 carried-items register issue
+gets filed (the #226 model, extended to the lull items, lily
+CARRIED rows and re-banked frontiers); (ii) the k-lint advisory row
+flips to a GATE whose failure message leads with the interpretation
+discipline (a fired lint is distribution evidence, not a geometry
+defect — never nudge geometry to pass; re-derive per the #239
+runbook or demote with justification). This log is now historical
+record; M7 continues in docs/M7-LOG.md.
