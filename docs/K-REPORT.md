@@ -297,6 +297,11 @@ decade of any band edge at any ε row.
 
 ### The large-K lint (Evan's ask, ruled 2026-07-25; spec D3)
 
+*Historical, left as written. The thresholds and rule set below are the
+M4 originals; both were revised on 2026-08-07 — see "M7 addendum: the
+large-K lint's floor refresh" at the end of this report for the current
+constants (floor 4.0e-5, rule 4, rule 2's cap).*
+
 `tools/k-lint` (workspace-excluded tooling — thresholds are lint
 policy, never kernel ε) scans freshly regenerated sweep CSVs and
 FLAGS, **advisory-only in this first iteration**:
@@ -447,6 +452,18 @@ deciding whether the ε-coupled family belongs under a ratio rule
 rather than a metre rule) is a code change and is therefore NOT made
 here — it is carried as a named M6 pickup** (M6 = the main-path
 completions under the 2026-08-03 renumbering).
+
+> **DONE (2026-08-07)** — the pickup is discharged; see "M7 addendum:
+> the large-K lint's floor refresh" at the end of this report. The
+> floor was re-derived against a fresh sweep at the M7 tip
+> (`BASELINE_FLOOR_MARGIN` 1.5e-3 → 4.0e-5, P0 of the ε-INDEPENDENT
+> population) and the ε-coupled family got its own ε-relative rule
+> (4). Two corrections to the paragraph above, for the record: the
+> binding family at the M7 tip is `volume_backstop`, which did not
+> exist at M5 — `props_rim_side` and `bool_ring_run_winding` have
+> since risen to 2.2000e-2 and 6.5104e-3 and are no longer near the
+> bottom; and the uncapped flag count at the M7 tip was 54, not 102,
+> all at the 1e-6 row (Finding M7-F1).
 
 ### Finding M5-3: what this corpus STILL cannot show — no SSI margins
 
@@ -668,3 +685,235 @@ is `docs/predicate-dimension-audit.md` (~120 rows, F-findings).
    with ~102 advisory flags/run; the SSI Probe lane still has no
    owner). The k-lint floor refresh holds a promoted lull-queue
    spot per M6-LOG's status summary (docs/M6-LOG.md).
+   **Update 2026-08-07: the k-lint floor-refresh pickup is DONE** (M7
+   addendum, below); the SSI Probe lane pickup is still unowned.
+
+---
+
+## M7 addendum (2026-08-07): the large-K lint's floor refresh
+
+**Scope: a fresh `scripts/k_probe_sweep.sh` run at main's M7 tip, the
+re-derivation of `BASELINE_FLOOR_MARGIN` against it, and the ruling on
+the ε-coupled family that M5-2 banked.** This closes the "UNOWNED
+pickup" the M6-era section above names ("the k-lint baseline floor is
+still the stale M4-era 1.5e-3 with ~102 advisory flags/run").
+
+- **Harnesses**: unchanged (`crates/editor-core/tests/m4_pr8_k_probe.rs`
+  over every registered Band 4 corpus document + the tour's `k-probe`
+  scene mode, one process per ε, merged).
+- **Data**: `docs/k-report-data/m7-eps-{1e-6,1e-9,1e-12}.csv.gz`, M2's
+  columns exactly. **The M5-reported naming deviation is retired**:
+  `k_probe_sweep.sh` no longer hard-codes the `m4-eps-` prefix — it
+  defaults to the milestone-neutral `k-eps-` (what CI writes into its
+  scratch dir) and takes `K_SWEEP_PREFIX` for the committed,
+  milestone-stamped baselines. These rows are what the script wrote, no
+  rename. The `m4-*` and `m5-*` baselines stay committed: they are the
+  durable record.
+- **Wall clock** (this box, warm deps, one build slot): 78 s to build
+  the probe binaries, 32 s for the whole three-row sweep, ~60 s to lint
+  all three rows. Not evidence of anything — a cold run (full rebuild
+  after a main merge) is ~8–13 min on the same box.
+- **Snapshot semantics, stated precisely.** Like `m4-*` and `m5-*`,
+  these rows are a snapshot cut at a stated head, not a moving mirror
+  of main. Every number in this addendum was reproduced BYTE-IDENTICALLY
+  by a fresh sweep at the head where the baseline was cut. Main has
+  since added one predicate — `path_junction_turn` (demo tour paths),
+  293 samples/row across 10 demo scenes, every margin |m| ≥ 2.5 m, all
+  definite. A fresh sweep at that later main is +293 rows and still
+  lints **0 flags at all three ε rows**; the floor, the empty gap, the
+  ε-independent population's P0 and the ε-coupled ratio are untouched,
+  which is exactly the property a threshold snapshot is supposed to
+  have. Re-cutting the baseline on every main merge is neither the M4/M5
+  precedent nor useful; re-cut it when the DISTRIBUTION moves.
+
+| ε row | samples | zero | definite (ambient) | indet. | invalid | in (ε, Kε) |
+|-------|--------:|-----:|---------:|-------:|--------:|-----------:|
+| 1e-6  | 1 792 902 | 443 183 | 1 348 473 | 0 | 0 | 0 |
+| 1e-9  | 1 792 926 | 443 183 | 1 348 497 | 0 | 0 | 0 |
+| 1e-12 | 1 792 950 | 443 183 | 1 348 521 | 0 | 0 | 0 |
+
+284 178 `corpus/<doc>` samples + 1 508 724…772 `demo/<scene>`.
+**233 distinct predicate names** (M5: 208, M4: 145). The +24/row ε
+ladder is M5-1's `props_quad_converged`, unchanged in kind. Zero side:
+418 711 of 443 183 zero classifications are EXACTLY 0; the ambient
+worst is 5.3291e-15 m (`pm_census_ee_span`, demo/az) — the identical
+M4 and M5 value, so the noise cluster still has not moved.
+
+### The bottom of the distribution, by ε row
+
+Ambient definite minima per predicate (excluding the exact tie-break
+bands at `band_zero` 5e-324 / 1e-100, which the lint's ratio rules
+never touched):
+
+| predicate | shape | 1e-6 | 1e-9 | 1e-12 | class |
+|---|---|--:|--:|--:|---|
+| `props_quad_converged` | demo/tiltedcut | 8.3952e-4 | 1.6467e-7 | 3.3595e-10 | **ε-COUPLED** |
+| `props_quad_converged` | corpus/loft_prism | 1.0240e-3 | 1.0240e-6 | 1.0240e-9 | **ε-COUPLED** |
+| `volume_backstop` | corpus/die_pips, corpus/die_composed | 4.7965e-5 | = | = | ε-independent — **the new floor** |
+| `volume_backstop` | demo/projectbox_cutaway | 1.3214e-4 | = | = | ε-independent |
+| `volume_backstop` | corpus/die, demo/die | 1.4706e-4 | = | = | ε-independent |
+| `volume_backstop` | demo/table | 1.4986e-3 | = | = | ε-independent |
+| `pm_census_ee_gap` | demo/az | 1.6893e-3 | = | = | ε-independent (M4's floor) |
+| `split_bisector_side` | demo/projectbox_cutaway | 3.6621e-3 | = | = | ε-independent |
+
+Two changes since M5-2 matter. First, **`props_rim_side` (5.760e-4) and
+`bool_ring_run_winding` (5.086e-4) — two of the three families in M5's
+102-flag count — are no longer near the bottom**: their minima are now
+2.2000e-2 and 6.5104e-3. Second, a family M5 did not have appears
+underneath everything: **`volume_backstop`**, the boolean engine's
+volume invariant, which #200 re-metered as a mean boundary displacement
+`ΔV/(A_got + A_bound)` so its telemetry would be a length. Its floor
+sample is the composed die's pip cavities — a real 48 µm quantity, 1.5
+decades below M4's floor.
+
+**Classification test used**: min |m| per predicate across the three
+rows. `props_quad_converged` falls 6.4 decades from 1e-6 to 1e-12.
+Every other predicate reproduces its minimum BIT-IDENTICALLY at all
+three ε — margins are geometry, only the band moves — **with one
+carve-out** (corrected on review; the first draft of this section
+claimed there was no intermediate case, and that was wrong):
+`props_quad_face_extent`, 12 ambient definite samples per row and 8 of
+them differing across rows, has minima 4.0245003e-1 / 4.0256189e-1 /
+4.0256210e-1. It is ε-DEPENDENT but not ε-proportional — it is the
+CONVERGED quadrature's face extent, so a tighter ε buys more
+refinement rounds and the recorded enclosure bound converges toward a
+fixed ~0.4025621 m geometric value (total spread 2.8e-4 relative,
+shrinking with ε rather than tracking it).
+
+It moves nothing that matters: at 0.40 m it is 4 decades above the
+floor, nowhere near the empty gap, and the ε-independent population
+count (1 348 461), its P0 (4.7965e-5), and the gap's emptiness are all
+identical whether this predicate is counted as ε-independent or set
+aside. It also does not belong in rule 4: a margin converging to a
+fixed length is a model-scale distance, so the metre rules are the
+right ones for it. The honest statement is therefore not "no
+intermediate case exists" but "the one intermediate case is
+numerically inert, and no threshold in this refresh depends on which
+side of the classification it lands."
+
+Within a decade above the ε-independent bottom edge (4.7965e-5 …
+4.7965e-4) there is exactly one family, `volume_backstop`. Within a
+decade above the ε-coupled bottom edge at 1e-12 (3.3595e-10 …
+3.3595e-9) there is exactly one, `props_quad_converged`.
+
+### The new floor, and the percentile choice re-argued
+
+**`BASELINE_FLOOR_MARGIN` = 1.5e-3 → 4.0e-5 m.** P0 of the
+ε-INDEPENDENT ambient definite population (1 348 461 samples, the same
+count at all three rows): observed minimum 4.7965e-5, rounded down with
+16.6% of headroom.
+
+Percentile candidates on the NEW distribution (identical at all three
+rows, because the population is ε-independent by construction):
+
+| percentile | value (m) | what it would strand |
+|---|--:|---|
+| P0 | 4.7965e-5 | nothing — **chosen** |
+| P0.001 | 1.4916e-4 | the die / die_pips / die_composed backstop margins |
+| P0.01 | 3.8393e-3 | the entire `volume_backstop` family, `pm_census_ee_gap` (M4's own floor), `split_bisector_side` |
+| P0.1 | 2.4000e-2 | most of the corpus's millimetre-scale census work |
+| P1 | 6.2500e-2 | the sub-centimetre corpus wholesale |
+
+The M4 argument survives the corpus growth unchanged: any P > 0 flags
+the baseline's own bottom tail on every advisory run — permanent noise,
+no added signal — because the gap between the clusters is still empty.
+Measured on this sweep, the ε-independent definite population has
+**ZERO samples between the zero cluster's 5.3291e-15 and 4.7965e-5**,
+at every ε row: a 10.0-decade no-man's land (M4 had ~12). That empty
+gap is what makes the population edge the maximally informative
+threshold, and it is why the floor stays P0.
+
+Headroom is wider than M4's ~11% deliberately. M4's floor sample was a
+rigid feature gap; `volume_backstop`'s margin is ΔV/(A+A), a smeared
+quantity that moves with how fine a model's detail is relative to its
+surface area, so it earns a wider skirt.
+
+**The #99 litmus contract holds with room**: the datum is 2.315e-6 m,
+1.2 decades below the new floor, so it still flags at every supported ε
+row (in-band at 1e-6, `BelowBaselineFloor` at 1e-9 and 1e-12). The
+litmus now ASSERTS that relation instead of documenting it —
+`margin < BASELINE_FLOOR_MARGIN` is a test line, so no future refresh
+can cut the floor under the datum silently.
+
+### Ruling: the ε-coupled family (rule 4)
+
+`props_quad_converged` records `1024·ε − width` — a headroom against an
+ε-SCALED convergence target, not a distance. No fixed metre floor can
+be clean at 1e-12 and informative at the same time, so it comes out
+from under rule (3). **It comes out from under rule (2) as well**, and
+that is the part worth arguing rather than assuming: its entire
+operating range is `(0, 1024·ε] = (0, 102.4·Kε]` at the ratified
+K = 10, so "within 10² of Kε" is its permanent state and carries no
+information. Rule (2) applied to this family is a tautology, not a
+finding — which is why M5's 102-flag count was dominated by it.
+
+It is not muted. **Rule (4) is rule (2) recalibrated to the family's
+own scale**: flag when the headroom falls below
+`EPS_COUPLED_FLOOR_RATIO · ε = 1.5e2 · ε = 15·Kε`, the bottom ~15% of
+the range. That is a real fragility statement — the stopping round
+cleared its target by so little that at the interval scalar the
+enclosure could straddle and escalate. The constant is P0 of the
+baseline's own |m|/ε population (minimum 164.674 at demo/tiltedcut,
+1e-9 row; the other rows sit at 839.524 and 335.953) with 8.9% of
+headroom.
+
+Its semantics differ from the metre floor's and the difference is
+stated rather than glossed: this is a calibrated proximity rule on a
+BOUNDED statistic, not the edge of an empty gap. The quadrature loop
+stops at the first round whose width clears the target, widths fall
+~8× per round, so the headroom has **no structural lower bound** — a
+face whose width lands just under target will trip rule (4). That is
+the intended signal.
+
+Membership is an explicit allow-list (`EPS_COUPLED_PREDICATES`, one
+entry today), never inferred: a new ε-coupled predicate is not on it,
+stays under the metre rules, and flags loudly until someone rules on
+it.
+
+### Finding M7-F1: rule (2)'s definite arm degenerates at ε = 1e-6
+
+Not banked, not forecast — it fell out of the fresh data. Rules
+(2)-above and (3) are two thresholds on the same quantity, one in band
+units (`10²·Kε`), one in metres. Rule (2) says something rule (3) does
+not only while `10²·Kε < BASELINE_FLOOR_MARGIN`. At K = 10 that
+inequality holds at 1e-9 (1e-6 < 4e-5) and at 1e-12 (1e-9 < 4e-5), and
+FAILS at 1e-6, where `10²·Kε = 1e-3 m` is 25× the floor. There rule (2)
+is no longer a proximity rule at all: it is a second, uncalibrated
+floor sitting above the calibrated one, and it flags exactly the
+corpus's known fine-feature population — including the samples the
+floor was cut from.
+
+Measured: with rule (2) uncapped, the fresh sweep prints **54 flags at
+1e-6 and 0 at 1e-9 / 1e-12**. All 54 are `volume_backstop`, all
+ε-independent, all ABOVE the new floor, spanning 4.7965e-5 … 9.5017e-4
+on corpus/die (21), demo/die (21), demo/projectbox_cutaway (10),
+corpus/die_pips (1), corpus/die_composed (1).
+
+**Treatment**: rule (2)-above is capped at `BASELINE_FLOOR_MARGIN`. This
+is a statement about the rule's discriminating power, not a family
+exemption — every margin below the floor still answers to BOTH rules,
+rule (1) still catches any sample that actually escalates, and the cap
+is inert at both rows where rule (2) is the stronger statement. What is
+genuinely true at ε = 1e-6 — that this corpus's finest honest features
+sit less than a decade above the escalation band, i.e. that 1e-6 is a
+loose ε for a sub-millimetre corpus — is a fact about the ε choice, not
+about any one sample, so the CLI prints it as one `note:` line on every
+file where the cap binds. Nothing is suppressed silently.
+
+This is the definite-side twin of the M4 addendum's zero-side caveat
+("ε = 1e-12 has thin noise headroom at unit scale"). Symmetrically:
+**ε = 1e-6 has thin FEATURE headroom at millimetre scale**, and the
+corpus has now grown fine enough to prove it.
+
+### Acceptance (all rows executed locally at this tip)
+
+| row | result |
+|---|---|
+| fresh sweep, 3 ε rows, new rules | **0 flags** (1 792 902 / 1 792 926 / 1 792 950 samples) |
+| committed `m7-eps-*.csv.gz`, decompressed, 3 ε rows | **0 flags**, same counts |
+| fresh sweep at a LATER main (post-`demos/tour` paths) | **0 flags** (1 793 195 / 1 793 219 / 1 793 243) |
+| `cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test` | green — 8 unit + 2 litmus |
+| #99 litmus | fires at every supported ε row (in-band 1e-6; below floor 1e-9, 1e-12) |
+
+**The lint stays ADVISORY.** Flipping it to gating is the project
+owner's call and is deliberately not made here.

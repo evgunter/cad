@@ -38,6 +38,25 @@ amended:
 - Per-row objective companions: pre-dispatch difficulty guess
   (S/M/L, logged BEFORE the flip), fix-pass size, battery outcome,
   subagent tokens, wall-clock.
+- **Recording discipline (adopted 2026-08-08 from the
+  ev/ab-bayes-analysis readout's data-quality findings):**
+  - **Tokens are recorded PER PHASE — impl / fix / review — as
+    three separate figures, at merge, for EVERY row.** A bare lump
+    sum conflates phases and cannot enter the cost models (the
+    analysis could use only 24 of 51 v2 rows for impl cost; "the
+    log already recommends this and then stopped doing it").
+  - Wall-clock likewise per phase, with gaps ANNOTATED (crash /
+    outage / usage-limit / design-round), so contamination is a
+    codable covariate, not folklore.
+  - The findings cell carries at least one line of PROSE per
+    MAJOR, never a bare count (9 of 40 MAJORs were unclassifiable
+    for severity by the blinded coder).
+  - "Silent" in the silent-devs column means a silent SPEC
+    DEVIATION only — never runtime-undetected corruption (row
+    20's overload); disambiguate in the cell if both occur.
+  - Record WHO executed the fix pass (implementer-inherited vs
+    orchestrator-applied) — inconsistent execution contaminates
+    the fix-pass proxies.
 - Small-n caveat, stated up front: this yields a suggestive
   comparison, not significance. Read stratified by difficulty.
 

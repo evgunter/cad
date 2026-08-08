@@ -32,7 +32,7 @@ fn main() {
                 std::process::exit(1);
             }
         };
-        let (scanned, flags) = match lint_csv(&text) {
+        let scan = match lint_csv(&text) {
             Ok(r) => r,
             Err(e) => {
                 eprintln!(
@@ -42,10 +42,22 @@ fn main() {
                 std::process::exit(1);
             }
         };
+        let (scanned, flags) = (scan.scanned, scan.flags);
         say(format_args!(
             "k-lint: {path}: {scanned} samples, {} flagged",
             flags.len()
         ));
+        // Never a silent exemption: say it whenever rule (2)'s definite
+        // arm ran capped at the baseline floor (lib.rs, "Rule (2)'s
+        // discrimination floor").
+        if let Some((raw, floor)) = scan.proximity_capped {
+            say(format_args!(
+                "  note: rule 2's definite arm (10^2*Keps = {raw:e}) is looser than \
+                 the baseline floor ({floor:e}) at this eps row and ran capped to it \
+                 — at this eps the corpus's honest fine features sit less than a \
+                 decade above the escalation band; the floor is the calibrated statement"
+            ));
+        }
         // Print every flag, but cap the per-file dump so a systematic
         // regression cannot drown the job log; the summary count above
         // is always complete.
