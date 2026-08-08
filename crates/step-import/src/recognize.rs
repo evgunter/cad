@@ -128,6 +128,22 @@ pub(crate) fn recognize(patch: &NurbsSurface<f64>, eps_in: f64) -> Recognition {
     }
 }
 
+/// Negative zeros flushed to `+0.0`, componentwise (`x + 0.0` maps
+/// `-0.0` to `+0.0` and moves nothing else). The reader's numeric
+/// path states `+0.0` as the one representative (`as_real`'s
+/// documented normalization), so a promoted surface's DERIVED frame
+/// must state it too — otherwise the first re-export prints `-0.`
+/// tokens the re-import canonicalizes, and the promoted one-cycle
+/// fixed point misses by exactly those sign bits.
+fn flush_zero(v: Vec3<f64>) -> Vec3<f64> {
+    Vec3::new(v.x + 0.0, v.y + 0.0, v.z + 0.0)
+}
+
+/// [`flush_zero`] for a point.
+fn flush_zero_point(p: Point3<f64>) -> Point3<f64> {
+    Point3::new(p.x + 0.0, p.y + 0.0, p.z + 0.0)
+}
+
 /// The NURBS chart normal (unnormalized `∂u × ∂v`) at the domain
 /// midpoint — the orientation reference every promoted chart is
 /// aligned to, so the face's `same_sense` keeps its meaning across
@@ -187,11 +203,12 @@ fn try_plane(patch: &NurbsSurface<f64>, eps_in: f64) -> Option<(Surface<f64>, f6
     if align < 0.0 {
         normal = -normal;
     }
+    let normal = flush_zero(normal);
     let (u_ref, _) = normal.orthonormal_basis();
     let plane = Surface::Plane {
-        origin,
+        origin: flush_zero_point(origin),
         normal,
-        u_ref,
+        u_ref: flush_zero(u_ref),
     };
     // Non-rational: the hull sup-bound over the WHOLE net. `S(u,v)`
     // is a convex combination of control points (basis functions
@@ -282,10 +299,10 @@ fn try_cylinder(
         return Ok(None);
     }
     let cylinder = Surface::Cylinder {
-        origin: center,
-        axis,
+        origin: flush_zero_point(center),
+        axis: flush_zero(axis),
         radius,
-        u_ref: radial / radius,
+        u_ref: flush_zero(radial / radius),
     };
     let residual = sampled_residual_sup(patch, &cylinder);
     // Orientation: the cylinder chart's normal is radially outward by
