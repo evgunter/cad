@@ -486,148 +486,39 @@ impl<T: Real> LoopBuilder<T> {
     where
         T: Decide + Bounds,
     {
-        let band = Band::new(tol.eps, tol.k * tol.eps).map_err(ProfileError::Band)?;
-        // The exact-order band (validate module docs): no representable
-        // f64 lies strictly inside it, so f64 classification is total.
-        let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
-        let leg_in = Leg::at_corner(incoming, corner, self.head(), FilletLeg::Incoming);
-        let leg_out = Leg::at_corner(outgoing, corner, next, FilletLeg::Outgoing);
-
-        // (1) the lever arm: an angle is nothing without one (D4 ¶1).
-        let arm = leg_in.arm.min(leg_out.arm);
-        if decide("fillet_corner_arm", Length::of(arm), band).map_err(fillet_escalated)?
-            != Sign::Positive
-        {
-            return Err(ProfileError::FilletLegDegenerate {
-                // Diagnostic-channel comparison (naming the leg for the
-                // message), not a geometric decision.
-                leg: if leg_in.arm.lo() <= leg_out.arm.lo() {
-                    FilletLeg::Incoming
-                } else {
-                    FilletLeg::Outgoing
-                },
-                arm: arm.lo(),
-            });
-        }
-
-        // (2) the corner's turn: its sign is the side both carriers
-        // offset toward, so the offset construction never searches.
-        let turn = Length::levered(leg_in.dir.perp_dot(leg_out.dir), arm);
-        let sgn = match decide("fillet_corner_turn", turn, band).map_err(fillet_escalated)? {
-            Sign::Positive => T::one(),
-            Sign::Negative => -T::one(),
-            Sign::Zero => {
-                return Err(ProfileError::FilletCornerAlreadyTangent {
-                    reversed: leg_in.dir.dot(leg_out.dir).lo() < 0.0,
-                    margin: turn.value().lo(),
-                    arm: arm.lo(),
-                });
-            }
-        };
-
-        // (3) the offset carriers' intersection — the candidate centers.
-        let centers = match (leg_in.arc, leg_out.arc) {
+        // The construction itself is `arc_fillet_trims` (this file's
+        // second shared seam): gates, offset carriers and the
+        // per-candidate reach/fit pass, evaluation-only. This door owns
+        // the bracket reads — the refusal diagnostics through
+        // `map_arc_trim_refusal`, and the S8 pick below.
+        let outcome = arc_fillet_trims(incoming, self.head(), corner, outgoing, next, radius, tol)
+            .map_err(map_arc_trim_refusal)?;
+        let (legs, survivors) = match outcome {
             // Two straight legs: the ratified line×line closed form,
             // bit-identical to `fillet`'s (one door, one construction).
-            (None, None) => return self.fillet(corner, next, radius),
-            (Some(arc), None) => leg_out.offset_line_circle(corner, sgn, radius, arc, band)?,
-            (None, Some(arc)) => leg_in.offset_line_circle(corner, sgn, radius, arc, band)?,
-            (Some(a), Some(b)) => a.offset_circles(b, sgn, radius, band)?,
+            ArcFilletOutcome::LineLine => return self.fillet(corner, next, radius),
+            ArcFilletOutcome::Arc { legs, survivors } => (legs, survivors),
         };
 
-        // (4/5) the branch rule and the fit gate, one pass in candidate
-        // order: a candidate survives when both tangent points lie
-        // *within* their legs' corner-side extents — setback ≥ 0
-        // (`fillet_leg_reach`, the corner end; SIGNED on both leg kinds,
-        // so "past the corner" really does classify Negative) and
-        // extent − setback ≥ 0 (`fillet_leg_fit`, the far end,
-        // generalized to arc lengths R·Δθ on a circular leg).
-        //
-        // Four classifications per candidate, always all four — no
-        // short-circuit, so the recorded sample sequence depends only on
-        // the corner CLASS (how many candidates the carriers admit), not
-        // on the numbers. That invariance is stated for the
-        // non-escalating path: any one of the four `decide` calls may
-        // return Indeterminate, and the `?` below aborts the whole
-        // constructor with that escalation, leaving the remaining
-        // classifications of this candidate and every later candidate
-        // unfired. This is deliberate — an escalation means the gate
-        // cannot be classified at this scalar, and continuing would be
-        // deciding the branch rule on a margin we just admitted we
-        // cannot read. The escalation names which predicate stopped it.
-        let mut surviving: Vec<(Candidate<T>, Sign, Sign, [f64; 2])> =
-            Vec::with_capacity(centers.len());
-        let mut overrun: Option<ProfileError> = None;
-        for center in centers {
-            let t1 = leg_in.tangent_point(center, sgn, radius);
-            let t2 = leg_out.tangent_point(center, sgn, radius);
-            let sb_in = leg_in.setback(t1, corner);
-            let sb_out = leg_out.setback(t2, corner);
-            let reach_in =
-                decide("fillet_leg_reach", Length::of(sb_in), exact).map_err(fillet_escalated)?;
-            let reach_out =
-                decide("fillet_leg_reach", Length::of(sb_out), exact).map_err(fillet_escalated)?;
-            let margin_in = leg_in.len - sb_in;
-            let margin_out = leg_out.len - sb_out;
-            let fit_in =
-                decide("fillet_leg_fit", Length::of(margin_in), exact).map_err(fillet_escalated)?;
-            let fit_out = decide("fillet_leg_fit", Length::of(margin_out), exact)
-                .map_err(fillet_escalated)?;
-            let corner_side = reach_in != Sign::Negative && reach_out != Sign::Negative;
-            if corner_side && fit_in != Sign::Negative && fit_out != Sign::Negative {
-                surviving.push((
-                    Candidate { center, t1, t2 },
-                    fit_in,
-                    fit_out,
-                    [sb_in.lo(), sb_out.lo()],
-                ));
-            } else if corner_side && overrun.is_none() {
-                // This candidate rounds the corner the caller named, but
-                // the radius pushes a tangent point off the far end of
-                // its leg: the radius-does-not-fit situation, reported
-                // incoming leg first exactly as `fillet` gates it.
-                //
-                // Attribution is sound because `corner_side` is now a
-                // real test (signed setback, review MAJOR-1): a candidate
-                // rounding the OTHER intersection of the two carriers has
-                // a tangent point past the corner, classifies Negative,
-                // and never reaches this arm. So the setback and leg
-                // length rendered below are this candidate's own numbers,
-                // for the corner the author actually named — not a
-                // wrap-around distance to a corner they never mentioned.
-                let (leg, setback, margin) = if fit_in == Sign::Negative {
-                    (&leg_in, sb_in, margin_in)
-                } else {
-                    (&leg_out, sb_out, margin_out)
-                };
-                overrun = Some(ProfileError::FilletDoesNotFit {
-                    leg: leg.side,
-                    carrier: leg.carrier_diag(margin),
-                    setback: setback.lo(),
-                    leg_length: leg.len.lo(),
-                });
-            }
-        }
-        if surviving.is_empty() {
-            return Err(overrun.unwrap_or(ProfileError::NoCornerForFillet {
-                reason: NoCornerReason::NoCornerSideCandidate,
-                radius: radius.lo(),
-            }));
-        }
-        let setbacks: Vec<[f64; 2]> = surviving.iter().map(|s| s.3).collect();
-        let (picked, fit_in, fit_out, _) = surviving[nearest_candidate(&setbacks)];
+        // The S8 selection, on the f64 diagnostic channel (see
+        // `nearest_candidate`): a representation-level choice between
+        // already-classified constructions, never a re-decision.
+        let setbacks: Vec<[f64; 2]> = survivors
+            .iter()
+            .map(|c| [c.setbacks[0].lo(), c.setbacks[1].lo()])
+            .collect();
+        let picked = survivors[nearest_candidate(&setbacks)];
 
-        let bulge = fillet_bulge(picked.t1, picked.t2, picked.center, radius, sgn);
         let mut chain = self;
-        if fit_in == Sign::Positive {
-            chain = match leg_in.arc {
+        if picked.fit_in == Sign::Positive {
+            chain = match legs[0].arc {
                 None => chain.line_to(picked.t1),
                 Some(arc) => chain.arc_to_center(picked.t1, arc.center, arc.sweep),
             };
             chain = chain.declare_tangent();
         }
-        chain = chain.arc_to(picked.t2, bulge);
-        if fit_out == Sign::Positive {
+        chain = chain.arc_to(picked.t2, picked.bulge);
+        if picked.fit_out == Sign::Positive {
             chain = chain.declare_tangent();
         }
         Ok(chain)
@@ -784,19 +675,330 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     })
 }
 
+/// One surviving branch of the arc-carrier offset construction: the
+/// fillet arc it would emit, plus the classifications and the setback
+/// pair the selection ladder reads.
+///
+/// Every field is at the SCALAR — the setbacks in particular, because
+/// the S8 ladder compares their f64 diagnostic channel and the bracket
+/// read belongs to the calling door (Bounds scope rule), not here.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ArcFilletCandidate<T: Real> {
+    /// The tangent point on the incoming leg.
+    pub t1: Point2<T>,
+    /// The tangent point on the outgoing leg.
+    pub t2: Point2<T>,
+    /// The fillet arc's bulge tan(θ/4).
+    pub bulge: T,
+    /// The incoming leg's `fillet_leg_fit` classification: `Positive`
+    /// emits the trimmed piece + declared joint, `Zero` suppresses both.
+    pub fit_in: Sign,
+    /// The outgoing leg's fit classification, same rule.
+    pub fit_out: Sign,
+    /// The `[incoming, outgoing]` tangent setbacks from the corner, in
+    /// meters (arc lengths `R·Δθ` on circular legs) — [`nearest_candidate`]'s
+    /// input once the door has read the diagnostic channel.
+    pub setbacks: [T; 2],
+}
+
+/// What [`arc_fillet_trims`] resolved a corner into.
+#[derive(Clone, Debug)]
+pub(crate) enum ArcFilletOutcome<T: Real> {
+    /// Both legs are straight: the ratified line×line closed form owns
+    /// this corner (one door, one construction). The arm and turn gates
+    /// have already fired, in that order — delegating is the LAST thing
+    /// this helper does, exactly as the shipped constructor did.
+    LineLine,
+    /// At least one circular leg: the resolved legs (their carriers are
+    /// what the door re-emits the trimmed piece along) and the surviving
+    /// candidates in enumeration order — never empty.
+    Arc {
+        /// `[incoming, outgoing]`, resolved at the corner.
+        legs: [Leg<T>; 2],
+        /// The corner-side, fitting candidates, in construction order.
+        survivors: Vec<ArcFilletCandidate<T>>,
+    },
+}
+
+/// A refusal from [`arc_fillet_trims`], carried at the scalar so the
+/// helper itself needs no bracket read (Bounds scope rule) — the
+/// [`TrimRefusal`] pattern, one level up: each door maps it into its own
+/// error vocabulary, and [`LoopBuilder::fillet_corner`] does so with the
+/// `.lo()` diagnostics through [`map_arc_trim_refusal`].
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ArcTrimRefusal<T: Real> {
+    /// `fillet_corner_arm` not Positive: no length scale, so the
+    /// corner's angle means nothing. Both arms ride so the door can name
+    /// the shorter leg on its own channel.
+    LegDegenerate {
+        /// The incoming leg's lever arm.
+        leg_in_arm: T,
+        /// The outgoing leg's lever arm.
+        leg_out_arm: T,
+        /// Their minimum — the gate's margin.
+        arm: T,
+    },
+    /// `fillet_corner_turn` Zero: the legs meet tangentially or double
+    /// back, so there is no corner to cut.
+    AlreadyTangent {
+        /// `dir_in · dir_out` — negative means the legs double back.
+        align: T,
+        /// The turn margin in meters.
+        margin: T,
+        /// The lever arm it was levered by.
+        arm: T,
+    },
+    /// A Negative `fillet_leg_fit` on a corner-side candidate: the
+    /// radius pushes a tangent point off the far end of its leg.
+    DoesNotFit {
+        /// The overrun leg.
+        leg: FilletLeg,
+        /// The leg's carrier radius, `None` for a straight leg — the
+        /// door turns it into a [`FilletLegCarrier`].
+        carrier_radius: Option<T>,
+        /// The fit margin `extent − setback`, meters (the door divides
+        /// by the carrier radius for the angular story).
+        margin: T,
+        /// The tangent setback from the corner along the leg.
+        setback: T,
+        /// The overrun leg's extent.
+        leg_length: T,
+    },
+    /// The offset carriers admit no corner-side candidate at all.
+    NoCorner {
+        /// Which way it failed.
+        reason: NoCornerReason,
+        /// The authored radius.
+        radius: T,
+    },
+    /// An in-band or poisoned gate margin.
+    Escalated(Indeterminate),
+    /// The band could not be formed (only for a misconfigured ε).
+    Band(BandError),
+}
+
+/// The ratified arc-carrier fillet construction (M5 S2), extracted
+/// verbatim from [`LoopBuilder::fillet_corner`] so the builder door and
+/// the PATHS algebra lowering share one code path — the
+/// [`line_line_fillet_trims`] pattern, applied to the offset-carrier
+/// corner.
+///
+/// Runs the arm gate, the turn gate, the offset-carrier intersection and
+/// the per-candidate reach/fit pass, in exactly the shipped order and
+/// with exactly the shipped `decide` sequence, and returns EVERY
+/// surviving candidate rather than one pick. The selection is the
+/// caller's: [`LoopBuilder::fillet_corner`] applies
+/// [`nearest_candidate`] over the diagnostic channel (the S8 rule), and
+/// the algebra applies it over the joint corner×candidate space, which
+/// is why the survivors — not a winner — are what crosses this seam.
+///
+/// `T: Decide` only: no bracket is read here, so the interval lane's
+/// diagnostics stay at the doors (Bounds scope rule).
+///
+/// # Errors
+///
+/// [`ArcTrimRefusal`], mapped by each door — see its docs.
+pub(crate) fn arc_fillet_trims<T: Decide>(
+    incoming: FilletLegShape<T>,
+    head: Point2<T>,
+    corner: Point2<T>,
+    outgoing: FilletLegShape<T>,
+    next: Point2<T>,
+    radius: T,
+    tol: Tolerance,
+) -> Result<ArcFilletOutcome<T>, ArcTrimRefusal<T>> {
+    let band = Band::new(tol.eps, tol.k * tol.eps).map_err(ArcTrimRefusal::Band)?;
+    // The exact-order band (validate module docs): no representable
+    // f64 lies strictly inside it, so f64 classification is total.
+    let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ArcTrimRefusal::Band)?;
+    let leg_in = Leg::at_corner(incoming, corner, head, FilletLeg::Incoming);
+    let leg_out = Leg::at_corner(outgoing, corner, next, FilletLeg::Outgoing);
+
+    // (1) the lever arm: an angle is nothing without one (D4 ¶1).
+    let arm = leg_in.arm.min(leg_out.arm);
+    if decide("fillet_corner_arm", Length::of(arm), band).map_err(ArcTrimRefusal::Escalated)?
+        != Sign::Positive
+    {
+        return Err(ArcTrimRefusal::LegDegenerate {
+            leg_in_arm: leg_in.arm,
+            leg_out_arm: leg_out.arm,
+            arm,
+        });
+    }
+
+    // (2) the corner's turn: its sign is the side both carriers offset
+    // toward, so the offset construction never searches.
+    let turn = Length::levered(leg_in.dir.perp_dot(leg_out.dir), arm);
+    let sgn = match decide("fillet_corner_turn", turn, band).map_err(ArcTrimRefusal::Escalated)? {
+        Sign::Positive => T::one(),
+        Sign::Negative => -T::one(),
+        Sign::Zero => {
+            return Err(ArcTrimRefusal::AlreadyTangent {
+                align: leg_in.dir.dot(leg_out.dir),
+                margin: turn.value(),
+                arm,
+            });
+        }
+    };
+
+    // (3) the offset carriers' intersection — the candidate centers.
+    let centers = match (leg_in.arc, leg_out.arc) {
+        (None, None) => return Ok(ArcFilletOutcome::LineLine),
+        (Some(arc), None) => leg_out.offset_line_circle(corner, sgn, radius, arc, band)?,
+        (None, Some(arc)) => leg_in.offset_line_circle(corner, sgn, radius, arc, band)?,
+        (Some(a), Some(b)) => a.offset_circles(b, sgn, radius, band)?,
+    };
+
+    // (4/5) the branch rule and the fit gate, one pass in candidate
+    // order: a candidate survives when both tangent points lie *within*
+    // their legs' corner-side extents — setback ≥ 0 (`fillet_leg_reach`,
+    // the corner end; SIGNED on both leg kinds, so "past the corner"
+    // really does classify Negative) and extent − setback ≥ 0
+    // (`fillet_leg_fit`, the far end, generalized to arc lengths R·Δθ on
+    // a circular leg).
+    //
+    // Four classifications per candidate, always all four — no
+    // short-circuit, so the recorded sample sequence depends only on the
+    // corner CLASS (how many candidates the carriers admit), not on the
+    // numbers. That invariance is stated for the non-escalating path:
+    // any one of the four `decide` calls may return Indeterminate, and
+    // the `?` below aborts with that escalation, leaving the remaining
+    // classifications of this candidate and every later candidate
+    // unfired. This is deliberate — an escalation means the gate cannot
+    // be classified at this scalar, and continuing would be deciding the
+    // branch rule on a margin we just admitted we cannot read. The
+    // escalation names which predicate stopped it.
+    //
+    // The bulge is computed per SURVIVOR rather than once for the pick:
+    // it is pure evaluation (no gate, no sample), and it is the same
+    // expression on the same inputs, so the emitted value is unchanged
+    // bit for bit while the survivors become self-contained.
+    let mut survivors: Vec<ArcFilletCandidate<T>> = Vec::with_capacity(centers.len());
+    let mut overrun: Option<ArcTrimRefusal<T>> = None;
+    for center in centers {
+        let t1 = leg_in.tangent_point(center, sgn, radius);
+        let t2 = leg_out.tangent_point(center, sgn, radius);
+        let sb_in = leg_in.setback(t1, corner);
+        let sb_out = leg_out.setback(t2, corner);
+        let reach_in = decide("fillet_leg_reach", Length::of(sb_in), exact)
+            .map_err(ArcTrimRefusal::Escalated)?;
+        let reach_out = decide("fillet_leg_reach", Length::of(sb_out), exact)
+            .map_err(ArcTrimRefusal::Escalated)?;
+        let margin_in = leg_in.len - sb_in;
+        let margin_out = leg_out.len - sb_out;
+        let fit_in = decide("fillet_leg_fit", Length::of(margin_in), exact)
+            .map_err(ArcTrimRefusal::Escalated)?;
+        let fit_out = decide("fillet_leg_fit", Length::of(margin_out), exact)
+            .map_err(ArcTrimRefusal::Escalated)?;
+        let corner_side = reach_in != Sign::Negative && reach_out != Sign::Negative;
+        if corner_side && fit_in != Sign::Negative && fit_out != Sign::Negative {
+            survivors.push(ArcFilletCandidate {
+                t1,
+                t2,
+                bulge: fillet_bulge(t1, t2, center, radius, sgn),
+                fit_in,
+                fit_out,
+                setbacks: [sb_in, sb_out],
+            });
+        } else if corner_side && overrun.is_none() {
+            // This candidate rounds the corner the caller named, but the
+            // radius pushes a tangent point off the far end of its leg:
+            // the radius-does-not-fit situation, reported incoming leg
+            // first exactly as `fillet` gates it.
+            //
+            // Attribution is sound because `corner_side` is a real test
+            // (signed setback, review MAJOR-1): a candidate rounding the
+            // OTHER intersection of the two carriers has a tangent point
+            // past the corner, classifies Negative, and never reaches
+            // this arm. So the numbers rendered are this candidate's
+            // own, for the corner the author actually named.
+            let (leg, setback, margin) = if fit_in == Sign::Negative {
+                (&leg_in, sb_in, margin_in)
+            } else {
+                (&leg_out, sb_out, margin_out)
+            };
+            overrun = Some(ArcTrimRefusal::DoesNotFit {
+                leg: leg.side,
+                carrier_radius: leg.arc.map(|a| a.radius),
+                margin,
+                setback,
+                leg_length: leg.len,
+            });
+        }
+    }
+    if survivors.is_empty() {
+        return Err(overrun.unwrap_or(ArcTrimRefusal::NoCorner {
+            reason: NoCornerReason::NoCornerSideCandidate,
+            radius,
+        }));
+    }
+    Ok(ArcFilletOutcome::Arc {
+        legs: [leg_in, leg_out],
+        survivors,
+    })
+}
+
+/// [`ArcTrimRefusal`] → [`ProfileError`], the builder door's bracket-read
+/// diagnostics (`.lo()`) applied exactly where the shipped constructor
+/// applied them.
+fn map_arc_trim_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>) -> ProfileError {
+    match refusal {
+        ArcTrimRefusal::LegDegenerate {
+            leg_in_arm,
+            leg_out_arm,
+            arm,
+        } => ProfileError::FilletLegDegenerate {
+            // Diagnostic-channel comparison (naming the leg for the
+            // message), not a geometric decision.
+            leg: if leg_in_arm.lo() <= leg_out_arm.lo() {
+                FilletLeg::Incoming
+            } else {
+                FilletLeg::Outgoing
+            },
+            arm: arm.lo(),
+        },
+        ArcTrimRefusal::AlreadyTangent { align, margin, arm } => {
+            ProfileError::FilletCornerAlreadyTangent {
+                reversed: align.lo() < 0.0,
+                margin: margin.lo(),
+                arm: arm.lo(),
+            }
+        }
+        ArcTrimRefusal::DoesNotFit {
+            leg,
+            carrier_radius,
+            margin,
+            setback,
+            leg_length,
+        } => ProfileError::FilletDoesNotFit {
+            leg,
+            carrier: match carrier_radius {
+                None => FilletLegCarrier::Line,
+                Some(radius) => FilletLegCarrier::Arc {
+                    radius: radius.lo(),
+                    angular_margin: (margin / radius).lo(),
+                },
+            },
+            setback: setback.lo(),
+            leg_length: leg_length.lo(),
+        },
+        ArcTrimRefusal::NoCorner { reason, radius } => ProfileError::NoCornerForFillet {
+            reason,
+            radius: radius.lo(),
+        },
+        ArcTrimRefusal::Escalated(source) => ProfileError::Escalated {
+            site: EscalationSite::Fillet,
+            source,
+        },
+        ArcTrimRefusal::Band(e) => ProfileError::Band(e),
+    }
+}
+
 // ------------------------------------------------------------------
 // The arc-leg fillet's private machinery (M5 S2). Everything here is
 // evaluation code except the `decide` calls, which are the documented
 // exception named in the module docs.
 // ------------------------------------------------------------------
-
-/// Wraps a gate escalation at the fillet constructor's site.
-fn fillet_escalated(source: Indeterminate) -> ProfileError {
-    ProfileError::Escalated {
-        site: EscalationSite::Fillet,
-        source,
-    }
-}
 
 /// Nearest-the-authored-corner branch selection (M5 S8; Evan's ruling,
 /// in-chat 2026-07-30): the index of the surviving candidate to build,
@@ -951,34 +1153,34 @@ fn left_normal<T: Real>(v: Vec2<T>) -> Vec2<T> {
 /// A circular leg's carrier: the circle about `center` through the
 /// corner, with the leg's own sweep sense.
 #[derive(Clone, Copy, Debug)]
-struct ArcCarrier<T: Real> {
+pub(crate) struct ArcCarrier<T: Real> {
     /// The carrier circle's center.
-    center: Point2<T>,
+    pub center: Point2<T>,
     /// Its radius, |corner − center|.
-    radius: T,
+    pub radius: T,
     /// +1 for a counterclockwise leg, −1 for a clockwise one.
-    turn: T,
+    pub turn: T,
     /// The same sense as the authored hint (for re-emitting the trimmed
     /// piece through `arc_to_center`).
-    sweep: ArcSweep,
+    pub sweep: ArcSweep,
     /// The corner's angular coordinate on the carrier (radians).
-    corner_angle: T,
+    pub corner_angle: T,
 }
 
 /// One leg of a fillet corner, resolved at the corner.
 #[derive(Clone, Copy, Debug)]
-struct Leg<T: Real> {
+pub(crate) struct Leg<T: Real> {
     /// The path's unit travel direction **at the corner**.
-    dir: Vec2<T>,
+    pub dir: Vec2<T>,
     /// The carrier, for a circular leg; `None` for a straight one.
-    arc: Option<ArcCarrier<T>>,
+    pub arc: Option<ArcCarrier<T>>,
     /// The leg's extent in meters (chord length, or arc length R·Δθ).
-    len: T,
+    pub len: T,
     /// The leg's lever arm: its extent, folded with its carrier radius
     /// (the curvature arm) for a circular leg.
-    arm: T,
+    pub arm: T,
     /// Which side of the corner this leg is.
-    side: FilletLeg,
+    pub side: FilletLeg,
 }
 
 /// A circular leg's **signed** offset radius ρ = R − σ·τ·r (the
@@ -1086,32 +1288,6 @@ impl<T: Real> Leg<T> {
             }
         }
     }
-
-    /// The `FilletDoesNotFit` carrier payload, with the fit `margin`
-    /// re-expressed in radians for a circular leg.
-    fn carrier_diag(&self, margin: T) -> FilletLegCarrier
-    where
-        T: Bounds,
-    {
-        match self.arc {
-            None => FilletLegCarrier::Line,
-            Some(arc) => FilletLegCarrier::Arc {
-                radius: arc.radius.lo(),
-                angular_margin: (margin / arc.radius).lo(),
-            },
-        }
-    }
-}
-
-/// One surviving branch of the offset-carrier construction.
-#[derive(Clone, Copy, Debug)]
-struct Candidate<T: Real> {
-    /// The fillet arc's center.
-    center: Point2<T>,
-    /// The tangent point on the incoming leg.
-    t1: Point2<T>,
-    /// The tangent point on the outgoing leg.
-    t2: Point2<T>,
 }
 
 // The two offset-carrier intersections live as inherent methods on the
@@ -1136,9 +1312,9 @@ impl<T: Real> Leg<T> {
         radius: T,
         arc: ArcCarrier<T>,
         band: Band,
-    ) -> Result<Vec<Point2<T>>, ProfileError>
+    ) -> Result<Vec<Point2<T>>, ArcTrimRefusal<T>>
     where
-        T: Decide + Bounds,
+        T: Decide,
     {
         let normal = left_normal(self.dir);
         let on_offset = corner + normal * (sgn * radius);
@@ -1151,7 +1327,7 @@ impl<T: Real> Leg<T> {
                 Length::of(rho.abs() - h.abs()),
                 band,
             )
-            .map_err(fillet_escalated)?
+            .map_err(ArcTrimRefusal::Escalated)?
             {
                 // powi(2)-discipline squares: ρ and h both straddle zero
                 // in general (memories/interval-square-poison.md).
@@ -1163,9 +1339,9 @@ impl<T: Real> Leg<T> {
                 // sqrt of a rounding-signed zero.
                 Sign::Zero => vec![foot],
                 Sign::Negative => {
-                    return Err(ProfileError::NoCornerForFillet {
+                    return Err(ArcTrimRefusal::NoCorner {
                         reason: NoCornerReason::OffsetCarriersDisjoint,
-                        radius: radius.lo(),
+                        radius,
                     });
                 }
             },
@@ -1182,9 +1358,9 @@ impl<T: Real> ArcCarrier<T> {
         sgn: T,
         radius: T,
         band: Band,
-    ) -> Result<Vec<Point2<T>>, ProfileError>
+    ) -> Result<Vec<Point2<T>>, ArcTrimRefusal<T>>
     where
-        T: Decide + Bounds,
+        T: Decide,
     {
         let rho1 = offset_radius(&self, sgn, radius);
         let rho2 = offset_radius(&other, sgn, radius);
@@ -1198,17 +1374,17 @@ impl<T: Real> ArcCarrier<T> {
             Length::of(r1 + r2 - dist),
             band,
         )
-        .map_err(fillet_escalated)?;
+        .map_err(ArcTrimRefusal::Escalated)?;
         let internal = decide(
             "fillet_offset_circles_internal",
             Length::of(dist - (r1 - r2).abs()),
             band,
         )
-        .map_err(fillet_escalated)?;
+        .map_err(ArcTrimRefusal::Escalated)?;
         if external == Sign::Negative || internal == Sign::Negative {
-            return Err(ProfileError::NoCornerForFillet {
+            return Err(ArcTrimRefusal::NoCorner {
                 reason: NoCornerReason::OffsetCarriersDisjoint,
-                radius: radius.lo(),
+                radius,
             });
         }
         let along = (dist_squared + rho1.powi(2) - rho2.powi(2)) / (dist + dist);
