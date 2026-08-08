@@ -154,19 +154,15 @@ Findings that feed the profiles-as-programs representation draft
   the census's split-brain door closed structurally. NOTE
   riders banked for the G-series: error-precedence doc line,
   per-call loop clone. Lanes lib-u3/lib-u3-review cleaned.
-- **G1 delivered: PR #254 OPEN, 27/27 green** (opus, LIB-2
-  remainder; impl ~544k tok across the parked+resumed run,
-  ~5.3h wall incl. slot waits at load ~20). Headline: the
-  BRACKET lowers bit-identically via `.toward` + far-end anchor
-  (VQ4's proof); Dir widening keeps `.angle` bit-preserved; CI
-  caught an interval-square poison (dx*dx → powi(2)) post-open.
-  Deviation 1: bossplate::boss stays raw (three-arc rim is
-  asserted topology). Design fork flagged not decided:
-  far-end-anchor spelling `.angle(θ).to(p)`. Blinded review in
-  flight (lane lib-g1-review) with the curvedcut::disc
-  byte-identity mechanism and the §2a PQ4-scope clarification
-  as priority attack targets. Post-amendment row count: G1 =
-  row 2; the NEXT merged row draws the first dual review.
+- **G1 MERGED #254** (2026-08-08; dual-rubric A/B row at merge).
+  The bracket moves bit-identically (VQ4 proven); raw census
+  down to 3 (boss/rocker/bowtie); ArrivalKind fix red-checked
+  both directions. Far-end-anchor design fork ADJUDICATED at
+  merge: `.angle(θ).to(p)` accepted — both reviews' conformance
+  audits found it doc-faithful (no new DOF, shared resolution
+  path, entry refusal parallels U2's `.at` precedent), the
+  Start-variant absence stays pinned. G2 remains: rocker's
+  arc-carrier fillets. Lanes cleaned. |
 - Next in judgment scope after U3: U5 (read-back), U6/U7
   (relations/selection); U4 wants its LQ3 measured spec; U8→U9
   queue behind GQ5 + the v2 ruling.
