@@ -146,6 +146,9 @@ fn sketch_axis<S: Scalar>() -> RevolveAxis<S> {
 }
 
 /// A circle as a two-vertex closed arc carrier (bulge 1 = semicircle).
+/// Stays raw under LIB-U2 PR-2: a closed carrier split at conventional
+/// points (PQ4 mid-carrier seam, same-carrier joints) is refused by
+/// the PATHS algebra by design.
 fn circle_loop<S: Scalar>(cx: f64, cy: f64, r: f64) -> ProfileLoop<S> {
     ProfileLoop::new(vec![
         ProfileVertex {
@@ -194,6 +197,8 @@ fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64) -> Body<S> {
 /// Faces: attachment plane, sphere zone, cone, mouth plane. Every one
 /// exact; the profile is authored centre-first (`arc_to_center`) so
 /// the zone's carrier is the sphere itself and not a fitted arc.
+/// Stays raw under LIB-U2 PR-2: centre-first arcs have no PATHS
+/// binding mode ({endpoints+bulge, tangent+endpoint, fillet} only).
 fn lantern<S: Scalar>(
     attach: (f64, f64),
     dir: (f64, f64),
@@ -239,6 +244,9 @@ fn lantern<S: Scalar>(
 /// blade plane (Gram–Schmidt'd against `dir`). The kernel has no
 /// tapering sweep and no non-uniform scale, so the blade's shape is
 /// entirely the two radii's difference (findings entries 3, 8).
+/// Stays raw under LIB-U2 PR-2: via-point arcs (`arc_to_via` /
+/// `close_arc_via`) have no PATHS binding mode ({endpoints+bulge,
+/// tangent+endpoint, fillet} only).
 fn leaf<S: Scalar>(
     base: (f64, f64, f64),
     dir: (f64, f64, f64),
@@ -470,6 +478,10 @@ pub fn stops() -> Vec<Stop> {
 /// axis — the shape a tepal seam would be carved with.
 fn ball<S: Scalar>(c: (f64, f64), r: f64) -> Body<S> {
     let plane = SketchPlane::from_frame(pt3(c.0, 0.0, c.1), v3(1.0, 0.0, 0.0), v3(0.0, 0.0, 1.0));
+    // Stays raw under LIB-U2 PR-2: authored centre-first
+    // (`arc_to_center`), a binding mode the PATHS algebra does not
+    // have — re-authoring as {endpoint+bulge} would re-derive the
+    // bulge from the centre, re-typing a computed value.
     let lp = LoopBuilder::start(p2(0.0, -r))
         .arc_to_center(p2(0.0, r), p2(0.0, 0.0), ArcSweep::Ccw)
         .close();
@@ -581,6 +593,8 @@ pub fn wall_probes<S: Scalar>() {
     let leafp = {
         let plane =
             SketchPlane::from_frame(pt3(0.0, 0.0, 0.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+        // Stays raw under LIB-U2 PR-2: via-point arcs + cusp tips
+        // (see `leaf`).
         let lp = LoopBuilder::start(p2(0.0, 0.0))
             .arc_to_via(p2(0.5, 0.12), p2(1.0, 0.0))
             .close_arc_via(p2(0.5, 0.02));

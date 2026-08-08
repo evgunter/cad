@@ -32,8 +32,8 @@ use crate::{SceneBody, Stop, View};
 
 /// The plate: a 4×4×1 block, z ∈ [0, 1].
 fn plate<S: Scalar>() -> Body<S> {
-    let p2 = |x: f64, y: f64| Point2::new(S::from_f64(x), S::from_f64(y));
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(4.0, 0.0), p2(4.0, 4.0), p2(0.0, 4.0)]);
+    // Algebra-authored (LIB-U2 PR-2).
+    let lp = crate::paths::path_polygon(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .unwrap();
@@ -46,6 +46,10 @@ fn plate<S: Scalar>() -> Body<S> {
 /// z = 0.4 (strictly inside the plate), extruded 1.2 → pokes out to
 /// z = 1.6.
 fn boss<S: Scalar>() -> Body<S> {
+    // Stays raw under LIB-U2 PR-2: a full circle split into three
+    // 120-degree arcs of ONE carrier — every joint is a same-carrier
+    // identity and the seam is mid-carrier (PQ4), both refused by the
+    // PATHS algebra by design.
     let b120 = (core::f64::consts::PI / 6.0).tan();
     let at = |deg: f64| {
         let th = deg.to_radians();

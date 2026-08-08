@@ -48,6 +48,9 @@ const PHI: f64 = 0.3;
 /// extrudes to a cylinder whose two wall faces share ONE cylinder
 /// surface.
 fn disc<S: Scalar>() -> ValidatedProfile<S> {
+    // Stays raw under LIB-U2 PR-2: a closed carrier split at
+    // conventional points (PQ4 mid-carrier seam, same-carrier joints)
+    // is refused by the PATHS algebra by design.
     let p2 = |x: f64, y: f64| Point2::new(S::from_f64(x), S::from_f64(y));
     let lp = ProfileLoop::new(vec![
         ProfileVertex {
