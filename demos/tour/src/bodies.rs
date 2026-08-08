@@ -26,6 +26,9 @@ fn axis_y<S: Scalar>() -> RevolveAxis<S> {
 }
 
 /// A circle as a two-vertex closed arc carrier (bulge 1 = semicircle).
+/// Stays raw under LIB-U2 PR-2: a closed carrier split at conventional
+/// points is a PQ4 mid-carrier seam with same-carrier joints, which
+/// the PATHS algebra refuses by design.
 fn circle<S: Scalar>(cx: f64, cy: f64, r: f64) -> ProfileLoop<S> {
     ProfileLoop::new(vec![
         ProfileVertex {
@@ -55,6 +58,17 @@ pub fn bracket<S: Scalar>() -> pncad::topo::Body<S> {
     // demo's authoring path, not just a convenience. (The 1.146 datum
     // itself lives on as the large-K lint's litmus fixture —
     // tools/k-lint.)
+    //
+    // Stays raw under LIB-U2 PR-2 — MEASURED, not assumed: the PATHS
+    // spelling reaches this corner only through an angle director
+    // (`.angle(PI).fillet(0.5)` — the corner is never authored), and
+    // `unit(PI)` carries sin(PI) = 1.22e-16 into the departure ray, so
+    // the computed corner and both lowered trim vertices land 1 ulp
+    // off the hand chain (trim y = 1 + 2.2e-16, arc bulge d = 5.6e-17)
+    // — a SAID-not-shape drift this rework's zero-geometry-diff
+    // contract refuses (finding 10: bit-identity holds where ray
+    // directions are chord-derived; an authored-angle axis ray is
+    // not).
     let lp = LoopBuilder::start(p2(0.0, 0.0))
         .line_to(p2(3.0, 0.0))
         .line_to(p2(3.0, 1.0))
@@ -73,7 +87,10 @@ pub fn bracket<S: Scalar>() -> pncad::topo::Body<S> {
 
 /// Rectangular plate with two circular holes: a genus-2 extrusion.
 pub fn plate<S: Scalar>() -> pncad::topo::Body<S> {
-    let outer = ProfileLoop::polygon([p2(-3.0, -1.5), p2(3.0, -1.5), p2(3.0, 1.5), p2(-3.0, 1.5)]);
+    // Outer rectangle: algebra-authored (LIB-U2 PR-2); the hole
+    // circles stay raw (see `circle`) — per-loop wholesale, never
+    // mixed within a loop.
+    let outer = crate::paths::path_polygon(&[(-3.0, -1.5), (3.0, -1.5), (3.0, 1.5), (-3.0, 1.5)]);
     let holes = vec![circle(-1.5, 0.0, 0.7), circle(1.5, 0.0, 0.7)];
     let mut loops = vec![outer];
     loops.extend(holes);
@@ -93,6 +110,10 @@ pub fn plate<S: Scalar>() -> pncad::topo::Body<S> {
 pub fn vase<S: Scalar>() -> pncad::topo::Body<S> {
     // Belly arc: circle of radius 1.3 centered at (0, 0.8) — on the
     // axis — from (1.2, 0.3) through (1.3, 0.8) to (0.5, 2.0).
+    // Stays raw under LIB-U2 PR-2: a via-point arc (`arc_to_via`) has
+    // no PATHS binding mode ({endpoints+bulge, tangent+endpoint,
+    // fillet} only); re-deriving the bulge by hand would re-type a
+    // computed value.
     let lp = LoopBuilder::start(p2(0.0, 0.0))
         .line_to(p2(1.2, 0.0))
         .line_to(p2(1.2, 0.3))
@@ -119,6 +140,8 @@ pub fn vase<S: Scalar>() -> pncad::topo::Body<S> {
 /// cone, torus), which is why the pulley (plane/cylinder/cone only)
 /// retired into it at the #91 revision pass. Center bore → genus 1.
 pub fn sheave<S: Scalar>() -> (pncad::topo::Body<S>, String) {
+    // Stays raw under LIB-U2 PR-2: the groove is a via-point arc
+    // (`arc_to_via`), a binding mode the PATHS algebra does not have.
     let lp = LoopBuilder::start(p2(0.4, 0.0))
         .line_to(p2(0.9, 0.0))
         .line_to(p2(0.9, 0.25))
@@ -186,15 +209,16 @@ pub fn sheave<S: Scalar>() -> (pncad::topo::Body<S>, String) {
 /// annular rims, and four cylinder bands. A more interesting partial
 /// revolve than the old plain rectangle, still boolean-free.
 pub fn chute<S: Scalar>() -> (pncad::topo::Body<S>, String) {
-    let lp = ProfileLoop::polygon([
-        p2(1.0, 0.0),
-        p2(1.75, 0.0),
-        p2(1.75, 0.625),
-        p2(1.5625, 0.625),
-        p2(1.5625, 0.1875),
-        p2(1.1875, 0.1875),
-        p2(1.1875, 0.625),
-        p2(1.0, 0.625),
+    // C-channel polygon: algebra-authored (LIB-U2 PR-2).
+    let lp = crate::paths::path_polygon(&[
+        (1.0, 0.0),
+        (1.75, 0.0),
+        (1.75, 0.625),
+        (1.5625, 0.625),
+        (1.5625, 0.1875),
+        (1.1875, 0.1875),
+        (1.1875, 0.625),
+        (1.0, 0.625),
     ]);
     let body: pncad::topo::Body<S> = revolve(
         &validated(SketchPlane::xy(), vec![lp]).expect("profile validation"),
@@ -352,6 +376,10 @@ pub fn stops() -> Vec<Stop> {
 pub fn finale_fail_loud<S: Scalar>() {
     println!("\n== finale: fail-loud ==");
     println!("   a bowtie (self-intersecting) profile is refused before any sweep runs:");
+    // Deliberately raw under LIB-U2 PR-2: this is the RAW layer's
+    // fail-loud demo (validate refusing a self-intersecting chain),
+    // not a sweep profile — the algebra's per-junction checks would
+    // pass it (all corners sharp), so raw authoring is the point.
     let bowtie: ProfileLoop<S> =
         ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 2.0), p2(2.0, 0.0), p2(0.0, 2.0)]);
     match Profile::new(SketchPlane::xy(), vec![bowtie]).validate(Tolerance::get()) {

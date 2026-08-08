@@ -76,6 +76,11 @@ fn eye_fillet_center_y() -> f64 {
 /// keel→boss (line×arc), boss→upper flank (arc×line), flank→hub
 /// (line×arc). Every one of them is a fillet; not a single tangent
 /// point in this function was computed by hand.
+///
+/// Stays raw under LIB-U2 PR-2: four of the five fillets sit on ARC
+/// carriers, and the v1 PATHS lowering's fillets are line×line only
+/// (arc-arrival fillets are PATHS-DESIGN §7 out-of-scope); the
+/// mid-arc start is a PQ4 mid-carrier seam, also refused.
 fn outline<S: Scalar>() -> ProfileLoop<S> {
     let (hx, hy, _) = HUB;
     let (bx, by, _) = BOSS;
@@ -147,6 +152,11 @@ fn outline<S: Scalar>() -> ProfileLoop<S> {
 /// legs' extents and survive the corner-side test. The rule picks the
 /// one nearest the authored corner; the sharp bottom tip is where its
 /// rival sat.
+///
+/// Stays raw under LIB-U2 PR-2: an arc×arc fillet (the v1 PATHS
+/// lowering's fillets are line×line only) and a centre-authored
+/// closing arc (`close_arc_center`), a binding mode the algebra does
+/// not have.
 fn eye<S: Scalar>() -> ProfileLoop<S> {
     let tip = eye_tip();
     LoopBuilder::start(p2(0.0, -tip))

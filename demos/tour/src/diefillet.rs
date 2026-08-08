@@ -31,7 +31,8 @@
 use core::f64::consts::PI;
 
 use pncad::geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec2, Vec3};
-use pncad::profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use pncad::prelude::{Open, Start};
+use pncad::profile::{Profile, SketchPlane};
 use pncad::sweep::fillet::build::fillet_edges;
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use pncad::topo::Body;
@@ -54,8 +55,8 @@ fn band() -> Band {
 }
 
 fn cube<S: Scalar>() -> Body<S> {
-    let p2 = |x: f64, y: f64| Point2::new(S::from_f64(x), S::from_f64(y));
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(L, 0.0), p2(L, L), p2(0.0, L)]);
+    // Algebra-authored (LIB-U2 PR-2).
+    let lp = crate::paths::path_polygon(&[(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .unwrap();
@@ -77,16 +78,18 @@ pub fn blank<S: Scalar>() -> Body<S> {
 /// `pole` (the chart discipline the plane×sphere section needs).
 fn ball<S: Scalar>(c: Vec3<S>, pole: Vec3<S>) -> Body<S> {
     let p2 = |x: f64, y: f64| Point2::new(S::from_f64(x), S::from_f64(y));
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -PIP_R),
-            bulge: S::from_f64(1.0),
-        },
-        ProfileVertex {
-            pos: p2(0.0, PIP_R),
-            bulge: S::from_f64(0.0),
-        },
-    ]);
+    // Algebra-authored (LIB-U2 PR-2): the same half-disc — a bulge-1
+    // semicircular arc leg to the far pole, straight seam back along
+    // the axis (both pole junctions are 90-degree sharp corners; the
+    // authored endpoints and the bulge literal are emitted verbatim,
+    // so the lowered loop is bit-identical to the raw chain it
+    // replaces).
+    let lp = Open
+        .at(p2(0.0, -PIP_R))
+        .arc_to(p2(0.0, PIP_R), S::from_f64(1.0))
+        .expect("pip arc leg")
+        .line_to(Start)
+        .expect("pip seam");
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .unwrap();
