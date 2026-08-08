@@ -33,6 +33,24 @@ amended:
   amendment complete as v2 pairs (LIB-2's opus remainder = G1;
   the M7 series' current block likewise); triples start at each
   series' next block.
+- **Dual-reviewer sampling (Evan + orchestrator, 2026-08-08, from
+  the readout's top recommendation): every 3rd merged
+  implementation row gets a SECOND independent blinded reviewer.**
+  Purpose: estimate reviewer variance so it can be divided out of
+  the arm contrast (finding counts = review intensity × quality
+  is the readout's binding measurement problem). Rules: the
+  sampling rule is EVENLY BY RUN and arm-independent —
+  deterministic every-3rd merged row across both orchestrators'
+  series combined, counted from this amendment — so the
+  measurement process stays identically distributed across arms
+  (an arm-dependent rate would hand the arms systematically
+  different review machinery, re-creating the confound). The
+  second reviewer: identical brief and claims-to-falsify, own
+  lane, NO access to the first review or its report; both reviews
+  recorded in the row (both rubric triples, both finding counts,
+  labeled R1/R2 in dispatch order); the fix pass runs off the
+  orchestrator-adjudicated UNION of findings. Cost: ~one extra
+  review per 3 units, accepted.
 - **Record-at-merge (adopted post-M5 per the readout's
   recommendation):** the row is recorded AT MERGE, not at
   next-touch; a missing rubric or silent-deviation count is a merge
