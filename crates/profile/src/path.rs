@@ -1802,7 +1802,11 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
                 Err(source) => return Err(PathError::Escalated { source }),
             }
         }
-        match decide("path_arc_center_equidistant", Length::of(r_tip - r_end), band) {
+        match decide(
+            "path_arc_center_equidistant",
+            Length::of(r_tip - r_end),
+            band,
+        ) {
             Ok(Sign::Zero) => {}
             Ok(_) => {
                 return Err(PathError::ArcCenterNotEquidistant {
