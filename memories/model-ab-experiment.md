@@ -22,6 +22,12 @@ cost — measured, not vibed ("with actual random numbers").
   shuffled per block), pre-draw difficulty logging, blinded
   reviewers, fixed-rubric CODE QUALITY REPORT in every review, row
   recorded AT MERGE. Details in the log.
+- **Recording discipline (2026-08-08, from the bayes-analysis
+  readout)**: tokens AND wall-clock recorded PER PHASE (impl /
+  fix / review) at merge for every row, gaps annotated; ≥1 line
+  of prose per MAJOR; "silent" = silent spec deviation only;
+  record who ran the fix pass. Full text in the log's protocol
+  section.
 - **Blinding vs merge-only collision (2026-08-02, ruled)**: the
   harness's Co-Authored-By trailer NAMES THE MODEL — in an
   implementer lane that breaks blinding. Implementer briefs say "NO
