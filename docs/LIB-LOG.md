@@ -154,10 +154,19 @@ Findings that feed the profiles-as-programs representation draft
   the census's split-brain door closed structurally. NOTE
   riders banked for the G-series: error-precedence doc line,
   per-call loop clone. Lanes lib-u3/lib-u3-review cleaned.
-- **G1 in flight** (opus, LIB-2 remainder): the five cheap
-  vocabulary constructors + corpus migration + PATHS-DESIGN
-  addendum. Post-amendment A/B row count: U3 = row 1, G1 will
-  be row 2 — the row AFTER G1 gets the first dual review.
+- **G1 delivered: PR #254 OPEN, 27/27 green** (opus, LIB-2
+  remainder; impl ~544k tok across the parked+resumed run,
+  ~5.3h wall incl. slot waits at load ~20). Headline: the
+  BRACKET lowers bit-identically via `.toward` + far-end anchor
+  (VQ4's proof); Dir widening keeps `.angle` bit-preserved; CI
+  caught an interval-square poison (dx*dx → powi(2)) post-open.
+  Deviation 1: bossplate::boss stays raw (three-arc rim is
+  asserted topology). Design fork flagged not decided:
+  far-end-anchor spelling `.angle(θ).to(p)`. Blinded review in
+  flight (lane lib-g1-review) with the curvedcut::disc
+  byte-identity mechanism and the §2a PQ4-scope clarification
+  as priority attack targets. Post-amendment row count: G1 =
+  row 2; the NEXT merged row draws the first dual review.
 - Next in judgment scope after U3: U5 (read-back), U6/U7
   (relations/selection); U4 wants its LQ3 measured spec; U8→U9
   queue behind GQ5 + the v2 ruling.
