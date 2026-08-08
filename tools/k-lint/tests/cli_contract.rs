@@ -98,10 +98,7 @@ fn findings_fail_with_the_discipline_message() {
     ] {
         assert!(se.contains(pin), "discipline message missing {pin:?}: {se}");
     }
-    assert!(
-        se.contains("2 margin(s)"),
-        "the count is reported: {se}"
-    );
+    assert!(se.contains("2 margin(s)"), "the count is reported: {se}");
 }
 
 /// VOICE (b): harness breakage — a malformed row — is its OWN voice.
