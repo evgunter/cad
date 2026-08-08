@@ -281,12 +281,21 @@ persisted.**
   — same freeze semantics as today, now with a proof shape (the C6
   boundary) instead of an accident of storage. Re-authoring the
   program (structural edit) may renumber — which is the existing
-  rule for structural edits everywhere. *(Orchestrator note: this
-  paragraph's C6 argument is sound in shape but was NOT verified
-  against `editor-core/src/names`/`eval/memo.rs` in depth — the
-  implementing unit's spec must verify it by measurement before
-  relying on it, and any surprise comes back here as a revision,
-  not a silent fix.)*
+  rule for structural edits everywhere.
+  **REVISED (2026-08-08, the required measurement contradicted
+  the claim):** loop canonicalization (`canonicalize_loop`:
+  rotation to the lex-min vertex + shoelace orientation) is
+  GEOMETRY-DEPENDENT, so a parameter edit whose vertices cross a
+  lex-order band RENUMBERS the canonical indices and repoints
+  StableNames — the "moves vertices, never renumbers" sentence
+  above is FALSE at those crossings (it holds vacuously today
+  only because profiles are slot-free). The v2 posture is
+  therefore the existing freeze doctrine, not a stability proof:
+  a renumbering edit makes stale selections refuse VANISHED,
+  fail-loud, exactly the M6-5 contract; the renumbering class
+  (lex-band crossings) is documented and the acceptance scene
+  pins a stable case and a Vanished case. Canonicalization
+  itself is out of the switch's fence.
 
 Alternative (persist the cache alongside the program, "segments as
 provenance in the file") — rejected above on the strict-door + D9
