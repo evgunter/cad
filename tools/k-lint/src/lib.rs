@@ -54,7 +54,7 @@
 //!
 //! The ε-INDEPENDENT distribution is still sharply bimodal (full
 //! histogram: docs/K-REPORT.md, M7 addendum) — 1,348,461 ambient
-//! definite samples, identical at all three rows:
+//! definite samples, the same COUNT at all three rows:
 //!
 //! - zero-classified cluster: |m| ≤ 5.329e-15 (worst: `pm_census_ee_span`
 //!   on demo/az) — unmoved since M4;
@@ -64,6 +64,19 @@
 //!   quantity);
 //! - the ~10.0-decade gap between them is EMPTY once the ε-coupled
 //!   family is set aside: 0 indeterminate, 0 invalid, 0 samples.
+//!
+//! One carve-out on "ε-independent", stated because the classification
+//! is otherwise clean enough to mislead: every predicate but
+//! `props_quad_converged` reproduces its minimum BIT-IDENTICALLY at all
+//! three rows EXCEPT `props_quad_face_extent` (12 ambient definite
+//! samples/row, 8 of them differing; minima 4.0245003e-1 /
+//! 4.0256189e-1 / 4.0256210e-1). That one is ε-DEPENDENT but not
+//! ε-proportional — it is the CONVERGED quadrature's face extent, so it
+//! converges toward a fixed ~0.4025621 m as ε tightens instead of
+//! tracking ε. It therefore belongs under the metre rules, NOT in
+//! [`EPS_COUPLED_PREDICATES`], and at 0.40 m (4 decades above the
+//! floor, outside the gap) the population count, its P0, and the gap's
+//! emptiness are identical whichever way it is classified.
 //!
 //! [`BASELINE_FLOOR_MARGIN`] is the **0th percentile** of that
 //! ε-independent definite population (observed minimum 4.7965e-5,
@@ -132,6 +145,17 @@
 //! (3) and flags loudly until someone rules on it — the fail-loud
 //! direction.
 //!
+//! **That promise is carried by the TIGHT rows, and it is worth being
+//! precise about which** (review NOTE-2, pinned in
+//! `tests/review_probes.rs`): at 1e-9 and 1e-12 a not-yet-ruled
+//! ε-coupled family's margins scale down with ε, land far below
+//! [`BASELINE_FLOOR_MARGIN`], and trip rules (2) and (3) together. At
+//! the 1e-6 row they do not — rule (2)'s cap below leaves most of such
+//! a family's operating range silent there (a mid-range 5e-4 headroom
+//! passes clean). The sweep always runs all three rows, so CI always
+//! has the rows where the promise binds; a single-row run at 1e-6 would
+//! not, and should not be trusted to surface a new ε-coupled family.
+//!
 //! # Rule (2)'s discrimination floor
 //!
 //! Rules (2)-above and (3) are two thresholds on the SAME quantity — a
@@ -192,6 +216,22 @@ pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 /// Rule (4)'s floor for [`EPS_COUPLED_PREDICATES`], in units of ε:
 /// P0 of the baseline's |m|/ε population (minimum 164.674), rounded
 /// down to 1.5e2 = 15·Kε with 8.9% of headroom.
+///
+/// **"P0" here does NOT carry [`BASELINE_FLOOR_MARGIN`]'s rigor, and
+/// the difference is deliberate to state** (review NOTE-1): the metre
+/// floor's P0 is the edge of a 1,348,461-sample population separated
+/// from the zero cluster by an empty 10-decade gap, so a sample below
+/// it is a genuine no-man's-land event. This one is the MINIMUM OF 108
+/// DRAWS (12/36/60 per row) of a statistic bounded above by 1024·ε with
+/// NO structural lower bound — the quadrature loop stops at the first
+/// round whose width clears the target, so the leftover headroom is
+/// whatever that round happened to land on. 8.9% of headroom on such a
+/// minimum is weak protection by construction, and a future sweep may
+/// legitimately dip under 150·ε and print advisory flags with nothing
+/// wrong. That is the rule working (the margin really is close to the
+/// band), not the constant being mis-cut — but it means this threshold
+/// should be re-derived from a larger population, not merely re-rounded,
+/// before the lint is ever flipped to gating.
 pub const EPS_COUPLED_FLOOR_RATIO: f64 = 1.5e2;
 
 /// Whether `predicate` is one of the [`EPS_COUPLED_PREDICATES`].
@@ -537,6 +577,26 @@ mod tests {
         assert_eq!(
             lint_sample("volume_backstop", 5e-6, 1e-6, 1e-5, "indeterminate"),
             vec![Reason::InBand]
+        );
+    }
+
+    #[test]
+    fn tight_rows_report_no_cap() {
+        // Review NOTE-3: the inert half of the cap contract, pinned at
+        // the same level the binding half is. A file whose ambient rows
+        // are all tight (10²·Kε below the floor) must report NO cap —
+        // rule (2) ran unmodified there.
+        let csv = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+                   demo/x,p1,2e0,1e-9,1e-8,positive\n\
+                   demo/x,p2,2e0,1e-12,1e-11,positive\n\
+                   demo/x,p3,0e0,5e-324,1e-323,zero\n";
+        let scan = lint_csv(csv).expect("valid csv");
+        assert_eq!(scan.scanned, 3);
+        assert!(scan.flags.is_empty());
+        assert_eq!(
+            scan.proximity_capped, None,
+            "the cap must stay inert — and stay SILENT — at rows where \
+             rule (2) still discriminates"
         );
     }
 

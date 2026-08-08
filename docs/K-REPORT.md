@@ -754,10 +754,29 @@ sample is the composed die's pip cavities — a real 48 µm quantity, 1.5
 decades below M4's floor.
 
 **Classification test used**: min |m| per predicate across the three
-rows. Every predicate but `props_quad_converged` reproduces its minimum
-BIT-IDENTICALLY at all three ε — margins are geometry, only the band
-moves. `props_quad_converged` falls 6.4 decades from 1e-6 to 1e-12.
-There is no intermediate case in this corpus.
+rows. `props_quad_converged` falls 6.4 decades from 1e-6 to 1e-12.
+Every other predicate reproduces its minimum BIT-IDENTICALLY at all
+three ε — margins are geometry, only the band moves — **with one
+carve-out** (corrected on review; the first draft of this section
+claimed there was no intermediate case, and that was wrong):
+`props_quad_face_extent`, 12 ambient definite samples per row and 8 of
+them differing across rows, has minima 4.0245003e-1 / 4.0256189e-1 /
+4.0256210e-1. It is ε-DEPENDENT but not ε-proportional — it is the
+CONVERGED quadrature's face extent, so a tighter ε buys more
+refinement rounds and the recorded enclosure bound converges toward a
+fixed ~0.4025621 m geometric value (total spread 2.8e-4 relative,
+shrinking with ε rather than tracking it).
+
+It moves nothing that matters: at 0.40 m it is 4 decades above the
+floor, nowhere near the empty gap, and the ε-independent population
+count (1 348 461), its P0 (4.7965e-5), and the gap's emptiness are all
+identical whether this predicate is counted as ε-independent or set
+aside. It also does not belong in rule 4: a margin converging to a
+fixed length is a model-scale distance, so the metre rules are the
+right ones for it. The honest statement is therefore not "no
+intermediate case exists" but "the one intermediate case is
+numerically inert, and no threshold in this refresh depends on which
+side of the classification it lands."
 
 Within a decade above the ε-independent bottom edge (4.7965e-5 …
 4.7965e-4) there is exactly one family, `volume_backstop`. Within a
