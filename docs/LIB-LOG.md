@@ -242,3 +242,16 @@ spec is the orchestrator's next writing task.
   for; distinct from `.to(Start)` (same-carrier retrim) by
   exactly the two-carrier-junction distinction the implementer
   identified.
+
+- **LB3 AMENDED (2026-08-08, from Evan's factoring question on
+  #259)**: the selection family (nearest_candidate + the lifted
+  joint ladder) moves to its own shared module
+  (`profile::fillet_select`-shaped, allowlisted with the S8
+  justification, both doors call it) rather than living per-door.
+  End state: THREE allowlisted files — sugar.rs boundary, path
+  boundary, fillet_select — each with a purpose-matched one-line
+  justification. Rationale: the discipline tracks type-level
+  bounds, so boundary files can't leave the allowlist, but the
+  selection family is a coherent design object with two consumers
+  and future S8-family growth lands there. Implementer redirected
+  mid-flight; the extraction's bitwise pin guards the move.
