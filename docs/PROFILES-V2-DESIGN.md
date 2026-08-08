@@ -108,6 +108,34 @@ spec): the `profile` crate stays serde-free and editor-independent
   and the program (document authoring). One authoring surface, two
   consumers — no second spelling of any verb.
 
+**Drift-proofing the two surfaces (added for Evan's round-1
+question).** The typed surface and the replay driver can be defined
+so the dangerous drift direction is *unrepresentable*, not merely
+tested away. The driver holds the in-flight tip as an enum over the
+four lattice states, each variant containing the TYPED value
+(schematically `enum DynTip { Open(PartialPath<Open>),
+PlainPoint(..), Directed(..), Angle(..) }`), and applying one step is
+a match on (variant, verb tag) whose arm bodies can only call **the
+one typed binder that is well-typed at that state** — binder bodies
+are never duplicated and the lattice is never re-stated as data. An
+illegal (state, verb) pair has no well-typed body available, so the
+only writable mistake is a MISSING arm (over-strict refusal), never
+an over-permissive one: "driver accepts what the surface refuses"
+cannot be written down. The remaining safe-direction drift (driver
+refuses a legal chain) is exactly what the mandated differential pin
+catches — every typed chain's recorded program must replay to the
+same loop. **Serde's role is transport, not the door**: the
+Expr-bearing wire step type derives serde for ENCODING (editor-core,
+the wire.rs pattern), but deserialization cannot mint a
+`ProfileLoop` — the only path from steps to geometry runs through
+the driver, hence through the typed binders and every check they
+carry (lattice, sign gates, junction classification). "Just serde"
+with no driver would make `Deserialize` a second constructor door
+that skips all of it — the precise thing wire.rs's strict-door rule
+exists to prevent ("a corrupt or hand-edited file can never smuggle
+an ill-dimensioned tree past the construction door"). So serde is
+used, exactly once, at the layer where it is safe.
+
 Alternative considered and rejected: storing the program as opaque
 host-language source (a closure, a Python function). Rejected by D8
 verbatim — user models as functions were rejected because a
@@ -380,6 +408,38 @@ switch, which is what #104 committed. Sequencing note if (c) is
 taken: U3 (SectionSegments retirement) should target the program
 form directly, per LQ2's "or the v2 program form directly, given
 LQ4".
+
+**Round-1 sharpening — (b) vs (c), for Evan's lean-(b).** Four
+facts the lean should weigh:
+
+1. **(b) alone cannot be complete.** The bowtie is a raw loop
+   forever BY DESIGN (it demos the raw layer's fail-loud validate),
+   so the v4 schema admits a raw-vocabulary seat under EVERY option
+   — (b) included. The real decision is therefore never "does raw
+   exist at rest"; it is only **"do raw arguments get Exprs"**.
+2. Given the raw seat is forced, Expr-bearing raw args are nearly
+   free (V2's table applies verbatim to vertex coords, bulges,
+   raw-fillet radii) — and they deliver the census's actual
+   pressure points (plate's hole centers and radius) AT the switch,
+   instead of after vocabulary growth catches up.
+3. **What (b) gates**: the schema switch, and through it U9
+   (bindings ship against v2, LQ4). The cheap growth (circle,
+   arc_via, arc_center, far-end anchor — closed forms already
+   exist as `sugar::bulge_from_via`/`bulge_from_center`) is not
+   the gate; the expensive tail is rocker's five arc-carrier
+   fillets (line×arc / arc×arc corner construction), the one item
+   with real geometric risk. (b) puts that on the critical path of
+   the entire bindings program.
+4. **The options converge under the recommended package**: rule
+   (c) for the schema AND authorize (b)'s cheap subset immediately
+   as follow-on authoring units. The corpus's raw census then
+   shrinks 14 → ~4 loops (rocker + bowtie) before bindings ship —
+   (b)'s uniform-definition story arrives where it is cheap,
+   without gating the switch on the risky item. Under this package
+   (c) is not "raw as a permanent peer"; it is "the schema is
+   complete on day one, chain coverage grows on its own schedule,
+   and the lift tool MEASURES the convergence" (each new binding
+   mode turns refusals into lifts, §V5).
 
 ## V5. The v1→program lift — tool status post-clean-break (PROPOSED FIRM)
 
