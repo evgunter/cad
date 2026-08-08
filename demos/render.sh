@@ -98,33 +98,50 @@ SCENE_SECS=0        # wall seconds of the winning (or last) attempt
 # process group is swept after a timeout. `setsid -w` is what makes
 # the exit status propagate (plain setsid may fork and return 0), and
 # the exec'd shell reports the session leader's pid — the pgid to kill.
-# Returns timeout(1)'s status: 124 means the budget was exhausted.
+# Returns 124 iff the budget was exhausted, whatever ended the process.
 scene_attempt() {
     local name=$1 lane=$2 mode=$3 log=$4
     local pgidfile="$LOGDIR/$name.pgid" pgid rc=0
+    local start=$(date +%s)
     rm -f "$pgidfile"
     set +e
-    RT_GRACE="$SCENE_KILL_GRACE" RT_BUDGET="$SCENE_TIMEOUT" \
-    RT_FC="$FREECADCMD" RT_RENDERER="$PWD/render_freecad.py" \
-    RT_MODE="$mode" RT_SCENE="$name" RT_LANE="$lane" \
-    RT_ROOT="$STAGE_ROOT" RT_PGID="$pgidfile" \
-        setsid -w bash -c '
-            echo $$ >"$RT_PGID"
-            # The scene process runs with the STAGING ROOT as its cwd,
-            # so the render directory it is handed is the bare lane
-            # name — FreeCAD stamps the saveImage PATH into the PNG (a
-            # tEXt "Title" chunk), so a staged frame is byte-identical
-            # to a published one only if that path string is identical
-            # too. The staging root sits one level under demos/out, so
-            # the tour output directory is "..".
-            cd "$RT_ROOT"
-            exec timeout -k "$RT_GRACE" "$RT_BUDGET" \
-                env QT_QPA_PLATFORM=offscreen \
-                "$RT_FC" "$RT_RENDERER" "$RT_MODE" "scene=$RT_SCENE" \
-                .. "$RT_LANE"
-        ' >"$log" 2>&1
+    (
+        # This shell's own report of a signalled child is dropped: the
+        # caller announces the kill in its own words, and the log must
+        # hold NOTHING but the scene's output — its mtime is the
+        # scene's last sign of life, which is what tells a stalled
+        # process from a slow one.
+        exec 2>/dev/null
+        RT_GRACE="$SCENE_KILL_GRACE" RT_BUDGET="$SCENE_TIMEOUT" \
+        RT_FC="$FREECADCMD" RT_RENDERER="$PWD/render_freecad.py" \
+        RT_MODE="$mode" RT_SCENE="$name" RT_LANE="$lane" \
+        RT_ROOT="$STAGE_ROOT" RT_PGID="$pgidfile" \
+            setsid -w bash -c '
+                echo $$ >"$RT_PGID"
+                # The scene process runs with the STAGING ROOT as its
+                # cwd, so the render directory it is handed is the bare
+                # lane name — FreeCAD stamps the saveImage PATH into
+                # the PNG (a tEXt "Title" chunk), so a staged frame is
+                # byte-identical to a published one only if that path
+                # string is identical too. The staging root sits one
+                # level under demos/out, so the tour output dir is "..".
+                cd "$RT_ROOT"
+                exec timeout -k "$RT_GRACE" "$RT_BUDGET" \
+                    env QT_QPA_PLATFORM=offscreen \
+                    "$RT_FC" "$RT_RENDERER" "$RT_MODE" "scene=$RT_SCENE" \
+                    .. "$RT_LANE"
+            ' >"$log" 2>&1
+    )
     rc=$?
     set -e
+    # The CLOCK decides whether the budget was exhausted, not the exit
+    # status: `timeout` reports 124 when the scene process died of the
+    # SIGTERM it sends, but escalating to SIGKILL means signalling its
+    # own process group — so `timeout` dies along with the scene and
+    # reports 137 instead. Both are the budget running out.
+    if [ "$rc" -ne 0 ] && [ "$(( $(date +%s) - start ))" -ge "$SCENE_TIMEOUT" ]; then
+        rc=124
+    fi
     if [ "$rc" -eq 124 ]; then
         # Only after a timeout: the group may still hold live children.
         # (Once the group is gone its pgid is reusable, so sweeping a
@@ -195,11 +212,13 @@ wedged() {
    exhausted the ${SCENE_TIMEOUT}s per-scene budget TWICE, each time
    in a fresh freecadcmd process whose tree was then killed. Two
    fresh processes stalling on one scene is not a slow scene.
-   log: $LOGDIR/$name.log
- THE PASS FAILS HERE. No montage is composed and demos/$rd/ is left
- exactly as committed — this pass rendered into demos/$stage/, which
- is untracked. Re-run to retry. Raise FREECAD_SCENE_TIMEOUT only if
- the scene is genuinely that slow; a wedge is not.
+   log: demos/$LOGDIR/$name.log
+ THE PASS FAILS HERE. No montage is composed, and
+   demos/$rd/
+ is left exactly as committed: this pass rendered into
+   demos/$stage/
+ which is untracked. Re-run to retry. Raise FREECAD_SCENE_TIMEOUT
+ only if the scene is genuinely that slow; a wedge is not.
 ================================================================
 
 EOF
