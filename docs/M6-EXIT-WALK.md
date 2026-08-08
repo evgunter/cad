@@ -1,10 +1,10 @@
 # M6 exit walk — criteria vs evidence
 
-**STATUS: DRAFT — assembled by the orchestrator ahead of the k-lint
-floor merge (#239 in review). Cells marked [VERIFY] are pending
-re-verification against main's tip before this walk is presented to
-Evan. Closure is Evan's call at the walk; this document becomes the
-done-state of record only on his 👍.**
+**STATUS: ASSEMBLED (2026-08-07) and presented for Evan's closure
+ruling. Every criterion is dispositioned against main's tip
+(79db554, the #239 merge — full-matrix run 31242416671 GREEN).
+Closure is Evan's call; this document becomes M6's done-state of
+record on his 👍 on the presentation PR's closure comment.**
 
 **How to read this.** Criteria are quoted **verbatim** from
 `docs/M6-PLAN.md` — the six numbered units, the "also in scope when
@@ -47,10 +47,10 @@ M5-EXIT-WALK convention:
   rides M8 per that ruling, not M6.
 - **#226**: the sense-gate residual classes, each pinned with a named
   flip condition — the walk's carried-items register.
-- **Hosted state**: main's tip carries #239 (merge 79db554); the
-  full-matrix run on it is cited at presentation [VERIFY: run
-  31242416671, in flight at assembly time]. The prior tip run
-  (fbae459) completed green.
+- **Hosted state**: main's tip carries #239 (merge 79db554);
+  full-matrix run 31242416671 on it completed GREEN (and the prior
+  tip run, fbae459, was green too — no waiver-era debt anywhere
+  behind this walk).
 
 ## Appendix: the globe-lily disposition table (15 rows)
 
@@ -85,7 +85,7 @@ owners), 4 TRIAGE (4, 5, 9, 13). No wall is unowned; the CARRIED
 set concentrates exactly where the ruled runway already points
 (C7/M8 contact + clearance).
 
-## Tally (draft — finalize after [VERIFY] cells)
+## Tally
 
 | disposition | count | rows |
 |---|--:|---|
