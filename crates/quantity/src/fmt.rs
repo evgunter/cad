@@ -14,18 +14,24 @@
 //! shortest such candidate ({:?}'s shortest-round-trip digits, the
 //! same guarantee `fmt_real` builds on).
 //!
-//! FALLBACK: for a thin sliver of values no such candidate exists —
-//! multiplication by a factor whose relative spacing beats the
-//! quotient's occasionally steps 2 ulps at a time, skipping `x` (for
-//! `MM` this is ~2% of one binade in a thousand; for `M`/`RAD`, factor
-//! exactly 1.0, it never happens). Those values render in the
-//! CANONICAL unit (`m`/`rad`), whose factor-1.0 multiply is the f64
-//! identity — the pin holds for every finite input at the price of an
-//! occasional canonical-unit suffix. That trade (never a wrong bit,
-//! rarely a different suffix) is this module's ruled fork; the
-//! alternative — decimal-exact parse semantics — cannot exist for
-//! `DEG` at all (π/180 has no decimal), so multiply semantics is the
-//! uniform door and this fallback is its price.
+//! FALLBACK: some values have no such candidate — multiplication by
+//! the factor occasionally steps 2 ulps of `x` at a time, skipping
+//! values, and a skipped `x` has no preimage in that unit at all.
+//! Those values render in the CANONICAL unit (`m`/`rad`), whose
+//! factor-1.0 multiply is the f64 identity — the pin holds for every
+//! finite input at the price of a canonical-unit suffix. HOW OFTEN
+//! (measured, 2M uniform random finite f64 per unit — the PR #267
+//! review's figures, replacing an earlier estimate that was low by
+//! ~3 orders): mm ~2.8%, cm ~16%, in ~15%, deg ~9.5%; m/rad never.
+//! Uniform-random f64 is the worst case: a value AUTHORED in the unit
+//! (parsed from `250 mm`, computed as `25.0 * MM`) lies in the parse
+//! map's image and always keeps its suffix, so the honest statement
+//! is per-computed-value and unit-dependent, not "rare" in general.
+//! That trade (never a wrong bit, sometimes a canonical suffix) is
+//! this module's ruled fork; the alternative — decimal-exact parse
+//! semantics — cannot exist for `DEG` at all (π/180 has no decimal),
+//! so multiply semantics is the uniform door and this fallback is its
+//! price.
 //!
 //! NaN/±∞ refuse typed ([`FmtQuantityError::NonFinite`]) exactly as
 //! `fmt_real` refuses: poison never lands in display text.
@@ -75,11 +81,16 @@ fn fmt_in(
         return Err(FmtQuantityError::NonFinite { value });
     }
     let q = value / factor;
-    // The five candidates within 2 ulps of the rounded quotient — a
-    // true preimage d (fl(d * factor) == value) satisfies
-    // |d − value/factor| ≤ ulp/2-scale bounds that keep it within 2
-    // ulps of fl(value/factor), so this candidate set is complete: if
-    // none reproduces the bits, no decimal in this unit does.
+    // The five candidates within 2 ulps of the rounded quotient. This
+    // set is COMPLETE (the PR #267 review's derivation, confirmed by a
+    // 2.63M-probe attack finding zero misses): a preimage d satisfies
+    // |d·factor − value| ≤ ulp(value)/2, so |d − value/factor| ≤
+    // ulp(value)/(2·factor) < spacing(q) (ulp(value) ≤ 2⁻⁵²·|value|);
+    // adding |q − value/factor| ≤ spacing/2 gives |d − q| < 1.5
+    // spacings — at most 2 next-steps from q even where a binade
+    // boundary halves the spacing. For subnormal value the quotient
+    // interval is wide and q itself is a preimage. If none of the five
+    // reproduces the bits, no decimal in this unit does.
     let candidates = [
         q,
         q.next_up(),

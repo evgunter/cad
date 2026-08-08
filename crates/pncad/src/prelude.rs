@@ -42,7 +42,11 @@ pub use geom_core::{Affine3, Band, BandError, Mat3, Point2, Point3, Real, Tolera
 // `Length` is the API-boundary quantity newtype; the kernel-internal
 // classify-seam `geom_core::predicate::Length<T>` is a different type
 // that has never been prelude surface and must not become it — the
-// two coexist only module-qualified.
+// two coexist only module-qualified. Scope: the prelude carries the
+// value types + the six unit constants + the formatter; the unit
+// TABLE itself and the prefix data (`UNITS`, `unit_by_symbol`,
+// `MILLI`, `CENTI`) stay one module hop away at `pncad::quantity`,
+// per the corpus-measured prelude rule (module docs above).
 pub use quantity::{
     Angle, AngleUnit, CM, Count, DEG, FmtQuantityError, IN, Length, LengthUnit, M, MM, RAD,
     fmt_angle, fmt_length,

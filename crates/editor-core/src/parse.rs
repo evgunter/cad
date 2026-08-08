@@ -93,6 +93,12 @@ pub enum ParseError {
     },
     /// A bare integer literal outside `i64` — Count literals are
     /// exact, so an unrepresentable count refuses rather than rounds.
+    ///
+    /// Corner (inherent to the grammar): `-9223372036854775808`
+    /// (i64::MIN) also refuses — the MAGNITUDE lexes as its own token
+    /// (9223372036854775808 > i64::MAX) before unary minus applies.
+    /// Harmless: no structural count is anywhere near it, and it stays
+    /// spellable as an expression if ever needed.
     IntegerOverflow {
         /// Byte offset of the number.
         pos: usize,

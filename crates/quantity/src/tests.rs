@@ -107,7 +107,10 @@ fn parse_back(text: &str, expect_symbol_or_canonical: [&str; 2]) -> f64 {
 
 proptest! {
     #[test]
-    fn fmt_round_trips_bit_exactly_for_every_finite_value_and_unit(
+    // "Sampled" is honest (NOTE-2 of the PR #267 review): the DOMAIN
+    // is all finite f64 × all six units; a run samples proptest's
+    // configured case count from it.
+    fn fmt_round_trip_bit_exact_sampled_over_finite_values_and_units(
         value in proptest::num::f64::ANY.prop_filter("finite", |v| v.is_finite()),
         unit_idx in 0usize..6,
     ) {

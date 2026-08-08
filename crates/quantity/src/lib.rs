@@ -54,6 +54,12 @@ pub struct Angle(f64);
 /// An exact integer count at the API boundary (structural: pattern
 /// counts, indices). No unit constants — a count is a bare integer;
 /// promotion to a continuous value is explicit everywhere (spec D4).
+///
+/// Deliberately NO arithmetic impls on this newtype: D4's checked
+/// count algebra (closed add/sub/mul/neg/min/max with typed i64
+/// overflow refusal) lives in the `Expr` layer, and duplicating it
+/// here unchecked would undercut it. This type carries a value across
+/// the boundary; arithmetic happens where the checks are.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Count(i64);
 
