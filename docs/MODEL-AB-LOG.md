@@ -18,6 +18,39 @@ amended:
   "block-N draw". Design, specs, adversarial reviews, and fix-pass
   rulings stay Fable regardless. The fix pass runs as the
   implementer's agent, so it inherits the arm.
+- **Protocol v3 (Evan, 2026-08-08, post-bayes-readout): TRIPLES.**
+  Blocks are now the shuffled multiset {opus, opus, fable} —
+  rationale: the readout shows no quality separation, a consistent
+  lean toward opus on findings and cost, and modest power loss at
+  2:1 (~12% contrast-variance inflation), so allocation shifts
+  toward the cheaper arm while keeping a live fable stream for
+  drift detection. Draw: one /dev/urandom byte, REJECT values
+  ≥252 (redraw — avoids modulo bias), then byte mod 3 = fable's
+  position (0/1/2). Difficulty still logged pre-draw per
+  dispatch. Everything else unchanged (blinding, Fable for
+  design/specs/reviews/rulings, record-at-merge, per-phase
+  recording discipline). **Transition**: blocks in flight at the
+  amendment complete as v2 pairs (LIB-2's opus remainder = G1;
+  the M7 series' current block likewise); triples start at each
+  series' next block.
+- **Dual-reviewer sampling (Evan + orchestrator, 2026-08-08, from
+  the readout's top recommendation): every 3rd merged
+  implementation row gets a SECOND independent blinded reviewer.**
+  Purpose: estimate reviewer variance so it can be divided out of
+  the arm contrast (finding counts = review intensity × quality
+  is the readout's binding measurement problem). Rules: the
+  sampling rule is EVENLY BY RUN and arm-independent —
+  deterministic every-3rd merged row across both orchestrators'
+  series combined, counted from this amendment — so the
+  measurement process stays identically distributed across arms
+  (an arm-dependent rate would hand the arms systematically
+  different review machinery, re-creating the confound). The
+  second reviewer: identical brief and claims-to-falsify, own
+  lane, NO access to the first review or its report; both reviews
+  recorded in the row (both rubric triples, both finding counts,
+  labeled R1/R2 in dispatch order); the fix pass runs off the
+  orchestrator-adjudicated UNION of findings. Cost: ~one extra
+  review per 3 units, accepted.
 - **Record-at-merge (adopted post-M5 per the readout's
   recommendation):** the row is recorded AT MERGE, not at
   next-touch; a missing rubric or silent-deviation count is a merge
@@ -311,6 +344,17 @@ arms and driven by unit scope rather than arm.
 | MV2 | 2026-08-06 | montage-v2: cell curation, twisted_duct (measured path vocabulary), true minimal loft pair | S (logged pre-dispatch) | fable (block M7-7 remainder) | Evan-eyeball class ("these look great!"): item 2 CONCEDED his read (s_duct = two glued revolves, demoted honestly) and answered by measurement — twisted_duct with nowhere-zero τ beyond any revolve gluing; profile twist verified unsupported; the ≥0.5-turn helix refusal found and now FILED; item 3 measured (the old pair was the prism rescaled) and re-spaced silhouette-obvious | 0 | — | — | — | none | MERGED #221 (Actions-outage waiver; eyeball = the gate); stray-fallback-frame corruption in the committed montage found and repaired; two follow-ups filed per Evan (long-turn frontier; the fallback pathway question) | ~304k impl | ~5.7h wall (render-heavy) |
 | GUARD | 2026-08-07 | render-guard: the matplotlib fallback structurally uncommittable (preview dir + provenance guard) | S (logged pre-dispatch) | OPUS (block M7-8 remainder) | orchestrator-review class: all three scenarios + a bonus arm executed (planted #221-victim frame → named typed fail; absent-FreeCAD → loud preview routing, committed tree bit-untouched; present → 34/34 byte-stable); sheet exemption as a POSITIVE assertion; guard self-tests ahead of every scan | 0 | — | — | — | none | MERGED #224 27/27 — and the run itself confirmed ACTIONS RECOVERED; FreeCAD warm-session deadlock confirmed recurring (3/3 full-pass attempts, different scenes) → per-scene-timeout follow-up filed | ~136k impl | ~4.6h wall (render-verification-heavy) |
 | M6-6 | 2026-08-07 | the curved sense-flip tier gate (check-6 curved arm + import parity rider) | low-M (logged pre-draw) | fable (block M7-8 draw byte 194 = fable,opus) | NOT-MERGEABLE-AS-IS → fixed: 1 MAJ (missing test lint header — both clippy jobs red; trivial) + 1 MINOR-high (conic-trimmed cylinders slip BOTH gates whole-body — executed on cut_cylinder, unrecorded); the GATE HELD everything: census byte-identical 51/51 at three ε, full truth-table re-execution, nappe adversaries minted both apex sides (no correction needed — confirmed), three-rim layering probe, 11/11 pins | 0 (3 reported) | (in report) | (in report) | (in report) | light (header; residual 4 recorded+pinned-as-residual with the ellipse-rim flip condition; residual 3 + rider claims scoped to the circle-rimmed class; probes adopted) | MERGED #223 fresh-run 0-failed; EVERY previously-invisible curved sense flip now refuses CurvedSenseInverted; inside-out washer/cone/donut/lily certify-green CLOSED; M6's ratified content is DONE — the k-lint floor is the last hygiene before its exit walk | ~241k impl + ~175k review + ~259k fix | ~3.1h impl + ~2.7h review + ~0.3h fix |
+| KLINT | 2026-08-07 | k-lint baseline-floor refresh: ε-independent P0 floor 4.0e-5 + ε-coupled rule 4 + rule-2 cap (M7-F1, ruled) + m7 committed baseline | M (logged pre-draw) | OPUS (block M7-9 draw byte 47 = opus,fable; fable remainder → next M7-eligible dispatch) | APPROVE-WITH-FIXES 0/1/4, rubric 5/4/4 (every load-bearing number independently recomputed from the committed baseline; 5/5 mutation probes killed; cold sweep byte-identical to the committed rows; MIN-1 = a false "no intermediate case" classification claim — `props_quad_face_extent` is ε-dependent-not-proportional; M7-F1 adjudicated with the blind window MEASURED and pinned by adopted probes: [4e-5, 1e-3) at 1e-6 only, empty at tight rows) | 0 (1 reported — the rule-2 cap, self-flagged as M7-F1 with the counter-posture argued; RULED: cap stands, both arms concurring) | 5 | 4 | 4 | light, IMPLEMENTER-INHERITED (MIN-1 carve-out both places + NOTE-1/2/3 adopted + reviewer probes merged fast-forward with authorship; snapshot-contract scoping after main's tour grew path_junction_turn mid-flight) | MERGED #239 fully green (27 checks); hosted advisory row 0 flags at all three ε rows (fresh sweep AND committed baseline); litmus fires at every row, now ASSERTING margin < floor; 14 k-lint tests (was 10); the M4-era 102-flag noise retired; lint stays ADVISORY (gating readiness = walk material) | ~184k impl + ~89k review + ~222k fix (resumed segment) | ~2.3h impl + ~0.6h review + ~0.3h fix (no gaps) |
+
+Block M7-9 (2026-08-07): difficulty logged PRE-DRAW: k-lint
+baseline-floor refresh (re-derive `BASELINE_FLOOR_MARGIN` from the
+current distribution + settle the ε-coupled-family rule; the 102
+advisory flags/run are the symptom) = **M**. Draw follows this log
+entry. DRAWN: byte 47 → (opus, fable) — the k-lint floor refresh
+gets OPUS; fable remainder → the next M7-eligible dispatch.
+REMAINDER ASSIGNED (2026-08-07): the band-seam re-mint unit
+(ftc_11 + cq_red_cube flip back to imports); difficulty logged
+PRE-ASSIGNMENT from the substrate inventory = **M**.
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
@@ -321,6 +365,7 @@ U1 dispatched first → OPUS; U2 = fable remainder.
 | # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
 |---|------|------|----------------------|-----|-------------------------------|-------------|-------|-------|------|---------------|---------|--------|------------|
 | U2 | 2026-08-08 | PATHS algebra: typestate lattice, lowering to ProfileLoop, differential/property/compile-fail suites (PR-1 of 2; PR-2 tour rework rides the same unit) | L (logged pre-draw) | fable (block LIB-1 remainder) | APPROVE-WITH-FIXES 1/1/3, rubric 5/4/5 (extraction verbatim-confirmed at b1781c2; bit-identity HELD on every new adversarial differential — reflex polygon, r=1e-7/1.999, rotated frames, tangent-seam close — with the one-ulp divergence exactly the documented finding-10 boundary; 8 further illegal states all E0599, no runtime mint door; e2e extrude+revolve volumes bit-equal vs LoopBuilder twins; MAJ-1 = sign domain ungated — negative line(len) after a fillet stranded the authored anchor ~0.5 off-path THROUGH validate, a §4-item-3 ratified-text breach) | 2 silent (MAJ-1/MIN-1, holes in the PR's own universal property claims; 11 reported findings, the load-bearing three audited doc-faithful) | 5 | 4 | 5 | moderate, crash-fragmented (funnel gates path_leg_length/path_fillet_radius, typed NonpositiveLeg/NonpositiveFilletRadius; R6/R7 + len=0 regression rows; #131 pin; Clone-fork doc; PathNoCornerReason rename; TWO fix agents lost to the WSL crash — the surviving lane diff was verified correct and adopted unchanged by a finisher) | MERGED #233 26/1-skip; PR-2 MERGED #238 (review APPROVE 0/0/3 rubric 5/4/5, zero silent devs — census, lowering bit-identity, bracket ulp drift, and k-probe ALL independently re-executed; +~157k impl / ~105k review tokens); 12 loop sites algebra-authored, 14 gap-named raw; stadium gap + NURBS legs + ε_input plumbing + the PR-2 seven-item wall list banked as v2-conversation evidence | ~364k impl + ~166k review + ~49k finisher (2 dead fix segments unrecorded) | ~4.1h impl + ~1.1h review + fixes fragmented across the WSL crash |
+| U3 | 2026-08-08 | SectionSegments retirement: loft/sweep speak ProfileLoop; door validation for ALL sections; split-brain closed structurally | M (logged pre-draw) | fable (block LIB-2 draw byte 134 = fable,opus) | APPROVE 0/0/3, rubric (in report) (all ten claims independently re-executed: byte-identity 3 ε rows on the reviewer's own base build; differential pin red-checked at one ulp; door delta probed both directions — base silently BUILT an invalid interior section, branch refuses SectionProfile typed; no silent open-chain reinterpretation path — the type change forces conscious ports; false tangency declarations refused at the new seam; novel loft volume exact to 5e-16; NOTE-1 = error-precedence flip unstated, NOTE-2 = per-call loop clone, NOTE-3 = probe-count wording) | 0 (3 reported, all verified; NOTE-1 sub-deviation-threshold) | (in report) | (in report) | (in report) | none required (NOTEs banked as G-series riders); fix-pass executor: n/a | MERGED #245 checks green; SectionSegments DELETED (grep pin), OpenClosedMixed retired, 42 sites migrated, 9 quad() clones collapsed per-crate; NOTE-3 differential row in-repo | impl ~246k / review ~114k / fix 0 (per-phase per v3 discipline) | impl ~0.96h / review ~0.41h / fix 0 (no gaps) |
 | U1 | 2026-08-07 | pncad façade crate + prelude; tour on ONE kernel dependency | S (logged pre-draw) | OPUS (block LIB-1 draw byte 13 = opus,fable) | APPROVE-WITH-FIXES 0/2/3, rubric 5/3/3 (byte-identity of all 89 tour exports independently rebuilt+reproduced at merge-base; closure property HELD under independent sweep but its advertised "no-dev-deps ⇒ physically incapable" proof mechanism executed-FALSE — reviewer's `use topo as _;` probe compiled clean; novel washer authored end-to-end on one dependency, 3 prelude exits, none to a second crate) | 0 (4 reported, all verified) | 5 | 3 | 3 | moderate (self-scanning guard pin PROVEN by executed falsification; audit +9 rows + 2 honest closure exceptions — serde_json::Value flagged for U9, unnameable DuplicateName a filed kernel wart; Band into prelude per orchestrator ruling; ladder test now tier-3-XOR-3′ with a real-union row; doctests 1→8) | MERGED #232 27/27; P8 dead (six p2 + four validated deleted); SurfaceKind leak closed STRUCTURALLY (zero kernel micro-edits — the §1 permission unused) | ~158k impl + ~152k review + ~242k fix | ~1h impl + ~1.5h review + ~2.3h fix |
 Block LIB-2 draw (2026-08-08): byte 134 → (fable, opus).
 Difficulty logged pre-draw: U3 SectionSegments retirement = M.

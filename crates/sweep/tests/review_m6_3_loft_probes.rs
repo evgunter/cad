@@ -7,22 +7,10 @@
 
 use geom_core::{Affine3, Point2, Tolerance, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::{
-    LoftError, Revolution, RevolveAxis, SectionSegments, SketchSegment, loft_body, revolve,
-};
+use sweep::{LoftError, Revolution, RevolveAxis, loft_body, revolve};
 
-fn quad(pts: [(f64, f64); 4]) -> SectionSegments {
-    let seg = |a: (f64, f64), b: (f64, f64)| SketchSegment::Line {
-        a: Point2::new(a.0, a.1),
-        b: Point2::new(b.0, b.1),
-    };
-    vec![vec![
-        seg(pts[0], pts[1]),
-        seg(pts[1], pts[2]),
-        seg(pts[2], pts[3]),
-        seg(pts[3], pts[0]),
-    ]]
-}
+mod common;
+use common::quad;
 
 /// Deviation 3's substituted behavior, executed: sections stacking
 /// definitely AGAINST the base normal refuse

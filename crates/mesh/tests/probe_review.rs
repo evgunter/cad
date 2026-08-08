@@ -6,22 +6,11 @@
 use core::f64::consts::FRAC_PI_2;
 
 use geom_core::{Affine3, Point2, Point3, Vec3};
-use sweep::skin::SectionSegments;
 use sweep::{SketchSegment, loft_body, segment_curve, sweep_body};
 use topo::Body;
 
-fn quad(pts: [(f64, f64); 4]) -> SectionSegments {
-    let seg = |a: (f64, f64), b: (f64, f64)| SketchSegment::Line {
-        a: Point2::new(a.0, a.1),
-        b: Point2::new(b.0, b.1),
-    };
-    vec![vec![
-        seg(pts[0], pts[1]),
-        seg(pts[1], pts[2]),
-        seg(pts[2], pts[3]),
-        seg(pts[3], pts[0]),
-    ]]
-}
+mod common;
+use common::quad;
 
 const SQ: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
 const TRAP: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];

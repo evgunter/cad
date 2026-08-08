@@ -304,24 +304,12 @@ fn review_half_turn_path_builds_on_the_float_knife_edge() {
         Affine3::identity(),
     )
     .expect("path");
-    let profile: sweep::skin::SectionSegments = vec![vec![
-        SketchSegment::Line {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(0.3, 0.0),
-        },
-        SketchSegment::Line {
-            a: Point2::new(0.3, 0.0),
-            b: Point2::new(0.3, 0.2),
-        },
-        SketchSegment::Line {
-            a: Point2::new(0.3, 0.2),
-            b: Point2::new(0.0, 0.2),
-        },
-        SketchSegment::Line {
-            a: Point2::new(0.0, 0.2),
-            b: Point2::new(0.0, 0.0),
-        },
-    ]];
+    let profile: sweep::Section = vec![profile::ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(0.3, 0.0),
+        Point2::new(0.3, 0.2),
+        Point2::new(0.0, 0.2),
+    ])];
     match sweep_geometry(&profile, Affine3::identity(), &path, 3, 2) {
         Ok(_) => { /* the executed truth: sin(pi) != 0 in f64 */ }
         Err(SkinError::PathTangentReversal { station }) => panic!(
@@ -351,89 +339,49 @@ fn review_vanishing_tangent_refuses_typed() {
         vec![1.0; 4],
     )
     .unwrap();
-    let profile: sweep::skin::SectionSegments = vec![vec![
-        SketchSegment::Line {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(0.3, 0.0),
-        },
-        SketchSegment::Line {
-            a: Point2::new(0.3, 0.0),
-            b: Point2::new(0.3, 0.2),
-        },
-        SketchSegment::Line {
-            a: Point2::new(0.3, 0.2),
-            b: Point2::new(0.0, 0.2),
-        },
-        SketchSegment::Line {
-            a: Point2::new(0.0, 0.2),
-            b: Point2::new(0.0, 0.0),
-        },
-    ]];
+    let profile: sweep::Section = vec![profile::ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(0.3, 0.0),
+        Point2::new(0.3, 0.2),
+        Point2::new(0.0, 0.2),
+    ])];
     match sweep_geometry(&profile, Affine3::identity(), &path, 3, 2) {
         Err(SkinError::PathTangentReversal { station: 0 }) => {}
         other => panic!("a vanishing tangent must refuse at station 0, got {other:?}"),
     }
 }
 
-/// **F2 evidence**: `OpenClosedMixed` is REACHABLE at the library door
-/// — an open path chain mixed with closed profile chains — and it is
-/// refused rather than skinned into a surface that is neither a tube
-/// nor a strip. (The recipe layer cannot express this: a validated
-/// profile's loop is always closed. That is exactly why the arm needs
-/// a library-level row.)
+/// **F2 evidence, REWORKED at LIB-U3.** The original probe fed the
+/// door an OPEN chain beside a closed one and pinned the
+/// `OpenClosedMixed` refusal. That refusal is retired WITH its input
+/// vocabulary: a section is now a list of `ProfileLoop`s, and a
+/// `ProfileLoop` closes by construction (the last vertex's segment
+/// returns to the first), so a strip/tube mix is UNREPRESENTABLE at
+/// the door — the signature is the proof, and the removed enum
+/// variant means a resurrected open-chain door cannot come back
+/// silently (this file would fail to compile).
+///
+/// What remains probe-able is what the old open chain's data BECOMES:
+/// its dangling endpoint is just a fourth vertex, the loop closes
+/// through it, and the pair lofts to a (closed) tube.
 #[test]
-fn review_open_and_closed_chains_refuse_typed() {
-    let closed: sweep::skin::SectionSegments = vec![vec![
-        SketchSegment::Line {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(1.0, 0.0),
-        },
-        SketchSegment::Line {
-            a: Point2::new(1.0, 0.0),
-            b: Point2::new(1.0, 1.0),
-        },
-        SketchSegment::Line {
-            a: Point2::new(1.0, 1.0),
-            b: Point2::new(0.0, 0.0),
-        },
-    ]];
-    // Same segment COUNT, same loop count — only the closure differs,
-    // so the shape door passes it through to the closure door.
-    let open: sweep::skin::SectionSegments = vec![vec![
-        SketchSegment::Line {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(1.0, 0.0),
-        },
-        SketchSegment::Line {
-            a: Point2::new(1.0, 0.0),
-            b: Point2::new(1.0, 1.0),
-        },
-        SketchSegment::Line {
-            a: Point2::new(1.0, 1.0),
-            b: Point2::new(0.5, 2.0),
-        },
-    ]];
+fn review_open_chains_are_unrepresentable_and_close_by_construction() {
+    // The old probe's open chain ran (0,0) -> (1,0) -> (1,1) -> (0.5,2)
+    // and STOPPED. In the profile vocabulary the same points author a
+    // closed quad — there is no open case left to mix.
+    let was_open: sweep::Section = vec![profile::ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.5, 2.0),
+    ])];
     let places = [
         Affine3::identity(),
         Affine3::translation(geom_core::Vec3::new(0.0, 0.0, 1.0)),
     ];
-    match sweep::skin::loft_geometry(&[closed.clone(), open.clone()], &places, 1) {
-        Err(SkinError::OpenClosedMixed {
-            section: 1,
-            loop_index: 0,
-            expected_closed: true,
-        }) => {}
-        other => panic!("closed-then-open must refuse OpenClosedMixed, got {other:?}"),
-    }
-    // And the reverse orientation reports the reverse expectation.
-    match sweep::skin::loft_geometry(&[open, closed], &places, 1) {
-        Err(SkinError::OpenClosedMixed {
-            section: 1,
-            loop_index: 0,
-            expected_closed: false,
-        }) => {}
-        other => panic!("open-then-closed must refuse OpenClosedMixed, got {other:?}"),
-    }
+    let g = sweep::skin::loft_geometry(&[was_open.clone(), was_open], &places, 1)
+        .expect("the closed-by-construction pair skins to a tube");
+    assert_eq!(g.walls[0].len(), 4, "four vertices, four walls — closed");
 }
 
 /// **F5 evidence**: ragged column rows get a SHAPED refusal naming the
