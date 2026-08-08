@@ -234,12 +234,21 @@ fn promoted_cylinder_gates_and_the_near_miss_stay_nurbs() {
     // export ran at, so the near-miss scales with the run's ε: a
     // 5·ε_in nudge lands the certificate residual at ~2.5·ε_in —
     // past the budget at EVERY matrix row (1e-6 … 1e-12).
+    //
+    // The perturbation base is the FILE'S OWN token, parsed — the
+    // writer's print of the wall's centre control-point x, which the
+    // bulge arithmetic left one ulp BELOW f64 √2 (not
+    // `f64::consts::SQRT_2`, whose substitution would nudge the base
+    // by that ulp and misstate the intent: "the file's value, moved
+    // 5·ε_in", not "√2, moved 5·ε_in").
     let eps = geom_core::Tolerance::get().eps;
+    const CENTER_X_TOKEN: &str = "1.414213562373095";
+    let base: f64 = CENTER_X_TOKEN.parse().expect("the writer's own token parses");
     let near_miss = text.replace(
-        "#114 = CARTESIAN_POINT('', (1.414213562373095, 0.0, 1.0));",
+        &format!("#114 = CARTESIAN_POINT('', ({CENTER_X_TOKEN}, 0.0, 1.0));"),
         &format!(
             "#114 = CARTESIAN_POINT('', ({:?}, 0.0, 1.0));",
-            1.414213562373095 + 5.0 * eps
+            base + 5.0 * eps
         ),
     );
     assert_ne!(text, near_miss, "the perturbation applied");
