@@ -2840,3 +2840,31 @@ pub(crate) fn resolve(
         normalizations: r.normalizations.into_inner(),
     })
 }
+
+/// **R1 review probe (PR #264, C2c)** — review branch only: the
+/// QUASI_UNIFORM implied-knot synthesis, multi-span shape, must be
+/// bit-identical to the stated-knots form (integer spacing, clamped).
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod r1_review_probes {
+    use super::quasi_uniform_knots;
+    use geom_core::spline::KnotVector;
+
+    #[test]
+    fn quasi_uniform_synthesis_matches_stated_integer_knots_bitwise() {
+        // degree 2, 5 control points → spans = 3 → [0,0,0,1,2,3,3,3].
+        let synth = quasi_uniform_knots(1, 2, 5).unwrap();
+        let stated = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap();
+        assert_eq!(
+            format!("{synth:?}"),
+            format!("{stated:?}"),
+            "synthesized vs stated multi-span knots"
+        );
+        // dm1's actual shape: degree 1, 2 points → [0,0,1,1].
+        let dm1 = quasi_uniform_knots(1, 1, 2).unwrap();
+        let dm1_stated = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        assert_eq!(format!("{dm1:?}"), format!("{dm1_stated:?}"));
+        // Degenerate: control_points == degree refuses.
+        assert!(quasi_uniform_knots(1, 2, 2).is_err());
+    }
+}
