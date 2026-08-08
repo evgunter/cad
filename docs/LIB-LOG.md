@@ -128,6 +128,24 @@ Findings that feed the profiles-as-programs representation draft
   agent at a time until WSL stability is understood; width-1
   slot locks remain the ceiling for anything heavier.
 
+## Program state at the U2-close seam (2026-08-08)
+
+- **U1 + U2 both MERGED** (#232, #233, #238); A/B rows recorded.
+- **The v2 design conversation is OPEN as PR #242**
+  (docs/PROFILES-V2-DESIGN.md) — AWAITING EVAN: VQ1 ruling
+  (raw-loop status; recommendation = two vocabularies under one
+  program umbrella), VQ2–VQ9 yes/nos, firm-section sign-off.
+  Watchlist + away-channel monitor armed. Work continues stacked:
+  nothing in U3 depends on the VQ1 answer (retiring
+  SectionSegments targets the profile vocabulary either way; if
+  VQ1(c) rules, U3's door types absorb it at its own spec level).
+- **U3 dispatched** (fable, block LIB-2 first draw; spec
+  docs/LIB-U3-SPEC.md from the executed census at
+  cad-work/u3-census.md). Sole build agent per the WSL posture.
+- Next in judgment scope after U3: U5 (read-back), U6/U7
+  (relations/selection); U4 wants its LQ3 measured spec; U8→U9
+  queue behind GQ5 + the v2 ruling.
+
 ## Resting state (2026-08-06)
 
 Slots: 1 = lib-u1 (Opus), 2 = lib-u2 (fable). Monitors:
