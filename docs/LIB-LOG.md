@@ -319,3 +319,14 @@ profile L, SWITCH-E editor-core+lift XL); hard-sequenced behind
 the G2 finisher (path.rs) and U8a (Unit type). Drafter also
 re-verified f64-resolution and found memo hashing already
 satisfies V3 via resolved-bits convention.
+
+- **LB9 (Evan on #267)**: geom-core's classify-seam `Length<T>`
+  RENAMES to `Margin<T>` (the audit's own vocabulary) — a
+  mechanical workspace sweep as its own orchestrator-review PR,
+  sequenced after U8a's review concludes; the quantity `Length`
+  then owns the name unqualified. And F4's preimage search is
+  recorded as the STATELESS STOPGAP: the switch spec's U8b
+  section must state that stored per-literal provenance
+  supersedes the search on the authored path (search remains
+  only for computed values, where the information genuinely
+  does not exist).
