@@ -115,6 +115,7 @@
 //! data *values*, which validation catches with typed errors — never a
 //! guess (the poison policy of `geom_core::real`).
 
+mod fillet_select;
 pub mod k_stats;
 pub mod path;
 mod seg;
@@ -123,7 +124,10 @@ mod validate;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Real, Vec3};
 
-pub use path::{Open, PartialPath, PathError, Start};
+pub use path::{
+    ArcCenterTarget, ArcTarget, ArcViaTarget, LineTarget, Open, PartialPath, PathError, Start,
+    TangentArcTarget, circle,
+};
 pub use sugar::{ArcSweep, FilletLegShape, LoopBuilder, bulge_from_center, bulge_from_via};
 pub use validate::{
     ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
