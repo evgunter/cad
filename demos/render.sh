@@ -67,17 +67,20 @@ FREECADCMD="${FREECADCMD:-$HOME/.local/share/cad-work/freecad/squashfs-root/usr/
 
 # ---- per-scene budget ----------------------------------------------
 # Wall-clock budget for ONE scene in ONE fresh freecadcmd process,
-# FreeCAD's startup included. Derivation — measured over full passes of
-# both lanes (2026-08, 8-core box shared with other builds): the kernel
-# lane's 34 scenes ran 3-7 s, median 4 s; the STEP lane's 19 ran 4-19 s,
-# median 7 s. Startup dominates and every scene imports one small body
-# set, so the distribution is tight. 120 s is ~6x the slowest scene
-# ever measured and ~17x the median: a legitimate scene would have to
-# slow down six-fold to trip it, while a wedged process costs 4 minutes
-# (two attempts) instead of the whole night. Raise
-# FREECAD_SCENE_TIMEOUT only for a scene that is genuinely that slow —
-# a wedge does not get faster with a bigger budget.
-SCENE_TIMEOUT="${FREECAD_SCENE_TIMEOUT:-120}"
+# FreeCAD's startup included. What it must clear is not the typical
+# scene but the worst LEGITIMATE one, and on this workload that is set
+# by machine contention, not by the scene: measured over full passes of
+# both lanes (2026-08, 8-core box), a scene takes 3-19 s — median 4 s
+# in the kernel lane, 7 s in the STEP lane — on an unloaded box, and
+# 106 s for the SAME scene at load average 13 (other lanes building;
+# startup dominates and it is all CPU contention, memory was never
+# tight). So the budget is sized off the contended number, not the idle
+# one: 300 s is ~3x the slowest legitimate scene ever measured here and
+# still bounds a wedged process at 10 minutes (two attempts) instead of
+# the whole night. Raise FREECAD_SCENE_TIMEOUT only for a scene that is
+# genuinely that slow — a wedge does not get faster with a bigger
+# budget.
+SCENE_TIMEOUT="${FREECAD_SCENE_TIMEOUT:-300}"
 # Grace between the budget's SIGTERM and SIGKILL to the scene process.
 SCENE_KILL_GRACE=5
 LOGDIR=out/freecad-logs
