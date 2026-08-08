@@ -154,10 +154,15 @@ Findings that feed the profiles-as-programs representation draft
   the census's split-brain door closed structurally. NOTE
   riders banked for the G-series: error-precedence doc line,
   per-call loop clone. Lanes lib-u3/lib-u3-review cleaned.
-- **G1 in flight** (opus, LIB-2 remainder): the five cheap
-  vocabulary constructors + corpus migration + PATHS-DESIGN
-  addendum. Post-amendment A/B row count: U3 = row 1, G1 will
-  be row 2 — the row AFTER G1 gets the first dual review.
+- **G1 MERGED #254** (2026-08-08; dual-rubric A/B row at merge).
+  The bracket moves bit-identically (VQ4 proven); raw census
+  down to 3 (boss/rocker/bowtie); ArrivalKind fix red-checked
+  both directions. Far-end-anchor design fork ADJUDICATED at
+  merge: `.angle(θ).to(p)` accepted — both reviews' conformance
+  audits found it doc-faithful (no new DOF, shared resolution
+  path, entry refusal parallels U2's `.at` precedent), the
+  Start-variant absence stays pinned. G2 remains: rocker's
+  arc-carrier fillets. Lanes cleaned. |
 - Next in judgment scope after U3: U5 (read-back), U6/U7
   (relations/selection); U4 wants its LQ3 measured spec; U8→U9
   queue behind GQ5 + the v2 ruling.
@@ -171,3 +176,24 @@ The v2 representation design conversation is QUEUED behind U2
 PR-2's merge (ruling 3 above). Next units in judgment scope after
 U1/U2: U3 (SectionSegments retirement) and U5 (read-back) are the
 natural nexts; U7 unblocked (M6-5 merged #219/#220).
+
+**Dual-review sample #1 = G1** (2026-08-08): post-amendment
+implementation rows are U3 (1), M7-5 (2; the other orchestrator's
+KLINT-GATE correctly excluded as CI-infra), G1 (3) → G1 draws the
+first dual sample. R1 and R2 both in flight against the same head
+(lanes lib-g1-review / lib-g1-review2), identical briefs, R2
+blinded to R1's existence and report. Both rubric triples and
+finding counts will be recorded R1/R2 in the row; fix pass off
+the adjudicated union.
+
+**Dual-review sample #1 result (G1/#254)**: R1 and R2 CONVERGED —
+both APPROVE-WITH-FIXES, both independently found the identical
+MAJOR (Zero-fit far-end anchor emits an unauthored outgoing
+tangency declaration → spurious TangencyContradicted on legal
+sharp continuations; §4-item-2 declaration-without-construction).
+Complementary residue: R1 got the §3 table ordering + merge
+footprint notes; R2 got the t2-vs-anchor verbatim-vertexhood gap,
+the §2a PQ4-phrasing clause, and the missing in-band gate rows.
+First reviewer-variance data point: HIGH agreement on the
+consequential finding, disjoint tails. Fix pass dispatched off
+the union.
