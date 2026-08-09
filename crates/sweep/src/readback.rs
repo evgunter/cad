@@ -442,7 +442,9 @@ pub fn lofted_caps<T: Real>(l: &Lofted<T>) -> Result<CapFrames<T>, ReadbackError
 /// // A quarter tube: a small circle a distance 5 from the axis,
 /// // revolved a quarter turn about the sketch frame's +v.
 /// let circle = profile::circle(Point2::new(5.0, 0.0), 0.5).expect("a positive radius");
-/// let sketch = Profile::new(SketchPlane::xy(), vec![circle])
+/// // The complete-loop primitives answer with a `ClosedLoop` (the
+/// // lowered loop plus its program); `Profile` takes the loop.
+/// let sketch = Profile::new(SketchPlane::xy(), vec![circle.into()])
 ///     .validate(Tolerance::get())
 ///     .expect("the circle validates");
 /// let axis = RevolveAxis { origin: Point2::new(0.0, 0.0), dir: Vec2::new(0.0, 1.0) };
@@ -529,7 +531,7 @@ pub struct BlendArc<T: Real> {
 ///     .expect("a definitely positive radius")
 ///     .to_on(Start, Point2::new(0.5, 0.0), ArcSweep::Ccw)
 ///     .expect("the near candidate resolves the tip");
-/// let slot = Profile::new(SketchPlane::xy(), vec![eye])
+/// let slot = Profile::new(SketchPlane::xy(), vec![eye.into()])
 ///     .validate(Tolerance::get())
 ///     .expect("the eye slot validates");
 ///
