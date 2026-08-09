@@ -122,6 +122,7 @@
 
 pub mod extrude;
 pub mod loft;
+pub mod readback;
 pub mod revolve;
 pub mod skin;
 
