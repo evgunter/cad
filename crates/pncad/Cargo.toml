@@ -44,6 +44,7 @@ geom-curves = { path = "../geom-curves" }
 geom-surfaces = { path = "../geom-surfaces" }
 mesh = { path = "../mesh" }
 profile = { path = "../profile" }
+quantity = { path = "../quantity" }
 step-export = { path = "../step-export" }
 step-import = { path = "../step-import" }
 stl = { path = "../stl" }

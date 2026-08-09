@@ -333,6 +333,7 @@ dependencies = [
  "mesh",
  "profile",
  "proptest",
+ "quantity",
  "rayon",
  "serde",
  "serde_json",
@@ -1185,6 +1186,7 @@ dependencies = [
  "geom-surfaces",
  "mesh",
  "profile",
+ "quantity",
  "step-export",
  "step-import",
  "stl",
@@ -1270,6 +1272,13 @@ dependencies = [
  "rusty-fork",
  "tempfile",
  "unarray",
+]
+
+[[package]]
+name = "quantity"
+version = "0.0.0"
+dependencies = [
+ "proptest",
 ]
 
 [[package]]

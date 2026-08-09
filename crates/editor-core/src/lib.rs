@@ -25,6 +25,7 @@ pub mod expr;
 pub mod meta;
 pub mod names;
 pub mod node;
+pub mod parse;
 pub mod persist;
 pub mod profile_desc;
 pub mod resolve;
@@ -52,6 +53,7 @@ pub use names::{
     SplitHalf, StableName, all_edges,
 };
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
+pub use parse::{ParseError, parse_expr};
 pub use persist::{JointSite, NonFiniteSite, SnapshotError};
 pub use persist::{
     Loaded, MigrationStep, PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load, save,
