@@ -126,7 +126,9 @@ ruled on a thread, none silent):
 | M7-6 | stage-1 recognition (always-promote, #256; whole-patch envelope) | PR #264 — R1 APPROVE (post-fix), independent R2 running (dual-review row 6) |
 | M7-7 | tier-at-import (the #260 (a) ruling; shared gate) | implementing, stacked on #264's head |
 | rider | plane×NURBS intersection certification (ruled on #264's thread) | queued next — the last M7 code unit |
-| demo | wild-corpus montage, KERNEL-TESSELLATION lane only (Evan approved 2026-08-09; FreeCAD lane omitted) | BACK IN M7 (Evan, 2026-08-09 — no real M8 relation); queued behind M7-7/M7-8 merges; spec ready in docs/WILD-CORPUS-LICENSES.md; not walk-gating |
+| demo | wild-corpus montage, KERNEL-TESSELLATION lane only | PR #283 in orchestrator review (6 cells + 2 honest tessellation-refusal findings) |
+| demo | calochortus (globe-lily) PARTIAL refresh (Evan, 2026-08-09): capture the since-#175 wins — tube_along_arc exact-intent stems (retiring finding 11's workaround), curved-path sweep_body leaves, twisted-duct vocabulary. The FULL rebuild stays M8 — findings 1/2/7 (one-stem G1 unions, flower∪stem, tepal carving) are C7 declared-contact machinery, a real dependency not a sequencing choice | queued behind the current cycles; S, demo class |
+| demo | Utah(-ish) teapot (Evan, 2026-08-09): body/lid as revolves are buildable now; spout/handle JOINS to the body need curved×curved boolean germ pairs beyond the wired plane×cyl/plane×sphere lanes — scope via substrate first (buildable-now composition vs named banked lanes) | queued with a scoping pass; "after any features it requires" per Evan |
 
 **Then**: the M7 EXIT WALK (pre-drafted at docs/M7-EXIT-WALK.md,
 finalizes on M7-6/M7-7 merges) → Evan's closure ruling → **M8 opens
