@@ -158,11 +158,11 @@ fn fit_payload(e: &pncad::geom_curves::FitError) {
 // editor_core::NodeErrorKind is the widest payload set in the tree:
 // the document layer's node errors wrap every kernel operation's
 // refusal, including the third buried type, sweep::fillet::FilletError.
-fn node_error_payload(e: &pncad::editor_core::NodeErrorKind) {
+fn node_error_payload(e: &pncad::document::NodeErrorKind) {
     match e {
-        pncad::editor_core::NodeErrorKind::Fillet(inner) => named::<&FilletError>(inner),
-        pncad::editor_core::NodeErrorKind::Boolean(inner) => named::<&BooleanError>(inner),
-        pncad::editor_core::NodeErrorKind::Transform(inner) => named::<&TransformError>(inner),
+        pncad::document::NodeErrorKind::Fillet(inner) => named::<&FilletError>(inner),
+        pncad::document::NodeErrorKind::Boolean(inner) => named::<&BooleanError>(inner),
+        pncad::document::NodeErrorKind::Transform(inner) => named::<&TransformError>(inner),
         _ => {}
     }
 }
@@ -256,7 +256,7 @@ fn cross_crate_error_payloads_are_nameable_through_the_facade() {
     named(section_payload as fn(&pncad::geom_brep::SectionError));
     named(skin_payload as fn(&pncad::sweep::SkinError));
     named(fit_payload as fn(&pncad::geom_curves::FitError));
-    named(node_error_payload as fn(&pncad::editor_core::NodeErrorKind));
+    named(node_error_payload as fn(&pncad::document::NodeErrorKind));
     named(tessellate_payload as fn(&TessellateError));
     named(step_export_payload as fn(&StepExportError));
     named(step_import_payload as fn(&StepImportError));
@@ -508,5 +508,128 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
         "this file must reach the kernel only through `{FACADE}::` — found {} violation(s):\n  {}",
         violations.len(),
         violations.join("\n  ")
+    );
+}
+
+// ---------------------------------------------------------------
+// LB13: the document layer's boundary, guarded.
+// ---------------------------------------------------------------
+
+/// **No arena key is nameable through the façade's document-layer
+/// surface** — the LB13 boundary, enforced rather than asserted in a
+/// report.
+///
+/// The intended enforcement was a rustdoc-JSON scan of `pncad`'s
+/// public API. This toolchain is stable-only (1.97.0) and
+/// `--output-format json` is nightly-gated; installing a nightly and
+/// teaching CI to use it is a CI change, which is outside this unit's
+/// fence. So this is the FALLBACK, built on the U1 self-scanning
+/// pattern one file wider — and it is aimed at the exact regression
+/// LB13 forbids, not at a vague resemblance to it:
+///
+/// 1. `pub use editor_core;` — the whole-crate re-export whose removal
+///    IS LB13(a). Re-adding it makes `pncad::editor_core::EntityRef`
+///    nameable again, and nothing else in the tree would notice.
+/// 2. Any `pub use` in `pncad`'s own source that names `EntityRef`,
+///    `EntityKey`, or `Entry` — the LIB-U5 seal, kept sealed.
+///
+/// What this fallback CANNOT see (stated so the next reader does not
+/// over-trust it): a key type re-exported under an alias, or one
+/// reachable as an associated type or a public field of something
+/// this list does allow. A rustdoc-JSON check would catch those; when
+/// a nightly is available to CI, replace this test with one.
+#[test]
+fn no_arena_key_is_nameable_through_the_facade_document_surface() {
+    // Every file of the façade's own source. A new module added here
+    // without being listed is caught by the companion test below.
+    const SOURCES: [(&str, &str); 6] = [
+        ("lib.rs", include_str!("../src/lib.rs")),
+        ("prelude.rs", include_str!("../src/prelude.rs")),
+        ("select.rs", include_str!("../src/select.rs")),
+        ("document.rs", include_str!("../src/document.rs")),
+        ("authoring.rs", include_str!("../src/authoring.rs")),
+        ("closure.rs", include_str!("../src/closure.rs")),
+    ];
+    // Assembled at runtime: this file is itself scanned by the U1
+    // guard, and a contiguous literal would be its own first match.
+    let module_reexport = ["pub use editor", "core;"].join("_");
+    let keys = ["EntityRef", "EntityKey", "Entry"];
+
+    let mut violations: Vec<String> = Vec::new();
+    for (name, src) in SOURCES {
+        let code = code_without_comments(src);
+        for (n, line) in code.lines().enumerate() {
+            let t = line.trim();
+            if t.contains(&module_reexport) {
+                violations.push(format!(
+                    "{name}:{}: the whole-crate `editor_core` re-export is back — \
+                     it makes arena keys nameable again (LB13)",
+                    n + 1
+                ));
+            }
+            if !t.contains("pub use") {
+                continue;
+            }
+            for k in keys {
+                // Word-boundary check: `EntityKind` must not trip on
+                // the `EntityKey` needle.
+                let mut from = 0usize;
+                while let Some(off) = t[from..].find(k) {
+                    let at = from + off;
+                    from = at + k.len();
+                    let after_ok = !t[from..]
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c.is_alphanumeric() || c == '_');
+                    let before_ok = !t[..at]
+                        .chars()
+                        .next_back()
+                        .is_some_and(|c| c.is_alphanumeric() || c == '_');
+                    if before_ok && after_ok {
+                        violations.push(format!(
+                            "{name}:{}: `pub use` names the arena key `{k}` (LIB-U5 seal)",
+                            n + 1
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        violations.is_empty(),
+        "the document layer must expose only its curated surface — found {} violation(s):\n  {}",
+        violations.len(),
+        violations.join("\n  ")
+    );
+}
+
+/// The guard above scans a FIXED file list; a new façade module that
+/// is not listed would be unguarded. This pins the list against the
+/// directory.
+#[test]
+fn the_boundary_guard_scans_every_facade_source_file() {
+    let mut on_disk: Vec<String> = std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/src"))
+        .expect("the facade's src directory")
+        .map(|e| {
+            e.expect("a dir entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .filter(|n| n.ends_with(".rs"))
+        .collect();
+    on_disk.sort();
+    let mut listed = vec![
+        "lib.rs".to_string(),
+        "prelude.rs".to_string(),
+        "select.rs".to_string(),
+        "document.rs".to_string(),
+        "authoring.rs".to_string(),
+        "closure.rs".to_string(),
+    ];
+    listed.sort();
+    assert_eq!(
+        on_disk, listed,
+        "a facade source file is missing from the LB13 boundary guard's scan list"
     );
 }

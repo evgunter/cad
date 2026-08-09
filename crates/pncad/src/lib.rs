@@ -62,9 +62,12 @@
 // Module re-exports: the whole authoring surface, one hop away.
 // ---------------------------------------------------------------
 
-/// The document/edit layer: `Doc`, `DocEdit`, expressions, evaluation,
-/// stable names. The layer the GUI and the language bindings speak.
-pub use editor_core;
+// NOT re-exported as a module (LB13): the document layer is exposed
+// through the curated `document` + `select` surfaces instead. Its
+// arena keys are body-lineage-scoped and must not leave editor-core
+// (G1), and a whole-crate re-export handed them out one hop past the
+// LIB-U5 seal. Kernel crates keep their module re-exports below —
+// they carry geometry, not keys into a particular evaluation.
 /// B-rep geometry primitives: surface/curve kinds, pcurves, section
 /// classification. Mostly interior, but it owns error payload types
 /// that surface through `topo` and `sweep` refusals.
@@ -110,5 +113,6 @@ pub use topo;
 
 pub mod authoring;
 pub mod closure;
+pub mod document;
 pub mod prelude;
 pub mod select;

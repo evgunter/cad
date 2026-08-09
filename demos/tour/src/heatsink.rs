@@ -21,7 +21,7 @@
 
 use std::collections::BTreeMap;
 
-use pncad::editor_core::{
+use pncad::document::{
     CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Expr, Node, PatternKind, ProfileDesc,
     RecipeNodeId, SlotId, ValuePayload, apply, evaluate, parse_expr,
 };
