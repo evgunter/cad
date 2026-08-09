@@ -820,7 +820,12 @@ mod r2_probes {
     #[test]
     fn r2_q1_epsilon_boundary_to_the_ulp() {
         // 0.5× / 2× behavior at fixed EPS.
-        let promoted = |d: f64| matches!(recognize(&lifted_plane(d), EPS), Recognition::Promoted { .. });
+        let promoted = |d: f64| {
+            matches!(
+                recognize(&lifted_plane(d), EPS),
+                Recognition::Promoted { .. }
+            )
+        };
         assert!(promoted(0.6 * EPS), "0.5x-class near-plane must promote");
         assert!(!promoted(2.4 * EPS), "2x-class near-plane must stay NURBS");
         // The exact boundary: measure the certified residual, then pin
@@ -866,7 +871,11 @@ mod r2_probes {
             control.push(Point3::new(i as f64, 1.0, z));
         }
         let patch = NurbsSurface::new(ku, kv, control, vec![1.0; 2 * n]).unwrap();
-        let dev = patch.eval(0.15, 0.5).z.abs().max(patch.eval(0.5, 0.5).z.abs());
+        let dev = patch
+            .eval(0.15, 0.5)
+            .z
+            .abs()
+            .max(patch.eval(0.5, 0.5).z.abs());
         match recognize(&patch, EPS) {
             Recognition::Promoted { kind, residual, .. } => {
                 panic!("wiggle (interior dev {dev:e}) promoted as {kind:?} at {residual:e}")
@@ -913,8 +922,7 @@ mod r2_probes {
     #[test]
     fn r2_q2c_exact_multispan_cylinder_stays_nurbs() {
         let w = core::f64::consts::FRAC_1_SQRT_2;
-        let ku =
-            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let ring = [
             (Point3::new(1.0, 0.0, 0.0), 1.0),
@@ -1025,7 +1033,11 @@ mod r2_probes {
                 }
                 _ => {
                     // Both runs must at least agree bit-for-bit in Debug.
-                    assert_eq!(format!("{a:?}"), format!("{b:?}"), "non-promoting runs agree");
+                    assert_eq!(
+                        format!("{a:?}"),
+                        format!("{b:?}"),
+                        "non-promoting runs agree"
+                    );
                 }
             }
         }

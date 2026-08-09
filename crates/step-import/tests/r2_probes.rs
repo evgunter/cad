@@ -37,7 +37,10 @@ fn r2_t1_near_plane_boundary_end_to_end() {
     let target = "#85 = CARTESIAN_POINT('', (1.75, -1.0, 1.0));";
     assert!(orig.contains(target), "the perturbation target exists");
 
-    let half = orig.replace(target, "#85 = CARTESIAN_POINT('', (1.75, -1.0000000005, 1.0));");
+    let half = orig.replace(
+        target,
+        "#85 = CARTESIAN_POINT('', (1.75, -1.0000000005, 1.0));",
+    );
     let imported = import(&half).expect("0.5x eps perturbation imports");
     let promos = promotions(&imported);
     let f104 = promos.iter().find(|(f, _, _)| *f == 104);
@@ -50,7 +53,10 @@ fn r2_t1_near_plane_boundary_end_to_end() {
         "recorded residual is honest and inside eps: {residual:e}"
     );
 
-    let twice = orig.replace(target, "#85 = CARTESIAN_POINT('', (1.75, -1.000000002, 1.0));");
+    let twice = orig.replace(
+        target,
+        "#85 = CARTESIAN_POINT('', (1.75, -1.000000002, 1.0));",
+    );
     match import(&twice) {
         Ok(ref imported) => {
             let promos = promotions(imported);
@@ -104,7 +110,11 @@ fn r2_t2_promoted_one_cycle_byte_fixed_point() {
             topo::mass_properties(&b1).unwrap().volume,
             topo::mass_properties(&b2).unwrap().volume,
         );
-        assert_eq!(v1.to_bits(), v2.to_bits(), "{name}: volume bits across the cycle");
+        assert_eq!(
+            v1.to_bits(),
+            v2.to_bits(),
+            "{name}: volume bits across the cycle"
+        );
     }
 }
 
@@ -119,5 +129,9 @@ fn r2_t3_same_input_twice_is_bit_identical() {
         };
         step_export::step_string(&body, &step_export::StepOptions::default()).unwrap()
     };
-    assert_eq!(run(), run(), "two imports of the same bytes, same export bytes");
+    assert_eq!(
+        run(),
+        run(),
+        "two imports of the same bytes, same export bytes"
+    );
 }

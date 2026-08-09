@@ -8,8 +8,8 @@
 //! above rounding.
 #![allow(clippy::unwrap_used, clippy::panic)]
 
-use geom_brep::props::loop_vector_area;
 use geom_brep::LoopEdge;
+use geom_brep::props::loop_vector_area;
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 use geom_curves::{Curve3, NurbsCurve3};
@@ -57,6 +57,9 @@ fn r2_cubic_parabola_area_is_exact_to_rounding() {
         let err = (a.norm() - 4.0 / 3.0).abs();
         println!("anchor {anchor:?}: |area| err {err:e}");
         assert!(err < 1e-13, "exact to rounding: {err:e}");
-        assert!(a.x.abs() < 1e-13 && a.y.abs() < 1e-13, "planar loop, z-normal area");
+        assert!(
+            a.x.abs() < 1e-13 && a.y.abs() < 1e-13,
+            "planar loop, z-normal area"
+        );
     }
 }
