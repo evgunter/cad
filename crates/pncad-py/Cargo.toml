@@ -27,8 +27,16 @@ publish = false
 # inner `allow` — but PyO3's `#[pyclass]`/`#[pymodule]` macros expand to
 # `unsafe impl` blocks, so inheriting it makes the `python` feature
 # uncompilable. This crate is the workspace's single unsafe-bearing
-# member and the unsafe is entirely macro-generated FFI glue; we keep
-# every other workspace lint by hand below.
+# member and the unsafe is entirely macro-generated FFI glue.
+#
+# The tables below therefore restate the workspace set EXACTLY, minus
+# that one lint. Restating by hand is a drift hazard — an earlier
+# revision of this file silently dropped four of them — so the
+# equality is not a promise, it is a TEST:
+# `tests::crate_lints_match_the_workspace_minus_unsafe_code` parses
+# both manifests and fails if they diverge. Adding a lint to
+# `[workspace.lints]` therefore breaks THIS crate's build until it is
+# mirrored here, on the default (no-Python) path that hosted CI takes.
 [lints.rust]
 missing_docs = "warn"
 
@@ -36,6 +44,10 @@ missing_docs = "warn"
 panic = "warn"
 unwrap_used = "warn"
 expect_used = "warn"
+todo = "warn"
+unimplemented = "warn"
+unreachable = "warn"
+dbg_macro = "warn"
 
 [features]
 default = []

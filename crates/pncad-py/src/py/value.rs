@@ -11,13 +11,26 @@
 //! | `Split`        | full — `above` / `below` as optional bodies |
 //! | `Instances`    | full — a list of bodies |
 //! | `Datum`        | full — typed plane / axis / point with `Length` coordinates |
-//! | `Profile`      | KIND ONLY — the curated surface exposes no read-back door on `ValidatedProfile` |
-//! | `Declarations` | KIND ONLY — the pairs are `StableName`s, whose curated projection is U5/SEL1 territory |
+//! | `Profile`      | KIND ONLY — LQ4 forbids shipping sketch geometry to Python before the v2 switch |
+//! | `Declarations` | KIND ONLY — SEL1/U5 owns the naming projection; deferred, not blocked |
 //!
-//! The two kind-only rows are the honest edge of the curated surface,
-//! not an omission of convenience: binding them would mean either
-//! inventing an accessor (an edit, out of fence) or leaking a `Debug`
-//! rendering as data (a string payload, which §L4 forbids).
+//! The two kind-only rows are SCOPE decisions, not capability limits.
+//! Being precise about which, because the distinction is load-bearing:
+//!
+//! * `ValidatedProfile::plane()`/`loops()` DO exist and `profile` is
+//!   wholesale re-exported — this very module's sibling uses
+//!   `pncad::profile` to build sketches. Projecting a profile back to
+//!   Python is therefore perfectly possible; it is **ruled out**, by
+//!   LQ4's "Python never ships the opaque-profile intermediate
+//!   state". Sketch read-back belongs to the unit that binds the v2
+//!   program representation, after SWITCH-E.
+//! * `StableName` is likewise prelude-curated with public fields, so
+//!   Declarations is reachable too. It is deferred because the naming
+//!   /selection projection is SEL1's subject, and binding a
+//!   provisional shape here would fork it.
+//!
+//! Neither row is "no accessor exists"; an earlier revision of this
+//! comment claimed that, and it was false.
 
 use std::sync::Arc;
 
