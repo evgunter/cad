@@ -24,7 +24,7 @@
 //! One deliberate omission: `BooleanOp` exists in both `topo` (the
 //! kernel operation) and `editor_core` (the recipe node's operation).
 //! The prelude carries the kernel's; document-layer code spells
-//! `pncad::editor_core::BooleanOp`. A prelude cannot re-export two
+//! `pncad::document::BooleanOp`. A prelude cannot re-export two
 //! types under one name, and silently preferring one while shadowing
 //! the other in a glob is exactly the kind of surprise a curated
 //! surface exists to prevent.
@@ -103,13 +103,15 @@ pub use stl::{write_ascii, write_binary};
 // `parse_expr` is the expression TEXT door (LIB-U8a): the checking
 // parser whose every reduction runs the Expr smart constructors.
 // The v4 program vocabulary (LIB-SWITCH): the profile payload is the
-// Expr-bearing `ProfileProgram`; module-level re-export, curated into
-// the prelude because document authoring cannot be spelled without it.
-pub use editor_core::{
+// Expr-bearing `ProfileProgram`, curated through the ONE document
+// surface (LB13's `crate::document`) so authoring can be spelled from
+// the prelude without reaching past the seal.
+pub use crate::document::{
     CancelToken, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr, LoopProgram,
     Node, NodeError, ParseError, PatternKind, ProfileProgram, ProgramStep, ProgramTarget,
-    RecipeNodeId, SlotId, StableName, StepArg, ValuePayload, apply, evaluate, parse_expr,
+    RecipeNodeId, SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr,
 };
+pub use editor_core::StableName;
 
 // --- 9. Names: obtain them, inspect them, select them ---------
 // LIB-U7. `StableName` was in group 8 from the start, with no door to
@@ -119,8 +121,8 @@ pub use editor_core::{
 // These are that door, curated as one group in `crate::select` (whose
 // module docs carry the worked examples).
 pub use crate::select::{
-    CapEnd, EntityKind, EntityRef, Entry, MeridianEnd, NamePat, NameTable, OpGroup, ProfileEdgeRef,
-    ProfileVertexRef, RimSupport, RolePath, RoleSeg, SegPat, SegTag, Selector, Side, SplitHalf,
-    TagPat, all_bodies, all_edges, all_faces, all_vertices, edge_name, entity_name, face_name,
-    select,
+    CapEnd, Denotation, EntityKind, InterrogateError, MeridianEnd, NamePat, NameTable, OpGroup,
+    Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, SegPat,
+    SegTag, Selector, Side, SplitHalf, TagPat, all_bodies, all_edges, all_faces, all_vertices,
+    denotation, edge_frame, edge_name, face_frame, face_name, select, vertex_position,
 };

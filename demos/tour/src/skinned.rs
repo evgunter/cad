@@ -212,6 +212,14 @@ fn lofted_at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
 
 /// The square/trapezoid/square section stack both loft scenes share —
 /// the minimal pair's shared half.
+/// The middle section's v-parameter at the montage spacing
+/// (z = 0/0.15/2), `3√29/(3√29 + √5701)` — the pin the stop's note
+/// narrates, checked against `loft_parameters` at build time.
+// The shortest form that round-trips to the same f64 as the note's
+// 0.17625368909901809 (that last digit is past f64's precision, which
+// is why the narration keeps it and the constant does not).
+const NONUNIFORM_T: f64 = 0.1762536890990181;
+
 fn prism_sections() -> Vec<Section> {
     vec![
         quad(PRISM_SQUARE),
@@ -258,10 +266,23 @@ pub fn stops() -> Vec<Stop> {
     // dramatically (numbers in the stop's note). The corpus fixture
     // keeps 0/1/3 — this scene now LEADS the corpus, the s_duct/lily
     // precedent.
-    let nonuniform =
-        pncad::sweep::loft_body::<f64>(&prism_sections(), &lofted_at_z(&[0.0, 0.15, 2.0]), 2)
-            .expect("the non-uniform loft builds")
-            .body;
+    let nonuniform_places = lofted_at_z(&[0.0, 0.15, 2.0]);
+    // The middle section's v-parameter, ASKED (LIB-U5 deliverable 1)
+    // rather than re-derived: the note below narrates
+    // t = 3√29/(3√29 + √5701) and every number downstream of it, so
+    // the derivation is pinned against the kernel's own answer here.
+    // Before this door existed the note's algebra was the only record
+    // of what `skin_parameters` had chosen.
+    let params = pncad::sweep::loft_parameters(&prism_sections(), &nonuniform_places, 2)
+        .expect("the non-uniform sections skin");
+    assert_eq!(
+        params,
+        vec![0.0, NONUNIFORM_T, 1.0],
+        "the narrated v-parameterization is no longer what the skin chose"
+    );
+    let nonuniform = pncad::sweep::loft_body::<f64>(&prism_sections(), &nonuniform_places, 2)
+        .expect("the non-uniform loft builds")
+        .body;
 
     // The S path (#218 review; DEMOTED to standalone at montage-v2):
     // two opposed quarter arcs of radius R in the world x = 0 plane,
@@ -362,7 +383,9 @@ pub fn stops() -> Vec<Stop> {
                  Derivation at 0/0.15/2: skin_parameters averages cumulative CHORD \
                  lengths over the first strip's control rows (the flared bottom \
                  corners), so t = 3*sqrt(29)/(3*sqrt(29) + sqrt(5701)) = \
-                 0.17625368909901809; the corner flare is the quadratic Lagrange \
+                 0.17625368909901809 — which the scene now ASKS the kernel for \
+                 (sweep::loft_parameters) and pins this derivation against, \
+                 rather than re-deriving it in prose; the corner flare is the quadratic Lagrange \
                  bump lambda(v) = v(1-v)/(t(1-t)), slice area 4 + 2d*lambda \
                  (d = 0.375), z(v) the quadratic through (0,0),(t,0.15),(1,2), and \
                  int v(1-v) z'(v) dv = H/6 for ANY quadratic z, so \

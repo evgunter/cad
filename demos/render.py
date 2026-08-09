@@ -10,7 +10,16 @@ lane is the mesh-path proof).
 Scene list comes from <stl_dir>/scenes.json (written by the tour);
 multi-body scenes draw every body into one axes with its own color.
 
-Usage: python render.py <stl_dir> <out_dir>
+`--author=TEXT` stamps an `Author` tEXt chunk into every PNG (on top
+of matplotlib's own deterministic `Software` chunk). The wild-corpus
+lane (`render-wild.sh`) uses it as its provenance signature: there
+matplotlib is the PRIMARY renderer, not a fallback, and the guard
+(`check_render_provenance.py`) accepts a committed wild cell only with
+that stamp — so a tour fallback frame (unstamped) can never pass as a
+wild cell. The tour's fallback path passes no `--author`, exactly so
+its frames stay recognizable as fallback output.
+
+Usage: python render.py <stl_dir> <out_dir> [--author=TEXT]
 """
 
 import json
@@ -122,7 +131,16 @@ def draw(ax, scene, stl_dir):
 
 
 def main():
-    stl_dir, out_dir = Path(sys.argv[1]), Path(sys.argv[2])
+    args = sys.argv[1:]
+    author = None
+    pos = []
+    for a in args:
+        if a.startswith("--author="):
+            author = a.split("=", 1)[1]
+        else:
+            pos.append(a)
+    stl_dir, out_dir = Path(pos[0]), Path(pos[1])
+    metadata = {"Author": author} if author else None
     out_dir.mkdir(parents=True, exist_ok=True)
     scenes = json.loads((stl_dir / "scenes.json").read_text())
     for scene in scenes:
@@ -133,7 +151,9 @@ def main():
             print(f"skipped {scene['name']} (no STL bodies — #111 pin)")
             continue
         fig.tight_layout(pad=0.1)
-        fig.savefig(out_dir / f"{scene['name']}.png", facecolor="white")
+        fig.savefig(
+            out_dir / f"{scene['name']}.png", facecolor="white", metadata=metadata
+        )
         plt.close(fig)
         print(f"rendered {out_dir / (scene['name'] + '.png')}")
 

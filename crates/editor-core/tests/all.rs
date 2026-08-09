@@ -30,6 +30,8 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "lib_u5_interrogate.rs"]
+mod lib_u5_interrogate;
 #[path = "lib_u7_select.rs"]
 mod lib_u7_select;
 #[path = "m4_pr1_dims.rs"]
