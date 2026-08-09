@@ -1112,3 +1112,18 @@ rather than smuggled in here.
   new `impl` block sat after `mod tests` in `topo/src/euler.rs`
   (`clippy::items_after_test_module`). Both would have failed the
   clippy gate; both were caught by the cold pass, not by a warm one.
+
+**Tangency refuses in `certify`'s OWN vocabulary.** A planted
+near-parallel plane raises `CertifyError::NotTransverse` — the same
+variant the analytic arm raises, so a caller reads one refusal rather
+than two dialects. No `TangentIntersection` adoption rung was invented
+(the spec's STOP).
+
+**Batteries, re-executed on the union with `origin/main`** (the
+finisher's pass; every row a foreground run under a build slot):
+step-import 147 passed / 0 failed at each of ε_in default, 1e-6 and
+1e-12 — the ε-dependent seam posture is inside the pinned test, so the
+COUNT is invariant across the matrix; geom-brep 220 passed / 0 failed.
+Workspace `cargo check --all-targets` clean after the merge (the #274
+lesson: the union is built explicitly, not assumed from two green
+branches).
