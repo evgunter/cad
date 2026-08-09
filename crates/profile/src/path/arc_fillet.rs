@@ -56,7 +56,7 @@
 //! only thing that can move an ulp is step 1 — hence the squared-radius
 //! rule.
 
-use geom_core::{Band, Bounds, Decide, Length, Point2, Real, Sign, Tolerance, Vec2};
+use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Tolerance, Vec2};
 
 use super::program::{ClosedLoop, Step};
 use super::{
@@ -193,7 +193,7 @@ fn ray_circle<T: Decide>(
     let along = w.dot(u);
     let offset = w.perp_dot(u);
     let margin = r_sq.sqrt() - offset.abs();
-    match decide("path_carrier_meet", Length::of(margin), band) {
+    match decide("path_carrier_meet", Margin::of(margin), band) {
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero) => {
             return Err(no_corner(PathNoCornerReason::CarriersParallel, radius));
@@ -242,7 +242,7 @@ fn circle_circle<T: Decide>(
         // internally tangent / one inside the other
         (d_len - (r1 - r2).abs(), tangent),
     ] {
-        match decide("path_carrier_meet", Length::of(margin), band) {
+        match decide("path_carrier_meet", Margin::of(margin), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero) => return Err(no_corner(on_zero, radius)),
             Ok(Sign::Negative) => return Err(no_corner(gone, radius)),
@@ -280,7 +280,7 @@ fn advance_gate<T: Decide>(
     band: Band,
 ) -> Result<(), PathError<T>> {
     let (name, margin) = side.travel(side.anchor, corner, "path_corner_advance_arc");
-    match decide(name, Length::of(margin), band) {
+    match decide(name, Margin::of(margin), band) {
         Ok(Sign::Positive) => Ok(()),
         Ok(_) => Err(no_corner(PathNoCornerReason::BehindIncomingRay, radius)),
         Err(source) => Err(PathError::Escalated { source }),
@@ -301,7 +301,7 @@ fn reach_gate<T: Decide>(
     band: Band,
 ) -> Result<(), PathError<T>> {
     let (name, margin) = side.travel(corner, side.anchor, "path_corner_reach_arc");
-    match decide(name, Length::of(margin), band) {
+    match decide(name, Margin::of(margin), band) {
         Ok(Sign::Positive) => Ok(()),
         Ok(_) => Err(no_corner(PathNoCornerReason::BehindArrivalAnchor, radius)),
         Err(source) => Err(PathError::Escalated { source }),
@@ -541,7 +541,7 @@ fn carrier_tangent<T: Decide>(
 ) -> Result<Dir<T>, PathError<T>> {
     let v = p - centre;
     let radius = v.norm_squared().sqrt();
-    match decide("path_arc_center_radius", Length::of(radius), band) {
+    match decide("path_arc_center_radius", Margin::of(radius), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(PathError::DegenerateArcCenter { radius }),
         Err(source) => return Err(PathError::Escalated { source }),
