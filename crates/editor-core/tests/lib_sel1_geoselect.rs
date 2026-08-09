@@ -574,3 +574,121 @@ fn the_geometric_selector_materializes_the_authored_die_composed_selection() {
         "twelve straight + two rim arcs + two meridians is the whole table",
     );
 }
+
+// ------------------------------------------------------------------
+// 6. GS-Q4: a tied name meets geometry as a TRILEAN.
+// ------------------------------------------------------------------
+
+/// The box, with its name table REPLACED by a single tied vertex name
+/// standing for two real entities — the bottom cap corner (on the
+/// datum) and the top cap corner (a metre up).
+///
+/// A tie is the name table's own fact and the emitters mint one only
+/// where two entities are genuinely undiscriminated, so the honest way
+/// to exercise the rule is to install the tie directly
+/// (`insert_tied`, the `m4_pr4_resolve` precedent) over entities whose
+/// GEOMETRY is known to differ. The two candidates then disagree under
+/// a position filter by construction, which is exactly the case §2
+/// says must refuse.
+fn tied_box() -> (
+    editor_core::Evaluation<f64>,
+    RecipeNodeId,
+    RecipeNodeId,
+    editor_core::StableName,
+) {
+    let (doc, cube, datum) = box_doc();
+    let mut ev = eval(&doc);
+    let pick = |v: f64| {
+        select_where(
+            &ev,
+            cube,
+            &all(EntityKind::Vertex),
+            &at(datum, Cmp::Approx, v),
+            &no_params(),
+        )
+        .expect("no candidate is in-band here")[0]
+            .clone()
+    };
+    let (low, high) = (pick(0.0), pick(1.0));
+
+    let (e_low, e_high) = {
+        let value = ev.value(cube).expect("the box evaluated");
+        let ent = |n| match value.name_table.lookup(n) {
+            Some(editor_core::Entry::Unique(e)) => *e,
+            _ => panic!("a corner vertex resolves uniquely before the swap"),
+        };
+        (ent(&low), ent(&high))
+    };
+
+    let mut table = editor_core::NameTable::new();
+    table
+        .insert_tied(low.clone(), vec![e_low, e_high])
+        .expect("two distinct vertex candidates make a tie");
+    match ev.nodes.get_mut(&cube) {
+        Some(editor_core::NodeResult::Ok(v)) => v.name_table = std::sync::Arc::new(table),
+        _ => panic!("the box evaluated"),
+    }
+    (ev, cube, datum, low)
+}
+
+/// **GS-Q4, all three arms.** The filter must evaluate ALL of a tie's
+/// candidates: all match ⇒ the name is included (still tied —
+/// referencing it still refuses downstream as `Ambiguous`, which is
+/// not this door's business); none match ⇒ excluded; **mixed ⇒
+/// refuse**, because a filter cannot half-select a name and silence in
+/// either direction lies about the result set.
+///
+/// Excluding tied names from geometric selection wholesale was the
+/// considered alternative and was rejected as the staleness-shaped sin
+/// (it silently shrinks results); this row is what makes that ruling
+/// executable rather than documented.
+#[test]
+fn a_tied_name_meets_geometry_as_a_trilean() {
+    let (ev, cube, datum, tied) = tied_box();
+    let vertices = all(EntityKind::Vertex);
+    let go = |cmp, v| select_where(&ev, cube, &vertices, &at(datum, cmp, v), &no_params());
+
+    // ALL match — both candidates are less than 5 m from the datum.
+    // The name comes back, and it is still the TIED name.
+    assert_eq!(go(Cmp::Less, 5.0).expect("all match"), vec![tied.clone()]);
+    assert!(matches!(
+        ev.value(cube)
+            .expect("evaluated")
+            .name_table
+            .lookup(&tied),
+        Some(editor_core::Entry::Tied(c)) if c.len() == 2,
+    ));
+
+    // NONE match — neither candidate is beyond 5 m. Excluded, and
+    // excluded is a SUCCESS, not an error.
+    assert!(go(Cmp::Greater, 5.0).expect("none match").is_empty());
+
+    // MIXED — the bottom corner sits ON the datum, the top does not.
+    // The filter refuses, and NAMES the tie it could not resolve.
+    match go(Cmp::Approx, 0.0).expect_err("a mixed tie cannot be half-selected") {
+        SelectRefusal::TiedDisagrees {
+            name,
+            matched,
+            candidates,
+        } => {
+            assert_eq!(*name, tied);
+            assert_eq!((matched, candidates), (1, 2));
+        }
+        other => panic!("expected TiedDisagrees, got {other:?}"),
+    }
+
+    // An EXACT-only filter still answers totally over the same tie:
+    // both candidates are vertices, neither is an edge with a line
+    // carrier, so the name is excluded with no refusal.
+    assert!(
+        select_where(
+            &ev,
+            cube,
+            &vertices,
+            &[GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))],
+            &no_params(),
+        )
+        .expect("exact atoms are total, ties included")
+        .is_empty()
+    );
+}

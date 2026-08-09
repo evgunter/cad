@@ -589,7 +589,11 @@ pub fn select<T: Decide>(
 /// bring (an in-band margin refuses rather than silently including or
 /// excluding; a tied name whose candidates DISAGREE cannot be
 /// half-selected), plus the static faults of a malformed query. A
-/// purely-EXACT `geom` can never produce any of them.
+/// purely-EXACT `geom` produces none of them on a well-formed name
+/// table — the exception being [`SelectRefusal::Unreadable`], which a
+/// table entry pointing outside its node's payload would raise for any
+/// `geom` at all (an emitter invariant violation, reported not
+/// swallowed).
 pub fn select_where<T: Decide>(
     ev: &Evaluation<T>,
     node: RecipeNodeId,

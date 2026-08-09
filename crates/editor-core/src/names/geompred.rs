@@ -325,8 +325,8 @@ pub enum GeomPred {
     /// refusal travels with it: a NURBS face has no canonical frame,
     /// so it REFUSES rather than being silently dropped from the
     /// result. (The corpus demand agrees — the boss-plate's
-    /// hand-written find tests a cylinder carrier's centre `z`, which
-    /// is exactly this point.)
+    /// hand-written find tests a CIRCLE edge carrier's centre `z`,
+    /// which is exactly this point.)
     DatumDistance {
         /// The datum node measured against.
         datum: RecipeNodeId,
@@ -349,9 +349,15 @@ pub enum GeomPred {
 /// half-selected. Both are refusals here rather than filter outcomes,
 /// because silence in either direction lies about the result set.
 ///
-/// A purely-EXACT filter can never produce any of these: exact atoms
-/// are total. One door with one contract was preferred over splitting
-/// into an infallible and a fallible materializer.
+/// A purely-EXACT filter produces none of these on a well-formed name
+/// table: the exact atoms are total, so [`InBand`](Self::InBand) and
+/// [`TiedDisagrees`](Self::TiedDisagrees) are unreachable without a
+/// decided atom. The one residual is [`Unreadable`](Self::Unreadable),
+/// which `select_where` raises if a table entry points at a body index
+/// its node's payload does not have — an emitter invariant violation
+/// rather than a query outcome, and reported rather than swallowed.
+/// One door with one contract was preferred over splitting into an
+/// infallible and a fallible materializer.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum SelectRefusal {
