@@ -11,7 +11,7 @@
 //! is a transparent f64 wrapper; its arithmetic delegates verbatim),
 //! so every oracle asserted at f64 holds bit-identically at Probe.
 
-use pncad::editor_core::ContentBits;
+use pncad::document::ContentBits;
 use pncad::geom_core::{Bounds, Decide, Probe};
 
 /// A scalar the tour can build scenes at: kernel-decidable, document-
