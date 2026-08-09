@@ -261,26 +261,25 @@ fn pair_verdict<T: Decide>(
     let total = ca.len() * cb.len();
     for &(ba, fa) in ca {
         for &(bb, fb) in cb {
-            match probe(ba, fa, bb, fb, band).map_err(|source| SelectRefusal::PairInBand {
-                pair: Box::new((na.clone(), nb.clone())),
-                predicate: source.predicate.unwrap_or("oriented_plane_eq"),
-                source,
-            })? {
-                Some((rel, rung)) => {
-                    matched += 1;
-                    all_shared_source &= rung == FlushRung::SharedSource;
-                    match relation {
-                        None => relation = Some(rel),
-                        // Tied candidates flush with OPPOSITE
-                        // orientations: no single definite finding
-                        // exists — the mixed-tie refusal (GS-Q4).
-                        Some(prev) if prev != rel => {
-                            return Err(tied_disagrees(na, ca, nb, matched, total));
-                        }
-                        Some(_) => {}
+            let verdict =
+                probe(ba, fa, bb, fb, band).map_err(|source| SelectRefusal::PairInBand {
+                    pair: Box::new((na.clone(), nb.clone())),
+                    predicate: source.predicate.unwrap_or("oriented_plane_eq"),
+                    source,
+                })?;
+            if let Some((rel, rung)) = verdict {
+                matched += 1;
+                all_shared_source &= rung == FlushRung::SharedSource;
+                match relation {
+                    None => relation = Some(rel),
+                    // Tied candidates flush with OPPOSITE orientations:
+                    // no single definite finding exists — the mixed-tie
+                    // refusal (GS-Q4).
+                    Some(prev) if prev != rel => {
+                        return Err(tied_disagrees(na, ca, nb, matched, total));
                     }
+                    Some(_) => {}
                 }
-                None => {}
             }
         }
     }

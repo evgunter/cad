@@ -375,13 +375,87 @@
 //! ));
 //! ```
 
+//! # Detect / declare: flush contact as a conversation (LIB-SEL2)
+//!
+//! Two bodies that touch face-to-face do not silently glue — the
+//! boolean REFUSES an undeclared coincidence (F6), and the recourse
+//! menu has exactly two arms: declare the contact, or move the
+//! geometry. This is the declare arm's protocol (SELECT-DESIGN §3):
+//! [`find_flush_candidates`] REPORTS the flush pairs as
+//! [`FlushFinding`] values — the C4 verifier itself run in
+//! candidate-generation mode, so a finding can never disagree with
+//! the boolean's own verify-at-use — and [`declare`] /
+//! [`declare_all`] turn findings the caller has INSPECTED into the
+//! shipped `Node::Declare` vocabulary. Detection and declaration are
+//! separate doors on purpose (the ruled no-fusion boundary): findings
+//! pass through your hands as values, never straight into a recipe.
+//!
+//! ```
+//! use pncad::prelude::*;
+//! use pncad::document::{BooleanOp, BooleanValue, NodeErrorKind, NodeResult};
+//!
+//! let mut insert = |doc: &Doc<ProfileDesc>, node| {
+//!     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
+//!     (applied.doc, applied.record.minted.expect("a minted id"))
+//! };
+//! let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+//! let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, z: f64| {
+//!     ProfileDesc(Profile::new(
+//!         SketchPlane::from_frame(p3(0.0, 0.0, z), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0)),
+//!         vec![polygon(&[(x0, y0), (x1, y0), (x1, y1), (x0, y1)])],
+//!     ))
+//! };
+//!
+//! // A unit box, and a smaller box RESTING on its top cap.
+//! let doc = Doc::<ProfileDesc>::empty();
+//! let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0, 0.0)));
+//! let (doc, base) = insert(&doc, Node::Extrude { profile: pf1, distance: len(1.0) });
+//! let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, 1.0)));
+//! let (doc, block) = insert(&doc, Node::Extrude { profile: pf2, distance: len(0.5) });
+//!
+//! // Undeclared, the union refuses — coincidence is never inferred
+//! // from values (the coincidence ladder's F6 rung).
+//! let (undeclared, uni) = insert(
+//!     &doc,
+//!     Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: None },
+//! );
+//! let ev = evaluate::<f64>(&undeclared, None, &CancelToken::new(), &EvalOptions::default());
+//! let Some(NodeResult::Failed(e)) = ev.nodes.get(&uni) else {
+//!     panic!("the undeclared union must refuse");
+//! };
+//! assert!(matches!(
+//!     e.kind,
+//!     NodeErrorKind::Boolean(BooleanError::UndeclaredCoincidence { .. })
+//! ));
+//!
+//! // The declare arm: detect, INSPECT, declare, and the SAME doors
+//! // that refused now verify the declared contact.
+//! let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+//! let findings = find_flush_candidates(&ev, base, block).expect("definite findings");
+//! assert_eq!(findings.len(), 1);
+//! assert_eq!(findings[0].class, ContactClass::Rest);
+//! let (doc, decl) = declare_all(&doc, &findings).expect("declarable");
+//! let (doc, uni) = insert(
+//!     &doc,
+//!     Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: Some(decl) },
+//! );
+//! let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+//! let ValuePayload::Boolean(BooleanValue::Body { body, .. }) =
+//!     &ev.value(uni).expect("the declared union evaluates").payload
+//! else {
+//!     panic!("expected a body");
+//! };
+//! assert_eq!(mass_properties(body).expect("mass").volume, 1.125);
+//! ```
+
 pub use editor_core::{
-    ALL_SURFACE_KINDS, CapEnd, Cmp, CurveKind, CurveKindSet, Denotation, EntityKind, GeomPred,
-    InterrogateError, MeridianEnd, NamePat, NameTable, OpGroup, ProfileEdgeRef, ProfileVertexRef,
-    RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector,
-    Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    denotation, edge_frame, edge_name, face_frame, face_name, select, select_where,
-    vertex_position,
+    ALL_SURFACE_KINDS, CapEnd, Cmp, ContactClass, CurveKind, CurveKindSet, DeclareError,
+    Denotation, EntityKind, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError,
+    MeridianEnd, NamePat, NameTable, OpGroup, ProfileEdgeRef, ProfileVertexRef, RimSupport,
+    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
+    SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, declare,
+    declare_all, declare_node, denotation, edge_frame, edge_name, face_frame, face_name,
+    find_flush_candidates, select, select_where, vertex_position,
 };
 /// The frame type the geometry doors answer with, and its refusal —
 /// re-exported from the kernel's read-back module so a façade user

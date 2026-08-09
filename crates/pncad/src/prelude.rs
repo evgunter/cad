@@ -78,11 +78,14 @@ pub use sweep::{
 // matches on a curved-Boolean refusal needs it in the same breath as
 // the error itself (see `crate::closure`).
 pub use geom_brep::SurfaceKind;
+// `PlaneRelation` rides here since LIB-SEL2: it is the verdict a
+// `FlushFinding`'s evidence carries (SameOpposite = resting contact,
+// SameOriented = flush walls), so code inspecting findings names it.
 pub use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
-    BooleanResultKind, ContactRecords, Curve3, EdgeGeometry, EdgeKey, FaceKey, Operand, Surface,
-    TransformError, VertexKey, intersect, intersect_with, subtract, subtract_with, transform_rigid,
-    union, union_with,
+    BooleanResultKind, ContactRecords, Curve3, EdgeGeometry, EdgeKey, FaceKey, Operand,
+    PlaneRelation, Surface, TransformError, VertexKey, intersect, intersect_with, subtract,
+    subtract_with, transform_rigid, union, union_with,
 };
 
 // --- 5. The validation ladder ---------------------------------
@@ -120,11 +123,15 @@ pub use editor_core::StableName;
 // away, so a prelude user could hold the type and do nothing with it.
 // These are that door, curated as one group in `crate::select` (whose
 // module docs carry the worked examples).
+// The LIB-SEL2 detect/declare protocol rides in this group too: the
+// findings vocabulary, the detector, and the declare sugar (the
+// worked example is in `crate::select`'s module docs).
 pub use crate::select::{
-    ALL_SURFACE_KINDS, CapEnd, Cmp, CurveKind, CurveKindSet, Denotation, EntityKind, GeomPred,
-    InterrogateError, MeridianEnd, NamePat, NameTable, OpGroup, Pose, ProfileEdgeRef,
-    ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat,
-    SegTag, SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies,
-    all_edges, all_faces, all_vertices, denotation, edge_frame, edge_name, face_frame, face_name,
-    select, select_where, vertex_position,
+    ALL_SURFACE_KINDS, CapEnd, Cmp, ContactClass, CurveKind, CurveKindSet, DeclareError,
+    Denotation, EntityKind, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError,
+    MeridianEnd, NamePat, NameTable, OpGroup, Pose, ProfileEdgeRef, ProfileVertexRef,
+    ReadbackError, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag,
+    SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges,
+    all_faces, all_vertices, declare, declare_all, declare_node, denotation, edge_frame, edge_name,
+    face_frame, face_name, find_flush_candidates, select, select_where, vertex_position,
 };
