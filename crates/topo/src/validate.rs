@@ -1667,7 +1667,15 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
             continue;
         };
-        if let Err(error) = curve.recertify(p_start, p_end, |k| body.surfaces.get(k).cloned(), band)
+        // The at-rest pass takes the plane × NURBS DOOR (M7-8): this
+        // tier already requires a bracket-carrying scalar
+        // (`PropsQuadLane`), so the lane that certifies a described
+        // NURBS operand is available here — and an imported body of
+        // that class must re-derive its certificate at rest exactly as
+        // it did at attach time. Re-certification re-derives; it never
+        // trusts the stored certificate.
+        if let Err(error) =
+            curve.recertify_nurbs_lane(p_start, p_end, |k| body.surfaces.get(k).cloned(), band)
         {
             errors.push(ValidationError::EdgeCertification {
                 edge: edge_key,

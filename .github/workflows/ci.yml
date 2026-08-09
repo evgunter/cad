@@ -214,6 +214,14 @@ jobs:
       # (certified) from `Dual` (typed refusal, no bracket to offer).
       # `ssi/enclose.rs` is deliberately absent — it decides nothing, so
       # it takes the sole-bound `T: Bounds` the rule allows everywhere.
+      # geom-brep/src/edge_nurbs.rs is M7-8's plane × NURBS edge lane,
+      # the narrowest possible extension of that same seam: it DELEGATES
+      # to the already-listed `certify_rung3` door with a declared
+      # carrier instead of a marched one, inheriting the door's
+      # signature rather than widening anything. Its split is written in
+      # the same shape — `EdgeNurbsLane` splits f64/Probe/Interval
+      # (certified) from `Dual` (typed refusal) — and it is what keeps
+      # `Bounds` out of `topo`'s signatures.
       # Sole-bound `T: Bounds`
       # (certification/driver code) is untouched by this check. A NEW
       # file writing a compound Bounds bound fails here until it is
@@ -239,7 +247,7 @@ jobs:
             | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
             | grep -vE '^crates/profile/src/sugar\.rs$' \
             | grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
-            | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify)\.rs$' \
+            | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
             | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' || true)
           if [ -n "$hits" ]; then
             echo "$hits"

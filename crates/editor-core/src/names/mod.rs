@@ -24,6 +24,7 @@ mod emit;
 mod emit_fillet;
 mod emit_sweep;
 mod emit_topo;
+mod geompred;
 mod interrogate;
 mod role;
 mod select;
@@ -34,6 +35,10 @@ pub(crate) use emit::{empty, name_pattern};
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
+pub use geompred::{
+    ALL_SURFACE_KINDS, Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal,
+    SurfaceKindSet,
+};
 pub use interrogate::{
     Denotation, InterrogateError, denotation, edge_frame, face_frame, vertex_position,
 };
@@ -41,7 +46,7 @@ pub use role::{
     CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport,
     RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,
 };
-pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select};
+pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{EntityKey, EntityRef, Entry, NameTable};
 
 /// **Every edge name of a node's output body, as of THIS evaluation**

@@ -57,6 +57,7 @@ dependencies = [
 name = "editor-core"
 version = "0.0.0"
 dependencies = [
+ "geom-brep",
  "geom-core",
  "geom-surfaces",
  "profile",
