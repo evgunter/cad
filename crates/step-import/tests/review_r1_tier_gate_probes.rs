@@ -91,8 +91,10 @@ fn multi_cube(doctors: &[(u64, &dyn Fn(&str) -> String)]) -> String {
                 }
             }
             Some(160) => {
-                let breps: Vec<String> =
-                    doctors.iter().map(|(o, _)| format!("#{}", 150 + o)).collect();
+                let breps: Vec<String> = doctors
+                    .iter()
+                    .map(|(o, _)| format!("#{}", 150 + o))
+                    .collect();
                 trailer.push(format!(
                     "#160 = ADVANCED_BREP_SHAPE_REPRESENTATION('', (#154, {}), #159);",
                     breps.join(", ")
@@ -212,9 +214,7 @@ fn perturb_corner_consistently(src: &str, delta: f64) -> String {
     // 1. Move every CARTESIAN_POINT at (0,1,1).
     let mut moved_points: Vec<u64> = Vec::new();
     for (&id, body) in ent.clone().iter() {
-        if body.starts_with("CARTESIAN_POINT")
-            && parse_triple(body) == Some([0.0, 1.0, 1.0])
-        {
+        if body.starts_with("CARTESIAN_POINT") && parse_triple(body) == Some([0.0, 1.0, 1.0]) {
             ent.insert(id, fmt_triple("CARTESIAN_POINT", [0.0, 1.0, 1.0 + delta]));
             moved_points.push(id);
         }
@@ -273,9 +273,13 @@ fn perturb_corner_consistently(src: &str, delta: f64) -> String {
 #[test]
 fn r1_in_band_vertex_defect_refuses_loudly_at_adoption() {
     let src = fixture("../step-export/tests/fixtures/cube.step");
-    for (delta, want_escalated) in
-        [(2e-9, true), (4e-9, true), (8e-9, true), (1.5e-8, false), (3e-8, false)]
-    {
+    for (delta, want_escalated) in [
+        (2e-9, true),
+        (4e-9, true),
+        (8e-9, true),
+        (1.5e-8, false),
+        (3e-8, false),
+    ] {
         let doctored = perturb_corner_consistently(&src, delta);
         match import_step(&doctored, &ImportOptions { eps_in: Some(1e-6) }) {
             Ok(shipped) => panic!("delta {delta:e}: SHIPPED silently: {shipped:?}"),
@@ -317,7 +321,10 @@ fn sliver_wedge_step(alpha: f64, leg: f64, h: f64) -> String {
     };
     // -- vertices (6)
     let mut mk_v = |x: f64, y: f64, z: f64, e: &mut Vec<String>| {
-        let p = emit(format!("CARTESIAN_POINT('', ({x:.17e}, {y:.17e}, {z:.17e}));"), e);
+        let p = emit(
+            format!("CARTESIAN_POINT('', ({x:.17e}, {y:.17e}, {z:.17e}));"),
+            e,
+        );
         emit(format!("VERTEX_POINT('', #{p});"), e)
     };
     let a0 = mk_v(0.0, 0.0, 0.0, &mut e);
@@ -327,23 +334,23 @@ fn sliver_wedge_step(alpha: f64, leg: f64, h: f64) -> String {
     let b1 = mk_v(leg, 0.0, h, &mut e);
     let c1 = mk_v(cxx, cyy, h, &mut e);
     // -- an edge: line through `p` with direction `d`, between v1 -> v2
-    let mut mk_edge = |v1: u64,
-                       v2: u64,
-                       p: (f64, f64, f64),
-                       d: (f64, f64, f64),
-                       e: &mut Vec<String>| {
-        let orig = emit(
-            format!("CARTESIAN_POINT('', ({:.17e}, {:.17e}, {:.17e}));", p.0, p.1, p.2),
-            e,
-        );
-        let dir = emit(
-            format!("DIRECTION('', ({:.17e}, {:.17e}, {:.17e}));", d.0, d.1, d.2),
-            e,
-        );
-        let vec = emit(format!("VECTOR('', #{dir}, 1.0);"), e);
-        let line = emit(format!("LINE('', #{orig}, #{vec});"), e);
-        emit(format!("EDGE_CURVE('', #{v1}, #{v2}, #{line}, .T.);"), e)
-    };
+    let mut mk_edge =
+        |v1: u64, v2: u64, p: (f64, f64, f64), d: (f64, f64, f64), e: &mut Vec<String>| {
+            let orig = emit(
+                format!(
+                    "CARTESIAN_POINT('', ({:.17e}, {:.17e}, {:.17e}));",
+                    p.0, p.1, p.2
+                ),
+                e,
+            );
+            let dir = emit(
+                format!("DIRECTION('', ({:.17e}, {:.17e}, {:.17e}));", d.0, d.1, d.2),
+                e,
+            );
+            let vec = emit(format!("VECTOR('', #{dir}, 1.0);"), e);
+            let line = emit(format!("LINE('', #{orig}, #{vec});"), e);
+            emit(format!("EDGE_CURVE('', #{v1}, #{v2}, #{line}, .T.);"), e)
+        };
     let ab = mk_edge(a0, b0, (0.0, 0.0, 0.0), (1.0, 0.0, 0.0), &mut e);
     let bc = mk_edge(b0, c0, (leg, 0.0, 0.0), (bcx, bcy, 0.0), &mut e);
     let ca = mk_edge(c0, a0, (cxx, cyy, 0.0), (cax, cay, 0.0), &mut e);
@@ -360,15 +367,24 @@ fn sliver_wedge_step(alpha: f64, leg: f64, h: f64) -> String {
                        refd: (f64, f64, f64),
                        e: &mut Vec<String>| {
         let po = emit(
-            format!("CARTESIAN_POINT('', ({:.17e}, {:.17e}, {:.17e}));", o.0, o.1, o.2),
+            format!(
+                "CARTESIAN_POINT('', ({:.17e}, {:.17e}, {:.17e}));",
+                o.0, o.1, o.2
+            ),
             e,
         );
         let dn = emit(
-            format!("DIRECTION('', ({:.17e}, {:.17e}, {:.17e}));", nrm.0, nrm.1, nrm.2),
+            format!(
+                "DIRECTION('', ({:.17e}, {:.17e}, {:.17e}));",
+                nrm.0, nrm.1, nrm.2
+            ),
             e,
         );
         let dr = emit(
-            format!("DIRECTION('', ({:.17e}, {:.17e}, {:.17e}));", refd.0, refd.1, refd.2),
+            format!(
+                "DIRECTION('', ({:.17e}, {:.17e}, {:.17e}));",
+                refd.0, refd.1, refd.2
+            ),
             e,
         );
         let ax = emit(format!("AXIS2_PLACEMENT_3D('', #{po}, #{dn}, #{dr});"), e);
@@ -377,7 +393,10 @@ fn sliver_wedge_step(alpha: f64, leg: f64, h: f64) -> String {
             .iter()
             .map(|&(edge, fwd)| {
                 let flag = if fwd { ".T." } else { ".F." };
-                format!("#{}", emit(format!("ORIENTED_EDGE('', *, *, #{edge}, {flag});"), e))
+                format!(
+                    "#{}",
+                    emit(format!("ORIENTED_EDGE('', *, *, #{edge}, {flag});"), e)
+                )
             })
             .collect();
         let lp = emit(format!("EDGE_LOOP('', ({}));", oe.join(", ")), e);
@@ -434,7 +453,10 @@ fn sliver_wedge_step(alpha: f64, leg: f64, h: f64) -> String {
     let z = emit("DIRECTION('', (0.0, 0.0, 1.0));".into(), &mut e);
     let x = emit("DIRECTION('', (1.0, 0.0, 0.0));".into(), &mut e);
     let ax = emit(format!("AXIS2_PLACEMENT_3D('', #{o}, #{z}, #{x});"), &mut e);
-    let lu = emit("( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($, .METRE.) );".into(), &mut e);
+    let lu = emit(
+        "( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($, .METRE.) );".into(),
+        &mut e,
+    );
     let au = emit(
         "( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($, .RADIAN.) );".into(),
         &mut e,
@@ -523,7 +545,11 @@ fn r1_finding_kiss_assembly_would_refuse_under_3prime_empty() {
     else {
         panic!("kiss_assembly must import as a solid");
     };
-    assert_eq!(topo::validate_geometric(&body), Ok(()), "tier 3 passes (the shipped gate)");
+    assert_eq!(
+        topo::validate_geometric(&body),
+        Ok(()),
+        "tier 3 passes (the shipped gate)"
+    );
     let empty = topo::ContactRecords::default();
     let errors = topo::validate_pseudomanifold(&body, &empty)
         .expect_err("3'(empty) refuses the touching assembly");
@@ -550,6 +576,10 @@ fn r1_import_is_deterministic_for_a_gated_body() {
         else {
             panic!("{rel}: expected solids");
         };
-        assert_eq!(format!("{ba:?}"), format!("{bb:?}"), "{rel}: import not deterministic");
+        assert_eq!(
+            format!("{ba:?}"),
+            format!("{bb:?}"),
+            "{rel}: import not deterministic"
+        );
     }
 }
