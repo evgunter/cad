@@ -199,6 +199,13 @@ pub fn pipped<S: Scalar>() -> Body<S> {
 
 /// The composed die: pips first (one group cut), then the twelve box
 /// edges in place, then all 21 rims as closed chains in one call.
+///
+/// The two filters below stay GEOMETRIC (carrier kind; the adjacent
+/// surface-kind pair standing in for "concave rim") and stay written
+/// against the kernel body: LIB-U7's selectors are STRUCTURAL only,
+/// and a geometric selector predicate is a decided predicate needing
+/// its own margins-and-recorded-verdicts design — deferred to a
+/// designed follow-up (LIB-LOG LB7; `pncad::select` module docs).
 pub fn composed<S: Scalar>() -> Body<S> {
     let pipped = pipped::<S>();
     let box_edges: Vec<_> = pipped

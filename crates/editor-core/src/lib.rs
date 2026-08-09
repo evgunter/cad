@@ -48,9 +48,10 @@ pub use expr::{
 };
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
-    CapEnd, EntityKey, EntityKind, EntityRef, Entry, MeridianEnd, NameTable, NamingError,
-    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SideVerdict,
-    SplitHalf, StableName, all_edges,
+    CapEnd, EntityKey, EntityKind, EntityRef, Entry, MeridianEnd, NamePat, NameTable, NamingError,
+    OpGroup, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SegPat,
+    SegTag, Selector, Side, SideVerdict, SplitHalf, StableName, TagPat, all_bodies, all_edges,
+    all_faces, all_vertices, select,
 };
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
 pub use parse::{ParseError, parse_expr};
