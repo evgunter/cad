@@ -159,3 +159,12 @@ claim (the "without any restrictions" sentence is quoted verbatim on the live
 page), the CadQuery Apache-2.0 claim, the build123d Apache-2.0 claim, or the
 STEPcode BSD-3 claim *as a description of STEPcode's own license*. No upstream
 has vanished; all 13 files' sources resolve today.
+
+**Post-audit note (2026-08-09, the STEP-bank hunt's flag, resolved):**
+GitHub's API reports CadQuery's repo license as NOASSERTION. Verified
+against the LICENSE file directly: it states Apache-2.0 in prose with
+a custom preamble ("free software … under the terms of the Apache
+Public License, v 2.0"), which GitHub's automated classifier cannot
+parse but which is an unambiguous grant. The audit's Apache-2.0
+verdict for `cq_red_cube_blue_cylinder.step` stands. Recorded so the
+next audit does not re-flag the classifier artifact.
