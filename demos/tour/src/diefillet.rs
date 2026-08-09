@@ -89,7 +89,8 @@ fn ball<S: Scalar>(c: Vec3<S>, pole: Vec3<S>) -> Body<S> {
         .arc_to(p2(0.0, PIP_R), S::from_f64(1.0))
         .expect("pip arc leg")
         .line_to(Start)
-        .expect("pip seam");
+        .expect("pip seam")
+        .into();
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .unwrap();
