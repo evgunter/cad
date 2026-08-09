@@ -26,12 +26,20 @@ use crate::profile_desc::ProfileDesc;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) enum WireExpr {
-    /// A continuous literal with its dimension.
+    /// A continuous literal with its dimension and (optionally) the
+    /// display unit it was authored in (LIB-SWITCH §4g — presentation
+    /// metadata; the value stays canonical meters/radians).
     Literal {
-        /// The exact value (D2: bit-exact round-trip).
+        /// The exact value (D2: bit-exact round-trip), canonical units.
         value: f64,
         /// The literal's dimension.
         dim: Dimension,
+        /// The display-unit symbol (quantity's closed table), absent
+        /// for canonically-authored literals. Optional ON THE WIRE
+        /// (`deny_unknown_fields` kept — absence is legal, an unknown
+        /// FIELD still refuses); an unknown SYMBOL refuses at rebuild.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        unit: Option<String>,
     },
     /// An exact integer Count literal.
     Count(i64),
@@ -72,9 +80,10 @@ impl From<&Expr> for WireExpr {
     fn from(e: &Expr) -> Self {
         let b = |x: &Expr| Box::new(WireExpr::from(x));
         match e.kind() {
-            ExprKind::Literal(v) => WireExpr::Literal {
-                value: *v,
+            ExprKind::Literal(lit) => WireExpr::Literal {
+                value: lit.value,
                 dim: e.dim(),
+                unit: lit.display_unit.map(|u| u.symbol.to_string()),
             },
             ExprKind::CountLiteral(v) => WireExpr::Count(*v),
             ExprKind::Param(name) => WireExpr::Param {
@@ -103,7 +112,19 @@ impl WireExpr {
     pub(crate) fn rebuild(&self) -> Result<Expr, crate::expr::DimensionError> {
         let b = |x: &WireExpr| x.rebuild();
         match self {
-            WireExpr::Literal { value, dim } => Expr::literal(*value, *dim),
+            WireExpr::Literal { value, dim, unit } => match unit {
+                None => Expr::literal(*value, *dim),
+                // Strict door: the symbol must be in quantity's closed
+                // table and its quantity must match the dimension —
+                // both re-checked by the same constructor authoring
+                // uses (never a field-by-field trust).
+                Some(symbol) => match quantity::unit_by_symbol(symbol) {
+                    None => Err(crate::expr::DimensionError::UnknownDisplayUnit {
+                        symbol: symbol.clone(),
+                    }),
+                    Some(u) => Expr::literal_with_unit(*value, *dim, u),
+                },
+            },
             WireExpr::Count(v) => Ok(Expr::count(*v)),
             WireExpr::Param { name, dim } => Ok(Expr::param(name.clone(), *dim)),
             WireExpr::Add(x, y) => Expr::add(b(x)?, b(y)?),

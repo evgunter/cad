@@ -142,6 +142,8 @@ mod review_m5_pr1_e2e_interval;
 mod review_m5_pr9_doc_probe;
 #[path = "review_m6_5_pr2_probes.rs"]
 mod review_m6_5_pr2_probes;
+#[path = "switch_display_units.rs"]
+mod switch_display_units;
 #[path = "u8a_parse.rs"]
 mod u8a_parse;
 
