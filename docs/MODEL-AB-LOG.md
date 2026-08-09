@@ -381,6 +381,16 @@ difficulty logged PRE-DISPATCH = **S**. Arm = OPUS (the slot-2
 remainder); orchestrator-review class expected (render infra, GUARD
 precedent) — if so the row is EXCLUDED like GUARD/KLINT-GATE.
 
+Block M7-11 (2026-08-09) — triple: difficulty logged PRE-DRAW for
+slot 0: the tier-at-import unit (M7-7 — every imported solid through
+the SHARED at-rest gate per the #260 (a) ruling; band_backstop
+dissolves into it; per-fixture tier dispositions on the whole
+corpus) = **M**. Draw follows this entry. DRAWN: byte 122 (no
+rejection), 122 mod 3 = 2 → block M7-11 arm order (opus, opus,
+fable) — M7-7 (slot 0) gets OPUS; slot 1 opus, slot 2 fable
+banked for the next M7-eligible dispatches (the plane×NURBS lane
+is the expected slot-1 consumer).
+
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
 Block LIB-1 draw (2026-08-06): byte 13 → (opus, fable).
