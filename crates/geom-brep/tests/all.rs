@@ -48,6 +48,8 @@ mod m7_8_plane_nurbs_edge;
 mod pcurve_conic;
 #[path = "pcurve_parameter_finding.rs"]
 mod pcurve_parameter_finding;
+#[path = "r1_pxn_probes.rs"]
+mod r1_pxn_probes;
 #[path = "review_flux_probes_r1.rs"]
 mod review_flux_probes_r1;
 #[path = "review_m2_pr3_certify.rs"]
