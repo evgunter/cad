@@ -416,7 +416,10 @@ type Applying<T> = Result<Applied<T>, ReplayErrorKind<T>>;
 // still names ONE binder — the one well-typed at that (state, verb,
 // target-kind).
 
-fn do_line_to<T: Decide, F: Flavor>(p: PartialPath<T, HasPos<F>, NoAng>, t: Target<T>) -> Applying<T> {
+fn do_line_to<T: Decide, F: Flavor>(
+    p: PartialPath<T, HasPos<F>, NoAng>,
+    t: Target<T>,
+) -> Applying<T> {
     match t {
         Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.line_to(q)?))),
         Target::Start => Ok(Applied::Closed(p.line_to(Start)?.loop_)),
@@ -455,9 +458,7 @@ fn do_arc_center<T: Decide, F: Flavor>(
         Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(
             p.arc_center(centre, q, winding)?,
         ))),
-        Target::Start => Ok(Applied::Closed(
-            p.arc_center(centre, Start, winding)?.loop_,
-        )),
+        Target::Start => Ok(Applied::Closed(p.arc_center(centre, Start, winding)?.loop_)),
     }
 }
 

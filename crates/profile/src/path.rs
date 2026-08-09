@@ -293,12 +293,12 @@ use core::marker::PhantomData;
 use geom_core::{Band, Decide, Indeterminate, Length, Point2, Real, Sign, Tolerance, Vec2};
 
 use crate::k_stats::decide;
+use crate::path::program::{ClosedLoop, Step, Target};
 use crate::sugar::{
     ArcSweep, LineFilletTrims, TrimRefusal, bulge_from_center, bulge_from_via,
     line_line_fillet_trims,
 };
 use crate::validate::{FilletLeg, FilletLegCarrier, NoCornerReason};
-use crate::path::program::{ClosedLoop, Step, Target};
 use crate::{ProfileLoop, ProfileVertex};
 
 /// The arc-carrier fillet boundary — the algebra's derived-corner

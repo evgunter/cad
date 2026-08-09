@@ -58,12 +58,12 @@
 
 use geom_core::{Band, Bounds, Decide, Length, Point2, Real, Sign, Tolerance, Vec2};
 
+use super::program::{ClosedLoop, Step};
 use super::{
     ArcData, Core, Dir, FirstSeg, HasAng, HasPos, Incoming, NoAng, NoPos, Open, PartialPath,
     PathError, PathNoCornerReason, PendingFillet, Plain, PosData, Start, Tip, in_state,
     junction_check, linear_band,
 };
-use super::program::{ClosedLoop, Step};
 use crate::fillet_select::nearest_joint;
 use crate::k_stats::decide;
 use crate::sugar::bulge_from_center;
