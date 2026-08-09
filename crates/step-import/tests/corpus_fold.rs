@@ -1,123 +1,132 @@
-//! **The #210 corpus fold's own acceptance row: committed-byte
-//! identity, measured and classified, for the two fixtures the
-//! widened exportable class brought in.**
+//! **The #210 corpus fold's acceptance row, RE-STATED at M7-6 per the
+//! #256 ruling.**
 //!
-//! `roundtrip.rs` already runs `nonuniform_loft` and `swept_elbow`
-//! through rows 1 and 2 with every other fixture — census and certified
-//! volume against `KERNEL_*`, the tier ladder, and the fixed point
-//! (second export byte-identical to the first). What it only *reports*
-//! is the comparison of the FIRST re-export against the committed
-//! bytes, because entity numbering and traversal may legitimately
-//! differ.
+//! The original row asserted first-re-export byte alignment against
+//! the committed bytes for `nonuniform_loft` and `swept_elbow`, with
+//! two named token-divergence classes (`-0.0` hygiene, the
+//! uncertainty record off-ε). Since D7 stage-1 always-promote, each
+//! fixture's two exactly-planar spline walls (plane residuals ~1e-16,
+//! far inside ε_in = 1e-9) import as PLANES, and the first re-export
+//! states them analytically — a STRUCTURAL divergence the ruling
+//! ACCEPTS and re-pins:
 //!
-//! This suite makes that measurement an assertion for the two new
-//! fixtures, in the shape M7-3 established for `loft_prism`
-//! (`review_probes_m7_3.rs`'s V5 probe): the token streams must stay
-//! ALIGNED, and every divergent pair must fall in a NAMED class. Two
-//! classes are named:
+//! * **enumerated promotions**: exactly which faces promoted, to
+//!   which kind, with their certified residuals — asserted here, so
+//!   the class cannot quietly grow or drift;
+//! * **the promoted one-cycle fixed point**: the first re-export
+//!   re-imports and re-exports byte-identically; and
+//! * **censuses and certified volumes equal across the promotion** —
+//!   `roundtrip.rs` executes both halves corpus-wide
+//!   (`committed_corpus`: census + volume against the NATIVE
+//!   `KERNEL_*` sidecar; `fixed_point`: census equality and
+//!   bit-identical volume across the re-export cycle), so this suite
+//!   pins the divergence SHAPE: the surface-record census moves by
+//!   exactly the promotion (2 planes → 4, 4 spline walls → 2) and
+//!   nothing else in the vocabulary.
 //!
-//! * `-0.0 → 0.0` — the documented `plus_zero` parse-hygiene idiom
-//!   (`geometry.rs`): STEP's `-0.` and `0.` are distinct tokens but
-//!   the same direction, and the importer normalizes. The fixed point
-//!   holds from the first re-export on, which is what makes this a
-//!   hygiene class and not a drift.
-//! * the uncertainty record, and ONLY when the ambient ε differs from
-//!   the 1e-9 the fixtures were written at (the CI matrix's 1e-6 /
-//!   1e-12 rows).
-//!
-//! Anything else fails here by name. That is the point of the row: a
-//! new corpus body is exactly where a new divergence class would first
-//! appear, and it must not appear silently.
+//! Byte-identity stays the pin for every fixture promotion does not
+//! touch (`roundtrip.rs` reports it; the untouched corpus still
+//! round-trips byte-golden — see `fixed_point`'s measured rows).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
 
 use common::{fixture, import_body};
+use step_import::{NormalizationKind, PromotedKind};
 
-/// The two fixtures the #210 fold added, and their measured `-0.0`
-/// token counts against the committed bytes at the corpus's ε.
-///
-/// The counts are DERIVED, not chosen: a `-0.0` component reaches the
-/// file wherever the writer's frame construction produced a negated
-/// zero, and the importer's `plus_zero` normalizes each one on the way
-/// in. Pinning the number keeps the class from quietly growing.
-const FOLD_FIXTURES: [(&str, usize); 2] = [("nonuniform_loft", 3), ("swept_elbow", 3)];
+/// One fold fixture's promotion pin: the fixture name, its two
+/// promoted faces with their kinds, and the residual ceiling both
+/// certify under.
+type FixturePromotionRow = (&'static str, [(u64, PromotedKind); 2], f64);
 
-/// Is this divergent token pair the `plus_zero` class, EXACTLY?
-///
-/// The numeral must be `-0.0` on the committed side and `0.0` on the
-/// re-exported side — matched whole, after splitting off the Part 21
-/// punctuation that closes the enclosing list (`,`, `)`, `;`), which
-/// must itself be unchanged. A substring test would have been exact on
-/// today's corpus (all six divergent tokens are bare `-0.0` plus
-/// punctuation) and would silently absorb a future `-0.05` at a
-/// divergent position — the class-laundering this suite exists to
-/// forbid, one level down.
-fn is_plus_zero(committed: &str, reexported: &str) -> bool {
-    let split = |t: &str| -> (String, String) {
-        let numeral = t.trim_end_matches([',', ')', ';']);
-        (numeral.to_owned(), t[numeral.len()..].to_owned())
-    };
-    let (x, x_tail) = split(committed);
-    let (y, y_tail) = split(reexported);
-    x == "-0.0" && y == "0.0" && x_tail == y_tail
-}
+/// The fold fixtures and their measured promotions: (face, kind) with
+/// the residual ceiling. The residuals are the walls' true distance
+/// from their planes as the loft builder left them (~1e-16 m — exact
+/// up to f64 rounding of the section arithmetic), pinned by ceiling
+/// rather than by bits so an unrelated last-bit wiggle in the builder
+/// does not break the corpus row.
+const FOLD_PROMOTIONS: [FixturePromotionRow; 2] = [
+    (
+        "nonuniform_loft",
+        [(104, PromotedKind::Plane), (142, PromotedKind::Plane)],
+        1e-15,
+    ),
+    (
+        "swept_elbow",
+        [(165, PromotedKind::Plane), (228, PromotedKind::Plane)],
+        1e-15,
+    ),
+];
 
 #[test]
-fn the_folds_committed_byte_divergence_stays_in_the_named_classes() {
-    for (name, want_minus_zero) in FOLD_FIXTURES {
+fn the_folds_divergence_is_exactly_the_reported_promotion() {
+    for (name, want, residual_ceiling) in FOLD_PROMOTIONS {
         let committed = fixture(name, "step");
         let (body, _eps) = import_body(name);
+        let normalizations = {
+            // Re-import through the public door to read the report.
+            let step_import::StepImport::Solid { normalizations, .. } =
+                step_import::import_step(&committed, &step_import::ImportOptions::default())
+                    .expect("the fold fixture imports")
+            else {
+                panic!("{name}: must import as a solid");
+            };
+            normalizations
+        };
+        let promos: Vec<(u64, PromotedKind)> = normalizations
+            .iter()
+            .filter_map(|n| match n.kind {
+                NormalizationKind::SurfacePromotion { to, residual } => {
+                    assert_eq!(
+                        n.file_census, n.kernel_census,
+                        "{name}: promotion never re-tessellates"
+                    );
+                    assert!(
+                        residual.is_finite() && residual <= residual_ceiling,
+                        "{name} face #{}: promotion residual {residual:e} above the \
+                         measured ceiling {residual_ceiling:e}",
+                        n.face
+                    );
+                    Some((n.face, to))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(promos, want, "{name}: the enumerated promotions");
+
         let options = step_export::StepOptions {
             product_name: name.to_owned(),
             ..step_export::StepOptions::default()
         };
         let out = step_export::step_string(&body, &options).expect("re-export");
-
-        let toks = |s: &str| -> Vec<String> { s.split_whitespace().map(str::to_owned).collect() };
-        let a = toks(&committed);
-        let b = toks(&out);
+        let count = |s: &str, pat: &str| s.matches(pat).count();
         assert_eq!(
-            a.len(),
-            b.len(),
-            "{name}: token streams must stay aligned (a length change is a \
-             structural divergence, not a token class)"
+            (
+                count(&committed, "= PLANE("),
+                count(&committed, "B_SPLINE_SURFACE_WITH_KNOTS(")
+            ),
+            (2, 4),
+            "{name}: committed vocabulary — 2 cap planes + 4 spline walls"
         );
-        let diffs: Vec<(usize, &String, &String)> = a
-            .iter()
-            .zip(b.iter())
-            .enumerate()
-            .filter(|(_, (x, y))| x != y)
-            .map(|(i, (x, y))| (i, x, y))
-            .collect();
-        let minus_zero = diffs.iter().filter(|(_, x, y)| is_plus_zero(x, y)).count();
-        eprintln!(
-            "{name}: {} tokens, {} differing pairs — {minus_zero} in the -0.0 class, \
-             {} outside it",
-            a.len(),
-            diffs.len(),
-            diffs.len() - minus_zero
-        );
-        for (i, x, y) in diffs.iter().take(12) {
-            eprintln!("  {name} tok {i}: {x} -> {y}");
-        }
-
         assert_eq!(
-            minus_zero, want_minus_zero,
-            "{name}: the -0.0 parse-hygiene class changed size"
+            (
+                count(&out, "= PLANE("),
+                count(&out, "B_SPLINE_SURFACE_WITH_KNOTS(")
+            ),
+            (4, 2),
+            "{name}: the re-export's divergence is the two promoted walls"
         );
-        for (i, x, y) in diffs.iter().filter(|(_, x, y)| !is_plus_zero(x, y)) {
-            assert!(
-                x.contains("1.0E-9") && y.contains("1.0E-"),
-                "{name} token {i}: a divergence outside every NAMED class — \
-                 report it, do not widen the classes: {x} -> {y}"
-            );
-            assert_ne!(
-                geom_core::Tolerance::get().eps,
-                1e-9,
-                "{name}: at the corpus's own ε the uncertainty record must not diverge"
-            );
-        }
+
+        // The promoted one-cycle fixed point (the ruling's re-stated
+        // byte pin): from the first re-export on, byte-identical.
+        let step_import::StepImport::Solid { body: body2, .. } =
+            step_import::import_step(&out, &step_import::ImportOptions::default())
+                .expect("the promoted re-export re-imports")
+        else {
+            panic!("{name}: the re-import must be a solid");
+        };
+        let out2 = step_export::step_string(&body2, &options).expect("second re-export");
+        assert_eq!(out, out2, "{name}: fixed point from the first re-export on");
     }
 }
