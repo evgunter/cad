@@ -20,16 +20,127 @@
 //! silently grow under an upstream edit, which is the staleness the
 //! freeze exists to prevent.
 //!
-//! # STRUCTURAL only
+//! # The PATTERNS are structural; GEOMETRY is a second stage
 //!
-//! The vocabulary speaks role paths: which op minted the entity, which
+//! [`Selector`] speaks role paths: which op minted the entity, which
 //! role it plays, which side it is on, what its sub-names look like.
-//! It cannot say "carrier is a circle", "the two adjacent faces are a
-//! plane and a sphere", "convex", or "z ≈ 1". Those are geometric —
-//! decided predicates, subject to the margins-and-recorded-verdicts
-//! discipline — and are deferred to a designed follow-up (LIB-LOG LB7;
-//! GUI-DESIGN GQ7). The demo tour's `diefillet` filters stay written
-//! against the kernel body for exactly that reason.
+//! It cannot say "carrier is a circle" or "the two adjacent faces are
+//! a plane and a sphere" — and it never will, because matching on the
+//! name value ALONE is what makes a pattern reusable anywhere a name
+//! exists. Geometry is a FILTER at the materializer instead:
+//! [`select_where`] with a conjunction of [`GeomPred`] atoms
+//! (`docs/SELECT-DESIGN.md` §§1-2, ratified #286 — the LB7 deferral
+//! this discharges).
+//!
+//! The atoms split, and the split is the whole design:
+//!
+//! - **EXACT** — [`GeomPred::CurveKind`], [`GeomPred::SurfaceKind`],
+//!   [`GeomPred::AdjacentKinds`] read the carrier's enum TAG. No
+//!   funnel, no margin, no refusal: post-#256 the tag IS the semantic
+//!   kind, so these are total and trivially equivariant. Dressing a
+//!   tag match as a decided predicate would be dimension-laundering in
+//!   the other direction.
+//! - **DECIDED** — [`GeomPred::DatumDistance`] is a real length
+//!   comparison, so it is a `k_stats` funnel site
+//!   ([`SEL_DATUM_DISTANCE`]) with an honest margin, and an in-band
+//!   candidate REFUSES rather than being silently included or dropped.
+//!
+//! Position is datum-RELATIVE, never world-frame (GS-Q6): the datum is
+//! a node reference like any other input, so the rule commutes with
+//! rigid motions — move the datum with the part and the selection is
+//! unchanged. Convexity is reserved and unbuilt (GS-Q2).
+//!
+//! ```
+//! use pncad::prelude::*;
+//!
+//! let square = ProfileLoop::new(
+//!     [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+//!         .into_iter()
+//!         .map(|(x, y)| ProfileVertex { pos: p2::<f64>(x, y), bulge: 0.0 })
+//!         .collect(),
+//! );
+//! let mut doc = Doc::<ProfileDesc>::empty();
+//! let mut insert = |doc: &Doc<ProfileDesc>, node| {
+//!     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
+//!     let id = applied.record.minted.expect("a minted id");
+//!     (applied.doc, id)
+//! };
+//! let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+//! let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+//!
+//! let (next, profile) = insert(
+//!     &doc,
+//!     Node::Profile(ProfileDesc(Profile::new(SketchPlane::xy(), vec![square]))),
+//! );
+//! doc = next;
+//! let (next, cube) = insert(&doc, Node::Extrude { profile, distance: len(1.0) });
+//! doc = next;
+//! // The datum the position rule is written against — one argument,
+//! // and the rule now moves WITH the part.
+//! let (next, ground) = insert(
+//!     &doc,
+//!     Node::Datum(Datum::Plane {
+//!         origin: [len(0.0), len(0.0), len(0.0)],
+//!         normal: [scl(0.0), scl(0.0), scl(1.0)],
+//!     }),
+//! );
+//! doc = next;
+//!
+//! let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+//! let params = doc.param_env::<f64>();
+//! let edges = Selector::of(NamePat::of_kind(EntityKind::Edge));
+//! let faces = Selector::of(NamePat::of_kind(EntityKind::Face));
+//!
+//! // EXACT: every edge of a box is a line. Exact atoms are TOTAL, so
+//! // this can never refuse — and an empty conjunction is plain
+//! // `select`, which is why the two agree name for name.
+//! let straight = select_where(
+//!     &ev, cube, &edges,
+//!     &[GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))],
+//!     &params,
+//! ).expect("exact atoms cannot refuse");
+//! assert_eq!(straight, select(&ev, cube, &edges));
+//! assert_eq!(straight.len(), 12);
+//!
+//! // EXACT, and UNORDERED across the edge: no plane/sphere rim here.
+//! assert!(select_where(
+//!     &ev, cube, &edges,
+//!     &[GeomPred::AdjacentKinds(
+//!         SurfaceKindSet::just(SurfaceKind::Plane),
+//!         SurfaceKindSet::just(SurfaceKind::Sphere),
+//!     )],
+//!     &params,
+//! ).expect("total").is_empty());
+//!
+//! // DECIDED: the one face a metre above the datum, found by
+//! // POSITION — and it is the same face the role path names.
+//! let top = select_where(
+//!     &ev, cube, &faces,
+//!     &[GeomPred::DatumDistance { datum: ground, cmp: Cmp::Approx, value: len(1.0) }],
+//!     &params,
+//! ).expect("no candidate is in-band here");
+//! assert_eq!(
+//!     top,
+//!     select(&ev, cube, &Selector::of(
+//!         NamePat::of_kind(EntityKind::Face)
+//!             .seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top)),
+//!     )),
+//! );
+//!
+//! // The comparand of a distance must BE a distance.
+//! assert!(matches!(
+//!     select_where(
+//!         &ev, cube, &faces,
+//!         &[GeomPred::DatumDistance {
+//!             datum: ground,
+//!             cmp: Cmp::Approx,
+//!             value: Expr::literal(1.0, Dimension::Angle).expect("an angle"),
+//!         }],
+//!         &params,
+//!     ),
+//!     Err(SelectRefusal::NotALength { .. }),
+//! ));
+//! ```
 //!
 //! # The end-to-end form
 //!

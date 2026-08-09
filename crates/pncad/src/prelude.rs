@@ -102,10 +102,14 @@ pub use stl::{write_ascii, write_binary};
 // --- 8. The document layer ------------------------------------
 // `parse_expr` is the expression TEXT door (LIB-U8a): the checking
 // parser whose every reduction runs the Expr smart constructors.
+// `Datum` and `ParamEnv` ride here since LIB-SEL1: a datum node is the
+// frame a `GeomPred::DatumDistance` selection is written against
+// (GS-Q6), and `select_where` takes a `ParamEnv`, so both are needed
+// to write a position filter at all.
 pub use crate::document::{
-    CancelToken, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr, Node,
-    NodeError, ParseError, PatternKind, ProfileDesc, RecipeNodeId, SlotId, ValuePayload, apply,
-    evaluate, parse_expr,
+    CancelToken, Datum, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr, Node,
+    NodeError, ParamEnv, ParseError, PatternKind, ProfileDesc, RecipeNodeId, SlotId, ValuePayload,
+    apply, evaluate, parse_expr,
 };
 pub use editor_core::StableName;
 
