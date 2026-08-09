@@ -68,7 +68,7 @@
 //! poisoned arms escalate through the ordinary decide door. "Arm too
 //! small to say" is always an escalation, never a classification.
 
-use geom_core::{Band, Decide, Indeterminate, Length, Point3, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign};
 use geom_surfaces::Surface;
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient};
@@ -91,13 +91,13 @@ pub enum DihedralClass {
 /// classifies through the sanctioned [`Decide`] door, and tags any
 /// escalation. Kept as the crate-local wrapper so this remains the
 /// crate's single greppable decision site. The margin is a
-/// [`Length<T>`] by signature (D4's margin dimensional convention,
+/// [`Margin<T>`] by signature (D4's margin dimensional convention,
 /// clause (i)): each call site states its dimensional argument by the
 /// construction door it chooses; the per-site arguments are the rows of
 /// `docs/predicate-dimension-audit.md`.
 pub(crate) fn decide<T: Decide>(
     name: &'static str,
-    margin: Length<T>,
+    margin: Margin<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
@@ -141,7 +141,7 @@ pub fn classify_dihedral<T: Decide>(
     // true magnitude, unreachable Negative) arm escalates as Invalid —
     // "the question was never validly posed here" — and an in-band or
     // poisoned arm escalates through `decide` itself via `?`.
-    match decide("dihedral_arm", Length::of(arm), band)? {
+    match decide("dihedral_arm", Margin::of(arm), band)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
             return Err(Indeterminate {
@@ -151,7 +151,7 @@ pub fn classify_dihedral<T: Decide>(
             });
         }
     }
-    let margin = Length::levered(sin_theta, arm);
+    let margin = Margin::levered(sin_theta, arm);
     Ok(match decide("dihedral_wedge", margin, band)? {
         Sign::Positive => DihedralClass::Transverse,
         Sign::Zero => DihedralClass::Smooth,

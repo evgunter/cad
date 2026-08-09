@@ -87,7 +87,7 @@
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
 use geom_core::spline::hull::{derivative_coeffs, span_hull};
-use geom_core::{Band, Decide, Length, Sign};
+use geom_core::{Band, Decide, Margin, Sign};
 
 use super::PropsError;
 
@@ -408,7 +408,7 @@ impl AbsEnclosure for RingInterval {
 /// scalar so every lane (f64 / Probe / Interval) records identically.
 fn classify_len<T: Decide>(
     name: &'static str,
-    margin: Length<f64>,
+    margin: Margin<f64>,
     band: Band,
 ) -> Result<Sign, PropsError> {
     geom_core::k_stats::decide(name, margin.lift::<T>(), band)
@@ -452,7 +452,7 @@ pub fn cylinder_cut_face<T: Decide>(
         last_width_len = width_len;
         if classify_len::<T>(
             "props_quad_converged",
-            Length::of(target_len - width_len),
+            Margin::of(target_len - width_len),
             band,
         )? == Sign::Positive
         {
@@ -463,7 +463,7 @@ pub fn cylinder_cut_face<T: Decide>(
             let perim: f64 = edges.iter().map(|e| edge_metric_length(e, radius)).sum();
             match classify_len::<T>(
                 "props_quad_face_extent",
-                Length::over_lever(area.lo(), perim),
+                Margin::over_lever(area.lo(), perim),
                 band,
             )? {
                 Sign::Positive => {}
@@ -1292,13 +1292,13 @@ pub fn nurbs_patch_face<T: Decide>(
         let width_len = flux.width() / (3.0 * lever);
         if classify_len::<T>(
             "props_quad_converged",
-            Length::of(target_len - width_len),
+            Margin::of(target_len - width_len),
             band,
         )? == Sign::Positive
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
-                Length::over_lever(area.lo(), perimeter),
+                Margin::over_lever(area.lo(), perimeter),
                 band,
             )? {
                 Sign::Positive => {}
@@ -1365,13 +1365,13 @@ pub fn nurbs_patch_face<T: Decide>(
         last_width_len = width_len;
         if classify_len::<T>(
             "props_quad_converged",
-            Length::of(target_len - width_len),
+            Margin::of(target_len - width_len),
             band,
         )? == Sign::Positive
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
-                Length::over_lever(area.lo(), perimeter),
+                Margin::over_lever(area.lo(), perimeter),
                 band,
             )? {
                 Sign::Positive => {}

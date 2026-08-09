@@ -24,7 +24,7 @@
 //! reduction sweep (M3 PRs 2 and 4).
 
 use geom_brep::CertifyError;
-use geom_core::{Band, Decide, Length, Sign};
+use geom_core::{Band, Decide, Margin, Sign};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
@@ -194,8 +194,8 @@ impl<T: Decide> Body<T> {
             error: CertifyError::Band(e),
         })?;
         for margin in [
-            Length::metered(t - t0, scale),
-            Length::metered(t1 - t, scale),
+            Margin::metered(t - t0, scale),
+            Margin::metered(t1 - t, scale),
         ] {
             match geom_core::k_stats::decide("split_edge_param_interior", margin, band) {
                 Ok(Sign::Positive) => {}

@@ -864,7 +864,7 @@ applied to error handling. Five commitments:
    deviation from specified geometry at a single point. Four
    clauses make that semantics structural instead of conventional:
    (i) **Margins are lengths, by signature.** The `classify`/Band
-   seam takes a `#[repr(transparent)]` `Length<T>` newtype (erased
+   seam takes a `#[repr(transparent)]` `Margin<T>` newtype (erased
    at compile time; NO dimension algebra, no generic dimension
    parameter — most kernel functions are single-kind per argument,
    so the annotation is a signature fact, not a genericity layer).
@@ -885,7 +885,7 @@ applied to error handling. Five commitments:
    excluded from the seam entirely (Evan's #213 layering ruling):
    inequalities between integral results — the volume_backstop
    family — decide on bare T through the invariant lane
-   (`k_stats::decide_invariant`), no Length minted, and a certified
+   (`k_stats::decide_invariant`), no Margin minted, and a certified
    violation is a Corrupt-class kernel-invariant error, never a
    validity refusal. A
    site where no door honestly fits is
@@ -916,13 +916,13 @@ applied to error handling. Five commitments:
    positive lever cannot move a sign but keeps the recorded margin
    a length (K-telemetry attribution stays dimensionally honest).
    Rollout: the classify seam first (every recorded margin becomes
-   `Length<T>` by signature); extension is opportunistic as
+   `Margin<T>` by signature); extension is opportunistic as
    signatures get touched — no big-bang sweep. The migration ledger
    is `docs/predicate-dimension-audit.md` (the audited family is
    already clean by measurement; F12's expression-layer row is the
    first out-of-family site the newtype would catch at compile
    time). *Clause (i) is EXECUTED (the margin-migrate unit):
-   `geom_core::k_stats::decide` takes `Length<T>` by signature, the
+   `geom_core::k_stats::decide` takes `Margin<T>` by signature, the
    blessed doors live beside `Band` in `geom-core::predicate`, and
    the ledger's flagged rows ride the row-keyed
    `k_stats::decide_flagged` finding lane — visible typed debt, not

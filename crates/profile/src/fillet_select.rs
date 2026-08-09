@@ -21,15 +21,15 @@
 //! this module, deliberately: no funnel entry, no escalation arm, no
 //! error (the M5 S8 amendment).
 //!
-//! # What lands next
+//! # The lift
 //!
 //! The PATHS algebra chooses over a larger domain than the builder
 //! door: it forbids authoring the corner, so a line×circle or
 //! circle×circle carrier pair hands it 0, 1 or 2 corners, each with its
-//! own candidates, and the choice is over PAIRS. That lift is the same
-//! ladder applied to the flattened pair list, and it arrives here
-//! together with its caller (the path-side arc-fillet boundary) rather
-//! than ahead of it.
+//! own candidates, and the choice is over PAIRS. That lift is
+//! [`nearest_joint`] — the same ladder applied to the flattened pair
+//! list — and it landed here together with its caller, the path-side
+//! arc-fillet boundary [`crate::path::arc_fillet`] (LIB-G2 §3b).
 //!
 //! Why the dominance argument lifts, recorded now so the mechanism is
 //! not re-derived later: the two levels factor. WITHIN one corner it is
@@ -43,6 +43,9 @@
 //! asserts nothing about geometric truth — which is precisely why S8 is
 //! a selection rule and not a predicate, and why the lift inherits that
 //! status unchanged.
+
+use crate::sugar::ArcFilletCandidate;
+use geom_core::Bounds;
 
 /// Nearest-the-authored-corner branch selection (M5 S8; Evan's ruling,
 /// in-chat 2026-07-30): the index of the surviving candidate to build,
@@ -137,6 +140,40 @@ pub(crate) fn nearest_candidate(setbacks: &[[f64; 2]]) -> usize {
     best
 }
 
+/// The **lifted** ladder (LIB-G2 §3b): the same S8 rule over the PATHS
+/// algebra's joint corner×candidate space, plus the bracket read that
+/// feeds it.
+///
+/// The algebra forbids authoring the corner, so a ray×circle or
+/// circle×circle carrier pair admits 0, 1 or 2 corners, each with its
+/// own surviving candidates. The caller gates the corners (advance on
+/// the incoming side, reach on the arrival side), flattens the
+/// survivors of every corner that passed into ONE list in corner-then-
+/// candidate enumeration order, and hands it here; the returned index
+/// is into that flattened list.
+///
+/// The rule is [`nearest_candidate`] verbatim — same channel, same
+/// three rungs, same non-equivariant rung-3 residual — and this
+/// function exists to state that identity in code rather than in prose,
+/// and to keep the `.lo()` bracket read (the S8 diagnostic channel) in
+/// the one module the discipline lets take a **sole-bound**
+/// `T: Bounds`. Its dominance story is the module docs' two-level
+/// factoring: within a corner it is S8's argument verbatim; across
+/// corners it is not a dominance claim at all, because every gated
+/// survivor is already a valid fillet tangent to both authored
+/// carriers, so ranking them asserts nothing about geometric truth.
+///
+/// `joints` is never empty at the call site (the caller refuses
+/// `NoCornerForFillet` first); an empty slice returns 0, matching
+/// [`nearest_candidate`]'s own total shape.
+pub(crate) fn nearest_joint<T: Bounds>(joints: &[ArcFilletCandidate<T>]) -> usize {
+    let setbacks: Vec<[f64; 2]> = joints
+        .iter()
+        .map(|c| [c.setbacks[0].lo(), c.setbacks[1].lo()])
+        .collect();
+    nearest_candidate(&setbacks)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -164,5 +201,38 @@ mod tests {
         assert_eq!(nearest_candidate(&[[1.5, 2.5], [1.5, 2.5]]), 0);
         // The single-survivor path funnels through the same rule.
         assert_eq!(nearest_candidate(&[[3.0, 4.0]]), 0);
+    }
+
+    /// The LIFT is the same ladder, and this pins that identity rather
+    /// than restating it: `nearest_joint` over candidates carrying a
+    /// given setback list agrees with `nearest_candidate` over that
+    /// list, index for index, including the cross-corner case the
+    /// builder door can never produce (a joint space whose winner sits
+    /// at a LATER corner).
+    #[test]
+    fn nearest_joint_is_the_same_ladder_over_the_flattened_pairs() {
+        use crate::sugar::ArcFilletCandidate;
+        use geom_core::{Point2, Sign};
+        let mk = |sb: [f64; 2]| ArcFilletCandidate {
+            t1: Point2::new(0.0, 0.0),
+            t2: Point2::new(0.0, 0.0),
+            bulge: 0.0,
+            center: Point2::new(0.0, 0.0),
+            fit_in: Sign::Positive,
+            fit_out: Sign::Positive,
+            setbacks: sb,
+        };
+        // Corner A's two survivors, then corner B's one: the winner is
+        // across the corner boundary, which is the whole point of the
+        // lift.
+        let rows = [[2.0, 2.0], [3.0, 1.5], [0.5, 0.5]];
+        let joints: Vec<_> = rows.iter().map(|r| mk(*r)).collect();
+        assert_eq!(nearest_joint(&joints), 2);
+        assert_eq!(nearest_joint(&joints), nearest_candidate(&rows));
+        // Rung 3's non-equivariant residual survives the lift verbatim:
+        // identical pairs keep the first-classified joint.
+        let tied = [[1.5, 2.5], [1.5, 2.5]];
+        let joints: Vec<_> = tied.iter().map(|r| mk(*r)).collect();
+        assert_eq!(nearest_joint(&joints), 0);
     }
 }

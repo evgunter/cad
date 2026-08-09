@@ -99,6 +99,12 @@ pub(crate) enum Recognition {
     /// M7-3-legal state, silent).
     StaysNurbs,
     /// An estimator could not answer at ε_in (its own margin trilean).
+    /// Note (R2 NOTE-1, contract-consistent): a NEAR-plane sitting
+    /// just past the plane budget lands here rather than in
+    /// [`Recognition::StaysNurbs`] — its azimuth samples are collinear
+    /// within ε_in, which IS the documented near-flat ambiguity class.
+    /// Both outcomes are non-promoting; only the refusing-class
+    /// escalation differs (the honest D4 answer there).
     IllConditioned {
         /// The kind whose estimator declined.
         kind: PromotedKind,
@@ -116,7 +122,12 @@ pub(crate) enum Recognition {
 /// other — within 2·ε_in everywhere on it, so either answer is a
 /// correct reading of the file and the fixed order merely picks the
 /// canonical one (D7's typed ambiguity is reserved for the estimator's
-/// own conditioning, where no answer exists at the budget).
+/// own conditioning, where no answer exists at the budget). While the
+/// first-order envelope refuses every cylinder certificate (R2
+/// NOTE-2), the preference order is unfalsifiable by execution — no
+/// authorable patch double-certifies — so only the plane-first arm is
+/// pinned (P6); the order stays stated for the day a tighter cylinder
+/// certificate lands.
 pub(crate) fn recognize(patch: &NurbsSurface<f64>, eps_in: f64) -> Recognition {
     if let Some((surface, residual)) = try_plane(patch, eps_in) {
         return Recognition::Promoted {
@@ -750,8 +761,11 @@ mod review_probes {
     /// consequence, pinned: a tighter certificate (algebraic
     /// spline-product hulls) is what restores the cylinder track,
     /// never a wider budget.
-    #[test]
-    fn p7_exact_cylinder_envelope_is_honest() {
+    /// A unit-radius rational quarter cylinder: `u` runs the arc CCW
+    /// from `(1,0)` toward `(0,1)`, `v` runs `+z` — so the chart
+    /// normal `∂u × ∂v = tangential × ẑ` points radially OUTWARD,
+    /// agreeing with [`Surface::Cylinder`]'s chart.
+    fn unit_quarter_cylinder() -> NurbsSurface<f64> {
         let w = core::f64::consts::FRAC_1_SQRT_2;
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -763,13 +777,24 @@ mod review_probes {
             Point3::new(0.0, 1.0, 0.0),
             Point3::new(0.0, 1.0, 1.0),
         ];
-        let patch = NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).unwrap();
-        let cylinder = Surface::Cylinder {
+        NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).unwrap()
+    }
+
+    /// The [`unit_quarter_cylinder`]'s locus as the kernel's analytic
+    /// cylinder (chart normal radially outward by construction).
+    fn unit_cylinder() -> Surface<f64> {
+        Surface::Cylinder {
             origin: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
             radius: 1.0,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        }
+    }
+
+    #[test]
+    fn p7_exact_cylinder_envelope_is_honest() {
+        let patch = unit_quarter_cylinder();
+        let cylinder = unit_cylinder();
         // The mid control point sits at radius √2: L = ρ_max/r = √2.
         let envelope = enveloped_residual_sup(&patch, &cylinder, core::f64::consts::SQRT_2);
         println!("P7 exact-cylinder certified envelope: {envelope:e} m");
@@ -784,5 +809,58 @@ mod review_probes {
             ),
             other => println!("exact cylinder stays unpromoted, honestly: {other:?}"),
         }
+    }
+
+    /// **P8 (R2 MIN-1) — [`chart_flipped`] pinned DIRECTLY, both
+    /// outcomes.** While the envelope refuses every cylinder, the
+    /// sense-compose arm is unreachable through the import path
+    /// (promoted planes are pre-aligned by `try_plane`), so a
+    /// stubbed-`false` mutation survived the whole suite — verified
+    /// red under exactly that mutation, then restored, at the R2 fix
+    /// pass. Constructed inputs, no import:
+    ///
+    /// * the quarter cylinder as authored (u along the arc, v along
+    ///   `+z`) has an OUTWARD chart normal → not flipped;
+    /// * the same patch [`NurbsSurface::transposed`] swaps `∂u` and
+    ///   `∂v`, negating the chart normal (inward) → flipped;
+    /// * a promoted plane is never flipped, in either patch
+    ///   orientation, BECAUSE `try_plane` aligns the stored normal to
+    ///   the patch's own chart — pinned by promoting a plane patch
+    ///   and its transpose and asserting the two stored normals are
+    ///   opposite while `chart_flipped` answers false for both.
+    #[test]
+    fn p8_chart_flipped_pinned_directly() {
+        let patch = unit_quarter_cylinder();
+        let cylinder = unit_cylinder();
+        assert!(
+            !chart_flipped(&patch, &cylinder),
+            "outward-chart patch agrees with the cylinder's outward normal"
+        );
+        assert!(
+            chart_flipped(&patch.transposed(), &cylinder),
+            "the transposed patch's chart normal points inward — the flip arm"
+        );
+
+        let plane_patch = bulged_plane(0.0, 1.0);
+        let promoted_normal = |p: &NurbsSurface<f64>| match recognize(p, EPS_IN) {
+            Recognition::Promoted { surface, .. } => {
+                assert!(
+                    !chart_flipped(p, &surface),
+                    "a promoted plane is pre-aligned: never flipped"
+                );
+                match surface {
+                    Surface::Plane { normal, .. } => normal,
+                    other => panic!("a plane patch promotes to a plane: {other:?}"),
+                }
+            }
+            other => panic!("the exact plane promotes: {other:?}"),
+        };
+        let n_fwd = promoted_normal(&plane_patch);
+        let n_rev = promoted_normal(&plane_patch.transposed());
+        assert!(
+            n_fwd.dot(n_rev) < -0.99,
+            "the alignment is real: opposite patch orientations store opposite \
+             normals ({n_fwd:?} vs {n_rev:?})"
+        );
     }
 }

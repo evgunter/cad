@@ -62,7 +62,7 @@
 //!   Without this, a no-hit ray on a reverted operand would misreport
 //!   complement material as `Out`.
 
-use geom_core::{Band, Decide, Indeterminate, Length, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary};
@@ -437,7 +437,7 @@ fn point_on_wall_in_face<T: Decide>(
     // full-period window cannot trim by angle at all).
     match decide(
         "bool_wall_trim_period",
-        Length::levered(T::tau() - width, radius),
+        Margin::levered(T::tau() - width, radius),
         band,
     )
     .map_err(escalate)?
@@ -465,9 +465,9 @@ fn point_on_wall_in_face<T: Decide>(
     // Ledger row F8: the cone term's (cosΔ − cos h)·r collapses
     // quadratically for narrow windows — conservative direction, the
     // row's deferred fix; the margin is a length (levered) today.
-    let cone = Length::levered(r_hat.dot(m_hat) - c_h, radius);
+    let cone = Margin::levered(r_hat.dot(m_hat) - c_h, radius);
     let mut verdict = Some(true);
-    for margin in [cone, Length::of(height - h.0), Length::of(h.1 - height)] {
+    for margin in [cone, Margin::of(height - h.0), Margin::of(h.1 - height)] {
         match decide("bool_wall_trim", margin, band).map_err(escalate)? {
             Sign::Positive => {}
             Sign::Negative => return Ok(Some(false)),
@@ -544,7 +544,7 @@ pub fn point_in_solid<T: Decide>(
                 // answers the same whichever way the normal points,
                 // and `point_in_face` below is ray parity (ditto).
                 let elev = (q - origin).dot(normal);
-                if decide("bool_point_in_solid_plane", Length::of(elev), band).map_err(escalate)?
+                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {
                     // In-plane: ON the boundary iff within the face
@@ -569,7 +569,7 @@ pub fn point_in_solid<T: Decide>(
                 // The linearized residual (metres) — the same form the
                 // certification layer classifies.
                 let elev = (radial.norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
-                if decide("bool_point_in_solid_plane", Length::of(elev), band).map_err(escalate)?
+                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {
                     match point_on_wall_in_face(face, origin, axis, radius, u_ref, az, h, q, band)?
@@ -595,7 +595,7 @@ pub fn point_in_solid<T: Decide>(
                 }
                 let elev =
                     ((q - center).norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
-                if decide("bool_point_in_solid_plane", Length::of(elev), band).map_err(escalate)?
+                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {
                     return Ok(SolidContainment::OnBoundary);
@@ -654,7 +654,7 @@ fn cast_ray<T: Decide>(
                 outward: Sign|
      -> Result<Option<()>, PointInSolidError> {
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
-        match decide("bool_point_in_solid_advance", Length::of(t), band).map_err(escalate)? {
+        match decide("bool_point_in_solid_advance", Margin::of(t), band).map_err(escalate)? {
             Sign::Positive => {}
             Sign::Negative => return Ok(Some(())),
             // A genuine crossing at q contradicts the boundary
@@ -664,7 +664,7 @@ fn cast_ray<T: Decide>(
         *best = match *best {
             None => Some((t, outward)),
             Some((tb, sb)) => {
-                match decide("bool_point_in_solid_order", Length::of(t - tb), band)
+                match decide("bool_point_in_solid_order", Margin::of(t - tb), band)
                     .map_err(escalate)?
                 {
                     Sign::Negative => Some((t, outward)),
@@ -847,7 +847,7 @@ fn cast_ray<T: Decide>(
                 let two_r = T::from_f64(2.0) * radius;
                 match decide(
                     "bool_ray_sphere_disc",
-                    Length::over_lever(disc, two_r),
+                    Margin::over_lever(disc, two_r),
                     band,
                 )
                 .map_err(escalate)?
@@ -902,7 +902,7 @@ fn at_infinity_side<T: Decide>(
             face: faces.first().copied().unwrap_or_default(),
         }
     })?;
-    let margin = Length::over_lever(props.volume, props.surface_area);
+    let margin = Margin::over_lever(props.volume, props.surface_area);
     match decide("bool_point_in_solid_infinity", margin, band).map_err(|diag| {
         PointInSolidError::Escalated {
             face: faces[0],

@@ -47,7 +47,7 @@
 //! - Sweep order (D9): direction A→B fully, then B→A; edges in arena
 //!   order, faces in arena snapshot order, worklist FIFO.
 
-use geom_core::{Band, Bounds, Decide, Length, Point3, Sign};
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 
 use super::boxes;
 use super::contain::{ContainError, FaceContainment, contfp};
@@ -547,7 +547,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                         let side = |p: Point3<T>| {
                             decide(
                                 "bool_vertex_face_side",
-                                Length::of((p - plane.origin).dot(plane.normal)),
+                                Margin::of((p - plane.origin).dot(plane.normal)),
                                 band,
                             )
                         };
@@ -570,7 +570,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
             let side = |p: Point3<T>| {
                 decide(
                     "bool_vertex_face_side",
-                    Length::of((p - plane.origin).dot(plane.normal)),
+                    Margin::of((p - plane.origin).dot(plane.normal)),
                     band,
                 )
             };
@@ -740,7 +740,7 @@ fn curved_face_arm<T: Decide>(
             else {
                 return Err(frontier());
             };
-            let margin = Length::of(lo.max(-hi));
+            let margin = Margin::of(lo.max(-hi));
             return match decide("bool_circle_curved_clearance", margin, band) {
                 Ok(Sign::Positive) => Ok(()),
                 Ok(Sign::Zero | Sign::Negative) => Err(frontier()),
@@ -752,7 +752,7 @@ fn curved_face_arm<T: Decide>(
     let side = |p: Point3<T>| {
         decide(
             "bool_vertex_face_side",
-            Length::of(geom_brep::implicit_residual(&surface, p)),
+            Margin::of(geom_brep::implicit_residual(&surface, p)),
             band,
         )
     };
@@ -798,7 +798,7 @@ fn curved_face_arm<T: Decide>(
             let dip = f2 * span.powi(2) * T::from_f64(0.125);
             let r_u = geom_brep::implicit_residual(&surface, pu);
             let r_v = geom_brep::implicit_residual(&surface, pv);
-            let min_bound = Length::of(r_u.min(r_v) - dip);
+            let min_bound = Margin::of(r_u.min(r_v) - dip);
             match decide("bool_line_cylinder_clearance", min_bound, band) {
                 Ok(Sign::Positive) => Ok(()),
                 Ok(Sign::Zero | Sign::Negative) => Err(frontier()),

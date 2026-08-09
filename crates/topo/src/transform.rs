@@ -54,7 +54,7 @@
 
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, MappedCurve};
 use geom_core::predicate::{Band, BandError};
-use geom_core::{Affine3, Decide, Length, Point3, Real, Vec3};
+use geom_core::{Affine3, Decide, Margin, Point3, Real, Vec3};
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
 
@@ -154,18 +154,18 @@ fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformE
     // The levered door with the ZERO dimensionless factor: each margin
     // is 0·t_i — the zero length exactly when the component is finite,
     // poison otherwise (the finiteness probe the module docs state).
-    let finite: [(&'static str, Length<T>); 3] = [
+    let finite: [(&'static str, Margin<T>); 3] = [
         (
             "transform_rigid_trans_finite_x",
-            Length::levered(T::zero(), t.x),
+            Margin::levered(T::zero(), t.x),
         ),
         (
             "transform_rigid_trans_finite_y",
-            Length::levered(T::zero(), t.y),
+            Margin::levered(T::zero(), t.y),
         ),
         (
             "transform_rigid_trans_finite_z",
-            Length::levered(T::zero(), t.z),
+            Margin::levered(T::zero(), t.z),
         ),
     ];
     for (check, margin) in finite {

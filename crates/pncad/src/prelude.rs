@@ -40,9 +40,9 @@ pub use geom_core::{Affine3, Band, BandError, Mat3, Point2, Point3, Real, Tolera
 // The D6 quantity layer (LIB-U8a): value types, unit constants
 // (`25.0 * MM`), and the display formatter. NAME DISCIPLINE: this
 // `Length` is the API-boundary quantity newtype; the kernel-internal
-// classify-seam `geom_core::predicate::Length<T>` is a different type
-// that has never been prelude surface and must not become it — the
-// two coexist only module-qualified. Scope: the prelude carries the
+// classify-seam margin type is `geom_core::predicate::Margin<T>`
+// (renamed from `Length<T>`, LB9), which has never been prelude
+// surface and must not become it. Scope: the prelude carries the
 // value types + the six unit constants + the formatter; the unit
 // TABLE itself and the prefix data (`UNITS`, `unit_by_symbol`,
 // `MILLI`, `CENTI`) stay one module hop away at `pncad::quantity`,
@@ -106,4 +106,18 @@ pub use editor_core::{
     CancelToken, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr, Node,
     NodeError, ParseError, PatternKind, ProfileDesc, RecipeNodeId, SlotId, StableName,
     ValuePayload, apply, evaluate, parse_expr,
+};
+
+// --- 9. Names: obtain them, inspect them, select them ---------
+// LIB-U7. `StableName` was in group 8 from the start, with no door to
+// obtain or read a value of it: the naming table, the whole-body
+// materializers and the key→name inversions all stayed one crate
+// away, so a prelude user could hold the type and do nothing with it.
+// These are that door, curated as one group in `crate::select` (whose
+// module docs carry the worked examples).
+pub use crate::select::{
+    CapEnd, EntityKind, EntityRef, Entry, MeridianEnd, NamePat, NameTable, OpGroup, ProfileEdgeRef,
+    ProfileVertexRef, RimSupport, RolePath, RoleSeg, SegPat, SegTag, Selector, Side, SplitHalf,
+    TagPat, all_bodies, all_edges, all_faces, all_vertices, edge_name, entity_name, face_name,
+    select,
 };

@@ -239,7 +239,7 @@
 use core::fmt;
 
 use geom_brep::{CertifyError, DihedralClass, classify_dihedral};
-use geom_core::{Band, BandError, Decide, Indeterminate, Length, Real, Sign};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign};
 use geom_surfaces::Surface;
 use slotmap::{Key, SecondaryMap};
 
@@ -259,7 +259,7 @@ use crate::entity::{
 /// sanctioned [`Decide`] door, and tags any escalation.
 pub(crate) fn decide<T: Decide>(
     name: &'static str,
-    margin: Length<T>,
+    margin: Margin<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
@@ -1734,7 +1734,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                     continue;
                 };
                 let residual = (point - origin).dot(normal);
-                match decide("planar_face_residual", Length::of(residual), band) {
+                match decide("planar_face_residual", Margin::of(residual), band) {
                     Ok(Sign::Zero) => {}
                     Ok(Sign::Positive | Sign::Negative) => {
                         errors.push(ValidationError::PlanarFaceResidual {
@@ -1895,7 +1895,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                 let arm = geom_brep::curvature_lever_arm(s_plus, p)
                     .min(geom_brep::curvature_lever_arm(s_minus, p))
                     .min(extent);
-                let margin = Length::sagitta(jet.kappa_rel.abs(), arm);
+                let margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
                 match decide("tangent_second_order", margin, band) {
                     Ok(Sign::Positive) => {}
                     Ok(Sign::Zero | Sign::Negative) => {
@@ -1948,7 +1948,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             };
             for &p in &samples {
                 let residual = (p - origin).dot(normal);
-                match decide("planar_boundary_residual", Length::of(residual), band) {
+                match decide("planar_boundary_residual", Margin::of(residual), band) {
                     Ok(Sign::Zero) => continue,
                     Ok(Sign::Positive | Sign::Negative) => {
                         errors.push(ValidationError::PlanarBoundaryResidual {
@@ -2078,7 +2078,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             };
             if decide(
                 "bool_ring_run_winding",
-                Length::over_lever(outward.dot(newell), perimeter),
+                Margin::over_lever(outward.dot(newell), perimeter),
                 band,
             ) == Ok(wrong)
             {
@@ -2199,7 +2199,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                 let v_hi = props.volume + T::from_f64(props.volume_pad);
                 if let Ok(Sign::Negative) = decide(
                     "positive_volume",
-                    Length::over_lever(v_hi, props.surface_area),
+                    Margin::over_lever(v_hi, props.surface_area),
                     band,
                 ) {
                     errors.push(ValidationError::NegativeVolume);
