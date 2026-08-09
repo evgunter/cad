@@ -812,6 +812,21 @@ pub(crate) fn build_body(
     solids: &[SolidSpec],
     _model: &Model,
 ) -> Result<Body<f64>, StepImportError> {
+    build(solids)
+}
+
+/// One `MANIFOLD_SOLID_BREP` assembled into a body of its OWN, so the
+/// shared at-rest gate can be asked about that solid alone: the
+/// whole-body invariants the gate checks include summed ones (the +V
+/// flux sum over every shell), which cannot see a single inside-out
+/// solid whose neighbours cancel it. Same assembly, same pcurve mint,
+/// same geometry — only the arena's contents differ.
+pub(crate) fn build_one_solid(solid: &SolidSpec) -> Result<Body<f64>, StepImportError> {
+    build(std::slice::from_ref(solid))
+}
+
+/// The assembly both doors share verbatim.
+fn build(solids: &[SolidSpec]) -> Result<Body<f64>, StepImportError> {
     let mut body = Body::new();
     for solid in solids {
         assemble_solid(&mut body, solid)?;
