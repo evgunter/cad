@@ -16,6 +16,11 @@
 //! door actually makes, so these pin that the lane's verdicts arrive
 //! in `certify`'s own vocabulary rather than as a private dialect —
 //! plus the row proving the LANELESS door still refuses the class.
+//!
+//! The R1 fix pass adds the WALL-SIDE falsifier — a carrier that stays
+//! exactly on the plane and leaves only the wall, so the NURBS side
+//! alone can refuse it. The between-samples envelope, which no row
+//! here observes, is pinned next door in `r1_pxn_probes.rs`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::keys::SurfaceKey;
@@ -127,6 +132,49 @@ fn a_displaced_carrier_refuses_with_the_measured_residual() {
             );
         }
         other => panic!("a carrier {off:e} m off the locus must refuse typed: {other:?}"),
+    }
+}
+
+/// **The WALL-SIDE falsifier** (R1 MINOR-2). The row above displaces
+/// along `+y`, which leaves the plane as well as the wall — so the
+/// analytic operand's closed-form residual alone is enough to catch
+/// it, and the NURBS-side certification is never load-bearing. This
+/// row removes that escape: the carrier is displaced RADIALLY, to
+/// `x = 1 + off`, `y = 0`, which lies EXACTLY on the `y = 0` plane
+/// (its residual is zero in closed form at every sample) and exactly
+/// `off` metres off the cylinder `x² + y² = 1`. Nothing but the
+/// foot-point residual against the NURBS wall can refuse it, so a
+/// wall-side certification that silently stopped working would turn
+/// this row red at the lane rather than only cross-crate.
+#[test]
+fn an_on_plane_off_wall_carrier_is_refused_by_the_nurbs_side() {
+    let wall = quarter_cylinder_wall();
+    let plane = transverse_plane();
+    // Scales with the run's ε, like its sibling: a fixed displacement
+    // is not a falsifier at the coarse matrix row.
+    let off = 1e3 * Tolerance::get().eps;
+    let carrier = segment(
+        Point3::new(1.0 + off, 0.0, 0.0),
+        Point3::new(1.0 + off, 0.0, 1.0),
+    );
+    // The premise, asserted rather than assumed: the plane side is
+    // blind to this displacement, so the refusal below is the wall's.
+    for i in 0..=8 {
+        let p = carrier.eval(f64::from(i) / 8.0);
+        assert_eq!(p.y, 0.0, "the carrier stays exactly on the y = 0 plane");
+    }
+    match f64::plane_nurbs_limbs(&carrier, &plane, &wall, 1.0, band()) {
+        Err(PlaneNurbsRefusal::Limb { limb, value }) => {
+            println!(
+                "M7-8 wall-side falsifier: {} measured {value:e} m (planted {off:e} m)",
+                limb.name()
+            );
+            assert!(
+                value >= off * 0.5,
+                "the refusal carries the radial displacement the wall alone saw: {value:e}"
+            );
+        }
+        other => panic!("a carrier {off:e} m off the WALL must refuse typed: {other:?}"),
     }
 }
 

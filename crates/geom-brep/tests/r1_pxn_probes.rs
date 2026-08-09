@@ -5,6 +5,18 @@
 //! displacement, off-plane and drift directions), the envelope's
 //! soundness (certified sup vs dense-sampled true sup), and the
 //! transversality boundary (shallower than the planted tangential).
+//!
+//! **ADOPTED INTO THE SHIPPED SUITE** (R1 MAJOR-1). These began as a
+//! reviewer's private probes and are kept as permanent rows because
+//! they are the ONLY tests that observe the unit's headline
+//! obligation: with the chart-sup decision mutated away (zero the sup
+//! before its `decide`), every other M7-8 row stays green at default
+//! AND at 1e-12, while
+//! [`a_wiggle_vanishing_at_the_whole_schedule_must_refuse`] and
+//! [`the_certified_sup_bounds_the_dense_sampled_true_sup`] go red —
+//! measured, both directions. The between-samples envelope is what
+//! makes a declared carrier certifiable at all, so a refactor that
+//! hollows it out must not be able to leave the suite green.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::{EdgeNurbsLane, PlaneNurbsRefusal};

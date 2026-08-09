@@ -134,8 +134,20 @@ pub enum PlaneNurbsRefusal {
     /// sliver of the operand pair along the locus (F6: escalate, never
     /// guess).
     TubeStraddles {
-        /// The straddling margin, in meters.
-        margin: f64,
+        /// The transversality enclosure's **certified clearance from
+        /// zero**, levered — NOT a measurement of how far the sliver
+        /// straddles. An enclosure that contains zero has certified
+        /// clearance exactly `0.0` by construction (rung 3's
+        /// `zero_free_lower_bound`), and containing zero is what this
+        /// refusal reports, so this field is `0.0` on every straddling
+        /// refusal and a small positive number only on the levered
+        /// rungs that failed the band instead. Read it as the bound
+        /// the certificate could prove, never as the geometry's own
+        /// extent; the informative companion is `boxes`.
+        certified_clearance: f64,
+        /// How many boxes of the tube's chain the clearance above was
+        /// certified over — the resolution the verdict was reached at.
+        boxes: u32,
     },
     /// A margin escalated inside the certificate.
     Escalated(Indeterminate),
@@ -181,10 +193,15 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                  is not on both surfaces",
                 limb.name()
             ),
-            Self::TubeStraddles { margin } => write!(
+            Self::TubeStraddles {
+                certified_clearance,
+                boxes,
+            } => write!(
                 f,
-                "the uniqueness tube's transversality straddles zero at margin {margin:e} m \
-                 (a genuine sliver of the plane/NURBS pair along the locus)"
+                "the uniqueness tube's transversality enclosure contains zero over {boxes} \
+                 boxes of the chain — a genuine sliver of the plane/NURBS pair along the \
+                 locus; the certificate's proven clearance from zero is {certified_clearance:e} \
+                 m, which is the bound it could prove and not the sliver's own extent"
             ),
             Self::Escalated(diag) => write!(f, "a plane × NURBS limb margin escalated: {diag}"),
             Self::Unsupported { what } => write!(f, "outside the plane × NURBS lane: {what}"),
@@ -285,8 +302,25 @@ fn lane<T: Decide + Bounds>(
                 }
                 Err(cause) => return Err(PlaneNurbsRefusal::Escalated(cause)),
             }
+            // `Real::min` PROPAGATES poison (unlike `f64::min`, which
+            // returns the non-NaN operand), so a poisoned sine cannot
+            // be dropped out of this fold — it reaches the guard below.
             min_sin = min_sin.min(sin_theta);
         }
+    }
+    // FAIL LOUD on a poisoned aggregate. A NaN sine cannot reach here
+    // today — the per-sample `decide` above escalates on its levered
+    // margin first — but the reported transversality must not depend on
+    // that shield holding across future edits to the gate. A poison
+    // that ever survives the fold refuses TYPED, carrying the
+    // `Invalid` diagnostic, instead of riding out as a reported number
+    // no caller can tell from a measurement.
+    if min_sin.is_poison() {
+        return Err(PlaneNurbsRefusal::Escalated(Indeterminate {
+            margin: geom_core::MarginDiag::Invalid,
+            band,
+            predicate: Some("plane_nurbs_transversality_reported"),
+        }));
     }
 
     // ---- The derived chart image, on the carrier's own parameter. ----
@@ -444,7 +478,14 @@ fn on_carrier_domain<T: Real>(
 fn refusal(e: SsiError) -> PlaneNurbsRefusal {
     match e {
         SsiError::CertificateLimb { limb, value } => PlaneNurbsRefusal::Limb { limb, value },
-        SsiError::TubeStraddles { margin, .. } => PlaneNurbsRefusal::TubeStraddles { margin },
+        // Rung 3's `margin` is a CERTIFIED CLEARANCE, not a measured
+        // extent — it is exactly zero whenever the enclosure contains
+        // zero — so it is carried under a name that says so, with the
+        // chain's box count as the informative companion.
+        SsiError::TubeStraddles { margin, boxes } => PlaneNurbsRefusal::TubeStraddles {
+            certified_clearance: margin,
+            boxes,
+        },
         SsiError::Escalated(diag) => PlaneNurbsRefusal::Escalated(diag),
         SsiError::FootPointInconclusive { t, last_distance } => {
             // The limb re-projects warm-started from the image; a
