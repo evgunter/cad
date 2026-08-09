@@ -451,6 +451,13 @@ wild tessellation refusals into montage cells); difficulty logged
 PRE-DISPATCH = **S** (Evan's own sizing on #284). Arm = FABLE
 (the drawn slot 1). Blinded-lane implementation row — counts for
 comparison and the dual-review ordinal at its R1 dispatch.
+SLOT 2 DISPATCHED (2026-08-09): the rational-carrier
+speed_lower_bound (demo-hardening stretch unit 1a — quotient-rule
+bound assembled from the existing hull machinery; retires the
+span-meter half of the rational bank; the calochortus crescent
+restoration rides as demo evidence); difficulty logged
+PRE-DISPATCH = **M**. Arm = OPUS (the drawn slot 2). Block M7-12
+fully consumed — next dispatch opens M7-13.
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
