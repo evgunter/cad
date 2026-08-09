@@ -155,8 +155,7 @@ const SEAM_HALFPLANE_ESCALATED: &str =
     "SeamHalfplane at sample 0 escalated: predicate 'carrier_in_seam_halfplane' indeterminate";
 /// Coarse enough for the two walls to read as one: the Intersection
 /// transversality precondition fails, and the ladder says which.
-const TANGENT_PLANES_COINCIDE: &str =
-    "tangent planes coincide at interior sample 1 — the Intersection transversality \
+const TANGENT_PLANES_COINCIDE: &str = "tangent planes coincide at interior sample 1 — the Intersection transversality \
      precondition fails";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
@@ -164,8 +163,7 @@ const PARAM_SPAN_ESCALATED: &str =
     "ParamSpan at sample 0 escalated: predicate 'interval_span_forward' indeterminate";
 /// Naming the MAPPED-CURVE arm pins that BOTH candidates were tried and
 /// both refused definite — the seam arm alone would match a prefix.
-const ENDPOINT_START_MAPPED_CURVE: &str =
-    "mapped curve: geometry attachment gate: certification: EndpointStart residual at sample 0 \
+const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: certification: EndpointStart residual at sample 0 \
      definitely exceeds";
 
 /// Every committed STEP file, with the disposition measured at M7-7.
@@ -445,7 +443,10 @@ fn every_eps_sensitive_row_is_pinned_cell_by_cell() {
                     .iter()
                     .filter(|(p, a, t, _)| p == file && *a == ambient && *t == tag)
                     .count();
-                assert_eq!(hits, 1, "{file} @ ambient {ambient:e} / eps {tag}: {hits} pins");
+                assert_eq!(
+                    hits, 1,
+                    "{file} @ ambient {ambient:e} / eps {tag}: {hits} pins"
+                );
             }
         }
     }
