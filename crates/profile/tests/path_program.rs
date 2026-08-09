@@ -264,6 +264,97 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
 }
 
 // ------------------------------------------------------------------
+// The `turn(δ)` arm (review MINOR-1)
+//
+// `.turn(δ)` is the one verb the corpus exercised ONLY in refusal rows
+// that never close, so the (DirectedPoint, Turn) arm had zero
+// record->replay coverage: swapping its binder for `.tangent()` left the
+// whole battery green. These rows close that hole. Each turns by a δ far
+// from both 0 (which refuses, → `.tangent()`) and ±π (the reverse
+// class), so a `.tangent()` substitution moves real geometry and the pin
+// goes red on the first vertex it reaches.
+// ------------------------------------------------------------------
+
+/// A sharp equilateral triangle authored by turning: the departure of
+/// every leg after the first is the incoming tangent rotated by 2π/3.
+#[test]
+fn turn_off_a_straight_leg_replays_bit_identically() {
+    let third = std::f64::consts::TAU / 3.0;
+    let closed = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0))
+        .unwrap()
+        .turn(third)
+        .unwrap()
+        .line(2.0)
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    assert_eq!(
+        verbs(&program_of(&closed)),
+        vec![Verb::At, Verb::LineTo, Verb::Turn, Verb::Line, Verb::LineTo],
+        "the turn is recorded as its own verb, storing only the authored δ"
+    );
+    match closed.program[2] {
+        Step::Turn(delta) => assert_eq!(delta.to_bits(), third.to_bits()),
+        ref other => panic!("expected Turn with its authored δ, got {other:?}"),
+    }
+    let lowered = pinned(closed);
+    // The turn really moved the departure: the apex sits off the x axis.
+    // (Under `.tangent()` the second leg would run straight on.)
+    assert!(
+        lowered.vertices.iter().any(|v| v.pos.y > 1.0),
+        "a 120° turn must lift the apex off the base"
+    );
+    validate_ok(&lowered);
+}
+
+/// `.turn(δ)` off an ARC leg end — the incoming tangent it rotates is
+/// the arc's END tangent, read from the leg's intrinsic data rather than
+/// from anything the author wrote. Nothing in the step records that
+/// tangent, so the replay reproduces it only by calling the same binder.
+#[test]
+fn turn_off_an_arc_leg_replays_bit_identically() {
+    let quarter = std::f64::consts::FRAC_PI_2;
+    let closed = Open
+        .at(p2(0.0, 0.0))
+        .arc_to(p2(2.0, 0.0), 0.4)
+        .unwrap()
+        .turn(quarter)
+        .unwrap()
+        .line(1.5)
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    assert!(verbs(&program_of(&closed)).contains(&Verb::Turn));
+    validate_ok(&pinned(closed));
+}
+
+/// A turn that hands its Directed tip to the FILLET, so the turn's
+/// derived departure is what the corner construction consumes.
+#[test]
+fn turn_into_a_fillet_replays_bit_identically() {
+    let closed = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(3.0, 0.0))
+        .unwrap()
+        .turn(std::f64::consts::TAU / 3.0)
+        .unwrap()
+        .fillet(0.3)
+        .unwrap()
+        .at(p2(1.5, 2.0))
+        .unwrap()
+        .angle(std::f64::consts::PI)
+        .unwrap()
+        .line(1.5)
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    assert!(verbs(&program_of(&closed)).contains(&Verb::Turn));
+    validate_ok(&pinned(closed));
+}
+
+// ------------------------------------------------------------------
 // The tour's authoring-site SHAPES
 //
 // §3d names "the tour authoring sites" as pin corpus; §3e fences PR-A
@@ -656,6 +747,35 @@ proptest! {
             .unwrap()
             .to(Start)
             .unwrap();
+        let replayed = replay(&closed.program).unwrap();
+        assert_bit_identical(&closed.loop_, &replayed);
+    }
+
+    /// Random TURNS: a fan of legs, each departing at the previous leg's
+    /// end tangent rotated by an authored δ. Sweeps δ across both signs,
+    /// away from 0 and ±π (the two refusal classes).
+    #[test]
+    fn random_turn_chains_replay_bit_identically(
+        delta in 0.5f64..2.2,
+        sign in prop::bool::ANY,
+        len in 0.8f64..2.5,
+    ) {
+        let d = if sign { delta } else { -delta };
+        let closed = Open
+            .at(p2(0.0, 0.0))
+            .line_to(p2(2.0, 0.0))
+            .unwrap()
+            .turn(d)
+            .unwrap()
+            .line(len)
+            .unwrap()
+            .turn(d)
+            .unwrap()
+            .line(len)
+            .unwrap()
+            .line_to(Start)
+            .unwrap();
+        prop_assert!(verbs(&closed.program).contains(&Verb::Turn));
         let replayed = replay(&closed.program).unwrap();
         assert_bit_identical(&closed.loop_, &replayed);
     }

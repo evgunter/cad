@@ -19,15 +19,35 @@
 //!    match on (state, verb) whose arm bodies can only call the ONE typed
 //!    binder that is well-typed at that state.
 //!
-//! # Why the driver cannot drift permissive
+//! # What the construction makes unwritable — precisely
 //!
 //! The binder bodies are never duplicated here and the lattice is never
-//! re-stated as data: an illegal (state, verb) pair has no well-typed
-//! body available, so "the driver accepts what the surface refuses"
-//! cannot be written down — the only writable mistake is a MISSING arm,
-//! i.e. an over-strict refusal. That safe-direction drift is exactly what
-//! the differential pin catches (`tests/path_program.rs`: every typed
-//! chain's recorded program must replay to a bit-identical loop).
+//! re-stated as data. The property that buys is SHARP, and worth stating
+//! exactly rather than generously:
+//!
+//! **Unwritable:** calling a binder on the CARRIED VALUE of a state
+//! where that binder is not well-typed. Every arm destructures the real
+//! `PartialPath`, so `.tangent()` on a `PlainPoint` tip or a leg on an
+//! `Angle` tip is a compile error, not a test failure. This is the whole
+//! drift class the two-surface design is exposed to: an arm that
+//! *continues the actual chain* through a transition the surface forbids
+//! cannot be spelled.
+//!
+//! **Still writable, and NOT prevented by the types:** arms that IGNORE
+//! the carried value — a no-op arm returning the tip unchanged under an
+//! illegal verb, or a laundering arm that MINTS a fresh tip from the
+//! step's own arguments and continues from that. Those compile. They are
+//! deliberate authorship rather than drift (nobody writes one by
+//! accident while adding a verb), and they are backstopped downstream,
+//! not upstream: the no-op shape is caught by the refusal census
+//! (`lattice_violations_refuse_as_the_transition_class`), the laundering
+//! shape by review of this file — which is why every arm here is one
+//! line of the form "destructure, call the one binder, re-wrap".
+//!
+//! What remains is the safe direction — a MISSING arm, i.e. an
+//! over-strict refusal — and that is exactly what the differential pin
+//! catches (`tests/path_program.rs`: every typed chain's recorded
+//! program must replay to a bit-identical loop).
 //!
 //! # Serde plays no role
 //!
@@ -595,6 +615,15 @@ fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
 /// [`Step::Circle`] program is exactly one step. Anything else — an
 /// empty program, a chain that stops mid-air, a step after the close —
 /// is the transition class.
+///
+/// **The program replay re-records is DISCARDED.** Driving the binders
+/// makes them record too, so the closing verb hands back a
+/// [`ClosedLoop`] whose `program` is a re-derivation of the input; this
+/// function keeps only `loop_`. That is right for today's consumers (the
+/// input program is the authority, and the round-trip is pinned by the
+/// differential suite rather than trusted). A caller that wants the
+/// re-recorded program — a canonicalizer, say — needs a variant that
+/// returns the pair; none exists yet because nothing needs one.
 ///
 /// # Errors
 ///

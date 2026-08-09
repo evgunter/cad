@@ -204,8 +204,14 @@ pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
 }
 
 /// Bit-level loop identity: vertex count, every coordinate and bulge by
-/// `to_bits`, and the declared-joint SET (declaration order is not
-/// semantic).
+/// `to_bits`, and the declared joints as a MULTISET.
+///
+/// Order is not semantic, so the lists are sorted — but they are NOT
+/// deduped: the two sides here come from the same emission machinery
+/// driven two ways, so a replay that declared one joint twice where the
+/// lowering declared it once is a real divergence, and deduping would
+/// hide it. (The looser set-compare belongs in `path_differential.rs`,
+/// where the two sides are the algebra and the hand builder.)
 pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f64>) {
     assert_eq!(
         lowered.vertices.len(),
@@ -220,8 +226,6 @@ pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f
     let mut la = lowered.tangent_joints.clone();
     let mut lb = replayed.tangent_joints.clone();
     la.sort_unstable();
-    la.dedup();
     lb.sort_unstable();
-    lb.dedup();
-    assert_eq!(la, lb, "declared tangent joints");
+    assert_eq!(la, lb, "declared tangent joints (multiset)");
 }
