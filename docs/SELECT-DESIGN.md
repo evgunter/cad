@@ -391,19 +391,16 @@ never become TOPOLOGY without a structural/declared rung — and the
 ladder itself blesses detection as "a diagnostic/affordance only".
 A `FlushFinding` is a value about values; only `Node::Declare`
 (explicit, recipe-recorded, verified-at-use) crosses the line, and
-C4 polices that crossing. What KEEPS this honest is the arity rule:
-*Alternatives*: (a) per-finding declare sugar only; (b) also ship
-`declare_all(findings)`. *Recommendation: (a).* A blanket
-detect→declare composition in the library reconstructs the P9
-fixture pattern with extra steps — value-inferred declaration
-laundered through an API seam. Per-pair enumeration at the call
-site is what records intent ("value equality is not evidence of
-intent" — the ladder, verbatim). Fixtures keep their loops; the
-library asks the author to point at each pair once. This is the
-section I most want Evan's read on: (b) is genuinely convenient for
-imported/pattern-heavy models with dozens of honest flush pairs,
-and one could argue C4's verify-at-use makes (b) safe enough. I
-think (a) is right for v1 because widening later is additive.
+C4 polices that crossing. **RULED (round-2 amendment): the
+boundary is FUSION, not arity.** Both `declare(finding)` and
+`declare_all(findings: Vec<FlushFinding>)` ship; a fused
+detect-and-declare door is forbidden permanently. The enforceable
+intent-recording property is that findings pass through
+user-visible hands AS VALUES (separate detect and declare calls,
+inspectable in between) — the per-finding-only alternative was
+considered and dropped because it is defeated by a two-line user
+loop, penalizing the legitimate many-pair case without preventing
+anything; C4's verify-at-use backstops lies either way.
 
 **GS-Q4 — Tied-name × geometric-filter semantics.** §2 proposes the
 trilean (all-match include / none-match exclude / mixed refuse).
