@@ -409,6 +409,12 @@ rejection), 122 mod 3 = 2 → block M7-11 arm order (opus, opus,
 fable) — M7-7 (slot 0) gets OPUS; slot 1 opus, slot 2 fable
 banked for the next M7-eligible dispatches (the plane×NURBS lane
 is the expected slot-1 consumer).
+SLOT 1 DISPATCHED (2026-08-09): the plane×NURBS intersection
+certification lane (Evan's declare-and-check ruling on #264's
+thread; retires the seam-orphan/mixed-body pin); difficulty
+logged PRE-DISPATCH = **M**. Arm = OPUS (drawn slot 1). M7-7's
+R1 dispatched at ordinal 8 (single review; count recorded on
+#268).
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
