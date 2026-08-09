@@ -40,6 +40,8 @@ mod declared_tangency;
 mod interval_lane;
 #[path = "path_differential.rs"]
 mod path_differential;
+#[path = "path_program.rs"]
+mod path_program;
 #[path = "path_property.rs"]
 mod path_property;
 #[path = "rejections.rs"]

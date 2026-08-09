@@ -363,3 +363,42 @@ satisfies V3 via resolved-bits convention.
   row 6 = the next blinded merge (likely U7 or M7-6) — flagged
   at merge time; retroactive R2 is the remedy if the count
   shifts.
+
+- **Dual-review counter CONFIRMED** (M7 orchestrator, #268
+  thread): #266 orchestrator-class; U8a=4, G2=5 → **U7 = row 6,
+  draws dual review**. R1 was dispatched as single before the
+  count resolved; remedy per protocol = R2 dispatched at U7's
+  merge against the frozen merge head, independent (no R1
+  access). Fix pass consumes the R1∪R2 union — so U7's fix pass
+  WAITS for R2, and the merge happens after both (the row
+  records both rubrics at merge as usual).
+
+- **LB11 (U6 scope, from the census — U6 DOES NOT DISPATCH as a
+  unit now).** The census found: (a) the P9 flush helper is
+  value-inferred declaration — C4's forbidden pattern, legal only
+  in fixture code; the honest library form is detect(findings) /
+  declare(Node::Declare by name) / two-armed refusal menu (no
+  absorb arm, per the #256 ban); (b) the DETECTOR is a geometric
+  selector — inside LB7's deferred scope; (c) P5's declared-offset
+  is authoring/expression-layer (derived table = base + stated
+  deltas — Expr-shared-subtree territory), re-homed to
+  post-SWITCH-E. Consequence: U6's substance merges into the
+  GEOMETRIC-SELECTOR FOLLOW-UP design conversation, which now has
+  three consumers (LB7's deferred predicates, GQ7 re-homing,
+  U6's finder+declaration+menu) and is ripe to draft. The thin
+  declare-by-name sugar ships with it, not before. Fixture twins
+  stay put (legal where they are).
+
+- **LB13 (Evan, in-chat 2026-08-09): the LB12 seal deepens, two
+  parts.** (a) `pncad` DROPS the whole-crate `editor_core`
+  re-export (measured: 2 tour consumers, both curated-servable)
+  — the document layer exposes only its curated surface;
+  kernel-direct crates KEEP module re-exports (keys are that
+  layer's native vocabulary; U1 closure property unaffected).
+  Preliminary-no per the VQ1 asymmetry: widening later is
+  additive, narrowing post-release is breaking. (b) The boundary
+  becomes a TEST, not a soft rule: a rustdoc-JSON public-API
+  check that no arena-key type appears in any signature of
+  pncad's document-layer surface (source-grep guards miss
+  signature leaks — exactly how EntityRef escaped). Lands on
+  U5's fix pass (same territory as LB12).

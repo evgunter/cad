@@ -32,7 +32,9 @@ fn axis_y<S: Scalar>() -> RevolveAxis<S> {
 /// (no mid-carrier seams for chains) is untouched. Lowers to exactly
 /// the two-vertex bulge-1 loop this helper used to build by hand.
 fn circle<S: Scalar>(cx: f64, cy: f64, r: f64) -> ProfileLoop<S> {
-    pncad::profile::circle(p2(cx, cy), S::from_f64(r)).expect("circle radius is positive")
+    pncad::profile::circle(p2(cx, cy), S::from_f64(r))
+        .expect("circle radius is positive")
+        .into()
 }
 
 /// L-bracket: polyline + one fillet arc at the inner corner, extruded.
@@ -80,7 +82,8 @@ pub fn bracket<S: Scalar>() -> pncad::topo::Body<S> {
         .line_to(p2(0.0, 3.0))
         .expect("bracket top")
         .line_to(Start)
-        .expect("bracket seam");
+        .expect("bracket seam")
+        .into();
     extrude(
         &validated(SketchPlane::xy(), vec![lp]).expect("profile validation"),
         Extrusion::Distance(S::from_f64(0.75)),
@@ -132,7 +135,8 @@ pub fn vase<S: Scalar>() -> pncad::topo::Body<S> {
         .line_to(p2(0.0, 2.5))
         .expect("vase lip")
         .line_to(Start)
-        .expect("vase axis seam");
+        .expect("vase axis seam")
+        .into();
     revolve(
         &validated(SketchPlane::xy(), vec![lp]).expect("profile validation"),
         axis_y(),
@@ -183,7 +187,8 @@ pub fn sheave<S: Scalar>() -> (pncad::topo::Body<S>, String) {
         .line_to(p2(0.4, 1.0))
         .expect("sheave hub face (back)")
         .line_to(Start)
-        .expect("sheave bore seam");
+        .expect("sheave bore seam")
+        .into();
     let body: pncad::topo::Body<S> = revolve(
         &validated(SketchPlane::xy(), vec![lp]).expect("profile validation"),
         axis_y(),

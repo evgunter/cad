@@ -352,7 +352,10 @@ jobs:
 
       # RENDER PROVENANCE (#221 follow-up). Every committed per-scene
       # PNG under demos/renders{,-freecad}/ must carry FreeCAD's
-      # signature tEXt chunks; the two matplotlib-COMPOSED montage
+      # signature tEXt chunks; demos/renders-wild/ (the wild-corpus
+      # lane, FreeCAD-free by scope) runs inverted per-lane rules —
+      # matplotlib-drawn cells carrying the wild lane's own Author
+      # stamp; the matplotlib-COMPOSED montage
       # sheets are the only exemption, and are asserted to be exactly
       # that. A matplotlib fallback frame in a committed path fails
       # here, naming the file. Stdlib-only python3 — it rides this job
@@ -886,13 +889,18 @@ jobs:
           workspaces: |
             .
             demos/tour
+            demos/wild
             tools/k-lint
       # Hosted mirror of ci-local's "demos tour (fmt + clippy)" row:
       # the tour is workspace-excluded, so the fmt/clippy jobs above
       # never see it — and this is the job that builds it anyway (the
-      # demo scenes are half the lint's subject matter).
+      # demo scenes are half the lint's subject matter). demos/wild
+      # (the wild-corpus montage generator) rides the same row for the
+      # same reason.
       - name: demos tour fmt + clippy
         run: cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+      - name: demos wild fmt + clippy
+        run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
       - name: K-telemetry probe sweep (corpus + demo scenes, 3 eps rows)

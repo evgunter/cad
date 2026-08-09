@@ -236,7 +236,10 @@ discipline() {
 # Render provenance (#221 follow-up): every committed per-scene PNG in
 # demos/renders{,-freecad}/ must carry FreeCAD's signature tEXt chunks,
 # so a matplotlib fallback frame in a committed path fails loud instead
-# of riding into a montage cell. Stdlib-only python3 (no venv, no
+# of riding into a montage cell; demos/renders-wild/ (the wild-corpus
+# lane, FreeCAD-free by scope) runs inverted per-lane rules — its
+# cells must be matplotlib-drawn AND carry the wild lane's own Author
+# stamp. Stdlib-only python3 (no venv, no
 # FreeCAD, milliseconds) — hence an always-run row, not a filtered one:
 # a guard that a tier selection can skip is not a guard. Runs its own
 # self-test first (the guard must be shown to fire). Hosted mirror: the
@@ -346,7 +349,8 @@ interval_backend() {
 # same two commands before its probe sweep (the tour must build there
 # anyway — the demo scenes are half the lint's subject matter).
 demos_hygiene() {
-  (cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
+  (cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings) && \
+    (cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
 }
 
 # Spec D3: the large-K fragility lint (mirrors ci.yml's `k-lint` job —
