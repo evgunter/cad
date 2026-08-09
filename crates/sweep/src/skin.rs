@@ -926,9 +926,17 @@ pub fn loft_geometry(
             }
         }
     }
+    // The v-parameterization is the SURFACE's, not one strip's: taken
+    // from the first strip and reused, so every wall of the body
+    // agrees on where its sections sit. (Book §10.3 averages across
+    // control rows for exactly this reason; averaging across strips
+    // too would make the sections planar cross-sections of nothing in
+    // particular.) It is computed through the same helper
+    // [`loft_parameters`] answers with — ONE code path, so the query
+    // can never drift from the construction it reports.
+    let params = first_strip_parameters(&validated, places)?;
     let mut walls = Vec::with_capacity(loops);
     let mut kept = Vec::with_capacity(loops);
-    let mut params: Option<Vec<f64>> = None;
     for l in 0..loops {
         let n_segments = validated[0].loops()[l].vertices().len();
         let mut loop_walls = Vec::with_capacity(n_segments);
@@ -941,21 +949,7 @@ pub fn loft_geometry(
                 .map(|(i, (s, place))| segment_curve(i, vertex_segment(&s.loops()[l], j), *place))
                 .collect::<Result<_, _>>()?;
             let compat = make_compatible(&raw)?;
-            // The v-parameterization is the SURFACE's, not one strip's:
-            // taken from the first strip and reused, so every wall of
-            // the body agrees on where its sections sit. (Book §10.3
-            // averages across control rows for exactly this reason;
-            // averaging across strips too would make the sections
-            // planar cross-sections of nothing in particular.)
-            let p = match &params {
-                Some(p) => p.clone(),
-                None => {
-                    let p = skin_parameters(&compat)?;
-                    params = Some(p.clone());
-                    p
-                }
-            };
-            loop_walls.push(Arc::new(skin_on(&compat, v_degree, &p)?));
+            loop_walls.push(Arc::new(skin_on(&compat, v_degree, &params)?));
             loop_sections.push(compat);
         }
         walls.push(loop_walls);
@@ -963,9 +957,109 @@ pub fn loft_geometry(
     }
     Ok(LoftGeometry {
         walls,
-        section_params: params.unwrap_or_default(),
+        section_params: params,
         sections: kept,
     })
+}
+
+/// **What v-parameters will the skin put my sections at?** — the
+/// read-back door for [`LoftGeometry::section_params`], answerable
+/// from what a section author already holds ([`Section`]s and their
+/// placements), before any surface is built.
+///
+/// [`skin_parameters`] answers the same question one layer down, but
+/// only for COMPATIBLE `NurbsCurve3` sections — a caller holding
+/// [`ProfileLoop`]s cannot reach it without redoing `segment_curve` /
+/// [`make_compatible`] by hand. This door is that path, and it is
+/// literally the path [`loft_geometry`] takes (one shared helper), so
+/// the answer is the construction's, not a re-derivation of it.
+///
+/// Chord-length averaging (Book Eq. 10.8) is what makes this worth
+/// asking: the answer is NOT the z-spacing, and hand-deriving it is
+/// how demos and fixtures drifted.
+///
+/// `v_degree` is not used to place the sections — it is validated, so
+/// this door refuses exactly where [`loft_body`](crate::loft_body)
+/// would rather than answering for a loft that cannot be built.
+///
+/// # Errors
+///
+/// [`SkinError::TooFewSections`], [`SkinError::SectionShapeMismatch`]
+/// (placement count), [`SkinError::BadDegree`], and every refusal
+/// [`segment_curve`], [`make_compatible`] and [`skin_parameters`]
+/// carry.
+///
+/// ```
+/// use geom_core::{Affine3, Point2, Vec3};
+/// use sweep::{ProfileLoop, Section, loft_parameters};
+///
+/// let quad = |pts: [(f64, f64); 4]| -> Section {
+///     vec![ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)))]
+/// };
+/// // The corpus's non-uniform prism: square, flared trapezoid,
+/// // square — placed at z = 0, 1, 3.
+/// let sections = vec![
+///     quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
+///     quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
+///     quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
+/// ];
+/// let places: Vec<Affine3<f64>> = [0.0, 1.0, 3.0]
+///     .iter()
+///     .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+///     .collect();
+///
+/// let params = loft_parameters(&sections, &places, 2).expect("the sections skin");
+/// // Ends pinned; the middle is the CHORD-length share, not the
+/// // z-share (which would be 1/3): the flare lengthens the first
+/// // chord, giving t = √73 / (√73 + √265).
+/// assert_eq!(params[0], 0.0);
+/// assert_eq!(params[2], 1.0);
+/// assert_eq!(params[1], 0.34419950074181277);
+/// ```
+pub fn loft_parameters(
+    sections: &[Section],
+    places: &[Affine3<f64>],
+    v_degree: usize,
+) -> Result<Vec<f64>, SkinError> {
+    let k = sections.len();
+    if k < 2 {
+        return Err(SkinError::TooFewSections { have: k, need: 2 });
+    }
+    if places.len() != k {
+        return Err(SkinError::SectionShapeMismatch {
+            section: places.len().min(k),
+            expected: k,
+            found: places.len(),
+            what: "placements",
+        });
+    }
+    if v_degree == 0 || v_degree >= k {
+        return Err(SkinError::BadDegree {
+            degree: v_degree,
+            sections: k,
+        });
+    }
+    first_strip_parameters(&validate_sections(sections, places)?, places)
+}
+
+/// The first strip's v-parameters — the whole loft's, by the
+/// construction rule above. Loop-less sections have no strip and so
+/// no parameterization: the empty list, exactly what the lazy form
+/// this replaced produced.
+fn first_strip_parameters(
+    validated: &[ValidatedProfile<f64>],
+    places: &[Affine3<f64>],
+) -> Result<Vec<f64>, SkinError> {
+    if validated.is_empty() || validated[0].loops().is_empty() {
+        return Ok(Vec::new());
+    }
+    let raw: Vec<NurbsCurve3<f64>> = validated
+        .iter()
+        .zip(places)
+        .enumerate()
+        .map(|(i, (s, place))| segment_curve(i, vertex_segment(&s.loops()[0], 0), *place))
+        .collect::<Result<_, _>>()?;
+    skin_parameters(&make_compatible(&raw)?)
 }
 
 // ---------------------------------------------------------------------

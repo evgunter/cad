@@ -169,9 +169,108 @@
 //! assert!(!Selector::default().matches(&seam));
 //! ```
 
+//! # From a name to GEOMETRY (LIB-U5)
+//!
+//! A selection is only half a question. The other half — "so where
+//! IS the face I selected?" — used to have no answer at this façade:
+//! the naming table's `EntityRef`/`Entry` were exported, and reading
+//! a coordinate meant unwrapping one into a `topo` arena key and
+//! indexing the body yourself. Arena keys are body-lineage-scoped and
+//! meaningful only against the evaluation that built them; the naming
+//! layer's own rule is that they never leave `editor-core` (G1), and
+//! LIBRARY-DESIGN §L3 names that laundering as the thing a consumer
+//! must never have to do.
+//!
+//! **So they no longer leave.** `EntityRef` and `Entry` are gone from
+//! this surface, replaced by doors that speak names and answer with
+//! values: [`face_frame`], [`edge_frame`], [`vertex_position`], and
+//! [`denotation`] for the tie information `Entry` used to carry (a
+//! count, not candidates — the candidates are keys).
+//!
+//! What comes back is a [`Pose`]: the carrier's own stored frame,
+//! copied out. A VALUE, never a verdict — no door here answers "is
+//! this face planar" or "is this edge convex" (LIB-LOG LB7 defers
+//! geometric predicates). And no convention is invented where the
+//! model fixes none: **a NURBS face has no canonical frame, so
+//! [`face_frame`] refuses it** with `ReadbackError::NoCanonicalFrame`
+//! rather than nominating S(0,0) and a chart normal as though the
+//! kernel had chosen them. Analytic carriers all answer.
+//!
+//! ```
+//! use pncad::prelude::*;
+//!
+//! let square = ProfileLoop::new(
+//!     [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+//!         .into_iter()
+//!         .map(|(x, y)| ProfileVertex { pos: p2::<f64>(x, y), bulge: 0.0 })
+//!         .collect(),
+//! );
+//! let mut doc = Doc::<ProfileDesc>::empty();
+//! let mut insert = |doc: &Doc<ProfileDesc>, node| {
+//!     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
+//!     let id = applied.record.minted.expect("a minted id");
+//!     (applied.doc, id)
+//! };
+//! let (next, profile) = insert(
+//!     &doc,
+//!     Node::Profile(ProfileDesc(Profile::new(SketchPlane::xy(), vec![square]))),
+//! );
+//! doc = next;
+//! let (next, cube) = insert(
+//!     &doc,
+//!     Node::Extrude {
+//!         profile,
+//!         distance: Expr::literal(1.0, Dimension::Length).expect("a length"),
+//!     },
+//! );
+//! doc = next;
+//!
+//! let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+//!
+//! // Select the top cap by NAME, then ask where it is.
+//! let top = Selector::of(
+//!     NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top)),
+//! );
+//! let names = select(&ev, cube, &top);
+//! assert_eq!(names.len(), 1);
+//!
+//! // The name resolves uniquely...
+//! assert_eq!(denotation(&ev, cube, &names[0]), Ok(Denotation::Unique));
+//! // ...and the plane it names is z = 1. No arena key was held, and
+//! // no coordinate was transcribed to learn it.
+//! let pose = face_frame(&ev, cube, &names[0]).expect("an analytic cap");
+//! assert_eq!(pose.origin.z, 1.0);
+//! assert_eq!(pose.axis.z, 1.0);
+//!
+//! // Vertices answer with their stored position.
+//! let corners = all_vertices(&ev, cube);
+//! let zs: Vec<f64> = corners
+//!     .iter()
+//!     .map(|n| vertex_position(&ev, cube, n).expect("a live vertex").z)
+//!     .collect();
+//! assert_eq!(zs.iter().filter(|z| **z == 1.0).count(), 4);
+//!
+//! // Edges answer with their carrier's frame. Every edge of a box
+//! // is a line: a direction, and honestly NO reference
+//! // perpendicular — `u_ref` is `None` rather than invented.
+//! let edge = &all_edges(&ev, cube)[0];
+//! let line = edge_frame(&ev, cube, edge).expect("a certified carrier");
+//! assert!(line.u_ref.is_none() && line.v_ref().is_none());
+//!
+//! // A face door handed an EDGE name refuses by type, not by panic.
+//! assert!(matches!(
+//!     face_frame(&ev, cube, edge),
+//!     Err(InterrogateError::WrongKind { .. })
+//! ));
+//! ```
+
 pub use editor_core::{
-    CapEnd, EntityKind, EntityRef, Entry, MeridianEnd, NamePat, NameTable, OpGroup, ProfileEdgeRef,
-    ProfileVertexRef, RimSupport, RolePath, RoleSeg, SegPat, SegTag, Selector, Side, SplitHalf,
-    TagPat, all_bodies, all_edges, all_faces, all_vertices, edge_name, entity_name, face_name,
-    select,
+    CapEnd, Denotation, EntityKind, InterrogateError, MeridianEnd, NamePat, NameTable, OpGroup,
+    ProfileEdgeRef, ProfileVertexRef, RimSupport, RolePath, RoleSeg, SegPat, SegTag, Selector,
+    Side, SplitHalf, TagPat, all_bodies, all_edges, all_faces, all_vertices, denotation,
+    edge_frame, edge_name, face_frame, face_name, select, vertex_position,
 };
+/// The frame type the geometry doors answer with, and its refusal —
+/// re-exported from the kernel's read-back module so a façade user
+/// names one crate, not two.
+pub use sweep::readback::{Pose, ReadbackError};

@@ -24,6 +24,7 @@ mod emit;
 mod emit_fillet;
 mod emit_sweep;
 mod emit_topo;
+mod interrogate;
 mod role;
 mod select;
 mod table;
@@ -33,6 +34,9 @@ pub(crate) use emit::{empty, name_pattern};
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
+pub use interrogate::{
+    Denotation, InterrogateError, denotation, edge_frame, face_frame, vertex_position,
+};
 pub use role::{
     CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport,
     RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,
