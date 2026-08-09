@@ -139,9 +139,13 @@ fn arc_loft_refuses_at_import_with_the_native_bodys_verdict() {
         .expect("the writer exports the rational-walled body today (measured)");
     let refusal = import_step(&text, &ImportOptions::default())
         .expect_err("Arm B: the shared at-rest gate refuses the uncomputable-volume body");
-    let step_import::StepImportError::TierInvalid { errors } = &refusal else {
+    let step_import::StepImportError::TierInvalid { solid, errors } = &refusal else {
         panic!("expected the shared gate's typed refusal, got: {refusal:?}");
     };
+    assert_eq!(
+        *solid, None,
+        "arc_loft is a one-solid file: the subject is the assembled body"
+    );
     assert_eq!(
         rational_refusal_text(errors, "imported"),
         native_refusal,

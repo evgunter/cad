@@ -296,7 +296,7 @@ fn probe_arm_b_true_arc_rim_positive_control() {
     let text = step_export::step_string(&native, &step_export::StepOptions::default())
         .expect("arc loft exports");
     match import(&text) {
-        Err(step_import::StepImportError::TierInvalid { errors }) => assert!(
+        Err(step_import::StepImportError::TierInvalid { errors, .. }) => assert!(
             matches!(
                 errors.as_slice(),
                 [topo::ValidationError::VolumeUncomputable { .. }]

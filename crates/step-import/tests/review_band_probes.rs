@@ -188,7 +188,7 @@ fn r1_inside_out_torus_band_never_imports_green() {
     assert!(
         matches!(
             &e,
-            step_import::StepImportError::TierInvalid { errors }
+            step_import::StepImportError::TierInvalid { solid: None, errors }
                 if matches!(errors.as_slice(), [topo::ValidationError::NegativeVolume])
         ),
         "expected the shared gate's typed refusal on the +V invariant, got: {e:?}"

@@ -243,6 +243,11 @@ pub enum StepImportError {
     /// whatever the verdict kinds, so import holds no opinion of its
     /// own about what "valid at rest" means.
     TierInvalid {
+        /// The `MANIFOLD_SOLID_BREP` id of the solid asked about on its
+        /// own, or `None` when the verdict is about the whole assembled
+        /// body (which for a one-solid file is the same body — see
+        /// [`crate::import_step`]).
+        solid: Option<u64>,
         /// The tier-1/2/3 verdicts, verbatim.
         errors: Vec<topo::ValidationError>,
     },
@@ -349,7 +354,7 @@ impl fmt::Display for StepImportError {
                     "step import: pcurve re-mint on the adopted body: {source}"
                 )
             }
-            Self::TierInvalid { errors } => {
+            Self::TierInvalid { solid, errors } => {
                 // Both forms of each verdict: the Debug shape names
                 // the failing CHECK and its entity keys structurally
                 // (greppable, and what a caller matching on
@@ -357,10 +362,14 @@ impl fmt::Display for StepImportError {
                 // check means and carries the margins the measured
                 // checks report.
                 let verdicts: Vec<String> = errors.iter().map(|e| format!("{e:?} — {e}")).collect();
+                let subject = match solid {
+                    Some(id) => format!("solid #{id}, asked about on its own,"),
+                    None => "the assembled body".to_owned(),
+                };
                 write!(
                     f,
-                    "step import: the file describes a body the kernel's shared at-rest \
-                     validation gate refuses ({} verdict{}): {} — the imported solid is \
+                    "step import: {subject} is a body the kernel's shared at-rest \
+                     validation gate refuses ({} verdict{}): {} — every imported solid is \
                      held to the same tiers, by the same function, as a natively \
                      constructed one, so a body that is invalid at rest refuses at \
                      import rather than shipping the failure downstream",

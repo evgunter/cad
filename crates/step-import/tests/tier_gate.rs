@@ -1,7 +1,8 @@
 //! **M7-7 acceptance: the shared at-rest gate over the whole corpus**
 //! (issue #260, ruling (a)).
 //!
-//! Since M7-7, `import_step` hands every assembled solid to
+//! Since M7-7, `import_step` hands each `MANIFOLD_SOLID_BREP` on its
+//! own body, and then the assembled body, to
 //! `topo::validate_geometric` — the kernel's own at-rest validator,
 //! the same function a native body's caller runs — and ships only
 //! bodies it passes. This suite is the per-file record of what that
@@ -9,20 +10,34 @@
 //! fixture roots are walked, so a fixture added without a row here
 //! turns this suite red rather than quietly escaping the gate.
 //!
-//! Two things are asserted per file, at three tolerances (the file's
+//! Three things are asserted per file, at three tolerances (the file's
 //! own ε_in, and overrides 1e-6 / 1e-12):
 //!
 //! * **the disposition** — solid, wireframe, or a typed refusal with
 //!   its reason — held constant across all three, so an ε-row
 //!   dependence in what the corpus does becomes a red row and not a
-//!   surprise; and
+//!   surprise;
 //! * **tier-validity of every shipped body, positively** — the gate is
 //!   re-run on the body `import_step` handed out. That is redundant
 //!   only while the gate is wired: delete or narrow the call and these
-//!   rows are what catches the invalid body going out the door.
+//!   rows are what catches the invalid body going out the door; and
+//! * **the census of every shipped body**, which is what makes the
+//!   rows able to see entity loss at all (R1 MINOR-2: a `take(1)` in
+//!   `build_body` used to leave this whole suite green). Four corpus
+//!   files carry two solids each — `compound_two`,
+//!   `twobody_importexport`, `cq_red_cube_blue_cylinder`,
+//!   `kiss_assembly` — so the solid counts are also the standing
+//!   evidence that the per-solid pass runs on real corpus geometry.
 //!
-//! **Measured at the wiring (M7-7): no committed corpus file fails the
-//! gate.** 44 solids pass, 8 files refuse for reasons that predate this
+//! **Scope, stated honestly** (R1 MINOR-1): the gate is tier 3, and on
+//! a body with no declared contacts the tier-3′ form is strictly
+//! stronger — it runs the coincidence census too. Imports declare no
+//! contacts, so an imported assembly whose parts TOUCH is checked less
+//! than its native twin; `kiss_assembly` is exactly that body, and
+//! `review_r1_tier_gate_probes.rs` pins the difference. Banked with
+//! the M8 contact program (D7 step 4), not silently absorbed here.
+//!
+//! **Measured (M7-7): no committed corpus file fails the gate.** 44 solids pass, 8 files refuse for reasons that predate this
 //! unit (one of them, `band_c180`, at the gate itself — the inside-out
 //! torus band, refusing now through the general mechanism that
 //! replaced its band-only backstop), and one file is a wireframe. The
@@ -41,8 +56,16 @@ use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 /// What a corpus file does at import, at every tolerance in the sweep.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Disposition {
-    /// Imports as a solid, and the shipped body passes the gate.
-    Pass,
+    /// Imports as a solid, and the shipped body passes the gate, with
+    /// this census: (solids, shells, faces, edges, vertices).
+    ///
+    /// The census is not decoration. A disposition alone cannot see a
+    /// reader that silently drops solids — the R1 review's `take(1)`
+    /// mutation of `build_body` left this suite entirely green — and
+    /// the solid count is exactly the number the per-solid gate now
+    /// iterates, so a body arriving with fewer solids than the file
+    /// states means fewer solids were gated.
+    Pass(usize, usize, usize, usize, usize),
     /// Imports as a curve-set wireframe (no body, nothing to gate).
     Wireframe,
     /// Refuses typed; the string is a distinctive fragment of the
@@ -54,9 +77,9 @@ enum Disposition {
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
 const CORPUS: [(&str, Disposition); 53] = [
-    ("tests/fixtures/band/band_a.stp", Pass),
-    ("tests/fixtures/band/band_a180.stp", Pass),
-    ("tests/fixtures/band/band_b180.stp", Pass),
+    ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
+    ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
+    ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
     (
         "tests/fixtures/band/band_c180.stp",
         Refused("shared at-rest validation gate"),
@@ -73,44 +96,80 @@ const CORPUS: [(&str, Disposition); 53] = [
         "tests/fixtures/band/ftc11_uref_off.stp",
         Refused("no intensional description certifies"),
     ),
-    ("tests/fixtures/band/washer180.stp", Pass),
-    ("tests/fixtures/band/washer90.stp", Pass),
-    ("tests/fixtures/freecad/box.step", Pass),
-    ("tests/fixtures/freecad/box_fillet_corner.step", Pass),
-    ("tests/fixtures/freecad/box_fillet_edge.step", Pass),
-    ("tests/fixtures/freecad/box_hole.step", Pass),
-    ("tests/fixtures/freecad/box_importexport.step", Pass),
-    ("tests/fixtures/freecad/compound_two.step", Pass),
-    ("tests/fixtures/freecad/cone_apex.step", Pass),
-    ("tests/fixtures/freecad/cone_trunc.step", Pass),
-    ("tests/fixtures/freecad/cylinder.step", Pass),
-    ("tests/fixtures/freecad/fuse_boxes.step", Pass),
-    ("tests/fixtures/freecad/sphere.step", Pass),
-    ("tests/fixtures/freecad/torus.step", Pass),
-    ("tests/fixtures/freecad/twobody_importexport.step", Pass),
-    ("tests/fixtures/wild/adafruit/1982_MPR121.step", Pass),
+    ("tests/fixtures/band/washer180.stp", Pass(1, 1, 3, 5, 4)),
+    ("tests/fixtures/band/washer90.stp", Pass(1, 1, 3, 5, 4)),
+    ("tests/fixtures/freecad/box.step", Pass(1, 1, 6, 12, 8)),
+    (
+        "tests/fixtures/freecad/box_fillet_corner.step",
+        Pass(1, 1, 10, 21, 13),
+    ),
+    (
+        "tests/fixtures/freecad/box_fillet_edge.step",
+        Pass(1, 1, 7, 15, 10),
+    ),
+    (
+        "tests/fixtures/freecad/box_hole.step",
+        Pass(1, 1, 7, 15, 10),
+    ),
+    (
+        "tests/fixtures/freecad/box_importexport.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "tests/fixtures/freecad/compound_two.step",
+        Pass(2, 2, 8, 14, 10),
+    ),
+    ("tests/fixtures/freecad/cone_apex.step", Pass(1, 1, 3, 4, 3)),
+    (
+        "tests/fixtures/freecad/cone_trunc.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    ("tests/fixtures/freecad/cylinder.step", Pass(1, 1, 3, 3, 2)),
+    (
+        "tests/fixtures/freecad/fuse_boxes.step",
+        Pass(1, 1, 14, 32, 20),
+    ),
+    ("tests/fixtures/freecad/sphere.step", Pass(1, 1, 2, 2, 2)),
+    ("tests/fixtures/freecad/torus.step", Pass(1, 1, 2, 4, 2)),
+    (
+        "tests/fixtures/freecad/twobody_importexport.step",
+        Pass(2, 2, 8, 14, 10),
+    ),
+    (
+        "tests/fixtures/wild/adafruit/1982_MPR121.step",
+        Pass(1, 1, 10, 24, 16),
+    ),
     (
         "tests/fixtures/wild/adafruit/328_2500mAh_battery.step",
-        Pass,
+        Pass(1, 1, 6, 12, 8),
     ),
     (
         "tests/fixtures/wild/adafruit/64_Halfsize_Breadboard.step",
-        Pass,
+        Pass(1, 1, 18, 48, 32),
     ),
-    ("tests/fixtures/wild/adafruit/805_slide_switch.step", Pass),
+    (
+        "tests/fixtures/wild/adafruit/805_slide_switch.step",
+        Pass(1, 1, 19, 46, 30),
+    ),
     (
         "tests/fixtures/wild/adafruit/931_OLED_128x32_I2C.step",
-        Pass,
+        Pass(1, 1, 24, 60, 40),
     ),
-    ("tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp", Pass),
-    ("tests/fixtures/wild/nist/nist_ftc_11_asme1_rb.stp", Pass),
+    (
+        "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp",
+        Pass(1, 1, 158, 454, 300),
+    ),
+    (
+        "tests/fixtures/wild/nist/nist_ftc_11_asme1_rb.stp",
+        Pass(1, 1, 6, 14, 10),
+    ),
     (
         "tests/fixtures/wild/occ-oss/b123d_nema17_bracket.step",
         Refused("(SURFACE_CURVE) is outside the imported subset"),
     ),
     (
         "tests/fixtures/wild/occ-oss/cq_red_cube_blue_cylinder.step",
-        Pass,
+        Pass(2, 2, 9, 17, 12),
     ),
     (
         "tests/fixtures/wild/stepcode/TAIL_TURBINE.stp",
@@ -124,28 +183,82 @@ const CORPUS: [(&str, Disposition); 53] = [
         "tests/fixtures/wild/stepcode/io1-cm-214.stp",
         Refused("expected a doubled backslash"),
     ),
-    ("tests/fixtures/wild/stepcode/sg1-c5-214.stp", Pass),
-    ("../step-export/tests/fixtures/ball.step", Pass),
-    ("../step-export/tests/fixtures/boss_union.step", Pass),
-    ("../step-export/tests/fixtures/composed_die.step", Pass),
-    ("../step-export/tests/fixtures/cone.step", Pass),
-    ("../step-export/tests/fixtures/cube.step", Pass),
-    ("../step-export/tests/fixtures/cut_cylinder.step", Pass),
-    ("../step-export/tests/fixtures/die.step", Pass),
-    ("../step-export/tests/fixtures/die_pips.step", Pass),
-    ("../step-export/tests/fixtures/donut.step", Pass),
-    ("../step-export/tests/fixtures/filleted_die.step", Pass),
-    ("../step-export/tests/fixtures/kiss_assembly.step", Pass),
-    ("../step-export/tests/fixtures/lily_lantern.step", Pass),
-    ("../step-export/tests/fixtures/loft_prism.step", Pass),
-    ("../step-export/tests/fixtures/nonuniform_loft.step", Pass),
-    ("../step-export/tests/fixtures/notched.step", Pass),
+    (
+        "tests/fixtures/wild/stepcode/sg1-c5-214.stp",
+        Pass(1, 1, 16, 32, 20),
+    ),
+    (
+        "../step-export/tests/fixtures/ball.step",
+        Pass(1, 1, 2, 2, 2),
+    ),
+    (
+        "../step-export/tests/fixtures/boss_union.step",
+        Pass(1, 1, 10, 21, 14),
+    ),
+    (
+        "../step-export/tests/fixtures/composed_die.step",
+        Pass(1, 1, 89, 195, 129),
+    ),
+    (
+        "../step-export/tests/fixtures/cone.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "../step-export/tests/fixtures/cube.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "../step-export/tests/fixtures/cut_cylinder.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "../step-export/tests/fixtures/die.step",
+        Pass(1, 1, 11, 24, 16),
+    ),
+    (
+        "../step-export/tests/fixtures/die_pips.step",
+        Pass(1, 1, 48, 96, 71),
+    ),
+    (
+        "../step-export/tests/fixtures/donut.step",
+        Pass(1, 1, 2, 4, 2),
+    ),
+    (
+        "../step-export/tests/fixtures/filleted_die.step",
+        Pass(1, 1, 26, 48, 24),
+    ),
+    (
+        "../step-export/tests/fixtures/kiss_assembly.step",
+        Pass(2, 2, 22, 48, 32),
+    ),
+    (
+        "../step-export/tests/fixtures/lily_lantern.step",
+        Pass(1, 1, 8, 14, 8),
+    ),
+    (
+        "../step-export/tests/fixtures/loft_prism.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "../step-export/tests/fixtures/nonuniform_loft.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "../step-export/tests/fixtures/notched.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
     (
         "../step-export/tests/fixtures/nurbs_wireframe.step",
         Wireframe,
     ),
-    ("../step-export/tests/fixtures/swept_elbow.step", Pass),
-    ("../step-export/tests/fixtures/washer.step", Pass),
+    (
+        "../step-export/tests/fixtures/swept_elbow.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "../step-export/tests/fixtures/washer.step",
+        Pass(1, 1, 4, 8, 4),
+    ),
 ];
 
 /// Every `.step` / `.stp` file under `dir`, recursively, sorted.
@@ -210,13 +323,29 @@ fn every_corpus_import_passes_the_shared_gate() {
             let options = ImportOptions { eps_in };
             let who = format!("{rel} @ eps {eps_tag}");
             match (import_step(&text, &options), want) {
-                (Ok(StepImport::Solid { body, .. }), Pass) => assert_eq!(
-                    topo::validate_geometric(&body),
-                    Ok(()),
-                    "{who}: the SHIPPED body must be gate-clean — import handed out a \
-                     body its own gate refuses, which can only mean the gate is no \
-                     longer wired"
-                ),
+                (Ok(StepImport::Solid { body, .. }), Pass(s, sh, f, e, v)) => {
+                    assert_eq!(
+                        topo::validate_geometric(&body),
+                        Ok(()),
+                        "{who}: the SHIPPED body must be gate-clean — import handed out a \
+                         body its own gate refuses, which can only mean the gate is no \
+                         longer wired"
+                    );
+                    assert_eq!(
+                        (
+                            body.solids().count(),
+                            body.shells().count(),
+                            body.faces().count(),
+                            body.edges().count(),
+                            body.vertices().count()
+                        ),
+                        (s, sh, f, e, v),
+                        "{who}: census (solids, shells, faces, edges, vertices) — a \
+                         shipped body missing entities the file states is a silent \
+                         loss, and a missing SOLID is also a solid the per-solid gate \
+                         never saw"
+                    );
+                }
                 (Ok(StepImport::Wireframe { .. }), Wireframe) => {}
                 (Err(e), Refused(fragment)) => {
                     let msg = e.to_string();
@@ -232,14 +361,17 @@ fn every_corpus_import_passes_the_shared_gate() {
     }
 }
 
-/// The gate is wired at exactly ONE place (the #260 ask: make skipping
-/// it structurally hard). Import owns no validation logic of its own —
-/// no second entry, no kind predicate deciding who is gated, no
-/// verdict filter deciding which failures count — so this counts the
-/// validator calls in the crate's sources and pins the count at one.
-/// A second call is not automatically wrong, but it is exactly the
-/// shape the old band-only backstop had, so it must be argued for
-/// here rather than appear.
+/// The reader touches the kernel's validator at exactly ONE place (the
+/// #260 ask: make skipping it structurally hard). The gate is asked
+/// about several subjects — each solid alone, then the assembled body
+/// — but always through `lib.rs`'s `gate`, which maps the verdicts to
+/// a typed refusal and does nothing else. Import owns no validation
+/// logic of its own: no second entry, no kind predicate deciding who
+/// is asked, no verdict filter deciding which failures count. This
+/// counts the validator calls in the crate's sources and pins the
+/// count at one; a second call is not automatically wrong, but it is
+/// exactly the shape the old band-only backstop had, so it must be
+/// argued for here rather than appear.
 #[test]
 fn exactly_one_validation_call_site_in_the_reader() {
     let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
@@ -287,9 +419,13 @@ fn the_refusal_carries_the_kernels_verdicts() {
     )
     .unwrap();
     let e = import_step(&text, &ImportOptions::default()).unwrap_err();
-    let StepImportError::TierInvalid { errors } = &e else {
+    let StepImportError::TierInvalid { solid, errors } = &e else {
         panic!("expected the gate's typed refusal, got: {e:?}");
     };
+    assert_eq!(
+        *solid, None,
+        "a one-solid file's subject is the assembled body itself"
+    );
     assert_eq!(
         errors.as_slice(),
         [topo::ValidationError::NegativeVolume],

@@ -1018,19 +1018,37 @@ defining data. Pipeline sketch:
    (gaps, sloppy source tolerances), repair (refit/nudge) or fail loudly
    with a typed error naming the unhealable entities (D4 ¶5).
 4. **The shared at-rest gate** (ratified 2026-08-08, issue #260 option
-   (a)): steps 1–3 certify each *entity's* description; the finished
-   *body* is then handed to the kernel's own at-rest validator — the
-   tier-3 battery, or the tier-3′ form where declared contacts exist —
-   and only a body it passes ships from import. Same function, same
-   tiers, as a native body's caller runs; import holds no idea of
-   validity of its own, so there is nothing to drift (D9 engineering
-   convention 2 — structural sharing, one validator). A body that
-   fails is a typed *validity* refusal naming the failing check and
-   its entities, an escalated verdict included (escalate-never-guess:
-   an undecidable verdict is a refusal, not a pass). Making un-gated
-   bodies *unrepresentable* at every kernel door — a currency type
-   only the gate can mint — is the structural completion, banked at
-   #250 with #260 as its design record.
+   (a)): steps 1–3 certify each *entity's* description; the *body* is
+   then handed to the kernel's own at-rest validator — the tier-3
+   battery, or the tier-3′ form where declared contacts exist — and
+   only a body it passes ships from import. Same function, same tiers,
+   as a native body's caller runs; import holds no idea of validity of
+   its own, so there is nothing to drift (D9 engineering convention 2
+   — structural sharing, one validator). A body that fails is a typed
+   *validity* refusal naming the failing check and its entities, an
+   escalated verdict included (escalate-never-guess: an undecidable
+   verdict is a refusal, not a pass).
+
+   *Per solid, not merely per file.* Several tier-3 invariants are
+   whole-body sums — the +V check is boundary flux over every shell —
+   so in a multi-solid file an inside-out solid cancels against a
+   right-side-out neighbour and the aggregate reads Zero, which is
+   exempt. "Every imported solid passes the gate" therefore means each
+   solid is asked on its own body, before aggregation, with the
+   refusal naming which one; the aggregate pass remains for the
+   cross-solid structure no per-solid view can see.
+
+   *Scope, named.* On a body with no declared contacts, 3′ is tier 3
+   **plus the coincidence census actually run** — strictly stronger.
+   Imports declare no contacts (F1 forbids scan-to-bless), so an
+   imported assembly whose parts *touch* is checked less than its
+   natively built twin, whose pipeline carries the declarations. Making
+   import-side contacts expressible belongs to the M8 contact program
+   (C7); until then this is a named residue, not an equivalence.
+
+   Making un-gated bodies *unrepresentable* at every kernel door — a
+   currency type only the gate can mint — is the structural
+   completion, banked at #250 with #260 as its design record.
 
 **Adoption tolerance ≠ kernel tolerance.** The generator's precision is
 unknown and usually worse than ε, so adoption takes a per-import *input
