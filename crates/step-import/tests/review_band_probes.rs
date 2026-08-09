@@ -173,16 +173,31 @@ fn r1_torus_region_selection_is_real() {
 
 /// C3(b): the inside-out torus band (faces consistently stating the
 /// complement region with inverted senses) REFUSES at import — the
-/// kernel's tier-3 gates (the D2 region decode's documented backstop)
-/// now RUN on band-normalized bodies before the body ships (R1 fix
-/// pass, MAJ-1), so the negative-volume body never imports green.
+/// kernel's tier-3 gates are the D2 region decode's documented
+/// backstop, and they RUN before the body ships, so the
+/// negative-volume body never imports green.
+///
+/// Since M7-7 (#260 ruling (a)) the mechanism is the GENERAL one: the
+/// band-only `band_backstop` is gone and this fixture refuses through
+/// the shared at-rest gate every imported solid passes. Same fixture,
+/// same verdict, no special case — which is the point: the band's
+/// backstop was only ever a patch over ordinary solids skipping the
+/// gate.
 #[test]
 fn r1_inside_out_torus_band_never_imports_green() {
     let e = import_step(&band("band_c180.stp"), &ImportOptions::default()).unwrap_err();
+    assert!(
+        matches!(
+            &e,
+            step_import::StepImportError::TierInvalid { errors }
+                if matches!(errors.as_slice(), [topo::ValidationError::NegativeVolume])
+        ),
+        "expected the shared gate's typed refusal on the +V invariant, got: {e:?}"
+    );
     let msg = e.to_string();
     assert!(
-        msg.contains("tier-3 geometric validation") && msg.contains("NegativeVolume"),
-        "expected the executed band backstop's typed refusal, got: {msg}"
+        msg.contains("shared at-rest validation gate") && msg.contains("NegativeVolume"),
+        "the message names the gate and the failing check: {msg}"
     );
 }
 

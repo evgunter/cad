@@ -7,12 +7,17 @@
 //!
 //! - the **surface_sig pin** at body level (spec item 2's trap): the
 //!   four distinct walls must land on four distinct surface keys;
-//! - the **rational arm** (spec item 5, Arm B —
-//!   import-with-typed-limitation): a natively built `arc_loft`
-//!   (three walls non-rational, one RATIONAL) exports, imports, and
-//!   lands in EXACTLY the native body's state — census equal, tiers
-//!   1/2 green, and the tier-3 volume refusal *identical in kind and
-//!   text* to the one the native body produces;
+//! - the **rational arm** (spec item 5, Arm B): a natively built
+//!   `arc_loft` (three walls non-rational, one RATIONAL) exports and
+//!   then REFUSES at import with exactly the tier-3 verdict its native
+//!   twin carries at rest. Arm B was "import with a typed limitation"
+//!   until M7-7 wired the shared at-rest gate (#260 ruling (a)):
+//!   `StepImport::Solid` may only carry a body the gate passes, and a
+//!   body whose volume the kernel cannot compute is not one — so the
+//!   limitation now lands as a typed refusal instead of riding out on
+//!   a shipped body. Same verdict, same recourse text, earlier;
+//!   the class returns to importing when the banked rational-wall
+//!   quadrature lands;
 //! - the **description state**: imported seams carry `IsoCurve`,
 //!   imported cap rims `MappedCurve` — the native loft's own
 //!   description classes, which is what makes one adoption pass a
@@ -26,9 +31,11 @@
 //! assembly (`nurbs_span_meter` poison), so the bodies this suite can
 //! round-trip are uniformly-spaced lofts — polyline profiles
 //! (non-rational, full tier 3) and arc-bearing profiles (rational
-//! walls, the Arm-B typed tier-3 limitation). That is a statement
-//! about the builder, not the reader: the import side accepts any
-//! file in the written vocabulary.
+//! walls, which since M7-7 refuse at the import gate on the banked
+//! volume lane rather than shipping). That is a statement about the
+//! builder and the quadrature, not the reader: the import side reads
+//! any file in the written vocabulary, and only the at-rest gate has
+//! anything left to say about the rational one.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -36,14 +43,15 @@ mod common;
 use common::import_body;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::{ProfileLoop, ProfileVertex};
-use step_import::{ImportOptions, StepImport, import_step};
+use step_import::{ImportOptions, import_step};
 use sweep::{Section, loft_body};
 
 /// The arc-bearing profile loft the substrate measured (one bulged
 /// side per section → 3 non-rational walls + 1 RATIONAL wall): the
 /// writer exports it today with tiers 1/2 valid and a typed tier-3
-/// volume refusal, which is exactly the state its import must land
-/// in.
+/// volume refusal — the at-rest state its import must reproduce, and
+/// therefore (the gate being shared) the refusal its import must
+/// carry.
 fn native_arc_loft() -> topo::Body<f64> {
     let arc_section = |s: f64| -> Section {
         let v = |x: f64, y: f64, bulge: f64| ProfileVertex {
@@ -75,11 +83,17 @@ fn native_arc_loft() -> topo::Body<f64> {
 fn t3_rational_refusal_text(body: &topo::Body<f64>, who: &str) -> &'static str {
     let errors = topo::validate_geometric(body)
         .expect_err(&format!("{who}: tier 3 must refuse on the rational wall"));
+    rational_refusal_text(&errors, who)
+}
+
+/// The same read on a verdict list already in hand (the import gate
+/// hands its verdicts back inside the typed refusal, never a body).
+fn rational_refusal_text(errors: &[topo::ValidationError], who: &str) -> &'static str {
     let [
         topo::ValidationError::VolumeUncomputable {
             source: topo::MassPropsError::Face { source, .. },
         },
-    ] = errors.as_slice()
+    ] = errors
     else {
         panic!("{who}: expected exactly one per-face volume refusal, got: {errors:?}");
     };
@@ -89,14 +103,29 @@ fn t3_rational_refusal_text(body: &topo::Body<f64>, who: &str) -> &'static str {
     what
 }
 
-/// **Spec §2 row 1 (rational half) + row for item 5's pin.** The
-/// built arc_loft imports; census and validity match the SOURCE body
-/// literally — tiers 1/2 green, and the tier-3 refusal is the SAME
-/// variant with the SAME recourse text the native body produces (the
-/// writer/reader asymmetry retired one arm down: what the kernel
-/// writes, it reads back into the identical honest partial state).
+/// **Spec §2 row 1 (rational half) + item 5's pin, RE-STATED at M7-7
+/// (#260 ruling (a)).** The built arc_loft exports and then refuses at
+/// import, carrying the SAME tier-3 verdict — same variant, same
+/// recourse text — the native body carries at rest.
+///
+/// The writer/reader symmetry the row was written for is intact and
+/// now literal: the reader reaches exactly the native body's validity
+/// state, and because `StepImport::Solid` may only carry a body the
+/// shared at-rest gate passes, reaching a state the gate refuses means
+/// refusing. A body whose volume the kernel cannot compute is not
+/// tier-valid at rest, and shipping it would be import quietly holding
+/// a laxer standard than the kernel (escalate-never-guess — an
+/// indeterminate verdict is not a pass).
+///
+/// **The rational parse arm is pinned BY this refusal**: the banked
+/// lane only fires on a face whose surface carries weights ≠ 1, so a
+/// reader that dropped the `RATIONAL_B_SPLINE_SURFACE` weights would
+/// produce a fully non-rational body whose volume computes — and this
+/// row would go green through the import door instead. (The
+/// non-rational side's positive control is `loft_prism`, which imports
+/// and validates.)
 #[test]
-fn arc_loft_imports_to_exactly_the_native_state() {
+fn arc_loft_refuses_at_import_with_the_native_bodys_verdict() {
     let native = native_arc_loft();
     assert_eq!(topo::validate(&native), Ok(()), "native tier 1");
     assert_eq!(topo::validate_closed(&native), Ok(()), "native tier 2");
@@ -108,43 +137,20 @@ fn arc_loft_imports_to_exactly_the_native_state() {
 
     let text = step_export::step_string(&native, &step_export::StepOptions::default())
         .expect("the writer exports the rational-walled body today (measured)");
-    let StepImport::Solid { body, .. } = import_step(&text, &ImportOptions::default())
-        .expect("Arm B: the rational arm imports with the typed limitation")
-    else {
-        panic!("arc_loft must import as a solid");
+    let refusal = import_step(&text, &ImportOptions::default())
+        .expect_err("Arm B: the shared at-rest gate refuses the uncomputable-volume body");
+    let step_import::StepImportError::TierInvalid { errors } = &refusal else {
+        panic!("expected the shared gate's typed refusal, got: {refusal:?}");
     };
-
     assert_eq!(
-        common::census(&body),
-        common::census(&native),
-        "census (solids, shells, faces, edges, vertices) matches the source body"
+        rational_refusal_text(errors, "imported"),
+        native_refusal,
+        "the import refusal carries the native body's tier-3 verdict, verbatim"
     );
-    assert_eq!(topo::validate(&body), Ok(()), "imported tier 1");
-    assert_eq!(topo::validate_closed(&body), Ok(()), "imported tier 2");
-    let imported_refusal = t3_rational_refusal_text(&body, "imported");
-    assert_eq!(
-        imported_refusal, native_refusal,
-        "the imported body's tier-3 refusal is the native body's, verbatim"
-    );
-
-    // The wall census behind the story: 4 NURBS walls arrived, exactly
-    // one of them rational — the RATIONAL_B_SPLINE_SURFACE complex
-    // instance genuinely took its own parse arm.
-    let mut rational = 0;
-    let mut non_rational = 0;
-    for (_, face) in body.faces() {
-        if let Some(geom_surfaces::Surface::Nurbs(p)) = body.get_surface(face.surface) {
-            if p.weights().iter().all(|w| *w == 1.0) {
-                non_rational += 1;
-            } else {
-                rational += 1;
-            }
-        }
-    }
-    assert_eq!(
-        (non_rational, rational),
-        (3, 1),
-        "3 non-rational walls + 1 rational wall (arc side)"
+    let msg = refusal.to_string();
+    assert!(
+        msg.contains("shared at-rest validation gate") && msg.contains("RATIONAL patch flux"),
+        "the message names the gate and the unhealable lane: {msg}"
     );
 }
 
