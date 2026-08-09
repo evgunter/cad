@@ -39,22 +39,19 @@
 //! ```
 //! use pncad::prelude::*;
 //!
-//! // A unit box, authored through the document layer.
-//! let square = ProfileLoop::new(
-//!     [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-//!         .into_iter()
-//!         .map(|(x, y)| ProfileVertex { pos: p2::<f64>(x, y), bulge: 0.0 })
-//!         .collect(),
-//! );
-//! let mut doc = Doc::<ProfileDesc>::empty();
-//! let mut insert = |doc: &Doc<ProfileDesc>, node| {
+//! // A unit box, authored through the document layer (v4: the
+//! // profile payload is its PROGRAM — a chain of Expr-bearing steps).
+//! let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
+//!     .expect("finite corners");
+//! let mut doc = Doc::<ProfileProgram>::empty();
+//! let mut insert = |doc: &Doc<ProfileProgram>, node| {
 //!     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
 //!     let id = applied.record.minted.expect("a minted id");
 //!     (applied.doc, id)
 //! };
 //! let (next, profile) = insert(
 //!     &doc,
-//!     Node::Profile(ProfileDesc(Profile::new(SketchPlane::xy(), vec![square]))),
+//!     Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![square] }),
 //! );
 //! doc = next;
 //! let (next, cube) = insert(

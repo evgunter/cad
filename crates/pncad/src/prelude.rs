@@ -102,10 +102,13 @@ pub use stl::{write_ascii, write_binary};
 // --- 8. The document layer ------------------------------------
 // `parse_expr` is the expression TEXT door (LIB-U8a): the checking
 // parser whose every reduction runs the Expr smart constructors.
+// The v4 program vocabulary (LIB-SWITCH): the profile payload is the
+// Expr-bearing `ProfileProgram`; module-level re-export, curated into
+// the prelude because document authoring cannot be spelled without it.
 pub use editor_core::{
-    CancelToken, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr, Node,
-    NodeError, ParseError, PatternKind, ProfileDesc, RecipeNodeId, SlotId, StableName,
-    ValuePayload, apply, evaluate, parse_expr,
+    CancelToken, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr, LoopProgram,
+    Node, NodeError, ParseError, PatternKind, ProfileProgram, ProgramStep, ProgramTarget,
+    RecipeNodeId, SlotId, StableName, StepArg, ValuePayload, apply, evaluate, parse_expr,
 };
 
 // --- 9. Names: obtain them, inspect them, select them ---------

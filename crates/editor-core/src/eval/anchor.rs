@@ -1,0 +1,258 @@
+//! **Program-anchored profile naming (LIB-SWITCH §6 under the ratified
+//! resolution; PROFILES-V2 §V3 round 2).**
+//!
+//! Profile-entity naming for program loops anchors to PROGRAM-
+//! STRUCTURAL positions: `ProfileEdgeRef`/`ProfileVertexRef` indices
+//! mean "the segment/vertex the program's step order authored", not
+//! "the canonical rotation's position". Nothing geometric enters the
+//! index, so a parameter edit CANNOT renumber, by construction — the
+//! renumbering class (lex-band crossings under the canonical rotation)
+//! is eliminated for program loops. Structural edits (re-authoring the
+//! program) may renumber; the freeze doctrine (stale selections refuse
+//! Vanished, M6-5) remains that backstop, as everywhere.
+//!
+//! # Mechanism
+//!
+//! `validate` still canonicalizes (its ladder is out of this unit's
+//! fence, and downstream GEOMETRY follows canonical order — exports
+//! stay byte-identical). What changes is the NAMING SUBSTRATE: the
+//! profile value carries a per-loop [`LoopAnchor`] — the exact
+//! reindexing canonicalization applied, recovered by BIT-matching the
+//! canonical f64 loop against the replayed (program-order) f64 loop —
+//! and every emitted name's profile refs are rewritten canonical →
+//! program before the table is published ([`remap_table`]). Emitters
+//! stay untouched (`names/` is fenced); the rewrite is a pure
+//! reindexing at the emission call sites.
+//!
+//! The match is exact and unambiguous: canonical loops are EXACT
+//! reindexings of their input (validate's own contract), and a valid
+//! loop's vertices are pairwise distinct, so a full-sequence bit match
+//! admits exactly one (offset, orientation).
+
+use profile::{Profile, ProfileLoop, ValidatedProfile};
+
+use crate::names::{
+    Entry, NameTable, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName,
+};
+
+/// One canonical loop's anchor: how canonical indices map back to the
+/// program's authored order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LoopAnchor {
+    /// The PROGRAM loop index this canonical loop came from
+    /// (description order; canonical order puts the outer loop first).
+    pub program_loop: u32,
+    /// The program index of canonical vertex 0.
+    pub offset: u32,
+    /// Whether canonical traversal runs OPPOSITE to authored order
+    /// (validate orients outer CCW / holes CW; the author may have
+    /// written either).
+    pub reversed: bool,
+    /// The loop's vertex count.
+    pub len: u32,
+}
+
+impl LoopAnchor {
+    /// Canonical vertex `k` → program vertex index.
+    pub fn vertex(&self, k: u32) -> u32 {
+        let n = self.len;
+        if self.reversed {
+            (self.offset + n - (k % n)) % n
+        } else {
+            (self.offset + k) % n
+        }
+    }
+
+    /// Canonical segment `k` (canonical vertex k → k+1) → program
+    /// segment index (the segment leaving its program-order start
+    /// vertex).
+    pub fn segment(&self, k: u32) -> u32 {
+        let n = self.len;
+        if self.reversed {
+            // Canonical segment k runs program vertex (offset − k) →
+            // (offset − k − 1): in program order that is the segment
+            // LEAVING vertex (offset − k − 1).
+            (self.offset + 2 * n - (k % n) - 1) % n
+        } else {
+            (self.offset + k) % n
+        }
+    }
+}
+
+/// The per-profile naming anchor: one [`LoopAnchor`] per CANONICAL
+/// loop, in canonical loop order.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ProfileNaming {
+    /// Anchors, indexed by canonical loop index.
+    pub loops: Vec<LoopAnchor>,
+}
+
+impl ProfileNaming {
+    /// Whether every anchor is the identity (canonical order == program
+    /// order) — the common corpus case; callers skip the table rebuild.
+    pub fn is_identity(&self) -> bool {
+        self.loops
+            .iter()
+            .enumerate()
+            .all(|(i, a)| a.program_loop as usize == i && a.offset == 0 && !a.reversed)
+    }
+}
+
+/// The profile node's evaluated value: the validated (canonical)
+/// profile plus the naming anchor that program-anchors every profile
+/// ref emitted against it.
+#[derive(Debug, Clone)]
+pub struct ProfileValue<T: geom_core::Real> {
+    /// The validated profile downstream ops consume.
+    pub validated: ValidatedProfile<T>,
+    /// The canonical→program naming anchor.
+    pub naming: ProfileNaming,
+}
+
+/// Derives the anchor by bit-matching the canonical f64 loops against
+/// the replayed program-order f64 loops. `None` on a failed match —
+/// an internal invariant break (validate's exact-reindexing contract),
+/// surfaced typed by the caller, never a panic.
+pub fn derive_naming(
+    validated: &ValidatedProfile<f64>,
+    program_loops: &[ProfileLoop<f64>],
+) -> Option<ProfileNaming> {
+    let mut anchors = Vec::with_capacity(validated.loops().len());
+    for vl in validated.loops() {
+        let cv = vl.vertices();
+        let mut found = None;
+        'progs: for (pi, pl) in program_loops.iter().enumerate() {
+            let pv = &pl.vertices;
+            let n = pv.len();
+            if n != cv.len() || n == 0 {
+                continue;
+            }
+            let bits = |p: &geom_core::Point2<f64>| (p.x.to_bits(), p.y.to_bits());
+            for offset in 0..n {
+                for reversed in [false, true] {
+                    let ok = (0..n).all(|k| {
+                        let pk = if reversed {
+                            (offset + n - k) % n
+                        } else {
+                            (offset + k) % n
+                        };
+                        bits(&cv[k].pos) == bits(&pv[pk].pos)
+                    });
+                    if ok {
+                        found = Some(LoopAnchor {
+                            program_loop: pi as u32,
+                            offset: offset as u32,
+                            reversed,
+                            len: n as u32,
+                        });
+                        break 'progs;
+                    }
+                }
+            }
+        }
+        anchors.push(found?);
+    }
+    Some(ProfileNaming { loops: anchors })
+}
+
+/// Embeds a stored exact-`f64` profile into any evaluation scalar (the
+/// retired payload's `embed`, now a free function; the `from_f64`
+/// embedding the parameter environment uses).
+pub fn embed_profile<T: geom_core::Real>(p: &Profile<f64>) -> Profile<T> {
+    let v = |w: geom_core::Vec3<f64>| {
+        geom_core::Vec3::new(T::from_f64(w.x), T::from_f64(w.y), T::from_f64(w.z))
+    };
+    let a = &p.plane.placement;
+    let placement = geom_core::Affine3::from_parts(
+        geom_core::Mat3::from_cols(v(a.linear.c0), v(a.linear.c1), v(a.linear.c2)),
+        v(a.translation),
+    );
+    let loops = p
+        .loops
+        .iter()
+        .map(|lp| ProfileLoop {
+            vertices: lp
+                .vertices
+                .iter()
+                .map(|vx| profile::ProfileVertex {
+                    pos: geom_core::Point2::new(T::from_f64(vx.pos.x), T::from_f64(vx.pos.y)),
+                    bulge: T::from_f64(vx.bulge),
+                })
+                .collect(),
+            tangent_joints: lp.tangent_joints.clone(),
+        })
+        .collect();
+    Profile::new(profile::SketchPlane::new(placement), loops)
+}
+
+/// Rewrites one profile ref canonical → program.
+fn remap_edge(naming: &ProfileNaming, e: ProfileEdgeRef) -> ProfileEdgeRef {
+    match naming.loops.get(e.loop_index as usize) {
+        None => e,
+        Some(a) => ProfileEdgeRef {
+            loop_index: a.program_loop,
+            segment: a.segment(e.segment),
+        },
+    }
+}
+
+fn remap_vertex(naming: &ProfileNaming, v: ProfileVertexRef) -> ProfileVertexRef {
+    match naming.loops.get(v.loop_index as usize) {
+        None => v,
+        Some(a) => ProfileVertexRef {
+            loop_index: a.program_loop,
+            vertex: a.vertex(v.vertex),
+        },
+    }
+}
+
+/// Rewrites the profile-ref-bearing role segments an emitter minted
+/// DIRECTLY (extrude/revolve/loft emitters; wrapped upstream names are
+/// already program-anchored, so composition variants are untouched).
+fn remap_seg(naming: &ProfileNaming, seg: RoleSeg) -> RoleSeg {
+    use RoleSeg as R;
+    match seg {
+        R::Lateral(e) => R::Lateral(remap_edge(naming, e)),
+        R::RimEdge(c, e) => R::RimEdge(c, remap_edge(naming, e)),
+        R::LateralEdge(v) => R::LateralEdge(remap_vertex(naming, v)),
+        R::CapVertex(c, v) => R::CapVertex(c, remap_vertex(naming, v)),
+        R::Band(e) => R::Band(remap_edge(naming, e)),
+        R::BandRim(v) => R::BandRim(remap_vertex(naming, v)),
+        R::BandRimPi(v) => R::BandRimPi(remap_vertex(naming, v)),
+        R::BandPi(e) => R::BandPi(remap_edge(naming, e)),
+        R::Meridian(m, e) => R::Meridian(m, remap_edge(naming, e)),
+        R::MeridianVertex(m, v) => R::MeridianVertex(m, remap_vertex(naming, v)),
+        R::Pole(v) => R::Pole(remap_vertex(naming, v)),
+        R::AxisEdge(e) => R::AxisEdge(remap_edge(naming, e)),
+        other => other,
+    }
+}
+
+fn remap_name(naming: &ProfileNaming, name: StableName) -> StableName {
+    StableName {
+        kind: name.kind,
+        node: name.node,
+        path: name
+            .path
+            .into_iter()
+            .map(|seg| remap_seg(naming, seg))
+            .collect(),
+    }
+}
+
+/// Rewrites every name in an emitted table canonical → program (the
+/// anchor rewrite, applied at the emission call sites of the ops that
+/// mint profile refs). The rewrite is a bijection per loop, so
+/// injectivity is preserved; a collision is therefore an internal bug
+/// and surfaces as `None` (the caller refuses typed).
+pub fn remap_table(table: &NameTable, naming: &ProfileNaming) -> Option<NameTable> {
+    let mut out = NameTable::new();
+    for (name, entry) in table.iter() {
+        let new_name = remap_name(naming, name.clone());
+        match entry {
+            Entry::Unique(ent) => out.insert(new_name, *ent).ok()?,
+            Entry::Tied(ents) => out.insert_tied(new_name, ents.clone()).ok()?,
+        }
+    }
+    Some(out)
+}

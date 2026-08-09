@@ -6,20 +6,23 @@
 //!   hand-edited file can never smuggle an ill-dimensioned tree (or a
 //!   non-finite literal) past the construction door. The cached
 //!   dimension is deliberately not persisted: it re-derives.
-//! - [`ProfileDesc`] wraps the profile crate's foreign `Profile<f64>`;
-//!   the kernel crates gain no serde dependency (G1 layering), so the
-//!   wire shape is written here structurally (plane placement
-//!   columns plus loops of `(x, y, bulge)` vertices — exactly the
-//!   `ProfileDesc::tokens` traversal).
+//! - [`ProfileProgram`] persists STRUCTURALLY (plane placement columns
+//!   plus per-loop step lists whose continuous args are [`Expr`]s) and
+//!   its kernel-foreign tags (`ArcSweep`) via wire mirrors — the
+//!   kernel crates gain no serde dependency (G1 layering). Crucially,
+//!   deserialization can NEVER mint a `profile::ProfileLoop`: the wire
+//!   rebuilds the PROGRAM only; loops exist only through the replay
+//!   driver at evaluation (serde is transport, the driver is the door
+//!   — LIB-SWITCH §4h, the strict-door rule at the program layer).
 
-use geom_core::{Affine3, Mat3, Point2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use geom_core::{Affine3, Mat3, Vec3};
+use profile::{ArcSweep, SketchPlane};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::doc::ParamName;
 use crate::expr::{Dimension, Expr, ExprKind};
-use crate::profile_desc::ProfileDesc;
+use crate::program::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget};
 
 /// The persisted expression tree (spec D1: the recipe is the save; an
 /// expression is its constructor calls).
@@ -168,53 +171,263 @@ struct WirePlacement {
     origin: [f64; 3],
 }
 
-/// One profile vertex: position and bulge.
+/// A structural travel-sense tag (`profile::ArcSweep`'s wire mirror;
+/// the kernel crate stays serde-free).
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireVertex {
-    /// Sketch-plane x.
-    x: f64,
-    /// Sketch-plane y.
-    y: f64,
-    /// The arc bulge (0 = straight segment).
-    bulge: f64,
+enum WireWinding {
+    /// Counterclockwise.
+    Ccw,
+    /// Clockwise.
+    Cw,
 }
 
-/// One loop on the wire: vertices plus declared-tangent joints
-/// (#101's vocabulary; schema v1 extended PRE-freeze at the PR 6 fix
-/// pass — no migration, v1 never shipped without it). Joints persist
-/// as the canonical SET (strictly increasing — the field is
-/// set-semantic, #101 review NOTE-1); the save side canonicalizes,
-/// and the load door refuses non-canonical lists typed (no silent
-/// reinterpretation of a corrupt declaration). Canonicity is the
-/// WIRE's own rule — an in-memory list is set-semantic and may be
-/// unsorted — so the check lives here, load-only by nature; joint
-/// RANGE is a document property and lives in the shared validator
-/// ([`crate::persist::check`], convention 2), which runs on the
-/// parsed document after this door.
+impl WireWinding {
+    fn from_sweep(w: ArcSweep) -> Self {
+        match w {
+            ArcSweep::Ccw => WireWinding::Ccw,
+            ArcSweep::Cw => WireWinding::Cw,
+        }
+    }
+    fn into_sweep(self) -> ArcSweep {
+        match self {
+            WireWinding::Ccw => ArcSweep::Ccw,
+            WireWinding::Cw => ArcSweep::Cw,
+        }
+    }
+}
+
+/// A step target on the wire (`Start` is structural).
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireLoop {
-    /// The loop's vertices, chain order.
-    vertices: Vec<WireVertex>,
-    /// Declared-tangent joint indices (vertex v = the joint where
-    /// segment v begins), canonical set order.
-    tangent_joints: Vec<u64>,
+enum WireTarget {
+    /// The entry vertex — the closing form.
+    Start,
+    /// An authored point (two Length expressions; every `Expr` field
+    /// on this wire rebuilds through the dimension door — per-ROLE
+    /// dimension agreement is the shared validator's walk).
+    Point([Expr; 2]),
 }
 
-/// The profile payload's wire shape (module docs).
+impl WireTarget {
+    fn from_target(t: &ProgramTarget) -> Self {
+        match t {
+            ProgramTarget::Start => WireTarget::Start,
+            ProgramTarget::Point(p) => WireTarget::Point(p.clone()),
+        }
+    }
+    fn into_target(self) -> ProgramTarget {
+        match self {
+            WireTarget::Start => ProgramTarget::Start,
+            WireTarget::Point(p) => ProgramTarget::Point(p),
+        }
+    }
+}
+
+/// One chain step on the wire — `ProgramStep`'s structural mirror.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+enum WireStep {
+    /// `.at(p)`.
+    At([Expr; 2]),
+    /// `.at_on(p, centre, winding)`.
+    AtOn {
+        /// The anchor.
+        p: [Expr; 2],
+        /// The carrier centre.
+        centre: [Expr; 2],
+        /// Travel sense.
+        winding: WireWinding,
+    },
+    /// `.angle(θ)`.
+    Angle(Expr),
+    /// `.toward(dx, dy)`.
+    Toward {
+        /// x component.
+        dx: Expr,
+        /// y component.
+        dy: Expr,
+    },
+    /// `.tangent()`.
+    Tangent,
+    /// `.turn(δ)`.
+    Turn(Expr),
+    /// `line(len)`.
+    Line(Expr),
+    /// `line_to(target)`.
+    LineTo(WireTarget),
+    /// `arc_to(target, bulge)`.
+    ArcTo {
+        /// Where the leg ends.
+        target: WireTarget,
+        /// The authored bulge.
+        bulge: Expr,
+    },
+    /// `arc_via(via, target)`.
+    ArcVia {
+        /// The through-point.
+        via: [Expr; 2],
+        /// Where the leg ends.
+        target: WireTarget,
+    },
+    /// `arc_center(centre, target, winding)`.
+    ArcCenter {
+        /// The carrier centre.
+        centre: [Expr; 2],
+        /// Where the leg ends.
+        target: WireTarget,
+        /// Travel sense.
+        winding: WireWinding,
+    },
+    /// `tangent_arc_to(target)`.
+    TangentArcTo(WireTarget),
+    /// `.fillet(r)`.
+    Fillet(Expr),
+    /// `.to(anchor)`.
+    FarEndTo([Expr; 2]),
+    /// `.to(Start)`.
+    CloseTo,
+    /// `.to_on(Start, centre, winding)`.
+    CloseToOn {
+        /// The arrival carrier centre.
+        centre: [Expr; 2],
+        /// Travel sense.
+        winding: WireWinding,
+    },
+}
+
+impl WireStep {
+    fn from_step(s: &ProgramStep) -> Self {
+        use ProgramStep as P;
+        match s {
+            P::At(p) => WireStep::At(p.clone()),
+            P::AtOn { p, centre, winding } => WireStep::AtOn {
+                p: p.clone(),
+                centre: centre.clone(),
+                winding: WireWinding::from_sweep(*winding),
+            },
+            P::Angle(e) => WireStep::Angle(e.clone()),
+            P::Toward { dx, dy } => WireStep::Toward {
+                dx: dx.clone(),
+                dy: dy.clone(),
+            },
+            P::Tangent => WireStep::Tangent,
+            P::Turn(e) => WireStep::Turn(e.clone()),
+            P::Line(e) => WireStep::Line(e.clone()),
+            P::LineTo(t) => WireStep::LineTo(WireTarget::from_target(t)),
+            P::ArcTo { target, bulge } => WireStep::ArcTo {
+                target: WireTarget::from_target(target),
+                bulge: bulge.clone(),
+            },
+            P::ArcVia { via, target } => WireStep::ArcVia {
+                via: via.clone(),
+                target: WireTarget::from_target(target),
+            },
+            P::ArcCenter {
+                centre,
+                target,
+                winding,
+            } => WireStep::ArcCenter {
+                centre: centre.clone(),
+                target: WireTarget::from_target(target),
+                winding: WireWinding::from_sweep(*winding),
+            },
+            P::TangentArcTo(t) => WireStep::TangentArcTo(WireTarget::from_target(t)),
+            P::Fillet(e) => WireStep::Fillet(e.clone()),
+            P::FarEndTo(p) => WireStep::FarEndTo(p.clone()),
+            P::CloseTo => WireStep::CloseTo,
+            P::CloseToOn { centre, winding } => WireStep::CloseToOn {
+                centre: centre.clone(),
+                winding: WireWinding::from_sweep(*winding),
+            },
+        }
+    }
+
+    fn into_step(self) -> ProgramStep {
+        use ProgramStep as P;
+        match self {
+            WireStep::At(p) => P::At(p),
+            WireStep::AtOn { p, centre, winding } => P::AtOn {
+                p,
+                centre,
+                winding: winding.into_sweep(),
+            },
+            WireStep::Angle(e) => P::Angle(e),
+            WireStep::Toward { dx, dy } => P::Toward { dx, dy },
+            WireStep::Tangent => P::Tangent,
+            WireStep::Turn(e) => P::Turn(e),
+            WireStep::Line(e) => P::Line(e),
+            WireStep::LineTo(t) => P::LineTo(t.into_target()),
+            WireStep::ArcTo { target, bulge } => P::ArcTo {
+                target: target.into_target(),
+                bulge,
+            },
+            WireStep::ArcVia { via, target } => P::ArcVia {
+                via,
+                target: target.into_target(),
+            },
+            WireStep::ArcCenter {
+                centre,
+                target,
+                winding,
+            } => P::ArcCenter {
+                centre,
+                target: target.into_target(),
+                winding: winding.into_sweep(),
+            },
+            WireStep::TangentArcTo(t) => P::TangentArcTo(t.into_target()),
+            WireStep::Fillet(e) => P::Fillet(e),
+            WireStep::FarEndTo(p) => P::FarEndTo(p),
+            WireStep::CloseTo => P::CloseTo,
+            WireStep::CloseToOn { centre, winding } => P::CloseToOn {
+                centre,
+                winding: winding.into_sweep(),
+            },
+        }
+    }
+}
+
+/// One loop program on the wire: a chain, or a carrier form.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+enum WireLoopProgram {
+    /// A chain-vocabulary step list.
+    Chain(Vec<WireStep>),
+    /// `circle(centre, r)`.
+    Circle {
+        /// The centre.
+        centre: [Expr; 2],
+        /// The radius.
+        radius: Expr,
+    },
+    /// `circle_split(centre, r, n, phase)` (`n` structural).
+    CircleSplit {
+        /// The centre.
+        centre: [Expr; 2],
+        /// The radius.
+        radius: Expr,
+        /// The subdivision count.
+        n: u32,
+        /// The first vertex's angle.
+        phase: Expr,
+    },
+}
+
+/// The profile payload's wire shape (module docs): placement + loop
+/// PROGRAMS. No derived value is on this wire — segments, bulges and
+/// joints are all replay products (V3: caches are not persisted).
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WireProfile {
     /// The sketch plane placement.
     plane: WirePlacement,
-    /// The loops: outer first, then holes, description order.
-    loops: Vec<WireLoop>,
+    /// The loop programs: outer first, then holes, description order.
+    loops: Vec<WireLoopProgram>,
 }
 
-impl Serialize for ProfileDesc {
+impl Serialize for ProfileProgram {
     fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-        let a = &self.0.plane.placement;
+        let a = &self.plane.placement;
         let col = |v: Vec3<f64>| [v.x, v.y, v.z];
         let wire = WireProfile {
             plane: WirePlacement {
@@ -222,28 +435,27 @@ impl Serialize for ProfileDesc {
                 origin: col(a.translation),
             },
             loops: self
-                .0
                 .loops
                 .iter()
-                .map(|lp| {
-                    // Canonical joint set (sorted, deduplicated) —
-                    // same canonicalization the token stream applies.
-                    let mut joints: Vec<u64> =
-                        lp.tangent_joints.iter().map(|&j| j as u64).collect();
-                    joints.sort_unstable();
-                    joints.dedup();
-                    WireLoop {
-                        vertices: lp
-                            .vertices
-                            .iter()
-                            .map(|v| WireVertex {
-                                x: v.pos.x,
-                                y: v.pos.y,
-                                bulge: v.bulge,
-                            })
-                            .collect(),
-                        tangent_joints: joints,
+                .map(|lp| match lp {
+                    LoopProgram::Chain(steps) => {
+                        WireLoopProgram::Chain(steps.iter().map(WireStep::from_step).collect())
                     }
+                    LoopProgram::Circle { centre, radius } => WireLoopProgram::Circle {
+                        centre: centre.clone(),
+                        radius: radius.clone(),
+                    },
+                    LoopProgram::CircleSplit {
+                        centre,
+                        radius,
+                        n,
+                        phase,
+                    } => WireLoopProgram::CircleSplit {
+                        centre: centre.clone(),
+                        radius: radius.clone(),
+                        n: *n,
+                        phase: phase.clone(),
+                    },
                 })
                 .collect(),
         };
@@ -251,7 +463,7 @@ impl Serialize for ProfileDesc {
     }
 }
 
-impl<'de> Deserialize<'de> for ProfileDesc {
+impl<'de> Deserialize<'de> for ProfileProgram {
     fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
         let wire = WireProfile::deserialize(de)?;
         let v3 = |c: [f64; 3]| Vec3::new(c[0], c[1], c[2]);
@@ -263,40 +475,32 @@ impl<'de> Deserialize<'de> for ProfileDesc {
             ),
             v3(wire.plane.origin),
         );
-        let mut loops = Vec::with_capacity(wire.loops.len());
-        for (loop_index, lp) in wire.loops.into_iter().enumerate() {
-            let mut joints = Vec::with_capacity(lp.tangent_joints.len());
-            for (i, &j) in lp.tangent_joints.iter().enumerate() {
-                // Canonical-set door (typed; surfaces as a Parse
-                // refusal with position): the list is a strictly
-                // increasing set — anything else is a corrupt or
-                // hand-mangled declaration, never reinterpreted.
-                // Joint RANGE is checked by the shared validator on
-                // the parsed document (struct docs), not here.
-                if i > 0 && lp.tangent_joints[i - 1] >= j {
-                    return Err(D::Error::custom(format!(
-                        "tangent joints of loop {loop_index} are not a strictly increasing set at index {i} (value {j})"
-                    )));
+        let loops = wire
+            .loops
+            .into_iter()
+            .map(|lp| match lp {
+                WireLoopProgram::Chain(steps) => {
+                    LoopProgram::Chain(steps.into_iter().map(WireStep::into_step).collect())
                 }
-                let idx = usize::try_from(j)
-                    .map_err(|_| D::Error::custom(format!("tangent joint {j} exceeds usize")))?;
-                joints.push(idx);
-            }
-            let mut built = ProfileLoop::new(
-                lp.vertices
-                    .into_iter()
-                    .map(|v| ProfileVertex {
-                        pos: Point2::new(v.x, v.y),
-                        bulge: v.bulge,
-                    })
-                    .collect(),
-            );
-            built.tangent_joints = joints;
-            loops.push(built);
-        }
-        Ok(ProfileDesc(Profile::new(
-            SketchPlane::new(placement),
+                WireLoopProgram::Circle { centre, radius } => {
+                    LoopProgram::Circle { centre, radius }
+                }
+                WireLoopProgram::CircleSplit {
+                    centre,
+                    radius,
+                    n,
+                    phase,
+                } => LoopProgram::CircleSplit {
+                    centre,
+                    radius,
+                    n,
+                    phase,
+                },
+            })
+            .collect();
+        Ok(ProfileProgram {
+            plane: SketchPlane::new(placement),
             loops,
-        )))
+        })
     }
 }

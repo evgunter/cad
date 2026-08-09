@@ -44,6 +44,74 @@ pub enum BooleanOp {
     Subtract,
 }
 
+/// A profile-program step's ARGUMENT ROLE — the closed per-verb enum
+/// that, with a loop and step index, addresses one expression inside a
+/// [`crate::ProfileProgram`] (LIB-SWITCH §4c, VQ3). Roles are named by
+/// what the argument IS in the verb's own vocabulary, never by
+/// position; [`StepArg::dimension`] carries V2's dimension table.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(deny_unknown_fields)]
+pub enum StepArg {
+    /// An authored on-path point's x (`at`, `at_on`, the far-end `to`).
+    PointX,
+    /// That point's y.
+    PointY,
+    /// A leg target's x (`line_to`, `arc_to`, `arc_via`, `arc_center`,
+    /// `tangent_arc_to` — the `Point` target form).
+    TargetX,
+    /// That target's y.
+    TargetY,
+    /// An `arc_via` through-point's x.
+    ViaX,
+    /// That through-point's y.
+    ViaY,
+    /// A carrier centre's x (`at_on`, `arc_center`, `to_on`, `circle`,
+    /// `circle_split`).
+    CenterX,
+    /// That centre's y.
+    CenterY,
+    /// A `toward` director's x component (Scalar — ratio only).
+    DirX,
+    /// That director's y component.
+    DirY,
+    /// The `angle(θ)` director.
+    AngleVal,
+    /// The `turn(δ)` rotation.
+    TurnVal,
+    /// A `line(len)` length.
+    Length,
+    /// A radius (`fillet`, `circle`, `circle_split`).
+    Radius,
+    /// An `arc_to` bulge (authored data, Scalar).
+    Bulge,
+    /// A `circle_split` first-vertex phase (Angle).
+    Phase,
+}
+
+impl StepArg {
+    /// The dimension an expression in this role must have (V2's table:
+    /// coordinates/lengths/radii Length; angle/turn/phase Angle;
+    /// bulge and director components Scalar — ratio only).
+    pub fn dimension(self) -> Dimension {
+        match self {
+            Self::PointX
+            | Self::PointY
+            | Self::TargetX
+            | Self::TargetY
+            | Self::ViaX
+            | Self::ViaY
+            | Self::CenterX
+            | Self::CenterY
+            | Self::Length
+            | Self::Radius => Dimension::Length,
+            Self::AngleVal | Self::TurnVal | Self::Phase => Dimension::Angle,
+            Self::DirX | Self::DirY | Self::Bulge => Dimension::Scalar,
+        }
+    }
+}
+
 /// The NAMED expression-slot identities (spec D5: a per-node-type
 /// named enum, never an index). Each variant carries its required
 /// dimension ([`SlotId::dimension`]) and structural flag
@@ -87,6 +155,22 @@ pub enum SlotId {
     /// the path is instantiated at before skinning (Book §10.4) —
     /// STRUCTURAL, same rule.
     Stations,
+    /// One expression inside a profile PROGRAM (LIB-SWITCH §4c): loop
+    /// index, step index, argument role. The LOOP coordinate is a VQ3
+    /// sharpening of the design's `(step, arg)` sketch — a profile is
+    /// plane + several loops, so the address needs it. Step indices are
+    /// stable because program STRUCTURE changes only by re-authoring
+    /// (the frozen-selection argument, V2); for the carrier loop forms
+    /// (`circle`/`circle_split`) `step` is 0.
+    Profile {
+        /// The loop's index in the program (description order).
+        loop_: u32,
+        /// The step's index within the loop's chain (0 for carrier
+        /// forms).
+        step: u32,
+        /// Which of the step's arguments.
+        arg: StepArg,
+    },
 }
 
 impl SlotId {
@@ -102,6 +186,11 @@ impl SlotId {
             Self::Normal(_) | Self::Direction(_) | Self::RotationAxis(_) => Dimension::Scalar,
             Self::RevolveAngle | Self::RotationAngle | Self::Step => Dimension::Angle,
             Self::Count | Self::VDegree | Self::Stations => Dimension::Count,
+            // Profile-program roles carry V2's per-role table; none is
+            // Count, so `is_structural` stays false for every StepArg
+            // (LIB-SWITCH §4c — program structure is the STEP LIST,
+            // changed by re-authoring, never through a slot).
+            Self::Profile { arg, .. } => arg.dimension(),
         }
     }
 
@@ -406,8 +495,15 @@ impl<P> Node<P> {
     }
 
     /// The expression slots this node actually carries, deterministic
-    /// order — the domain of [`Node::expr`].
-    pub fn slots(&self) -> Vec<SlotId> {
+    /// order — the domain of [`Node::expr`]. Profile nodes enumerate
+    /// their PROGRAM's slots (LIB-SWITCH §4c behavior delta 3: the
+    /// formerly slot-free payload now carries one slot per continuous
+    /// step argument), through the payload's own [`crate::ProfilePayload`]
+    /// implementation.
+    pub fn slots(&self) -> Vec<SlotId>
+    where
+        P: crate::ProfilePayload,
+    {
         let vec3 = |f: fn(Axis3) -> SlotId| Axis3::ALL.map(f);
         match self {
             Node::Datum(Datum::Plane { .. }) => {
@@ -421,9 +517,8 @@ impl<P> Node<P> {
                 s
             }
             Node::Datum(Datum::Point { .. }) => vec3(SlotId::Origin).to_vec(),
-            Node::Profile(_) | Node::Split { .. } | Node::Boolean { .. } | Node::Declare { .. } => {
-                Vec::new()
-            }
+            Node::Profile(p) => p.slots(),
+            Node::Split { .. } | Node::Boolean { .. } | Node::Declare { .. } => Vec::new(),
             Node::Extrude { .. } => vec![SlotId::Distance],
             Node::Fillet { .. } => vec![SlotId::Radius],
             Node::Revolve { .. } => vec![SlotId::RevolveAngle],
@@ -451,9 +546,13 @@ impl<P> Node<P> {
 
     /// The expression in a named slot, `None` if this node type does
     /// not carry that slot (named access only, spec D5).
-    pub fn expr(&self, slot: SlotId) -> Option<&Expr> {
+    pub fn expr(&self, slot: SlotId) -> Option<&Expr>
+    where
+        P: crate::ProfilePayload,
+    {
         use SlotId as S;
         match (self, slot) {
+            (Node::Profile(p), S::Profile { .. }) => p.expr(slot),
             (Node::Datum(Datum::Plane { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Axis { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Point { position: origin }), S::Origin(ax)) => {
@@ -504,9 +603,13 @@ impl<P> Node<P> {
 
     /// Mutable access to a named slot's expression (the edit layer's
     /// substrate; all validation lives in `apply`, spec D6).
-    pub fn expr_mut(&mut self, slot: SlotId) -> Option<&mut Expr> {
+    pub fn expr_mut(&mut self, slot: SlotId) -> Option<&mut Expr>
+    where
+        P: crate::ProfilePayload,
+    {
         use SlotId as S;
         match (self, slot) {
+            (Node::Profile(p), S::Profile { .. }) => p.expr_mut(slot),
             (Node::Datum(Datum::Plane { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Axis { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Point { position: origin }), S::Origin(ax)) => {
@@ -591,7 +694,10 @@ impl<P: PartialEq> Node<P> {
     /// opaque profile payload `P` is compared by its own `PartialEq`
     /// (its float semantics are PR 2's contract when `P` is
     /// instantiated).
-    pub fn bit_eq(&self, other: &Node<P>) -> bool {
+    pub fn bit_eq(&self, other: &Node<P>) -> bool
+    where
+        P: crate::ProfilePayload,
+    {
         if self != other {
             return false;
         }
