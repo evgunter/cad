@@ -158,7 +158,10 @@ impl Body {
         Err(typed_err(
             py,
             ErrorClass::Validation,
-            format!("{door} reported {} failure(s): {failures:?}", failures.len()),
+            format!(
+                "{door} reported {} failure(s): {failures:?}",
+                failures.len()
+            ),
             &[
                 ("door", PyString::new(py, door).unbind().into_any()),
                 ("failure_count", count),
