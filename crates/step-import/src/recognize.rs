@@ -786,3 +786,248 @@ mod review_probes {
         }
     }
 }
+
+/// **R2 independent review probes (PR #264, dual-review protocol)** —
+/// NOT part of the PR; probes branch only. Written blind to R1's
+/// findings; they re-falsify the certification claims from scratch.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod r2_probes {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    const EPS: f64 = 1e-9;
+
+    /// P3-shaped 3×2 quadratic×linear net, one mid control lifted δ.
+    fn lifted_plane(delta: f64) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.5, 0.0, delta),
+            Point3::new(0.5, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+        ];
+        NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap()
+    }
+
+    /// **Q1 — the ε_in boundary, to the ulp.** 0.5×ε promotes, 2×ε
+    /// refuses, and the promote/refuse flip sits EXACTLY at the
+    /// certified residual: eps == residual promotes (≤ contract),
+    /// one ulp below does not.
+    #[test]
+    fn r2_q1_epsilon_boundary_to_the_ulp() {
+        // 0.5× / 2× behavior at fixed EPS.
+        let promoted = |d: f64| matches!(recognize(&lifted_plane(d), EPS), Recognition::Promoted { .. });
+        assert!(promoted(0.6 * EPS), "0.5x-class near-plane must promote");
+        assert!(!promoted(2.4 * EPS), "2x-class near-plane must stay NURBS");
+        // The exact boundary: measure the certified residual, then pin
+        // eps == residual → promote, prev_ulp(residual) → refuse.
+        let patch = lifted_plane(1.2 * EPS);
+        let Recognition::Promoted { residual, kind, .. } = recognize(&patch, 1.0) else {
+            panic!("generous eps must promote");
+        };
+        assert_eq!(kind, PromotedKind::Plane);
+        assert!(residual > 0.0 && residual.is_finite());
+        match recognize(&patch, residual) {
+            Recognition::Promoted { .. } => {}
+            other => panic!("eps == certified residual must promote (<=): {other:?}"),
+        }
+        let below = f64::from_bits(residual.to_bits() - 1);
+        match recognize(&patch, below) {
+            Recognition::Promoted { .. } => panic!("one ulp below the residual promoted"),
+            other => println!("one ulp below refuses, correctly: {other:?}"),
+        }
+    }
+
+    /// **Q2a — worst interior bulge, plane track.** Degree-10 Bézier
+    /// wiggle in u: controls alternate z = ±0.3 so the surface
+    /// oscillates interior to the patch while endpoints interpolate
+    /// z = 0. The hull certificate must catch it whole-patch.
+    #[test]
+    fn r2_q2a_plane_interior_wiggle_cannot_promote() {
+        let n = 11;
+        let mut knots = vec![0.0; n];
+        knots.extend(vec![1.0; n]);
+        let ku = KnotVector::clamped(knots, 10).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut control = Vec::new();
+        for i in 0..n {
+            let z = if i == 0 || i == n - 1 {
+                0.0
+            } else if i % 2 == 1 {
+                0.3
+            } else {
+                -0.3
+            };
+            control.push(Point3::new(i as f64, 0.0, z));
+            control.push(Point3::new(i as f64, 1.0, z));
+        }
+        let patch = NurbsSurface::new(ku, kv, control, vec![1.0; 2 * n]).unwrap();
+        let dev = patch.eval(0.15, 0.5).z.abs().max(patch.eval(0.5, 0.5).z.abs());
+        match recognize(&patch, EPS) {
+            Recognition::Promoted { kind, residual, .. } => {
+                panic!("wiggle (interior dev {dev:e}) promoted as {kind:?} at {residual:e}")
+            }
+            other => println!("wiggle stays unpromoted ({other:?}), interior dev {dev:e}"),
+        }
+    }
+
+    /// **Q2b — multi-span cylinder with a WITHIN-SPAN bulge** (the C2
+    /// charter probe): quarter arc as 4 double-knot quadratic spans,
+    /// every odd control pushed to radius 1.15 — the bulge lives
+    /// inside each span. Must fail certification.
+    #[test]
+    fn r2_q2b_multispan_cylinder_within_span_bulge_refused() {
+        let mut knots = vec![0.0, 0.0, 0.0];
+        for k in 1..4 {
+            knots.push(k as f64);
+            knots.push(k as f64);
+        }
+        knots.extend([4.0, 4.0, 4.0]);
+        let ku = KnotVector::clamped(knots, 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let step = core::f64::consts::FRAC_PI_2 / 8.0;
+        let mut control = Vec::new();
+        for i in 0..9 {
+            let theta = i as f64 * step;
+            let r = if i % 2 == 1 { 1.15 } else { 1.0 };
+            control.push(Point3::new(r * theta.cos(), r * theta.sin(), 0.0));
+            control.push(Point3::new(r * theta.cos(), r * theta.sin(), 1.0));
+        }
+        let patch = NurbsSurface::new(ku, kv, control, vec![1.0; 18]).unwrap();
+        match recognize(&patch, EPS) {
+            Recognition::Promoted { kind, residual, .. } => {
+                panic!("within-span bulge promoted as {kind:?} at {residual:e}")
+            }
+            other => println!("within-span bulge refused: {other:?}"),
+        }
+    }
+
+    /// **Q2c — an EXACT multi-span rational half-cylinder** (two
+    /// 90° Bézier arcs, C0 join) stays NURBS under the first-order
+    /// envelope, at ANY real ε — the honest-refusal posture, measured
+    /// on my own fixture.
+    #[test]
+    fn r2_q2c_exact_multispan_cylinder_stays_nurbs() {
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let ku =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let ring = [
+            (Point3::new(1.0, 0.0, 0.0), 1.0),
+            (Point3::new(1.0, 1.0, 0.0), w),
+            (Point3::new(0.0, 1.0, 0.0), 1.0),
+            (Point3::new(-1.0, 1.0, 0.0), w),
+            (Point3::new(-1.0, 0.0, 0.0), 1.0),
+        ];
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for (p, wi) in ring {
+            control.push(p);
+            control.push(Point3::new(p.x, p.y, 1.0));
+            weights.extend([wi, wi]);
+        }
+        let patch = NurbsSurface::new(ku, kv, control, weights).unwrap();
+        // The geometry is an exact cylinder: check a few points.
+        for (u, v) in [(0.3, 0.2), (1.1, 0.9), (1.9, 0.5)] {
+            let p = patch.eval(u, v);
+            let rho = (p.x * p.x + p.y * p.y).sqrt();
+            assert!((rho - 1.0).abs() < 1e-14, "exact cylinder: rho {rho}");
+        }
+        for eps in [1e-6, 1e-9, 1e-12] {
+            match recognize(&patch, eps) {
+                Recognition::Promoted { kind, residual, .. } => panic!(
+                    "the envelope certified an exact cylinder at eps {eps:e} \
+                     ({kind:?}, {residual:e}) — contradicts the fix-pass posture"
+                ),
+                other => println!("eps {eps:e}: {other:?}"),
+            }
+        }
+    }
+
+    /// **Q3 — degenerate conditioning is the typed trilean, nothing
+    /// else.** A twisted quad (plane-refuting) whose v0 boundary is a
+    /// straight line: the azimuth samples are exactly collinear, so
+    /// the cylinder estimator must answer IllConditioned — not
+    /// promote, not silently stay NURBS.
+    #[test]
+    fn r2_q3_degenerate_conditioning_is_ill_conditioned() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 1e-6),
+        ];
+        let patch = NurbsSurface::new(ku, kv, control, vec![1.0; 4]).unwrap();
+        match recognize(&patch, EPS) {
+            Recognition::IllConditioned { kind, margin } => {
+                assert_eq!(kind, PromotedKind::Cylinder);
+                assert!(margin <= EPS, "margin inside the budget: {margin:e}");
+            }
+            other => panic!("twisted quad must be IllConditioned: {other:?}"),
+        }
+    }
+
+    /// **Q4 — a rational exact plane with NONUNIFORM weights promotes
+    /// via the hull certificate at residual exactly 0.0** — the
+    /// whole-patch answer for the rational plane track.
+    #[test]
+    fn r2_q4_rational_nonuniform_weight_plane_promotes_whole_patch() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.7, -0.2, 0.0),
+            Point3::new(0.6, 1.3, 0.0),
+            Point3::new(1.5, 0.1, 0.0),
+            Point3::new(1.4, 0.9, 0.0),
+        ];
+        let weights = vec![1.0, 2.0, 3.0, 0.5, 5.0, 1.5];
+        let patch = NurbsSurface::new(ku, kv, control, weights).unwrap();
+        match recognize(&patch, EPS) {
+            Recognition::Promoted { kind, residual, .. } => {
+                assert_eq!(kind, PromotedKind::Plane);
+                assert_eq!(residual, 0.0, "planar net: residual exactly zero");
+            }
+            other => panic!("rational exact plane must promote: {other:?}"),
+        }
+    }
+
+    /// **Q5/Q6 — plane-first selection, and D9 bit-identity of the
+    /// full recognition answer across repeated runs.**
+    #[test]
+    fn r2_q5_q6_preference_and_bitwise_determinism() {
+        for patch in [lifted_plane(0.3 * EPS), lifted_plane(1.2 * EPS)] {
+            let (a, b) = (recognize(&patch, EPS), recognize(&patch, EPS));
+            match (&a, &b) {
+                (
+                    Recognition::Promoted {
+                        surface: sa,
+                        residual: ra,
+                        kind: ka,
+                    },
+                    Recognition::Promoted {
+                        surface: sb,
+                        residual: rb,
+                        kind: kb,
+                    },
+                ) => {
+                    assert_eq!(*ka, PromotedKind::Plane, "plane-first selection");
+                    assert_eq!(ka, kb);
+                    assert_eq!(ra.to_bits(), rb.to_bits(), "residual bits");
+                    assert_eq!(format!("{sa:?}"), format!("{sb:?}"), "surface bits");
+                }
+                _ => {
+                    // Both runs must at least agree bit-for-bit in Debug.
+                    assert_eq!(format!("{a:?}"), format!("{b:?}"), "non-promoting runs agree");
+                }
+            }
+        }
+    }
+}
