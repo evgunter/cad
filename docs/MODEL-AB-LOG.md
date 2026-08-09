@@ -443,6 +443,14 @@ SLOT 0 DISPATCHED (2026-08-09): calochortus partial refresh on
 lane calochortus, branch m7/calochortus; arm = OPUS (the drawn
 slot 0); orchestrator-review class expected (demo — excluded like
 MONTAGE/MV2/WMONTAGE if so).
+SLOT 1 DISPATCHED (2026-08-09): #284 Newell chart-frame re-anchor
+(demo-hardening stretch unit 1 — Evan's ruled direction on the
+issue: mesh lane re-derives the plane chart frame per-face from
+the boundary, Newell normal + extent-aligned axes; flips the two
+wild tessellation refusals into montage cells); difficulty logged
+PRE-DISPATCH = **S** (Evan's own sizing on #284). Arm = FABLE
+(the drawn slot 1). Blinded-lane implementation row — counts for
+comparison and the dual-review ordinal at its R1 dispatch.
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
