@@ -107,6 +107,8 @@ mod m5_pr10_nodes;
 #[path = "m5_pr10_schema_v2.rs"]
 mod m5_pr10_schema_v2;
 #[path = "m5_pr11_corpus_curved.rs"]
+mod lib_sel1_geoselect;
+
 mod m5_pr11_corpus_curved;
 #[path = "m5_pr12_fillet_node.rs"]
 mod m5_pr12_fillet_node;
