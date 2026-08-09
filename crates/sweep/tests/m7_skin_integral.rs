@@ -323,3 +323,92 @@ fn the_swept_bodys_seam_carriers_meter_positively() {
     }
     assert_eq!(seen, 4, "the elbow has four wall–wall seams");
 }
+
+// ---------------------------------------------------------------------
+// Pin 4: the frontier the integral fix did NOT move — a RATIONAL section
+// ---------------------------------------------------------------------
+
+/// A closed CIRCLE of radius `r` about the sketch origin: the
+/// two-vertex bulge-1 chain, i.e. two semicircular arcs. The plainest
+/// possible RATIONAL profile — an arc's exact NURBS form carries
+/// non-unit weights, and there is no parameterization of a circle that
+/// does not.
+fn circle_section(r: f64) -> Section {
+    vec![sweep::ProfileLoop::new(vec![
+        sweep::ProfileVertex {
+            pos: Point2::new(-r, 0.0),
+            bulge: 1.0,
+        },
+        sweep::ProfileVertex {
+            pos: Point2::new(r, 0.0),
+            bulge: 1.0,
+        },
+    ])]
+}
+
+/// **A rational section swept along a curved path refuses, and this is
+/// the shape of the refusal.**
+///
+/// The integral lane fixed the case where the SECTIONS are
+/// non-rational and the skin manufactured a weight channel anyway. It
+/// says nothing about a section that is rational on its own merits: an
+/// arc's weights are not an artifact to be removed, they are the arc.
+/// Such a section skins to a genuinely rational wall, the seam
+/// carrier's `speed_lower_bound` returns its documented poison (the
+/// derivative of a rational B-spline is not a convex combination of
+/// any control net), and the rung-3 span meter has no metre-per-
+/// parameter to convert the span with — so it escalates rather than
+/// fabricating a forward verdict.
+///
+/// The assertion is STRUCTURAL: the escalating check, the source
+/// predicate's own name, and the invalid-margin diagnostic — never the
+/// `Display` prose, which may be reworded without the frontier moving.
+///
+/// **Retirement condition (flip when fixed).** This pin asserts a
+/// refusal, so it must FAIL the day the banked rational-wall unit
+/// lands (the rational-patch work that owes both this and the
+/// quadrature side). When it does: delete the `assert!(matches!(...))`
+/// and replace it with the positive statement — the body builds, and
+/// its seam carriers meter positively exactly as
+/// [`the_swept_bodys_seam_carriers_meter_positively`] asserts for the
+/// integral lane. Do not weaken it to "some error" in the meantime: a
+/// probe that pinned only Err-ness would stay green while the frontier
+/// moved underneath it.
+#[test]
+fn a_rational_section_on_a_curved_path_refuses_at_the_span_meter() {
+    let outcome = sweep_body::<f64>(
+        &circle_section(ELBOW_H),
+        Affine3::identity(),
+        &elbow_path(),
+        9,
+        3,
+    );
+    let err = match outcome {
+        Err(e) => e,
+        Ok(_) => panic!(
+            "a rational section now skins to a body the certifier accepts — the \
+             rational-wall frontier has MOVED. Retire this pin per its retirement \
+             condition (assert the positive statement instead), and re-derive any \
+             consumer that routed around it."
+        ),
+    };
+    assert!(
+        matches!(
+            &err,
+            sweep::LoftError::Euler(topo::EulerOpError::Certification {
+                error: geom_brep::CertifyError::Escalated {
+                    check: geom_brep::CertCheck::ParamSpan,
+                    cause: geom_core::Indeterminate {
+                        margin: geom_core::MarginDiag::Invalid,
+                        predicate: Some("nurbs_span_meter"),
+                        ..
+                    },
+                    ..
+                },
+            })
+        ),
+        "the rational section still refuses, but NOT at the span meter's poisoned \
+         speed bound ({err:?}) — the frontier moved sideways rather than retiring, \
+         and this pin plus its callers need re-deriving before either is trusted"
+    );
+}

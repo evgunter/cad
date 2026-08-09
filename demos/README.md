@@ -313,7 +313,7 @@ committed fixtures, and the block is the audit's text verbatim.
 | `crosslap_exploded` | the same joint exploded via `transform_rigid` (re-minted witnesses, #84) |
 | `projectbox` | enclosure: cavity + 6 vent through-slots + 4 floor bosses + 4 pilot pockets — 15 sequential boolean nodes, the longest chain; square-only until M5 |
 | `cutaway` | **first `topo::split`**: the project box split by a tilted plane, halves translated apart — a machinist's section pair (replaces the void box translucency hack) |
-| `lily` | **the globe lily** (*Calochortus albus*, the fairy lantern) — the tour's first ORGANIC subject and a deliberate stress test: eight closed analytic solids (three torus-segment stem tubes from `revolve(Partial)` of a circle about a distant axis, two sphere-zone lanterns with conical mouths from `revolve(Full)`, three extruded two-arc crescent leaves), walked by a turtle so consecutive stem arcs are **G1 by construction**. Nothing is approximated: every wall is torus, sphere, cone or plane exactly — a claim about the surface KIND, not about stored parameters (`revolve` reconstructs a tube radius from the profile's bulge arcs, so the stem's stored `minor_radius` sits 3.9e-16 below the authored 0.060; see the module docs). Nothing is JOINED either — the stop is followed by **seven live wall probes** that attempt the joins and shapes a plant actually wants (glue the stem arcs, weld flower to stem, oblique-extrude a swept leaf, stretch a bud into an ovoid, mirror a leaf, fillet the mouth rim, carve a tepal seam) and assert each typed refusal, panicking if one ever retires |
+| `lily` | **the globe lily** (*Calochortus albus*, the fairy lantern) — the tour's first ORGANIC subject and a deliberate stress test: eight closed solids (three torus-segment stem tubes from `tube_along_arc`, two sphere-zone lanterns with conical mouths from `revolve(Full)`, three keeled leaf blades from `sweep_body` — a four-line kite section carried along an arching NURBS spine), walked by a turtle so consecutive stem arcs are **G1 by construction**. The five analytic bodies approximate nothing, and since the tube door that is a claim about STORED PARAMETERS as well as surface kind: the ring centre, spine axis, `u_ref` and both radii are the world-coordinate numbers the demo passed in, so the stem's `minor_radius` IS the authored 0.060 rather than the bulge-arc reconstruction 3.9e-16 below it. The three blades are the one fitted piece — a swept skin is a B-spline wall through nine exact spine points — and they hold ONE width base to tip, because there is no tapering sweep; their section is four straight lines and not the old crescent's arcs, because the skin lane refuses a rational wall (`nurbs_span_meter` has no speed bound on a rational carrier). Nothing is JOINED either — the stop is followed by **seven live wall probes** that attempt the joins and shapes a plant actually wants (glue the stem arcs, weld flower to stem, oblique-extrude a leaf out of its plane, stretch a bud into an ovoid, mirror a leaf, fillet the mouth rim, carve a tepal seam) and assert each typed refusal, panicking if one ever retires |
 | `heatsink5/7/9` | **the M4 layer**: ONE recipe document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `LinearPattern`; each re-eval recomputes exactly 1 node and reuses 4 (counted in the caption); stable names survive the edits (135/135); the montage carries only the 9-fin panel |
 
 Five committed **shadow proofs** ride beside the montage panels
@@ -430,23 +430,27 @@ TWENTY-SEVEN tour bodies now carry a curved surface (bracket, plate,
 vase, sheave, chute, rocker, bossplate, the two tiltedcut halves, the
 three die pieces, all eight globe-lily bodies, the tube-door wedge,
 and the six NURBS-walled skin bodies — the loft pair, the S duct, and
-the twisted duct with its two shadow twins).
-**Thirteen of the twenty-seven**
+the twisted duct with its two shadow twins). NINE of them carry a NURBS
+wall since the lily's three leaf blades became swept skins.
+**Ten of the twenty-seven**
 carry `same_sense = .F.` faces, the concave-wall bit S11 introduced —
 the original six (bracket 1, plate 4, vase 2, sheave 7, chute 3,
-rocker 7) plus die_pips 42, the composed die 42, each lantern 2 and each
-leaf 1. Fourteen carry none, in two groups. Eight have no CONCAVE curved
+rocker 7) plus die_pips 42, the composed die 42 and each lantern 2.
+Seventeen carry none, in two groups. Eight have no CONCAVE curved
 wall to reverse — bossplate's boss bulges outward, diefillet's blends
 are all convex, the two tiltedcut halves are a plain cylinder cut, the
 lily's three stem tubes are convex tori all the way round, and the
 tube-door wedge is one more of those with two plain wedge caps
-(checked: 4 `.T.`, 0 `.F.`). The six skin bodies carry none for a
+(checked: 4 `.T.`, 0 `.F.`). The NINE skin bodies carry none for a
 different reason: an ANALYTIC chart has a canonical normal the wall may
 oppose, but a NURBS wall's description is authored by the loft/sweep
 assembly itself, outward by construction — there is never anything to
 reverse regardless of concavity (the s_duct's and twisted duct's inner
-walls are concave and still `.T.`; checked: 6 `.T.`, 0 `.F.` on each
-of the six).
+walls are concave and still `.T.`). The lily's leaf blades joined that
+group when they stopped being extruded cylinders and became swept
+skins: 6 `.T.`, 0 `.F.` on each blade, four B-spline walls and two
+planar end caps, where the extruded crescent carried one `.F.` on its
+concave cylindrical wall.
 (The lily's lanterns reverse on
 their MOUTH disc, not on a curved wall: a revolve mints both cap planes
 on the profile plane's own +y normal, so exactly one cap opposes the
@@ -454,13 +458,17 @@ solid's outward normal — see `lily_lantern.expect`.)
 
 All twenty-four import into FreeCAD 1.1.2 as valid single-solid shapes (the
 STEP-lane montage draws every one of them from its own AP214 export,
-with no placeholder cells); the lily's eight were additionally checked
+with no placeholder cells); the lily's five ANALYTIC bodies are checked
 against independent closed forms — Pappus for the torus segments, a
-zone-plus-frustum integral for the lanterns, a two-circular-segment
-crescent for the leaves — agreeing to ≤1.4e-14 relative. The lily is
-the widest single-scene spread the writer has been asked for:
-`TOROIDAL_` (stem tubes), `SPHERICAL_` + `CONICAL_` (lanterns) and
-`CYLINDRICAL_` (leaf blades) all in one cell.
+zone-plus-frustum integral for the lanterns — agreeing to ≤1.4e-14
+relative. Its three swept blades have no analytic wall to check that
+way, so they are pinned against Pappus on the MESH instead (kite area
+times the centroid's arc length, agreeing to a few 1e-5 at δ = 2e-3 —
+the tessellation's own chord error, and a two-sided band, since exact
+agreement would mean no real mesh was measured). The lily is still the
+widest single-scene spread the writer has been asked for: `TOROIDAL_`
+(stem tubes), `SPHERICAL_` + `CONICAL_` (lanterns) and
+`B_SPLINE_SURFACE_WITH_KNOTS` (leaf blades) all in one cell.
 
 One typed refusal remains as a named frontier, and no tour body is in
 it: a multi-shell **curved** solid (whose outward/void classification
