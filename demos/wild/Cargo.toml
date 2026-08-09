@@ -1,0 +1,17 @@
+# Wild-corpus montage generator. Deliberately OUTSIDE the kernel
+# workspace, exactly like demos/tour (the empty [workspace] table
+# detaches it; the root manifest lists `demos` in workspace.exclude):
+# demo tooling must never become a workspace dependency. Builds the
+# kernel by path, and — like the tour — reaches every kernel type it
+# touches through the `pncad` façade alone.
+[package]
+name = "wild-montage"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace]
+
+[dependencies]
+pncad = { path = "../../crates/pncad" }
