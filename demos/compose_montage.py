@@ -8,11 +8,14 @@ margins, and lays the scenes out on a grid with captions.
 `--montage=NAME` writes the sheet under a different filename and
 `--banner=TEXT` adds a provenance banner line under the title — the
 FreeCAD/OCC STEP-lane montage uses both, on the SAME grid/captions/
-scene order so the two sheets are cell-for-cell comparable. A scene
+scene order so the two sheets are cell-for-cell comparable.
+`--title=TEXT` overrides the sheet title (the wild-corpus sheet is not
+the demo tour, so it must not claim the tour's title). A scene
 whose render is missing gets a labeled placeholder cell (reason from
 <renderdir>/<name>.fail.txt when present) — never a silent gap.
 
-Usage: python compose_montage.py <outdir> <renderdir> [--montage=NAME] [--banner=TEXT]
+Usage: python compose_montage.py <outdir> <renderdir>
+           [--montage=NAME] [--banner=TEXT] [--title=TEXT]
 """
 
 import json
@@ -63,12 +66,15 @@ def main():
     args = sys.argv[1:]
     montage_name = "montage.png"
     banner = None
+    title = "B-rep kernel demo tour — sweeps, booleans, split, and the M4 recipe layer"
     pos = []
     for a in args:
         if a.startswith("--montage="):
             montage_name = a.split("=", 1)[1]
         elif a.startswith("--banner="):
             banner = a.split("=", 1)[1]
+        elif a.startswith("--title="):
+            title = a.split("=", 1)[1]
         else:
             pos.append(a)
     outdir, renderdir = Path(pos[0]), Path(pos[1])
@@ -88,7 +94,6 @@ def main():
             placeholder(ax, scene["name"], renderdir)
         ax.set_title(scene["caption"], fontsize=11, pad=3)
         ax.set_axis_off()
-    title = "B-rep kernel demo tour — sweeps, booleans, split, and the M4 recipe layer"
     if banner:
         fig.suptitle(title, fontsize=15, y=0.995, va="top")
         fig.text(
