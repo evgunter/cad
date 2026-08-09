@@ -37,6 +37,20 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // tolerance ε as the coincidence threshold, K·ε as the escalation
 // threshold — which is what every kernel operation builds internally.
 pub use geom_core::{Affine3, Band, BandError, Mat3, Point2, Point3, Real, Tolerance, Vec2, Vec3};
+// The D6 quantity layer (LIB-U8a): value types, unit constants
+// (`25.0 * MM`), and the display formatter. NAME DISCIPLINE: this
+// `Length` is the API-boundary quantity newtype; the kernel-internal
+// classify-seam `geom_core::predicate::Length<T>` is a different type
+// that has never been prelude surface and must not become it — the
+// two coexist only module-qualified. Scope: the prelude carries the
+// value types + the six unit constants + the formatter; the unit
+// TABLE itself and the prefix data (`UNITS`, `unit_by_symbol`,
+// `MILLI`, `CENTI`) stay one module hop away at `pncad::quantity`,
+// per the corpus-measured prelude rule (module docs above).
+pub use quantity::{
+    Angle, AngleUnit, CM, Count, DEG, FmtQuantityError, IN, Length, LengthUnit, M, MM, RAD,
+    fmt_angle, fmt_length,
+};
 
 // --- 2. Profile authoring -------------------------------------
 pub use profile::{
@@ -86,8 +100,10 @@ pub use step_import::{ImportOptions, StepImportError, import_step};
 pub use stl::{write_ascii, write_binary};
 
 // --- 8. The document layer ------------------------------------
+// `parse_expr` is the expression TEXT door (LIB-U8a): the checking
+// parser whose every reduction runs the Expr smart constructors.
 pub use editor_core::{
     CancelToken, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr, Node,
-    NodeError, PatternKind, ProfileDesc, RecipeNodeId, SlotId, StableName, ValuePayload, apply,
-    evaluate,
+    NodeError, ParseError, PatternKind, ProfileDesc, RecipeNodeId, SlotId, StableName,
+    ValuePayload, apply, evaluate, parse_expr,
 };

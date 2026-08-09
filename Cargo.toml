@@ -23,6 +23,7 @@ members = [
     "crates/mesh",
     "crates/pncad",
     "crates/profile",
+    "crates/quantity",
     "crates/step-export",
     "crates/step-import",
     "crates/stl",
