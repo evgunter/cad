@@ -159,6 +159,155 @@ fn straight_arc_prism() -> topo::Body<f64> {
         .body
 }
 
+/// The **INTEGRAL** mixed prism (M7-8 union ruling, option (c)): the
+/// same promoted-plane/stays-NURBS shape the seam-orphan class is
+/// about, built so that every weight is 1.
+///
+/// A square section lofted (degree 2 in `v`) through three places
+/// whose MIDDLE one is offset in `+x`. The `y = ±1` walls keep every
+/// vertex at their own `y`, so they stay exactly planar and PROMOTE;
+/// the `x = ±1` walls bow into parabolic cylinders — genuinely curved,
+/// no analytic kind, so they honestly STAY NURBS. No bulge is used
+/// anywhere, so no rational arc enters and the walls are INTEGRAL:
+/// the patch-flux quadrature class #207 fixed, hence tier-valid at
+/// rest, which is what the arc prism's rational wall cannot be.
+fn offset_square_prism() -> topo::Body<f64> {
+    let square = || -> sweep::Section {
+        let v = |x: f64, y: f64| profile::ProfileVertex {
+            pos: Point2::new(x, y),
+            bulge: 0.0,
+        };
+        vec![profile::ProfileLoop::new(vec![
+            v(-1.0, -1.0),
+            v(1.0, -1.0),
+            v(1.0, 1.0),
+            v(-1.0, 1.0),
+        ])]
+    };
+    let sections = vec![square(), square(), square()];
+    let places = vec![
+        Affine3::identity(),
+        Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
+        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+    ];
+    sweep::loft_body::<f64>(&sections, &places, 2)
+        .expect("the offset square prism builds")
+        .body
+}
+
+/// **The integral twin, and the SECOND gap it measures** (M7-8 union
+/// ruling, option (c) — executed, and reporting that the option is not
+/// reachable today).
+///
+/// The intent was to remove the arc prism's confound: same mixed
+/// promoted-plane/stays-NURBS shape, same export→import path, same
+/// declare-and-check seam, but INTEGRAL walls, so the at-rest gate has
+/// a quadrature to run and the body can be first-class. The body half
+/// works — it imports and `validate_geometric` returns `Ok(())`,
+/// which the rational arc prism can never do.
+///
+/// The SEAM half does not, and the reason is structural rather than
+/// incidental. Our own writer emits every seam carrier bit-identical
+/// to the wall's boundary column, so the bitwise `IsoCurve` rung
+/// answers first and declare-and-check is never reached — measured
+/// here: with our own bytes all four wall seams certify as
+/// `IsoCurve`. State the same seam in any foreign form (this restates
+/// one control point one ULP up in `z`, the smallest difference a
+/// decimal round-trip can make) and the `Intersection` rung does
+/// certify it — and then pcurve minting refuses:
+/// `IsoUnsupported`, because `nurbs_iso_derive` derives chart images
+/// for `IsoCurve` and `PlacedSegment` descriptions ONLY, and an
+/// `Intersection` on a described NURBS chart has no arm.
+///
+/// So the two wall kinds fail in opposite directions, and between them
+/// they leave no fixture that is first-class end to end today:
+///
+/// * **rational** wall (the arc prism): pcurve minting is WAIVED
+///   (`pcurves.rs`: "the placeholder and rational walls mint
+///   nothing"), so the `Intersection` seam sails through import — and
+///   the body is tier-INVALID at rest, because rational patch flux is
+///   banked (M7-3 Arm B).
+/// * **integral** wall (here): the body is tier-VALID at rest, and
+///   pcurve minting is demanded and has no derivation for the
+///   `Intersection` description.
+///
+/// Both are pinned, neither is widened. **Flip when fixed**: this row
+/// becomes the first-class end-to-end pin as soon as
+/// `nurbs_iso_derive` grows an `Intersection` arm on described NURBS
+/// charts — the trimmed-NURBS pcurve lane its own refusal names as
+/// "the cut-loft unit's". Nothing in M7-8 needs to change for it.
+#[test]
+fn the_integral_mixed_body_is_tier_valid_and_pins_the_pcurve_gap() {
+    let native = offset_square_prism();
+    let text = step_export::step_string(&native, &step_export::StepOptions::default())
+        .expect("the offset square prism exports");
+
+    // ---- The half that WORKS: the body is first-class at rest. ----
+    let own = import_step(&text, &ImportOptions::default()).expect("our own dialect imports");
+    let StepImport::Solid {
+        body: own_body,
+        normalizations,
+        ..
+    } = &own
+    else {
+        panic!("the offset square prism is a solid");
+    };
+    // Still the MIXED shape the class is about: the two exactly-planar
+    // walls promote, the two bowed walls honestly stay NURBS.
+    let promoted = promotions(normalizations);
+    assert_eq!(
+        promoted.iter().map(|&(_, k, _)| k).collect::<Vec<_>>(),
+        vec![PromotedKind::Plane; 2],
+        "two planar walls promote; the bowed walls stay NURBS: {promoted:?}"
+    );
+    // THE POINT the arc prism cannot make: tier-valid at rest as
+    // `Ok(())`, not as parity with a refusing twin. The integral
+    // wall's patch flux is computable, so nothing here is banked.
+    topo::validate_geometric(own_body).expect("tier-valid AT REST — the integral wall quadratures");
+    topo::validate_geometric(&native).expect("its native twin too: parity here is Ok(())");
+
+    // With OUR bytes the bitwise rung answers, so declare-and-check is
+    // never reached — the measurement behind the finding above.
+    assert!(
+        plane_nurbs_seams(own_body).is_empty(),
+        "our own writer's carriers are bit-identical to the walls' columns, \
+         so every seam takes the IsoCurve rung"
+    );
+
+    // ---- The half that is BLOCKED: a foreign restatement. ----
+    let foreign = text.replace(
+        "#90 = CARTESIAN_POINT('', (0.0, -1.0, 1.0));",
+        "#90 = CARTESIAN_POINT('', (0.0, -1.0, 1.0000000000000002));",
+    );
+    assert_ne!(text, foreign, "the foreign restatement applied");
+    let Err(refusal) = import_step(&foreign, &ImportOptions::default()) else {
+        panic!(
+            "FLIP: a foreign-stated seam on an INTEGRAL wall now imports — \
+             nurbs_iso_derive grew its Intersection arm; retire this pin and \
+             assert the first-class body plus its certified seam instead"
+        );
+    };
+    let shown = format!("{refusal:?}");
+    if geom_core::Tolerance::get().eps < 1e-9 {
+        // The ε-fine posture, the same clause-3 shape the arc prism
+        // takes: this seam's own certified between-samples sup is
+        // ~6.22e-12 m, so at ε_in = 1e-12 the carrier refuses during
+        // ADOPTION carrying that number, and never reaches the pcurve
+        // stage. Measured, not widened.
+        assert!(
+            shown.contains("PlaneNurbsCertificate") && shown.contains("ssi_hull_sup_chart"),
+            "the ε-fine refusal is the envelope's own measured bound: {shown}"
+        );
+    } else {
+        assert!(
+            shown.contains("IsoUnsupported"),
+            "the block is the pcurve lane's missing Intersection arm, not this \
+             unit's certification: {shown}"
+        );
+    }
+    println!("M7-8 integral twin: tier-valid at rest; foreign seam refused at {shown}");
+}
+
 /// **The cylinder track under the honest envelope, and the amplified
 /// seam-orphan limit** (R1 fix pass, M-1 consequence — reported
 /// loudly; a standing item for the next ruling).
@@ -201,34 +350,30 @@ fn straight_arc_prism() -> topo::Body<f64> {
 /// bound too loose at ε refuses with its number, never through a
 /// widened gate. Both postures are pinned below.
 #[test]
-fn the_seam_orphan_certifies_as_a_plane_nurbs_intersection() {
+fn the_seam_orphan_certifies_and_is_pinned_at_the_rational_quadrature_gate() {
     let native = straight_arc_prism();
     let text = step_export::step_string(&native, &step_export::StepOptions::default())
         .expect("the arc prism exports");
     let eps = geom_core::Tolerance::get().eps;
 
-    // TWO honest postures, and which one this row takes is decided by
-    // ε_in against the envelope's own slack — never by a widened gate
-    // (the spec's clause 3). This seam's certified between-samples sup
-    // is ~6.3e-12 m: the promoted plane wall's boundary column and the
-    // arc wall's own column agree to the arc endpoint's rounding, and
-    // the first-order envelope over the schedule cannot say better
-    // than that. So at ε_in = 1e-9 (default) and 1e-6 the pin FLIPS,
-    // and at ε_in = 1e-12 the SAME geometry refuses typed WITH the
-    // measured bound in the payload. Both are pinned here; a change to
-    // either is a posture change to re-pin.
-    let import = match import_step(&text, &ImportOptions::default()) {
-        Ok(import) => import,
-        Err(refusal) => {
+    match import_step(&text, &ImportOptions::default()) {
+        // FLIP WHEN FIXED. The moment rational patch flux lands, this
+        // body becomes first-class and this row must be retired for the
+        // full assertion: the certified seam PLUS `Ok(())` at rest.
+        Ok(_) => panic!(
+            "FLIP: the arc prism now imports first-class — rational patch flux \
+             quadrature has landed. Retire this waypoint and assert the certified \
+             plane x NURBS seam on a first-class body."
+        ),
+        // The ε-fine posture, UNCHANGED by the gate: at 1e-12 the
+        // envelope's own slack refuses during adoption, so the body
+        // never reaches the at-rest pass at all.
+        Err(StepImportError::Adoption { id, attempts }) => {
             assert!(
                 eps < 1e-9,
-                "the flip is REQUIRED at ε_in ≥ 1e-9 (the default row and coarser): \
-                 {refusal:?}"
+                "adoption itself only refuses at the ε-fine row: {attempts:?}"
             );
-            let StepImportError::Adoption { id, attempts } = &refusal else {
-                panic!("the too-fine row refuses through the adoption ladder: {refusal:?}");
-            };
-            assert_eq!(*id, 130, "the seam, named");
+            assert_eq!(id, 130, "the seam, named");
             let bound = attempts.iter().find_map(|a| match a.refusal {
                 topo::EulerOpError::Certification {
                     error:
@@ -251,196 +396,36 @@ fn the_seam_orphan_certifies_as_a_plane_nurbs_intersection() {
                 "the refusal's own number explains it: the certified sup {bound:e} m \
                  does not fit inside ε_in {eps:e}"
             );
-            println!("M7-8 seam #130 @ eps={eps:e}: REFUSES typed, certified sup {bound:e} m");
-            return;
+            println!("M7-8 seam #130 @ eps={eps:e}: adoption refuses, certified sup {bound:e} m");
         }
-    };
-    let StepImport::Solid {
-        body,
-        normalizations,
-        ..
-    } = &import
-    else {
-        panic!("the arc prism is a solid");
-    };
-
-    // The wall did NOT promote: this is still the mixed
-    // promoted-plane/stays-NURBS body the class is about.
-    assert_eq!(
-        promotions(normalizations)
-            .iter()
-            .map(|&(_, kind, _)| kind)
-            .collect::<Vec<_>>(),
-        vec![PromotedKind::Plane; 3],
-        "three planar walls promote; the exact-cylinder arc wall honestly stays NURBS"
-    );
-
-    // Exactly one plane × NURBS seam, and it is edge #130's — the
-    // orphan. The others are plane × plane, the wall's own iso rung,
-    // or the cap rims.
-    let seams = plane_nurbs_seams(body);
-    assert_eq!(
-        seams.len(),
-        1,
-        "one certified plane × NURBS seam in this body: {} found",
-        seams.len()
-    );
-    let (curve_key, ref plane, ref wall) = seams[0];
-
-    // The certificate, RE-DERIVED (never the stored number).
-    let limbs = seam_certificate(body, curve_key, plane, wall);
-    assert!(
-        limbs.on_locus_max <= eps,
-        "limb 1, the sampled on-locus residual over both operands: \
-         {:e} m must sit inside ε_in {eps:e}",
-        limbs.on_locus_max
-    );
-    assert!(
-        limbs.hull_sup <= eps,
-        "limb 2, the certified between-samples sup-norm — the number that \
-         certifies: {:e} m must sit inside ε_in {eps:e}",
-        limbs.hull_sup
-    );
-    assert!(
-        limbs.min_sin_theta > 0.7,
-        "the transversality margin: the y = 1 cap plane meets the quarter-cylinder \
-         wall at 45°, so sin θ ≈ √2/2; measured {:e}",
-        limbs.min_sin_theta
-    );
-    assert!(
-        limbs.tube_transversality > 0.0 && limbs.tube_boxes > 0,
-        "the uniqueness tube is certified over a non-empty box chain: {limbs:?}"
-    );
-    // Reported, not asserted — the numbers the ruling asked for, at
-    // whichever ε row this binary runs (default / 1e-6 / 1e-12).
-    println!(
-        "M7-8 seam #130 @ eps={eps:e}: on_locus={:e} hull_sup={:e} \
-         tube_radius={:e} tube_transversality={:e} boxes={} sin_theta={:e}",
-        limbs.on_locus_max,
-        limbs.hull_sup,
-        limbs.tube_radius,
-        limbs.tube_transversality,
-        limbs.tube_boxes,
-        limbs.min_sin_theta
-    );
-
-    // Tier-valid AT REST, in the ONLY sense the importer claims
-    // (`StepImport::Solid`'s contract): to the tier its native twin
-    // certifies to — nothing imports into a state its native twin
-    // does not occupy. The arc prism's wall is RATIONAL, so both the
-    // native and the imported body refuse tier 3 with the same banked
-    // quadrature refusal (M7-3); what M7-8 has to prove is that the
-    // at-rest pass finds NO certification failure — every edge,
-    // including the new plane × NURBS seam, RE-DERIVES its
-    // certificate under `recertify_nurbs_lane` rather than carrying
-    // a stored one.
-    //
-    // The comparison drops the face KEY on both sides: the two bodies
-    // are built by different routes (native Euler ops vs adoption), so
-    // their arena numbering differs by construction and only the
-    // refusal's substance is comparable.
-    let refusals = |errors: &[topo::ValidationError]| -> Vec<String> {
-        errors
-            .iter()
-            .map(|e| match e {
-                topo::ValidationError::VolumeUncomputable { source } => {
-                    format!("VolumeUncomputable/{source:?}")
-                        .split_once("face:")
-                        .map_or_else(
-                            || format!("{e:?}"),
-                            |(head, tail)| {
-                                format!("{head}{}", tail.split_once(',').map_or(tail, |(_, t)| t))
-                            },
-                        )
-                }
-                other => format!("{other:?}"),
-            })
-            .collect()
-    };
-    let at_rest = topo::validate_geometric(body).expect_err("the banked rational wall, verbatim");
-    let native_at_rest =
-        topo::validate_geometric(&native).expect_err("the native twin refuses identically");
-    assert_eq!(
-        refusals(&at_rest),
-        refusals(&native_at_rest),
-        "the imported body's at-rest verdict IS its native twin's"
-    );
-    assert!(
-        at_rest
-            .iter()
-            .all(|e| matches!(e, topo::ValidationError::VolumeUncomputable { .. })),
-        "the only at-rest refusal is the banked rational-wall quadrature — no edge \
-         failed re-certification: {at_rest:?}"
-    );
-
-    // D9: the same bytes import to the same body, twice.
-    let again = import_step(&text, &ImportOptions::default()).expect("the second import");
-    let StepImport::Solid { body: again, .. } = &again else {
-        panic!("the arc prism is a solid");
-    };
-    assert_eq!(
-        step_export::step_string(again, &step_export::StepOptions::default()).unwrap(),
-        step_export::step_string(body, &step_export::StepOptions::default()).unwrap(),
-        "D9: import twice, byte-compare"
-    );
-
-    // The near-miss: the wall's centre control point, ~5·ε_in off the
-    // cylinder. The wall is no longer an exact cylinder, so the
-    // seam's declared carrier is no longer on it — and the
-    // declare-and-check lane says so with the number, rather than
-    // certifying a carrier the file merely asserted.
-    //
-    // The exported file's declared uncertainty is the ambient ε the
-    // export ran at, so the nudge scales with the run's ε (past the
-    // budget at every matrix row). The perturbation base is the
-    // FILE'S OWN token, parsed — the writer's print of the point,
-    // which the bulge arithmetic left one ulp BELOW f64 √2 (not
-    // `f64::consts::SQRT_2`, whose substitution would misstate the
-    // intent: "the file's value, moved", not "√2, moved").
-    const CENTER_X_TOKEN: &str = "1.414213562373095";
-    let base: f64 = CENTER_X_TOKEN
-        .parse()
-        .expect("the writer's own token parses");
-    let near_miss = text.replace(
-        &format!("#114 = CARTESIAN_POINT('', ({CENTER_X_TOKEN}, 0.0, 1.0));"),
-        &format!(
-            "#114 = CARTESIAN_POINT('', ({:?}, 0.0, 1.0));",
-            base + 5.0 * eps
-        ),
-    );
-    assert_ne!(text, near_miss, "the perturbation applied");
-    let near = import_step(&near_miss, &ImportOptions::default())
-        .expect("the near-miss prism still imports first-class");
-    let StepImport::Solid {
-        body: near,
-        normalizations: near_norms,
-        ..
-    } = &near
-    else {
-        panic!("the arc prism is a solid");
-    };
-    assert!(
-        promotions(near_norms)
-            .iter()
-            .all(|&(_, kind, _)| kind == PromotedKind::Plane),
-        "the near-miss wall is still silent about itself: no arc-wall promotion"
-    );
-    // The nudge is the wall's mid-arc control point; the seam sits at
-    // the patch's `u = 1` edge, where that point's basis weight
-    // vanishes. So the seam's own certificate is unmoved and the
-    // near-miss row pins the SEPARATION: perturbing the wall's
-    // interior does not leak into the seam's declare-and-check
-    // verdict. The carrier-side falsifier — the perturbation that
-    // MUST be caught — is
-    // `a_displaced_seam_carrier_refuses_with_the_measured_residual`.
-    let near_seams = plane_nurbs_seams(near);
-    assert_eq!(near_seams.len(), 1, "the same one seam");
-    let near_limbs = seam_certificate(near, near_seams[0].0, &near_seams[0].1, &near_seams[0].2);
-    assert!(
-        near_limbs.hull_sup <= eps,
-        "the seam's certified sup is unmoved by the interior nudge: {:e} m",
-        near_limbs.hull_sup
-    );
+        // THE WAYPOINT. At default and 1e-6 the seam CERTIFIES — the
+        // adoption ladder no longer refuses this edge, which is the
+        // whole of what M7-8 owns and retires. The body is then
+        // refused by the shared at-rest gate, on a fact about the
+        // wall's VOLUME rather than the seam's certification.
+        Err(refusal @ StepImportError::TierInvalid { .. }) => {
+            assert!(
+                eps >= 1e-9,
+                "the at-rest gate is only reached where adoption succeeds: {refusal:?}"
+            );
+            let shown = format!("{refusal:?}");
+            // THE REFUSAL ADVANCED. It used to say the seam had no
+            // certification path; it now says the rational wall's
+            // volume is not computable. Both halves are asserted so
+            // neither can regress silently.
+            assert!(
+                shown.contains("QuadratureUnsupported") && shown.contains("RATIONAL patch flux"),
+                "the surviving refusal is the BANKED rational patch flux (M7-3 Arm B), \
+                 not anything about the seam: {shown}"
+            );
+            assert!(
+                !shown.contains("Adoption") && !shown.contains("PlaneNurbs"),
+                "the seam-orphan class is RETIRED: no adoption refusal survives here: {shown}"
+            );
+            println!("M7-8 seam #130 @ eps={eps:e}: seam certifies; body pinned at the gate");
+        }
+        other => panic!("no other posture is pinned for this fixture: {other:?}"),
+    }
 }
 
 /// **The planted falsifier — declare-and-check, executed at the
@@ -537,33 +522,13 @@ fn plane_nurbs_seams(
         .collect()
 }
 
-/// Re-derives a seam's plane × NURBS certificate from the body. The
-/// stored `Certificate` keeps only the sample count and the max
-/// residual, and this unit's whole contract is that the numbers are
-/// re-MEASURED rather than trusted — so the reported limbs come from
-/// a fresh run of the lane, exactly as the at-rest tier-3 pass does.
-fn seam_certificate(
-    body: &topo::Body<f64>,
-    curve: geom_brep::keys::CurveKey,
-    plane: &geom_surfaces::Surface<f64>,
-    wall: &geom_surfaces::NurbsSurface<f64>,
-) -> geom_brep::PlaneNurbsLimbs<f64> {
-    let Some(topo::CurveGeom::Certified(edge)) =
-        body.curves().find(|&(k, _)| k == curve).map(|(_, g)| g)
-    else {
-        panic!("a certified seam");
-    };
-    let geom_curves::Curve3::Nurbs(carrier) = edge.carrier() else {
-        panic!("the seam's carrier is a spline");
-    };
-    let (t0, t1) = edge.params();
-    let extent = edge.carrier().eval(t0).distance(edge.carrier().eval(t1));
-    <f64 as geom_brep::EdgeNurbsLane>::plane_nurbs_limbs(
-        carrier,
-        plane,
-        wall,
-        extent,
-        geom_core::Band::linear().expect("the run's linear band"),
-    )
-    .expect("the seam re-certifies at rest")
-}
+// `seam_certificate` — which re-derived this seam's limbs from the
+// IMPORTED body — is retired with the first-class row it served: the
+// arc prism no longer produces an imported body to re-derive from
+// (the at-rest gate refuses it), and the integral twin's seam never
+// reaches the rung (the pcurve lane blocks it). The seam's own
+// certified numbers stay pinned in two places that still execute: the
+// ε-fine branch above, which asserts this seam's certified sup
+// (6.3156e-12 m) from the refusal payload, and geom-brep's
+// `m7_8_plane_nurbs_edge` rows, which measure the same
+// quarter-cylinder-meets-plane geometry at the lane and at the door.
