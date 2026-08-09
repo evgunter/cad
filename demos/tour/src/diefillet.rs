@@ -31,7 +31,7 @@
 use core::f64::consts::PI;
 
 use pncad::geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec2, Vec3};
-use pncad::prelude::{Open, Start};
+use pncad::prelude::{CurveKind, CurveKindSet, Open, Start, SurfaceKind, SurfaceKindSet};
 use pncad::profile::{Profile, SketchPlane};
 use pncad::sweep::fillet::build::fillet_edges;
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -200,13 +200,47 @@ pub fn pipped<S: Scalar>() -> Body<S> {
 /// The composed die: pips first (one group cut), then the twelve box
 /// edges in place, then all 21 rims as closed chains in one call.
 ///
-/// The two filters below stay GEOMETRIC (carrier kind; the adjacent
-/// surface-kind pair standing in for "concave rim") and stay written
-/// against the kernel body: LIB-U7's selectors are STRUCTURAL only,
-/// and a geometric selector predicate is a decided predicate needing
-/// its own margins-and-recorded-verdicts design — deferred to a
-/// designed follow-up (LIB-LOG LB7; `pncad::select` module docs).
+/// The two filters below are P10's alphabet, and since LIB-SEL1 they
+/// are said in the RATIFIED vocabulary rather than hand-rolled: a
+/// [`CurveKindSet`] over the carrier tag, and an unordered
+/// [`SurfaceKindSet`] pair across the edge (SELECT-DESIGN §1's two
+/// EXACT atoms — tag reads, no funnel, no margin). The ad-hoc `0u8 /
+/// 1 / 2` surface encoding this used to carry is gone: these are the
+/// same values `select_where` filters with, so the demo and the
+/// library can no longer disagree about what "a plane/sphere rim" is.
+///
+/// **They are still not a `select_where` CALL, and the reason is
+/// mechanical, not a deferral.** `select_where` answers against an
+/// `Evaluation`, so the die would have to be a RECIPE — and this die
+/// cannot be one at byte-identity:
+///
+/// - the pip ball's meridian is a two-vertex, all-on-axis loop, which
+///   `names::name_revolve` refuses typed ("revolve vertex resolution
+///   exceeded elimination"); the corpus `die_pips` document works
+///   around it with a split-at-equator two-quarter-arc meridian
+///   derived from `tan(π/8)`, which is a DIFFERENT body (two band
+///   faces, different circle data);
+/// - `ball()` picks its placement with a runtime branch that, for the
+///   `+y` pole, applies no transform at all, while `Node::Transform`
+///   is one unconditional fused `(R, t)` pass — a different
+///   re-certification chain, and `transform_rigid` re-mints every
+///   curve witness each time it runs.
+///
+/// So the geometric SELECTOR's acceptance lives where a die IS a
+/// recipe: `die_composed`, whose fourteen fillet names these same two
+/// atoms materialize exactly (`editor-core/tests/lib_sel1_geoselect.rs`),
+/// with the two co-surface meridians falling out as `(Sphere, Sphere)`
+/// — the exclusion this comment's ancestor called "standing in for
+/// concave rim".
 pub fn composed<S: Scalar>() -> Body<S> {
+    // The predicate VALUES, stated once — inspectable data, not a
+    // closure and not a `matches!` arm buried in a filter.
+    let straight = CurveKindSet::just(CurveKind::Line);
+    let (rim_a, rim_b) = (
+        SurfaceKindSet::just(SurfaceKind::Plane),
+        SurfaceKindSet::just(SurfaceKind::Sphere),
+    );
+
     let pipped = pipped::<S>();
     let box_edges: Vec<_> = pipped
         .edges()
@@ -214,7 +248,7 @@ pub fn composed<S: Scalar>() -> Body<S> {
             pipped
                 .get_curve_geom(e.curve)
                 .and_then(|g| g.certified())
-                .is_some_and(|c| matches!(c.carrier(), pncad::geom_curves::Curve3::Line { .. }))
+                .is_some_and(|c| straight.contains(CurveKind::of(c.carrier())))
         })
         .map(|(k, _)| k)
         .collect();
@@ -229,16 +263,17 @@ pub fn composed<S: Scalar>() -> Body<S> {
                 let f = blanked.get_loop(h.parent_loop)?.face;
                 blanked
                     .get_surface(blanked.get_face(f)?.surface)
-                    .map(|s| match s {
-                        pncad::geom_surfaces::Surface::Plane { .. } => 0u8,
-                        pncad::geom_surfaces::Surface::Sphere { .. } => 1,
-                        _ => 2,
-                    })
+                    .map(SurfaceKind::of)
             };
-            matches!(
-                (face_kind(e.he_plus), face_kind(e.he_minus)),
-                (Some(0), Some(1)) | (Some(1), Some(0))
-            )
+            // UNORDERED, exactly as the atom is: the pair matches
+            // whichever half-edge carries which face.
+            match (face_kind(e.he_plus), face_kind(e.he_minus)) {
+                (Some(p), Some(m)) => {
+                    (rim_a.contains(p) && rim_b.contains(m))
+                        || (rim_a.contains(m) && rim_b.contains(p))
+                }
+                _ => false,
+            }
         })
         .map(|(k, _)| k)
         .collect();

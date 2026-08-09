@@ -64,7 +64,14 @@ output file foreground. Agents
 choose `-n` (grab-or-exit-75, then retry/fall back) vs default
 blocking wait (`-w SECS` caps it) — a blocking wait can eat a Bash
 call's 10-min cap, so briefs should prefer `-n` + retry for long
-queues. The number of ALIVE agents is no longer capped at two —
+queues. **Orphan-waiter stacking (2026-08-09, observed live)**: a
+harness-timed-out Bash call does NOT kill its with-build-slot
+flock waiter — the orphan stays queued, and "re-issue the
+timed-out call" then STACKS duplicate waiters that each burn a
+slot turn when the mutex frees (5 deep observed). Re-issue means:
+kill your own previous waiter first (or use `-n`/`--express`);
+orchestrator sweeps should scan for same-command duplicate
+waiters per lane and cull all but the newest. The number of ALIVE agents is no longer capped at two —
 only concurrent heavy cargo is; more than two lanes may exist if
 disk allows. An OOM-killed test still shows as a bare "Terminated"
 single-row FAIL — check what else was running and rerun quiet

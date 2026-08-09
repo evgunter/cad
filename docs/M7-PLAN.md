@@ -125,8 +125,10 @@ ruled on a thread, none silent):
 | M7-5 | band-seam re-mint (the plan's S9-flip pattern executed) | MERGED #252 |
 | M7-6 | stage-1 recognition (always-promote, #256; whole-patch envelope) | PR #264 — R1 APPROVE (post-fix), independent R2 running (dual-review row 6) |
 | M7-7 | tier-at-import (the #260 (a) ruling; shared gate) | implementing, stacked on #264's head |
-| M7-8 (rider) | plane×NURBS intersection certification (ruled on #264's thread) | PR #288 — the seam-orphan pin FLIPPED; the last M7 code unit |
-| demo | wild-corpus montage, KERNEL-TESSELLATION lane only (Evan approved 2026-08-09; FreeCAD comparison lane deliberately omitted) | queued post-M7-7 dispositions; gated on docs/WILD-CORPUS-LICENSES.md (audit in flight) — walk evidence when cut |
+| M7-8 (rider) | plane×NURBS intersection certification (ruled on #264's thread) | PR #288 — the seam-orphan pin FLIPPED; the last M7 code unit. BLOCKED on a cross-unit collision with #276: the arc-prism fixture's RATIONAL wall makes it tier-invalid at rest (M7-3 Arm B's banked quadrature), so the gate refuses the import |
+| demo | wild-corpus montage, KERNEL-TESSELLATION lane only | PR #283 in orchestrator review (6 cells + 2 honest tessellation-refusal findings) |
+| demo | calochortus (globe-lily) PARTIAL refresh (Evan, 2026-08-09): capture the since-#175 wins — tube_along_arc exact-intent stems (retiring finding 11's workaround), curved-path sweep_body leaves, twisted-duct vocabulary. The FULL rebuild stays M8 — findings 1/2/7 (one-stem G1 unions, flower∪stem, tepal carving) are C7 declared-contact machinery, a real dependency not a sequencing choice | queued behind the current cycles; S, demo class |
+| demo | Utah(-ish) teapot | RE-SEQUENCED (Evan, 2026-08-09): designated as the SHELL verb's demo — queues behind shell/offset (see docs/KERNEL-VERBS.md), not an M7/M8 item |
 
 **Then**: the M7 EXIT WALK (pre-drafted at docs/M7-EXIT-WALK.md,
 finalizes on M7-6/M7-7 merges) → Evan's closure ruling → **M8 opens
