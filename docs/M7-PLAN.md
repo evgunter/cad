@@ -126,7 +126,7 @@ ruled on a thread, none silent):
 | M7-6 | stage-1 recognition (always-promote, #256; whole-patch envelope) | PR #264 — R1 APPROVE (post-fix), independent R2 running (dual-review row 6) |
 | M7-7 | tier-at-import (the #260 (a) ruling; shared gate) | implementing, stacked on #264's head |
 | rider | plane×NURBS intersection certification (ruled on #264's thread) | queued next — the last M7 code unit |
-| demo | wild-corpus montage, KERNEL-TESSELLATION lane only (Evan approved 2026-08-09; FreeCAD lane omitted) | DEFERRED TO THE M8 ORCHESTRATOR (Evan, 2026-08-09, budget pressure) — spec ready: license record + attribution block in docs/WILD-CORPUS-LICENSES.md, eligible cells enumerated there; not walk-gating |
+| demo | wild-corpus montage, KERNEL-TESSELLATION lane only (Evan approved 2026-08-09; FreeCAD lane omitted) | BACK IN M7 (Evan, 2026-08-09 — no real M8 relation); queued behind M7-7/M7-8 merges; spec ready in docs/WILD-CORPUS-LICENSES.md; not walk-gating |
 
 **Then**: the M7 EXIT WALK (pre-drafted at docs/M7-EXIT-WALK.md,
 finalizes on M7-6/M7-7 merges) → Evan's closure ruling → **M8 opens
