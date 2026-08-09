@@ -420,6 +420,10 @@ SLOT 2 DISPATCHED (2026-08-09): the wild-corpus montage
 (kernel-tessellation lane only; demo class, orchestrator-review
 expected — excluded like MONTAGE/MV2 if so); difficulty logged
 PRE-DISPATCH = **S**. Arm = FABLE (the banked slot-2).
+M7-8 (PR #288) R1 ordinal FIXED AT DISPATCH per the same-head
+amendment (2026-08-09): 9 merged blinded rows on main (the 8 at
+U5's dispatch + U5 itself; WMONTAGE demo-excluded, #287
+docs-only) + 1 = **10** → SINGLE review.
 
 Block M7-12 (2026-08-09) — triple: difficulty logged PRE-DRAW for
 slot 0: the calochortus (globe-lily) PARTIAL refresh (the ruled
