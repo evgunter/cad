@@ -421,6 +421,15 @@ SLOT 2 DISPATCHED (2026-08-09): the wild-corpus montage
 expected — excluded like MONTAGE/MV2 if so); difficulty logged
 PRE-DISPATCH = **S**. Arm = FABLE (the banked slot-2).
 
+Block M7-12 (2026-08-09) — triple: difficulty logged PRE-DRAW for
+slot 0: the calochortus (globe-lily) PARTIAL refresh (the ruled
+runway row — capture the since-#175 wins: tube_along_arc
+exact-intent stems retiring finding 11's workaround, curved-path
+sweep_body leaves, twisted-duct vocabulary; the C7-blocked walls
+(findings 1/2/7) stay M8; demo class, orchestrator-review expected
+— excluded like MONTAGE/MV2/WMONTAGE if so) = **S**. Draw follows
+this entry.
+
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
 Block LIB-1 draw (2026-08-06): byte 13 → (opus, fable).
