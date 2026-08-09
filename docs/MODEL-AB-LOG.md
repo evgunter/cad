@@ -444,3 +444,8 @@ LIB-4 slot 2 (2026-08-09): U5 read-back doors = OPUS (second slot
 of the (opus,opus,fable) triple). Difficulty logged pre-dispatch:
 U5 = M. The fable remainder banks (U6 folded into the
 geometric-selector follow-up per LB11 — no dispatch).
+LIB-4 slot 3 (2026-08-09): SWITCH-E = fable (the triple's
+remainder). Difficulty logged pre-dispatch: XL. U5 review ordinal
+FIXED AT DISPATCH per the same-head amendment: 8 merged blinded
+rows on main + 1 = 9 → DUAL (sample #3), R1+R2 concurrent on head
+(U5 PR #280's delivered head).
