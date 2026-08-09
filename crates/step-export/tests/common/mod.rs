@@ -808,6 +808,10 @@ fn lofted_at_z(zs: &[f64]) -> Vec<geom_core::Affine3<f64>> {
 /// t = √73 / (√73 + √265) = 0.34419950074181277
 /// ```
 ///
+/// The fixture ASKS `sweep::loft_parameters` for that value and pins
+/// this derivation against it (LIB-U5), so the algebra here is a
+/// cross-check rather than the only record of what the skin chose.
+///
 /// The naive `⅓` would put the volume at 13.6875 m³ — out by 1.9e-3
 /// relative, 1.6e8 times the certified pad. Carrying the real `t`
 /// through the quadratic Lagrange fit (one Bézier span; slices are
@@ -826,10 +830,25 @@ pub fn nonuniform_loft() -> Body<f64> {
         quad(PRISM_TRAPEZOID),
         quad(PRISM_SQUARE),
     ];
-    sweep::loft_body::<f64>(&sections, &lofted_at_z(&[0.0, 1.0, 3.0]), 2)
+    let places = lofted_at_z(&[0.0, 1.0, 3.0]);
+    // The `t` the doc comment derives above, ASKED rather than
+    // re-derived (LIB-U5 deliverable 1). Two independent hand
+    // derivations of one kernel function used to live in this tree —
+    // this one and the tour's; both now pin against the door.
+    assert_eq!(
+        sweep::loft_parameters(&sections, &places, 2).expect("the sections skin"),
+        vec![0.0, NONUNIFORM_T, 1.0],
+        "the derived v-parameterization is no longer what the skin chose"
+    );
+    sweep::loft_body::<f64>(&sections, &places, 2)
         .expect("the non-uniform loft builds")
         .body
 }
+
+/// The middle section's v-parameter, `√73 / (√73 + √265)` — the pin
+/// the derivation above rests on, checked against `loft_parameters`
+/// every time the fixture builds.
+const NONUNIFORM_T: f64 = 0.34419950074181277;
 
 /// **The swept elbow (#210 / #207): the corpus's first CURVED-PATH
 /// sweep.** A square profile of half-width 0.25 swept along a 90° arc

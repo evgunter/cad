@@ -89,6 +89,19 @@ pub struct Lofted<T: Real> {
     /// strut at vertex `j` — wall `j`'s `u = 0` boundary iso (and
     /// wall `j − 1 mod n`'s `u = 1`).
     pub seam_edges: Vec<Vec<EdgeKey>>,
+    /// **The v-parameter each input section sits at** —
+    /// [`LoftGeometry::section_params`] carried out to the caller
+    /// (`[0] = 0`, `[k − 1] = 1`) instead of dropped with the
+    /// geometry, so "what spacing did the skin choose for my
+    /// sections?" is answered by the result rather than re-derived by
+    /// hand. Every wall agrees on it: the sections are planar
+    /// cross-sections of the whole loft at these values.
+    ///
+    /// This is a re-read of what the kernel chose, not a measurement
+    /// — the produced surface IS the definition (DESIGN Q8), so no
+    /// residual pad accompanies it. [`loft_parameters`] answers the
+    /// same question BEFORE the body is built.
+    pub section_params: Vec<f64>,
 }
 
 /// Typed refusal of the loft/sweep body assembly (closed enum, D4 ¶3).
@@ -533,6 +546,7 @@ fn assemble<T: Decide>(
         bottom: bottom_face,
         side_faces,
         seam_edges,
+        section_params: geometry.section_params.clone(),
     })
 }
 
