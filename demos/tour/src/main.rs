@@ -8,6 +8,24 @@
 //! matplotlib as fallback).
 //!
 //! Usage: `cargo run --release -- <outdir>` (from `demos/tour/`).
+//!
+//! # The demos' purpose (Evan, 2026-08-09 — binding for every edit here)
+//!
+//! These scenes exist to demonstrate REAL, NATURAL library usage —
+//! the way a user would actually write the model. Consequences:
+//!
+//! - It is always acceptable to update a demo in a way that is NOT
+//!   byte-identical when the point is better authoring; mechanical
+//!   migrations (imports, plumbing) should still prove byte-identity
+//!   because there the diff proves nothing changed.
+//! - If some aspect of a demo is AWKWARD to write through the public
+//!   surface, that awkwardness is a LIBRARY FINDING: record it (gap
+//!   comment here + the orchestrator's log) as something to fix in
+//!   the library — never quietly work around it, and never contort
+//!   the demo to hide it.
+//! - Standing goal: every demo authorable through the Python
+//!   bindings; what a demo cannot do through the curated document
+//!   surface is a named gap, not a private exception.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
