@@ -55,6 +55,20 @@ Evan only at genuine design forks.
 unit; the incident narratives that earned them live in this file's
 git history and the M-logs):**
 
+- **Orchestrator switch procedure (Evan, PR #285 comment
+  5230318576, executed 2026-08-09)**: the outgoing orchestrator
+  performs the switch itself — finalize the handoff file
+  (cad-work/handoff-prompt-*.md) with the LIVE resting state incl.
+  per-lane resume instructions for any in-flight agents (they die
+  with the session; lanes survive pushed); push every lane's local
+  commits (if a lane's own agent may be alive and holding git
+  state, note it in the handoff instead of fighting the lock);
+  commit crucial state; then `tmux split-window` a new pane IN THE
+  SAME tmux session + same CLAUDE_CONFIG_DIR (keeps the login),
+  launch `claude` (model fable), send-keys the handoff kickoff,
+  verify the successor is working via capture-pane, and finally
+  kill ONLY YOUR OWN PANE — never the session (the successor lives
+  in it), never the other orchestrator's session.
 - **Session start**: install + arm the scripted monitor suite —
   `cp scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` from
   an up-to-date checkout, then arm each as a persistent Monitor
