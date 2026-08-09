@@ -182,6 +182,19 @@ pub enum Step<T: Real> {
         /// The circle's radius (must classify definitely positive).
         radius: T,
     },
+    /// [`circle_split`](super::circle_split) — the declared-subdivision
+    /// closed carrier: `n` equal arcs, first vertex at `phase`. Like
+    /// [`Step::Circle`] a one-step complete-loop program form.
+    CircleSplit {
+        /// The carrier's centre.
+        centre: Point2<T>,
+        /// The carrier's radius (must classify definitely positive).
+        radius: T,
+        /// The subdivision count (STRUCTURAL — a count, ≥ 2).
+        n: usize,
+        /// The first vertex's angle from +x (continuous).
+        phase: T,
+    },
 }
 
 /// A closing verb's result: the lowered loop AND the program that
@@ -278,6 +291,8 @@ pub enum Verb {
     CloseToOn,
     /// [`Step::Circle`].
     Circle,
+    /// [`Step::CircleSplit`].
+    CircleSplit,
 }
 
 impl<T: Real> Step<T> {
@@ -301,6 +316,7 @@ impl<T: Real> Step<T> {
             Step::CloseTo => Verb::CloseTo,
             Step::CloseToOn { .. } => Verb::CloseToOn,
             Step::Circle { .. } => Verb::Circle,
+            Step::CircleSplit { .. } => Verb::CircleSplit,
         }
     }
 }
@@ -520,6 +536,17 @@ fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
         (DynTip::Entry, Step::Circle { centre, radius }) => {
             Ok(Applied::Closed(super::circle(centre, radius)?.loop_))
         }
+        (
+            DynTip::Entry,
+            Step::CircleSplit {
+                centre,
+                radius,
+                n,
+                phase,
+            },
+        ) => Ok(Applied::Closed(
+            super::circle_split(centre, radius, n, phase)?.loop_,
+        )),
 
         // --- Open = {} (a fillet's freshly opened arrival side) -------
         (DynTip::Open(p0), Step::At(p)) => Ok(Applied::Tip(DynTip::PlainPoint(p0.at(p)?))),

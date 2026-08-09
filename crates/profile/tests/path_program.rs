@@ -263,6 +263,56 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
     validate_ok(&lowered);
 }
 
+/// **`circle_split`'s declared subdivision (LIB-SWITCH corpus ruling).**
+/// One carrier, `n` structural vertices: the program is one step, the
+/// replay reproduces the lowering from `(centre, r, n, phase)` alone,
+/// every bulge is `tan(π/(2n))`, and nothing is declared tangent
+/// (same-carrier identities, exactly `circle`'s posture).
+#[test]
+fn circle_split_is_a_one_step_program_with_structural_seams() {
+    let closed = profile::circle_split(p2(1.0, 0.5), 0.4, 3, 0.25).unwrap();
+    assert_eq!(verbs(&program_of(&closed)), vec![Verb::CircleSplit]);
+    let lowered = pinned(closed);
+    assert_eq!(lowered.vertices.len(), 3, "n vertices, n arcs");
+    // Expected values through the SAME libm-pure trig the lowering uses
+    // (geom-core `Real`; std's tan/sin_cos may differ by an ulp).
+    let expected_bulge = geom_core::Real::tan(std::f64::consts::PI / 6.0);
+    for v in &lowered.vertices {
+        assert_eq!(v.bulge.to_bits(), expected_bulge.to_bits());
+    }
+    // Vertex k at centre + r·(cos θ_k, sin θ_k), θ_k = phase + k·2π/n.
+    for (k, v) in lowered.vertices.iter().enumerate() {
+        let theta = 0.25 + (k as f64) * std::f64::consts::TAU / 3.0;
+        let (s, c) = geom_core::Real::sin_cos(theta);
+        assert_eq!(v.pos.x.to_bits(), (1.0 + 0.4 * c).to_bits());
+        assert_eq!(v.pos.y.to_bits(), (0.5 + 0.4 * s).to_bits());
+    }
+    assert!(
+        lowered.tangent_joints.is_empty(),
+        "structural subdivisions declare nothing — one carrier, no tangency claim"
+    );
+    validate_ok(&lowered);
+}
+
+/// `circle_split` refusals: the radius gate is `circle`'s own (funnel
+/// row `path_circle_radius`), and n < 2 is the structural
+/// [`PathError::CircleSplitCount`] class.
+#[test]
+fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
+    let _tol = Tolerance::get();
+    match profile::circle_split(p2(0.0, 0.0), 0.0, 4, 0.0) {
+        Err(PathError::NonpositiveCircleRadius { .. }) => {}
+        other => panic!("r = 0 must refuse as NonpositiveCircleRadius, got {other:?}"),
+    }
+    match profile::circle_split(p2(0.0, 0.0), 1.0, 1, 0.0) {
+        Err(PathError::CircleSplitCount { n: 1 }) => {}
+        other => panic!("n = 1 must refuse as CircleSplitCount, got {other:?}"),
+    }
+    // n = 2 is legal — the smallest subdivision, circle's own count.
+    let two = profile::circle_split(p2(0.0, 0.0), 1.0, 2, 0.0).unwrap();
+    assert_eq!(pinned(two).vertices.len(), 2);
+}
+
 // ------------------------------------------------------------------
 // The `turn(δ)` arm (review MINOR-1)
 //

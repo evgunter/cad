@@ -573,6 +573,15 @@ pub enum PathError<T: Real> {
         /// The refused radius, meters (scalar-typed payload).
         radius: T,
     },
+    /// A [`circle_split`] subdivision count below 2: one vertex cannot
+    /// carry a full turn (bulge = tan(θ/4) diverges at θ = 2π), so the
+    /// smallest declared subdivision of a closed carrier is two arcs —
+    /// which is [`circle`]'s own private lowering. A structural check,
+    /// not a classified one: `n` is a count, never a measured value.
+    CircleSplitCount {
+        /// The refused subdivision count.
+        n: usize,
+    },
     /// A director spelled as components named no direction: the norm of
     /// `(dx, dy)` is within ε_input of zero
     /// ([`PartialPath::toward`]). Only the components' ratio is read,
@@ -747,6 +756,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 f,
                 "a circle needs a definitely positive radius (got {radius:?} m): r = 0 is a \
                  point and r < 0 names no circle"
+            ),
+            Self::CircleSplitCount { n } => write!(
+                f,
+                "circle_split needs at least 2 arcs (got n = {n}): a single vertex cannot \
+                 carry a full turn (bulge diverges), so the smallest subdivision of a \
+                 closed carrier is two arcs"
             ),
             Self::ZeroDirection { dx, dy } => write!(
                 f,
@@ -1633,6 +1648,66 @@ pub fn circle<T: Decide>(center: Point2<T>, radius: T) -> Result<ClosedLoop<T>, 
         program: vec![Step::Circle {
             centre: center,
             radius,
+        }],
+    })
+}
+
+/// The declared-subdivision closed carrier (LIB-SWITCH §0 corpus
+/// ruling): one circle, authored WITH its seam structure — `n` arcs of
+/// equal sweep, the first vertex at angle `phase` from the +x axis,
+/// counterclockwise. Like [`circle`] it is a **one-step complete-loop
+/// program form**, not a chain, so PQ4 is untouched: the vertices are
+/// STRUCTURAL subdivisions of one carrier (same-carrier identities,
+/// nothing declared tangent), not junctions anyone claimed — the
+/// difference from [`circle`] is only that here the subdivision COUNT
+/// and PHASE are authored data rather than a private lowering detail,
+/// for the loops whose downstream naming depends on the seam count
+/// (the boss corpus document is the recorded use case).
+///
+/// Numerics, stated plainly: vertex `k` sits at
+/// `center + radius·(cos θ_k, sin θ_k)`, `θ_k = phase + k·2π/n`, and
+/// every bulge is `tan(π/(2n))` — all through the scalar's libm-pure
+/// trig (D9-deterministic; no exactness promise at axis crossings, the
+/// same posture as `.angle(θ)` directors).
+///
+/// `radius` must classify definitely positive (the [`circle`] gate,
+/// same funnel row); `n` must be ≥ 2 ([`PathError::CircleSplitCount`]
+/// — a one-vertex full turn has no bulge representation). `n` is
+/// structural (a count, never a value); `phase` is continuous.
+pub fn circle_split<T: Decide>(
+    center: Point2<T>,
+    radius: T,
+    n: usize,
+    phase: T,
+) -> Result<ClosedLoop<T>, PathError<T>> {
+    let band = linear_band()?;
+    match decide("path_circle_radius", Margin::of(radius), band) {
+        Ok(Sign::Positive) => {}
+        Ok(_) => return Err(PathError::NonpositiveCircleRadius { radius }),
+        Err(source) => return Err(PathError::Escalated { source }),
+    }
+    if n < 2 {
+        return Err(PathError::CircleSplitCount { n });
+    }
+    let n_t = T::from_f64(n as f64);
+    let bulge = (T::pi() / (T::from_f64(2.0) * n_t)).tan();
+    let vertices = (0..n)
+        .map(|k| {
+            let theta = phase + T::from_f64(2.0) * T::pi() * T::from_f64(k as f64) / n_t;
+            let (s, c) = theta.sin_cos();
+            ProfileVertex {
+                pos: Point2::new(center.x + radius * c, center.y + radius * s),
+                bulge,
+            }
+        })
+        .collect();
+    Ok(ClosedLoop {
+        loop_: ProfileLoop::new(vertices),
+        program: vec![Step::CircleSplit {
+            centre: center,
+            radius,
+            n,
+            phase,
         }],
     })
 }
