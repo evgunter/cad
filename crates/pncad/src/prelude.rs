@@ -107,3 +107,17 @@ pub use editor_core::{
     NodeError, ParseError, PatternKind, ProfileDesc, RecipeNodeId, SlotId, StableName,
     ValuePayload, apply, evaluate, parse_expr,
 };
+
+// --- 9. Names: obtain them, inspect them, select them ---------
+// LIB-U7. `StableName` was in group 8 from the start, with no door to
+// obtain or read a value of it: the naming table, the whole-body
+// materializers and the key→name inversions all stayed one crate
+// away, so a prelude user could hold the type and do nothing with it.
+// These are that door, curated as one group in `crate::select` (whose
+// module docs carry the worked examples).
+pub use crate::select::{
+    CapEnd, EntityKind, EntityRef, Entry, MeridianEnd, NamePat, NameTable, OpGroup, ProfileEdgeRef,
+    ProfileVertexRef, RimSupport, RolePath, RoleSeg, SegPat, SegTag, Selector, Side, SplitHalf,
+    TagPat, all_bodies, all_edges, all_faces, all_vertices, edge_name, entity_name, face_name,
+    select,
+};
