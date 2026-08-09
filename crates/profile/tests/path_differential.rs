@@ -16,7 +16,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tolerance, Vec2};
-use profile::{LoopBuilder, Open, Profile, ProfileLoop, SketchPlane, Start};
+use profile::{
+    ArcSweep, FilletLegShape, LoopBuilder, Open, Profile, ProfileLoop, SketchPlane, Start,
+};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -609,4 +611,177 @@ fn toward_axis_rays_are_exact() {
         assert_eq!(v.x.to_bits(), expected.x.to_bits(), "toward({dx},{dy}) x");
         assert_eq!(v.y.to_bits(), expected.y.to_bits(), "toward({dx},{dy}) y");
     }
+}
+
+// ------------------------------------------------------------------
+// LIB-G2 §4: the arc-carrier fillet family.
+// ------------------------------------------------------------------
+
+/// The rocker eye, both ways — **the mandatory G2 differential row**.
+///
+/// A lens of two R = 1 circles about (∓1/2, 0) meeting at (0, ±√¾):
+/// the top tip is filleted (the S8 corner where BOTH tangent circles of
+/// radius 0.25 survive — one in each tip's pocket — so the pick is the
+/// ladder's, not a survivor count's), and the bottom tip is left sharp,
+/// a genuine two-carrier junction.
+///
+/// The algebra never authors either tip. It binds the entry ON the
+/// right lobe, opens the fillet, and closes ON the left lobe; the top
+/// corner is DERIVED as the circle×circle intersection. Bit-identity
+/// with the hand chain therefore says the squared-radius form
+/// reproduces the authored corner exactly — the radius form lands it an
+/// ulp low and this row fails.
+#[test]
+fn eye_arc_by_arc_fillet_matches_loopbuilder_fillet_corner() {
+    let tip = 0.75f64.sqrt();
+    let r = 0.25;
+    let algebra = Open
+        .at_on(p2(0.0, -tip), p2(-0.5, 0.0), ArcSweep::Ccw)
+        .unwrap()
+        .fillet(r)
+        .unwrap()
+        .to_on(Start, p2(0.5, 0.0), ArcSweep::Ccw)
+        .unwrap();
+    let hand = LoopBuilder::start(p2(0.0, -tip))
+        .fillet_corner(
+            FilletLegShape::Arc {
+                center: p2(-0.5, 0.0),
+                sweep: ArcSweep::Ccw,
+            },
+            p2(0.0, tip),
+            FilletLegShape::Arc {
+                center: p2(0.5, 0.0),
+                sweep: ArcSweep::Ccw,
+            },
+            p2(0.0, -tip),
+            r,
+            Tolerance::get(),
+        )
+        .unwrap()
+        .close_arc_center(p2(0.5, 0.0), ArcSweep::Ccw);
+    assert_loops_identical(&algebra, &hand);
+    assert_validate_identically(&algebra, &hand);
+    // The S8 pick, independently: the fillet arc's centre must be the
+    // NEAR pocket (0, √0.3125), not the rival at the sharp tip.
+    let want = 0.3125f64.sqrt();
+    let mid = algebra.vertices[1].pos;
+    assert!(
+        mid.y > 0.0,
+        "the trimmed incoming run must reach the TOP tip's pocket, got {mid:?}"
+    );
+    assert!(
+        (want - 0.559_016_994_374_947_4).abs() < 1e-15,
+        "the near pocket's centre height is the S8 pin's"
+    );
+}
+
+/// The derived corner is bit-exact where the authored one is: the
+/// entry's own carrier radius is `|anchor − centre|`, never
+/// `√(R²)²`, and the eye's corner comes back as the literal
+/// `√0.75` the hand author writes.
+#[test]
+fn the_derived_circle_by_circle_corner_lands_on_the_authored_one() {
+    let tip = 0.75f64.sqrt();
+    // Reproduce the boundary's squared-radius closed form here,
+    // independently of the implementation (the differential discipline).
+    let (o1, o2) = (p2(-0.5, 0.0), p2(0.5, 0.0));
+    let a = p2(0.0, -tip);
+    let r1_sq = (a - o1).norm_squared();
+    let r2_sq = (a - o2).norm_squared();
+    let d = o2 - o1;
+    let d_sq = d.norm_squared();
+    let k = (d_sq + r1_sq - r2_sq) / (2.0 * d_sq);
+    let mid = o1 + d * k;
+    let h = (r1_sq / d_sq - k.powi(2)).sqrt();
+    let corner = mid + Vec2::new(-d.y, d.x) * h;
+    assert_eq!(corner.x.to_bits(), 0.0f64.to_bits(), "corner x");
+    assert_eq!(
+        corner.y.to_bits(),
+        tip.to_bits(),
+        "corner y is √0.75 exactly"
+    );
+    // The radius form, for contrast: one ulp low. Pinned so the design
+    // rule cannot be "simplified" away silently (LB4).
+    let radius_form = {
+        let (r1, r2, dl) = (r1_sq.sqrt(), r2_sq.sqrt(), d_sq.sqrt());
+        let aa = (d_sq + r1 * r1 - r2 * r2) / (2.0 * dl);
+        (r1 * r1 - aa * aa).sqrt()
+    };
+    assert_ne!(
+        radius_form.to_bits(),
+        tip.to_bits(),
+        "the radius form is expected to MISS by an ulp — that is why the squared form is the rule"
+    );
+}
+
+/// **Line × arc**, the second G2 combination: a straight side 1 running
+/// east from the entry, one fillet, and a `to_on` close that comes back
+/// over the circle through the entry point.
+///
+/// The corner is DERIVED by the ray×circle form and is exact here by
+/// construction — the ray `y = 0` meets the circle about `(2, −2)`
+/// through the origin at `(0,0)` and `(4,0)`, both representable. The
+/// first is the anchor itself and the advance gate discards it (a
+/// corner is not ahead of its own anchor); the second is the corner a
+/// hand author would write, and this row pins that the algebra reaches
+/// it bit for bit.
+///
+/// LB4's wall is about the corners that are NOT exact this way; where
+/// the natural anchors do land, line×arc migrates like any other site.
+#[test]
+fn line_by_arc_carrier_fillet_matches_loopbuilder_fillet_corner() {
+    let centre = p2(2.0, -2.0);
+    // r ≤ 0.414 here: the turn onto the arc is sharp (≈135°) and the
+    // offset carriers separate above that — measured, not guessed.
+    let r = 0.3;
+    let algebra = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0)
+        .unwrap()
+        .fillet(r)
+        .unwrap()
+        .to_on(Start, centre, ArcSweep::Ccw)
+        .unwrap();
+    let hand = LoopBuilder::start(p2(0.0, 0.0))
+        .fillet_corner(
+            FilletLegShape::Line,
+            p2(4.0, 0.0),
+            FilletLegShape::Arc {
+                center: centre,
+                sweep: ArcSweep::Ccw,
+            },
+            p2(0.0, 0.0),
+            r,
+            Tolerance::get(),
+        )
+        .unwrap()
+        .close_arc_center(centre, ArcSweep::Ccw);
+    assert_loops_identical(&algebra, &hand);
+    assert_validate_identically(&algebra, &hand);
+}
+
+/// The advance gate discards the ray×circle root that sits AT the
+/// incoming anchor, so the pair is resolved by the gates rather than by
+/// a value comparison — and the surviving root is the far one.
+#[test]
+fn the_advance_gate_discards_the_root_at_the_incoming_anchor() {
+    let lowered = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0)
+        .unwrap()
+        .fillet(0.3)
+        .unwrap()
+        .to_on(Start, p2(2.0, -2.0), ArcSweep::Ccw)
+        .unwrap();
+    // Vertex 1 is the trim point on the straight side: it must sit
+    // short of the FAR corner (4, 0), not of the discarded one at the
+    // origin (which would have put it behind the entry).
+    let t1 = lowered.vertices[1].pos;
+    assert!(t1.x > 3.0 && t1.x < 4.0, "trim point on side 1: {t1:?}");
+    // On the ray y = 0 to rounding: `t1` is the offset-carrier centre
+    // pushed back by the offset normal, so its y is a cancellation
+    // residue, not a stored zero. The hand door computes the SAME
+    // residue — the differential row above pins that bitwise — so the
+    // claim here is the geometric one, not a bit pattern.
+    assert!(t1.y.abs() < 1e-15, "side 1 rides the ray y = 0: {t1:?}");
 }
