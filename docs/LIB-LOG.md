@@ -372,3 +372,19 @@ satisfies V3 via resolved-bits convention.
   access). Fix pass consumes the R1∪R2 union — so U7's fix pass
   WAITS for R2, and the merge happens after both (the row
   records both rubrics at merge as usual).
+
+- **LB11 (U6 scope, from the census — U6 DOES NOT DISPATCH as a
+  unit now).** The census found: (a) the P9 flush helper is
+  value-inferred declaration — C4's forbidden pattern, legal only
+  in fixture code; the honest library form is detect(findings) /
+  declare(Node::Declare by name) / two-armed refusal menu (no
+  absorb arm, per the #256 ban); (b) the DETECTOR is a geometric
+  selector — inside LB7's deferred scope; (c) P5's declared-offset
+  is authoring/expression-layer (derived table = base + stated
+  deltas — Expr-shared-subtree territory), re-homed to
+  post-SWITCH-E. Consequence: U6's substance merges into the
+  GEOMETRIC-SELECTOR FOLLOW-UP design conversation, which now has
+  three consumers (LB7's deferred predicates, GQ7 re-homing,
+  U6's finder+declaration+menu) and is ripe to draft. The thin
+  declare-by-name sugar ships with it, not before. Fixture twins
+  stay put (legal where they are).
