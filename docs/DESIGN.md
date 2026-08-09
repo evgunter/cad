@@ -1017,6 +1017,20 @@ defining data. Pipeline sketch:
 3. **Healing**: where no intensional description is satisfied within ε
    (gaps, sloppy source tolerances), repair (refit/nudge) or fail loudly
    with a typed error naming the unhealable entities (D4 ¶5).
+4. **The shared at-rest gate** (ratified 2026-08-08, issue #260 option
+   (a)): steps 1–3 certify each *entity's* description; the finished
+   *body* is then handed to the kernel's own at-rest validator — the
+   tier-3 battery, or the tier-3′ form where declared contacts exist —
+   and only a body it passes ships from import. Same function, same
+   tiers, as a native body's caller runs; import holds no idea of
+   validity of its own, so there is nothing to drift (D9 engineering
+   convention 2 — structural sharing, one validator). A body that
+   fails is a typed *validity* refusal naming the failing check and
+   its entities, an escalated verdict included (escalate-never-guess:
+   an undecidable verdict is a refusal, not a pass). Making un-gated
+   bodies *unrepresentable* at every kernel door — a currency type
+   only the gate can mint — is the structural completion, banked at
+   #250 with #260 as its design record.
 
 **Adoption tolerance ≠ kernel tolerance.** The generator's precision is
 unknown and usually worse than ε, so adoption takes a per-import *input
