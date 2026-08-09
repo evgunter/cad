@@ -55,29 +55,47 @@
 //! Instead the frame is a pure function of the outer boundary's own
 //! 3-D chord points, in walk order ([`chart_frame`]):
 //!
-//! * **anchor** — the centroid of the outer loop's points
-//!   (left-to-right sum over the walk, divided by the count);
-//! * **normal** — the translate-to-origin Newell cross-sum over
+//! * **anchor** — the outer walk's FIRST point, verbatim;
+//! * **normal** — the anchor-translated Newell cross-sum over
 //!   consecutive point pairs (left-to-right, wrapping), normalized.
 //!   Newell orients the normal so the walk is CCW about it, and by
 //!   interior-left the outer walk is CCW about the face's OUTWARD
 //!   normal — so this is the outward normal by construction;
-//! * **u** — toward the outer point farthest from the anchor (the
-//!   first such point in walk order on exact ties), projected into
-//!   the plane and normalized; **v** = normal × u.
+//! * **u** — toward the walk point farthest from the anchor (the
+//!   first such point in walk order on exact ties), shed of its
+//!   normal component and normalized; **v** = normal × u.
 //!
 //! Well-conditioned by construction — u's length before normalizing
 //! is the loop's own extent scale, and the off-plane component it
 //! sheds is bounded by the carrier residual (≤ ε) — with no new
-//! tolerance and no value snapping. Deterministic (D9): fixed
-//! evaluation order over the walk, so the frame is bit-identical
-//! across rebuilds and debug/release. Once the frame is fixed the
-//! projection is a pure per-point function, so a repeated 3-D point
-//! projects to bitwise-identical chart coordinates — the slit
-//! cancellation below depends on exactly that. A degenerate outer
-//! loop (zero extent or zero area vector) yields non-finite frame
-//! components, which spade's `insert` refuses — the typed
-//! [`TessellateError::Triangulation`] path, fail-loud.
+//! tolerance and no value snapping.
+//!
+//! The anchor being an INPUT point rather than a constructed centroid
+//! is load-bearing, not a style choice, because of spade's coordinate
+//! floor (`MIN_ALLOWED_VALUE` = 2⁻¹⁴²: a coordinate must be exactly 0
+//! or at least that large). Every quantity in the frame and in the
+//! projection is then built from *differences of input floats*: where
+//! input coordinates are exactly equal (an axis-aligned face's
+//! normal-axis column), the differences are exactly 0, the Newell
+//! sum's in-plane components are exactly 0, the frame's out-of-plane
+//! components are exactly 0, and an exact-zero chart coordinate comes
+//! out as float 0.0 or as a residue at the ulp scale of real-sized
+//! terms (~1e-19·extent) — both spade-legal. A constructed centroid
+//! instead seeds ulp-scale residues (its rounding) into the Newell
+//! sum, which manufactures ~1e-33-scale frame components, and a
+//! projection term `w·residue` then lands around 1e-51 — nonzero but
+//! far below the floor, the very refusal this frame exists to remove
+//! (measured on the wild OLED's bottom face while this fix was being
+//! built).
+//!
+//! Deterministic (D9): fixed evaluation order over the walk, so the
+//! frame is bit-identical across rebuilds and debug/release. Once the
+//! frame is fixed the projection is a pure per-point function, so a
+//! repeated 3-D point projects to bitwise-identical chart coordinates
+//! — the slit cancellation below depends on exactly that. A
+//! degenerate outer loop (zero extent or zero area vector) yields
+//! non-finite frame components, which spade's `insert` refuses — the
+//! typed [`TessellateError::Triangulation`] path, fail-loud.
 //!
 //! Slit note: a full-2π revolve's annulus wall is a *slit* polygon —
 //! one loop traversing its seam segment twice with bitwise-identical
@@ -138,11 +156,14 @@ pub(crate) fn tessellate_planar(
 
 /// The boundary-derived chart frame `(anchor, u, v)` of a planar face
 /// — a pure function of the outer loop's chord points in walk order
-/// (module docs: the convention, its conditioning, determinism, and
-/// why the stored axes are not consulted).
+/// (module docs: the convention, why the anchor is an input point,
+/// conditioning, determinism, and why the stored axes are not
+/// consulted).
 ///
-/// The Newell sums mirror `geom_brep::newell_plane`'s fixed
-/// evaluation order (D9); certification is deliberately absent —
+/// The Newell cross-sum follows `geom_brep::newell_plane`'s fixed
+/// left-to-right evaluation order (D9) but translates to the walk's
+/// first point instead of the centroid (module docs: the coordinate
+/// floor argument); certification is deliberately absent —
 /// tessellation does not re-validate (crate docs), and the in-plane
 /// axis is this lane's own extent-aligned composition, not
 /// `newell_plane`'s ambient `orthonormal_basis` pick. A degenerate
@@ -150,16 +171,10 @@ pub(crate) fn tessellate_planar(
 /// typed.
 fn chart_frame(outer: &[u32], positions: &[Point3<f64>]) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
     let at = |id: u32| positions[id as usize];
-    // Anchor: the walk's centroid, left-to-right.
-    #[allow(clippy::cast_precision_loss)]
-    let n = outer.len() as f64;
-    let mut sum = Vec3::zero();
-    for &id in outer {
-        sum = sum + (at(id) - Point3::origin());
-    }
-    let origin = Point3::origin() + sum / n;
-    // Newell normal: translated cross-sum over consecutive pairs,
-    // left-to-right, wrapping. Slit walks cancel their doubled
+    // Anchor: the walk's first point, verbatim.
+    let origin = at(outer[0]);
+    // Newell normal: anchor-translated cross-sum over consecutive
+    // pairs, left-to-right, wrapping. Slit walks cancel their doubled
     // segments here exactly as they do in the shoelace.
     let mut normal_sum = Vec3::zero();
     for (i, &id) in outer.iter().enumerate() {

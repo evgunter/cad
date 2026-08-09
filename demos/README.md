@@ -190,7 +190,7 @@ cd ..
 ./render-wild.sh              # cells + sheet -> renders-wild/
 ```
 
-**Cell count: 6, and the cell set is license law plus pinned
+**Cell count: 8, and the cell set is license law plus pinned
 capability, not discovery.** `docs/WILD-CORPUS-LICENSES.md` (the
 license audit) governs eligibility — only files the audit marks
 render-OK may appear. The derivation: 13 wild fixtures − 4 `stepcode/`
@@ -199,31 +199,30 @@ for redistributed CAx-IF models; the generator does not read them at
 all — `sg1-c5-214.stp` imports fine and is excluded by license, not
 capability) = 9 render-OK, − 1 typed import refusal
 (`b123d_nema17_bracket.step`, `SURFACE_CURVE` edge geometry — pinned
-in the generator, matching `wild.rs`) − 2 typed TESSELLATION refusals
-(`1982_MPR121.step`, `328_2500mAh_battery.step` — the mesh-lane
-finding below) = **6**. Two notes on how that differs from the audit's
-own snapshot, one in each direction:
+in the generator, matching `wild.rs`) = **8**. Two notes on how that
+differs from the audit's own snapshot:
 
 * the audit's import-status line ("only 6 import today") predates the
   M7-5 band-seam re-mint (#252), which flipped `nist_ftc_11_asme1_rb`
   and `cq_red_cube_blue_cylinder` to imports-class — both are
   render-OK rows in the audit's own table, so both are cells;
-* **the mesh-lane finding this unit surfaced**: `1982_MPR121` and
-  `328_2500mAh_battery` import first-class (census exact, volumes
-  measurable) but refuse `pncad::mesh::tessellate` typed
-  (`Triangulation`), on plain rectangular planar faces. Diagnosed in
-  `demos/wild/src/main.rs`'s module docs: the files' plane axes carry
-  translator noise (~1e-33 components), the planar chart projection
-  of a should-be-zero coordinate lands at ~1e-67, and that is below
-  spade's coordinate domain (`MIN_ALLOWED_VALUE` = 2⁻¹⁴² ≈ 1.79e-43),
-  so the CDT refuses the vertex. Own-corpus bodies never hit this
-  because the kernel authors exact axes; the fix belongs to the mesh
-  lane, not this demo.
+* **the mesh-lane finding this unit surfaced, since resolved**:
+  `1982_MPR121` and `328_2500mAh_battery` imported first-class
+  (census exact, volumes measurable) but refused
+  `pncad::mesh::tessellate` typed (`Triangulation`), on plain
+  rectangular planar faces — the files' plane axes carry translator
+  noise (~1e-33 components), the planar chart projection of a
+  should-be-zero coordinate landed at ~1e-67, below spade's
+  coordinate domain (`MIN_ALLOWED_VALUE` = 2⁻¹⁴² ≈ 1.79e-43), and
+  the CDT refused the vertex. Fixed in the mesh lane (#284,
+  `mesh::planar`'s module docs): the planar chart frame is re-derived
+  per-face from the boundary itself (Newell normal + extent-aligned
+  axes) instead of trusting stored axes, so both files are ordinary
+  cells now.
 
-`demos/wild/src/main.rs` pins the cell set, the import refusal, AND
-the two tessellation refusals, and fails loudly on drift in any
-direction, so the sheet can never detach silently from the
-attribution block below.
+`demos/wild/src/main.rs` pins the cell set AND the import refusal,
+and fails loudly on drift in any direction, so the sheet can never
+detach silently from the attribution block below.
 
 **Renderer + provenance.** Cells are drawn by `render.py` — the
 numpy+matplotlib STL renderer — as the lane's PRIMARY renderer, not a
@@ -282,11 +281,12 @@ Apache-2.0 grant linking the committed license text, and the
 modified-only-by-tessellation statement. `b123d_nema17_bracket.step`
 still refuses import (no cell), so its NOTICE-carrying entry is not
 yet needed here; the NOTICE text already rides
-`crates/step-import/NOTICE` (the audit's D1 action, done). Two of the
-named Adafruit parts (`1982 MPR121`, `328 2500mAh battery`) do not
-currently appear on the sheet (the pinned tessellation refusals
-above); their attribution rides anyway — the source files are
-committed fixtures, and the block is the audit's text verbatim.
+`crates/step-import/NOTICE` (the audit's D1 action, done). All five
+named Adafruit parts now appear on the sheet — `1982 MPR121` and
+`328 2500mAh battery`, once pinned tessellation refusals, joined
+when the #284 mesh fix landed — and the Adafruit entry already named
+them all, so the block needed no change: it is the audit's text
+verbatim.
 
 ## The stops
 
