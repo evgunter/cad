@@ -56,9 +56,12 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // The M7-6 stage-1 unit retired this file's whole GEOMETRY
     // distance from the subset (measured, not hoped): the
     // QUASI_UNIFORM vocabulary imports with synthesized clamped
-    // knots, the 24 all-NURBS surfaces promote to their certified
-    // analytic kinds (17 planes, 7 rational cylinders), and the 11
-    // trim rings ride the promoted planes through the multi-bound
+    // knots, the 17 plane-class surfaces promote to certified
+    // Planes (residual 0.0); the 7 rational cylinders certify only
+    // at grid samples, so under the whole-patch envelope they stay
+    // NURBS (the honest posture — no promotion without a whole-patch
+    // certificate); the 11 trim rings ride the promoted planes
+    // through the multi-bound
     // gate — resolution now runs clean through every face and edge
     // of all three breps. What the file states NEXT is why it still
     // refuses: it is a seven-instance ASSEMBLY (l-bracket + 3 bolts
