@@ -123,20 +123,27 @@ ruled on a thread, none silent):
 | M7-3 | NURBS faces (+ARM B) | MERGED #209 |
 | M7-4 | wild corpus + dialects | MERGED #193 |
 | M7-5 | band-seam re-mint (the plan's S9-flip pattern executed) | MERGED #252 |
-| M7-6 | stage-1 recognition (always-promote, #256; whole-patch envelope) | PR #264 — R1 APPROVE (post-fix), independent R2 running (dual-review row 6) |
-| M7-7 | tier-at-import (the #260 (a) ruling; shared gate) | implementing, stacked on #264's head |
-| rider | plane×NURBS intersection certification (ruled on #264's thread) | queued next — the last M7 code unit |
-| demo | wild-corpus montage, KERNEL-TESSELLATION lane only | PR #283 in orchestrator review (6 cells + 2 honest tessellation-refusal findings) |
-| demo | calochortus (globe-lily) PARTIAL refresh (Evan, 2026-08-09): capture the since-#175 wins — tube_along_arc exact-intent stems (retiring finding 11's workaround), curved-path sweep_body leaves, twisted-duct vocabulary. The FULL rebuild stays M8 — findings 1/2/7 (one-stem G1 unions, flower∪stem, tepal carving) are C7 declared-contact machinery, a real dependency not a sequencing choice | queued behind the current cycles; S, demo class |
+| M7-6 | stage-1 recognition (always-promote, #256; whole-patch envelope) | MERGED #264 (pair struck from variance sample — same-head amendment) |
+| M7-7 | tier-at-import (the #260 (a) ruling; shared gate) | MERGED #276 (per-solid gating earned at review; ε-row-honest pins; delta re-review 0 MAJ) |
+| M7-8 | plane×NURBS intersection certification (ruled on #264's thread) — the last M7 code unit | PR #288 in fix pass (R1 APPROVE-WITH-FIXES: 1 MAJ = envelope test-coverage gap, envelope itself held under attack; reviewer probes adopting) |
+| demo | wild-corpus montage, KERNEL-TESSELLATION lane only | MERGED #283; post-#276 re-verify DONE (byte-stable on the union) |
+| demo | calochortus (globe-lily) PARTIAL refresh: tube_along_arc exact-intent stems (finding 11's workaround retired), curved-path sweep_body leaves (KITE section — the rational-section frontier refused the crescent, pinned in crates/sweep with flip-when-fixed), twisted-duct spine vocabulary. The FULL rebuild stays M8 (findings 1/2/7 are C7 machinery) | MERGED #294 (27/27 incl. k-lint gate; both lanes eyeballed; byte-stable re-render) |
 | demo | Utah(-ish) teapot | RE-SEQUENCED (Evan, 2026-08-09): designated as the SHELL verb's demo — queues behind shell/offset (see docs/KERNEL-VERBS.md), not an M7/M8 item |
 
-**Then**: the M7 EXIT WALK (pre-drafted at docs/M7-EXIT-WALK.md,
-finalizes on M7-6/M7-7 merges) → Evan's closure ruling → **M8 opens
-with C7** (the join lane; contact/signed-clearance co-design —
-ruled at #223) and the M8-PLAN gets drafted against ERROR-DESIGN +
-CONTACT-DESIGN. Not running out of planned work: M8's opener,
-design records, and first units are already ruled; the lily rebuild
-rides there as the demo moment.
+**Then**: the M7 EXIT WALK (docs/M7-EXIT-WALK.md — only M7-8's
+cells + the tally remain open) → presented for Evan's closure
+ruling → **the DEMO-HARDENING STRETCH** (Evan's directive,
+2026-08-09, in-session + "after the exit walk in another chunk"):
+iron out the demo-raised issues before M8 — #284 (mesh chart-frame
+Newell re-anchor; flips two wild tessellation refusals), the
+rational-carrier span-meter speed bound (unblocks rational-section
+sweeps — the calochortus crescent; flips the crates/sweep pin),
+then the rational-patch-flux quadrature (arc-loft round-trip,
+tier-3 on rational walls; the M7-3 Arm B bank). #298 (pre-push
+hook lock) is LIB's #299. **Then M8 opens with C7** (the join
+lane; contact/signed-clearance co-design — ruled at #223) and the
+M8-PLAN gets drafted against ERROR-DESIGN + CONTACT-DESIGN; the
+lily FULL rebuild rides there as the demo moment.
 
 **Adjacent/banked (not on the critical path)**: the M6 carried-items
 register (#250) incl. the gate-minted-validity-currency design
