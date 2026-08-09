@@ -363,3 +363,12 @@ satisfies V3 via resolved-bits convention.
   row 6 = the next blinded merge (likely U7 or M7-6) — flagged
   at merge time; retroactive R2 is the remedy if the count
   shifts.
+
+- **Dual-review counter CONFIRMED** (M7 orchestrator, #268
+  thread): #266 orchestrator-class; U8a=4, G2=5 → **U7 = row 6,
+  draws dual review**. R1 was dispatched as single before the
+  count resolved; remedy per protocol = R2 dispatched at U7's
+  merge against the frozen merge head, independent (no R1
+  access). Fix pass consumes the R1∪R2 union — so U7's fix pass
+  WAITS for R2, and the merge happens after both (the row
+  records both rubrics at merge as usual).
