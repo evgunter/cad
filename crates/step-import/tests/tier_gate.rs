@@ -262,6 +262,15 @@ const CORPUS: [(&str, Disposition); 53] = [
         Pass(2, 2, 9, 17, 12),
     ),
     (
+        // Refuses in EVERY ambient-ε cell, but the refusal SITE and
+        // sub-reason shift with ε (edge #170 Surface2Residual at
+        // default/1e-12; edge #177 tangent-planes at 1e-6). This row's
+        // fragment is the shared adoption-ladder preamble, so the shift
+        // is invisible here BY DESIGN: pinning it would cost 9 more
+        // EpsSensitive cells to buy site-pinning the pin design does
+        // not offer anywhere (fragments pin sub-reason, not site). The
+        // preamble still pins the refusal to the adoption-ladder class
+        // — a drift to a parse error, crash, or Pass goes red.
         "tests/fixtures/wild/stepcode/TAIL_TURBINE.stp",
         Refused("no intensional description certifies"),
     ),
