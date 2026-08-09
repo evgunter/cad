@@ -8,17 +8,17 @@
 //! * the QUASI_UNIFORM vocabulary reads the SAME surface as the
 //!   stated-knots form (bit-identical import — the knot synthesis is
 //!   the committed corpus's own `[0,1]` clamped shape);
-//! * the near-miss posture: a cylinder patch perturbed past ε_in
-//!   stays NURBS silently (imports, no promotion record, no refusal);
+//! * the cylinder track under the honest between-samples envelope
+//!   (R1 M-1): even an EXACT cylinder patch stays NURBS — the
+//!   first-order envelope's slack is patch-scale — and the resulting
+//!   mixed promoted/stays-NURBS body pins the seam-orphan refusal
+//!   class loudly (a standing ruling item);
 //! * the ill-conditioned-estimator typed row: D7's
 //!   `RecognitionAmbiguous` fires exactly where promotion was the
 //!   face's only door AND the estimator cannot answer at ε_in;
-//! * tier-3 behavior of promoted faces, asserted not assumed: a
-//!   promoted CYLINDER passes the curved sense arms (check 6) and
-//!   declines only at the banked cylinder-chart NURBS-boundary
-//!   quadrature; promoted PLANES compute exact volume (executed
-//!   corpus-wide by `roundtrip.rs`'s rows, which run these fixtures'
-//!   volumes against the native `KERNEL_*` sidecars).
+//! * promoted PLANES compute exact volume (executed corpus-wide by
+//!   `roundtrip.rs`'s rows, which run these fixtures' volumes against
+//!   the native `KERNEL_*` sidecars).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -157,90 +157,63 @@ fn straight_arc_prism() -> topo::Body<f64> {
         .body
 }
 
-/// **The cylinder track + tier-3 behavior of a promoted cylinder,
-/// asserted.** The exact-cylinder rational wall certifies and
-/// promotes (residual ~1e-16, the extrusion's own rounding); the
-/// promoted face then faces the kernel's real gates: tiers 1/2 green,
-/// and tier 3's ONLY finding is the volume decline at the banked
-/// cylinder-chart NURBS-boundary quadrature (the wall's seam carriers
-/// are spline-typed lines) — meaning the curved sense arms (check 6)
-/// RAN and passed on the promoted chart. Before promotion this body's
-/// tier 3 declined as a rational-NURBS wall; the decline it keeps is
-/// a different, narrower one, and a definite check-6 falsehood would
-/// fail this row.
+/// **The cylinder track under the honest envelope, and the amplified
+/// seam-orphan limit** (R1 fix pass, M-1 consequence — reported
+/// loudly; a standing item for the next ruling).
 ///
-/// **The near-miss posture** rides the same body: the wall's center
-/// control point nudged ~5·ε_in off the cylinder makes certification
-/// refuse (a residual past ε_in), and the patch STAYS NURBS silently
-/// — the import succeeds, records no promotion for that wall, and
-/// raises nothing (the M7-3-legal state, preserved by measurement).
+/// The exact-cylinder rational wall's grid residual is the
+/// extrusion's own rounding (~1e-16), but the certificate is now the
+/// grid PLUS the first-order between-samples envelope, whose slack is
+/// patch-scale over the sample count (~1e-1 m here) — orders of
+/// magnitude past any real ε_in. So the wall honestly STAYS NURBS:
+/// under the derivative-hull envelope NO cylinder patch certifies at
+/// fine ε, exact geometry included (the algebraic spline-product hull
+/// certificate that would restore the cylinder track is banked).
+///
+/// The consequence is the seam-orphan class, now hit by the
+/// UNPERTURBED body: the three exactly-planar walls still promote,
+/// the arc wall stays NURBS, and a wall–wall seam whose carrier was
+/// minted as a promoted PLANE wall's boundary column (bits differing
+/// from the arc wall's own column by the arc endpoint's rounding) has
+/// no bitwise IsoCurve match and no certifiable plane × NURBS
+/// intersection — the import refuses TYPED where pre-stage-1 main
+/// imports it. Pinned as it stands so the posture cannot drift
+/// silently; the near-miss variant (the wall nudged 5·ε_in off the
+/// cylinder) lands in exactly the same refusal, which also pins the
+/// silent-stays-NURBS half: no promotion is recorded for the arc wall
+/// in either variant.
 #[test]
-fn promoted_cylinder_gates_and_the_near_miss_stay_nurbs() {
+fn cylinder_envelope_refuses_and_the_seam_orphan_is_pinned() {
     let native = straight_arc_prism();
     let text = step_export::step_string(&native, &step_export::StepOptions::default())
         .expect("the arc prism exports");
-    let (body, promos) = solid(&text, "straight arc prism");
-    let kinds: Vec<(u64, PromotedKind)> = promos.iter().map(|&(f, k, _)| (f, k)).collect();
-    assert_eq!(
-        kinds,
-        vec![
-            (106, PromotedKind::Plane),
-            (134, PromotedKind::Cylinder),
-            (153, PromotedKind::Plane),
-            (167, PromotedKind::Plane),
-        ],
-        "three planar walls + the exact cylinder wall promote"
-    );
-    let cyl_residual = promos[1].2;
-    assert!(
-        cyl_residual <= 1e-14,
-        "the cylinder certificate is the extrusion's rounding: {cyl_residual:e}"
-    );
-    assert_eq!(topo::validate(&body), Ok(()), "tier 1");
-    assert_eq!(topo::validate_closed(&body), Ok(()), "tier 2");
-    match topo::validate_geometric(&body) {
-        Err(errors) => {
+    let orphaned_seam = |text: &str, who: &str| match import_step(text, &ImportOptions::default()) {
+        Err(StepImportError::Adoption { id, attempts }) => {
+            assert_eq!(id, 130, "{who}: the orphaned seam beside a promoted wall");
             assert!(
-                errors
+                attempts
                     .iter()
-                    .all(|e| matches!(e, topo::ValidationError::VolumeUncomputable { .. })),
-                "the only tier-3 finding is the banked quadrature decline (check 6 \
-                 ran green on the promoted cylinder): {errors:?}"
+                    .all(|a| !matches!(a.candidate, step_import::AdoptionCandidate::IsoCurve)),
+                "{who}: the bitwise IsoCurve rung had nothing to offer: {attempts:?}"
             );
         }
-        Ok(()) => panic!(
-            "tier 3 unexpectedly green — the cylinder-chart NURBS-boundary quadrature \
-             landed; re-pin this row to the exact volume"
+        other => panic!(
+            "{who}: the measured state is the typed seam-adoption refusal; a change \
+             here is a posture change to re-pin: {other:?}"
         ),
-    }
+    };
+    orphaned_seam(&text, "unperturbed exact-cylinder prism");
 
-    // **The near-miss, and the MEASURED LIMIT it exposes** (reported
-    // loudly at the M7-6 exit; a standing item for the next ruling).
-    // The wall's center control point ~5·ε_in off the cylinder makes
-    // its certificate refuse, and the WALL duly stays NURBS — but the
-    // import then refuses TYPED at a wall–wall seam: the seam's
-    // carrier was minted as its neighbour PLANE wall's boundary
-    // column, that neighbour PROMOTED, and the stays-NURBS wall's own
-    // column differs in last bits (the arc endpoint's rounding), so
-    // the bitwise IsoCurve rung has nothing to match; the remaining
-    // rungs (plane × NURBS intersection) have no certification. This
-    // body imports on pre-stage-1 main — always-promote can therefore
-    // refuse a mixed promoted/stays-NURBS body that imported before,
-    // exactly the class the #256 ruling's own never-refuse clause
-    // names. Pinned as it stands so the behavior cannot drift
-    // silently; the refusal is at least TYPED, with every candidate
-    // and its refusal enumerated.
-    // The exported file's declared uncertainty is the ambient ε the
-    // export ran at, so the near-miss scales with the run's ε: a
-    // 5·ε_in nudge lands the certificate residual at ~2.5·ε_in —
-    // past the budget at EVERY matrix row (1e-6 … 1e-12).
+    // The near-miss: the wall's centre control point, ~5·ε_in off the
+    // cylinder — the same refusal, same silence about the wall itself.
     //
-    // The perturbation base is the FILE'S OWN token, parsed — the
-    // writer's print of the wall's centre control-point x, which the
-    // bulge arithmetic left one ulp BELOW f64 √2 (not
-    // `f64::consts::SQRT_2`, whose substitution would nudge the base
-    // by that ulp and misstate the intent: "the file's value, moved
-    // 5·ε_in", not "√2, moved 5·ε_in").
+    // The exported file's declared uncertainty is the ambient ε the
+    // export ran at, so the nudge scales with the run's ε (past the
+    // budget at every matrix row). The perturbation base is the
+    // FILE'S OWN token, parsed — the writer's print of the point,
+    // which the bulge arithmetic left one ulp BELOW f64 √2 (not
+    // `f64::consts::SQRT_2`, whose substitution would misstate the
+    // intent: "the file's value, moved", not "√2, moved").
     let eps = geom_core::Tolerance::get().eps;
     const CENTER_X_TOKEN: &str = "1.414213562373095";
     let base: f64 = CENTER_X_TOKEN
@@ -254,21 +227,7 @@ fn promoted_cylinder_gates_and_the_near_miss_stay_nurbs() {
         ),
     );
     assert_ne!(text, near_miss, "the perturbation applied");
-    match import_step(&near_miss, &ImportOptions::default()) {
-        Err(StepImportError::Adoption { id, attempts }) => {
-            assert_eq!(id, 130, "the orphaned seam beside the promoted wall");
-            assert!(
-                attempts
-                    .iter()
-                    .all(|a| !matches!(a.candidate, step_import::AdoptionCandidate::IsoCurve)),
-                "the bitwise IsoCurve rung had nothing to offer: {attempts:?}"
-            );
-        }
-        other => panic!(
-            "the near-miss's measured state is the typed seam-adoption refusal; \
-             a change here is a posture change to re-pin: {other:?}"
-        ),
-    }
+    orphaned_seam(&near_miss, "near-miss prism");
 }
 
 /// **D7's typed ambiguity, fired at its one stage-1 site.** A wall

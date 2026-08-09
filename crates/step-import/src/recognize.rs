@@ -13,18 +13,29 @@
 //! recognition are unimplemented and stay-NURBS (banked; no dead
 //! per-kind code here).
 //!
-//! # Certification, dual-track (D4 ¶2 shapes, ε_in budget)
+//! # Certification (D4 ¶2 shapes, ε_in budget) — whole-patch, always
 //!
-//! - **Plane, non-rational**: the closed-form control-net hull
-//!   sup-bound — a B-spline point is a convex combination of its
-//!   control points, so the surface's deviation from a plane is
-//!   bounded by the worst CONTROL-POINT deviation. Whole-patch and
-//!   total, no sampling.
-//! - **Everything else** (rational planes, cylinders): the fixed
-//!   [`geom_brep::CERT_SAMPLES`]² grid, sup of the closed-form
-//!   linearized implicit residual ([`geom_brep::implicit_residual`]).
-//!   The schedule is fixed — never data-dependent iteration (D9; the
-//!   arc-rim gate's precedent).
+//! NO promotion without a whole-patch certificate (R1 fix pass, M-1 —
+//! a bare sampled grid is not one):
+//!
+//! - **Plane, both tracks**: the closed-form control-net hull
+//!   sup-bound. With strictly positive weights the (rational) basis
+//!   functions are nonnegative and sum to 1, so the surface is a
+//!   convex combination of its control points and its deviation from
+//!   a plane is bounded by the worst CONTROL-POINT deviation.
+//!   Whole-patch and total, no sampling anywhere.
+//! - **Cylinder**: the span-aware fixed schedule PLUS a first-order
+//!   between-samples envelope ([`enveloped_residual_sup`]): a
+//!   [`geom_brep::CERT_SAMPLES`]² grid per knot-span cell, and the
+//!   grid sup widened by `L·(Du·δu + Dv·δv)` from the whole-patch
+//!   derivative-coefficient hull bounds ([`derivative_sup`]) and the
+//!   residual's own Lipschitz constant. Fixed, never data-dependent
+//!   (D9). The envelope's slack is patch-scale over the sample count,
+//!   so it honestly REFUSES curved-kind certification at fine ε even
+//!   for exactly cylindrical geometry — the measured consequence the
+//!   fix-pass report states; the algebraic tightening (exact
+//!   spline-product hulls) is banked, and looseness is never grounds
+//!   to widen the budget.
 //!
 //! # Estimators (D9-clean: closed form, fixed evaluation order)
 //!
@@ -210,20 +221,21 @@ fn try_plane(patch: &NurbsSurface<f64>, eps_in: f64) -> Option<(Surface<f64>, f6
         normal,
         u_ref: flush_zero(u_ref),
     };
-    // Non-rational: the hull sup-bound over the WHOLE net. `S(u,v)`
-    // is a convex combination of control points (basis functions
-    // nonnegative, partition of unity), so
-    // `sup |dist(S, plane)| ≤ max_i |dist(P_i, plane)|` — a total,
-    // whole-patch certificate. Rational: the fixed sampled grid.
-    let residual = if patch.weights().iter().all(|&w| w == 1.0) {
-        let mut worst = 0.0f64;
-        for p in control {
-            worst = worst.max((*p - origin).dot(normal).abs());
-        }
-        worst
-    } else {
-        sampled_residual_sup(patch, &plane)
-    };
+    // The hull sup-bound over the WHOLE net — BOTH tracks (R1 fix
+    // pass, M-1): with strictly positive weights the rational basis
+    // functions are nonnegative and sum to 1 (each is
+    // `w_i N_i / Σ w_j N_j` with every factor ≥ 0), so `S(u, v)` is a
+    // convex combination of its control points for rational and
+    // non-rational patches alike, and the plane's signed distance —
+    // affine in the point — satisfies
+    // `sup |dist(S, plane)| ≤ max_i |dist(P_i, plane)|`.
+    // A total, whole-patch certificate with no sampling anywhere;
+    // the review's between-samples falsifier class is caught by
+    // construction (a bulge needs a bulged control point).
+    let mut residual = 0.0f64;
+    for p in control {
+        residual = residual.max((*p - origin).dot(normal).abs());
+    }
     (residual <= eps_in).then_some((plane, residual))
 }
 
@@ -304,37 +316,183 @@ fn try_cylinder(
         radius,
         u_ref: flush_zero(radial / radius),
     };
-    let residual = sampled_residual_sup(patch, &cylinder);
+    // The residual's Lipschitz constant in the point (envelope docs):
+    // `|∇ implicit| = ρ/r`, and with positive weights the patch lies
+    // in its control hull, on which the radial distance — a norm of
+    // an affine map, hence convex — is maximized at a vertex.
+    let mut rho_max = 0.0f64;
+    for p in control {
+        let w = (*p - center) - axis * (*p - center).dot(axis);
+        rho_max = rho_max.max(w.norm());
+    }
+    let lipschitz = rho_max / radius;
+    let residual = enveloped_residual_sup(patch, &cylinder, lipschitz);
     // Orientation: the cylinder chart's normal is radially outward by
     // construction, whatever the patch's chart orientation — the
     // caller compares chart normals and composes `same_sense`.
     Ok((residual <= eps_in).then_some((cylinder, residual)))
 }
 
-/// The sup of the closed-form implicit residual over the fixed
-/// [`geom_brep::CERT_SAMPLES`]² grid (module docs: the rational /
-/// no-closed-form certification track). Poison anywhere makes the
-/// sup NaN, which certifies nothing (D4 ¶2 totality).
-fn sampled_residual_sup(patch: &NurbsSurface<f64>, candidate: &Surface<f64>) -> f64 {
-    let (u0, u1) = patch.knots_u().domain();
-    let (v0, v1) = patch.knots_v().domain();
-    let n = geom_brep::CERT_SAMPLES;
+/// **The certified sampled-track residual: per-span schedule PLUS a
+/// between-samples envelope** (R1 fix pass, M-1 — a fixed whole-domain
+/// grid is not a certificate: a patch exact at the grid and bulging
+/// between samples, or one with more spans than grid columns, promotes
+/// silently wrong; the review executed both falsifiers).
+///
+/// The certificate, per nonempty knot-span cell:
+///
+/// * a fixed [`geom_brep::CERT_SAMPLES`]² grid over the CELL (the
+///   schedule is span-aware and D9-fixed: cell count and sample
+///   placement depend only on the knot vectors, never on data);
+/// * every domain point lies within half a sample spacing of a sample
+///   in each direction, so with `Du`, `Dv` the whole-patch derivative
+///   sup bounds ([`derivative_sup`]) and `L` the candidate's implicit-
+///   residual Lipschitz constant in the point,
+///   `sup |r| ≤ grid sup + L·(Du·δu + Dv·δv)`, `δ = span/(2·(k−1))` —
+///   a first-order whole-patch envelope, conservative by construction.
+///
+/// The envelope is HONEST about its looseness: its slack is
+/// `O(L·D·span/k)` — patch-scale over the sample count, not ε-scale —
+/// so a curved-kind certificate at fine ε is refused even for exactly
+/// cylindrical geometry (the measured own-corpus consequence; the M7-6
+/// fix-pass report carries the numbers). Tightening it to certify real
+/// cylinders again needs the algebraic route (exact spline-product
+/// hulls of the radial-square channel), banked with the R1 findings —
+/// NO promotion without a whole-patch certificate, and this is the
+/// certificate the derivative-hull machinery supports today.
+///
+/// Poison anywhere makes the sup NaN, which certifies nothing (D4 ¶2).
+fn enveloped_residual_sup(
+    patch: &NurbsSurface<f64>,
+    candidate: &Surface<f64>,
+    lipschitz: f64,
+) -> f64 {
+    let Some((du_sup, dv_sup)) = derivative_sup(patch) else {
+        return f64::NAN;
+    };
+    let k = geom_brep::CERT_SAMPLES;
+    let ku = patch.knots_u();
+    let kv = patch.knots_v();
     let mut worst = 0.0f64;
-    for i in 0..n {
-        let fu = f64::from(i) / f64::from(n - 1);
-        for j in 0..n {
-            let fv = f64::from(j) / f64::from(n - 1);
-            let p = patch.eval(u0 + (u1 - u0) * fu, v0 + (v1 - v0) * fv);
-            let r = geom_brep::implicit_residual(candidate, p).abs();
-            // `max` with NaN-propagation: a poison residual must not
-            // be masked by an earlier finite one.
-            worst = if r.is_nan() { f64::NAN } else { worst.max(r) };
-            if worst.is_nan() {
-                return worst;
+    for su in ku.first_span()..=ku.last_span() {
+        if !ku.span_is_nonempty(su) {
+            continue;
+        }
+        let (ua, ub) = (ku.knots()[su], ku.knots()[su + 1]);
+        for sv in kv.first_span()..=kv.last_span() {
+            if !kv.span_is_nonempty(sv) {
+                continue;
             }
+            let (va, vb) = (kv.knots()[sv], kv.knots()[sv + 1]);
+            let mut cell = 0.0f64;
+            for i in 0..k {
+                let u = ua + (ub - ua) * f64::from(i) / f64::from(k - 1);
+                for j in 0..k {
+                    let v = va + (vb - va) * f64::from(j) / f64::from(k - 1);
+                    let p = patch.eval_in_span(su, sv, u, v);
+                    let r = geom_brep::implicit_residual(candidate, p).abs();
+                    // NaN-propagating max: a poison residual must not
+                    // be masked by an earlier finite one.
+                    cell = if r.is_nan() { f64::NAN } else { cell.max(r) };
+                    if cell.is_nan() {
+                        return cell;
+                    }
+                }
+            }
+            let slack =
+                lipschitz * (du_sup * (ub - ua) + dv_sup * (vb - va)) / (2.0 * f64::from(k - 1));
+            worst = worst.max(cell + slack);
         }
     }
     worst
+}
+
+/// Whole-patch sup bounds `(Du, Dv)` on `|∂S/∂u|`, `|∂S/∂v|` from the
+/// control net — closed form, D9-fixed, both tracks:
+///
+/// * **non-rational**: the derivative surface's control coefficients
+///   are `p·(P_{i+1} − P_i)/(t_{i+p+1} − t_{i+1})` (empty-support
+///   coefficients skipped), and a B-spline lies in its coefficient
+///   hull, so the max coefficient norm bounds the derivative — the
+///   `nurbs_cert` derivative-coefficient-hull precedent.
+/// * **rational**: with `S = A/w` (`A = Σ N w_i P′_i` in a frame
+///   translated to the control centroid, `w = Σ N w_i`),
+///   `S_u = (A_u − S·w_u)/w`, so
+///   `|S_u| ≤ (sup|A_u| + sup|S − c|·sup|w_u|) / w_min` — numerator
+///   and denominator derivative coefficient hulls, `|S − c|` bounded
+///   by the translated control hull (positive weights), and the
+///   denominator bounded BELOW by min-weight positivity
+///   (`w(u,v) ≥ min_i w_i > 0`, since `w` is a convex combination of
+///   the weights). Conservative, never data-dependent.
+///
+/// With all weights bitwise 1 the rational formula degenerates to the
+/// exact non-rational bound (`w_u ≡ 0`, `w_min = 1`), so one
+/// evaluation covers both tracks. `None` for a degenerate knot
+/// structure (no differentiable span).
+fn derivative_sup(patch: &NurbsSurface<f64>) -> Option<(f64, f64)> {
+    let (nu, nv) = patch.control_counts();
+    let control = patch.control();
+    let weights = patch.weights();
+    if nu < 2 && nv < 2 {
+        return None;
+    }
+    // Translated frame: bounds on |S − c| stay patch-sized instead of
+    // origin-distance-sized (the derivative is translation-invariant).
+    let n = control.len() as f64;
+    let mut sum = Vec3::zero();
+    for p in control {
+        sum = sum + (*p - Point3::origin());
+    }
+    let c = Point3::origin() + sum / n;
+    let mut sup_s = 0.0f64;
+    let mut w_min = f64::INFINITY;
+    for (p, w) in control.iter().zip(weights) {
+        sup_s = sup_s.max((*p - c).norm());
+        w_min = w_min.min(*w);
+    }
+    if !(w_min.is_finite() && w_min > 0.0) {
+        return None;
+    }
+    let at = |iu: usize, iv: usize| (control[iu * nv + iv] - c, weights[iu * nv + iv]);
+    // u-direction coefficient hulls of A_u and w_u.
+    let pu = patch.knots_u().degree();
+    let tu = patch.knots_u().knots();
+    let mut sup_au = 0.0f64;
+    let mut sup_wu = 0.0f64;
+    for iu in 0..nu.saturating_sub(1) {
+        let denom = tu[iu + pu + 1] - tu[iu + 1];
+        if denom <= 0.0 {
+            continue; // empty support — the coefficient never acts.
+        }
+        let factor = pu as f64 / denom;
+        for iv in 0..nv {
+            let (p1, w1) = at(iu + 1, iv);
+            let (p0, w0) = at(iu, iv);
+            sup_au = sup_au.max((p1 * w1 - p0 * w0).norm() * factor);
+            sup_wu = sup_wu.max((w1 - w0).abs() * factor);
+        }
+    }
+    // v-direction, same shape.
+    let pv = patch.knots_v().degree();
+    let tv = patch.knots_v().knots();
+    let mut sup_av = 0.0f64;
+    let mut sup_wv = 0.0f64;
+    for iv in 0..nv.saturating_sub(1) {
+        let denom = tv[iv + pv + 1] - tv[iv + 1];
+        if denom <= 0.0 {
+            continue;
+        }
+        let factor = pv as f64 / denom;
+        for iu in 0..nu {
+            let (p1, w1) = at(iu, iv + 1);
+            let (p0, w0) = at(iu, iv);
+            sup_av = sup_av.max((p1 * w1 - p0 * w0).norm() * factor);
+            sup_wv = sup_wv.max((w1 - w0).abs() * factor);
+        }
+    }
+    let du = (sup_au + sup_s * sup_wu) / w_min;
+    let dv = (sup_av + sup_s * sup_wv) / w_min;
+    (du.is_finite() && dv.is_finite()).then_some((du, dv))
 }
 
 /// Whether the promoted chart's normal OPPOSES the NURBS chart's at
@@ -506,10 +664,13 @@ mod review_probes {
         }
     }
 
-    /// **P4 — a rational EXACT plane goes through the sampled grid
-    /// (dual-track) and still promotes.**
+    /// **P4 — a rational EXACT plane still promotes.** (Originally
+    /// "via the sampled track"; the M-1 fix collapsed the plane
+    /// certificate onto the hull sup-bound for BOTH tracks — the
+    /// positive-weight convexity argument — so this now pins that the
+    /// rational plane rides the whole-patch hull certificate.)
     #[test]
-    fn p4_rational_exact_plane_promotes_via_the_sampled_track() {
+    fn p4_rational_exact_plane_promotes_via_the_hull_track() {
         let patch = bulged_plane(0.0, 3.0);
         match recognize(&patch, EPS_IN) {
             Recognition::Promoted { kind, residual, .. } => {
@@ -576,6 +737,52 @@ mod review_probes {
         match recognize(&patch, EPS_IN) {
             Recognition::Promoted { kind, .. } => assert_eq!(kind, PromotedKind::Plane),
             other => panic!("the exact plane promotes: {other:?}"),
+        }
+    }
+
+    /// **P7 (fix pass) — the envelope is honest on an EXACT cylinder,
+    /// and honestly loose.** A unit-radius rational quarter-cylinder's
+    /// grid residual is ~1e-16, but the first-order between-samples
+    /// envelope is patch-scale (measured here at ~1e-1 m — the slack
+    /// is `L·D·span/(2(k−1))`, patch size over the sample count), so
+    /// recognition correctly refuses to certify it at any real ε_in
+    /// and the patch stays NURBS. This is the M-1 fix's measured
+    /// consequence, pinned: a tighter certificate (algebraic
+    /// spline-product hulls) is what restores the cylinder track,
+    /// never a wider budget.
+    #[test]
+    fn p7_exact_cylinder_envelope_is_honest() {
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ];
+        let patch = NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).unwrap();
+        let cylinder = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        // The mid control point sits at radius √2: L = ρ_max/r = √2.
+        let envelope = enveloped_residual_sup(&patch, &cylinder, core::f64::consts::SQRT_2);
+        println!("P7 exact-cylinder certified envelope: {envelope:e} m");
+        assert!(
+            envelope > 1e-3,
+            "the first-order envelope is patch-scale by construction: {envelope:e}"
+        );
+        match recognize(&patch, EPS_IN) {
+            Recognition::Promoted { kind, residual, .. } => panic!(
+                "an exact cylinder must NOT certify under the first-order envelope \
+                 (promoted {kind:?} at {residual:e})"
+            ),
+            other => println!("exact cylinder stays unpromoted, honestly: {other:?}"),
         }
     }
 }

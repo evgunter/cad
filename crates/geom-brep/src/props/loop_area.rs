@@ -91,19 +91,21 @@ pub fn loop_vector_area<T: SpanLocate>(
 /// the exportable spline degrees with headroom; past it the caller
 /// refuses typed rather than truncating.
 fn gauss_rule(n: usize) -> Option<(&'static [f64], &'static [f64])> {
-    const X2: f64 = 0.577_350_269_189_625_8; // 1/√3
+    // Correctly-rounded f64-nearest values (R1 m-2: five 16-digit
+    // literals sat one ulp off; re-derived at 50-digit precision).
+    const X2: f64 = 0.577_350_269_189_625_7; // 1/√3
     const X3: f64 = 0.774_596_669_241_483_4; // √(3/5)
     const W3A: f64 = 8.0 / 9.0;
     const W3B: f64 = 5.0 / 9.0;
-    const X4A: f64 = 0.339_981_043_584_856_3;
+    const X4A: f64 = 0.339_981_043_584_856_26;
     const X4B: f64 = 0.861_136_311_594_052_6;
     const W4A: f64 = 0.652_145_154_862_546_1;
-    const W4B: f64 = 0.347_854_845_137_453_9;
+    const W4B: f64 = 0.347_854_845_137_453_85;
     const X5A: f64 = 0.538_469_310_105_683_1;
     const X5B: f64 = 0.906_179_845_938_664;
     const W5O: f64 = 0.568_888_888_888_888_9;
-    const W5A: f64 = 0.478_628_670_499_366_5;
-    const W5B: f64 = 0.236_926_885_056_189_1;
+    const W5A: f64 = 0.478_628_670_499_366_47;
+    const W5B: f64 = 0.236_926_885_056_189_08;
     match n {
         1 => Some((&[0.0], &[2.0])),
         2 => Some((&[-X2, X2], &[1.0, 1.0])),
