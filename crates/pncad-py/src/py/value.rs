@@ -34,7 +34,9 @@ use pncad::topo;
 fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: NodeId) -> PyErr {
     let node = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
-        Err(failed) => return failed.into(),
+        // A `#[pyclass]` conversion fails as a `PyErr` already —
+        // surface it as the raise rather than losing it.
+        Err(failed) => return failed,
     };
     typed_err(
         py,
@@ -151,10 +153,7 @@ impl Body {
         let Err(failures) = outcome else {
             return Ok(());
         };
-        let count = match failures.len().into_pyobject(py) {
-            Ok(bound) => bound.unbind().into_any(),
-            Err(failed) => return Err(failed.into()),
-        };
+        let count = failures.len().into_pyobject(py)?.unbind().into_any();
         Err(typed_err(
             py,
             ErrorClass::Validation,
