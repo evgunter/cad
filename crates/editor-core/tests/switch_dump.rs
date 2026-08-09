@@ -16,8 +16,7 @@ use editor_core::{CancelToken, EvalOptions, NodeResult, ValuePayload, evaluate};
 #[test]
 #[ignore = "the merge-base diff instrument; run explicitly"]
 fn dump_corpus_payloads() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/switch-dump");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/switch-dump");
     std::fs::create_dir_all(&dir).unwrap();
     for d in corpus::documents() {
         let ev = evaluate::<f64>(&d.doc, None, &CancelToken::new(), &EvalOptions::default());
