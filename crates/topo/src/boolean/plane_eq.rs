@@ -42,7 +42,7 @@
 //! `cfg(debug_assertions)` helpers, inside `debug_assert!` — the
 //! "records agree with bits" assertion N6 promises.
 
-use geom_core::{Band, Decide, Indeterminate, Length, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::source::GeomSource;
 use crate::validate::decide;
@@ -170,7 +170,7 @@ pub fn oriented_plane_eq<T: Decide>(
     }
 
     // Rung 3: definite-different by geometry. Parallelism first.
-    let parallel_margin = Length::levered(p1.normal.cross(p2.normal).norm(), arm);
+    let parallel_margin = Margin::levered(p1.normal.cross(p2.normal).norm(), arm);
     match decide("bool_plane_parallel", parallel_margin, band) {
         Ok(Sign::Positive) => return Ok(PlaneRelation::Distinct),
         Ok(Sign::Zero) => {}
@@ -190,7 +190,7 @@ pub fn oriented_plane_eq<T: Decide>(
     // dimensionless, and the length band wants the displacement the
     // orientation flip induces at the arm (rim-dimensional audit,
     // class (c); |cos| ≈ 1 here so the margin is ≈ ±arm, decisive).
-    let sign_margin = Length::levered(p1.normal.dot(p2.normal), arm);
+    let sign_margin = Margin::levered(p1.normal.dot(p2.normal), arm);
     let sigma = match decide("bool_plane_orient", sign_margin, band) {
         Ok(Sign::Positive) => T::one(),
         Ok(Sign::Negative) => -T::one(),
@@ -203,7 +203,7 @@ pub fn oriented_plane_eq<T: Decide>(
         }
         Err(diag) => return Err(PlaneEqError::Escalated(diag)),
     };
-    let offset_margin = Length::of(d1 - sigma * d2);
+    let offset_margin = Margin::of(d1 - sigma * d2);
     match decide("bool_plane_offset", offset_margin, band) {
         Ok(Sign::Positive | Sign::Negative) => Ok(PlaneRelation::Distinct),
         // Rung 4: geometrically the same plane, but neither identity
@@ -233,7 +233,7 @@ fn declared_rung<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<PlaneRelation, PlaneEqError> {
-    let parallel_margin = Length::levered(p1.normal.cross(p2.normal).norm(), arm);
+    let parallel_margin = Margin::levered(p1.normal.cross(p2.normal).norm(), arm);
     match decide("bool_plane_parallel", parallel_margin, band) {
         Ok(Sign::Positive) => {
             return Err(PlaneEqError::Contradicted(Indeterminate {
@@ -256,7 +256,7 @@ fn declared_rung<T: Decide>(
     // Metered at the arm like the undeclared rung (class (c) above).
     let same_orient = match decide(
         "bool_plane_orient",
-        Length::levered(p1.normal.dot(p2.normal), arm),
+        Margin::levered(p1.normal.dot(p2.normal), arm),
         band,
     ) {
         Ok(Sign::Positive) => true,
@@ -271,7 +271,7 @@ fn declared_rung<T: Decide>(
         Err(diag) => return Err(PlaneEqError::Escalated(diag)),
     };
     let sigma = if same_orient { T::one() } else { -T::one() };
-    match decide("bool_plane_offset", Length::of(d1 - sigma * d2), band) {
+    match decide("bool_plane_offset", Margin::of(d1 - sigma * d2), band) {
         Ok(Sign::Positive | Sign::Negative) => Err(PlaneEqError::Contradicted(Indeterminate {
             margin: geom_core::MarginDiag::Invalid,
             band,

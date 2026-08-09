@@ -9,7 +9,7 @@
 //! (span and apex margins — a vertex check alone cannot see an arc
 //! bulging across the axis).
 
-use geom_core::{Affine3, Band, Decide, Length, Point2, Point3, Real, Sign, Vec2, Vec3};
+use geom_core::{Affine3, Band, Decide, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 use profile::ValidatedProfile;
 
 use super::{RevolveAxis, RevolveError, SweptKind, SweptSeg, arc_apex, arc_span, decide};
@@ -51,7 +51,7 @@ impl<T: Decide> AxisFrame<T> {
         axis: &RevolveAxis<T>,
         band: Band,
     ) -> Result<Self, RevolveError> {
-        match decide("revolve_axis_direction", Length::norm2(axis.dir), band)
+        match decide("revolve_axis_direction", Margin::norm2(axis.dir), band)
             .map_err(|source| RevolveError::AxisEscalated { source })?
         {
             Sign::Positive => {}
@@ -275,7 +275,7 @@ pub(super) fn classify_loop<T: Decide>(
     let mut verts = Vec::with_capacity(n);
     for s in segs {
         let r = frame.r(s.a);
-        let pinned = match decide("axis_vertex_radius", Length::of(r), band).map_err(|source| {
+        let pinned = match decide("axis_vertex_radius", Margin::of(r), band).map_err(|source| {
             RevolveError::SliverRadius {
                 loop_index,
                 vertex_index: s.canonical_vertex,
@@ -367,8 +367,8 @@ fn classify_segment<T: Decide>(
             // Radial and axial deltas of the chord (meters).
             let dr = vb.r - va.r;
             let dz = frame.axial(s.b) - frame.axial(s.a);
-            let sr = decide("axis_line_radial", Length::of(dr), band).map_err(escalated)?;
-            let sz = decide("axis_line_axial", Length::of(dz), band).map_err(escalated)?;
+            let sr = decide("axis_line_radial", Margin::of(dr), band).map_err(escalated)?;
+            let sz = decide("axis_line_axial", Margin::of(dz), band).map_err(escalated)?;
             // Line walls' sense (doc above): cylinder and cone read
             // the canonical axial direction, the plane annulus the
             // canonical radial one.
@@ -406,14 +406,14 @@ fn classify_segment<T: Decide>(
             // the material side iff the canonical turn is Positive.
             let sense = !matches!(canonical(turn), Sign::Negative);
             let rc = frame.r(center);
-            match decide("axis_arc_center", Length::of(rc), band).map_err(escalated)? {
+            match decide("axis_arc_center", Margin::of(rc), band).map_err(escalated)? {
                 Sign::Zero => {
                     // Sphere class. Arc-interior half-plane checks: the
                     // r ≥ 0 half of an on-axis-centered carrier is
                     // exactly half its period, so a span definitely
                     // beyond π must dip below; the apex pins which
                     // half-circle branch the arc occupies.
-                    let span_margin = Length::levered(T::pi() - arc_span(s.bulge), radius);
+                    let span_margin = Margin::levered(T::pi() - arc_span(s.bulge), radius);
                     match decide("axis_arc_span", span_margin, band).map_err(escalated)? {
                         Sign::Positive | Sign::Zero => {}
                         Sign::Negative => {
@@ -424,7 +424,7 @@ fn classify_segment<T: Decide>(
                         }
                     }
                     let r_apex = frame.r(arc_apex(s));
-                    match decide("axis_arc_apex", Length::of(r_apex), band).map_err(escalated)? {
+                    match decide("axis_arc_apex", Margin::of(r_apex), band).map_err(escalated)? {
                         Sign::Positive => {}
                         // On or below the axis: tangential/crossing
                         // interior contact.
@@ -446,7 +446,7 @@ fn classify_segment<T: Decide>(
                 Sign::Positive => {
                     // Ring-torus clearance: the tube must stay
                     // definitely clear of the axis (D3 convention).
-                    match decide("axis_arc_clearance", Length::of(rc - radius), band)
+                    match decide("axis_arc_clearance", Margin::of(rc - radius), band)
                         .map_err(escalated)?
                     {
                         Sign::Positive => Ok(WallClass::Wall {

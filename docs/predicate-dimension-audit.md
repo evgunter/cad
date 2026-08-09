@@ -15,7 +15,7 @@ Trigger and method: the `props_rim_level_group` defect (fixed in this
 unit — `crates/geom-brep/src/props/curved.rs`, the `RimLevel` enum)
 metered a cone's already-length rim-level difference by `× arm`,
 manufacturing an area. This document is the systematic sweep for the
-rest of the family, and the input to the typed-margin (Length-typed
+rest of the family, and the input to the typed-margin (Margin-typed
 classify seam) design conversation. Status column: OK (dimension
 verified), FIXED (corrected — in the originating rim-dimensional unit
 unless the row names the follow-up unit that did it), FLAG (defect or
@@ -30,7 +30,7 @@ telemetry is now complete).
 
 **Clause-(i) migration (the margin dimensional convention's typed
 seam — executed by the margin-migrate unit).**
-`geom_core::k_stats::decide` now takes a `Length<T>` by signature;
+`geom_core::k_stats::decide` now takes a `Margin<T>` by signature;
 every call site in the workspace constructs its margin through a
 blessed door (`of` / `levered`+`sagitta`+`levered_inv` /
 `norm3`+`norm2` / `metered` / `over_lever`; an unused `rooted` door
@@ -42,7 +42,7 @@ profile, sweep, editor-core's eval/naming, geom-curves — argue their
 doors inline; their comparands are the same length shapes). Rows whose
 comparand this ledger FLAGS as not-a-length are carried through the
 seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
-— the finding lane: no `Length` is constructed, the row id is a
+— the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F2 ×4, F6 ×3 — the fitted/iso
 lane meters and the fitted lane's whole-chart azimuth arm, F7 ×1,
@@ -51,7 +51,7 @@ F10 ×7 rigidity residuals through one loop, F13 ×1, F14 ×1, F15 ×1 —
 assertion `geom-core/tests/flagged_census.rs`: no new site ships
 without a row here, and the count only moves together with this
 section).
-Composition disclosure (review MIN-2): `Length` deliberately has no
+Composition disclosure (review MIN-2): `Margin` deliberately has no
 arithmetic, so a margin whose FINAL op is a plain length
 sum/difference/min/max may carry a lever, root, or quotient INSIDE the
 `of` argument — six shipped sites do (each dimensionally verified, all
@@ -62,7 +62,7 @@ named in the PR #213 census): `props/curved.rs` sphere `props_rim_fit`
 `fillet3_spine_regularity` (inline lever `r²·κ`), and
 `pcurve_cache.rs`'s sphere `polar_rate` fallback (inline `·aa/radius`).
 Structural debt to keep named, not a defect: full door-composition
-would need Length arithmetic, which the convention refuses. The
+would need Margin arithmetic, which the convention refuses. The
 recorded margin stream is bit-identical by construction (each door
 performs exactly the operation the bare site performed); the
 probe-census diff row is the executed proof. F12 stays OUTSIDE the
@@ -73,7 +73,7 @@ backstops — `volume_backstop` / `volume_backstop_operand` /
 `volume_backstop_violation`, inequalities between integral RESULTS
 (wrong-component detectors, never accuracy gates) — are outside the
 length seam by design: they decide on bare `T` through
-`k_stats::decide_invariant` (no `Length` minted — not a door, not
+`k_stats::decide_invariant` (no `Margin` minted — not a door, not
 debt), keeping their predicate names and margin values byte-identical
 in the K stream, and a certified violation surfaces as the
 Corrupt-class `ResultVolumeImplausible` ("kernel invariant violated —
@@ -448,7 +448,7 @@ Flagged, NOT fixed here (dispositions):
   honest length reading, and wrapping it would launder exactly what
   this row records. The site stays a raw `sign_within` outside the
   typed seam (it is not a `decide` call), doubly visible now that the
-  seam admits only `Length<T>`. The attribution hole stands as
+  seam admits only `Margin<T>`. The attribution hole stands as
   documented; the funnel routing (which would also push editor verdict
   rows into the N5 verdict-log channel) remains the editor-layer
   owner's scope call.

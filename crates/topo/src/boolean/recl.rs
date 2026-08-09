@@ -22,7 +22,7 @@
 //! Postcondition (checked loudly): no surviving record carries an On
 //! code.
 
-use geom_core::{Band, Decide, Length, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::plane_eq::{PlaneDesc, PlaneEqError, PlaneRelation};
 use super::reduce::face_plane;
@@ -514,7 +514,7 @@ fn resolve_edge_edge<T: Decide>(
                 SideCode::Out => inside = false,
                 SideCode::On => {
                     // On the flanking plane: overlap-tie or touch.
-                    let same = match decide("bool_dir_same", Length::levered(w.dot(ow), arm), band)
+                    let same = match decide("bool_dir_same", Margin::levered(w.dot(ow), arm), band)
                     {
                         Ok(Sign::Positive) => true,
                         Ok(Sign::Negative) => false,
@@ -743,14 +743,14 @@ fn parallel_same_dir<T: Decide>(
     let vn = v.normalize();
     match decide(
         "bool_ee_collinear",
-        Length::levered(un.cross(vn).norm(), arm),
+        Margin::levered(un.cross(vn).norm(), arm),
         band,
     ) {
         Ok(Sign::Zero) => {}
         Ok(_) => return Ok(false),
         Err(diag) => return Err(BooleanError::Escalated { diag }),
     }
-    match decide("bool_dir_same", Length::levered(un.dot(vn), arm), band) {
+    match decide("bool_dir_same", Margin::levered(un.dot(vn), arm), band) {
         Ok(Sign::Positive) => Ok(true),
         Ok(_) => Ok(false),
         Err(diag) => Err(BooleanError::Escalated { diag }),
