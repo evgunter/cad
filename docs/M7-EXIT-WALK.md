@@ -1,9 +1,9 @@
 # M7 exit walk — criteria vs evidence
 
-**STATUS: DRAFT — M7-6 cells finalized from its merged row (#264).
-Cells marked [PENDING-M7-7] / [PENDING-M7-8] finalize at those
-merges. Closure is Evan's call at the walk; this becomes M7's
-done-state of record on his sign-off.**
+**STATUS: FINAL — presented for Evan's closure ruling. Every unit
+is merged and every cell cites its merged evidence. Closure is
+Evan's call at the walk; this becomes M7's done-state of record on
+his sign-off.**
 
 **How to read this.** Criteria are quoted **verbatim** from
 `docs/M7-PLAN.md` — the four planned units, the K-telemetry
@@ -24,13 +24,16 @@ MET-WITH-RECORDED-HONESTY / CARRIED (named owner).
 | 5 | K telemetry (standing, #89): "The import corpus is the designated re-open trigger … A landing is a headline finding — report it to Evan; never quietly retune. Known stale item … the large-K lint's 1.5e-3 baseline floor (named M6 pickup)." | MET | The trigger FIRED at M7-2, was reported, and was retired as #197's dimensional-metering bug (check a landing's margin DIMENSION first — the K-REPORT M7 addendum's standing lesson); #89 stays closed. The stale floor was re-derived at **#239** (4.0e-5, ε-coupled rule 4, the M7-F1 cap) and the lint is now a GATE (#253) carrying Evan's interpretation discipline — stronger than the criterion asks. |
 | 6 | Exit shape: "Every STEP file the kernel can currently export imports back to a first-class body whose censuses, certified volumes, and validity match; FreeCAD-authored files of the same entity subset adopt cleanly or fail with the typed errors D7 promises. Anything beyond that subset is a typed refusal naming the unsupported entity — the S9 flip pattern applies when later units retire refusals." | MET-WITH-RECORDED-HONESTY | First clause: holds with the promoted-fixed-point re-statement (row 1's honesty — "first-class body whose censuses, certified volumes, and validity match" remains TRUE; byte-level representation differs where promotion fires, enumerated at #264). Second clause: MET (#189 + the 5-ε battery). Third clause: MET and exercised repeatedly (the S9 flip pattern executed at #252 and #264 — the latter an honest ADVANCE rather than a flip; every remaining refusal names its entity/class). |
 | 7 | (Not a plan criterion — surfaced by #252's review, RULED at #260): import's tier posture for ordinary solids. | MET (#276) | **Evan ruled (a)** (#260, 2026-08-08): every imported solid passes the SHARED at-rest gate — one function, same tiers as native bodies (convention-2 structural sharing; the band_backstop special case dissolves into it). **Merged as #276 (M7-7)**: the gate runs per-SOLID then on the aggregate (the R1 MAJOR — an inverted solid could ship beside a normal one behind a whole-body flux sum — closed and re-attacked with 4 new variants incl. an aggregate-POSITIVE scale smuggle, all refused naming the guilty solid); zero verdict filters, zero kind predicates; the corpus dispositions are ε-row-honest (477-cell sweep, 18 pinned EpsSensitive cells, nothing widened). The one class newly refused (rational-walled arc loft) carries its native twin's banked verdict — an escalation, not a falsehood. The structural completion — gate-minted validity currency making un-validated bodies unrepresentable at API boundaries — stays banked at #250 with #260 as its design record; the touching-assemblies 3′ residue is now NAMED in D7 step 4 with its kiss-assembly pin (flips when M8/C7 lands). |
-| 8 | Directional note (Evan, #191): "the eventual goal is for adoption to support all of the wild corpus — today's refusal fixtures are waypoints that flip as the vocabulary grows." | ON-TRACK (directional, not gating) | Waypoints flipped this milestone: ftc_11, cq_red_cube (#252); dm1's waypoint ADVANCED at #264 (vocabulary retired, the assembly-instancing gap #186 now the named blocker). Remaining refusals each carry a named vocabulary gap; the sliver-fix recommendation idea stays LONGTERM-IDEAS I1(0). |
+| 8 | (Not a plan criterion — the rider ruled on #264's thread): plane×NURBS intersection certification, declare-and-check. | MET-WITH-RECORDED-HONESTY (#288) | The seam-orphan CLASS is retired: the file's carrier certifies as EVIDENCE against both surfaces (closed-form on-plane; foot-point schedule + certified between-samples envelope on-NURBS; transversality at the analytic lever arm) — R1 reproduced every number bit-for-bit and its envelope attack held; the one MAJOR (envelope had zero shipped-test coverage) closed by adopting R1's own probes with executed mutation red/green proof. **The honesty, twice**: (i) the flip is ε-dependent — at 1e-12 the same geometry refuses typed carrying its certified sup 6.32e-12 (the spec's honest-refusal clause landing as written); (ii) the #276-union collision was RULED (option (c), full record in #288): the rational-walled arc prism is an ADVANCED waypoint (seam certifies; body refuses the banked quadrature verbatim), the integral twin is tier-valid at rest but measured the second gap (no Intersection arm in nurbs_iso_derive), so NO mixed fixture is first-class end-to-end today — a reported spec deviation with both flip conditions named in-code (both retire in the ruled demo-hardening stretch / its successors). |
+| 9 | Directional note (Evan, #191): "the eventual goal is for adoption to support all of the wild corpus — today's refusal fixtures are waypoints that flip as the vocabulary grows." | ON-TRACK (directional, not gating) | Waypoints flipped this milestone: ftc_11, cq_red_cube (#252); dm1's waypoint ADVANCED at #264 (vocabulary retired, the assembly-instancing gap #186 now the named blocker). Remaining refusals each carry a named vocabulary gap; the sliver-fix recommendation idea stays LONGTERM-IDEAS I1(0). |
 
 ## Walk evidence beyond the criteria
 
 - **The A/B record**: every M7 unit row recorded at merge
-  (MODEL-AB-LOG — M7-1..M7-6 + the excluded infra/demo rows), protocol
-  v2→v3 transition executed mid-milestone per the amendment.
+  (MODEL-AB-LOG — M7-1..M7-8 + the excluded infra/demo rows), protocol
+  v2→v3 transition executed mid-milestone per the amendment; the
+  M7-7/M7-8 rows carry the handoff's unrecoverable-figure
+  annotations rather than invented numbers.
 - **Process firsts this milestone**: the project's second
   NOT-MERGEABLE-AS-IS (#252) with the assigned adversarial attack
   executing the gap; the dual-review sampling amendment adopted
@@ -38,11 +41,35 @@ MET-WITH-RECORDED-HONESTY / CARRIED (named owner).
   the same-head amendment earned by M7-6's pair (R1 pre-fix head,
   R2 post-fix head — recorded but STRUCK from the variance sample,
   ordinals now fixed at R1 dispatch, #268).
-- **Hosted state**: [FINALIZE: main tip run id at presentation.]
+- **Hosted state**: main's full-matrix run on the tip containing
+  every M7 merge (the #288 merge commit 2f0ab064e) — run 31335293219,
+  GREEN at presentation. Every unit also merged only on its own
+  fully-green head (hosted CI the only gate throughout).
+- **The demo record**: the wild-corpus montage (#283, 6
+  license-cleared cells through the kernel's own import +
+  tessellation, re-verified byte-stable post-#276) and the
+  calochortus refresh (#294 — the tube door's exact-intent stems
+  retiring the lily's oldest workaround, out-of-plane swept leaves,
+  and the rational-section frontier honestly pinned instead of
+  hidden). Both surfaced real kernel findings now sequenced into
+  the ruled demo-hardening stretch (#284; span-meter rational
+  bound; rational-patch-flux quadrature).
+- **The handoff record**: M7's endgame crossed an orchestrator
+  handoff with two units live (Evan's ask, #285); both lanes'
+  unpushed work was recovered, both units finished by fresh agents
+  under the standing process, and the one design ruling made
+  unilaterally (#288's union collision, option (c)) carries its
+  full option analysis in the PR body for retroactive review.
 
 ## Tally
 
-[FINALIZE after M7-6 + the #260 ruling.]
+Nine rows: **5 MET** (rows 2, 4, 5, 7 — with row 4 exceeded, row 5
+stronger than asked — and the second clause of 6), **3
+MET-WITH-RECORDED-HONESTY** (rows 1, 3+6's promoted-fixed-point
+re-statement, 8 — each honesty enumerated, pinned, and carrying a
+named flip condition), **1 ON-TRACK directional** (row 9). Zero
+criteria unmet, zero honesty items unpinned, every carried item has
+a named owner (#250's register, the demo-hardening stretch, M8/C7).
 
 **Closure is Evan's call.** Presented via a docs-only PR; his
 sign-off on the closure affordance ratifies M7 CLOSED — and M8

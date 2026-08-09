@@ -1170,3 +1170,36 @@ envelope probes + the wall-side falsifier). Workspace
 the union is built explicitly, never assumed from two green branches),
 and COLD-LINT — `cargo clean -p geom-brep -p step-import -p topo`, then
 clippy, clippy `--features interval` and `fmt-all --check` — clean.
+
+## Seam entry (2026-08-09, successor orchestrator): M7's CONTENT IS DONE — the walk goes to Evan
+
+**The orchestrator handoff executed mid-cycle** (Evan's ask, #285):
+this session inherited two live units, recovered both dead lanes'
+unpushed commits, and ran both endgames with fresh agents. Merged
+this seam: **#276** (M7-7 tier-at-import — per-solid gating earned
+at R1, ε-row-honest pins from the 477-cell sweep, delta re-review
+0 MAJ), **#288** (M7-8 plane×NURBS declare-and-check — the
+seam-orphan class retired; R1's MAJOR was envelope test-coverage,
+closed by adopting R1's own probes with mutation red/green proof),
+**#294** (calochortus partial refresh — tube-door exact-intent
+stems, out-of-plane kite-section leaves, the rational-section
+frontier pinned in crates/sweep), plus the WMONTAGE post-#276
+re-verify (byte-stable) and state-sync #295.
+
+**The one design ruling made unilaterally (retroactive-review
+class, full reasoning in #288's body): the #276-union collision
+ruled option (c), re-fixture.** The at-rest gate + the Arm B
+quadrature bank + the rational-walled fixture were individually
+correct and jointly unsatisfiable; verdict-filtering is forbidden
+by #260 (a), and un-banking the quadrature mid-unit would
+contradict Evan's demo-hardening-stretch sequencing. Executing (c)
+measured a SECOND gap (no `Intersection` arm in
+`nurbs_iso_derive`), so no mixed fixture is first-class end-to-end
+today — reported as a spec deviation with both flip conditions
+named in-code, never smoothed.
+
+**Runway from here (all ruled)**: the exit walk PR (closure =
+Evan's 👍 on the affordance) → the demo-hardening stretch as its
+own chunk (#284 Newell re-anchor; span-meter rational speed bound;
+rational-patch-flux quadrature — the last two retire this seam's
+banked refusals; #298 is LIB's #299) → M8 opens with C7.
