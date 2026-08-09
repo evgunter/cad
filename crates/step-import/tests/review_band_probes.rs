@@ -11,7 +11,7 @@
 //! closed-form volumes are the fixtures' own ground truth. The two
 //! defect probes of the review (wrap-misread, split starvation) are
 //! now the PINS of their fixes: the structural winding read and the
-//! executed tier-3 backstop.
+//! tier-3 gate that actually runs on every imported solid.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -177,12 +177,11 @@ fn r1_torus_region_selection_is_real() {
 /// backstop, and they RUN before the body ships, so the
 /// negative-volume body never imports green.
 ///
-/// Since M7-7 (#260 ruling (a)) the mechanism is the GENERAL one: the
-/// band-only `band_backstop` is gone and this fixture refuses through
-/// the shared at-rest gate every imported solid passes. Same fixture,
-/// same verdict, no special case — which is the point: the band's
-/// backstop was only ever a patch over ordinary solids skipping the
-/// gate.
+/// The mechanism is the general one (#260 ruling (a)): this fixture
+/// refuses through the shared at-rest gate EVERY imported solid
+/// passes, with no band-specific validation anywhere on the path. A
+/// band is not a special kind of body; it is an ordinary body whose
+/// region decode happens to lean on gates the whole corpus now runs.
 #[test]
 fn r1_inside_out_torus_band_never_imports_green() {
     let e = import_step(&band("band_c180.stp"), &ImportOptions::default()).unwrap_err();
