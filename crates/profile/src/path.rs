@@ -309,6 +309,8 @@ use crate::{ProfileLoop, ProfileVertex};
 pub(crate) mod arc_fillet;
 pub mod program;
 
+pub use arc_fillet::ArcCarrierScalar;
+
 // ------------------------------------------------------------------
 // Lattice markers (PATHS-DESIGN §5: one struct under type-level
 // markers; the position marker carries the plain-vs-directed flavor).

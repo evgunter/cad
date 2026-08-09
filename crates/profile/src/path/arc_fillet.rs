@@ -573,6 +573,20 @@ fn arrival_side<T: Real>(p: Point2<T>, centre: Point2<T>, winding: ArcSweep) -> 
     }
 }
 
+/// The scalar obligation the arc-carrier arrival binders impose, NAMED.
+///
+/// `at_on` (the fillet-arrival form) and `to_on` run the S8 selection
+/// ladder, so they are `Decide + Bounds` honestly — the compound bound
+/// this file is allowlisted for. The replay driver
+/// ([`super::program::replay`]) must be able to call them, so its own
+/// signature inherits the obligation; naming it here keeps the compound
+/// bound CONFINED to this file, which is exactly what the confinement
+/// exists for ("so path.rs itself stays bracket-free"). The driver reads
+/// no bracket of its own: it propagates this obligation and nothing more.
+pub trait ArcCarrierScalar: Decide + Bounds {}
+
+impl<T: Decide + Bounds> ArcCarrierScalar for T {}
+
 impl Open {
     /// **G2 §3a** — the entry bound ON an arc carrier: binds the entry
     /// POSITION to `p` and the entry DIRECTION to that carrier's

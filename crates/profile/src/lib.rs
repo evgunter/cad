@@ -128,8 +128,8 @@ pub use path::program::{
     ClosedLoop, ReplayError, ReplayErrorKind, Step, Target, TipState, Verb, replay,
 };
 pub use path::{
-    ArcCenterTarget, ArcTarget, ArcViaTarget, LineTarget, Open, PartialPath, PathError, Start,
-    TangentArcTarget, circle,
+    ArcCarrierScalar, ArcCenterTarget, ArcTarget, ArcViaTarget, LineTarget, Open, PartialPath,
+    PathError, Start, TangentArcTarget, circle,
 };
 pub use sugar::{ArcSweep, FilletLegShape, LoopBuilder, bulge_from_center, bulge_from_via};
 pub use validate::{

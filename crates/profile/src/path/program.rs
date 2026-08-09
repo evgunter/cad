@@ -35,10 +35,11 @@
 //! wire-shaped step type is `editor-core`'s; this one is the resolved,
 //! scalar-valued form the driver consumes.
 
-use geom_core::{Bounds, Decide, Point2, Real};
+use geom_core::{Decide, Point2, Real};
 
 use super::{
-    Flavor, HasAng, HasPos, NoAng, NoPos, Open, PartialPath, PathError, Plain, Start, WithIncoming,
+    ArcCarrierScalar, Flavor, HasAng, HasPos, NoAng, NoPos, Open, PartialPath, PathError, Plain,
+    Start, WithIncoming,
 };
 use crate::ProfileLoop;
 use crate::sugar::ArcSweep;
@@ -485,7 +486,7 @@ fn do_fillet<T: Decide, F: Flavor>(p: PartialPath<T, HasPos<F>, HasAng>, radius:
 /// Every arm calls exactly one binder — the one the typestate makes
 /// well-typed at that state. The trailing wildcard is the lattice
 /// violation: a (state, verb) pair the authoring surface cannot spell.
-fn apply<T: Decide + Bounds>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
+fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
     match (tip, step) {
         // --- Entry (nothing bound; the `Open` value itself) -----------
         (DynTip::Entry, Step::At(p)) => Ok(Applied::Tip(DynTip::PlainPoint(Open.at(p)))),
@@ -598,7 +599,7 @@ fn apply<T: Decide + Bounds>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
 /// # Errors
 ///
 /// [`ReplayError`], carrying the offending step index.
-pub fn replay<T: Decide + Bounds>(steps: &[Step<T>]) -> Result<ProfileLoop<T>, ReplayError<T>> {
+pub fn replay<T: ArcCarrierScalar>(steps: &[Step<T>]) -> Result<ProfileLoop<T>, ReplayError<T>> {
     let mut tip = DynTip::Entry;
     for (i, step) in steps.iter().enumerate() {
         let applied = apply(tip, *step).map_err(|kind| ReplayError { step: i, kind })?;
