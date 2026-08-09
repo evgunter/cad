@@ -900,10 +900,12 @@ fn wire_pattern<T: Decide>(
 /// was NOT true as written until #207 closed. `sweep_body` with any
 /// CURVED path refused at assembly — the skin fit synthesized a weight
 /// channel for integral sections, the walls came out bitwise rational,
-/// and `nurbs_span_meter` poisoned — so between M6-3 and #207 the
-/// machinery had zero successful curved-path callers anywhere in the
-/// tree, and only the straight-path/uniform-loft slice was exercised.
-/// The claim stands today on a real caller:
+/// and `nurbs_span_meter` poisoned (the meter had no rational arm
+/// then; M7's rational span meter has since given it one, so a
+/// rational wall is no longer fatal on its own) — so between M6-3 and
+/// #207 the machinery had zero successful curved-path callers anywhere
+/// in the tree, and only the straight-path/uniform-loft slice was
+/// exercised. The claim stands today on a real caller:
 /// `sweep/tests/m7_skin_integral.rs` builds, validates and measures a
 /// quarter-torus elbow, and `step-export/tests/m7_swept_elbow.rs` puts
 /// it on the wire.
