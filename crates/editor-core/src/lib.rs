@@ -48,11 +48,12 @@ pub use expr::{
 };
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
-    CapEnd, Denotation, EntityKey, EntityKind, EntityRef, Entry, InterrogateError, MeridianEnd,
-    NamePat, NameTable, NamingError, OpGroup, ProfileEdgeRef, ProfileVertexRef, Qualifier,
-    RimSupport, RolePath, RoleSeg, SegPat, SegTag, Selector, Side, SideVerdict, SplitHalf,
-    StableName, TagPat, all_bodies, all_edges, all_faces, all_vertices, denotation, edge_frame,
-    face_frame, select, vertex_position,
+    ALL_SURFACE_KINDS, CapEnd, Cmp, CurveKind, CurveKindSet, Denotation, EntityKey, EntityKind,
+    EntityRef, Entry, GeomPred, InterrogateError, MeridianEnd, NamePat, NameTable, NamingError,
+    OpGroup, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg,
+    SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf,
+    StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, denotation,
+    edge_frame, face_frame, select, select_where, vertex_position,
 };
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
 pub use parse::{ParseError, parse_expr};

@@ -14,6 +14,7 @@ workspace = true
 # (M4 PR 1 D8; M4 PR 2 D2/D7) run in CI's interval lane.
 interval = [
     "geom-core/interval",
+    "geom-brep/interval",
     "geom-surfaces/interval",
     "profile/interval",
     "sweep/interval",
@@ -26,6 +27,14 @@ interval = [
 # crates gain NO editor-core dependency (the workspace dep direction
 # enforces it).
 geom-core = { path = "../geom-core" }
+# LIB-SEL1: the geometric selector's EXACT atoms read the surface tag,
+# and `geom_brep::SurfaceKind` is the workspace's ONE fieldless mirror
+# of `Surface` (D3: closed, compiler-enumerated). Reused rather than
+# re-minted — a second mirror is a second thing to keep in step — and
+# `topo` deliberately does not re-export it (pncad `closure.rs`'s
+# "zero kernel edits" ruling), so the honest reach is a direct edge on
+# a crate editor-core already builds against through `sweep`.
+geom-brep = { path = "../geom-brep" }
 # M4 PR 3: the naming layer reads face carrier PLANES (side-of
 # discriminators against cutting carriers, N2) from the result body.
 geom-surfaces = { path = "../geom-surfaces" }

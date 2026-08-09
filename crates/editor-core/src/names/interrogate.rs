@@ -208,6 +208,39 @@ pub fn vertex_position<T: Decide>(
     }
 }
 
+/// **Where an entity IS**, in ONE point, for any entity kind — the
+/// position the geometric selector's decided
+/// [`DatumDistance`](super::GeomPred::DatumDistance) atom measures.
+///
+/// It nominates nothing new: a vertex answers with its stored
+/// position, an edge and a face with their carrier frame ORIGIN —
+/// the same points [`vertex_position`], [`edge_frame`] and
+/// [`face_frame`] already hand out. The U5 refusals travel with them
+/// (a NURBS face has no canonical frame and refuses; a whole-body
+/// name has no point at all), which is what keeps an unreadable
+/// candidate a typed refusal instead of a silent drop from a result
+/// set.
+///
+/// Takes the resolved `(body, key)` rather than a name, because the
+/// tied-name rule (GS-Q4) must measure EVERY candidate of a tie —
+/// which the name-level doors deliberately refuse to do.
+///
+/// # Errors
+///
+/// [`InterrogateError::WholeBody`] for a body key; the wrapped
+/// [`ReadbackError`] for an uncertified or frameless carrier.
+pub(crate) fn entity_point<T: Decide>(
+    body: &Body<T>,
+    key: EntityKey,
+) -> Result<geom_core::Point3<T>, InterrogateError> {
+    match key {
+        EntityKey::Vertex(v) => Ok(readback::vertex_point(body, v)?),
+        EntityKey::Edge(e) => Ok(readback::edge_pose(body, e)?.origin),
+        EntityKey::Face(f) => Ok(readback::face_pose(body, f)?.origin),
+        EntityKey::Body => Err(InterrogateError::WholeBody),
+    }
+}
+
 /// The kind refusal, with `Body` broken out: a whole body has no
 /// frame at all, which is a different fact from "wrong kind of
 /// entity".
@@ -223,7 +256,7 @@ fn kind_mismatch(wanted: EntityKind, found: EntityKey) -> InterrogateError {
 
 /// The node's value, or the typed rung of the ladder it failed at
 /// (the same ladder `resolve::hit` walks, one direction over).
-fn value_of<T: Decide>(
+pub(crate) fn value_of<T: Decide>(
     ev: &Evaluation<T>,
     node: RecipeNodeId,
 ) -> Result<&crate::eval::NodeValue<T>, InterrogateError> {
@@ -262,7 +295,7 @@ fn entity_of<'a, T: Decide>(
 /// The node's output body at `index` — the same body ordering the
 /// naming emission used (single-body ops: 0; split: 0 above, 1 below;
 /// pattern: the instance index).
-fn output_body<T: Decide>(
+pub(crate) fn output_body<T: Decide>(
     payload: &ValuePayload<T>,
     index: u32,
 ) -> Result<&Body<T>, InterrogateError> {

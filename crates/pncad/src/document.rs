@@ -34,7 +34,9 @@ pub use editor_core::{Doc, DocEdit, EditError, apply};
 pub use editor_core::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
 
 // Expressions and their text door.
-pub use editor_core::{Dimension, Expr, ParseError, parse_expr};
+// `ParamEnv` joins them for LIB-SEL1: `select_where` takes one, so a
+// caller who cannot spell the type cannot call the door.
+pub use editor_core::{Dimension, Expr, ParamEnv, ParseError, parse_expr};
 
 // Evaluation: the service, its options, its results, and the payloads
 // a result can carry.
