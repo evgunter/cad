@@ -96,7 +96,7 @@ use std::sync::Arc;
 
 pub use fit::{FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, Decide, Indeterminate, Length, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 pub use nurbs::{NurbsCurve2, NurbsCurve3};
 pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 
@@ -305,12 +305,12 @@ impl<T: Decide> Curve3<T> {
         u_ref: Vec3<T>,
         band: Band,
     ) -> Result<Self, EllipseInvalid> {
-        match geom_core::k_stats::decide("ellipse_minor_positive", Length::of(minor), band) {
+        match geom_core::k_stats::decide("ellipse_minor_positive", Margin::of(minor), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return Err(EllipseInvalid::MinorNotPositive),
             Err(diag) => return Err(EllipseInvalid::Escalated(diag)),
         }
-        match geom_core::k_stats::decide("ellipse_axes_distinct", Length::of(major - minor), band) {
+        match geom_core::k_stats::decide("ellipse_axes_distinct", Margin::of(major - minor), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero) => return Err(EllipseInvalid::CircularAxes),
             Ok(Sign::Negative) => return Err(EllipseInvalid::AxesSwapped),

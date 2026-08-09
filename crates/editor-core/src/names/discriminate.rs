@@ -6,7 +6,7 @@
 //! undiscriminated siblings get the N2 tie mark at the table.
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Length, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 use topo::{Body, FaceKey};
 
 use super::emit::{NamingError, face_half_edges};
@@ -57,7 +57,7 @@ pub(crate) fn side_of_face<T: Decide>(
             .and_then(|vd| body.get_point(vd.point))
             .ok_or_else(|| bug("side_of: vertex without point"))?;
         any = true;
-        match decide("name_frag_side_of", Length::of((p - origin).dot(normal)), b) {
+        match decide("name_frag_side_of", Margin::of((p - origin).dot(normal)), b) {
             Ok(Sign::Positive) => pos = true,
             Ok(Sign::Negative) => neg = true,
             Ok(Sign::Zero) => {}
@@ -107,12 +107,12 @@ pub(crate) fn order_along<T: Decide>(
             // Zero (touching extents) counts as ordered too.
             let ij = decide(
                 "name_frag_order_along",
-                Length::of(extents[j].min - extents[i].max),
+                Margin::of(extents[j].min - extents[i].max),
                 b,
             );
             let ji = decide(
                 "name_frag_order_along",
-                Length::of(extents[i].min - extents[j].max),
+                Margin::of(extents[i].min - extents[j].max),
                 b,
             );
             match (ij, ji) {

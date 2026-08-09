@@ -11,10 +11,10 @@
 //! doors ([`Length::meters`], [`Angle::radians`]) — the same GQ5
 //! erasure boundary the expression sublanguage has.
 //!
-//! NAME NOTE: `geom_core::predicate::Length<T>` is a DIFFERENT thing —
-//! the kernel-internal classify-seam margin type (D4's margin
-//! convention, no unit algebra). This crate's [`Length`] is D6's
-//! API-boundary quantity. The two never meet in one namespace: the
+//! NAME NOTE: `geom_core::predicate::Margin<T>` (renamed from
+//! `Length<T>`, LB9) is the kernel-internal classify-seam margin type
+//! (D4's margin convention, no unit algebra) — a DIFFERENT thing from
+//! this crate's [`Length`], which is D6's API-boundary quantity. The
 //! pncad prelude exports THIS type and has never exported the seam
 //! type, which no library user touches.
 //!

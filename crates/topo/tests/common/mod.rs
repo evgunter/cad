@@ -443,7 +443,7 @@ pub fn flush_declarations<T: geom_core::Decide>(
     b: &Body<T>,
 ) -> topo::BooleanDeclarations {
     use geom_core::k_stats::{decide, decide_flagged};
-    use geom_core::{Length, Sign};
+    use geom_core::{Margin, Sign};
     let band = Band::linear().unwrap();
     let planes = |body: &Body<T>| -> Vec<(topo::FaceKey, Point3<T>, geom_core::Vec3<T>)> {
         body.faces()
@@ -483,7 +483,7 @@ pub fn flush_declarations<T: geom_core::Decide>(
             let da = na.dot(oa - Point3::origin());
             let db = nb.dot(ob - Point3::origin());
             if matches!(
-                decide("test_flush_offset", Length::of(da - sigma * db), band),
+                decide("test_flush_offset", Margin::of(da - sigma * db), band),
                 Ok(Sign::Zero)
             ) {
                 decls.coincident_faces.push((fa, fb));
