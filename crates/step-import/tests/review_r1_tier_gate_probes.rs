@@ -91,10 +91,14 @@ fn entity_id(line: &str) -> Option<u64> {
     rest[..end].parse().ok()
 }
 
+/// One solid of a doctored multi-solid file: the id offset its copy of
+/// cube.step is renumbered by, and the per-line edit applied to it.
+type Doctor<'a> = (u64, &'a dyn Fn(&str) -> String);
+
 /// Rebuilds cube.step with the given per-solid doctors; each copy of
 /// entities #1..=#150 is renumbered by its offset, the shared trailer
 /// (#151..) is kept, and the shape representation lists every solid.
-fn multi_cube(doctors: &[(u64, &dyn Fn(&str) -> String)]) -> String {
+fn multi_cube(doctors: &[Doctor<'_>]) -> String {
     let src = fixture("../step-export/tests/fixtures/cube.step");
     let mut out: Vec<String> = Vec::new();
     let mut trailer: Vec<String> = Vec::new();
@@ -273,7 +277,7 @@ fn perturb_corner_consistently(src: &str, delta: f64) -> String {
         parse_triple(&ent[&pref]).unwrap()
     };
     // 3. Re-aim every LINE of an EDGE_CURVE ending at a moved vertex.
-    for (_id, body) in ent.clone().iter() {
+    for body in ent.clone().values() {
         if !body.starts_with("EDGE_CURVE") {
             continue;
         }
@@ -318,18 +322,31 @@ fn perturb_corner_consistently(src: &str, delta: f64) -> String {
 /// posture. (A gate-level escalated verdict was not constructible
 /// through any route tried; adoption's certification sweep covers the
 /// vertex/carrier defect classes first.)
+///
+/// The defect is sized FROM the ambient band, never from a literal:
+/// "in band" means (ε, Kε) and "above band" means past Kε, so the
+/// probe constructs the same two situations on every hosted ε row.
+/// (At the default ε = 1e-9, K = 10 these are the recorded
+/// 2/4/8e-9 and 1.5/3e-8 metres.) `eps_in` is pinned 1000× ABOVE the
+/// ambient ε on every row, which is the point being made: an ε_in that
+/// coarse still cannot loosen what adoption decides.
 #[test]
 fn r1_in_band_vertex_defect_refuses_loudly_at_adoption() {
     let src = fixture("../step-export/tests/fixtures/cube.step");
+    let tol = geom_core::Tolerance::get();
+    let (eps, escalate) = (tol.eps, tol.k * tol.eps);
     for (delta, want_escalated) in [
-        (2e-9, true),
-        (4e-9, true),
-        (8e-9, true),
-        (1.5e-8, false),
-        (3e-8, false),
+        (2.0 * eps, true),
+        (4.0 * eps, true),
+        (8.0 * eps, true),
+        (1.5 * escalate, false),
+        (3.0 * escalate, false),
     ] {
         let doctored = perturb_corner_consistently(&src, delta);
-        match import_step(&doctored, &ImportOptions { eps_in: Some(1e-6) }) {
+        let options = ImportOptions {
+            eps_in: Some(1000.0 * eps),
+        };
+        match import_step(&doctored, &options) {
             Ok(shipped) => panic!("delta {delta:e}: SHIPPED silently: {shipped:?}"),
             Err(e) => {
                 let dbg = format!("{e:?}");
@@ -547,10 +564,15 @@ fn sliver_wedge_step(alpha: f64, leg: f64, h: f64) -> String {
 /// dihedral passed the gate silently.
 #[test]
 fn r1_in_band_dihedral_wedge_never_ships_silently() {
-    for alpha in [3e-8_f64, 5e-8, 8e-8] {
-        // legs 10 m (far edge 3e-7..8e-7: decidedly positive), apex
-        // edge 0.1 m (dihedral margin alpha*0.1: IN the band).
-        let text = sliver_wedge_step(alpha, 10.0, 0.1);
+    // Legs 10 m, apex edge h = 0.1 m. The dihedral margin is alpha*h,
+    // so alpha is chosen FROM the ambient band to put it at 3/5/8·ε —
+    // inside (ε, Kε) on every hosted ε row, not just the default one
+    // (where these are the recorded 3/5/8e-8 rad). The far edge's
+    // margin is alpha*leg = 100× that, decidedly positive throughout.
+    let (leg, h) = (10.0_f64, 0.1_f64);
+    let eps = geom_core::Tolerance::get().eps;
+    for alpha in [3.0 * eps / h, 5.0 * eps / h, 8.0 * eps / h] {
+        let text = sliver_wedge_step(alpha, leg, h);
         match import_step(&text, &ImportOptions::default()) {
             Ok(StepImport::Solid { body, .. }) => panic!(
                 "alpha={alpha:e}: the in-band wedge SHIPPED as a solid (gate re-run: {:?})",

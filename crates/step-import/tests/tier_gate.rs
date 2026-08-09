@@ -14,9 +14,15 @@
 //! own ε_in, and overrides 1e-6 / 1e-12):
 //!
 //! * **the disposition** — solid, wireframe, or a typed refusal with
-//!   its reason — held constant across all three, so an ε-row
-//!   dependence in what the corpus does becomes a red row and not a
-//!   surprise;
+//!   its reason. 51 of the 53 files hold ONE disposition across the
+//!   whole matrix, and that constancy is the claim. The two that do
+//!   not are marked `EpsSensitive` and pinned cell by cell in
+//!   [`EPS_ROWS`], each cell carrying the live signature of the
+//!   sub-reason that actually fires there — because a row that may
+//!   Pass at one ambient ε and refuse typed at another can otherwise
+//!   be green for the wrong reason. No ε is ever special-cased into
+//!   silence: a refusal that fires at a tighter tolerance is pinned AS
+//!   the honest posture, and the reason it moved is written down;
 //! * **tier-validity of every shipped body, positively** — the gate is
 //!   re-run on the body `import_step` handed out. That is redundant
 //!   only while the gate is wired: delete or narrow the call and these
@@ -37,7 +43,8 @@
 //! `review_r1_tier_gate_probes.rs` pins the difference. Banked with
 //! the M8 contact program (D7 step 4), not silently absorbed here.
 //!
-//! **Measured (M7-7): no committed corpus file fails the gate.** 44 solids pass, 8 files refuse for reasons that predate this
+//! **Measured (M7-7), at the ambient default:** no committed corpus
+//! file fails the gate. 44 solids pass, 8 files refuse for reasons that predate this
 //! unit (one of them, `band_c180`, at the gate itself — the inside-out
 //! torus band, refusing now through the general mechanism that
 //! replaced its band-only backstop), and one file is a wireframe. The
@@ -50,7 +57,7 @@
 
 use std::path::{Path, PathBuf};
 
-use Disposition::{Pass, Refused, Wireframe};
+use Disposition::{EpsSensitive, Pass, Refused, Wireframe};
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 /// What a corpus file does at import, at every tolerance in the sweep.
@@ -71,7 +78,95 @@ enum Disposition {
     /// Refuses typed; the string is a distinctive fragment of the
     /// refusal's own message, so the ROW says why, not just that.
     Refused(&'static str),
+    /// This file's disposition genuinely MOVES with the ambient ε, and
+    /// its cells are pinned one by one in [`EPS_ROWS`] — a marker, not
+    /// an outcome, so no cell of it can be satisfied by accident.
+    EpsSensitive,
 }
+
+/// The ambient tolerances this suite pins cell by cell — the hosted
+/// matrix's three rows (`CAD_TOLERANCE_EPS` unset, `1e-6`, `1e-12`).
+const PINNED_AMBIENT: [f64; 3] = [geom_core::tolerance::DEFAULT_EPS, 1e-6, 1e-12];
+
+/// The `eps_in` overrides swept per ambient row, tagged as the failure
+/// messages name them.
+const EPS_IN_ROWS: [(&str, Option<f64>); 3] =
+    [("file", None), ("1e-6", Some(1e-6)), ("1e-12", Some(1e-12))];
+
+/// **The ε-row pins.** Two corpus files' dispositions are a function of
+/// the ambient ε, and hiding that behind one row per file would make
+/// the suite either red for an honest reason or green for a wrong one.
+/// Each cell is `(file, ambient ε, eps_in row, disposition)`; the
+/// coverage test below holds this table to exactly one cell per
+/// (`EpsSensitive` file × [`PINNED_AMBIENT`] × [`EPS_IN_ROWS`]), so a
+/// pin can neither go missing nor rot unread.
+///
+/// Both movements are the kernel deciding HONESTLY at the tolerance it
+/// was given, and the fragments below are each sub-reason's own live
+/// signature, never the shared preamble:
+///
+/// * **`ftc11_uref_off`** is the deliberately-degenerate band fixture.
+///   Its seam residual is ~1.6e-6 m, so at ambient 1e-6 that margin
+///   lands INSIDE the ambiguity band (zero = ε, escalate = Kε) and the
+///   refusal is an ESCALATION rather than a definite verdict; at
+///   ambient 1e-12 the same margin is decisively outside every band, so
+///   the coincidence predicates that refused it at coarser ε ("tangent
+///   planes coincide", the Intersection transversality precondition)
+///   no longer fire, and the file imports. A coincidence test refusing
+///   what is TOO CLOSE must stop refusing as ε shrinks; that direction
+///   is the predicate being right, not the gate being loosened.
+/// * **`nist_ftc_09_asme1_rd`** refuses at ambient 1e-12 with definite
+///   `EndpointStart` residuals on both the seam and the mapped-curve
+///   arm. This is the floor `wild.rs` already measures and documents:
+///   the NIST inch translator prints ~12 significant digits, so the
+///   file does not state itself to 1e-12 m, and the adoption ladder
+///   says so by name instead of certifying a carrier it cannot.
+const EPS_ROWS: [(&str, f64, &str, Disposition); 18] = [
+    // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
+    (FTC11, 1e-9, "file", Refused(SEAM_HALFPLANE_DEFINITE)),
+    (FTC11, 1e-9, "1e-6", Refused(TANGENT_PLANES_COINCIDE)),
+    (FTC11, 1e-9, "1e-12", Refused(TANGENT_PLANES_COINCIDE)),
+    (FTC11, 1e-6, "file", Refused(SEAM_HALFPLANE_ESCALATED)),
+    (FTC11, 1e-6, "1e-6", Refused(PARAM_SPAN_ESCALATED)),
+    (FTC11, 1e-6, "1e-12", Refused(PARAM_SPAN_ESCALATED)),
+    (FTC11, 1e-12, "file", Refused(SEAM_HALFPLANE_DEFINITE)),
+    (FTC11, 1e-12, "1e-6", Pass(1, 1, 6, 16, 12)),
+    (FTC11, 1e-12, "1e-12", Pass(1, 1, 6, 16, 12)),
+    // -- tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp ------------
+    (NIST09, 1e-9, "file", Pass(1, 1, 158, 454, 300)),
+    (NIST09, 1e-9, "1e-6", Pass(1, 1, 158, 454, 300)),
+    (NIST09, 1e-9, "1e-12", Pass(1, 1, 158, 454, 300)),
+    (NIST09, 1e-6, "file", Pass(1, 1, 158, 454, 300)),
+    (NIST09, 1e-6, "1e-6", Pass(1, 1, 158, 454, 300)),
+    (NIST09, 1e-6, "1e-12", Pass(1, 1, 158, 454, 300)),
+    (NIST09, 1e-12, "file", Refused(ENDPOINT_START_MAPPED_CURVE)),
+    (NIST09, 1e-12, "1e-6", Refused(ENDPOINT_START_MAPPED_CURVE)),
+    (NIST09, 1e-12, "1e-12", Refused(ENDPOINT_START_MAPPED_CURVE)),
+];
+
+const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
+const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
+
+/// The seam carrier's residual is DECIDEDLY outside the band.
+const SEAM_HALFPLANE_DEFINITE: &str =
+    "SeamHalfplane residual at sample 0 definitely exceeds the tolerance band";
+/// The same residual, IN the band: escalate-never-guess, by name.
+const SEAM_HALFPLANE_ESCALATED: &str =
+    "SeamHalfplane at sample 0 escalated: predicate 'carrier_in_seam_halfplane' indeterminate";
+/// Coarse enough for the two walls to read as one: the Intersection
+/// transversality precondition fails, and the ladder says which.
+const TANGENT_PLANES_COINCIDE: &str =
+    "tangent planes coincide at interior sample 1 — the Intersection transversality \
+     precondition fails";
+/// At ambient 1e-6 the file's own span decision is in-band too, and it
+/// is reached first — at assembly, before any edge is adopted.
+const PARAM_SPAN_ESCALATED: &str =
+    "ParamSpan at sample 0 escalated: predicate 'interval_span_forward' indeterminate";
+/// Naming the MAPPED-CURVE arm pins that BOTH candidates were tried and
+/// both refused definite — the seam arm alone would match a prefix.
+const ENDPOINT_START_MAPPED_CURVE: &str =
+    "mapped curve: geometry attachment gate: certification: EndpointStart residual at sample 0 \
+     definitely exceeds";
 
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
@@ -92,10 +187,7 @@ const CORPUS: [(&str, Disposition); 53] = [
         "tests/fixtures/band/band_d_invcyl.stp",
         Refused("ORIENTATION-INVERTED cylinder band"),
     ),
-    (
-        "tests/fixtures/band/ftc11_uref_off.stp",
-        Refused("no intensional description certifies"),
-    ),
+    ("tests/fixtures/band/ftc11_uref_off.stp", EpsSensitive),
     ("tests/fixtures/band/washer180.stp", Pass(1, 1, 3, 5, 4)),
     ("tests/fixtures/band/washer90.stp", Pass(1, 1, 3, 5, 4)),
     ("tests/fixtures/freecad/box.step", Pass(1, 1, 6, 12, 8)),
@@ -157,7 +249,7 @@ const CORPUS: [(&str, Disposition); 53] = [
     ),
     (
         "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp",
-        Pass(1, 1, 158, 454, 300),
+        EpsSensitive,
     ),
     (
         "tests/fixtures/wild/nist/nist_ftc_11_asme1_rb.stp",
@@ -311,17 +403,85 @@ fn the_table_is_the_whole_corpus() {
     );
 }
 
+/// The claim that holds at ANY ambient ε, pinned matrix or not: the
+/// outcome is TYPED — a solid whose SHIPPED body the gate itself
+/// passes, a wireframe, or a typed refusal — and never a body the
+/// kernel would call geometrically false. A row that asserted nothing
+/// off the matrix would be a green tick for work not done.
+fn assert_typed_outcome(who: &str, got: Result<StepImport, StepImportError>) {
+    match got {
+        Ok(StepImport::Solid { body, .. }) => assert_eq!(
+            topo::validate_geometric(&body),
+            Ok(()),
+            "{who}: import shipped a body its own gate refuses"
+        ),
+        Ok(StepImport::Wireframe { .. }) | Err(_) => {}
+    }
+}
+
+/// The [`EPS_ROWS`] pins cover exactly the `EpsSensitive` files, at
+/// exactly the pinned ambient tolerances, with exactly one cell per
+/// `eps_in` row — so a marker cannot go unpinned and a pin cannot
+/// outlive the marker that reads it.
+#[test]
+fn every_eps_sensitive_row_is_pinned_cell_by_cell() {
+    let mut markers: Vec<&str> = CORPUS
+        .iter()
+        .filter(|(_, d)| *d == EpsSensitive)
+        .map(|(p, _)| *p)
+        .collect();
+    markers.sort_unstable();
+    let mut pinned: Vec<&str> = EPS_ROWS.iter().map(|(p, ..)| *p).collect();
+    pinned.sort_unstable();
+    pinned.dedup();
+    assert_eq!(
+        markers, pinned,
+        "an EpsSensitive row with no cells, or cells for a file that is not EpsSensitive"
+    );
+    for file in &markers {
+        for ambient in PINNED_AMBIENT {
+            for (tag, _) in EPS_IN_ROWS {
+                let hits = EPS_ROWS
+                    .iter()
+                    .filter(|(p, a, t, _)| p == file && *a == ambient && *t == tag)
+                    .count();
+                assert_eq!(hits, 1, "{file} @ ambient {ambient:e} / eps {tag}: {hits} pins");
+            }
+        }
+    }
+}
+
+/// What this row must do, or `None` when the ambient ε is off the
+/// pinned matrix and only the every-ε obligation is claimed.
+fn expected(rel: &str, row: Disposition, eps_tag: &str) -> Option<Disposition> {
+    if row != EpsSensitive {
+        return Some(row);
+    }
+    let ambient = geom_core::Tolerance::get().eps;
+    EPS_ROWS
+        .iter()
+        .find(|(p, a, t, _)| *p == rel && *a == ambient && *t == eps_tag)
+        .map(|(.., d)| *d)
+}
+
 /// Every corpus file's disposition, and the positive tier-validity of
 /// every body that ships — at each tolerance in the sweep.
 #[test]
 fn every_corpus_import_passes_the_shared_gate() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    for (eps_tag, eps_in) in [("file", None), ("1e-6", Some(1e-6)), ("1e-12", Some(1e-12))] {
-        for (rel, want) in CORPUS {
+    for (eps_tag, eps_in) in EPS_IN_ROWS {
+        for (rel, row) in CORPUS {
             let text = std::fs::read_to_string(root.join(rel))
                 .unwrap_or_else(|e| panic!("reading {rel}: {e}"));
             let options = ImportOptions { eps_in };
             let who = format!("{rel} @ eps {eps_tag}");
+            let Some(want) = expected(rel, row, eps_tag) else {
+                // Off the pinned ambient matrix. The disposition of an
+                // ε-sensitive file is not knowable here, but the gate's
+                // claim still is, and asserting it is not nothing.
+                assert_typed_outcome(&who, import_step(&text, &options));
+                continue;
+            };
             match (import_step(&text, &options), want) {
                 (Ok(StepImport::Solid { body, .. }), Pass(s, sh, f, e, v)) => {
                     assert_eq!(
