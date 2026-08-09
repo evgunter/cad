@@ -17,9 +17,10 @@
 //! What the lily IS, therefore:
 //!
 //! - the **stem** is a chain of circular tube arcs — each one a
-//!   PARTIAL REVOLVE of a circle profile about an axis one ring
-//!   radius away, i.e. a torus segment. A turtle walks the arcs in
-//!   the world xz-plane so consecutive arcs are G1 by construction
+//!   windowed TUBE ALONG AN ARC, i.e. a torus segment said in world
+//!   coordinates: ring centre, spine axis, start radial, ring radius,
+//!   angular window, tube radius. A turtle walks the arcs in the
+//!   world xz-plane so consecutive arcs are G1 by construction
 //!   (shared tangent), and the joint is a shared disk the eye does
 //!   not see. They are separate BODIES: gluing them is a coincident-
 //!   planar contact, which the kernel refuses (probe 1).
@@ -27,23 +28,36 @@
 //!   sphere zone truncated at both poles — a wide belly, a small
 //!   attachment disk where the pedicel enters, and a puckered conical
 //!   mouth closing to a small disk. Sphere zone + cone + two planes,
-//!   all exact.
-//! - the **leaves** are lanceolate crescents: two circular arcs of
-//!   DIFFERENT radii spanning the same chord, extruded thin. The
-//!   asymmetry between the two radii is the blade's curve.
+//!   all exact — a `revolve` still, unchanged by this refresh.
+//! - the **leaves** are keeled blades: a thin four-line KITE section —
+//!   two sharp margins on a chord, an unequal ridge and keel across
+//!   it — carried along a gently arching circular spine by the
+//!   general-path sweep. The blade now leaves the plane it was drawn
+//!   in, which the extruded crescent could not do. Two things it
+//!   still cannot do: TAPER (findings entry 9, so one width base to
+//!   tip) and carry an ARC in its section (the skin lane refuses a
+//!   rational wall — see [`leaf`]).
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
 //!
-//! **What "exact" claims, precisely** (review NOTE-1). It claims the
-//! surface KIND: a stem wall is a `Surface::Torus`, not a spline fit of
-//! one, and it exports as `TOROIDAL_SURFACE`. It does NOT claim that
-//! every stored PARAMETER is the authored decimal — `revolve`
-//! reconstructs a tube radius from the profile's bulge arcs rather than
-//! carrying the authored number through, so `lily_stem`'s stored
-//! `minor_radius` is 0.05999999999999961, some 3.9e-16 (56 ulps) below
-//! the authored 0.060. That is float reconstruction of a derived
-//! quantity, not approximation of a shape, and it is not chased here.
+//! **What "exact" claims, precisely** (review NOTE-1). For the
+//! analytic pieces it claims the surface KIND *and* the stored
+//! PARAMETERS: a stem wall is a `Surface::Torus`, not a spline fit of
+//! one, it exports as `TOROIDAL_SURFACE`, and its centre, axis,
+//! `u_ref`, major radius and minor radius are the world-coordinate
+//! numbers this module passed in — `lily_stem`'s stored
+//! `minor_radius` is the authored 0.060, not a reconstruction
+//! 3.9e-16 (56 ulps) below it, because nothing on the tube path goes
+//! profile → bulge → radius, and placement is an argument rather than
+//! a silent sketch-frame landing.
+//!
+//! The leaf blades are the one place the lily is FITTED rather than
+//! stated. A swept skin is a NURBS surface through sampled stations,
+//! so a blade's walls are B-spline surfaces interpolating nine exact
+//! points of an exact circular spine, not a closed form of the swept
+//! kite. That is the price of leaving the plane, and it is stated here
+//! rather than hidden.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -55,7 +69,10 @@ use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, ProfileLoop, SketchPlane};
 use pncad::sweep::fillet::FilletError;
 use pncad::sweep::readback::{WedgeFrames, revolved_caps};
-use pncad::sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use pncad::sweep::{
+    ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, sweep_body,
+    tube_along_arc,
+};
 use pncad::topo::{Body, BooleanError, BooleanOp, Operand, TransformError};
 
 use crate::scalar::Scalar;
@@ -147,45 +164,39 @@ fn sketch_axis<S: Scalar>() -> RevolveAxis<S> {
     }
 }
 
-/// A circle loop, algebra-authored (LIB-G1): the one-step complete-loop
-/// program form. It authors no seam, so the conventional
-/// two-semicircle split is the primitive's private lowering and PQ4 is
-/// untouched; the lowered loop is the two-vertex bulge-1 chain this
-/// helper used to build by hand.
-fn circle_loop<S: Scalar>(cx: f64, cy: f64, r: f64) -> ProfileLoop<S> {
-    pncad::profile::circle(p2(cx, cy), S::from_f64(r))
-        .expect("circle radius is positive")
-        .into()
-}
-
-/// One stem segment: a circular tube of radius `tube` swept along the
-/// arc, i.e. a PARTIAL REVOLVE of a circle profile about an axis one
-/// ring radius away — a torus segment with two disk caps.
+/// One stem segment: a circular tube of radius `tube` running along
+/// the arc — a torus segment with two disk caps, said in WORLD
+/// coordinates through [`tube_along_arc`].
 ///
-/// The sketch frame is pinned at the ring centre with `u` the radial
-/// to the arc's start and `v = ŷ`; the revolve is then `Partial(-turn)`
-/// because a right-hand rotation about +ŷ runs CLOCKWISE in the
-/// xz-plane as drawn.
+/// Every argument is the intent itself and is stored verbatim: the
+/// ring centre is the world point in the xz-plane, `u_ref` is the
+/// radial to the arc's START, `major_radius` is the ring, and
+/// `minor_radius` is the authored tube radius — no profile, no bulge,
+/// no reconstruction. The axis is `-ŷ` for a left turn and `+ŷ` for a
+/// right one, because a right-handed rotation about `-ŷ` runs
+/// COUNTERCLOCKWISE in the xz-plane drawn with +x right and +z up,
+/// which is the turtle's positive sense; with that choice the
+/// traversed window is always `[0, |turn|]` from `u_ref`.
 fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64) -> (Body<S>, WedgeFrames<S>) {
-    let plane = SketchPlane::from_frame(
+    let sense = if spec.turn >= 0.0 { -1.0 } else { 1.0 };
+    let revolved = tube_along_arc(
         pt3(spec.center.0, 0.0, spec.center.1),
+        v3(0.0, sense, 0.0),
         v3(spec.radial.0, 0.0, spec.radial.1),
-        v3(0.0, 1.0, 0.0),
-    );
-    let profile =
-        validated(plane, vec![circle_loop(spec.ring, 0.0, tube)]).expect("lily profile validates");
-    let revolved = revolve(
-        &profile,
-        sketch_axis(),
-        Revolution::Partial(S::from_f64(-spec.turn)),
+        S::from_f64(spec.ring),
+        TubeWindow::Arc {
+            t0: S::from_f64(0.0),
+            t1: S::from_f64(spec.turn.abs()),
+        },
+        S::from_f64(tube),
     )
-    .expect("stem tube arc revolves");
-    // The joint frames, ASKED of the revolve that made them (LIB-U5
-    // deliverable 3): a partial revolve's two wedge caps ARE the
-    // tube's ends, and each cap plane's normal is the tube's tangent
-    // there. Before this door the only way to see them was to scan
-    // every face of the finished body for planar carriers.
-    let caps = revolved_caps(&revolved).expect("a partial revolve has caps");
+    .expect("stem tube arc builds");
+    // The joint frames, ASKED of the operation that made them (LIB-U5
+    // deliverable 3): a windowed tube's two wedge caps ARE the tube's
+    // ends, and each cap plane's normal is the tube's tangent there.
+    // Before this door the only way to see them was to scan every face
+    // of the finished body for planar carriers.
+    let caps = revolved_caps(&revolved).expect("a windowed tube has caps");
     (revolved.body, caps)
 }
 
@@ -248,26 +259,52 @@ fn lantern<S: Scalar>(
     .body
 }
 
-/// A **lanceolate leaf**: two circular arcs of DIFFERENT radii on the
-/// same chord (`w_out` the outer sagitta, `w_in` the inner one), giving
-/// a crescent blade with two sharp tips, extruded `thick` thin.
+/// Stations along a leaf's swept spine, and the v-degree its skin is
+/// fitted at (the swept-elbow corpus fixture's numbers).
+const LEAF_STATIONS: usize = 9;
+/// The leaf skin's fit degree along the path.
+const LEAF_V_DEGREE: usize = 3;
+
+/// A **keeled leaf blade**: a thin section carried along a gently
+/// arching spine by [`sweep_body`] — the general-path sweep, not an
+/// extrusion, so the blade leaves the plane it was drawn in.
 ///
-/// The blade runs from `base` along `dir` for `len`; `up` orients the
-/// blade plane (Gram–Schmidt'd against `dir`). The kernel has no
-/// tapering sweep and no non-uniform scale, so the blade's shape is
-/// entirely the two radii's difference (findings entries 3, 8).
-/// Algebra-authored (LIB-G1): both blade arcs are `arc_via` through
-/// their own sagitta points. The two tips read as cusps but are not —
-/// the arcs' radii differ, so each tip is a definitely-sharp wedge that
-/// the junction check passes on its merits.
+/// The section is a KITE of four straight lines: the two sharp
+/// margins at `±width/2` on the chord, a ridge `ridge` above it and a
+/// keel `keel` below, the two rises DIFFERENT so the blade is
+/// asymmetric about its own chord exactly as the extruded crescent
+/// was. The spine runs through the chord's midpoint, i.e. through the
+/// midrib.
+///
+/// **Why straight lines and not the crescent's arcs.** The skin lane
+/// only carries INTEGRAL sections. An arc is a rational NURBS, a
+/// rational section skins to a rational wall, and a rational carrier
+/// has no `speed_lower_bound` — `nurbs_span_meter` comes back
+/// `Invalid` and the body refuses at assembly (`geom-brep`'s rung-3
+/// span meter; the same poison #207 removed for INTEGRAL inputs it
+/// never claimed to remove for rational ones). So the swept blade is
+/// the honest shape the sweep vocabulary can state today, and the
+/// arcs stay where they still work — the lanterns' meridian and the
+/// stem's tube. Nothing here approximates a curve with a chord: a
+/// kite is exactly a kite.
+///
+/// The spine leaves `base` along `dir` and turns through `curl`
+/// radians toward `up` (Gram–Schmidt'd against `dir`; negative `curl`
+/// arches the blade over, which is what a basal leaf does), staying a
+/// circular arc of length `len` sampled at [`LEAF_STATIONS`] exact
+/// points that a cubic `NurbsCurve3::interpolate` runs through. The
+/// profile plane's normal IS the spine's start tangent, so the section
+/// rides normal to its own path. The blade holds ONE width from base
+/// to tip: there is no tapering sweep (findings entry 9).
 fn leaf<S: Scalar>(
     base: (f64, f64, f64),
     dir: (f64, f64, f64),
     up: (f64, f64, f64),
     len: f64,
-    w_out: f64,
-    w_in: f64,
-    thick: f64,
+    width: f64,
+    ridge: f64,
+    keel: f64,
+    curl: f64,
 ) -> Body<S> {
     let nrm = |(x, y, z): (f64, f64, f64)| {
         let l = (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
@@ -276,32 +313,47 @@ fn leaf<S: Scalar>(
     let d = nrm(dir);
     let dot = up.0 * d.0 + up.1 * d.1 + up.2 * d.2;
     let v = nrm((up.0 - dot * d.0, up.1 - dot * d.1, up.2 - dot * d.2));
-    // n = d x v, the extrusion direction; the frame origin steps back
-    // half a thickness so the blade straddles its own mid-surface.
-    let n = (
-        d.1 * v.2 - d.2 * v.1,
-        d.2 * v.0 - d.0 * v.2,
-        d.0 * v.1 - d.1 * v.0,
+    // u = v x d completes a right-handed (u, v, d) frame, so the
+    // sketch plane's normal u x v is the spine's start tangent d.
+    let u = (
+        v.1 * d.2 - v.2 * d.1,
+        v.2 * d.0 - v.0 * d.2,
+        v.0 * d.1 - v.1 * d.0,
     );
-    let o = (
-        base.0 - 0.5 * thick * n.0,
-        base.1 - 0.5 * thick * n.1,
-        base.2 - 0.5 * thick * n.2,
-    );
-    let plane = SketchPlane::from_frame(pt3(o.0, o.1, o.2), v3(d.0, d.1, d.2), v3(v.0, v.1, v.2));
-    let lp = Open
-        .at(p2(0.0, 0.0))
-        .arc_via(p2(0.5 * len, w_out), p2(len, 0.0))
-        .expect("leaf outer blade arc")
-        .arc_via(p2(0.5 * len, w_in), Start)
-        .expect("leaf inner blade arc")
-        .into();
-    extrude(
-        &validated(plane, vec![lp]).expect("lily profile validates"),
-        Extrusion::Distance(S::from_f64(thick)),
+    // The spine: a circular arc of length `len` turning through `curl`
+    // in the (d, v) plane, i.e. radius len/curl, sampled exactly.
+    let r = len / curl;
+    let pts: Vec<Point3<f64>> = (0..LEAF_STATIONS)
+        .map(|k| {
+            #[allow(clippy::cast_precision_loss)]
+            let a = curl * (k as f64) / ((LEAF_STATIONS - 1) as f64);
+            let (s, c) = (r * a.sin(), r * (1.0 - a.cos()));
+            Point3::new(
+                base.0 + s * d.0 + c * v.0,
+                base.1 + s * d.1 + c * v.1,
+                base.2 + s * d.2 + c * v.2,
+            )
+        })
+        .collect();
+    let path =
+        pncad::geom_curves::NurbsCurve3::interpolate(&pts, 3).expect("the leaf spine interpolates");
+    let place = SketchPlane::from_frame(
+        pt3(base.0, base.1, base.2),
+        v3(u.0, u.1, u.2),
+        v3(v.0, v.1, v.2),
     )
-    .expect("leaf extrudes")
-    .body
+    .placement;
+    // The kite, wound counterclockwise in the sketch (s, t) frame:
+    // margin, keel, margin, ridge.
+    let section: Vec<ProfileLoop<f64>> = vec![pncad::authoring::polygon(&[
+        (-0.5 * width, 0.0),
+        (0.0, -keel),
+        (0.5 * width, 0.0),
+        (0.0, ridge),
+    ])];
+    sweep_body::<S>(&section, place, &path, LEAF_STATIONS, LEAF_V_DEGREE)
+        .expect("the leaf sweeps along its spine")
+        .body
 }
 
 // ---------------------------------------------------------------
@@ -430,9 +482,10 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                 (-0.60, 0.66, 0.52),
                 (0.0, 0.0, 1.0),
                 1.45,
-                0.16,
-                0.035,
-                0.026,
+                0.195,
+                0.016,
+                0.008,
+                -0.45,
             ),
             caps: None,
         },
@@ -444,9 +497,10 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                 (-0.68, -0.55, 0.44),
                 (0.0, 0.0, 1.0),
                 1.25,
-                0.14,
-                0.030,
-                0.024,
+                0.170,
+                0.015,
+                0.007,
+                -0.40,
             ),
             caps: None,
         },
@@ -458,9 +512,10 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                 (0.62, 0.10, 0.78),
                 (0.0, 0.0, 1.0),
                 0.95,
-                0.115,
-                0.025,
-                0.022,
+                0.140,
+                0.013,
+                0.006,
+                -0.35,
             ),
             caps: None,
         },
@@ -471,13 +526,15 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
 pub fn stops() -> Vec<Stop> {
     let pieces = plant::<f64>();
     let note = format!(
-        "{} bodies, each a closed analytic solid: 3 torus-segment stem \
-         tubes (partial revolves of a circle about a distant axis), 2 \
-         sphere-zone lanterns with conical mouths, 3 extruded crescent \
-         leaves. No wall is approximated — the surface KINDS are torus, \
-         sphere, cone and plane exactly (stored parameters are float \
-         reconstructions; see the module docs). Nothing is JOINED \
-         either: see the wall probes.",
+        "{} closed solids: 3 torus-segment stem tubes said in WORLD \
+         coordinates (centre/axis/u_ref/radii stored exactly as \
+         given), 2 sphere-zone lanterns with conical mouths, and 3 \
+         keeled leaf blades — a four-line kite section swept along an \
+         arching NURBS spine, out of the plane it was drawn in. The \
+         five analytic bodies approximate nothing — torus, sphere, \
+         cone and plane exactly, parameters included; the blades are \
+         fitted skins, the price of leaving the plane. Nothing is \
+         JOINED: see the wall probes.",
         pieces.len()
     );
     vec![Stop {
@@ -485,10 +542,11 @@ pub fn stops() -> Vec<Stop> {
         caption: "globe lily (Calochortus albus)".to_string(),
         montage: true,
         story: "a nodding globe lily — arching stem, two closed globular \
-                lanterns, lanceolate basal leaves; torus/sphere/cone/plane \
-                only, every surface exact",
-        ops: "Turtle-walked G1 arc chain -> revolve(Partial) tubes; \
-              revolve(Full) sphere-zone lanterns; extrude(two-arc crescent) leaves",
+                lanterns, arching keeled basal leaves; torus/sphere/cone/plane \
+                exact to the stored parameter, blades swept out of plane",
+        ops: "Turtle-walked G1 arc chain -> tube_along_arc(world centre/axis/ \
+              u_ref/radii, windowed) tubes; revolve(Full) sphere-zone \
+              lanterns; sweep_body(kite section, arched NURBS spine) leaves",
         // One chord budget for the whole scene is a poor fit here: at
         // 2e-3 the 0.44 m lantern is smooth and a 0.06 m stem tube
         // costs ~2e5 triangles, because the torus lane spends its
@@ -627,9 +685,12 @@ pub fn wall_probes<S: Scalar>() {
         "join flower to stem and drop the set-back trick",
     );
 
-    // 3. Real leaves sweep back out of their own plane. An extrusion
+    // 3. The lily's leaves DO leave their own plane now — each blade
+    //    is a crescent section swept along an arching spine. What is
+    //    still refused is the cheap way to ask for it: an EXTRUSION
     //    along anything but the sketch normal is oblique, and oblique
-    //    extrusion is deferred past M2.
+    //    extrusion is deferred past M2. The probe pins that door, not
+    //    the out-of-plane blade, which the scene above builds live.
     let leafp = {
         let plane =
             SketchPlane::from_frame(pt3(0.0, 0.0, 0.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
@@ -645,10 +706,10 @@ pub fn wall_probes<S: Scalar>() {
     };
     wall(
         3,
-        "sweep a leaf back out of its own plane (oblique extrusion)",
+        "tilt a leaf out of its own plane the cheap way (oblique extrusion)",
         extrude(&leafp, Extrusion::Vector(v3::<S>(0.0, 0.3, 0.04))),
         |e| matches!(e, ExtrudeError::ObliqueExtrusion),
-        "give the leaves a swept-back set",
+        "let a sketch profile lean out of its plane in one step",
     );
 
     // 4. A bud is an OVOID, not a ball: a sphere scaled along its own
@@ -731,13 +792,15 @@ pub fn wall_probes<S: Scalar>() {
     );
     println!(
         "   (wall 9 — a TAPERING sweep — is the one remaining ABSENCE, not a \
-         refusal, so it cannot be probed at runtime. Walls 8 and 10 CLOSED with \
-         M6-3: `sweep::sweep_body` is the general-path sweep body and \
-         `sweep::loft_body` the skin assembly — the loft stop builds one live, \
-         and `skinned::narration`'s retire-on-closure pin fired as designed. \
-         Wall 10's closure was only PARTIAL until #207: every curved path \
-         refused at assembly on the skin fit's synthesized weight channel, \
-         so the general-path sweep had no successful caller until that fix.)"
+         refusal, so it cannot be probed at runtime; it is why the swept \
+         blades above hold one width from base to tip. Walls 8 and 10 CLOSED \
+         with M6-3: `sweep::sweep_body` is the general-path sweep body and \
+         `sweep::loft_body` the skin assembly — the leaves here build three \
+         live, and `skinned::narration`'s retire-on-closure pin fired as \
+         designed. Wall 10's closure was only PARTIAL until #207: every \
+         curved path refused at assembly on the skin fit's synthesized weight \
+         channel, so the general-path sweep had no successful caller until \
+         that fix.)"
     );
 }
 
@@ -857,10 +920,16 @@ mod review_probes {
         );
     }
 
-    /// Claim: G1-by-construction, read from STORED geometry. At each
-    /// stem joint both bodies carry a cap plane through the SAME point
-    /// with tangent-parallel normals, and the torus carriers live
-    /// where the reviewer's independent derivation says they must.
+    /// Claim: G1-by-construction, read from STORED geometry — and the
+    /// stored geometry IS the world-coordinate intent, not a
+    /// reconstruction of it. Nothing on the tube door's path goes
+    /// profile → bulge → radius, so every quantity the caller handed
+    /// in comes back bit-for-bit and is asserted with `==`: the
+    /// turtle's ring centres and radials, the ring radii, and the tube
+    /// radii. Only the DERIVED joint data (cap plane through a joint
+    /// point, with the joint tangent as its normal) is windowed, and
+    /// only because a cap frame is trigonometry away from the stored
+    /// carrier.
     #[test]
     fn stem_joints_are_g1_in_the_stored_geometry() {
         let ps = pieces();
@@ -869,24 +938,29 @@ mod review_probes {
             body(&ps, "lily_arch"),
             body(&ps, "lily_pedicel"),
         );
+        // The stem: the turtle stands at the origin facing +z and
+        // turns LEFT on a 5 m ring, so the centre is one ring radius
+        // along the left normal −x̂ and the start radial is +x̂ — both
+        // exact decimals, and both stored as such. The spine axis is
+        // −ŷ because a left turn in the xz-plane is a right-handed
+        // rotation about −ŷ.
         let (c, a, big_r, r, u) = torus(stem);
-        assert!((c.x - -5.0).abs() < 1e-12 && c.y.abs() < 1e-15 && c.z.abs() < 1e-12);
-        assert!((a.x.abs() + a.z.abs()) < 1e-15 && (a.y.abs() - 1.0).abs() < 1e-15);
-        // NOTE (review finding): the tube radius is RECONSTRUCTED by
-        // revolve from the profile's bulge arcs, not carried exactly —
-        // stored 0.05999999999999961 (4 ulps off the authored 0.060).
-        assert!((big_r - 5.0).abs() < 1e-12 && (r - 0.060).abs() < 1e-12);
-        // u_ref is the radial to the arc's start: +x for the stem.
-        assert!(
-            cross_norm(u, Vec3::new(1.0, 0.0, 0.0)) < 1e-15,
-            "stem u_ref"
-        );
-        let (c2, _, big_r2, r2, _) = torus(arch);
+        assert_eq!((c.x, c.y, c.z), (-5.0, 0.0, 0.0), "stem ring centre");
+        assert_eq!((a.x, a.y, a.z), (0.0, -1.0, 0.0), "stem spine axis");
+        assert_eq!((u.x, u.y, u.z), (1.0, 0.0, 0.0), "stem u_ref");
+        assert_eq!((big_r, r), (5.0, 0.060), "stem radii");
+        // The arch and pedicel ring centres are turtle-walked, so the
+        // literals are the reviewer's independent derivation (see the
+        // GAP note) — but they are stored EXACTLY as the walk produced
+        // them, so the radii, which are authored decimals, are `==`.
+        let (c2, a2, big_r2, r2, _) = torus(arch);
         assert!((c2.x - -1.3839829671895292).abs() < 1e-12);
         assert!((c2.z - 1.460965714322057).abs() < 1e-12);
-        assert!((big_r2 - 1.1).abs() < 1e-12 && (r2 - 0.052).abs() < 1e-12);
-        let (_, _, big_r3, r3, _) = torus(pedicel);
-        assert!((big_r3 - 0.42).abs() < 1e-12 && (r3 - 0.032).abs() < 1e-12);
+        assert_eq!((a2.x, a2.y, a2.z), (0.0, -1.0, 0.0), "arch spine axis");
+        assert_eq!((big_r2, r2), (1.1, 0.052), "arch radii");
+        let (_, a3, big_r3, r3, _) = torus(pedicel);
+        assert_eq!((a3.x, a3.y, a3.z), (0.0, -1.0, 0.0), "pedicel spine axis");
+        assert_eq!((big_r3, r3), (0.42, 0.032), "pedicel radii");
         // Joint 1: stem end / arch start share point P1 and tangent T1.
         assert_cap(caps(&ps, "lily_stem"), P1, T1, "stem end");
         assert_cap(caps(&ps, "lily_arch"), P1, T1, "arch start");
@@ -950,8 +1024,17 @@ mod review_probes {
         }
     }
 
-    /// Finding 13 re-measured: the tessellation table's numbers, plus
-    /// the arch's 136,076, pinned as printed in the PR description.
+    /// Finding 13 re-measured: one chord budget for the whole scene
+    /// spends wildly differently per body, and these are the numbers.
+    ///
+    /// The five analytic rows are the SAME counts the sketch-frame
+    /// revolve produced — the tube door changed which parameters are
+    /// stored, not which torus they describe, so the tessellator sees
+    /// the same surface and splits it the same way. The three blade
+    /// rows are new, and they are the other half of the finding: a
+    /// swept skin over a 4-vertex section costs three orders of
+    /// magnitude less than a torus tube at the same δ, because the
+    /// torus lane spends its budget on the RING and not on the tube.
     #[test]
     fn finding_13_tessellation_table_reproduces() {
         use pncad::mesh::validate::{signed_volume, triangle_count};
@@ -962,6 +1045,9 @@ mod review_probes {
             ("lily_arch", 2e-3, 136_076),
             ("lily_lantern", 5e-3, 988),
             ("lily_lantern", 2e-3, 2_348),
+            ("lily_leaf_a", 2e-3, 1_276),
+            ("lily_leaf_b", 2e-3, 976),
+            ("lily_leaf_c", 2e-3, 826),
         ];
         for (name, delta, want) in table {
             let m = pncad::mesh::tessellate(body(&ps, name), delta).expect("tessellate");
@@ -973,6 +1059,28 @@ mod review_probes {
             let m = pncad::mesh::tessellate(body(&ps, "lily_lantern"), delta).expect("tessellate");
             let rel = ((signed_volume(&m) - exact) / exact).abs();
             assert!(rel > lo && rel < hi, "lantern @ {delta:e}: rel {rel}");
+        }
+        // A swept blade has no analytic wall to compare against, but it
+        // has PAPPUS. A rigid section carried in the path's normal
+        // frame sweeps A·(centroid arc length); the kite of chord `w`
+        // with rises `ridge`/`keel` has area w(ridge+keel)/2 and its
+        // centroid sits (ridge−keel)/3 above the chord, i.e. that far
+        // OUTSIDE the spine's centre of curvature, so its arc is
+        // len + |curl|·(ridge−keel)/3. Agreement to a few 1e-5 is the
+        // mesh's chord error at δ = 2e-3, and it is a two-sided band:
+        // exact agreement would mean the volume was not measured off a
+        // real tessellation, and a larger gap would mean the section
+        // rolled about the tangent on its way down the path.
+        for (name, w, ridge, keel, len, curl) in [
+            ("lily_leaf_a", 0.195, 0.016, 0.008, 1.45, 0.45),
+            ("lily_leaf_b", 0.170, 0.015, 0.007, 1.25, 0.40),
+            ("lily_leaf_c", 0.140, 0.013, 0.006, 0.95, 0.35),
+        ] {
+            let area = 0.5 * w * (ridge + keel);
+            let pappus = area * curl.mul_add((ridge - keel) / 3.0, len);
+            let m = pncad::mesh::tessellate(body(&ps, name), 2e-3).expect("tessellate");
+            let rel = ((signed_volume(&m) - pappus) / pappus).abs();
+            assert!(rel > 1e-5 && rel < 5e-5, "{name}: rel {rel}");
         }
     }
 }
