@@ -15,16 +15,19 @@
 # Pre-push protocol: stdin lines "<local_ref> <local_sha> <remote_ref>
 # <remote_sha>". We check the blob content AT local_sha (git show), not
 # the working tree, so pushing a non-checked-out branch is still gated.
-# Blobs go through a temp file, NOT rustfmt stdin: in stdin mode rustfmt
-# --check prints the diff but exits 0 (verified, rustfmt 1.9.0).
+# Blobs are piped to rustfmt on STDIN: file mode would recurse into the
+# `mod` tree (absent next to a blob copy, and a superset of the range
+# in-tree). Stdin --check exits 0 even on a diff (rustfmt 1.9.0), so any
+# output OR a nonzero exit (parse error) counts as failure.
 # Unbounded ranges (new branch, stale remote sha) diff against the
 # origin/main merge-base; only if even that fails do we fall back to the
 # full fmt-all --check (which does take the cargo lock).
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 zero=0000000000000000000000000000000000000000
-tmp=$(mktemp --suffix=.rs)
-trap 'rm -f "$tmp"' EXIT
+# Resolve the toolchain's rustfmt ONCE (repo root cwd → respects
+# rust-toolchain.toml); skipping the rustup shim halves per-file cost.
+rustfmt_bin=$(rustup which rustfmt 2>/dev/null) || rustfmt_bin=rustfmt
 
 fail=0
 checked=0
@@ -45,8 +48,10 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
 
   while IFS= read -r f; do
     checked=$((checked + 1))
-    git show "$local_sha:$f" >"$tmp"
-    if ! rustfmt --edition 2024 --check "$tmp" >/dev/null 2>&1; then
+    rc=0
+    out=$(git show "$local_sha:$f" | "$rustfmt_bin" --edition 2024 --check 2>&1) ||
+      rc=$?
+    if [ "$rc" -ne 0 ] || [ -n "$out" ]; then
       echo "pre-push: UNFORMATTED: $f (at ${local_sha:0:12})" >&2
       fail=1
     fi
