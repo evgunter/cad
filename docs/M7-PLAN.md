@@ -125,7 +125,7 @@ ruled on a thread, none silent):
 | M7-5 | band-seam re-mint (the plan's S9-flip pattern executed) | MERGED #252 |
 | M7-6 | stage-1 recognition (always-promote, #256; whole-patch envelope) | PR #264 — R1 APPROVE (post-fix), independent R2 running (dual-review row 6) |
 | M7-7 | tier-at-import (the #260 (a) ruling; shared gate) | implementing, stacked on #264's head |
-| M7-8 (rider) | plane×NURBS intersection certification (ruled on #264's thread) | PR open — the seam-orphan pin FLIPPED; the last M7 code unit |
+| M7-8 (rider) | plane×NURBS intersection certification (ruled on #264's thread) | PR #288 — the seam-orphan pin FLIPPED; the last M7 code unit |
 | demo | wild-corpus montage, KERNEL-TESSELLATION lane only (Evan approved 2026-08-09; FreeCAD comparison lane deliberately omitted) | queued post-M7-7 dispositions; gated on docs/WILD-CORPUS-LICENSES.md (audit in flight) — walk evidence when cut |
 
 **Then**: the M7 EXIT WALK (pre-drafted at docs/M7-EXIT-WALK.md,
