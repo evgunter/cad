@@ -1117,6 +1117,11 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             h.write_tag(21);
             target(h, t);
         }
+        Step::ArcContinue(p) => {
+            h.write_tag(28);
+            f(h, p.x);
+            f(h, p.y);
+        }
         Step::Fillet { radius } => {
             h.write_tag(22);
             f(h, *radius);

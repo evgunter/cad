@@ -115,6 +115,9 @@ pub enum ProgramStep {
     },
     /// `tangent_arc_to(target)`.
     TangentArcTo(ProgramTarget),
+    /// `arc_continue(target)` — the declared-subdivision step
+    /// (LIB-SWITCH §5-1): a STRUCTURAL vertex on the incoming carrier.
+    ArcContinue([Expr; 2]),
     /// `.fillet(r)`.
     Fillet(Expr),
     /// **G1** `.to(anchor)` — the far-end anchor.
@@ -291,6 +294,7 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
         P::Turn(_) => out.push(A::TurnVal),
         P::Line(_) => out.push(A::Length),
         P::LineTo(t) | P::TangentArcTo(t) => target_slots(t, out),
+        P::ArcContinue(_) => out.extend([A::TargetX, A::TargetY]),
         P::ArcTo { target, .. } => {
             target_slots(target, out);
             out.push(A::Bulge);
@@ -317,6 +321,8 @@ macro_rules! step_arg_access {
         match ($step, $arg) {
             (P::At(p), A::PointX) | (P::FarEndTo(p), A::PointX) => Some($($ref_kw)* p[0]),
             (P::At(p), A::PointY) | (P::FarEndTo(p), A::PointY) => Some($($ref_kw)* p[1]),
+            (P::ArcContinue(p), A::TargetX) => Some($($ref_kw)* p[0]),
+            (P::ArcContinue(p), A::TargetY) => Some($($ref_kw)* p[1]),
             (P::AtOn { p, .. }, A::PointX) => Some($($ref_kw)* p[0]),
             (P::AtOn { p, .. }, A::PointY) => Some($($ref_kw)* p[1]),
             (P::AtOn { centre, .. }, A::CenterX)
@@ -528,6 +534,7 @@ fn res_step(
             winding: *winding,
         },
         ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, env, loop_, i)?),
+        ProgramStep::ArcContinue(p) => Step::ArcContinue(pt(p, A::TargetX, A::TargetY)?),
         ProgramStep::Fillet(e) => Step::Fillet {
             radius: res(e, env, loop_, i, A::Radius)?,
         },
@@ -747,6 +754,7 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
         (P::LineTo(x), P::LineTo(y)) | (P::TangentArcTo(x), P::TangentArcTo(y)) => {
             target_bit_eq(x, y)
         }
+        (P::ArcContinue(x), P::ArcContinue(y)) => pair_bit_eq(x, y),
         (
             P::ArcTo {
                 target: ta,

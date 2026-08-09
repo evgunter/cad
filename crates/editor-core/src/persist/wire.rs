@@ -281,6 +281,8 @@ enum WireStep {
     },
     /// `tangent_arc_to(target)`.
     TangentArcTo(WireTarget),
+    /// `arc_continue(target)` — the declared-subdivision step.
+    ArcContinue([Expr; 2]),
     /// `.fillet(r)`.
     Fillet(Expr),
     /// `.to(anchor)`.
@@ -333,6 +335,7 @@ impl WireStep {
                 winding: WireWinding::from_sweep(*winding),
             },
             P::TangentArcTo(t) => WireStep::TangentArcTo(WireTarget::from_target(t)),
+            P::ArcContinue(p) => WireStep::ArcContinue(p.clone()),
             P::Fillet(e) => WireStep::Fillet(e.clone()),
             P::FarEndTo(p) => WireStep::FarEndTo(p.clone()),
             P::CloseTo => WireStep::CloseTo,
@@ -376,6 +379,7 @@ impl WireStep {
                 winding: winding.into_sweep(),
             },
             WireStep::TangentArcTo(t) => P::TangentArcTo(t.into_target()),
+            WireStep::ArcContinue(p) => P::ArcContinue(p),
             WireStep::Fillet(e) => P::Fillet(e),
             WireStep::FarEndTo(p) => P::FarEndTo(p),
             WireStep::CloseTo => P::CloseTo,

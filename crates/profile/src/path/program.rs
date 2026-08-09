@@ -152,6 +152,11 @@ pub enum Step<T: Real> {
     /// `tangent_arc_to(target)` — the unique arc leaving tangent to the
     /// bound direction and reaching the target.
     TangentArcTo(Target<T>),
+    /// `arc_continue(target)` — the declared-subdivision step
+    /// (LIB-SWITCH §5-1): continue the incoming ARC carrier to an
+    /// authored on-carrier point, minting a STRUCTURAL subdivision
+    /// vertex (a same-carrier identity, not a junction claim).
+    ArcContinue(Point2<T>),
     /// `.fillet(r)` — open a fillet of radius `r`; the tip becomes an
     /// unbound arrival side.
     Fillet {
@@ -281,6 +286,8 @@ pub enum Verb {
     ArcCenter,
     /// [`Step::TangentArcTo`].
     TangentArcTo,
+    /// [`Step::ArcContinue`].
+    ArcContinue,
     /// [`Step::Fillet`].
     Fillet,
     /// [`Step::FarEndTo`].
@@ -311,6 +318,7 @@ impl<T: Real> Step<T> {
             Step::ArcVia { .. } => Verb::ArcVia,
             Step::ArcCenter { .. } => Verb::ArcCenter,
             Step::TangentArcTo(_) => Verb::TangentArcTo,
+            Step::ArcContinue(_) => Verb::ArcContinue,
             Step::Fillet { .. } => Verb::Fillet,
             Step::FarEndTo(_) => Verb::FarEndTo,
             Step::CloseTo => Verb::CloseTo,
@@ -601,6 +609,9 @@ fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
             Ok(Applied::Tip(DynTip::DirectedIncoming(p0.turn(delta)?)))
         }
         (DynTip::DirectedPoint(p0), Step::LineTo(t)) => do_line_to(p0, t),
+        (DynTip::DirectedPoint(p0), Step::ArcContinue(p)) => {
+            Ok(Applied::Tip(DynTip::DirectedPoint(p0.arc_continue(p)?)))
+        }
         (DynTip::DirectedPoint(p0), Step::ArcTo { target, bulge }) => do_arc_to(p0, target, bulge),
         (DynTip::DirectedPoint(p0), Step::ArcVia { via, target }) => do_arc_via(p0, via, target),
         (

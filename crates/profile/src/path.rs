@@ -582,6 +582,23 @@ pub enum PathError<T: Real> {
         /// The refused subdivision count.
         n: usize,
     },
+    /// An [`arc_continue`](PartialPath::arc_continue) reached with no
+    /// incoming ARC carrier: the declared-subdivision step splits the
+    /// carrier the chain is already running on, so a straight incoming
+    /// leg (or a tip with no incoming leg data) has nothing to split —
+    /// a collinear "subdivision" of a line is spelled as two `line_to`
+    /// legs... which the same-carrier rule refuses, deliberately: the
+    /// recorded need is arc subdivision (the half-disc's equator
+    /// vertex); a line form would be new vocabulary with no use case.
+    ArcContinueNeedsArcCarrier,
+    /// An [`arc_continue`](PartialPath::arc_continue) target that does
+    /// not lie on the incoming carrier (|target − centre| − r decided
+    /// nonzero): the authored data contradicts itself — refused, never
+    /// re-projected (an authored point never moves, §4 item 3).
+    ArcContinueOffCarrier {
+        /// The classified radial offset, meters.
+        offset: T,
+    },
     /// A director spelled as components named no direction: the norm of
     /// `(dx, dy)` is within ε_input of zero
     /// ([`PartialPath::toward`]). Only the components' ratio is read,
@@ -762,6 +779,18 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "circle_split needs at least 2 arcs (got n = {n}): a single vertex cannot \
                  carry a full turn (bulge diverges), so the smallest subdivision of a \
                  closed carrier is two arcs"
+            ),
+            Self::ArcContinueNeedsArcCarrier => write!(
+                f,
+                "arc_continue subdivides the incoming ARC carrier; the incoming leg here is \
+                 straight (or absent), so there is no carrier to split — author the geometry \
+                 as its own legs instead"
+            ),
+            Self::ArcContinueOffCarrier { offset } => write!(
+                f,
+                "the arc_continue target does not lie on the incoming carrier (radial offset \
+                 {offset:?} m): a subdivision vertex is ON the carrier by definition — fix the \
+                 authored point rather than expecting a re-projection"
             ),
             Self::ZeroDirection { dx, dy } => write!(
                 f,
@@ -1850,6 +1879,80 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         self.tip.ang = Some(theta);
         self.tip.ang_by_tangent = false;
         Ok(in_state(self.core, self.tip))
+    }
+
+    /// **The declared-subdivision step** (LIB-SWITCH §5-1 fallback,
+    /// ruled 2026-08-08): continue the incoming ARC CARRIER to
+    /// `target`, minting a STRUCTURAL subdivision vertex — a vertex the
+    /// author placed on the carrier deliberately (the half-disc's
+    /// equator vertex, which revolve naming's pole elimination anchors
+    /// on), not a junction claim of any kind.
+    ///
+    /// Semantics, precisely: the leg runs on the SAME carrier circle as
+    /// the incoming leg, in the same travel sense, from the tip to
+    /// `target`. The junction at the tip is a same-carrier IDENTITY —
+    /// exactly the class [`circle`]'s two poles are — so NO §4 junction
+    /// check runs (there is no departure to classify: the carrier
+    /// continues) and NOTHING is declared tangent (there is no tangency
+    /// claim to verify; #101's same-carrier-is-identity rule applies at
+    /// validation unchanged). The bulge is DERIVED from the carrier and
+    /// the target — authored data is the target alone.
+    ///
+    /// Refusals: no incoming arc carrier
+    /// ([`PathError::ArcContinueNeedsArcCarrier`] — a straight leg has
+    /// nothing to subdivide); a target off the carrier
+    /// ([`PathError::ArcContinueOffCarrier`] — authored points never
+    /// re-project); a degenerate chord
+    /// ([`PathError::DegenerateArcChord`]).
+    pub fn arc_continue(
+        mut self,
+        target: Point2<T>,
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+        self.core.record(Step::ArcContinue(target));
+        let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
+            site: "arc_continue on a tip without a position",
+        })?;
+        let at = pos.at;
+        let inc = pos.incoming.ok_or(PathError::UnderdeterminedLeg {
+            site: "arc_continue on a tip without incoming data",
+        })?;
+        let carrier = inc.carrier.ok_or(PathError::ArcContinueNeedsArcCarrier)?;
+        let band = linear_band()?;
+        // The target must LIE on the carrier: |target − c| − r decided
+        // coincident (in-band Zero); a definite offset is contradictory
+        // authored data.
+        let offset = (target - carrier.center).norm_squared().sqrt() - carrier.radius;
+        match decide("path_arc_continue_on_carrier", Margin::of(offset), band) {
+            Ok(Sign::Zero) => {}
+            Ok(_) => return Err(PathError::ArcContinueOffCarrier { offset }),
+            Err(source) => return Err(PathError::Escalated { source }),
+        }
+        let chord_v = target - at;
+        let chord = chord_v.norm_squared().sqrt();
+        match decide("path_arc_chord", Margin::of(chord), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => return Err(PathError::DegenerateArcChord { chord }),
+            Err(source) => return Err(PathError::Escalated { source }),
+        }
+        // The continuation departs ALONG the incoming tangent (same
+        // carrier, same sense — that is what continuing means), so the
+        // bulge is the tangent-chord relation, exactly
+        // `tangent_arc_geom`'s derivation: δ = atan2(across, along),
+        // b = tan(δ/2), end tangent = departure + 2δ. The travel sense
+        // falls out of the signed δ — no sign is ever read or
+        // classified here.
+        let u = inc.ang.unit;
+        let along = u.dot(chord_v);
+        let across = u.perp_dot(chord_v);
+        let delta = across.atan2(along);
+        let bulge = (delta / T::from_f64(2.0)).tan();
+        let end_ang = Dir::from_angle(inc.ang.ang + delta + delta);
+        self.core.push_arc(target, bulge, carrier)?;
+        let arm = carrier.radius.min(chord);
+        Ok(in_state(
+            self.core,
+            leg_end_tip(target, end_ang, arm, Some(carrier)),
+        ))
     }
 }
 
