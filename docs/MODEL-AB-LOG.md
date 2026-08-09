@@ -393,3 +393,7 @@ Block LIB-3 (2026-08-08) — FIRST v3 TRIPLE: byte 44 (<252, accepted)
 → fable position 2: (opus, opus, fable). Difficulty logged
 pre-draw: G2 arc-carrier fillets = L. G2 dispatched first → OPUS;
 remainders (opus, fable) bank for the next two units.
+Block LIB-4 (2026-08-09): byte 146 (<252) → fable position 2:
+(opus, opus, fable). Difficulty logged pre-draw: SWITCH-P (profile
+side of the v2 switch) = L. SWITCH-P dispatched first → OPUS;
+remainders (opus, fable) bank.
