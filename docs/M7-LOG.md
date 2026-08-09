@@ -1119,11 +1119,54 @@ variant the analytic arm raises, so a caller reads one refusal rather
 than two dialects. No `TangentIntersection` adoption rung was invented
 (the spec's STOP).
 
-**Batteries, re-executed on the union with `origin/main`** (the
-finisher's pass; every row a foreground run under a build slot):
-step-import 147 passed / 0 failed at each of ε_in default, 1e-6 and
-1e-12 — the ε-dependent seam posture is inside the pinned test, so the
-COUNT is invariant across the matrix; geom-brep 220 passed / 0 failed.
-Workspace `cargo check --all-targets` clean after the merge (the #274
-lesson: the union is built explicitly, not assumed from two green
-branches).
+**THE UNION COLLISION, RULED — option (c), and what executing it
+measured.** #276's tier-at-import gate landed mid-unit and turned
+acceptance row 1 red: the arc prism's stays-NURBS wall is RATIONAL, so
+the at-rest pass refuses `QuadratureUnsupported` (M7-3 Arm B's banked
+rational patch flux) and the opinion-free gate refuses the import. The
+refusal is POST-ADOPTION — the seam certifies exactly as before. The
+orchestrator ruled option (c): re-fixture onto an integral wall and
+re-pin the arc prism as a waypoint. (a) was rejected as contradicting
+Evan's sequencing of the rational-quadrature work into the post-walk
+stretch; (b) as the verdict-filter shape #260 ruling (a) dissolved.
+
+Executing (c) measured a SECOND gap, and it is the more interesting
+one. The integral twin (`offset_square_prism` — a square lofted
+degree-2 through three places whose middle one is offset in `x`, so two
+walls stay exactly planar and promote while two bow and stay NURBS,
+every weight 1) IS tier-valid at rest: `Ok(())`, not parity with a
+refusing twin. But its seam never reaches the declare-and-check rung:
+
+- With OUR OWN bytes the seam carrier is bit-identical to the wall's
+  boundary column, so the bitwise `IsoCurve` rung answers first. All
+  four wall seams take it — measured, and now asserted.
+- State the seam in ANY foreign form (the pin moves one control point
+  one ULP in `z`) and the `Intersection` rung certifies it — and then
+  pcurve minting refuses `IsoUnsupported`, because `nurbs_iso_derive`
+  derives chart images for `IsoCurve` and `PlacedSegment` descriptions
+  only. An `Intersection` on a described NURBS chart has no arm.
+
+So the two wall kinds fail in opposite directions and leave NO fixture
+that is first-class end to end today: rational walls waive pcurve
+minting entirely (`pcurves.rs`: "the placeholder and rational walls
+mint nothing"), so the seam sails through import but the body is
+tier-invalid; integral walls are tier-valid, but their pcurve is
+demanded and cannot be derived. **Acceptance row 1's body-level claim
+is therefore not demonstrable in this tree** — reported as a spec
+deviation, not worked around. What IS proven, twice over, is the rung
+itself: certification at the lane and at the door with measured limbs,
+the seam-orphan adoption refusal retired, and both fixtures' honest ε
+postures pinned with their flip-when-fixed conditions named (rational
+patch flux for the arc prism; an `Intersection` arm on
+`nurbs_iso_derive` for the integral twin).
+
+**Batteries on the ruled union** (every row a foreground run under a
+build slot): step-import **160 passed / 0 failed** at each of ε_in
+default, 1e-6 and 1e-12 — count invariant across the matrix, because
+each fixture's ε-dependent posture is pinned inside its own test;
+geom-brep **227 passed / 0 failed** (220 shipped + the 6 adopted R1
+envelope probes + the wall-side falsifier). Workspace
+`cargo check --all-targets` clean after each merge (the #274 lesson:
+the union is built explicitly, never assumed from two green branches),
+and COLD-LINT — `cargo clean -p geom-brep -p step-import -p topo`, then
+clippy, clippy `--features interval` and `fmt-all --check` — clean.
