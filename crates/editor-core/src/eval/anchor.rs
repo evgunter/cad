@@ -31,9 +31,7 @@
 
 use profile::{Profile, ProfileLoop, ValidatedProfile};
 
-use crate::names::{
-    Entry, NameTable, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName,
-};
+use crate::names::{Entry, NameTable, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName};
 
 /// One canonical loop's anchor: how canonical indices map back to the
 /// program's authored order.

@@ -796,12 +796,10 @@ where
     // f64-pinned). Resolved ONCE here; the same values feed the
     // content key (resolved-value convention, §4e) and the op.
     let resolved_program = match node {
-        crate::node::Node::Profile(program) => {
-            match program.resolve(&doc.param_env::<f64>()) {
-                Ok(r) => Some(r),
-                Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
-            }
-        }
+        crate::node::Node::Profile(program) => match program.resolve(&doc.param_env::<f64>()) {
+            Ok(r) => Some(r),
+            Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
+        },
         _ => None,
     };
 
@@ -1059,7 +1057,11 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             f(h, p.x);
             f(h, p.y);
         }
-        Step::AtOn { p, centre, winding: w } => {
+        Step::AtOn {
+            p,
+            centre,
+            winding: w,
+        } => {
             h.write_tag(11);
             f(h, p.x);
             f(h, p.y);

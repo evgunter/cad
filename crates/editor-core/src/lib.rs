@@ -55,10 +55,10 @@ pub use names::{
 };
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId, StepArg};
 pub use parse::{ParseError, parse_expr};
-pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use persist::{
     Loaded, MigrationStep, PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load, save,
 };
+pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramRefusal, ProgramStep,
     ProgramTarget,

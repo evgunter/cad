@@ -374,7 +374,10 @@ fn migration_step(from_version: u32) -> Option<MigrationStep> {
 /// exists). Plus [`PersistError::EditReplay`] for a log that cannot
 /// replay, and [`PersistError::Serialize`] if the JSON writer itself
 /// fails.
-pub fn save(snapshot: &ProfileDoc, edits: &[DocEdit<ProfileProgram>]) -> Result<String, PersistError> {
+pub fn save(
+    snapshot: &ProfileDoc,
+    edits: &[DocEdit<ProfileProgram>],
+) -> Result<String, PersistError> {
     check::validate_document(snapshot, edits)?;
     // Save/load symmetry for the LOG: load replays the edits through
     // apply's doors, so a log that refuses there must refuse HERE —

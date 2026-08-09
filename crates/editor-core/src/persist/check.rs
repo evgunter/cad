@@ -48,8 +48,8 @@ use crate::edit::DocEdit;
 use crate::expr::Dimension;
 use crate::meta::MetaVersionError;
 use crate::names::StableName;
-use crate::node::{Node, RecipeNodeId};
 use crate::node::SlotId;
+use crate::node::{Node, RecipeNodeId};
 use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
 use crate::resolve::derivation_nodes;
 

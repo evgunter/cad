@@ -415,8 +415,7 @@ fn wire_revolve<T: Decide>(
             });
         }
     };
-    let mut built =
-        revolve(&vp.validated, axis2, revolution).map_err(NodeErrorKind::Revolve)?;
+    let mut built = revolve(&vp.validated, axis2, revolution).map_err(NodeErrorKind::Revolve)?;
     let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
     let table = anchored(table, &vp.naming)?;
     stamp_minted(&mut built.body, id);

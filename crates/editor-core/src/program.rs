@@ -616,12 +616,14 @@ impl ProfileProgram {
         let mut loops = Vec::with_capacity(resolved.len());
         for (li, steps) in resolved.iter().enumerate() {
             let lp = profile::replay(steps).map_err(|e| match e.kind {
-                profile::ReplayErrorKind::Transition { state, verb } => ProgramRefusal::Transition {
-                    loop_: li as u32,
-                    step: e.step as u32,
-                    state,
-                    verb,
-                },
+                profile::ReplayErrorKind::Transition { state, verb } => {
+                    ProgramRefusal::Transition {
+                        loop_: li as u32,
+                        step: e.step as u32,
+                        state,
+                        verb,
+                    }
+                }
                 profile::ReplayErrorKind::Path(ref source) => ProgramRefusal::Geometry {
                     loop_: li as u32,
                     step: e.step as u32,
@@ -755,9 +757,16 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
                 bulge: bb,
             },
         ) => target_bit_eq(ta, tb) && ba.bit_eq(bb),
-        (P::ArcVia { via: va, target: ta }, P::ArcVia { via: vb, target: tb }) => {
-            pair_bit_eq(va, vb) && target_bit_eq(ta, tb)
-        }
+        (
+            P::ArcVia {
+                via: va,
+                target: ta,
+            },
+            P::ArcVia {
+                via: vb,
+                target: tb,
+            },
+        ) => pair_bit_eq(va, vb) && target_bit_eq(ta, tb),
         (
             P::ArcCenter {
                 centre: ca,
@@ -839,9 +848,7 @@ impl LoopProgram {
     /// # Errors
     ///
     /// A non-finite coordinate (the literal door's refusal).
-    pub fn polygon(
-        points: impl IntoIterator<Item = (f64, f64)>,
-    ) -> Result<Self, DimensionError> {
+    pub fn polygon(points: impl IntoIterator<Item = (f64, f64)>) -> Result<Self, DimensionError> {
         let mut steps = Vec::new();
         for (i, (x, y)) in points.into_iter().enumerate() {
             let p = [len_lit(x)?, len_lit(y)?];
