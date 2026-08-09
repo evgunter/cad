@@ -1073,7 +1073,12 @@ fn wire_loft<T: Decide>(
             // The loft emitter's profile refs are canonical (loop,
             // segment) indices of the SECTION combinatorics; sections
             // must correspond, so the FIRST section's anchor is the
-            // rewrite for the emitted table (reported choice).
+            // rewrite for the emitted table. PINNED LIMITATION
+            // (reported; review NOTE): a later section authored
+            // rotated/reversed relative to section 0 anchors to
+            // section 0's map, not its own — acceptable while the
+            // kernel requires corresponding sections; revisit if loft
+            // ever accepts per-section reparametrization.
             first_naming = naming;
         }
     }

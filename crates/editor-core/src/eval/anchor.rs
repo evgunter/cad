@@ -24,10 +24,11 @@
 //! stay untouched (`names/` is fenced); the rewrite is a pure
 //! reindexing at the emission call sites.
 //!
-//! The match is exact and unambiguous: canonical loops are EXACT
-//! reindexings of their input (validate's own contract), and a valid
-//! loop's vertices are pairwise distinct, so a full-sequence bit match
-//! admits exactly one (offset, orientation).
+//! The match is exact: canonical loops are EXACT reindexings of their
+//! input (validate's own contract). Uniqueness needs positions AND
+//! bulges — a valid loop's vertices are pairwise distinct, which pins
+//! the offset, and the bulge sign pins the orientation parity (which
+//! positions alone cannot decide at n = 2 — see `derive_naming`).
 
 use profile::{Profile, ProfileLoop, ValidatedProfile};
 
@@ -127,6 +128,22 @@ pub(crate) struct ProfilePre {
 /// the replayed program-order f64 loops. `None` on a failed match —
 /// an internal invariant break (validate's exact-reindexing contract),
 /// surfaced typed by the caller, never a panic.
+///
+/// The match covers vertex POSITIONS, segment BULGES, and the declared
+/// joint set. Positions alone are NOT enough (PR #291 review MAJOR-1,
+/// both reviewers, executed): on a 2-vertex loop the forward and
+/// reversed maps agree on every position (index arithmetic mod 2), so
+/// a reversed hole circle — `circle()` lowers CCW, canonicalization
+/// orients holes CW — would recover `reversed: false` and swap the two
+/// semicircles' program names. Bulges disambiguate the parity exactly:
+/// canonicalization's reversal NEGATES bulges (bit-exact sign flip)
+/// and reindexes them (canonical segment k = program segment
+/// offset−k−1 traversed backward), while rotation carries them
+/// verbatim — so the bulge condition holds for precisely one
+/// orientation whenever any segment is an arc. (An all-straight loop
+/// has ±0.0 bulges either way, but needs n ≥ 3 to close, where
+/// positions already decide.) Declared joints ride the same maps and
+/// are checked as sets.
 pub fn derive_naming(
     validated: &ValidatedProfile<f64>,
     program_loops: &[ProfileLoop<f64>],
@@ -144,23 +161,57 @@ pub fn derive_naming(
             let bits = |p: &geom_core::Point2<f64>| (p.x.to_bits(), p.y.to_bits());
             for offset in 0..n {
                 for reversed in [false, true] {
-                    let ok = (0..n).all(|k| {
-                        let pk = if reversed {
+                    // Vertex map (canonical k → program index).
+                    let vmap = |k: usize| {
+                        if reversed {
                             (offset + n - k) % n
                         } else {
                             (offset + k) % n
-                        };
-                        bits(&cv[k].pos) == bits(&pv[pk].pos)
-                    });
-                    if ok {
-                        found = Some(LoopAnchor {
-                            program_loop: pi as u32,
-                            offset: offset as u32,
-                            reversed,
-                            len: n as u32,
-                        });
-                        break 'progs;
+                        }
+                    };
+                    // Segment map: canonical segment k starts at
+                    // canonical vertex k; forward it is program
+                    // segment (offset+k), reversed it is program
+                    // segment (offset−k−1) traversed BACKWARD.
+                    let smap = |k: usize| {
+                        if reversed {
+                            (offset + 2 * n - k - 1) % n
+                        } else {
+                            (offset + k) % n
+                        }
+                    };
+                    let positions_ok = (0..n).all(|k| bits(&cv[k].pos) == bits(&pv[vmap(k)].pos));
+                    if !positions_ok {
+                        continue;
                     }
+                    // Bulges: verbatim under rotation, negated under
+                    // reversal — bit-exact either way.
+                    let bulges_ok = (0..n).all(|k| {
+                        let pb = pv[smap(k)].bulge;
+                        let want = if reversed { -pb } else { pb };
+                        cv[k].bulge.to_bits() == want.to_bits()
+                    });
+                    if !bulges_ok {
+                        continue;
+                    }
+                    // Declared joints as SETS under the vertex map
+                    // (canonical joints are canonical vertex indices).
+                    let mut mapped: Vec<usize> =
+                        vl.tangent_joints().iter().map(|&j| vmap(j)).collect();
+                    mapped.sort_unstable();
+                    let mut prog_joints = pl.tangent_joints.clone();
+                    prog_joints.sort_unstable();
+                    prog_joints.dedup();
+                    if mapped != prog_joints {
+                        continue;
+                    }
+                    found = Some(LoopAnchor {
+                        program_loop: pi as u32,
+                        offset: offset as u32,
+                        reversed,
+                        len: n as u32,
+                    });
+                    break 'progs;
                 }
             }
         }

@@ -33,9 +33,14 @@ fn twenty_five_mm_round_trips_value_and_unit() {
     assert_eq!(back.literal_value().unwrap().to_bits(), 0.025_f64.to_bits());
     let back_unit = back.display_unit().expect("unit survives the load door");
     assert_eq!(back_unit.symbol, "mm");
-    // Format: the stored unit drives the renderer back to the source.
+    // Format: the READ-BACK unit (not a hardcoded constant) drives
+    // the renderer back to the source text (review NOTE-5).
+    let render = quantity::LengthUnit {
+        symbol: back_unit.symbol,
+        factor: back_unit.factor,
+    };
     assert_eq!(
-        quantity::fmt_length(back.literal_value().unwrap(), quantity::MM).unwrap(),
+        quantity::fmt_length(back.literal_value().unwrap(), render).unwrap(),
         "25 mm"
     );
 }

@@ -1,11 +1,17 @@
 //! **LIB-SWITCH §8 acceptance instrument: the merge-base payload
 //! diff.** Dumps every corpus document's evaluated GEOMETRY payloads
 //! (bodies, validated profiles, datums — Debug is shortest-round-trip,
-//! bit-faithful) to `target/switch-dump/<doc>.txt`. Run here and in a
-//! scratch worktree at the merge-base (with the pre-switch payload
-//! spelling), then diff: byte-identical files per doc EXCEPT the §5-1
-//! re-authored documents is the acceptance bar. Ignored by default —
-//! run with `--ignored` (it spends a full corpus evaluation).
+//! bit-faithful) to `target/switch-dump/<doc>.txt`, and every node's
+//! NAME TABLE (names only, in table order) to
+//! `target/switch-dump/<doc>.names.txt` — separate files so geometry
+//! identity and naming identity diff independently: program-anchored
+//! naming may legitimately RENAME (a reversed or rotated loop's
+//! program indices) where geometry is bit-identical, and a rename
+//! must be a stated finding, never hidden (PR #291 review MINOR-1).
+//! Run here and in a scratch worktree at the merge-base (with the
+//! pre-switch payload spelling), then diff: geometry byte-identical
+//! per doc EXCEPT the §5-1 re-authored documents is the acceptance
+//! bar. Ignored by default — run with `--ignored`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod corpus;
@@ -41,5 +47,15 @@ fn dump_corpus_payloads() {
             }
         }
         std::fs::write(dir.join(format!("{}.txt", d.name)), out).unwrap();
+        let mut names = String::new();
+        for id in &ev.order {
+            names.push_str(&format!("== node {id:?}\n"));
+            if let Some(NodeResult::Ok(v)) = ev.nodes.get(id) {
+                for (n, _) in v.name_table.iter() {
+                    names.push_str(&format!("{n:?}\n"));
+                }
+            }
+        }
+        std::fs::write(dir.join(format!("{}.names.txt", d.name)), names).unwrap();
     }
 }

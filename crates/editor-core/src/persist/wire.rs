@@ -86,7 +86,7 @@ impl From<&Expr> for WireExpr {
             ExprKind::Literal(lit) => WireExpr::Literal {
                 value: lit.value,
                 dim: e.dim(),
-                unit: lit.display_unit.map(|u| u.symbol.to_string()),
+                unit: lit.unit_def().map(|u| u.symbol.to_string()),
             },
             ExprKind::CountLiteral(v) => WireExpr::Count(*v),
             ExprKind::Param(name) => WireExpr::Param {

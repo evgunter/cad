@@ -97,13 +97,28 @@ fn lex_min_swap_cannot_renumber_program_names() {
         off_before, off_after,
         "the edit must actually swap the lex-min vertex for this row to demonstrate anything"
     );
-    // …and the NAME substrate did not: identical name sets, so every
-    // persisted selection/appearance key keeps meaning the segment the
-    // program authored.
+    // …and the NAME substrate did not: identical name sets…
     assert_eq!(
         names_of(&before, RecipeNodeId(1)),
         names_of(&after, RecipeNodeId(1))
     );
+    // …AND (review MINOR-1: set equality alone is renumbering-blind
+    // for a full table) the DENOTATION held: in both documents,
+    // program segment 0 — Lateral(0)'s referent — is the leg leaving
+    // the authored entry corner (1, 0), read through the anchor.
+    for doc in [&before, &after] {
+        let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default());
+        let ValuePayload::Profile(pv) = &ev.value(RecipeNodeId(0)).expect("profile").payload else {
+            panic!("profile payload");
+        };
+        let a = pv.naming.loops[0];
+        let c = (0..a.len)
+            .find(|&k| a.segment(k) == 0)
+            .expect("program segment 0 exists");
+        let start = pv.validated.loops()[0].vertices()[c as usize].pos;
+        assert_eq!(start.x.to_bits(), 1.0_f64.to_bits());
+        assert_eq!(start.y.to_bits(), 0.0_f64.to_bits());
+    }
 }
 
 /// The stable case the spec names (§6b): a circle's radius edit — the
@@ -201,5 +216,91 @@ fn program_vertex_zero_is_the_authored_entry() {
             "entry corner x (x0 = {x0})"
         );
         assert_eq!(v.y.to_bits(), 0.0_f64.to_bits(), "entry corner y");
+    }
+}
+
+/// **The reversed-loop (hole circle) row — PR #291 review MAJOR-1,
+/// both reviewers' probes adopted.** `circle()` lowers CCW;
+/// canonicalization orients holes CW, i.e. REVERSES the program loop —
+/// and at n = 2 vertex positions cannot decide the parity (forward and
+/// reversed vertex maps agree mod 2), so the anchor must read the
+/// BULGE bits. Pins: the anchor recovers `reversed: true`, and the
+/// §V3 semantics — program segment 0 IS the authored upper (CCW)
+/// semicircle — hold under the reversal, checked against the
+/// primitive's own lowering.
+#[test]
+fn hole_circle_anchor_recovers_reversal() {
+    let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
+    let outer = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]).unwrap();
+    let hole = LoopProgram::circle(2.0, 2.0, 0.5).unwrap();
+    let doc = ProfileDoc::empty()
+        .apply(&DocEdit::InsertNode {
+            node: Node::Profile(ProfileProgram {
+                plane: SketchPlane::xy(),
+                loops: vec![outer, hole],
+            }),
+        })
+        .unwrap()
+        .doc;
+    let doc = doc
+        .apply(&DocEdit::InsertNode {
+            node: Node::Extrude {
+                profile: RecipeNodeId(0),
+                distance: lit(1.0),
+            },
+        })
+        .unwrap()
+        .doc;
+    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ValuePayload::Profile(pv) = &ev.value(RecipeNodeId(0)).expect("profile").payload else {
+        panic!("profile payload");
+    };
+    // Canonical loop 1 is the hole; its anchor must say REVERSED
+    // (R1's P1 executed the pre-fix mis-recovery {offset: 1,
+    // reversed: false} here).
+    let a = pv.naming.loops[1];
+    assert_eq!(a.program_loop, 1);
+    assert!(a.reversed, "a CW-canonicalized CCW hole is REVERSED");
+    // The program's own lowering (the primitive, replayed directly):
+    // program segment 0 is the arc leaving (cx+r, cy) with bulge +1.
+    let program = profile::circle(geom_core::Point2::new(2.0, 2.0), 0.5)
+        .expect("circle lowers")
+        .loop_;
+    let verts = pv.validated.loops()[1].vertices();
+    let n = a.len;
+    for c in 0..n {
+        let p_seg = a.segment(c) as usize;
+        // Canonical segment c is program segment p_seg traversed
+        // BACKWARD: it starts at the program segment's END vertex and
+        // carries the NEGATED bulge — bit-exact both.
+        let p_end = (p_seg + 1) % n as usize;
+        assert_eq!(
+            verts[c as usize].pos.x.to_bits(),
+            program.vertices[p_end].pos.x.to_bits(),
+            "canonical seg {c} starts at program vertex {p_end}"
+        );
+        assert_eq!(
+            verts[c as usize].bulge.to_bits(),
+            (-program.vertices[p_seg].bulge).to_bits(),
+            "canonical seg {c} carries program seg {p_seg}'s negated bulge"
+        );
+    }
+    // Denotation at the name layer: both program-anchored semicircle
+    // walls exist under the hole's PROGRAM indices.
+    use editor_core::{EntityKind, ProfileEdgeRef, RoleSeg};
+    let table = &ev.value(RecipeNodeId(1)).expect("extrude").name_table;
+    for seg in 0..2u32 {
+        let name = StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(1),
+            path: vec![RoleSeg::Lateral(ProfileEdgeRef {
+                loop_index: 1,
+                segment: seg,
+            })],
+        };
+        assert!(
+            table.lookup(&name).is_some(),
+            "hole wall Lateral(loop 1, seg {seg}) resolves under program indices"
+        );
     }
 }

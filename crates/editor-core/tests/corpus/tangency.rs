@@ -30,7 +30,6 @@
 use editor_core::{
     Dimension, DocEdit, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, SlotId,
 };
-use geom_core::Point2;
 use profile::SketchPlane;
 
 use super::super::fixture::len;

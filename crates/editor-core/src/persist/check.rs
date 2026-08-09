@@ -408,6 +408,13 @@ pub enum ProgramFault {
 /// docs). The edit log needs no twin: logged edits replay through
 /// `apply`, whose own doors (slot dimension checks + the VQ9
 /// authoring-time check) refuse the same faults at the same load.
+///
+/// A program whose Exprs fail to RESOLVE under the document's params
+/// (dangling ref, dimension drift) cannot be probed here and PASSES
+/// this walk — deliberately: resolution failures are the same
+/// binding-dependent class as geometry refusals (V1 class 2) and
+/// surface as the node's typed evaluation error; no silent acceptance
+/// exists (review NOTE-1).
 fn first_program_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, ProgramFault)> {
     use crate::program::ProfilePayload as _;
     let env = snapshot.param_env::<f64>();

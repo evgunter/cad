@@ -64,7 +64,6 @@
 //! closed) and the face count.
 
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
-use geom_core::Point2;
 use profile::SketchPlane;
 
 use super::super::fixture::{len, prism_edges};

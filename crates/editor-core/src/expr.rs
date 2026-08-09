@@ -132,6 +132,58 @@ pub struct Expr {
     kind: ExprKind,
 }
 
+/// The stored display-unit CODE — quantity's closed table as a one-
+/// byte identity (the spec's "U8a's unit type/code" read at its word:
+/// storing the 32-byte [`quantity::UnitDef`] row inline grew every
+/// `Expr` by ~40 bytes and tripped `large_enum_variant` on
+/// `DocEdit::InsertNode`; the ROW is derivable from the identity, so
+/// the identity is what is stored — resolved back through
+/// [`Lit::unit_def`] at every read).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum UnitSym {
+    /// `quantity::MM`.
+    Mm,
+    /// `quantity::CM`.
+    Cm,
+    /// `quantity::M`.
+    M,
+    /// `quantity::IN`.
+    In,
+    /// `quantity::DEG`.
+    Deg,
+    /// `quantity::RAD`.
+    Rad,
+}
+
+impl UnitSym {
+    /// The table row this code names.
+    fn def(self) -> quantity::UnitDef {
+        match self {
+            Self::Mm => quantity::MM.def(),
+            Self::Cm => quantity::CM.def(),
+            Self::M => quantity::M.def(),
+            Self::In => quantity::IN.def(),
+            Self::Deg => quantity::DEG.def(),
+            Self::Rad => quantity::RAD.def(),
+        }
+    }
+
+    /// The code for a table row, by symbol — `None` for a `UnitDef`
+    /// outside the closed table (refused by the caller as an unknown
+    /// unit; the vocabulary stays closed).
+    fn from_def(u: &quantity::UnitDef) -> Option<Self> {
+        match u.symbol {
+            "mm" => Some(Self::Mm),
+            "cm" => Some(Self::Cm),
+            "m" => Some(Self::M),
+            "in" => Some(Self::In),
+            "deg" => Some(Self::Deg),
+            "rad" => Some(Self::Rad),
+            _ => None,
+        }
+    }
+}
+
 /// A stored continuous literal: the canonical-units value plus its
 /// per-literal DISPLAY unit (LIB-SWITCH §4g, U8b folded into the v4
 /// break). The unit is presentation metadata under D7's hard rules —
@@ -143,9 +195,16 @@ pub struct Expr {
 pub(crate) struct Lit {
     /// The exact canonical-units value (bit-exact per D7).
     pub(crate) value: f64,
-    /// The display unit the literal was authored in, if any (quantity's
-    /// closed table; `None` renders canonically).
-    pub(crate) display_unit: Option<quantity::UnitDef>,
+    /// The display unit the literal was authored in, if any (a code
+    /// into quantity's closed table; `None` renders canonically).
+    pub(crate) display_unit: Option<UnitSym>,
+}
+
+impl Lit {
+    /// The stored unit's table row, if any.
+    pub(crate) fn unit_def(&self) -> Option<quantity::UnitDef> {
+        self.display_unit.map(UnitSym::def)
+    }
 }
 
 impl PartialEq for Lit {
@@ -268,10 +327,14 @@ impl Expr {
                 literal: dim,
             });
         }
+        // The closed-vocabulary door: only table rows have codes.
+        let sym = UnitSym::from_def(&unit).ok_or_else(|| DimensionError::UnknownDisplayUnit {
+            symbol: unit.symbol.to_string(),
+        })?;
         // Run literal()'s refusal doors, then attach the unit.
         let mut e = Self::literal(value, dim)?;
         if let ExprKind::Literal(ref mut lit) = e.kind {
-            lit.display_unit = Some(unit);
+            lit.display_unit = Some(sym);
         }
         Ok(e)
     }
@@ -281,7 +344,7 @@ impl Expr {
     /// literals). The formatter's read side (§4g).
     pub fn display_unit(&self) -> Option<quantity::UnitDef> {
         match &self.kind {
-            ExprKind::Literal(lit) => lit.display_unit,
+            ExprKind::Literal(lit) => lit.unit_def(),
             _ => None,
         }
     }

@@ -1169,6 +1169,10 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             f(h, centre.x);
             f(h, centre.y);
             f(h, *radius);
+            // Structural int under its own tag (3) — the (tag,
+            // payload) discipline holds for every token, review
+            // NOTE-3 (keys are process-internal; no migration).
+            h.write_tag(3);
             h.write_u64(*n as u64);
             f(h, *phase);
         }
