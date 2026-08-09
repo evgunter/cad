@@ -51,6 +51,18 @@ amended:
   labeled R1/R2 in dispatch order); the fix pass runs off the
   orchestrator-adjudicated UNION of findings. Cost: ~one extra
   review per 3 units, accepted.
+  **Same-head amendment (RATIFIED 2026-08-09 — Evan 👍 on
+  #268/5229394384, both orchestrators concurring): a unit's
+  dual-review ordinal is fixed at the moment its FIRST review
+  DISPATCHES — count merged blinded-lane rows on main at that
+  moment, +1 for the unit itself; every 3rd so numbered gets R2
+  dispatched CONCURRENTLY with R1 on the SAME head. Ordinals may
+  drift from final merge order; the sampling stays deterministic
+  and arm-independent, and same-head comparison holds by
+  construction. Late-trigger fallback (a row landing on a third
+  after a re-count correction): R2 runs on the SAME head R1
+  primarily reviewed (frozen, from git history), findings
+  adjudicated retroactively.**
   **Data note (2026-08-09): M7-6 — the first M7-side third — is
   STRUCK from the same-head variance sample (R1 pre-fix head, R2
   post-fix head; see its row's caveat). The same-head amendment
