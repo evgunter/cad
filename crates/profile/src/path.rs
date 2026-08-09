@@ -1976,8 +1976,12 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     /// direction from chord + bulge, the M2 convention: b = tan(θ/4),
     /// start tangent = chord − θ/2). On a directed point the junction
     /// check runs on the arc's start tangent. `arc_to(Start, b)` is
-    /// the sharp arc seam. On a fillet arrival this refuses typed —
-    /// arc-arrival fillets are out of scope in v1 (PATHS-DESIGN §7).
+    /// the sharp arc seam. On a fillet arrival this refuses
+    /// [`PathError::ArcCarrierSpelling`] (G2): an arc arrival is not
+    /// out of scope any more, it is bound by its CARRIER —
+    /// `.at_on(p, centre, winding)` / `.to_on(Start, centre, winding)`
+    /// — rather than by an arc LEG from an already-bound arrival
+    /// point, and the refusal names that door.
     pub fn arc_to<Tgt: ArcTarget<T, F>>(self, target: Tgt, bulge: T) -> Tgt::Out {
         Tgt::arc_from(self, target, bulge)
     }
@@ -1987,7 +1991,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     /// semantics are `arc_to`'s exactly: on a directed point the §4
     /// item 1 check runs on the arc's start tangent; `arc_via(v, Start)`
     /// is the sharp arc seam; on a fillet arrival it refuses
-    /// [`PathError::ArcArrivalFillet`] (§7).
+    /// [`PathError::ArcCarrierSpelling`], naming the carrier binders
+    /// `.at_on`/`.to_on` (G2 — see [`arc_to`](Self::arc_to)).
     ///
     /// All three points are AUTHORED and stored verbatim — the two
     /// endpoints as chain vertices, the through-point only as the
