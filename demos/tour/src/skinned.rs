@@ -215,7 +215,10 @@ fn lofted_at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
 /// The middle section's v-parameter at the montage spacing
 /// (z = 0/0.15/2), `3√29/(3√29 + √5701)` — the pin the stop's note
 /// narrates, checked against `loft_parameters` at build time.
-const NONUNIFORM_T: f64 = 0.17625368909901809;
+// The shortest form that round-trips to the same f64 as the note's
+// 0.17625368909901809 (that last digit is past f64's precision, which
+// is why the narration keeps it and the constant does not).
+const NONUNIFORM_T: f64 = 0.1762536890990181;
 
 fn prism_sections() -> Vec<Section> {
     vec![
