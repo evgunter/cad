@@ -27,9 +27,11 @@
 //!
 //! D2 bump: the hand-declared bracket's extrude `Distance`.
 
-use editor_core::{Dimension, DocEdit, Expr, Node, ProfileDesc, SlotId};
+use editor_core::{
+    Dimension, DocEdit, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, SlotId,
+};
 use geom_core::Point2;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::SketchPlane;
 
 use super::super::fixture::len;
 use super::{CorpusDoc, Recorder};
@@ -38,20 +40,38 @@ use super::{CorpusDoc, Recorder};
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
 
-    // (a) Tangency BY CONSTRUCTION: the fillet constructor rounds the
-    // corner at (1,1) with radius 0.5 and records both joints.
-    let filleted = ProfileLoop::builder(Point2::new(0.0, 0.0))
-        .line_to(Point2::new(3.0, 0.0))
-        .line_to(Point2::new(3.0, 1.0))
-        .fillet(Point2::new(1.0, 1.0), Point2::new(1.0, 3.0), 0.5)
-        .expect("the fillet fits both legs")
-        .line_to(Point2::new(1.0, 3.0))
-        .line_to(Point2::new(0.0, 3.0))
-        .close();
-    let fillet_p = r.insert(Node::Profile(ProfileDesc(Profile::new(
-        SketchPlane::xy(),
-        vec![filleted],
-    ))));
+    // (a) Tangency BY CONSTRUCTION: the chain fillet form (v4 — the
+    // G1 exact-director spelling: `toward` components are exact, so
+    // the ray carries no sin_cos dirt; the trims are the algebra's own
+    // closed forms).
+    let pt = |x: f64, y: f64| {
+        [
+            Expr::literal(x, Dimension::Length).unwrap(),
+            Expr::literal(y, Dimension::Length).unwrap(),
+        ]
+    };
+    let scl2 = |v: f64| Expr::literal(v, Dimension::Scalar).unwrap();
+    let filleted = LoopProgram::Chain(vec![
+        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 1.0))),
+        ProgramStep::Toward {
+            dx: scl2(-1.0),
+            dy: scl2(0.0),
+        },
+        ProgramStep::Fillet(Expr::literal(0.5, Dimension::Length).unwrap()),
+        ProgramStep::Toward {
+            dx: scl2(0.0),
+            dy: scl2(1.0),
+        },
+        ProgramStep::FarEndTo(pt(1.0, 3.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 3.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let fillet_p = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![filleted],
+    }));
     let fillet_body = r.insert(Node::Extrude {
         profile: fillet_p,
         distance: len(0.5),
@@ -62,33 +82,35 @@ pub fn document() -> CorpusDoc {
     // (1.5,1) is exactly tangent to the line arriving there and to
     // the line leaving (1,1.5) — joints 3 and 4, both declared.
     // Bulge of a 90° arc is tan(90°/4) = √2 − 1.
-    let mut bracket = ProfileLoop::new(
-        [
-            (0.0, 0.0, 0.0),
-            (3.0, 0.0, 0.0),
-            (3.0, 1.0, 0.0),
-            (1.5, 1.0, -(std::f64::consts::SQRT_2 - 1.0)),
-            (1.0, 1.5, 0.0),
-            (1.0, 3.0, 0.0),
-            (0.0, 3.0, 0.0),
-        ]
-        .into_iter()
-        .map(|(x, y, bulge)| ProfileVertex {
-            pos: Point2::new(x, y),
-            bulge,
-        })
-        .collect(),
-    );
-    bracket.tangent_joints = vec![3, 4];
-    let tangent_p = r.insert(Node::Profile(ProfileDesc(Profile::new(
+    let bracket = LoopProgram::Chain(vec![
+        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 1.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(1.5, 1.0))),
+        // The declared-tangent quarter arc and the declared-tangent
+        // straight leg out of it: `.tangent()` DECLARES joints 3 and 4
+        // structurally (the hand-set `tangent_joints = vec![3, 4]` of
+        // the retired form). The arc's bulge is now the tangent-arc
+        // derivation (tan(−π/8)) rather than the hand literal
+        // −(√2 − 1) — the W1 ulp class, a numbered deviation.
+        ProgramStep::Tangent,
+        ProgramStep::TangentArcTo(ProgramTarget::Point(pt(1.0, 1.5))),
+        ProgramStep::Tangent,
+        // The declared-tangent straight leg rides the inherited
+        // direction: authored as its LENGTH (the (1,1.5) → (1,3) run).
+        ProgramStep::Line(Expr::literal(1.5, Dimension::Length).unwrap()),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 3.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let tangent_p = r.insert(Node::Profile(ProfileProgram {
         // A parallel plane, so the two bodies never interact.
-        SketchPlane::from_frame(
+        plane: SketchPlane::from_frame(
             geom_core::Point3::new(0.0, 0.0, 4.0),
             geom_core::Vec3::new(1.0, 0.0, 0.0),
             geom_core::Vec3::new(0.0, 1.0, 0.0),
         ),
-        vec![bracket],
-    ))));
+        loops: vec![bracket],
+    }));
     let tangent_body = r.insert(Node::Extrude {
         profile: tangent_p,
         distance: len(0.25),

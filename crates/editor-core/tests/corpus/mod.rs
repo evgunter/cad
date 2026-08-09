@@ -34,7 +34,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, ContentBits, Datum, DocEdit, EvalOptions, Evaluation,
-    Node, NodeResult, PatternKind, ProfileDesc, ProfileDoc, RecipeNodeId, ValuePayload, apply,
+    Node, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, ValuePayload, apply,
     evaluate,
 };
 use geom_core::Decide;
@@ -75,7 +75,7 @@ pub struct CorpusDoc {
     /// One-line description (printed in the latency table).
     pub about: &'static str,
     /// The recorded edit log (applied to the empty snapshot).
-    pub edits: Vec<DocEdit<ProfileDesc>>,
+    pub edits: Vec<DocEdit<ProfileProgram>>,
     /// The replayed current state (empty snapshot + `edits`).
     pub doc: ProfileDoc,
     /// The node carrying the document's headline solid, if it has one
@@ -89,7 +89,7 @@ pub struct CorpusDoc {
     /// the document has interior nodes; `declared_tangency` is two
     /// disjoint leaf chains and has none, so its bump edits a leaf and
     /// the reuse comes from the sibling chain.
-    pub bump: DocEdit<ProfileDesc>,
+    pub bump: DocEdit<ProfileProgram>,
     /// The node the bump edits — the root of the cone that must
     /// recompute (the test derives the cone independently from the
     /// DAG and asserts the counted reuse against it).
@@ -270,7 +270,7 @@ pub const SUB_KINDS: [&str; 9] = [
 ];
 
 /// The sub-kind tally names a node contributes (possibly none).
-pub fn sub_kinds(node: &Node<ProfileDesc>) -> Vec<&'static str> {
+pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
     match node {
         Node::Datum(Datum::Plane { .. }) => vec!["Datum::Plane"],
         Node::Datum(Datum::Axis { .. }) => vec!["Datum::Axis"],
@@ -308,7 +308,7 @@ pub fn sub_kinds(node: &Node<ProfileDesc>) -> Vec<&'static str> {
 }
 
 /// The node kind's tally name.
-pub fn node_kind(node: &Node<ProfileDesc>) -> &'static str {
+pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
     match node {
         Node::Datum(_) => "Datum",
         Node::Profile(_) => "Profile",
@@ -326,7 +326,7 @@ pub fn node_kind(node: &Node<ProfileDesc>) -> &'static str {
 }
 
 /// The edit kind's tally name.
-pub fn edit_kind(edit: &DocEdit<ProfileDesc>) -> &'static str {
+pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
     match edit {
         DocEdit::InsertNode { .. } => "InsertNode",
         DocEdit::DeleteNode { .. } => "DeleteNode",
@@ -361,7 +361,7 @@ pub fn vocabulary() -> (Tally, Tally, Tally) {
     for d in documents() {
         let mut seen_n = BTreeSet::new();
         let mut seen_s = BTreeSet::new();
-        let note = |n: &Node<ProfileDesc>,
+        let note = |n: &Node<ProfileProgram>,
                     seen_n: &mut BTreeSet<&'static str>,
                     seen_s: &mut BTreeSet<&'static str>| {
             seen_n.insert(node_kind(n));

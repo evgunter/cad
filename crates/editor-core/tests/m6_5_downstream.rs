@@ -45,7 +45,7 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, Dimension, DocEdit, EntityKind, EvalOptions, Expr, Node,
-    NodeResult, ProfileDesc, ProfileDoc, RecipeNodeId, RoleSeg, StableName, ValuePayload, apply,
+    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, StableName, ValuePayload, apply,
     evaluate,
 };
 use fixture::prism_edges;
@@ -58,7 +58,7 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
 }
 
-fn insert(doc: &ProfileDoc, node: Node<ProfileDesc>) -> (ProfileDoc, RecipeNodeId) {
+fn insert(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let a = apply(doc, &DocEdit::InsertNode { node }).expect("the fixture builds");
     let id = a.record.minted.expect("a minted id");
     (a.doc, id)

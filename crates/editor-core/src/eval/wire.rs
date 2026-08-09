@@ -16,7 +16,7 @@ use topo::{
     Body, BooleanDeclarations, BooleanResult, CarriedContacts, GeomSource, VfContact, VvContact,
 };
 
-use super::anchor::{self, ProfileNaming, ProfileValue};
+use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
 use crate::names::{self, NameTable};
@@ -32,16 +32,16 @@ type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 
 /// Runs one node's op against its (already Ok) inputs and evaluated
 /// slots, emitting the node's name table alongside the payload.
-/// `resolved_program` is the profile node's f64-resolved step lists
-/// (present exactly for `Node::Profile` — resolved once in
-/// `eval_node`, shared with the content key).
+/// `profile_pre` is the profile node's f64 precompute (present exactly
+/// for `Node::Profile` — computed in `eval_node`'s resolution stage,
+/// outside the verdict bracket).
 pub(crate) fn run_op<T>(
     id: RecipeNodeId,
     node: &Node<ProfileProgram>,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
-    resolved_program: Option<&[Vec<profile::Step<f64>>]>,
+    profile_pre: Option<&ProfilePre>,
     boolean_sweep: topo::SweepStrategy,
 ) -> OpResult<T>
 where
@@ -49,10 +49,7 @@ where
 {
     match node {
         Node::Datum(d) => Ok((wire_datum(d, vals)?, names::empty())),
-        Node::Profile(program) => Ok((
-            wire_profile(program, resolved_program.unwrap_or(&[]))?,
-            names::empty(),
-        )),
+        Node::Profile(_) => Ok((wire_profile(profile_pre)?, names::empty())),
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals),
         Node::Revolve { profile, axis, .. } => wire_revolve(id, *profile, *axis, results, vals),
         Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals),
@@ -237,18 +234,20 @@ fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>) -> PayloadResult<T> {
     }))
 }
 
-/// The profile node's op (LIB-SWITCH §4b): the resolved program
-/// replays through `profile::replay` — the driver, the ONLY path from
-/// steps to geometry — then the assembled `Profile<f64>` validates at
-/// f64 (deriving the program-anchor naming map), embeds to `T`, and
-/// validates under the run tolerance exactly as before. VQ6 is closed
-/// here: the replay-time junction checks and the validation below run
-/// under the SAME `Tolerance::get()` the evaluation pins — replay
-/// tolerance IS evaluation tolerance.
-fn wire_profile<T: Decide>(
+/// The profile node's F64 PRECOMPUTE (LIB-SWITCH §4b): the resolved
+/// program replays through `profile::replay` — the driver, the ONLY
+/// path from steps to geometry — then the assembled `Profile<f64>`
+/// validates at f64 (the C6 structure-selection gate, which also
+/// yields the canonical form the program-anchor naming map is derived
+/// from). Runs OUTSIDE the verdict bracket (`eval_node`): these are
+/// structure decisions, the successor of the stored f64 bits, not
+/// per-lane op decisions. VQ6 is closed here and in the op below: the
+/// replay-time junction checks and both validations run under the
+/// SAME `Tolerance::get()` the evaluation pins.
+pub(crate) fn prepare_profile(
     program: &ProfileProgram,
     resolved: &[Vec<profile::Step<f64>>],
-) -> PayloadResult<T> {
+) -> Result<ProfilePre, NodeErrorKind> {
     let mut loops = Vec::with_capacity(resolved.len());
     for (li, steps) in resolved.iter().enumerate() {
         let lp = profile::replay(steps).map_err(|error| NodeErrorKind::ProfileReplay {
@@ -257,24 +256,42 @@ fn wire_profile<T: Decide>(
         })?;
         loops.push(lp);
     }
-    // f64 validation first: it both gates the geometry in the C6 lane
-    // and yields the canonical form the naming anchor is derived from.
-    let profile_f64 = profile::Profile::new(program.plane, loops.clone());
+    let profile_f64 = profile::Profile::new(program.plane, loops);
     let validated_f64 = profile_f64
         .validate(Tolerance::get())
         .map_err(NodeErrorKind::Profile)?;
-    let naming = anchor::derive_naming(&validated_f64, &loops).ok_or({
+    let naming = anchor::derive_naming(&validated_f64, &profile_f64.loops).ok_or({
         // A canonical loop failed to match any program loop — an
-        // internal invariant break, typed (loop coordinate is not
+        // internal invariant break, typed (the loop coordinate is not
         // recoverable from the failed derivation; 0 names the walk).
         NodeErrorKind::ProfileAnchor { loop_: 0 }
     })?;
-    let validated = anchor::embed_profile::<T>(&profile_f64)
+    Ok(ProfilePre {
+        profile_f64,
+        naming,
+    })
+}
+
+/// The profile node's op: embed the precomputed f64 profile into the
+/// lane scalar and validate under the run tolerance — exactly the
+/// pre-switch op, so the node's logged verdicts are unchanged.
+fn wire_profile<T: Decide>(pre: Option<&ProfilePre>) -> PayloadResult<T> {
+    let Some(pre) = pre else {
+        // Unreachable by eval_node's stage order; typed, never a panic.
+        return Err(NodeErrorKind::MissingSlot {
+            slot: SlotId::Profile {
+                loop_: 0,
+                step: 0,
+                arg: crate::node::StepArg::PointX,
+            },
+        });
+    };
+    let validated = anchor::embed_profile::<T>(&pre.profile_f64)
         .validate(Tolerance::get())
         .map_err(NodeErrorKind::Profile)?;
     Ok(ValuePayload::Profile(Arc::new(ProfileValue {
         validated,
-        naming,
+        naming: pre.naming.clone(),
     })))
 }
 

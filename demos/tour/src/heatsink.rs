@@ -22,11 +22,11 @@
 use std::collections::BTreeMap;
 
 use pncad::editor_core::{
-    CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Expr, Node, PatternKind, ProfileDesc,
-    RecipeNodeId, SlotId, ValuePayload, apply, evaluate, parse_expr,
+    CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Expr, LoopProgram, Node, PatternKind,
+    ProfileProgram, RecipeNodeId, SlotId, ValuePayload, apply, evaluate, parse_expr,
 };
 use pncad::geom_core::{Point3, Vec3};
-use pncad::profile::{Profile, SketchPlane};
+use pncad::profile::SketchPlane;
 
 use crate::booleans::{check, expect_seamed, try_union};
 use crate::scalar::Scalar;
@@ -48,45 +48,47 @@ const BASE_VOL: f64 = 3.0 * 1.0 * 0.25;
 const FIN_GAIN: f64 = 0.1875 * 0.75 * (0.8125 - 0.0625);
 
 struct Recipe {
-    doc: Doc<ProfileDesc>,
+    doc: Doc<ProfileProgram>,
     base_e: RecipeNodeId,
     pattern: RecipeNodeId,
 }
 
 fn build_doc() -> Recipe {
-    let base_profile = Profile::new(
-        SketchPlane::xy(),
-        // Algebra-authored (LIB-U2 PR-2).
-        vec![crate::paths::path_polygon(&[
-            (0.0, 0.0),
-            (3.0, 0.0),
-            (3.0, 1.0),
-            (0.0, 1.0),
-        ])],
-    );
+    // v4 (LIB-SWITCH): the document stores the PROGRAM — the polygon
+    // chain (`At`, `LineTo`…, `LineTo(Start)`), replayed through the
+    // driver at every evaluation.
+    let base_profile = ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![
+            LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 1.0), (0.0, 1.0)])
+                .expect("finite corners"),
+        ],
+    };
     // Fin sketch sits at z = 0.1875 — 1/16 INSIDE the 0.25-thick base.
     let fin_plane = SketchPlane::from_frame(
         Point3::new(0.0, 0.0, 0.1875),
         Vec3::new(1.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
     );
-    let fin_profile = Profile::new(
-        fin_plane,
-        // Algebra-authored (LIB-U2 PR-2).
-        vec![crate::paths::path_polygon(&[
-            (0.25, 0.125),
-            (0.4375, 0.125),
-            (0.4375, 0.875),
-            (0.25, 0.875),
-        ])],
-    );
-    let mut doc: Doc<ProfileDesc> = Doc::empty();
-    let insert = |doc: &mut Doc<ProfileDesc>, node| -> RecipeNodeId {
+    let fin_profile = ProfileProgram {
+        plane: fin_plane,
+        loops: vec![
+            LoopProgram::polygon([
+                (0.25, 0.125),
+                (0.4375, 0.125),
+                (0.4375, 0.875),
+                (0.25, 0.875),
+            ])
+            .expect("finite corners"),
+        ],
+    };
+    let mut doc: Doc<ProfileProgram> = Doc::empty();
+    let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
         let applied = apply(doc, &DocEdit::InsertNode { node }).expect("insert node");
         *doc = applied.doc;
         applied.record.minted.expect("insert mints an id")
     };
-    let base_p = insert(&mut doc, Node::Profile(ProfileDesc(base_profile)));
+    let base_p = insert(&mut doc, Node::Profile(base_profile));
     let base_e = insert(
         &mut doc,
         Node::Extrude {
@@ -94,7 +96,7 @@ fn build_doc() -> Recipe {
             distance: pe("250 mm"),
         },
     );
-    let fin_p = insert(&mut doc, Node::Profile(ProfileDesc(fin_profile)));
+    let fin_p = insert(&mut doc, Node::Profile(fin_profile));
     let fin_e = insert(
         &mut doc,
         Node::Extrude {

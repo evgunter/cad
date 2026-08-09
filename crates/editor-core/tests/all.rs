@@ -124,8 +124,6 @@ mod m6_5_schema_v3;
 mod m6_5_selection_refusals;
 #[path = "m6_composed_node.rs"]
 mod m6_composed_node;
-#[path = "profile_desc_key.rs"]
-mod profile_desc_key;
 #[path = "review_m4_pr1.rs"]
 mod review_m4_pr1;
 #[path = "review_m4_pr1_die.rs"]
@@ -144,6 +142,8 @@ mod review_m5_pr9_doc_probe;
 mod review_m6_5_pr2_probes;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
+#[path = "switch_program_key.rs"]
+mod switch_program_key;
 #[path = "u8a_parse.rs"]
 mod u8a_parse;
 

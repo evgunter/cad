@@ -16,6 +16,9 @@ use editor_core::{
 
 #[derive(Debug, Clone, PartialEq)]
 struct FakeProfile(&'static str);
+// The v4 payload trait: fake payloads take the slot-free, check-free
+// defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
+impl editor_core::ProfilePayload for FakeProfile {}
 
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;

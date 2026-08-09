@@ -803,6 +803,21 @@ where
         _ => None,
     };
 
+    // The profile F64 PRECOMPUTE (replay + f64 validation + the naming
+    // anchor) also lives here, OUTSIDE the verdict-log bracket: it is
+    // C6 structure selection — the successor of the stored f64 bits —
+    // not a per-lane op decision, so the node's logged verdicts stay
+    // exactly the lane validation the op runs (the v1 logged surface).
+    let profile_pre = match (node, &resolved_program) {
+        (crate::node::Node::Profile(program), Some(resolved)) => {
+            match wire::prepare_profile(program, resolved) {
+                Ok(pre) => Some(pre),
+                Err(kind) => return fail(kind),
+            }
+        }
+        _ => None,
+    };
+
     let content_key = content_key(
         node,
         &slot_values,
@@ -843,7 +858,7 @@ where
         doc,
         results,
         &slot_values,
-        resolved_program.as_deref(),
+        profile_pre.as_ref(),
         boolean_sweep,
     );
     let verdicts = geom_core::k_stats::take_verdict_log();

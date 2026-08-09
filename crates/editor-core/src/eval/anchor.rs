@@ -107,6 +107,22 @@ pub struct ProfileValue<T: geom_core::Real> {
     pub naming: ProfileNaming,
 }
 
+/// The profile node's f64 PRECOMPUTE (LIB-SWITCH §4b): the replayed
+/// loops assembled into a `Profile<f64>` plus the derived naming
+/// anchor. Computed in `eval_node`'s resolution stage, OUTSIDE the
+/// node's verdict-log bracket — replay and the f64 validation are C6
+/// STRUCTURE SELECTION (the v1 substrate's stored bits, one
+/// derivation earlier), not per-lane op decisions, so they do not
+/// enter the node's logged verdicts; the lane's own `validate` (the
+/// op) remains the logged surface, exactly as before the switch.
+#[derive(Debug, Clone)]
+pub(crate) struct ProfilePre {
+    /// The replayed profile at f64 (program order).
+    pub profile_f64: Profile<f64>,
+    /// The canonical→program naming anchor.
+    pub naming: ProfileNaming,
+}
+
 /// Derives the anchor by bit-matching the canonical f64 loops against
 /// the replayed program-order f64 loops. `None` on a failed match —
 /// an internal invariant break (validate's exact-reindexing contract),
