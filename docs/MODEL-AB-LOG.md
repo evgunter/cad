@@ -432,6 +432,10 @@ this entry. DRAWN: byte 166 (<252, accepted), 166 mod 3 = 1 →
 block M7-12 arm order (opus, fable, opus) — calochortus (slot 0)
 gets OPUS; fable slot 1 + opus slot 2 bank for the next
 M7/M8-eligible dispatches.
+SLOT 0 DISPATCHED (2026-08-09): calochortus partial refresh on
+lane calochortus, branch m7/calochortus; arm = OPUS (the drawn
+slot 0); orchestrator-review class expected (demo — excluded like
+MONTAGE/MV2/WMONTAGE if so).
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
