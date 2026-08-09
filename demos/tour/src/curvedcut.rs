@@ -50,7 +50,9 @@ const PHI: f64 = 0.3;
 fn disc<S: Scalar>() -> ValidatedProfile<S> {
     // Algebra-authored (LIB-G1): the one-step circle program form.
     let p2 = |x: f64, y: f64| Point2::new(S::from_f64(x), S::from_f64(y));
-    let lp = pncad::profile::circle(p2(0.0, 0.0), S::from_f64(R)).expect("disc radius is positive");
+    let lp = pncad::profile::circle(p2(0.0, 0.0), S::from_f64(R))
+        .expect("disc radius is positive")
+        .into();
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .expect("the disc profile validates")
