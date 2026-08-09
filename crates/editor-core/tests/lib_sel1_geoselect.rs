@@ -24,8 +24,8 @@ mod corpus;
 mod fixture;
 
 use editor_core::{
-    CancelToken, CapEnd, Cmp, CurveKind, CurveKindSet, Datum, Dimension, EntityKind,
-    EvalOptions, Expr, GeomPred, NamePat, Node, ParamEnv, ProfileDoc, RecipeNodeId, SegPat, SegTag,
+    CancelToken, CapEnd, Cmp, CurveKind, CurveKindSet, Datum, Dimension, EntityKind, EvalOptions,
+    Expr, GeomPred, NamePat, Node, ParamEnv, ProfileDoc, RecipeNodeId, SegPat, SegTag,
     SelectRefusal, Selector, SurfaceKindSet, evaluate, select, select_where,
 };
 use geom_brep::SurfaceKind;
@@ -60,11 +60,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         doc,
         Node::Datum(Datum::Plane {
             origin: [len(0.0), len(0.0), len(0.0)],
-            normal: [
-                fixture::scl(0.0),
-                fixture::scl(0.0),
-                fixture::scl(1.0),
-            ],
+            normal: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
         }),
     );
     (doc, cube, datum)

@@ -159,7 +159,9 @@ impl CurveKindSet {
 
     /// The members, in [`CurveKind::ALL`] order.
     pub fn iter(self) -> impl Iterator<Item = CurveKind> {
-        CurveKind::ALL.into_iter().filter(move |k| self.contains(*k))
+        CurveKind::ALL
+            .into_iter()
+            .filter(move |k| self.contains(*k))
     }
 }
 
@@ -200,7 +202,11 @@ impl SurfaceKindSet {
     /// The set of exactly these kinds. An EMPTY set matches nothing.
     #[must_use]
     pub fn of(kinds: impl IntoIterator<Item = SurfaceKind>) -> Self {
-        Self(kinds.into_iter().fold(0, |acc, k| acc | (1 << surface_bit(k))))
+        Self(
+            kinds
+                .into_iter()
+                .fold(0, |acc, k| acc | (1 << surface_bit(k))),
+        )
     }
 
     /// The singleton set — the common case.
