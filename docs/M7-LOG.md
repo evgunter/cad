@@ -1093,6 +1093,22 @@ rather than smuggled in here.
   seam sits at the patch's `u = 1` edge where that point's basis
   weight vanishes. The row now pins that SEPARATION explicitly; the
   perturbation that must be caught is the carrier-side falsifier.
-- *A COLD-LINT catch on inherited work*: SU2's probe file shipped
-  without its `#![allow(clippy::unwrap_used, …)]` header and would
-  have failed the clippy gate.
+- *The flip is ε-DEPENDENT, and both postures are pinned.* The seam's
+  certified between-samples sup is 6.32e-12 m — the promoted plane
+  wall's boundary column and the arc wall's own column agree only to
+  the arc endpoint's rounding, and the first-order envelope cannot
+  say better. So the pin flips at ε_in = 1e-9 (default) and 1e-6,
+  and at the 1e-12 matrix row the same geometry refuses TYPED,
+  carrying that number: `Escalated { check: PlaneNurbsCertificate,
+  cause: Indeterminate { margin: 6.31561637745462e-12, band: { zero:
+  1e-12, escalate: 1e-11 }, predicate: "ssi_hull_sup_chart" } }`.
+  This is the spec's clause 3 landing exactly as written — the bound
+  too loose at ε refuses WITH its measurement, and nothing was
+  widened to make the row green. Tightening it needs the banked
+  algebraic spline-product hull certificate (the same bank that owes
+  the cylinder track), not a gate change.
+- *A COLD-LINT catch on inherited work* (×2): SU2's probe file shipped
+  without its `#![allow(clippy::unwrap_used, …)]` header, and SU3's
+  new `impl` block sat after `mod tests` in `topo/src/euler.rs`
+  (`clippy::items_after_test_module`). Both would have failed the
+  clippy gate; both were caught by the cold pass, not by a warm one.

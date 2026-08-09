@@ -109,8 +109,11 @@ fn the_stated_carrier_certifies_against_both_surfaces() {
 fn a_displaced_carrier_refuses_with_the_measured_residual() {
     let wall = quarter_cylinder_wall();
     let plane = transverse_plane();
-    // 1e-6 m off the ruling, along +y: off the plane AND off the wall.
-    let off = 1e-6;
+    // Off the ruling along +y: off the plane AND off the wall. The
+    // displacement SCALES with the run's ε — a fixed 1e-6 m is not a
+    // falsifier at the 1e-6 matrix row, where it sits inside the
+    // budget and the honest verdict is acceptance.
+    let off = 1e3 * Tolerance::get().eps;
     let carrier = segment(Point3::new(1.0, off, 0.0), Point3::new(1.0, off, 1.0));
     match f64::plane_nurbs_limbs(&carrier, &plane, &wall, 1.0, band()) {
         Err(PlaneNurbsRefusal::Limb { limb, value }) => {
@@ -212,7 +215,8 @@ fn the_door_certifies_the_true_carrier_and_records_the_lane_sup() {
 /// bound — the declare-and-check payload survives the mapping.
 #[test]
 fn the_door_refuses_a_displaced_carrier_with_the_measured_bound() {
-    let off = 1e-6;
+    // Scaled with ε, exactly as the lane row above (same reason).
+    let off = 1e3 * Tolerance::get().eps;
     let carrier = segment(Point3::new(1.0, off, 0.0), Point3::new(1.0, off, 1.0));
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);

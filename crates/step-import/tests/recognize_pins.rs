@@ -190,6 +190,16 @@ fn straight_arc_prism() -> topo::Body<f64> {
 /// imported body rather than reading the stored `max_residual`, so
 /// what is reported here is a fresh measurement (the same discipline
 /// the at-rest tier-3 pass applies below).
+///
+/// **The flip is ε-dependent, and that is the honest answer, not a
+/// gap.** This seam's certified between-samples sup is ~6.3e-12 m —
+/// the two columns agree only to the arc endpoint's rounding and the
+/// first-order envelope cannot say better. So the pin flips at ε_in =
+/// 1e-9 (default) and 1e-6, and at the 1e-12 matrix row the SAME
+/// geometry refuses TYPED, carrying that 6.3e-12 in the payload. The
+/// spec's clause 3 is explicit that this is the outcome to ship: a
+/// bound too loose at ε refuses with its number, never through a
+/// widened gate. Both postures are pinned below.
 #[test]
 fn the_seam_orphan_certifies_as_a_plane_nurbs_intersection() {
     let native = straight_arc_prism();
@@ -197,8 +207,54 @@ fn the_seam_orphan_certifies_as_a_plane_nurbs_intersection() {
         .expect("the arc prism exports");
     let eps = geom_core::Tolerance::get().eps;
 
-    let import = import_step(&text, &ImportOptions::default())
-        .expect("the arc-prism mixed body imports first-class (M7-8)");
+    // TWO honest postures, and which one this row takes is decided by
+    // ε_in against the envelope's own slack — never by a widened gate
+    // (the spec's clause 3). This seam's certified between-samples sup
+    // is ~6.3e-12 m: the promoted plane wall's boundary column and the
+    // arc wall's own column agree to the arc endpoint's rounding, and
+    // the first-order envelope over the schedule cannot say better
+    // than that. So at ε_in = 1e-9 (default) and 1e-6 the pin FLIPS,
+    // and at ε_in = 1e-12 the SAME geometry refuses typed WITH the
+    // measured bound in the payload. Both are pinned here; a change to
+    // either is a posture change to re-pin.
+    let import = match import_step(&text, &ImportOptions::default()) {
+        Ok(import) => import,
+        Err(refusal) => {
+            assert!(
+                eps < 1e-9,
+                "the flip is REQUIRED at ε_in ≥ 1e-9 (the default row and coarser): \
+                 {refusal:?}"
+            );
+            let StepImportError::Adoption { id, attempts } = &refusal else {
+                panic!("the too-fine row refuses through the adoption ladder: {refusal:?}");
+            };
+            assert_eq!(*id, 130, "the seam, named");
+            let bound = attempts.iter().find_map(|a| match a.refusal {
+                topo::EulerOpError::Certification {
+                    error:
+                        geom_brep::CertifyError::Escalated {
+                            check: geom_brep::CertCheck::PlaneNurbsCertificate,
+                            cause,
+                            ..
+                        },
+                } => match cause.margin {
+                    geom_core::MarginDiag::Value(v) => Some(v),
+                    _ => None,
+                },
+                _ => None,
+            });
+            let Some(bound) = bound else {
+                panic!("the refusal must carry the lane's measured bound: {attempts:?}");
+            };
+            assert!(
+                bound > eps,
+                "the refusal's own number explains it: the certified sup {bound:e} m \
+                 does not fit inside ε_in {eps:e}"
+            );
+            println!("M7-8 seam #130 @ eps={eps:e}: REFUSES typed, certified sup {bound:e} m");
+            return;
+        }
+    };
     let StepImport::Solid {
         body,
         normalizations,
