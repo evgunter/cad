@@ -388,3 +388,17 @@ satisfies V3 via resolved-bits convention.
   U6's finder+declaration+menu) and is ripe to draft. The thin
   declare-by-name sugar ships with it, not before. Fixture twins
   stay put (legal where they are).
+
+- **LB13 (Evan, in-chat 2026-08-09): the LB12 seal deepens, two
+  parts.** (a) `pncad` DROPS the whole-crate `editor_core`
+  re-export (measured: 2 tour consumers, both curated-servable)
+  — the document layer exposes only its curated surface;
+  kernel-direct crates KEEP module re-exports (keys are that
+  layer's native vocabulary; U1 closure property unaffected).
+  Preliminary-no per the VQ1 asymmetry: widening later is
+  additive, narrowing post-release is breaking. (b) The boundary
+  becomes a TEST, not a soft rule: a rustdoc-JSON public-API
+  check that no arena-key type appears in any signature of
+  pncad's document-layer surface (source-grep guards miss
+  signature leaks — exactly how EntityRef escaped). Lands on
+  U5's fix pass (same territory as LB12).
