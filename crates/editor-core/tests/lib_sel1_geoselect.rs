@@ -20,6 +20,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod corpus;
 mod fixture;
 
 use editor_core::{
@@ -437,5 +438,143 @@ fn the_surface_kind_mirror_is_complete() {
     assert_eq!(
         CurveKindSet::of([CurveKind::Line, CurveKind::Circle, CurveKind::Line]),
         CurveKindSet::of([CurveKind::Circle, CurveKind::Line]),
+    );
+}
+
+// ------------------------------------------------------------------
+// 5. THE ACCEPTANCE: P10's alphabet, at a document-layer die.
+// ------------------------------------------------------------------
+
+/// The composed die's fillet target and the two operand nodes, read
+/// out of the document itself (the `lib_u7_select` recovery, verbatim
+/// — nothing here restates an id the document already knows).
+fn composed_ids(
+    doc: &ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
+) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    let (_, pipped) = doc
+        .order()
+        .iter()
+        .find_map(|id| match doc.node(*id) {
+            Some(Node::Fillet { target, .. }) => Some((*id, *target)),
+            _ => None,
+        })
+        .expect("the composed die has a fillet node");
+    let operand = |pick: fn(&editor_core::RoleSeg) -> Option<&editor_core::StableName>| {
+        editor_core::all_edges(ev, pipped)
+            .iter()
+            .find_map(|n| n.path.first().and_then(pick).map(|inner| inner.node))
+            .expect("the target's table carries this operand")
+    };
+    let cube = operand(|s| match s {
+        editor_core::RoleSeg::FromA(inner) => Some(&**inner),
+        _ => None,
+    });
+    let ball = operand(|s| match s {
+        editor_core::RoleSeg::FromB(inner) => Some(&**inner),
+        _ => None,
+    });
+    (cube, ball, pipped)
+}
+
+/// **THE ACCEPTANCE (LIB-SEL1 §2.4).** `die_composed`'s fourteen
+/// fillet names, materialized from P10's ALPHABET — carrier kind and
+/// an adjacent-surface-kind pair — instead of from role-path shape or
+/// a hand-authored list.
+///
+/// This is the demo tour's `diefillet` filter pair, said in the
+/// ratified vocabulary, against a die that is a RECIPE:
+///
+/// - "the straight edges of the pipped die" → `CurveKind(Line)`: the
+///   cube's eight cap rims and four struts, the twelve edges the
+///   subtraction carried through from operand A.
+/// - "the plane/sphere rims" → `AdjacentKinds({Plane}, {Sphere})`: the
+///   two arcs the zip minted where the cube's top cap crosses the
+///   ball's lower band.
+///
+/// Union of two conjunctions, concatenated — §2's whole algebra.
+///
+/// **What is not selected is the point.** The cavity's two meridian
+/// seams are co-surface: sphere on BOTH sides, so `fillet_edges`
+/// refuses them `TangentialEdge` at margin exactly zero, correctly, at
+/// any radius. The structural selector excluded them because neither
+/// alternative admits a `FromB` segment; the geometric one excludes
+/// them because `(Sphere, Sphere)` is neither of the two patterns —
+/// the co-surface refusal falls out of the GEOMETRY, which is what
+/// P10's hand-written filter was reaching for when it wrote that the
+/// kind-pair test "stands in for concave rim".
+///
+/// The authored fourteen stay in the corpus as the independent oracle,
+/// so this is an equivalence and not a tautology: three descriptions
+/// (an emitter-vocabulary list, a role-path shape, a geometric
+/// predicate) that must agree name for name.
+#[test]
+fn the_geometric_selector_materializes_the_authored_die_composed_selection() {
+    let doc = corpus::die_composed::document();
+    let ev = eval(&doc.doc);
+    let (cube, ball, pipped) = composed_ids(&doc.doc, &ev);
+
+    let edges = all(EntityKind::Edge);
+    let straight = select_where(
+        &ev,
+        pipped,
+        &edges,
+        &[GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))],
+        &no_params(),
+    )
+    .expect("exact atoms are total — a purely-exact filter cannot refuse");
+    let rims = select_where(
+        &ev,
+        pipped,
+        &edges,
+        &[GeomPred::AdjacentKinds(
+            SurfaceKindSet::just(SurfaceKind::Plane),
+            SurfaceKindSet::just(SurfaceKind::Sphere),
+        )],
+        &no_params(),
+    )
+    .expect("exact atoms are total");
+
+    assert_eq!(straight.len(), 12, "the box edges the subtraction kept");
+    assert_eq!(rims.len(), 2, "the pip rim is two arcs, not one circle");
+
+    // The geometric UNION: run it twice and concatenate (§2).
+    let mut materialized = [straight, rims].concat();
+    materialized.sort();
+    materialized.dedup();
+
+    let mut authored = corpus::die_composed::selection(cube, ball, pipped);
+    authored.sort();
+    authored.dedup();
+    assert_eq!(authored.len(), 14, "the document's own count");
+    assert_eq!(
+        materialized, authored,
+        "P10's two filters must name exactly the authored fourteen",
+    );
+
+    // ...and the structural route agrees, so all three descriptions do.
+    assert_eq!(
+        materialized,
+        select(&ev, pipped, &corpus::die_composed::selector()),
+        "the geometric and structural selectors must not disagree",
+    );
+
+    // The excluded pair is excluded BY GEOMETRY: co-surface sphere on
+    // both sides matches neither pattern, and is the whole remainder.
+    let sphere = SurfaceKindSet::just(SurfaceKind::Sphere);
+    let meridians = select_where(
+        &ev,
+        pipped,
+        &edges,
+        &[GeomPred::AdjacentKinds(sphere, sphere)],
+        &no_params(),
+    )
+    .expect("exact atoms are total");
+    assert_eq!(meridians.len(), 2, "the two co-surface cavity meridians");
+    assert!(meridians.iter().all(|m| !materialized.contains(m)));
+    assert_eq!(
+        select(&ev, pipped, &edges).len(),
+        16,
+        "twelve straight + two rim arcs + two meridians is the whole table",
     );
 }
