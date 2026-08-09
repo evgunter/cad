@@ -30,6 +30,10 @@ geom-core = { path = "../geom-core" }
 # discriminators against cutting carriers, N2) from the result body.
 geom-surfaces = { path = "../geom-surfaces" }
 profile = { path = "../profile" }
+# LIB-U8a: the expression TEXT parser's unit-suffix vocabulary is the
+# quantity crate's closed unit table (a leaf crate — no dependency
+# cycle: quantity sits below the whole workspace).
+quantity = { path = "../quantity" }
 sweep = { path = "../sweep" }
 topo = { path = "../topo" }
 # D6: rayon idiom-1 parallelism over independent DAG nodes (the D9

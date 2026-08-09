@@ -4,6 +4,8 @@ tour/target/
 out/
 .venv/
 target-demo/
-renders/.freecad_ok
 renders-freecad/*.fail.txt
+# out/ already covers the render staging trees (out/stage-renders*/)
+# and the per-scene FreeCAD logs; spelled out because they are the
+# only place an in-flight pass exists.
 out/freecad-logs/

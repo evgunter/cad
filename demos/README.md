@@ -32,6 +32,13 @@ Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` (untracked),
 matplotlib — `demos/renders-preview/renders/*.png` (gitignored; see
 below).
 
+A pass in flight lives in `demos/out/stage/<lane>/` (untracked) and is
+published to the lane directory only once it is complete. FreeCAD
+stamps each PNG with the path it was written to, so the staging tree
+mirrors the lane directory's *name* and each scene process runs with
+the staging root as its working directory — a staged frame is
+byte-identical to the published one.
+
 Both `render.sh` lanes run `strip_png_stamps.py` over the per-scene
 PNGs before composing the montage: FreeCAD's `saveImage` stamps the
 wall clock into every file it writes (a `tEXt` "Creation Time" chunk
@@ -60,6 +67,13 @@ the filesystem level, and one silently reached a committed montage cell
   (`renders-preview/renders-freecad/` never appears: the `--freecad`
   lane has no fallback by design — its whole point is the OCC reference
   render — it exits 1 instead.)
+* **Staging.** A pass renders into `demos/out/stage/<lane>/` (untracked)
+  and is moved into the lane directory only once every scene is in
+  hand, so *no* incomplete pass ever reaches `renders/` — not a
+  crashed one, not a wedged one, not one killed at the terminal.
+  Before this, a FreeCAD session that died mid-pass left a partial
+  FreeCAD-authored set behind, visible in `git status` but still
+  sitting in the committed path.
 * **Guard.** `check_render_provenance.py` asserts that every committed
   per-scene PNG under `renders/` and `renders-freecad/` carries
   FreeCAD's signature `tEXt` chunks (`Author: FreeCAD (…)`, `Software:
@@ -340,22 +354,42 @@ regardless of renderer. (Before the #159 split this lane preferred
 STEP imports; once M5 PR 13 made every body export STEP that would
 have turned the "kernel" montage 100% OCC, so the STL source is now
 unconditional and the STEP imports live in the `--freecad` lane.)
-Set `FREECADCMD` to override the binary location. All scenes render
-in one warm document with per-scene visibility toggling (per-scene
+Set `FREECADCMD` to override the binary location. Within one scene the
+bodies share one warm document with visibility toggling (per-scene
 document cycling races the offscreen view-provider setup — observed
 as blank frames/hangs). freecadcmd's Qt teardown can crash AFTER a
-successful pass, so `render.sh` keys on the `renders/.freecad_ok`
-sentinel, not the exit status.
+successful render, so a scene counts as rendered when its PNG exists,
+never by exit status.
 
-`render.sh --freecad` (STEP lane) runs **one `freecadcmd` process per
-scene** under `timeout` (`FREECAD_SCENE_TIMEOUT`, default 300 s) —
-bulk imports have stalled before, and per-scene isolation means a
-stall or import failure costs one cell: the failure reason lands in
-`renders-freecad/<scene>.fail.txt` (full log under
+`render.sh --freecad` (STEP lane) has no matplotlib fallback: its whole
+point is the OCC reference render, so a missing `freecadcmd` is a loud
+exit. A scene it genuinely cannot import or render costs one cell — the
+reason lands in `renders-freecad/<scene>.fail.txt` (full log under
 `out/freecad-logs/`) and `compose_montage.py` draws a labeled
-placeholder cell naming it — never a silent gap. This lane has no
-matplotlib fallback: its whole point is the OCC reference render, so
-a missing `freecadcmd` is a loud exit.
+placeholder naming it, never a silent gap.
+
+### One process per scene, on a budget
+
+**Both** lanes run one `freecadcmd` process per scene, each under a
+per-scene wall-clock budget (`FREECAD_SCENE_TIMEOUT`, default 300 s;
+`render.sh` documents how that number was measured). A warm session
+that renders many scenes deadlocks partway through on some hosts — at a
+different scene each time, on an idle box as well as a loaded one — so
+it is the session that wedges, not any one scene, and no session is
+reused across scenes.
+
+Each attempt runs in its own session, so the budget covers the process
+*tree*: when it expires the whole group is killed and the scene is
+retried **once**, in a fresh process. A second expiry is a loud,
+named failure that ends the pass — never a silent skip, never a
+degraded cell. Two signals come out with it: how long the process had
+been silent (a slow scene keeps writing to its log; a wedged one goes
+quiet), and, when the frame was written but the process still had to be
+killed, a note saying so — a post-render stall costs one budget and is
+never mistaken for a good pass.
+
+Because frames are staged and published only on a complete pass (see
+above), a wedge leaves the committed lane directory exactly as it was.
 
 `render.py` is the zero-dependency fallback for the kernel lane
 (numpy + matplotlib, pure CPU, demo-local venv): binary-STL parsing,

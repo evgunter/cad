@@ -140,6 +140,8 @@ mod review_m5_pr1_e2e_interval;
 mod review_m5_pr9_doc_probe;
 #[path = "review_m6_5_pr2_probes.rs"]
 mod review_m6_5_pr2_probes;
+#[path = "u8a_parse.rs"]
+mod u8a_parse;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.
