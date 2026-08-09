@@ -24,16 +24,18 @@
 //! types deliberately carry **no serde derives** — there is nowhere
 //! in the persisted document for them to go.
 //!
-//! # STRUCTURAL only (the LB7 fence)
+//! # The PATTERNS stay structural; geometry is a second STAGE
 //!
-//! The vocabulary here speaks role paths and nothing else. Carrier
-//! kind, adjacent-surface pairs, convexity and position are NOT
-//! expressible and must not become expressible here: a geometric
-//! selector predicate is a DECIDED predicate and inherits
-//! `docs/DESIGN.md`'s margins-and-recorded-verdicts discipline
-//! (§ "selection/tie-break/ordering"), which this module has no
-//! machinery for. Those predicates are deferred to a designed
-//! follow-up (LIB-LOG LB7; GUI-DESIGN GQ7).
+//! [`Selector`] and [`NamePat`] speak role paths and nothing else, and
+//! that is permanent: matching on the name value alone is what makes a
+//! pattern reusable anywhere a name exists (appearance, resolve
+//! diagnostics), and it needs no body to do it. Carrier kind,
+//! adjacent-surface pairs and position are different in kind — they
+//! interrogate the ENTITY a name resolves to — so they are a FILTER at
+//! the materializer, not a new pattern leaf: [`select_where`] with a
+//! conjunction of [`GeomPred`] atoms (SELECT-DESIGN §§1-2, ratified
+//! #286; the LB7 deferral this discharges). Convexity stays reserved
+//! and unbuilt (GS-Q2 — see [`GeomPred`]).
 //!
 //! # Shaped as data, not closures
 //!
@@ -42,12 +44,16 @@
 //! terms, print, or diff one; a `Fn(&StableName) -> bool` could do
 //! none of that.
 
-use geom_core::Decide;
+use geom_core::{Band, Decide};
 
 use crate::eval::{Evaluation, NodeResult};
+use crate::expr::ParamEnv;
 use crate::node::RecipeNodeId;
 
+use super::geompred::{self, GeomPred, SelectRefusal};
+use super::interrogate;
 use super::role::{CapEnd, EntityKind, MeridianEnd, RimSupport, RoleSeg, SplitHalf, StableName};
+use super::table::{EntityRef, Entry};
 
 /// The op group a [`RoleSeg`] belongs to — the enum's own documented
 /// grouping, made addressable so a pattern can say "anything the
@@ -538,4 +544,106 @@ pub fn select<T: Decide>(
     out.sort();
     out.dedup();
     out
+}
+
+/// **The names of `node`'s output matching `sel` AND every atom of
+/// `geom`, as of THIS evaluation** — the structural selector with a
+/// geometric filter bolted on at the materializer.
+///
+/// # The shape, and why it is this shape
+///
+/// The structural [`Selector`] is UNCHANGED and geometry is a second
+/// STAGE, not a new [`NamePat`] field. A `NamePat` matches on the name
+/// value alone (`matches(&StableName) -> bool` — pure, no evaluation
+/// in sight), which is exactly what makes it reusable anywhere a name
+/// exists. A geometric predicate is different in kind: it interrogates
+/// the ENTITY the name resolves to. Structural narrows; geometric
+/// filters the survivors.
+///
+/// `geom` is a CONJUNCTION. Union-of-conjunctions stays the whole
+/// algebra — call this twice and concatenate for a geometric union,
+/// the same additive-growth posture the structural union has. An EMPTY
+/// `geom` makes this exactly [`select`], infallibly.
+///
+/// # Still a MATERIALIZER
+///
+/// Same contract as [`select`] and [`all_edges`](super::all_edges):
+/// answers as of one evaluation, returns canonical order (sorted,
+/// deduped) `Vec<StableName>`, and the CALLER stores it. Nothing here
+/// is storable in a recipe — [`GeomPred`] carries no serde derives for
+/// the same reason [`Selector`] does not. Empty (not an error) if
+/// `node` has no value, no table, or nothing matching.
+///
+/// # `params`
+///
+/// [`GeomPred::DatumDistance`] states its value as an [`Expr`](crate::Expr), which
+/// cannot be evaluated without the document's parameter bindings
+/// (`Doc::param_env`). The design's signature omits this argument; it
+/// is added here rather than degrading the value to a bare float,
+/// because a selection rule written against a named parameter is the
+/// whole point of `Expr` being the value type (SELECT-DESIGN §5).
+///
+/// # Errors
+///
+/// [`SelectRefusal`] — the two honesty obligations decided predicates
+/// bring (an in-band margin refuses rather than silently including or
+/// excluding; a tied name whose candidates DISAGREE cannot be
+/// half-selected), plus the static faults of a malformed query. A
+/// purely-EXACT `geom` can never produce any of them.
+pub fn select_where<T: Decide>(
+    ev: &Evaluation<T>,
+    node: RecipeNodeId,
+    sel: &Selector,
+    geom: &[GeomPred],
+    params: &ParamEnv<T>,
+) -> Result<Vec<StableName>, SelectRefusal> {
+    let Some(NodeResult::Ok(value)) = ev.nodes.get(&node) else {
+        return Ok(Vec::new());
+    };
+    let atoms = geompred::prepare(ev, geom, params)?;
+    let band = Band::linear().map_err(|_| SelectRefusal::Band)?;
+    let mut out: Vec<StableName> = Vec::new();
+    for (name, entry) in value.name_table.iter() {
+        if !sel.matches(name) {
+            continue;
+        }
+        if atoms.is_empty() {
+            out.push(name.clone());
+            continue;
+        }
+        // GS-Q4: a tie is the name table's own fact, so the filter
+        // must ask ALL of its candidates — all match ⇒ include (still
+        // tied, and referencing it still refuses downstream as
+        // `Ambiguous`); none ⇒ exclude; MIXED ⇒ refuse, because a
+        // filter cannot half-select a name and silence in either
+        // direction lies.
+        let candidates: &[EntityRef] = match entry {
+            Entry::Unique(e) => core::slice::from_ref(e),
+            Entry::Tied(v) => v,
+        };
+        let mut matched = 0usize;
+        for ent in candidates {
+            let body = interrogate::output_body(&value.payload, ent.body).map_err(|error| {
+                SelectRefusal::Unreadable {
+                    name: Box::new(name.clone()),
+                    error,
+                }
+            })?;
+            if geompred::candidate_matches(body, ent.key, &atoms, band, name)? {
+                matched += 1;
+            }
+        }
+        if matched == candidates.len() {
+            out.push(name.clone());
+        } else if matched > 0 {
+            return Err(SelectRefusal::TiedDisagrees {
+                name: Box::new(name.clone()),
+                matched,
+                candidates: candidates.len(),
+            });
+        }
+    }
+    out.sort();
+    out.dedup();
+    Ok(out)
 }
