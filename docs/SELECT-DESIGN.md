@@ -1,28 +1,16 @@
 # SELECT-DESIGN (draft): geometric selectors, the detect/declare protocol, and the GQ7 re-homing
 
-Status: **DESIGN CONVERSATION — awaiting Evan's rulings** (opened at
-Evan's pulled-forward request, 2026-08-09). The asks, in order of
-weight: **GS-Q3** (declare-sugar arity — per-finding only vs
-declare_all; the drafted recommendation is per-finding, and this is
-the question most wanting your read), **GS-Q1** (selector verdicts
-join the K census under sel_* naming), **GS-Q2/Q4/Q5/Q6** (one-line
-yes/nos in §7), and sign-off on the PROPOSED-FIRM sections — §1's
-headline being that post-#256 always-promote makes kind/adjacent-kind
-predicates EXACT tag reads, dissolving half of LB7's deferral: only
-position (and flush's reused verify doors) need the margins funnel.
-
-**Status: DRAFT for the GEOMETRIC-SELECTOR design conversation** —
-drafted 2026-08-09 against the post-U7 tree (structural selectors
-merged-pending-R2, `Node::Declare` shipped, #256 always-promote
-ratified). Three consumers merge here: LB7's deferred geometric
-predicates, GQ7's re-homed selection filters, and U6's
-flush-detect/declare/menu substance (LIB-LOG LB11). P5's
-declared-offset is expression-layer and is NOT here (re-homed to
-post-SWITCH-E, noted in §6).
-
-House register: **PROPOSED-FIRM** where the evidence decides;
-**OPEN** with a recommendation where real alternatives survive; the
-question ledger is §7.
+Status: **RATIFIED** (design conversation PR #286, 2026-08-09:
+Evan approved the recommendations round 1; GS-Q3 AMENDED round 2 —
+the ruled boundary is FUSION, not arity: `find_flush_candidates ->
+Vec<FlushFinding>` with both `declare(finding)` and
+`declare_all(Vec<FlushFinding>)` acceptable, a fused
+detect-and-declare door forbidden permanently (findings must pass
+through user-visible hands as values); Evan: "sounds good").
+GS-Q1 (sel_* K-census participation), GS-Q2 (convexity
+reserved-not-built), GS-Q4 (mixed-Tied refuses), GS-Q5 (this doc),
+GS-Q6 (datum-relative position) all as recommended. §1's
+exact-vs-decided reframing signed off.
 
 ## Grounding (committed; this doc does not re-litigate)
 
@@ -254,13 +242,15 @@ minted for detection — the interpretation-discipline contract is
 { pairs }` exists; the sugar is a document-layer convenience that
 takes explicitly-passed pairs and appends/creates a Declare node
 wired into the consuming Boolean. Thin by design. The arity
-question — per-finding only, or also `declare_all(findings)` — is
-GS-Q3; recommendation there: per-finding in the library, because
-the ladder's own words are "value equality is not evidence of
-intent", and the call site enumerating each pair IS the recorded
-intent. C4's verify-at-use backstops either way (a wrong
-declaration is `ContactContradicted`, never silent), but the
-backstop is for lies, not a license to automate intent.
+question is GS-Q3 — RULED (round 2, amended): the boundary is
+FUSION, not arity. Both `declare(finding)` and
+`declare_all(findings: Vec<FlushFinding>)` ship; what stays
+forbidden permanently is a fused detect-and-declare door (P9's
+original shape), because the enforceable intent-recording property
+is that findings pass through user-visible hands AS VALUES — an
+arity restriction is defeated by a two-line for-loop, while the
+no-fusion rule is structural. C4's verify-at-use backstops lies
+either way (`ContactContradicted`, never silent).
 
 **(d) The refusal menu — two arms, ratified shape.** The boolean's
 `UndeclaredContact { finding }` refusal carries the SAME
