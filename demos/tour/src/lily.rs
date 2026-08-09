@@ -54,6 +54,7 @@ use pncad::geom_core::{Affine3, Mat3, Point3, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, ProfileLoop, SketchPlane};
 use pncad::sweep::fillet::FilletError;
+use pncad::sweep::readback::{WedgeFrames, revolved_caps};
 use pncad::sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use pncad::topo::{Body, BooleanError, BooleanOp, Operand, TransformError};
 
@@ -163,7 +164,7 @@ fn circle_loop<S: Scalar>(cx: f64, cy: f64, r: f64) -> ProfileLoop<S> {
 /// to the arc's start and `v = ŷ`; the revolve is then `Partial(-turn)`
 /// because a right-hand rotation about +ŷ runs CLOCKWISE in the
 /// xz-plane as drawn.
-fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64) -> Body<S> {
+fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64) -> (Body<S>, WedgeFrames<S>) {
     let plane = SketchPlane::from_frame(
         pt3(spec.center.0, 0.0, spec.center.1),
         v3(spec.radial.0, 0.0, spec.radial.1),
@@ -171,13 +172,19 @@ fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64) -> Body<S> {
     );
     let profile =
         validated(plane, vec![circle_loop(spec.ring, 0.0, tube)]).expect("lily profile validates");
-    revolve(
+    let revolved = revolve(
         &profile,
         sketch_axis(),
         Revolution::Partial(S::from_f64(-spec.turn)),
     )
-    .expect("stem tube arc revolves")
-    .body
+    .expect("stem tube arc revolves");
+    // The joint frames, ASKED of the revolve that made them (LIB-U5
+    // deliverable 3): a partial revolve's two wedge caps ARE the
+    // tube's ends, and each cap plane's normal is the tube's tangent
+    // there. Before this door the only way to see them was to scan
+    // every face of the finished body for planar carriers.
+    let caps = revolved_caps(&revolved).expect("a partial revolve has caps");
+    (revolved.body, caps)
 }
 
 /// A **lantern**: the closed globular flower. A full revolve whose
@@ -309,6 +316,15 @@ pub struct Piece<S: Scalar> {
     pub color: [f64; 3],
     /// The body.
     pub body: Body<S>,
+    /// For a piece built as a PARTIAL revolve (the stem tubes), the
+    /// two joint frames its revolve recorded — read back from the
+    /// operation rather than rediscovered in the finished body.
+    /// `None` for the full revolves and extrusions, which have no
+    /// wedge caps.
+    // Read by the joint-frame test below, which is the point of
+    // carrying it: the render path wants the body alone.
+    #[allow(dead_code)]
+    pub caps: Option<WedgeFrames<S>>,
 }
 
 const GREEN_STEM: [f64; 3] = [0.36, 0.52, 0.30];
@@ -342,21 +358,28 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
     };
     let (pedicel, at_bud) = fork.arc(0.42, deg(130.0));
 
+    let (stem, stem_caps) = tube_arc(lower, 0.060);
+    let (arch, arch_caps) = tube_arc(upper, 0.052);
+    let (pedicel_body, pedicel_caps) = tube_arc(pedicel, 0.032);
+
     vec![
         Piece {
             name: "lily_stem",
             color: GREEN_STEM,
-            body: tube_arc(lower, 0.060),
+            body: stem,
+            caps: Some(stem_caps),
         },
         Piece {
             name: "lily_arch",
             color: GREEN_STEM,
-            body: tube_arc(upper, 0.052),
+            body: arch,
+            caps: Some(arch_caps),
         },
         Piece {
             name: "lily_pedicel",
             color: GREEN_STEM,
-            body: tube_arc(pedicel, 0.032),
+            body: pedicel_body,
+            caps: Some(pedicel_caps),
         },
         Piece {
             name: "lily_lantern",
@@ -376,6 +399,7 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                 0.09,
                 0.16,
             ),
+            caps: None,
         },
         Piece {
             name: "lily_lantern2",
@@ -392,6 +416,7 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                 0.05,
                 0.15,
             ),
+            caps: None,
         },
         Piece {
             name: "lily_leaf_a",
@@ -405,6 +430,7 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                 0.035,
                 0.026,
             ),
+            caps: None,
         },
         Piece {
             name: "lily_leaf_b",
@@ -418,6 +444,7 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                 0.030,
                 0.024,
             ),
+            caps: None,
         },
         Piece {
             name: "lily_leaf_c",
@@ -431,6 +458,7 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                 0.025,
                 0.022,
             ),
+            caps: None,
         },
     ]
 }
@@ -730,14 +758,14 @@ mod review_probes {
         &ps.iter().find(|p| p.name == name).expect("piece").body
     }
 
-    /// All stored cap planes of a body: (origin, unit normal).
-    fn planes(b: &Body<f64>) -> Vec<(Point3<f64>, Vec3<f64>)> {
-        b.faces()
-            .filter_map(|(_, f)| match b.get_surface(f.surface) {
-                Some(Surface::Plane { origin, normal, .. }) => Some((*origin, *normal)),
-                _ => None,
-            })
-            .collect()
+    /// A tube piece's two joint frames, as its revolve recorded them.
+    fn caps<'a>(ps: &'a [Piece<f64>], name: &str) -> &'a WedgeFrames<f64> {
+        ps.iter()
+            .find(|p| p.name == name)
+            .expect("piece")
+            .caps
+            .as_ref()
+            .expect("a stem tube is a partial revolve, so it has caps")
     }
 
     /// The body's single stored torus carrier: (center, axis, R, r, u_ref).
@@ -788,18 +816,26 @@ mod review_probes {
     const SPHERE1_C: (f64, f64) = (-2.3934135869350324, 0.919255622187704);
     const SPHERE2_C: (f64, f64) = (-0.9512338661211347, 1.2295604347374214);
 
-    /// A cap plane of `b` passes through world point `p` (xz-plane)
-    /// with normal parallel to `t` — i.e. the tube's end tangent THERE
-    /// is `t`, read off the stored cap, not the turtle.
-    fn assert_cap(b: &Body<f64>, p: (f64, f64), t: (f64, f64), what: &str) {
+    /// One of the tube's two JOINT FRAMES passes through world point
+    /// `p` (xz-plane) with normal parallel to `t` — i.e. the tube's
+    /// end tangent THERE is `t`.
+    ///
+    /// The frames come from `sweep::readback::revolved_caps` (LIB-U5):
+    /// this used to scan every face of the body for a planar carrier
+    /// and hope the right one turned up. Which of the two ends
+    /// answers is the revolve's business, so both are offered — that
+    /// is a two-element check against NAMED caps, not a search of the
+    /// whole boundary.
+    fn assert_cap(caps: &WedgeFrames<f64>, p: (f64, f64), t: (f64, f64), what: &str) {
         let tv = Vec3::new(t.0, 0.0, t.1);
-        let hit = planes(b).into_iter().any(|(o, n)| {
+        let hit = [caps.start, caps.end].into_iter().any(|pose| {
+            let (o, n) = (pose.origin, pose.axis);
             cross_norm(n, tv) < 1e-14
                 && ((p.0 - o.x) * n.x + (0.0 - o.y) * n.y + (p.1 - o.z) * n.z).abs() < 1e-12
         });
         assert!(
             hit,
-            "{what}: no stored cap plane through the joint with the joint tangent"
+            "{what}: neither joint frame passes through the joint with the joint tangent"
         );
     }
 
@@ -834,14 +870,14 @@ mod review_probes {
         let (_, _, big_r3, r3, _) = torus(pedicel);
         assert!((big_r3 - 0.42).abs() < 1e-12 && (r3 - 0.032).abs() < 1e-12);
         // Joint 1: stem end / arch start share point P1 and tangent T1.
-        assert_cap(stem, P1, T1, "stem end");
-        assert_cap(arch, P1, T1, "arch start");
+        assert_cap(caps(&ps, "lily_stem"), P1, T1, "stem end");
+        assert_cap(caps(&ps, "lily_arch"), P1, T1, "arch start");
         // Joint 2: arch end at P2 with tangent T2 (the flower hangs here).
-        assert_cap(arch, P2, T2, "arch end");
+        assert_cap(caps(&ps, "lily_arch"), P2, T2, "arch end");
         // The fork reuses P1; the pedicel's START tangent is the
         // authored (cos150, sin150), not T1 — branch, not continuation.
         assert_cap(
-            pedicel,
+            caps(&ps, "lily_pedicel"),
             P1,
             (f64::cos(deg(150.0)), f64::sin(deg(150.0))),
             "pedicel start",

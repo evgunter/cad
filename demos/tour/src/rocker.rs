@@ -216,17 +216,29 @@ pub fn rocker<S: Scalar>() -> pncad::topo::Body<S> {
 /// line; panics if the far pocket was picked (that would be the branch
 /// rule silently changing under the demo).
 fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
-    let center = vp
-        .loops()
-        .iter()
-        .flat_map(|lp| lp.segments().iter())
-        .find_map(|s| match s.kind {
-            SegmentKind::Arc { center, radius, .. } if (radius - R_EYE).abs() < 1e-12 => {
-                Some(center)
-            }
-            _ => None,
-        })
-        .expect("the eye fillet classifies at its authored radius");
+    // Which segment is the fillet at the eye's top corner? ASKED
+    // (LIB-U5 deliverable 4), not fished for. `blend_arcs` reads the
+    // loop's DECLARED tangent joints — an arc tangent at both ends is
+    // what a corner fillet leaves behind — so no float is compared to
+    // find it. This used to scan every segment of every loop for "the
+    // arc whose radius equals R_EYE", which would find the wrong arc
+    // the moment two blends shared a radius, and nothing at all if
+    // the stored radius drifted an ulp.
+    let eye_loop = vp.loops().last().expect("the profile has loops");
+    let blends = pncad::sweep::readback::blend_arcs(eye_loop);
+    let [blend] = blends.as_slice() else {
+        panic!(
+            "the eye slot has exactly one filleted corner, found {}",
+            blends.len()
+        )
+    };
+    let SegmentKind::Arc { center, radius, .. } = blend.kind else {
+        panic!("a fillet is an arc")
+    };
+    assert!(
+        (radius - R_EYE).abs() < 1e-12,
+        "the eye fillet is authored at R_EYE"
+    );
     let want = eye_fillet_center_y();
     assert!(
         center.x.abs() < 1e-12 && (center.y - want).abs() < 1e-12,
