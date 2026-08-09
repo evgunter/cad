@@ -276,20 +276,38 @@ fn probe_arm_b_rim_off_wall_arc() {
     }
 }
 
-/// The positive control beside the flipped F1 plant: the TRUE arc
-/// rim passes the same residual gate and the body imports to the
-/// Arm-B state (t1/t2 valid; the full native-state pin lives in
-/// `nurbs_import.rs`). A gate that refused the genuine body would be
-/// a false alarm, not a certification.
+/// The positive control beside the flipped F1 plant: the TRUE arc rim
+/// passes the residual gate — a gate that refused the genuine body
+/// would be a false alarm, not a certification. That discrimination is
+/// what this row exists for, and it still holds: the plant refuses
+/// `RimOffWallBoundary`, the true arc does not.
+///
+/// Since M7-7 (#260 ruling (a)) the true arc stops one gate later, at
+/// the shared at-rest gate every imported solid now passes, on the
+/// BANKED rational volume lane (`VolumeUncomputable` /
+/// `QuadratureUnsupported`) — the verdict its native twin carries at
+/// rest, and no statement about the rim. So the control's assertion
+/// sharpens rather than weakens: the refusal must be the tier gate's,
+/// never the rim gate's. `nurbs_import.rs` holds the full disposition
+/// row for this body class.
 #[test]
 fn probe_arm_b_true_arc_rim_positive_control() {
     let native = native_arc_loft_for_probe();
     let text = step_export::step_string(&native, &step_export::StepOptions::default())
         .expect("arc loft exports");
-    let body = solid(&text, "true arc loft");
-    assert_eq!(census(&body), census(&native), "census matches the source");
-    assert_eq!(topo::validate(&body), Ok(()), "t1");
-    assert_eq!(topo::validate_closed(&body), Ok(()), "t2");
+    match import(&text) {
+        Err(step_import::StepImportError::TierInvalid { errors, .. }) => assert!(
+            matches!(
+                errors.as_slice(),
+                [topo::ValidationError::VolumeUncomputable { .. }]
+            ),
+            "the true arc's only verdict is the banked rational volume lane: {errors:?}"
+        ),
+        other => panic!(
+            "the true arc rim must clear the residual gate and stop only at the shared \
+             tier gate, got: {other:?}"
+        ),
+    }
 }
 
 /// V4 — review F5's measurement: the synthesized descriptions vs the

@@ -222,18 +222,33 @@ pub enum StepImportError {
         /// The transform op's error, displayed.
         source: topo::TransformError,
     },
-    /// A body carrying a band re-mint failed the kernel's tier-3
-    /// geometric validation at import (M7-5, R1 fix pass). The band
-    /// mint's torus region decode leans by design on the kernel's
-    /// geometric gates (curved sense check 6, the +V volume-sign
-    /// invariant) as its backstop, so those gates RUN at import for
-    /// band-normalized bodies and a definite geometric falsehood
-    /// refuses here — `StepImport::Solid` documents tier-validity at
-    /// rest, and shipping a tier-3-false body would push the failure
-    /// downstream (the D4 anti-pattern). In-band escalations
-    /// (declines, not falsehoods) pass through unchanged.
-    BandGeometryInvalid {
-        /// The tier-3 verdicts, verbatim.
+    /// The adopted body failed the kernel's shared at-rest validation
+    /// gate (M7-7, the #260 ruling (a)): `topo::validate_geometric` —
+    /// tiers 1–3, the SAME function on the SAME body that a native
+    /// construction's caller runs at rest — refused the assembled
+    /// solid.
+    ///
+    /// This is a **validity refusal about the file's geometry**, not
+    /// the Corrupt-class kernel-bug voice: a STEP file may describe a
+    /// body that violates the kernel's invariants (inside-out senses,
+    /// negative volume, a carrier off its planar face), and D7's
+    /// adoption contract is that such geometry is brought up to the
+    /// invariants or refused loudly naming the unhealable. Every
+    /// verdict is carried verbatim, each naming its failing check and
+    /// the entities (and, where the check measures one, the margin)
+    /// that failed it.
+    ///
+    /// Escalated / indeterminate verdicts refuse here too
+    /// (escalate-never-guess): the gate's `Err` is the gate's answer
+    /// whatever the verdict kinds, so import holds no opinion of its
+    /// own about what "valid at rest" means.
+    TierInvalid {
+        /// The `MANIFOLD_SOLID_BREP` id of the solid asked about on its
+        /// own, or `None` when the verdict is about the whole assembled
+        /// body (which for a one-solid file is the same body — see
+        /// [`crate::import_step`]).
+        solid: Option<u64>,
+        /// The tier-1/2/3 verdicts, verbatim.
         errors: Vec<topo::ValidationError>,
     },
 }
@@ -339,14 +354,30 @@ impl fmt::Display for StepImportError {
                     "step import: pcurve re-mint on the adopted body: {source}"
                 )
             }
-            Self::BandGeometryInvalid { errors } => write!(
-                f,
-                "step import: a seamless-periodic-band re-mint produced a body the \
-                 kernel's tier-3 geometric validation refuses ({errors:?}) — the band \
-                 mint's region decode leans on these gates (curved sense check 6, the \
-                 volume-sign invariant), so the refusal fires at import rather than \
-                 shipping a tier-3-false body"
-            ),
+            Self::TierInvalid { solid, errors } => {
+                // Both forms of each verdict: the Debug shape names
+                // the failing CHECK and its entity keys structurally
+                // (greppable, and what a caller matching on
+                // `errors` sees); the Display prose says what the
+                // check means and carries the margins the measured
+                // checks report.
+                let verdicts: Vec<String> = errors.iter().map(|e| format!("{e:?} — {e}")).collect();
+                let subject = match solid {
+                    Some(id) => format!("solid #{id}, asked about on its own,"),
+                    None => "the assembled body".to_owned(),
+                };
+                write!(
+                    f,
+                    "step import: {subject} is a body the kernel's shared at-rest \
+                     validation gate refuses ({} verdict{}): {} — every imported solid is \
+                     held to the same tiers, by the same function, as a natively \
+                     constructed one, so a body that is invalid at rest refuses at \
+                     import rather than shipping the failure downstream",
+                    errors.len(),
+                    if errors.len() == 1 { "" } else { "s" },
+                    verdicts.join("; ")
+                )
+            }
             Self::Placement { source } => write!(
                 f,
                 "step import: the assembly's rigid placement of the imported body \
