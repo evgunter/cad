@@ -420,3 +420,7 @@ Block LIB-4 (2026-08-09): byte 146 (<252) → fable position 2:
 (opus, opus, fable). Difficulty logged pre-draw: SWITCH-P (profile
 side of the v2 switch) = L. SWITCH-P dispatched first → OPUS;
 remainders (opus, fable) bank.
+LIB-4 slot 2 (2026-08-09): U5 read-back doors = OPUS (second slot
+of the (opus,opus,fable) triple). Difficulty logged pre-dispatch:
+U5 = M. The fable remainder banks (U6 folded into the
+geometric-selector follow-up per LB11 — no dispatch).
