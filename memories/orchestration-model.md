@@ -81,7 +81,12 @@ git history and the M-logs):**
   every build/battery row as a synchronous FOREGROUND Bash call,
   one at a time, reading each result before the next; NEVER arm
   waiters, monitors, or background chains for your own
-  builds/tests" (waiter-parking is endemic without it).
+  builds/tests; when the build-slot queue is busy, a BLOCKING
+  foreground wait is the correct state — re-issue a timed-out
+  call rather than parking" (waiter-parking is endemic without
+  it; the slot-queue flavor — agents assuming the flock will
+  notify them — recurred 3× on 2026-08-08 even with the shorter
+  sentence).
 - **Reviews**: assign reviewers explicit claims to falsify; promote
   reviewer suites into CI after the fix pass
   ([[review-and-dependency-policy]]). Dual-review sampling per the
