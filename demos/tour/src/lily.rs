@@ -259,6 +259,20 @@ fn lantern<S: Scalar>(
     .body
 }
 
+/// A leaf blade's cross-section: a KITE, i.e. the two sharp margins
+/// at `±width/2` on a chord with a `ridge` above it and a `keel`
+/// below. The two rises are DIFFERENT, so the blade is asymmetric
+/// about its own chord exactly as the extruded crescent was.
+#[derive(Clone, Copy, Debug)]
+struct Kite {
+    /// Chord length, margin to margin — the blade's width.
+    width: f64,
+    /// Rise above the chord.
+    ridge: f64,
+    /// Drop below the chord.
+    keel: f64,
+}
+
 /// Stations along a leaf's swept spine, and the v-degree its skin is
 /// fitted at (the swept-elbow corpus fixture's numbers).
 const LEAF_STATIONS: usize = 9;
@@ -269,12 +283,8 @@ const LEAF_V_DEGREE: usize = 3;
 /// arching spine by [`sweep_body`] — the general-path sweep, not an
 /// extrusion, so the blade leaves the plane it was drawn in.
 ///
-/// The section is a KITE of four straight lines: the two sharp
-/// margins at `±width/2` on the chord, a ridge `ridge` above it and a
-/// keel `keel` below, the two rises DIFFERENT so the blade is
-/// asymmetric about its own chord exactly as the extruded crescent
-/// was. The spine runs through the chord's midpoint, i.e. through the
-/// midrib.
+/// The section is a [`Kite`] of four straight lines, and the spine
+/// runs through its chord's midpoint, i.e. through the midrib.
 ///
 /// **Why straight lines and not the crescent's arcs.** The skin lane
 /// only carries INTEGRAL sections. An arc is a rational NURBS, a
@@ -301,9 +311,7 @@ fn leaf<S: Scalar>(
     dir: (f64, f64, f64),
     up: (f64, f64, f64),
     len: f64,
-    width: f64,
-    ridge: f64,
-    keel: f64,
+    section: Kite,
     curl: f64,
 ) -> Body<S> {
     let nrm = |(x, y, z): (f64, f64, f64)| {
@@ -345,13 +353,13 @@ fn leaf<S: Scalar>(
     .placement;
     // The kite, wound counterclockwise in the sketch (s, t) frame:
     // margin, keel, margin, ridge.
-    let section: Vec<ProfileLoop<f64>> = vec![pncad::authoring::polygon(&[
-        (-0.5 * width, 0.0),
-        (0.0, -keel),
-        (0.5 * width, 0.0),
-        (0.0, ridge),
+    let loops: Vec<ProfileLoop<f64>> = vec![pncad::authoring::polygon(&[
+        (-0.5 * section.width, 0.0),
+        (0.0, -section.keel),
+        (0.5 * section.width, 0.0),
+        (0.0, section.ridge),
     ])];
-    sweep_body::<S>(&section, place, &path, LEAF_STATIONS, LEAF_V_DEGREE)
+    sweep_body::<S>(&loops, place, &path, LEAF_STATIONS, LEAF_V_DEGREE)
         .expect("the leaf sweeps along its spine")
         .body
 }
@@ -482,9 +490,11 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                 (-0.60, 0.66, 0.52),
                 (0.0, 0.0, 1.0),
                 1.45,
-                0.195,
-                0.016,
-                0.008,
+                Kite {
+                    width: 0.195,
+                    ridge: 0.016,
+                    keel: 0.008,
+                },
                 -0.45,
             ),
             caps: None,
@@ -497,9 +507,11 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                 (-0.68, -0.55, 0.44),
                 (0.0, 0.0, 1.0),
                 1.25,
-                0.170,
-                0.015,
-                0.007,
+                Kite {
+                    width: 0.170,
+                    ridge: 0.015,
+                    keel: 0.007,
+                },
                 -0.40,
             ),
             caps: None,
@@ -512,9 +524,11 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                 (0.62, 0.10, 0.78),
                 (0.0, 0.0, 1.0),
                 0.95,
-                0.140,
-                0.013,
-                0.006,
+                Kite {
+                    width: 0.140,
+                    ridge: 0.013,
+                    keel: 0.006,
+                },
                 -0.35,
             ),
             caps: None,
@@ -1071,11 +1085,12 @@ mod review_probes {
         // exact agreement would mean the volume was not measured off a
         // real tessellation, and a larger gap would mean the section
         // rolled about the tangent on its way down the path.
-        for (name, w, ridge, keel, len, curl) in [
+        let blades: [(&str, f64, f64, f64, f64, f64); 3] = [
             ("lily_leaf_a", 0.195, 0.016, 0.008, 1.45, 0.45),
             ("lily_leaf_b", 0.170, 0.015, 0.007, 1.25, 0.40),
             ("lily_leaf_c", 0.140, 0.013, 0.006, 0.95, 0.35),
-        ] {
+        ];
+        for (name, w, ridge, keel, len, curl) in blades {
             let area = 0.5 * w * (ridge + keel);
             let pappus = area * curl.mul_add((ridge - keel) / 3.0, len);
             let m = pncad::mesh::tessellate(body(&ps, name), 2e-3).expect("tessellate");

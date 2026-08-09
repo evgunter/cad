@@ -432,11 +432,11 @@ three die pieces, all eight globe-lily bodies, the tube-door wedge,
 and the six NURBS-walled skin bodies — the loft pair, the S duct, and
 the twisted duct with its two shadow twins). NINE of them carry a NURBS
 wall since the lily's three leaf blades became swept skins.
-**Thirteen of the twenty-seven**
+**Ten of the twenty-seven**
 carry `same_sense = .F.` faces, the concave-wall bit S11 introduced —
 the original six (bracket 1, plate 4, vase 2, sheave 7, chute 3,
 rocker 7) plus die_pips 42, the composed die 42 and each lantern 2.
-Fourteen carry none, in two groups. Eight have no CONCAVE curved
+Seventeen carry none, in two groups. Eight have no CONCAVE curved
 wall to reverse — bossplate's boss bulges outward, diefillet's blends
 are all convex, the two tiltedcut halves are a plain cylinder cut, the
 lily's three stem tubes are convex tori all the way round, and the
@@ -448,7 +448,9 @@ assembly itself, outward by construction — there is never anything to
 reverse regardless of concavity (the s_duct's and twisted duct's inner
 walls are concave and still `.T.`). The lily's leaf blades joined that
 group when they stopped being extruded cylinders and became swept
-skins.
+skins: 6 `.T.`, 0 `.F.` on each blade, four B-spline walls and two
+planar end caps, where the extruded crescent carried one `.F.` on its
+concave cylindrical wall.
 (The lily's lanterns reverse on
 their MOUTH disc, not on a curved wall: a revolve mints both cap planes
 on the profile plane's own +y normal, so exactly one cap opposes the
