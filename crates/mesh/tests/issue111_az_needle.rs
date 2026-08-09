@@ -146,6 +146,50 @@ fn watertight_at_every_delta(body: &Body<f64>, oracle: f64, label: &str) {
     }
 }
 
+/// The #284 companion row: the #111 body through the LIVE planar lane
+/// under the boundary-derived chart frame. `planar.rs`'s stored-chart
+/// replay pins the historical frame's needle chart forever, but it
+/// bypasses `tessellate_planar` — so it cannot see the frame the live
+/// path now derives (Newell normal + extent-aligned axes, #284). This
+/// row runs the counter-hole body end-to-end twice and demands the
+/// re-derived frame's output be byte-identical (D9: the frame is a
+/// pure function of the boundary walk) as well as watertight and
+/// volume-exact — the needle-carrier face included.
+#[test]
+fn survives_az_counter_through_rederived_frame_deterministic() {
+    let body = az(
+        vec![lp(&A_OUTLINE), lp(&A_COUNTER)],
+        "A with counter hole (rederived frame)",
+    );
+    let m1 = tessellate(&body, 1e-2).expect("first tessellation");
+    let m2 = tessellate(&body, 1e-2).expect("second tessellation");
+    assert_eq!(
+        m1.positions.len(),
+        m2.positions.len(),
+        "rebuild changed the vertex census"
+    );
+    for (a, b) in m1.positions.iter().zip(&m2.positions) {
+        assert_eq!(
+            (a.x.to_bits(), a.y.to_bits(), a.z.to_bits()),
+            (b.x.to_bits(), b.y.to_bits(), b.z.to_bits()),
+            "rebuild not bit-identical"
+        );
+    }
+    let tris = |m: &mesh::Mesh| {
+        m.patches
+            .iter()
+            .map(|p| p.triangles.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(tris(&m1), tris(&m2), "rebuild changed the triangles");
+    assert_eq!(check_mesh(&m1), Ok(()), "rederived frame not watertight");
+    let v = signed_volume(&m1);
+    assert!(
+        (v - ORACLE_COUNTER).abs() < 1e-9,
+        "rederived frame volume {v} vs oracle {ORACLE_COUNTER}"
+    );
+}
+
 #[test]
 fn survives_az_counter_hole_tessellates_watertight() {
     let body = az(vec![lp(&A_OUTLINE), lp(&A_COUNTER)], "A with counter hole");
