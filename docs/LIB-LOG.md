@@ -402,3 +402,24 @@ satisfies V3 via resolved-bits convention.
   pncad's document-layer surface (source-grep guards miss
   signature leaks — exactly how EntityRef escaped). Lands on
   U5's fix pass (same territory as LB12).
+
+## Evan review-thread inputs (2026-08-09, recorded)
+
+- **Demo byte-identity is a SOFT constraint going forward** (#289):
+  "always ok to update demo objects in a way that is not
+  byte-identical — they should demonstrate the natural and easy
+  way to use the library." Operational: byte-identity remains the
+  DEFAULT acceptance for mechanical migrations (it proves
+  nothing-changed cheaply), but demo-improvement diffs are
+  acceptable when the point IS the better authoring; specs should
+  say which contract applies. Claimed byte-identity is still
+  verified as claimed.
+- **Lint-drift check** (#290): the pncad-py hand-restated [lints]
+  table needs a drift test vs the workspace set — folded into the
+  U9S review as a formal claim.
+- **NEW EXPLICIT GOAL** (#290): "make all the demos authorable
+  through the python bindings" — recorded as the U9/U10
+  acceptance north star (the tour corpus becomes the bindings'
+  example set AND its coverage oracle). Feeds the curated-doors
+  unit (F1/F2/F3 are exactly what blocks bracket.py today) and
+  U10's example strategy.
