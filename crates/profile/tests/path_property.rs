@@ -269,18 +269,29 @@ fn trim_eating_an_anchor_refuses_typed() {
     ));
 }
 
+/// **G2**: `ArcArrivalFillet` is RETIRED — an arc arrival is no longer
+/// "out of scope in v1", it is spelled by the carrier binder. The door
+/// that used to refuse it now names the door that does the job.
 #[test]
-fn arc_arrival_refuses_typed() {
+fn an_arc_leg_from_a_bound_arrival_names_the_carrier_binder() {
     let arrival = bent_tip().fillet(0.5).unwrap().at(p2(4.0, 2.0)).unwrap();
-    assert!(matches!(
-        arrival.arc_to(p2(5.0, 3.0), 0.4),
-        Err(PathError::ArcArrivalFillet)
-    ));
+    let err = arrival.arc_to(p2(5.0, 3.0), 0.4).unwrap_err();
+    assert!(matches!(err, PathError::ArcCarrierSpelling { .. }));
+    assert!(
+        err.to_string().contains(".at_on(p, centre, winding)"),
+        "the refusal must name the door that binds an arc arrival: {err}"
+    );
 }
 
+/// **G2**: `SeamFilletOntoArc` is RETIRED into the same spelling
+/// refusal. `.to(Start)` still needs a straight first side, because it
+/// RETRIMS the entry vertex (LB5: that vertex is authored topology);
+/// the case that wants an arc carrier at the seam has its own door,
+/// `.to_on(Start, centre, winding)`, which keeps the vertex.
 #[test]
-fn seam_fillet_onto_an_arc_first_side_refuses_typed() {
-    // Side 1 is an arc leg — a seam fillet cannot land on it in v1.
+fn a_seam_fillet_onto_an_arc_first_side_names_the_closing_door() {
+    // Side 1 is an arc leg — retrimming the entry would slide it off
+    // its own carrier.
     let tip = Open
         .at(p2(0.0, 0.0))
         .arc_to(p2(4.0, 0.0), 0.3)
@@ -292,10 +303,12 @@ fn seam_fillet_onto_an_arc_first_side_refuses_typed() {
         .angle(3.5)
         .unwrap();
     let arrival = tip.fillet(0.3).unwrap();
-    assert!(matches!(
-        arrival.to(Start),
-        Err(PathError::SeamFilletOntoArc)
-    ));
+    let err = arrival.to(Start).unwrap_err();
+    assert!(matches!(err, PathError::ArcCarrierSpelling { .. }));
+    assert!(
+        err.to_string().contains(".to_on(Start, centre, winding)"),
+        "the refusal must name the close that KEEPS the entry vertex: {err}"
+    );
 }
 
 #[test]
@@ -762,4 +775,312 @@ fn the_new_funnel_gates_decide_outside_the_band() {
         Open.at(p2(0.0, 0.0)).arc_via(p2(1.0, tiny), p2(2.0, 0.0)),
         Err(PathError::ArcViaCollinear { .. })
     ));
+}
+
+// ------------------------------------------------------------------
+// LIB-G2 §3: the arc-carrier fillet family.
+// ------------------------------------------------------------------
+
+/// A unit lens like the rocker eye's, parameterised by the fillet
+/// radius: entry on the right lobe, one fillet, close on the left.
+fn lens(r: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    let tip = 0.75f64.sqrt();
+    Open.at_on(p2(0.0, -tip), p2(-0.5, 0.0), profile::ArcSweep::Ccw)?
+        .fillet(r)?
+        .to_on(Start, p2(0.5, 0.0), profile::ArcSweep::Ccw)
+}
+
+/// The eye program lowers, validates, and puts every AUTHORED point on
+/// the final path: the entry anchor is vertex 0, bit for bit, and the
+/// two derived tangent points are the only other vertices — the corner
+/// itself is never a vertex, because it is never authored.
+#[test]
+fn the_carrier_bound_lens_lowers_and_keeps_its_authored_point() {
+    let tip = 0.75f64.sqrt();
+    let lowered = lens(0.25).unwrap();
+    assert_eq!(lowered.vertices.len(), 3, "entry + two tangent points");
+    assert_eq!(lowered.vertices[0].pos.x.to_bits(), 0.0f64.to_bits());
+    assert_eq!(lowered.vertices[0].pos.y.to_bits(), (-tip).to_bits());
+    // No vertex sits at the DERIVED corner (0, +tip): it is filleted
+    // away, and the algebra never had a chance to author it.
+    for v in &lowered.vertices {
+        assert!(
+            (v.pos.y - tip).abs() > 1e-9 || v.pos.x.abs() > 1e-9,
+            "the derived corner must not appear as a vertex: {:?}",
+            v.pos
+        );
+    }
+    Profile::new(SketchPlane::xy(), vec![lowered])
+        .validate(Tolerance::get())
+        .expect("the carrier-bound lens validates");
+}
+
+/// A radius far too large for the lens refuses typed. This row carries
+/// TWO pins, both of which have been mutation-checked:
+///
+/// 1. the **§3c payload**: the refusal carries the arc side's CARRIER
+///    KIND, so the diagnostic is metered in that carrier's own currency
+///    (an arc-length setback and an ANGULAR margin in radians) instead
+///    of a bare linear number that means nothing on a circle;
+/// 2. the boundary's **refusal precedence**: `resolve` keeps gate
+///    refusals and construction refusals in two channels and lets the
+///    CONSTRUCTION one win. Here the discarded root's advance gate also
+///    refuses, so a single-channel "first refusal wins" reports
+///    `NoCornerForFillet{BehindIncomingRay}` — a claim that a corner
+///    which is in fact ahead of the anchor is behind it — and this
+///    assertion fails. Do not weaken it to `matches!(.., PathError::_)`.
+#[test]
+fn an_oversized_carrier_fillet_refuses_with_the_arc_sides_angular_story() {
+    let err = lens(5.0).unwrap_err();
+    let PathError::AnchorOutsideTrimmedExtent {
+        carrier, setback, ..
+    } = err
+    else {
+        panic!("expected the anchor-fit refusal, got {err:?}");
+    };
+    let profile::FilletLegCarrier::Arc {
+        radius,
+        angular_margin,
+    } = carrier
+    else {
+        panic!("an arc side must report an arc carrier, got {carrier:?}");
+    };
+    assert!((radius - 1.0).abs() < 1e-12, "the lens's lobes are R = 1");
+    assert!(
+        angular_margin < 0.0,
+        "an overrun leg's angular margin is negative: {angular_margin}"
+    );
+    // The setback is an ARC LENGTH on this side, so it exceeds the
+    // leg's swept extent rather than some linear distance.
+    assert!(setback > 0.0, "arc-length setback: {setback}");
+}
+
+/// Carriers that never meet name their own reason — distinct from the
+/// tangency knife edge, which still reports `CarriersParallel`.
+///
+/// Note this needs `.at_on`, not `.to_on`: a `to_on` close anchors BOTH
+/// carriers at the entry point, so they always share it and can never
+/// be disjoint. Independent anchors are what make the case reachable.
+#[test]
+fn carriers_that_do_not_meet_refuse_typed() {
+    // Two unit circles 10 m apart: disjoint, no corner anywhere.
+    let refused = Open
+        .at_on(p2(1.0, 0.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
+        .unwrap()
+        .fillet(0.25)
+        .unwrap()
+        .at_on(p2(11.0, 0.0), p2(10.0, 0.0), profile::ArcSweep::Ccw);
+    assert!(
+        matches!(
+            refused,
+            Err(PathError::NoCornerForFillet {
+                reason: profile::path::PathNoCornerReason::CarriersDoNotMeet,
+                ..
+            })
+        ),
+        "expected CarriersDoNotMeet, got {refused:?}"
+    );
+}
+
+/// An anchor at its own carrier's centre names no tangent, so the
+/// binder refuses before any fillet can be authored against it.
+#[test]
+fn a_carrier_anchor_at_the_centre_refuses_typed() {
+    let refused = Open.at_on(p2(0.0, 0.0), p2(0.0, 0.0), profile::ArcSweep::Ccw);
+    assert!(
+        matches!(refused, Err(PathError::DegenerateArcCenter { .. })),
+        "expected DegenerateArcCenter, got {refused:?}"
+    );
+}
+
+/// A side bound on a carrier RUNS ALONG IT: verbs that would leave the
+/// carrier refuse, naming the ones that do not.
+#[test]
+fn leaving_a_bound_carrier_refuses_and_names_the_door() {
+    let tip = Open
+        .at_on(p2(0.0, -1.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
+        .unwrap();
+    let err = tip.clone().line(1.0).unwrap_err();
+    assert!(matches!(err, PathError::ArcCarrierSpelling { .. }));
+    assert!(err.to_string().contains(".fillet(r)"), "{err}");
+    let err = tip.tangent_arc_to(p2(1.0, 1.0)).unwrap_err();
+    assert!(matches!(err, PathError::ArcCarrierSpelling { .. }));
+}
+
+/// **G1 NOTE-2's lesson, applied to G2's new gates**: an undecidable
+/// margin escalates typed rather than guessing — on the carrier-meet
+/// gate AND on the angular advance/reach gates, the paths that would
+/// otherwise have only decided-Yes and decided-No coverage.
+#[test]
+fn the_new_arc_carrier_gates_escalate_in_band() {
+    let tol = Tolerance::get();
+    // Squarely inside (ε, K·ε): undecidable at this scalar.
+    let band = tol.eps * ((1.0 + tol.k) / 2.0);
+
+    // path_carrier_meet: two unit circles whose centres sit `band`
+    // FURTHER apart than 2 — externally tangent to within the band, so
+    // whether they cross at all cannot be classified here.
+    let refused = Open
+        .at_on(p2(1.0, 0.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
+        .unwrap()
+        .fillet(0.25)
+        .unwrap()
+        .at_on(
+            p2(1.0 + band, 0.0),
+            p2(2.0 + band, 0.0),
+            profile::ArcSweep::Ccw,
+        );
+    let Err(PathError::Escalated { source }) = refused else {
+        panic!("in-band carrier separation must escalate, got {refused:?}");
+    };
+    assert_eq!(source.predicate, Some("path_carrier_meet"));
+
+    // path_corner_reach_arc: the ray y = 0 meets the circle about
+    // (2, −2) through the origin at (0,0) and (4,0). Put the ARRIVAL
+    // anchor an in-band ARC LENGTH ahead of the surviving corner (4,0):
+    // whether the corner really lies behind its anchor is then
+    // undecidable, and the angular gate must say so.
+    let centre = p2(2.0, -2.0);
+    let r = 8.0f64.sqrt();
+    let theta = std::f64::consts::FRAC_PI_4 + band / r;
+    let anchor = p2(centre.x + r * theta.cos(), centre.y + r * theta.sin());
+    let refused = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0)
+        .unwrap()
+        .fillet(0.3)
+        .unwrap()
+        .at_on(anchor, centre, profile::ArcSweep::Ccw);
+    let Err(PathError::Escalated { source }) = refused else {
+        panic!("an in-band angular reach must escalate, got {refused:?}");
+    };
+    assert_eq!(source.predicate, Some("path_corner_reach_arc"));
+}
+
+/// The DECIDED sides of the same gates, for contrast: a margin
+/// comfortably above K·ε proceeds, and one comfortably below refuses
+/// with the gate's own typed refusal — never an escalation.
+#[test]
+fn the_new_arc_carrier_gates_decide_outside_the_band() {
+    let centre = p2(2.0, -2.0);
+    let r = 8.0f64.sqrt();
+    // Well ahead of the corner: decided, and the fillet resolves.
+    let theta = std::f64::consts::FRAC_PI_4 + 0.9;
+    let anchor = p2(centre.x + r * theta.cos(), centre.y + r * theta.sin());
+    assert!(
+        Open.at(p2(0.0, 0.0))
+            .toward(1.0, 0.0)
+            .unwrap()
+            .fillet(0.3)
+            .unwrap()
+            .at_on(anchor, centre, profile::ArcSweep::Ccw)
+            .is_ok(),
+        "a decided angular reach must resolve"
+    );
+    // Well BEHIND the corner: decided the other way, typed refusal.
+    let theta = std::f64::consts::FRAC_PI_4 - 0.4;
+    let anchor = p2(centre.x + r * theta.cos(), centre.y + r * theta.sin());
+    let refused = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0)
+        .unwrap()
+        .fillet(0.3)
+        .unwrap()
+        .at_on(anchor, centre, profile::ArcSweep::Ccw);
+    assert!(
+        matches!(refused, Err(PathError::NoCornerForFillet { .. })),
+        "a decided-behind arrival anchor must refuse typed, got {refused:?}"
+    );
+}
+
+/// **MINOR-2 (review)**: the third new gate's escalation path.
+/// `path_carrier_meet` and `path_corner_reach_arc` already have in-band
+/// rows; `path_corner_advance_arc` had only decided coverage, so the
+/// G1 NOTE-2 standard was met for two predicates out of three.
+///
+/// Construction: the departure runs CCW on the unit circle from
+/// `(1, 0)`, and the arrival carrier is built as the circle on the
+/// diameter `P–Q`, where `P` sits an in-band ARC LENGTH ahead of the
+/// departure anchor (R = 1, so the arc length IS the angle). `P` is
+/// then an intersection of the two carriers to within an ulp, so the
+/// derived corner lands there and "is it ahead of its anchor?" is
+/// exactly the undecidable question. The carrier-meet gates are
+/// comfortably decided first, so the escalation can only come from the
+/// angular advance gate.
+#[test]
+fn the_angular_advance_gate_escalates_in_band() {
+    let tol = Tolerance::get();
+    let band = tol.eps * ((1.0 + tol.k) / 2.0);
+    let near = p2(band.cos(), band.sin());
+    let far = p2(-0.5, 0.75f64.sqrt());
+    // The circle on the P–Q diameter passes through both by
+    // construction, so `far` is an exact anchor for it.
+    let centre = p2((near.x + far.x) / 2.0, (near.y + far.y) / 2.0);
+    let refused = Open
+        .at_on(p2(1.0, 0.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
+        .unwrap()
+        .fillet(0.1)
+        .unwrap()
+        .at_on(far, centre, profile::ArcSweep::Ccw);
+    // Assert WHICH gate escalated: an escalation from `path_carrier_meet`
+    // would satisfy a bare `Escalated` match while leaving the angular
+    // advance gate as untested as before.
+    let Err(PathError::Escalated { source }) = refused else {
+        panic!("an in-band angular ADVANCE must escalate, got {refused:?}");
+    };
+    assert_eq!(
+        source.predicate,
+        Some("path_corner_advance_arc"),
+        "the escalation must come from the angular advance gate"
+    );
+}
+
+/// **MINOR-3 (review)**: pins the LB10 wall itself.
+///
+/// A fillet whose DEPARTURE runs on an arc carrier cannot be completed
+/// by a straight-carrier arrival door — the lifted ladder reads the S8
+/// diagnostic channel, so its `Bounds` bound propagates to every caller,
+/// and the ratified discipline confines that bound to the arc-fillet
+/// boundary module, which `.at`/`.angle`/`.toward` are not part of.
+///
+/// The PR body, the unit report and PATHS-DESIGN §2b all lean on this
+/// refusal being typed and on it naming the doors that DO work, so it
+/// is pinned here in BOTH binder orders rather than left to prose. It
+/// is unreachable from any chain authored before the carrier binders
+/// existed: the guard reads `pending.carrier`, which only `.at_on`
+/// ever sets.
+#[test]
+fn a_straight_arrival_off_an_arc_departure_refuses_naming_the_carrier_doors() {
+    let arc_departure = || {
+        Open.at_on(p2(1.0, 0.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
+            .unwrap()
+            .fillet(0.25)
+            .unwrap()
+    };
+    let check = |err: PathError<f64>| {
+        assert!(
+            matches!(err, PathError::ArcCarrierSpelling { .. }),
+            "expected the spelling refusal, got {err:?}"
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains(".at_on(p, centre, winding)")
+                && msg.contains(".to_on(Start, centre, winding)"),
+            "the refusal must name BOTH doors that resolve it: {msg}"
+        );
+    };
+    // Position first, then the director.
+    let err = arc_departure()
+        .at(p2(0.0, 2.0))
+        .unwrap()
+        .angle(0.0)
+        .unwrap_err();
+    check(err);
+    // Director first, then the position — the same wall, other order.
+    let err = arc_departure()
+        .angle(0.0)
+        .unwrap()
+        .at(p2(0.0, 2.0))
+        .unwrap_err();
+    check(err);
 }

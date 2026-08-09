@@ -175,6 +175,21 @@ discipline() {
   # `Dual`. `ssi/enclose.rs` is deliberately NOT listed — it needs no
   # decision, so it takes the sole-bound `T: Bounds` the rule allows
   # everywhere.
+  #
+  # profile/src/path/arc_fillet.rs is the LIB-G2 PATHS arc-carrier
+  # fillet boundary (ruling LB3, 2026-08-08). The algebra forbids
+  # authoring a fillet's corner, so it DERIVES 0/1/2 corners from the
+  # two carriers and the S8 choice is over (corner, candidate) pairs —
+  # it therefore DECIDES (the carrier-meet and angular advance/reach
+  # gates) and reads the selection channel in one function, which is
+  # `Decide + Bounds` honestly. It carries sugar.rs's ratified
+  # justification verbatim: the pick is a plain deterministic selection
+  # rule on the f64 diagnostic channel, a representation-level choice
+  # between already-classified constructions, never a re-decision of
+  # geometry. The compound bound is confined to this ONE file so
+  # `path.rs` itself stays bracket-free; `fillet_select.rs`, which
+  # states the ladder, is deliberately NOT listed — sole-bound
+  # `T: Bounds`, which the rule allows everywhere.
   local bhits
   bhits=$(grep -rnE '\+\s*(geom_core::)?Bounds\b' crates/*/src \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
@@ -183,6 +198,7 @@ discipline() {
     | grep -vE '^crates/topo/src/props\.rs$' \
     | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
     | grep -vE '^crates/profile/src/sugar\.rs$' \
+    | grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
     | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' \
     | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify)\.rs$' || true)
   if [ -n "$bhits" ]; then
