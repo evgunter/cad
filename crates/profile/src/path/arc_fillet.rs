@@ -58,12 +58,12 @@
 
 use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Tolerance, Vec2};
 
+use super::program::{ClosedLoop, Step};
 use super::{
     ArcData, Core, Dir, FirstSeg, HasAng, HasPos, Incoming, NoAng, NoPos, Open, PartialPath,
     PathError, PathNoCornerReason, PendingFillet, Plain, PosData, Start, Tip, in_state,
     junction_check, linear_band,
 };
-use crate::ProfileLoop;
 use crate::fillet_select::nearest_joint;
 use crate::k_stats::decide;
 use crate::sugar::bulge_from_center;
@@ -573,6 +573,20 @@ fn arrival_side<T: Real>(p: Point2<T>, centre: Point2<T>, winding: ArcSweep) -> 
     }
 }
 
+/// The scalar obligation the arc-carrier arrival binders impose, NAMED.
+///
+/// `at_on` (the fillet-arrival form) and `to_on` run the S8 selection
+/// ladder, so they are `Decide + Bounds` honestly — the compound bound
+/// this file is allowlisted for. The replay driver
+/// ([`super::program::replay`]) must be able to call them, so its own
+/// signature inherits the obligation; naming it here keeps the compound
+/// bound CONFINED to this file, which is exactly what the confinement
+/// exists for ("so path.rs itself stays bracket-free"). The driver reads
+/// no bracket of its own: it propagates this obligation and nothing more.
+pub trait ArcCarrierScalar: Decide + Bounds {}
+
+impl<T: Decide + Bounds> ArcCarrierScalar for T {}
+
 impl Open {
     /// **G2 §3a** — the entry bound ON an arc carrier: binds the entry
     /// POSITION to `p` and the entry DIRECTION to that carrier's
@@ -604,6 +618,7 @@ impl Open {
         let dir = carrier_tangent(p, centre, winding, band)?;
         let mut core = Core::empty();
         core.seed(p);
+        core.record(Step::AtOn { p, centre, winding });
         core.start_ang = Some(dir);
         Ok(in_state(
             core,
@@ -646,6 +661,7 @@ impl<T: Decide + Bounds> PartialPath<T, NoPos, NoAng> {
         centre: Point2<T>,
         winding: ArcSweep,
     ) -> Result<PartialPath<T, HasPos<Plain>, HasAng>, PathError<T>> {
+        self.core.record(Step::AtOn { p, centre, winding });
         let band = linear_band()?;
         let dir = carrier_tangent(p, centre, winding, band)?;
         let pending = self
@@ -715,8 +731,9 @@ impl<T: Decide + Bounds> PartialPath<T, NoPos, NoAng> {
         target: Start,
         centre: Point2<T>,
         winding: ArcSweep,
-    ) -> Result<ProfileLoop<T>, PathError<T>> {
+    ) -> Result<ClosedLoop<T>, PathError<T>> {
         let Start = target;
+        self.core.record(Step::CloseToOn { centre, winding });
         let start_pos = self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry position is bound",
         })?;
