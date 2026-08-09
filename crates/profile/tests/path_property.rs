@@ -17,6 +17,9 @@
 //! - one deterministic row per typed refusal class.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod common;
+
+use common::pinned;
 use geom_core::{Point2, Tolerance};
 use profile::path::{HasAng, HasPos, WithIncoming};
 use profile::{
@@ -86,6 +89,7 @@ proptest! {
             path = path.line_to(*q).unwrap();
         }
         let algebra = path.line_to(Start).unwrap();
+        let algebra = pinned(algebra);
         let mut hand = LoopBuilder::start(pts[0]);
         for q in &pts[1..] {
             hand = hand.line_to(*q);
@@ -133,6 +137,7 @@ proptest! {
             .line(top_len).unwrap()
             .line_to(p2(0.0, h)).unwrap()
             .line_to(Start).unwrap();
+        let algebra = pinned(algebra);
         validate_ok(&algebra);
         // The anchor lies on the trimmed arrival side: the segment
         // from the fillet arc's end (vertex 2) to the side's end
@@ -351,6 +356,7 @@ fn tangent_seam_closes_via_tangent_arc() {
         .tangent()
         .tangent_arc_to(Start)
         .unwrap();
+    let loop_ = pinned(loop_);
     validate_ok(&loop_);
     // The two `.tangent()` joints are declared; the junctions at
     // (4, 1) and at Start are definitely sharp; the verifier confirms
@@ -426,6 +432,7 @@ fn nonpositive_fillet_radius_refuses_typed_r7() {
 #[test]
 fn circle_validates_and_refuses_nonpositive_radius() {
     let c = profile::circle(p2(1.0, 2.0), 0.75).unwrap();
+    let c = pinned(c);
     validate_ok(&c);
     assert_eq!(c.vertices.len(), 2);
     assert!(
@@ -535,6 +542,7 @@ fn arc_center_stores_its_authored_endpoints_verbatim() {
         .unwrap()
         .line_to(Start)
         .unwrap();
+    let lowered = pinned(lowered);
     validate_ok(&lowered);
     assert_eq!(lowered.vertices[0].pos.x.to_bits(), a.x.to_bits());
     assert_eq!(lowered.vertices[1].pos.x.to_bits(), b.x.to_bits());
@@ -594,6 +602,7 @@ fn far_end_anchor_makes_its_authored_point_a_vertex() {
         .unwrap()
         .line_to(Start)
         .unwrap();
+    let lowered = pinned(lowered);
     validate_ok(&lowered);
     assert!(
         lowered
@@ -656,6 +665,7 @@ fn exact_fit_far_end_allows_a_sharp_continuation() {
         .unwrap()
         .line_to(Start)
         .unwrap();
+    let lowered = pinned(lowered);
     validate_ok(&lowered);
 }
 
@@ -672,6 +682,7 @@ fn exact_fit_far_end_allows_a_tangent_continuation() {
         .unwrap()
         .line_to(Start)
         .unwrap();
+    let lowered = pinned(lowered);
     validate_ok(&lowered);
 }
 
@@ -688,6 +699,7 @@ fn exact_fit_far_end_absorbs_its_anchor_into_the_tangent_point() {
         .unwrap()
         .line_to(Start)
         .unwrap();
+    let lowered = pinned(lowered);
     validate_ok(&lowered);
     let nearest = lowered
         .vertices
@@ -788,6 +800,7 @@ fn lens(r: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     Open.at_on(p2(0.0, -tip), p2(-0.5, 0.0), profile::ArcSweep::Ccw)?
         .fillet(r)?
         .to_on(Start, p2(0.5, 0.0), profile::ArcSweep::Ccw)
+        .map(pinned)
 }
 
 /// The eye program lowers, validates, and puts every AUTHORED point on

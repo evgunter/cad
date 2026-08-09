@@ -12,4 +12,5 @@ demos/renders-preview/
 
 # Cargo build artifacts of the workspace-excluded projects
 demos/tour/target/
+demos/wild/target/
 tools/k-lint/target/
