@@ -1992,6 +1992,53 @@ impl<T: Decide> Body<T> {
     }
 }
 
+/// The **plane × NURBS attach door** (M7-8).
+///
+/// A described NURBS operand in an `Intersection` certifies only
+/// through `geom_brep`'s injected lane, whose derivation needs a
+/// bracket-carrying scalar (`geom_brep::EdgeNurbsLane`'s static
+/// split). Raising the whole Euler surface to that bound would push it
+/// through hundreds of `T: Decide` signatures for a capability three
+/// of the four sealed scalars have unconditionally, so the lane is a
+/// SEPARATE DOOR onto the same shared machinery: identical
+/// preconditions, identical adjacency rules, identical mutation. The
+/// default door keeps refusing the class exactly as before — there is
+/// no door that accepts it uncertified.
+impl<T: geom_brep::EdgeNurbsLane> Body<T> {
+    /// [`Body::set_edge_curve`] with the plane × NURBS lane wired in.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::set_edge_curve`].
+    pub fn set_edge_curve_nurbs_lane(
+        &mut self,
+        edge: crate::entity::EdgeKey,
+        curve: EdgeCurveSpec<T>,
+    ) -> Result<CurveKey, EulerOpError> {
+        self.set_edge_curve_via(edge, curve, Self::certify_edge_spec_nurbs_lane)
+    }
+
+    /// [`Body::certify_edge_spec`] with the plane × NURBS lane wired in.
+    pub(crate) fn certify_edge_spec_nurbs_lane(
+        &self,
+        spec: EdgeCurveSpec<T>,
+        p_start: Point3<T>,
+        p_end: Point3<T>,
+    ) -> Result<EdgeCurve<T>, EulerOpError> {
+        let band = Band::linear().map_err(|e| EulerOpError::Certification {
+            error: CertifyError::Band(e),
+        })?;
+        EdgeCurve::certify_nurbs_lane(
+            spec,
+            p_start,
+            p_end,
+            |k| self.surfaces.get(k).cloned(),
+            band,
+        )
+        .map_err(|error| EulerOpError::Certification { error })
+    }
+}
+
 // Deviation from the PR 2 spec's optional clause, recorded in-tree:
 // random-op-sequence property tests are deliberately deferred to PR 4,
 // whose make/kill roundtrip properties own the sequence generator.

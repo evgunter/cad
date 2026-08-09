@@ -439,6 +439,20 @@ pub trait Real:
 /// **sole-bound** `T: Bounds` the rule already allows, and is not
 /// allowlisted.
 ///
+/// **Extension (M7-8, `docs/M7-8-SPEC.md` under Evan's #264 ruling):**
+/// `geom_brep::edge_nurbs` — the plane × NURBS declare-and-check edge
+/// lane — joins the allowlist as the narrowest possible extension of
+/// the M6-2 seam. It adds no new obligation: it DELEGATES to the
+/// already-listed `certify_rung3` door, handing it a **declared**
+/// carrier instead of a marched one, and therefore inherits that
+/// door's signature rather than widening the rule's reach. The split
+/// is written in the ratified shape — `geom_brep::EdgeNurbsLane` has
+/// certified impls for `f64`, [`Probe`](crate::Probe) and the interval
+/// scalar and a **refusing** impl for [`Dual`](crate::Dual) — and it
+/// is precisely what keeps `Bounds` out of `topo`'s signatures: the
+/// attach and validate doors take the lane as an injected function,
+/// so no `topo` API grows a bracket bound.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For

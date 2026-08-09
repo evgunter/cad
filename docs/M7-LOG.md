@@ -1038,3 +1038,135 @@ the NEXT blinded-lane merge (likely G1 or stage-1) is row 3 → R2.
 with C7 per the standing ruling. Banked/watch: #235 (stale slot
 holders — cosmetic), the FreeCAD per-scene timeout, #222, #214
 riders, Q9 (fuse burning: the lib program approaches U9/U10).
+
+## M7-8 — plane × NURBS intersection certification (declare-and-check)
+
+The last M7 code unit, per Evan's #264 ruling ("definitely certify
+plane×NURBS intersections … a 'declare and check that it actually
+works out' case"). Spec: `docs/M7-8-SPEC.md`.
+
+**The pin FLIPPED.** `cylinder_envelope_refuses_and_the_seam_orphan_
+is_pinned` is retired and replaced by `the_seam_orphan_certifies_as_
+a_plane_nurbs_intersection`: the arc-prism mixed promoted/stays-NURBS
+body imports first-class, and its wall–wall seam (EDGE_CURVE #130 —
+the edge that had no bitwise IsoCurve rung and no certification path)
+now carries a certified `EdgeGeometry::Intersection` between the
+promoted `y = 1` cap plane and the stays-NURBS arc wall. Re-derived
+at ε_in = 1e-9: on-locus residual 2.48e-16 m, certified
+between-samples sup 6.32e-12 m, uniqueness tube radius 0.25 m with
+transversality 1.22 m over 32 boxes, min sin θ = 0.7071 (the 45°
+the quarter-cylinder meets the cap at).
+
+**The carrier is EVIDENCE, never truth.** The seam spline's middle
+control point pushed 1e-3 m off the wall (staying exactly on the cap
+plane, so the NURBS-side residual has to do the catching) refuses
+through the importer with the measured bound in the payload —
+`CertifyError::PlaneNurbs(Limb { .. })`, surfaced verbatim in the
+adoption refusal's text.
+
+**Shape.** The lane is INJECTED at the door rather than bound into
+`topo`: `EdgeCurve::certify_nurbs_lane` takes a `NurbsLane` function
+whose derivation needs `Decide + Bounds`, and `Body::set_edge_curve_
+nurbs_lane` is a second attach door onto verbatim-shared
+preconditions, adjacency rules and mutation. No door accepts the
+class uncertified; the plain `T: Decide` door still refuses a
+described NURBS operand with `Unimplemented` (pinned).
+
+**Measured and REJECTED as scope expansion** (reported, not shipped):
+widening `transform_rigid` and the six boolean entry points to carry
+the lane. It type-checks, but it cascades into five `editor-core`
+signatures and two `topo` tests for a capability no acceptance row
+needs — transform/boolean re-certification of an imported plane ×
+NURBS body is a real question, and it is BANKED for its own unit
+rather than smuggled in here.
+
+**Honest limits, reported.**
+
+- *Tier-3 at rest is native-twin parity, not `Ok(())`.* The arc
+  prism's wall is RATIONAL, so both the native body and the imported
+  one refuse tier 3 with the same banked rational-quadrature refusal
+  (M7-3's Arm B). The unit proves what it can: the at-rest pass finds
+  NO certification failure — every edge, the new seam included,
+  re-derives its certificate through `recertify_nurbs_lane`.
+- *The near-miss row changed meaning.* Nudging the wall's mid-arc
+  control point 5·ε off the cylinder no longer refuses, because the
+  seam sits at the patch's `u = 1` edge where that point's basis
+  weight vanishes. The row now pins that SEPARATION explicitly; the
+  perturbation that must be caught is the carrier-side falsifier.
+- *The flip is ε-DEPENDENT, and both postures are pinned.* The seam's
+  certified between-samples sup is 6.32e-12 m — the promoted plane
+  wall's boundary column and the arc wall's own column agree only to
+  the arc endpoint's rounding, and the first-order envelope cannot
+  say better. So the pin flips at ε_in = 1e-9 (default) and 1e-6,
+  and at the 1e-12 matrix row the same geometry refuses TYPED,
+  carrying that number: `Escalated { check: PlaneNurbsCertificate,
+  cause: Indeterminate { margin: 6.31561637745462e-12, band: { zero:
+  1e-12, escalate: 1e-11 }, predicate: "ssi_hull_sup_chart" } }`.
+  This is the spec's clause 3 landing exactly as written — the bound
+  too loose at ε refuses WITH its measurement, and nothing was
+  widened to make the row green. Tightening it needs the banked
+  algebraic spline-product hull certificate (the same bank that owes
+  the cylinder track), not a gate change.
+- *A COLD-LINT catch on inherited work* (×2): SU2's probe file shipped
+  without its `#![allow(clippy::unwrap_used, …)]` header, and SU3's
+  new `impl` block sat after `mod tests` in `topo/src/euler.rs`
+  (`clippy::items_after_test_module`). Both would have failed the
+  clippy gate; both were caught by the cold pass, not by a warm one.
+
+**Tangency refuses in `certify`'s OWN vocabulary.** A planted
+near-parallel plane raises `CertifyError::NotTransverse` — the same
+variant the analytic arm raises, so a caller reads one refusal rather
+than two dialects. No `TangentIntersection` adoption rung was invented
+(the spec's STOP).
+
+**THE UNION COLLISION, RULED — option (c), and what executing it
+measured.** #276's tier-at-import gate landed mid-unit and turned
+acceptance row 1 red: the arc prism's stays-NURBS wall is RATIONAL, so
+the at-rest pass refuses `QuadratureUnsupported` (M7-3 Arm B's banked
+rational patch flux) and the opinion-free gate refuses the import. The
+refusal is POST-ADOPTION — the seam certifies exactly as before. The
+orchestrator ruled option (c): re-fixture onto an integral wall and
+re-pin the arc prism as a waypoint. (a) was rejected as contradicting
+Evan's sequencing of the rational-quadrature work into the post-walk
+stretch; (b) as the verdict-filter shape #260 ruling (a) dissolved.
+
+Executing (c) measured a SECOND gap, and it is the more interesting
+one. The integral twin (`offset_square_prism` — a square lofted
+degree-2 through three places whose middle one is offset in `x`, so two
+walls stay exactly planar and promote while two bow and stay NURBS,
+every weight 1) IS tier-valid at rest: `Ok(())`, not parity with a
+refusing twin. But its seam never reaches the declare-and-check rung:
+
+- With OUR OWN bytes the seam carrier is bit-identical to the wall's
+  boundary column, so the bitwise `IsoCurve` rung answers first. All
+  four wall seams take it — measured, and now asserted.
+- State the seam in ANY foreign form (the pin moves one control point
+  one ULP in `z`) and the `Intersection` rung certifies it — and then
+  pcurve minting refuses `IsoUnsupported`, because `nurbs_iso_derive`
+  derives chart images for `IsoCurve` and `PlacedSegment` descriptions
+  only. An `Intersection` on a described NURBS chart has no arm.
+
+So the two wall kinds fail in opposite directions and leave NO fixture
+that is first-class end to end today: rational walls waive pcurve
+minting entirely (`pcurves.rs`: "the placeholder and rational walls
+mint nothing"), so the seam sails through import but the body is
+tier-invalid; integral walls are tier-valid, but their pcurve is
+demanded and cannot be derived. **Acceptance row 1's body-level claim
+is therefore not demonstrable in this tree** — reported as a spec
+deviation, not worked around. What IS proven, twice over, is the rung
+itself: certification at the lane and at the door with measured limbs,
+the seam-orphan adoption refusal retired, and both fixtures' honest ε
+postures pinned with their flip-when-fixed conditions named (rational
+patch flux for the arc prism; an `Intersection` arm on
+`nurbs_iso_derive` for the integral twin).
+
+**Batteries on the ruled union** (every row a foreground run under a
+build slot): step-import **160 passed / 0 failed** at each of ε_in
+default, 1e-6 and 1e-12 — count invariant across the matrix, because
+each fixture's ε-dependent posture is pinned inside its own test;
+geom-brep **227 passed / 0 failed** (220 shipped + the 6 adopted R1
+envelope probes + the wall-side falsifier). Workspace
+`cargo check --all-targets` clean after each merge (the #274 lesson:
+the union is built explicitly, never assumed from two green branches),
+and COLD-LINT — `cargo clean -p geom-brep -p step-import -p topo`, then
+clippy, clippy `--features interval` and `fmt-all --check` — clean.
