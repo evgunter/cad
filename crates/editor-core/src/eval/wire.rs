@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::k_stats::decide;
-use geom_core::{Affine3, Band, Decide, Length, Mat3, Point2, Point3, Sign, Tolerance, Vec2, Vec3};
+use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tolerance, Vec2, Vec3};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
@@ -179,7 +179,7 @@ fn band() -> Result<Band, NodeErrorKind> {
 /// Normalizes a direction-valued vector; decided-zero length refuses,
 /// in-band indeterminacy escalates (all through the one door).
 fn unit<T: Decide>(v: Vec3<T>, role: &'static str) -> Result<Vec3<T>, NodeErrorKind> {
-    match decide("eval_direction_norm", Length::norm3(v), band()?) {
+    match decide("eval_direction_norm", Margin::norm3(v), band()?) {
         Ok(Sign::Positive) => Ok(v.normalize()),
         Ok(_) => Err(NodeErrorKind::DegenerateDirection { role }),
         Err(source) => Err(NodeErrorKind::Escalated {
@@ -318,7 +318,7 @@ fn wire_revolve<T: Decide>(
     };
     in_plane(
         "revolve_axis_origin_in_plane",
-        decide("revolve_axis_origin_in_plane", Length::of(rel.dot(n)), b),
+        decide("revolve_axis_origin_in_plane", Margin::of(rel.dot(n)), b),
     )?;
     in_plane(
         "revolve_axis_dir_in_plane",

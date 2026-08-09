@@ -72,7 +72,7 @@
 //! PR 9 builds those; consumers here must refuse to construct from
 //! them (the split/boolean lanes do, typed).
 
-use geom_core::{Band, Indeterminate, Length, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 use geom_curves::{Curve3, EllipseInvalid};
 use geom_surfaces::Surface;
 
@@ -551,14 +551,14 @@ pub fn plane_cylinder_section<T: Decide>(
     };
 
     let c = a.dot(n);
-    match decide("pc_axis_plane_parallel", Length::levered(c, extent), band)
+    match decide("pc_axis_plane_parallel", Margin::levered(c, extent), band)
         .map_err(SectionError::Escalated)?
     {
         Sign::Zero => {
             // The axis lies in the plane: line pair / tangent / empty
             // by the axis-to-plane gap vs the radius.
             let gap_signed = (o - q).dot(n);
-            let margin = Length::of(r - gap_signed.abs());
+            let margin = Margin::of(r - gap_signed.abs());
             match decide("pc_parallel_gap", margin, band).map_err(SectionError::Escalated)? {
                 Sign::Positive => {
                     // Cross-section chord: the plane cuts the circle at
@@ -590,7 +590,7 @@ pub fn plane_cylinder_section<T: Decide>(
             let sin_norm = sin_vec.norm();
             let t_star = (q - o).dot(n) / c;
             let center = o + a * t_star;
-            match decide("pc_rim_alignment", Length::levered(sin_norm, r), band)
+            match decide("pc_rim_alignment", Margin::levered(sin_norm, r), band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Zero => Ok(PlaneCylinderSection::Rim(Curve3::Circle {
@@ -697,7 +697,7 @@ pub fn plane_sphere_section<T: Decide>(
     let seam_cand = n.cross(sph_u);
     let u_ref = match decide(
         "ps_frame_seam",
-        Length::levered(seam_cand.norm() - T::from_f64(0.5), r),
+        Margin::levered(seam_cand.norm() - T::from_f64(0.5), r),
         band,
     ) {
         Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
@@ -706,7 +706,7 @@ pub fn plane_sphere_section<T: Decide>(
             polar_cand / polar_cand.norm()
         }
     };
-    match decide("ps_center_gap", Length::of(r - s.abs()), band).map_err(SectionError::Escalated)? {
+    match decide("ps_center_gap", Margin::of(r - s.abs()), band).map_err(SectionError::Escalated)? {
         Sign::Positive => Ok(PlaneSphereSection::Circle(Curve3::Circle {
             center: foot,
             axis: n,
@@ -835,7 +835,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
         });
     }
     // 2. Verify the declaration (declared ≠ unchecked).
-    match decide("cc_declared_radius_equality", Length::of(r1 - r2), band)
+    match decide("cc_declared_radius_equality", Margin::of(r1 - r2), band)
         .map_err(SectionError::Escalated)?
     {
         Sign::Zero => {}
@@ -848,7 +848,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
     let cross_norm = cross.norm();
     match decide(
         "cc_axes_parallel",
-        Length::levered(cross_norm, extent),
+        Margin::levered(cross_norm, extent),
         band,
     )
     .map_err(SectionError::Escalated)?
@@ -859,12 +859,12 @@ pub fn cylinder_cylinder_section<T: Decide>(
             let w0 = o2 - o1;
             let d_vec = w0 - a1 * w0.dot(a1);
             let d = d_vec.norm();
-            match decide("cc_coaxial", Length::of(d), band).map_err(SectionError::Escalated)? {
+            match decide("cc_coaxial", Margin::of(d), band).map_err(SectionError::Escalated)? {
                 Sign::Zero => return Err(SectionError::CoincidentSurfaces),
                 Sign::Positive | Sign::Negative => {}
             }
             let two = T::from_f64(2.0);
-            match decide("cc_parallel_gap", Length::of(two * r1 - d), band)
+            match decide("cc_parallel_gap", Margin::of(two * r1 - d), band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Positive => {
@@ -893,7 +893,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
             // Crossing lane: coplanarity (intersecting vs skew).
             let w0 = o2 - o1;
             let gap = w0.dot(cross) / cross_norm;
-            match decide("cc_axes_coplanar", Length::of(gap), band)
+            match decide("cc_axes_coplanar", Margin::of(gap), band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Zero => {}
@@ -1013,12 +1013,12 @@ pub fn plane_cone_section<T: Decide>(
     let s = s_vec.norm();
 
     let apex_gap = (apex - q).dot(n);
-    match decide("pn_apex_on_plane", Length::of(apex_gap), band).map_err(SectionError::Escalated)? {
+    match decide("pn_apex_on_plane", Margin::of(apex_gap), band).map_err(SectionError::Escalated)? {
         Sign::Zero => {
             // Apex lane: generators g(u) = a·cosα + radial(u)·sinα with
             // g·n = 0 ⇔ cos(u − φ) = −cosα·c / (sinα·s).
             let discr = sin_a * s - cos_a * c.abs();
-            let verdict = decide("pn_apex_section", Length::levered(discr, extent), band)
+            let verdict = decide("pn_apex_section", Margin::levered(discr, extent), band)
                 .map_err(SectionError::Escalated)?;
             match verdict {
                 Sign::Positive | Sign::Zero => {
@@ -1056,7 +1056,7 @@ pub fn plane_cone_section<T: Decide>(
             // R1 permanent routing.
             let h = (q - apex).dot(a);
             let rim_r = h.abs() * (sin_a / cos_a);
-            match decide("pn_axis_normal", Length::levered(s, rim_r), band)
+            match decide("pn_axis_normal", Margin::levered(s, rim_r), band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Zero => Ok(PlaneConeSection::AxisNormalCircle(Curve3::Circle {

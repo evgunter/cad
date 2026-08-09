@@ -40,9 +40,9 @@ pub use geom_core::{Affine3, Band, BandError, Mat3, Point2, Point3, Real, Tolera
 // The D6 quantity layer (LIB-U8a): value types, unit constants
 // (`25.0 * MM`), and the display formatter. NAME DISCIPLINE: this
 // `Length` is the API-boundary quantity newtype; the kernel-internal
-// classify-seam `geom_core::predicate::Length<T>` is a different type
-// that has never been prelude surface and must not become it — the
-// two coexist only module-qualified. Scope: the prelude carries the
+// classify-seam margin type is `geom_core::predicate::Margin<T>`
+// (renamed from `Length<T>`, LB9), which has never been prelude
+// surface and must not become it. Scope: the prelude carries the
 // value types + the six unit constants + the formatter; the unit
 // TABLE itself and the prefix data (`UNITS`, `unit_by_symbol`,
 // `MILLI`, `CENTI`) stay one module hop away at `pncad::quantity`,

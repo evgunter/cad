@@ -45,7 +45,7 @@
 //! reclassification), against the run's linear band. This is the
 //! `classify_dihedral` pattern.
 
-use geom_core::{Band, Decide, Indeterminate, Length, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
 
 /// The verdict of [`enters_material`]: where `dir` goes relative to the
 /// face's material.
@@ -81,7 +81,7 @@ pub fn enters_material<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, Indeterminate> {
-    match decide("enters_material_arm", Length::of(arm), band)? {
+    match decide("enters_material_arm", Margin::of(arm), band)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
             return Err(Indeterminate {
@@ -91,7 +91,7 @@ pub fn enters_material<T: Decide>(
             });
         }
     }
-    let margin = Length::levered(dir.normalize().dot(outward_normal), arm);
+    let margin = Margin::levered(dir.normalize().dot(outward_normal), arm);
     Ok(match decide("enters_material", margin, band)? {
         Sign::Negative => EntersMaterial::Enters,
         Sign::Positive => EntersMaterial::Exits,
@@ -138,7 +138,7 @@ pub fn enters_material_order2<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, Indeterminate> {
-    match decide("tangent_sector_order2_arm", Length::of(arm), band)? {
+    match decide("tangent_sector_order2_arm", Margin::of(arm), band)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
             return Err(Indeterminate {
@@ -148,7 +148,7 @@ pub fn enters_material_order2<T: Decide>(
             });
         }
     }
-    let margin = Length::sagitta(deriv2.dot(outward_normal) / speed_sq, arm);
+    let margin = Margin::sagitta(deriv2.dot(outward_normal) / speed_sq, arm);
     Ok(match decide("tangent_sector_order2", margin, band)? {
         Sign::Negative => EntersMaterial::Enters,
         Sign::Positive => EntersMaterial::Exits,
@@ -160,7 +160,7 @@ pub fn enters_material_order2<T: Decide>(
 /// greppable `sign_within` door per crate, unified recorder — M2 PR 7).
 fn decide<T: Decide>(
     name: &'static str,
-    margin: Length<T>,
+    margin: Margin<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)

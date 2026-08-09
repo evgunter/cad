@@ -94,7 +94,7 @@
 //!   the unforced window. Face-interior and convex-corner crossings
 //!   of the same shape succeed exactly.
 
-use geom_core::{Band, Bounds, Decide, Length, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
 use super::boxes;
 use super::combine::{GraftMap, graft_solid};
@@ -1309,7 +1309,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         u_ref,
                     }) => {
                         let s = (center - origin).dot(normal);
-                        match decide("bool_sphere_extent_gap", Length::of(radius - s.abs()), band)
+                        match decide("bool_sphere_extent_gap", Margin::of(radius - s.abs()), band)
                             .map_err(esc)?
                         {
                             // Clear of the whole carrier plane.
@@ -1453,7 +1453,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         let d = (c2 - center).norm();
                         match decide(
                             "bool_sphere_sphere_gap",
-                            Length::of(d - (radius + r2)),
+                            Margin::of(d - (radius + r2)),
                             band,
                         )
                         .map_err(esc)?
@@ -1469,7 +1469,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                 let small = radius.min(r2);
                                 match decide(
                                     "bool_sphere_sphere_nested",
-                                    Length::of(big - (d + small)),
+                                    Margin::of(big - (d + small)),
                                     band,
                                 )
                                 .map_err(esc)?
@@ -1534,7 +1534,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                 for &n in rest {
                     match decide(
                         "bool_sphere_escape_parallel",
-                        Length::levered(align.cross(n).norm(), radius),
+                        Margin::levered(align.cross(n).norm(), radius),
                         band,
                     )
                     .map_err(esc)?
@@ -1605,7 +1605,7 @@ fn apply_recuts<T: Decide + Bounds>(
             let sin = cross.norm();
             match decide(
                 "bool_sphere_recut_align",
-                Length::levered(sin, r.radius),
+                Margin::levered(sin, r.radius),
                 band,
             )
             .map_err(|diag| BooleanError::Escalated { diag })?

@@ -29,7 +29,7 @@
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Length, Mat3, Point2, Point3, Sign, Vec2, Vec3,
+    Affine3, Band, Decide, Indeterminate, Margin, Mat3, Point2, Point3, Sign, Vec2, Vec3,
 };
 
 use super::axis::AxisFrame;
@@ -143,7 +143,7 @@ pub fn tube_along_arc<T: Decide>(
     let unit = |v: Vec3<T>, err: TubeError| -> Result<(), TubeError> {
         match decide(
             "tube_frame_unit",
-            Length::levered(v.norm() - T::one(), arm),
+            Margin::levered(v.norm() - T::one(), arm),
             band,
         )
         .map_err(esc)?
@@ -156,7 +156,7 @@ pub fn tube_along_arc<T: Decide>(
     unit(u_ref, TubeError::NonUnitURef)?;
     match decide(
         "tube_frame_orthogonal",
-        Length::levered(axis.dot(u_ref), arm),
+        Margin::levered(axis.dot(u_ref), arm),
         band,
     )
     .map_err(esc)?
@@ -170,11 +170,11 @@ pub fn tube_along_arc<T: Decide>(
         TubeWindow::Full => (T::tau(), true),
         TubeWindow::Arc { t0, t1 } => {
             let span = t1 - t0;
-            match decide("tube_window_span", Length::levered(span, arm), band).map_err(esc)? {
+            match decide("tube_window_span", Margin::levered(span, arm), band).map_err(esc)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(TubeError::DegenerateWindow),
             }
-            let headroom = Length::levered(T::tau() - span, arm);
+            let headroom = Margin::levered(T::tau() - span, arm);
             match decide("tube_window_headroom", headroom, band).map_err(esc)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(TubeError::FullRangeWindow),
