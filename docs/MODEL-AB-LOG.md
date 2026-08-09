@@ -415,6 +415,10 @@ thread; retires the seam-orphan/mixed-body pin); difficulty
 logged PRE-DISPATCH = **M**. Arm = OPUS (drawn slot 1). M7-7's
 R1 dispatched at ordinal 8 (single review; count recorded on
 #268).
+SLOT 2 DISPATCHED (2026-08-09): the wild-corpus montage
+(kernel-tessellation lane only; demo class, orchestrator-review
+expected — excluded like MONTAGE/MV2 if so); difficulty logged
+PRE-DISPATCH = **S**. Arm = FABLE (the banked slot-2).
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
