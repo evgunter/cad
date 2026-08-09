@@ -458,6 +458,10 @@ span-meter half of the rational bank; the calochortus crescent
 restoration rides as demo evidence); difficulty logged
 PRE-DISPATCH = **M**. Arm = OPUS (the drawn slot 2). Block M7-12
 fully consumed — next dispatch opens M7-13.
+#284/#301 R1 ordinal FIXED AT DISPATCH (2026-08-09): 13 merged
+blinded rows on main (the 8 at U5's dispatch + U5 + SEL1 + U9S +
+M7-7 + M7-8; SWITCH-E unmerged, demos/infra excluded) + 1 = **14**
+→ SINGLE review.
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
