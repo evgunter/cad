@@ -343,3 +343,23 @@ satisfies V3 via resolved-bits convention.
   Also noted from the finisher: the setsid lesson (harness
   timeout kills the process group — slot-queued runs need
   setsid to survive) goes to the lane-ops memory at next seam.
+
+## Seam state (2026-08-09, the parallel batch closes)
+
+- **U8a MERGED #267** (row recorded); **G2 CLOSED, MERGED #268**
+  (row recorded; raw census = boss→circle_split-at-switch /
+  outline LB5 / bowtie permanent). **Margin rename #270** (LB9)
+  merging on green — k-lint margin stream byte-identical, 377
+  sites. **Express lane #269 MERGED**, #235 closed; lane-ops
+  memory updated (--express + setsid patterns; all future briefs
+  carry them).
+- **SWITCH-P DISPATCHED** (opus, LIB-4 slot 1, L pre-logged;
+  spec §3, lane lib-switchp). SWITCH-E waits on SWITCH-P + the
+  U7 merge; its spec §§4-8 already binding.
+- **U7 review still in flight** (the last of the batch's
+  verdicts; slot-queue dominated).
+- Dual-review counter: provisional U8a=4, G2=5 (pending the M7
+  orchestrator's #266-class confirmation on the #268 thread);
+  row 6 = the next blinded merge (likely U7 or M7-6) — flagged
+  at merge time; retroactive R2 is the remedy if the count
+  shifts.
