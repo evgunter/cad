@@ -5,16 +5,28 @@
 //! `z`, and the PLANE that meets it along the wall's `u = 0` ruling.
 //! The wall's own boundary column is the carrier the file would state.
 //!
-//! Three rows, one per acceptance clause: the true carrier certifies
-//! with its measured residuals; a carrier displaced off the locus
-//! refuses with the measured bound; a plane made TANGENT to the wall
-//! along the same ruling refuses with the transversality vocabulary.
+//! Three lane rows, one per acceptance clause: the true carrier
+//! certifies with its measured residuals; a carrier displaced off the
+//! locus refuses with the measured bound; a plane made TANGENT to the
+//! wall along the same ruling refuses with the transversality
+//! vocabulary.
+//!
+//! SU3 adds the same three rows driven through the CERTIFICATION DOOR
+//! (`EdgeCurve::certify_nurbs_lane`) — the call the importer's attach
+//! door actually makes, so these pin that the lane's verdicts arrive
+//! in `certify`'s own vocabulary rather than as a private dialect —
+//! plus the row proving the LANELESS door still refuses the class.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::{EdgeNurbsLane, PlaneNurbsRefusal};
+use geom_brep::keys::SurfaceKey;
+use geom_brep::{
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, EdgeNurbsLane, PlaneNurbsRefusal,
+};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tolerance, Vec3};
-use geom_curves::NurbsCurve3;
+use geom_curves::{Curve3, NurbsCurve3};
 use geom_surfaces::{NurbsSurface, Surface};
+use slotmap::SlotMap;
 
 /// The rational quarter cylinder `x² + y² = 1`, `0 ≤ z ≤ 1`: degree 2
 /// in `u` (the classic three-point rational arc, middle weight
@@ -134,4 +146,128 @@ fn a_tangential_plane_refuses_with_the_transversality_vocabulary() {
         }
         other => panic!("a tangential plane must refuse the Intersection precondition: {other:?}"),
     }
+}
+
+// ---------------------------------------------------------------
+// The certification DOOR (M7-8 SU3): the same three rows driven
+// through `EdgeCurve::certify_nurbs_lane`, which is what the
+// importer's attach door actually calls. These pin the MAPPING —
+// that the lane's verdicts arrive in `certify`'s own vocabulary
+// rather than as a private dialect — and that the door refuses the
+// class identically when no lane is injected.
+// ---------------------------------------------------------------
+
+/// A two-surface arena and the spec that names its pair, for the
+/// door rows: the wall is `s2`, the plane `s1`, and the witness is
+/// the carrier's midpoint (the witness contract, unchanged here).
+fn door_spec(
+    plane: Surface<f64>,
+    wall: NurbsSurface<f64>,
+    carrier: NurbsCurve3<f64>,
+) -> (
+    impl Fn(SurfaceKey) -> Option<Surface<f64>>,
+    EdgeCurveSpec<f64>,
+) {
+    let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
+    let s1 = arena.insert(plane);
+    let s2 = arena.insert(Surface::Nurbs(std::sync::Arc::new(wall)));
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier));
+    let witness = carrier.eval(0.5);
+    (
+        move |k| arena.get(k).cloned(),
+        EdgeCurveSpec {
+            description: EdgeGeometry::Intersection { s1, s2, witness },
+            carrier,
+            param_start: 0.0,
+            param_end: 1.0,
+        },
+    )
+}
+
+/// **The door's certifying row.** The true carrier goes in through
+/// the attach door and comes out a certified `EdgeCurve` whose
+/// `max_residual` is the lane's own certified sup — the number the
+/// importer records.
+#[test]
+fn the_door_certifies_the_true_carrier_and_records_the_lane_sup() {
+    let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
+    let ends = (carrier.eval(0.0), carrier.eval(1.0));
+    let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
+    let edge = EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, arena, band())
+        .expect("the stated carrier certifies through the attach door");
+    println!(
+        "M7-8 door: certified max_residual {:e} m over {} samples",
+        edge.certificate().max_residual,
+        edge.certificate().samples
+    );
+    assert!(
+        edge.certificate().max_residual <= Tolerance::get().eps,
+        "the recorded residual is inside ε_in: {:e}",
+        edge.certificate().max_residual
+    );
+}
+
+/// **The door's falsifier row.** The displaced carrier's refusal
+/// arrives as `CertifyError::PlaneNurbs`, still carrying the measured
+/// bound — the declare-and-check payload survives the mapping.
+#[test]
+fn the_door_refuses_a_displaced_carrier_with_the_measured_bound() {
+    let off = 1e-6;
+    let carrier = segment(Point3::new(1.0, off, 0.0), Point3::new(1.0, off, 1.0));
+    let ends = (carrier.eval(0.0), carrier.eval(1.0));
+    let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
+    match EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, arena, band()) {
+        Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, value })) => {
+            println!("M7-8 door falsifier: {} measured {value:e} m", limb.name());
+            assert!(value >= off * 0.5, "the measured bound: {value:e}");
+        }
+        other => panic!("the door must refuse a displaced carrier typed: {other:?}"),
+    }
+}
+
+/// **The door's tangential row.** A tangential contact is NOT this
+/// lane's to adopt (D2 sends it to `TangentIntersection`), and the
+/// door says so in `certify`'s OWN transversality vocabulary —
+/// `CertifyError::NotTransverse`, the same variant the analytic
+/// `Intersection` arm raises — so the caller reads one refusal, not
+/// two dialects. No `TangentIntersection` rung is invented here.
+#[test]
+fn the_door_refuses_a_tangential_plane_in_the_certify_vocabulary() {
+    let tangent = Surface::Plane {
+        origin: Point3::new(1.0, 0.0, 0.0),
+        normal: Vec3::new(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(0.0, 1.0, 0.0),
+    };
+    let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
+    let ends = (carrier.eval(0.0), carrier.eval(1.0));
+    let (arena, spec) = door_spec(tangent, quarter_cylinder_wall(), carrier);
+    match EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, arena, band()) {
+        Err(CertifyError::NotTransverse { sample }) => {
+            let msg = CertifyError::NotTransverse { sample }.to_string();
+            println!("M7-8 door tangential: {msg}");
+            assert!(
+                msg.contains("tangent planes coincide"),
+                "the tangency vocabulary, verbatim: {msg}"
+            );
+        }
+        other => panic!("a tangential plane must refuse the precondition: {other:?}"),
+    }
+}
+
+/// **The door that has no lane refuses the class exactly as before.**
+/// `EdgeCurve::certify` — the `T: Decide` door — still meets a
+/// described NURBS operand with `Unimplemented`. There is no third
+/// outcome: no path accepts the description without a certificate.
+#[test]
+fn the_laneless_door_still_refuses_a_described_nurbs_operand() {
+    let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
+    let ends = (carrier.eval(0.0), carrier.eval(1.0));
+    let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
+    assert!(
+        matches!(
+            EdgeCurve::certify(spec, ends.0, ends.1, arena, band()),
+            Err(CertifyError::Unimplemented)
+        ),
+        "the laneless door's refusal is unchanged by M7-8"
+    );
 }

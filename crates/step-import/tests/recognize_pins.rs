@@ -11,8 +11,10 @@
 //! * the cylinder track under the honest between-samples envelope
 //!   (R1 M-1): even an EXACT cylinder patch stays NURBS — the
 //!   first-order envelope's slack is patch-scale — and the resulting
-//!   mixed promoted/stays-NURBS body pins the seam-orphan refusal
-//!   class loudly (a standing ruling item);
+//!   mixed promoted/stays-NURBS body now imports FIRST-CLASS, its
+//!   wall–wall seam carrying a certified plane × NURBS intersection
+//!   (M7-8 retired the seam-orphan refusal class; the flip and its
+//!   planted falsifier are pinned here);
 //! * the ill-conditioned-estimator typed row: D7's
 //!   `RecognitionAmbiguous` fires exactly where promotion was the
 //!   face's only door AND the estimator cannot answer at ε_in;
@@ -170,42 +172,167 @@ fn straight_arc_prism() -> topo::Body<f64> {
 /// fine ε, exact geometry included (the algebraic spline-product hull
 /// certificate that would restore the cylinder track is banked).
 ///
-/// The consequence is the seam-orphan class, now hit by the
-/// UNPERTURBED body: the three exactly-planar walls still promote,
-/// the arc wall stays NURBS, and a wall–wall seam whose carrier was
-/// minted as a promoted PLANE wall's boundary column (bits differing
-/// from the arc wall's own column by the arc endpoint's rounding) has
-/// no bitwise IsoCurve match and no certifiable plane × NURBS
-/// intersection — the import refuses TYPED where pre-stage-1 main
-/// imports it. Pinned as it stands so the posture cannot drift
-/// silently; the near-miss variant (the wall nudged 5·ε_in off the
-/// cylinder) lands in exactly the same refusal, which also pins the
-/// silent-stays-NURBS half: no promotion is recorded for the arc wall
-/// in either variant.
+/// The consequence WAS the seam-orphan class, hit by the UNPERTURBED
+/// body: the three exactly-planar walls promote, the arc wall stays
+/// NURBS, and a wall–wall seam whose carrier was minted as a promoted
+/// PLANE wall's boundary column (bits differing from the arc wall's
+/// own column by the arc endpoint's rounding) has no bitwise IsoCurve
+/// match. **M7-8 gave that edge its honest path** and this row now
+/// pins the FLIP: the file's carrier is adopted as EVIDENCE and
+/// certified against both operands (declare-and-check, Evan's #264
+/// ruling), so the mixed body imports first-class. What survives from
+/// the old pin is the half that did not move: the arc wall STILL
+/// stays NURBS under the honest envelope, and the IsoCurve rung still
+/// has nothing to offer at this seam — the certificate comes from the
+/// new `Intersection` rung, not from a widened bitwise match.
+///
+/// `seam_certificate` re-derives the certificate's limbs from the
+/// imported body rather than reading the stored `max_residual`, so
+/// what is reported here is a fresh measurement (the same discipline
+/// the at-rest tier-3 pass applies below).
 #[test]
-fn cylinder_envelope_refuses_and_the_seam_orphan_is_pinned() {
+fn the_seam_orphan_certifies_as_a_plane_nurbs_intersection() {
     let native = straight_arc_prism();
     let text = step_export::step_string(&native, &step_export::StepOptions::default())
         .expect("the arc prism exports");
-    let orphaned_seam = |text: &str, who: &str| match import_step(text, &ImportOptions::default()) {
-        Err(StepImportError::Adoption { id, attempts }) => {
-            assert_eq!(id, 130, "{who}: the orphaned seam beside a promoted wall");
-            assert!(
-                attempts
-                    .iter()
-                    .all(|a| !matches!(a.candidate, step_import::AdoptionCandidate::IsoCurve)),
-                "{who}: the bitwise IsoCurve rung had nothing to offer: {attempts:?}"
-            );
-        }
-        other => panic!(
-            "{who}: the measured state is the typed seam-adoption refusal; a change \
-             here is a posture change to re-pin: {other:?}"
-        ),
+    let eps = geom_core::Tolerance::get().eps;
+
+    let import = import_step(&text, &ImportOptions::default())
+        .expect("the arc-prism mixed body imports first-class (M7-8)");
+    let StepImport::Solid {
+        body,
+        normalizations,
+        ..
+    } = &import
+    else {
+        panic!("the arc prism is a solid");
     };
-    orphaned_seam(&text, "unperturbed exact-cylinder prism");
+
+    // The wall did NOT promote: this is still the mixed
+    // promoted-plane/stays-NURBS body the class is about.
+    assert_eq!(
+        promotions(normalizations)
+            .iter()
+            .map(|&(_, kind, _)| kind)
+            .collect::<Vec<_>>(),
+        vec![PromotedKind::Plane; 3],
+        "three planar walls promote; the exact-cylinder arc wall honestly stays NURBS"
+    );
+
+    // Exactly one plane × NURBS seam, and it is edge #130's — the
+    // orphan. The others are plane × plane, the wall's own iso rung,
+    // or the cap rims.
+    let seams = plane_nurbs_seams(body);
+    assert_eq!(
+        seams.len(),
+        1,
+        "one certified plane × NURBS seam in this body: {} found",
+        seams.len()
+    );
+    let (curve_key, ref plane, ref wall) = seams[0];
+
+    // The certificate, RE-DERIVED (never the stored number).
+    let limbs = seam_certificate(body, curve_key, plane, wall);
+    assert!(
+        limbs.on_locus_max <= eps,
+        "limb 1, the sampled on-locus residual over both operands: \
+         {:e} m must sit inside ε_in {eps:e}",
+        limbs.on_locus_max
+    );
+    assert!(
+        limbs.hull_sup <= eps,
+        "limb 2, the certified between-samples sup-norm — the number that \
+         certifies: {:e} m must sit inside ε_in {eps:e}",
+        limbs.hull_sup
+    );
+    assert!(
+        limbs.min_sin_theta > 0.7,
+        "the transversality margin: the y = 1 cap plane meets the quarter-cylinder \
+         wall at 45°, so sin θ ≈ √2/2; measured {:e}",
+        limbs.min_sin_theta
+    );
+    assert!(
+        limbs.tube_transversality > 0.0 && limbs.tube_boxes > 0,
+        "the uniqueness tube is certified over a non-empty box chain: {limbs:?}"
+    );
+    // Reported, not asserted — the numbers the ruling asked for, at
+    // whichever ε row this binary runs (default / 1e-6 / 1e-12).
+    println!(
+        "M7-8 seam #130 @ eps={eps:e}: on_locus={:e} hull_sup={:e} \
+         tube_radius={:e} tube_transversality={:e} boxes={} sin_theta={:e}",
+        limbs.on_locus_max,
+        limbs.hull_sup,
+        limbs.tube_radius,
+        limbs.tube_transversality,
+        limbs.tube_boxes,
+        limbs.min_sin_theta
+    );
+
+    // Tier-valid AT REST, in the ONLY sense the importer claims
+    // (`StepImport::Solid`'s contract): to the tier its native twin
+    // certifies to — nothing imports into a state its native twin
+    // does not occupy. The arc prism's wall is RATIONAL, so both the
+    // native and the imported body refuse tier 3 with the same banked
+    // quadrature refusal (M7-3); what M7-8 has to prove is that the
+    // at-rest pass finds NO certification failure — every edge,
+    // including the new plane × NURBS seam, RE-DERIVES its
+    // certificate under `recertify_nurbs_lane` rather than carrying
+    // a stored one.
+    //
+    // The comparison drops the face KEY on both sides: the two bodies
+    // are built by different routes (native Euler ops vs adoption), so
+    // their arena numbering differs by construction and only the
+    // refusal's substance is comparable.
+    let refusals = |errors: &[topo::ValidationError]| -> Vec<String> {
+        errors
+            .iter()
+            .map(|e| match e {
+                topo::ValidationError::VolumeUncomputable { source } => {
+                    format!("VolumeUncomputable/{source:?}")
+                        .split_once("face:")
+                        .map_or_else(
+                            || format!("{e:?}"),
+                            |(head, tail)| {
+                                format!("{head}{}", tail.split_once(',').map_or(tail, |(_, t)| t))
+                            },
+                        )
+                }
+                other => format!("{other:?}"),
+            })
+            .collect()
+    };
+    let at_rest = topo::validate_geometric(body).expect_err("the banked rational wall, verbatim");
+    let native_at_rest =
+        topo::validate_geometric(&native).expect_err("the native twin refuses identically");
+    assert_eq!(
+        refusals(&at_rest),
+        refusals(&native_at_rest),
+        "the imported body's at-rest verdict IS its native twin's"
+    );
+    assert!(
+        at_rest
+            .iter()
+            .all(|e| matches!(e, topo::ValidationError::VolumeUncomputable { .. })),
+        "the only at-rest refusal is the banked rational-wall quadrature — no edge \
+         failed re-certification: {at_rest:?}"
+    );
+
+    // D9: the same bytes import to the same body, twice.
+    let again = import_step(&text, &ImportOptions::default()).expect("the second import");
+    let StepImport::Solid { body: again, .. } = &again else {
+        panic!("the arc prism is a solid");
+    };
+    assert_eq!(
+        step_export::step_string(again, &step_export::StepOptions::default()).unwrap(),
+        step_export::step_string(body, &step_export::StepOptions::default()).unwrap(),
+        "D9: import twice, byte-compare"
+    );
 
     // The near-miss: the wall's centre control point, ~5·ε_in off the
-    // cylinder — the same refusal, same silence about the wall itself.
+    // cylinder. The wall is no longer an exact cylinder, so the
+    // seam's declared carrier is no longer on it — and the
+    // declare-and-check lane says so with the number, rather than
+    // certifying a carrier the file merely asserted.
     //
     // The exported file's declared uncertainty is the ambient ε the
     // export ran at, so the nudge scales with the run's ε (past the
@@ -214,7 +341,6 @@ fn cylinder_envelope_refuses_and_the_seam_orphan_is_pinned() {
     // which the bulge arithmetic left one ulp BELOW f64 √2 (not
     // `f64::consts::SQRT_2`, whose substitution would misstate the
     // intent: "the file's value, moved", not "√2, moved").
-    let eps = geom_core::Tolerance::get().eps;
     const CENTER_X_TOKEN: &str = "1.414213562373095";
     let base: f64 = CENTER_X_TOKEN
         .parse()
@@ -227,58 +353,161 @@ fn cylinder_envelope_refuses_and_the_seam_orphan_is_pinned() {
         ),
     );
     assert_ne!(text, near_miss, "the perturbation applied");
-    orphaned_seam(&near_miss, "near-miss prism");
+    let near = import_step(&near_miss, &ImportOptions::default())
+        .expect("the near-miss prism still imports first-class");
+    let StepImport::Solid {
+        body: near,
+        normalizations: near_norms,
+        ..
+    } = &near
+    else {
+        panic!("the arc prism is a solid");
+    };
+    assert!(
+        promotions(near_norms)
+            .iter()
+            .all(|&(_, kind, _)| kind == PromotedKind::Plane),
+        "the near-miss wall is still silent about itself: no arc-wall promotion"
+    );
+    // The nudge is the wall's mid-arc control point; the seam sits at
+    // the patch's `u = 1` edge, where that point's basis weight
+    // vanishes. So the seam's own certificate is unmoved and the
+    // near-miss row pins the SEPARATION: perturbing the wall's
+    // interior does not leak into the seam's declare-and-check
+    // verdict. The carrier-side falsifier — the perturbation that
+    // MUST be caught — is
+    // `a_displaced_seam_carrier_refuses_with_the_measured_residual`.
+    let near_seams = plane_nurbs_seams(near);
+    assert_eq!(near_seams.len(), 1, "the same one seam");
+    let near_limbs = seam_certificate(near, near_seams[0].0, &near_seams[0].1, &near_seams[0].2);
+    assert!(
+        near_limbs.hull_sup <= eps,
+        "the seam's certified sup is unmoved by the interior nudge: {:e} m",
+        near_limbs.hull_sup
+    );
 }
 
-/// **D7's typed ambiguity, fired at its one stage-1 site.** A wall
-/// nudged off its plane (so the plane certificate refutes) whose
-/// `v`-start boundary row is a straight line gives the cylinder
-/// estimator NOTHING to solve — the three azimuth samples are
-/// collinear, the sagitta margin is 0 ≤ ε_in — and when that face
-/// ALSO carries a second bound (the refusing class: without promotion
-/// the multi-bound curved gate refuses it), the refusal is
-/// `RecognitionAmbiguous`, naming face, surface, kind, and margin —
-/// not the bare topology refusal, and never a guessed kind. The same
-/// marginal recognition on the SINGLE-bound version of the face
-/// imports silently (the near-miss row above) — the variant fires
-/// only where promotion was the face's only door.
+/// **The planted falsifier — declare-and-check, executed at the
+/// importer.** The file's carrier is EVIDENCE, never truth: a seam
+/// carrier doctored off the true intersection must refuse, and the
+/// refusal must carry the number that caught it.
+///
+/// The displacement is the seam spline's middle control point pushed
+/// `+x` by 1e-3 m — off the cylinder wall while staying exactly on
+/// the `y = 1` cap plane, so it is the NURBS-side residual (the
+/// certified foot distance and its between-samples sup) that has to
+/// do the catching, not the closed-form plane distance. A degree-2
+/// Bézier moves half its middle control point's displacement at
+/// mid-parameter, so the honest measured bound is ~5e-4 m: past ε_in
+/// at every matrix row by six orders of magnitude and more.
 #[test]
-fn ill_conditioned_estimator_is_typed_ambiguity_on_a_refusing_face() {
-    let mutated = fixture("loft_prism", "step")
-        // Off the plane by 2e-8 (past ε_in; the plane refutes)…
-        .replace(
-            "#82 = CARTESIAN_POINT('', (-1.75, -1.0, 1.0));",
-            "#82 = CARTESIAN_POINT('', (-1.75, -1.00000002, 1.0));",
-        )
-        // …and a second bound on the same face (the same loop record
-        // re-stated — the gate fires before any use of the ring).
-        .replace(
-            "#104 = ADVANCED_FACE('', (#103), #87, .T.);",
-            "#104 = ADVANCED_FACE('', (#103, #990), #87, .T.);\n\
-             #990 = FACE_BOUND('', #102, .T.);",
-        );
-    match import_step(&mutated, &ImportOptions::default()) {
-        Err(StepImportError::RecognitionAmbiguous {
-            id,
-            surface,
-            kind,
-            margin,
-        }) => {
-            assert_eq!((id, surface), (104, 87), "the face and its surface, named");
-            assert_eq!(kind, PromotedKind::Cylinder, "the estimator that declined");
-            assert!(
-                margin.abs() <= 1e-9,
-                "the collinear-samples margin sits inside ε_in: {margin:e}"
-            );
-            let msg = StepImportError::RecognitionAmbiguous {
-                id,
-                surface,
-                kind,
-                margin,
-            }
-            .to_string();
-            assert!(msg.contains("ambiguous"), "{msg}");
-        }
-        other => panic!("expected the typed ambiguity refusal, got {other:?}"),
-    }
+fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
+    let native = straight_arc_prism();
+    let text = step_export::step_string(&native, &step_export::StepOptions::default())
+        .expect("the arc prism exports");
+    // #127 is the middle control point of #129, the B-spline carrier
+    // of EDGE_CURVE #130 — the seam this unit certifies.
+    let doctored = text.replace(
+        "#127 = CARTESIAN_POINT('', (1.0, 1.0, 1.0));",
+        "#127 = CARTESIAN_POINT('', (1.001, 1.0, 1.0));",
+    );
+    assert_ne!(text, doctored, "the falsifier applied");
+
+    let Err(StepImportError::Adoption { id, attempts }) =
+        import_step(&doctored, &ImportOptions::default())
+    else {
+        panic!("a carrier displaced 1e-3 m off the locus is NEVER trusted");
+    };
+    assert_eq!(id, 130, "the doctored seam, named");
+    let msg = format!("{:?}", attempts);
+    let measured = attempts.iter().find_map(|a| match a.refusal {
+        topo::EulerOpError::Certification {
+            error:
+                geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
+                    value, ..
+                }),
+        } => Some(value),
+        _ => None,
+    });
+    let Some(measured) = measured else {
+        panic!("the refusal must carry the plane × NURBS lane's measured bound: {msg}");
+    };
+    assert!(
+        (1e-4..1e-2).contains(&measured),
+        "the measured bound is the displacement the falsifier planted \
+         (~5e-4 m at mid-parameter): {measured:e}"
+    );
+    let text = StepImportError::Adoption { id, attempts }.to_string();
+    assert!(
+        text.contains("not on both surfaces"),
+        "the refusal text states the declare-and-check verdict: {text}"
+    );
+}
+
+/// Every `Intersection` edge in `body` whose operands are one PLANE
+/// and one described NURBS wall, as `(curve, plane, wall)` — the
+/// M7-8 class, located by DESCRIPTION rather than by key so the pin
+/// survives arena renumbering.
+fn plane_nurbs_seams(
+    body: &topo::Body<f64>,
+) -> Vec<(
+    geom_brep::keys::CurveKey,
+    geom_surfaces::Surface<f64>,
+    geom_surfaces::NurbsSurface<f64>,
+)> {
+    let surfaces: std::collections::BTreeMap<_, _> = body.surfaces().collect();
+    let described = |k| match surfaces.get(&k) {
+        Some(geom_surfaces::Surface::Nurbs(n)) if !n.is_placeholder() => Some((**n).clone()),
+        _ => None,
+    };
+    let plane = |k| match surfaces.get(&k) {
+        Some(p @ geom_surfaces::Surface::Plane { .. }) => Some((*p).clone()),
+        _ => None,
+    };
+    body.curves()
+        .filter_map(|(key, geom)| {
+            let topo::CurveGeom::Certified(curve) = geom else {
+                return None;
+            };
+            let (&s1, &s2) = match curve.description() {
+                geom_brep::EdgeGeometry::Intersection { s1, s2, .. } => (s1, s2),
+                _ => return None,
+            };
+            let pair = plane(s1)
+                .zip(described(s2))
+                .or_else(|| plane(s2).zip(described(s1)))?;
+            Some((key, pair.0, pair.1))
+        })
+        .collect()
+}
+
+/// Re-derives a seam's plane × NURBS certificate from the body. The
+/// stored `Certificate` keeps only the sample count and the max
+/// residual, and this unit's whole contract is that the numbers are
+/// re-MEASURED rather than trusted — so the reported limbs come from
+/// a fresh run of the lane, exactly as the at-rest tier-3 pass does.
+fn seam_certificate(
+    body: &topo::Body<f64>,
+    curve: geom_brep::keys::CurveKey,
+    plane: &geom_surfaces::Surface<f64>,
+    wall: &geom_surfaces::NurbsSurface<f64>,
+) -> geom_brep::PlaneNurbsLimbs<f64> {
+    let Some(topo::CurveGeom::Certified(edge)) =
+        body.curves().find(|&(k, _)| k == curve).map(|(_, g)| g)
+    else {
+        panic!("a certified seam");
+    };
+    let geom_curves::Curve3::Nurbs(carrier) = edge.carrier() else {
+        panic!("the seam's carrier is a spline");
+    };
+    let (t0, t1) = edge.params();
+    let extent = edge.carrier().eval(t0).distance(edge.carrier().eval(t1));
+    <f64 as geom_brep::EdgeNurbsLane>::plane_nurbs_limbs(
+        carrier,
+        plane,
+        wall,
+        extent,
+        geom_core::Band::linear().expect("the run's linear band"),
+    )
+    .expect("the seam re-certifies at rest")
 }

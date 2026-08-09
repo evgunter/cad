@@ -170,9 +170,16 @@ pub enum CertifyError {
     /// A described surface is the `Nurbs` kind (no implicit form —
     /// its residual story is the SSI foot-point machinery, not this
     /// module's), or a `Nurbs` carrier arrived under a conventional
-    /// (`MappedCurve`/`Seam`) description. Rung-3 carriers certify
-    /// only as the `Intersection` of two analytic surfaces (M5 PR 9,
-    /// C12.3 — the class the curved-boolean zip mints).
+    /// (`MappedCurve`/`Seam`) description.
+    ///
+    /// TWO `Intersection` rungs certify, and this variant is what is
+    /// left over. The analytic rung: both operands analytic (M5 PR 9,
+    /// C12.3 — the class the curved-boolean zip mints). The **plane ×
+    /// NURBS** rung (M7-8): exactly one PLANE and one described NURBS
+    /// wall, declare-and-check, reachable only through
+    /// [`EdgeCurve::certify_nurbs_lane`] — a caller on the plain
+    /// [`EdgeCurve::certify`] door injects no lane and still lands
+    /// here, and NURBS × NURBS has no certificate in this build.
     Unimplemented,
     /// An `Intersection` description names one surface twice — a
     /// same-surface locus is a `Seam`, never an intersection.
@@ -277,8 +284,9 @@ impl core::fmt::Display for CertifyError {
                 f,
                 "certification: a Nurbs described surface, or a Nurbs carrier under a \
                  conventional description, cannot be certified in this build — rung-3 \
-                 carriers certify only as the Intersection of two analytic surfaces \
-                 (M5 PR 9, C12.3)"
+                 carriers certify as the Intersection of two analytic surfaces \
+                 (M5 PR 9, C12.3), or of one plane and one described NURBS wall through \
+                 the declare-and-check lane (M7-8); NURBS x NURBS has no certificate"
             ),
             Self::IntersectionSameSurface { key } => write!(
                 f,
