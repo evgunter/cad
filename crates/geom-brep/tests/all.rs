@@ -42,6 +42,8 @@ mod m5_pr12_circle_certificate;
 mod m5_pr7_ssi;
 #[path = "m5_pr9_tangent.rs"]
 mod m5_pr9_tangent;
+#[path = "m7_8_plane_nurbs_edge.rs"]
+mod m7_8_plane_nurbs_edge;
 #[path = "pcurve_conic.rs"]
 mod pcurve_conic;
 #[path = "pcurve_parameter_finding.rs"]
