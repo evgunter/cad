@@ -275,7 +275,11 @@ impl std::error::Error for PropsError {}
 ///
 /// # Errors
 ///
-/// [`PropsError::Unimplemented`] on a `Nurbs` carrier.
+/// [`PropsError::Unimplemented`] on a rational `Nurbs` carrier
+/// (non-rational spline boundaries integrate exactly through
+/// [`loop_vector_area`]'s per-span Gauss closed form — the reachable
+/// at-rest case is a stage-1-promoted plane keeping its parsed spline
+/// boundary carriers).
 pub fn planar_face<T: SpanLocate>(
     origin: Point3<T>,
     loops: &[Vec<LoopEdge<T>>],

@@ -407,79 +407,93 @@ fn probe_rim_same_sense_flip_is_honest() {
     }
 }
 
-/// V5 — review F4, now the corrected pin: the first re-export
-/// diverges from the committed fixture in exactly THREE `-0.0 → 0.0`
-/// component tokens (fixture `#3 = DIRECTION('', (1.0, -0.0, -0.0))`
-/// carries two, `#43 = DIRECTION('', (1.0, -0.0, 0.0))` one) — the
-/// documented `plus_zero` parse-hygiene class, no other divergence —
-/// and the second export is a byte-identical fixed point of the
-/// first. (The original PR prose claimed "exactly 2 tokens";
-/// measured false by this probe, corrected at the fix pass.)
+/// V5, RE-STATED at M7-6 per the #256 ruling. The old pin (token
+/// streams aligned, exactly three `-0.0 → 0.0` flips) described the
+/// pre-promotion world; since D7 stage-1 always-promote, loft_prism's
+/// two exactly-planar walls (faces #104/#142, residual 0.0) import as
+/// PLANES, and the first re-export states them analytically — a
+/// STRUCTURAL divergence from the committed bytes that is exactly the
+/// promotion and nothing else. The re-stated pin:
+///
+/// * the divergence is the promotion: 2 of the 4 committed
+///   `B_SPLINE_SURFACE_WITH_KNOTS` walls re-export as `PLANE` records
+///   (2 planes → 4, 4 splines → 2), and the promotion is REPORTED
+///   (both records, census-identity, residual exactly 0.0);
+/// * the promoted ONE-CYCLE fixed point: the first re-export
+///   re-imports and re-exports byte-identically (censuses and
+///   certified volumes across the cycle are `roundtrip.rs`'s
+///   `fixed_point` row, green over the whole corpus; the volume
+///   against the NATIVE body is `committed_corpus`'s, also green —
+///   "volumes equal across the promotion", executed).
 #[test]
-fn probe_reexport_two_token_divergence() {
+fn probe_reexport_promotion_divergence() {
     let orig = fixture("loft_prism", "step");
-    let body = solid(&orig, "loft_prism");
+    let StepImport::Solid {
+        body,
+        normalizations,
+        ..
+    } = import(&orig).expect("loft_prism imports")
+    else {
+        panic!("loft_prism must import as a solid");
+    };
+    let promos: Vec<_> = normalizations
+        .iter()
+        .filter_map(|n| match n.kind {
+            step_import::NormalizationKind::SurfacePromotion { to, residual } => {
+                assert_eq!(
+                    n.file_census, n.kernel_census,
+                    "promotion never re-tessellates"
+                );
+                Some((n.face, to, residual))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        promos,
+        vec![
+            (104, step_import::PromotedKind::Plane, 0.0),
+            (142, step_import::PromotedKind::Plane, 0.0),
+        ],
+        "the enumerated promotions: the two exactly-planar walls, residual 0.0"
+    );
     let options = step_export::StepOptions {
         product_name: "loft_prism".to_owned(),
         ..step_export::StepOptions::default()
     };
     let out = step_export::step_string(&body, &options).expect("re-export");
-    let toks = |s: &str| -> Vec<String> { s.split_whitespace().map(str::to_owned).collect() };
-    let a = toks(&orig);
-    let b = toks(&out);
-    let diffs: Vec<(usize, &String, &String)> = a
-        .iter()
-        .zip(b.iter())
-        .enumerate()
-        .filter(|(_, (x, y))| x != y)
-        .map(|(i, (x, y))| (i, x, y))
-        .collect();
-    eprintln!(
-        "PROBE token diff: lens {} vs {}, {} differing token pairs",
-        a.len(),
-        b.len(),
-        diffs.len()
+    let count = |s: &str, pat: &str| s.matches(pat).count();
+    assert_eq!(
+        (
+            count(&orig, "= PLANE("),
+            count(&orig, "B_SPLINE_SURFACE_WITH_KNOTS(")
+        ),
+        (2, 4),
+        "committed: 2 cap planes + 4 spline walls"
     );
-    for (i, x, y) in diffs.iter().take(10) {
-        eprintln!("  tok {i}: {x} -> {y}");
-    }
-    // The corrected claim (F4): exactly three -0.0 -> 0.0 component
-    // flips, and nothing else differs.
-    let geo: Vec<_> = diffs
-        .iter()
-        .filter(|(_, x, _)| x.contains("-0.0"))
-        .collect();
-    eprintln!(
-        "PROBE: {} of the diffs are -0.0 tokens; {} are other",
-        geo.len(),
-        diffs.len() - geo.len()
+    assert_eq!(
+        (
+            count(&out, "= PLANE("),
+            count(&out, "B_SPLINE_SURFACE_WITH_KNOTS(")
+        ),
+        (4, 2),
+        "re-export: the two promoted walls state their planes"
     );
-    assert_eq!(a.len(), b.len(), "token streams stay aligned");
-    assert_eq!(geo.len(), 3, "exactly three -0.0 tokens diverge");
-    // Outside the -0.0 class the ONE legitimate divergence is the
-    // uncertainty record, and only when the ambient ε differs from
-    // the 1e-9 the committed fixture was written at (roundtrip.rs's
-    // documented posture; the CI matrix runs 1e-6/1e-12 rows).
-    for (i, x, y) in diffs.iter().filter(|(_, x, _)| !x.contains("-0.0")) {
-        assert!(
-            x.contains("1.0E-9") && y.contains("1.0E-"),
-            "token {i}: divergence outside the -0.0 class that is not the \
-             uncertainty record at a non-default ambient ε: {x} -> {y}"
-        );
-        assert_ne!(
-            geom_core::Tolerance::get().eps,
-            1e-9,
-            "at the corpus's own ε the uncertainty record must not diverge"
-        );
-    }
-    // Second export must be a fixed point of the first.
+    // The promoted one-cycle fixed point.
     let body2 = solid(&out, "first re-export");
     let out2 = step_export::step_string(&body2, &options).expect("second re-export");
     assert_eq!(out, out2, "fixed point from the first re-export on");
 }
 
-/// V6: dm1-id-214's first refusal site is genuinely #667
-/// QUASI_UNIFORM_CURVE.
+/// V6, re-anchored at M7-6: dm1-id-214's first refusal site moved
+/// from `#667 QUASI_UNIFORM_CURVE` (parse vocabulary, retired by the
+/// knots-implied synthesis) PAST the whole geometry pass — the 24
+/// NURBS surfaces promote, the trim rings ride the promoted planes —
+/// to the ASSEMBLY layer: the file places 3 breps through 7
+/// per-component transforms, and `resolve_assembly_placement` refuses
+/// typed at the second differing map, `#186` (bolt_4). Reaching #186
+/// IS the recognition pin: resolution only gets there if every face
+/// of every brep resolved first.
 #[test]
 fn probe_dm1_first_refusal_site() {
     let path: std::path::PathBuf = [
@@ -494,15 +508,12 @@ fn probe_dm1_first_refusal_site() {
     .collect();
     let text = std::fs::read_to_string(&path).unwrap();
     match import(&text) {
-        Err(step_import::StepImportError::UnsupportedEntity { id, keyword }) => {
-            eprintln!("PROBE dm1 refusal: #{id} {keyword}");
-            assert_eq!(
-                (id, keyword.as_str()),
-                (667, "QUASI_UNIFORM_CURVE"),
-                "the re-anchored pin"
-            );
+        Err(step_import::StepImportError::Structure { id, what }) => {
+            eprintln!("PROBE dm1 refusal: #{id} {what}");
+            assert_eq!(id, 186, "the second differing per-component transform");
+            assert!(what.contains("assembly instancing"), "{what}");
         }
-        other => panic!("dm1-id-214 must refuse UnsupportedEntity, got {other:?}"),
+        other => panic!("dm1-id-214 must refuse at the assembly layer, got {other:?}"),
     }
 }
 

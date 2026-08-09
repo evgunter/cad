@@ -168,31 +168,39 @@ fn loft_prism_walls_get_distinct_surface_keys() {
     );
 }
 
-/// **The description state** (spec items 3–4): every wall–wall seam
-/// adopted as `IsoCurve` and every cap rim as a conventional
-/// `MappedCurve` — the native loft builder's own description classes.
-/// This is the load-bearing half of the fixed-point story: the
-/// re-mint pass (`topo::mint_pcurves`, run unconditionally by the
-/// import) derives every wall boundary's exact line-in-UV image from
-/// exactly these descriptions.
+/// **The description state, re-pinned at M7-6** (stage-1 promotion).
+/// The four wall–wall seams still adopt as `IsoCurve` — each seam has
+/// at least one stays-NURBS wall beside it, and its carrier
+/// bitwise-matches that wall's boundary column (the native at-rest
+/// preference, undisturbed by the neighbour's promotion). The cap
+/// rims split by wall class: the four rims on the stays-NURBS walls
+/// keep the conventional `MappedCurve` (the Nurbs-adjacency
+/// exemption), while the four rims on the PROMOTED walls become
+/// honest cap-plane × wall-plane `Intersection`s — a strictly
+/// stronger description (certified against both surfaces) that
+/// promotion unlocked; the ruling accepts the divergence and this
+/// row enumerates it.
 #[test]
 fn loft_prism_descriptions_land_in_the_native_classes() {
     let (body, _) = import_body("loft_prism");
     let mut iso = 0;
     let mut mapped = 0;
+    let mut intersection = 0;
     for (_, edge) in body.edges() {
         match body.get_curve_geom(edge.curve) {
             Some(topo::CurveGeom::Certified(curve)) => match curve.description() {
                 geom_brep::EdgeGeometry::IsoCurve { .. } => iso += 1,
                 geom_brep::EdgeGeometry::MappedCurve(_) => mapped += 1,
+                geom_brep::EdgeGeometry::Intersection { .. } => intersection += 1,
                 other => panic!("unexpected description class on a loft edge: {other:?}"),
             },
             other => panic!("every imported edge is certified, got: {other:?}"),
         }
     }
     assert_eq!(
-        (iso, mapped),
-        (4, 8),
-        "4 wall–wall seams under IsoCurve, 8 cap rims under MappedCurve"
+        (iso, mapped, intersection),
+        (4, 4, 4),
+        "4 wall–wall seams under IsoCurve, 4 stays-NURBS-wall cap rims under \
+         MappedCurve, 4 promoted-wall cap rims under Intersection"
     );
 }

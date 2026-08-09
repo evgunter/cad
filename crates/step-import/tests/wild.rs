@@ -53,19 +53,26 @@ const WILD_IMPORTS: [&str; 9] = [
 /// contract being pinned. Each entry is the fixture and the substring
 /// its message must carry — the class, not the prose.
 const WILD_REFUSALS: [(&str, &str); 4] = [
-    // Wild NURBS territory past the M7-3 own-corpus slice. The
-    // B_SPLINE_SURFACE_WITH_KNOTS vocabulary itself imports since
-    // M7-3, so the refusal moved DEEPER (the pinned substring was
-    // re-derived by measurement, not left to drift): the first record
-    // this reader cannot interpret is now `QUASI_UNIFORM_CURVE`
-    // (#667) — a spline sub-type whose knots are implied rather than
-    // stated (36 such records). Behind it stand the rest of this
-    // file's measured distance from the subset: 7/19 RATIONAL
-    // surfaces with multi-span knots, 11 trim rings on faces (no
-    // NURBS `uv_of`), 14 rational edge carriers, and edges that are
-    // no wall's boundary iso — stage-1 recognition / general
-    // adoption, banked.
-    ("stepcode/dm1-id-214.stp", "QUASI_UNIFORM_CURVE"),
+    // The M7-6 stage-1 unit retired this file's whole GEOMETRY
+    // distance from the subset (measured, not hoped): the
+    // QUASI_UNIFORM vocabulary imports with synthesized clamped
+    // knots, the 17 plane-class surfaces promote to certified
+    // Planes (residual 0.0); the 7 rational cylinders certify only
+    // at grid samples, so under the whole-patch envelope they stay
+    // NURBS (the honest posture — no promotion without a whole-patch
+    // certificate); the 11 trim rings ride the promoted planes
+    // through the multi-bound
+    // gate — resolution now runs clean through every face and edge
+    // of all three breps. What the file states NEXT is why it still
+    // refuses: it is a seven-instance ASSEMBLY (l-bracket + 3 bolts
+    // + 3 nuts, 3 breps placed through 7 per-component
+    // `ITEM_DEFINED_TRANSFORMATION`s with distinct non-identity
+    // maps), and per-component placement is the M7-4 Leg D
+    // instancing refusal — a body graph with per-instance frames is
+    // a banked unit, refused rather than importing some components
+    // placed and others not. The refusal id is the second differing
+    // transform (#186, bolt_4).
+    ("stepcode/dm1-id-214.stp", "assembly instancing"),
     // A spline-carried edge between analytic surfaces: the file's
     // geometry is inside the subset entity by entity, and the D7
     // ladder still cannot certify any intensional description for the
@@ -340,17 +347,24 @@ fn the_committed_corpus_still_carries_the_dialects_it_was_chosen_for() {
     );
     // Leg C: a VECTOR magnitude that is not 1, and non-unit ratios.
     assert!(any(&|t| t.contains("VECTOR('',#131,10.)")), "Leg C");
-    // Leg D: an assembly transform PRESENT — never traversed. The only
-    // committed fixture carrying one (`dm1-id-214`) refuses at
-    // `QUASI_UNIFORM_CURVE #667` inside `resolve_shape`, which runs
-    // strictly before `resolve_assembly_placement`, so this line pins
-    // vocabulary and nothing more. That is deviation 1 of the M7-4
-    // report rather than an oversight: NO file in the 28-file hunt has
-    // both geometry and a non-identity transform. Leg D's apply path
-    // and both its refusals are exercised on planted mutations of
-    // `twobody_importexport`'s real transforms, in
-    // `freecad.rs::refusals_survive_the_dialect_relaxations` (d).
+    // Leg D: an assembly transform PRESENT and — since M7-6 —
+    // genuinely TRAVERSED on a wild file: `dm1-id-214`'s geometry now
+    // resolves clean through `resolve_shape` (stage-1 promotion), so
+    // `resolve_assembly_placement` reads its seven per-component
+    // transforms for real and refuses TYPED at the second differing
+    // map (the WILD_REFUSALS row pins "assembly instancing"). The
+    // one-map apply path and both its refusals stay exercised on
+    // planted mutations of `twobody_importexport`'s real transforms,
+    // in `freecad.rs::refusals_survive_the_dialect_relaxations` (d).
     assert!(any(&|t| t.contains("ITEM_DEFINED_TRANSFORMATION")), "Leg D");
+    // The knots-implied spline sub-types (M7-6 vocabulary): the
+    // corpus carries both QUASI_UNIFORM forms (dm1's 31 curves + 5
+    // surfaces), read with synthesized clamped knots.
+    assert!(
+        any(&|t| t.contains("QUASI_UNIFORM_CURVE"))
+            && any(&|t| t.contains("QUASI_UNIFORM_SURFACE")),
+        "the QUASI_UNIFORM vocabulary"
+    );
     // Leg E: an EDGE_CURVE stated against its carrier.
     assert!(
         any(&|t| t.contains(",.F.) ;") || t.contains(",.F.);")),
