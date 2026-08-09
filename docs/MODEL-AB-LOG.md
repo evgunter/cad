@@ -482,3 +482,13 @@ FIXED AT DISPATCH per the same-head amendment: 8 merged blinded
 rows on main + 1 = 9 → DUAL (sample #3), R1+R2 concurrent on head
 (U5 PR #280's delivered head).
 | U5 | 2026-08-09 | read-back doors: loft_parameters/section_params, name→geometry (face/edge/vertex + denotation), cap doors + Pose, blend_arcs, LB12 seal | M (logged pre-dispatch) | OPUS (block LIB-4 slot 2) | **DUAL (sample #3, ordinal 9 fixed at dispatch — first same-head-by-construction pair)** — R1 APPROVE-WITH-FIXES 0/2/5 rubric 5/3/4; R2 APPROVE-WITH-FIXES 0/2/2 rubric 5/4/4. CONVERGED: 0 MAJORs; the SAME doc falsity found independently (blend_arcs keys canonical order not authored — R1 proved the hole-reversal flip); disjoint tails (R1: the module-path key residue = pre-echo of LB13; R2: edge_frame coverage) | 0 silent (6 reported devs, all verified; NURBS-frame refusal fork upheld by both) | 5/5 | 3/4 | 4/4 | moderate (converged doc fix + fork recorded; InterrogateError ladder tests; LB13 landed IN the pass: curated pncad::document, editor_core re-export dropped, boundary guard falsified-before-trusted — rustdoc-JSON out of fence, source-level fallback with documented blind spots; byte-identity re-confirmed post-LB13; CI caught a ClosedLoop doctest staleness — SWITCH-P had merged mid-pass); executor: implementer-inherited | MERGED #280 27/27; P3's loudest sites are queries+pins; the G1 key boundary is now a TEST | impl ~235k / R1 ~170k / R2 ~154k / fix ~307k | impl ~0.9h / R1 ~0.7h / R2 ~0.5h / fix ~2.6h |
+Block LIB-5 (2026-08-09): byte 32 (<252) → fable position 2:
+(opus, opus, fable). Difficulties logged pre-dispatch: SEL1
+(geometric selectors PR-1) = M → slot 1 OPUS; U9S (bindings
+scaffold) = M → slot 2 OPUS; fable remainder banks (SEL2 or the
+lift-tool PR-C are the natural takers).
+SWITCH-E PR-B dual (2026-08-09): dispatch-time ordinal = 11 merged
+blinded rows + 1 = 12 → DUAL (sample #4). R1+R2 concurrent on
+frozen head a0ffd3a per the same-head amendment. PR-C (lift tool +
+plate_param) = honest partial, fresh dispatch later (takes the
+LIB-5 fable remainder).
