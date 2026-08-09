@@ -139,8 +139,8 @@ pub use revolve::{Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind,
 pub use geom_brep::SketchSegment;
 pub use profile::{ProfileLoop, ProfileVertex};
 pub use skin::{
-    LoftGeometry, Section, SkinError, lift_surface, loft_geometry, make_compatible, segment_curve,
-    skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
+    LoftGeometry, Section, SkinError, lift_surface, loft_geometry, loft_parameters,
+    make_compatible, segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
 };
 
 pub mod fillet;
