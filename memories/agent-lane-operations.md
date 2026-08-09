@@ -53,7 +53,14 @@ folklore is stale). CAD_SLOT_WIDTH=2 re-widens if hardware
 changes; batteries then take ALL slots (`-x`) — two concurrent
 batteries are the documented OOM shape. `ci-local.sh` (hence gate.sh) and
 `test-fast.sh` self-acquire, so the standard entry points queue
-automatically; wrap raw `cargo` invocations yourself. Agents
+automatically; wrap raw `cargo` invocations yourself. **Express lane (#269,
+2026-08-09)**: short jobs (≤10 min declared budget) use
+`with-build-slot.sh --express [SECS]` — own slot, self-enforcing
+timeout, never starves behind a battery; batteries and default
+jobs keep the main mutex. Holder prints now verify PID liveness
+and show hold duration (#235 fixed). Long rows that must survive
+the harness 590s timeout: launch under setsid, then poll the
+output file foreground. Agents
 choose `-n` (grab-or-exit-75, then retry/fall back) vs default
 blocking wait (`-w SECS` caps it) — a blocking wait can eat a Bash
 call's 10-min cap, so briefs should prefer `-n` + retry for long

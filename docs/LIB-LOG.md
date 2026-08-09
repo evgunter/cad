@@ -319,3 +319,47 @@ profile L, SWITCH-E editor-core+lift XL); hard-sequenced behind
 the G2 finisher (path.rs) and U8a (Unit type). Drafter also
 re-verified f64-resolution and found memo hashing already
 satisfies V3 via resolved-bits convention.
+
+- **LB9 (Evan on #267)**: geom-core's classify-seam `Length<T>`
+  RENAMES to `Margin<T>` (the audit's own vocabulary) — a
+  mechanical workspace sweep as its own orchestrator-review PR,
+  sequenced after U8a's review concludes; the quantity `Length`
+  then owns the name unqualified. And F4's preimage search is
+  recorded as the STATELESS STOPGAP: the switch spec's U8b
+  section must state that stored per-literal provenance
+  supersedes the search on the authored path (search remains
+  only for computed values, where the information genuinely
+  does not exist).
+
+- **LB10 (G2 finisher's mechanism wall)**: the
+  straight-arrival-off-arc-departure refusal is ACCEPTED as a
+  recorded wall (§2b) — no corpus consumer exists (rocker's
+  outline is raw per LB5), it is unreachable from pre-existing
+  programs, and both escape routes (path.rs as a second
+  compound-Bounds allowlist entry; capability erasure putting
+  .fillet behind Bounds) enlarge exactly the audit surface LB3's
+  confinement exists to keep small. Revisit with a concrete use
+  case, PATHS §7 posture; the two-route menu is recorded in §2b.
+  Also noted from the finisher: the setsid lesson (harness
+  timeout kills the process group — slot-queued runs need
+  setsid to survive) goes to the lane-ops memory at next seam.
+
+## Seam state (2026-08-09, the parallel batch closes)
+
+- **U8a MERGED #267** (row recorded); **G2 CLOSED, MERGED #268**
+  (row recorded; raw census = boss→circle_split-at-switch /
+  outline LB5 / bowtie permanent). **Margin rename #270** (LB9)
+  merging on green — k-lint margin stream byte-identical, 377
+  sites. **Express lane #269 MERGED**, #235 closed; lane-ops
+  memory updated (--express + setsid patterns; all future briefs
+  carry them).
+- **SWITCH-P DISPATCHED** (opus, LIB-4 slot 1, L pre-logged;
+  spec §3, lane lib-switchp). SWITCH-E waits on SWITCH-P + the
+  U7 merge; its spec §§4-8 already binding.
+- **U7 review still in flight** (the last of the batch's
+  verdicts; slot-queue dominated).
+- Dual-review counter: provisional U8a=4, G2=5 (pending the M7
+  orchestrator's #266-class confirmation on the #268 thread);
+  row 6 = the next blinded merge (likely U7 or M7-6) — flagged
+  at merge time; retroactive R2 is the remedy if the count
+  shifts.

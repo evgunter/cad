@@ -24,8 +24,8 @@
 
 use pncad::geom_core::Tolerance;
 use pncad::profile::{
-    ArcSweep, FilletLegShape, LoopBuilder, Profile, ProfileLoop, SegmentKind, SketchPlane,
-    ValidatedProfile,
+    ArcSweep, FilletLegShape, LoopBuilder, Open, Profile, ProfileLoop, SegmentKind, SketchPlane,
+    Start, ValidatedProfile,
 };
 use pncad::sweep::{Extrusion, extrude};
 
@@ -77,12 +77,31 @@ fn eye_fillet_center_y() -> f64 {
 /// (line×arc). Every one of them is a fillet; not a single tangent
 /// point in this function was computed by hand.
 ///
-/// Stays raw — the remaining wall after LIB-G1, deferred to **G2**
-/// (the arc-carrier fillet modes): four of the five fillets sit on ARC
-/// carriers, and the v1 PATHS lowering's fillets are line×line only
-/// (arc-arrival fillets are PATHS-DESIGN §7 out-of-scope). The mid-arc
-/// start is a PQ4 mid-carrier seam — a CHAIN rule that G1's circle
-/// primitive deliberately left standing (it authors no seam at all).
+/// **Stays raw after LIB-G2 — two NAMED walls, both measured, neither
+/// an oversight** (LIB-LOG rulings LB5 and LB4; the eye migrated, this
+/// did not):
+///
+/// 1. **The mid-arc seam is authored topology (LB5).** The start sits
+///    mid-hub-arc, so the loop's first and last segments continue the
+///    SAME hub carrier. The algebra's seam fillet (`.to(Start)`)
+///    RETRIMS the entry vertex to the fillet arc's end, which would eat
+///    this vertex — one vertex, one lateral face after extrusion — and
+///    `.to_on(Start, …)` does not apply either, since it exists for a
+///    junction of two DIFFERENT carriers. PQ4 and §4 item 4 are right
+///    to refuse reproducing a same-carrier mid-arc junction; the
+///    vertex is intent, not an artifact.
+/// 2. **Line×circle derived corners are anchor-rounding-dependent
+///    (LB4).** Four of these five corners are arc↔line, and the derived
+///    corner then lands 0–4 ulps off the authored one depending on
+///    which on-path anchor the author names — unlike the eye's
+///    circle×circle corner, which the squared-radius form makes
+///    structurally exact. Migrating a site by hunting for an anchor
+///    whose rounding happens to cancel would be fitting the authoring
+///    to the fixture, which LB4 rules out. So these stay hand-authored
+///    until the derivation itself is exact, and this stop's exports
+///    stay byte-identical.
+///
+/// Both are v2-accumulator evidence, recorded in PATHS-DESIGN §2b.
 fn outline<S: Scalar>() -> ProfileLoop<S> {
     let (hx, hy, _) = HUB;
     let (bx, by, _) = BOSS;
@@ -155,23 +174,26 @@ fn outline<S: Scalar>() -> ProfileLoop<S> {
 /// one nearest the authored corner; the sharp bottom tip is where its
 /// rival sat.
 ///
-/// Stays raw — deferred to **G2**: an arc×arc fillet, and the v1 PATHS
-/// lowering's fillets are line×line only. (The centre-authored closing
-/// arc is no longer a gap — LIB-G1's `arc_center` binds it — but the
-/// arc×arc fillet still is.)
+/// **Authored through the PATHS algebra (LIB-G2 §4)** — the whole loop
+/// in three binders, and NEITHER tip is written down.
+///
+/// The entry is bound ON the right lobe (`at_on`: anchor + centre +
+/// winding, the tangent derived), the fillet opens, and `to_on` closes
+/// on the LEFT lobe through `Start`. The top corner is DERIVED as the
+/// two carriers' circle×circle intersection — the squared-radius form
+/// lands it bitwise on the `(0, √¾)` a hand author would type — and the
+/// bottom tip is kept, because `to_on` closes on a *different* carrier
+/// and that vertex is a genuine two-carrier junction (`to(Start)` would
+/// retrim it away). Bit-identity with the raw `fillet_corner` chain is
+/// pinned in `profile`'s differential suite.
 fn eye<S: Scalar>() -> ProfileLoop<S> {
     let tip = eye_tip();
-    LoopBuilder::start(p2(0.0, -tip))
-        .fillet_corner(
-            arc(-0.5, 0.0),
-            p2(0.0, tip),
-            arc(0.5, 0.0),
-            p2(0.0, -tip),
-            S::from_f64(R_EYE),
-            Tolerance::get(),
-        )
+    Open.at_on(p2(0.0, -tip), p2(-0.5, 0.0), ArcSweep::Ccw)
+        .expect("the eye's bottom tip lies on the right lobe's carrier")
+        .fillet(S::from_f64(R_EYE))
+        .expect("a definitely positive eye radius")
+        .to_on(Start, p2(0.5, 0.0), ArcSweep::Ccw)
         .expect("the near candidate resolves the eye slot's tip")
-        .close_arc_center(p2(0.5, 0.0), ArcSweep::Ccw)
 }
 
 /// The validated rocker profile: outline + eye slot.

@@ -52,7 +52,7 @@
 //! by more than ε without failing loudly — a cache, never a peer.
 
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, BandError, Decide, Indeterminate, Length, Point3, Real, Sign};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign};
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
 
@@ -747,7 +747,7 @@ fn check_residual<T: Decide>(
     name: &'static str,
     check: CertCheck,
     sample: u32,
-    residual: Length<T>,
+    residual: Margin<T>,
     band: Band,
     max_residual: &mut T,
 ) -> Result<(), CertifyError> {
@@ -891,7 +891,7 @@ fn run_checks<T: Decide>(
     };
     match &spec.carrier {
         Curve3::Circle { radius, .. } => {
-            let arc = Length::levered(span, *radius);
+            let arc = Margin::levered(span, *radius);
             match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
@@ -900,7 +900,7 @@ fn run_checks<T: Decide>(
             // Zero (exactly full period, the scaffolding/rim case) and
             // Positive (a partial arc) both pass; definitely negative
             // is the alias family.
-            let headroom = Length::levered(T::tau() - span, *radius);
+            let headroom = Margin::levered(T::tau() - span, *radius);
             match decide("interval_span_winding", headroom, band).map_err(span_escalated)? {
                 Sign::Positive | Sign::Zero => {}
                 Sign::Negative => return Err(CertifyError::WindingExceeded),
@@ -914,19 +914,19 @@ fn run_checks<T: Decide>(
         // bound applies: the 8kτ sample-alias argument is about the
         // parameter period, which the ellipse shares with the circle.
         Curve3::Ellipse { minor, .. } => {
-            let arc = Length::levered(span, *minor);
+            let arc = Margin::levered(span, *minor);
             match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
             }
-            let headroom = Length::levered(T::tau() - span, *minor);
+            let headroom = Margin::levered(T::tau() - span, *minor);
             match decide("interval_span_winding", headroom, band).map_err(span_escalated)? {
                 Sign::Positive | Sign::Zero => {}
                 Sign::Negative => return Err(CertifyError::WindingExceeded),
             }
         }
         Curve3::Line { .. } => {
-            match decide("interval_span_forward", Length::of(span), band).map_err(span_escalated)? {
+            match decide("interval_span_forward", Margin::of(span), band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
             }
@@ -952,7 +952,7 @@ fn run_checks<T: Decide>(
                     }));
                 }
             }
-            let arc = Length::metered(span, meter);
+            let arc = Margin::metered(span, meter);
             match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
@@ -965,7 +965,7 @@ fn run_checks<T: Decide>(
         "carrier_endpoint_start",
         CertCheck::EndpointStart,
         0,
-        Length::of(spec.carrier.eval(t0).distance(start)),
+        Margin::of(spec.carrier.eval(t0).distance(start)),
         band,
         &mut max_residual,
     )?;
@@ -973,7 +973,7 @@ fn run_checks<T: Decide>(
         "carrier_endpoint_end",
         CertCheck::EndpointEnd,
         CERT_SAMPLES - 1,
-        Length::of(spec.carrier.eval(t1).distance(end)),
+        Margin::of(spec.carrier.eval(t1).distance(end)),
         band,
         &mut max_residual,
     )?;
@@ -998,7 +998,7 @@ fn run_checks<T: Decide>(
                     "carrier_on_surface_1",
                     CertCheck::Surface1Residual,
                     i,
-                    Length::of(implicit_residual(surf1, p)),
+                    Margin::of(implicit_residual(surf1, p)),
                     band,
                     &mut max_residual,
                 )?;
@@ -1006,7 +1006,7 @@ fn run_checks<T: Decide>(
                     "carrier_on_surface_2",
                     CertCheck::Surface2Residual,
                     i,
-                    Length::of(implicit_residual(surf2, p)),
+                    Margin::of(implicit_residual(surf2, p)),
                     band,
                     &mut max_residual,
                 )?;
@@ -1040,7 +1040,7 @@ fn run_checks<T: Decide>(
                     "tangent_on_surface_1",
                     CertCheck::Surface1Residual,
                     i,
-                    Length::of(r1),
+                    Margin::of(r1),
                     band,
                     &mut max_residual,
                 )?;
@@ -1048,7 +1048,7 @@ fn run_checks<T: Decide>(
                     "tangent_on_surface_2",
                     CertCheck::Surface2Residual,
                     i,
-                    Length::of(r2),
+                    Margin::of(r2),
                     band,
                     &mut max_residual,
                 )?;
@@ -1058,7 +1058,7 @@ fn run_checks<T: Decide>(
                     let arm = crate::implicit::curvature_lever_arm(surf1, p)
                         .min(crate::implicit::curvature_lever_arm(surf2, p))
                         .min(extent);
-                    let so_margin = Length::sagitta(jet.kappa_rel.abs(), arm);
+                    let so_margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
                     match decide("tangent_second_order", so_margin, band) {
                         Ok(Sign::Positive) => {}
                         // A magnitude margin: Zero is the G2/osculating
@@ -1082,7 +1082,7 @@ fn run_checks<T: Decide>(
                         "tangent_normal_parallel",
                         CertCheck::TangentParallel,
                         i,
-                        Length::levered_inv(jet.sin_theta, jet.kappa_rel.abs()),
+                        Margin::levered_inv(jet.sin_theta, jet.kappa_rel.abs()),
                         band,
                         &mut max_residual,
                     )?;
@@ -1094,7 +1094,7 @@ fn run_checks<T: Decide>(
                     "carrier_matches_mapped_source",
                     CertCheck::MappedSource,
                     i,
-                    Length::of(p.distance(mc.eval(s))),
+                    Margin::of(p.distance(mc.eval(s))),
                     band,
                     &mut max_residual,
                 )?;
@@ -1104,7 +1104,7 @@ fn run_checks<T: Decide>(
                     "carrier_on_seam_surface",
                     CertCheck::SeamSurface,
                     i,
-                    Length::of(implicit_residual(s, p)),
+                    Margin::of(implicit_residual(s, p)),
                     band,
                     &mut max_residual,
                 )?;
@@ -1115,7 +1115,7 @@ fn run_checks<T: Decide>(
                         "carrier_in_seam_halfplane",
                         CertCheck::SeamHalfplane,
                         i,
-                        Length::of(w.dot(v_ref)),
+                        Margin::of(w.dot(v_ref)),
                         band,
                         &mut max_residual,
                     )?;
@@ -1123,7 +1123,7 @@ fn run_checks<T: Decide>(
                         "carrier_on_seam_side",
                         CertCheck::SeamSide,
                         i,
-                        Length::of((T::zero() - w.dot(u_ref)).max(T::zero())),
+                        Margin::of((T::zero() - w.dot(u_ref)).max(T::zero())),
                         band,
                         &mut max_residual,
                     )?;
@@ -1140,7 +1140,7 @@ fn run_checks<T: Decide>(
                     "carrier_on_iso_curve",
                     CertCheck::IsoResidual,
                     i,
-                    Length::of(p.distance(surface.eval(*u, v))),
+                    Margin::of(p.distance(surface.eval(*u, v))),
                     band,
                     &mut max_residual,
                 )?;
@@ -1166,11 +1166,11 @@ fn run_checks<T: Decide>(
             "tangent_hull_sup",
             CertCheck::TangentHull,
             0,
-            Length::of(tangent_resid_max + bounds.residual_sag),
+            Margin::of(tangent_resid_max + bounds.residual_sag),
             band,
             &mut max_residual,
         )?;
-        let tube = Length::sagitta(tangent_kappa_min - bounds.kappa_drift, tangent_arm_min);
+        let tube = Margin::sagitta(tangent_kappa_min - bounds.kappa_drift, tangent_arm_min);
         match decide("tangent_tube_margin", tube, band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => {
@@ -1205,7 +1205,7 @@ fn run_checks<T: Decide>(
             "witness_on_surface_1",
             CertCheck::WitnessSurface1,
             0,
-            Length::of(implicit_residual(surf1, *witness)),
+            Margin::of(implicit_residual(surf1, *witness)),
             band,
             &mut max_residual,
         )?;
@@ -1213,7 +1213,7 @@ fn run_checks<T: Decide>(
             "witness_on_surface_2",
             CertCheck::WitnessSurface2,
             0,
-            Length::of(implicit_residual(surf2, *witness)),
+            Margin::of(implicit_residual(surf2, *witness)),
             band,
             &mut max_residual,
         )?;
@@ -1224,7 +1224,7 @@ fn run_checks<T: Decide>(
             "witness_at_mid_parameter",
             CertCheck::WitnessMidpoint,
             (CERT_SAMPLES - 1) / 2,
-            Length::of(mid.distance(*witness)),
+            Margin::of(mid.distance(*witness)),
             band,
             &mut max_residual,
         )?;

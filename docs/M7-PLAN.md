@@ -104,3 +104,39 @@ waypoints that flip as the vocabulary grows, potentially after
 applying recommended geometry fixes where the foreign data
 carries slivers (ties to the banked #89 sliver-lint idea,
 LONGTERM-IDEAS I1(0)).
+
+
+## Runway addendum (2026-08-09 — the orchestrator's live plate; updated at seams)
+
+*(Terminology: "block M7-N" in MODEL-AB-LOG is an A/B arm-assignment
+block, not a unit. Units are M7-1…M7-7 below. This section exists so
+the plate is visible on main between seam entries; the log tails
+remain the authoritative narrative.)*
+
+**Units as executed** (the plan's four grew to seven — each growth
+ruled on a thread, none silent):
+
+| unit | what | state |
+|---|---|---|
+| M7-1 | import crate + own-corpus round-trip | MERGED #183 |
+| M7-2 | FreeCAD foreign corpus | MERGED #189 |
+| M7-3 | NURBS faces (+ARM B) | MERGED #209 |
+| M7-4 | wild corpus + dialects | MERGED #193 |
+| M7-5 | band-seam re-mint (the plan's S9-flip pattern executed) | MERGED #252 |
+| M7-6 | stage-1 recognition (always-promote, #256; whole-patch envelope) | PR #264 — R1 APPROVE (post-fix), independent R2 running (dual-review row 6) |
+| M7-7 | tier-at-import (the #260 (a) ruling; shared gate) | implementing, stacked on #264's head |
+| rider | plane×NURBS intersection certification (ruled on #264's thread) | queued next — the last M7 unit |
+
+**Then**: the M7 EXIT WALK (pre-drafted at docs/M7-EXIT-WALK.md,
+finalizes on M7-6/M7-7 merges) → Evan's closure ruling → **M8 opens
+with C7** (the join lane; contact/signed-clearance co-design —
+ruled at #223) and the M8-PLAN gets drafted against ERROR-DESIGN +
+CONTACT-DESIGN. Not running out of planned work: M8's opener,
+design records, and first units are already ruled; the lily rebuild
+rides there as the demo moment.
+
+**Adjacent/banked (not on the critical path)**: the M6 carried-items
+register (#250) incl. the gate-minted-validity-currency design
+(#260) and the structural analytic-mint sidecar (#256); Q9 naming
+(fresh availability data banked; Evan's call); k-lint gating landed
+(#253); render/slot infra landed (#266, #269 — the latter LIB-side).

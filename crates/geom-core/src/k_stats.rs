@@ -27,7 +27,7 @@
 
 use core::cell::{Cell, RefCell};
 
-use crate::predicate::{Band, Decide, Indeterminate, Length, Sign};
+use crate::predicate::{Band, Decide, Indeterminate, Margin, Sign};
 use crate::real::{Bounds, Real};
 
 thread_local! {
@@ -49,7 +49,7 @@ thread_local! {
 /// so it is the only shipped `sign_within` call site outside [`Probe`]
 /// (greppable per crate).
 ///
-/// The margin is a [`Length<T>`] **by signature** (D4's margin
+/// The margin is a [`Margin<T>`] **by signature** (D4's margin
 /// dimensional convention, clause (i)): the caller states its
 /// dimensional argument by choosing a construction door at the site,
 /// and every recorded margin is therefore a length in the kernel's
@@ -70,7 +70,7 @@ thread_local! {
 /// attached.
 pub fn decide<T: Decide>(
     name: &'static str,
-    margin: Length<T>,
+    margin: Margin<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     CURRENT.with(|c| c.set(name));
@@ -94,9 +94,9 @@ pub fn decide<T: Decide>(
 /// The classify seam's **finding lane** — [`decide`] for a shipped
 /// comparand whose ledger row (`docs/predicate-dimension-audit.md`)
 /// documents that **no construction door honestly fits**: the margin is
-/// not (yet) a length, and wrapping it in a [`Length`] door would
+/// not (yet) a length, and wrapping it in a [`Margin`] door would
 /// launder the very defect the ledger records. This function does NOT
-/// construct a `Length` — the margin stays bare `T` and never claims
+/// construct a `Margin` — the margin stays bare `T` and never claims
 /// the dimension it lacks; classification and recording are otherwise
 /// [`decide`] verbatim, so the K stream is unchanged.
 ///
@@ -149,7 +149,7 @@ pub fn decide_flagged<T: Decide>(
 /// a body whose geometry is ε-right everywhere is never refused for
 /// its integral differing at tiny-wiggle scale. Mean displacement is
 /// only the honest UNIT of the check's near-zero (indeterminate) zone,
-/// so the margin stays **bare `T`** — no [`Length`] is minted, keeping
+/// so the margin stays **bare `T`** — no [`Margin`] is minted, keeping
 /// the lane visibly distinct from every geometric decision.
 ///
 /// Classification and recording are [`decide`] verbatim (same
@@ -460,9 +460,9 @@ mod tests {
     fn verdict_log_records_definite_signs_in_decision_order() {
         let b = band();
         start_verdict_log();
-        assert_eq!(decide("vlog_a", Length::of(1.0f64), b), Ok(Sign::Positive));
-        assert_eq!(decide("vlog_b", Length::of(-1.0f64), b), Ok(Sign::Negative));
-        assert_eq!(decide("vlog_c", Length::of(0.0f64), b), Ok(Sign::Zero));
+        assert_eq!(decide("vlog_a", Margin::of(1.0f64), b), Ok(Sign::Positive));
+        assert_eq!(decide("vlog_b", Margin::of(-1.0f64), b), Ok(Sign::Negative));
+        assert_eq!(decide("vlog_c", Margin::of(0.0f64), b), Ok(Sign::Zero));
         let log = take_verdict_log();
         assert_eq!(
             log,
@@ -487,13 +487,13 @@ mod tests {
     fn verdict_log_skips_indeterminate_outcomes_and_is_absent_by_default() {
         let b = band();
         // No log installed: decisions record nothing, take is empty.
-        assert_eq!(decide("vlog_d", Length::of(2.0f64), b), Ok(Sign::Positive));
+        assert_eq!(decide("vlog_d", Margin::of(2.0f64), b), Ok(Sign::Positive));
         assert!(take_verdict_log().is_empty());
         // In-band margin escalates and is NOT a verdict.
         start_verdict_log();
         let mid = f64::midpoint(b.zero(), b.escalate());
-        assert!(decide("vlog_e", Length::of(mid), b).is_err());
-        assert_eq!(decide("vlog_f", Length::of(-1.0f64), b), Ok(Sign::Negative));
+        assert!(decide("vlog_e", Margin::of(mid), b).is_err());
+        assert_eq!(decide("vlog_f", Margin::of(-1.0f64), b), Ok(Sign::Negative));
         let log = take_verdict_log();
         assert_eq!(log.len(), 1);
         assert_eq!(log[0].predicate, "vlog_f");
@@ -503,9 +503,9 @@ mod tests {
     fn verdict_log_reinstall_drops_prior_entries() {
         let b = band();
         start_verdict_log();
-        decide("vlog_g", Length::of(1.0f64), b).unwrap();
+        decide("vlog_g", Margin::of(1.0f64), b).unwrap();
         start_verdict_log();
-        decide("vlog_h", Length::of(1.0f64), b).unwrap();
+        decide("vlog_h", Margin::of(1.0f64), b).unwrap();
         let log = take_verdict_log();
         assert_eq!(log.len(), 1);
         assert_eq!(log[0].predicate, "vlog_h");

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # with-build-slot.sh — machine-wide build-slot semaphore for agent lanes.
 #
-#   scripts/with-build-slot.sh [-x] [-n] [-w SECS] -- <command> [args...]
+#   scripts/with-build-slot.sh [-x | --express [SECS]] [-n] [-w SECS] -- <command> [args...]
 #
 # Replaces the soft "two lanes" convention (and the retired
 # cargo-slots.txt registry) with real locks: slot lockfiles under
@@ -30,6 +30,16 @@
 #              batteries stay exclusive if the width is ever raised
 #              (two concurrent batteries are the documented OOM shape:
 #              bare "Terminated" rows).
+#   --express [SECS]
+#              EXPRESS LANE: acquire the separate express slot instead
+#              of a main slot — for jobs that DECLARE a short budget
+#              (default 600s, hard max 600s). The declaration is
+#              self-enforcing: the command runs under `timeout SECS`,
+#              so a job that lied about being short is killed by its
+#              own declaration (exit 124). Batteries and default jobs
+#              keep the main mutex exactly as before — two concurrent
+#              batteries stay impossible (the documented OOM shape).
+#              Incompatible with -x (batteries are never express).
 #   -n         non-blocking: if the slot(s) are busy, exit 75
 #              (EX_TEMPFAIL) immediately instead of waiting. Agents can
 #              try -n first and fall back to a blocking call — useful
@@ -38,6 +48,28 @@
 #   -w SECS    give up (exit 75) after SECS of waiting. Default: wait
 #              forever, printing a status line every 60s naming the
 #              current holders.
+#
+# WHY AN EXPRESS LANE (and not a priority queue): the measured pain
+# (#235, #266) is short jobs (a 3-minute clippy, a small suite)
+# starving an hour-plus behind a battery holding the width-1 mutex —
+# six bounded waits starved during one 90-minute workspace test. A
+# priority queue needs a broker or lock-ordering protocol flock can't
+# express; a second slot file gets the priority-queue benefit with
+# zero queue machinery. Cost-benefit from the #230 numbers:
+# concurrency loses ~40% throughput only WHILE both jobs run, so a
+# ≤10-min express job overlapping a battery costs the battery a few
+# minutes and saves the express job up to the battery's whole
+# remaining hold — overwhelmingly net-positive, and death-safe like
+# everything flock. The budget declaration is the admission ticket:
+# `timeout` enforces it, so the express slot can never silently become
+# a second battery slot.
+#
+# RECORDED FOLLOW-UP (unmeasured): render×cargo contention. Renders
+# currently hold the main mutex like any other job; #266 measured
+# renders degrading ~25× under cargo contention (median 4s → 56s per
+# scene), but the effect of the express split on renders is UNMEASURED
+# — a measurement in the #230 style may later give renders their own
+# class (e.g. shared render slots that never block on cargo).
 #
 # Locking is flock(2) on inherited fds: the kernel releases the lock
 # when the last holding process exits — even SIGKILL or an OOM kill —
@@ -64,35 +96,85 @@ WIDTH="${CAD_SLOT_WIDTH:-1}"
 MODE=shared
 TRY=0
 WAIT_MAX=0   # 0 = forever
+EXPRESS_MAX=600
+EXPRESS_SECS=$EXPRESS_MAX
+WANT_X=0
+WANT_EXPRESS=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    -x) MODE=exclusive; shift ;;
+    -x) MODE=exclusive; WANT_X=1; shift ;;
+    --express)
+      MODE=express; WANT_EXPRESS=1; shift
+      if [ $# -gt 0 ] && [[ "$1" =~ ^[0-9]+$ ]]; then EXPRESS_SECS="$1"; shift; fi
+      ;;
     -n) TRY=1; shift ;;
     -w) WAIT_MAX="${2:?-w needs seconds}"; shift 2 ;;
     --) shift; break ;;
-    *)  echo "usage: with-build-slot.sh [-x] [-n] [-w SECS] -- <command> [args...]" >&2; exit 2 ;;
+    *)  echo "usage: with-build-slot.sh [-x | --express [SECS]] [-n] [-w SECS] -- <command> [args...]" >&2; exit 2 ;;
   esac
 done
 [ $# -gt 0 ] || { echo "with-build-slot: no command given" >&2; exit 2; }
 
-# Already inside a slot (nested invocation): pass through.
+if [ "$WANT_X" -eq 1 ] && [ "$WANT_EXPRESS" -eq 1 ]; then
+  echo "with-build-slot: -x is incompatible with --express — a battery is never a short job; take the main mutex" >&2
+  exit 2
+fi
+if [ "$WANT_EXPRESS" -eq 1 ]; then
+  if [ "$EXPRESS_SECS" -lt 1 ] || [ "$EXPRESS_SECS" -gt "$EXPRESS_MAX" ]; then
+    echo "with-build-slot: --express budget ${EXPRESS_SECS}s out of range (1..${EXPRESS_MAX}s hard max) — long jobs take the main mutex" >&2
+    exit 2
+  fi
+fi
+
+# Already inside a slot (nested invocation): pass through — but an
+# express declaration still self-enforces its budget even when nested.
 if [ -n "${BUILD_SLOT_HELD:-}" ]; then
+  if [ "$MODE" = express ]; then
+    exec timeout --kill-after=10 "$EXPRESS_SECS" "$@"
+  fi
   exec "$@"
 fi
 
 mkdir -p "$LOCK_DIR"
-# Slot fds: slot 1 -> fd 8, slot 2 -> fd 9. Opened once; flock -n per
-# attempt. The fds (and locks) are inherited across the final exec and
-# by the command's children, so the slot frees only when the whole
-# process tree is gone.
-exec 8>"$LOCK_DIR/slot-1.lock" 9>"$LOCK_DIR/slot-2.lock"
+# Slot fds: express -> fd 7, slot 1 -> fd 8, slot 2 -> fd 9. Opened
+# once; flock -n per attempt. The fds (and locks) are inherited across
+# the final exec and by the command's children, so the slot frees only
+# when the whole process tree is gone.
+exec 7>"$LOCK_DIR/express.lock" 8>"$LOCK_DIR/slot-1.lock" 9>"$LOCK_DIR/slot-2.lock"
 
-holders() {  # best-effort names of current holders, for wait messages
-  cat "$LOCK_DIR"/slot-*.holder 2>/dev/null | paste -sd';' - || true
+# Holder files are best-effort REPORTING, never correctness (flock is
+# the truth). #235 measured them lying: a dead pid's holder file
+# polluted every busy message for a day. So on print we verify the
+# recorded pid is alive (dead => flock on that slot is free — the
+# kernel released it) and compute the hold duration from the recorded
+# epoch.
+describe_holder() {  # holder-file -> annotated description on stdout
+  local f="$1" line pid epoch now dur note=""
+  line=$(cat "$f" 2>/dev/null) || return 0
+  [ -n "$line" ] || return 0
+  pid=$(sed -n 's/^pid \([0-9][0-9]*\) .*/\1/p' <<<"$line")
+  epoch=$(sed -n 's/.*(@\([0-9][0-9]*\)).*/\1/p' <<<"$line")
+  if [ -n "$epoch" ]; then
+    now=$(date +%s); dur=$((now - epoch))
+    note=" [held $((dur / 60))m$((dur % 60))s]"
+  fi
+  if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+    note="$note [STALE holder (pid $pid dead); flock is free — safe to acquire]"
+  fi
+  printf '%s: %s%s' "$(basename "$f" .holder)" "$line" "$note"
 }
-note_holder() {  # slot-number
-  echo "pid $$ since $(date +%H:%M:%S): $*" > "$LOCK_DIR/slot-$1.holder" 2>/dev/null || true
+holders() {  # best-effort names of current holders, for wait messages
+  local f out=""
+  for f in "$LOCK_DIR"/slot-*.holder "$LOCK_DIR"/express.holder; do
+    [ -e "$f" ] || continue
+    out="$out${out:+; }$(describe_holder "$f")"
+  done
+  echo "${out:-none on record}"
+}
+note_holder() {  # slot-name (slot-1 | slot-2 | express)
+  local slot="$1"; shift
+  echo "pid $$ since $(date +%H:%M:%S) (@$(date +%s)): $*" > "$LOCK_DIR/$slot.holder" 2>/dev/null || true
 }
 
 try_slot() {  # fd -> 0 if acquired
@@ -117,7 +199,12 @@ wait_tick() {
 }
 
 HELD=""
-if [ "$MODE" = shared ]; then
+if [ "$MODE" = express ]; then
+  # Express jobs contend ONLY for the express slot; they never touch
+  # the main mutex, so a battery and an express job run concurrently.
+  while :; do try_slot 7 && break; wait_tick; done
+  note_holder express "express(${EXPRESS_SECS}s): $*"
+elif [ "$MODE" = shared ]; then
   # Poll the slot(s) within WIDTH instead of blocking on one: at
   # width 2, blocking on slot 1 while slot 2 frees first would
   # serialize needlessly.
@@ -126,12 +213,12 @@ if [ "$MODE" = shared ]; then
     if [ "$WIDTH" -ge 2 ] && try_slot 9; then HELD=2; break; fi
     wait_tick
   done
-  note_holder "$HELD" "shared: $*"
+  note_holder "slot-$HELD" "shared: $*"
 else
   while :; do try_slot 8 && break; wait_tick; done
-  note_holder 1 "exclusive(1/2): $*"
+  note_holder slot-1 "exclusive(1/2): $*"
   while :; do try_slot 9 && break; wait_tick; done
-  note_holder 1 "exclusive: $*"; note_holder 2 "exclusive: $*"
+  note_holder slot-1 "exclusive: $*"; note_holder slot-2 "exclusive: $*"
 fi
 
 # Belt-and-suspenders OOM guard: if available memory is unusually low
@@ -149,4 +236,11 @@ done
 # worse both solo (52s vs 33s) and paired — full -j inside the slot,
 # serialization between slots, is the fast configuration.
 export BUILD_SLOT_HELD="$MODE"
+if [ "$MODE" = express ]; then
+  # Self-enforcing budget: the job runs under its own declared timeout,
+  # so a job that lied about being short is killed by its declaration
+  # (exit 124). timeout(1) stays the fd-holding parent, so the express
+  # flock frees when the whole tree is gone, as with the main slots.
+  exec timeout --kill-after=10 "$EXPRESS_SECS" "$@"
+fi
 exec "$@"

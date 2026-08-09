@@ -2,7 +2,7 @@
 //! the laundered comparand at `editor-core/src/eval/wire.rs`
 //! (`revolve_axis_dir_in_plane`): `dir.dot(n)` with `dir` UNIT (wire.rs
 //! `unit()` normalizes every datum axis) is a SINE — dimensionless —
-//! wrapped in `Length::of` against the linear metre band. This is the
+//! wrapped in `Margin::of` against the linear metre band. This is the
 //! audit's class-(c) shape (bare sine vs length band), the same defect
 //! family `bool_plane_parallel` etc. were FIXED for, and the same
 //! function's OTHER dimensionless comparand (`|θ|−τ`, radians) was
@@ -13,7 +13,7 @@
 //!
 //! ADOPTED as ledger row F15's pin (PR #213 fix pass): the shipped
 //! site now rides `decide_flagged(.., "F15")` — the finding lane, no
-//! `Length` constructed — and this probe pins the scale-blindness
+//! `Margin` constructed — and this probe pins the scale-blindness
 //! F15's own unit will retire (the honest form levers the sine at the
 //! profile's radial extent, kernel-side). The probe replicates the
 //! site's arithmetic locally, so it stays green across that fix too:
@@ -21,7 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Length, Sign, Vec3};
+use geom_core::{Band, Margin, Sign, Vec3};
 
 /// The wire.rs site's exact arithmetic, replicated: a datum axis tilted
 /// out of the sketch plane by angle `theta`, gated as the site gates it.
@@ -40,7 +40,7 @@ fn revolve_axis_dir_in_plane_margin_is_scale_blind() {
     // classifies the axis as in-plane...
     let theta = 5e-10_f64;
     let m = site_margin(theta);
-    let verdict = decide("probe_axis_dir_in_plane", Length::of(m), band).unwrap();
+    let verdict = decide("probe_axis_dir_in_plane", Margin::of(m), band).unwrap();
     assert_eq!(verdict, Sign::Zero, "the sine passes as coincident-zero");
     // ...and the margin is bit-identical whatever the model scale is,
     // because no length enters the comparand at all:
@@ -54,5 +54,5 @@ fn revolve_axis_dir_in_plane_margin_is_scale_blind() {
     assert!(dev_large > band.zero());
     // So at 10 m extent the gate declares "in plane" an axis whose
     // out-of-plane deviation the same band refuses — the class-(c)
-    // defect, reachable through `Length::of` (laundered, not flagged).
+    // defect, reachable through `Margin::of` (laundered, not flagged).
 }
