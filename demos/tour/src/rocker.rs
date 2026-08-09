@@ -194,6 +194,7 @@ fn eye<S: Scalar>() -> ProfileLoop<S> {
         .expect("a definitely positive eye radius")
         .to_on(Start, p2(0.5, 0.0), ArcSweep::Ccw)
         .expect("the near candidate resolves the eye slot's tip")
+        .into()
 }
 
 /// The validated rocker profile: outline + eye slot.

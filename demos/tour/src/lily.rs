@@ -153,7 +153,9 @@ fn sketch_axis<S: Scalar>() -> RevolveAxis<S> {
 /// untouched; the lowered loop is the two-vertex bulge-1 chain this
 /// helper used to build by hand.
 fn circle_loop<S: Scalar>(cx: f64, cy: f64, r: f64) -> ProfileLoop<S> {
-    pncad::profile::circle(p2(cx, cy), S::from_f64(r)).expect("circle radius is positive")
+    pncad::profile::circle(p2(cx, cy), S::from_f64(r))
+        .expect("circle radius is positive")
+        .into()
 }
 
 /// One stem segment: a circular tube of radius `tube` swept along the
@@ -235,7 +237,8 @@ fn lantern<S: Scalar>(
         .line_to(p2(0.0, t_end))
         .expect("lantern lip disk")
         .line_to(Start)
-        .expect("lantern axis seam");
+        .expect("lantern axis seam")
+        .into();
     revolve(
         &validated(plane, vec![lp]).expect("lily profile validates"),
         sketch_axis(),
@@ -291,7 +294,8 @@ fn leaf<S: Scalar>(
         .arc_via(p2(0.5 * len, w_out), p2(len, 0.0))
         .expect("leaf outer blade arc")
         .arc_via(p2(0.5 * len, w_in), Start)
-        .expect("leaf inner blade arc");
+        .expect("leaf inner blade arc")
+        .into();
     extrude(
         &validated(plane, vec![lp]).expect("lily profile validates"),
         Extrusion::Distance(S::from_f64(thick)),
@@ -519,7 +523,8 @@ fn ball<S: Scalar>(c: (f64, f64), r: f64) -> Body<S> {
         .arc_center(p2(0.0, 0.0), p2(0.0, r), ArcSweep::Ccw)
         .expect("ball meridian rides its centre")
         .line_to(Start)
-        .expect("ball axis seam");
+        .expect("ball axis seam")
+        .into();
     revolve(
         &validated(plane, vec![lp]).expect("lily profile validates"),
         sketch_axis(),
@@ -634,7 +639,8 @@ pub fn wall_probes<S: Scalar>() {
             .arc_via(p2(0.5, 0.12), p2(1.0, 0.0))
             .expect("probe leaf outer arc")
             .arc_via(p2(0.5, 0.02), Start)
-            .expect("probe leaf inner arc");
+            .expect("probe leaf inner arc")
+            .into();
         validated(plane, vec![lp]).expect("lily profile validates")
     };
     wall(

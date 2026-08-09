@@ -7,9 +7,10 @@
 //! per test process (each integration binary is its own process, so the
 //! geom-core global-state discipline is satisfied).
 #![allow(dead_code)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Real, Tolerance};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{ClosedLoop, Profile, ProfileLoop, ProfileVertex, SketchPlane};
 
 /// The run's tolerance (env-driven; the multi-ε matrix parameterizes
 /// it).
@@ -183,4 +184,48 @@ pub fn near_tangent_hole(eps: f64) -> Profile<f64> {
         circle_v(0.0, 0.0, 1.0),
         circle_v(0.5 - 5.0 * eps, 0.0, 0.5),
     ])
+}
+
+/// **The v2 differential pin** (LIB-SWITCH §3d, PROFILES-V2 §V1): the
+/// program a chain RECORDED as it lowered replays — through the driver,
+/// hence through the same typed binders — to a BIT-IDENTICAL loop.
+///
+/// Every closing verb in the corpus funnels through here, so the pin
+/// covers every typed chain the suites author rather than a sampled
+/// subset: wrap the chain's result and keep asserting whatever the test
+/// was already asserting on the loop.
+pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
+    let replayed = match profile::replay(&closed.program) {
+        Ok(lp) => lp,
+        Err(e) => panic!("the recorded program refused at replay: {e}"),
+    };
+    assert_bit_identical(&closed.loop_, &replayed);
+    closed.loop_
+}
+
+/// Bit-level loop identity: vertex count, every coordinate and bulge by
+/// `to_bits`, and the declared joints as a MULTISET.
+///
+/// Order is not semantic, so the lists are sorted — but they are NOT
+/// deduped: the two sides here come from the same emission machinery
+/// driven two ways, so a replay that declared one joint twice where the
+/// lowering declared it once is a real divergence, and deduping would
+/// hide it. (The looser set-compare belongs in `path_differential.rs`,
+/// where the two sides are the algebra and the hand builder.)
+pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f64>) {
+    assert_eq!(
+        lowered.vertices.len(),
+        replayed.vertices.len(),
+        "vertex count: lowered vs replayed"
+    );
+    for (i, (a, b)) in lowered.vertices.iter().zip(&replayed.vertices).enumerate() {
+        assert_eq!(a.pos.x.to_bits(), b.pos.x.to_bits(), "vertex {i} x");
+        assert_eq!(a.pos.y.to_bits(), b.pos.y.to_bits(), "vertex {i} y");
+        assert_eq!(a.bulge.to_bits(), b.bulge.to_bits(), "vertex {i} bulge");
+    }
+    let mut la = lowered.tangent_joints.clone();
+    let mut lb = replayed.tangent_joints.clone();
+    la.sort_unstable();
+    lb.sort_unstable();
+    assert_eq!(la, lb, "declared tangent joints (multiset)");
 }

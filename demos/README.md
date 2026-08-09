@@ -84,7 +84,10 @@ the filesystem level, and one silently reached a committed montage cell
   **before** composing the montage, so a sheet is never composed from an
   uncertified cell set; it is also an always-run row in
   `scripts/ci-local.sh` and a step in ci.yml's `discipline` job (stdlib
-  only — no venv, no FreeCAD).
+  only — no venv, no FreeCAD). The wild-corpus lane (`renders-wild/`)
+  runs under the same guard with INVERTED per-lane rules — there
+  matplotlib is the primary renderer, and cells must carry the wild
+  lane's own `Author` stamp (see the wild-corpus montage section).
 
 **The montage sheets are exempt, and here is why that is safe.** Both
 sheets (`renders/montage.png`, `renders-freecad/montage-freecad.png`)
@@ -105,7 +108,10 @@ after the stamp strip.
 `check_render_provenance.py --selftest` is the guard's own test:
 synthetic PNGs (real chunk framing and CRCs, stdlib only) for the good
 cell, the fallback cell, an unstamped cell, a sheet that is not a
-matplotlib composition, and a missing lane directory.
+matplotlib composition, a missing lane directory, and the wild lane's
+inverted rules (a stamped wild cell + sheet pass; an unstamped
+matplotlib frame, a FreeCAD frame, and a wild frame outside its lane
+are each refused — see the wild-corpus montage section).
 
 ## The two montages (#159)
 
@@ -164,6 +170,123 @@ about the same body, and which cell is wrong tells you which. A
 STEP-lane cell can also be a labeled placeholder naming an import/
 render failure (per-scene `freecadcmd` with a timeout; one bad scene
 costs one cell, never the sheet).
+
+## The wild-corpus montage (`renders-wild/`)
+
+A third sheet, deliberately unlike the two above: **STEP files nobody
+on this project authored** (the M7-4 wild corpus,
+`crates/step-import/tests/fixtures/wild/`), imported by
+`step-import` and tessellated by the kernel's own tessellator —
+**KERNEL-TESSELLATION LANE ONLY**, by Evan-approved scope (2026-08-09).
+There is no FreeCAD import and no OCC comparison lane for these files,
+so the sheet does not join the two-sheet superimposition contract; it
+keeps the same shape (grid, captions, provenance banner via
+`compose_montage.py`) under its own title and banner.
+
+```sh
+cd demos/wild
+cargo run --release -- out    # import + tessellate + STL + scenes.json
+cd ..
+./render-wild.sh              # cells + sheet -> renders-wild/
+```
+
+**Cell count: 6, and the cell set is license law plus pinned
+capability, not discovery.** `docs/WILD-CORPUS-LICENSES.md` (the
+license audit) governs eligibility — only files the audit marks
+render-OK may appear. The derivation: 13 wild fixtures − 4 `stepcode/`
+files **license-EXCLUDED** by the audit's D2 (unclear upstream rights
+for redistributed CAx-IF models; the generator does not read them at
+all — `sg1-c5-214.stp` imports fine and is excluded by license, not
+capability) = 9 render-OK, − 1 typed import refusal
+(`b123d_nema17_bracket.step`, `SURFACE_CURVE` edge geometry — pinned
+in the generator, matching `wild.rs`) − 2 typed TESSELLATION refusals
+(`1982_MPR121.step`, `328_2500mAh_battery.step` — the mesh-lane
+finding below) = **6**. Two notes on how that differs from the audit's
+own snapshot, one in each direction:
+
+* the audit's import-status line ("only 6 import today") predates the
+  M7-5 band-seam re-mint (#252), which flipped `nist_ftc_11_asme1_rb`
+  and `cq_red_cube_blue_cylinder` to imports-class — both are
+  render-OK rows in the audit's own table, so both are cells;
+* **the mesh-lane finding this unit surfaced**: `1982_MPR121` and
+  `328_2500mAh_battery` import first-class (census exact, volumes
+  measurable) but refuse `pncad::mesh::tessellate` typed
+  (`Triangulation`), on plain rectangular planar faces. Diagnosed in
+  `demos/wild/src/main.rs`'s module docs: the files' plane axes carry
+  translator noise (~1e-33 components), the planar chart projection
+  of a should-be-zero coordinate lands at ~1e-67, and that is below
+  spade's coordinate domain (`MIN_ALLOWED_VALUE` = 2⁻¹⁴² ≈ 1.79e-43),
+  so the CDT refuses the vertex. Own-corpus bodies never hit this
+  because the kernel authors exact axes; the fix belongs to the mesh
+  lane, not this demo.
+
+`demos/wild/src/main.rs` pins the cell set, the import refusal, AND
+the two tessellation refusals, and fails loudly on drift in any
+direction, so the sheet can never detach silently from the
+attribution block below.
+
+**Renderer + provenance.** Cells are drawn by `render.py` — the
+numpy+matplotlib STL renderer — as the lane's PRIMARY renderer, not a
+fallback: the facets on screen are exactly what
+`pncad::mesh::tessellate` emitted for the imported body. Every cell
+carries the lane's own `Author` stamp (`render.py --author=…`), and
+`check_render_provenance.py` runs wild-lane rules over
+`renders-wild/`: a committed wild cell must be matplotlib-drawn AND
+wild-stamped (a tour fallback frame or a FreeCAD frame is refused),
+and `montage-wild.png` joins the positively-asserted sheet exemption.
+matplotlib stamps no wall clock, so an unchanged re-render is
+byte-identical.
+
+### Third-party source geometry — attribution
+
+> **Third-party source geometry.** The bodies in this montage were imported from
+> STEP files authored by others and tessellated by this project's own kernel; the
+> rendered images are our derived work, the underlying models are not.
+>
+> **Adafruit parts** (`1982 MPR121`, `328 2500mAh battery`, `64 Halfsize
+> Breadboard`, `805 slide switch`, `931 OLED 128x32 I2C`) from
+> <https://github.com/adafruit/Adafruit_CAD_Parts>, used under the MIT License:
+> *Copyright (c) 2016 Adafruit Industries. Permission is hereby granted, free of
+> charge, to any person obtaining a copy of this software and associated
+> documentation files (the "Software"), to deal in the Software without
+> restriction… THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.*
+> Full text: `crates/step-import/tests/fixtures/wild/adafruit/LICENSE-adafruit.txt`.
+>
+> **NIST model** (`nist_ftc_09_asme1_rd`) from the National Institute of
+> Standards and Technology's MBE PMI Validation and Conformance Testing project.
+> Produced by an agency of the U.S. Government and not subject to copyright in
+> the United States. Acknowledgement is given at NIST's request. *Neither NIST
+> nor the U.S. Government endorses, recommends, or has any connection with this
+> software; no NIST name or logo is used to imply endorsement.*
+>
+> **NIST model** (`nist_ftc_11_asme1_rb`) from the same NIST MBE PMI Validation
+> and Conformance Testing project, on the same terms as above: a U.S. Government
+> work not subject to copyright in the United States; acknowledgement given at
+> NIST's request, and the same no-endorsement statement applies.
+>
+> **CadQuery test model** (`cq_red_cube_blue_cylinder`) from
+> <https://github.com/CadQuery/cadquery> (`tests/testdata/red_cube_blue_cylinder.step`),
+> used under the Apache License, Version 2.0 — full text committed at
+> `crates/step-import/tests/fixtures/wild/occ-oss/LICENSE-cadquery.txt`. The
+> geometry was modified only by our own tessellation (the rendered facets are
+> this kernel's chordal approximation of the model's exact surfaces); CadQuery
+> ships no NOTICE file (verified in the license audit).
+
+The first three paragraphs are the audit's paste-ready block,
+verbatim. The last two are the extension the audit itself prescribes
+for the two post-audit arrivals (its "if a future montage adds the
+Apache-2.0 files once the periodic-band gap closes" instruction — the
+M7-5 seam re-mint closed that gap): the second NIST file rides the
+NIST terms, and the CadQuery entry carries the source URL, the
+Apache-2.0 grant linking the committed license text, and the
+modified-only-by-tessellation statement. `b123d_nema17_bracket.step`
+still refuses import (no cell), so its NOTICE-carrying entry is not
+yet needed here; the NOTICE text already rides
+`crates/step-import/NOTICE` (the audit's D1 action, done). Two of the
+named Adafruit parts (`1982 MPR121`, `328 2500mAh battery`) do not
+currently appear on the sheet (the pinned tessellation refusals
+above); their attribution rides anyway — the source files are
+committed fixtures, and the block is the audit's text verbatim.
 
 ## The stops
 

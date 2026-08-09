@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Guard: every committed per-scene render must be FreeCAD-authored.
+"""Guard: every committed per-scene render must carry ITS LANE'S
+renderer signature — FreeCAD-authored in the two tour lanes,
+wild-lane-stamped matplotlib in the wild-corpus lane.
 
 WHY (the #221 incident). `render.sh`'s kernel lane has a matplotlib
 fallback (`render.py`) for hosts without FreeCAD. It used to write the
@@ -50,6 +52,18 @@ must carry the matplotlib signature — so the exemption cannot be used
 to smuggle anything in (rename a fallback frame to `montage.png` and
 it stops being a scene cell that any sheet or README references).
 
+THE WILD LANE INVERTS THE RULE, ON PURPOSE. `renders-wild/` (the
+wild-corpus montage, `render-wild.sh`) is FreeCAD-FREE by ratified
+scope: its cells are the kernel's own tessellation of licensed
+third-party STEP, drawn by `render.py` — matplotlib as the PRIMARY
+renderer, not a fallback. There the guard demands the matplotlib
+`Software` chunk PLUS the wild lane's own `Author` stamp
+(`render.py --author=...`), so the lane's contract is still a positive
+per-file assertion: a tour fallback frame (matplotlib but unstamped)
+is refused in the wild lane exactly as it is in `renders/`, and a
+FreeCAD frame is refused there too — whatever lands in a committed
+wild cell must be the wild pipeline's own output.
+
 The sheet's own pixels are covered INDIRECTLY, which is the honest
 statement of this guard's reach: a sheet is only ever composed from
 the cells sitting next to it, and `render.sh` runs this guard over
@@ -78,17 +92,25 @@ from strip_png_stamps import parse_chunks
 
 HERE = Path(__file__).resolve().parent
 
-# The committed render trees, one per montage lane (render.sh).
-LANE_DIRS = ("renders", "renders-freecad")
+# The committed render trees, one per montage lane (render.sh /
+# render-wild.sh). A directory NAMED `renders-wild` runs under the
+# wild lane's rules (matplotlib + wild Author stamp); every other lane
+# demands FreeCAD authorship.
+LANE_DIRS = ("renders", "renders-freecad", "renders-wild")
+WILD_LANE = "renders-wild"
 
 # The matplotlib-COMPOSED contact sheets — the only exempt names, and
 # they must actually be matplotlib-composed. Kept in sync with
-# render.sh's `--montage=` argument (and compose_montage.py's default).
-SHEETS = {"montage.png", "montage-freecad.png"}
+# render.sh's / render-wild.sh's `--montage=` arguments (and
+# compose_montage.py's default).
+SHEETS = {"montage.png", "montage-freecad.png", "montage-wild.png"}
 
 FREECAD_AUTHOR = "FreeCAD (https://www.freecad.org)"
 FREECAD_SOFTWARE = "FreeCAD"
 MATPLOTLIB_SOFTWARE_PREFIX = "Matplotlib"
+# The wild lane's own signature (render-wild.sh passes it to
+# render.py --author; keep the three spellings in sync).
+WILD_AUTHOR = "pncad wild-corpus lane (kernel tessellation of licensed third-party STEP)"
 
 
 def text_chunks(path):
@@ -114,18 +136,36 @@ def describe(text):
     return f"Software: {software!r}, Author: {text.get('Author')!r}"
 
 
-def check_file(path):
-    """Return a violation string, or None if the file is in order."""
+def check_file(path, wild=False):
+    """Return a violation string, or None if the file is in order.
+
+    `wild` selects the wild lane's rules: matplotlib + the wild
+    `Author` stamp instead of FreeCAD authorship.
+    """
     text = text_chunks(path)
     software = text.get("Software", "")
     if path.name in SHEETS:
-        # Exempt from the FreeCAD requirement, but not unchecked: a
-        # sheet IS a matplotlib composition, so say so.
+        # Exempt from the per-cell renderer requirement, but not
+        # unchecked: a sheet IS a matplotlib composition, so say so.
         if not software.startswith(MATPLOTLIB_SOFTWARE_PREFIX):
             return (
                 f"{path}: montage sheet is not matplotlib-composed "
                 f"({describe(text)}) — compose_montage.py draws the "
                 f"sheets, so this file is not what its name claims"
+            )
+        return None
+    if wild:
+        # Wild-corpus cell: render.py IS the renderer here (the lane
+        # is FreeCAD-free by scope), so demand matplotlib PLUS the
+        # lane's own Author stamp — an unstamped matplotlib frame is
+        # some OTHER lane's fallback output, not a wild cell.
+        if not software.startswith(MATPLOTLIB_SOFTWARE_PREFIX) or text.get(
+            "Author"
+        ) != WILD_AUTHOR:
+            return (
+                f"{path}: not a wild-lane render ({describe(text)}); "
+                f"expected Software: {MATPLOTLIB_SOFTWARE_PREFIX}*, "
+                f"Author: {WILD_AUTHOR!r} (re-run demos/render-wild.sh)"
             )
         return None
     if software.startswith(MATPLOTLIB_SOFTWARE_PREFIX):
@@ -156,9 +196,10 @@ def check_dirs(dirs):
         if not pngs:
             violations.append(f"{d}: no PNGs — a committed render tree is empty")
             continue
+        wild = d.name == WILD_LANE
         for png in pngs:
             checked += 1
-            bad = check_file(png)
+            bad = check_file(png, wild=wild)
             if bad:
                 violations.append(bad)
     return violations, checked
@@ -199,6 +240,7 @@ FREECAD_TEXTS = [
 MATPLOTLIB_TEXTS = [
     ("Software", "Matplotlib version3.10.3, https://matplotlib.org/")
 ]
+WILD_TEXTS = MATPLOTLIB_TEXTS + [("Author", WILD_AUTHOR)]
 
 
 def selftest():
@@ -236,7 +278,40 @@ def selftest():
         # An empty / missing lane directory is a violation, not a pass.
         violations, _ = check_dirs([Path(tmp) / "nope"])
         assert len(violations) == 1 and "does not exist" in violations[0], violations
-    print("check_render_provenance --selftest: 5 cases OK")
+
+        # ---- the wild lane's inverted rules ------------------------
+        w = Path(tmp) / "renders-wild"
+        w.mkdir()
+        # A stamped wild cell and the wild sheet: both in order.
+        _tiny_png(w / "wild_cell.png", WILD_TEXTS)
+        _tiny_png(w / "montage-wild.png", MATPLOTLIB_TEXTS)
+        violations, checked = check_dirs([w])
+        assert checked == 2, checked
+        assert violations == [], violations
+        # An UNSTAMPED matplotlib frame (another lane's fallback
+        # output) is refused as a wild cell.
+        _tiny_png(w / "fallback_cell.png", MATPLOTLIB_TEXTS)
+        violations, _ = check_dirs([w])
+        assert len(violations) == 1, violations
+        assert "fallback_cell.png" in violations[0], violations
+        assert "not a wild-lane render" in violations[0], violations
+        (w / "fallback_cell.png").unlink()
+        # A FreeCAD frame is refused in the wild lane too.
+        _tiny_png(w / "freecad_cell.png", FREECAD_TEXTS)
+        violations, _ = check_dirs([w])
+        assert len(violations) == 1, violations
+        assert "freecad_cell.png" in violations[0], violations
+        (w / "freecad_cell.png").unlink()
+        # And a stamped wild frame is refused OUTSIDE its lane: in
+        # `renders/` it is still a matplotlib frame in a FreeCAD lane.
+        _tiny_png(d / "stray_wild.png", WILD_TEXTS)
+        violations, _ = check_dirs([d])
+        # (d still holds the bad sheet from the exemption case above.)
+        assert any(
+            "stray_wild.png" in v and "MATPLOTLIB FALLBACK FRAME" in v
+            for v in violations
+        ), violations
+    print("check_render_provenance --selftest: 9 cases OK")
 
 
 def main():
@@ -255,7 +330,10 @@ def main():
         for v in violations:
             print(f"  {v}", file=sys.stderr)
         raise SystemExit(1)
-    print(f"check_render_provenance: {checked} PNG(s) FreeCAD-authored (sheets exempt)")
+    print(
+        f"check_render_provenance: {checked} PNG(s) carry their lane's "
+        f"renderer signature (sheets exempt)"
+    )
 
 
 if __name__ == "__main__":

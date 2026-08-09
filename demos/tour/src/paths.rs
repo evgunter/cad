@@ -33,5 +33,5 @@ pub fn path_polygon<S: Scalar>(pts: &[(f64, f64)]) -> ProfileLoop<S> {
     for q in rest {
         tip = tip.line_to(p(q)).expect("polygon leg refused");
     }
-    tip.line_to(Start).expect("polygon seam refused")
+    tip.line_to(Start).expect("polygon seam refused").into()
 }
