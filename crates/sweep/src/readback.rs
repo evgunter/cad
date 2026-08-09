@@ -164,11 +164,9 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
     let f = body.get_face(face).ok_or(ReadbackError::Dangling {
         what: "face_pose: face",
     })?;
-    let surface = body
-        .get_surface(f.surface)
-        .ok_or(ReadbackError::Dangling {
-            what: "face_pose: surface",
-        })?;
+    let surface = body.get_surface(f.surface).ok_or(ReadbackError::Dangling {
+        what: "face_pose: surface",
+    })?;
     let frame = |origin: Point3<T>, axis: Vec3<T>, u_ref: Vec3<T>| Pose {
         origin,
         axis,
@@ -181,16 +179,25 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
             u_ref,
         } => Ok(frame(*origin, *normal, *u_ref)),
         Surface::Cylinder {
-            origin, axis, u_ref, ..
+            origin,
+            axis,
+            u_ref,
+            ..
         } => Ok(frame(*origin, *axis, *u_ref)),
         Surface::Cone {
             apex, axis, u_ref, ..
         } => Ok(frame(*apex, *axis, *u_ref)),
         Surface::Sphere {
-            center, axis, u_ref, ..
+            center,
+            axis,
+            u_ref,
+            ..
         } => Ok(frame(*center, *axis, *u_ref)),
         Surface::Torus {
-            center, axis, u_ref, ..
+            center,
+            axis,
+            u_ref,
+            ..
         } => Ok(frame(*center, *axis, *u_ref)),
         Surface::Nurbs(_) => Err(ReadbackError::NoCanonicalFrame {
             carrier: "nurbs surface",
@@ -229,7 +236,10 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
 /// zs.sort_by(f64::total_cmp);
 /// assert_eq!(zs, vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]);
 /// ```
-pub fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Result<Point3<T>, ReadbackError> {
+pub fn vertex_point<T: Real>(
+    body: &Body<T>,
+    vertex: VertexKey,
+) -> Result<Point3<T>, ReadbackError> {
     let v = body.get_vertex(vertex).ok_or(ReadbackError::Dangling {
         what: "vertex_point: vertex",
     })?;
@@ -282,9 +292,11 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
     let e = body.get_edge(edge).ok_or(ReadbackError::Dangling {
         what: "edge_pose: edge",
     })?;
-    let geom = body.get_curve_geom(e.curve).ok_or(ReadbackError::Dangling {
-        what: "edge_pose: curve",
-    })?;
+    let geom = body
+        .get_curve_geom(e.curve)
+        .ok_or(ReadbackError::Dangling {
+            what: "edge_pose: curve",
+        })?;
     match geom.certified().ok_or(ReadbackError::NoCarrier)?.carrier() {
         Curve3::Line { origin, dir } => Ok(Pose {
             origin: *origin,
@@ -292,10 +304,16 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
             u_ref: None,
         }),
         Curve3::Circle {
-            center, axis, u_ref, ..
+            center,
+            axis,
+            u_ref,
+            ..
         }
         | Curve3::Ellipse {
-            center, axis, u_ref, ..
+            center,
+            axis,
+            u_ref,
+            ..
         } => Ok(Pose {
             origin: *center,
             axis: *axis,
