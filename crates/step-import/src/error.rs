@@ -90,9 +90,11 @@ pub enum StepImportError {
     /// reader must interpret it. The subset is what the kernel's own
     /// writer emits — since M7-3 that includes both
     /// `B_SPLINE_SURFACE_WITH_KNOTS` arms (the old named M7 frontier,
-    /// retired by the S9 flip exactly as this doc predicted); spline
-    /// sub-types the writer never emits (knots-implied
-    /// `QUASI_UNIFORM_CURVE` and kin) stay here, typed.
+    /// retired by the S9 flip exactly as this doc predicted) — plus
+    /// the knots-implied `QUASI_UNIFORM_CURVE`/`_SURFACE` sub-types,
+    /// whose clamped knot vectors are synthesized closed-form (D7
+    /// stage 1). Other spline sub-types (`UNIFORM_CURVE`, Bézier
+    /// forms) stay here, typed.
     UnsupportedEntity {
         /// The offending entity instance.
         id: u64,
@@ -184,6 +186,28 @@ pub enum StepImportError {
         /// outside the rim's parameter range, whichever is larger.
         residual: f64,
     },
+    /// D7's typed ambiguity at ε_in (stage-1 surface recognition,
+    /// ruling #256): a face that cannot import WITHOUT promotion (a
+    /// multi-bound curved face — the trim-ring class) sits on a NURBS
+    /// surface whose recognition estimator is ill-conditioned by its
+    /// own margin trilean (e.g. a cylinder axis from a patch whose
+    /// azimuth samples are collinear within ε_in). No answer exists at
+    /// the interpretation budget, so the refusal names the condition
+    /// rather than guessing a kind or falling back to the bare
+    /// topology refusal. An IMPORTABLE face with the same marginal
+    /// recognition stays NURBS instead — this variant fires only where
+    /// promotion was the face's only door.
+    RecognitionAmbiguous {
+        /// The `ADVANCED_FACE` entity instance that needed promotion.
+        id: u64,
+        /// The surface entity instance under recognition.
+        surface: u64,
+        /// The kind whose estimator declined.
+        kind: crate::PromotedKind,
+        /// The estimator's conditioning margin (meters) that fell
+        /// inside ε_in.
+        margin: f64,
+    },
     /// Pcurve re-minting refused on the adopted body.
     Pcurves {
         /// The minting pass's error, displayed.
@@ -239,8 +263,8 @@ impl fmt::Display for StepImportError {
                 f,
                 "step import: entity #{id} ({keyword}) is outside the imported subset \
                  (the subset the kernel exports — elementary analytic surfaces plus \
-                 both B_SPLINE arms with stated knots; knots-implied spline sub-types \
-                 and other foreign vocabulary refuse here, typed)"
+                 both B_SPLINE arms with stated knots — plus the knots-implied \
+                 QUASI_UNIFORM sub-types; other foreign vocabulary refuses here, typed)"
             ),
             Self::UnsupportedUnit { id, found } => write!(
                 f,
@@ -294,6 +318,20 @@ impl fmt::Display for StepImportError {
                  {residual:e} m (ambient tolerance exceeded). On a rational wall this \
                  residual gate is the rim's only certification, so the file is refused \
                  rather than adopted wrong"
+            ),
+            Self::RecognitionAmbiguous {
+                id,
+                surface,
+                kind,
+                margin,
+            } => write!(
+                f,
+                "step import: face #{id}: recognition at ε_in is ambiguous — the face \
+                 cannot import without promoting its NURBS surface #{surface}, and the \
+                 {kind} estimator is ill-conditioned there (its own conditioning margin, \
+                 {margin:e} m, falls inside ε_in): no interpretation exists at the \
+                 interpretation budget, so the refusal is typed rather than guessed \
+                 (D7's ambiguity contract)"
             ),
             Self::Pcurves { source } => {
                 write!(

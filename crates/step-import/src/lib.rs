@@ -146,6 +146,7 @@ mod error;
 mod geometry;
 mod normalize;
 mod parse;
+mod recognize;
 mod units;
 
 pub use error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
@@ -163,9 +164,29 @@ pub struct FaceCensus {
     pub vertices: usize,
 }
 
+/// The analytic kinds D7 stage-1 surface recognition can promote a
+/// NURBS patch to. Cone, sphere, and torus recognition are banked
+/// (unimplemented; such patches stay NURBS).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PromotedKind {
+    /// A plane.
+    Plane,
+    /// A cylinder.
+    Cylinder,
+}
+
+impl core::fmt::Display for PromotedKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Plane => "plane",
+            Self::Cylinder => "cylinder",
+        })
+    }
+}
+
 /// Which normalization was applied (each one a named, bounded case —
 /// never an open licence to re-mint).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum NormalizationKind {
     /// A **closed face with no edges**: a whole sphere arrives as one
     /// `ADVANCED_FACE` bounded by a `VERTEX_LOOP` (Open CASCADE drops
@@ -219,6 +240,26 @@ pub enum NormalizationKind {
     /// and a torus band's winding × sense pair selects which of the
     /// two v-intervals between its rims the face covers.
     SeamlessPeriodicBand,
+    /// A **NURBS surface promoted to an analytic kind** (D7 stage 1,
+    /// ruling #256): the patch's residual against the fitted analytic
+    /// surface CERTIFIED at ε_in, so the face is adopted on the
+    /// analytic chart — D3's exactness benefits restored to the
+    /// imported body (analytic pcurve lanes, exact tier-3 volume,
+    /// curved sense arms). The boundary graph is untouched: the
+    /// census pair on the record is the identity map, and the
+    /// geometric motion is bounded by the recorded residual (~0 for
+    /// an exact emission). Reported, never silent — this is the one
+    /// normalization that changes a surface's DESCRIPTION rather than
+    /// its tessellation.
+    SurfacePromotion {
+        /// The kind that certified.
+        to: PromotedKind,
+        /// The certified residual sup (meters): the patch's worst
+        /// deviation from the promoted surface over the certification
+        /// domain (control-net bound or fixed sampled grid — the
+        /// recognizer's dual track).
+        residual: f64,
+    },
 }
 
 /// A **reported structure normalization** (D7 stage-3 repair, in its
@@ -230,7 +271,7 @@ pub enum NormalizationKind {
 /// the same surface is cut into faces, edges, and vertices. The census
 /// pair is the mapping a reader needs to reconcile the file's counts
 /// with the imported body's.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StructureNormalization {
     /// The `ADVANCED_FACE` entity instance the file states.
     pub face: u64,
@@ -342,7 +383,7 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
         return Err(StepImportError::InvalidEpsOverride { value: eps });
     }
     let file = parse::parse_file(text)?;
-    let model = entities::resolve(&file)?;
+    let model = entities::resolve(&file, options.eps_in)?;
     let eps_in = options.eps_in.unwrap_or(model.uncertainty_m);
     match model.shape {
         entities::Shape::Solids(ref solids) => {

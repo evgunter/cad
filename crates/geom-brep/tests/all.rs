@@ -46,6 +46,8 @@ mod m5_pr9_tangent;
 mod pcurve_conic;
 #[path = "pcurve_parameter_finding.rs"]
 mod pcurve_parameter_finding;
+#[path = "review_flux_probes_r1.rs"]
+mod review_flux_probes_r1;
 #[path = "review_m2_pr3_certify.rs"]
 mod review_m2_pr3_certify;
 #[path = "review_m2_pr7_props.rs"]
