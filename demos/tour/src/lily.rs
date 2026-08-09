@@ -808,6 +808,18 @@ mod review_probes {
     /// algebra, computed outside this codebase — NOT lifted from
     /// [`Turtle`]): world (x, z) of the two stem joints and the unit
     /// tangents there.
+    ///
+    /// **GAP (LIB-U5): these stay literals, and the door that would
+    /// retire them does not exist yet.** U5's `revolved_caps` answers
+    /// where each tube's cap plane IS, which is what `assert_cap`
+    /// below now asks — but "where does the PATH put its next joint,
+    /// and with what tangent frame?" is a path-frame read-back, U4's
+    /// deliverable. The producer here (`Turtle`) is demo-local, so
+    /// there is no kernel choice to interrogate yet: these are an
+    /// independent oracle for the frames the doors report, and under
+    /// the U5 discriminator an independent derivation is a TEST, not
+    /// a restatement to migrate. When U4's path-frame door lands,
+    /// P1/T1/P2/T2/T3 become queries against it.
     const P1: (f64, f64) = (-0.3640807271660629, 1.87303296707956);
     const T1: (f64, f64) = (-0.374606593415912, 0.9271838545667874);
     const P2: (f64, f64) = (-2.4599453279967154, 1.2322628544225218);

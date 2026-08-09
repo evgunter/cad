@@ -250,8 +250,14 @@
 //!     .collect();
 //! assert_eq!(zs.iter().filter(|z| **z == 1.0).count(), 4);
 //!
-//! // A face door handed an EDGE name refuses by type, not by panic.
+//! // Edges answer with their carrier's frame. Every edge of a box
+//! // is a line: a direction, and honestly NO reference
+//! // perpendicular — `u_ref` is `None` rather than invented.
 //! let edge = &all_edges(&ev, cube)[0];
+//! let line = edge_frame(&ev, cube, edge).expect("a certified carrier");
+//! assert!(line.u_ref.is_none() && line.v_ref().is_none());
+//!
+//! // A face door handed an EDGE name refuses by type, not by panic.
 //! assert!(matches!(
 //!     face_frame(&ev, cube, edge),
 //!     Err(InterrogateError::WrongKind { .. })

@@ -486,8 +486,16 @@ pub struct BlendArc<T: Real> {
 }
 
 /// **Which segment is the fillet at corner k?** — every arc segment
-/// the loop declares TANGENT at both of its junctions, in canonical
-/// order. The fillet authored at the k-th such corner is entry `k`.
+/// the loop declares TANGENT at both of its junctions, in CANONICAL
+/// segment order.
+///
+/// **Authored order is not preserved, and entry `k` is not the k-th
+/// fillet you wrote.** Validation canonicalizes: it rotates the chain
+/// to its lex-min vertex, and it REVERSES a loop wound the wrong way
+/// for its role — so a hole authored with fillets `[r1, r2]` answers
+/// `[r2, r1]`. Correlate by [`BlendArc::segment`] (a canonical index,
+/// which is the only index this layer has) or by the arc data itself,
+/// which is self-identifying; do not index by authoring position.
 ///
 /// A corner fillet leaves exactly this shape behind: an arc that
 /// meets both legs tangentially, with both junctions declared (and

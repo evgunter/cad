@@ -24,7 +24,7 @@
 //! One deliberate omission: `BooleanOp` exists in both `topo` (the
 //! kernel operation) and `editor_core` (the recipe node's operation).
 //! The prelude carries the kernel's; document-layer code spells
-//! `pncad::editor_core::BooleanOp`. A prelude cannot re-export two
+//! `pncad::document::BooleanOp`. A prelude cannot re-export two
 //! types under one name, and silently preferring one while shadowing
 //! the other in a glob is exactly the kind of surprise a curated
 //! surface exists to prevent.
@@ -102,11 +102,12 @@ pub use stl::{write_ascii, write_binary};
 // --- 8. The document layer ------------------------------------
 // `parse_expr` is the expression TEXT door (LIB-U8a): the checking
 // parser whose every reduction runs the Expr smart constructors.
-pub use editor_core::{
+pub use crate::document::{
     CancelToken, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr, Node,
-    NodeError, ParseError, PatternKind, ProfileDesc, RecipeNodeId, SlotId, StableName,
-    ValuePayload, apply, evaluate, parse_expr,
+    NodeError, ParseError, PatternKind, ProfileDesc, RecipeNodeId, SlotId, ValuePayload, apply,
+    evaluate, parse_expr,
 };
+pub use editor_core::StableName;
 
 // --- 9. Names: obtain them, inspect them, select them ---------
 // LIB-U7. `StableName` was in group 8 from the start, with no door to
