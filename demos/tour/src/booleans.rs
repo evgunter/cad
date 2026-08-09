@@ -66,7 +66,7 @@ pub fn try_intersect_declared<S: Scalar>(
 /// the verified declared rung.
 pub fn flush_declarations<S: Scalar>(a: &Body<S>, b: &Body<S>) -> pncad::topo::BooleanDeclarations {
     use pncad::geom_core::k_stats::{decide, decide_flagged};
-    use pncad::geom_core::{Length, Sign};
+    use pncad::geom_core::{Margin, Sign};
     let band = pncad::geom_core::Band::linear().unwrap();
     let planes = |body: &Body<S>| -> Vec<(
         pncad::topo::FaceKey,
@@ -109,7 +109,7 @@ pub fn flush_declarations<S: Scalar>(a: &Body<S>, b: &Body<S>) -> pncad::topo::B
             let da = na.dot(oa - pncad::geom_core::Point3::origin());
             let db = nb.dot(ob - pncad::geom_core::Point3::origin());
             if matches!(
-                decide("demo_flush_offset", Length::of(da - sigma * db), band),
+                decide("demo_flush_offset", Margin::of(da - sigma * db), band),
                 Ok(Sign::Zero)
             ) {
                 decls.coincident_faces.push((fa, fb));

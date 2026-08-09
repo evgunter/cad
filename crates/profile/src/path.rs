@@ -290,7 +290,7 @@
 
 use core::marker::PhantomData;
 
-use geom_core::{Band, Decide, Indeterminate, Length, Point2, Real, Sign, Tolerance, Vec2};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tolerance, Vec2};
 
 use crate::k_stats::decide;
 use crate::path::program::{ClosedLoop, Step, Target};
@@ -1169,7 +1169,7 @@ fn junction_check<T: Decide>(
     let u_in = inc.ang.unit;
     let u_dep = dep.unit;
     let turn = u_in.perp_dot(u_dep);
-    match decide("path_junction_turn", Length::levered(turn, inc.arm), band) {
+    match decide("path_junction_turn", Margin::levered(turn, inc.arm), band) {
         Ok(Sign::Zero) => {
             let margin = turn * inc.arm;
             // Which refusal class — tangent (dep ≈ incoming) or cusp
@@ -1180,7 +1180,7 @@ fn junction_check<T: Decide>(
             // recourse that names moving the geometry.
             let side = decide(
                 "path_junction_side",
-                Length::levered(u_in.dot(u_dep), inc.arm),
+                Margin::levered(u_in.dot(u_dep), inc.arm),
                 band,
             );
             match side {
@@ -1211,7 +1211,7 @@ fn refuse_identical_carriers<T: Decide>(
     let band = linear_band()?;
     let d = (a.center - b.center).norm_squared().sqrt();
     let margin = d + (a.radius - b.radius).abs();
-    match decide("path_carrier_identity", Length::of(margin), band) {
+    match decide("path_carrier_identity", Margin::of(margin), band) {
         Ok(Sign::Zero) => Err(PathError::SameCarrierJunction { margin }),
         Ok(_) => Ok(()),
         Err(source) => Err(PathError::Escalated { source }),
@@ -1302,7 +1302,7 @@ impl<T: Decide> Core<T> {
         // (1) parallel/tangent carriers admit no corner: the turn
         // margin sin φ levered by the anchor separation.
         let cross = u1.perp_dot(u2);
-        match decide("path_corner_turn", Length::levered(cross, wn), band) {
+        match decide("path_corner_turn", Margin::levered(cross, wn), band) {
             Ok(Sign::Zero) => {
                 return Err(PathError::NoCornerForFillet {
                     reason: PathNoCornerReason::CarriersParallel,
@@ -1316,7 +1316,7 @@ impl<T: Decide> Core<T> {
         // and behind the arrival side's anchor (ray parameters, meters).
         let t_ray = w.perp_dot(u2) / cross;
         let s_arr = w.perp_dot(u1) / cross;
-        match decide("path_corner_advance", Length::of(t_ray), band) {
+        match decide("path_corner_advance", Margin::of(t_ray), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 return Err(PathError::NoCornerForFillet {
@@ -1326,7 +1326,7 @@ impl<T: Decide> Core<T> {
             }
             Err(source) => return Err(PathError::Escalated { source }),
         }
-        match decide("path_corner_advance", Length::of(-s_arr), band) {
+        match decide("path_corner_advance", Margin::of(-s_arr), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 return Err(PathError::NoCornerForFillet {
@@ -1583,7 +1583,7 @@ fn unit_from_components<T: Decide>(dx: T, dy: T) -> Result<Dir<T>, PathError<T>>
     // interval enclosure picks up a spurious negative lower bound and
     // poisons this `sqrt` (memories/interval-square-poison.md).
     let norm = (dx.powi(2) + dy.powi(2)).sqrt();
-    match decide("path_director_norm", Length::of(norm), band) {
+    match decide("path_director_norm", Margin::of(norm), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(PathError::ZeroDirection { dx, dy }),
         Err(source) => return Err(PathError::Escalated { source }),
@@ -1614,7 +1614,7 @@ fn unit_from_components<T: Decide>(dx: T, dy: T) -> Result<Dir<T>, PathError<T>>
 /// is the mixed-authoring rule of §6 read at loop granularity).
 pub fn circle<T: Decide>(center: Point2<T>, radius: T) -> Result<ClosedLoop<T>, PathError<T>> {
     let band = linear_band()?;
-    match decide("path_circle_radius", Length::of(radius), band) {
+    match decide("path_circle_radius", Margin::of(radius), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(PathError::NonpositiveCircleRadius { radius }),
         Err(source) => return Err(PathError::Escalated { source }),
@@ -1837,7 +1837,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
              .to_on(Start, centre, winding) — a straight leg would leave the carrier",
         )?;
         let band = linear_band()?;
-        match decide("path_leg_length", Length::of(len), band) {
+        match decide("path_leg_length", Margin::of(len), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => return Err(PathError::NonpositiveLeg { length: len }),
             Err(source) => return Err(PathError::Escalated { source }),
@@ -1872,7 +1872,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         self.core.record(Step::Fillet { radius });
         let (at, ang) = self.dep()?;
         let band = linear_band()?;
-        match decide("path_fillet_radius", Length::of(radius), band) {
+        match decide("path_fillet_radius", Margin::of(radius), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => return Err(PathError::NonpositiveFilletRadius { radius }),
             Err(source) => return Err(PathError::Escalated { source }),
@@ -1933,7 +1933,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             match &inc.carrier {
                 None => {
                     let band = linear_band()?;
-                    match decide("path_collinear_target", Length::of(across), band) {
+                    match decide("path_collinear_target", Margin::of(across), band) {
                         Ok(Sign::Zero) => {
                             return Err(if closing {
                                 PathError::TangentLineClose { margin: across }
@@ -2147,7 +2147,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let at = self.tip_pos()?.at;
         let band = linear_band()?;
         let chord = (end - at).norm_squared().sqrt();
-        match decide("path_arc_chord", Length::of(chord), band) {
+        match decide("path_arc_chord", Margin::of(chord), band) {
             Ok(Sign::Positive) => Ok(chord),
             Ok(_) => Err(PathError::DegenerateArcChord { chord }),
             Err(source) => Err(PathError::Escalated { source }),
@@ -2164,7 +2164,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let chord_len = self.arc_chord(end)?;
         let band = linear_band()?;
         let offset = (end - at).perp_dot(via - at) / chord_len;
-        match decide("path_arc_via_offset", Length::of(offset), band) {
+        match decide("path_arc_via_offset", Margin::of(offset), band) {
             Ok(Sign::Zero) => return Err(PathError::ArcViaCollinear { offset }),
             Ok(_) => {}
             Err(source) => return Err(PathError::Escalated { source }),
@@ -2187,7 +2187,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let r_tip = (at - center).norm_squared().sqrt();
         let r_end = (end - center).norm_squared().sqrt();
         for radius in [r_tip, r_end] {
-            match decide("path_arc_center_radius", Length::of(radius), band) {
+            match decide("path_arc_center_radius", Margin::of(radius), band) {
                 Ok(Sign::Positive) => {}
                 Ok(_) => return Err(PathError::DegenerateArcCenter { radius }),
                 Err(source) => return Err(PathError::Escalated { source }),
@@ -2195,7 +2195,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         }
         match decide(
             "path_arc_center_equidistant",
-            Length::of(r_tip - r_end),
+            Margin::of(r_tip - r_end),
             band,
         ) {
             Ok(Sign::Zero) => {}

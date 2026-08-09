@@ -99,7 +99,7 @@ mod upgrade;
 use core::fmt;
 
 use geom_brep::NewellError;
-use geom_core::{Band, BandError, Decide, Indeterminate, Length, Point2, Real, Sign, Vec2};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
 use profile::ValidatedProfile;
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey};
 
@@ -484,7 +484,7 @@ impl From<EulerOpError> for RevolveError {
 /// margin-telemetry recorder on every decision.
 pub(super) fn decide<T: Decide>(
     name: &'static str,
-    margin: Length<T>,
+    margin: Margin<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
@@ -653,14 +653,14 @@ pub fn revolve<T: Decide>(
     let (theta, reverse, full) = match revolution {
         Revolution::Full => (T::tau(), true, true),
         Revolution::Partial(t) => {
-            let sign = decide("revolve_angle", Length::levered(t, r_max), band)
+            let sign = decide("revolve_angle", Margin::levered(t, r_max), band)
                 .map_err(|source| RevolveError::AngleEscalated { source })?;
             let reverse = match sign {
                 Sign::Zero => return Err(RevolveError::DegenerateAngle),
                 Sign::Positive => true,
                 Sign::Negative => false,
             };
-            let headroom = Length::levered(T::tau() - t.abs(), r_max);
+            let headroom = Margin::levered(T::tau() - t.abs(), r_max);
             match decide("revolve_angle_headroom", headroom, band)
                 .map_err(|source| RevolveError::AngleEscalated { source })?
             {

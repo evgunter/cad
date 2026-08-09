@@ -432,7 +432,10 @@ impl Band {
     }
 }
 
-/// A margin that is a **length** in the kernel's internal metres — the
+/// A Margin is dimensionally a length, minted only through the blessed
+/// doors.
+///
+/// The margin is a **length** in the kernel's internal metres — the
 /// point deviation from specified geometry — *by signature* (D4's
 /// margin dimensional convention, clause (i), RATIFIED 2026-08-05).
 ///
@@ -442,7 +445,7 @@ impl Band {
 /// a genericity layer; the vector/linalg interior stays bare `T`. The
 /// typed surface is exactly the classify seam ([`crate::k_stats::decide`]
 /// and each crate's thin funnel wrappers): every margin the K-telemetry
-/// recorder sees is a `Length<T>` by construction.
+/// recorder sees is a `Margin<T>` by construction.
 ///
 /// The only constructors are the blessed doors below. Each door's doc
 /// states the dimensional argument it makes explicit at the call site;
@@ -458,9 +461,9 @@ impl Band {
 /// construction (the rollout's acceptance).
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
-pub struct Length<T>(T);
+pub struct Margin<T>(T);
 
-impl<T: crate::real::Real> Length<T> {
+impl<T: crate::real::Real> Margin<T> {
     /// Door: a value that **is** a length already. The dimensional
     /// argument at the call site is one of: a coordinate or parameter
     /// difference on an arc-length-parameterized carrier (a line's `t`
@@ -541,7 +544,7 @@ impl<T: crate::real::Real> Length<T> {
         Self(v.norm())
     }
 
-    /// Norm door (2-vector form): see [`Length::norm3`]; the same
+    /// Norm door (2-vector form): see [`Margin::norm3`]; the same
     /// argument for planar (sketch-plane) geometry.
     pub fn norm2(v: crate::linalg::Vec2<T>) -> Self {
         Self(v.norm())
@@ -573,21 +576,21 @@ impl<T: crate::real::Real> Length<T> {
     /// The wrapped margin, for the classify seam and for diagnostics
     /// (refusal payloads that echo the margin they classified). This is
     /// an exit, not an entrance: reading the value back does not
-    /// construct a `Length`, so it cannot launder a dimension.
+    /// construct a `Margin`, so it cannot launder a dimension.
     pub fn value(self) -> T {
         self.0
     }
 }
 
-impl Length<f64> {
+impl Margin<f64> {
     /// Lifts an `f64`-substrate length to the deciding scalar (the
     /// certification-substrate idiom: quadrature margins are computed
     /// in certified `f64` enclosure arithmetic and lifted so every lane
     /// records identically). Dimension-preserving, **not** a
-    /// construction door — the door was chosen when the `Length<f64>`
+    /// construction door — the door was chosen when the `Margin<f64>`
     /// was built.
-    pub fn lift<T: crate::real::Real>(self) -> Length<T> {
-        Length(T::from_f64(self.0))
+    pub fn lift<T: crate::real::Real>(self) -> Margin<T> {
+        Margin(T::from_f64(self.0))
     }
 }
 

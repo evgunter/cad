@@ -122,7 +122,7 @@ pub mod jet;
 pub mod march;
 pub mod system;
 
-use geom_core::{Band, Indeterminate, Length, Point3};
+use geom_core::{Band, Indeterminate, Margin, Point3};
 use geom_curves::{Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom_surfaces::{NurbsSurface, Surface};
 
@@ -642,7 +642,7 @@ pub fn cylinder_sphere_ssi(
     let q = c - origin;
     let d = (q - axis * q.dot(axis)).norm();
     let tangency = ((d - r).abs() - big_r).abs().min((d + r - big_r).abs());
-    match crate::dihedral::decide("ssi_cs_tangency", Length::of(tangency), band) {
+    match crate::dihedral::decide("ssi_cs_tangency", Margin::of(tangency), band) {
         Ok(geom_core::Sign::Positive | geom_core::Sign::Negative) => {}
         Ok(geom_core::Sign::Zero) => {
             return Err(SsiError::TransversalityBand {

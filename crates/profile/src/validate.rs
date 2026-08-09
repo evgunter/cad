@@ -101,7 +101,7 @@
 use core::fmt;
 
 use geom_core::{
-    Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Length, Point2, Real, Sign,
+    Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign,
     Tolerance, Vec2,
 };
 
@@ -1261,11 +1261,11 @@ fn point_in_loop<T: Decide>(
 /// then least y) through the exact-order band (module docs) — the
 /// **`canonical_order_x`** / **`canonical_order_y`** predicates.
 fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>, exact: Band) -> Result<bool, Indeterminate> {
-    match decide("canonical_order_x", Length::of(p.x - q.x), exact)? {
+    match decide("canonical_order_x", Margin::of(p.x - q.x), exact)? {
         Sign::Negative => Ok(true),
         Sign::Positive => Ok(false),
         Sign::Zero => {
-            Ok(decide("canonical_order_y", Length::of(p.y - q.y), exact)? == Sign::Negative)
+            Ok(decide("canonical_order_y", Margin::of(p.y - q.y), exact)? == Sign::Negative)
         }
     }
 }
@@ -1416,7 +1416,7 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Inde
     let area = twice_area * half;
     decide(
         "loop_orientation",
-        Length::over_lever(area + area, perimeter),
+        Margin::over_lever(area + area, perimeter),
         band,
     )
 }

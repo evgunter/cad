@@ -86,9 +86,10 @@ pub use profile;
 /// The D6 API-boundary quantity layer (LIB-U8a): `Length`/`Angle`/
 /// `Count` newtypes, the unit table + constants (`25.0 * MM`), and
 /// the display formatter. NOTE: `quantity::Length` is the public
-/// quantity type; `geom_core::predicate::Length<T>` is the
-/// kernel-internal classify-seam margin type — different things, and
-/// only the former is prelude surface.
+/// quantity type; `geom_core::predicate::Margin<T>` is the
+/// kernel-internal classify-seam margin type (renamed from
+/// `Length<T>`, LB9) — different things, and only the former is
+/// prelude surface.
 pub use quantity;
 /// STEP AP242 export.
 pub use step_export;
