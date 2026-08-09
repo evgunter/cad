@@ -104,12 +104,15 @@ pub use stl::{write_ascii, write_binary};
 // parser whose every reduction runs the Expr smart constructors.
 // The v4 program vocabulary (LIB-SWITCH): the profile payload is the
 // Expr-bearing `ProfileProgram`, curated through the ONE document
-// surface (LB13's `crate::document`) so authoring can be spelled from
-// the prelude without reaching past the seal.
+// surface (LB13's `crate::document`). `Datum` and `ParamEnv` ride
+// here since LIB-SEL1: a datum node is the frame a
+// `GeomPred::DatumDistance` selection is written against (GS-Q6), and
+// `select_where` takes a `ParamEnv`, so both are needed to write a
+// position filter at all.
 pub use crate::document::{
-    CancelToken, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr, LoopProgram,
-    Node, NodeError, ParseError, PatternKind, ProfileProgram, ProgramStep, ProgramTarget,
-    RecipeNodeId, SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr,
+    CancelToken, Datum, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr,
+    LoopProgram, Node, NodeError, ParamEnv, ParseError, PatternKind, ProfileProgram, ProgramStep,
+    ProgramTarget, RecipeNodeId, SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr,
 };
 pub use editor_core::StableName;
 
@@ -121,8 +124,10 @@ pub use editor_core::StableName;
 // These are that door, curated as one group in `crate::select` (whose
 // module docs carry the worked examples).
 pub use crate::select::{
-    CapEnd, Denotation, EntityKind, InterrogateError, MeridianEnd, NamePat, NameTable, OpGroup,
-    Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, SegPat,
-    SegTag, Selector, Side, SplitHalf, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    denotation, edge_frame, edge_name, face_frame, face_name, select, vertex_position,
+    ALL_SURFACE_KINDS, CapEnd, Cmp, CurveKind, CurveKindSet, Denotation, EntityKind, GeomPred,
+    InterrogateError, MeridianEnd, NamePat, NameTable, OpGroup, Pose, ProfileEdgeRef,
+    ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat,
+    SegTag, SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies,
+    all_edges, all_faces, all_vertices, denotation, edge_frame, edge_name, face_frame, face_name,
+    select, select_where, vertex_position,
 };

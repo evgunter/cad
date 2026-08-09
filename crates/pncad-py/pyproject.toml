@@ -1,0 +1,39 @@
+# maturin packaging for the Python bindings (LIB-U9S).
+#
+# `pncad` is the Q9 placeholder name, matching the Rust façade crate.
+# Nothing here is published while the project is unnamed — the
+# workspace sets `publish = false` and no wheel job exists yet (CI is
+# out of this unit's fence; the wheel job and the stub-check job are
+# recorded as follow-ups in the PR body).
+[build-system]
+requires = ["maturin>=1.14,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "pncad"
+description = "Python bindings for the pncad B-rep CAD kernel (scaffold)"
+requires-python = ">=3.8"
+license = { text = "MIT OR Apache-2.0" }
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Multimedia :: Graphics :: 3D Modeling",
+]
+dynamic = ["version"]
+
+[tool.maturin]
+# The extension module is `pncad` — the `#[pymodule]` name — even
+# though the Rust crate is `pncad-py` (the crate cannot be called
+# `pncad`; that name is the façade it binds).
+module-name = "pncad"
+# `extension-module` implies the crate's own `python` feature, which
+# is what pulls PyO3 in at all. Without it `cargo build` compiles the
+# crate with NO Python involvement — that is the CI gating property,
+# see the Cargo.toml header.
+features = ["extension-module"]
+# abi3-py38 (set on the PyO3 dependency) makes ONE wheel valid for
+# every CPython from 3.8 up.
+#
+# `pncad.pyi` and `py.typed` need no `include` entry: maturin finds a
+# stub file named after the module and ships it as the package's
+# `__init__.pyi`, with `py.typed` alongside.

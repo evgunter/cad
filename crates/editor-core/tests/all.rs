@@ -30,6 +30,8 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "lib_sel1_geoselect.rs"]
+mod lib_sel1_geoselect;
 #[path = "lib_u5_interrogate.rs"]
 mod lib_u5_interrogate;
 #[path = "lib_u7_select.rs"]

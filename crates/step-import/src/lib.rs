@@ -48,6 +48,42 @@
 //!    chart that mints natively mints here — cylinder, cone, sphere,
 //!    torus, described non-rational NURBS; plane faces stay
 //!    derive-on-demand, exactly what a natively built body carries).
+//! 5. **The shared at-rest gate** (M7-7, #260 ruling (a);
+//!    [`import_step`]): the body is handed to
+//!    `topo::validate_geometric` — the kernel's own at-rest validator,
+//!    tiers 1–3, the same function on the same body a native
+//!    construction's caller runs — and only a body it passes ships as
+//!    [`StepImport::Solid`]. Steps 1–4 certify each edge's
+//!    description; this certifies the BODY, which is what "import is
+//!    adoption" has to mean if it means anything.
+//!
+//!    Asked once per `MANIFOLD_SOLID_BREP` **on that solid's own
+//!    body**, and once on the assembled body. Per solid because
+//!    several of the gate's invariants are whole-body sums (check 7's
+//!    +V is the boundary flux over every shell), so an inside-out
+//!    solid can be cancelled by a right-side-out neighbour and the
+//!    aggregate reads Zero, which is exempt — "every imported solid
+//!    passes the gate" is only true if each solid is a subject. The
+//!    refusal names which one. There is exactly one place in this
+//!    crate that calls the validator (`gate`), and it is
+//!    unconditional there: no body kind is exempt, no verdict class is
+//!    filtered (an escalated verdict refuses like any other —
+//!    escalate-never-guess).
+//!
+//!    This is D9 engineering convention 2 applied to the door #260
+//!    found open: import cannot hold an idea of validity that differs
+//!    from the kernel's, because it has no validation code of its own
+//!    to drift. Files that describe bodies the kernel refuses at rest
+//!    refuse at import, typed, naming the failing check and its
+//!    entities ([`StepImportError::TierInvalid`]) — a statement about
+//!    the FILE's geometry, never the kernel-bug voice.
+//!
+//!    **Scope, named**: the gate is tier 3, and 3′ on an empty contact
+//!    record is strictly stronger (it runs the coincidence census).
+//!    Imports declare no contacts, so an imported assembly whose parts
+//!    TOUCH is checked less than its native twin, whose pipeline
+//!    carries declarations. Import-side declared contacts are banked
+//!    with the M8 contact program (D7 step 4).
 //!
 //! # Two tolerances (D7)
 //!
@@ -89,9 +125,11 @@
 //! loft/sweep skin's chord-length fit drifts unit weights on any
 //! curved-path sweep or non-uniformly spaced loft, so those bodies
 //! refuse at BUILD time and no file of them exists to import. The
-//! round-trippable class today is uniformly-spaced lofts: polyline
-//! profiles (non-rational, full tier 3) and arc-bearing profiles
-//! (rational walls — the typed tier-3 limitation below).
+//! round-trippable class today is uniformly-spaced lofts with polyline
+//! profiles (non-rational, full tier 3). Arc-bearing profiles export
+//! and read, but their rational walls have no volume quadrature yet
+//! (the banked rational-patch-flux lane), so the at-rest gate below
+//! refuses them at import until that lane lands.
 //!
 //! # The wild (M7-4; `docs/M7-4-SPEC.md`)
 //!
@@ -313,16 +351,25 @@ pub enum StepImport {
     /// (matching what independent readers report for e.g. the
     /// kiss assembly).
     Solid {
-        /// The adopted body — first-class: Euler-built, certified,
-        /// tier-valid at rest, **to the tier its native twin
-        /// certifies to** (M7-3, the rational arm's honest
-        /// conditioning): a body whose native construction is tier-3
-        /// valid imports tier-3 valid; a body whose native twin
-        /// refuses tier 3 typed — a rational-walled loft, whose
-        /// volume quadrature names the banked rational lane —
-        /// imports with tiers 1/2 valid and the SAME typed tier-3
-        /// refusal (pinned by test). Nothing imports into a state
-        /// its native twin does not occupy.
+        /// The adopted body — first-class: Euler-built, certified, and
+        /// **tier-valid at rest, checked** (M7-7, #260 ruling (a)):
+        /// `topo::validate_geometric` passed on THIS body, and on each
+        /// of its solids taken alone, before it was handed out — so
+        /// the promise is a measurement rather than a claim, and it is
+        /// the promise a native body's caller makes with the same
+        /// call. (Per solid as well as whole, because the gate's +V
+        /// invariant is a flux SUM: on a multi-solid body an
+        /// inside-out solid can hide behind a right-side-out one.)
+        ///
+        /// The M7-3 statement it replaces — "tier-valid to the tier
+        /// its native twin certifies to" — no longer has a case to
+        /// cover: a body whose native twin refuses tier 3 (the
+        /// rational-walled loft, whose volume quadrature names the
+        /// banked rational lane) does not arrive here at all; the gate
+        /// hands back its verdicts as
+        /// [`StepImportError::TierInvalid`]. Nothing imports into a
+        /// state its native twin does not occupy — and nothing imports
+        /// into a state the kernel will not certify.
         body: Body<f64>,
         /// The import's input tolerance ε_in (meters): the override if
         /// given, else the file's declared uncertainty.
@@ -372,8 +419,9 @@ impl StepImport {
 ///
 /// [`StepImportError`] — malformed syntax, dangling references,
 /// entities outside the exported subset, units the subset does not
-/// cover, topology that does not assemble, or geometry the D7
-/// adoption ladder cannot certify. Files written by
+/// cover, topology that does not assemble, geometry the D7 adoption
+/// ladder cannot certify, or a body the kernel's shared at-rest gate
+/// refuses ([`StepImportError::TierInvalid`]). Files written by
 /// `step_export::step_string` from finished kernel bodies import
 /// cleanly.
 pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, StepImportError> {
@@ -387,6 +435,11 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
     let eps_in = options.eps_in.unwrap_or(model.uncertainty_m);
     match model.shape {
         entities::Shape::Solids(ref solids) => {
+            if solids.len() > 1 {
+                for spec in solids {
+                    gate(&assemble::build_one_solid(spec)?, Some(spec.id))?;
+                }
+            }
             let body = assemble::build_body(solids, &model)?;
             // The assembly's placement, through the kernel's own door
             // (M7-4 Leg D): `transform_rigid` re-checks rigidity with
@@ -400,7 +453,57 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
                 Some(map) => topo::transform_rigid(&body, &map)
                     .map_err(|source| StepImportError::Placement { source })?,
             };
-            band_backstop(&body, &model.normalizations)?;
+            // **The shared at-rest validation gate** (M7-7, the #260
+            // ruling (a) + D9 engineering convention 2). Every
+            // imported solid is held to the kernel's invariants by the
+            // SAME function a native body's caller runs at rest —
+            // `topo::validate_geometric`, tiers 1–3 — reached only
+            // through `gate` below, which adds no opinion of its own:
+            // no kind predicate selects which bodies are asked (the
+            // band re-mint's backstop was that opinion, and it
+            // dissolved here — bands were only special because
+            // ordinary solids skipped the gate), and no verdict filter
+            // decides which failures matter (an escalated verdict is a
+            // refusal, not a pass: escalate-never-guess). Adoption
+            // certifies each EDGE's intensional description; this
+            // certifies the BODY, which is what `StepImport::Solid`
+            // promises at rest.
+            //
+            // Asked twice, for two different subjects. Several of the
+            // gate's invariants are WHOLE-BODY sums — check 7's +V is
+            // the boundary flux summed over every shell — so a solid
+            // stated inside-out cancels against a right-side-out
+            // neighbour and the aggregate reads Zero, which is exempt.
+            // "Every imported solid passes the gate" therefore has to
+            // mean each solid's OWN body, so every
+            // `MANIFOLD_SOLID_BREP` is assembled alone and asked
+            // alone, and the refusal names which one. The aggregate
+            // pass stays: it is the subject that owns the cross-solid
+            // structure (shared arena integrity, edges across shells)
+            // no per-solid view can see.
+            //
+            // With one solid the two subjects are the same body, so
+            // the per-solid loop would re-run the aggregate call on
+            // identical geometry — skipped as an identity, never as an
+            // exemption.
+            //
+            // Pre-placement for the per-solid pass is sound and
+            // deliberate: `transform_rigid` admits only det = +1 maps
+            // and re-certifies every carrier against the mapped
+            // geometry, so no tier-3 verdict is a function of the
+            // placement.
+            //
+            // Tier 3, not the 3′ form: the tier-3′ census gate is the
+            // currency of DECLARED-contact bodies (`BooleanBody`), and
+            // an imported body declares none. **Scope, stated
+            // honestly**: 3′ on an empty contact record is tier 3 plus
+            // the census actually run, which is strictly stronger, so
+            // an imported assembly whose parts TOUCH is checked less
+            // than its native twin — the touch is neither declared nor
+            // discovered here (F1 forbids scan-to-bless). Import-side
+            // declared contacts are banked with the M8 contact
+            // program (D7 step 4).
+            gate(&body, None)?;
             Ok(StepImport::Solid {
                 body,
                 eps_in,
@@ -414,45 +517,14 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
     }
 }
 
-/// **The band re-mint's geometric backstop, executed** (M7-5, R1 fix
-/// pass MAJ-1). The torus band's winding × `same_sense` decode is
-/// face-locally a region SELECTION; its documented backstop against a
-/// coherently inside-out file is the kernel's tier-3 gates (curved
-/// sense check 6, the +V volume-sign invariant). The import path runs
-/// no tier validation for ordinary solids — adoption certifies every
-/// edge description, but tiers 1–3 are the caller's at rest — so for
-/// a body that went through the band mint, the backstop must actually
-/// RUN before the body ships: `StepImport::Solid` documents
-/// tier-validity at rest, and an inside-out band would otherwise
-/// import certify-green with a negative volume. Definite geometric
-/// falsehoods refuse typed; the in-band escalation kinds are declines
-/// (the same taxonomy the wild every-ε obligation uses) and pass.
-fn band_backstop(
-    body: &topo::Body<f64>,
-    normalizations: &[StructureNormalization],
-) -> Result<(), StepImportError> {
-    if !normalizations
-        .iter()
-        .any(|n| n.kind == NormalizationKind::SeamlessPeriodicBand)
-    {
-        return Ok(());
-    }
-    if let Err(errors) = topo::validate_geometric(body) {
-        let definite: Vec<topo::ValidationError> = errors
-            .into_iter()
-            .filter(|e| {
-                !matches!(
-                    e,
-                    topo::ValidationError::VolumeUncomputable { .. }
-                        | topo::ValidationError::PlanarFaceEscalated { .. }
-                        | topo::ValidationError::PlanarBoundaryEscalated { .. }
-                        | topo::ValidationError::CensusEscalated { .. }
-                )
-            })
-            .collect();
-        if !definite.is_empty() {
-            return Err(StepImportError::BandGeometryInvalid { errors: definite });
-        }
-    }
-    Ok(())
+/// The reader's ONLY contact with the kernel's at-rest validator: pass
+/// a body, get the verdicts back as a typed refusal naming the subject
+/// (`solid` = the `MANIFOLD_SOLID_BREP` asked about alone, `None` = the
+/// assembled body). Nothing is filtered, nothing is reworded, no
+/// verdict class is privileged — the whole point is that import has no
+/// validation logic that could drift from the kernel's (D9 engineering
+/// convention 2). If this function ever grows a condition, the gate has
+/// grown an opinion.
+fn gate(body: &topo::Body<f64>, solid: Option<u64>) -> Result<(), StepImportError> {
+    topo::validate_geometric(body).map_err(|errors| StepImportError::TierInvalid { solid, errors })
 }
