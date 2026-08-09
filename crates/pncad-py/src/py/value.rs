@@ -82,7 +82,7 @@ impl MassProperties {
 ///
 /// §L3 forbids arena keys crossing; a body crosses as a handle whose
 /// interior is reachable only through curated doors.
-#[pyclass(frozen, module = "pncad")]
+#[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Body {
     pub(crate) inner: Arc<topo::Body<f64>>,

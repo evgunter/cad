@@ -23,31 +23,36 @@ kernel directly — which is exactly what §L3 forbids.
 from pncad import BooleanOp, Doc, Node, evaluate, mm
 
 
-def plate(doc, width, depth, thickness):
-    """A rectangular plate rooted at the origin."""
+def slab(doc, x, y, z):
+    """The axis-aligned box [x0,x1] x [y0,y1] x [z0,z1]."""
+    x0, x1 = x
+    y0, y1 = y
+    z0, z1 = z
     profile = doc.insert(
         Node.polygon(
-            [
-                (0 * mm, 0 * mm),
-                (width, 0 * mm),
-                (width, depth),
-                (0 * mm, depth),
-            ]
+            [(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
+            elevation=z0,
         )
     )
-    return doc.insert(Node.extrude(profile, thickness))
+    return doc.insert(Node.extrude(profile, z1 - z0))
 
 
 def main():
     doc = Doc()
 
-    # A base plate, and an upright web standing on it.
-    base = plate(doc, 80 * mm, 40 * mm, 8 * mm)
-    web = plate(doc, 8 * mm, 40 * mm, 30 * mm)
+    # The kernel is fail-loud about coincidence — it never INFERS that
+    # two faces are the same face — so every solid here genuinely
+    # interpenetrates the one it is combined with. Boxes that merely
+    # touch on a shared plane are refused until the contact is
+    # declared, which is a document-authoring subject of its own.
+
+    # A base plate, and an upright web sunk into it and poking out.
+    base = slab(doc, (0 * mm, 80 * mm), (0 * mm, 40 * mm), (0 * mm, 8 * mm))
+    web = slab(doc, (36 * mm, 44 * mm), (5 * mm, 35 * mm), (4 * mm, 34 * mm))
     bracket = doc.insert(Node.boolean(BooleanOp.Union, base, web))
 
-    # A lightening pocket taken out of the base.
-    pocket = plate(doc, 20 * mm, 20 * mm, 8 * mm)
+    # A lightening pocket, entering from below and stopping inside.
+    pocket = slab(doc, (8 * mm, 28 * mm), (10 * mm, 30 * mm), (-2 * mm, 5 * mm))
     lightened = doc.insert(Node.boolean(BooleanOp.Subtract, bracket, pocket))
 
     ev = evaluate(doc)

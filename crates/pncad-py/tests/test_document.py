@@ -12,18 +12,22 @@ from pncad import BooleanOp, Doc, DocEdit, EvaluationError, Node, evaluate, m, m
 
 
 def unit_box(doc, width, depth, height):
-    """Insert a rectangular prism; return its extrude node id."""
+    """Insert a rectangular prism rooted at the origin."""
+    return slab(doc, (0 * m, width), (0 * m, depth), (0 * m, height))
+
+
+def slab(doc, x, y, z):
+    """Insert the axis-aligned box [x0,x1] x [y0,y1] x [z0,z1]."""
+    x0, x1 = x
+    y0, y1 = y
+    z0, z1 = z
     profile = doc.insert(
         Node.polygon(
-            [
-                (0 * m, 0 * m),
-                (width, 0 * m),
-                (width, depth),
-                (0 * m, depth),
-            ]
+            [(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
+            elevation=z0,
         )
     )
-    return doc.insert(Node.extrude(profile, height))
+    return doc.insert(Node.extrude(profile, z1 - z0))
 
 
 class TestDocumentEditing(unittest.TestCase):
@@ -101,16 +105,40 @@ class TestEvaluation(unittest.TestCase):
             evaluate(doc).value(profile_node).body()
         self.assertEqual(caught.exception.reason, "wrong_kind")
 
-    def test_boolean_subtract_through_the_document(self):
+    def test_boolean_union_through_the_document(self):
+        # The post is strictly interior in x and y and pokes out of the
+        # base's top, so the solids genuinely INTERPENETRATE and no two
+        # faces are coincident. That matters: the kernel never infers
+        # coincidence from values, so boxes merely touching on a shared
+        # plane are refused until the author declares the contact.
+        doc = Doc()
+        base = slab(doc, (0 * m, 3 * m), (0 * m, 2 * m), (0 * m, 1 * m))  # 6.0
+        post = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 2 * m))
+        fused = doc.insert(Node.boolean(BooleanOp.Union, base, post))
+
+        ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(fused), "the union evaluated")
+        self.assertEqual(ev.value(fused).kind, "boolean")
+        body = ev.value(fused).body()
+        body.validate_closed()
+        # 6.0 base + 1.5 post - 0.5 shared = 7.0
+        self.assertEqual(body.mass_properties().volume, 7.0)
+
+    def test_a_coincident_boolean_is_refused_not_guessed(self):
+        # Fail-loud, visible from Python: two boxes sharing the z=0
+        # plane are NOT silently fused.
         doc = Doc()
         outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
         inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
         cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
         ev = evaluate(doc)
-        self.assertTrue(ev.succeeded(cut), "the Boolean evaluated")
-        self.assertEqual(ev.value(cut).kind, "boolean")
-        volume = ev.value(cut).body().mass_properties().volume
-        self.assertEqual(volume, 7.0)
+        self.assertFalse(ev.succeeded(cut))
+        with self.assertRaises(EvaluationError) as caught:
+            ev.value(cut)
+        # FINDING (see the PR body): the reason is `no_value`, not the
+        # node's actual typed refusal — no curated path leads from an
+        # Evaluation to its NodeError yet.
+        self.assertEqual(caught.exception.reason, "no_value")
 
 
 class TestD9BitReplaySeed(unittest.TestCase):
@@ -127,7 +155,7 @@ class TestD9BitReplaySeed(unittest.TestCase):
 
     # 2 m x 3 m x 0.5 m. Pinned by its exact IEEE-754 bits, not by a
     # tolerance — the whole point of the D9 claim.
-    EXPECTED_VOLUME_HEX = "0x1.8p+1"
+    EXPECTED_VOLUME_HEX = "0x1.8000000000000p+1"  # exactly 3.0
 
     def test_volume_is_bit_exact(self):
         doc = Doc()

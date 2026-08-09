@@ -137,7 +137,7 @@ macro_rules! continuous_quantity {
 }
 
 /// A length. Canonical unit: metres.
-#[pyclass(frozen, module = "pncad")]
+#[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct Length(pub(crate) q::Length);
 
@@ -159,7 +159,7 @@ continuous_quantity!(Length, Dimension::Length, meters, {
 });
 
 /// An angle. Canonical unit: radians.
-#[pyclass(frozen, module = "pncad")]
+#[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct Angle(pub(crate) q::Angle);
 
@@ -186,7 +186,7 @@ continuous_quantity!(Angle, Dimension::Angle, radians, {
 /// implements none: D4's checked count algebra lives in `Expr`, not in
 /// the boundary newtype. Binding arithmetic here would invent a
 /// semantics the Rust surface does not have.
-#[pyclass(frozen, module = "pncad")]
+#[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct Count(pub(crate) q::Count);
 
@@ -218,7 +218,7 @@ impl Count {
 
 /// A length unit. Multiplying a number by one constructs a `Length`:
 /// `25 * mm`.
-#[pyclass(frozen, module = "pncad")]
+#[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct LengthUnit(pub(crate) q::LengthUnit);
 
@@ -251,7 +251,7 @@ impl LengthUnit {
 
 /// An angle unit. Multiplying a number by one constructs an `Angle`:
 /// `90 * deg`.
-#[pyclass(frozen, module = "pncad")]
+#[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct AngleUnit(pub(crate) q::AngleUnit);
 

@@ -143,7 +143,10 @@ class Node:
     """A recipe node, before insertion."""
 
     @staticmethod
-    def polygon(points: list[tuple[Length, Length]]) -> Node: ...
+    def polygon(
+        points: list[tuple[Length, Length]],
+        elevation: Optional[Length] = None,
+    ) -> Node: ...
     @staticmethod
     def extrude(profile: NodeId, distance: Length) -> Node: ...
     @staticmethod

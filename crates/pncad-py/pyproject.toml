@@ -33,7 +33,7 @@ module-name = "pncad"
 features = ["extension-module"]
 # abi3-py38 (set on the PyO3 dependency) makes ONE wheel valid for
 # every CPython from 3.8 up.
-include = [
-    { path = "pncad.pyi", format = "wheel" },
-    { path = "py.typed", format = "wheel" },
-]
+#
+# `pncad.pyi` and `py.typed` need no `include` entry: maturin finds a
+# stub file named after the module and ships it as the package's
+# `__init__.pyi`, with `py.typed` alongside.

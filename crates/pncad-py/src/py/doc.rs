@@ -66,7 +66,7 @@ pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult
 }
 
 /// A recipe node's identity within a document.
-#[pyclass(frozen, module = "pncad")]
+#[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct NodeId(pub(crate) d::RecipeNodeId);
 
@@ -177,7 +177,7 @@ impl Doc {
 /// prelude. LIB-LOG's U9 backlog note left the choice open; bindings
 /// speak the document vocabulary throughout (§L3), so the document
 /// one is what crosses.
-#[pyclass(eq, eq_int, frozen, module = "pncad")]
+#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum BooleanOp {
     /// Fuse the operands.
@@ -199,7 +199,7 @@ impl BooleanOp {
 }
 
 /// A recipe node, before it is inserted into a document.
-#[pyclass(frozen, module = "pncad")]
+#[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Node {
     pub(crate) inner: d::Node<d::ProfileDesc>,
@@ -207,20 +207,38 @@ pub(crate) struct Node {
 
 #[pymethods]
 impl Node {
-    /// A closed polygonal sketch on the world xy-plane.
+    /// A closed polygonal sketch on a plane parallel to the world
+    /// xy-plane, `elevation` above it (default: the xy-plane itself).
     ///
     /// Coordinates arrive as typed `Length`s (§L4), so a bare number
-    /// is a boundary refusal rather than an ambiguous unit. Only the
-    /// xy-plane is reachable in this scaffold — arbitrary sketch
-    /// placements need an `Affine3` binding, which is out of fence.
+    /// is a boundary refusal rather than an ambiguous unit.
+    ///
+    /// `elevation` exists because the kernel is fail-loud about
+    /// coincidence: it never INFERS that two faces are the same face,
+    /// so two solids merely touching on a shared plane are refused
+    /// (`UndeclaredCoincidence`) until the author declares the
+    /// contact. Authoring a genuine Boolean therefore needs solids
+    /// that interpenetrate, which needs sketches at different
+    /// heights. Fully arbitrary sketch placement still needs an
+    /// `Affine3` binding, which is out of this unit's fence.
     #[staticmethod]
-    fn polygon(points: Vec<(super::quantity::Length, super::quantity::Length)>) -> Self {
+    #[pyo3(signature = (points, elevation=None))]
+    fn polygon(
+        points: Vec<(super::quantity::Length, super::quantity::Length)>,
+        elevation: Option<super::quantity::Length>,
+    ) -> Self {
         let meters: Vec<(f64, f64)> = points
             .iter()
             .map(|(x, y)| (x.0.meters(), y.0.meters()))
             .collect();
+        let z = elevation.map_or(0.0, |e| e.0.meters());
+        let plane = pncad::profile::SketchPlane::from_frame(
+            pncad::authoring::p3::<f64>(0.0, 0.0, z),
+            pncad::authoring::v3(1.0, 0.0, 0.0),
+            pncad::authoring::v3(0.0, 1.0, 0.0),
+        );
         let loops = vec![pncad::authoring::polygon::<f64>(&meters)];
-        let profile = pncad::profile::Profile::new(pncad::profile::SketchPlane::xy(), loops);
+        let profile = pncad::profile::Profile::new(plane, loops);
         Self {
             inner: d::Node::Profile(d::ProfileDesc(profile)),
         }
@@ -311,7 +329,7 @@ impl Node {
 /// remaining variants (re-witnessing, appearance, rebinds, expression
 /// paths) are mechanical additions once the surface they need is
 /// curated.
-#[pyclass(frozen, module = "pncad")]
+#[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct DocEdit {
     pub(crate) inner: d::DocEdit<d::ProfileDesc>,

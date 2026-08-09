@@ -19,8 +19,6 @@
 //! that line are ordinary Rust that the default workspace build
 //! compiles and tests.
 
-#![cfg_attr(docsrs, feature(doc_cfg))]
-
 pub mod errors;
 pub mod tags;
 
