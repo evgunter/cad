@@ -1,7 +1,67 @@
 #!/usr/bin/env bash
 # Repo pre-push hook (activated by scripts/new-lane.sh via core.hooksPath):
-# every workspace must be rustfmt-clean before a push leaves the machine.
-# ~9s; two 15-minute gate round-trips motivated it (2026-08-03, PR #166).
+# every .rs file in the outgoing commits must be rustfmt-clean before a
+# push leaves the machine. ~9s of gate round-trip pain motivated it
+# (2026-08-03, PR #166).
+#
+# NO CARGO ON THIS PATH (#298): `cargo fmt` acquires the workspace build
+# lock, so the old hook (fmt-all --check) blocked indefinitely whenever
+# another lane was building — which taught agents --no-verify. Instead we
+# run rustfmt directly on the files changed in the pushed range. All
+# workspaces are edition 2024 and there is no rustfmt.toml, so plain
+# `rustfmt --edition 2024` matches what `cargo fmt` would do; if a
+# rustfmt.toml ever lands, revisit (stdin mode skips config discovery).
+#
+# Pre-push protocol: stdin lines "<local_ref> <local_sha> <remote_ref>
+# <remote_sha>". We check the blob content AT local_sha (git show), not
+# the working tree, so pushing a non-checked-out branch is still gated.
+# Blobs are piped to rustfmt on STDIN: file mode would recurse into the
+# `mod` tree (absent next to a blob copy, and a superset of the range
+# in-tree). Stdin --check exits 0 even on a diff (rustfmt 1.9.0), so any
+# output OR a nonzero exit (parse error) counts as failure.
+# Unbounded ranges (new branch, stale remote sha) diff against the
+# origin/main merge-base; only if even that fails do we fall back to the
+# full fmt-all --check (which does take the cargo lock).
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
-exec bash "$root/scripts/fmt-all.sh" --check
+zero=0000000000000000000000000000000000000000
+# Resolve the toolchain's rustfmt ONCE (repo root cwd → respects
+# rust-toolchain.toml); skipping the rustup shim halves per-file cost.
+rustfmt_bin=$(rustup which rustfmt 2>/dev/null) || rustfmt_bin=rustfmt
+
+fail=0
+checked=0
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue # deleting a remote ref
+  git rev-parse -q --verify "$local_sha^{commit}" >/dev/null || continue
+
+  if [ "$remote_sha" != "$zero" ] &&
+    git rev-parse -q --verify "$remote_sha^{commit}" >/dev/null; then
+    base=$remote_sha
+  elif base=$(git merge-base origin/main "$local_sha" 2>/dev/null); then
+    : # new branch: gate everything not already on origin/main
+  else
+    echo "pre-push: unbounded push range and no origin/main merge-base;" >&2
+    echo "pre-push: falling back to full fmt-all --check (takes cargo lock)" >&2
+    exec bash "$root/scripts/fmt-all.sh" --check
+  fi
+
+  while IFS= read -r f; do
+    checked=$((checked + 1))
+    rc=0
+    out=$(git show "$local_sha:$f" | "$rustfmt_bin" --edition 2024 --check 2>&1) ||
+      rc=$?
+    if [ "$rc" -ne 0 ] || [ -n "$out" ]; then
+      echo "pre-push: UNFORMATTED: $f (at ${local_sha:0:12})" >&2
+      fail=1
+    fi
+  done < <(git diff --name-only --diff-filter=d "$base" "$local_sha" -- '*.rs')
+done
+
+if [ "$fail" -ne 0 ]; then
+  echo "pre-push: unformatted .rs files in the outgoing commits (above)." >&2
+  echo "pre-push: fix with scripts/fmt-all.sh (or rustfmt --edition 2024" >&2
+  echo "pre-push: <files>), commit, and re-push. Do NOT --no-verify." >&2
+  exit 1
+fi
+echo "pre-push: rustfmt clean ($checked changed .rs file(s) checked, no cargo lock)" >&2
