@@ -142,6 +142,8 @@ mod review_m5_pr9_doc_probe;
 mod review_m6_5_pr2_probes;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
+#[path = "switch_dump.rs"]
+mod switch_dump;
 #[path = "switch_naming.rs"]
 mod switch_naming;
 #[path = "switch_program_key.rs"]
