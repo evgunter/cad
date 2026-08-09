@@ -128,7 +128,7 @@ ruled on a thread, none silent):
 | rider | plane×NURBS intersection certification (ruled on #264's thread) | queued next — the last M7 code unit |
 | demo | wild-corpus montage, KERNEL-TESSELLATION lane only | PR #283 in orchestrator review (6 cells + 2 honest tessellation-refusal findings) |
 | demo | calochortus (globe-lily) PARTIAL refresh (Evan, 2026-08-09): capture the since-#175 wins — tube_along_arc exact-intent stems (retiring finding 11's workaround), curved-path sweep_body leaves, twisted-duct vocabulary. The FULL rebuild stays M8 — findings 1/2/7 (one-stem G1 unions, flower∪stem, tepal carving) are C7 declared-contact machinery, a real dependency not a sequencing choice | queued behind the current cycles; S, demo class |
-| demo | Utah(-ish) teapot (Evan, 2026-08-09): body/lid as revolves are buildable now; spout/handle JOINS to the body need curved×curved boolean germ pairs beyond the wired plane×cyl/plane×sphere lanes — scope via substrate first (buildable-now composition vs named banked lanes) | queued with a scoping pass; "after any features it requires" per Evan |
+| demo | Utah(-ish) teapot | RE-SEQUENCED (Evan, 2026-08-09): designated as the SHELL verb's demo — queues behind shell/offset (see docs/KERNEL-VERBS.md), not an M7/M8 item |
 
 **Then**: the M7 EXIT WALK (pre-drafted at docs/M7-EXIT-WALK.md,
 finalizes on M7-6/M7-7 merges) → Evan's closure ruling → **M8 opens
