@@ -63,7 +63,7 @@ use super::{
     PathError, PathNoCornerReason, PendingFillet, Plain, PosData, Start, Tip, in_state,
     junction_check, linear_band,
 };
-use crate::ProfileLoop;
+use super::program::{ClosedLoop, Step};
 use crate::fillet_select::nearest_joint;
 use crate::k_stats::decide;
 use crate::sugar::bulge_from_center;
@@ -604,6 +604,7 @@ impl Open {
         let dir = carrier_tangent(p, centre, winding, band)?;
         let mut core = Core::empty();
         core.seed(p);
+        core.record(Step::AtOn { p, centre, winding });
         core.start_ang = Some(dir);
         Ok(in_state(
             core,
@@ -646,6 +647,7 @@ impl<T: Decide + Bounds> PartialPath<T, NoPos, NoAng> {
         centre: Point2<T>,
         winding: ArcSweep,
     ) -> Result<PartialPath<T, HasPos<Plain>, HasAng>, PathError<T>> {
+        self.core.record(Step::AtOn { p, centre, winding });
         let band = linear_band()?;
         let dir = carrier_tangent(p, centre, winding, band)?;
         let pending = self
@@ -715,8 +717,9 @@ impl<T: Decide + Bounds> PartialPath<T, NoPos, NoAng> {
         target: Start,
         centre: Point2<T>,
         winding: ArcSweep,
-    ) -> Result<ProfileLoop<T>, PathError<T>> {
+    ) -> Result<ClosedLoop<T>, PathError<T>> {
         let Start = target;
+        self.core.record(Step::CloseToOn { centre, winding });
         let start_pos = self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry position is bound",
         })?;

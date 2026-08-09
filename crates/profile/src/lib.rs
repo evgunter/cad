@@ -124,6 +124,9 @@ mod validate;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Real, Vec3};
 
+pub use path::program::{
+    ClosedLoop, ReplayError, ReplayErrorKind, Step, Target, TipState, Verb, replay,
+};
 pub use path::{
     ArcCenterTarget, ArcTarget, ArcViaTarget, LineTarget, Open, PartialPath, PathError, Start,
     TangentArcTarget, circle,

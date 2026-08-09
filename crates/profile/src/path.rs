@@ -295,6 +295,7 @@ use crate::sugar::{
     line_line_fillet_trims,
 };
 use crate::validate::{FilletLeg, FilletLegCarrier, NoCornerReason};
+use crate::path::program::{ClosedLoop, Step, Target};
 use crate::{ProfileLoop, ProfileVertex};
 
 /// The arc-carrier fillet boundary — the algebra's derived-corner
@@ -303,6 +304,7 @@ use crate::{ProfileLoop, ProfileVertex};
 /// see its docs for the ratified justification, and `path.rs` itself
 /// stays `Bounds`-free.
 pub(crate) mod arc_fillet;
+pub mod program;
 
 // ------------------------------------------------------------------
 // Lattice markers (PATHS-DESIGN §5: one struct under type-level
@@ -991,6 +993,10 @@ struct Core<T: Real> {
     pending: Option<PendingFillet<T>>,
     /// The carrier of the last emitted segment when it is an arc.
     last_arc: Option<ArcData<T>>,
+    /// **Profiles-as-programs (v2)**: the authoring verbs, recorded as
+    /// they lower. Each binder pushes exactly its own step, so one
+    /// chain yields both the lowered loop and its program.
+    program: Vec<Step<T>>,
 }
 
 impl<T: Real> Core<T> {
@@ -1003,7 +1009,13 @@ impl<T: Real> Core<T> {
             first_seg: FirstSeg::NotYet,
             pending: None,
             last_arc: None,
+            program: Vec::new(),
         }
+    }
+
+    /// Records one authoring verb (record-as-you-lower).
+    fn record(&mut self, step: Step<T>) {
+        self.program.push(step);
     }
 
     /// Seeds the entry vertex (the chain's provisional first vertex —
@@ -1089,11 +1101,15 @@ impl<T: Real> Core<T> {
         }
     }
 
-    /// Finishes the loop.
-    fn build(self) -> ProfileLoop<T> {
-        ProfileLoop {
-            vertices: self.verts,
-            tangent_joints: self.tangent,
+    /// Finishes the loop, returning it PAIRED with the program that
+    /// produced it (see [`ClosedLoop`]).
+    fn build(self) -> ClosedLoop<T> {
+        ClosedLoop {
+            loop_: ProfileLoop {
+                vertices: self.verts,
+                tangent_joints: self.tangent,
+            },
+            program: self.program,
         }
     }
 }
@@ -1495,6 +1511,7 @@ impl Open {
     pub fn at<T: Real>(self, p: Point2<T>) -> PartialPath<T, HasPos<Plain>, NoAng> {
         let mut core = Core::empty();
         core.seed(p);
+        core.record(Step::At(p));
         in_state(
             core,
             Tip {
@@ -1512,7 +1529,9 @@ impl Open {
     /// Binds the entry direction first: `Open → Angle` (radians, in
     /// the sketch plane; position pending).
     pub fn angle<T: Real>(self, theta: T) -> PartialPath<T, NoPos, HasAng> {
-        self.director(Dir::from_angle(theta))
+        let mut path = self.director(Dir::from_angle(theta));
+        path.core.record(Step::Angle(theta));
+        path
     }
 
     /// Binds the entry direction first as exact COMPONENTS
@@ -1524,7 +1543,9 @@ impl Open {
         dx: T,
         dy: T,
     ) -> Result<PartialPath<T, NoPos, HasAng>, PathError<T>> {
-        Ok(self.director(unit_from_components(dx, dy)?))
+        let mut path = self.director(unit_from_components(dx, dy)?);
+        path.core.record(Step::Toward { dx, dy });
+        Ok(path)
     }
 
     fn director<T: Real>(self, dir: Dir<T>) -> PartialPath<T, NoPos, HasAng> {
@@ -1586,23 +1607,29 @@ fn unit_from_components<T: Decide>(dx: T, dy: T) -> Result<Dir<T>, PathError<T>>
 /// the other sign gates. A circle is one loop among others: profiles
 /// mix circle loops and chain loops freely (per-loop wholesale, which
 /// is the mixed-authoring rule of §6 read at loop granularity).
-pub fn circle<T: Decide>(center: Point2<T>, radius: T) -> Result<ProfileLoop<T>, PathError<T>> {
+pub fn circle<T: Decide>(center: Point2<T>, radius: T) -> Result<ClosedLoop<T>, PathError<T>> {
     let band = linear_band()?;
     match decide("path_circle_radius", Length::of(radius), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(PathError::NonpositiveCircleRadius { radius }),
         Err(source) => return Err(PathError::Escalated { source }),
     }
-    Ok(ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(center.x + radius, center.y),
-            bulge: T::one(),
-        },
-        ProfileVertex {
-            pos: Point2::new(center.x - radius, center.y),
-            bulge: T::one(),
-        },
-    ]))
+    Ok(ClosedLoop {
+        loop_: ProfileLoop::new(vec![
+            ProfileVertex {
+                pos: Point2::new(center.x + radius, center.y),
+                bulge: T::one(),
+            },
+            ProfileVertex {
+                pos: Point2::new(center.x - radius, center.y),
+                bulge: T::one(),
+            },
+        ]),
+        program: vec![Step::Circle {
+            centre: center,
+            radius,
+        }],
+    })
 }
 
 impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
@@ -1616,6 +1643,7 @@ impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
     /// `p` is absolute (profile frame), a real on-path point (the
     /// side's anchor).
     pub fn at(mut self, p: Point2<T>) -> Result<PartialPath<T, HasPos<Plain>, A>, PathError<T>> {
+        self.core.record(Step::At(p));
         match (self.tip.ang, self.core.pending.is_some()) {
             (Some(theta), true) => {
                 self.core.resolve_fillet(p, theta, ArrivalKind::Continues)?;
@@ -1659,7 +1687,8 @@ impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
     /// its fillet arc tangentially by construction; the entry's check
     /// happens at the seam). On a fillet arrival whose position is
     /// already bound, completing the direction resolves the fillet.
-    pub fn angle(self, theta: T) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
+    pub fn angle(mut self, theta: T) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
+        self.core.record(Step::Angle(theta));
         self.director(Dir::from_angle(theta))
     }
 
@@ -1679,7 +1708,8 @@ impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
     /// else. Junction/fillet semantics are otherwise identical to
     /// [`angle`](Self::angle), including the §4 item 1 check on a
     /// directed point and the fillet resolution on a bound arrival.
-    pub fn toward(self, dx: T, dy: T) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
+    pub fn toward(mut self, dx: T, dy: T) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
+        self.core.record(Step::Toward { dx, dy });
         self.director(unit_from_components(dx, dy)?)
     }
 
@@ -1709,6 +1739,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// which is what makes "fillets sit between defined geometry"
     /// structural rather than a rule.
     pub fn tangent(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
+        self.core.record(Step::Tangent);
         self.tip.ang = self
             .tip
             .pos
@@ -1728,6 +1759,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         mut self,
         delta: T,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, HasAng>, PathError<T>> {
+        self.core.record(Step::Turn(delta));
         let inc = self.tip.pos.as_ref().and_then(|p| p.incoming).ok_or(
             PathError::UnderdeterminedLeg {
                 site: "turn on a tip without incoming data",
@@ -1792,6 +1824,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         mut self,
         len: T,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+        self.core.record(Step::Line(len));
         let (at, ang) = self.dep()?;
         self.refuse_off_carrier(
             "a side bound on an arc carrier runs ALONG it: continue with .fillet(r), which \
@@ -1831,6 +1864,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     /// before an arrival can be authored against a fillet that has no
     /// tangent construction to offer.
     pub fn fillet(mut self, radius: T) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
+        self.core.record(Step::Fillet { radius });
         let (at, ang) = self.dep()?;
         let band = linear_band()?;
         match decide("path_fillet_radius", Length::of(radius), band) {
@@ -1932,7 +1966,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         ))
     }
 
-    fn tangent_arc_to_start(mut self) -> Result<ProfileLoop<T>, PathError<T>> {
+    fn tangent_arc_to_start(mut self) -> Result<ClosedLoop<T>, PathError<T>> {
         let start_pos = self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry position is bound",
         })?;
@@ -2073,7 +2107,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         Ok(in_state(self.core, leg_end_tip(p, gamma, arm, None)))
     }
 
-    fn line_to_start(mut self) -> Result<ProfileLoop<T>, PathError<T>> {
+    fn line_to_start(mut self) -> Result<ClosedLoop<T>, PathError<T>> {
         let start_pos = self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry position is bound",
         })?;
@@ -2224,7 +2258,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         ))
     }
 
-    fn arc_to_start(mut self, bulge: T) -> Result<ProfileLoop<T>, PathError<T>> {
+    fn arc_to_start(mut self, bulge: T) -> Result<ClosedLoop<T>, PathError<T>> {
         if self.core.pending.is_some() {
             return Err(PathError::ArcCarrierSpelling {
                 site: "a fillet arrival closing onto an arc carrier is bound by the carrier \
@@ -2308,6 +2342,7 @@ impl<T: Decide> PartialPath<T, NoPos, HasAng> {
         mut self,
         anchor: Point2<T>,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+        self.core.record(Step::FarEndTo(anchor));
         let dir = self.tip.ang.ok_or(PathError::UnderdeterminedLeg {
             site: "far-end anchor on a tip without a bound direction",
         })?;
@@ -2351,8 +2386,9 @@ impl<T: Decide> PartialPath<T, NoPos, NoAng> {
     /// .to(Start)` is the seam fillet — both carriers bound, nothing
     /// pending, loop closed. (Curve-pose arguments — `c.start()` /
     /// `c.end()` — arrive with NURBS legs in v2; see the module docs.)
-    pub fn to(mut self, target: Start) -> Result<ProfileLoop<T>, PathError<T>> {
+    pub fn to(mut self, target: Start) -> Result<ClosedLoop<T>, PathError<T>> {
         let Start = target;
+        self.core.record(Step::CloseTo);
         let start_pos = self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry position is bound",
         })?;
@@ -2384,14 +2420,16 @@ pub trait LineTarget<T: Decide, F: Flavor>: sealed::Sealed {
 
 impl<T: Decide, F: Flavor> LineTarget<T, F> for Point2<T> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
-    fn line_from(path: PartialPath<T, HasPos<F>, NoAng>, target: Self) -> Self::Out {
+    fn line_from(mut path: PartialPath<T, HasPos<F>, NoAng>, target: Self) -> Self::Out {
+        path.core.record(Step::LineTo(Target::Point(target)));
         path.line_to_point(target)
     }
 }
 
 impl<T: Decide, F: Flavor> LineTarget<T, F> for Start {
-    type Out = Result<ProfileLoop<T>, PathError<T>>;
-    fn line_from(path: PartialPath<T, HasPos<F>, NoAng>, _target: Self) -> Self::Out {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn line_from(mut path: PartialPath<T, HasPos<F>, NoAng>, _target: Self) -> Self::Out {
+        path.core.record(Step::LineTo(Target::Start));
         path.line_to_start()
     }
 }
@@ -2408,14 +2446,22 @@ pub trait ArcTarget<T: Decide, F: Flavor>: sealed::Sealed {
 
 impl<T: Decide, F: Flavor> ArcTarget<T, F> for Point2<T> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
-    fn arc_from(path: PartialPath<T, HasPos<F>, NoAng>, target: Self, bulge: T) -> Self::Out {
+    fn arc_from(mut path: PartialPath<T, HasPos<F>, NoAng>, target: Self, bulge: T) -> Self::Out {
+        path.core.record(Step::ArcTo {
+            target: Target::Point(target),
+            bulge,
+        });
         path.arc_to_point(target, bulge)
     }
 }
 
 impl<T: Decide, F: Flavor> ArcTarget<T, F> for Start {
-    type Out = Result<ProfileLoop<T>, PathError<T>>;
-    fn arc_from(path: PartialPath<T, HasPos<F>, NoAng>, _target: Self, bulge: T) -> Self::Out {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn arc_from(mut path: PartialPath<T, HasPos<F>, NoAng>, _target: Self, bulge: T) -> Self::Out {
+        path.core.record(Step::ArcTo {
+            target: Target::Start,
+            bulge,
+        });
         path.arc_to_start(bulge)
     }
 }
@@ -2437,22 +2483,30 @@ pub trait ArcViaTarget<T: Decide, F: Flavor>: sealed::Sealed {
 impl<T: Decide, F: Flavor> ArcViaTarget<T, F> for Point2<T> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
     fn arc_via_from(
-        path: PartialPath<T, HasPos<F>, NoAng>,
+        mut path: PartialPath<T, HasPos<F>, NoAng>,
         via: Point2<T>,
         target: Self,
     ) -> Self::Out {
+        path.core.record(Step::ArcVia {
+            via,
+            target: Target::Point(target),
+        });
         let bulge = path.arc_via_bulge(via, target)?;
         path.arc_to_point(target, bulge)
     }
 }
 
 impl<T: Decide, F: Flavor> ArcViaTarget<T, F> for Start {
-    type Out = Result<ProfileLoop<T>, PathError<T>>;
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
     fn arc_via_from(
-        path: PartialPath<T, HasPos<F>, NoAng>,
+        mut path: PartialPath<T, HasPos<F>, NoAng>,
         via: Point2<T>,
         _target: Self,
     ) -> Self::Out {
+        path.core.record(Step::ArcVia {
+            via,
+            target: Target::Start,
+        });
         let bulge = path.arc_via_bulge(via, path.start_target()?)?;
         path.arc_to_start(bulge)
     }
@@ -2476,24 +2530,34 @@ pub trait ArcCenterTarget<T: Decide, F: Flavor>: sealed::Sealed {
 impl<T: Decide, F: Flavor> ArcCenterTarget<T, F> for Point2<T> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
     fn arc_center_from(
-        path: PartialPath<T, HasPos<F>, NoAng>,
+        mut path: PartialPath<T, HasPos<F>, NoAng>,
         center: Point2<T>,
         target: Self,
         winding: ArcSweep,
     ) -> Self::Out {
+        path.core.record(Step::ArcCenter {
+            centre: center,
+            target: Target::Point(target),
+            winding,
+        });
         let bulge = path.arc_center_bulge(center, target, winding)?;
         path.arc_to_point(target, bulge)
     }
 }
 
 impl<T: Decide, F: Flavor> ArcCenterTarget<T, F> for Start {
-    type Out = Result<ProfileLoop<T>, PathError<T>>;
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
     fn arc_center_from(
-        path: PartialPath<T, HasPos<F>, NoAng>,
+        mut path: PartialPath<T, HasPos<F>, NoAng>,
         center: Point2<T>,
         _target: Self,
         winding: ArcSweep,
     ) -> Self::Out {
+        path.core.record(Step::ArcCenter {
+            centre: center,
+            target: Target::Start,
+            winding,
+        });
         let bulge = path.arc_center_bulge(center, path.start_target()?, winding)?;
         path.arc_to_start(bulge)
     }
@@ -2511,14 +2575,16 @@ pub trait TangentArcTarget<T: Decide, F: Flavor>: sealed::Sealed {
 
 impl<T: Decide, F: Flavor> TangentArcTarget<T, F> for Point2<T> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
-    fn tangent_arc_from(path: PartialPath<T, HasPos<F>, HasAng>, target: Self) -> Self::Out {
+    fn tangent_arc_from(mut path: PartialPath<T, HasPos<F>, HasAng>, target: Self) -> Self::Out {
+        path.core.record(Step::TangentArcTo(Target::Point(target)));
         path.tangent_arc_to_point(target)
     }
 }
 
 impl<T: Decide, F: Flavor> TangentArcTarget<T, F> for Start {
-    type Out = Result<ProfileLoop<T>, PathError<T>>;
-    fn tangent_arc_from(path: PartialPath<T, HasPos<F>, HasAng>, _target: Self) -> Self::Out {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn tangent_arc_from(mut path: PartialPath<T, HasPos<F>, HasAng>, _target: Self) -> Self::Out {
+        path.core.record(Step::TangentArcTo(Target::Start));
         path.tangent_arc_to_start()
     }
 }

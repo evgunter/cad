@@ -15,6 +15,9 @@
 //! intended location within 1e-12.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod common;
+
+use common::pinned;
 use geom_core::{Point2, Tolerance, Vec2};
 use profile::{
     ArcSweep, FilletLegShape, LoopBuilder, Open, Profile, ProfileLoop, SketchPlane, Start,
@@ -91,6 +94,7 @@ fn sharp_triangle_matches_loopbuilder() {
         .unwrap()
         .line_to(Start)
         .unwrap();
+    let algebra = pinned(algebra);
     let hand = LoopBuilder::start(a).line_to(b).line_to(c).close();
     assert_loops_identical(&algebra, &hand);
     assert_validate_identically(&algebra, &hand);
@@ -110,6 +114,7 @@ fn sharp_arc_chain_matches_loopbuilder() {
         .unwrap()
         .arc_to(Start, b2)
         .unwrap();
+    let algebra = pinned(algebra);
     let hand = LoopBuilder::start(a)
         .line_to(b)
         .arc_to(c, b1)
@@ -138,6 +143,7 @@ fn tangent_arc_leg_matches_loopbuilder() {
         .unwrap()
         .line_to(Start)
         .unwrap();
+    let algebra = pinned(algebra);
     let hand = LoopBuilder::start(a)
         .line_to(b)
         .declare_tangent()
@@ -220,6 +226,7 @@ fn single_fillet_after_leg_matches_loopbuilder_fillet() {
         .unwrap()
         .line_to(Start)
         .unwrap();
+    let algebra = pinned(algebra);
     // Hand equivalent: same corner value, next = the arrival anchor
     // (the algebra's documented canonical choice), then the same
     // continuation: the side extends from the trim point through the
@@ -284,6 +291,8 @@ fn rounded_square_with_seam_fillet_matches_explicit_hand_chain() {
         .unwrap()
         .to(Start)
         .unwrap();
+
+    let algebra = pinned(algebra);
 
     // Hand: corner k sits between side k (anchor m[k], direction
     // th[k]) and side k+1; the algebra's canonical trim inputs are
@@ -373,6 +382,7 @@ fn arrival_bound_by_line_to_matches_loopbuilder() {
         .unwrap()
         .line_to(Start)
         .unwrap();
+    let algebra = pinned(algebra);
     let hand = LoopBuilder::start(a)
         .fillet(corner, anchor, r)
         .unwrap()
@@ -396,6 +406,7 @@ fn arrival_bound_by_line_to_matches_loopbuilder() {
 fn circle_matches_the_raw_corpus_convention() {
     for (cx, cy, r) in [(0.0, 0.0, 1.0), (-1.5, 0.0, 0.7), (2.0, 2.0, 0.5)] {
         let algebra = profile::circle(p2(cx, cy), r).unwrap();
+        let algebra = pinned(algebra);
         let hand = ProfileLoop::new(vec![
             profile::ProfileVertex {
                 pos: p2(cx + r, cy),
@@ -418,6 +429,7 @@ fn circle_matches_the_raw_corpus_convention() {
 fn arc_via_matches_loopbuilder_arc_to_via() {
     let (a, via, b) = (p2(0.0, 0.0), p2(1.0, 1.0), p2(2.0, 0.0));
     let algebra = Open.at(a).arc_via(via, b).unwrap().line_to(Start).unwrap();
+    let algebra = pinned(algebra);
     let hand = LoopBuilder::start(a).arc_to_via(via, b).close();
     assert_loops_identical(&algebra, &hand);
     assert_validate_identically(&algebra, &hand);
@@ -436,6 +448,7 @@ fn arc_via_closing_matches_loopbuilder_close_arc_via() {
         .unwrap()
         .arc_via(back, Start)
         .unwrap();
+    let algebra = pinned(algebra);
     let hand = LoopBuilder::start(a).arc_to_via(out, b).close_arc_via(back);
     assert_loops_identical(&algebra, &hand);
     assert_validate_identically(&algebra, &hand);
@@ -457,6 +470,7 @@ fn arc_center_matches_loopbuilder_in_both_windings() {
             .unwrap()
             .line_to(Start)
             .unwrap();
+        let algebra = pinned(algebra);
         let hand = LoopBuilder::start(a)
             .arc_to_center(b, c, winding)
             .line_to(c)
@@ -474,6 +488,7 @@ fn arc_center_matches_loopbuilder_in_both_windings() {
         .unwrap()
         .line_to(Start)
         .unwrap();
+    let algebra = pinned(algebra);
     let hand = LoopBuilder::start(a)
         .arc_to_center(b, c, profile::ArcSweep::Ccw)
         .line_to(c)
@@ -513,6 +528,7 @@ fn bracket_matches_loopbuilder_via_toward_and_far_end_anchor() {
         .unwrap()
         .line_to(Start)
         .unwrap();
+    let algebra = pinned(algebra);
     let hand = LoopBuilder::start(p2(0.0, 0.0))
         .line_to(p2(3.0, 0.0))
         .line_to(p2(3.0, 1.0))
@@ -561,8 +577,8 @@ fn angle_directors_drift_where_toward_is_exact() {
             .line_to(Start)
             .unwrap()
     };
-    let exact = build(true);
-    let drifted = build(false);
+    let exact = pinned(build(true));
+    let drifted = pinned(build(false));
     // Same shape to any tolerance anyone could care about …
     for (a, b) in exact.vertices.iter().zip(&drifted.vertices) {
         assert!((a.pos - b.pos).norm_squared().sqrt() < 1e-12);
@@ -607,6 +623,7 @@ fn toward_axis_rays_are_exact() {
             .unwrap()
             .line_to(Start)
             .unwrap();
+        let lowered = pinned(lowered);
         let v = lowered.vertices[1].pos;
         assert_eq!(v.x.to_bits(), expected.x.to_bits(), "toward({dx},{dy}) x");
         assert_eq!(v.y.to_bits(), expected.y.to_bits(), "toward({dx},{dy}) y");
@@ -642,6 +659,7 @@ fn eye_arc_by_arc_fillet_matches_loopbuilder_fillet_corner() {
         .unwrap()
         .to_on(Start, p2(0.5, 0.0), ArcSweep::Ccw)
         .unwrap();
+    let algebra = pinned(algebra);
     let hand = LoopBuilder::start(p2(0.0, -tip))
         .fillet_corner(
             FilletLegShape::Arc {
@@ -742,6 +760,7 @@ fn line_by_arc_carrier_fillet_matches_loopbuilder_fillet_corner() {
         .unwrap()
         .to_on(Start, centre, ArcSweep::Ccw)
         .unwrap();
+    let algebra = pinned(algebra);
     let hand = LoopBuilder::start(p2(0.0, 0.0))
         .fillet_corner(
             FilletLegShape::Line,
@@ -773,6 +792,7 @@ fn the_advance_gate_discards_the_root_at_the_incoming_anchor() {
         .unwrap()
         .to_on(Start, p2(2.0, -2.0), ArcSweep::Ccw)
         .unwrap();
+    let lowered = pinned(lowered);
     // Vertex 1 is the trim point on the straight side: it must sit
     // short of the FAR corner (4, 0), not of the discarded one at the
     // origin (which would have put it behind the entry).
