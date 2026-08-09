@@ -455,3 +455,8 @@ Block LIB-5 (2026-08-09): byte 32 (<252) → fable position 2:
 (geometric selectors PR-1) = M → slot 1 OPUS; U9S (bindings
 scaffold) = M → slot 2 OPUS; fable remainder banks (SEL2 or the
 lift-tool PR-C are the natural takers).
+SWITCH-E PR-B dual (2026-08-09): dispatch-time ordinal = 11 merged
+blinded rows + 1 = 12 → DUAL (sample #4). R1+R2 concurrent on
+frozen head a0ffd3a per the same-head amendment. PR-C (lift tool +
+plate_param) = honest partial, fresh dispatch later (takes the
+LIB-5 fable remainder).
