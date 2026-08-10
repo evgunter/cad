@@ -67,3 +67,13 @@ Evan only if the wake fails.
 The hourly check-in stays hourly — the 55m cadence is baked into
 usage-watch itself, no re-cadencing needed. See
 [[agent-lane-operations]], [[orchestration-model]].
+
+**Account identifiers stay OFF GitHub (Evan, #355 comment,
+2026-08-10, anticipating the repo going public):** never post
+account email addresses — or any personal identifier beyond the
+commit-signing name `evgunter` — in issues, PRs, comments, or
+commits. Refer to accounts by role ("this session's own account",
+"the M8 orchestrator's account"); the per-account resolution
+happens locally at session start and stays local. Existing
+comments naming addresses were edited on request — do not
+reintroduce them.
