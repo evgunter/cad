@@ -398,6 +398,20 @@ fn adopt_edges(
         let mut candidates: Vec<(AdoptionCandidate, EdgeGeometry<f64>)> = Vec::new();
         let mut conventional = true;
         let mut nurbs_rim = false;
+        // The IsoCurve rung is offered on BOTH sides of the branch
+        // below (M8): between two walls it is the loft/sweep wall–wall
+        // seam class, and on ONE wall — the same described NURBS
+        // surface on both sides of the edge — it is that patch's own
+        // parameterization SEAM, which a closed patch states by
+        // repeating its `u = 0` column at `u = 1`. `EdgeGeometry::Seam`
+        // is the analytic vocabulary (cylinder, cone, sphere, torus);
+        // a described NURBS patch's seam is an `IsoCurve` and nothing
+        // else, and withholding the rung there left dm1's rational
+        // cylinders — stay-NURBS by M7-6's honest refusal to certify
+        // them as cylinders — with no candidate description AT ALL
+        // (the ladder reported zero attempts, which is the shape of a
+        // gap rather than of a refusal).
+        iso_curve_candidates(body, spec, fs_plus, fs_minus, &mut candidates);
         if fs_plus != fs_minus {
             // The IsoCurve rung (M7-3): a NURBS-carried edge between
             // two described NURBS walls is the loft/sweep wall–wall
@@ -419,27 +433,6 @@ fn adopt_edges(
             // are the carrier's own derived interval — its full knot
             // domain, which the bitwise match pins to the wall's v
             // domain ([0, 1] for every exported wall).
-            if let Curve3::Nurbs(ref nurbs_carrier) = spec.carrier {
-                for end in [false, true] {
-                    for wall in [fs_plus, fs_minus] {
-                        if let Some(Surface::Nurbs(wp)) = body.get_surface(wall)
-                            && !wp.is_placeholder()
-                            && let Ok(iso) = geom_brep::boundary_iso_u(wp.as_ref(), end)
-                            && bitwise_iso_match(nurbs_carrier, &iso)
-                        {
-                            candidates.push((
-                                AdoptionCandidate::IsoCurve,
-                                EdgeGeometry::IsoCurve {
-                                    surface: wall,
-                                    u: if end { 1.0 } else { 0.0 },
-                                    v0: spec.t0,
-                                    v1: spec.t1,
-                                },
-                            ));
-                        }
-                    }
-                }
-            }
             candidates.push((
                 AdoptionCandidate::Intersection,
                 EdgeGeometry::Intersection {
@@ -617,6 +610,68 @@ fn adopt_edges(
         }
     }
     Ok(())
+}
+
+/// The **`IsoCurve` rung's candidates** for one edge (M7-3, widened to
+/// the one-wall seam case in M8).
+///
+/// A NURBS-carried edge whose carrier BITWISE matches a described
+/// NURBS wall's own `u ∈ {0, 1}` boundary column
+/// ([`geom_brep::boundary_iso_u`], a control-net copy) IS that column:
+/// the writer emitted the same bits twice, and no tolerance is spent
+/// deciding it. Two arrangements state the same thing:
+///
+/// - **two walls** — the loft/sweep wall–wall seam class, where the
+///   shared boundary column of two patches carries the edge between
+///   them;
+/// - **one wall on both sides** — the patch's own parameterization
+///   seam, where a CLOSED patch repeats its `u = 0` column at `u = 1`
+///   and the two half-edges land on the same face record. The
+///   analytic `Seam` description is not available there (it names a
+///   cylinder/cone/sphere/torus chart's own half-plane), and the
+///   conventional rung is not either (a NURBS carrier has no mapped
+///   self-description) — so without this rung such an edge reaches the
+///   ladder with NO candidate at all.
+///
+/// `u = 0` arms lead: each native seam is minted as its forward wall's
+/// `u = 0` boundary, so the first certifying candidate reproduces the
+/// native description exactly. Duplicates are impossible — the two
+/// surface keys are visited once each — and the kernel's certify door
+/// still disposes of every candidate this offers.
+fn iso_curve_candidates(
+    body: &Body<f64>,
+    spec: &crate::entities::EdgeSpec,
+    fs_plus: topo::SurfaceKey,
+    fs_minus: topo::SurfaceKey,
+    candidates: &mut Vec<(AdoptionCandidate, EdgeGeometry<f64>)>,
+) {
+    let Curve3::Nurbs(ref nurbs_carrier) = spec.carrier else {
+        return;
+    };
+    let walls: &[topo::SurfaceKey] = if fs_plus == fs_minus {
+        &[fs_plus]
+    } else {
+        &[fs_plus, fs_minus]
+    };
+    for end in [false, true] {
+        for &wall in walls {
+            if let Some(Surface::Nurbs(wp)) = body.get_surface(wall)
+                && !wp.is_placeholder()
+                && let Ok(iso) = geom_brep::boundary_iso_u(wp.as_ref(), end)
+                && bitwise_iso_match(nurbs_carrier, &iso)
+            {
+                candidates.push((
+                    AdoptionCandidate::IsoCurve,
+                    EdgeGeometry::IsoCurve {
+                        surface: wall,
+                        u: if end { 1.0 } else { 0.0 },
+                        v0: spec.t0,
+                        v1: spec.t1,
+                    },
+                ));
+            }
+        }
+    }
 }
 
 /// The conventional self-description for carriers the surfaces

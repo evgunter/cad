@@ -336,6 +336,7 @@ fn freecad_body(
             body,
             eps_in,
             normalizations,
+            ..
         } => (body, eps_in, normalizations),
         StepImport::Wireframe { .. } => panic!("{name} imported as a wireframe, expected a solid"),
     }
@@ -549,6 +550,40 @@ fn min_x_mm(body: &topo::Body<f64>) -> f64 {
     body.points()
         .fold(f64::INFINITY, |acc, (_, p)| acc.min(p.x))
         * 1e3
+}
+
+/// Each solid's own x extent in millimetres, in body solid order — the
+/// instrument a per-component placement needs (a whole-body extent
+/// cannot tell "both moved 5 mm" from "one moved 10 mm").
+fn solid_x_mm(body: &topo::Body<f64>) -> Vec<(f64, f64)> {
+    body.solids()
+        .map(|(sk, solid)| {
+            let mut lo = f64::INFINITY;
+            let mut hi = f64::NEG_INFINITY;
+            for shell in &solid.shells {
+                for &face in &body.get_shell(*shell).expect("a shell").faces {
+                    let f = body.get_face(face).expect("a face");
+                    for lk in std::iter::once(f.outer).chain(f.rings.iter().copied()) {
+                        let topo::LoopBoundary::Cycle { first } =
+                            body.get_loop(lk).expect("a loop").boundary
+                        else {
+                            continue;
+                        };
+                        for he in body.loop_cycle(first).expect("a cycle") {
+                            let v = body.get_half_edge(he).expect("a use").start;
+                            let p = body
+                                .get_point(body.get_vertex(v).expect("a vertex").point)
+                                .expect("a point");
+                            lo = lo.min(p.x * 1e3);
+                            hi = hi.max(p.x * 1e3);
+                        }
+                    }
+                }
+            }
+            let _ = sk;
+            (lo, hi)
+        })
+        .collect()
 }
 
 fn mutated(name: &str, from: &str, to: &str) -> String {
@@ -965,19 +1000,85 @@ fn refusals_survive_the_dialect_relaxations() {
         min_x_mm(base),
         min_x_mm(moved)
     );
-    // Only ONE component placed: assembly instancing, still refused.
-    let probe = text.replace(
+    // **FLIPPED AGAIN (M8 instancing).** Only ONE component placed
+    // used to refuse here — one map had to cover all of a file's
+    // content, because a placed body was placed by transforming the
+    // FINISHED body once and there was nowhere to put a second frame.
+    // The `REPRESENTATION_RELATIONSHIP` says which content each
+    // transform places (`rep_1` is the component), so each component
+    // now materializes under ITS OWN frame: the first body moves 5 mm,
+    // the second stays exactly where the unplaced import put it.
+    let one = text.replace(
         "#15 = AXIS2_PLACEMENT_3D('',#16,#17,#18);",
         "#15 = AXIS2_PLACEMENT_3D('',#9995,#17,#18);\n\
          #9995 = CARTESIAN_POINT('',(5.,0.,0.));",
     );
-    match import_step(&probe, &ImportOptions::default())
-        .expect_err("per-component placement must refuse")
-    {
-        E::Structure { what, .. } => {
-            assert!(what.contains("assembly"), "and says what it is: {what}")
-        }
-        other => panic!("expected Structure, got: {other}"),
+    let split = import_step(&one, &ImportOptions::default())
+        .expect("per-component placement materializes per component");
+    let StepImport::Solid { body: split, .. } = &split else {
+        panic!("a solid");
+    };
+    assert_eq!(
+        census(base),
+        census(split),
+        "placing one component of two re-shapes neither"
+    );
+    // The evidence that the frames landed on the RIGHT components:
+    // per-solid x extents, against the unplaced import's own.
+    let want: Vec<(f64, f64)> = solid_x_mm(base)
+        .into_iter()
+        .enumerate()
+        .map(|(i, (lo, hi))| {
+            if i == 0 {
+                (lo + 5.0, hi + 5.0)
+            } else {
+                (lo, hi)
+            }
+        })
+        .collect();
+    let got = solid_x_mm(split);
+    assert_eq!(got.len(), 2, "two components, two solids");
+    for (i, ((glo, ghi), (wlo, whi))) in got.iter().zip(want.iter()).enumerate() {
+        assert!(
+            (glo - wlo).abs() <= 1e-9 && (ghi - whi).abs() <= 1e-9,
+            "solid {i}: x extent [{glo}, {ghi}] mm, expected [{wlo}, {whi}]"
+        );
+    }
+    // And two DIFFERENT frames, the case that has no single-map
+    // reading at all: 5 mm and 12 mm, one file, two solids.
+    let two = text
+        .replace(
+            "#15 = AXIS2_PLACEMENT_3D('',#16,#17,#18);",
+            "#15 = AXIS2_PLACEMENT_3D('',#9995,#17,#18);\n\
+             #9995 = CARTESIAN_POINT('',(5.,0.,0.));",
+        )
+        .replace(
+            "#19 = AXIS2_PLACEMENT_3D('',#20,#21,#22);",
+            "#19 = AXIS2_PLACEMENT_3D('',#9996,#21,#22);\n\
+             #9996 = CARTESIAN_POINT('',(12.,0.,0.));",
+        );
+    let instanced = import_step(&two, &ImportOptions::default())
+        .expect("two different component frames materialize as two placed solids");
+    let StepImport::Solid {
+        body: instanced, ..
+    } = &instanced
+    else {
+        panic!("a solid");
+    };
+    assert_eq!(census(base), census(instanced), "still the same two bodies");
+    let want: Vec<(f64, f64)> = solid_x_mm(base)
+        .into_iter()
+        .enumerate()
+        .map(|(i, (lo, hi))| {
+            let d = if i == 0 { 5.0 } else { 12.0 };
+            (lo + d, hi + d)
+        })
+        .collect();
+    for (i, ((glo, ghi), (wlo, whi))) in solid_x_mm(instanced).iter().zip(want.iter()).enumerate() {
+        assert!(
+            (glo - wlo).abs() <= 1e-9 && (ghi - whi).abs() <= 1e-9,
+            "solid {i}: x extent [{glo}, {ghi}] mm, expected [{wlo}, {whi}]"
+        );
     }
     // And a mirror is never a placement. A placement PAIR cannot state
     // one — ISO 10303-42 builds both frames right-handed whatever their
@@ -1055,6 +1156,152 @@ fn refusals_survive_the_dialect_relaxations() {
         E::Structure { id, .. } => assert_eq!(id, 165, "the refusal names the orphan solid"),
         other => panic!("expected Structure naming the orphan, got: {other}"),
     }
+}
+
+/// **The A7 assembly record** (`docs/ASSEMBLY-DESIGN.md`): flattening
+/// is the correct evaluation product, but flattening is not
+/// forgetting. Every shipped solid carries a [`PlacedInstance`] saying
+/// which component representation it came from, which
+/// `MANIFOLD_SOLID_BREP`, which occurrence and transform stated it,
+/// and the rigid map applied — so the association a body graph would
+/// rebuild (component → instances → solid indices) survives the
+/// flatten without re-parsing the file.
+///
+/// The fixture is the **dm1 class**, planted on real records: a third
+/// `NEXT_ASSEMBLY_USAGE_OCCURRENCE` of `twobody_importexport`'s FIRST
+/// component, so one representation is instanced twice and the file
+/// ships three solids from two breps. That is the shape dm1 states
+/// seven times over three, and the only shape where the record says
+/// something a solid count cannot.
+#[test]
+fn the_assembly_record_retains_the_occurrence_structure() {
+    let text = freecad_fixture("twobody_importexport");
+
+    // Component 1 at +5 mm, component 2 at +12 mm (the same planted
+    // frames row (d) checks), and a THIRD occurrence of component 1 at
+    // +30 mm — new placement, new transform, new relationship, new
+    // occurrence, all stated the way the file states its own two.
+    let probe = text
+        .replace(
+            "#15 = AXIS2_PLACEMENT_3D('',#16,#17,#18);",
+            "#15 = AXIS2_PLACEMENT_3D('',#9990,#17,#18);\n\
+             #9990 = CARTESIAN_POINT('',(5.,0.,0.));",
+        )
+        .replace(
+            "#19 = AXIS2_PLACEMENT_3D('',#20,#21,#22);",
+            "#19 = AXIS2_PLACEMENT_3D('',#9991,#21,#22);\n\
+             #9991 = CARTESIAN_POINT('',(12.,0.,0.));",
+        )
+        .replace(
+            "#10 = SHAPE_REPRESENTATION('',(#11,#15,#19),#23);",
+            "#10 = SHAPE_REPRESENTATION('',(#11,#15,#19,#9993),#23);\n\
+             #9992 = CARTESIAN_POINT('',(30.,0.,0.));\n\
+             #9993 = AXIS2_PLACEMENT_3D('',#9992,#17,#18);\n\
+             #9994 = ITEM_DEFINED_TRANSFORMATION('','',#11,#9993);\n\
+             #9995 = ( REPRESENTATION_RELATIONSHIP('','',#36,#10)\n\
+             REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(#9994)\n\
+             SHAPE_REPRESENTATION_RELATIONSHIP() );\n\
+             #9996 = NEXT_ASSEMBLY_USAGE_OCCURRENCE('3','BoxA_again','',#5,#31,$);\n\
+             #9997 = PRODUCT_DEFINITION_SHAPE('Placement','third',#9996);\n\
+             #9998 = CONTEXT_DEPENDENT_SHAPE_REPRESENTATION(#9995,#9997);",
+        );
+
+    let imported =
+        import_step(&probe, &ImportOptions::default()).expect("three occurrences, two components");
+    let StepImport::Solid { ref body, .. } = imported else {
+        panic!("a solid");
+    };
+    let record = imported.instances();
+
+    // One record per shipped solid, indexing them in order.
+    assert_eq!(body.solids().count(), 3, "three occurrences, three solids");
+    assert_eq!(record.len(), 3, "one record per materialized instance");
+    for (i, r) in record.iter().enumerate() {
+        assert_eq!(r.index, i, "the record indexes the shipped solids in order");
+    }
+
+    // component → instances: ONE representation instanced twice, and
+    // both of its instances name the SAME `MANIFOLD_SOLID_BREP`. That
+    // repetition IS the instancing — a reader that had flattened
+    // without the record could not tell it from two distinct parts.
+    assert_eq!(record[0].component, record[2].component, "same component");
+    assert_ne!(record[0].component, record[1].component, "the other one");
+    assert_eq!(record[0].solid, record[2].solid, "one brep, two copies");
+    assert_ne!(record[0].solid, record[1].solid);
+
+    // Every instance names its own occurrence, relationship and
+    // transform — three distinct sites for three distinct copies.
+    let sites: Vec<_> = record
+        .iter()
+        .map(|r| {
+            (
+                r.occurrence.expect("the file links a NAUO"),
+                r.relationship.expect("stated by a relationship"),
+                r.transform.expect("read from a transform"),
+            )
+        })
+        .collect();
+    assert_eq!(sites[0], (196, 193, 194), "the file's own first occurrence");
+    assert_eq!(sites[1], (227, 224, 225), "and its second");
+    assert_eq!(sites[2], (9996, 9995, 9994), "and the planted third");
+
+    // placement → geometry: the map the record says was applied is the
+    // map the shipped solid at that index actually sits under. Checked
+    // against the UNPLACED import's own per-solid extents, so the
+    // record is metered against the geometry rather than against
+    // itself.
+    let base = import_step(&text, &ImportOptions::default()).expect("the unplaced import");
+    let StepImport::Solid { body: base, .. } = &base else {
+        panic!("a solid");
+    };
+    let unplaced = solid_x_mm(base);
+    let placed = solid_x_mm(body);
+    // Which unplaced solid each record's `solid` id refers to: the
+    // record's own component order is the resolution order.
+    let source_of = [0_usize, 1, 0];
+    for (r, &src) in record.iter().zip(source_of.iter()) {
+        let map = r.placement.expect("a placed instance carries its map");
+        let dx = map.translation.x * 1e3;
+        let (lo, hi) = unplaced[src];
+        let (glo, ghi) = placed[r.index];
+        assert!(
+            (glo - (lo + dx)).abs() <= 1e-9 && (ghi - (hi + dx)).abs() <= 1e-9,
+            "solid {}: x extent [{glo}, {ghi}] mm, record says {dx} mm from [{lo}, {hi}]",
+            r.index
+        );
+    }
+    assert_eq!(
+        record[2].placement.expect("placed").translation.x * 1e3,
+        30.0
+    );
+}
+
+/// The same record on a file that states **no assembly at all**: a
+/// consumer never has to ask whether it exists. `compound_two` carries
+/// two solids under one plain `SHAPE_REPRESENTATION` and not one
+/// `NEXT_ASSEMBLY_USAGE_OCCURRENCE`.
+#[test]
+fn the_assembly_record_covers_a_file_that_places_nothing() {
+    let imported =
+        import_step(&freecad_fixture("compound_two"), &ImportOptions::default()).expect("imports");
+    let StepImport::Solid { ref body, .. } = imported else {
+        panic!("a solid");
+    };
+    let record = imported.instances();
+    assert_eq!(record.len(), body.solids().count(), "one per shipped solid");
+    assert_eq!(record.len(), 2, "compound_two ships two");
+    for (i, r) in record.iter().enumerate() {
+        assert_eq!(r.index, i);
+        assert!(r.placement.is_none(), "nothing was placed");
+        assert!(r.occurrence.is_none() && r.relationship.is_none());
+        assert!(r.transform.is_none());
+        assert_ne!(r.solid, 0, "and it still names the brep it came from");
+    }
+    assert_eq!(
+        record[0].component, record[1].component,
+        "one representation names both"
+    );
+    assert_ne!(record[0].solid, record[1].solid, "two distinct breps");
 }
 
 // ---- Row 6: the ε_in rows ------------------------------------------

@@ -198,6 +198,7 @@ fn run_cell(cell: &Cell, outdir: &str) -> String {
         body,
         eps_in,
         normalizations,
+        ..
     } = import
     else {
         panic!("{name}: expected a solid import, got a wireframe");

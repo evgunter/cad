@@ -133,6 +133,8 @@ pub mod euler_ring;
 #[cfg(test)]
 pub(crate) mod fixtures;
 pub mod geometry;
+
+pub mod instance;
 #[cfg(test)]
 pub(crate) mod iso;
 pub mod merge_faces;
@@ -193,6 +195,7 @@ pub use geom_brep::{
 pub use geom_curves::Curve3;
 pub use geom_surfaces::Surface;
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
+pub use instance::graft_disjoint;
 pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use pcurves::{PcurveMintError, mint_pcurves, pcurve_of};

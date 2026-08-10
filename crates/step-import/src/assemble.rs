@@ -59,7 +59,7 @@ use std::collections::BTreeMap;
 use topo::{Body, HalfEdgeKey, LoopKey, MefSite, MekrSite, MevSite, VertexKey};
 
 use crate::adopt;
-use crate::entities::{Model, SolidSpec};
+use crate::entities::SolidSpec;
 use crate::error::StepImportError;
 
 /// One edge-use in the flattened target complex.
@@ -799,20 +799,6 @@ fn assemble_solid(body: &mut Body<f64>, solid: &SolidSpec) -> Result<(), StepImp
         .collect::<Result<_, _>>()?;
     let assembled = Assembled { target, use_he };
     adopt::finish(body, solid, &assembled)
-}
-
-/// Builds the whole body: one kernel solid (one shell) per
-/// `MANIFOLD_SOLID_BREP`, then the body-wide pcurve re-mint (the
-/// kernel's own cache machinery — since M6-3 every curved chart
-/// mints: cylinder, cone, sphere, torus and described non-rational
-/// NURBS; plane faces stay derive-on-demand, and a boundary class
-/// outside every derivation route leaves its face honestly uncached
-/// — exactly a native body's state).
-pub(crate) fn build_body(
-    solids: &[SolidSpec],
-    _model: &Model,
-) -> Result<Body<f64>, StepImportError> {
-    build(solids)
 }
 
 /// One `MANIFOLD_SOLID_BREP` assembled into a body of its OWN, so the
