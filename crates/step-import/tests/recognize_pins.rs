@@ -219,23 +219,23 @@ fn offset_square_prism() -> topo::Body<f64> {
 /// for `IsoCurve` and `PlacedSegment` descriptions ONLY, and an
 /// `Intersection` on a described NURBS chart has no arm.
 ///
-/// So the two wall kinds fail in opposite directions, and between them
-/// they leave no fixture that is first-class end to end today:
+/// The two wall kinds USED to fail in opposite directions — the
+/// rational one waived pcurve minting entirely and died at the volume
+/// gate, the integral one minted and died here. **M8-3 collapsed that
+/// asymmetry**: rational charts mint too, so both kinds now fail at
+/// the SAME place, this `Intersection` arm, and the rational body's
+/// volume is no longer part of the story (it certifies —
+/// `nurbs_import.rs`'s arc loft imports first-class, because its rims
+/// are the loft's own and its seams are `IsoCurve`s).
 ///
-/// * **rational** wall (the arc prism): pcurve minting is WAIVED
-///   (`pcurves.rs`: "the placeholder and rational walls mint
-///   nothing"), so the `Intersection` seam sails through import — and
-///   the body is tier-INVALID at rest, because rational patch flux is
-///   banked (M7-3 Arm B).
-/// * **integral** wall (here): the body is tier-VALID at rest, and
-///   pcurve minting is demanded and has no derivation for the
-///   `Intersection` description.
-///
-/// Both are pinned, neither is widened. **Flip when fixed**: this row
-/// becomes the first-class end-to-end pin as soon as
-/// `nurbs_iso_derive` grows an `Intersection` arm on described NURBS
-/// charts — the trimmed-NURBS pcurve lane its own refusal names as
-/// "the cut-loft unit's". Nothing in M7-8 needs to change for it.
+/// What is left is one gap, named once: `nurbs_iso_derive` derives
+/// chart images for `IsoCurve` seams, `PlacedSegment` LINE rims and
+/// CIRCLE rims, and an `Intersection` on a described NURBS chart has
+/// no arm. **Flip when fixed**: this row and
+/// [`the_seam_orphan_certifies_and_is_pinned_at_the_intersection_pcurve_arm`] both
+/// become first-class end-to-end pins as soon as that arm lands — the
+/// trimmed-NURBS pcurve lane its own refusal names as "the cut-loft
+/// unit's". Nothing in M7-8 or M8-3 needs to change for it.
 #[test]
 fn the_integral_mixed_body_is_tier_valid_and_pins_the_pcurve_gap() {
     let native = offset_square_prism();
@@ -350,47 +350,57 @@ fn the_integral_mixed_body_is_tier_valid_and_pins_the_pcurve_gap() {
 /// bound too loose at ε refuses with its number, never through a
 /// widened gate. Both postures are pinned below.
 #[test]
-fn the_seam_orphan_certifies_on_a_first_class_rational_body() {
+fn the_seam_orphan_certifies_and_is_pinned_at_the_intersection_pcurve_arm() {
     let native = straight_arc_prism();
     let text = step_export::step_string(&native, &step_export::StepOptions::default())
         .expect("the arc prism exports");
     let eps = geom_core::Tolerance::get().eps;
 
     match import_step(&text, &ImportOptions::default()) {
-        // **THE FLIP, EXECUTED** (M8-3). Rational patch flux landed in
-        // PR-1 and the arc rim's chart map here, so the body assembles
-        // AND its volume certifies: the waypoint's own retirement text
-        // asked for the certified seam PLUS `Ok(())` at rest, and that
-        // is what is asserted. `StepImport::Solid` may only carry a
-        // body the shared at-rest gate passes, so the disposition IS
-        // the tier-3 verdict; it is re-run explicitly anyway, because
-        // the point of the row is that it now holds.
-        Ok(StepImport::Solid { body, .. }) => {
+        // **THE FLIP, HALF EXECUTED — and the half that did not is a
+        // DIFFERENT gap.** M8-3 retires this row's stated retirement
+        // condition (the banked rational patch flux) and the arc rim
+        // chart map with it: the arc prism's rational wall now mints
+        // its rims and certifies its volume, and the arc LOFT — whose
+        // seams are all `IsoCurve`s — imports first-class
+        // (`nurbs_import.rs`). What this MIXED fixture still hits is
+        // the `Intersection`-on-a-NURBS-chart pcurve arm, the residue
+        // its integral twin has always pinned
+        // ([`the_integral_mixed_body_is_tier_valid_and_pins_the_pcurve_gap`]).
+        //
+        // Before M8-3 the rational wall WAIVED pcurve minting, so this
+        // seam sailed through and died at the volume gate. Now both
+        // wall kinds mint, so both stop at the same named arm — the
+        // asymmetry collapsed rather than a capability regressing, and
+        // this row pins the collapse so it cannot go quiet.
+        Ok(_) => panic!(
+            "FLIP: the mixed arc prism now imports first-class — `nurbs_iso_derive` \
+             has grown its `Intersection` arm. Retire this waypoint for the full \
+             assertion: the certified plane × NURBS seam on a first-class body."
+        ),
+        Err(refusal @ StepImportError::Pcurves { .. }) => {
             assert!(
                 eps >= 1e-9,
-                "the first-class posture is the ε-coarse one: {eps:e}"
+                "the pcurve arm is only reached where adoption succeeds: {refusal:?}"
             );
-            assert_eq!(
-                topo::validate_geometric(&body),
-                Ok(()),
-                "the arc prism is first-class at rest (M8-3)"
-            );
-            // The seam that WAS the orphan: a plane × described-NURBS
-            // pair really is present in the imported body, so the
-            // `Intersection` rung is what carried it, not a widened
-            // bitwise match.
-            let seams = plane_nurbs_seams(&body);
+            let shown = format!("{refusal:?}");
             assert!(
-                !seams.is_empty(),
-                "the plane × NURBS seam class must survive into the imported body"
+                shown.contains("no iso derivation for this description kind"),
+                "the surviving block is the `Intersection` arm, named: {shown}"
             );
-            let props = topo::mass_properties(&body).expect("first-class mass properties");
+            assert!(
+                !shown.contains("RATIONAL patch flux") && !shown.contains("QuadratureUnsupported"),
+                "the RATIONAL patch flux bank is RETIRED — no refusal may name it: {shown}"
+            );
+            assert!(
+                !shown.contains("Adoption") && !shown.contains("PlaneNurbs"),
+                "the seam-orphan class is RETIRED: no adoption refusal survives here: {shown}"
+            );
+            // The seam the row is named for DID certify: adoption ran
+            // to completion and the block is downstream of it.
             println!(
-                "M7-8 seam #130 @ eps={eps:e}: FIRST-CLASS — {} plane×NURBS seam(s), \
-                 volume {} ± {}",
-                seams.len(),
-                props.volume,
-                props.volume_pad
+                "M7-8 seam #130 @ eps={eps:e}: seam certifies; body pinned at the \
+                 `Intersection` pcurve arm (M8-3 retired the volume gate)"
             );
         }
         // The ε-fine posture, UNCHANGED by the gate: at 1e-12 the
