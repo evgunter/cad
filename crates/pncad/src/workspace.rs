@@ -79,8 +79,9 @@ pub enum WorkspaceError {
     Header {
         /// The refusing file.
         path: PathBuf,
-        /// The typed persistence refusal.
-        error: PersistError,
+        /// The typed persistence refusal (boxed: `PersistError` is a
+        /// large enum and this error rides many `Result`s).
+        error: Box<PersistError>,
     },
     /// The workspace has no document with the requested id.
     UnknownId {
@@ -92,8 +93,8 @@ pub enum WorkspaceError {
     Load {
         /// The refusing file.
         path: PathBuf,
-        /// The typed persistence refusal.
-        error: PersistError,
+        /// The typed persistence refusal (boxed, as in `Header`).
+        error: Box<PersistError>,
     },
     /// The document loaded, but its recomputed content pin is not the
     /// pin the reference carries: the referenced document CHANGED
@@ -207,7 +208,7 @@ impl Workspace {
             let text = std::fs::read_to_string(&path).map_err(io(&path))?;
             let id = header_document_id(&text).map_err(|error| WorkspaceError::Header {
                 path: path.clone(),
-                error,
+                error: Box::new(error),
             })?;
             if let Some(first) = by_id.get(&id) {
                 return Err(WorkspaceError::DuplicateId {
@@ -255,13 +256,13 @@ impl Workspace {
         })?;
         let loaded = load(&text).map_err(|error| WorkspaceError::Load {
             path: path.clone(),
-            error,
+            error: Box::new(error),
         })?;
         // Pin the REPLAYED document (D-3: the pin is of the semantic
         // projection of current state, not of raw file bytes).
         let found = content_pin(&loaded.doc).map_err(|error| WorkspaceError::Load {
             path: path.clone(),
-            error,
+            error: Box::new(error),
         })?;
         if found != doc_ref.pin {
             return Err(WorkspaceError::PinMismatch {
