@@ -17,6 +17,23 @@ become a kernel dependency.
 
 ## Run
 
+**Renders are hosted.** One command does the whole thing — it checks
+your branch is pushed (the runner renders the *pushed* tree), triggers
+`.github/workflows/render.yml`, polls the run, and installs the
+artifacts back into the working tree at their committed paths, where you
+review and commit them the ordinary way:
+
+```sh
+scripts/render-hosted.sh                        # all four lanes, this branch
+scripts/render-hosted.sh --lane uv              # one lane
+scripts/render-hosted.sh --run 31402416551      # pull an existing run's artifacts
+```
+
+The local entry points below **refuse to run** without an explicit
+override — see [Preview mode](#preview-mode-the-local-override). They
+are what the hosted lanes invoke, and what you reach for when you are
+still shaping a scene and do not intend to commit the frames:
+
 ```sh
 cd demos/tour
 cargo run --release -- ../out   # build + narrate + export STL/STEP + scenes.json
@@ -25,6 +42,34 @@ cd ..
 ./render.sh --freecad           # FreeCAD/OCC STEP-lane montage (renders-freecad/montage-freecad.png)
 ./render-uv.sh                  # UV trim-loop sheet (renders-uv/montage-uv.svg)
 ```
+
+### Preview mode: the local override
+
+`render.sh`, `render-wild.sh` and `render-uv.sh` each source
+`hosted-render-guard.sh` as their first act. Without
+
+```sh
+CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift
+```
+
+in the environment they print a pointer at `scripts/render-hosted.sh`
+and **exit nonzero**.
+
+The value is a sentence on purpose. `1` / `yes` / `true` are what
+anybody — human or agent — types reflexively when a script complains
+about an unset variable; a sentence naming what you are accepting is one
+nobody reaches by accident, and it reads as an admission in the shell
+history that produced the frames. A pass run this way is **preview
+only**: its frames carry *this* box's renderer and GL stack, which is
+the drift the sentence names.
+
+The rule is structural, not sniffed: there is no `GITHUB_ACTIONS` check
+in the guard. The sanctioned automated callers — `render.yml`'s render
+steps, `ci.yml`'s `uv sheet drift (demos)` row, and `ci-local.sh`'s
+`uv_sheet_drift` — each set the sentence **in the file, at the step that
+renders**, where a reviewer sees it. A sniffed exemption would be
+invisible at the call site and would grow silently with every new runner
+and local CI emulator.
 
 Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` +
 `demos/out/uv/*.svg` + `demos/out/uv.json` (untracked),
@@ -101,12 +146,17 @@ Consequences worth stating:
   is not boundary, so even-odd would shade a region that is not the
   face. Those cells (3 of 36 on the sheet) show the strokes alone and
   say why; the signed area and winding are likewise not claimed there.
-* **There is a CI drift gate.** The two PNG lanes cannot have one —
-  they need FreeCAD, which CI does not have — so this is the only
-  render lane CI can reproduce. `uv sheet drift (demos)` regenerates
-  the sheet and diffs it (the tour is ~3s once built, and the sheet is
-  text, so a firing diff is readable). A failure is either an
-  uncommitted regeneration or a D9 determinism finding.
+* **There is a CI drift gate**, and this is still the only lane that
+  can have one — but the reason has moved. CI *can* run FreeCAD (both
+  `step-import` and the hosted render lanes provision the same pinned
+  AppImage), so the obstacle is no longer availability: it is that the
+  PNG lanes' pixels come out of a GL stack, and a runner's llvmpipe is
+  not this host's, so "unchanged" is not a property a hosted PNG pass
+  can assert. This lane draws no 3-D, so its sheet is byte-reproducible
+  anywhere. `uv sheet drift (demos)` regenerates it and diffs it (the
+  tour is ~3s once built, and the sheet is text, so a firing diff is
+  readable). A failure is either an uncommitted regeneration or a D9
+  determinism finding.
 * **Nothing is refused.** Unlike the tessellator's trim walk, this one
   accepts every pcurve form and falls back to `topo::pcurve_of`'s
   derive-on-demand, because a face the tessellator refuses is exactly
@@ -304,10 +354,13 @@ keeps the same shape (grid, captions, provenance banner via
 `compose_montage.py`) under its own title and banner.
 
 ```sh
+scripts/render-hosted.sh --lane wild   # the default path (hosted; installs renders-wild/)
+
+# preview only — see "Preview mode: the local override"
 cd demos/wild
 cargo run --release -- out    # import + tessellate + STL + scenes.json
 cd ..
-./render-wild.sh              # cells + sheet -> renders-wild/
+CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift ./render-wild.sh
 ```
 
 **Cell count: 8, and the cell set is license law plus pinned
@@ -433,7 +486,7 @@ verbatim.
 | `crosslap_exploded` | the same joint exploded via `transform_rigid` (re-minted witnesses, #84) |
 | `projectbox` | enclosure: cavity + 6 vent through-slots + 4 floor bosses + 4 pilot pockets — 15 sequential boolean nodes, the longest chain; square-only until M5 |
 | `cutaway` | **first `topo::split`**: the project box split by a tilted plane, halves translated apart — a machinist's section pair (replaces the void box translucency hack) |
-| `lily` | **the globe lily** (*Calochortus albus*, the fairy lantern) — the tour's first ORGANIC subject and a deliberate stress test: eight closed solids (three torus-segment stem tubes from `tube_along_arc`, two sphere-zone lanterns with conical mouths from `revolve(Full)`, three keeled leaf blades from `sweep_body` — a four-line kite section carried along an arching NURBS spine), walked by a turtle so consecutive stem arcs are **G1 by construction**. The five analytic bodies approximate nothing, and since the tube door that is a claim about STORED PARAMETERS as well as surface kind: the ring centre, spine axis, `u_ref` and both radii are the world-coordinate numbers the demo passed in, so the stem's `minor_radius` IS the authored 0.060 rather than the bulge-arc reconstruction 3.9e-16 below it. The three blades are the one fitted piece — a swept skin is a B-spline wall through nine exact spine points — and they hold ONE width base to tip, because there is no tapering sweep; their section is four straight lines and not the old crescent's arcs, because the skin lane refuses a rational wall (`nurbs_span_meter` has no speed bound on a rational carrier). Nothing is JOINED either — the stop is followed by **seven live wall probes** that attempt the joins and shapes a plant actually wants (glue the stem arcs, weld flower to stem, oblique-extrude a leaf out of its plane, stretch a bud into an ovoid, mirror a leaf, fillet the mouth rim, carve a tepal seam) and assert each typed refusal, panicking if one ever retires |
+| `lily` | **the fairy lantern** (*Calochortus pulchellus*, the Mount Diablo globe lily) — the tour's first ORGANIC subject and a deliberate stress test: thirteen closed solids (three torus-segment stem tubes from `tube_along_arc`; one sphere-zone lantern with a conical mouth from `revolve(Full)`; the BUD, which is that same meridian said three times PARTIALLY — three 156° pre-tepals on three axes forming a narrow tripod about the bud's own, sharing the attachment so the tilt splays their tips, and rolled a quarter turn off their own radius so they nest chirally like a pinwheel; two keeled leaf blades from `sweep_body`; and four from `loft_body` — the long basal leaf and the three sepals), walked by a turtle so consecutive stem arcs are **G1 by construction**. The analytic bodies approximate nothing, and since the tube door that is a claim about STORED PARAMETERS as well as surface kind: the stem's `minor_radius` IS the authored 0.060 rather than the bulge-arc reconstruction 3.9e-16 below it. The six blades are the fitted pieces — a skin is a B-spline wall through exact spine points. The two SWEPT ones hold ONE width base to tip and never roll, because `sweep_body` takes one profile and derives its own frame; the four LOFTED ones do both, because `loft_body` takes the sections and the placements as separate lists, so the long leaf runs rectangle-at-the-stem to wide diamond to small diamond while turning 160° about its own spine (eased toward the tip), and the sepals stand TANGENT to the globe with the stand-off set to the section's own keel. Every blade section is straight lines and not the old crescent's arcs — a limit that has since EXPIRED: the skin lane refused a rational wall until #306 landed the span meter's rational arm (`m7_skin_integral`'s Pin 4 was written to flip when that happened, and has). Restoring the lanceolate arcs is outstanding work on this stop, gated on checking the QUADRATURE half of the rational bank, which #306 did not retire. Nothing is JOINED either — the stop is followed by **eight live wall probes** that attempt the joins and shapes a plant actually wants (glue the stem arcs, weld flower to stem, oblique-extrude a leaf out of its plane, stretch a bud into an ovoid, mirror a leaf, fillet the mouth rim, carve a tepal seam, graft the leaf's sheath onto its blade at a declared identical rectangle) and assert each typed refusal, panicking if one ever retires |
 | `heatsink5/7/9` | **the M4 layer**: ONE recipe document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `LinearPattern`; each re-eval recomputes exactly 1 node and reuses 4 (counted in the caption); stable names survive the edits (135/135); the montage carries only the 9-fin panel |
 
 Five committed **shadow proofs** ride beside the montage panels
@@ -641,6 +694,94 @@ never mistaken for a good pass.
 
 Because frames are staged and published only on a complete pass (see
 above), a wedge leaves the committed lane directory exactly as it was.
+
+### Off-box: the hosted lanes
+
+**This is the default renderer**, not an alternative to a local pass.
+`.github/workflows/render.yml` runs the render lanes on GitHub runners,
+on demand (`workflow_dispatch` — no PR trigger, no schedule), and hands
+each one back as a run artifact.
+
+`scripts/render-hosted.sh` is the front end, and the thing to use:
+
+```sh
+scripts/render-hosted.sh --lane all             # push check, dispatch, poll, install
+scripts/render-hosted.sh --lane wild --verify   # + prove the pull is byte-exact
+scripts/render-hosted.sh --run <id>             # pull an existing run, no re-render
+scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
+```
+
+It **refuses** if your local HEAD is not what `origin/<branch>` points
+at — the runner checks out the pushed tree and cannot see local commits,
+so rendering an unpushed branch would draw scenes you are not looking
+at, and the result would look entirely plausible. A dirty working tree
+is a warning by the same logic one step down. While the run is going it
+prints per-job status on change plus a heartbeat every five minutes (a
+FreeCAD leg can legitimately be silent for twenty), and on a non-success
+conclusion it names the failing jobs and dumps the failing steps' log
+tail. On success it downloads each requested lane's artifact, installs
+it at the lane's committed path, **reports rather than deletes** any
+committed file the artifact does not contain, runs
+`check_render_provenance.py` over the result, and prints what moved.
+
+`--verify` is the round-trip proof that the artifact path is *lossless*.
+It is not a claim that hosted pixels match local ones — the FreeCAD
+lanes' do not, see below — but that a byte-reproducible lane which went
+out through `upload-artifact`'s zip and came back through `gh run
+download` is byte-identical to what is committed, **provenance `tEXt`
+chunks and all**. If that ever stops holding, the provenance guard is
+being handed laundered files and every lane's pull is suspect.
+
+The raw commands, if you want them:
+
+```sh
+gh workflow run render.yml -f ref=my-branch -f lanes=all
+gh run download <run-id> -n renders-kernel   # renders-freecad / renders-uv / renders-wild
+```
+
+`lanes` selects `all` (default) or one of `kernel` / `freecad` / `uv` /
+`wild`. The tour is built **once** and handed to the lanes that read it
+as an artifact; the two PNG lanes then run as parallel matrix legs
+(`fail-fast: false` — one lane wedging must not cancel the other's
+evidence), while the UV sheet (no renderer) and the wild-corpus montage
+(matplotlib, its own generator, no tour) land without waiting on either.
+
+The PNG lanes provision the **same** version-pinned, checksum-verified
+FreeCAD 1.1.2 AppImage as `ci.yml`'s `step-import` job — same cache key,
+so those rows and these share one entry and a hosted render normally
+downloads nothing — and add what *drawing* needs on top of what
+importing needs: software GL (llvmpipe) and Xvfb, because Coin's
+offscreen renderer wants a GL context and a display even though Qt
+itself stays `offscreen`.
+
+The workflow adds exactly one check of its own, and it exists for the
+kernel lane: **every leg asserts `demos/renders-preview/` does not
+exist.** That lane's matplotlib fallback exits 0, so without the
+assertion a hosted pass could be green having drawn nothing with
+FreeCAD — the frames sitting in the gitignored preview tree while the
+artifact holds the committed cells unchanged. It is a structural check
+on the #221 routing invariant above, not a new rule.
+
+**Artifact-only, by construction.** No job commits or pushes, and the
+PNG lanes' pixels are *not* expected to match the committed cells
+byte-for-byte: those were drawn against a developer host's GL stack,
+these by llvmpipe on a runner image that drifts. Each lane reports its
+diff against the committed tree in the run summary as a measurement,
+never a gate. Making a hosted PNG lane the canonical producer would mean
+pinning the whole GL stack in a container image and re-baselining the
+committed cells in one commit — a design call, not a config tweak. (The
+UV lane carries no such caveat: it is renderer-free and reproducible
+off-box, which is why it is the one lane CI actually *gates*.)
+
+The **wild** lane carries no such caveat either, and is the more
+interesting case: it is FreeCAD-free by scope, so its cells are drawn by
+matplotlib's Agg rasterizer — pure CPU, matplotlib's own bundled fonts,
+pinned `numpy`/`matplotlib`, no GL anywhere in the path — over the
+kernel's own tessellation of committed STEP fixtures. Byte-identity IS
+expected there, and unlike the UV lane the output is PNGs carrying the
+provenance stamp chunks. That is what makes it the lane
+`render-hosted.sh --verify` round-trips: it exercises the whole
+stamp-bearing path, not just a text file.
 
 `render.py` is the zero-dependency fallback for the kernel lane
 (numpy + matplotlib, pure CPU, demo-local venv): binary-STL parsing,

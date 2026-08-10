@@ -275,8 +275,20 @@ const CORPUS: [(&str, Disposition); 53] = [
         Refused("no intensional description certifies"),
     ),
     (
+        // **M8 instancing retired the placement half of this refusal.**
+        // dm1's seven occurrences of three component representations
+        // now materialize as seven placed instances; what refuses is
+        // strictly downstream of that, in the D7 adoption ladder, on
+        // the rims of the file's seven RATIONAL cylinders — which
+        // M7-6 honestly declined to promote to `Cylinder`, so their
+        // circular rims arrive as rational NURBS carriers between a
+        // promoted cap Plane and a stay-NURBS wall, a pair the ladder
+        // has no certificate for. Same shared fragment as
+        // `TAIL_TURBINE`'s row, same reason it is the right one: the
+        // preamble pins the class, and a drift to a parse error,
+        // crash, or Pass goes red.
         "tests/fixtures/wild/stepcode/dm1-id-214.stp",
-        Refused("a second, different assembly placement"),
+        Refused("no intensional description certifies"),
     ),
     (
         "tests/fixtures/wild/stepcode/io1-cm-214.stp",

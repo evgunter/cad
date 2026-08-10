@@ -43,11 +43,57 @@ pub(crate) struct Model {
     pub(crate) shape: Shape,
     /// The structure normalizations minted during resolution, as data.
     pub(crate) normalizations: Vec<StructureNormalization>,
-    /// The assembly's rigid placement of the file's content (M7-4 Leg
-    /// D), when the file states a non-identity one — applied to the
-    /// finished body through the kernel's own
-    /// [`topo::transform_rigid`] door.
-    pub(crate) placement: Option<Affine3<f64>>,
+    /// **What the file asks to be MATERIALIZED**, in resolution order:
+    /// one entry per placed instance of a solid (M8 instancing), or —
+    /// for a file whose assembly places nothing — one unplaced entry
+    /// per solid. Never empty for a `Shape::Solids` model, and every
+    /// entry's `solid` indexes that vector.
+    pub(crate) instances: Vec<SolidInstance>,
+}
+
+/// One materialization of one `MANIFOLD_SOLID_BREP`: which solid, and
+/// the rigid frame the assembly places that copy in.
+///
+/// A component representation named by three
+/// `NEXT_ASSEMBLY_USAGE_OCCURRENCE`s yields three of these over the
+/// same `solid` index with three different maps — the copies are made
+/// at materialization (each its own body, each mapped through
+/// [`topo::transform_rigid`] and grafted in), never by sharing
+/// topology.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SolidInstance {
+    /// Index into the model's `Shape::Solids` vector.
+    pub(crate) solid: usize,
+    /// The shape representation that NAMES this instance's solid —
+    /// the component representation for an assembly, and the
+    /// representation the solid resolved under otherwise. The key of
+    /// the A7 association (component → instances → solids).
+    pub(crate) component: u64,
+    /// What the ASSEMBLY says about this copy, or `None` for a file
+    /// whose assembly places nothing. Every entity id inside names a
+    /// real record — an unplaced instance carries no ids at all rather
+    /// than a sentinel, so a refusal can never point at `#0`.
+    pub(crate) placed: Option<Placed>,
+}
+
+/// The assembly's statement about one instance (see
+/// [`SolidInstance::placed`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Placed {
+    /// The rigid map, composed along the placement chain — `None` is
+    /// the identity (the component is where its own representation
+    /// says it is).
+    pub(crate) map: Option<Affine3<f64>>,
+    /// The `ITEM_DEFINED_TRANSFORMATION` of this instance's OWN
+    /// (innermost) placement — the record a refusal names.
+    pub(crate) transform: u64,
+    /// The `REPRESENTATION_RELATIONSHIP` complex that states this
+    /// occurrence.
+    pub(crate) relationship: u64,
+    /// The `NEXT_ASSEMBLY_USAGE_OCCURRENCE` the relationship is linked
+    /// to through `CONTEXT_DEPENDENT_SHAPE_REPRESENTATION` /
+    /// `PRODUCT_DEFINITION_SHAPE`, where the file states one.
+    pub(crate) occurrence: Option<u64>,
 }
 
 /// The shape content of the data section.
@@ -2517,70 +2563,89 @@ impl<'a> Resolver<'a> {
     }
 }
 
-/// The **assembly layer** (M7-2 Leg D), accepted at the identity and
-/// refused anywhere else.
+/// The **assembly layer** — resolved into the instance list the
+/// materializer works from (M7-2 Leg D → M7-4 Leg D → M8 instancing).
 ///
-/// FreeCAD's `Import.export` path (what GUI users hit) wraps a
-/// multi-body document in AP214's assembly vocabulary:
+/// FreeCAD's `Import.export` path (what GUI users hit) and every AP214
+/// assembly translator wrap multi-body content in the same vocabulary:
 /// `NEXT_ASSEMBLY_USAGE_OCCURRENCE` links product to component,
 /// `CONTEXT_DEPENDENT_SHAPE_REPRESENTATION` links the component's own
 /// representation to the assembly root through a complex
-/// `( REPRESENTATION_RELATIONSHIP … REPRESENTATION_RELATIONSHIP_WITH_
-/// TRANSFORMATION(#t) SHAPE_REPRESENTATION_RELATIONSHIP() )`, and
-/// `#t` is an `ITEM_DEFINED_TRANSFORMATION` naming two placements: the
-/// component's frame and where it sits in the assembly.
+/// `( REPRESENTATION_RELATIONSHIP('', '', #rep_1, #rep_2) …
+/// REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(#t)
+/// SHAPE_REPRESENTATION_RELATIONSHIP() )`, and `#t` is an
+/// `ITEM_DEFINED_TRANSFORMATION` naming two placements: the
+/// component's own frame and where THIS OCCURRENCE sits in the
+/// assembly.
 ///
-/// The product-structure entities are ignorable (the importer already
-/// ignores the whole PRODUCT family), but the transform is NOT: a
-/// non-identity one means the geometry as stated is NOT where the
-/// assembly puts it, and importing the raw geometry would silently
-/// place every body wrong. Every file M7-2 measured had the identity
-/// there (FreeCAD bakes placement into the exported shape), so that
-/// pass traversed, accepted the identity, and refused everything else.
+/// **The association was always right there.** `rep_1` is the
+/// component representation and `rep_2` the assembly root, so the
+/// complex record says *which content* the transform places — one
+/// occurrence, one map, one component. M7-2 traversed these and
+/// accepted only the identity; M7-4 Leg D added the one RIGID map, but
+/// insisted it cover ALL of the file's content, because a placed body
+/// was placed by transforming the finished body once and there was
+/// nowhere to put a second frame. This pass reads the same records the
+/// same way and keeps the per-relationship association instead of
+/// collapsing it:
 ///
-/// **M7-4 Leg D** keeps the refusal's teeth and adds the one case a
-/// wild file can legitimately state: a RIGID motion. The two
-/// placements are read as orthonormal frames, the map that carries the
-/// first onto the second is composed, and:
+/// - each relationship contributes **one instance per solid of the
+///   representation it names**, carrying that relationship's map;
+/// - a component representation named by three occurrences therefore
+///   materializes three times, each copy mapped by its own frame
+///   ([`SolidInstance`]);
+/// - the identity (at ε_in) is carried as `None` — nothing moves, the
+///   M7-2 behavior bit for bit — and an identity-placed component is
+///   still RECORDED as covered (the coverage bug M8 fixed: the old
+///   pass `continue`d past its own bookkeeping, so an identity
+///   component read as never placed at all);
+/// - a mirror (det = −1) or any scaling refuses typed at
+///   [`Resolver::item_defined_transformation`], naming the transform.
+///   A mirror is not a placement — it reverses handedness, and which
+///   way a mirrored solid's faces then point is a question about the
+///   file's intent that an importer must not answer by guessing.
 ///
-/// - the identity (at ε_in) answers `None` — nothing moves, the M7-2
-///   behavior bit for bit;
-/// - a rigid motion — orthonormal linear part, determinant +1 at ε_in
-///   — answers the map, which the caller hands to the kernel's own
-///   [`topo::transform_rigid`] door (which re-checks rigidity with
-///   decided predicates and RE-CERTIFIES every carrier: this pass
-///   proposes, the kernel disposes);
-/// - a mirror (det = −1) or any scaling refuses typed, naming the
-///   transform. A mirror is not a placement — it reverses handedness,
-///   and which way a mirrored solid's faces then point is a question
-///   about the file's intent that an importer must not answer by
-///   guessing.
+/// **Order** is the relationship entity's id, ascending (`file.data`
+/// is a `BTreeMap`), and within one relationship the solids in the
+/// order [`resolve_shape`] found them — entity-id order end to end,
+/// D9's determinism, and what `Shape::Solids` has always documented.
 ///
-/// **What is still refused: per-component placement.** One map for the
-/// whole file is a placed part; two different maps over different
-/// components is assembly instancing — a body graph with per-instance
-/// frames, which this crate has no representation for and which is a
-/// later unit. It refuses typed rather than importing some components
-/// placed and others not.
-fn resolve_assembly_placement(
+/// **What still refuses**: content the assembly does not place at all,
+/// beside components it does. A solid the file never places would
+/// otherwise ride along at its stated coordinates while its neighbours
+/// move — placing only some of a file's content, guessed. And a
+/// representation whose content ANOTHER representation already claims
+/// (the same `MANIFOLD_SOLID_BREP` named twice, deduplicated at
+/// resolution) cannot be placed independently: its map would have
+/// nowhere to land, so it refuses rather than being dropped.
+fn resolve_instances(
     r: &Resolver<'_>,
     file: &StepFile,
     roots: &ContentRoots,
-) -> Result<Option<Affine3<f64>>, StepImportError> {
-    let mut placement: Option<(u64, Affine3<f64>)> = None;
+    owners: &std::collections::BTreeMap<u64, Vec<usize>>,
+    solids: usize,
+) -> Result<Vec<SolidInstance>, StepImportError> {
+    // One edge of the assembly graph, in relationship-entity-id order:
+    // (relationship id, rep_1 = the placed representation, rep_2 = the
+    // representation it is placed INTO, transform id, the map).
+    let mut relationships: Vec<Edge> = Vec::new();
     let mut placed_reps = std::collections::BTreeSet::new();
     for (&id, instance) in &file.data {
-        let mut related: Option<u64> = None;
+        let mut related: Option<(u64, u64)> = None;
         let mut transform: Option<u64> = None;
         for (kw, args) in &instance.records {
             match kw.as_str() {
                 "REPRESENTATION_RELATIONSHIP" => {
                     let expected = "REPRESENTATION_RELATIONSHIP(name, description, \
                                     #rep_1, #rep_2)";
-                    let [_, _, rep_1, _] = args.as_slice() else {
+                    let [_, _, rep_1, rep_2] = args.as_slice() else {
                         return Err(StepImportError::MalformedRecord { id, expected });
                     };
-                    related = Some(as_ref(id, rep_1, expected)?);
+                    // BOTH ends. `rep_2` is what makes the chain
+                    // visible: a nested assembly's inner relationship
+                    // places a component into a SUB-ASSEMBLY, and only
+                    // `rep_2` says so.
+                    related = Some((as_ref(id, rep_1, expected)?, as_ref(id, rep_2, expected)?));
                 }
                 "REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION" => {
                     let expected = "REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(\
@@ -2594,55 +2659,274 @@ fn resolve_assembly_placement(
             }
         }
         let Some(tid) = transform else { continue };
-        let Some(map) = r.item_defined_transformation(id, tid)? else {
-            continue; // the identity: the component is where it says.
+        // A transform that relates nothing places nothing, and reading
+        // it as "the whole file" is the guess this pass exists to stop.
+        let Some((rep, into)) = related else {
+            return Err(StepImportError::MalformedRecord {
+                id,
+                expected: "a REPRESENTATION_RELATIONSHIP beside the \
+                           _WITH_TRANSFORMATION half (the transform names no \
+                           representation to place)",
+            });
         };
-        if let Some(rep) = related {
-            placed_reps.insert(rep);
+        let map = r.item_defined_transformation(id, tid)?;
+        // BEFORE the identity test, not after: an identity-placed
+        // component IS covered by the assembly, and recording that is
+        // what the stray check below reads.
+        placed_reps.insert(rep);
+        relationships.push(Edge {
+            id,
+            rep,
+            into,
+            tid,
+            map,
+        });
+    }
+
+    // A file whose assembly places nothing — no relationship carries a
+    // transform at all — materializes exactly its solids, unplaced, in
+    // the order they resolved. This is every own-corpus and most wild
+    // files, and it is the same body it has always been.
+    if relationships.is_empty() {
+        let mut out = Vec::with_capacity(solids);
+        for (&rep, mine) in owners {
+            for &solid in mine {
+                out.push(SolidInstance {
+                    solid,
+                    component: rep,
+                    placed: None,
+                });
+            }
         }
-        match placement {
-            None => placement = Some((tid, map)),
-            Some((_, prev)) if same_map(&prev, &map) => {}
-            Some(_) => {
+        // `owners` is keyed by representation id, so the walk above is
+        // representation order, not solid order; the model's contract
+        // is the SOLIDS' own resolution order (D9, entity-id).
+        out.sort_by_key(|i| i.solid);
+        debug_assert_eq!(out.len(), solids, "every solid materializes once");
+        return Ok(out);
+    }
+    // `NEXT_ASSEMBLY_USAGE_OCCURRENCE` by relationship, for the A7
+    // record: `CONTEXT_DEPENDENT_SHAPE_REPRESENTATION(#rr, #pds)` and
+    // `PRODUCT_DEFINITION_SHAPE(name, description, #pd)` link the
+    // transform-carrying relationship to the product OCCURRENCE it
+    // places. This is descriptive metadata — which occurrence, for a
+    // later re-adoption as an assembly document — so a file that omits
+    // or reshapes the link records `None` rather than refusing: it
+    // must never turn an importing file into a refusing one.
+    let mut occurrences: std::collections::BTreeMap<u64, u64> = std::collections::BTreeMap::new();
+    for (&id, instance) in &file.data {
+        let [(kw, args)] = instance.records.as_slice() else {
+            continue;
+        };
+        if kw != "CONTEXT_DEPENDENT_SHAPE_REPRESENTATION" {
+            continue;
+        }
+        let [rr, pds] = args.as_slice() else { continue };
+        let expected = "CONTEXT_DEPENDENT_SHAPE_REPRESENTATION(#rr, #pds)";
+        let (Ok(rr), Ok(pds)) = (as_ref(id, rr, expected), as_ref(id, pds, expected)) else {
+            continue;
+        };
+        let Ok(pds) = r.instance(id, pds) else {
+            continue;
+        };
+        let [(kw, args)] = pds.records.as_slice() else {
+            continue;
+        };
+        if kw != "PRODUCT_DEFINITION_SHAPE" {
+            continue;
+        }
+        let [_, _, pd] = args.as_slice() else {
+            continue;
+        };
+        let Ok(pd) = as_ref(id, pd, expected) else {
+            continue;
+        };
+        if r.instance(id, pd).is_ok_and(|i| {
+            i.records
+                .iter()
+                .any(|(kw, _)| kw == "NEXT_ASSEMBLY_USAGE_OCCURRENCE")
+        }) {
+            occurrences.insert(rr, pd);
+        }
+    }
+
+    // Every representation that carries model content must be placed by
+    // the assembly; one it never names would ride along at its stated
+    // coordinates while its neighbours move.
+    if let Some(&stray) = roots.reps.iter().find(|id| !placed_reps.contains(id)) {
+        return Err(StepImportError::Structure {
+            id: stray,
+            what: "a shape representation the assembly's placements do not cover, \
+                   beside components they do — placing only some of a file's content \
+                   is a guess about the rest, refused",
+        });
+    }
+
+    // **The chain walk.** An assembly is a GRAPH of representations:
+    // each relationship is an edge `rep_1 → rep_2` carrying a map, a
+    // component's own relationship places it into whatever holds it,
+    // and a NESTED assembly places that holder into something else
+    // again. One instance is therefore one PATH from a component
+    // representation up to a representation nothing places — and its
+    // frame is the composition of that path's maps, outermost last.
+    //
+    // Reading only the first edge is exactly the silent-wrong-geometry
+    // hole this walk exists to close: a sub-assembly's own frame would
+    // be dropped and its parts would import at their sub-assembly
+    // coordinates, which is a plausible body at the wrong place.
+    let mut from: std::collections::BTreeMap<u64, Vec<usize>> = std::collections::BTreeMap::new();
+    for (i, e) in relationships.iter().enumerate() {
+        from.entry(e.rep).or_default().push(i);
+    }
+    let mut out = Vec::new();
+    let mut used = vec![false; relationships.len()];
+    for (start, e) in relationships.iter().enumerate() {
+        let mine = owners.get(&e.rep).map_or(&[][..], Vec::as_slice);
+        if mine.is_empty() {
+            // Not a component's own edge. Either an intermediate one
+            // (walked below, as the continuation of some component's
+            // path) or the deduplication case, refused next.
+            //
+            // A content representation whose solids another
+            // representation already claims (the same MSB named twice
+            // — deduplicated at resolution, so it materializes under
+            // the FIRST namer) cannot also be placed here: this map
+            // has nowhere to land.
+            if roots.reps.contains(&e.rep) {
                 return Err(StepImportError::Structure {
-                    id: tid,
-                    what: "a second, different assembly placement — placing components \
-                           independently is assembly instancing, which this importer \
-                           has no body graph to hold; refused rather than importing \
-                           some components placed and others not",
+                    id: e.id,
+                    what: "a placed representation whose solids another representation \
+                           already names — one body cannot take two independent \
+                           assembly frames, refused rather than silently dropping one",
+                });
+            }
+            continue;
+        }
+        for path in chains(&relationships, &from, start)? {
+            // Compose outermost-last: a point of the component goes
+            // through its own frame first, then through each holder's.
+            let mut map: Option<Affine3<f64>> = None;
+            for &edge in &path {
+                used[edge] = true;
+                map = match (map, relationships[edge].map) {
+                    (m, None) => m,
+                    (None, Some(outer)) => Some(outer),
+                    (Some(inner), Some(outer)) => Some(compose(&outer, &inner)),
+                };
+            }
+            for &solid in mine {
+                out.push(SolidInstance {
+                    solid,
+                    component: e.rep,
+                    placed: Some(Placed {
+                        map,
+                        transform: e.tid,
+                        relationship: e.id,
+                        occurrence: occurrences.get(&e.id).copied(),
+                    }),
                 });
             }
         }
     }
-    let Some((tid, map)) = placement else {
-        return Ok(None);
-    };
-    // Every representation that carries model content must be governed
-    // by that one placement; a solid the assembly never places would
-    // otherwise ride along at its stated coordinates.
-    if let Some(&stray) = roots.reps.iter().find(|id| !placed_reps.contains(id)) {
+    // Every stated placement must have PLACED something. A relationship
+    // no component's chain reaches states a frame that governs no
+    // geometry — which is either a file this reader misunderstands or a
+    // component it failed to find, and both are refusals rather than a
+    // body assembled around a transform nobody applied.
+    if let Some(i) = used.iter().position(|u| !u) {
         return Err(StepImportError::Structure {
-            id: stray,
-            what: "a shape representation the assembly's placement does not cover, \
-                   beside components it does — placing only some of a file's content \
-                   is assembly instancing, refused rather than guessed",
+            id: relationships[i].id,
+            what: "an assembly placement no component's placement chain reaches — its \
+                   transform would govern no geometry, refused rather than importing \
+                   a body around a frame nobody applied",
         });
     }
-    let _ = tid;
-    Ok(Some(map))
+    Ok(out)
 }
 
-/// Two maps as the same placement — bitwise, because they come from
-/// the same arithmetic over the same file when they are the same
-/// placement, and a *near*-equality here would silently merge two
-/// components' distinct frames.
-fn same_map(a: &Affine3<f64>, b: &Affine3<f64>) -> bool {
-    let cols = |m: &Affine3<f64>| [m.linear.c0, m.linear.c1, m.linear.c2, m.translation];
-    cols(a).iter().zip(cols(b).iter()).all(|(x, y)| {
-        x.x.to_bits() == y.x.to_bits()
-            && x.y.to_bits() == y.y.to_bits()
-            && x.z.to_bits() == y.z.to_bits()
-    })
+/// One edge of the assembly graph (see [`resolve_instances`]).
+#[derive(Clone, Copy, Debug)]
+struct Edge {
+    /// The `REPRESENTATION_RELATIONSHIP` complex's entity id.
+    id: u64,
+    /// `rep_1` — the representation this edge PLACES.
+    rep: u64,
+    /// `rep_2` — the representation it is placed into.
+    into: u64,
+    /// The `ITEM_DEFINED_TRANSFORMATION`'s entity id.
+    tid: u64,
+    /// The map, `None` at the identity.
+    map: Option<Affine3<f64>>,
+}
+
+/// Every path from edge `start` up to a representation nothing places,
+/// as edge-index lists innermost-first.
+///
+/// A representation placed into several holders (or a holder itself
+/// occurring several times) branches, and each branch is a distinct
+/// instance — that IS assembly instancing, one level up. Paths are
+/// enumerated in ascending relationship-entity-id order at every
+/// branch, so the instance list is entity-id deterministic end to end
+/// (D9), exactly as the flat case always was.
+///
+/// # Errors
+///
+/// A cycle refuses typed: a representation that (transitively) places
+/// itself states no finite set of instances, and unrolling it to some
+/// depth would be a guess.
+fn chains(
+    edges: &[Edge],
+    from: &std::collections::BTreeMap<u64, Vec<usize>>,
+    start: usize,
+) -> Result<Vec<Vec<usize>>, StepImportError> {
+    let mut out = Vec::new();
+    let mut stack = vec![vec![start]];
+    while let Some(path) = stack.pop() {
+        // Total by construction (a path is never empty and every index
+        // came from `edges`), and written totally anyway — this pass
+        // has no panicking door.
+        let Some(last) = path.last().and_then(|&i| edges.get(i)).copied() else {
+            continue;
+        };
+        let next = from.get(&last.into).map_or(&[][..], Vec::as_slice);
+        if next.is_empty() {
+            out.push(path);
+            continue;
+        }
+        // Descending here so the ascending order comes back off the
+        // LIFO stack — the branch order is the file's own entity ids.
+        for &edge in next.iter().rev() {
+            if path.iter().any(|&p| edges[p].rep == edges[edge].rep) {
+                return Err(StepImportError::Structure {
+                    id: edges[edge].id,
+                    what: "an assembly placement chain that returns to a representation \
+                           it already places — a representation that places itself states \
+                           no finite set of instances, refused rather than unrolled to a \
+                           guessed depth",
+                });
+            }
+            let mut branch = path.clone();
+            branch.push(edge);
+            stack.push(branch);
+        }
+    }
+    // The LIFO above yields paths in reverse branch order; sort back to
+    // the file's own order (a path is a list of ascending-id edges, so
+    // lexicographic on the edge ids IS entity-id order).
+    out.sort_by_key(|p| p.iter().map(|&i| edges[i].id).collect::<Vec<_>>());
+    Ok(out)
+}
+
+/// `outer ∘ inner` — apply `inner` first. Plain composition of two
+/// affine maps; both are rigid by the time they get here (each came
+/// through [`Resolver::item_defined_transformation`]'s determinant
+/// gate), and a composition of rotations is a rotation, so the kernel's
+/// own `transform_rigid` door still has the last word on the result.
+fn compose(outer: &Affine3<f64>, inner: &Affine3<f64>) -> Affine3<f64> {
+    Affine3::from_parts(
+        outer.linear * inner.linear,
+        outer.linear * inner.translation + outer.translation,
+    )
 }
 
 /// Shape content **by resolution** (M7-1 review MINOR-4): solids come
@@ -2653,8 +2937,19 @@ fn same_map(a: &Affine3<f64>, b: &Affine3<f64>) -> bool {
 /// one of them (an orphan is refused rather than guessed to be model
 /// content or silently dropped). Mixed solid+wireframe content and a
 /// second curve set are outside the subset, refused typed.
-fn resolve_shape(r: &Resolver<'_>, file: &StepFile) -> Result<Shape, StepImportError> {
+fn resolve_shape(
+    r: &Resolver<'_>,
+    file: &StepFile,
+) -> Result<(Shape, std::collections::BTreeMap<u64, Vec<usize>>), StepImportError> {
     let mut solids = Vec::new();
+    // Which representation NAMED each solid, as `rep -> solid indices`.
+    // The assembly layer places representations, so materialization
+    // needs the association resolution already establishes; a solid
+    // named twice (a NIST translator writes the same MSB into both an
+    // `ADVANCED_BREP_SHAPE_REPRESENTATION` and a plain
+    // `SHAPE_REPRESENTATION`) belongs to the FIRST namer in entity-id
+    // order — the same one `referenced` already dedupes it to.
+    let mut owners: std::collections::BTreeMap<u64, Vec<usize>> = std::collections::BTreeMap::new();
     let mut wireframe: Option<(u64, Vec<Curve3<f64>>)> = None;
     let mut referenced: std::collections::BTreeSet<u64> = std::collections::BTreeSet::new();
     for (&id, instance) in &file.data {
@@ -2688,6 +2983,7 @@ fn resolve_shape(r: &Resolver<'_>, file: &StepFile) -> Result<Shape, StepImportE
                         // coincident solids — a body no file describes.
                         [(k, sargs)] if k == "MANIFOLD_SOLID_BREP" => {
                             if referenced.insert(item_id) {
+                                owners.entry(id).or_default().push(solids.len());
                                 solids.push(r.solid(item_id, sargs)?);
                             }
                         }
@@ -2751,8 +3047,8 @@ fn resolve_shape(r: &Resolver<'_>, file: &StepFile) -> Result<Shape, StepImportE
         }
     }
     match (solids.is_empty(), wireframe) {
-        (false, None) => Ok(Shape::Solids(solids)),
-        (true, Some((_, curves))) => Ok(Shape::Wireframe(curves)),
+        (false, None) => Ok((Shape::Solids(solids), owners)),
+        (true, Some((_, curves))) => Ok((Shape::Wireframe(curves), owners)),
         (true, None) => Err(StepImportError::NothingToImport),
         (false, Some((wid, _))) => Err(StepImportError::Structure {
             id: wid,
@@ -2829,10 +3125,16 @@ pub(crate) fn resolve(
         ),
         normalizations: std::cell::RefCell::new(Vec::new()),
     };
-    let shape = resolve_shape(&r, file)?;
-    let placement = resolve_assembly_placement(&r, file, &roots)?;
+    let (shape, owners) = resolve_shape(&r, file)?;
+    // The instance list is resolved for a SOLID model only: a
+    // wireframe has no body to place, and an assembly of wireframes is
+    // not in the subset.
+    let instances = match shape {
+        Shape::Solids(ref solids) => resolve_instances(&r, file, &roots, &owners, solids.len())?,
+        Shape::Wireframe(_) => Vec::new(),
+    };
     Ok(Model {
-        placement,
+        instances,
         uncertainty_m: units
             .uncertainty_m
             .ok_or(StepImportError::MissingUncertainty)?,

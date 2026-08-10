@@ -40,6 +40,8 @@ mod crosslap_rest;
 mod cube_by_hand;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
+#[path = "graft_disjoint.rs"]
+mod graft_disjoint;
 #[path = "interval_body.rs"]
 mod interval_body;
 #[path = "issue86_double_subtract.rs"]

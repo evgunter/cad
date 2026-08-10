@@ -601,3 +601,29 @@ cb24259b. Both run the full Python journey independently.
 U10 (2026-08-10): the LIB-6 opus remainder — the program's FINAL
 unit. Difficulty logged pre-dispatch: M (docs-only, breadth not
 depth). Review ordinal computed at dispatch of its review.
+U10 dual (2026-08-10): dispatch-time ordinal = 17 merged blinded
+rows + 1 = 18 → DUAL (sample #6). R1+R2 concurrent on frozen head
+5d1f132a. Both mutate guide blocks and re-derive audit oracles
+independently.
+Block LIB-7 partial (2026-08-10): R1-PARAMS (the named-parameter
+curation, residual A/R1) = S pre-logged, orchestrator-review
+class candidate but dispatched blinded → draw: single byte
+byte 135 -> fable position 0
+→ (fable, opus, opus). R1-PARAMS = slot 1 fable (S). PY-CI is
+CI-infra (no blinded lane, the row records outside quality models
+per the KLINT-GATE precedent). Remainders bank for the successor.
+LIB-7 slot 2 (2026-08-10, successor session): PYG1 (the audit's
+G1 — Python profile arcs/circles, the §L4 typestate lattice,
+docs/LIB-PYG1-SPEC.md) = OPUS (banked remainder). Difficulty
+logged pre-dispatch: M-L (the register's own sizing; the design
+is settled in the spec, the breadth is the lattice + 4 audit
+flips + guide + stubs). Review ordinal fixes at its R1 dispatch.
+R1-PARAMS ordinal-19 single dispatched retroactively on frozen
+head 9bb1916 by the successor (2026-08-10), per the handoff.
+| U10 | 2026-08-10 | docs/tutorials/corpus-as-examples (the FINAL unit): GUIDE both languages via include_str! doctests + test_guide.py, corpus index, fail-loud tour, executable north-star audit (G1-G11), crate fronts, 6 doc-rot fixes | M (logged pre-dispatch) | OPUS (block LIB-6 remainder) | **DUAL (sample #6, ordinal 18, frozen head)** — R1 APPROVE-WITH-FIXES 0/1/4; R2 APPROVE-WITH-FIXES 0/2/4. CONVERGED on the shipped corpus-count factual error (17→16, both counted the registry independently); R2-unique: the undischarged per-gap pointer clause; the no-rot machinery mutation-proven by both in both languages; projectbox oracle independently re-derived by both | 0 silent (the mid-unit LB13-guard trip honestly reported; the fix-pass count partition self-caught a defect in the audit's own G-counts) | 5/5 | 5/4 | 4/4 | light (count 16 everywhere; per-gap register pointers incl. G5→R3, G10→R1; NOTEs; report accuracy) — AND the pass CAUGHT the PY-CI red-main venv defect, hotfixed as #332; executor: implementer-inherited | MERGED #318 25/3-skip/0; the guide+audit enforced hosted (46 tests; guide blocks execute from Markdown in CI); R4 discharged | impl ~270k / R1 ~272k(2 resumes) / R2 ~142k / fix ~567k(2 segments) | slot-wait-dominated, annotated |
+| R1-PARAMS | 2026-08-10 | named-parameter curation (residual R1/G10): ParamName/DocParam through pncad::document, set_doc_param in Python, guide §3.2 compile_fail flipped to passing, G10 audit row flipped with executed oracle | S (logged pre-draw) | fable (block LIB-7 slot 1, byte 135) | single (ordinal 19, RETROACTIVE on frozen head 9bb1916 post-merge) — APPROVE 0/1/4, rubric 5/5/5 (all headline claims independently re-executed at the frozen head: pin green ×3ε and RED under 3 tampers; §3.2 doctest RED under oracle + counter mutations; 48/48 on the reviewer-rebuilt cdylib incl. both TestPlateParam rows; non-finite DocParams construct freely and refuse typed at Doc.apply with NO binding pre-check, located edit.rs:879; LB13 guard RED under an injected EntityKey re-export; audit partition arithmetic + #318 pointer survival verified; MINOR-1 = the pin's ε filter drops EVERY ε-prefixed line vs the doc-comment's "ONE", so a duplicated/corrupted ε line passed the Rust pin — mitigated end-to-end by Python load's typed refusals, CI-run) | 0 silent (3 reported, all disclosed: persistence-door strategy, fixture+pin mechanism, Closed-gaps table; full 9-file diff swept hunk-by-hunk) | 5 | 5 | 5 | tiny (sans_epsilon now asserts exactly one excluded ε line per side, mutation-verified RED "found 2" on a duplicated line; NOTEs banked: DocParam __eq__/__hash__ asymmetry → bindings rider; LB13 guard's fn-signature blind spot → register note); executor: ORCHESTRATOR-applied (implementer lane retired at handoff) | MERGED #329 all green pre-review (recorded pre-authorization); review re-ran everything at the frozen head; fix pass landed post-merge | impl ~165k / review ~82k / fix orchestrator-direct (negligible) | impl ~1.1h / review ~0.7h (15:01–15:42Z, one 2-min slot wait, no gaps) / fix ~0.2h |
+| PY-CI | 2026-08-10 | the python-suite hosted job (wheel + venv + discovery) | infra-class (no blinded lane, KLINT-GATE precedent) | n/a | validated by the hosted run; POST-MERGE DEFECT: the venv lived in rust-cache's target/ — green on the PR's cold cache, red on main's restored cache; caught by U10's fix pass, hotfixed #332 (venv → RUNNER_TEMP --clear), job green 58-59s since | the defect class recorded: cold-cache-green ≠ warm-cache-green for jobs writing inside cached trees | — | — | — | n/a | MERGED #326 + #332; the no-rot gate is structural | impl ~203k + hotfix orchestrator-direct | — |
+Block ASM-1 (2026-08-10): byte 81 (<252) → fable position 0:
+(fable, opus, opus). Difficulty logged pre-dispatch: ASM-1
+(identity + pins) = M → slot 1 fable. Opus remainders bank
+(ASM-ROOTS / ASM-2a the natural takers).

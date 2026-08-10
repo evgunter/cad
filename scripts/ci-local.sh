@@ -86,6 +86,7 @@ SCOPE=--workspace
 RUN_EDITOR_CORE=true
 RUN_STL=true
 RUN_STEP_EXPORT=true
+RUN_PNCAD_PY=true
 RUN_INTERVAL_BACKEND=true
 RUN_K_LINT=true
 if [ "$FULL" -eq 1 ]; then
@@ -105,6 +106,7 @@ else
       RUN_EDITOR_CORE) RUN_EDITOR_CORE="$v" ;;
       RUN_STL) RUN_STL="$v" ;;
       RUN_STEP_EXPORT) RUN_STEP_EXPORT="$v" ;;
+      RUN_PNCAD_PY) RUN_PNCAD_PY="$v" ;;
       RUN_INTERVAL_BACKEND) RUN_INTERVAL_BACKEND="$v" ;;
       RUN_K_LINT) RUN_K_LINT="$v" ;;
     esac
@@ -274,8 +276,15 @@ uv_composer_selftest() {
 # render lane CI can reproduce — and an ungated committed artifact rots.
 # The tour is ~3s once built and the sheet is text, so a firing diff is
 # readable. Hosted mirror: the `k-lint` job's "uv sheet drift (demos)".
+#
+# The `CAD_RENDER_LOCAL_OVERRIDE` sentence is set HERE, in the file, at
+# the one step that renders: the entry points refuse without it
+# (demos/hosted-render-guard.sh) and deliberately do not sniff for CI.
+# This row is a sanctioned automated render — renderer-free, and
+# `git diff --exit-code` un-does the question of drift by failing on it.
 uv_sheet_drift() {
   (cd demos/tour && cargo run --release -- ../out) >/dev/null && \
+    CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift \
     demos/render-uv.sh >/dev/null && \
     git diff --exit-code --stat HEAD -- demos/renders-uv/
 }
@@ -294,6 +303,20 @@ watertight() {
 # discovery and REQUIRE_FREECAD.
 step_import() {
   scripts/check_step.sh
+}
+
+# Mirror of hosted's `python-suite` job (LIB PY-CI). Hosted runs the
+# wheel path — maturin build, venv, pip install, unittest discover.
+# The local row is the staged-cdylib fallback run-python-tests.sh
+# exists for: same cargo-built extension module, same interpreter
+# contract, same unittest discovery over the same tests/ directory —
+# only the install vehicle degrades, which keeps the row runnable even
+# on the most degraded box U9S measured (no pip, no ensurepip, no
+# maturin). The script takes the build slot itself; nested under
+# ci-local's exclusive hold that acquisition is a no-op
+# (BUILD_SLOT_HELD).
+python_suite() {
+  crates/pncad-py/run-python-tests.sh
 }
 
 # $SCOPE is the filter's package scope: `--workspace` in tier `all`, an
@@ -455,6 +478,9 @@ run_row_if "$RUN_STL" "watertight (admesh)"          watertight
 # Root package step-export: no cargo build — FreeCAD over the committed
 # fixtures, which are byte-golden against that crate's writer.
 run_row_if "$RUN_STEP_EXPORT" "step import (freecad)" step_import
+# Root package pncad-py: the wheel's build graph is the whole façade
+# stack, so this fires exactly when something the suite compiles moved.
+run_row_if "$RUN_PNCAD_PY" "python suite (staged cdylib)" python_suite
 
 echo
 echo "=== ci-local summary ==="

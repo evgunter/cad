@@ -358,14 +358,109 @@ impl Node {
     }
 }
 
+/// A document-level parameter name (guide §3.2) — a plain string
+/// newtype, the same name the recipe's expressions reference. NOT an
+/// arena key: recipe vocabulary, meaningful in any document.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct ParamName(pub(crate) d::ParamName);
+
+#[pymethods]
+impl ParamName {
+    #[new]
+    fn new(name: &str) -> Self {
+        Self(d::ParamName::new(name))
+    }
+
+    /// The name itself.
+    #[getter]
+    fn name(&self) -> String {
+        self.0.0.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("ParamName({:?})", self.0.0)
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        self.0.hash(&mut h);
+        h.finish()
+    }
+}
+
+/// A named parameter's declared dimension and exact stored value
+/// (guide §3.2): what `DocEdit.set_doc_param` writes.
+///
+/// Continuous values arrive as typed quantities (§L4), so the
+/// dimension is carried by the constructor rather than guessed from a
+/// bare float. A non-finite value is NOT pre-checked here — the edit
+/// door refuses it typed (`non_finite_doc_param`), fail-loud where
+/// the kernel refuses.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct DocParam(pub(crate) d::DocParam);
+
+#[pymethods]
+impl DocParam {
+    /// A continuous Length parameter.
+    #[staticmethod]
+    fn length(value: &super::quantity::Length) -> Self {
+        Self(d::DocParam::Continuous {
+            dim: d::Dimension::Length,
+            value: value.0.meters(),
+        })
+    }
+
+    /// A continuous Angle parameter.
+    #[staticmethod]
+    fn angle(value: &super::quantity::Angle) -> Self {
+        Self(d::DocParam::Continuous {
+            dim: d::Dimension::Angle,
+            value: value.0.radians(),
+        })
+    }
+
+    /// A continuous dimensionless parameter.
+    #[staticmethod]
+    fn scalar(value: f64) -> Self {
+        Self(d::DocParam::Continuous {
+            dim: d::Dimension::Scalar,
+            value,
+        })
+    }
+
+    /// An integer Count parameter (structural material, spec D3).
+    #[staticmethod]
+    fn count(value: i64) -> Self {
+        Self(d::DocParam::Count { value })
+    }
+
+    fn __repr__(&self) -> String {
+        match &self.0 {
+            d::DocParam::Continuous { dim, value } => {
+                format!("DocParam({dim:?} {value})")
+            }
+            d::DocParam::Count { value } => format!("DocParam(Count {value})"),
+        }
+    }
+}
+
 /// A single edit to a document — the G1 edit vocabulary, which §L3
 /// names as the ONE API surface shared by the GUI, the bindings, macro
 /// recording and headless tests.
 ///
-/// This scaffold exposes the three edits the smoke journey needs. The
-/// remaining variants (re-witnessing, appearance, rebinds, expression
-/// paths) are mechanical additions once the surface they need is
-/// curated.
+/// Four edits are exposed today: `insert_node`, `delete_node`,
+/// `set_tolerance` and `set_doc_param` (R1-PARAMS). The remaining
+/// variants (slot edits, re-witnessing, appearance, rebinds,
+/// expression paths) are mechanical additions once the surface they
+/// need is curated — tracked as named gaps in
+/// `docs/guide/north-star-audit.md`.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct DocEdit {
@@ -397,6 +492,20 @@ impl DocEdit {
     fn set_tolerance(eps: f64) -> Self {
         Self {
             inner: d::DocEdit::SetTolerance { eps },
+        }
+    }
+
+    /// Create or replace a document-level named parameter (guide
+    /// §3.2). The edit applies cleanly even for a value the geometry
+    /// will refuse — a program that refuses under the current binding
+    /// is legal AT REST; the refusal belongs to replay.
+    #[staticmethod]
+    fn set_doc_param(name: &ParamName, value: &DocParam) -> Self {
+        Self {
+            inner: d::DocEdit::SetDocParam {
+                name: name.0.clone(),
+                value: value.0.clone(),
+            },
         }
     }
 }
@@ -465,6 +574,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NodeId>()?;
     m.add_class::<Doc>()?;
     m.add_class::<DocEdit>()?;
+    m.add_class::<ParamName>()?;
+    m.add_class::<DocParam>()?;
     m.add_class::<Node>()?;
     m.add_class::<BooleanOp>()?;
     m.add_class::<Loaded>()?;

@@ -2,7 +2,7 @@
 //!
 //! # The ValuePayload exposure inventory (a reported FORK)
 //!
-//! `ValuePayload` has seven variants. This scaffold projects them as:
+//! `ValuePayload` has seven variants. The bindings project them as:
 //!
 //! | variant        | exposure |
 //! |----------------|----------|

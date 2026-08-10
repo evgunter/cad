@@ -1,13 +1,28 @@
-"""Type stubs for the `pncad` extension module (LIB-U9S scaffold).
+"""Type stubs for the `pncad` extension module.
+
+`pncad` is a B-rep CAD kernel. Python speaks its DOCUMENT layer: you
+insert nodes describing what to build, evaluate the document, and read
+typed values out. `docs/GUIDE.md` §2.8 walks the canonical journey and
+`crates/pncad-py/examples/bracket.py` is a complete script.
 
 LIBRARY-DESIGN §L4's two-layer story: these stubs are the STATIC
 layer, checked by `ty`; the runtime layer lives once at the Rust
-boundary and never re-verifies inside Python.
+boundary and never re-verifies inside Python. `tests/test_stubs.py`
+compares this file name-for-name against the compiled module, so the
+two cannot drift.
 
-The PATHS lattice (`PathOpen`/`PathPoint`/`PathAngle`/`PathDirected`)
-is deliberately ABSENT: profile authoring ships only against the v2
-program representation (LQ4), so its stub lattice belongs to the unit
-that binds it, not to this scaffold.
+Refusals are typed: every exception below carries its payload as
+ATTRIBUTES, never as prose to be parsed.
+
+Deliberately ABSENT, and tracked as named gaps in
+`docs/guide/north-star-audit.md`: the PATHS authoring lattice
+(`PathOpen`/`PathPoint`/`PathAngle`/`PathDirected`, which ships only
+against the v2 program representation, LQ4), tessellation and STL,
+selectors and stable names, and contact declarations. Profile
+authoring here is `Node.polygon` only — one straight-segment loop on
+a plane parallel to the world xy-plane. Named document parameters
+crossed in R1-PARAMS (`ParamName`, `DocParam`,
+`DocEdit.set_doc_param` — guide §3.2).
 """
 
 from typing import Any, Final, Optional
@@ -190,6 +205,31 @@ class Node:
     @staticmethod
     def boolean(op: BooleanOp, a: NodeId, b: NodeId) -> Node: ...
 
+class ParamName:
+    """A document-level parameter name (guide §3.2). NOT an arena
+    key: the same plain name the recipe's expressions reference."""
+
+    def __init__(self, name: str) -> None: ...
+    @property
+    def name(self) -> str: ...
+    def __hash__(self) -> int: ...
+
+class DocParam:
+    """A named parameter's declared dimension and exact stored value
+    (guide §3.2): what `DocEdit.set_doc_param` writes. Continuous
+    values arrive as typed quantities, so the dimension rides the
+    constructor. A non-finite value is refused typed at `Doc.apply`
+    (`non_finite_doc_param`), not pre-checked here."""
+
+    @staticmethod
+    def length(value: Length) -> DocParam: ...
+    @staticmethod
+    def angle(value: Angle) -> DocParam: ...
+    @staticmethod
+    def scalar(value: float) -> DocParam: ...
+    @staticmethod
+    def count(value: int) -> DocParam: ...
+
 class DocEdit:
     """A single edit — the G1 edit vocabulary (§L3)."""
 
@@ -199,6 +239,8 @@ class DocEdit:
     def delete_node(id: NodeId) -> DocEdit: ...
     @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...
+    @staticmethod
+    def set_doc_param(name: ParamName, value: DocParam) -> DocEdit: ...
 
 class Doc:
     """A parametric document: the recipe, not the geometry."""
