@@ -69,6 +69,43 @@ pub(crate) fn graft_solid<T: geom_core::Decide>(
     dst_solid: SolidKey,
     src: &Body<T>,
 ) -> Result<GraftMap, BooleanError> {
+    graft_solid_with(dst, dst_solid, src, Bridge::Recertify)
+}
+
+/// How a transplanted edge DESCRIPTION crosses into the destination's
+/// key space (the surface-key remap at the end of the graft).
+///
+/// `Intersection`/`TangentIntersection`/`Seam`/`IsoCurve` name SURFACE
+/// KEYS, which are body-lineage-scoped, so the transplanted copies
+/// must name the transplanted surfaces. Two ways to write that, and
+/// the difference is which claim the graft makes about the result:
+///
+/// - [`Bridge::Recertify`] re-runs the certification schedule against
+///   the destination's surfaces — what the boolean pipeline wants,
+///   whose operands have been through surgery.
+/// - [`Bridge::RemapKeys`] carries the source's certificate verbatim
+///   with only the handles rewritten
+///   ([`geom_brep::EdgeCurve::with_remapped_surfaces`]) — what a
+///   DISJOINT graft wants, where the transplanted geometry is bitwise
+///   the source's and no surgery happened. It is also the only form
+///   that can carry a description the certification lanes cannot
+///   express at all (a rational NURBS wall certifies nowhere), which
+///   is why an import's placed instances take it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Bridge {
+    /// Re-run the schedule against the destination (booleans).
+    Recertify,
+    /// Rewrite the handles, keep the source's certificate (disjoint).
+    RemapKeys,
+}
+
+/// [`graft_solid`] with the description bridge chosen explicitly.
+pub(crate) fn graft_solid_with<T: geom_core::Decide>(
+    dst: &mut Body<T>,
+    dst_solid: SolidKey,
+    src: &Body<T>,
+    bridge: Bridge,
+) -> Result<GraftMap, BooleanError> {
     let corrupt = || BooleanError::JoinDesync {
         what: "graft source is not a well-formed single-solid body",
     };
@@ -273,6 +310,16 @@ pub(crate) fn graft_solid<T: geom_core::Decide>(
         let Some(CurveGeom::Certified(curve)) = src.curves.get(k) else {
             continue;
         };
+        if bridge == Bridge::RemapKeys {
+            // Handles only, certificate verbatim (see `Bridge`).
+            let remapped = curve
+                .with_remapped_surfaces(|sk| surfaces.get(sk).copied())
+                .ok_or_else(corrupt)?;
+            if let Some(slot) = dst.curves.get_mut(dk) {
+                *slot = CurveGeom::Certified(remapped);
+            }
+            continue;
+        }
         let description = match *curve.description() {
             geom_brep::EdgeGeometry::Intersection { s1, s2, witness } => {
                 geom_brep::EdgeGeometry::Intersection {

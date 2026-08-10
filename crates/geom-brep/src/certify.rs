@@ -695,6 +695,67 @@ impl<T: Real> EdgeCurve<T> {
         &self.certificate
     }
 
+    /// The same certified carrier with its description's **SURFACE
+    /// KEYS** rewritten, for a transplant into another body's arenas.
+    ///
+    /// A surface key is an arena handle, not geometry: `Intersection`,
+    /// `TangentIntersection`, `Seam` and `IsoCurve` name the surfaces
+    /// their locus is stated against, and a graft that re-creates
+    /// those surfaces BITWISE under fresh keys has changed the handles
+    /// and nothing else. The certificate — a residual over the
+    /// description, the carrier, the interval and the surfaces' VALUES
+    /// — is therefore still the certificate of exactly this geometry,
+    /// and travels verbatim, like provenance.
+    ///
+    /// This is the only door that mints an `EdgeCurve` without a run
+    /// of the schedule, and it is narrow on purpose: nothing but the
+    /// keys may differ, so it cannot express a geometry change. Its
+    /// existence is what lets a transplant carry descriptions whose
+    /// surfaces the certification lanes cannot re-certify at all (a
+    /// rational NURBS wall certifies nowhere — see
+    /// `CertifyError::Unimplemented`), which is not a licence to
+    /// invent a certificate: the source body's run is the certificate.
+    ///
+    /// `None` when `remap` does not answer for a key the description
+    /// names — a dangling handle is never written.
+    #[must_use]
+    pub fn with_remapped_surfaces(
+        &self,
+        mut remap: impl FnMut(crate::keys::SurfaceKey) -> Option<crate::keys::SurfaceKey>,
+    ) -> Option<Self> {
+        let description = match self.description {
+            EdgeGeometry::Intersection { s1, s2, witness } => EdgeGeometry::Intersection {
+                s1: remap(s1)?,
+                s2: remap(s2)?,
+                witness,
+            },
+            EdgeGeometry::TangentIntersection { s1, s2, witness } => {
+                EdgeGeometry::TangentIntersection {
+                    s1: remap(s1)?,
+                    s2: remap(s2)?,
+                    witness,
+                }
+            }
+            EdgeGeometry::Seam { surface } => EdgeGeometry::Seam {
+                surface: remap(surface)?,
+            },
+            EdgeGeometry::IsoCurve { surface, u, v0, v1 } => EdgeGeometry::IsoCurve {
+                surface: remap(surface)?,
+                u,
+                v0,
+                v1,
+            },
+            EdgeGeometry::MappedCurve(ref m) => EdgeGeometry::MappedCurve(m.clone()),
+        };
+        Some(Self {
+            description,
+            carrier: self.carrier.clone(),
+            param_start: self.param_start,
+            param_end: self.param_end,
+            certificate: self.certificate,
+        })
+    }
+
     /// The carrier parameter at schedule sample `i` (i ∈ 0…8):
     /// `t₀ + (t₁ − t₀)·(i/8)`, the module-doc schedule. Exposed so the
     /// tier-3 validator samples the *same* parameters the certification

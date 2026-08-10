@@ -15,9 +15,15 @@
 //! transplant itself is `combine`'s, called verbatim — same fresh keys
 //! in deterministic slot order (D9), same verbatim provenance, same
 //! `GeomSource` and pcurve-cache carry, same description surface-key
-//! remap with its re-certification. The ONLY difference is the
-//! destination: an empty solid minted here instead of one already
-//! holding shells.
+//! remap. Two differences, both forced by what a DISJOINT graft is:
+//! the destination is an empty solid minted here instead of one
+//! already holding shells, and the description bridge carries the
+//! source's certificate with the handles rewritten rather than
+//! re-running the schedule (`combine::Bridge::RemapKeys`). Nothing was
+//! operated on between the two bodies, so there is nothing new to
+//! certify — and re-running would REFUSE descriptions the lanes cannot
+//! express at all, such as a rational NURBS wall's, which a body that
+//! imported cleanly may hold.
 //!
 //! **Who needs it.** A STEP assembly states N placed INSTANCES of M
 //! component representations. Each instance's frame is its own rigid
@@ -68,6 +74,11 @@ pub fn graft_disjoint<T: geom_core::Decide>(
         });
     };
     let target = dst.add_solid(Solid { shells: Vec::new() }, provenance);
-    crate::boolean::combine::graft_solid(dst, target, src)?;
+    crate::boolean::combine::graft_solid_with(
+        dst,
+        target,
+        src,
+        crate::boolean::combine::Bridge::RemapKeys,
+    )?;
     Ok(target)
 }
