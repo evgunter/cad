@@ -695,6 +695,67 @@ impl<T: Real> EdgeCurve<T> {
         &self.certificate
     }
 
+    /// The same certified carrier with its description's **SURFACE
+    /// KEYS** rewritten, for a transplant into another body's arenas.
+    ///
+    /// A surface key is an arena handle, not geometry: `Intersection`,
+    /// `TangentIntersection`, `Seam` and `IsoCurve` name the surfaces
+    /// their locus is stated against, and a graft that re-creates
+    /// those surfaces BITWISE under fresh keys has changed the handles
+    /// and nothing else. The certificate — a residual over the
+    /// description, the carrier, the interval and the surfaces' VALUES
+    /// — is therefore still the certificate of exactly this geometry,
+    /// and travels verbatim, like provenance.
+    ///
+    /// This is the only door that mints an `EdgeCurve` without a run
+    /// of the schedule, and it is narrow on purpose: nothing but the
+    /// keys may differ, so it cannot express a geometry change. Its
+    /// existence is what lets a transplant carry descriptions whose
+    /// surfaces the certification lanes cannot re-certify at all (a
+    /// rational NURBS wall certifies nowhere — see
+    /// `CertifyError::Unimplemented`), which is not a licence to
+    /// invent a certificate: the source body's run is the certificate.
+    ///
+    /// `None` when `remap` does not answer for a key the description
+    /// names — a dangling handle is never written.
+    #[must_use]
+    pub fn with_remapped_surfaces(
+        &self,
+        mut remap: impl FnMut(crate::keys::SurfaceKey) -> Option<crate::keys::SurfaceKey>,
+    ) -> Option<Self> {
+        let description = match self.description {
+            EdgeGeometry::Intersection { s1, s2, witness } => EdgeGeometry::Intersection {
+                s1: remap(s1)?,
+                s2: remap(s2)?,
+                witness,
+            },
+            EdgeGeometry::TangentIntersection { s1, s2, witness } => {
+                EdgeGeometry::TangentIntersection {
+                    s1: remap(s1)?,
+                    s2: remap(s2)?,
+                    witness,
+                }
+            }
+            EdgeGeometry::Seam { surface } => EdgeGeometry::Seam {
+                surface: remap(surface)?,
+            },
+            EdgeGeometry::IsoCurve { surface, u, v0, v1 } => EdgeGeometry::IsoCurve {
+                surface: remap(surface)?,
+                u,
+                v0,
+                v1,
+            },
+            EdgeGeometry::MappedCurve(m) => EdgeGeometry::MappedCurve(m),
+        };
+        Some(Self {
+            description,
+            carrier: self.carrier.clone(),
+            param_start: self.param_start,
+            param_end: self.param_end,
+            certificate: self.certificate,
+        })
+    }
+
     /// The carrier parameter at schedule sample `i` (i ∈ 0…8):
     /// `t₀ + (t₁ − t₀)·(i/8)`, the module-doc schedule. Exposed so the
     /// tier-3 validator samples the *same* parameters the certification
@@ -1579,6 +1640,110 @@ mod tests {
         };
         let err = EdgeCurve::certify(spec.clone(), p0, p1, |_| None, band()).unwrap_err();
         assert!(matches!(err, CertifyError::Escalated { .. }), "{err:?}");
+    }
+
+    /// **`with_remapped_surfaces`** (R1 MINOR-2 for PR #325): the
+    /// transplant door. Only the description's surface HANDLES may
+    /// differ — carrier, interval and certificate travel verbatim —
+    /// and a handle the remap cannot answer for yields `None` rather
+    /// than a dangling reference.
+    #[test]
+    fn remapping_surface_keys_changes_the_handles_and_nothing_else() {
+        let planes = || {
+            vec![
+                Surface::Plane {
+                    origin: Point3::origin(),
+                    normal: Vec3::unit_z(),
+                    u_ref: Vec3::unit_x(),
+                },
+                Surface::Plane {
+                    origin: Point3::origin(),
+                    normal: Vec3::unit_y(),
+                    u_ref: Vec3::unit_x(),
+                },
+            ]
+        };
+        let (src_keys, src_lookup) = table(planes());
+        // A SECOND table standing for the destination body's arenas:
+        // the same surface VALUES under DIFFERENT keys, which is
+        // exactly what a graft produces. Two fresh slotmaps mint the
+        // same slots, so the destination is offset by a filler — the
+        // handles have to actually differ for this row to mean
+        // anything.
+        let mut dst_surfaces = vec![Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        }];
+        dst_surfaces.extend(planes());
+        let (dst_all, dst_lookup) = table(dst_surfaces);
+        let dst_keys = [dst_all[1], dst_all[2]];
+        assert!(
+            src_keys[0] != dst_keys[0] && src_keys[1] != dst_keys[1],
+            "the two tables must mint distinct handles"
+        );
+        let p0 = Point3::origin();
+        let p1 = Point3::new(1.0, 0.0, 0.0);
+        let spec = EdgeCurveSpec {
+            description: EdgeGeometry::Intersection {
+                s1: src_keys[0],
+                s2: src_keys[1],
+                witness: Point3::new(0.5, 0.0, 0.0),
+            },
+            carrier: Curve3::Line {
+                origin: p0,
+                dir: Vec3::unit_x(),
+            },
+            param_start: 0.0,
+            param_end: 1.0,
+        };
+        let certified = EdgeCurve::certify(spec, p0, p1, &src_lookup, band()).unwrap();
+
+        let bridge = |k: SurfaceKey| src_keys.iter().position(|s| *s == k).map(|i| dst_keys[i]);
+        let moved = certified
+            .with_remapped_surfaces(bridge)
+            .expect("every named surface has a destination");
+
+        // The handles moved.
+        match *moved.description() {
+            EdgeGeometry::Intersection { s1, s2, witness } => {
+                assert_eq!(s1, dst_keys[0]);
+                assert_eq!(s2, dst_keys[1]);
+                // ...and the witness, a POINT, did not.
+                assert!((witness.x - 0.5).abs() < 1e-15);
+            }
+            ref other => panic!("the description class changed: {other:?}"),
+        }
+        // Nothing else did.
+        assert_eq!(
+            format!("{:?}", moved.carrier()),
+            format!("{:?}", certified.carrier())
+        );
+        assert_eq!(moved.params(), certified.params());
+        assert_eq!(
+            format!("{:?}", moved.certificate()),
+            format!("{:?}", certified.certificate()),
+            "the certificate travels verbatim — the geometry did not change"
+        );
+        // And the moved copy is genuinely certified AGAINST the
+        // destination's surfaces: re-certification there agrees, which
+        // is the claim the graft's `RemapKeys` bridge relies on.
+        moved.recertify(p0, p1, &dst_lookup, band()).unwrap();
+
+        // A remap that cannot answer writes nothing.
+        assert!(
+            certified.with_remapped_surfaces(|_| None).is_none(),
+            "a dangling handle is never written"
+        );
+        // A description with no surface keys survives any remap.
+        let mapped_only = EdgeCurve::certify(line_spec(p0, p1), p0, p1, |_| None, band()).unwrap();
+        let same = mapped_only
+            .with_remapped_surfaces(|_| None)
+            .expect("a MappedCurve names no surface");
+        assert_eq!(
+            format!("{:?}", same.description()),
+            format!("{:?}", mapped_only.description())
+        );
     }
 
     #[test]

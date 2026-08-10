@@ -13,7 +13,7 @@ it:
 | NAMING-DESIGN N1–N7 | Names are derivation paths; this doc discharges its scope exclusion "assembly pin representation" (A4) |
 | DESIGN.md banked flags | SE(3) witnesses budgeted, not assumed from sketch machinery; ε-disagreement across referenced documents is a typed error at the seam; pattern indices ride provenance explicitly; free-move/hide are display-layer state, never persisted (G3) |
 
-Decisions are **A1–A8**; open questions **AQ1–AQ6**. Design-only:
+Decisions are **A1–A10**; open questions **AQ1–AQ6**. Design-only:
 no unit here is scheduled by this doc; the implementation ladder
 names natural homes (M8's #317, M9's C7, M10's clearance) without
 claiming them. Chat/issue rulings incorporated: the scope ladder,
@@ -262,6 +262,91 @@ Cheap to honor now, expensive to retrofit; each names its source:
   NAUO) is future breadth with no owner; this doc only requires
   that the recipe retains everything such an exporter would need —
   which A2/A3 give by construction.
+
+## A9 — Relative freedom is component structure
+
+**(Evan, chat 2026-08-10, post-ratification addendum; graph
+simplified same day — no derived graph, the recipe DAG itself.)**
+The document's ordinary recipe DAG already partitions into disjoint
+connected components: a `Mate` references both its instances, a
+`Pattern` references its instances, and v1 explicit frames are
+literal data creating no edges. **"Relatively unconstrained" means
+exactly: in different connected components of the recipe DAG** —
+decidable from recipe structure alone, no solver, no geometry
+inspection, no second graph to keep synced. The general principle:
+*any* reference path between two instances means some authored
+relationship would be silently contradicted by an independent drag
+— a cross-instance boolean (a weldment's operands are not freely
+orientable) and a shared driving parameter (consistent with the
+ratified drag-refusal for expression-driven values) both rightly
+connect. The gathering of a
+document's sub-DAGs into one evaluated `Body` is A10's root
+gather — document data, not a DAG node — so connectivity over the
+plain recipe DAG needs no carve-out.
+
+- **G3's free-move binds to this partition.** The one
+  live-editing-ish feature the v1 GUI supports — freely orienting
+  parts relative to each other — acts on whole components: between
+  components, orientation is free; within one, relative pose is
+  mate-derived, so a drag moves the whole component or refuses.
+- **Anchor frames are never erased** (Evan's ruling). Each component
+  keeps its authored explicit frames as ordinary recipe data: the
+  component partition is what makes relative freedom *derivable*,
+  not an absence of frames. Evaluation therefore stays A2's one
+  D9-deterministic `Body`, and everything needing definite world
+  coordinates — A5/F1 undeclared-contact checks, export, mass
+  properties, A7's volume queries — is untouched.
+- **Probe vs. commit.** The GUI's free-orient transform is
+  display-layer state per G3 (never persisted, visually
+  distinguishable from mated placement). Committing a probed pose,
+  if ever wanted, is an ordinary frame-edit `DocEdit` through the
+  existing edit door — no new machinery, and it is a *different
+  act* than probing.
+- **Free consequence**: the A5 connectedness lint gets its
+  expectation source — the component count is the expected
+  disconnection count.
+
+## A10 — Explicit product roots (strict)
+
+**(Evan, chat 2026-08-10.)** Shipped documents have NO product
+notion: every node evaluates, and every consumer addresses a node
+id per call. A10 gives documents one. The document tracks an
+**ordered list of product roots** (node ids) as document data —
+never a DAG node — maintained by recorded `DocEdit`s.
+
+- **Invariants.** *Coverage*: every node is ancestor-of-or-equal-to
+  some root — every connected component carries at least one root;
+  no silently dead subgraphs. *Ancestor-freedom*: no root is an
+  ancestor of another (listing an extrude and its fillet would
+  gather the same material twice — typed refusal). Sibling roots
+  in one component (extrude + revolve of a shared profile) are
+  legal; they are simply not relatively unconstrained (A9).
+- **Strictness is burden-free by automatic maintenance**: a node
+  inserted with no consumers becomes a root; a node consuming
+  existing roots replaces them in the list (tip transfer — a
+  mid-authoring component carries its root until it is joined into
+  another DAG); deleting a root re-roots its orphaned sinks. All
+  recorded; explicit designate/undesignate edits override the
+  defaults. (Maintenance details are the patchable part of this
+  decision.)
+- **The product** is the deterministic gather, in list order (D9
+  ordering for free), of every body-denoting root: `Body` → its
+  solids; `Instances` → N placed solids; `Split` → its pieces (a
+  mold document wants both halves). Roots need not be body-valued
+  — a WIP profile tip or a datum contributes nothing to the `Body`
+  product — and a door that needs a body refuses typed when no
+  root denotes one.
+- **This is A2's gather and C-register disposition C1's
+  resolution**: the shipped `Node::Pattern` keeps its
+  `ValuePayload::Instances` semantics and its "patterns do not
+  implicitly union" truth — the root gather is what materializes
+  an `Instances`-valued root into placed solids of the one product
+  `Body`, with no boolean implied. The single-node export door's
+  multi-body refusal stays correct; the whole-document product is
+  the door that accepts them.
+- **A9 consequences**: free-orient units are components, now
+  explicitly represented by their roots; the connectedness lint's
+  expected component count reads off the root/component structure.
 
 ## Open questions
 

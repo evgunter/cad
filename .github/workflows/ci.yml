@@ -1013,7 +1013,17 @@ jobs:
       # readable when it fires. A failure here is either a real change
       # the author forgot to commit, or a D9 determinism finding — both
       # worth stopping for. Mirror: ci-local's "uv sheet drift (demos)".
+      #
+      # The render entry points refuse to run without the explicit
+      # `CAD_RENDER_LOCAL_OVERRIDE` sentence (demos/hosted-render-guard.sh)
+      # and deliberately do NOT sniff for CI: the exemption is written
+      # here, at the step that renders, where a reviewer sees it. This
+      # row is a sanctioned automated render — renderer-free, and the
+      # `git diff --exit-code` below is what makes drift a failure rather
+      # than a commit.
       - name: uv sheet drift (demos)
+        env:
+          CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
         run: |
           (cd demos/tour && cargo run --release -- ../out)
           demos/render-uv.sh

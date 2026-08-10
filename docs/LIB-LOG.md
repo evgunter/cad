@@ -481,9 +481,41 @@ U1, U2+G1+G2, U3, U5, U7+SEL1+SEL2, U8a, SWITCH-P/E/PR-C with
 U8b folded in, U9S+DOORS, U10). The guide + north-star audit are
 hosted-CI-enforced (python-suite, 46 tests). The residual
 register (above) is the successor's map; category B is the
-opening program. In flight at close: #329 (R1-PARAMS, G10) on a
-merge watcher, its review to run post-merge as ordinal 19.
+opening program. #329 MERGED
+(2026-08-10, all green incl. an en-route CI catch: the fixture
+pin's embedded ε vs the tolerance sweep, fixed as an honest
+exclusion) — G10 CLOSED, R1 DISCHARGED. Its retroactive review
+(ordinal 19, frozen merge head) is the successor's first task.
 Handoff file: ~/.local/share/cad-work/handoff-prompt-lib-next.md.
 Dual-review samples 1-6 all converged on every MAJOR; sample 5
 overturned a design disposition; the variance data is in the
 rows. LIB-7 remainders banked (opus, opus); next dual = 21.
+
+## Successor session opens — the bindings-parity program (2026-08-10)
+
+Handoff executed: #329 verified MERGED (merge 4230173, frozen
+head 9bb1916); its retroactive blinded review dispatched as
+ordinal 19 single on the frozen head. Stale SWITCH-E lanes
+(lib-swe-r1/r2, lib-switche) verified pushed+clean and removed
+(12 GB freed). Monitor suite armed. Opening unit: **LIB-PYG1**
+(docs/LIB-PYG1-SPEC.md) — the audit's G1, arcs/circles in
+profiles from Python via the §L4 typestate lattice; spec pins
+prelude-parity names, distinct state classes, quantities at the
+boundary, one-lowering (no Python-side predicates), Node.profile
+terminal, and fences out G2/G3/G7/G8/G9, Expr-in-profile, and
+NURBS legs. Arm: opus (LIB-7 banked slot 2). The Expr-bearing
+profile-steps door (with G9 → plate_param authorable from
+Python) is recorded here as a NAMED follow-up of PYG1.
+
+**Ordinal 19 closed (2026-08-10)**: the R1-PARAMS retroactive
+review returned APPROVE 0/1/4, rubric 5/5/5, zero silent devs —
+the row is complete in MODEL-AB-LOG. Fix pass
+(orchestrator-applied): the fixture pin's ε filter now asserts
+exactly one excluded ε line per side (the MINOR's dup-ε damage
+shape goes RED in the Rust pin instead of relying on the Python
+load refusal). Banked from the NOTEs: (a) `DocParam` binds no
+`__eq__`/`__hash__` while Rust derives PartialEq — undocumented
+asymmetry, adopt as a rider on the next bindings unit; (b) the
+LB13 guard's blind spot (arena key in a new public FN SIGNATURE
+would not trip the pub-use scan) — recorded against register
+R-series as a known-scope caveat, exposure zero today.

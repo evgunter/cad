@@ -18,9 +18,11 @@ Deliberately ABSENT, and tracked as named gaps in
 `docs/guide/north-star-audit.md`: the PATHS authoring lattice
 (`PathOpen`/`PathPoint`/`PathAngle`/`PathDirected`, which ships only
 against the v2 program representation, LQ4), tessellation and STL,
-selectors and stable names, contact declarations, and named document
-parameters. Profile authoring here is `Node.polygon` only — one
-straight-segment loop on a plane parallel to the world xy-plane.
+selectors and stable names, and contact declarations. Profile
+authoring here is `Node.polygon` only — one straight-segment loop on
+a plane parallel to the world xy-plane. Named document parameters
+crossed in R1-PARAMS (`ParamName`, `DocParam`,
+`DocEdit.set_doc_param` — guide §3.2).
 """
 
 from typing import Any, Final, Optional
@@ -203,6 +205,31 @@ class Node:
     @staticmethod
     def boolean(op: BooleanOp, a: NodeId, b: NodeId) -> Node: ...
 
+class ParamName:
+    """A document-level parameter name (guide §3.2). NOT an arena
+    key: the same plain name the recipe's expressions reference."""
+
+    def __init__(self, name: str) -> None: ...
+    @property
+    def name(self) -> str: ...
+    def __hash__(self) -> int: ...
+
+class DocParam:
+    """A named parameter's declared dimension and exact stored value
+    (guide §3.2): what `DocEdit.set_doc_param` writes. Continuous
+    values arrive as typed quantities, so the dimension rides the
+    constructor. A non-finite value is refused typed at `Doc.apply`
+    (`non_finite_doc_param`), not pre-checked here."""
+
+    @staticmethod
+    def length(value: Length) -> DocParam: ...
+    @staticmethod
+    def angle(value: Angle) -> DocParam: ...
+    @staticmethod
+    def scalar(value: float) -> DocParam: ...
+    @staticmethod
+    def count(value: int) -> DocParam: ...
+
 class DocEdit:
     """A single edit — the G1 edit vocabulary (§L3)."""
 
@@ -212,6 +239,8 @@ class DocEdit:
     def delete_node(id: NodeId) -> DocEdit: ...
     @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...
+    @staticmethod
+    def set_doc_param(name: ParamName, value: DocParam) -> DocEdit: ...
 
 class Doc:
     """A parametric document: the recipe, not the geometry."""
