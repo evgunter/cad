@@ -46,26 +46,34 @@ cad-work/asm-r1-substrate/report.md, 2026-08-10)
    choice (none in tree); the (id × pin) wrapper; the minimal
    workspace store (none exists — save/load are String↔Doc); the
    v4-additive-vs-v5 schema posture ruling.
-2. **ASM-2a — `InstantiatePart`, single-solid parts (L)**: the node
+2. **ASM-ROOTS — A10 product roots (M)**: the ordered root list on
+   `Doc`, coverage + ancestor-freedom invariants, automatic
+   maintenance (insert/tip-transfer/delete-re-root) + explicit
+   designate/undesignate `DocEdit`s, the whole-document product
+   gather (Body/Instances/Split materialization), typed
+   no-body-root refusal at body-wanting doors. Prerequisite for
+   ASM-2a's evaluation product and ASM-3's C1 disposition; rides
+   ASM-1's schema-posture ruling (Doc gains a field).
+3. **ASM-2a — `InstantiatePart`, single-solid parts (L)**: the node
    + cross-document load/evaluate + per-pin memo + the
    `transform_rigid`/graft loop (mirroring step-import's #325 door)
    + ε-seam evidence + instance-qualified naming +
    disjoint-validity evidence.
-3. **ASM-2b — multi-solid referenced documents (M)**: sub-assembly
+4. **ASM-2b — multi-solid referenced documents (M)**: sub-assembly
    instantiation — the `graft_disjoint` multi-solid-source
    extension (the kernel touch) + multi-body instance naming (the
    `emit.rs` refusal wall). Required before ASM-4 (a split-off
    subtree is generally multi-solid).
-4. **ASM-3 — `Pattern` (S/M, gated on the C1 ruling)**: assembly
-   patterns vs the SHIPPED `Node::Pattern` whose product is
-   `ValuePayload::Instances` (N bodies as data, export-refused) —
-   the semantics ruling precedes the spec; provenance indices
-   already ride (`GeomSource::placed`).
-5. **ASM-4 — split/inline (L, last; depends on ASM-1's store)**:
+5. **ASM-3 — `Pattern` (S, C1 RESOLVED by A10)**: the shipped
+   `Node::Pattern` keeps its `Instances` payload; the A10 root
+   gather materializes it into the product — the unit is the
+   gather wiring + evidence; provenance indices already ride
+   (`GeomSource::placed`).
+6. **ASM-4 — split/inline (L, last; depends on ASM-1's store)**:
    new `DocEdit` arms; the codebase's first multi-document
    operation; the acceptance harness (structural +
    name-resolution identity).
-6. **ASM-5+ — R2** (post-AQ3): `Mate` nodes, frame-chain solve,
+7. **ASM-5+ — R2** (post-AQ3): `Mate` nodes, frame-chain solve,
    declaration minting, planar verification (census is
    planar-corpus-only today — exactly R2's need), the typed
    simultaneous-system refusal.
