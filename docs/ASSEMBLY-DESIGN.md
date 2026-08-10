@@ -13,7 +13,8 @@ it:
 | NAMING-DESIGN N1–N7 | Names are derivation paths; this doc discharges its scope exclusion "assembly pin representation" (A4) |
 | DESIGN.md banked flags | SE(3) witnesses budgeted, not assumed from sketch machinery; ε-disagreement across referenced documents is a typed error at the seam; pattern indices ride provenance explicitly; free-move/hide are display-layer state, never persisted (G3) |
 
-Decisions are **A1–A10**; open questions **AQ1–AQ6**. Design-only:
+Decisions are **A1–A11**; open questions **AQ1–AQ6** (AQ3
+discharged by A11). Design-only:
 no unit here is scheduled by this doc; the implementation ladder
 names natural homes (M8's #317, M9's C7, M10's clearance) without
 claiming them. Chat/issue rulings incorporated: the scope ladder,
@@ -348,6 +349,59 @@ never a DAG node — maintained by recorded `DocEdit`s.
   explicitly represented by their roots; the connectedness lint's
   expected component count reads off the root/component structure.
 
+## A11 — The constructive-solve boundary (discharges AQ3)
+
+**(The AQ3 working session, 2026-08-10; design-conversation PR for
+Evan's sign-off.)** The v1 line between rung (b) and rung (c),
+stated so it is **decidable purely structurally** — graph shape
+plus a per-class table over authored alignment data; no geometry
+inspection, no numerics beyond decided predicates. Five rules:
+
+1. **Per-pair combination.** Each mate class + alignment datum
+   pins the pair's relative pose to a coset of an SE(3) subgroup
+   (frame coincidence → the identity; coaxial → rotation-about ×
+   translation-along the axis; planar rest → the planar group;
+   etc.). Multiple mates on ONE instance pair combine by exact
+   coset intersection — a small closed-form table over the class
+   pairs. Outcomes: DETERMINED (a point — coaxial-plus-flush-plus-
+   clocking, A1's own example), UNDER (a positive-dimensional
+   subgroup survives), CONTRADICTORY (empty — two flushes at
+   different offsets) → typed refusal naming the pair and the
+   clashing declarations.
+2. **The anchor rule.** An ANCHOR is an instance whose frame is
+   determined outside the mate system: an explicit frame, or
+   pattern membership. Each mate-connected cluster must contain
+   **exactly one** anchor. Zero → typed refusal (recourse: give
+   one instance an explicit frame); two or more → over-
+   determination through the world frame, refusal naming every
+   anchor (this also catches mating two instances of one pattern
+   to each other).
+3. **The tree requirement.** After per-pair combination, each
+   cluster's mate graph must be a TREE. Any cycle → typed
+   `MateCycle` refusal **naming the cycle**, including
+   redundant-but-consistent ones: certifying a loop's closure is
+   exactly rung (c)'s witness obligation (chart-box certification),
+   not a value-equality check the coincidence ladder forbids.
+   Recourse: remove or suppress a named mate, or await rung (c).
+4. **Edge determination.** Every tree edge must be DETERMINED. An
+   UNDER edge → typed under-constraint refusal naming the pair and
+   the residual freedom in class vocabulary ("clocking about the
+   shared axis", "translation along the axis"); recourse: add the
+   complementary mate — or, if free relative motion was the
+   intent, un-mate into separate components (A9 is the sanctioned
+   home of relative freedom). Cross-edge cancellation — chains of
+   UNDER edges whose composition happens to be determined — is
+   genuine simultaneous solving and REFUSES as its named UNDER
+   edges, with rung-(c) recourse.
+5. **Evaluation.** Frames compose topologically outward from the
+   anchor; uniqueness follows from tree + single anchor (D9
+   determinism structural); Δc ≡ 0 by construction, so C5's
+   differentiability transfer (A3) holds with no witness.
+
+Named v1 losses, both honest and both already banked by A1:
+redundant-consistent cycles and cross-edge cancellation refuse
+with recourse text pointing at rung (c).
+
 ## Open questions
 
 - **AQ1 — the document store.** What a stable document id anchors
@@ -358,11 +412,7 @@ never a DAG node — maintained by recorded `DocEdit`s.
 - **AQ2 — update granularity and conflict surfacing** under the
   Cargo.lock model: whole-document pin bump only, or
   per-reference; how competing updates in one assembly surface.
-- **AQ3 — the constructive-solve boundary.** Tree-shaped mate
-  chains are clearly in; the typed refusal's exact line — cycles,
-  redundant-but-consistent mates, partially-constraining mates
-  whose composition is still determined — needs its own working
-  session, with the refusal naming the cycle.
+- **AQ3 — DISCHARGED into A11** (working session 2026-08-10).
 - **AQ4 — per-instance overrides.** v1 posture: an instance is pin
   + frame, nothing else — no per-instance parameter overrides, no
   per-instance suppression beyond GQ2's failure semantics.
