@@ -475,6 +475,11 @@ the quotient-rule flux enclosure (enclose.rs homogeneous-derivative
 hulls; delivered as midpoint+pad through the EXISTING convergence
 predicates — reusing props_quad_converged/props_quad_face_extent
 deliberately, no new census rows) = **L**. Draw follows this entry.
+DRAWN: byte 188 (<252, accepted), 188 mod 3 = 2 → block M8-13 arm
+order (opus, opus, fable) — M8-3 (slot 0) gets OPUS; opus slot 1 +
+fable slot 2 bank (M8-4 iso-derive arm is the expected slot-1
+consumer). SLOT 0 DISPATCHED (2026-08-10): lane rational-wall,
+branch kernel/rational-wall.
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
