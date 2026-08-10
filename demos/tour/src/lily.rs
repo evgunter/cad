@@ -62,7 +62,9 @@
 //!   [`review_probes::the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`].
 //!
 //!   What the loft still cannot do is close the tip to a POINT (a
-//!   zero-width section is a degenerate segment and refuses) or be
+//!   zero-width section refuses, though as a NON-SIMPLE profile
+//!   rather than the degenerate segment it looks like — see
+//!   [`Plan::tip`]) or be
 //!   JOINED to the stem it grows from (probe 8). The tip diamonds are
 //!   therefore small but real, and left visibly so rather than shrunk
 //!   until the blunt end stops showing.
@@ -400,10 +402,23 @@ fn bud<S: Scalar>(
                 ct * ax.1 + st * l.1,
                 ct * ax.2 + st * l.2,
             ));
-            // The wedge STARTS half a span before the segment's place,
-            // so it is centred there. Gram-Schmidt against the tilted
-            // axis, since that radial is only perpendicular to the
-            // BUD's axis, not to this segment's.
+            // The wedge STARTS half a span before the segment's
+            // place — and then sweeps AWAY from it, not across it:
+            // `revolve` turns right-handed about the sketch axis,
+            // which in this frame (`e1 x e2` is MINUS the bud axis)
+            // is the direction of decreasing `phi`. So the wedge
+            // actually lands centred a full `span` short of `phi`,
+            // measured and pinned in
+            // `review_probes::the_buds_three_axes_form_the_authored_tripod`.
+            // Nothing above depends on where it lands — the three
+            // stay 120 degrees apart and the overlap is still
+            // 3*span - 360 — but the CHIRALITY does: the lean read
+            // off the realized centre is `lean + span`, still nowhere
+            // near the achiral star, and still a pinwheel.
+            //
+            // Gram-Schmidt against the tilted axis, since that radial
+            // is only perpendicular to the BUD's axis, not to this
+            // segment's.
             let start = rad(phi - 0.5 * span);
             let d = start.0 * a.0 + start.1 * a.1 + start.2 * a.2;
             let u = nrm((start.0 - d * a.0, start.1 - d * a.1, start.2 - d * a.2));
@@ -675,9 +690,17 @@ struct Plan {
     belly: Section,
     /// Where the belly sits, as a fraction of the spine.
     belly_at: f64,
-    /// The tip section. A smaller diamond, never a POINT: a
-    /// zero-width section is a degenerate segment and the loft
-    /// refuses it (probe 8).
+    /// The tip section. A smaller diamond, never a POINT — but the
+    /// refusal is not the one the shape suggests. Setting `width` to
+    /// 0 while the tip keeps its rises leaves the two margins on top
+    /// of each other and the four-line section stops being SIMPLE:
+    /// the loft refuses `Skin(SectionProfile { NonSimple { kind:
+    /// Touch, .. } })`, naming the two segments that meet.
+    /// `DegenerateSegment` is the OTHER collapse — `width`, `ridge`
+    /// and `keel` all 0, the whole section gone to a point — and
+    /// arrives only then. Both measured on this plan; neither is
+    /// pinned by a test, because a wall probe here would have to
+    /// build a whole second blade to reach it.
     tip: Section,
     /// Roll about the spine AT THE BASE, radians. The spine's bend
     /// and the blade's facing are independent choices, and this is
@@ -1948,12 +1971,17 @@ mod review_probes {
             cross_norm(flat_tip.n, tip.n) < 1e-12,
             "the twin's tip cap must be coplanar with the blade's"
         );
+        // The SIGN is part of the claim, not an accident: the
+        // ridge/keel asymmetry above fixes each `v` uniquely, so this
+        // is a full signed turn and a MIRROR-rolled blade (twist
+        // -160) must not pass. Asserting `turn.abs()` would let one
+        // through; the authored twist is +160, and that is what the
+        // stored geometry has to say.
         let turn = signed_angle(flat_tip.v, tip.v, tip.n);
         let want = deg(160.0);
         assert!(
-            (turn.abs() - want).abs() < 1e-9,
-            "blade roll {} rad, wanted {want} (the authored twist)",
-            turn.abs()
+            (turn - want).abs() < 1e-9,
+            "blade roll {turn} rad, wanted {want} (the authored twist, SIGN included)"
         );
     }
 
@@ -1989,9 +2017,13 @@ mod review_probes {
                 // sphere by construction, and it gets there through a
                 // rotation composed into the section placement, so it
                 // lands within an ulp or two of R rather than on it.
-                // Anything that actually entered the flower would be
-                // inside by a section thickness, six orders of
-                // magnitude past this.
+                // MEASURED: the nearest of the three sepals' vertices
+                // sits 5.551e-17 inside R — one ulp of 0.44 exactly —
+                // so this is a bound with four orders of headroom,
+                // not a number fitted to the result. Anything that
+                // actually entered the flower would be inside by a
+                // section thickness, six orders of magnitude past
+                // this.
                 assert!(
                     d >= FLOWER_GLOBE - 1e-12,
                     "{name}: a vertex is {d} from the globe centre, inside R = {FLOWER_GLOBE}"
@@ -2004,8 +2036,18 @@ mod review_probes {
         // R + keel, so the nearest vertex sits at R + 0 (the keel
         // vertex itself, on the sphere) — within the float noise of a
         // rotation composed through the placement.
+        //
+        // 1e-12, the SAME window as the inside bound above, so the
+        // pair is a symmetric ±1e-12 collar on R and the claim "the
+        // nearest sepal vertex is within 1e-12 of the globe" is the
+        // literal assertion rather than a summary of it. This was
+        // 1e-9 and reading as a floor; it is not one. The measured
+        // margin is a single ulp (see above), so the collar could be
+        // four orders tighter still — 1e-12 is where it stops being
+        // a claim about the plant and starts being a claim about
+        // float arithmetic.
         assert!(
-            closest < FLOWER_GLOBE + 1e-9,
+            closest < FLOWER_GLOBE + 1e-12,
             "nearest sepal vertex {closest} — tangency claimed, {} of clearance found",
             closest - FLOWER_GLOBE
         );
@@ -2099,6 +2141,105 @@ mod review_probes {
         for (i, seg) in segs.iter().enumerate().skip(1) {
             let d = (neck(*seg) - n0).norm();
             assert!(d < 1e-12, "bud segment {i}'s neck is {d} from segment 0's");
+        }
+        // CHIRALITY, which none of the above pins. Tilt, spacing and
+        // the shared neck are all LEAN-INVARIANT: the achiral star
+        // (`lean` 0, every segment leaning outward along its own
+        // radius) satisfies all three exactly as the pinwheel does,
+        // because three axes 120 degrees apart look the same however
+        // far round they have been carried from the places they
+        // belong to. The lean is the angle BETWEEN those two, so it
+        // needs the segment's own place — which is stored, as the
+        // centre of its wedge: a partial revolve leaves two cap
+        // half-planes, and the span is centred on the place.
+        //
+        // The caps are the planar faces CONTAINING the segment's axis
+        // (the mouth's annulus is planar too, but its normal lies
+        // ALONG the axis). Each cap's half-plane direction is
+        // `n x axis` up to sign, and the sign is settled by asking
+        // which way the cap's own vertices lie.
+        for (i, name) in ["lily_bud_a", "lily_bud_b", "lily_bud_c"]
+            .into_iter()
+            .enumerate()
+        {
+            let b = body(&ps, name);
+            let a = segs[i].1;
+            let mut halves: Vec<Vec3<f64>> = Vec::new();
+            for (_, f) in b.faces() {
+                let Some(&pncad::geom_surfaces::Surface::Plane { origin, normal, .. }) =
+                    b.get_surface(f.surface)
+                else {
+                    continue;
+                };
+                if normal.dot(a).abs() > 0.5 {
+                    continue;
+                }
+                let h = normal.cross(a);
+                let h = h / h.norm();
+                let s: f64 = b
+                    .vertices()
+                    .filter_map(|(_, v)| b.get_point(v.point).copied())
+                    .filter(|p| (*p - origin).dot(normal).abs() < 1e-9)
+                    .map(|p| (p - n0).dot(h))
+                    .sum();
+                halves.push(if s < 0.0 { -h } else { h });
+            }
+            assert_eq!(halves.len(), 2, "bud segment {i}: two wedge caps");
+            // The two half-planes ARE the authored span apart, which
+            // is what makes their bisector the segment's own place.
+            let sp = halves[0].dot(halves[1]).acos();
+            assert!(
+                (sp - deg(156.0)).abs() < 1e-9,
+                "bud segment {i}: wedge spans {sp} rad"
+            );
+            let place = halves[0] + halves[1];
+            let place = place / place.norm();
+            // Read both across the BUD's axis and take the signed
+            // angle from the place to the lean. Sign and magnitude
+            // are both the claim: 0 would be the star, and the
+            // opposite sign the mirror-image pinwheel.
+            let across = |v: Vec3<f64>| {
+                let p = v - bud_axis * v.dot(bud_axis);
+                p / p.norm()
+            };
+            let lean = signed_angle(across(place), across(a), bud_axis);
+            // NEGATIVE ninety, for the authored quarter turn: `bud`
+            // measures its lean in the sketch frame (e1, e2), whose
+            // e1 x e2 is MINUS the bud axis, so a positive quarter
+            // turn there reads as a negative one about the axis
+            // itself. The handedness is the point; the frame it is
+            // spelled in is not.
+            // What that lean HAS to be, from the authored numbers and
+            // nothing else. Two sign reversals sit between the
+            // authored quarter turn and this reading, and both are
+            // real properties of the stored bud rather than
+            // bookkeeping:
+            //
+            //   * the wedge sweeps AWAY from the place it starts half
+            //     a span before (see `bud`), landing centred a full
+            //     `span` short of it, so the lean read off the
+            //     realized centre is `lean + span` = 246 degrees;
+            //   * that angle is measured here about the BUD's axis,
+            //     and the frame `bud` spells its angles in is
+            //     left-handed about it, so 246 reads as -246, i.e.
+            //     +114.
+            //
+            // The window is 0.05 degrees around it because the wedge
+            // lives in the segment's OWN tilted plane and is being
+            // read across the bud's: at 5 degrees of tilt that
+            // distortion is 0.037 degrees (measured), and it is the
+            // only slack here. The three rival arrangements are
+            // nowhere near it — the achiral star reads -156, the
+            // mirror-image pinwheel -66 — so this is the handedness,
+            // pinned.
+            let want = deg(360.0) - deg(90.0) - deg(156.0);
+            assert!(
+                (lean - want).abs() < deg(0.05),
+                "bud segment {i}: leans {} deg off its own place, wanted {} \
+                 (-156 would be the achiral star, -66 the mirror)",
+                lean.to_degrees(),
+                want.to_degrees()
+            );
         }
     }
 
