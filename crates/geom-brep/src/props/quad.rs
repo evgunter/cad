@@ -1787,10 +1787,24 @@ fn refine_dir(
         RingInterval::poison(),
     ];
     let count = kv.control_count();
-    let other = if along_u { nv } else { net.len() / nv };
-    if count == 0 || nv == 0 || net.len() != count * nv && along_u {
+    if count == 0 || nv == 0 {
         return None;
     }
+    // The net is row-major with stride `nv`. On the u pass the refined
+    // direction has `count` lines of `nv`; on the v pass it IS the
+    // stride, so `count` must BE `nv` and the line count has to divide
+    // out EXACTLY. (R1's m2: `net.len() != count * nv && along_u`
+    // parses as `(…) && along_u`, so the v pass had no shape check at
+    // all and `net.len() / nv` truncated silently.)
+    let malformed = if along_u {
+        net.len() != count * nv
+    } else {
+        count != nv || net.len() % nv != 0
+    };
+    if malformed {
+        return None;
+    }
+    let other = if along_u { nv } else { net.len() / nv };
     let (d0, d1) = kv.domain();
     let mut add: Vec<f64> = Vec::new();
     for k in 1..QUAD2_REFINE_SPANS {
@@ -2820,6 +2834,162 @@ mod tests {
             out.area.lo() <= truth && truth <= out.area.hi(),
             "two-span area must contain π: {:?}",
             out.area
+        );
+    }
+
+    /// **The multiplicity ladder** (#313, the MAJOR's regression row).
+    /// One degree-3 wall, one interior knot at `u = 0.5`, walked over
+    /// every multiplicity the clamped invariant admits — `1..degree+1`,
+    /// i.e. C² down to the C⁰ kink — through BOTH lanes (non-unit
+    /// weights → rational, the unit-weight twin → integral).
+    ///
+    /// `deriv_kv` cannot represent the derivative knot vector from
+    /// multiplicity `degree` upward; before the fix that fell through
+    /// to a per-span CONSTANT first derivative, and the lane returned a
+    /// thin enclosure that EXCLUDED the truth. The oracle here is
+    /// independent — `geom_core`'s Book-A2.3 basis ladder and the
+    /// quotient rule, not this file's de Boor — and the standing claim
+    /// is the one the MAJOR broke: **an answer always contains the
+    /// truth; the alternative is a typed refusal, never a wrong
+    /// bracket.**
+    #[test]
+    #[allow(clippy::too_many_lines)] // the ladder plus its own oracle
+    fn interior_multiplicity_ladder_never_certifies_a_wrong_enclosure() {
+        use geom_core::spline::basis::ders_basis_funs;
+        let band = Band::linear().unwrap();
+        let kv_v = KnotVector::unit_segment(1);
+        let (pu, pv, nv, height) = (3usize, 1usize, 2usize, 2.0f64);
+        let mut certified: Vec<String> = Vec::new();
+        for mult in 1..=pu {
+            let mut knots = vec![0.0; pu + 1];
+            knots.extend(core::iter::repeat_n(0.5, mult));
+            knots.extend(core::iter::repeat_n(1.0, pu + 1));
+            let kv_u = KnotVector::clamped(knots, pu).unwrap();
+            let count = kv_u.control_count();
+            // A curved wall: a flaring quarter-turn profile extruded.
+            #[allow(clippy::cast_precision_loss)]
+            let profile: Vec<(f64, f64)> = (0..count)
+                .map(|i| {
+                    let s = i as f64 / (count - 1) as f64;
+                    let (a, r) = (s * core::f64::consts::FRAC_PI_2, 0.2f64.mul_add(s, 1.0));
+                    (r * a.cos(), r * a.sin())
+                })
+                .collect();
+            #[allow(clippy::cast_precision_loss)]
+            let profile_w: Vec<f64> = (0..count).map(|i| 0.06f64.mul_add((i % 3) as f64, 1.0)).collect();
+            for rational in [false, true] {
+                let mut net_f: Vec<[f64; 3]> = Vec::with_capacity(count * nv);
+                let mut ws: Vec<f64> = Vec::with_capacity(count * nv);
+                for (i, (x, y)) in profile.iter().enumerate() {
+                    for z in [0.0, height] {
+                        net_f.push([*x, *y, z]);
+                        ws.push(if rational { profile_w[i] } else { 1.0 });
+                    }
+                }
+                let net: Vec<RVec3> = net_f
+                    .iter()
+                    .map(|q| [pt(q[0]), pt(q[1]), pt(q[2])])
+                    .collect();
+                // The INDEPENDENT oracle: S = A/W through geom-core's
+                // basis ladder, S_d by the quotient rule.
+                let at = |u: f64, v: f64| -> ([f64; 3], [f64; 3], [f64; 3]) {
+                    let bu = ders_basis_funs::<f64>(&kv_u, kv_u.find_span(u), u, 1);
+                    let bv = ders_basis_funs::<f64>(&kv_v, kv_v.find_span(v), v, 1);
+                    let (su, sv) = (kv_u.find_span(u), kv_v.find_span(v));
+                    let (mut a, mut w) = ([[0.0f64; 3]; 3], [0.0f64; 3]);
+                    for r in 0..=pu {
+                        for s in 0..=pv {
+                            let idx = (su - pu + r) * nv + (sv - pv + s);
+                            let (ww, q) = (ws[idx], net_f[idx]);
+                            let b = [
+                                bu[0][r] * bv[0][s],
+                                bu[1][r] * bv[0][s],
+                                bu[0][r] * bv[1][s],
+                            ];
+                            for k in 0..3 {
+                                w[k] += b[k] * ww;
+                                for (c, aq) in a[k].iter_mut().enumerate() {
+                                    *aq += b[k] * ww * q[c];
+                                }
+                            }
+                        }
+                    }
+                    let quot = |k: usize| -> [f64; 3] {
+                        core::array::from_fn(|c| (a[k][c] * w[0] - a[0][c] * w[k]) / (w[0] * w[0]))
+                    };
+                    (
+                        core::array::from_fn(|c| a[0][c] / w[0]),
+                        quot(1),
+                        quot(2),
+                    )
+                };
+                let (nu_s, nv_s) = (2048usize, 64usize);
+                #[allow(clippy::cast_precision_loss)]
+                let (hu, hv) = (1.0 / nu_s as f64, 1.0 / nv_s as f64);
+                let (mut o_flux, mut o_area) = (0.0f64, 0.0f64);
+                for i in 0..nu_s {
+                    for j in 0..nv_s {
+                        #[allow(clippy::cast_precision_loss)]
+                        let (u, v) = ((i as f64 + 0.5) * hu, (j as f64 + 0.5) * hv);
+                        let (s, s_u, s_v) = at(u, v);
+                        let cr = [
+                            s_u[1] * s_v[2] - s_u[2] * s_v[1],
+                            s_u[2] * s_v[0] - s_u[0] * s_v[2],
+                            s_u[0] * s_v[1] - s_u[1] * s_v[0],
+                        ];
+                        o_flux += (s[0] * cr[0] + s[1] * cr[1] + s[2] * cr[2]) * hu * hv;
+                        o_area += (cr[0].powi(2) + cr[1].powi(2) + cr[2].powi(2)).sqrt() * hu * hv;
+                    }
+                }
+                let lane = if rational { "rational" } else { "integral" };
+                let row = format!("mult {mult} / {lane}");
+                match nurbs_patch_face::<f64>(
+                    &kv_u,
+                    &kv_v,
+                    &net,
+                    &ws,
+                    (0.0, 1.0, 0.0, 1.0),
+                    10.0,
+                    0.0,
+                    Tolerance::get().eps,
+                    band,
+                ) {
+                    Ok(out) => {
+                        // The slack is the ORACLE's discretization
+                        // error, not the lane's: on the polynomial
+                        // rows the exact Newton–Cotes lane returns the
+                        // truth to rounding and the dense midpoint sum
+                        // lands 2.6e-7 off it (O(h²) at 2048 u-samples,
+                        // measured). 1e-5 is 40x that headroom and
+                        // still ~900x tighter than the exclusion the
+                        // MAJOR produced.
+                        let slack = 1e-5;
+                        assert!(
+                            out.flux.lo() - slack <= o_flux && o_flux <= out.flux.hi() + slack,
+                            "{row}: flux {:?} EXCLUDES the dense truth {o_flux}",
+                            out.flux
+                        );
+                        assert!(
+                            out.area.lo() - slack <= o_area && o_area <= out.area.hi() + slack,
+                            "{row}: area {:?} EXCLUDES the dense truth {o_area}",
+                            out.area
+                        );
+                        certified.push(row.clone());
+                    }
+                    // A typed refusal is the other sound outcome.
+                    Err(
+                        PropsError::QuadratureBudget { .. } | PropsError::QuadratureUnsupported { .. },
+                    ) => {}
+                    Err(e) => panic!("{row}: unsound outcome {e:?}"),
+                }
+            }
+        }
+        // Anti-vacuity: a ladder of nothing but refusals would assert
+        // nothing about enclosures at all.
+        eprintln!("multiplicity ladder certified: {certified:?}");
+        assert!(
+            certified.len() >= 2 * pu,
+            "the ladder degenerated to refusals — it certified only {certified:?}"
         );
     }
 
