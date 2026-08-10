@@ -745,7 +745,7 @@ impl<T: Real> EdgeCurve<T> {
                 v0,
                 v1,
             },
-            EdgeGeometry::MappedCurve(ref m) => EdgeGeometry::MappedCurve(m.clone()),
+            EdgeGeometry::MappedCurve(m) => EdgeGeometry::MappedCurve(m),
         };
         Some(Self {
             description,
