@@ -53,26 +53,37 @@ const WILD_IMPORTS: [&str; 9] = [
 /// contract being pinned. Each entry is the fixture and the substring
 /// its message must carry — the class, not the prose.
 const WILD_REFUSALS: [(&str, &str); 4] = [
-    // The M7-6 stage-1 unit retired this file's whole GEOMETRY
-    // distance from the subset (measured, not hoped): the
-    // QUASI_UNIFORM vocabulary imports with synthesized clamped
-    // knots, the 17 plane-class surfaces promote to certified
-    // Planes (residual 0.0); the 7 rational cylinders certify only
-    // at grid samples, so under the whole-patch envelope they stay
-    // NURBS (the honest posture — no promotion without a whole-patch
-    // certificate); the 11 trim rings ride the promoted planes
-    // through the multi-bound
-    // gate — resolution now runs clean through every face and edge
-    // of all three breps. What the file states NEXT is why it still
-    // refuses: it is a seven-instance ASSEMBLY (l-bracket + 3 bolts
-    // + 3 nuts, 3 breps placed through 7 per-component
-    // `ITEM_DEFINED_TRANSFORMATION`s with distinct non-identity
-    // maps), and per-component placement is the M7-4 Leg D
-    // instancing refusal — a body graph with per-instance frames is
-    // a banked unit, refused rather than importing some components
-    // placed and others not. The refusal id is the second differing
-    // transform (#186, bolt_4).
-    ("stepcode/dm1-id-214.stp", "assembly instancing"),
+    // **The instancing refusal is gone (M8); this row now pins what
+    // was BEHIND it.** dm1 is a seven-instance assembly (l-bracket +
+    // 3 bolts + 3 nuts: 3 breps named by 7 `NEXT_ASSEMBLY_USAGE_
+    // OCCURRENCE`s through 7 per-component
+    // `ITEM_DEFINED_TRANSFORMATION`s), and the M7-4 Leg D refusal at
+    // the second differing map (#186, bolt_4) was the file's LAST
+    // structural obstacle — every one of the seven now materializes
+    // under its own frame. The refusal that surfaced behind it is a
+    // GEOMETRY one, and it is not a regression: the placement layer
+    // used to run BEFORE assembly, so no edge of this file had ever
+    // reached the D7 adoption ladder.
+    //
+    // What the ladder finds, measured on this branch: M7-6 promoted
+    // dm1's 17 plane-class patches to certified Planes (residual 0.0)
+    // and honestly DECLINED its 7 rational cylinders (the whole-patch
+    // envelope does not certify them, and no promotion happens without
+    // a whole-patch certificate). A stay-NURBS cylinder's own
+    // parameterization seam is now describable — the `IsoCurve` rung,
+    // widened in M8 to the one-wall case, certifies it as the patch's
+    // `u = 0` column, which is what carried the ladder past edge #668
+    // — but its circular RIM is not: the file states that rim as a
+    // rational quadratic B-spline between a promoted cap Plane and the
+    // stay-NURBS wall, and no rung certifies a NURBS carrier there
+    // (`Intersection` fails transversality on the tangency;
+    // `TangentIntersection` reports NURBS × NURBS has no certificate;
+    // the conventional rung has no mapped self-description for a NURBS
+    // carrier). The first such edge is #685. Retiring THAT distance is
+    // stage-1 CURVE recognition (a rational quadratic that is exactly
+    // a circle), which is its own unit and its own certificate — not
+    // something to guess here.
+    ("stepcode/dm1-id-214.stp", "no intensional description certifies"),
     // A spline-carried edge between analytic surfaces: the file's
     // geometry is inside the subset entity by entity, and the D7
     // ladder still cannot certify any intensional description for the
@@ -348,14 +359,18 @@ fn the_committed_corpus_still_carries_the_dialects_it_was_chosen_for() {
     // Leg C: a VECTOR magnitude that is not 1, and non-unit ratios.
     assert!(any(&|t| t.contains("VECTOR('',#131,10.)")), "Leg C");
     // Leg D: an assembly transform PRESENT and — since M7-6 —
-    // genuinely TRAVERSED on a wild file: `dm1-id-214`'s geometry now
+    // genuinely TRAVERSED on a wild file: `dm1-id-214`'s geometry
     // resolves clean through `resolve_shape` (stage-1 promotion), so
-    // `resolve_assembly_placement` reads its seven per-component
-    // transforms for real and refuses TYPED at the second differing
-    // map (the WILD_REFUSALS row pins "assembly instancing"). The
-    // one-map apply path and both its refusals stay exercised on
-    // planted mutations of `twobody_importexport`'s real transforms,
-    // in `freecad.rs::refusals_survive_the_dialect_relaxations` (d).
+    // the assembly layer reads its seven per-component transforms for
+    // real. Since M8 it no longer refuses them: each occurrence's
+    // `REPRESENTATION_RELATIONSHIP` says which component the map
+    // places, and the seven materialize as seven placed instances of
+    // the three breps. The file's remaining refusal is a geometry one
+    // (the WILD_REFUSALS row). Per-instance placement CORRECTNESS —
+    // that each frame lands on its own component and on no other — is
+    // pinned on planted mutations of `twobody_importexport`'s real
+    // transforms, per solid, in
+    // `freecad.rs::refusals_survive_the_dialect_relaxations` (d).
     assert!(any(&|t| t.contains("ITEM_DEFINED_TRANSFORMATION")), "Leg D");
     // The knots-implied spline sub-types (M7-6 vocabulary): the
     // corpus carries both QUASI_UNIFORM forms (dm1's 31 curves + 5

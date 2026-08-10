@@ -503,15 +503,20 @@ fn probe_reexport_promotion_divergence() {
     assert_eq!(out, out2, "fixed point from the first re-export on");
 }
 
-/// V6, re-anchored at M7-6: dm1-id-214's first refusal site moved
-/// from `#667 QUASI_UNIFORM_CURVE` (parse vocabulary, retired by the
-/// knots-implied synthesis) PAST the whole geometry pass — the 24
-/// NURBS surfaces promote, the trim rings ride the promoted planes —
-/// to the ASSEMBLY layer: the file places 3 breps through 7
-/// per-component transforms, and `resolve_assembly_placement` refuses
-/// typed at the second differing map, `#186` (bolt_4). Reaching #186
-/// IS the recognition pin: resolution only gets there if every face
-/// of every brep resolved first.
+/// V6, re-anchored at M8: dm1-id-214's first refusal site has moved
+/// three times, always FORWARD, and each move retired a distance.
+/// From `#667 QUASI_UNIFORM_CURVE` (parse vocabulary, retired by M7-6's
+/// knots-implied synthesis) past the whole geometry pass — the 24
+/// NURBS surfaces recognize, the trim rings ride the promoted planes —
+/// to the ASSEMBLY layer at `#186`, the second differing per-component
+/// transform (M7-4 Leg D's instancing refusal). M8 retires THAT: the
+/// file's 3 breps and 7 occurrences materialize as 7 placed instances,
+/// so the site moves past the assembly layer entirely and into the D7
+/// adoption ladder, which is reached only after every face of every
+/// brep resolved AND every instance's frame was read and applied.
+///
+/// The site is now an EDGE, and pinning that it is one is the point:
+/// `Structure` here again would mean a structural refusal came back.
 #[test]
 fn probe_dm1_first_refusal_site() {
     let path: std::path::PathBuf = [
@@ -526,12 +531,22 @@ fn probe_dm1_first_refusal_site() {
     .collect();
     let text = std::fs::read_to_string(&path).unwrap();
     match import(&text) {
-        Err(step_import::StepImportError::Structure { id, what }) => {
-            eprintln!("PROBE dm1 refusal: #{id} {what}");
-            assert_eq!(id, 186, "the second differing per-component transform");
-            assert!(what.contains("assembly instancing"), "{what}");
+        Err(step_import::StepImportError::Adoption { id, attempts }) => {
+            eprintln!(
+                "PROBE dm1 refusal: edge #{id}, {} candidate(s) tried",
+                attempts.len()
+            );
+            assert_eq!(id, 685, "the first rational-NURBS rim the ladder cannot certify");
+            // A ladder that reports NO attempt is a GAP, not a
+            // refusal — the shape edge #668 had before the `IsoCurve`
+            // rung was widened to the one-wall seam case. Every
+            // refusal this suite pins must name what it tried.
+            assert!(
+                !attempts.is_empty(),
+                "a refusal names the candidates it tried"
+            );
         }
-        other => panic!("dm1-id-214 must refuse at the assembly layer, got {other:?}"),
+        other => panic!("dm1-id-214 must refuse at the adoption ladder, got {other:?}"),
     }
 }
 

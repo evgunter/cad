@@ -551,6 +551,40 @@ fn min_x_mm(body: &topo::Body<f64>) -> f64 {
         * 1e3
 }
 
+/// Each solid's own x extent in millimetres, in body solid order — the
+/// instrument a per-component placement needs (a whole-body extent
+/// cannot tell "both moved 5 mm" from "one moved 10 mm").
+fn solid_x_mm(body: &topo::Body<f64>) -> Vec<(f64, f64)> {
+    body.solids()
+        .map(|(sk, solid)| {
+            let mut lo = f64::INFINITY;
+            let mut hi = f64::NEG_INFINITY;
+            for shell in &solid.shells {
+                for &face in &body.get_shell(*shell).expect("a shell").faces {
+                    let f = body.get_face(face).expect("a face");
+                    for lk in std::iter::once(f.outer).chain(f.rings.iter().copied()) {
+                        let topo::LoopBoundary::Cycle { first } =
+                            body.get_loop(lk).expect("a loop").boundary
+                        else {
+                            continue;
+                        };
+                        for he in body.loop_cycle(first).expect("a cycle") {
+                            let v = body.get_half_edge(he).expect("a use").start;
+                            let p = body
+                                .get_point(body.get_vertex(v).expect("a vertex").point)
+                                .expect("a point");
+                            lo = lo.min(p.x * 1e3);
+                            hi = hi.max(p.x * 1e3);
+                        }
+                    }
+                }
+            }
+            let _ = sk;
+            (lo, hi)
+        })
+        .collect()
+}
+
 fn mutated(name: &str, from: &str, to: &str) -> String {
     let text = freecad_fixture(name);
     assert!(
@@ -965,19 +999,76 @@ fn refusals_survive_the_dialect_relaxations() {
         min_x_mm(base),
         min_x_mm(moved)
     );
-    // Only ONE component placed: assembly instancing, still refused.
-    let probe = text.replace(
+    // **FLIPPED AGAIN (M8 instancing).** Only ONE component placed
+    // used to refuse here — one map had to cover all of a file's
+    // content, because a placed body was placed by transforming the
+    // FINISHED body once and there was nowhere to put a second frame.
+    // The `REPRESENTATION_RELATIONSHIP` says which content each
+    // transform places (`rep_1` is the component), so each component
+    // now materializes under ITS OWN frame: the first body moves 5 mm,
+    // the second stays exactly where the unplaced import put it.
+    let one = text.replace(
         "#15 = AXIS2_PLACEMENT_3D('',#16,#17,#18);",
         "#15 = AXIS2_PLACEMENT_3D('',#9995,#17,#18);\n\
          #9995 = CARTESIAN_POINT('',(5.,0.,0.));",
     );
-    match import_step(&probe, &ImportOptions::default())
-        .expect_err("per-component placement must refuse")
-    {
-        E::Structure { what, .. } => {
-            assert!(what.contains("assembly"), "and says what it is: {what}")
-        }
-        other => panic!("expected Structure, got: {other}"),
+    let split = import_step(&one, &ImportOptions::default())
+        .expect("per-component placement materializes per component");
+    let StepImport::Solid { body: split, .. } = &split else {
+        panic!("a solid");
+    };
+    assert_eq!(
+        census(base),
+        census(split),
+        "placing one component of two re-shapes neither"
+    );
+    // The evidence that the frames landed on the RIGHT components:
+    // per-solid x extents, against the unplaced import's own.
+    let want: Vec<(f64, f64)> = solid_x_mm(base)
+        .into_iter()
+        .enumerate()
+        .map(|(i, (lo, hi))| if i == 0 { (lo + 5.0, hi + 5.0) } else { (lo, hi) })
+        .collect();
+    let got = solid_x_mm(split);
+    assert_eq!(got.len(), 2, "two components, two solids");
+    for (i, ((glo, ghi), (wlo, whi))) in got.iter().zip(want.iter()).enumerate() {
+        assert!(
+            (glo - wlo).abs() <= 1e-9 && (ghi - whi).abs() <= 1e-9,
+            "solid {i}: x extent [{glo}, {ghi}] mm, expected [{wlo}, {whi}]"
+        );
+    }
+    // And two DIFFERENT frames, the case that has no single-map
+    // reading at all: 5 mm and 12 mm, one file, two solids.
+    let two = text
+        .replace(
+            "#15 = AXIS2_PLACEMENT_3D('',#16,#17,#18);",
+            "#15 = AXIS2_PLACEMENT_3D('',#9995,#17,#18);\n\
+             #9995 = CARTESIAN_POINT('',(5.,0.,0.));",
+        )
+        .replace(
+            "#19 = AXIS2_PLACEMENT_3D('',#20,#21,#22);",
+            "#19 = AXIS2_PLACEMENT_3D('',#9996,#21,#22);\n\
+             #9996 = CARTESIAN_POINT('',(12.,0.,0.));",
+        );
+    let instanced = import_step(&two, &ImportOptions::default())
+        .expect("two different component frames materialize as two placed solids");
+    let StepImport::Solid { body: instanced, .. } = &instanced else {
+        panic!("a solid");
+    };
+    assert_eq!(census(base), census(instanced), "still the same two bodies");
+    let want: Vec<(f64, f64)> = solid_x_mm(base)
+        .into_iter()
+        .enumerate()
+        .map(|(i, (lo, hi))| {
+            let d = if i == 0 { 5.0 } else { 12.0 };
+            (lo + d, hi + d)
+        })
+        .collect();
+    for (i, ((glo, ghi), (wlo, whi))) in solid_x_mm(instanced).iter().zip(want.iter()).enumerate() {
+        assert!(
+            (glo - wlo).abs() <= 1e-9 && (ghi - whi).abs() <= 1e-9,
+            "solid {i}: x extent [{glo}, {ghi}] mm, expected [{wlo}, {whi}]"
+        );
     }
     // And a mirror is never a placement. A placement PAIR cannot state
     // one — ISO 10303-42 builds both frames right-handed whatever their
