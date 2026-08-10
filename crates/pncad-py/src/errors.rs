@@ -81,49 +81,11 @@ impl fmt::Display for DimensionError {
 
 impl core::error::Error for DimensionError {}
 
-/// A value the boundary refuses before it can reach the kernel.
-///
-/// `Expr::literal` rejects non-finite values and integer-dimension
-/// literals, but its error type is NOT re-exported by the façade (see
-/// the FINDING in the PR body), so the binding pre-checks the same two
-/// conditions itself and raises its own typed refusal. The kernel call
-/// downstream is then infallible by construction.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum LiteralRefusal {
-    /// NaN or an infinity crossed the boundary.
-    NonFinite {
-        /// The offending value.
-        value: f64,
-    },
-    /// A `Count` was written as a continuous literal; counts are
-    /// integers (D4).
-    CountIsInteger,
-}
-
-impl fmt::Display for LiteralRefusal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::NonFinite { value } => write!(f, "value is not finite: {value}"),
-            Self::CountIsInteger => f.write_str("a count literal must be an integer"),
-        }
-    }
-}
-
-impl core::error::Error for LiteralRefusal {}
-
-/// Check a literal against the two conditions `Expr::literal` refuses.
-///
-/// Returns the value unchanged when it is admissible, so callers can
-/// use it as a gate in expression position.
-pub fn check_literal(value: f64, dim: Dimension) -> Result<f64, LiteralRefusal> {
-    if !value.is_finite() {
-        return Err(LiteralRefusal::NonFinite { value });
-    }
-    if dim == Dimension::Count {
-        return Err(LiteralRefusal::CountIsInteger);
-    }
-    Ok(value)
-}
+// LIB-DOORS F5: the `LiteralRefusal`/`check_literal` pre-check that
+// used to live here is GONE. `Expr::literal`'s own error type
+// (`pncad::document::DimensionError`) is curated now, so the binding
+// matches the kernel's refusal instead of predicting it; the tag
+// mapping is `crate::tags::expr_dimension_error_tag`.
 
 /// Which typed Python exception a refusal becomes.
 ///
@@ -143,8 +105,16 @@ pub enum ErrorClass {
     Validation,
     /// A dimension mismatch at the quantity boundary.
     Dimension,
-    /// A value refused before it reached the kernel.
+    /// A value the expression layer refused (non-finite literal, a
+    /// count written as continuous, ...).
     Literal,
+    /// A save or load the persistence doors refused (LIB-DOORS F1).
+    Persist,
+    /// An export the document-layer door refused (LIB-DOORS F2).
+    Export,
+    /// A STEP text the importer refused, or one that parsed to a
+    /// non-solid (the export test oracle's refusal class).
+    StepImport,
 }
 
 impl ErrorClass {
@@ -156,6 +126,9 @@ impl ErrorClass {
             Self::Validation => "ValidationError",
             Self::Dimension => "DimensionError",
             Self::Literal => "LiteralError",
+            Self::Persist => "PersistError",
+            Self::Export => "ExportError",
+            Self::StepImport => "StepImportError",
         }
     }
 }

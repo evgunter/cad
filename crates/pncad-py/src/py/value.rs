@@ -40,6 +40,7 @@ use pyo3::types::PyString;
 use crate::errors::ErrorClass;
 use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
+use crate::tags::{export_error_tag, node_error_tag};
 use pncad::document as d;
 use pncad::topo;
 
@@ -60,6 +61,64 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: Node
             ("node", node),
         ],
     )
+}
+
+/// Raise `EvaluationError` for a node that ITSELF failed: the payload
+/// is the `NodeErrorKind`'s stable tag plus the node id; the message
+/// is the kernel's own error, rendered.
+fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
+    let node_obj = match node.into_pyobject(py) {
+        Ok(bound) => bound.unbind().into_any(),
+        Err(failed) => return failed,
+    };
+    typed_err(
+        py,
+        ErrorClass::Evaluation,
+        format!("{error:?}"),
+        &[
+            (
+                "reason",
+                PyString::new(py, "node_failed").unbind().into_any(),
+            ),
+            ("node", node_obj),
+            (
+                "kind",
+                PyString::new(py, node_error_tag(&error.kind))
+                    .unbind()
+                    .into_any(),
+            ),
+        ],
+    )
+}
+
+/// Raise `EvaluationError` for a POISONED node: `through` names the
+/// nearest failed ancestor, `kind` tags its root cause (present
+/// whenever the evaluation's own invariant holds — fail-honest, so a
+/// broken hop yields no `kind` rather than a wrong one).
+fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::NodeError>) -> PyErr {
+    let objs = (node.into_pyobject(py), through.into_pyobject(py));
+    let (node_obj, through_obj) = match objs {
+        (Ok(n), Ok(t)) => (n.unbind().into_any(), t.unbind().into_any()),
+        (Err(failed), _) | (_, Err(failed)) => return failed,
+    };
+    let mut fields: Vec<(&str, Py<PyAny>)> = vec![
+        ("reason", PyString::new(py, "poisoned").unbind().into_any()),
+        ("node", node_obj),
+        ("through", through_obj),
+    ];
+    let message = match root {
+        Some(error) => {
+            fields.push((
+                "kind",
+                PyString::new(py, node_error_tag(&error.kind))
+                    .unbind()
+                    .into_any(),
+            ));
+            format!("poisoned through {:?}: {error:?}", through.0)
+        }
+        None => format!("poisoned through {:?}", through.0),
+    };
+    typed_err(py, ErrorClass::Evaluation, message, &fields)
 }
 
 /// Bulk mass properties of a body, in canonical units.
@@ -338,39 +397,26 @@ pub(crate) struct Evaluation {
 impl Evaluation {
     /// The node's successful value.
     ///
-    /// # The typed-failure gap (a recorded FINDING)
-    ///
-    /// §L4 wants a node's FAILURE to arrive as a typed exception
-    /// carrying its `NodeError`. The curated surface cannot yet
-    /// deliver that: `Evaluation::value` collapses "failed" and
-    /// "poisoned" into `None`, and the enum that distinguishes them
-    /// (`NodeResult`) is neither re-exported by the façade nor
-    /// equipped with accessor methods — so although `NodeError` and
-    /// `NodeErrorKind` ARE curated, no curated path leads to one.
-    /// (`crate::tags::node_error_tag` is written and compiles against
-    /// the real enum, ready for the day an accessor lands.)
-    ///
-    /// Until then this raises with the most specific reason the
-    /// surface can actually justify: `unknown_node` when the id is not
-    /// in the evaluated order at all, `no_value` otherwise.
+    /// A node that produced NO value raises with the REAL typed cause
+    /// (LIB-DOORS F3; the U9S `no_value` placeholder is gone):
+    /// `reason` is `"node_failed"` or `"poisoned"`, `kind` is the
+    /// `NodeErrorKind`'s stable tag, a poisoning carries `through`,
+    /// and the message renders the kernel's own `NodeError`.
     fn value(&self, py: Python<'_>, node: &NodeId) -> PyResult<Value> {
-        match self.inner.value(node.0) {
-            Some(node_value) => Ok(Value {
+        match self.inner.result(node.0) {
+            Some(d::NodeResult::Ok(node_value)) => Ok(Value {
                 payload: node_value.payload.clone(),
                 node: *node,
             }),
-            None if !self.inner.order.contains(&node.0) => Err(eval_err(
+            Some(d::NodeResult::Failed(error)) => Err(node_failure(py, *node, error)),
+            Some(d::NodeResult::Poisoned { through }) => {
+                let root = self.inner.node_error(node.0);
+                Err(poisoning(py, *node, NodeId(*through), root))
+            }
+            None => Err(eval_err(
                 py,
                 "no such node in the evaluated document",
                 "unknown_node",
-                *node,
-            )),
-            None => Err(eval_err(
-                py,
-                "the node produced no value (it failed, or an upstream \
-                 node did); the typed cause is not reachable through \
-                 the curated surface yet",
-                "no_value",
                 *node,
             )),
         }
@@ -398,8 +444,88 @@ impl Evaluation {
         self.inner.reused
     }
 
+    /// Export the single body `node` denotes as a STEP (AP214 Part 21)
+    /// exchange-file string (LIB-DOORS F2: the document-layer export
+    /// door, `pncad::export::step_for_node` — one construction site
+    /// for "which body does this node denote", shared with Rust).
+    ///
+    /// Accepts a `body` or non-empty `boolean` value; everything else
+    /// raises a typed `ExportError`.
+    #[pyo3(signature = (node, product_name=None))]
+    fn step_string(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        product_name: Option<String>,
+    ) -> PyResult<String> {
+        let mut options = pncad::step_export::StepOptions::default();
+        if let Some(name) = product_name {
+            options.product_name = name;
+        }
+        pncad::export::step_for_node(&self.inner, node.0, &options)
+            .map_err(|err| export_err(py, *node, &err))
+    }
+
     fn __repr__(&self) -> String {
         format!("Evaluation({} nodes)", self.inner.order.len())
+    }
+}
+
+/// Raise `ExportError` mirroring the Rust door's refusal: `variant`
+/// is the arm's stable tag, `node` rides along, a poisoning adds
+/// `through` and a wrong-kind value adds `kind`. The message is the
+/// door's own `Display`.
+fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) -> PyErr {
+    use pncad::export::ExportError as E;
+    let node_obj = match node.into_pyobject(py) {
+        Ok(bound) => bound.unbind().into_any(),
+        Err(failed) => return failed,
+    };
+    let mut fields: Vec<(&str, Py<PyAny>)> = vec![
+        (
+            "variant",
+            PyString::new(py, export_error_tag(err)).unbind().into_any(),
+        ),
+        ("node", node_obj),
+    ];
+    match err {
+        E::Poisoned { through, .. } => match NodeId(*through).into_pyobject(py) {
+            Ok(bound) => fields.push(("through", bound.unbind().into_any())),
+            Err(failed) => return failed,
+        },
+        E::NotABody { kind, .. } => {
+            fields.push(("kind", PyString::new(py, kind).unbind().into_any()));
+        }
+        E::UnknownNode { .. } | E::NodeFailed { .. } | E::EmptyBoolean { .. } | E::Step(_) => {}
+    }
+    typed_err(py, ErrorClass::Export, err.to_string(), &fields)
+}
+
+/// Parse a STEP text with the kernel's own importer and adopt its
+/// solid as an opaque `Body` handle — the §L3 journey's round-trip
+/// oracle ("the exported file PARSES"), bound so the Python suite can
+/// assert it without reaching past the module.
+#[pyfunction]
+pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
+    match pncad::step_import::import_step(text, &pncad::step_import::ImportOptions::default()) {
+        Ok(pncad::step_import::StepImport::Solid { body, .. }) => Ok(Body {
+            inner: Arc::new(body),
+        }),
+        Ok(pncad::step_import::StepImport::Wireframe { .. }) => Err(typed_err(
+            py,
+            ErrorClass::StepImport,
+            "the file parsed to a wireframe, not a solid",
+            &[(
+                "variant",
+                PyString::new(py, "wireframe").unbind().into_any(),
+            )],
+        )),
+        Err(err) => Err(typed_err(
+            py,
+            ErrorClass::StepImport,
+            format!("{err:?}"),
+            &[("variant", PyString::new(py, "refused").unbind().into_any())],
+        )),
     }
 }
 
@@ -427,5 +553,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MassProperties>()?;
     m.add_class::<Datum>()?;
     m.add_function(wrap_pyfunction!(evaluate, m)?)?;
+    m.add_function(wrap_pyfunction!(import_step, m)?)?;
     Ok(())
 }

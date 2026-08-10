@@ -9,9 +9,8 @@
 // failure mechanism.
 #![allow(clippy::expect_used, clippy::panic)]
 
-use crate::errors::{
-    DimensionError, ErrorClass, LiteralRefusal, canonical_unit, check_literal, dimension_tag,
-};
+use crate::errors::{DimensionError, ErrorClass, canonical_unit, dimension_tag};
+use crate::tags::{expr_dimension_error_tag, persist_error_tag};
 use pncad::document::Dimension;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -51,25 +50,33 @@ fn error_classes_name_the_python_hierarchy() {
     assert_eq!(ErrorClass::Validation.class_name(), "ValidationError");
     assert_eq!(ErrorClass::Dimension.class_name(), "DimensionError");
     assert_eq!(ErrorClass::Literal.class_name(), "LiteralError");
+    assert_eq!(ErrorClass::Persist.class_name(), "PersistError");
+    assert_eq!(ErrorClass::Export.class_name(), "ExportError");
+    assert_eq!(ErrorClass::StepImport.class_name(), "StepImportError");
 }
 
+/// LIB-DOORS F5: the binding matches `Expr::literal`'s OWN refusals
+/// (the `check_literal` pre-check is gone), and the tags Python sees
+/// for the two literal-reachable arms are unchanged from LIB-U9S.
 #[test]
-fn literal_gate_refuses_exactly_what_the_kernel_refuses() {
-    assert_eq!(check_literal(1.5, Dimension::Length), Ok(1.5));
-    // NaN != NaN, so this arm is matched structurally rather than
-    // compared by value.
-    assert!(matches!(
-        check_literal(f64::NAN, Dimension::Length),
-        Err(LiteralRefusal::NonFinite { value }) if value.is_nan()
-    ));
-    assert!(matches!(
-        check_literal(f64::INFINITY, Dimension::Length),
-        Err(LiteralRefusal::NonFinite { .. })
-    ));
-    assert_eq!(
-        check_literal(3.0, Dimension::Count),
-        Err(LiteralRefusal::CountIsInteger)
-    );
+fn literal_refusals_come_from_the_kernel_with_stable_tags() {
+    use pncad::document::Expr;
+    let non_finite = Expr::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
+    assert_eq!(expr_dimension_error_tag(&non_finite), "non_finite");
+    let count = Expr::literal(3.0, Dimension::Count).expect_err("a continuous count refuses");
+    assert_eq!(expr_dimension_error_tag(&count), "count_is_integer");
+    assert!(Expr::literal(1.5, Dimension::Length).is_ok());
+}
+
+/// LIB-DOORS F1: a load refusal's tag, exercised through the real
+/// door (the exhaustive match itself is the drift alarm; this pins
+/// two tags' spellings against the wire).
+#[test]
+fn persist_error_tags_are_stable() {
+    let header = pncad::document::load("not a header").expect_err("garbage refuses");
+    assert_eq!(persist_error_tag(&header), "header");
+    let unknown = pncad::document::load("schema: 9999\n{}").expect_err("a future schema refuses");
+    assert_eq!(persist_error_tag(&unknown), "unknown_schema");
 }
 
 /// Read one flat `key = "value"` TOML table, selected by its exact
