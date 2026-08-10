@@ -859,3 +859,150 @@ fn expr_literal_refusals_are_matchable_through_the_facade() {
         Err(DimensionError::LiteralCountIsInteger)
     ));
 }
+
+// ---------------------------------------------------------------
+// R1-PARAMS: named document parameters cross the curated surface.
+// ---------------------------------------------------------------
+
+/// Author `plate_param` — the corpus' parametric acceptance scene,
+/// mirrored constant for constant from
+/// `crates/editor-core/tests/corpus/plate_param.rs` — through
+/// `pncad::document` alone. Before R1-PARAMS this function could not
+/// compile: `ParamName` and `DocParam` were not curated, which guide
+/// §3.2 pinned with a `compile_fail` doctest (now flipped to the same
+/// authoring as a passing one).
+fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
+    use pncad::document::{BooleanOp, DocParam, ParamName};
+    let lit = |v: f64| Expr::literal(v, Dimension::Length).expect("a finite length");
+    let hole = |cx: f64, cy: f64| LoopProgram::Circle {
+        centre: [lit(cx), lit(cy)],
+        radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
+    };
+
+    let doc = pncad::document::ProfileDoc::empty();
+    let doc = apply(
+        &doc,
+        &DocEdit::SetDocParam {
+            name: ParamName::new("hole_r"),
+            value: DocParam::Continuous {
+                dim: Dimension::Length,
+                value: 0.25,
+            },
+        },
+    )
+    .expect("the parameter edit applies")
+    .doc;
+
+    let outline = LoopProgram::Chain(vec![
+        ProgramStep::At([lit(0.0), lit(0.0)]),
+        ProgramStep::LineTo(ProgramTarget::Point([lit(4.0), lit(0.0)])),
+        ProgramStep::LineTo(ProgramTarget::Point([lit(4.0), lit(2.0)])),
+        ProgramStep::LineTo(ProgramTarget::Point([lit(0.0), lit(2.0)])),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let (doc, profile) = doors_insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane: SketchPlane::xy(),
+            loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
+        }),
+    );
+    let (doc, plate) = doors_insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: lit(0.5),
+        },
+    );
+    let (doc, tab_p) = doors_insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane: SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.125))),
+            loops: vec![
+                LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
+                    .expect("finite tab corners"),
+            ],
+        }),
+    );
+    let (doc, tab) = doors_insert(
+        doc,
+        Node::Extrude {
+            profile: tab_p,
+            distance: lit(0.25),
+        },
+    );
+    let (doc, solid) = doors_insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: plate,
+            b: tab,
+            declare: None,
+        },
+    );
+    (doc, solid)
+}
+
+/// R1-PARAMS: `plate_param` authors façade-only, evaluates to the
+/// corpus scene's analytic oracle, and its saved text is pinned as
+/// `tests/plate_param.v4.pncad` — the fixture the Python audit loads
+/// (`crates/pncad-py/tests/test_north_star.py`) to author the
+/// `set_doc_param` edit from Python. Python cannot yet author this
+/// profile from scratch (audit gaps G1/G9: circles, multi-loop), so
+/// the document crosses to Python through the persistence door, and
+/// THIS pin keeps that crossing honest: if the scene's constants or
+/// the persist schema move, the fixture cannot silently rot.
+///
+/// The pin is exact except the snapshot's ONE `"epsilon"` line:
+/// `empty()` inherits the ambient ε (`CAD_TOLERANCE_EPS`), CI's eps
+/// rows sweep it BY DESIGN, and a document authored with an explicit
+/// non-ambient ε refuses evaluation (`ToleranceConflict`) under a
+/// sweep — so ε is the one line that legitimately varies per run and
+/// is excluded from the comparison. The checked-in fixture carries
+/// the default ε (regenerate under a default environment).
+#[test]
+fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
+    use pncad::document::BooleanValue;
+    let (doc, solid) = plate_param_facade_only();
+
+    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+    let pncad::document::NodeResult::Ok(value) = ev.result(solid).expect("the node is live") else {
+        panic!("plate_param evaluated");
+    };
+    let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
+        panic!("a union yields a body");
+    };
+    let volume = mass_properties(body.as_ref())
+        .expect("mass properties")
+        .volume;
+    // Plate + tab − their overlap − two cylinders of radius 0.25: the
+    // same closed form `switch_plate_param.rs` asserts, tab included.
+    let oracle = 4.0 * 2.0 * 0.5 + 1.0 * 0.75 * 0.25
+        - 0.5 * 0.25 * 0.25
+        - 2.0 * core::f64::consts::PI * 0.25 * 0.25 * 0.5;
+    assert!(
+        (volume - oracle).abs() < 1e-6,
+        "volume {volume} vs the plate_param oracle {oracle}"
+    );
+
+    let text = pncad::document::save(&doc, &[]).expect("the document saves");
+    if std::env::var_os("PNCAD_BLESS").is_some() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v4.pncad");
+        std::fs::write(path, &text).expect("the fixture writes");
+        return; // freshly written; the next compile pins it
+    }
+    // Everything but the swept ε line must match bit-for-bit (see the
+    // doc comment above for why ε is excluded).
+    let sans_epsilon = |t: &str| -> String {
+        t.lines()
+            .filter(|l| !l.trim_start().starts_with("\"epsilon\":"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    assert_eq!(
+        sans_epsilon(&text),
+        sans_epsilon(include_str!("plate_param.v4.pncad")),
+        "the saved plate_param text moved — regenerate the fixture with \
+         `PNCAD_BLESS=1 cargo test -p pncad plate_param` (default env) and re-run"
+    );
+}

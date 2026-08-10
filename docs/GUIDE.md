@@ -730,26 +730,120 @@ still applies cleanly. A program that refuses under the current
 binding is legal *at rest*; the refusal belongs to replay, not to the
 edit.
 
-### 3.2 A gap, stated plainly
+### 3.2 The flagship, façade-only
 
-Named document parameters are **not reachable through the `pncad`
-façade today.** `DocEdit::SetDocParam` needs `ParamName` and
-`DocParam`, and `Expr::param` needs `ParamName`; none of the three is
-in the façade's curated document surface. So `plate_param` itself
-cannot be authored by a `pncad`-only consumer — it is written against
-`editor_core` directly, as a crate-internal test asset.
+Named document parameters were LIB-U10's headline finding: the façade
+did not re-export `ParamName` or `DocParam`, so `DocEdit::SetDocParam`
+and `Expr::param` were doors a `pncad`-only consumer could see and not
+open, and a `compile_fail` doctest sat here pinning the hole.
+R1-PARAMS cured it — both names are curated through `pncad::document`
+(and the prelude), so what follows is `plate_param` itself, authored
+through the façade alone and executed as this page's doctest. This is
+the standing goal's register at work: the gap was named in the
+north-star audit rather than worked around, and closing it flips this
+section from a pin to a demonstration.
 
-This is a real hole in the library story, pinned here so it cannot be
-forgotten:
+One parameter, referenced by two loops, moved by one edit:
 
-```compile_fail
-// LIB-U10 finding: the façade does not re-export the named-parameter
-// vocabulary, so this does not compile. Slot edits (`SetParam`,
-// above) work; document-level named parameters do not.
-use pncad::document::ParamName;
+```
+use pncad::prelude::*;
+use pncad::document::{BooleanOp, BooleanValue, NodeResult};
+
+let lit = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+// ONE expression, shared: BOTH holes' radius reads `hole_r`.
+let hole = |cx: f64, cy: f64| LoopProgram::Circle {
+    centre: [lit(cx), lit(cy)],
+    radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
+};
+
+let mut doc = Doc::<ProfileProgram>::empty();
+
+// Declare the parameter. An ordinary edit: recorded, replayable,
+// undoable like any other.
+doc = apply(&doc, &DocEdit::SetDocParam {
+    name: ParamName::new("hole_r"),
+    value: DocParam::Continuous { dim: Dimension::Length, value: 0.25 },
+})?.doc;
+
+let mut insert = |doc: &Doc<ProfileProgram>, node| {
+    let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
+    (applied.doc, applied.record.minted.expect("a minted id"))
+};
+
+// The plate: outline plus both parametric holes, one profile.
+let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)])
+    .expect("finite corners");
+let (next, profile) = insert(&doc, Node::Profile(ProfileProgram {
+    plane: SketchPlane::xy(),
+    loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
+}));
+doc = next;
+let (next, plate) = insert(&doc, Node::Extrude { profile, distance: lit(0.5) });
+doc = next;
+
+// A plain tab on its own branch — parametrically inert, there so the
+// re-evaluation below has a sibling to REUSE.
+let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
+    plane: SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.125))),
+    loops: vec![
+        LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
+            .expect("finite corners"),
+    ],
+}));
+doc = next;
+let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p, distance: lit(0.25) });
+doc = next;
+let (next, solid) = insert(&doc, Node::Boolean {
+    op: BooleanOp::Union,
+    a: plate,
+    b: tab,
+    declare: None,
+});
+doc = next;
+
+let volume = |ev: &Evaluation<f64>, node: RecipeNodeId| {
+    let NodeResult::Ok(value) = ev.result(node).expect("the node is live") else {
+        panic!("the solid evaluated");
+    };
+    let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
+        panic!("a union yields a body");
+    };
+    mass_properties(body.as_ref()).expect("mass properties").volume
+};
+
+// The analytic oracle: plate + tab − their overlap − two cylinders of
+// radius r (the same closed form the corpus acceptance rows assert).
+let v = |r: f64| {
+    4.0 * 2.0 * 0.5 + 1.0 * 0.75 * 0.25
+        - 0.5 * 0.25 * 0.25
+        - 2.0 * core::f64::consts::PI * r * r * 0.5
+};
+
+let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
+
+// One `SetDocParam` moves BOTH holes; the tab branch never re-runs.
+let bigger = apply(&doc, &DocEdit::SetDocParam {
+    name: ParamName::new("hole_r"),
+    value: DocParam::Continuous { dim: Dimension::Length, value: 0.4 },
+})?.doc;
+let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default());
+assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
+assert_eq!(ev2.reused, 2);     // the tab's whole branch, by content key
+assert!((volume(&ev2, solid) - v(0.4)).abs() < 1e-6);
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-Slot-level parametric editing, as shown in §3, is fully available.
+Note what row 3 of §3.1 already told you: `SetDocParam` applies
+cleanly even for a value the geometry will refuse — a program that
+refuses under the current binding is legal *at rest*, and the refusal
+belongs to replay.
+
+From Python the same edit is `DocEdit.set_doc_param(ParamName(…),
+DocParam.length(…))`, demonstrated against this exact document in
+`crates/pncad-py/tests/test_north_star.py`. Authoring the *profile*
+above from Python still awaits the audit's G1 (circles) and G9
+(multi-loop profiles) doors.
 
 ## 4. The rest of the documentation
 
