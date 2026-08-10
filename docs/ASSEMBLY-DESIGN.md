@@ -265,14 +265,24 @@ Cheap to honor now, expensive to retrofit; each names its source:
 
 ## A9 — Relative freedom is component structure
 
-**(Evan, chat 2026-08-10, post-ratification addendum.)** Define the
-**placement-constraint graph**: vertices are the assembly's
-instances; edges are mate nodes and pattern membership (a pattern's
-instances are rigidly related by construction). Its connected
-components partition the document into disjoint sub-DAGs, and
-**"relatively unconstrained" means exactly: in different
-components** — decidable from recipe structure alone, no solver, no
-geometry inspection.
+**(Evan, chat 2026-08-10, post-ratification addendum; graph
+simplified same day — no derived graph, the recipe DAG itself.)**
+The document's ordinary recipe DAG already partitions into disjoint
+connected components: a `Mate` references both its instances, a
+`Pattern` references its instances, and v1 explicit frames are
+literal data creating no edges. **"Relatively unconstrained" means
+exactly: in different connected components of the recipe DAG** —
+decidable from recipe structure alone, no solver, no geometry
+inspection, no second graph to keep synced. The general principle:
+*any* reference path between two instances means some authored
+relationship would be silently contradicted by an independent drag
+— a cross-instance boolean (a weldment's operands are not freely
+orientable) and a shared driving parameter (consistent with the
+ratified drag-refusal for expression-driven values) both rightly
+connect. Carve-out so the definition does not collapse: A2's
+gathering of a document's sub-DAGs into one evaluated `Body` is
+evaluation, not reference — if the implementation has an
+output/collector node, connectivity is reckoned excluding it.
 
 - **G3's free-move binds to this partition.** The one
   live-editing-ish feature the v1 GUI supports — freely orienting
