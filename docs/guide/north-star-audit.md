@@ -36,7 +36,13 @@ asserts*. Two of the four rows G1 unblocked are the honest exception:
 `bracket` and `vase` are scenes the Rust tour holds only to its
 generic ladder (validate, tessellate, mesh against mass properties)
 and gives no closed form, so their Python rows derive one, state the
-derivation, and assert it. Every NO row's gap is asserted as an
+derivation, and assert it. The two loft rows are a third shape of the
+same honesty: the tour holds them to the generic ladder too, but each
+scene's own note carries a closed-form DERIVATION (9 m³;
+8 + 0.25/(t(1−t)) with t the chord-length v-parameter), and the
+Python rows assert exactly those numbers against the certified
+enclosure — `loft_prism`'s is additionally the bracket pin in
+`sweep/tests/m6_loft_body.rs`. Every NO row's gap is asserted as an
 absence in the same file, so **the day a gap closes, this audit fails
 and must be updated**.
 
@@ -219,7 +225,7 @@ is named too.
 
 | # | gap | stops | register / pointer | note |
 |---|---|---|---|---|
-| G2 | **Sweep and tube** (loft closed) | 6 | register B ("the big three") | Loft left this gap when LIB-PYG23A bound `Node.loft`. What remains is not an unbound door but two BANKED ones. **Sweep**: `wire_sweep` refuses unconditionally (`SWEEP_FRONTIER`, `editor-core/src/eval/wire.rs`) — the path-composition lane banked past M6 by the PR 10 MAJ ruling, so binding it would flip no row and un-banking is kernel-side. **Tube**: there is no `Node::Tube` at all, and adding a node kind is a schema-version break (the v3 precedent was exactly Loft/Sweep landing) whose next bump ASM-1 owns (v5, `docs/ASM-1-SPEC.md` §D-6). The tube/sweep/3-D-path tail is a design conversation — U4's measured spec, LQ3 ratified-open |
+| G2 | **Sweep and tube** (loft closed) | 6 | register B ("the big three") | Loft left this gap when LIB-PYG23A bound `Node.loft`. What remains is not an unbound door but two BANKED ones. **Sweep**: `wire_sweep` refuses unconditionally (`SWEEP_FRONTIER`, `editor-core/src/eval/wire.rs`) — the path-composition lane banked past M6 by the PR 10 MAJ ruling, so binding it would flip no row and un-banking is kernel-side. **Tube**: there is no `Node::Tube` at all, and adding a node kind is a schema-version break (the v3 precedent was exactly Loft/Sweep landing) whose next bump ASM-1 owns (v5, `docs/ASM-1-SPEC.md` §D-6). The tube/sweep/3-D-path tail is a design conversation: U4's measured spec, and **LQ3, ratified 2026-08-10 (#362, LIBRARY-DESIGN §L7)** — which names the discharge site rather than building it. A `geom-curves` chain→curve composition door is what would narrow `wire_sweep`'s refusal from everything to genuinely-unjoinable chains, and that un-banking is kernel-side work needing the kernel program's concurrence. Ratified direction, landed door not yet: rows 15–18 stay NO until U4's units land, and `Node::Tube`'s schema bump stays a separate coordination item with ASM's version sequence |
 | G9 | **Multi-loop profiles** | 3 | register B | A profile is one loop, so a plate with holes needs a boolean per hole. `rocker` joined `plate` here when G1 closed; `az` joined them when G3 closed, its yz sketch plane no longer the more fundamental blocker |
 | G4 | **Fillet node** | 2 | register B | `fillet_edges` has no document node, so no edge blends from Python |
 | G5 | **Declared flush contact** | 2 | register B; register A **R3** (the SEL2 `UndeclaredContact` refusal-menu wiring) | `Node.boolean` has no `declare` argument, so parts that *touch* cannot be glued — the detect/declare protocol (`find_flush_candidates` → `declare_node`) is entirely unbound |
