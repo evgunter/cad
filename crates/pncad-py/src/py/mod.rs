@@ -37,8 +37,10 @@ pyo3::create_exception!(
     pncad,
     ValidationError,
     PncadError,
-    "A body failed a topological or geometric validator. Carries \
-     `failures`, the list of validator refusals."
+    "A body failed a topological or geometric validator. From the \
+     validate doors it carries `door`, the gate that refused, and \
+     `failure_count`, how many refusals it collected; from \
+     `mass_properties` it carries `reason` instead."
 );
 pyo3::create_exception!(
     pncad,
@@ -117,7 +119,15 @@ pub(crate) fn typed_err(
     PyErr::from_value(value.clone().into_any())
 }
 
-/// Python bindings for the `pncad` CAD kernel (LIB-U9S scaffold).
+/// Python bindings for the pncad B-rep CAD kernel.
+///
+/// Author exact solids as a document, evaluate it, measure and export
+/// the result. Start with `docs/GUIDE.md` §2.8 or the worked script
+/// `crates/pncad-py/examples/bracket.py`; `crates/pncad-py/README.md`
+/// covers installation. Refusals are typed exceptions carrying
+/// attributes — all of them subclass `PncadError`.
+///
+/// The name `pncad` is a placeholder until the project is named.
 #[pymodule]
 #[pyo3(name = "pncad")]
 fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {

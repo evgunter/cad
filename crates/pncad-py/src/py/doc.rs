@@ -362,10 +362,11 @@ impl Node {
 /// names as the ONE API surface shared by the GUI, the bindings, macro
 /// recording and headless tests.
 ///
-/// This scaffold exposes the three edits the smoke journey needs. The
-/// remaining variants (re-witnessing, appearance, rebinds, expression
-/// paths) are mechanical additions once the surface they need is
-/// curated.
+/// Three edits are exposed today: `insert_node`, `delete_node` and
+/// `set_tolerance`. The remaining variants (parameter edits,
+/// re-witnessing, appearance, rebinds, expression paths) are
+/// mechanical additions once the surface they need is curated —
+/// tracked as named gaps in `docs/guide/north-star-audit.md`.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct DocEdit {

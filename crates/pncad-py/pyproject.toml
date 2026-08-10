@@ -1,17 +1,17 @@
-# maturin packaging for the Python bindings (LIB-U9S).
+# maturin packaging for the Python bindings.
 #
 # `pncad` is the Q9 placeholder name, matching the Rust façade crate.
 # Nothing here is published while the project is unnamed — the
-# workspace sets `publish = false` and no wheel job exists yet (CI is
-# out of this unit's fence; the wheel job and the stub-check job are
-# recorded as follow-ups in the PR body).
+# workspace sets `publish = false`. The stub-drift check landed as
+# `tests/test_stubs.py`; a wheel-building CI job is still a follow-up,
+# so `run-python-tests.sh` remains the way these tests are run.
 [build-system]
 requires = ["maturin>=1.14,<2.0"]
 build-backend = "maturin"
 
 [project]
 name = "pncad"
-description = "Python bindings for the pncad B-rep CAD kernel (scaffold)"
+description = "Python bindings for the pncad B-rep CAD kernel"
 requires-python = ">=3.8"
 license = { text = "MIT OR Apache-2.0" }
 classifiers = [
