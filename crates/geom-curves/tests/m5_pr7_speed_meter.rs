@@ -22,6 +22,11 @@
 //! states the conservative frontier out loud instead of hiding it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// `!(m > 0.0)` is deliberate everywhere below: the refusal rows accept
+// EITHER a non-positive bound or poison, and `m <= 0.0` would let a NaN
+// through as a pass. Same NaN-catching idiom as the kernel's own weight
+// validation.
+#![allow(clippy::neg_cmp_op_on_partial_ord)]
 
 use geom_core::Point3;
 use geom_core::spline::KnotVector;
