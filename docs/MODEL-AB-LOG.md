@@ -464,6 +464,18 @@ blinded rows on main (the 8 at U5's dispatch + U5 + SEL1 + U9S +
 M7-7 + M7-8; SWITCH-E unmerged, demos/infra excluded) + 1 = **14**
 → SINGLE review.
 
+Block M8-13 (2026-08-10) — triple (the running index continues per
+the M8-PLAN): difficulty logged PRE-DRAW for slot 0: M8-3, rational
+walls become VOLUME-COMPUTABLE — the substrate ruled the two halves
+inseparable (rational patch-flux enclosure alone MOVES the refusal
+to the missing-pcurve gate: chart_mints is false for weights≠1 and
+nurbs_face requires stored IsoLine pcurves), so the unit = rational
+pcurve minting (chart_mints flip + the banked arc-cap-rim arm) +
+the quotient-rule flux enclosure (enclose.rs homogeneous-derivative
+hulls; delivered as midpoint+pad through the EXISTING convergence
+predicates — reusing props_quad_converged/props_quad_face_extent
+deliberately, no new census rows) = **L**. Draw follows this entry.
+
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
 Block LIB-1 draw (2026-08-06): byte 13 → (opus, fable).
