@@ -27,11 +27,21 @@
 //!   (shared tangent), and the joint is a shared disk the eye does
 //!   not see. They are separate BODIES: gluing them is a coincident-
 //!   planar contact, which the kernel refuses (probe 1).
-//! - the **flowers** are lanterns: a full revolve whose wall is a
+//! - the open **flower** is a lantern: a full revolve whose wall is a
 //!   sphere zone truncated at both poles — a wide belly, a small
 //!   attachment disk where the pedicel enters, and a puckered conical
 //!   mouth closing to a small disk. Sphere zone + cone + two planes,
 //!   all exact — a `revolve` still, unchanged by this refresh.
+//! - the **bud** is the same meridian said THREE times, PARTIALLY:
+//!   three pre-tepals of 156 degrees each, on three axes forming a
+//!   narrow tripod about the bud's own, and rolled so they nest like a
+//!   pinwheel rather than merely abutting. All three share the
+//!   attachment point, so the tilt splays their tips the way a bud on
+//!   the turn parts at the point while still held at the neck. It
+//!   needs nothing the kernel did not already have: `revolve` takes
+//!   its axis in SKETCH coordinates, so a tilted axis is spelled by
+//!   tilting the sketch frame, and a `Partial` sweep of a meridian
+//!   whose ends sit on that axis closes fine.
 //! - the two short **leaves** are keeled blades: a thin four-line
 //!   KITE section — two sharp margins on a chord, an unequal ridge
 //!   and keel across it — carried along a gently arching circular
@@ -239,28 +249,24 @@ fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64) -> (Body<S>, WedgeFrames<S>) {
 /// equidistance of the two endpoints from the centre is CHECKED — this
 /// profile derives both radii from the sphere, so it passes by
 /// construction and would refuse loudly if it ever stopped doing so.
-fn lantern<S: Scalar>(
-    attach: (f64, f64),
-    dir: (f64, f64),
+/// The lantern/bud **meridian**: the closed profile a flower or a
+/// pre-tepal is revolved from, in sketch `(s, t)` with the axis along
+/// `t`. Shared by [`lantern`] (revolved FULL, one body) and [`bud`]
+/// (revolved PARTIAL, three bodies on three axes), so the bud's
+/// segments are the same shape said three times and not a re-typed
+/// near-copy.
+fn meridian<S: Scalar>(
     globe: f64,
     top: f64,
     mouth: f64,
     lip_r: f64,
     lip_drop: f64,
-) -> Body<S> {
+) -> ProfileLoop<S> {
     let r_top = (globe.powi(2) - top.powi(2)).sqrt();
     let r_mouth = (globe.powi(2) - mouth.powi(2)).sqrt();
     let t_mouth = top + mouth;
     let t_end = t_mouth + lip_drop;
-    // Sketch frame: origin at the attachment point, v along the
-    // flower axis (into the flower), u the in-plane radial.
-    let plane = SketchPlane::from_frame(
-        pt3(attach.0, 0.0, attach.1),
-        v3(-dir.1, 0.0, dir.0),
-        v3(dir.0, 0.0, dir.1),
-    );
-    let lp = Open
-        .at(p2(0.0, 0.0))
+    Open.at(p2(0.0, 0.0))
         .line_to(p2(r_top, 0.0))
         .expect("lantern attachment disk")
         // The belly: the sphere's own arc about the globe centre,
@@ -273,14 +279,137 @@ fn lantern<S: Scalar>(
         .expect("lantern lip disk")
         .line_to(Start)
         .expect("lantern axis seam")
-        .into();
+        .into()
+}
+
+fn lantern<S: Scalar>(
+    attach: (f64, f64),
+    dir: (f64, f64),
+    globe: f64,
+    top: f64,
+    mouth: f64,
+    lip_r: f64,
+    lip_drop: f64,
+) -> Body<S> {
+    // Sketch frame: origin at the attachment point, v along the
+    // flower axis (into the flower), u the in-plane radial.
+    let plane = SketchPlane::from_frame(
+        pt3(attach.0, 0.0, attach.1),
+        v3(-dir.1, 0.0, dir.0),
+        v3(dir.0, 0.0, dir.1),
+    );
     revolve(
-        &validated(plane, vec![lp]).expect("lily profile validates"),
+        &validated(plane, vec![meridian(globe, top, mouth, lip_r, lip_drop)])
+            .expect("lily profile validates"),
         sketch_axis(),
         Revolution::Full,
     )
     .expect("lantern revolves")
     .body
+}
+
+/// A **bud**: three pre-tepals, each a PARTIAL revolve of the same
+/// [`meridian`], on three axes that form a narrow TRIPOD about the
+/// bud's own axis and are rolled so the wedges nest like a pinwheel.
+///
+/// This is what an unopened *Calochortus* actually is — not a small
+/// version of the open flower, but three tepals not yet fused, each
+/// wrapping past its neighbour. A full revolve can only say the
+/// finished globe; three partial ones can say the tepals it is made
+/// of, and the kernel has had this since the wedge door.
+///
+/// The three knobs and what they do:
+///
+/// - `tilt` — how far each segment's axis leans off the bud's own.
+///   Zero puts all three on one axis and the bud is a globe with three
+///   seams. The tripod is pivoted at the **attachment**: all three
+///   segments share the point the pedicel enters, and the tilt splays
+///   their TIPS apart — a bud on the turn, its three tepals starting
+///   to part at the point while still held together at the neck. A
+///   few degrees is plenty, because the splay is amplified by the
+///   whole length of the pucker: what is a narrow tripod at the neck
+///   is a visible parting at the tip.
+/// - `lean` — WHICH WAY it leans, as an angle relative to that
+///   segment's own position round the bud. At 0 each segment leans
+///   outward along its own radius, which is a symmetric tripod and
+///   reads as a three-pointed star. At a quarter turn it leans
+///   SIDEWAYS, across its neighbour, and the result is chiral: that is
+///   the pinwheel.
+/// - `span` — the angular width of a segment. Above a third of a turn
+///   the three overlap, which is what makes them nest rather than
+///   merely abut.
+///
+/// Placement is a FRAME choice, not an argument: `revolve` takes its
+/// axis in sketch coordinates ([`sketch_axis`]), so a tilted axis is
+/// spelled by tilting the sketch plane. The segments overlap each
+/// other on purpose and are not joined — gluing them is the same
+/// curved-boolean wall the rest of the plant is stopped by (probes 2
+/// and 7).
+#[allow(clippy::too_many_arguments)]
+fn bud<S: Scalar>(
+    attach: (f64, f64),
+    dir: (f64, f64),
+    globe: f64,
+    top: f64,
+    mouth: f64,
+    lip_r: f64,
+    lip_drop: f64,
+    tilt: f64,
+    lean: f64,
+    span: f64,
+) -> Vec<Body<S>> {
+    let ax = (dir.0, 0.0, dir.1);
+    let e1 = (-dir.1, 0.0, dir.0);
+    let e2 = (0.0, 1.0, 0.0);
+    let rad = |a: f64| {
+        let (sa, ca) = (a.sin(), a.cos());
+        (
+            ca * e1.0 + sa * e2.0,
+            ca * e1.1 + sa * e2.1,
+            ca * e1.2 + sa * e2.2,
+        )
+    };
+    let nrm = |(x, y, z): (f64, f64, f64)| {
+        let l = (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
+        (x / l, y / l, z / l)
+    };
+    (0..3)
+        .map(|i| {
+            #[allow(clippy::cast_precision_loss)]
+            let phi = 2.0 * PI * (i as f64) / 3.0;
+            // The segment's own axis: the bud axis leaned `tilt` toward
+            // the direction `lean` radians round from its own place.
+            let l = rad(phi + lean);
+            let (st, ct) = (tilt.sin(), tilt.cos());
+            let a = nrm((
+                ct * ax.0 + st * l.0,
+                ct * ax.1 + st * l.1,
+                ct * ax.2 + st * l.2,
+            ));
+            // The wedge STARTS half a span before the segment's place,
+            // so it is centred there. Gram-Schmidt against the tilted
+            // axis, since that radial is only perpendicular to the
+            // BUD's axis, not to this segment's.
+            let start = rad(phi - 0.5 * span);
+            let d = start.0 * a.0 + start.1 * a.1 + start.2 * a.2;
+            let u = nrm((start.0 - d * a.0, start.1 - d * a.1, start.2 - d * a.2));
+            // All three share the ATTACHMENT: the tilt splays their
+            // tips, not their bellies.
+            let plane = SketchPlane::from_frame(
+                pt3(attach.0, 0.0, attach.1),
+                v3(u.0, u.1, u.2),
+                v3(a.0, a.1, a.2),
+            );
+            revolve(
+                &validated(plane, vec![meridian(globe, top, mouth, lip_r, lip_drop)])
+                    .expect("bud profile validates"),
+                sketch_axis(),
+                Revolution::Partial(S::from_f64(span)),
+            )
+            .expect("bud segment revolves")
+            .body
+        })
+        .collect()
 }
 
 /// A leaf blade's cross-section: a KITE, i.e. the two sharp margins
@@ -673,6 +802,7 @@ fn lofted_blade<S: Scalar>(
 /// then rolls the face outward toward the tip. That is a real
 /// *Calochortus* habit and, not by accident, the one motion a swept
 /// blade could not have been given.
+#[allow(clippy::too_many_arguments)]
 fn sepals<S: Scalar>(
     globe_center: (f64, f64, f64),
     axis: (f64, f64, f64),
@@ -777,6 +907,12 @@ pub struct Piece<S: Scalar> {
     pub caps: Option<WedgeFrames<S>>,
 }
 
+/// The BUD's globe radius and truncation height — much smaller than
+/// the open flower's, because a bud is mostly taper.
+const BUD_GLOBE: f64 = 0.125;
+/// See [`BUD_GLOBE`].
+const BUD_TOP: f64 = 0.113;
+
 /// The main lantern's globe radius and the height above the globe
 /// centre at which the attachment disk truncates it. Named because
 /// the SEPALS stand on this sphere and must stand on the same one the
@@ -871,6 +1007,30 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
     // attachment disk: above that the sphere is not part of the body,
     // so a sepal standing there would be tangent to a surface that
     // is not there. 38 degrees puts them on the shoulder of the globe.
+    // The BUD: three pre-tepals, not a small flower. A much smaller
+    // globe and a much skinnier, longer pucker than the open lantern's
+    // — an unopened Calochortus is mostly taper.
+    let bud_attach = (
+        at_bud.p.0 - 0.06 * at_bud.t.0,
+        at_bud.p.1 - 0.06 * at_bud.t.1,
+    );
+    let bud_bodies: Vec<Body<S>> = bud(
+        bud_attach,
+        at_bud.t,
+        BUD_GLOBE,
+        BUD_TOP,
+        0.095,
+        0.014,
+        0.22,
+        // 5 degrees of splay, leaning a quarter turn round from each
+        // segment's own place (the chiral choice — see `bud`), and a
+        // 156-degree span so the three overlap by 108 degrees in total
+        // and genuinely nest rather than merely abut.
+        deg(5.0),
+        deg(90.0),
+        deg(156.0),
+    );
+
     let sepal_bodies: Vec<Body<S>> = sepals(
         (
             flower_attach.0 + FLOWER_TOP * at_flower.t.0,
@@ -939,23 +1099,6 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
             caps: None,
         },
         Piece {
-            name: "lily_lantern2",
-            color: YELLOW_TEPAL,
-            body: lantern(
-                (
-                    at_bud.p.0 - 0.06 * at_bud.t.0,
-                    at_bud.p.1 - 0.06 * at_bud.t.1,
-                ),
-                at_bud.t,
-                0.30,
-                0.27,
-                0.24,
-                0.05,
-                0.15,
-            ),
-            caps: None,
-        },
-        Piece {
             name: "lily_leaf_a",
             color: GREEN_LEAF,
             // THE LOFTED LEAF: the one blade that tapers and twists.
@@ -1011,6 +1154,20 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
             caps: None,
         },
     ];
+    // The bud's three pre-tepals, then the three sepals, each named in
+    // order round its own axis so the manifest and the export stems
+    // stay stable.
+    for (name, body) in ["lily_bud_a", "lily_bud_b", "lily_bud_c"]
+        .into_iter()
+        .zip(bud_bodies)
+    {
+        pieces.push(Piece {
+            name,
+            color: GREEN_SEPAL,
+            body,
+            caps: None,
+        });
+    }
     // The three sepals, named in order round the flower axis so the
     // manifest and the export stems stay stable.
     for (name, body) in ["lily_sepal_a", "lily_sepal_b", "lily_sepal_c"]
@@ -1033,7 +1190,9 @@ pub fn stops() -> Vec<Stop> {
     let note = format!(
         "{} closed solids: 3 torus-segment stem tubes said in WORLD \
          coordinates (centre/axis/u_ref/radii stored exactly as \
-         given), 2 sphere-zone lanterns with conical mouths, 2 SWEPT \
+         given), 1 sphere-zone lantern with a conical mouth, 3 \
+         PARTIAL revolves of that same meridian forming the bud's \
+         tripod of pre-tepals, 2 SWEPT \
          keeled blades (one kite section carried along an arching \
          NURBS spine), and 4 LOFTED ones — the long basal leaf and \
          the three sepals — which taper AND roll, the two things a \
@@ -1054,13 +1213,15 @@ pub fn stops() -> Vec<Stop> {
         caption: "fairy lantern (Calochortus pulchellus)".to_string(),
         montage: true,
         story: "a nodding yellow fairy lantern — arching stem, two closed \
-                globular lanterns with three spreading sepals tangent to the \
-                globe, one long tapering twisted basal leaf and two shorter \
+                globular lantern with three spreading sepals tangent to the \
+                globe, a bud of three nested pre-tepals on a tripod of axes, \
+                one long tapering twisted basal leaf and two shorter \
                 untapered ones; torus/sphere/cone/plane exact to the stored \
                 parameter, blades skinned out of plane",
         ops: "Turtle-walked G1 arc chain -> tube_along_arc(world centre/axis/ \
               u_ref/radii, windowed) tubes; revolve(Full) sphere-zone \
-              lanterns; sweep_body(kite section, arched NURBS spine) for the \
+              lantern and revolve(Partial) x3 on a tilted tripod for the \
+              bud; sweep_body(kite section, arched NURBS spine) for the \
               two short leaves; loft_body(rectangle -> diamond -> diamond \
               sections on rolled placements) for the long leaf and the sepals",
         // One chord budget for the whole scene is a poor fit here: at
@@ -1477,7 +1638,6 @@ mod review_probes {
     const T2: (f64, f64) = (0.20791169081775934, -0.9781476007338056);
     const T3: (f64, f64) = (0.17364817766693053, -0.984807753012208);
     const SPHERE1_C: (f64, f64) = (-2.3934135869350324, 0.919255622187704);
-    const SPHERE2_C: (f64, f64) = (-0.9512338661211347, 1.2295604347374214);
 
     /// One of the tube's two JOINT FRAMES passes through world point
     /// `p` (xz-plane) with normal parallel to `t` — i.e. the tube's
@@ -1563,10 +1723,11 @@ mod review_probes {
     #[test]
     fn lantern_axes_are_the_stored_stem_tangents() {
         let ps = pieces();
-        for (name, t, cen, rad) in [
-            ("lily_lantern", T2, SPHERE1_C, 0.44),
-            ("lily_lantern2", T3, SPHERE2_C, 0.30),
-        ] {
+        // The bud is no longer a small lantern on one axis — it is
+        // three partial revolves on three tilted ones, so its claim is
+        // a different one and lives in
+        // `the_buds_three_axes_form_the_authored_tripod`.
+        for (name, t, cen, rad) in [("lily_lantern", T2, SPHERE1_C, FLOWER_GLOBE)] {
             let b = body(&ps, name);
             let tv = Vec3::new(t.0, 0.0, t.1);
             let mut saw_sphere = false;
@@ -1831,27 +1992,99 @@ mod review_probes {
         // Sepal 0's radial, unphased, points almost exactly at the bud
         // and a 1.05 m sepal reaches 0.027 m inside it — this assert
         // is what caught that, and reds if the phase is dropped.
-        let bud = body(&ps, "lily_lantern2");
-        let mut bud_globe = None;
-        for (_, f) in bud.faces() {
+        for seg in ["lily_bud_a", "lily_bud_b", "lily_bud_c"] {
+            let (bc, br) = sphere_of(body(&ps, seg));
+            for name in ["lily_sepal_a", "lily_sepal_b", "lily_sepal_c"] {
+                let sb = body(&ps, name);
+                for (_, v) in sb.vertices() {
+                    let p = sb.get_point(v.point).expect("vertex point");
+                    let d =
+                        ((p.x - bc.x).powi(2) + (p.y - bc.y).powi(2) + (p.z - bc.z).powi(2)).sqrt();
+                    assert!(
+                        d > br,
+                        "{name}: a vertex is {d} inside {seg}'s globe R = {br}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The bud's TRIPOD, read off the three segments' stored spheres.
+    ///
+    /// Three claims, none re-derived from the construction code: each
+    /// segment's axis makes the authored `tilt` with the bud's own;
+    /// the three are spaced a third of a turn apart around it; and all
+    /// three pass through the one attachment point, which is what
+    /// makes the tips splay rather than the bellies. The attachment is
+    /// derived from stored data alone — the sphere centre sits `top`
+    /// along the segment's own axis from it.
+    #[test]
+    fn the_buds_three_axes_form_the_authored_tripod() {
+        let ps = pieces();
+        let bud_axis = Vec3::new(T3.0, 0.0, T3.1);
+        let segs: Vec<(Point3<f64>, Vec3<f64>)> = ["lily_bud_a", "lily_bud_b", "lily_bud_c"]
+            .into_iter()
+            .map(|n| {
+                let b = body(&ps, n);
+                let mut found = None;
+                for (_, f) in b.faces() {
+                    if let Some(pncad::geom_surfaces::Surface::Sphere { center, axis, .. }) =
+                        b.get_surface(f.surface)
+                    {
+                        // Stored axes may point either way along the
+                        // line; orient them all into the bud.
+                        let a = if axis.dot(bud_axis) < 0.0 {
+                            -*axis
+                        } else {
+                            *axis
+                        };
+                        found = Some((*center, a));
+                    }
+                }
+                found.expect("a bud segment stores its globe")
+            })
+            .collect();
+        for (i, (_, a)) in segs.iter().enumerate() {
+            let c = a.dot(bud_axis);
+            assert!(
+                (c - deg(5.0).cos()).abs() < 1e-12,
+                "bud segment {i}: axis leans {} rad, wanted {}",
+                c.acos(),
+                deg(5.0)
+            );
+        }
+        // A third of a turn apart, measured across the bud axis.
+        let across = |a: Vec3<f64>| {
+            let p = a - bud_axis * a.dot(bud_axis);
+            p / p.norm()
+        };
+        for (i, j) in [(0, 1), (1, 2), (2, 0)] {
+            let c = across(segs[i].1).dot(across(segs[j].1));
+            assert!(
+                (c - deg(120.0).cos()).abs() < 1e-12,
+                "bud segments {i},{j}: {} rad apart round the axis",
+                c.acos()
+            );
+        }
+        // And all three axes pass through ONE attachment point.
+        let neck = |(c, a): (Point3<f64>, Vec3<f64>)| c - a * BUD_TOP;
+        let n0 = neck(segs[0]);
+        for (i, seg) in segs.iter().enumerate().skip(1) {
+            let d = (neck(*seg) - n0).norm();
+            assert!(d < 1e-12, "bud segment {i}'s neck is {d} from segment 0's");
+        }
+    }
+
+    /// The single stored sphere of a body: (centre, radius).
+    fn sphere_of(b: &Body<f64>) -> (Point3<f64>, f64) {
+        for (_, f) in b.faces() {
             if let Some(pncad::geom_surfaces::Surface::Sphere { center, radius, .. }) =
-                bud.get_surface(f.surface)
+                b.get_surface(f.surface)
             {
-                bud_globe = Some((*center, *radius));
+                return (*center, *radius);
             }
         }
-        let (bc, br) = bud_globe.expect("the bud stores its globe");
-        for name in ["lily_sepal_a", "lily_sepal_b", "lily_sepal_c"] {
-            let sb = body(&ps, name);
-            for (_, v) in sb.vertices() {
-                let p = sb.get_point(v.point).expect("vertex point");
-                let d = ((p.x - bc.x).powi(2) + (p.y - bc.y).powi(2) + (p.z - bc.z).powi(2)).sqrt();
-                assert!(
-                    d > br,
-                    "{name}: a vertex is {d} inside the bud's globe R = {br}"
-                );
-            }
-        }
+        panic!("body stores no sphere")
     }
 
     /// One planar cap of a lofted blade, reduced to the numbers the
