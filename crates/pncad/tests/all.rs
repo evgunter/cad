@@ -768,7 +768,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
     }
 
     // And it evaluates as a document node.
-    let doc = pncad::document::ProfileDoc::empty();
+    let doc = pncad::document::ProfileDoc::empty_derived("all");
     let (doc, profile) = doors_insert(
         doc,
         Node::Profile(ProfileProgram {
