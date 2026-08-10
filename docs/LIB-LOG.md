@@ -507,6 +507,22 @@ NURBS legs. Arm: opus (LIB-7 banked slot 2). The Expr-bearing
 profile-steps door (with G9 → plate_param authorable from
 Python) is recorded here as a NAMED follow-up of PYG1.
 
+**PYG1 MERGED — audit G1 CLOSED (2026-08-10, #346, 28/28 green,
+ordinal-20 APPROVE 0/3/3).** The lattice is bound state-for-state
+(both structural rulings proven forced), ty is a live CI gate,
+authorable 7→11, suite 48→83. Riders landed in the fix pass:
+`LoopProgram::from_recorded` (the door PYG1's finding 1 named —
+now a Rust door with a bit-for-bit contract test), prelude
+curation (ClosedLoop, circle_split, RecordedProgramError). #347
+filed kernel-side (Boolean refuses on carrier-crossing cutter
+planes — reproduced by the review at the exact r=4/r=5
+crossover; bracket.py rounds at 3 mm citing it). Banked from
+findings: the Expr-in-profile door (with G9 → plate_param from
+Python), Count still unconsumed, tour scenes without closed-form
+oracles (finding 5), the DocParam __eq__ rider (from ordinal
+19), straight-run authoring noise (finding 7 — vocabulary
+evidence for a future design conversation, not a unit).
+
 **The G2 unit-cut ruling (2026-08-10, orchestrator, from the
 substrate survey)**: audit G2 splits. Its LOFT half is mechanical
 (Node::Loft has existed since M5 PR 10 with eval + naming) and
