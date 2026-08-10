@@ -1307,18 +1307,26 @@ mod tests {
         (wuu, wuv, wvv)
     }
 
-    fn assert_dominates(name: &str, s: &NurbsSurface<f64>, n: u32) -> (f64, f64, f64, NurbsFaceBound) {
+    fn assert_dominates(
+        name: &str,
+        s: &NurbsSurface<f64>,
+        n: u32,
+    ) -> (f64, f64, f64, NurbsFaceBound) {
         let b = nurbs_face_bound(s, FaceKey::default()).expect("covered");
         let (wuu, wuv, wvv) = sample_worst(s, n);
         assert!(
             wuu <= b.muu && wuv <= b.muv && wvv <= b.mvv,
             "{name}: sampled ({wuu:.6e},{wuv:.6e},{wvv:.6e}) escapes certified \
              ({:.6e},{:.6e},{:.6e})",
-            b.muu, b.muv, b.mvv
+            b.muu,
+            b.muv,
+            b.mvv
         );
         println!(
             "{name}: truth/bound uu={:.4} uv={:.4} vv={:.4}",
-            wuu / b.muu, wuv / b.muv, wvv / b.mvv
+            wuu / b.muu,
+            wuv / b.muv,
+            wvv / b.mvv
         );
         (wuu, wuv, wvv, b)
     }
@@ -1399,7 +1407,12 @@ mod tests {
         assert!(
             bf.muu < 16.0 * bc.muu && bf.muv < 16.0 * bc.muv && bf.mvv < 16.0 * bc.mvv,
             "recentring failed: offset bound ({},{},{}) vs centred ({},{},{})",
-            bf.muu, bf.muv, bf.mvv, bc.muu, bc.muv, bc.mvv
+            bf.muu,
+            bf.muv,
+            bf.mvv,
+            bc.muu,
+            bc.muv,
+            bc.mvv
         );
     }
 
@@ -1422,7 +1435,10 @@ mod tests {
         }
         let s = NurbsSurface::new(kv_u, kv_v, control, weights).unwrap();
         let (wuu, _, _, b) = assert_dominates("moebius_ruling", &s, 400);
-        assert!(wuu > 1e-3, "the ruling must genuinely curve in u (fixture check)");
+        assert!(
+            wuu > 1e-3,
+            "the ruling must genuinely curve in u (fixture check)"
+        );
         assert!(b.muu > 0.0, "muu must be real, not the integral arm's zero");
     }
 
@@ -1615,6 +1631,9 @@ mod tests {
             );
         }
         println!("random sweep: worst truth/bound {worst:.6}");
-        assert!(worst > 0.5, "the sweep must stay adversarial (tight cases exist)");
+        assert!(
+            worst > 0.5,
+            "the sweep must stay adversarial (tight cases exist)"
+        );
     }
 }

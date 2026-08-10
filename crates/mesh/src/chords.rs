@@ -901,8 +901,8 @@ mod tests {
         println!("{name}: truth/bound = {:.4}", truth / m);
         // (b) chord counts keep the secant inside delta_s.
         for delta_s in [1e-2, 1e-3, 1e-4] {
-            let count = nurbs_chord_count(n, d1 - d0, delta_s, EdgeKey::default())
-                .expect("in inventory");
+            let count =
+                nurbs_chord_count(n, d1 - d0, delta_s, EdgeKey::default()).expect("in inventory");
             let worst = r1_secant_worst(n, count);
             assert!(
                 worst <= delta_s * 1.0000001,
@@ -936,8 +936,8 @@ mod tests {
     /// cubic — |C''| jumps at the double knot.
     #[test]
     fn r1_rational_mult_p_minus_one_carrier() {
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3)
-            .unwrap();
+        let kv =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
         let pts: Vec<Point3<f64>> = (0..kv.control_count())
             .map(|i| {
                 let t = i as f64 / 5.0;
