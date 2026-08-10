@@ -958,14 +958,15 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     let (doc, solid) = plate_param_facade_only();
 
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
-    let pncad::document::NodeResult::Ok(value) = ev.result(solid).expect("the node is live")
-    else {
+    let pncad::document::NodeResult::Ok(value) = ev.result(solid).expect("the node is live") else {
         panic!("plate_param evaluated");
     };
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("a union yields a body");
     };
-    let volume = mass_properties(body.as_ref()).expect("mass properties").volume;
+    let volume = mass_properties(body.as_ref())
+        .expect("mass properties")
+        .volume;
     // Plate + tab − their overlap − two cylinders of radius 0.25: the
     // same closed form `switch_plate_param.rs` asserts, tab included.
     let oracle = 4.0 * 2.0 * 0.5 + 1.0 * 0.75 * 0.25
