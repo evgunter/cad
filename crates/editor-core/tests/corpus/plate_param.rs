@@ -47,7 +47,6 @@ pub const HOLE_R_VALUE: f64 = 0.25;
 pub const PLATE: (f64, f64, f64, f64) = (0.0, 4.0, 0.0, 2.0);
 /// The plate's extrusion depth.
 pub const PLATE_DEPTH: f64 = 0.5;
-/// Where the two holes sit.
 /// Where the two holes sit. The 1.2 m separation is chosen so that a
 /// radius exists (0.8) at which the two holes overlap EACH OTHER while
 /// both still clear the plate walls — the acceptance suite's

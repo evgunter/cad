@@ -157,7 +157,10 @@ fn the_census() {
         let outcome = lift_checked(&loop_);
         let got = classify(&outcome);
         rows.push(format!("{name:18} {}", describe(&outcome)));
-        tally[expected as usize] += 1;
+        // Tally what was OBSERVED, not what was expected, so the totals
+        // below are an independent measurement rather than a restatement
+        // of the fixture table.
+        tally[got as usize] += 1;
         assert_eq!(
             got,
             expected,

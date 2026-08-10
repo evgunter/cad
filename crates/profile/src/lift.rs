@@ -222,14 +222,33 @@ pub enum LiftOutcome {
 }
 
 /// The largest ulp gap still called [`Fidelity::ValueEqual`] rather
-/// than a mismatch. Generous by design: the F10/W1 classes shift
-/// derived values by a handful of ulps, but those shifts propagate
-/// through trim closed forms with their own lever arms.
-const VALUE_EQUAL_ULPS: u64 = 1 << 20;
+/// than a mismatch.
+///
+/// This is the RELATIVE criterion: an ulp count is magnitude-scaled by
+/// construction, so 2^12 bounds the disagreement at ~9.1e-13 of the
+/// value's own size. Headroom over the measured worst — the corpus's
+/// largest genuine shift is the bracket's 2 ulps, and even a trim
+/// closed form's lever arm keeps its propagation in that neighbourhood
+/// — while staying well inside the "last bits moved" claim the class
+/// makes. It was 2^20 at PR-open, which admitted ~2.3e-10 m at
+/// magnitude 1: generous enough that a real defect could have been
+/// censused as value-equal. Tightened deliberately.
+const VALUE_EQUAL_ULPS: u64 = 1 << 12;
 
-/// Absolute floor beneath which ulp distance stops being meaningful
-/// (values straddling zero are ulp-far and value-near).
+/// Absolute floor beneath which ulp distance stops being meaningful.
+///
+/// This is the ABSOLUTE criterion, disjunctive with the relative one:
+/// values straddling zero (0 against sin(pi)) are ulp-far and
+/// value-near, and no relative measure can see that.
 const VALUE_EQUAL_ABS: f64 = 1e-12;
+
+// Neither threshold is the honesty backstop. Both are the coarse
+// LiftOutcome bucketing; the tool's actual accuracy claim is pinned
+// independently by the census suite, which asserts each value-equal
+// row's `worst_abs` against its own tight ceiling (<1e-12 for the
+// bracket, <1e-15 for the carrier-phase residue). A regression that
+// stayed inside these constants but left those ceilings would fail
+// there.
 
 /// **The lift**: mint a program for a v1-form loop.
 ///
@@ -592,7 +611,10 @@ fn compare(want: &ProfileLoop<f64>, got: &ProfileLoop<f64>) -> Verdict {
 /// Distance in representable doubles, via the standard monotone
 /// total-order key (no casts, no overflow).
 fn ulps(a: f64, b: f64) -> u64 {
-    if a == b {
+    // Bit equality, not `==`: the key below separates -0.0 from +0.0 by
+    // one step, and reporting that as 1 rather than 0 keeps the figure
+    // consistent with the `bit_identical` flag, which also sees it.
+    if a.to_bits() == b.to_bits() {
         return 0;
     }
     if !(a.is_finite() && b.is_finite()) {

@@ -22,7 +22,7 @@ use editor_core::{
     Dimension, DocEdit, DocParam, EvalOutcome, Expr, Node, NodeErrorKind, NodeResult, ParamName,
     ProfileDoc, ProfilePayload, RecipeNodeId, SlotId, StepArg, apply,
 };
-use profile::{PathError, ReplayErrorKind};
+use profile::{ContactKind, PathError, ProfileError, ReplayErrorKind};
 use topo::mass_properties;
 
 /// The document, plus the ids the rows address.
@@ -230,15 +230,39 @@ fn an_overlapping_radius_refuses_at_validate() {
     assert!(2.0 * 0.8 > gap, "0.8 must actually overlap the holes");
 
     let doc = set_hole_r(&s.doc, 0.8);
-    let reported = node_error(&doc, s.profile).expect("an overlapping profile must refuse");
-    assert!(
-        reported.starts_with("Profile("),
-        "expected the validate class, got {reported}"
-    );
-    // Explicitly NOT the replay class: the program elaborated fine.
-    assert!(
-        !reported.starts_with("ProfileReplay"),
-        "the holes replay; only the assembled profile is bad: {reported}"
+    let ev = eval::<f64>(&doc);
+    let failed = ev
+        .nodes
+        .iter()
+        .find(|(n, _)| **n == s.profile)
+        .map(|(_, r)| r)
+        .expect("the profile node has a result");
+    let NodeResult::Failed(err) = failed else {
+        panic!("an overlapping profile must refuse: {failed:?}");
+    };
+
+    // The VALIDATE class, typed — and NOT the replay class: both hole
+    // programs elaborate fine, it is the assembled profile that is bad.
+    let NodeErrorKind::Profile(ProfileError::NonSimple {
+        first,
+        second,
+        kind,
+    }) = &err.kind
+    else {
+        panic!("expected Profile(NonSimple), got {:?}", err.kind);
+    };
+
+    // Pin WHICH refusal: the two HOLES crossing EACH OTHER. This is what
+    // makes the engineered separation load-bearing — a hole/wall
+    // crossing would name loop 0 and pass a weaker assertion.
+    assert_eq!(*kind, ContactKind::Crossing);
+    let mut loops = [first.loop_index, second.loop_index];
+    loops.sort_unstable();
+    assert_eq!(
+        loops,
+        [1, 2],
+        "the two hole loops must be the offenders, not the outline (loop 0): \
+         {first} × {second}"
     );
 }
 
