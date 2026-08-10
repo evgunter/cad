@@ -71,7 +71,15 @@ timed-out call" then STACKS duplicate waiters that each burn a
 slot turn when the mutex frees (5 deep observed). Re-issue means:
 kill your own previous waiter first (or use `-n`/`--express`);
 orchestrator sweeps should scan for same-command duplicate
-waiters per lane and cull all but the newest. The number of ALIVE agents is no longer capped at two —
+waiters per lane and cull all but the newest. **Lane-takeover
+courtesy (2026-08-10)**: when the orchestrator operates in a
+possibly-alive agent's lane (pushing its parked commits, merging
+its PR, or handing the lane to a successor), MESSAGE the incumbent
+first (or simultaneously) — an unannounced takeover reads as a
+rogue actor from inside the lane and costs the agent a diagnostic
+detour (observed: the M8-3 PR-1 finisher escalated a
+"lane-ownership violation" that was three legitimate orchestrator
+actions plus its own successor). The number of ALIVE agents is no longer capped at two —
 only concurrent heavy cargo is; more than two lanes may exist if
 disk allows. An OOM-killed test still shows as a bare "Terminated"
 single-row FAIL — check what else was running and rerun quiet
