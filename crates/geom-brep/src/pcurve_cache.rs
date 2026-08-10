@@ -2110,18 +2110,7 @@ fn nurbs_stretch_bounds<T: Real>(s: &geom_surfaces::NurbsSurface<T>) -> (T, T) {
     // `side_of`'s boundary snap harder to admit and every slack term
     // larger, never the reverse. Exactly 1 for a weight-1 net, so no
     // integral-lane number moves.
-    let ratio = {
-        let (mut lo, mut hi) = (f64::INFINITY, 0.0f64);
-        for w in s.weights() {
-            lo = lo.min(*w);
-            hi = hi.max(*w);
-        }
-        if lo > 0.0 && hi.is_finite() {
-            T::from_f64((hi / lo).powi(2))
-        } else {
-            T::one()
-        }
-    };
+    let ratio = weight_ratio_factor::<T>(s.weights());
     let ctl = s.control();
     let mut sup_u = T::zero();
     let (pu, ku) = (s.knots_u().degree(), s.knots_u().knots());
@@ -2167,7 +2156,30 @@ fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> T {
         }
         sup = sup.max((ctl[i + 1] - ctl[i]).norm() * T::from_f64(p as f64 / denom));
     }
-    sup
+    // The rational factor (M8-3), the curve-side twin of
+    // `nurbs_stretch_bounds`': the control-difference bound above is a
+    // POLYNOMIAL fact, and the standard rational extension (Floater
+    // 1992) multiplies it by the weight ratio; squaring it is the
+    // conservative reading. Exactly 1 on a unit-weight net, so no
+    // integral-lane number moves.
+    sup * weight_ratio_factor::<T>(c.weights())
+}
+
+/// `(w_max/w_min)²` for a positive weight list, `1` when the list is
+/// unit, empty or non-positive (a non-positive weight fails its own
+/// gate elsewhere; answering 1 here never widens a bound that the
+/// caller then trusts).
+fn weight_ratio_factor<T: Real>(weights: &[f64]) -> T {
+    let (mut lo, mut hi) = (f64::INFINITY, 0.0f64);
+    for w in weights {
+        lo = lo.min(*w);
+        hi = hi.max(*w);
+    }
+    if lo > 0.0 && hi.is_finite() {
+        T::from_f64((hi / lo).powi(2))
+    } else {
+        T::one()
+    }
 }
 
 /// Check 3 for either lane: `|S(P(tᵢ)) − C(tᵢ)|` at the shared
@@ -2715,21 +2727,24 @@ fn run_iso_checks<T: Decide>(
             };
             // **The re-derivation** (M8-3) of the chart-level rational
             // gate this class used to carry. The control-difference
-            // hull below needs `B − C` to be a spline with control
-            // points `bᵢ − cᵢ`, which is a POLYNOMIAL fact — but it is
-            // a fact about the ROW being compared, not about the whole
-            // chart. A rational wall's `u = 0`/`u = 1` boundary rows
-            // carry weight 1 (the profile's arc weights live in the
-            // OTHER direction), so seams on rational charts certify
-            // here exactly as they always did; a row that really is
-            // rational still refuses, now for the reason that is
-            // actually load-bearing. (The rim class, where the
-            // rational row is unavoidable, is `run_iso_arc_checks`.)
-            if c.weights().iter().any(|w| *w != 1.0) {
+            // hull below needs `B − C = Σ Rᵢ·(bᵢ − cᵢ)` with the `Rᵢ`
+            // non-negative and summing to 1. For a POLYNOMIAL pair
+            // that is the B-spline partition of unity; for a RATIONAL
+            // pair it is the rational basis `Rᵢ = NᵢwᵢΣ⁻¹`, which is
+            // the same partition of unity **provided the two curves
+            // share knots AND weights** — checked immediately below,
+            // structurally and exactly (C6) — **and the weights are
+            // strictly positive**, which is the convex-hull hypothesis
+            // itself and is checked here. So the hull is valid for
+            // rational seams too, and the blanket chart-level gate
+            // this class used to carry was over-broad: what is
+            // load-bearing is the shared spline space, not the
+            // weights being 1.
+            if c.weights().iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
                 return Err(PcurveCertifyError::IsoUnsupported {
-                    what: "a RATIONAL seam carrier (weights != 1): the control-difference \
-                           hull is a polynomial convexity fact — the arc-rim class carries \
-                           the rational hull instead",
+                    what: "a seam carrier with a non-positive or non-finite weight — the \
+                           rational convex-hull property is exactly the hypothesis that \
+                           fails there",
                 });
             }
             let u_start = p0.x + pl.x * t0;
@@ -2801,6 +2816,27 @@ fn run_iso_checks<T: Decide>(
                            (corrupt chart structure)",
                 }
             })?;
+            // **This class keeps a rational gate, and it is the real
+            // one** (M8-3). The hull below compares the column's
+            // control points against the LINE sampled at the Greville
+            // abscissae, which is sound because a B-spline basis
+            // reproduces affine functions exactly there — LINEAR
+            // PRECISION. The rational basis has no such property, so
+            // on a rational column the Greville sample is not the
+            // line's representation in the column's own space and the
+            // control-difference hull would bound nothing. (The seam
+            // class needs no gate: there both curves are given in ONE
+            // shared space. The arc-rim class builds `Ĉ` in the
+            // column's space explicitly, which is the same fix by
+            // construction.)
+            if b.weights().iter().any(|w| *w != 1.0) {
+                return Err(PcurveCertifyError::IsoUnsupported {
+                    what: "a LINE cap rim on a RATIONAL chart column: the Greville hull is \
+                           a linear-precision fact and the rational basis has none — a line \
+                           rim whose column is rational needs its line re-expressed in that \
+                           column's own space, the arc-rim class's construction",
+                });
+            }
             let (p, kn) = (b.knots().degree(), b.knots().knots());
             let mut hull = T::zero();
             for (i, cp) in b.control().iter().enumerate() {
