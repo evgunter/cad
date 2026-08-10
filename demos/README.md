@@ -190,7 +190,7 @@ cd ..
 ./render-wild.sh              # cells + sheet -> renders-wild/
 ```
 
-**Cell count: 6, and the cell set is license law plus pinned
+**Cell count: 8, and the cell set is license law plus pinned
 capability, not discovery.** `docs/WILD-CORPUS-LICENSES.md` (the
 license audit) governs eligibility — only files the audit marks
 render-OK may appear. The derivation: 13 wild fixtures − 4 `stepcode/`
@@ -199,31 +199,30 @@ for redistributed CAx-IF models; the generator does not read them at
 all — `sg1-c5-214.stp` imports fine and is excluded by license, not
 capability) = 9 render-OK, − 1 typed import refusal
 (`b123d_nema17_bracket.step`, `SURFACE_CURVE` edge geometry — pinned
-in the generator, matching `wild.rs`) − 2 typed TESSELLATION refusals
-(`1982_MPR121.step`, `328_2500mAh_battery.step` — the mesh-lane
-finding below) = **6**. Two notes on how that differs from the audit's
-own snapshot, one in each direction:
+in the generator, matching `wild.rs`) = **8**. Two notes on how that
+differs from the audit's own snapshot:
 
 * the audit's import-status line ("only 6 import today") predates the
   M7-5 band-seam re-mint (#252), which flipped `nist_ftc_11_asme1_rb`
   and `cq_red_cube_blue_cylinder` to imports-class — both are
   render-OK rows in the audit's own table, so both are cells;
-* **the mesh-lane finding this unit surfaced**: `1982_MPR121` and
-  `328_2500mAh_battery` import first-class (census exact, volumes
-  measurable) but refuse `pncad::mesh::tessellate` typed
-  (`Triangulation`), on plain rectangular planar faces. Diagnosed in
-  `demos/wild/src/main.rs`'s module docs: the files' plane axes carry
-  translator noise (~1e-33 components), the planar chart projection
-  of a should-be-zero coordinate lands at ~1e-67, and that is below
-  spade's coordinate domain (`MIN_ALLOWED_VALUE` = 2⁻¹⁴² ≈ 1.79e-43),
-  so the CDT refuses the vertex. Own-corpus bodies never hit this
-  because the kernel authors exact axes; the fix belongs to the mesh
-  lane, not this demo.
+* **the mesh-lane finding this unit surfaced, since resolved**:
+  `1982_MPR121` and `328_2500mAh_battery` imported first-class
+  (census exact, volumes measurable) but refused
+  `pncad::mesh::tessellate` typed (`Triangulation`), on plain
+  rectangular planar faces — the files' plane axes carry translator
+  noise (~1e-33 components), the planar chart projection of a
+  should-be-zero coordinate landed at ~1e-67, below spade's
+  coordinate domain (`MIN_ALLOWED_VALUE` = 2⁻¹⁴² ≈ 1.79e-43), and
+  the CDT refused the vertex. Fixed in the mesh lane (#284,
+  `mesh::planar`'s module docs): the planar chart frame is re-derived
+  per-face from the boundary itself (Newell normal + extent-aligned
+  axes) instead of trusting stored axes, so both files are ordinary
+  cells now.
 
-`demos/wild/src/main.rs` pins the cell set, the import refusal, AND
-the two tessellation refusals, and fails loudly on drift in any
-direction, so the sheet can never detach silently from the
-attribution block below.
+`demos/wild/src/main.rs` pins the cell set AND the import refusal,
+and fails loudly on drift in any direction, so the sheet can never
+detach silently from the attribution block below.
 
 **Renderer + provenance.** Cells are drawn by `render.py` — the
 numpy+matplotlib STL renderer — as the lane's PRIMARY renderer, not a
@@ -282,11 +281,12 @@ Apache-2.0 grant linking the committed license text, and the
 modified-only-by-tessellation statement. `b123d_nema17_bracket.step`
 still refuses import (no cell), so its NOTICE-carrying entry is not
 yet needed here; the NOTICE text already rides
-`crates/step-import/NOTICE` (the audit's D1 action, done). Two of the
-named Adafruit parts (`1982 MPR121`, `328 2500mAh battery`) do not
-currently appear on the sheet (the pinned tessellation refusals
-above); their attribution rides anyway — the source files are
-committed fixtures, and the block is the audit's text verbatim.
+`crates/step-import/NOTICE` (the audit's D1 action, done). All five
+named Adafruit parts now appear on the sheet — `1982 MPR121` and
+`328 2500mAh battery`, once pinned tessellation refusals, joined
+when the #284 mesh fix landed — and the Adafruit entry already named
+them all, so the block needed no change: it is the audit's text
+verbatim.
 
 ## The stops
 
@@ -313,7 +313,7 @@ committed fixtures, and the block is the audit's text verbatim.
 | `crosslap_exploded` | the same joint exploded via `transform_rigid` (re-minted witnesses, #84) |
 | `projectbox` | enclosure: cavity + 6 vent through-slots + 4 floor bosses + 4 pilot pockets — 15 sequential boolean nodes, the longest chain; square-only until M5 |
 | `cutaway` | **first `topo::split`**: the project box split by a tilted plane, halves translated apart — a machinist's section pair (replaces the void box translucency hack) |
-| `lily` | **the globe lily** (*Calochortus albus*, the fairy lantern) — the tour's first ORGANIC subject and a deliberate stress test: eight closed analytic solids (three torus-segment stem tubes from `revolve(Partial)` of a circle about a distant axis, two sphere-zone lanterns with conical mouths from `revolve(Full)`, three extruded two-arc crescent leaves), walked by a turtle so consecutive stem arcs are **G1 by construction**. Nothing is approximated: every wall is torus, sphere, cone or plane exactly — a claim about the surface KIND, not about stored parameters (`revolve` reconstructs a tube radius from the profile's bulge arcs, so the stem's stored `minor_radius` sits 3.9e-16 below the authored 0.060; see the module docs). Nothing is JOINED either — the stop is followed by **seven live wall probes** that attempt the joins and shapes a plant actually wants (glue the stem arcs, weld flower to stem, oblique-extrude a swept leaf, stretch a bud into an ovoid, mirror a leaf, fillet the mouth rim, carve a tepal seam) and assert each typed refusal, panicking if one ever retires |
+| `lily` | **the globe lily** (*Calochortus albus*, the fairy lantern) — the tour's first ORGANIC subject and a deliberate stress test: eight closed solids (three torus-segment stem tubes from `tube_along_arc`, two sphere-zone lanterns with conical mouths from `revolve(Full)`, three keeled leaf blades from `sweep_body` — a four-line kite section carried along an arching NURBS spine), walked by a turtle so consecutive stem arcs are **G1 by construction**. The five analytic bodies approximate nothing, and since the tube door that is a claim about STORED PARAMETERS as well as surface kind: the ring centre, spine axis, `u_ref` and both radii are the world-coordinate numbers the demo passed in, so the stem's `minor_radius` IS the authored 0.060 rather than the bulge-arc reconstruction 3.9e-16 below it. The three blades are the one fitted piece — a swept skin is a B-spline wall through nine exact spine points — and they hold ONE width base to tip, because there is no tapering sweep; their section is four straight lines and not the old crescent's arcs, because the skin lane refuses a rational wall (`nurbs_span_meter` has no speed bound on a rational carrier). Nothing is JOINED either — the stop is followed by **seven live wall probes** that attempt the joins and shapes a plant actually wants (glue the stem arcs, weld flower to stem, oblique-extrude a leaf out of its plane, stretch a bud into an ovoid, mirror a leaf, fillet the mouth rim, carve a tepal seam) and assert each typed refusal, panicking if one ever retires |
 | `heatsink5/7/9` | **the M4 layer**: ONE recipe document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `LinearPattern`; each re-eval recomputes exactly 1 node and reuses 4 (counted in the caption); stable names survive the edits (135/135); the montage carries only the 9-fin panel |
 
 Five committed **shadow proofs** ride beside the montage panels
@@ -430,23 +430,27 @@ TWENTY-SEVEN tour bodies now carry a curved surface (bracket, plate,
 vase, sheave, chute, rocker, bossplate, the two tiltedcut halves, the
 three die pieces, all eight globe-lily bodies, the tube-door wedge,
 and the six NURBS-walled skin bodies — the loft pair, the S duct, and
-the twisted duct with its two shadow twins).
-**Thirteen of the twenty-seven**
+the twisted duct with its two shadow twins). NINE of them carry a NURBS
+wall since the lily's three leaf blades became swept skins.
+**Ten of the twenty-seven**
 carry `same_sense = .F.` faces, the concave-wall bit S11 introduced —
 the original six (bracket 1, plate 4, vase 2, sheave 7, chute 3,
-rocker 7) plus die_pips 42, the composed die 42, each lantern 2 and each
-leaf 1. Fourteen carry none, in two groups. Eight have no CONCAVE curved
+rocker 7) plus die_pips 42, the composed die 42 and each lantern 2.
+Seventeen carry none, in two groups. Eight have no CONCAVE curved
 wall to reverse — bossplate's boss bulges outward, diefillet's blends
 are all convex, the two tiltedcut halves are a plain cylinder cut, the
 lily's three stem tubes are convex tori all the way round, and the
 tube-door wedge is one more of those with two plain wedge caps
-(checked: 4 `.T.`, 0 `.F.`). The six skin bodies carry none for a
+(checked: 4 `.T.`, 0 `.F.`). The NINE skin bodies carry none for a
 different reason: an ANALYTIC chart has a canonical normal the wall may
 oppose, but a NURBS wall's description is authored by the loft/sweep
 assembly itself, outward by construction — there is never anything to
 reverse regardless of concavity (the s_duct's and twisted duct's inner
-walls are concave and still `.T.`; checked: 6 `.T.`, 0 `.F.` on each
-of the six).
+walls are concave and still `.T.`). The lily's leaf blades joined that
+group when they stopped being extruded cylinders and became swept
+skins: 6 `.T.`, 0 `.F.` on each blade, four B-spline walls and two
+planar end caps, where the extruded crescent carried one `.F.` on its
+concave cylindrical wall.
 (The lily's lanterns reverse on
 their MOUTH disc, not on a curved wall: a revolve mints both cap planes
 on the profile plane's own +y normal, so exactly one cap opposes the
@@ -454,13 +458,17 @@ solid's outward normal — see `lily_lantern.expect`.)
 
 All twenty-four import into FreeCAD 1.1.2 as valid single-solid shapes (the
 STEP-lane montage draws every one of them from its own AP214 export,
-with no placeholder cells); the lily's eight were additionally checked
+with no placeholder cells); the lily's five ANALYTIC bodies are checked
 against independent closed forms — Pappus for the torus segments, a
-zone-plus-frustum integral for the lanterns, a two-circular-segment
-crescent for the leaves — agreeing to ≤1.4e-14 relative. The lily is
-the widest single-scene spread the writer has been asked for:
-`TOROIDAL_` (stem tubes), `SPHERICAL_` + `CONICAL_` (lanterns) and
-`CYLINDRICAL_` (leaf blades) all in one cell.
+zone-plus-frustum integral for the lanterns — agreeing to ≤1.4e-14
+relative. Its three swept blades have no analytic wall to check that
+way, so they are pinned against Pappus on the MESH instead (kite area
+times the centroid's arc length, agreeing to a few 1e-5 at δ = 2e-3 —
+the tessellation's own chord error, and a two-sided band, since exact
+agreement would mean no real mesh was measured). The lily is still the
+widest single-scene spread the writer has been asked for: `TOROIDAL_`
+(stem tubes), `SPHERICAL_` + `CONICAL_` (lanterns) and
+`B_SPLINE_SURFACE_WITH_KNOTS` (leaf blades) all in one cell.
 
 One typed refusal remains as a named frontier, and no tour body is in
 it: a multi-shell **curved** solid (whose outward/void classification

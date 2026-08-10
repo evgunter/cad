@@ -40,6 +40,7 @@
 pub mod certify;
 pub mod dihedral;
 pub mod edge_geometry;
+pub mod edge_nurbs;
 pub mod enters;
 pub mod implicit;
 pub mod intersect;
@@ -57,6 +58,7 @@ pub use certify::{
 };
 pub use dihedral::{DihedralClass, classify_dihedral};
 pub use edge_geometry::{EdgeGeometry, MappedCurve, SketchSegment};
+pub use edge_nurbs::{EdgeNurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal};
 pub use enters::{EntersMaterial, enters_material, enters_material_order2};
 pub use implicit::{
     circle_residual_extremes, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
