@@ -490,6 +490,17 @@ EXCLUDED by license law); difficulty logged PRE-DISPATCH = **M**.
 Arm = OPUS (the banked slot 1 — M8-4 waits on M8-3's pcurve work,
 so the slot goes to the file-disjoint candidate). Lane instancing,
 branch import/instancing.
+Block M8-13 SLOT 2 DISPATCHED (2026-08-10): M8-5, the mesh
+rational deviation certificate (plan-amendment unit — TWO gates:
+the face Hessian via second-order quotient rule in nurbs_cert.rs's
+own ring style, AND the curve-side chord/sagitta gate at
+chords.rs's separate rational refusal; built on the MERGED M8-2
+template (recentring, strict-positive-weight poison, fixed
+schedule) — deliberately NOT lifting #309's unmerged machinery;
+the #218 falsifier gets a rational fixture); difficulty logged
+PRE-DISPATCH = **M**. Arm = FABLE (the banked slot 2). Block
+M8-13 fully consumed — next dispatch opens M8-14. Lane
+mesh-rational, branch mesh/rational-cert.
 M8-2 (PR #306) R1 ordinal FIXED AT DISPATCH (2026-08-10): 15
 merged blinded rows on main (the 13 at #301's dispatch + M8-1 +
 SWITCH-E) + 1 = **16** → SINGLE review.
