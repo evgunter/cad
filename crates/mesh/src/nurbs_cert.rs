@@ -108,6 +108,15 @@
 //! (interior multiplicities ≤ p − 1, on the homogeneous nets) plus
 //! `w > 0` gives exactly that for `S = A/w`.
 //!
+//! **Conservatism** (the speed meter's posture): the answer is a
+//! bound, not an estimate. Ordinary rational walls measure within a
+//! small factor of the true sup (the falsifier rows print the
+//! ratios), but extreme weight ratios (1e-2..1e2 and beyond) can
+//! leave the bound orders above the truth — the product terms lose
+//! the sign correlation a steep ramp lives in. The cost is only grid
+//! density, and a δ fine enough to overflow the 2²⁴ cap refuses
+//! typed ([`crate::chords::ceil_count`]) — never a wrong mesh.
+//!
 //! # Grid sizing (heuristic; the certificate is the guarantee)
 //!
 //! Budgeting a triangle's box at two grid cells per axis
@@ -1219,7 +1228,9 @@ mod tests {
     ///   outward-rounded zeros through refinement (convex combinations
     ///   of `0.5` are exact), so the cross terms are subnormal dust
     ///   over `w_min` — the integral 1e-100 class survives (measured
-    ///   ~5e-166).
+    ///   at the deep-subnormal ~1e-16x scale, run-dependent in the
+    ///   last decades: 5e-166 here, 5e-162 by the R1 review; the
+    ///   1e-100 pin is the claim).
     /// - `muv`: the refined homogeneous net carries knot-INSERTION
     ///   rounding (~ulp of O(1) coefficients), and the mixed
     ///   differencing scales it by `p/Δu` at the 16-fold-refined span

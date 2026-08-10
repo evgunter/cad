@@ -130,14 +130,20 @@ fn z1_per_triangle_certificate_falsification() {
 #[test]
 fn z1r_rational_wall_full_body_frontier_pin() {
     match mesh::tessellate(&rational_pie(), 1e-2) {
-        Err(e) => {
-            let s = format!("{e:?}");
+        // Pinned by VARIANT plus the specific missing-cache note (R1
+        // MINOR-1): a rewording elsewhere that happens to say "pcurve"
+        // must not green this pin silently.
+        Err(mesh::TessellateError::UnsupportedCurve { note, .. }) => {
             assert!(
-                s.contains("pcurve"),
-                "the rational pie must refuse at the PCURVE gate (the out-of-fence \
-                 frontier), not anywhere new: {s}"
+                note.contains("no stored pcurve cache"),
+                "the rational pie must refuse at the MISSING-CACHE gate (the \
+                 out-of-fence frontier), not anywhere new: {note}"
             );
         }
+        Err(other) => panic!(
+            "the rational pie must refuse UnsupportedCurve at the missing-cache \
+             gate, got {other:?}"
+        ),
         Ok(_) => panic!(
             "the rational pie tessellated — the topo pcurve frontier has LANDED; \
              retire this pin per its doc (promote rational_pie into z1)"
