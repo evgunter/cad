@@ -104,6 +104,13 @@
       "full_ms": 310.6,
       "incremental_ms": 201.14,
       "nodes": 14
+    },
+    "plate_param": {
+      "about": "the parametric scene: a plate whose two hole radii are one DocParam",
+      "cone": 2,
+      "full_ms": 43.3,
+      "incremental_ms": 40.7,
+      "nodes": 5
     }
   },
   "provenance": {

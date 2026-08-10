@@ -51,9 +51,35 @@ pyo3::create_exception!(
     pncad,
     LiteralError,
     PncadError,
-    "A value refused before it reached the kernel: non-finite, or a \
-     count written as a continuous literal. Carries `kind` and, when \
-     applicable, `value`."
+    "A value the expression layer refused: non-finite, or a count \
+     written as a continuous literal. Carries `kind`, the stable tag \
+     of the refusing arm."
+);
+pyo3::create_exception!(
+    pncad,
+    PersistError,
+    PncadError,
+    "A save or load the persistence doors refused (bad header, \
+     unknown schema, unparseable body, a snapshot or edit log that \
+     fails the shared validator, ...). Carries `variant`, the stable \
+     tag of the refusing arm."
+);
+pyo3::create_exception!(
+    pncad,
+    ExportError,
+    PncadError,
+    "The document-layer export door refused. Carries `variant` and \
+     `node`; a poisoning adds `through`, a wrong-kind value adds \
+     `kind`."
+);
+pyo3::create_exception!(
+    pncad,
+    StepImportError,
+    PncadError,
+    "A STEP text the importer refused, or one that parsed to a \
+     non-solid. Carries `variant` (`refused` or `wireframe`); \
+     per-variant field projection is deferred with the rest of the \
+     read-back surface."
 );
 
 /// Raise the exception class [`ErrorClass`] names, with `fields`
@@ -75,6 +101,9 @@ pub(crate) fn typed_err(
         ErrorClass::Validation => ValidationError::new_err(message),
         ErrorClass::Dimension => DimensionError::new_err(message),
         ErrorClass::Literal => LiteralError::new_err(message),
+        ErrorClass::Persist => PersistError::new_err(message),
+        ErrorClass::Export => ExportError::new_err(message),
+        ErrorClass::StepImport => StepImportError::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -100,17 +129,20 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ValidationError", py.get_type::<ValidationError>())?;
     m.add("DimensionError", py.get_type::<DimensionError>())?;
     m.add("LiteralError", py.get_type::<LiteralError>())?;
+    m.add("PersistError", py.get_type::<PersistError>())?;
+    m.add("ExportError", py.get_type::<ExportError>())?;
+    m.add("StepImportError", py.get_type::<StepImportError>())?;
 
     quantity::register(m)?;
     doc::register(m)?;
     value::register(m)?;
 
-    // Schema/provenance surface: the version the persistence format
-    // would speak. Exposed as data even though save/load are not yet
-    // reachable through the façade (see the persistence FINDING).
+    // Schema/provenance surface: the version the persistence doors
+    // speak (LIB-DOORS F1 — `Doc.save`/`load` are bound now).
     let meta = PyDict::new(py);
     meta.set_item("f64_only", true)?;
     meta.set_item("abi3", "py38")?;
+    meta.set_item("schema_version", pncad::document::SCHEMA_VERSION)?;
     m.add("__build_info__", meta)?;
 
     Ok(())

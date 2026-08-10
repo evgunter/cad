@@ -268,6 +268,31 @@ pub enum ProgramRefusal {
     Validate(profile::ProfileError),
 }
 
+// LIB-DOORS F6 (reopened on review): a human-readable rendering,
+// problem-stating per arm; the geometry class already carries the
+// driver's rendered prose and passes it through.
+impl core::fmt::Display for ProgramRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Resolve { slot, .. } => {
+                write!(f, "a program expression failed to resolve at slot {slot:?}")
+            }
+            Self::Transition { loop_, step, .. } => write!(
+                f,
+                "loop {loop_} step {step} is not a legal chain-lattice walk"
+            ),
+            Self::Geometry {
+                loop_,
+                step,
+                rendered,
+            } => write!(f, "loop {loop_} step {step}: {rendered}"),
+            Self::Validate(_) => f.write_str("the replayed loops failed profile validation"),
+        }
+    }
+}
+
+impl core::error::Error for ProgramRefusal {}
+
 // ------------------------------------------------------------------
 // Slot access
 // ------------------------------------------------------------------
