@@ -276,8 +276,15 @@ uv_composer_selftest() {
 # render lane CI can reproduce — and an ungated committed artifact rots.
 # The tour is ~3s once built and the sheet is text, so a firing diff is
 # readable. Hosted mirror: the `k-lint` job's "uv sheet drift (demos)".
+#
+# The `CAD_RENDER_LOCAL_OVERRIDE` sentence is set HERE, in the file, at
+# the one step that renders: the entry points refuse without it
+# (demos/hosted-render-guard.sh) and deliberately do not sniff for CI.
+# This row is a sanctioned automated render — renderer-free, and
+# `git diff --exit-code` un-does the question of drift by failing on it.
 uv_sheet_drift() {
   (cd demos/tour && cargo run --release -- ../out) >/dev/null && \
+    CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift \
     demos/render-uv.sh >/dev/null && \
     git diff --exit-code --stat HEAD -- demos/renders-uv/
 }

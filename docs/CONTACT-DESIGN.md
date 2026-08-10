@@ -488,6 +488,13 @@ What stays refused even after this lane ships: undeclared touching
 carrier pair the cosurface ladder has no arm for (typed, per class —
 never wholesale).
 
+**Sibling deliverable (binding on the C7 implementation spec;
+ASSEMBLY-DESIGN A5, 2026-08-10):** the same census + per-class
+verification substrate must also open as an **at-rest door** — an
+assembly at rest needs verification with no boolean, i.e. no zip.
+The join lane alone leaves touching assemblies unvalidatable (the
+#328 scoping trap); the M9 spec adopts both doors deliberately.
+
 ## Worked examples (each through C1→C6)
 
 **Ball-and-socket** (#161 §2a). Socket authored by subtracting the
