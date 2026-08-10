@@ -784,7 +784,120 @@ enum Collapse<'a> {
 #[derive(Clone)]
 enum Dir {
     Kv(KnotVector),
-    Const { knots: Vec<f64> },
+    /// A derivative direction whose knot vector is **not representable**
+    /// as a [`KnotVector`]: an interior knot of multiplicity equal to
+    /// the parent's degree (the standard rational-arc structure) makes
+    /// the derivative genuinely DISCONTINUOUS there, and the clamped
+    /// invariant refuses interior multiplicity above the degree.
+    ///
+    /// Before M8-3 this case fell through to [`Dir::Const`], which
+    /// silently read the FIRST derivative of a degree-2 spline as a
+    /// per-span constant — wrong by O(1), and reachable from the
+    /// integral lane's composite fallback too. Evaluated span-locally
+    /// on the raw knots instead; the discontinuity is honest, and the
+    /// composite rule already gives knot-straddling cells the
+    /// smoothness-free rule.
+    Raw {
+        knots: Vec<f64>,
+        degree: usize,
+    },
+    Const {
+        knots: Vec<f64>,
+    },
+}
+
+/// The span index of `t` in a raw knot slice: the last nonempty span
+/// whose lower knot does not exceed `t`, clamped into the valid range.
+fn raw_span(knots: &[f64], degree: usize, count: usize, t: f64) -> usize {
+    let last = count.saturating_sub(1).max(degree);
+    let mut span = degree;
+    let mut i = degree;
+    while i <= last && i + 1 < knots.len() {
+        if knots[i] <= t && knots[i] < knots[i + 1] {
+            span = i;
+        }
+        i += 1;
+    }
+    span.min(last)
+}
+
+/// In-span de Boor on a raw knot slice (the [`Dir::Raw`] evaluator).
+fn raw_eval(knots: &[f64], degree: usize, coeffs: &[RingInterval], t: f64) -> RingInterval {
+    if coeffs.len() < degree + 1 || knots.len() < coeffs.len() + degree + 1 || !t.is_finite() {
+        return RingInterval::poison();
+    }
+    let span = raw_span(knots, degree, coeffs.len(), t);
+    let mut d: Vec<RingInterval> = (0..=degree).map(|j| coeffs[span - degree + j]).collect();
+    for r in 1..=degree {
+        for j in (r..=degree).rev() {
+            let i = span - degree + j;
+            let denom = pt(knots[i + degree + 1 - r]) - pt(knots[i]);
+            let alpha = (pt(t) - pt(knots[i])) / denom;
+            d[j] = (pt(1.0) - alpha) * d[j - 1] + alpha * d[j];
+        }
+    }
+    d[degree]
+}
+
+/// Hull of a [`Dir::Raw`] spline over `[lo, hi]`: the local control
+/// blocks of every touched span (the same convexity fact
+/// [`bspline_range_hull`] uses).
+fn raw_range_hull(
+    knots: &[f64],
+    degree: usize,
+    coeffs: &[RingInterval],
+    lo: f64,
+    hi: f64,
+) -> RingInterval {
+    if coeffs.len() < degree + 1 {
+        return RingInterval::poison();
+    }
+    let (s0, s1) = (
+        raw_span(knots, degree, coeffs.len(), lo),
+        raw_span(knots, degree, coeffs.len(), hi),
+    );
+    let mut acc = RingInterval::poison();
+    let mut seeded = false;
+    for span in s0..=s1 {
+        for j in 0..=degree {
+            let Some(c) = coeffs.get(span - degree + j) else {
+                continue;
+            };
+            acc = if seeded {
+                RingInterval::hull(acc, *c)
+            } else {
+                *c
+            };
+            seeded = true;
+        }
+    }
+    acc
+}
+
+/// Derivative coefficients on a raw knot slice.
+fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[RingInterval]) -> Vec<RingInterval> {
+    if degree == 0 || coeffs.len() < 2 {
+        return Vec::new();
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let p = pt(degree as f64);
+    (0..coeffs.len() - 1)
+        .map(|i| {
+            let (Some(&a), Some(&b)) = (knots.get(i + degree + 1), knots.get(i + 1)) else {
+                return RingInterval::poison();
+            };
+            // `knots[i+1] == knots[i+degree+1]` marks a DEGENERATE
+            // (empty) span — the derivative has no coefficient there
+            // because the function has no value there. `raw_span`
+            // never selects an empty span, so this slot is only ever
+            // hulled; zero is the safe filler (enlarging a hull can
+            // never make a containment claim false).
+            if a == b {
+                return RingInterval::zero();
+            }
+            p * (coeffs[i + 1] - coeffs[i]) / (pt(a) - pt(b))
+        })
+        .collect()
 }
 
 impl Dir {
@@ -862,38 +975,73 @@ impl PatchGrid {
     /// vector while the degree allows, the per-span-constant remnant
     /// at degree 0.
     fn deriv_dir(kv: &KnotVector) -> Dir {
+        let inner = kv.knots()[1..kv.knots().len() - 1].to_vec();
         match deriv_kv(kv) {
             Some(k) => Dir::Kv(k),
-            None => Dir::Const {
-                knots: kv.knots()[1..kv.knots().len() - 1].to_vec(),
+            // Degree ≥ 2 with an unrepresentable derivative structure
+            // is the DISCONTINUOUS-derivative case, not the
+            // per-span-constant one (see `Dir::Raw`).
+            None if kv.degree() >= 2 => Dir::Raw {
+                knots: inner,
+                degree: kv.degree() - 1,
             },
+            None => Dir::Const { knots: inner },
         }
     }
 
     /// The u-partial-derivative grid (`None` = identically zero away
     /// from knots — the ladder's outer-None).
     fn deriv_u(&self) -> Option<Self> {
-        let Dir::Kv(kv) = &self.du else {
-            return None;
-        };
         if self.nu < 2 {
             return None;
         }
+        let (next_dir, take): (Dir, Box<dyn Fn(&[RingInterval]) -> Vec<RingInterval>>) =
+            match &self.du {
+                Dir::Kv(kv) => {
+                    let kv = kv.clone();
+                    (
+                        Self::deriv_dir(&kv),
+                        Box::new(move |c: &[RingInterval]| derivative_coeffs(&kv, c)),
+                    )
+                }
+                // A `Raw` direction differentiates too — its own
+                // derivative is `Raw` one degree down, or the honest
+                // per-span constant at degree 1.
+                Dir::Raw { knots, degree } => {
+                    let (knots, degree) = (knots.clone(), *degree);
+                    let inner = knots[1..knots.len() - 1].to_vec();
+                    let next = if degree >= 2 {
+                        Dir::Raw {
+                            knots: inner,
+                            degree: degree - 1,
+                        }
+                    } else {
+                        Dir::Const { knots: inner }
+                    };
+                    (
+                        next,
+                        Box::new(move |c: &[RingInterval]| raw_deriv(&knots, degree, c)),
+                    )
+                }
+                Dir::Const { .. } => return None,
+            };
         let mut ch = [Vec::new(), Vec::new(), Vec::new()];
         for (k, chan) in ch.iter_mut().enumerate() {
             let mut grid = vec![RingInterval::zero(); (self.nu - 1) * self.nv];
             for j in 0..self.nv {
                 let col: Vec<RingInterval> =
                     (0..self.nu).map(|i| self.ch[k][i * self.nv + j]).collect();
-                let d = derivative_coeffs(kv, &col);
+                let d = take(&col);
                 for (i, q) in d.iter().enumerate() {
-                    grid[i * self.nv + j] = *q;
+                    if let Some(slot) = grid.get_mut(i * self.nv + j) {
+                        *slot = *q;
+                    }
                 }
             }
             *chan = grid;
         }
         Some(Self {
-            du: Self::deriv_dir(kv),
+            du: next_dir,
             dv: self.dv.clone(),
             nu: self.nu - 1,
             nv: self.nv,
@@ -903,24 +1051,48 @@ impl PatchGrid {
 
     /// The v-partial-derivative grid.
     fn deriv_v(&self) -> Option<Self> {
-        let Dir::Kv(kv) = &self.dv else {
-            return None;
-        };
         if self.nv < 2 {
             return None;
         }
+        let (next_dir, take): (Dir, Box<dyn Fn(&[RingInterval]) -> Vec<RingInterval>>) =
+            match &self.dv {
+                Dir::Kv(kv) => {
+                    let kv = kv.clone();
+                    (
+                        Self::deriv_dir(&kv),
+                        Box::new(move |c: &[RingInterval]| derivative_coeffs(&kv, c)),
+                    )
+                }
+                Dir::Raw { knots, degree } => {
+                    let (knots, degree) = (knots.clone(), *degree);
+                    let inner = knots[1..knots.len() - 1].to_vec();
+                    let next = if degree >= 2 {
+                        Dir::Raw {
+                            knots: inner,
+                            degree: degree - 1,
+                        }
+                    } else {
+                        Dir::Const { knots: inner }
+                    };
+                    (
+                        next,
+                        Box::new(move |c: &[RingInterval]| raw_deriv(&knots, degree, c)),
+                    )
+                }
+                Dir::Const { .. } => return None,
+            };
         let mut ch = [Vec::new(), Vec::new(), Vec::new()];
         for (k, chan) in ch.iter_mut().enumerate() {
             let mut grid = Vec::with_capacity(self.nu * (self.nv - 1));
             for i in 0..self.nu {
                 let row = &self.ch[k][i * self.nv..(i + 1) * self.nv];
-                grid.extend(derivative_coeffs(kv, row));
+                grid.extend(take(row));
             }
             *chan = grid;
         }
         Some(Self {
             du: self.du.clone(),
-            dv: Self::deriv_dir(kv),
+            dv: next_dir,
             nu: self.nu,
             nv: self.nv - 1,
             ch,
@@ -935,6 +1107,35 @@ impl PatchGrid {
                 bspline_eval_ring_in_span(kv, coeffs, kv.find_span(mid), *t)
             }
             (Dir::Kv(kv), Collapse::Over(lo, hi)) => bspline_range_hull(kv, coeffs, lo, hi),
+            (Dir::Raw { knots, degree }, Collapse::At(t)) => raw_eval(knots, *degree, coeffs, t),
+            (Dir::Raw { knots, degree }, Collapse::AtSpan { mid, t }) => {
+                // The node lies in the closure of `mid`'s span; the
+                // span polynomial is what the rule integrates.
+                let span = raw_span(knots, *degree, coeffs.len(), mid);
+                let mut d: Vec<RingInterval> = (0..=*degree)
+                    .map(|j| {
+                        coeffs
+                            .get(span.saturating_sub(*degree) + j)
+                            .copied()
+                            .unwrap_or_else(RingInterval::poison)
+                    })
+                    .collect();
+                for r in 1..=*degree {
+                    for j in (r..=*degree).rev() {
+                        let i = span - *degree + j;
+                        let (Some(&ka), Some(&kb)) = (knots.get(i + *degree + 1 - r), knots.get(i))
+                        else {
+                            return RingInterval::poison();
+                        };
+                        let alpha = (*t - pt(kb)) / (pt(ka) - pt(kb));
+                        d[j] = (pt(1.0) - alpha) * d[j - 1] + alpha * d[j];
+                    }
+                }
+                d[*degree]
+            }
+            (Dir::Raw { knots, degree }, Collapse::Over(lo, hi)) => {
+                raw_range_hull(knots, *degree, coeffs, lo, hi)
+            }
             (Dir::Const { knots }, Collapse::At(t)) => {
                 coeffs[Dir::const_index(knots, t, coeffs.len())]
             }
@@ -2469,6 +2670,60 @@ mod tests {
         assert!(
             out.area.lo() <= 1.0 && 1.0 <= out.area.hi(),
             "area enclosure must contain the exact 1: {:?}",
+            out.area
+        );
+    }
+
+    /// The SAME quarter cylinder built from TWO 45° sub-arcs (an
+    /// interior double knot): the multi-span structure every arc wider
+    /// than `MAX_SUB_ARC` actually has.
+    #[test]
+    fn rational_two_span_quarter_cylinder() {
+        let band = Band::linear().unwrap();
+        let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv_v = KnotVector::unit_segment(1);
+        let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
+        let h = 2.0;
+        let d = core::f64::consts::FRAC_PI_4;
+        let hw = (d / 2.0).cos();
+        let on = |a: f64| (a.cos(), a.sin());
+        let tg = |a: f64| (a.cos() / hw, a.sin() / hw);
+        let mut net = Vec::new();
+        let mut weights = Vec::new();
+        let pts: Vec<((f64, f64), f64)> = vec![
+            (on(0.0), 1.0),
+            (tg(d / 2.0), hw),
+            (on(d), 1.0),
+            (tg(1.5 * d), hw),
+            (on(2.0 * d), 1.0),
+        ];
+        for ((x, y), w) in pts {
+            net.push(p(x, y, 0.0));
+            net.push(p(x, y, h));
+            weights.push(w);
+            weights.push(w);
+        }
+        let out = nurbs_patch_face::<f64>(
+            &kv_u,
+            &kv_v,
+            &net,
+            &weights,
+            (0.0, 1.0, 0.0, 1.0),
+            2.0f64.mul_add(2.0, core::f64::consts::PI),
+            0.0,
+            Tolerance::get().eps,
+            band,
+        )
+        .expect("the rational lane certifies the two-span quarter cylinder");
+        let truth = core::f64::consts::PI;
+        assert!(
+            out.flux.lo() <= truth && truth <= out.flux.hi(),
+            "two-span flux must contain π: {:?}",
+            out.flux
+        );
+        assert!(
+            out.area.lo() <= truth && truth <= out.area.hi(),
+            "two-span area must contain π: {:?}",
             out.area
         );
     }

@@ -213,19 +213,15 @@ fn chart_mints<T: Real>(surface: &Surface<T>) -> bool {
         // (rim/ruling; polar/meridian; parallel/meridian) and mint
         // stored caches wherever the pass runs.
         Surface::Cone { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => true,
-        // NON-RATIONAL described NURBS charts mint (M6-3): every
-        // loft/sweep wall boundary is an iso-parameter curve whose
-        // chart image is an exact line in UV (`Pcurve::IsoLine`).
-        // The placeholder mints nothing (it is not a described
-        // surface), and RATIONAL walls mint nothing either — the iso
-        // lane's hull bounds are polynomial convexity facts, and a
-        // rational-wall body already refuses tier 3 at the volume
-        // door with recourse text naming the banked rational lane;
-        // minting here would only move that refusal somewhere less
-        // actionable.
-        Surface::Nurbs(payload) => {
-            !payload.is_placeholder() && payload.weights().iter().all(|w| *w == 1.0)
-        }
+        // Described NURBS charts mint (M6-3; RATIONAL charts since
+        // M8-3): every loft/sweep wall boundary is an iso-parameter
+        // curve of the wall it bounds. Seams and LINE cap rims have
+        // exact line images (`Pcurve::IsoLine`); an ARC cap rim on a
+        // rational wall has an exact image too — the same boundary
+        // line, on the chart's own rational-quadratic parameter
+        // (`Pcurve::IsoArc`). The placeholder mints nothing: it is not
+        // a described surface.
+        Surface::Nurbs(payload) => !payload.is_placeholder(),
     }
 }
 
@@ -383,6 +379,22 @@ fn half_edge_description<T: Decide>(
 /// - Everything else on a NURBS chart refuses typed with the class
 ///   named (arc rims: the chart u is the segment's rational-Bézier
 ///   parameter, banked with the rational-wall lane).
+/// The uniform clamped degree-1 knot vector on `[0, 1]` with `spans`
+/// spans — an [`Pcurve::IsoArc`]'s sub-arc locator (pure `f64`
+/// structure, which is what keeps the variant `T`-generic).
+fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
+    if spans == 0 {
+        return None;
+    }
+    let mut knots = vec![0.0, 0.0];
+    #[allow(clippy::cast_precision_loss)]
+    for k in 1..spans {
+        knots.push(k as f64 / spans as f64);
+    }
+    knots.extend([1.0, 1.0]);
+    geom_core::spline::KnotVector::clamped(knots, 1).ok()
+}
+
 fn nurbs_iso_derive<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
@@ -446,12 +458,42 @@ fn nurbs_iso_derive<T: Decide>(
             segment,
             ..
         }) => {
+            // **The M8-3 arm.** An ARC cap rim's chart image is the
+            // same boundary line the LINE arm mints, but its moving
+            // channel is the chart's own rational-quadratic parameter
+            // rather than the arc angle — the `Pcurve::IsoArc` map.
+            // The sub-arc count is read off the chart's u structure
+            // (one span per sub-arc, by the loft's construction); that
+            // read is a SELECTION, and the CHECK is the full arc-rim
+            // certification that follows, which compares the chart's
+            // boundary column against the carrier circle's own
+            // rational-quadratic form and refuses a chart that is not
+            // this construction.
             if !matches!(segment, geom_brep::SketchSegment::Line { .. }) {
-                return Err(refuse(
-                    "an ARC cap rim on a NURBS chart: the chart's u is the segment's \
-                     rational-Bézier parameter (not the arc angle) — banked with the \
-                     rational-wall lane",
-                ));
+                let geom_surfaces::Surface::Nurbs(payload) = surface else {
+                    return Err(refuse("an arc cap rim on a non-NURBS chart"));
+                };
+                let ku = payload.knots_u();
+                let (d0, d1) = ku.domain();
+                let spans = ku
+                    .knots()
+                    .iter()
+                    .filter(|k| **k > d0 && **k < d1)
+                    .collect::<Vec<_>>()
+                    .len()
+                    / 2
+                    + 1;
+                let breaks = uniform_breaks(spans).ok_or_else(|| {
+                    refuse("an arc rim whose chart has no usable sub-arc structure")
+                })?;
+                let v = side_pick(&|cand| surface.eval(T::zero(), cand))?;
+                return Ok(Pcurve::IsoArc {
+                    p0: Point2::new(T::zero(), v),
+                    pd: Vec2::new(T::one(), T::zero()),
+                    t0,
+                    angle: span,
+                    breaks,
+                });
             }
             let plx = T::one() / span;
             let p0x = T::zero() - t0 / span;

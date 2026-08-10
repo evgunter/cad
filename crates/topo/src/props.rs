@@ -601,8 +601,8 @@ mod quad_lane {
         quad::cylinder_cut_face::<T>(br(*radius), o_dot_va, &edges, eps, band)
     }
 
-    /// **The NURBS-patch flux lane** (M6-3 Leg C): certified volume
-    /// flux + area of a described, NON-RATIONAL NURBS face whose
+    /// **The NURBS-patch flux lane** (M6-3 Leg C; RATIONAL since
+    /// M8-3): certified volume flux + area of a described NURBS face whose
     /// stored pcurves pin its trim region to an exact axis-aligned UV
     /// rectangle (every loft/sweep wall — their boundaries are iso
     /// lines with exact-structure `0`/`1` chart values).
@@ -624,16 +624,6 @@ mod quad_lane {
             return Err(PropsError::QuadratureUnsupported {
                 what: "the mvfs Nurbs placeholder reached the quadrature lane — a \
                        mid-surgery body has no mass properties (tier 2 refuses it at rest)",
-            });
-        }
-        // The rational gate fires here too (before any geometry), so
-        // the recourse text reaches the +V caller verbatim.
-        if payload.weights().iter().any(|w| *w != 1.0) {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "RATIONAL patch flux (weights != 1): the derivative-grid hulls are \
-                       polynomial convexity facts, and a rational quotient's are not — the \
-                       rational extension (any arc-bearing profile's walls) is BANKED; loft \
-                       with a polyline profile, or wait for the rational-wall unit",
             });
         }
         let eps = Tolerance::get().eps;
@@ -660,13 +650,21 @@ mod quad_lane {
                            re-mint before mass properties",
                 });
             };
-            let Pcurve::IsoLine { .. } = cache.pcurve() else {
+            // Both iso classes pin the trim region to the rectangle:
+            // `IsoLine` for seams and line rims, `IsoArc` for a
+            // rational wall's arc rims (M8-3) — an arc rim's chart
+            // image is the SAME boundary line, only its
+            // parameterization differs, and this lane reads endpoints.
+            if !matches!(
+                cache.pcurve(),
+                Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }
+            ) {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a NURBS-face half-edge carries a non-iso pcurve — a trimmed \
                            NURBS region's quadrature is the cut-loft unit's (the \
                            edge×NURBS-face boolean layer mints those trims)",
                 });
-            };
+            }
             let (t0, t1) = cache.params();
             let a = cache.pcurve().eval(t0);
             let b = cache.pcurve().eval(t1);
@@ -695,13 +693,14 @@ mod quad_lane {
                     }
                     l.mag()
                 }
-                // Circle/Ellipse boundaries only arise on rational
-                // walls, refused above; kept total via the hull bound
-                // 2πr-ish is unavailable without the kind — refuse.
+                // An ARC cap rim on a rational wall (M8-3): the metric
+                // length is exactly `r·Δθ` — the carrier's own
+                // parameter IS the angle, so no bound is needed.
+                geom_curves::Curve3::Circle { radius, .. } => (br(*radius) * br(t1 - t0)).mag(),
                 _ => {
                     return Err(PropsError::QuadratureUnsupported {
-                        what: "a NURBS-face boundary carrier outside the polyline-loft \
-                               inventory (conic boundary ⇒ rational wall, refused above)",
+                        what: "a NURBS-face boundary carrier outside the loft inventory \
+                               (line, spline and circle rims are the minted classes)",
                     });
                 }
             };
