@@ -407,10 +407,11 @@ macro_rules! nurbs_curve {
             /// `‖C′‖ ≥ d·C′ ≥ minᵢ (d·Qᵢ)`. The direction taken is the
             /// curve's own chord (first to last control point), which
             /// is the one a monotone carrier advances along. The result
-            /// may be zero or negative — a curve that doubles back has
-            /// no positive lower bound in any single direction — and
-            /// that is reported honestly, so the margin collapses and
-            /// the caller's trilean escalates rather than guessing.
+            /// may be zero or negative — this arm's single global
+            /// direction bounds nothing when the curve turns away from
+            /// its own chord — and that is reported honestly, so the
+            /// margin collapses and the caller's trilean escalates
+            /// rather than guessing.
             ///
             /// **Rational carriers** take the second arm,
             /// [`Self::rational_speed_lower_bound`] — the derivative of
@@ -418,8 +419,39 @@ macro_rules! nurbs_curve {
             /// control net, so the argument above does not apply
             /// directly and a quotient-rule assembly stands in. The
             /// contract (whole domain, m/param, honestly non-positive
-            /// when no direction bounds the curve, poison when the
-            /// structure refuses) is the same on both arms.
+            /// when the curve gives the assembly nothing to stand on,
+            /// poison when the structure refuses) is the same on both
+            /// arms.
+            ///
+            /// # What the bound does and does not certify
+            ///
+            /// It certifies **speed**, and through speed, **arc
+            /// length**: over any parameter interval `[a, b]` inside
+            /// the domain, `(b − a)·bound ≤ ∫ₐᵇ ‖C′‖`. That is exactly
+            /// what every consumer asks of it — `interval_span_forward`
+            /// converts a parameter span to metres of arc,
+            /// `split_edge_param_interior` converts a distance-to-
+            /// endpoint the same way.
+            ///
+            /// It certifies **nothing about injectivity, turning, or
+            /// monotone advance along any direction**. A carrier may
+            /// reverse, loop, or return arbitrarily close to a point it
+            /// has already visited and still meter positively, provided
+            /// its speed never collapses — reversal is not
+            /// disqualifying, only a genuine stationary point (a cusp,
+            /// a turn-around, a degenerate span) is. Callers that need
+            /// non-self-intersection or a bounded turn must obtain it
+            /// elsewhere; this number will not supply it, and reading it
+            /// as if it did would be reading an arc-length rate as a
+            /// chord-distance rate.
+            ///
+            /// The two arms differ only in how conservative they are
+            /// about that: the integral arm projects on ONE global
+            /// direction and therefore also happens to collapse on a
+            /// curve that turns away from its chord, while the rational
+            /// arm projects per span and does not. Both are sound lower
+            /// bounds on `‖C′‖`; neither is a claim about the curve's
+            /// shape beyond its speed.
             ///
             /// The arm is chosen on **f64 structure** (`w_j == 1.0`
             /// exactly), never on an evaluation scalar, so the integral
@@ -541,6 +573,13 @@ macro_rules! nurbs_curve {
             /// the min over spans of per-span bounds still bounds the
             /// whole domain. The integral arm keeps its single global
             /// chord, bit-identically.
+            ///
+            /// A per-span direction bounds SPEED and nothing else — see
+            /// [`Self::speed_lower_bound`]'s "what the bound does and
+            /// does not certify". Successive spans may point anywhere,
+            /// so this arm meters a carrier that reverses, as it should:
+            /// only a genuine stationary point drives the answer
+            /// non-positive.
             ///
             /// # Poison (total, D4 ¶2)
             ///

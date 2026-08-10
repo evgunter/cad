@@ -119,6 +119,11 @@ fn body_with_rung3_edge() -> Option<Rung3Scaffold> {
     // speed meter is definitely positive (a half loop's meter
     // honestly collapses — its endpoint tangents run perpendicular
     // to the chord — and the span gate would rightly escalate).
+    // That collapse is a property of the INTEGRAL arm's single global
+    // chord, which this fitted (unit-weight) carrier takes; the
+    // rational arm projects per span and would not collapse here.
+    // The fixture keeps the quarter either way — it is pinning the
+    // split, not the meter's conservatism.
     let (d0, d1) = loop_carrier.domain();
     let (quarter, _) = loop_carrier.split_at(d0 + (d1 - d0) * 0.25).unwrap();
     let carrier = std::sync::Arc::new(quarter);
