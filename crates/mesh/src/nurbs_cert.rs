@@ -364,8 +364,10 @@ fn window_tilde_hull(
     let mut acc: Option<RingInterval> = None;
     for i in i0..=i1 {
         for j in j0..=j1 {
-            let (av, wv) = match (a.get(i).and_then(|r| r.get(j)), w.get(i).and_then(|r| r.get(j)))
-            {
+            let (av, wv) = match (
+                a.get(i).and_then(|r| r.get(j)),
+                w.get(i).and_then(|r| r.get(j)),
+            ) {
                 (Some(&av), Some(&wv)) => (av, wv),
                 _ => (RingInterval::poison(), RingInterval::poison()),
             };
@@ -559,17 +561,38 @@ fn rational_face_bound(
             let w_cell = w_cell.unwrap_or_else(RingInterval::poison);
             let zero = RingInterval::zero();
             // Weight-net magnitude sups on the cell.
-            let w10 = mag_iv(window_tilde_hull(&w_nets.d10, &w_nets.d10, zero, wu_d1, wv_val));
-            let w01 = mag_iv(window_tilde_hull(&w_nets.d01, &w_nets.d01, zero, wu_val, wv_d1));
-            let w11 = mag_iv(window_tilde_hull(&w_nets.d11, &w_nets.d11, zero, wu_d1, wv_d1));
+            let w10 = mag_iv(window_tilde_hull(
+                &w_nets.d10,
+                &w_nets.d10,
+                zero,
+                wu_d1,
+                wv_val,
+            ));
+            let w01 = mag_iv(window_tilde_hull(
+                &w_nets.d01,
+                &w_nets.d01,
+                zero,
+                wu_val,
+                wv_d1,
+            ));
+            let w11 = mag_iv(window_tilde_hull(
+                &w_nets.d11,
+                &w_nets.d11,
+                zero,
+                wu_d1,
+                wv_d1,
+            ));
             let w20 = w_nets.d20.as_ref().map_or_else(RingInterval::zero, |d| {
                 mag_iv(window_tilde_hull(d, d, zero, (iu0, su - 2), wv_val))
             });
             let w02 = w_nets.d02.as_ref().map_or_else(RingInterval::zero, |d| {
                 mag_iv(window_tilde_hull(d, d, zero, wu_val, (jv0, sv - 2)))
             });
-            let (mut cuu, mut cuv, mut cvv) =
-                (RingInterval::zero(), RingInterval::zero(), RingInterval::zero());
+            let (mut cuu, mut cuv, mut cvv) = (
+                RingInterval::zero(),
+                RingInterval::zero(),
+                RingInterval::zero(),
+            );
             for (comp, (_, a)) in a_nets.iter().enumerate() {
                 let cc = RingInterval::point(c[comp]);
                 // sup|S^c − c^c| on the cell: the rational value hull
@@ -624,9 +647,7 @@ fn rational_face_bound(
             acc(&mut sq_vv, cvv);
         }
     }
-    let m = |sq: Option<RingInterval>| {
-        sq.map_or(f64::NAN, |s| s.hi().sqrt().next_up())
-    };
+    let m = |sq: Option<RingInterval>| sq.map_or(f64::NAN, |s| s.hi().sqrt().next_up());
     Ok(NurbsFaceBound {
         muu: m(sq_uu),
         muv: m(sq_uv),
@@ -980,7 +1001,10 @@ mod tests {
                 b.muv,
                 b.mvv
             );
-            assert!(b.muu > 0.0, "{name}: muu must be real, not a fabricated zero");
+            assert!(
+                b.muu > 0.0,
+                "{name}: muu must be real, not a fabricated zero"
+            );
             if all_positive {
                 assert!(b.muv > 0.0 && b.mvv > 0.0, "{name}: all partials real");
             }

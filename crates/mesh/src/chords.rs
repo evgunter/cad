@@ -374,7 +374,11 @@ fn rational_carrier_m_bound(
     // Positivity survives insertion in ℝ; re-checked on the refined
     // weights because this code may not assume floating point did.
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if refined.weights().iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+    if refined
+        .weights()
+        .iter()
+        .any(|w| !(*w > 0.0) || !w.is_finite())
+    {
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
             note: "rational B-spline carrier whose refined weights lost positivity — \
