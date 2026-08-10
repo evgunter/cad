@@ -106,7 +106,10 @@ fn a_poisoned_node_answers_the_nearest_failed_ancestor() {
     let ev = run(&doc);
     let result = ev.result(downstream).expect("the node has an entry");
     assert!(result.value().is_none());
-    assert!(result.error().is_none(), "a poisoned node did not itself fail");
+    assert!(
+        result.error().is_none(),
+        "a poisoned node did not itself fail"
+    );
     assert_eq!(result.poisoned_through(), Some(cut));
     // `node_error` walks the hop: the root cause is the ANCESTOR's.
     let root = ev.node_error(downstream).expect("root cause reachable");
