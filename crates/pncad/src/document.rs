@@ -39,10 +39,13 @@ pub use editor_core::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, 
 pub use editor_core::{Dimension, Expr, ParamEnv, ParseError, parse_expr};
 
 // Evaluation: the service, its options, its results, and the payloads
-// a result can carry.
+// a result can carry. `NodeResult` joins for LIB-SEL2: the boolean's
+// undeclared-coincidence REFUSAL is the detect/declare protocol's
+// trigger, and `NodeError`/`NodeErrorKind` were unreachable without
+// the result enum that carries them.
 pub use editor_core::{
     BooleanValue, CancelToken, DatumValue, EvalOptions, Evaluation, NodeError, NodeErrorKind,
-    SplitSide, ValuePayload, evaluate,
+    NodeResult, SplitSide, ValuePayload, evaluate,
 };
 
 // The content-hashing trait a scalar must satisfy to be evaluated
