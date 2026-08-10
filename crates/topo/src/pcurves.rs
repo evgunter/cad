@@ -40,9 +40,11 @@
 //!   ([`geom_brep::PcurveCache::certify_fitted`]), the cone/torus
 //!   oblique classes have no honest route (no ring-computable meters
 //!   composite) and stay refused.
-//! - **Described non-rational NURBS charts mint** their iso lane
-//!   (M6-3, `nurbs_iso_derive`); the placeholder and rational walls
-//!   mint nothing.
+//! - **Described NURBS charts mint** their iso lane (M6-3,
+//!   `nurbs_iso_derive`) — RATIONAL ones too since M8-3, whose ARC cap
+//!   rims map through the chart's own rational-quadratic parameter
+//!   (`Pcurve::IsoArc`). Only the mvfs placeholder mints nothing: it
+//!   is not a described surface.
 //!
 //! # The one-branch walk (spec §3)
 //!

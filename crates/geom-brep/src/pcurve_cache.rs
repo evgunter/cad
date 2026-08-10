@@ -2042,18 +2042,26 @@ fn chart_arms<T: Real>(surface: &Surface<T>) -> (T, T) {
             minor_radius,
             ..
         } => (major_radius + minor_radius, minor_radius),
-        // A NON-RATIONAL NURBS chart's honest arms are its
-        // derivative-net stretch bounds (`sup |S_u|`, `sup |S_v|`) —
-        // over-statements of the local stretch, the safe direction
-        // exactly as the sphere's. Rational charts keep the unit arms:
-        // the polynomial convexity fact behind the bound does not hold
-        // there, and no rational chart certifies a pcurve today (the
-        // iso lane's own gate refuses first, M6-3).
+        // A described NURBS chart's honest arms are its derivative-net
+        // stretch bounds (`sup |S_u|`, `sup |S_v|`) — over-statements
+        // of the local stretch, the safe direction exactly as the
+        // sphere's.
+        //
+        // **RATIONAL charts take the same arms since M8-3**, and they
+        // must: an arm under-states only in the UNSAFE direction here
+        // (`trim_containment` meters an escape, so a smaller arm makes
+        // an escape easier to admit), and before M8-3 the unit arms
+        // were harmless only because the iso lane's own rational gate
+        // refused before any rational chart reached this function.
+        // That gate is gone, so the arm has to be real —
+        // `nurbs_stretch_bounds` carries the Floater weight-ratio
+        // factor for exactly this. The placeholder keeps unit arms: it
+        // has no net to bound.
         Surface::Nurbs(ref payload) => {
-            if payload.weights().iter().all(|w| *w == 1.0) && !payload.is_placeholder() {
-                nurbs_stretch_bounds(payload)
-            } else {
+            if payload.is_placeholder() {
                 (T::one(), T::one())
+            } else {
+                nurbs_stretch_bounds(payload)
             }
         }
         _ => (T::one(), T::one()),
