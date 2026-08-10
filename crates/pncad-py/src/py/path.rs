@@ -31,11 +31,10 @@ use pncad::geom_core::Point2;
 use pncad::profile as pf;
 use pncad::profile::path::{HasAng, HasPos, NoAng, NoPos, Plain, WithIncoming};
 
-use super::doc::literal;
 use super::quantity::{Angle, Length};
 use super::typed_err;
 use crate::errors::ErrorClass;
-use crate::tags::path_error_tag;
+use crate::tags::{path_error_tag, recorded_program_error_tag};
 
 /// The lattice's runtime value, at one state.
 type Path<P, A> = pf::PartialPath<f64, P, A>;
@@ -578,121 +577,25 @@ fn circle_split(
 // The recorded program, lifted to the document vocabulary
 // ------------------------------------------------------------------
 
-/// Lift the RECORDED program to the document's Expr-bearing steps.
+/// Lift the RECORDED program through the document layer's own door.
 ///
-/// The lattice records as it lowers (`ClosedLoop::program`), so this
-/// is a literal lift of authored data — verb for verb, argument for
-/// argument — not a second lowering. Nothing derived is stored: the
-/// via point, the centre and the winding ride through exactly as the
-/// author wrote them, and the bulge is derived again at replay.
-///
-/// The document's chain-vs-carrier distinction is the enum, so the
-/// one-step complete-loop forms map to their own arms.
+/// The lift is `LoopProgram::from_recorded` (editor-core, beside the
+/// literal authoring helpers): one seam between the two authoring
+/// surfaces, shared by both host languages. Only the refusal mapping
+/// is binding work.
 pub(crate) fn loop_program(py: Python<'_>, closed: &ClosedLoop) -> PyResult<d::LoopProgram> {
-    use pf::Step as S;
-
-    if let [S::Circle { centre, radius }] = closed.0.program.as_slice() {
-        return Ok(d::LoopProgram::Circle {
-            centre: xy(py, centre)?,
-            radius: len(py, *radius)?,
-        });
-    }
-    if let [
-        S::CircleSplit {
-            centre,
-            radius,
-            n,
-            phase,
-        },
-    ] = closed.0.program.as_slice()
-    {
-        return Ok(d::LoopProgram::CircleSplit {
-            centre: xy(py, centre)?,
-            radius: len(py, *radius)?,
-            n: u32::try_from(*n).map_err(|_| {
-                pyo3::exceptions::PyOverflowError::new_err("subdivision count exceeds u32")
-            })?,
-            phase: ang(py, *phase)?,
-        });
-    }
-
-    let mut steps = Vec::with_capacity(closed.0.program.len());
-    for step in &closed.0.program {
-        steps.push(match step {
-            S::At(p) => d::ProgramStep::At(xy(py, p)?),
-            S::AtOn { p, centre, winding } => d::ProgramStep::AtOn {
-                p: xy(py, p)?,
-                centre: xy(py, centre)?,
-                winding: *winding,
-            },
-            S::Angle(theta) => d::ProgramStep::Angle(ang(py, *theta)?),
-            S::Toward { dx, dy } => d::ProgramStep::Toward {
-                dx: scalar(py, *dx)?,
-                dy: scalar(py, *dy)?,
-            },
-            S::Tangent => d::ProgramStep::Tangent,
-            S::Turn(delta) => d::ProgramStep::Turn(ang(py, *delta)?),
-            S::Line(l) => d::ProgramStep::Line(len(py, *l)?),
-            S::LineTo(t) => d::ProgramStep::LineTo(target(py, t)?),
-            S::ArcTo { target: t, bulge } => d::ProgramStep::ArcTo {
-                target: target(py, t)?,
-                bulge: scalar(py, *bulge)?,
-            },
-            S::ArcVia { via, target: t } => d::ProgramStep::ArcVia {
-                via: xy(py, via)?,
-                target: target(py, t)?,
-            },
-            S::ArcCenter {
-                centre,
-                target: t,
-                winding,
-            } => d::ProgramStep::ArcCenter {
-                centre: xy(py, centre)?,
-                target: target(py, t)?,
-                winding: *winding,
-            },
-            S::TangentArcTo(t) => d::ProgramStep::TangentArcTo(target(py, t)?),
-            S::ArcContinue(p) => d::ProgramStep::ArcContinue(xy(py, p)?),
-            S::Fillet { radius } => d::ProgramStep::Fillet(len(py, *radius)?),
-            S::FarEndTo(p) => d::ProgramStep::FarEndTo(xy(py, p)?),
-            S::CloseTo => d::ProgramStep::CloseTo,
-            S::CloseToOn { centre, winding } => d::ProgramStep::CloseToOn {
-                centre: xy(py, centre)?,
-                winding: *winding,
-            },
-            // A complete-loop form is a one-step program, handled
-            // above; reaching here would mean one was recorded mid
-            // chain, which the algebra cannot produce.
-            S::Circle { .. } | S::CircleSplit { .. } => {
-                return Err(pyo3::exceptions::PyRuntimeError::new_err(
-                    "a complete-loop carrier inside a chain program",
-                ));
-            }
-        });
-    }
-    Ok(d::LoopProgram::Chain(steps))
-}
-
-fn len(py: Python<'_>, v: f64) -> PyResult<d::Expr> {
-    literal(py, v, d::Dimension::Length)
-}
-
-fn ang(py: Python<'_>, v: f64) -> PyResult<d::Expr> {
-    literal(py, v, d::Dimension::Angle)
-}
-
-fn scalar(py: Python<'_>, v: f64) -> PyResult<d::Expr> {
-    literal(py, v, d::Dimension::Scalar)
-}
-
-fn xy(py: Python<'_>, p: &Point2<f64>) -> PyResult<[d::Expr; 2]> {
-    Ok([len(py, p.x)?, len(py, p.y)?])
-}
-
-fn target(py: Python<'_>, t: &pf::Target<f64>) -> PyResult<d::ProgramTarget> {
-    Ok(match t {
-        pf::Target::Point(p) => d::ProgramTarget::Point(xy(py, p)?),
-        pf::Target::Start => d::ProgramTarget::Start,
+    d::LoopProgram::from_recorded(&closed.0.program).map_err(|err| {
+        typed_err(
+            py,
+            ErrorClass::Literal,
+            err.to_string(),
+            &[(
+                "variant",
+                PyString::new(py, recorded_program_error_tag(&err))
+                    .unbind()
+                    .into_any(),
+            )],
+        )
     })
 }
 

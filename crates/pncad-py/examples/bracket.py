@@ -35,7 +35,12 @@ import tempfile
 from pncad import BooleanOp, Doc, Node, Open, Start, evaluate, import_step, mm
 
 PLATE = (80, 40)  # mm
-CORNER = 3 * mm  # the plate's corner radius
+# The plate's corner radius. It is BOUNDED at 4 mm, and the bound is
+# the pocket's: a corner round of radius r rides a carrier circle
+# spanning x in [0, 2r], and a Boolean refuses when a cutter's plane
+# crosses that carrier — even where it stays clear of the arc itself.
+# The pocket's x = 8 mm wall therefore requires 2r <= 8. See #347.
+CORNER = 3 * mm
 
 
 def rounded_plate(doc, width, height, radius, thickness):

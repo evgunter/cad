@@ -98,7 +98,8 @@ env:
   # shipped build graph (the wheel's compiled code is cargo's output).
   MATURIN_VERSION: "1.14.1"
   # `ty`, the static stub checker (LIB-PYG1). 0.0.39 was published
-  # 2026-06, so it clears the >=2-week dependency age policy.
+  # 2026-05-22, so it clears the >=2-week dependency age policy by
+  # weeks.
   TY_VERSION: "0.0.39"
 
 # The toolchain (channel + rustfmt/clippy components) comes from

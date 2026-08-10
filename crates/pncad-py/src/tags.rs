@@ -16,7 +16,9 @@
 //! Full per-variant field projection (node ids, slots, operand roles)
 //! is deferred to the unit that binds the complete surface.
 
-use pncad::document::{DimensionError, EditError, NodeErrorKind, PersistError};
+use pncad::document::{
+    DimensionError, EditError, NodeErrorKind, PersistError, RecordedProgramError,
+};
 use pncad::profile::PathError;
 
 /// The stable tag for a PATHS authoring refusal (LIB-PYG1).
@@ -49,6 +51,17 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathError::Band(_) => "band",
         PathError::UnderdeterminedLeg { .. } => "underdetermined_leg",
         PathError::OverdeterminedJunction { .. } => "overdetermined_junction",
+    }
+}
+
+/// The stable tag for a recorded-program lift refusal
+/// (`LoopProgram::from_recorded`, LIB-PYG1). The literal arm carries
+/// the expression layer's own tag through rather than flattening it.
+pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
+    match err {
+        RecordedProgramError::Literal(inner) => expr_dimension_error_tag(inner),
+        RecordedProgramError::SubdivisionCount(_) => "subdivision_count",
+        RecordedProgramError::CarrierInChain => "carrier_in_chain",
     }
 }
 

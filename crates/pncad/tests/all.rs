@@ -721,6 +721,93 @@ fn doors_evaluate(doc: &pncad::document::ProfileDoc) -> pncad::document::Evaluat
     )
 }
 
+/// The seam between the two authoring surfaces (LIB-PYG1 finding 1,
+/// adopted): a chain written in the PATHS algebra becomes a
+/// `ProfileProgram` node, in Rust, through one door.
+///
+/// Before `LoopProgram::from_recorded` existed, a Rust author holding
+/// a `ClosedLoop` had no way to make a document node out of it — the
+/// literal helpers take raw numbers, not a recorded program — so this
+/// contract had no test because it had no door.
+#[test]
+fn a_recorded_paths_chain_becomes_a_profile_program_node() {
+    use pncad::document::{Dimension, Expr, LoopProgram, Node, ProfileProgram};
+
+    // The guide's rounded outline: a 40 x 30 rectangle with one r = 6
+    // corner filleted away. `toward` binds the rays exactly.
+    let authored: ClosedLoop<f64> = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(40.0, 0.0))
+        .expect("a leg east")
+        .toward(0.0, 1.0)
+        .expect("north, exactly")
+        .fillet(6.0)
+        .expect("the corner rounds")
+        .toward(-1.0, 0.0)
+        .expect("west, exactly")
+        .to(p2(0.0, 30.0))
+        .expect("the arrival side ends at its far vertex")
+        .line_to(Start)
+        .expect("the seam closes");
+
+    let lifted = LoopProgram::from_recorded(&authored.program).expect("the recorded program lifts");
+
+    // Replaying the LIFTED program reproduces the AUTHORED loop bit
+    // for bit — the lift re-spells the verbs, it does not re-lower.
+    let steps = lifted
+        .resolve(&ParamEnv::<f64>::default(), 0)
+        .expect("literal arguments resolve");
+    let replayed = pncad::profile::replay(&steps).expect("the lifted program replays");
+    assert_eq!(replayed.vertices.len(), authored.loop_.vertices.len());
+    for (got, want) in replayed.vertices.iter().zip(&authored.loop_.vertices) {
+        assert_eq!(got.pos.x.to_bits(), want.pos.x.to_bits());
+        assert_eq!(got.pos.y.to_bits(), want.pos.y.to_bits());
+        assert_eq!(got.bulge.to_bits(), want.bulge.to_bits());
+    }
+
+    // And it evaluates as a document node.
+    let doc = pncad::document::ProfileDoc::empty();
+    let (doc, profile) = doors_insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane: SketchPlane::xy(),
+            loops: vec![lifted],
+        }),
+    );
+    let (doc, body) = doors_insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: Expr::literal(8.0, Dimension::Length).expect("a finite thickness"),
+        },
+    );
+    let evaluated = doors_evaluate(&doc);
+    let volume = mass_properties(
+        match &evaluated.value(body).expect("the plate evaluated").payload {
+            ValuePayload::Body(b) => b,
+            other => panic!("expected a body, got {other:?}"),
+        },
+    )
+    .expect("mass properties")
+    .volume;
+    // 40 x 30, less what the r = 6 round takes off, times 8 thick.
+    let area = 40.0 * 30.0 - (36.0 - core::f64::consts::PI * 36.0 / 4.0);
+    assert!((volume - area * 8.0).abs() < 1e-9, "volume {volume}");
+
+    // The one-step complete-loop forms land in their own arms, never
+    // as a chain.
+    let disc = circle(p2(0.0, 0.0), 5.0).expect("a positive radius");
+    assert!(matches!(
+        LoopProgram::from_recorded(&disc.program).expect("the circle lifts"),
+        LoopProgram::Circle { .. }
+    ));
+    let boss = circle_split(p2(2.0, 2.0), 0.5, 3, 0.0).expect("three arcs");
+    assert!(matches!(
+        LoopProgram::from_recorded(&boss.program).expect("the split circle lifts"),
+        LoopProgram::CircleSplit { n: 3, .. }
+    ));
+}
+
 #[test]
 fn the_persist_doors_round_trip_through_the_facade() {
     lib_doors_vocabulary_is_nameable();

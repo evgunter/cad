@@ -333,7 +333,12 @@ class TestSheave(unittest.TestCase):
     """Tour scene `sheave` (demos/tour/src/bodies.rs, row 4): a grooved
     pulley — planes, cylinders, two cone shoulders and one torus
     groove — revolved fully about the world y axis. The Rust scene's
-    own closed form is asserted verbatim."""
+    own closed form is asserted verbatim.
+
+    Its STRUCTURAL oracle is not: the scene also names its surface
+    census (one torus, two cones), and counting surface kinds from
+    Python needs tessellation or a selector, both still gaps (G11 and
+    the selector surface). The volume is what this row can check."""
 
     def test_sheave_matches_the_scene_oracle(self):
         tip = Open.at((0.4 * m, 0 * m))
