@@ -20,16 +20,29 @@ others. (Bonus finding, unfixed: the `mngr` CLI hangs indefinitely
 when run from an agent worktree — likely host-lock contention;
 verdict was derived from source + raw logs.)
 
-**The monitor**: `scripts/monitors/usage-watch.sh` (install to
-`~/.local/share/cad-work/monitors/`, arm persistent at session
-start WITH the other three — monitors deliberately stay SEPARATE
-scripts; consolidation was weighed and rejected: independent
-failure domains, differing cadences, per-stream disarm). It joins
+**The monitor**: `scripts/monitors/usage-watch.sh`. Session-start
+convention (Evan's arming-burden point, #349): `cp
+scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` then arm
+EVERY script in the installed dir as a persistent Monitor — glob
+the directory, do not maintain a named list, so new monitors get
+armed without instruction edits. Monitors stay separate SCRIPTS
+(independent failure domains — a stalled gh call must not stall
+the disk watchdog; per-stream disarm); if arming burden grows, the
+sanctioned merge is local-only pollers (disk/hourly/usage) into
+one, keeping the network-bound away-channel separate. It joins
 each agent's `events/claude/usage/events.jsonl` to its account via
 the agent's `.claude.json` oauthAccount, and emits per-account
 CROSSING events.
 
-**Orchestrator protocol on its events**:
+**Per-account discipline (Evan, #349): act ONLY on alerts naming
+YOUR OWN account.** Resolve it at session start from your own
+agent dir: `agent-<id>/plugin/claude/anthropic/.claude.json →
+oauthAccount.emailAddress` (the id is in your memory-directory
+path). Other accounts' alerts are informational — do not pause
+your lanes for them; at most relay to Evan if that account's
+orchestrator appears dead.
+
+**Orchestrator protocol on its events** (scoped to your account):
 - `USAGE WARN` (≥90%): wind down that account's lanes — finish the
   current unit, start nothing new that won't land quickly.
 - `USAGE STOP-SOON` (≥95%): land in-flight work, start nothing.
