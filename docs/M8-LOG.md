@@ -27,3 +27,19 @@ anchor judgment has an in-suite falsifier that reds under the
 centroid mutation via a 1-ulp anchor assert). #303 filed
 register-class from the review's large-coordinate probing. A/B row
 recorded at merge. Next: M8-3 (quadrature) substrate → block M8-13.
+
+## M8-2 MERGED (#306, 2026-08-10)
+
+Rational carriers meter: the per-span quotient-rule bound survived
+the review's full adversarial battery with zero unsound cases
+(worst bound/truth 0.9987), the ruled deviation (arc-length
+contract, not injectivity) verified consumer-by-consumer, and the
+sweep-crate pin flipped to its positive statement. The crescent
+restoration is parked at the discovered mesh rational-Hessian bank
+(M8-5 by plan amendment). Meanwhile #309 (M8-3 PR-1) went
+NOT-MERGEABLE-AS-IS — the third of the project: the reviewer
+executed a REAL soundness hole (deriv_kv's silent Dir::Const
+fallback on interior multiplicity ≥ degree; certificate EXCLUDING
+true 2π), and proved the same hole latent in the INTEGRAL lane on
+main (16/3 vs true 20/3) — filed as #313; the fix pass heals both
+lanes and blocks PR-1's merge.
