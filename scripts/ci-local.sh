@@ -269,6 +269,17 @@ uv_composer_selftest() {
   python3 demos/compose_uv_montage.py --selftest
 }
 
+# Drift gate for the committed UV sheet: regenerate it and diff. The two
+# PNG lanes cannot be gated (they need FreeCAD), so this is the only
+# render lane CI can reproduce — and an ungated committed artifact rots.
+# The tour is ~3s once built and the sheet is text, so a firing diff is
+# readable. Hosted mirror: the `k-lint` job's "uv sheet drift (demos)".
+uv_sheet_drift() {
+  (cd demos/tour && cargo run --release -- ../out) >/dev/null && \
+    demos/render-uv.sh >/dev/null && \
+    git diff --exit-code --stat HEAD -- demos/renders-uv/
+}
+
 watertight() {
   command -v admesh >/dev/null || { echo "ERROR: admesh not installed (apt admesh, or build 0.98.4+ from source)"; return 1; }
   cargo run -p stl --example export_acceptance -- target/stl-acceptance && \
@@ -435,6 +446,7 @@ run_row_if "$RUN_INTERVAL_BACKEND" "interval backend crate" interval_backend
 # nine members between them, and the probe sweep records margins from every
 # kernel crate — no minimal root set, so these run whenever anything builds.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
+run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift
 run_row_if "$RUN_K_LINT" "k-lint tool (fmt+clippy+litmus)" klint_tool
 run_row_if "$RUN_K_LINT" "k-lint sweep + gate"             klint_gate
 # Root package stl: the acceptance example and its whole (dev-)dependency

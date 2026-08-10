@@ -76,7 +76,13 @@ Consequences worth stating:
   **stored** pcurve cache vs. were derived on demand (derived ones draw
   dashed — `mesh::trimmed` refuses those), the outer loop's signed
   chart area and its winding, and the worst **closure gap** between
-  consecutive traversals. Periodic charts get their seams (`u = k·2π`)
+  consecutive traversals. Winding is a *check*, not a readout: it is
+  compared against the face's own `Face::sense` bit, since a bore or a
+  concave groove carries `sense = false` and its outer loop is
+  legitimately CW. 879 of the 982 M7 faces are checkable (the rest
+  carry a branch jump) and all 879 agree, so the alarm colour is
+  reserved for a real contradiction rather than spent on every hole.
+  Periodic charts get their seams (`u = k·2π`)
   drawn as dashed magenta lines, so a seam-crossing loop is visible
   rather than inferred. Strokes are colored by pcurve form —
   `Harmonic` blue, `IsoLine` green, `Fitted` orange.
@@ -89,6 +95,18 @@ Consequences worth stating:
   never exceeds 9e-16 m anywhere in the corpus. The chart jump is
   still printed — greyed, and named as seam/pole structure — so it
   informs instead of alarming.
+* **The interior fill is drawn only when it means something.** A ring
+  that contains a branch jump — a loop crossing the seam or running
+  through a pole — closes in the chart through a straight segment that
+  is not boundary, so even-odd would shade a region that is not the
+  face. Those cells (3 of 36 on the sheet) show the strokes alone and
+  say why; the signed area and winding are likewise not claimed there.
+* **There is a CI drift gate.** The two PNG lanes cannot have one —
+  they need FreeCAD, which CI does not have — so this is the only
+  render lane CI can reproduce. `uv sheet drift (demos)` regenerates
+  the sheet and diffs it (the tour is ~3s once built, and the sheet is
+  text, so a firing diff is readable). A failure is either an
+  uncommitted regeneration or a D9 determinism finding.
 * **Nothing is refused.** Unlike the tessellator's trim walk, this one
   accepts every pcurve form and falls back to `topo::pcurve_of`'s
   derive-on-demand, because a face the tessellator refuses is exactly

@@ -18,9 +18,12 @@
 //!   face, not eyeballed — and measured in **3-D**, because the chart
 //!   cannot answer that question: a loop through a sphere's pole jumps
 //!   a whole `u`-line in the chart while being perfectly shut in space);
-//! - a loop wound the wrong way, so the even-odd interior is the
-//!   complement of the intended one (the signed chart area is printed,
-//!   and its sign named);
+//! - a loop wound the wrong way, so the even-odd interior would be the
+//!   complement of the intended one — checked against the face's own
+//!   [`topo::Face::sense`] bit rather than against CCW, because a bore
+//!   or a concave groove carries `sense = false` and its outer loop is
+//!   then legitimately CW. 879 of the 982 M7 faces are checkable this
+//!   way and all 879 agree; the alarm is reserved for a contradiction;
 //! - a seam crossing on a periodic chart — a cylinder's `u` is
 //!   2π-periodic, and a loop that crosses the seam draws as a jump
 //!   across the strip;
@@ -256,7 +259,22 @@ pub struct FaceStats {
     /// order.
     pub forms: Vec<&'static str>,
     /// The outer loop's signed chart area (negative = wound CW).
+    ///
+    /// Meaningless, and not claimed, when [`Self::chart_jump`] is
+    /// nonzero: a shoelace over a ring that contains a branch jump
+    /// integrates across a discontinuity that is not boundary.
     pub area: f64,
+    /// [`topo::Face::sense`]: `true` iff the material side agrees with
+    /// the chart normal. A bore, a concave groove or an inward cone
+    /// wall carries `false`, and its outer loop is then legitimately
+    /// **CW** in the chart — which is why the winding is checked
+    /// against this bit rather than against CCW.
+    pub sense: bool,
+    /// Whether the measured winding matches the one [`Self::sense`]
+    /// predicts. `true` when there is nothing to check (a chart jump
+    /// makes the area meaningless) — the cell says so rather than
+    /// claiming a pass.
+    pub winding_ok: bool,
     /// The `LoopNotClosed` measurement: the worst distance **in 3-D,
     /// in metres** between one traversal's end and the next
     /// traversal's start.
@@ -279,7 +297,7 @@ pub struct FaceStats {
 /// The per-loop chart rings (each traversal contributing all but its
 /// last point, exactly as the tessellator's trim walk composes its
 /// polygon) plus the measured diagnostics over them.
-fn measure(loops: &[Vec<Traversal>]) -> (Vec<Vec<(f64, f64)>>, FaceStats) {
+fn measure(loops: &[Vec<Traversal>], sense: bool) -> (Vec<Vec<(f64, f64)>>, FaceStats) {
     let mut rings: Vec<Vec<(f64, f64)>> = Vec::new();
     for l in loops {
         let mut ring = Vec::new();
@@ -303,12 +321,20 @@ fn measure(loops: &[Vec<Traversal>]) -> (Vec<Vec<(f64, f64)>>, FaceStats) {
         .into_iter()
         .filter(|f| loops.iter().flatten().any(|t| t.form == *f))
         .collect();
+    // The winding CHECK, not a winding alarm: `sense` says which way
+    // the outer loop must run in the chart, so a bore's CW loop is a
+    // pass and only a disagreement is a finding. Skipped entirely when
+    // a branch jump makes the shoelace meaningless.
+    let area = signed_area(&rings[0]);
+    let winding_ok = chart_jump > 1e-9 || (area > 0.0) == sense;
     let stats = FaceStats {
         loops: loops.len(),
         half_edges: loops.iter().flatten().count(),
         cached: loops.iter().flatten().filter(|t| t.stored).count(),
         forms,
-        area: signed_area(&rings[0]),
+        area,
+        sense,
+        winding_ok,
         gap,
         chart_jump,
     };
@@ -341,7 +367,7 @@ pub fn emit(scene: &str, label: &str, body: &Body<f64>, outdir: &str) -> Vec<Fac
 
         let (svg, stats, note) = match walked {
             Ok(loops) if loops.iter().all(|l| !l.is_empty()) => {
-                let (rings, stats) = measure(&loops);
+                let (rings, stats) = measure(&loops, face.sense);
                 (
                     draw_face(label, ord, chart, &loops, &rings, &stats),
                     stats,
@@ -490,17 +516,27 @@ fn draw_face(
         }
     }
 
-    // The even-odd interior: outer loop and rings as one path, which is
-    // the same rule `mesh::trimmed` uses to pick the material side.
-    out.push_str(r##"<path fill-rule="evenodd" fill="#dbe9f6" stroke="none" d=""##);
-    for ring in rings {
-        let _ = write!(out, "M{:.2},{:.2}", sx(ring[0].0), sy(ring[0].1));
-        for &(u, v) in &ring[1..] {
-            let _ = write!(out, "L{:.2},{:.2}", sx(u), sy(v));
+    // The even-odd interior: outer loop and rings as one path, the same
+    // rule `mesh::trimmed` uses to pick the material side.
+    //
+    // DRAWN ONLY WHEN IT MEANS SOMETHING. A ring that contains a branch
+    // jump (a loop crossing the seam, or running through a pole) closes
+    // in the chart through a straight segment that is not boundary, so
+    // even-odd fills a region which is not the face — visibly wrong on
+    // the 2π wrappers. Filling it anyway would be this lane drawing a
+    // claim it cannot support, which is the one thing it must not do;
+    // the strokes below are the honest part and stand alone.
+    if stats.chart_jump <= 1e-9 {
+        out.push_str(r##"<path fill-rule="evenodd" fill="#dbe9f6" stroke="none" d=""##);
+        for ring in rings {
+            let _ = write!(out, "M{:.2},{:.2}", sx(ring[0].0), sy(ring[0].1));
+            for &(u, v) in &ring[1..] {
+                let _ = write!(out, "L{:.2},{:.2}", sx(u), sy(v));
+            }
+            out.push('Z');
         }
-        out.push('Z');
+        out.push_str("\"/>\n");
     }
-    out.push_str("\"/>\n");
 
     // Per-half-edge strokes, colored by pcurve form; a derived (not
     // cached) image is dashed, because "the tessellator would refuse
@@ -553,7 +589,7 @@ fn draw_face(
         out,
         r##"<text x="{PAD_L}" y="{}" font-family="monospace" font-size="9.5" fill="#444">u &#8712; [{:.5}, {:.5}] {uu}</text>
 <text x="{PAD_L}" y="{}" font-family="monospace" font-size="9.5" fill="#444">v &#8712; [{:.5}, {:.5}] {vu}</text>
-<text x="{PAD_L}" y="{}" font-family="monospace" font-size="9.5" fill="{}">outer winding {} (A={:.4})   closure gap {:.1e} m</text>
+<text x="{PAD_L}" y="{}" font-family="monospace" font-size="9.5" fill="{}">{}   closure gap {:.1e} m</text>
 <text x="{PAD_L}" y="{}" font-family="monospace" font-size="9.5" fill="#777">{}</text>"##,
         CELL_H - PAD_B + 14.0,
         u0 + pu,
@@ -562,9 +598,13 @@ fn draw_face(
         v0 + pv,
         v1 - pv,
         CELL_H - PAD_B + 38.0,
-        if stats.area > 0.0 { "#444" } else { "#b03060" },
-        if stats.area > 0.0 { "CCW" } else { "CW" },
-        stats.area,
+        // Alarm colour is reserved for a winding that CONTRADICTS the
+        // face's own `sense` bit. A bore's CW loop agrees with
+        // `sense = false` and is drawn as the pass it is — colouring it
+        // magenta was training the reader to ignore magenta, which
+        // would mask the regression this line exists to catch.
+        if stats.winding_ok { "#444" } else { "#b03060" },
+        winding_text(stats),
         stats.gap,
         CELL_H - PAD_B + 50.0,
         // The chart jump is structure, not a defect — a loop through a
@@ -582,6 +622,28 @@ fn draw_face(
     );
     out.push_str("</svg>\n");
     out
+}
+
+/// The winding line: a **check against `sense`**, or an honest refusal
+/// to check when a branch jump makes the shoelace meaningless.
+fn winding_text(stats: &FaceStats) -> String {
+    let expected = if stats.sense { "CCW" } else { "CW" };
+    if stats.chart_jump > 1e-9 {
+        return format!("winding not checked (branch jump); sense expects {expected}");
+    }
+    let got = if stats.area > 0.0 { "CCW" } else { "CW" };
+    if stats.winding_ok {
+        format!(
+            "winding {got} = sense({}n)  A={:.4}",
+            if stats.sense { "+" } else { "-" },
+            stats.area
+        )
+    } else {
+        format!(
+            "winding {got} CONTRADICTS sense, expected {expected}  A={:.4}",
+            stats.area
+        )
+    }
 }
 
 /// A traversal-direction arrowhead at the image's midpoint.
@@ -660,8 +722,9 @@ pub fn manifest_json(dumps: &[FaceDump]) -> String {
             format!(
                 "  {{\"scene\": \"{}\", \"body\": \"{}\", \"face\": {}, \"chart\": \"{}\", \
                  \"svg\": \"{}\", \"curved\": {}, \"loops\": {}, \"half_edges\": {}, \
-                 \"cached\": {}, \"forms\": [{}], \"area\": {:e}, \"gap\": {:e}, \
-                 \"chart_jump\": {:e}, \"note\": {note}}}",
+                 \"cached\": {}, \"forms\": [{}], \"area\": {:e}, \"sense\": {}, \
+                 \"winding_ok\": {}, \"gap\": {:e}, \"chart_jump\": {:e}, \
+                 \"note\": {note}}}",
                 d.scene,
                 d.body,
                 d.face,
@@ -673,6 +736,8 @@ pub fn manifest_json(dumps: &[FaceDump]) -> String {
                 d.stats.cached,
                 forms.join(", "),
                 d.stats.area,
+                d.stats.sense,
+                d.stats.winding_ok,
                 d.stats.gap,
                 d.stats.chart_jump
             )
