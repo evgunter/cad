@@ -1,9 +1,11 @@
 # M7 exit walk — criteria vs evidence
 
-**STATUS: FINAL — presented for Evan's closure ruling. Every unit
-is merged and every cell cites its merged evidence. Closure is
-Evan's call at the walk; this becomes M7's done-state of record on
-his sign-off.**
+**STATUS: RATIFIED — M7 CLOSED (Evan's 👍 on PR #300's final
+closure affordance, comment 5234714306, 2026-08-09). This document
+is M7's done-state of record. The same ratification set the
+milestone structure: M8 = kernel residuals, M9 = C7 (declared-
+contact join lane + the lily FULL rebuild), M10 = error
+propagation.**
 
 **How to read this.** Criteria are quoted **verbatim** from
 `docs/M7-PLAN.md` — the four planned units, the K-telemetry

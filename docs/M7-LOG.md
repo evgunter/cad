@@ -1203,3 +1203,17 @@ Evan's 👍 on the affordance) → the demo-hardening stretch as its
 own chunk (#284 Newell re-anchor; span-meter rational speed bound;
 rational-patch-flux quadrature — the last two retire this seam's
 banked refusals; #298 is LIB's #299) → M8 opens with C7.
+
+## M7 CLOSED (2026-08-09): Evan's 👍 on PR #300's final affordance (comment 5234714306)
+
+docs/M7-EXIT-WALK.md is the ratified done-state of record. The same
+👍 ratified the milestone restructure: **M8 = kernel residuals**
+(M8-1 = #284/#301 Newell re-anchor, in fix pass at ratification;
+M8-2 = rational span-meter, implementing; M8-3 = rational-patch-flux
+quadrature; M8-4 = the nurbs_iso_derive Intersection arm; register
+candidates settled at the M8-PLAN review), **M9 = C7** (the
+declared-contact join lane pulled forward as its own logical unit —
+Evan, this thread; the lily FULL rebuild rides it), **M10 = error
+propagation** (signed clearance; the C7 co-design records stay
+cross-referenced). This log continues as the historical record;
+M8-LOG opens with the M8-PLAN.

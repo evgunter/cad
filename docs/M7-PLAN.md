@@ -16,6 +16,12 @@ export fixture, an `.expect` sidecar, or `check_step.sh` semantics
 goes to a design-conversation PR seen by Evan — never a direct
 edit.
 
+**Renumbering note (ratified with M7's closure, PR #300 comment
+5234714306):** this document's "M8 = error propagation" references
+predate the restructure. Current structure: **M8 = kernel
+residuals** (docs/M8-PLAN.md), **M9 = C7** (declared-contact join
+lane + lily FULL rebuild), **M10 = error propagation**.
+
 ## The contract (D7, restated as obligations)
 
 Import **reconstructs the intensional description** the extensional
