@@ -51,6 +51,12 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Hosted is the default renderer; this refuses without the explicit
+# preview-only override. See demos/hosted-render-guard.sh.
+# shellcheck source=demos/hosted-render-guard.sh
+. ./hosted-render-guard.sh
+require_hosted_render "demos/render.sh"
+
 VENV=.venv
 if [ ! -x "$VENV/bin/python" ]; then
     if command -v uv >/dev/null 2>&1; then
