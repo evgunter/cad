@@ -103,10 +103,16 @@ fn rational_refusal_text(errors: &[topo::ValidationError], who: &str) -> &'stati
     what
 }
 
-/// **Spec §2 row 1 (rational half) + item 5's pin, RE-STATED at M7-7
-/// (#260 ruling (a)).** The built arc_loft exports and then refuses at
-/// import, carrying the SAME tier-3 verdict — same variant, same
-/// recourse text — the native body carries at rest.
+/// **THE M8-3 FLIP** of `arc_loft_refuses_at_import_with_the_native_bodys_verdict`,
+/// executed as far as it goes and pinned exactly there.
+///
+/// The row's retirement condition was the banked rational patch flux,
+/// and M8-3 retires it: the native arc loft is now tier-3 VALID with a
+/// certified volume. What the row measured beyond that — the import
+/// round trip — is blocked by a DIFFERENT and strictly narrower gap
+/// (the adoption side derives no pcurve for the imported arc rim's
+/// description kind), so the second half of this row pins that
+/// residue by name instead of letting it hide behind the retired one.
 ///
 /// The writer/reader symmetry the row was written for is intact and
 /// now literal: the reader reaches exactly the native body's validity
@@ -125,36 +131,48 @@ fn rational_refusal_text(errors: &[topo::ValidationError], who: &str) -> &'stati
 /// non-rational side's positive control is `loft_prism`, which imports
 /// and validates.)
 #[test]
-fn arc_loft_refuses_at_import_with_the_native_bodys_verdict() {
+fn arc_loft_natively_computes_its_rational_volume() {
     let native = native_arc_loft();
     assert_eq!(topo::validate(&native), Ok(()), "native tier 1");
     assert_eq!(topo::validate_closed(&native), Ok(()), "native tier 2");
-    let native_refusal = t3_rational_refusal_text(&native, "native");
+    assert_eq!(
+        topo::validate_geometric(&native),
+        Ok(()),
+        "M8-3: the rational wall's volume certifies, so tier 3 now PASSES natively"
+    );
+    let want = topo::mass_properties(&native).expect("native rational mass properties");
     assert!(
-        native_refusal.contains("RATIONAL patch flux"),
-        "the native refusal names the banked rational lane: {native_refusal}"
+        want.volume > 12.0 && want.volume < 13.0,
+        "native arc-loft volume: {}",
+        want.volume,
+    );
+    // The pad ceiling, pinned separately (the SKINFIT two-assertion
+    // shape) so a loosening enclosure cannot absorb the band above.
+    assert!(
+        want.volume_pad < 5.0e-6,
+        "native volume pad ceiling: {} (M8-3 measured 1.01e-6)",
+        want.volume_pad,
     );
 
+    // The writer still exports it; the READER still refuses — but for
+    // a NEW and strictly narrower reason, pinned here so the residue
+    // cannot go quiet. The rational quadrature is retired; what
+    // remains is the ADOPTION-side pcurve derivation for an arc rim
+    // whose imported description is not the loft builder's
+    // `PlacedSegment` (M8-4's `nurbs_iso_derive` Intersection/adopted
+    // arm). This row flips the rest of the way when that lands.
     let text = step_export::step_string(&native, &step_export::StepOptions::default())
-        .expect("the writer exports the rational-walled body today (measured)");
+        .expect("the writer exports the rational-walled body");
     let refusal = import_step(&text, &ImportOptions::default())
-        .expect_err("Arm B: the shared at-rest gate refuses the uncomputable-volume body");
-    let step_import::StepImportError::TierInvalid { solid, errors } = &refusal else {
-        panic!("expected the shared gate's typed refusal, got: {refusal:?}");
-    };
-    assert_eq!(
-        *solid, None,
-        "arc_loft is a one-solid file: the subject is the assembled body"
-    );
-    assert_eq!(
-        rational_refusal_text(errors, "imported"),
-        native_refusal,
-        "the import refusal carries the native body's tier-3 verdict, verbatim"
-    );
+        .expect_err("the adoption-side pcurve gap still refuses the round trip");
     let msg = refusal.to_string();
     assert!(
-        msg.contains("shared at-rest validation gate") && msg.contains("RATIONAL patch flux"),
-        "the message names the gate and the unhealable lane: {msg}"
+        !msg.contains("RATIONAL patch flux"),
+        "the RATIONAL patch flux bank is RETIRED — this refusal must not name it: {msg}"
+    );
+    assert!(
+        msg.contains("no iso derivation for this description kind"),
+        "the surviving refusal is the adoption-side pcurve derivation gap: {msg}"
     );
 }
 
