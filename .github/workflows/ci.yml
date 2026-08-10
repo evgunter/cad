@@ -89,6 +89,14 @@ concurrency:
 # mirror convention covers the matrix, not the runner's linker.
 env:
   NEXTEST_VERSION: "0.9.140"
+  # maturin rides the same pattern as nextest: pinned here (single source
+  # of truth), installed from the official GitHub-release prebuilt at the
+  # pinned URL — no third-party action. 1.14.1 (released 2026-06-19) is
+  # the exact binary the U9S/DOORS/U10 wheels were built and validated
+  # with locally; ~7 weeks old at adoption (2026-08-09), well past the
+  # 2-week dependency-age rule. A dev/CI tool only — it never enters any
+  # shipped build graph (the wheel's compiled code is cargo's output).
+  MATURIN_VERSION: "1.14.1"
 
 # The toolchain (channel + rustfmt/clippy components) comes from
 # rust-toolchain.toml: the dtolnay step only bootstraps/updates rustup, and
@@ -141,6 +149,7 @@ jobs:
       run_editor_core: ${{ steps.classify.outputs.RUN_EDITOR_CORE }}
       run_stl: ${{ steps.classify.outputs.RUN_STL }}
       run_step_export: ${{ steps.classify.outputs.RUN_STEP_EXPORT }}
+      run_pncad_py: ${{ steps.classify.outputs.RUN_PNCAD_PY }}
       run_interval_backend: ${{ steps.classify.outputs.RUN_INTERVAL_BACKEND }}
       run_k_lint: ${{ steps.classify.outputs.RUN_K_LINT }}
     steps:
@@ -779,6 +788,76 @@ jobs:
           rm FreeCAD_1.1.2-Linux-x86_64-py311.AppImage
       - name: freecad import check (validity, counts, volume)
         run: REQUIRE_FREECAD=1 FREECADCMD="$HOME/freecad-appimage/squashfs-root/usr/bin/freecadcmd" scripts/check_step.sh
+
+  # LIB PY-CI (residual register R4; U10 follow-up F4): the Python suite
+  # as a hosted job. Builds the pncad wheel with maturin, installs it
+  # into a venv, and runs the FULL crates/pncad-py unittest set by
+  # DISCOVERY — the same invocation crates/pncad-py/run-python-tests.sh
+  # uses — so new test modules (e.g. #318's test_guide.py /
+  # test_north_star.py) are picked up the moment they merge, with no
+  # edit here. DELIBERATELY OFF the Rust-only critical path: nothing
+  # `needs` this job, and the Rust jobs stay green with no Python
+  # present (the U9S gating property — pyo3 rides the non-default
+  # `python` feature, which only maturin turns on). Its failure still
+  # reds the PR — that is the point.
+  #
+  # Root package pncad-py (see JOB_ROOTS in scripts/ci-filter.py): the
+  # wheel compiles pncad-py's whole dependency graph — the entire façade
+  # stack — so `pncad-py in closure` is exactly the condition under
+  # which anything this job runs can have moved; the .py tests and .pyi
+  # stub live under the member directory and seed the same closure.
+  # Budget: one job, one Python version, no matrix, debug-profile build
+  # (release is not required to prove the suite; the D9 bit-exactness
+  # pins hold at any opt level — opt never moves rounding, and the
+  # suite asserting so IS this job's evidence).
+  # Local mirror: ci-local.sh's "python suite (staged cdylib)" row —
+  # same tests, same discovery; the install path degrades to the staged
+  # cdylib because that box has no pip (measured, U9S report).
+  python-suite:
+    name: python suite (wheel + guide + north-star)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_pncad_py == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      # Python pinned at 3.12 — the interpreter the suite was written
+      # and validated on (U9S/DOORS/U10 all ran the local 3.12). The
+      # wheel is abi3-py38, so this is a determinism pin, not a
+      # compatibility ceiling. actions/setup-python@v5 (GA 2023-12)
+      # clears the ~2-week age policy by years — the same
+      # long-aged-major-tag class as the checkout@v4 / cache@v4 /
+      # upload-artifact@v4 pins this workflow already rides.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      # Separate cache key: the `python` feature graph (pyo3 + 4 more
+      # crates) differs from every other job's — same CACHE SEPARATION
+      # reasoning as build-interval (job-id separation is automatic;
+      # the explicit key makes it intentional and survives a rename).
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: python
+      - name: install maturin (pinned, official prebuilt)
+        run: curl -LsSf "https://github.com/PyO3/maturin/releases/download/v$MATURIN_VERSION/maturin-x86_64-unknown-linux-musl.tar.gz" | tar zxf - -C "$HOME/.cargo/bin" maturin
+      # Debug profile on purpose (no --release): fastest honest build.
+      # pyproject.toml's [tool.maturin] supplies module name + the
+      # `extension-module` feature; abi3 needs no Python.h.
+      - name: build the pncad wheel (abi3, debug profile)
+        run: maturin build -m crates/pncad-py/Cargo.toml -o target/wheels
+      - name: install the wheel into a venv
+        run: |
+          python -m venv target/py-ci-venv
+          target/py-ci-venv/bin/pip install target/wheels/pncad-*.whl
+      # Discovery from the repo checkout: guide tests read the docs/
+      # Markdown relative to their own file, and the stub check is
+      # layout-invariant (validated on the wheel-venv layout, #308).
+      - name: run the Python suite (unittest discover)
+        run: |
+          target/py-ci-venv/bin/python -m unittest discover \
+            --start-directory crates/pncad-py/tests \
+            --top-level-directory crates/pncad-py/tests \
+            --verbose
 
   # (The former standalone `multi-eps` job is FOLDED into the `test`
   # matrix above: its 1e-6/1e-12 rows and the old unparameterized `test`

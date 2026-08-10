@@ -86,6 +86,7 @@ SCOPE=--workspace
 RUN_EDITOR_CORE=true
 RUN_STL=true
 RUN_STEP_EXPORT=true
+RUN_PNCAD_PY=true
 RUN_INTERVAL_BACKEND=true
 RUN_K_LINT=true
 if [ "$FULL" -eq 1 ]; then
@@ -105,6 +106,7 @@ else
       RUN_EDITOR_CORE) RUN_EDITOR_CORE="$v" ;;
       RUN_STL) RUN_STL="$v" ;;
       RUN_STEP_EXPORT) RUN_STEP_EXPORT="$v" ;;
+      RUN_PNCAD_PY) RUN_PNCAD_PY="$v" ;;
       RUN_INTERVAL_BACKEND) RUN_INTERVAL_BACKEND="$v" ;;
       RUN_K_LINT) RUN_K_LINT="$v" ;;
     esac
@@ -296,6 +298,19 @@ step_import() {
   scripts/check_step.sh
 }
 
+# Mirror of hosted's `python-suite` job (LIB PY-CI). Hosted runs the
+# wheel path — maturin build, venv, pip install, unittest discover.
+# This box has no pip/ensurepip in the system Python (measured, U9S
+# report), so the local row is the staged-cdylib fallback
+# run-python-tests.sh exists for: same cargo-built extension module,
+# same interpreter contract, same unittest discovery over the same
+# tests/ directory — only the install vehicle degrades. The script
+# takes the build slot itself; nested under ci-local's exclusive hold
+# that acquisition is a no-op (BUILD_SLOT_HELD).
+python_suite() {
+  crates/pncad-py/run-python-tests.sh
+}
+
 # $SCOPE is the filter's package scope: `--workspace` in tier `all`, an
 # explicit `-p <closure>` list in tier `closure`. Unquoted on purpose —
 # it must word-split into cargo arguments.
@@ -455,6 +470,9 @@ run_row_if "$RUN_STL" "watertight (admesh)"          watertight
 # Root package step-export: no cargo build — FreeCAD over the committed
 # fixtures, which are byte-golden against that crate's writer.
 run_row_if "$RUN_STEP_EXPORT" "step import (freecad)" step_import
+# Root package pncad-py: the wheel's build graph is the whole façade
+# stack, so this fires exactly when something the suite compiles moved.
+run_row_if "$RUN_PNCAD_PY" "python suite (staged cdylib)" python_suite
 
 echo
 echo "=== ci-local summary ==="
