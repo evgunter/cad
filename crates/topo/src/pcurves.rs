@@ -372,13 +372,6 @@ fn half_edge_description<T: Decide>(
 ///   `u = 0` or `u = 1` boundary, the side selected by a definite
 ///   endpoint residual (`pcurve_iso_side`) and then CERTIFIED by the
 ///   full iso lane — a wrong pick fails loudly, never silently.
-/// - A cap–wall rim (`MappedCurve::PlacedSegment`, Line segment) maps
-///   as `(u(t), v)` with `u` affine (`t0 ↦ 0`, `t1 ↦ 1` — the wall's
-///   u IS the segment parameter by construction) and `v ∈ {0, 1}` by
-///   the same endpoint selection.
-/// - Everything else on a NURBS chart refuses typed with the class
-///   named (arc rims: the chart u is the segment's rational-Bézier
-///   parameter, banked with the rational-wall lane).
 /// The uniform clamped degree-1 knot vector on `[0, 1]` with `spans`
 /// spans — an [`Pcurve::IsoArc`]'s sub-arc locator (pure `f64`
 /// structure, which is what keeps the variant `T`-generic).
@@ -395,6 +388,28 @@ fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
     geom_core::spline::KnotVector::clamped(knots, 1).ok()
 }
 
+/// Derives the **exact iso chart image** of `half_edge` on a described
+/// NURBS chart (M6-3; arc rims since M8-3) — the NURBS-chart
+/// counterpart of `geom_brep::chart_pcurve`, driven by the edge's
+/// INTENSIONAL description (D2: the description is what is
+/// authoritative about which iso this locus is):
+///
+/// - An [`geom_brep::EdgeGeometry::IsoCurve`] naming THIS face's
+///   surface maps directly: `P(t) = (u, v0 + slope·(t − t0))`.
+/// - An `IsoCurve` naming the OTHER wall maps as this chart's own
+///   `u = 0` or `u = 1` boundary, the side selected by a definite
+///   endpoint residual (`pcurve_iso_side`) and then CERTIFIED by the
+///   full iso lane — a wrong pick fails loudly, never silently.
+/// - A cap–wall rim over a LINE carrier (`MappedCurve::PlacedSegment`,
+///   Line segment) maps as `(u(t), v)` with `u` affine (`t0 ↦ 0`,
+///   `t1 ↦ 1` — the wall's u IS the segment parameter by construction)
+///   and `v ∈ {0, 1}` by the same endpoint selection.
+/// - A cap–wall rim over a CIRCLE carrier maps to the same boundary
+///   line through the chart's own rational-quadratic parameter
+///   ([`Pcurve::IsoArc`], M8-3). Both mapped description forms the
+///   kernel mints for a circle reach it — see the arm's own note.
+/// - Everything else on a NURBS chart refuses typed with the class
+///   named.
 fn nurbs_iso_derive<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
@@ -454,47 +469,53 @@ fn nurbs_iso_derive<T: Decide>(
                 pl: Vec2::new(T::zero(), slope),
             })
         }
+        // **The M8-3 ARC-RIM arm.** An ARC cap rim's chart image is
+        // the same boundary line the LINE arm mints, but its moving
+        // channel is the chart's own rational-quadratic parameter
+        // rather than the arc angle — the `Pcurve::IsoArc` map.
+        //
+        // The arm is keyed on the CARRIER, not on the description
+        // kind, because the carrier is what the certification reads:
+        // a circle rim is a circle rim whether the builder described
+        // it as the sketch segment it swept (`PlacedSegment { Arc }`,
+        // the loft's own form) or the importer described it as the
+        // revolution it is (`RevolvedPoint`, `adopt::
+        // mapped_self_description`'s form for a `Curve3::Circle`).
+        // Keying on the kind would have made the SAME geometry mint
+        // natively and refuse on the round trip — a description-form
+        // accident, not a fact about the rim.
+        //
+        // The sub-arc count is read off the chart's u structure (one
+        // span per sub-arc, by the loft's construction); that read is
+        // a SELECTION, and the CHECK is the full arc-rim certification
+        // that follows, which compares the chart's boundary column
+        // against the carrier circle's own rational-quadratic form and
+        // refuses a chart that is not this construction.
+        geom_brep::EdgeGeometry::MappedCurve(
+            geom_brep::MappedCurve::PlacedSegment { .. }
+            | geom_brep::MappedCurve::RevolvedPoint { .. },
+        ) if matches!(carrier, geom_curves::Curve3::Circle { .. }) => {
+            let geom_surfaces::Surface::Nurbs(payload) = surface else {
+                return Err(refuse("an arc cap rim on a non-NURBS chart"));
+            };
+            let ku = payload.knots_u();
+            let (d0, d1) = ku.domain();
+            let spans = ku.knots().iter().filter(|k| **k > d0 && **k < d1).count() / 2 + 1;
+            let breaks = uniform_breaks(spans)
+                .ok_or_else(|| refuse("an arc rim whose chart has no usable sub-arc structure"))?;
+            let v = side_pick(&|cand| surface.eval(T::zero(), cand))?;
+            Ok(Pcurve::IsoArc {
+                p0: Point2::new(T::zero(), v),
+                pd: Vec2::new(T::one(), T::zero()),
+                t0,
+                angle: span,
+                breaks,
+            })
+        }
         geom_brep::EdgeGeometry::MappedCurve(geom_brep::MappedCurve::PlacedSegment {
-            segment,
+            segment: geom_brep::SketchSegment::Line { .. },
             ..
         }) => {
-            // **The M8-3 arm.** An ARC cap rim's chart image is the
-            // same boundary line the LINE arm mints, but its moving
-            // channel is the chart's own rational-quadratic parameter
-            // rather than the arc angle — the `Pcurve::IsoArc` map.
-            // The sub-arc count is read off the chart's u structure
-            // (one span per sub-arc, by the loft's construction); that
-            // read is a SELECTION, and the CHECK is the full arc-rim
-            // certification that follows, which compares the chart's
-            // boundary column against the carrier circle's own
-            // rational-quadratic form and refuses a chart that is not
-            // this construction.
-            if !matches!(segment, geom_brep::SketchSegment::Line { .. }) {
-                let geom_surfaces::Surface::Nurbs(payload) = surface else {
-                    return Err(refuse("an arc cap rim on a non-NURBS chart"));
-                };
-                let ku = payload.knots_u();
-                let (d0, d1) = ku.domain();
-                let spans = ku
-                    .knots()
-                    .iter()
-                    .filter(|k| **k > d0 && **k < d1)
-                    .collect::<Vec<_>>()
-                    .len()
-                    / 2
-                    + 1;
-                let breaks = uniform_breaks(spans).ok_or_else(|| {
-                    refuse("an arc rim whose chart has no usable sub-arc structure")
-                })?;
-                let v = side_pick(&|cand| surface.eval(T::zero(), cand))?;
-                return Ok(Pcurve::IsoArc {
-                    p0: Point2::new(T::zero(), v),
-                    pd: Vec2::new(T::one(), T::zero()),
-                    t0,
-                    angle: span,
-                    breaks,
-                });
-            }
             let plx = T::one() / span;
             let p0x = T::zero() - t0 / span;
             let v = side_pick(&|cand| surface.eval(p0x + plx * t0, cand))?;
@@ -505,8 +526,8 @@ fn nurbs_iso_derive<T: Decide>(
         }
         _ => Err(refuse(
             "no iso derivation for this description kind on a NURBS chart — only \
-             IsoCurve seams and Line cap rims have exact line images (the trimmed-NURBS \
-             pcurve lane is the cut-loft unit's)",
+             IsoCurve seams, Line cap rims and CIRCLE cap rims have exact chart images \
+             (the trimmed-NURBS pcurve lane is the cut-loft unit's)",
         )),
     }
 }

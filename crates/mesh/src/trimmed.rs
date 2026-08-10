@@ -490,7 +490,10 @@ fn trim_polygon(
             Pcurve::IsoArc { .. } => {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: he.edge,
-                    note: "trimmed face half-edge carries an ARC-RIM pcurve on an                            analytic chart — the class is a NURBS chart's rational                            quadratic parameterization and no mint produces it                            elsewhere",
+                    note: "trimmed face half-edge carries an ARC-RIM pcurve on an \
+                           analytic chart — the class is a NURBS chart's rational \
+                           quadratic parameterization and no mint produces it \
+                           elsewhere",
                 });
             }
             Pcurve::IsoLine { .. } => {

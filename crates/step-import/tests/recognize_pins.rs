@@ -350,21 +350,49 @@ fn the_integral_mixed_body_is_tier_valid_and_pins_the_pcurve_gap() {
 /// bound too loose at ε refuses with its number, never through a
 /// widened gate. Both postures are pinned below.
 #[test]
-fn the_seam_orphan_certifies_and_is_pinned_at_the_rational_quadrature_gate() {
+fn the_seam_orphan_certifies_on_a_first_class_rational_body() {
     let native = straight_arc_prism();
     let text = step_export::step_string(&native, &step_export::StepOptions::default())
         .expect("the arc prism exports");
     let eps = geom_core::Tolerance::get().eps;
 
     match import_step(&text, &ImportOptions::default()) {
-        // FLIP WHEN FIXED. The moment rational patch flux lands, this
-        // body becomes first-class and this row must be retired for the
-        // full assertion: the certified seam PLUS `Ok(())` at rest.
-        Ok(_) => panic!(
-            "FLIP: the arc prism now imports first-class — rational patch flux \
-             quadrature has landed. Retire this waypoint and assert the certified \
-             plane x NURBS seam on a first-class body."
-        ),
+        // **THE FLIP, EXECUTED** (M8-3). Rational patch flux landed in
+        // PR-1 and the arc rim's chart map here, so the body assembles
+        // AND its volume certifies: the waypoint's own retirement text
+        // asked for the certified seam PLUS `Ok(())` at rest, and that
+        // is what is asserted. `StepImport::Solid` may only carry a
+        // body the shared at-rest gate passes, so the disposition IS
+        // the tier-3 verdict; it is re-run explicitly anyway, because
+        // the point of the row is that it now holds.
+        Ok(StepImport::Solid { body, .. }) => {
+            assert!(
+                eps >= 1e-9,
+                "the first-class posture is the ε-coarse one: {eps:e}"
+            );
+            assert_eq!(
+                topo::validate_geometric(&body),
+                Ok(()),
+                "the arc prism is first-class at rest (M8-3)"
+            );
+            // The seam that WAS the orphan: a plane × described-NURBS
+            // pair really is present in the imported body, so the
+            // `Intersection` rung is what carried it, not a widened
+            // bitwise match.
+            let seams = plane_nurbs_seams(&body);
+            assert!(
+                !seams.is_empty(),
+                "the plane × NURBS seam class must survive into the imported body"
+            );
+            let props = topo::mass_properties(&body).expect("first-class mass properties");
+            println!(
+                "M7-8 seam #130 @ eps={eps:e}: FIRST-CLASS — {} plane×NURBS seam(s), \
+                 volume {} ± {}",
+                seams.len(),
+                props.volume,
+                props.volume_pad
+            );
+        }
         // The ε-fine posture, UNCHANGED by the gate: at 1e-12 the
         // envelope's own slack refuses during adoption, so the body
         // never reaches the at-rest pass at all.
@@ -398,31 +426,26 @@ fn the_seam_orphan_certifies_and_is_pinned_at_the_rational_quadrature_gate() {
             );
             println!("M7-8 seam #130 @ eps={eps:e}: adoption refuses, certified sup {bound:e} m");
         }
-        // THE WAYPOINT. At default and 1e-6 the seam CERTIFIES — the
-        // adoption ladder no longer refuses this edge, which is the
-        // whole of what M7-8 owns and retires. The body is then
-        // refused by the shared at-rest gate, on a fact about the
-        // wall's VOLUME rather than the seam's certification.
+        // The FIXED SCHEDULE's honest frontier (M8-3, D9): where the
+        // seam certifies but the rational wall's flux cannot reach
+        // `1024·ε`, the shared at-rest gate refuses TYPED with the
+        // measured width. That is a DIFFERENT refusal from the retired
+        // bank — the lane ran, and said how far it got.
         Err(refusal @ StepImportError::TierInvalid { .. }) => {
-            assert!(
-                eps >= 1e-9,
-                "the at-rest gate is only reached where adoption succeeds: {refusal:?}"
-            );
             let shown = format!("{refusal:?}");
-            // THE REFUSAL ADVANCED. It used to say the seam had no
-            // certification path; it now says the rational wall's
-            // volume is not computable. Both halves are asserted so
-            // neither can regress silently.
             assert!(
-                shown.contains("QuadratureUnsupported") && shown.contains("RATIONAL patch flux"),
-                "the surviving refusal is the BANKED rational patch flux (M7-3 Arm B), \
-                 not anything about the seam: {shown}"
+                shown.contains("QuadratureBudget"),
+                "the only surviving at-rest refusal is the quadrature budget: {shown}"
+            );
+            assert!(
+                !shown.contains("RATIONAL patch flux"),
+                "the RATIONAL patch flux bank is RETIRED — no refusal may name it: {shown}"
             );
             assert!(
                 !shown.contains("Adoption") && !shown.contains("PlaneNurbs"),
                 "the seam-orphan class is RETIRED: no adoption refusal survives here: {shown}"
             );
-            println!("M7-8 seam #130 @ eps={eps:e}: seam certifies; body pinned at the gate");
+            println!("M7-8 seam #130 @ eps={eps:e}: seam certifies; volume at the budget");
         }
         other => panic!("no other posture is pinned for this fixture: {other:?}"),
     }

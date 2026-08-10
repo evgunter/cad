@@ -81,103 +81,168 @@ fn native_arc_loft() -> topo::Body<f64> {
         .body
 }
 
-/// The one `QuadratureUnsupported::what` text of a body's tier-3
-/// refusal — panics if tier 3 does not refuse in exactly that shape
-/// (one `VolumeUncomputable` finding on one face).
-fn t3_rational_refusal_text(body: &topo::Body<f64>, who: &str) -> &'static str {
-    let errors = topo::validate_geometric(body)
-        .expect_err(&format!("{who}: tier 3 must refuse on the rational wall"));
-    rational_refusal_text(&errors, who)
-}
-
-/// The same read on a verdict list already in hand (the import gate
-/// hands its verdicts back inside the typed refusal, never a body).
-fn rational_refusal_text(errors: &[topo::ValidationError], who: &str) -> &'static str {
-    let [
-        topo::ValidationError::VolumeUncomputable {
-            source: topo::MassPropsError::Face { source, .. },
-        },
-    ] = errors
-    else {
-        panic!("{who}: expected exactly one per-face volume refusal, got: {errors:?}");
-    };
-    let geom_brep::props::PropsError::QuadratureUnsupported { what } = source else {
-        panic!("{who}: expected the quadrature refusal, got: {source:?}");
-    };
-    what
+/// The honest posture of a rational-wall body's mass properties at the
+/// run's ε (M8-3). The schedule is FIXED (D9) and the target is
+/// `1024·ε`, so `Ok` at one ε and a typed budget refusal at a tighter
+/// one are both correct; nothing else is. `Ok` carries the certified
+/// enclosure — the caller reuses it rather than paying a second
+/// rational quadrature, which is the expensive thing in these rows.
+fn rational_props_posture(
+    body: &topo::Body<f64>,
+    who: &str,
+) -> Option<topo::MassProperties<f64>> {
+    let target = 1024.0 * geom_core::Tolerance::get().eps;
+    match topo::mass_properties(body) {
+        Ok(props) => Some(props),
+        Err(err) => {
+            let topo::MassPropsError::Face { source, .. } = &err else {
+                panic!("{who}: expected a per-face volume refusal, got: {err:?}");
+            };
+            match source {
+                geom_brep::props::PropsError::QuadratureBudget {
+                    width_len,
+                    target_len,
+                } => {
+                    assert!(
+                        width_len.is_finite() && width_len > target_len,
+                        "{who}: a budget refusal must carry a width that really missed: \
+                         {width_len:e} vs {target_len:e}"
+                    );
+                    assert!(
+                        (target_len - target).abs() <= target * 1e-12,
+                        "{who}: the refused target must BE 1024·ε: {target_len:e} vs {target:e}"
+                    );
+                    None
+                }
+                geom_brep::props::PropsError::Escalated { cause } => {
+                    assert_eq!(
+                        cause.predicate,
+                        Some("props_quad_converged"),
+                        "{who}: only the convergence predicate may escalate here: {cause:?}"
+                    );
+                    None
+                }
+                other => panic!("{who}: not an honest quadrature posture: {other:?}"),
+            }
+        }
+    }
 }
 
 /// **THE M8-3 FLIP** of `arc_loft_refuses_at_import_with_the_native_bodys_verdict`,
-/// executed as far as it goes and pinned exactly there.
+/// executed in full.
 ///
 /// The row's retirement condition was the banked rational patch flux,
-/// and M8-3 retires it: the native arc loft is now tier-3 VALID with a
-/// certified volume. What the row measured beyond that — the import
-/// round trip — is blocked by a DIFFERENT and strictly narrower gap
-/// (the adoption side derives no pcurve for the imported arc rim's
-/// description kind), so the second half of this row pins that
-/// residue by name instead of letting it hide behind the retired one.
+/// and M8-3 retires it on both sides: the native arc loft is tier-3
+/// VALID with a certified volume, and the round trip imports
+/// FIRST-CLASS — the arc rim mints (`Pcurve::IsoArc`) from either
+/// mapped description form, so the reader reaches the same state the
+/// builder does.
 ///
-/// The writer/reader symmetry the row was written for is intact and
-/// now literal: the reader reaches exactly the native body's validity
-/// state, and because `StepImport::Solid` may only carry a body the
-/// shared at-rest gate passes, reaching a state the gate refuses means
-/// refusing. A body whose volume the kernel cannot compute is not
-/// tier-valid at rest, and shipping it would be import quietly holding
-/// a laxer standard than the kernel (escalate-never-guess — an
-/// indeterminate verdict is not a pass).
+/// The writer/reader symmetry the row was written for is now literal
+/// AND green: `StepImport::Solid` may only carry a body the shared
+/// at-rest gate passes, so an `Ok` here IS the imported body's tier-3
+/// verdict. What used to make that impossible — a body whose volume
+/// the kernel could not compute is not tier-valid at rest, and
+/// shipping it would be import quietly holding a laxer standard than
+/// the kernel — has stopped being true rather than been relaxed.
 ///
-/// **The rational parse arm is pinned BY this refusal**: the banked
-/// lane only fires on a face whose surface carries weights ≠ 1, so a
-/// reader that dropped the `RATIONAL_B_SPLINE_SURFACE` weights would
-/// produce a fully non-rational body whose volume computes — and this
-/// row would go green through the import door instead. (The
-/// non-rational side's positive control is `loft_prism`, which imports
-/// and validates.)
+/// **The rational parse arm is still pinned BY this row**: a reader
+/// that dropped the `RATIONAL_B_SPLINE_SURFACE` weights would produce
+/// a non-rational body of a DIFFERENT volume, and the round-trip
+/// volume agreement below is what catches that. (The non-rational
+/// side's positive control is `loft_prism`.)
+///
+/// **ε posture.** The schedule is fixed (D9) against a `1024·ε`
+/// target, so at a tight enough ε the honest outcome is a typed
+/// budget refusal on both sides. All three outcomes are pinned; none
+/// is widened.
 #[test]
 fn arc_loft_natively_computes_its_rational_volume() {
     let native = native_arc_loft();
     assert_eq!(topo::validate(&native), Ok(()), "native tier 1");
     assert_eq!(topo::validate_closed(&native), Ok(()), "native tier 2");
-    assert_eq!(
-        topo::validate_geometric(&native),
-        Ok(()),
-        "M8-3: the rational wall's volume certifies, so tier 3 now PASSES natively"
-    );
-    let want = topo::mass_properties(&native).expect("native rational mass properties");
-    assert!(
-        want.volume > 12.0 && want.volume < 13.0,
-        "native arc-loft volume: {}",
-        want.volume,
-    );
-    // The pad ceiling, pinned separately (the SKINFIT two-assertion
-    // shape) so a loosening enclosure cannot absorb the band above.
-    assert!(
-        want.volume_pad < 5.0e-6,
-        "native volume pad ceiling: {} (M8-3 measured 1.01e-6)",
-        want.volume_pad,
-    );
+    let eps = geom_core::Tolerance::get().eps;
+    // Computed ONCE: a rational quadrature is the expensive thing in
+    // this row, and the round trip below reuses this enclosure. Tier 3
+    // consumes exactly this number through its +V invariant, and the
+    // sweep suite's `tier3_admits_the_rational_wall_body` pins the
+    // verdict itself — paying for it twice here would only buy the
+    // same quadrature at the same ε.
+    let native_props = rational_props_posture(&native, "native");
+    let certified = native_props.is_some();
+    if let Some(want) = &native_props {
+        assert!(
+            want.volume > 12.0 && want.volume < 13.0,
+            "native arc-loft volume: {}",
+            want.volume,
+        );
+        // The pad ceiling, pinned separately (the SKINFIT two-assertion
+        // shape) so a loosening enclosure cannot absorb the band above.
+        // Keyed to ε, never widened: the schedule is fixed, so the pad
+        // is what that schedule achieves against the run's own target.
+        let ceiling = 2.0 * 1024.0 * eps;
+        assert!(
+            want.volume_pad < ceiling,
+            "native volume pad ceiling: {} vs {ceiling} (M8-3 measured 1.0098754e-6 at ε=1e-9)",
+            want.volume_pad,
+        );
+        println!(
+            "M8-3 arc loft @ eps={eps:e}: Certified, {} ± {}",
+            want.volume, want.volume_pad
+        );
+    } else {
+        println!("M8-3 arc loft @ eps={eps:e}: Budget (the fixed schedule's honest frontier)");
+    }
 
-    // The writer still exports it; the READER still refuses — but for
-    // a NEW and strictly narrower reason, pinned here so the residue
-    // cannot go quiet. The rational quadrature is retired; what
-    // remains is the ADOPTION-side pcurve derivation for an arc rim
-    // whose imported description is not the loft builder's
-    // `PlacedSegment` (M8-4's `nurbs_iso_derive` Intersection/adopted
-    // arm). This row flips the rest of the way when that lands.
+    // ---- The ROUND TRIP, which the bank used to block entirely. ----
     let text = step_export::step_string(&native, &step_export::StepOptions::default())
         .expect("the writer exports the rational-walled body");
-    let refusal = import_step(&text, &ImportOptions::default())
-        .expect_err("the adoption-side pcurve gap still refuses the round trip");
-    let msg = refusal.to_string();
-    assert!(
-        !msg.contains("RATIONAL patch flux"),
-        "the RATIONAL patch flux bank is RETIRED — this refusal must not name it: {msg}"
-    );
-    assert!(
-        msg.contains("no iso derivation for this description kind"),
-        "the surviving refusal is the adoption-side pcurve derivation gap: {msg}"
-    );
+    match import_step(&text, &ImportOptions::default()) {
+        Ok(step_import::StepImport::Solid { body, .. }) => {
+            assert!(
+                certified,
+                "an imported Solid means the at-rest gate passed, which means the \
+                 quadrature certified — it cannot happen at an ε where the native \
+                 body's own flux ran out of schedule"
+            );
+            let got = topo::mass_properties(&body).expect("imported rational mass properties");
+            let want = native_props.as_ref().expect("the native side certified");
+            // The two enclosures are of the SAME solid, so they must
+            // overlap; each is certified, so the check is a real one.
+            assert!(
+                (got.volume - want.volume).abs() <= got.volume_pad + want.volume_pad,
+                "the round trip must reproduce the volume within the two certified pads: \
+                 imported {} ± {}, native {} ± {}",
+                got.volume,
+                got.volume_pad,
+                want.volume,
+                want.volume_pad,
+            );
+            println!(
+                "M8-3 arc loft round trip @ eps={eps:e}: FIRST-CLASS, {} ± {}",
+                got.volume, got.volume_pad
+            );
+        }
+        // The fixed schedule's honest frontier, reached through the
+        // import gate instead of the native one.
+        Err(refusal @ step_import::StepImportError::TierInvalid { .. }) => {
+            assert!(
+                !certified,
+                "the import gate may only refuse where the native body's flux also \
+                 ran out of schedule: {refusal:?}"
+            );
+            let msg = refusal.to_string();
+            assert!(
+                !msg.contains("RATIONAL patch flux"),
+                "the RATIONAL patch flux bank is RETIRED — no refusal may name it: {msg}"
+            );
+            assert!(
+                msg.contains("stalled at a mean boundary displacement"),
+                "the only surviving refusal is the quadrature budget, with its number: {msg}"
+            );
+        }
+        other => panic!("no other round-trip posture is pinned: {other:?}"),
+    }
 }
 
 /// **Spec §2 row 5 — the surface_sig pin at body level.** The

@@ -594,7 +594,8 @@ fn nurbs_tighten(
                 if spans == 0 {
                     return Err(TessellateError::UnsupportedCurve {
                         edge: ek,
-                        note: "an arc-rim pcurve with no sub-arc structure — a                                malformed cache, not a chord-schedule question",
+                        note: "an arc-rim pcurve with no sub-arc structure — a malformed \
+                               cache, not a chord-schedule question",
                     });
                 }
                 #[allow(clippy::cast_precision_loss)]
