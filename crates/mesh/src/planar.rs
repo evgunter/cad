@@ -74,19 +74,34 @@
 //! is load-bearing, not a style choice, because of spade's coordinate
 //! floor (`MIN_ALLOWED_VALUE` = 2⁻¹⁴²: a coordinate must be exactly 0
 //! or at least that large). Every quantity in the frame and in the
-//! projection is then built from *differences of input floats*: where
-//! input coordinates are exactly equal (an axis-aligned face's
-//! normal-axis column), the differences are exactly 0, the Newell
-//! sum's in-plane components are exactly 0, the frame's out-of-plane
-//! components are exactly 0, and an exact-zero chart coordinate comes
-//! out as float 0.0 or as a residue at the ulp scale of real-sized
-//! terms (~1e-19·extent) — both spade-legal. A constructed centroid
-//! instead seeds ulp-scale residues (its rounding) into the Newell
-//! sum, which manufactures ~1e-33-scale frame components, and a
-//! projection term `w·residue` then lands around 1e-51 — nonzero but
-//! far below the floor, the very refusal this frame exists to remove
-//! (measured on the wild OLED's bottom face while this fix was being
-//! built).
+//! projection is then built from *differences of input floats*, and
+//! for the class this fix closes — noisy stored AXES over clean
+//! positions, the #284 wild-corpus class, whose exact-zero structure
+//! lives in exactly-equal input coordinate columns (an axis-aligned
+//! face's normal-axis column) — the guarantee is by construction:
+//! equal columns difference to exact 0, the Newell sum's in-plane
+//! components are exactly 0, the frame's out-of-plane components are
+//! exactly 0, and an exact-zero chart coordinate comes out as float
+//! 0.0 or as a residue at the ulp scale of real-sized terms
+//! (~1e-19·extent) — both spade-legal (pinned by the exactness unit
+//! falsifier in this module's tests). A constructed centroid instead
+//! seeds ulp-scale residues (its rounding) into the Newell sum, which
+//! manufactures ~1e-33-scale frame components, and a projection term
+//! `w·residue` then lands around 1e-51 — nonzero but far below the
+//! floor, the very refusal this frame exists to remove (measured on
+//! the wild OLED's bottom face while this fix was being built).
+//!
+//! That guarantee is deliberately NOT claimed for noisy boundary
+//! POSITIONS (R1 review of #301): when the points themselves carry
+//! off-plane noise ν, no exactly-equal column exists, and the far
+//! point's own v-coordinate is an *engineered* exact-zero whose float
+//! residue is ~ν² — for ν ≲ √(2⁻¹⁴²) ≈ 4e-22 that is nonzero
+//! sub-floor and the face refuses typed. In-contract (typed
+//! `Triangulation`, fail-loud), synthetic today (no corpus body hits
+//! it; wild translator noise observed so far is axis noise), pinned
+//! in `tests/newell_probes.rs`, and banked as a follow-up candidate —
+//! it is the same "valid body refuses tessellation" shape #284 itself
+//! had.
 //!
 //! Deterministic (D9): fixed evaluation order over the walk, so the
 //! frame is bit-identical across rebuilds and debug/release. Once the
@@ -519,6 +534,75 @@ mod tests {
             (total.abs() - want.abs()).abs() < 1e-12,
             "emitted area {total} does not tile the loop area {want}"
         );
+    }
+
+    /// The anchor-choice falsifier (#284, R1 MAJOR-2 of PR #301): the
+    /// module docs' input-exactness argument, pinned as executable
+    /// assertions on an OLED-bottom-shaped axis-aligned loop (equal z
+    /// column whose sum/n rounds inexactly). The frame must preserve
+    /// input exactness — anchor a boundary point verbatim, Newell
+    /// in-plane components exact 0, frame out-of-plane components
+    /// exact 0, and every projected chart coordinate either exactly
+    /// 0.0 or at spade-legal magnitude (≥ 2⁻¹⁴²). Re-anchoring at the
+    /// constructed centroid turns every one of these assertions red
+    /// (its z rounds off the input plane and seeds the Newell sum) —
+    /// this is the in-suite guard for the mutation that only the wild
+    /// generator's OLED cell used to catch.
+    #[test]
+    fn chart_frame_preserves_input_exactness_on_axis_aligned_loops() {
+        use geom_core::Point3;
+        let z = -0.0016;
+        let positions: Vec<Point3<f64>> = [
+            (0.002, 0.0),
+            (0.032036, 0.0),
+            (0.034036, 0.002),
+            (0.034036, 0.018574),
+            (0.032036, 0.020574),
+            (0.002, 0.020574),
+            (0.0, 0.018574),
+            (0.0, 0.002),
+        ]
+        .iter()
+        .map(|&(x, y)| Point3::new(x, y, z))
+        .collect();
+        #[allow(clippy::cast_possible_truncation)]
+        let outer: Vec<u32> = (0..positions.len() as u32).collect();
+
+        // The centroid of this loop is NOT an input point: its z
+        // rounds off the plane. Guard the guard: if a future edit
+        // picks coordinates where the centroid happens to be exact,
+        // this test would stop discriminating — fail it loudly then.
+        let n = positions.len() as f64;
+        let cz = positions.iter().map(|p| p.z).sum::<f64>() / n;
+        assert_ne!(
+            cz.to_bits(),
+            z.to_bits(),
+            "loop no longer discriminates the centroid anchor — pick new coordinates"
+        );
+
+        let (origin, u_ref, v_ref) = super::chart_frame(&outer, &positions);
+        assert_eq!(
+            (origin.x.to_bits(), origin.y.to_bits(), origin.z.to_bits()),
+            (
+                positions[0].x.to_bits(),
+                positions[0].y.to_bits(),
+                positions[0].z.to_bits()
+            ),
+            "anchor must be the first walk point, verbatim"
+        );
+        assert_eq!(u_ref.z, 0.0, "u out-of-plane component must be exact 0");
+        assert_eq!(v_ref.z, 0.0, "v out-of-plane component must be exact 0");
+        // The floor: every chart coordinate exactly 0.0 or spade-legal.
+        let floor = 2.0_f64.powi(-142);
+        for p in &positions {
+            let w = *p - origin;
+            for c in [w.dot(u_ref), w.dot(v_ref)] {
+                assert!(
+                    c == 0.0 || c.abs() >= floor,
+                    "chart coordinate {c:e} in spade's forbidden (0, 2^-142) band"
+                );
+            }
+        }
     }
 
     #[test]

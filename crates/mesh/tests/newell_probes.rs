@@ -210,6 +210,55 @@ fn probe_e_noise_scale_sweep() {
     }
 }
 
+/// (e-pin) The position-noise refusal class, PINNED (R1 MAJOR-1 of
+/// PR #301; probe (e) above records the contract, this row records
+/// the POSTURE). Mechanism, stated as the invariant: with off-plane
+/// noise ν on the boundary POSITIONS themselves (z = x·ν — no
+/// exactly-equal input column), the far point's own v-coordinate is
+/// an engineered exact-zero whose float residue is ~ν²; for
+/// ν ≲ √(2⁻¹⁴²) ≈ 4e-22 that residue is nonzero below spade's
+/// coordinate floor and the face refuses TYPED
+/// (`TessellateError::Triangulation`), while scales whose residue
+/// clears the floor tessellate exactly. Deliberate, recorded posture
+/// — not accidental: `mesh::planar`'s module docs scope the
+/// input-exactness guarantee to the noisy-AXES class #284 actually
+/// closed (wild-corpus noise is axis noise), and this synthetic
+/// residual class is banked as a follow-up candidate (same "valid
+/// body refuses tessellation" shape as #284). If this row starts
+/// TESSELLATING, the class was closed: retire the pin and the
+/// follow-up together.
+#[test]
+fn position_noise_subfloor_refusal_is_pinned_typed() {
+    let body_at = |nu: f64| {
+        let plane = SketchPlane::from_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, nu),
+            Vec3::new(0.0, 1.0, 0.0),
+        );
+        let poly = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)];
+        prism_on(plane, &poly, 1.0)
+    };
+    // Well inside the refusal band (~ν² sub-floor): typed, exactly.
+    for exp in [-30i32, -45, -60] {
+        match tessellate(&body_at(10.0f64.powi(exp)), 1e-2) {
+            Err(mesh::TessellateError::Triangulation { .. }) => {}
+            other => panic!(
+                "noise-1e{exp}: pinned typed Triangulation refusal drifted: \
+                 {:?}",
+                other.map(|m| triangle_count(&m))
+            ),
+        }
+    }
+    // Well clear of the floor (~ν² ≥ 2⁻¹⁴²): tessellates, exact volume.
+    for exp in [-15i32, -20] {
+        let label = format!("noise-1e{exp}");
+        let m = tessellate_or_typed(&body_at(10.0f64.powi(exp)), 1e-2, &label)
+            .expect("must tessellate above the floor");
+        let v = signed_volume(&m);
+        assert!((v - 2.0).abs() < 1e-9, "{label}: volume {v}");
+    }
+}
+
 /// (e') The cancellation corner the module docs' argument does not
 /// literally cover: a boundary point ON the anchor->far diagonal (its
 /// exact v-coordinate is 0) while the noise column rides at 1e-50.
