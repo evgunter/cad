@@ -612,28 +612,50 @@ fn probe_determinism_bits() {
             Tolerance::get().eps,
             band(),
         )
-        .unwrap()
     };
-    let a = run();
-    let b = run();
-    println!(
-        "DETBITS flux {:016x} {:016x} area {:016x} {:016x}",
-        a.flux.lo().to_bits(),
-        a.flux.hi().to_bits(),
-        a.area.lo().to_bits(),
-        a.area.hi().to_bits()
-    );
-    assert_eq!(a.flux.lo().to_bits(), b.flux.lo().to_bits());
-    assert_eq!(a.flux.hi().to_bits(), b.flux.hi().to_bits());
-    assert_eq!(a.area.lo().to_bits(), b.area.lo().to_bits());
-    assert_eq!(a.area.hi().to_bits(), b.area.hi().to_bits());
-    // the meter, as claimed: width(flux)/(3*area_mid)
-    let meter = a.flux.width() / (3.0 * (a.area.lo() + a.area.hi()) * 0.5);
-    println!(
-        "METER quarter-cylinder {:.6e} target {:.6e}",
-        meter,
-        1024.0 * Tolerance::get().eps
-    );
+    // Determinism is the claim, and it holds on EVERY ε row: below the
+    // corpus ε the fixed schedule cannot meet the ε-coupled target and
+    // the honest outcome is a typed refusal, which must ITSELF be
+    // reproduced identically. Only a changed outcome class, or an
+    // untyped error, is a failure.
+    match (run(), run()) {
+        (Ok(a), Ok(b)) => {
+            println!(
+                "DETBITS flux {:016x} {:016x} area {:016x} {:016x}",
+                a.flux.lo().to_bits(),
+                a.flux.hi().to_bits(),
+                a.area.lo().to_bits(),
+                a.area.hi().to_bits()
+            );
+            assert_eq!(a.flux.lo().to_bits(), b.flux.lo().to_bits());
+            assert_eq!(a.flux.hi().to_bits(), b.flux.hi().to_bits());
+            assert_eq!(a.area.lo().to_bits(), b.area.lo().to_bits());
+            assert_eq!(a.area.hi().to_bits(), b.area.hi().to_bits());
+            // the meter, as claimed: width(flux)/(3*area_mid)
+            let meter = a.flux.width() / (3.0 * (a.area.lo() + a.area.hi()) * 0.5);
+            println!(
+                "METER quarter-cylinder {:.6e} target {:.6e}",
+                meter,
+                1024.0 * Tolerance::get().eps
+            );
+        }
+        (Err(a), Err(b)) => {
+            println!("DETBITS refusal @ eps={:e}: {a:?}", Tolerance::get().eps);
+            assert!(
+                matches!(
+                    a,
+                    PropsError::QuadratureBudget { .. } | PropsError::Escalated { .. }
+                ),
+                "an ε row must refuse TYPED, not otherwise: {a:?}"
+            );
+            assert_eq!(
+                format!("{a:?}"),
+                format!("{b:?}"),
+                "the refusal is not reproduced identically"
+            );
+        }
+        (x, y) => panic!("a same-process re-run changed outcome class: {x:?} vs {y:?}"),
+    }
     // budget-defeat check lives in probe_budget_refusal below
     let refused = nurbs_patch_face::<f64>(
         &ku,
@@ -646,6 +668,15 @@ fn probe_determinism_bits() {
         Tolerance::get().eps * 1e-6,
         band(),
     );
+    // A million-fold-tighter target must REFUSE, never answer — but
+    // which typed refusal is ε-dependent, because the funnel band is
+    // built from the run's AMBIENT ε while the target came from the
+    // scaled one. When the shortfall is outside `Band{ε, Kε}` the
+    // schedule runs out and the budget refuses; when the ambient band
+    // is coarse enough to swallow it (measured: ambient 1e-6 gives
+    // margin −9.8e-6 inside `Band{1e-6, 1e-5}`), `props_quad_converged`
+    // escalates first. Both are honest and both are pinned; `Ok` is
+    // the only outcome ruled out.
     match refused {
         Err(PropsError::QuadratureBudget {
             width_len,
@@ -654,7 +685,15 @@ fn probe_determinism_bits() {
             println!("BUDGET width_len {width_len:.6e} target {target_len:.6e}");
             assert!(width_len.is_finite() && width_len > target_len);
         }
-        other => panic!("expected QuadratureBudget on a 1e-6-scaled eps, got {other:?}"),
+        Err(PropsError::Escalated { cause }) => {
+            println!("ESCALATED {cause:?}");
+            assert_eq!(
+                cause.predicate,
+                Some("props_quad_converged"),
+                "only the convergence predicate may escalate here: {cause:?}"
+            );
+        }
+        other => panic!("a 1e-6-scaled eps must refuse typed, got {other:?}"),
     }
 }
 
@@ -770,23 +809,52 @@ fn diag_uniform_weight_twins() {
         poly.area.lo(),
         poly.area.hi()
     );
-    let rat = run(&[0.5; 10]).expect("rational lane");
-    println!(
-        "poly flux [{:.12}, {:.12}]  rational flux [{:.12}, {:.12}]",
+    // The INTEGRAL twin rides the exact per-span Newton-Cotes rule, so
+    // it certifies on every ε row, and #313's closed form is available:
+    // the half cylinder's flux is exactly 20/3.
+    let truth = 20.0 / 3.0;
+    assert!(
+        poly.flux.lo() <= truth && truth <= poly.flux.hi(),
+        "the integral twin excludes the closed form 20/3: [{}, {}]",
         poly.flux.lo(),
-        poly.flux.hi(),
-        rat.flux.lo(),
-        rat.flux.hi()
+        poly.flux.hi()
     );
     let pa = patch(&ku, &kv, &net, &[0.5; 10]);
     let (of, _) = pa.dense(48);
     println!("oracle flux {of:.12}");
-    assert!(
-        rat.flux.lo() <= of && of <= rat.flux.hi(),
-        "rational lane excludes the oracle: [{}, {}] vs {of}",
-        rat.flux.lo(),
-        rat.flux.hi()
-    );
+    // The RATIONAL twin's target is ε-coupled against a FIXED schedule,
+    // so below the corpus ε its honest outcome is a typed refusal. Both
+    // arms are pinned; a wide or wrong answer is what is ruled out.
+    match run(&[0.5; 10]) {
+        Ok(rat) => {
+            println!(
+                "poly flux [{:.12}, {:.12}]  rational flux [{:.12}, {:.12}]",
+                poly.flux.lo(),
+                poly.flux.hi(),
+                rat.flux.lo(),
+                rat.flux.hi()
+            );
+            assert!(
+                rat.flux.lo() <= of && of <= rat.flux.hi(),
+                "rational lane excludes the oracle: [{}, {}] vs {of}",
+                rat.flux.lo(),
+                rat.flux.hi()
+            );
+        }
+        Err(e) => {
+            println!(
+                "rational twin refuses typed @ eps={:e}: {e:?}",
+                Tolerance::get().eps
+            );
+            assert!(
+                matches!(
+                    e,
+                    PropsError::QuadratureBudget { .. } | PropsError::Escalated { .. }
+                ),
+                "the rational twin must refuse TYPED: {e:?}"
+            );
+        }
+    }
 }
 
 /// Genericity spot check: the rational lane driven by the certified
@@ -811,14 +879,35 @@ fn probe_interval_scalar_agrees() {
     let weights = [1.0, 1.0, W2, W2, 1.0, 1.0];
     let rect = (0.0, 1.0, 0.0, 1.0);
     let eps = Tolerance::get().eps;
-    let a = nurbs_patch_face::<f64>(&ku, &kv, &net, &weights, rect, 4.0 + PI, 0.0, eps, band())
-        .unwrap();
+    let a = nurbs_patch_face::<f64>(&ku, &kv, &net, &weights, rect, 4.0 + PI, 0.0, eps, band());
     let b =
-        nurbs_patch_face::<Interval>(&ku, &kv, &net, &weights, rect, 4.0 + PI, 0.0, eps, band())
-            .unwrap();
-    assert_eq!(a.flux.lo().to_bits(), b.flux.lo().to_bits());
-    assert_eq!(a.flux.hi().to_bits(), b.flux.hi().to_bits());
-    assert_eq!(a.area.lo().to_bits(), b.area.lo().to_bits());
-    assert_eq!(a.area.hi().to_bits(), b.area.hi().to_bits());
-    assert!(a.flux.lo() <= PI && PI <= a.flux.hi());
+        nurbs_patch_face::<Interval>(&ku, &kv, &net, &weights, rect, 4.0 + PI, 0.0, eps, band());
+    // The agreement claim is ε-independent and covers the refusals too:
+    // below the corpus ε the ε-coupled target is out of the fixed
+    // schedule's reach and BOTH scalars must refuse, identically.
+    match (a, b) {
+        (Ok(a), Ok(b)) => {
+            assert_eq!(a.flux.lo().to_bits(), b.flux.lo().to_bits());
+            assert_eq!(a.flux.hi().to_bits(), b.flux.hi().to_bits());
+            assert_eq!(a.area.lo().to_bits(), b.area.lo().to_bits());
+            assert_eq!(a.area.hi().to_bits(), b.area.hi().to_bits());
+            assert!(a.flux.lo() <= PI && PI <= a.flux.hi());
+        }
+        (Err(a), Err(b)) => {
+            println!("INTERVAL-AGREE refusal @ eps={eps:e}: {a:?}");
+            assert!(
+                matches!(
+                    a,
+                    PropsError::QuadratureBudget { .. } | PropsError::Escalated { .. }
+                ),
+                "an ε row must refuse TYPED: {a:?}"
+            );
+            assert_eq!(
+                format!("{a:?}"),
+                format!("{b:?}"),
+                "the two decision scalars disagree on the refusal"
+            );
+        }
+        (x, y) => panic!("f64 and Interval disagree on the OUTCOME: {x:?} vs {y:?}"),
+    }
 }

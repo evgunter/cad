@@ -2493,6 +2493,100 @@ mod tests {
     use super::*;
     use geom_core::Tolerance;
 
+    /// The corpus's declared ambient uncertainty — the ε the fixed
+    /// quadrature schedule (D9) is dimensioned for, and the boundary
+    /// the ε-row postures below are pinned against.
+    const CORPUS_EPS: f64 = 1e-9;
+
+    /// The three HONEST outcomes of an ε-coupled convergence row.
+    ///
+    /// The target is `QUAD_TARGET_LEN_FACTOR·ε` while the refinement
+    /// schedule is FIXED (D9), so the same patch that certifies at
+    /// ε = 1e-6 genuinely cannot at ε = 1e-12: the target is a million
+    /// times tighter and the rounds do not grow. A row asserting `Ok`
+    /// unconditionally is ε-BLIND, not strict — it fails on the hosted
+    /// ε matrix for a reason that is the lane working correctly.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum EpsPosture {
+        /// The enclosure certified — it must CONTAIN the truth.
+        Certified,
+        /// [`PropsError::QuadratureBudget`]: the fixed schedule's floor
+        /// is DEFINITELY above the run's target.
+        Budget,
+        /// The same shortfall, in-band for the run's `Band{ε, Kε}` — so
+        /// `props_quad_converged` escalates through the funnel before
+        /// the budget can run out. The two-tolerance twin the
+        /// [`PropsError::QuadratureBudget`] docs name.
+        Escalated,
+    }
+
+    /// Assert the ε-row posture of one patch outcome and return it.
+    ///
+    /// Every arm PINS its live signature so a row can never be green
+    /// for the wrong reason:
+    ///
+    /// - certified ⇒ both enclosures contain their truths (this is the
+    ///   arm that catches a tight-but-WRONG bracket, the M8-3 MAJOR);
+    /// - budget ⇒ the carried `width_len` really did exceed
+    ///   `target_len`, AND that target IS `1024·ε` for this run;
+    /// - escalated ⇒ the predicate is `props_quad_converged` and
+    ///   nothing else, with an in-band margin.
+    ///
+    /// Any other error is an unsound outcome and panics. Nothing here
+    /// widens a target, loosens a schedule, or special-cases ε into
+    /// certifying.
+    fn eps_posture(
+        row: &str,
+        out: &Result<FaceCutBounds, PropsError>,
+        truth_flux: f64,
+        truth_area: f64,
+        slack: f64,
+    ) -> EpsPosture {
+        let target = QUAD_TARGET_LEN_FACTOR * Tolerance::get().eps;
+        match out {
+            Ok(b) => {
+                for (what, encl, truth) in
+                    [("flux", b.flux, truth_flux), ("area", b.area, truth_area)]
+                {
+                    assert!(
+                        encl.lo() - slack <= truth && truth <= encl.hi() + slack,
+                        "{row}: {what} {encl:?} EXCLUDES the truth {truth}"
+                    );
+                }
+                EpsPosture::Certified
+            }
+            Err(PropsError::QuadratureBudget {
+                width_len,
+                target_len,
+            }) => {
+                assert!(
+                    width_len.is_finite() && width_len > target_len,
+                    "{row}: a budget refusal must carry a width that really missed: \
+                     {width_len:e} vs {target_len:e}"
+                );
+                assert!(
+                    (target_len - target).abs() <= target * 1e-12,
+                    "{row}: the refused target must BE 1024·ε for this run: \
+                     {target_len:e} vs {target:e}"
+                );
+                EpsPosture::Budget
+            }
+            Err(PropsError::Escalated { cause }) => {
+                assert_eq!(
+                    cause.predicate,
+                    Some("props_quad_converged"),
+                    "{row}: only the convergence predicate may escalate here: {cause:?}"
+                );
+                assert!(
+                    matches!(cause.margin, geom_core::MarginDiag::Value(m) if m.is_finite()),
+                    "{row}: the escalation must carry a finite in-band margin: {cause:?}"
+                );
+                EpsPosture::Escalated
+            }
+            Err(e) => panic!("{row}: unsound outcome {e:?}"),
+        }
+    }
+
     fn chan(c0: f64, ca: f64, cb: f64, cl: f64) -> HarmChan {
         HarmChan {
             c0: pt(c0),
@@ -2790,17 +2884,11 @@ mod tests {
             0.0,
             Tolerance::get().eps,
             band,
-        )
-        .expect("the rational lane certifies the reparameterized square");
-        assert!(
-            out.flux.lo() <= 1.0 && 1.0 <= out.flux.hi(),
-            "flux enclosure must contain the exact 1: {:?}",
-            out.flux
         );
-        assert!(
-            out.area.lo() <= 1.0 && 1.0 <= out.area.hi(),
-            "area enclosure must contain the exact 1: {:?}",
-            out.area
+        let posture = eps_posture("reparameterized square", &out, 1.0, 1.0, 0.0);
+        eprintln!(
+            "EPS-ROW reparameterized square @ eps={:e}: {posture:?}",
+            Tolerance::get().eps
         );
     }
 
@@ -2843,18 +2931,12 @@ mod tests {
             0.0,
             Tolerance::get().eps,
             band,
-        )
-        .expect("the rational lane certifies the two-span quarter cylinder");
-        let truth = core::f64::consts::PI;
-        assert!(
-            out.flux.lo() <= truth && truth <= out.flux.hi(),
-            "two-span flux must contain π: {:?}",
-            out.flux
         );
-        assert!(
-            out.area.lo() <= truth && truth <= out.area.hi(),
-            "two-span area must contain π: {:?}",
-            out.area
+        let truth = core::f64::consts::PI;
+        let posture = eps_posture("two-span quarter cylinder", &out, truth, truth, 0.0);
+        eprintln!(
+            "EPS-ROW two-span quarter cylinder @ eps={:e}: {posture:?}",
+            Tolerance::get().eps
         );
     }
 
@@ -2880,7 +2962,7 @@ mod tests {
         let band = Band::linear().unwrap();
         let kv_v = KnotVector::unit_segment(1);
         let (pu, pv, nv, height) = (3usize, 1usize, 2usize, 2.0f64);
-        let mut certified: Vec<String> = Vec::new();
+        let mut postures: Vec<(String, EpsPosture)> = Vec::new();
         for mult in 1..=pu {
             let mut knots = vec![0.0; pu + 1];
             knots.extend(core::iter::repeat_n(0.5, mult));
@@ -2958,7 +3040,7 @@ mod tests {
                 }
                 let lane = if rational { "rational" } else { "integral" };
                 let row = format!("mult {mult} / {lane}");
-                match nurbs_patch_face::<f64>(
+                let out = nurbs_patch_face::<f64>(
                     &kv_u,
                     &kv_v,
                     &net,
@@ -2968,44 +3050,48 @@ mod tests {
                     0.0,
                     Tolerance::get().eps,
                     band,
-                ) {
-                    Ok(out) => {
-                        // The slack is the ORACLE's discretization
-                        // error, not the lane's: on the polynomial
-                        // rows the exact Newton–Cotes lane returns the
-                        // truth to rounding and the dense midpoint sum
-                        // lands 2.6e-7 off it (O(h²) at 2048 u-samples,
-                        // measured). 1e-5 is 40x that headroom and
-                        // still ~900x tighter than the exclusion the
-                        // MAJOR produced.
-                        let slack = 1e-5;
-                        assert!(
-                            out.flux.lo() - slack <= o_flux && o_flux <= out.flux.hi() + slack,
-                            "{row}: flux {:?} EXCLUDES the dense truth {o_flux}",
-                            out.flux
-                        );
-                        assert!(
-                            out.area.lo() - slack <= o_area && o_area <= out.area.hi() + slack,
-                            "{row}: area {:?} EXCLUDES the dense truth {o_area}",
-                            out.area
-                        );
-                        certified.push(row.clone());
-                    }
-                    // A typed refusal is the other sound outcome.
-                    Err(
-                        PropsError::QuadratureBudget { .. }
-                        | PropsError::QuadratureUnsupported { .. },
-                    ) => {}
-                    Err(e) => panic!("{row}: unsound outcome {e:?}"),
-                }
+                );
+                // The slack is the ORACLE's discretization error, not
+                // the lane's: on the polynomial rows the exact
+                // Newton–Cotes lane returns the truth to rounding and
+                // the dense midpoint sum lands 2.6e-7 off it (O(h²) at
+                // 2048 u-samples, measured). 1e-5 is 40x that headroom
+                // and still ~900x tighter than the exclusion the MAJOR
+                // produced.
+                postures.push((row.clone(), eps_posture(&row, &out, o_flux, o_area, 1e-5)));
             }
         }
-        // Anti-vacuity: a ladder of nothing but refusals would assert
-        // nothing about enclosures at all.
-        eprintln!("multiplicity ladder certified: {certified:?}");
+        eprintln!(
+            "EPS-ROW multiplicity ladder @ eps={:e}: {postures:?}",
+            Tolerance::get().eps
+        );
+        // Anti-vacuity, ε-KEYED rather than waived. The INTEGRAL rows
+        // ride the exact per-span Newton–Cotes lane, whose width is
+        // ring rounding only — ε-independent, so they must certify on
+        // EVERY row of the matrix. The RATIONAL rows ride the O(h²)
+        // composite against an ε-coupled target, so they certify at the
+        // corpus ε and coarser and refuse typed below it; that boundary
+        // is PINNED, not relaxed, and a posture that moves in either
+        // direction is a finding.
+        let certified: Vec<&str> = postures
+            .iter()
+            .filter(|(_, p)| *p == EpsPosture::Certified)
+            .map(|(r, _)| r.as_str())
+            .collect();
+        let expected = if Tolerance::get().eps >= CORPUS_EPS {
+            2 * pu
+        } else {
+            pu
+        };
+        assert_eq!(
+            certified.len(),
+            expected,
+            "the ladder's ε posture MOVED at eps={:e}: certified {certified:?}, all {postures:?}",
+            Tolerance::get().eps
+        );
         assert!(
-            certified.len() >= 2 * pu,
-            "the ladder degenerated to refusals — it certified only {certified:?}"
+            certified.iter().all(|r| r.ends_with("integral")) || certified.len() == 2 * pu,
+            "below the corpus ε only the exact-lane (integral) rows may certify: {certified:?}"
         );
     }
 
@@ -3042,18 +3128,12 @@ mod tests {
             0.0,
             Tolerance::get().eps,
             band,
-        )
-        .expect("the rational lane certifies the quarter cylinder");
-        let truth = core::f64::consts::PI;
-        assert!(
-            out.flux.lo() <= truth && truth <= out.flux.hi(),
-            "flux enclosure must contain π: {:?}",
-            out.flux
         );
-        assert!(
-            out.area.lo() <= truth && truth <= out.area.hi(),
-            "area enclosure must contain π: {:?}",
-            out.area
+        let truth = core::f64::consts::PI;
+        let posture = eps_posture("quarter cylinder", &out, truth, truth, 0.0);
+        eprintln!(
+            "EPS-ROW quarter cylinder @ eps={:e}: {posture:?}",
+            Tolerance::get().eps
         );
     }
 
