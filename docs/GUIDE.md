@@ -708,7 +708,7 @@ let hole = LoopProgram::Circle {
     radius: len(0.25),
 };
 
-let mut doc = Doc::<ProfileProgram>::empty();
+let mut doc = Doc::<ProfileProgram>::empty_derived("guide");
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
@@ -752,7 +752,7 @@ use pncad::prelude::*;
 # let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
 # let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)]).expect("corners");
 # let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
-# let mut doc = Doc::<ProfileProgram>::empty();
+# let mut doc = Doc::<ProfileProgram>::empty_derived("guide");
 # let mut insert = |doc: &Doc<ProfileProgram>, node| {
 #     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
@@ -838,7 +838,7 @@ let hole = |cx: f64, cy: f64| LoopProgram::Circle {
     radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
 };
 
-let mut doc = Doc::<ProfileProgram>::empty();
+let mut doc = Doc::<ProfileProgram>::empty_derived("guide");
 
 // Declare the parameter. An ordinary edit: recorded, replayable,
 // undoable like any other.
