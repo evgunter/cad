@@ -213,14 +213,31 @@ pub enum StepImportError {
         /// The minting pass's error, displayed.
         source: topo::PcurveMintError,
     },
-    /// The assembly's rigid placement refused at the kernel's own
-    /// [`topo::transform_rigid`] door (M7-4 Leg D): a map this
+    /// An assembly instance's rigid placement refused at the kernel's
+    /// own [`topo::transform_rigid`] door (M7-4 Leg D): a map this
     /// reader's ε_in classification let through that the kernel's
     /// decided predicates would not, or a carrier that failed to
     /// re-certify against the mapped geometry.
     Placement {
+        /// The `ITEM_DEFINED_TRANSFORMATION` that states this
+        /// instance's frame — with N instances in a file, which one
+        /// refused is the whole question.
+        transform: u64,
         /// The transform op's error, displayed.
         source: topo::TransformError,
+    },
+    /// A placed assembly instance refused to graft into the result
+    /// body at the kernel's own [`topo::graft_disjoint`] door — the
+    /// transplant found the placed component ill-formed, or a
+    /// transplanted edge description did not re-certify against the
+    /// destination's surfaces. Both are kernel-side refusals about a
+    /// body this reader had already built and gated; neither is
+    /// silently absorbed.
+    Instance {
+        /// The `MANIFOLD_SOLID_BREP` whose instance was being placed.
+        solid: u64,
+        /// The graft's error, displayed.
+        source: Box<topo::BooleanError>,
     },
     /// The adopted body failed the kernel's shared at-rest validation
     /// gate (M7-7, the #260 ruling (a)): `topo::validate_geometric` —
@@ -378,10 +395,16 @@ impl fmt::Display for StepImportError {
                     verdicts.join("; ")
                 )
             }
-            Self::Placement { source } => write!(
+            Self::Placement { transform, source } => write!(
                 f,
-                "step import: the assembly's rigid placement of the imported body \
-                 refused at the kernel’s transform door: {source:?}"
+                "step import: the assembly placement stated at #{transform} refused \
+                 at the kernel’s transform door: {source:?}"
+            ),
+            Self::Instance { solid, source } => write!(
+                f,
+                "step import: an assembly instance of the solid at #{solid} refused \
+                 to graft into the result body at the kernel’s disjoint-graft door: \
+                 {source:?}"
             ),
         }
     }

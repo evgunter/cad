@@ -435,24 +435,62 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
     let eps_in = options.eps_in.unwrap_or(model.uncertainty_m);
     match model.shape {
         entities::Shape::Solids(ref solids) => {
-            if solids.len() > 1 {
-                for spec in solids {
-                    gate(&assemble::build_one_solid(spec)?, Some(spec.id))?;
+            // **Materialization** (M8 instancing). The model says what
+            // to make: one entry per placed INSTANCE, each naming a
+            // solid and the frame that copy sits in. N occurrences of
+            // one component representation are N entries over the same
+            // solid index, and each is built into a body of its OWN —
+            // fresh topology, fresh arena keys, no structure shared
+            // between copies. Sharing was never on the table: a
+            // `SolidSpec`'s maps are keyed by the file's entity ids,
+            // so two copies assembled into one arena would collide id
+            // for id.
+            //
+            // Each instance then goes through the kernel's own
+            // placement door (M7-4 Leg D, unchanged): `transform_rigid`
+            // re-checks rigidity with decided predicates and
+            // RE-CERTIFIES every carrier against the mapped geometry,
+            // so a placed copy is as first-class as an unplaced one —
+            // and a map this reader let through that the kernel will
+            // not becomes a typed refusal, never a silently skewed
+            // body. N instances is N re-certifications, paid per copy
+            // because each copy is a different body.
+            //
+            // The copies meet in one arena through
+            // `topo::graft_disjoint` — the disjoint half of the
+            // boolean pipeline's combine door, which transplants a
+            // body's solid under a solid of its own with fresh keys in
+            // deterministic slot order. Nothing is fused; the shipped
+            // body is entity for entity the union of the bodies gated
+            // below, not a re-derivation of them.
+            let mut body = topo::Body::new();
+            for instance in &model.instances {
+                let spec = &solids[instance.solid];
+                let one = assemble::build_one_solid(spec)?;
+                let one = match instance.map {
+                    None => one,
+                    Some(map) => topo::transform_rigid(&one, &map).map_err(|source| {
+                        StepImportError::Placement {
+                            transform: instance.site,
+                            source,
+                        }
+                    })?,
+                };
+                // The per-solid subject of the shared gate (below),
+                // asked about the PLACED copy — the body that ships.
+                // With one instance the per-solid and aggregate
+                // subjects are the same body, so this call is skipped
+                // as an identity, never as an exemption.
+                if model.instances.len() > 1 {
+                    gate(&one, Some(spec.id))?;
                 }
+                topo::graft_disjoint(&mut body, &one).map_err(|source| {
+                    StepImportError::Instance {
+                        solid: spec.id,
+                        source: Box::new(source),
+                    }
+                })?;
             }
-            let body = assemble::build_body(solids, &model)?;
-            // The assembly's placement, through the kernel's own door
-            // (M7-4 Leg D): `transform_rigid` re-checks rigidity with
-            // decided predicates and re-certifies every carrier
-            // against the mapped geometry, so a placed body is as
-            // first-class as an unplaced one — and a map this reader
-            // let through that the kernel will not becomes a typed
-            // refusal, never a silently skewed body.
-            let body = match model.placement {
-                None => body,
-                Some(map) => topo::transform_rigid(&body, &map)
-                    .map_err(|source| StepImportError::Placement { source })?,
-            };
             // **The shared at-rest validation gate** (M7-7, the #260
             // ruling (a) + D9 engineering convention 2). Every
             // imported solid is held to the kernel's invariants by the
@@ -475,23 +513,25 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
             // stated inside-out cancels against a right-side-out
             // neighbour and the aggregate reads Zero, which is exempt.
             // "Every imported solid passes the gate" therefore has to
-            // mean each solid's OWN body, so every
-            // `MANIFOLD_SOLID_BREP` is assembled alone and asked
-            // alone, and the refusal names which one. The aggregate
-            // pass stays: it is the subject that owns the cross-solid
-            // structure (shared arena integrity, edges across shells)
-            // no per-solid view can see.
+            // mean each INSTANCE's own body, which is exactly the body
+            // the materialization loop above already holds, and the
+            // refusal names which `MANIFOLD_SOLID_BREP` it came from.
+            // The aggregate pass stays: it is the subject that owns
+            // the cross-solid structure (shared arena integrity, edges
+            // across shells) no per-solid view can see.
             //
-            // With one solid the two subjects are the same body, so
-            // the per-solid loop would re-run the aggregate call on
+            // With one instance the two subjects are the same body, so
+            // the per-solid call would re-run the aggregate call on
             // identical geometry — skipped as an identity, never as an
             // exemption.
             //
-            // Pre-placement for the per-solid pass is sound and
-            // deliberate: `transform_rigid` admits only det = +1 maps
-            // and re-certifies every carrier against the mapped
-            // geometry, so no tier-3 verdict is a function of the
-            // placement.
+            // The per-solid subject is the PLACED copy (M8): the body
+            // that ships is the union of exactly these, so gating them
+            // before placement would gate something else. It costs
+            // nothing in verdicts — `transform_rigid` admits only
+            // det = +1 maps and re-certifies every carrier against the
+            // mapped geometry, so no tier-3 verdict is a function of
+            // the placement — and it costs nothing in honesty.
             //
             // Tier 3, not the 3′ form: the tier-3′ census gate is the
             // currency of DECLARED-contact bodies (`BooleanBody`), and
