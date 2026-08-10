@@ -39,8 +39,14 @@ YOUR OWN account.** Resolve it at session start from your own
 agent dir: `agent-<id>/plugin/claude/anthropic/.claude.json →
 oauthAccount.emailAddress` (the id is in your memory-directory
 path). Other accounts' alerts are informational — do not pause
-your lanes for them; at most relay to Evan if that account's
-orchestrator appears dead.
+your lanes for them — EXCEPT as peer-recovery input (Evan, #350):
+when another account's alert fires, note its RESET TIME; at/after
+that time, if that account's orchestrator looks dead (no lane
+activity, no away-channel traffic), find its tmux session
+(`tmux list-panes -a`, `capture-pane` to check for the
+usage-credits dialog) and `send-keys` the dialog's
+wait-until-reset/continue option to wake it. Relay to Evan only
+if the wake fails.
 
 **Orchestrator protocol on its events** (scoped to your account):
 - `USAGE WARN` (≥90%): wind down that account's lanes — finish the
