@@ -17,6 +17,23 @@ become a kernel dependency.
 
 ## Run
 
+**Renders are hosted.** One command does the whole thing — it checks
+your branch is pushed (the runner renders the *pushed* tree), triggers
+`.github/workflows/render.yml`, polls the run, and installs the
+artifacts back into the working tree at their committed paths, where you
+review and commit them the ordinary way:
+
+```sh
+scripts/render-hosted.sh                        # all four lanes, this branch
+scripts/render-hosted.sh --lane uv              # one lane
+scripts/render-hosted.sh --run 31402416551      # pull an existing run's artifacts
+```
+
+The local entry points below **refuse to run** without an explicit
+override — see [Preview mode](#preview-mode-the-local-override). They
+are what the hosted lanes invoke, and what you reach for when you are
+still shaping a scene and do not intend to commit the frames:
+
 ```sh
 cd demos/tour
 cargo run --release -- ../out   # build + narrate + export STL/STEP + scenes.json
@@ -25,6 +42,34 @@ cd ..
 ./render.sh --freecad           # FreeCAD/OCC STEP-lane montage (renders-freecad/montage-freecad.png)
 ./render-uv.sh                  # UV trim-loop sheet (renders-uv/montage-uv.svg)
 ```
+
+### Preview mode: the local override
+
+`render.sh`, `render-wild.sh` and `render-uv.sh` each source
+`hosted-render-guard.sh` as their first act. Without
+
+```sh
+CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift
+```
+
+in the environment they print a pointer at `scripts/render-hosted.sh`
+and **exit nonzero**.
+
+The value is a sentence on purpose. `1` / `yes` / `true` are what
+anybody — human or agent — types reflexively when a script complains
+about an unset variable; a sentence naming what you are accepting is one
+nobody reaches by accident, and it reads as an admission in the shell
+history that produced the frames. A pass run this way is **preview
+only**: its frames carry *this* box's renderer and GL stack, which is
+the drift the sentence names.
+
+The rule is structural, not sniffed: there is no `GITHUB_ACTIONS` check
+in the guard. The sanctioned automated callers — `render.yml`'s render
+steps, `ci.yml`'s `uv sheet drift (demos)` row, and `ci-local.sh`'s
+`uv_sheet_drift` — each set the sentence **in the file, at the step that
+renders**, where a reviewer sees it. A sniffed exemption would be
+invisible at the call site and would grow silently with every new runner
+and local CI emulator.
 
 Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` +
 `demos/out/uv/*.svg` + `demos/out/uv.json` (untracked),
@@ -309,10 +354,13 @@ keeps the same shape (grid, captions, provenance banner via
 `compose_montage.py`) under its own title and banner.
 
 ```sh
+scripts/render-hosted.sh --lane wild   # the default path (hosted; installs renders-wild/)
+
+# preview only — see "Preview mode: the local override"
 cd demos/wild
 cargo run --release -- out    # import + tessellate + STL + scenes.json
 cd ..
-./render-wild.sh              # cells + sheet -> renders-wild/
+CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift ./render-wild.sh
 ```
 
 **Cell count: 8, and the cell set is license law plus pinned
@@ -649,21 +697,54 @@ above), a wedge leaves the committed lane directory exactly as it was.
 
 ### Off-box: the hosted lanes
 
+**This is the default renderer**, not an alternative to a local pass.
 `.github/workflows/render.yml` runs the render lanes on GitHub runners,
 on demand (`workflow_dispatch` — no PR trigger, no schedule), and hands
-each one back as a run artifact:
+each one back as a run artifact.
+
+`scripts/render-hosted.sh` is the front end, and the thing to use:
+
+```sh
+scripts/render-hosted.sh --lane all             # push check, dispatch, poll, install
+scripts/render-hosted.sh --lane wild --verify   # + prove the pull is byte-exact
+scripts/render-hosted.sh --run <id>             # pull an existing run, no re-render
+scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
+```
+
+It **refuses** if your local HEAD is not what `origin/<branch>` points
+at — the runner checks out the pushed tree and cannot see local commits,
+so rendering an unpushed branch would draw scenes you are not looking
+at, and the result would look entirely plausible. A dirty working tree
+is a warning by the same logic one step down. While the run is going it
+prints per-job status on change plus a heartbeat every five minutes (a
+FreeCAD leg can legitimately be silent for twenty), and on a non-success
+conclusion it names the failing jobs and dumps the failing steps' log
+tail. On success it downloads each requested lane's artifact, installs
+it at the lane's committed path, **reports rather than deletes** any
+committed file the artifact does not contain, runs
+`check_render_provenance.py` over the result, and prints what moved.
+
+`--verify` is the round-trip proof that the artifact path is *lossless*.
+It is not a claim that hosted pixels match local ones — the FreeCAD
+lanes' do not, see below — but that a byte-reproducible lane which went
+out through `upload-artifact`'s zip and came back through `gh run
+download` is byte-identical to what is committed, **provenance `tEXt`
+chunks and all**. If that ever stops holding, the provenance guard is
+being handed laundered files and every lane's pull is suspect.
+
+The raw commands, if you want them:
 
 ```sh
 gh workflow run render.yml -f ref=my-branch -f lanes=all
-gh run watch                        # then, when it lands:
-gh run download <run-id> -n renders-kernel    # or renders-freecad / renders-uv
+gh run download <run-id> -n renders-kernel   # renders-freecad / renders-uv / renders-wild
 ```
 
-`lanes` selects `all` (default) or one of `kernel` / `freecad` / `uv`.
-The tour is built **once** and handed to the lanes as an artifact; the
-two PNG lanes then run as parallel matrix legs (`fail-fast: false` — one
-lane wedging must not cancel the other's evidence), and the UV sheet,
-which needs no renderer, lands without waiting on either.
+`lanes` selects `all` (default) or one of `kernel` / `freecad` / `uv` /
+`wild`. The tour is built **once** and handed to the lanes that read it
+as an artifact; the two PNG lanes then run as parallel matrix legs
+(`fail-fast: false` — one lane wedging must not cancel the other's
+evidence), while the UV sheet (no renderer) and the wild-corpus montage
+(matplotlib, its own generator, no tour) land without waiting on either.
 
 The PNG lanes provision the **same** version-pinned, checksum-verified
 FreeCAD 1.1.2 AppImage as `ci.yml`'s `step-import` job — same cache key,
@@ -691,6 +772,16 @@ pinning the whole GL stack in a container image and re-baselining the
 committed cells in one commit — a design call, not a config tweak. (The
 UV lane carries no such caveat: it is renderer-free and reproducible
 off-box, which is why it is the one lane CI actually *gates*.)
+
+The **wild** lane carries no such caveat either, and is the more
+interesting case: it is FreeCAD-free by scope, so its cells are drawn by
+matplotlib's Agg rasterizer — pure CPU, matplotlib's own bundled fonts,
+pinned `numpy`/`matplotlib`, no GL anywhere in the path — over the
+kernel's own tessellation of committed STEP fixtures. Byte-identity IS
+expected there, and unlike the UV lane the output is PNGs carrying the
+provenance stamp chunks. That is what makes it the lane
+`render-hosted.sh --verify` round-trips: it exercises the whole
+stamp-bearing path, not just a text file.
 
 `render.py` is the zero-dependency fallback for the kernel lane
 (numpy + matplotlib, pure CPU, demo-local venv): binary-STL parsing,
