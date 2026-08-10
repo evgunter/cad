@@ -457,8 +457,11 @@ loft/sweep/tube bindings, G3 non-xy sketch planes. Plus G11
   no-rot property is structural.
 - R5: the LQ7 tail as ratified-open: wheel cadence; schema-version
   ↔ package-version coupling post-release.
-- R6 (#274): the semantic-merge blind spot — the post-merge
-  main-tip run option was never adopted; recurrence risk persists.
+- R6 (#274): CLOSED BY RULING (Evan, 2026-08-10, on the issue:
+  "the cure seems worse than the poison") — no structural
+  union-checking machinery. The standing mitigation is the
+  process norm in every brief: merge main before opening,
+  re-merge on movement, build the union explicitly.
 
 **D. Deferred-by-design (need a use case, not work):**
 - LB10's straight-off-arc fillet wall (two-route menu in §2b);
