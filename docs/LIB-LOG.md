@@ -507,6 +507,25 @@ NURBS legs. Arm: opus (LIB-7 banked slot 2). The Expr-bearing
 profile-steps door (with G9 → plate_param authorable from
 Python) is recorded here as a NAMED follow-up of PYG1.
 
+**The G2 unit-cut ruling (2026-08-10, orchestrator, from the
+substrate survey)**: audit G2 splits. Its LOFT half is mechanical
+(Node::Loft has existed since M5 PR 10 with eval + naming) and
+ships with G3 as **LIB-PYG23A** (docs/LIB-PYG23A-SPEC.md — two
+additive SketchPlane constructors, plane values + Node.loft bound,
+7 audit rows flip). Its SWEEP/TUBE half is NOT dispatchable as
+mechanical work, three independent walls: (a) wire_sweep
+unconditionally refuses — the SWEEP_FRONTIER path-composition
+lane is banked past M6 by the PR 10 MAJ ruling (kernel-side, not
+this program's to un-bank); (b) 3-D path values + the pose family
+are U4, whose landing site LQ3 is RATIFIED-OPEN (needs Evan's
+working session — U4 never ran); (c) Node::Tube does not exist,
+and a new node kind is a schema break colliding with ASM-1's
+in-flight v5 bump (coordination, not code). The sweep/tube tail
+is therefore a NAMED DESIGN CONVERSATION (U4/LQ3 + frontier +
+version coordination), recorded here as the register's G2
+residue; the audit page's rows 15–19 get the honest blocker text
+in PYG23A.
+
 **Ordinal 19 closed (2026-08-10)**: the R1-PARAMS retroactive
 review returned APPROVE 0/1/4, rubric 5/5/5, zero silent devs —
 the row is complete in MODEL-AB-LOG. Fix pass
