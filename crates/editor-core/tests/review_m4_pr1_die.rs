@@ -320,8 +320,8 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
 
     // Replay identity holds for BOTH edit orders (PartialEq + the
     // stricter role-isomorphism check against self is implied).
-    assert_eq!(TDoc::replay(&theirs.log).unwrap(), theirs.doc);
-    assert_eq!(TDoc::replay(&mine.log).unwrap(), mine.doc);
+    assert_eq!(TDoc::replay(theirs.doc.id(), &theirs.log).unwrap(), theirs.doc);
+    assert_eq!(TDoc::replay(mine.doc.id(), &mine.log).unwrap(), mine.doc);
 
     // The two authorings are payload-isomorphic under relabeling.
     assert_role_isomorphic(&theirs, &mine);

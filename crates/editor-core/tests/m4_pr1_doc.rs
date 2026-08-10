@@ -205,7 +205,7 @@ fn die_authors_replays_and_diffs() {
     assert_eq!(die.doc.len(), 46);
 
     // Replay identity (spec D7): from empty, BIT-IDENTICAL.
-    let replayed = TDoc::replay(&die.log).unwrap();
+    let replayed = TDoc::replay(die.doc.id(), &die.log).unwrap();
     assert_eq!(replayed, die.doc);
     assert!(replayed.diff(&die.doc).is_empty());
     assert_eq!(replayed.epsilon().to_bits(), die.doc.epsilon().to_bits());
@@ -247,5 +247,5 @@ fn die_authors_replays_and_diffs() {
     // The original document is untouched by all of the above (D2:
     // apply is pure).
     assert_eq!(die.doc.len(), 46);
-    assert!(die.doc.diff(&TDoc::replay(&die.log).unwrap()).is_empty());
+    assert!(die.doc.diff(&TDoc::replay(die.doc.id(), &die.log).unwrap()).is_empty());
 }

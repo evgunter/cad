@@ -104,7 +104,7 @@ fn r1_replay_bit_identity_adversarial() {
     let e = point_edit(len(-ulp1));
     doc = doc.apply(&e).unwrap().doc;
     log.push(e);
-    let replayed = Doc::replay(&log).unwrap();
+    let replayed = Doc::replay(doc.id(), &log).unwrap();
     assert_bit_identical(&replayed, &doc);
     // The crate's own bit-semantic comparator agrees (fix pass).
     assert!(replayed.bit_eq(&doc), "Doc::bit_eq on replay");
