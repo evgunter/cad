@@ -24,8 +24,11 @@
 //! also in [`crate::prelude`], which draws from this list so there is
 //! ONE curated surface rather than two that can drift.
 
-// The recipe and its edits.
-pub use editor_core::{Doc, DocEdit, EditError, apply};
+// The recipe and its edits. `Applied` is `apply`'s return (the new
+// document plus its `EditRecord`) — re-exported so a caller can STORE
+// one in a typed field rather than only destructure it (LIB-DOORS F4;
+// the #234 usable-but-unnameable residue class).
+pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
 
 // Node vocabulary. `BooleanOp` is the DOCUMENT layer's — the recipe
 // node's operation, distinct from `topo::BooleanOp`, the kernel's.
@@ -36,13 +39,37 @@ pub use editor_core::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, 
 // Expressions and their text door.
 // `ParamEnv` joins them for LIB-SEL1: `select_where` takes one, so a
 // caller who cannot spell the type cannot call the door.
-pub use editor_core::{Dimension, Expr, ParamEnv, ParseError, parse_expr};
+// `DimensionError` is the refusal `Expr`'s constructor doors return
+// (`literal`, the operator builders) — re-exported so a caller can
+// MATCH on it rather than pre-check the conditions it refuses
+// (LIB-DOORS F5).
+pub use editor_core::{Dimension, DimensionError, Expr, ParamEnv, ParseError, parse_expr};
 
 // Evaluation: the service, its options, its results, and the payloads
-// a result can carry.
+// a result can carry. `NodeResult`/`NodeValue`/`EvalOutcome` complete
+// the result vocabulary (LIB-DOORS F3/F4): `Evaluation::result` and
+// `Evaluation::node_error` answer in these types, so failed and
+// poisoned nodes are typed data, not a collapsed `None`.
 pub use editor_core::{
-    BooleanValue, CancelToken, DatumValue, EvalOptions, Evaluation, NodeError, NodeErrorKind,
-    SplitSide, ValuePayload, evaluate,
+    BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, NodeError,
+    NodeErrorKind, NodeResult, NodeValue, SplitSide, ValuePayload, evaluate,
+};
+
+// Persistence (LIB-DOORS F1): the schema-v4 doors, verbatim.
+// `save`/`load` speak `ProfileDoc` + `DocEdit` — exactly this module's
+// vocabulary — and every refusal is a typed `PersistError`, whose
+// payload types ride along so each arm is matchable from here
+// (`MigrationError` lives one path deeper in `editor_core`; the others
+// are crate-root re-exports there).
+//
+// Deliberately ABSENT: `MigrationStep`, the migration-table entry
+// type. Its signature speaks `serde_json::Value`, which does not cross
+// the curated surface (the U9S backlog measurement); the migration
+// TABLE is persist's interior, and a consumer never installs a step.
+pub use editor_core::persist::MigrationError;
+pub use editor_core::{
+    Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SCHEMA_VERSION,
+    SnapshotError, load, save,
 };
 
 // The content-hashing trait a scalar must satisfy to be evaluated
