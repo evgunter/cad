@@ -709,9 +709,9 @@ const QUAD2_HULL_BLOCKS: usize = 8;
 /// shortcut to fall back on — the midpoint rule's O(h²) IS the whole
 /// convergence story there ([`rational_patch_face`]).
 const QUAD2_RATIONAL_MAX_ROUNDS: usize = 7;
-/// Cells per axis of the RATIONAL lane's area pass (fixed, D9). Its
-/// midpoint-plus-Taylor-pad rule is O(h), so the resolution sets the
-/// area's honest width directly ([`rational_patch_face`]).
+/// Cells per axis of BOTH patch lanes' area pass (fixed, D9). The
+/// shared [`area_midpoint_taylor`] rule is O(h), so the resolution sets
+/// the area's honest width directly.
 const QUAD2_AREA_PIECES: usize = 64;
 /// Spans per axis the RATIONAL lane refines its bracketed net to
 /// before hulling anything (fixed, D9) — see [`refine_dir`] for why
@@ -1641,6 +1641,108 @@ fn norm_hi(v: RVec3) -> f64 {
     sqrt_enclosure(v[0].sqr() + v[1].sqr() + v[2].sqr()).hi()
 }
 
+/// Componentwise sum of two bracketed 3-vectors.
+fn rv_add(a: RVec3, b: RVec3) -> RVec3 {
+    [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+}
+
+/// One cell of the shared area grid: its closed extent per axis and the
+/// midpoint the rule evaluates at (carried rather than re-derived, so
+/// every lane's midpoint is the SAME float).
+#[derive(Clone, Copy)]
+struct AreaBox {
+    ulo: f64,
+    uhi: f64,
+    umid: f64,
+    vlo: f64,
+    vhi: f64,
+    vmid: f64,
+}
+
+/// What a lane reports for one area cell: the THIN midpoint value of
+/// the area integrand `g = |S_u×S_v|`, one-sided Lipschitz bounds on
+/// its two partials over the cell, and the smoothness-free hull of `g`
+/// over the whole cell.
+struct AreaCell {
+    /// `g(midpoint)` — thin, and the reason this rule beats the hull
+    /// rule by orders.
+    g_mid: RingInterval,
+    /// An upper bound on `sup_cell |∂_u g|`.
+    g_u: f64,
+    /// An upper bound on `sup_cell |∂_v g|`.
+    g_v: f64,
+    /// An enclosure of `g` over the whole cell — used ONLY on cells
+    /// that straddle an interior knot, where `g` may genuinely jump.
+    g_hull: RingInterval,
+}
+
+/// **The area rule both patch lanes use**: a fixed-resolution composite
+/// midpoint rule with a first-order Taylor (Lipschitz) pad,
+///
+/// ```text
+/// ∫∫_cell g ∈ A_cell·( g(m) ± [ (h_u/2)·G_u + (h_v/2)·G_v ] ),
+///     G_d ⊇ sup_cell |∂_d g|
+/// ```
+///
+/// which needs only that `g` be LIPSCHITZ on the cell — so the kink of
+/// `|·|` at a vanishing cross product is covered, and the lane's
+/// `|∂_d |c|| ≤ |∂_d c|` bound is exactly the Lipschitz constant.
+///
+/// The one thing it does NOT cover is a genuine JUMP: at an interior
+/// knot of multiplicity ≥ degree the surface is only C⁰ and `S_u`
+/// jumps, so `g` jumps and no derivative hull bounds the step. Cells
+/// straddling an interior knot therefore take the **smoothness-free
+/// hull rule** `A_cell·hull(g)` instead — the same treatment the flux
+/// path gives such cells, and the answer to R1's m1.
+///
+/// Why not the plain hull rule everywhere: every hull in this file is a
+/// control-net convexity fact and those are SPAN-GRANULAR, so on a
+/// single-span patch the per-cell hull IS the whole-patch hull and the
+/// rule never tightens (the unit square came out `[≈0, 10.4]`). Here
+/// only the pad carries hulls, so the width is genuinely O(h).
+///
+/// The area is a certified DENOMINATOR (the +V meter and the extent
+/// gate) — `boundary_defect` pads it directly.
+fn area_midpoint_taylor<E>(
+    rect: (f64, f64, f64, f64),
+    n: usize,
+    boundary_defect: f64,
+    knots: (&[f64], &[f64]),
+    mut cell: impl FnMut(AreaBox) -> Result<AreaCell, E>,
+) -> Result<RingInterval, E> {
+    let (u0, u1, v0, v1) = rect;
+    #[allow(clippy::cast_precision_loss)]
+    let (hu, hv) = ((u1 - u0) / n as f64, (v1 - v0) / n as f64);
+    let cell_area = pt(hu) * pt(hv);
+    let mut acc = RingInterval::zero();
+    for iu in 0..n {
+        #[allow(clippy::cast_precision_loss)]
+        let c_ulo = u0 + (u1 - u0) * (iu as f64 / n as f64);
+        let c_uhi = c_ulo + hu;
+        let straddle_u = knots.0.iter().any(|k| *k > c_ulo && *k < c_uhi);
+        for iv in 0..n {
+            #[allow(clippy::cast_precision_loss)]
+            let c_vlo = v0 + (v1 - v0) * (iv as f64 / n as f64);
+            let c_vhi = c_vlo + hv;
+            let c = cell(AreaBox {
+                ulo: c_ulo,
+                uhi: c_uhi,
+                umid: c_ulo + hu * 0.5,
+                vlo: c_vlo,
+                vhi: c_vhi,
+                vmid: c_vlo + hv * 0.5,
+            })?;
+            let straddle = straddle_u || knots.1.iter().any(|k| *k > c_vlo && *k < c_vhi);
+            acc = acc + cell_area * if straddle {
+                c.g_hull
+            } else {
+                widen(c.g_mid, 0.5 * hu * c.g_u + 0.5 * hv * c.g_v)
+            };
+        }
+    }
+    Ok(widen(acc, boundary_defect))
+}
+
 /// Ring lerp `x + (y − x)·λ` (the plan applier's fixed association),
 /// componentwise — the rounding lands OUTWARD in the brackets, which
 /// is what makes a refined net a certified enclosure of the same
@@ -1949,63 +2051,44 @@ fn rational_patch_face<T: Decide>(
         }
     }
 
-    // AREA: one fixed-resolution pass of the **midpoint rule with a
-    // first-order Taylor pad** (`g = |cross_num|/w³`):
+    // AREA: the shared [`area_midpoint_taylor`] rule with this lane's
+    // quotient integrand `g = |cross_num|/w³` and its pad
     //
-    //     ∫∫_cell g ∈ A_cell·(g(m) ± [ (h_u/2)·G_u + (h_v/2)·G_v ])
     //     G_d ⊇ sup |∂_d g| ≤ |∂_d cross_num|/w³ + 3·|cross_num|·|w_d|/w⁴
     //
-    // (`| ∂_d |c| | ≤ |∂_d c|` — the magnitude is 1-Lipschitz). The
-    // integral lane's plain hull rule is NOT usable here: control-net
-    // hulls are span-granular, so on a single-span rational patch the
-    // per-cell hull never tightens and the answer would be a decade
-    // wide. The midpoint value is THIN, and only the pad carries
-    // hulls — so this rule genuinely tightens as O(h). The area is a
-    // certified DENOMINATOR (the +V meter and the extent gate); its
-    // honest width lands in `area_pad`.
-    let area = {
-        let n = QUAD2_AREA_PIECES;
-        #[allow(clippy::cast_precision_loss)]
-        let (hu, hv) = ((u1 - u0) / n as f64, (v1 - v0) / n as f64);
-        let cell_area = pt(hu) * pt(hv);
-        let mut acc = RingInterval::zero();
-        for iu in 0..n {
-            #[allow(clippy::cast_precision_loss)]
-            let c_ulo = u0 + (u1 - u0) * (iu as f64 / n as f64);
-            for iv in 0..n {
-                #[allow(clippy::cast_precision_loss)]
-                let c_vlo = v0 + (v1 - v0) * (iv as f64 / n as f64);
-                let over = (
-                    Collapse::Over(c_ulo, c_ulo + hu),
-                    Collapse::Over(c_vlo, c_vlo + hv),
-                );
-                let m = (
-                    Collapse::At(c_ulo + hu * 0.5),
-                    Collapse::At(c_vlo + hv * 0.5),
-                );
-                let cm = a.cross_num(&w, m.0, m.1);
-                let wm = w.chan(m.0, m.1);
-                let g_m = sqrt_enclosure(cm[0].sqr() + cm[1].sqr() + cm[2].sqr()) / wm.powi(3);
-                let wh = w.chan(over.0, over.1);
-                if wh.lo() <= 0.0 || !wh.lo().is_finite() {
-                    return Err(PropsError::QuadratureUnsupported {
-                        what: "a rational patch cell whose weight hull does not exclude \
-                               zero — the quotient's enclosures are undefined there",
-                    });
-                }
-                let (w3, w4) = (wh.lo().powi(3), wh.lo().powi(4));
-                let c_hi = norm_hi(a.cross_num(&w, over.0, over.1));
-                let pad_d = |dc: RVec3, wd: RingInterval| -> f64 {
-                    norm_hi(dc) / w3 + 3.0 * c_hi * wd.mag() / w4
-                };
-                let g_u = pad_d(a.cross_num_u(&w, over.0, over.1), w.chan_u(over.0, over.1));
-                let g_v = pad_d(a.cross_num_v(&w, over.0, over.1), w.chan_v(over.0, over.1));
-                let e = 0.5 * hu * g_u + 0.5 * hv * g_v;
-                acc = acc + cell_area * widen(g_m, e);
+    // (`| ∂_d |c| | ≤ |∂_d c|` — the magnitude is 1-Lipschitz).
+    let area = area_midpoint_taylor(
+        rect,
+        QUAD2_AREA_PIECES,
+        boundary_defect,
+        (&knots_u, &knots_v),
+        |b| {
+            let over = (Collapse::Over(b.ulo, b.uhi), Collapse::Over(b.vlo, b.vhi));
+            let m = (Collapse::At(b.umid), Collapse::At(b.vmid));
+            let cm = a.cross_num(&w, m.0, m.1);
+            let wm = w.chan(m.0, m.1);
+            let g_mid = sqrt_enclosure(cm[0].sqr() + cm[1].sqr() + cm[2].sqr()) / wm.powi(3);
+            let wh = w.chan(over.0, over.1);
+            if wh.lo() <= 0.0 || !wh.lo().is_finite() {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a rational patch cell whose weight hull does not exclude \
+                           zero — the quotient's enclosures are undefined there",
+                });
             }
-        }
-        widen(acc, boundary_defect)
-    };
+            let (w3, w4) = (wh.lo().powi(3), wh.lo().powi(4));
+            let ch = a.cross_num(&w, over.0, over.1);
+            let c_hi = norm_hi(ch);
+            let pad_d = |dc: RVec3, wd: RingInterval| -> f64 {
+                norm_hi(dc) / w3 + 3.0 * c_hi * wd.mag() / w4
+            };
+            Ok(AreaCell {
+                g_mid,
+                g_u: pad_d(a.cross_num_u(&w, over.0, over.1), w.chan_u(over.0, over.1)),
+                g_v: pad_d(a.cross_num_v(&w, over.0, over.1), w.chan_v(over.0, over.1)),
+                g_hull: sqrt_enclosure(ch[0].sqr() + ch[1].sqr() + ch[2].sqr()) / wh.powi(3),
+            })
+        },
+    )?;
 
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
     let mut pieces = QUAD2_INIT_PIECES;
@@ -2096,9 +2179,10 @@ fn rational_patch_face<T: Decide>(
 /// (the `S_u·(S_u×S_uv)`-shaped triples vanish identically). Cells
 /// straddling an interior knot in either direction take the
 /// smoothness-free first-order rule `A·hull(f)`. The area rides the
-/// first-order hull rule per cell — sound at every resolution,
-/// tightening as O(h) — because the +V gate meters `V/A` and needs an
-/// honest denominator, not a tight one. A patch with non-unit weights
+/// shared [`area_midpoint_taylor`] rule (midpoint + Lipschitz pad, the
+/// hull rule only on knot-straddling cells) — sound at every
+/// resolution and O(h), because the +V gate meters `V/A` and needs an
+/// honest denominator. A patch with non-unit weights
 /// routes to [`rational_patch_face`] (M8-3), which certifies the same
 /// two numbers through the quotient rule.
 ///
@@ -2217,36 +2301,47 @@ pub fn nurbs_patch_face<T: Decide>(
             rv_cross(g_su, grid_vec(svvv.as_ref(), over_all.0, over_all.1)),
         );
 
-    // AREA: one fixed-resolution pass of the first-order hull rule
-    // (per-cell Su/Sv hulls). The area is a certified DENOMINATOR
-    // (the +V meter and the extent gate), not a convergence-gated
-    // quantity — its honest O(h) width lands in `area_pad`.
-    let area = {
-        let n = 2 * QUAD2_INIT_PIECES;
-        #[allow(clippy::cast_precision_loss)]
-        let (hu, hv) = ((u1 - u0) / n as f64, (v1 - v0) / n as f64);
-        let cell_area = pt(hu) * pt(hv);
-        let mut acc = RingInterval::zero();
-        for iu in 0..n {
-            #[allow(clippy::cast_precision_loss)]
-            let c_ulo = u0 + (u1 - u0) * (iu as f64 / n as f64);
-            for iv in 0..n {
-                #[allow(clippy::cast_precision_loss)]
-                let c_vlo = v0 + (v1 - v0) * (iv as f64 / n as f64);
-                let over = (
-                    Collapse::Over(c_ulo, c_ulo + hu),
-                    Collapse::Over(c_vlo, c_vlo + hv),
-                );
-                let cross_h = rv_cross(
-                    grid_vec(su.as_ref(), over.0, over.1),
-                    grid_vec(sv.as_ref(), over.0, over.1),
-                );
-                let norm_sq = cross_h[0].sqr() + cross_h[1].sqr() + cross_h[2].sqr();
-                acc = acc + cell_area * sqrt_enclosure(norm_sq);
-            }
-        }
-        widen(acc, boundary_defect)
-    };
+    // AREA: the shared [`area_midpoint_taylor`] rule (#313's integral
+    // half) with this lane's polynomial integrand `g = |S_u×S_v|` —
+    // the rational lane's rule at `w ≡ 1`, where the quotient pad
+    // collapses to `|∂_d (S_u×S_v)|` exactly. It replaces the plain
+    // per-cell hull rule, which was span-granular and therefore did
+    // not tighten at all: on the standard multi-arc form it returned
+    // `area.lo() == 0` and the face was refused DegenerateFace.
+    let area = area_midpoint_taylor(
+        rect,
+        QUAD2_AREA_PIECES,
+        boundary_defect,
+        (&knots_u, &knots_v),
+        |b| -> Result<AreaCell, PropsError> {
+            let over = (Collapse::Over(b.ulo, b.uhi), Collapse::Over(b.vlo, b.vhi));
+            let m = (Collapse::At(b.umid), Collapse::At(b.vmid));
+            let cm = rv_cross(
+                grid_vec(su.as_ref(), m.0, m.1),
+                grid_vec(sv.as_ref(), m.0, m.1),
+            );
+            let (h_su, h_sv) = (
+                grid_vec(su.as_ref(), over.0, over.1),
+                grid_vec(sv.as_ref(), over.0, over.1),
+            );
+            let ch = rv_cross(h_su, h_sv);
+            // ∂_u (S_u×S_v) = S_uu×S_v + S_u×S_uv, and likewise in v.
+            let d_u = rv_add(
+                rv_cross(grid_vec(suu.as_ref(), over.0, over.1), h_sv),
+                rv_cross(h_su, grid_vec(suv.as_ref(), over.0, over.1)),
+            );
+            let d_v = rv_add(
+                rv_cross(grid_vec(suv.as_ref(), over.0, over.1), h_sv),
+                rv_cross(h_su, grid_vec(svv.as_ref(), over.0, over.1)),
+            );
+            Ok(AreaCell {
+                g_mid: sqrt_enclosure(cm[0].sqr() + cm[1].sqr() + cm[2].sqr()),
+                g_u: norm_hi(d_u),
+                g_v: norm_hi(d_v),
+                g_hull: sqrt_enclosure(ch[0].sqr() + ch[1].sqr() + ch[2].sqr()),
+            })
+        },
+    )?;
 
     // ---- The exact per-span lane first (fn docs): one tensor
     // Newton–Cotes pass whose enclosure width is ring rounding only.
