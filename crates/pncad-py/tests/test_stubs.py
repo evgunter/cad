@@ -9,9 +9,19 @@ in the same degraded environment as the rest of the suite.
 Scope, stated honestly: NAME-level equality of the top-level surface
 (classes, functions, constants), both directions. Signature-level
 checking remains `ty`'s job.
+
+LAYOUT-INVARIANT (R1/R2 converged finding): the module is importable
+two ways — the repo script's flat `pncad.so` staging, and the wheel's
+package layout (`pncad/__init__.py` re-exporting `pncad/pncad.abi3.so`),
+where `dir(pncad)` also contains module-typed attributes (the
+package's own submodule self-reference). Module-typed attributes are
+implementation artifacts of the layout, not API surface, so
+`module_names` excludes them; the check must be green under BOTH
+layouts.
 """
 
 import ast
+import types
 import unittest
 from pathlib import Path
 
@@ -37,11 +47,17 @@ def stub_names():
 
 
 def module_names():
-    """Every public top-level name the compiled module exposes."""
+    """Every public top-level API name the compiled module exposes.
+
+    Module-typed attributes are excluded: under the wheel's package
+    layout `dir(pncad)` carries the extension submodule itself, which
+    is layout plumbing, not surface.
+    """
     return {
         name
         for name in dir(pncad)
-        if not name.startswith("_") or name == "__build_info__"
+        if (not name.startswith("_") or name == "__build_info__")
+        and not isinstance(getattr(pncad, name), types.ModuleType)
     }
 
 

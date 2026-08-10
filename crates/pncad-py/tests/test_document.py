@@ -152,6 +152,13 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(caught.exception.node, cut)
         # The NodeErrorKind's stable tag: the Boolean op refused.
         self.assertEqual(caught.exception.kind, "boolean")
+        self.assertIsNone(caught.exception.through)
+        # F6 (reopened on review): the MESSAGE is prose stating the
+        # problem, not the kernel enum's Debug guts.
+        message = str(caught.exception)
+        self.assertIn("Boolean op refused", message)
+        for guts in ("UndeclaredCoincidence", "{", "NodeError"):
+            self.assertNotIn(guts, message)
 
     def test_a_poisoned_node_names_its_failed_ancestor(self):
         doc = Doc()
@@ -167,6 +174,27 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(caught.exception.through, cut)
         # The root cause's tag rides along: the ancestor's Boolean.
         self.assertEqual(caught.exception.kind, "boolean")
+        self.assertIn("poisoned by failed ancestor", str(caught.exception))
+
+
+class TestLiteralRefusals(unittest.TestCase):
+    """LIB-DOORS F5 + fix pass: the kernel's own refusal, with the
+    offending value restored to the exception payload."""
+
+    def test_a_non_finite_literal_carries_kind_value_and_prose(self):
+        doc = Doc()
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        profile_node = doc.order()[0]
+        with self.assertRaises(pncad.LiteralError) as caught:
+            doc.insert(Node.extrude(profile_node, float("nan") * m))
+        self.assertEqual(caught.exception.kind, "non_finite")
+        self.assertNotEqual(
+            caught.exception.value, caught.exception.value
+        )  # NaN != NaN: the offending value itself rides the exception
+        message = str(caught.exception)
+        self.assertIn("finite", message)
+        self.assertNotIn("NonFiniteLiteral", message)  # prose, not variant name
+        self.assertTrue(evaluate(doc).succeeded(box), "the document is untouched")
 
 
 class TestD9BitReplaySeed(unittest.TestCase):

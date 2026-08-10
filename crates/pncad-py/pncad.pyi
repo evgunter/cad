@@ -28,15 +28,16 @@ class EvaluationError(PncadError):
     """A node produced no value, or produced the wrong kind.
 
     `reason` is `unknown_node`, `wrong_kind`, `empty_boolean`,
-    `node_failed`, or `poisoned`. A `node_failed`/`poisoned` refusal
-    carries `kind`, the `NodeErrorKind`'s stable tag; a poisoning
-    carries `through`, the nearest failed ancestor (LIB-DOORS F3).
+    `node_failed`, or `poisoned`. `kind` (the `NodeErrorKind`'s
+    stable tag) and `through` (the nearest failed ancestor) are
+    always present, `None` where the reason has neither (LIB-DOORS
+    F3; attributes never go missing).
     """
 
     reason: str
     node: NodeId
-    kind: str
-    through: NodeId
+    kind: Optional[str]
+    through: Optional[NodeId]
 
 class ValidationError(PncadError):
     """A body failed a validator, or mass properties could not be taken."""
@@ -53,9 +54,10 @@ class DimensionError(PncadError):
 
 class LiteralError(PncadError):
     """A value the expression layer refused (`Expr::literal`'s own
-    curated error, LIB-DOORS F5)."""
+    curated error, LIB-DOORS F5). `value` is the offending number."""
 
     kind: str
+    value: float
 
 class PersistError(PncadError):
     """A save or load the persistence doors refused (LIB-DOORS F1)."""
@@ -63,13 +65,14 @@ class PersistError(PncadError):
     variant: str
 
 class ExportError(PncadError):
-    """The document-layer export door refused (LIB-DOORS F2). A
-    poisoning adds `through`; a wrong-kind value adds `kind`."""
+    """The document-layer export door refused (LIB-DOORS F2).
+    `through` (poisoning ancestor) and `kind` (the wrong-kind value's
+    tag) are always present, `None` where inapplicable."""
 
     variant: str
     node: NodeId
-    through: NodeId
-    kind: str
+    through: Optional[NodeId]
+    kind: Optional[str]
 
 class StepImportError(PncadError):
     """A STEP text the importer refused (`refused`), or one that

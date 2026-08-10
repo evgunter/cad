@@ -99,7 +99,7 @@ impl core::fmt::Display for ExportError {
                     "export: node {node:?}'s Boolean is empty — nothing to export"
                 )
             }
-            Self::Step(e) => write!(f, "export: the STEP writer refused: {e:?}"),
+            Self::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
         }
     }
 }

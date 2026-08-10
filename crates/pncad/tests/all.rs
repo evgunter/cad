@@ -689,7 +689,13 @@ fn doors_insert(
 }
 
 /// A one-box document: square(2) extruded 1.5 — volume exactly 6.0.
-fn doors_box_doc() -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
+/// Returns (doc, profile id, body id) — the MINTED ids, so no test
+/// couples to mint order (the R1/R2 NOTE).
+fn doors_box_doc() -> (
+    pncad::document::ProfileDoc,
+    pncad::document::RecipeNodeId,
+    pncad::document::RecipeNodeId,
+) {
     use pncad::document::{Dimension, Expr, Node};
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let doc = pncad::document::ProfileDoc::empty();
@@ -701,7 +707,7 @@ fn doors_box_doc() -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeI
             distance: lit(1.5),
         },
     );
-    (doc, body)
+    (doc, profile, body)
 }
 
 fn doors_evaluate(doc: &pncad::document::ProfileDoc) -> pncad::document::Evaluation<f64> {
@@ -716,7 +722,7 @@ fn doors_evaluate(doc: &pncad::document::ProfileDoc) -> pncad::document::Evaluat
 #[test]
 fn the_persist_doors_round_trip_through_the_facade() {
     lib_doors_vocabulary_is_nameable();
-    let (doc, body_node) = doors_box_doc();
+    let (doc, _, body_node) = doors_box_doc();
     let before = doors_evaluate(&doc);
     let volume = mass_properties(
         match &before.value(body_node).expect("the box evaluated").payload {
@@ -765,7 +771,7 @@ fn the_persist_doors_round_trip_through_the_facade() {
 
 #[test]
 fn the_export_door_serves_the_one_shot_journey() {
-    let (doc, body_node) = doors_box_doc();
+    let (doc, _, body_node) = doors_box_doc();
     let ev = doors_evaluate(&doc);
     let step = pncad::export::step_for_node(&ev, body_node, &StepOptions::default())
         .expect("a body value exports");
@@ -787,8 +793,7 @@ fn the_export_door_serves_the_one_shot_journey() {
 fn the_export_door_refuses_typed_not_vaguely() {
     use pncad::document::{Node, RecipeNodeId};
     use pncad::export::ExportError;
-    let (doc, _) = doors_box_doc();
-    let profile_node = RecipeNodeId(0);
+    let (doc, profile_node, first_box) = doors_box_doc();
     // A failing Boolean (undeclared coincidence) and its downstream.
     let (doc, second_profile) = doors_insert(doc, doors_square(1.0));
     let (doc, second_box) = doors_insert(
@@ -803,7 +808,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
         doc,
         Node::Boolean {
             op: pncad::document::BooleanOp::Subtract,
-            a: RecipeNodeId(1),
+            a: first_box,
             b: second_box,
             declare: None,
         },
@@ -813,7 +818,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
         Node::Boolean {
             op: pncad::document::BooleanOp::Union,
             a: cut,
-            b: RecipeNodeId(1),
+            b: first_box,
             declare: None,
         },
     );

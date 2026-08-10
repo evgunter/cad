@@ -529,6 +529,125 @@ pub enum NodeErrorKind {
     WitnessBifurcation(crate::witness::WitnessBifurcation),
 }
 
+// LIB-DOORS F6 (reopened on review): the human-readable rendering the
+// bindings' exception messages consume. Each arm states the PROBLEM
+// in the op's vocabulary, not the payload's guts — the kernel refusal
+// rides the variant, unaltered (D2), for callers who match; prose
+// here names the failing op and its violated expectation.
+impl core::fmt::Display for NodeErrorKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Expr { slot, .. } => {
+                write!(f, "the expression at slot {slot:?} failed to evaluate")
+            }
+            Self::Profile(_) => f.write_str("the replayed profile failed validation"),
+            Self::ProfileReplay { loop_, .. } => {
+                write!(f, "profile loop {loop_}'s program refused at replay")
+            }
+            Self::ProfileAnchor { loop_ } => write!(
+                f,
+                "internal: canonical loop {loop_} failed to match back to a program loop"
+            ),
+            Self::Extrude(_) => f.write_str("the extrude op refused"),
+            Self::Revolve(_) => f.write_str("the revolve op refused"),
+            Self::Split(_) => f.write_str("the split op refused"),
+            Self::Fillet(_) => f.write_str("the fillet op refused"),
+            Self::Boolean(_) => f.write_str(
+                "the Boolean op refused its operands (undeclared coincidence is the \
+                 common case: the kernel never infers that touching faces are the \
+                 same face)",
+            ),
+            Self::Transform(_) => f.write_str("the transform op refused"),
+            Self::Skin(_) => f.write_str("the skin construction refused"),
+            Self::Loft(_) => f.write_str("the loft assembly refused"),
+            Self::CurvedSolidFrontier { what } => write!(f, "not yet buildable: {what}"),
+            Self::MissingInput { input } => {
+                write!(f, "input {} names no live node", input.0)
+            }
+            Self::ToleranceConflict {
+                document_eps,
+                process_eps,
+            } => write!(
+                f,
+                "document ε {document_eps:e} conflicts with the process ε {process_eps:e} \
+                 (one process, one ε)"
+            ),
+            Self::WrongOperand {
+                input,
+                expected,
+                found,
+            } => write!(
+                f,
+                "input {} is a {found}; the operand needs a {expected}",
+                input.0
+            ),
+            Self::EmptyOperand { input } => write!(
+                f,
+                "input {} is the empty value — the body ops take real bodies",
+                input.0
+            ),
+            Self::DegenerateDirection { role } => {
+                write!(f, "the {role} direction has zero length")
+            }
+            Self::Band(_) => {
+                f.write_str("the ambient tolerance could not form a classification band")
+            }
+            Self::MissingSlot { slot } => {
+                write!(
+                    f,
+                    "internal: the wiring expected slot {slot:?}, which is absent"
+                )
+            }
+            Self::Escalated { predicate, .. } => {
+                write!(f, "predicate {predicate} escalated (in-band indeterminacy)")
+            }
+            Self::AxisNotInSketchPlane { axis } => write!(
+                f,
+                "revolve axis (node {}) does not lie in the profile's sketch plane",
+                axis.0
+            ),
+            Self::NonPositiveCount { count } => {
+                write!(f, "pattern count {count} is not at least 1")
+            }
+            Self::UnschedulableCycle => {
+                f.write_str("the node is in, or downstream of, a dependency cycle")
+            }
+            Self::Naming(_) => f.write_str("name emission failed"),
+            Self::DeclareResolve { .. } => {
+                f.write_str("a declared name failed to resolve through the operands' tables")
+            }
+            Self::DeclareBothOperands { name } => write!(
+                f,
+                "declared name {name:?} resolves in BOTH operands — the declaration cannot pick a side"
+            ),
+            Self::DeclareUnsupportedPair { kinds, .. } => write!(
+                f,
+                "declare pair {kinds:?} is outside the v1 threading vocabulary"
+            ),
+            Self::FilletSelectionResolve { .. } => {
+                f.write_str("a fillet selection name failed to resolve")
+            }
+            Self::FilletSelectionKind { name, found } => write!(
+                f,
+                "fillet selection {name:?} denotes a {found:?}, not an edge"
+            ),
+            Self::FilletSelectionEmpty => f.write_str(
+                "the fillet selection is empty — an unfinished recipe, not the identity",
+            ),
+            Self::WitnessBifurcation(_) => f.write_str("the sketch's branch selection refused"),
+        }
+    }
+}
+
+/// The [`NodeError`] rendering: the node, then its kind's prose.
+impl core::fmt::Display for NodeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "node {} failed: {}", self.node.0, self.kind)
+    }
+}
+
+impl core::error::Error for NodeError {}
+
 /// An evaluation's identity token (spec D5, GQ2): callers tag each
 /// launched evaluation and discriminate stale results by comparing the
 /// epoch a result carries against the newest one they minted.

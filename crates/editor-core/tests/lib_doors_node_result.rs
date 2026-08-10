@@ -128,3 +128,38 @@ fn ok_and_absent_nodes_answer_none() {
     assert!(ev.result(absent).is_none());
     assert!(ev.node_error(absent).is_none());
 }
+
+/// F6 (reopened on the PR #308 review): the refusal enums render as
+/// PROSE — problem statements, not the payloads' `Debug` guts. Pins
+/// one message per new `Display` (EditError, NodeError/-Kind,
+/// DimensionError, ProgramRefusal) plus the no-guts property on the
+/// live coincidence refusal.
+#[test]
+fn refusals_render_as_prose_not_debug_guts() {
+    use editor_core::{DimensionError, EditError};
+
+    let edit = EditError::UnknownNode {
+        id: RecipeNodeId(7),
+    };
+    assert_eq!(edit.to_string(), "edit: node 7 is not live");
+
+    let literal = Expr::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
+    assert!(matches!(literal, DimensionError::NonFiniteLiteral));
+    assert_eq!(literal.to_string(), "a literal value must be finite");
+
+    // The live failure: the coincident Boolean's message states the
+    // problem and mentions the common cause; the enum's structure
+    // (variant names, braces) stays OUT of the prose.
+    let (doc, cut, _) = doc_with_failure();
+    let ev = run(&doc);
+    let error = ev.node_error(cut).expect("the Boolean failed");
+    let message = error.to_string();
+    assert!(
+        message.starts_with(&format!("node {} failed: ", cut.0)),
+        "{message}"
+    );
+    assert!(message.contains("Boolean op refused"), "{message}");
+    for guts in ["UndeclaredCoincidence", "{", "Indeterminate"] {
+        assert!(!message.contains(guts), "Debug guts leaked: {message}");
+    }
+}

@@ -19,10 +19,10 @@ fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
     typed_err(
         py,
         ErrorClass::Edit,
-        // `EditError` implements no `Display`, so the human message is
-        // its `Debug` rendering; the machine-readable payload is the
-        // `variant` tag attached below (see `crate::tags`).
-        format!("{err:?}"),
+        // `EditError` implements `Display` (LIB-DOORS F6, reopened on
+        // review): the human message is real prose; the machine
+        // payload is the `variant` tag (see `crate::tags`).
+        err.to_string(),
         &[("variant", PyString::new(py, tag).unbind().into_any())],
     )
 }
@@ -46,14 +46,24 @@ fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
 /// predicted: the pre-check this function used to carry (LIB-U9S's F5
 /// workaround, from before the façade curated `DimensionError`) is
 /// gone, so the binding cannot drift from what the kernel refuses.
+/// The exception keeps U9S's payload: `kind` (the stable tag) AND
+/// `value`, the offending number — the kernel error deliberately
+/// carries no float, but the boundary has it in hand.
 pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult<d::Expr> {
     d::Expr::literal(value, dim).map_err(|err| {
         let tag = expr_dimension_error_tag(&err);
+        let value_obj = match value.into_pyobject(py) {
+            Ok(bound) => bound.unbind().into_any(),
+            Err(failed) => return failed.into(),
+        };
         typed_err(
             py,
             ErrorClass::Literal,
-            format!("{err:?}"),
-            &[("kind", PyString::new(py, tag).unbind().into_any())],
+            format!("literal {value}: {err}"),
+            &[
+                ("kind", PyString::new(py, tag).unbind().into_any()),
+                ("value", value_obj),
+            ],
         )
     })
 }

@@ -45,6 +45,11 @@ use pncad::document as d;
 use pncad::topo;
 
 /// Raise `EvaluationError` with a stable `reason` tag.
+///
+/// `kind` and `through` are ALWAYS present on the exception — `None`
+/// where the reason has no failing kind or poisoning ancestor — so
+/// stub-guided code can read them without an `AttributeError` trap
+/// (the R1/R2 NOTE on over-promising stubs).
 fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: NodeId) -> PyErr {
     let node = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -59,13 +64,16 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: Node
         &[
             ("reason", PyString::new(py, reason).unbind().into_any()),
             ("node", node),
+            ("kind", py.None().into_any()),
+            ("through", py.None().into_any()),
         ],
     )
 }
 
 /// Raise `EvaluationError` for a node that ITSELF failed: the payload
 /// is the `NodeErrorKind`'s stable tag plus the node id; the message
-/// is the kernel's own error, rendered.
+/// is the kernel error's own `Display` prose (F6, reopened on
+/// review — never a `Debug` dump).
 fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -74,7 +82,7 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     typed_err(
         py,
         ErrorClass::Evaluation,
-        format!("{error:?}"),
+        error.to_string(),
         &[
             (
                 "reason",
@@ -87,6 +95,7 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
                     .unbind()
                     .into_any(),
             ),
+            ("through", py.None().into_any()),
         ],
     )
 }
@@ -106,6 +115,8 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
         ("node", node_obj),
         ("through", through_obj),
     ];
+    // The message is the root cause's `Display` prose (F6): the node
+    // never ran, so the honest sentence names the ancestor's problem.
     let message = match root {
         Some(error) => {
             fields.push((
@@ -114,9 +125,12 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
                     .unbind()
                     .into_any(),
             ));
-            format!("poisoned through {:?}: {error:?}", through.0)
+            format!("never ran — poisoned by failed ancestor: {error}")
         }
-        None => format!("poisoned through {:?}", through.0),
+        None => {
+            fields.push(("kind", py.None().into_any()));
+            format!("never ran — poisoned through node {}", through.0.0)
+        }
     };
     typed_err(py, ErrorClass::Evaluation, message, &fields)
 }
@@ -481,20 +495,24 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
         Ok(bound) => bound.unbind().into_any(),
         Err(failed) => return failed,
     };
+    // `through`/`kind` are ALWAYS present (`None` where inapplicable)
+    // so stub-guided reads cannot `AttributeError`.
     let mut fields: Vec<(&str, Py<PyAny>)> = vec![
         (
             "variant",
             PyString::new(py, export_error_tag(err)).unbind().into_any(),
         ),
         ("node", node_obj),
+        ("through", py.None().into_any()),
+        ("kind", py.None().into_any()),
     ];
     match err {
         E::Poisoned { through, .. } => match NodeId(*through).into_pyobject(py) {
-            Ok(bound) => fields.push(("through", bound.unbind().into_any())),
+            Ok(bound) => fields[2] = ("through", bound.unbind().into_any()),
             Err(failed) => return failed,
         },
         E::NotABody { kind, .. } => {
-            fields.push(("kind", PyString::new(py, kind).unbind().into_any()));
+            fields[3] = ("kind", PyString::new(py, kind).unbind().into_any());
         }
         E::UnknownNode { .. } | E::NodeFailed { .. } | E::EmptyBoolean { .. } | E::Step(_) => {}
     }
