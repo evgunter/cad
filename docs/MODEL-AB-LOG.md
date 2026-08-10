@@ -483,6 +483,10 @@ branch kernel/rational-wall.
 M8-2 (PR #306) R1 ordinal FIXED AT DISPATCH (2026-08-10): 15
 merged blinded rows on main (the 13 at #301's dispatch + M8-1 +
 SWITCH-E) + 1 = **16** → SINGLE review.
+M8-3 R1 ordinal FIXED AT DISPATCH (2026-08-10, on PR #309 = PR-1
+of the ruled two-PR delivery; one unit row at completion): 15
+merged + 1 R1-dispatched-unmerged unit (M8-2, holding 16) + 1 =
+**17** → SINGLE review.
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
