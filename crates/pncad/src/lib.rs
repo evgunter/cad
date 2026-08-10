@@ -38,14 +38,28 @@
 //!
 //! [`validated`]: authoring::validated
 //!
-//! # Examples
+//! # Start here
 //!
-//! The example corpus is `demos/tour` — eighteen scenes that depend
-//! on this crate and nothing else, each running the same ladder:
-//! author a profile, build a body, validate it at tiers 1→2→3,
-//! measure its mass properties, tessellate, cross-check, export.
-//! Read the tour for how any of this is meant to be used; real
-//! narrative documentation is a later unit of this program.
+//! **[`guide::journey`] is the guide** — quickstart, then the
+//! canonical journey from authoring to export, in Rust and Python
+//! side by side. Every code block in it is a doctest, so it cannot
+//! drift from this crate. The rest of the written documentation:
+//!
+//! - [`guide::examples`] — the corpus as the example set: every tour
+//!   scene and corpus document, and what each demonstrates.
+//! - [`guide::fail_loud`] — the refusal vocabulary, layer by layer.
+//!   If something refused and you want to know why, start there.
+//! - [`guide::north_star_audit`] — what the Python bindings can
+//!   author today, and the named gaps.
+//!
+//! The example corpus proper is `demos/tour`: 34 stops across 15
+//! scene modules that depend on this crate and nothing else, each
+//! running the same ladder — author a profile, build a body, validate
+//! it at tiers 1→2→3/3′, measure its mass properties, tessellate,
+//! cross-check the mesh against the exact measure, export. That
+//! ladder is what the guide teaches.
+//!
+//! # A ten-line example
 //!
 //! ```
 //! use pncad::prelude::*;
@@ -115,5 +129,6 @@ pub mod authoring;
 pub mod closure;
 pub mod document;
 pub mod export;
+pub mod guide;
 pub mod prelude;
 pub mod select;

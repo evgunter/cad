@@ -1,0 +1,768 @@
+# The pncad guide
+
+`pncad` is a B-rep CAD kernel: you author exact solids, ask them
+questions, and export them. It is a library first — everything below
+runs headless, from Rust or from Python, with no GUI in the loop.
+
+One honest note before anything else: **`pncad` is a placeholder
+name.** The project has not been named yet (design question Q9). The
+crate, the Python module, and the prose all say `pncad` today, and
+all of it will be renamed together when the real name is chosen. The
+placeholder is deliberately greppable.
+
+What makes this kernel different from a modelling toolkit you may
+have used before is that **it refuses**. When two faces coincide and
+you have not said they coincide, when a fillet has no corner to sit
+in, when a profile crosses itself — the kernel does not guess, repair,
+or quietly produce something plausible. It returns a typed error
+naming what it would have had to assume. That behaviour is the
+product, not a rough edge; the fail-loud tour documents it as such.
+
+Everything in this guide is executed. Rust blocks are doctests
+(`cargo test --doc -p pncad`), Python blocks are run by
+`crates/pncad-py/tests/test_guide.py`, which reads this very file.
+
+## 1. Quickstart
+
+### 1.1 What you are installing
+
+One Rust crate, `pncad`, is the whole authoring surface: it
+re-exports every kernel crate as a module and offers a curated
+`prelude`. You never need a second dependency, including for the
+payload types inside error enums.
+
+The Python package is the same kernel behind PyO3 bindings. It speaks
+the *document* layer — nodes, edits, evaluation — rather than
+wrapping the Rust authoring calls one for one. Section 2.8 shows why
+that is a deliberate design choice and not a shortfall.
+
+Nothing is published to crates.io or PyPI yet — the project is
+unnamed, so there is nothing to publish under. Build from source.
+
+### 1.2 Rust: build, and a first model in ten lines
+
+```console
+$ git clone <this repo> && cd cad
+$ cargo build
+$ cargo test --doc -p pncad      # runs every Rust block in this guide
+```
+
+To depend on it from your own crate, point at the façade and nothing
+else:
+
+```toml
+[dependencies]
+pncad = { path = "…/crates/pncad" }
+```
+
+A first solid — an 80 × 40 × 8 mm plate, validated, measured:
+
+```
+use pncad::prelude::*;
+
+let mm = |v: f64| (v * MM).meters();
+let rect = ProfileLoop::polygon([
+    p2(mm(0.0), mm(0.0)),
+    p2(mm(80.0), mm(0.0)),
+    p2(mm(80.0), mm(40.0)),
+    p2(mm(0.0), mm(40.0)),
+]);
+let profile = validated(SketchPlane::<f64>::xy(), vec![rect])?;
+let plate = extrude(&profile, Extrusion::Distance(real(mm(8.0))))?.body;
+validate_closed(&plate).expect("a closed solid");
+let props = mass_properties(&plate)?;
+assert!((props.volume - 2.56e-5).abs() < 1e-18);
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Lengths are plain `f64` in **canonical metres** at the kernel seam.
+The `quantity` layer (`MM`, `CM`, `M`, `IN`, `DEG`, `RAD`) is there
+when you want the units visible, as above; `25.0 * MM` builds a
+`Length` and `.meters()` unwraps it. The kernel never sees a unit —
+it sees metres.
+
+### 1.3 Python: build (maturin), and a first model in ten lines
+
+The bindings are a PyO3 extension module. With `maturin` available in
+a virtualenv:
+
+```console
+$ python3 -m venv .venv && . .venv/bin/activate
+$ pip install maturin
+$ maturin develop -m crates/pncad-py/Cargo.toml --features extension-module
+```
+
+If the box has no `pip`, build the cdylib and stage it by hand. The
+repo's own runner does exactly this, and it is also the quickest way
+to run the Python suites:
+
+```console
+$ ./crates/pncad-py/run-python-tests.sh          # builds, stages, runs the tests
+$ PYTHONPATH=target/python-stage python3 crates/pncad-py/examples/bracket.py
+```
+
+The same plate, in Python:
+
+```python
+from pncad import Doc, Node, evaluate, mm
+
+doc = Doc()
+profile = doc.insert(
+    Node.polygon([(0 * mm, 0 * mm), (80 * mm, 0 * mm), (80 * mm, 40 * mm), (0 * mm, 40 * mm)])
+)
+plate = doc.insert(Node.extrude(profile, 8 * mm))
+body = evaluate(doc).value(plate).body()
+body.validate()
+assert abs(body.mass_properties().volume - 2.56e-5) < 1e-18
+```
+
+Here `25 * mm` builds a typed `Length`. Dimensions are checked: `25 *
+mm + 90 * deg` is a `DimensionError`, not a number.
+
+### 1.4 Where to go next
+
+- Section 2 is the canonical journey, end to end, in both languages.
+- Section 3 is parametric modelling — the document layer proper.
+- The corpus index (`docs/guide/examples.md`) maps every worked
+  example in the repo to what it demonstrates.
+- The fail-loud tour (`docs/guide/fail-loud.md`) is the refusal
+  vocabulary, layer by layer.
+- The north-star audit (`docs/guide/north-star-audit.md`) says
+  exactly which demos Python can author today.
+
+## 2. The canonical journey
+
+Every demo in `demos/tour` runs the same ladder, and it is the ladder
+this section teaches — it is the shape of *using* this kernel:
+
+> **author → validate → measure → tessellate → cross-check → export**
+
+The tour's `run_body` (`demos/tour/src/main.rs`) is that ladder
+written once and applied to all 34 scenes. Nothing about it is
+demo-specific; your own program should look like it.
+
+Two properties of the ladder are worth naming before we walk it.
+First, **the validation tiers are the journey, not a debug mode** —
+you run them, in order, on the way to your answer. Second, **the
+cross-check is not optional decoration**: the exact B-rep measure and
+the tessellated mesh are computed by independent code paths, and
+comparing them is how you find out that one of them is wrong.
+
+### 2.1 The worked example
+
+The bracket: a base plate, an upright web sunk into it and poking out
+the top, and a lightening pocket entering from below and stopping
+inside the material. Three boxes, a union and a subtract.
+
+| part | x (mm) | y (mm) | z (mm) |
+|---|---|---|---|
+| base plate | 0 … 80 | 0 … 40 | 0 … 8 |
+| upright web | 36 … 44 | 5 … 35 | 4 … 34 |
+| pocket (subtracted) | 8 … 28 | 10 … 30 | −2 … 5 |
+
+Every solid here genuinely *interpenetrates* the one it is combined
+with — the web is sunk 4 mm into the plate, the pocket pokes 2 mm out
+below it. That is not laziness with round numbers. The kernel refuses
+a boolean whose operands merely *touch* on a shared plane until you
+declare that contact, because inferring "these two planes are the
+same plane" from float equality is exactly the guess it will not
+make. Section 2.3 and the fail-loud tour return to this.
+
+This is the same model as `crates/pncad-py/examples/bracket.py`, so
+the two languages below are building one solid, and the numbers they
+print are the same numbers.
+
+### 2.2 Author
+
+Profiles are closed loops on a sketch plane. The direct way to say a
+rectangle is `ProfileLoop::polygon`; the expressive way is the PATHS
+algebra, where you walk the outline and the type system tracks what
+the tip has bound:
+
+```
+use pncad::prelude::*;
+
+// The algebra: open at a point, walk the legs, close at the seam.
+let mm = |v: f64| (v * MM).meters();
+let outline: ProfileLoop<f64> = Open
+    .at(p2(mm(0.0), mm(0.0)))
+    .line_to(p2(mm(80.0), mm(0.0)))?
+    .line_to(p2(mm(80.0), mm(40.0)))?
+    .line_to(p2(mm(0.0), mm(40.0)))?
+    .line_to(Start)?
+    .into();
+assert_eq!(outline.vertices.len(), 4);
+# Ok::<(), pncad::profile::PathError<f64>>(())
+```
+
+`line_to(Start)` closes the loop, and closing is where both of the
+seam's junction checks run with the incoming and outgoing directions
+finally known. The payoff is that a corner which is accidentally
+tangent — the classic silent-bad-geometry case — refuses *at
+authoring time*, before validation ever sees the profile.
+
+The algebra also builds what a polygon cannot. An intended round is
+constructive, never a flag you set:
+
+```
+use pncad::prelude::*;
+
+let mm = |v: f64| (v * MM).meters();
+let rounded: ProfileLoop<f64> = Open
+    .at(p2(mm(0.0), mm(0.0)))
+    .line_to(p2(mm(40.0), mm(0.0)))?  // sharp corner here, arriving east
+    .toward(0.0, 1.0)?                // departure ray: north, the line x = 40
+    .fillet(mm(6.0))?                 // round where that ray meets the next
+    .toward(-1.0, 0.0)?               // arrival ray: west, the line y = 30
+    .to(p2(mm(0.0), mm(30.0)))?       // anchored at the authored far vertex
+    .line_to(Start)?
+    .into();
+// Five vertices: two sharp corners, and the arc's two tangent points
+// where the fourth corner used to be.
+assert_eq!(rounded.vertices.len(), 5);
+# Ok::<(), pncad::profile::PathError<f64>>(())
+```
+
+That block repays a careful read, because it encodes the algebra's
+central idea. **The rounded corner is never authored.** You give the
+two rays that would have met there — the departure ray before the
+fillet, the arrival ray after it — and the arc is fitted to their
+*virtual* intersection, trimming both. There is no moment at which
+the sharp point (40, 30) exists and is then removed, so "author a
+corner, then fillet it away" is not a thing you can say. Two parallel
+rays have no corner to round, and that refuses as
+`NoCornerForFillet { reason: CarriersParallel }`.
+
+Nowhere in this repo does a demo hand-write a tangency flag. Tangency
+arrives by construction, and the kernel *verifies* every declaration
+rather than trusting it — a contradicted one is
+`TangencyContradicted`, not a warning.
+
+A profile becomes usable by turning it into a body. `validated` is
+the one two-call wrapper the façade adds (`Profile::new` then
+`Profile::validate`); `extrude` takes it from there:
+
+```
+use pncad::prelude::*;
+
+# type E = Box<dyn std::error::Error>;
+fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+    let rect = ProfileLoop::polygon([
+        p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1),
+    ]);
+    let plane = SketchPlane::from_frame(
+        p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0),
+    );
+    let profile = validated(plane, vec![rect])?;
+    Ok(extrude(&profile, Extrusion::Distance(real(z.1 - z.0)))?.body)
+}
+
+let mm = |v: f64| (v * MM).meters();
+let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
+let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
+let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+
+let bracket = union(&base, &web)?;
+let bracket = bracket.body().expect("a non-empty union");
+let lightened = subtract(&bracket.body, &pocket)?;
+let lightened = lightened.body().expect("a non-empty difference");
+assert_eq!(lightened.kind, BooleanResultKind::Seamed);
+# Ok::<(), E>(())
+```
+
+`union` and `subtract` return a `BooleanResult`, which is `Empty` or
+a `BooleanBody`. That is the first fail-loud habit to build: an empty
+result is a *value*, not an error and not a crash, and you say what
+you expect. The `kind` field records how the result came to be —
+`Seamed` here, meaning the boundaries genuinely intersected and the
+seam was joined and zipped.
+
+### 2.3 Validate — the tier ladder IS the journey
+
+Three gates, each strictly stronger than the last, each returning
+`Result<(), Vec<ValidationError>>` — a *vector*, because a broken
+body usually has more than one thing wrong with it and reporting the
+first one wastes your time.
+
+```
+use pncad::prelude::*;
+# type E = Box<dyn std::error::Error>;
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+# }
+# let mm = |v: f64| (v * MM).meters();
+# let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
+# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
+# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+# let u = union(&base, &web)?; let u = u.body().expect("union");
+# let r = subtract(&u.body, &pocket)?; let result = r.body().expect("difference");
+let body = &result.body;
+
+validate(body).expect("tier 1: structural integrity");
+validate_closed(body).expect("tier 2: a closed, connected solid");
+validate_pseudomanifold(body, &result.contacts)
+    .expect("tier 3′: geometry, with this operation's declared contacts");
+# Ok::<(), E>(())
+```
+
+- **Tier 1, `validate`** — structural. Every half-edge has its mate,
+  every loop closes, the arena is internally consistent.
+- **Tier 2, `validate_closed`** — a closed solid: no empty loops, no
+  valence-1 struts, shells connected. It runs tier 1 first.
+- **Tier 3, `validate_geometric`** — geometry: faces don't
+  self-intersect, orientation agrees with the computed volume, and so
+  on. It runs tier 2 first.
+- **Tier 3′, `validate_pseudomanifold(body, contacts)`** — tier 3 for
+  a body that legitimately touches itself, checked against the
+  declared contacts the boolean pipeline carried into the result.
+
+The 3-versus-3′ choice is mechanical, and the tour makes it the same
+way you should: **if the value came from a boolean, gate it at 3′
+with that operation's own `contacts`; otherwise gate it at 3.** A
+body from `split` carries no contacts, so it takes plain tier 3.
+
+```
+use pncad::prelude::*;
+# type E = Box<dyn std::error::Error>;
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+# }
+# let mm = |v: f64| (v * MM).meters();
+# let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
+// A body with no declared contacts: the two gates agree.
+validate_geometric(&base).expect("tier 3 on a plain extrusion");
+validate_pseudomanifold(&base, &ContactRecords::default())
+    .expect("3′ on an empty-contact body is tier 3 plus a census");
+# Ok::<(), E>(())
+```
+
+### 2.4 Measure — mass properties and their pads
+
+`mass_properties` integrates over the exact B-rep — the divergence
+theorem on the real surfaces, not on a mesh:
+
+```
+use pncad::prelude::*;
+# type E = Box<dyn std::error::Error>;
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+# }
+# let mm = |v: f64| (v * MM).meters();
+# let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
+# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
+# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+# let u = union(&base, &web)?; let u = u.body().expect("union");
+# let r = subtract(&u.body, &pocket)?; let result = r.body().expect("difference");
+let props = mass_properties(&result.body)?;
+
+assert!((props.volume - 2.984e-5).abs() < 1e-15);       // m³
+assert!((props.surface_area - 1.0696e-2).abs() < 1e-12); // m²
+
+// Every face here has a closed form, so the certified pads are
+// exactly zero — the measure is not approximate.
+assert_eq!(props.volume_pad, 0.0);
+assert_eq!(props.area_pad, 0.0);
+# Ok::<(), E>(())
+```
+
+The **pads** are the part people miss. `volume` and `surface_area`
+are not bare numbers, they are the midpoints of *certified
+enclosures*, and `volume_pad`/`area_pad` are the half-widths. The
+true value is inside `volume ± volume_pad`, guaranteed, not
+estimated. Planar and other closed-form faces contribute exactly, so
+their pads are `0.0`; a curved *cut* face contributes a certified
+quadrature bracket and widens the pad. A nonzero pad is the kernel
+telling you how much it does not know, and a program that cares about
+a tolerance should read it rather than assume it.
+
+### 2.5 Tessellate
+
+Tessellation is a separate, explicit step with its own budget. The
+chordal parameter is a **distance in metres** — the maximum the mesh
+may deviate from the true surface — and it is deliberately *not* the
+kernel's ε. Meshing precision is a display decision; ε is a modelling
+decision.
+
+```
+use pncad::prelude::*;
+# type E = Box<dyn std::error::Error>;
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+# }
+# let mm = |v: f64| (v * MM).meters();
+# let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
+# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
+# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+# let u = union(&base, &web)?; let u = u.body().expect("union");
+# let r = subtract(&u.body, &pocket)?; let result = r.body().expect("difference");
+let mesh = tessellate(&result.body, 0.0005)   // 0.5 mm chord budget
+    .expect("the bracket tessellates");
+
+assert!(!mesh.positions.is_empty());
+assert!(!mesh.patches.is_empty());   // one patch per face, addressable
+# Ok::<(), E>(())
+```
+
+The mesh keeps a patch per face and a polyline per edge, and adjacent
+faces share position indices along their common boundary — so the
+triangle set of a closed body is watertight by construction, not by
+a repair pass.
+
+### 2.6 Cross-check
+
+Two independent computations of the same quantity, compared. This is
+the step that earns trust in both of them:
+
+```
+use pncad::prelude::*;
+use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
+# type E = Box<dyn std::error::Error>;
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+# }
+# let mm = |v: f64| (v * MM).meters();
+# let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
+# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
+# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+# let u = union(&base, &web)?; let u = u.body().expect("union");
+# let r = subtract(&u.body, &pocket)?; let result = r.body().expect("difference");
+# let props = mass_properties(&result.body)?;
+# let mesh = tessellate(&result.body, 0.0005).expect("tessellate");
+// 1. The mesh is a closed 2-manifold — no boundary edges, no
+//    non-manifold junctions. A refusal here is fail-loud, not a hint.
+check_mesh(&mesh).expect("a watertight mesh");
+
+// 2. Its signed volume is positive: the winding really is outward.
+let v_mesh = signed_volume(&mesh);
+assert!(v_mesh > 0.0);
+
+// 3. It agrees with the exact B-rep measure. This body is all
+//    planar, so the triangulation is exact and the agreement is at
+//    rounding level; a curved body's error shrinks with the budget.
+let rel = (v_mesh - props.volume).abs() / props.volume;
+assert!(rel < 1e-12, "mesh vs exact: {rel:e}");
+assert!(triangle_count(&mesh) > 0);
+# Ok::<(), E>(())
+```
+
+### 2.7 Export
+
+STEP (AP242) for exchange, STL for the mesh:
+
+```
+use pncad::prelude::*;
+use pncad::step_import::StepImport;
+# type E = Box<dyn std::error::Error>;
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+# }
+# let mm = |v: f64| (v * MM).meters();
+# let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
+# let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
+# let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
+# let u = union(&base, &web)?; let u = u.body().expect("union");
+# let r = subtract(&u.body, &pocket)?; let result = r.body().expect("difference");
+# let props = mass_properties(&result.body)?;
+# let mesh = tessellate(&result.body, 0.0005).expect("tessellate");
+let step = step_string(&result.body, &StepOptions {
+    product_name: "bracket".to_string(),
+    ..Default::default()
+})?;
+assert!(step.starts_with("ISO-10303-21;"));
+
+let mut stl = Vec::new();
+write_binary(&mesh, &mut stl)?;
+let declared = u32::from_le_bytes(stl[80..84].try_into().unwrap()) as usize;
+assert_eq!(declared, pncad::mesh::validate::triangle_count(&mesh));
+
+// The strongest export check available: read your own file back with
+// the kernel's importer and re-measure it.
+let StepImport::Solid { body: reimported, .. } =
+    import_step(&step, &ImportOptions::default())?
+else {
+    panic!("the bracket re-imports as a solid, not a wireframe");
+};
+let back = mass_properties(&reimported)?;
+assert!((back.volume - props.volume).abs() < 1e-15);
+# Ok::<(), E>(())
+```
+
+That round-trip is the habit to copy. An export that writes bytes
+proves nothing; an export that re-imports to the same volume proves
+the geometry survived.
+
+STEP export is one of the few places the kernel refuses for a reason
+you should *expect* rather than fix: `UnsupportedSurface`,
+`UnsupportedCurve` and `CurvedShellClassification` mean the AP242
+writer has no representation for a surface the modeller can build.
+The tour treats exactly those three as tolerated, per scene, and
+panics on anything else.
+
+### 2.8 The same journey in Python
+
+Python does not mirror the Rust calls above. It speaks the **document
+layer**: you insert nodes describing what to build, evaluate the
+document, and read typed values out. This is deliberate (LIBRARY-DESIGN
+§L3) — the document layer is the single API surface shared by the
+future GUI, macro recording, and the bindings, so a Python script is a
+recipe that persists, replays, and undoes, rather than a pile of
+opaque kernel calls.
+
+The same bracket, the same numbers:
+
+```python
+from pncad import BooleanOp, Doc, Node, evaluate, import_step, mm
+
+
+def slab(doc, x, y, z):
+    profile = doc.insert(
+        Node.polygon(
+            [(x[0], y[0]), (x[1], y[0]), (x[1], y[1]), (x[0], y[1])],
+            elevation=z[0],
+        )
+    )
+    return doc.insert(Node.extrude(profile, z[1] - z[0]))
+
+
+doc = Doc()
+base = slab(doc, (0 * mm, 80 * mm), (0 * mm, 40 * mm), (0 * mm, 8 * mm))
+web = slab(doc, (36 * mm, 44 * mm), (5 * mm, 35 * mm), (4 * mm, 34 * mm))
+bracket = doc.insert(Node.boolean(BooleanOp.Union, base, web))
+pocket = slab(doc, (8 * mm, 28 * mm), (10 * mm, 30 * mm), (-2 * mm, 5 * mm))
+lightened = doc.insert(Node.boolean(BooleanOp.Subtract, bracket, pocket))
+
+# Evaluation is TOTAL: it never raises. Ask which nodes succeeded.
+ev = evaluate(doc)
+assert ev.succeeded(lightened), "the bracket did not evaluate"
+
+# Validate, then measure — the same ladder, the same pads.
+body = ev.value(lightened).body()
+body.validate()
+props = body.mass_properties()
+assert abs(props.volume - 2.984e-5) < 1e-15
+assert props.volume_pad == 0.0
+
+# Export through the document layer, and re-import to prove it.
+step = ev.step_string(lightened, product_name="bracket")
+assert step.startswith("ISO-10303-21;")
+assert abs(import_step(step).mass_properties().volume - props.volume) < 1e-15
+```
+
+Two differences from the Rust walk are real and worth stating plainly
+rather than hiding:
+
+- **`evaluate` is total.** It never raises. Every node either has a
+  value or has failed, and you ask with `succeeded(node)`. Reading
+  the value of a failed node is what raises — an `EvaluationError`
+  carrying `reason`, `node`, and, for a node poisoned by an upstream
+  failure, the `through` node that actually broke. Failure does not
+  propagate as an exception up your call stack; it sits in the result
+  DAG where you can inspect all of it at once.
+- **There is no `tessellate` in Python.** Steps 2.5 and 2.6 of the
+  ladder have no binding yet, so the mesh cross-check is not
+  available from Python. That is a named gap, not an oversight — see
+  the north-star audit.
+
+Python's document also persists and replays bit-identically:
+
+```python
+from pncad import Doc, Node, evaluate, load, mm
+
+doc = Doc()
+profile = doc.insert(Node.polygon([(0 * mm, 0 * mm), (1 * mm, 0 * mm), (1 * mm, 1 * mm)]))
+doc.insert(Node.extrude(profile, 1 * mm))
+
+text = doc.save()
+replayed = load(text).doc
+assert doc.bit_eq(replayed), "replay is bit-identical, not merely close"
+```
+
+Bit-identity is a real guarantee, not a hope: the kernel uses pure
+libm and a fixed evaluation order (design decision D9), so the same
+document replays to the same bits.
+
+## 3. Parametric models
+
+Section 2's Rust walk built a solid by calling operations. That is a
+fine way to get one solid, but the value is gone the moment the
+function returns: nothing recorded what you did, so nothing can
+re-do it with a different number.
+
+The **document layer** records it. A document is a DAG of nodes — a
+recipe — and `evaluate` turns the recipe into values. Edits are data
+(`DocEdit`), so the history is inspectable, persistable, undoable, and
+replayable, and evaluation reuses everything an edit did not touch.
+This is the same surface the Python bindings speak and the future GUI
+will speak; there is deliberately only one.
+
+Since the profiles-as-programs switch, **a profile's geometry is a
+program too**: the loops are `LoopProgram` values whose coordinates
+are `Expr`s, not baked floats. That is what makes a sketch
+parametric rather than opaque.
+
+```
+use pncad::prelude::*;
+use pncad::document::NodeResult;
+
+// Author a plate with a round hole. Both the outline and the hole
+// are programs; every coordinate is an expression.
+let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)])
+    .expect("finite corners");
+let hole = LoopProgram::Circle {
+    centre: [len(1.0), len(1.0)],
+    radius: len(0.25),
+};
+
+let mut doc = Doc::<ProfileProgram>::empty();
+let mut insert = |doc: &Doc<ProfileProgram>, node| {
+    let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
+    (applied.doc, applied.record.minted.expect("a minted id"))
+};
+
+let (next, profile) = insert(
+    &doc,
+    Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![outline, hole],
+    }),
+);
+doc = next;
+let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
+doc = next;
+
+let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+assert_eq!(ev.recomputed, 2);
+assert_eq!(ev.reused, 0);
+
+// Reach the body the same way the export door does.
+let NodeResult::Ok(value) = ev.result(plate).expect("the node is live") else {
+    panic!("the plate evaluated");
+};
+let ValuePayload::Body(body) = &value.payload else {
+    panic!("an extrude yields a body");
+};
+let props = mass_properties(body.as_ref())?;
+let expected = 4.0 * 2.0 * 0.5 - core::f64::consts::PI * 0.25 * 0.25 * 0.5;
+assert!((props.volume - expected).abs() < 1e-9);
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Now the parametric part: change one number and rebuild, reusing
+everything the change did not reach. `SetParam` replaces the
+expression in a named **slot** — never an index, so an edit cannot
+silently target the wrong argument when the node changes:
+
+```
+use pncad::prelude::*;
+# let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+# let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)]).expect("corners");
+# let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
+# let mut doc = Doc::<ProfileProgram>::empty();
+# let mut insert = |doc: &Doc<ProfileProgram>, node| {
+#     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("applies");
+#     (applied.doc, applied.record.minted.expect("minted"))
+# };
+# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![outline, hole] }));
+# doc = next;
+# let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
+# doc = next;
+# let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+// Make the plate twice as thick.
+let thicker = apply(&doc, &DocEdit::SetParam {
+    node: plate,
+    slot: SlotId::Distance,
+    expr: len(1.0),
+})?.doc;
+
+// Pass the PRIOR evaluation: the profile is untouched, so its value
+// is reused by content key and only the extrude re-runs.
+let ev2 = evaluate::<f64>(&thicker, Some(&ev), &CancelToken::new(), &EvalOptions::default());
+assert_eq!(ev2.recomputed, 1);
+assert_eq!(ev2.reused, 1);
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+`recomputed` and `reused` are not statistics for a progress bar —
+they are the acceptance counters for incremental recompute, and the
+corpus asserts on them. If an edit recomputes more than its
+downstream cone, that is a bug with a number attached.
+
+### 3.1 The parametric flagship: `plate_param`
+
+The example above drives geometry by *editing a slot*. The stronger
+form is a **named document parameter** that several places reference,
+so one edit moves all of them coherently. That is
+`crates/editor-core/tests/corpus/plate_param.rs`, and it is the
+corpus document to read after this guide: a plate with **two** holes
+whose radii are both `Expr::param("hole_r")` — one parameter, two
+loops, one edit.
+
+Its acceptance rows (`crates/editor-core/tests/switch_plate_param.rs`)
+are worth knowing because they are the four things you want to be
+true of a parametric system, stated as tests:
+
+1. Editing `hole_r` produces genuinely new geometry, and the volume
+   moves by exactly `2·π·(r₁²−r₀²)·d` — the *derivative* is the claim,
+   not merely "the number changed".
+2. One parameter drives both holes: the delta is twice a single
+   hole's.
+3. `hole_r = 0` refuses at replay with `NonpositiveCircleRadius`, and
+   the typed error names the loop and the step that failed.
+4. `hole_r = 0.8` (holes overlapping each other) refuses at
+   *validate* — a different door from the replay one, which is the
+   point: two distinct failure modes stay distinguishable.
+
+Note the deliberate asymmetry in row 3: the `SetDocParam` edit itself
+still applies cleanly. A program that refuses under the current
+binding is legal *at rest*; the refusal belongs to replay, not to the
+edit.
+
+### 3.2 A gap, stated plainly
+
+Named document parameters are **not reachable through the `pncad`
+façade today.** `DocEdit::SetDocParam` needs `ParamName` and
+`DocParam`, and `Expr::param` needs `ParamName`; none of the three is
+in the façade's curated document surface. So `plate_param` itself
+cannot be authored by a `pncad`-only consumer — it is written against
+`editor_core` directly, as a crate-internal test asset.
+
+This is a real hole in the library story, pinned here so it cannot be
+forgotten:
+
+```compile_fail
+// LIB-U10 finding: the façade does not re-export the named-parameter
+// vocabulary, so this does not compile. Slot edits (`SetParam`,
+// above) work; document-level named parameters do not.
+use pncad::document::ParamName;
+```
+
+Slot-level parametric editing, as shown in §3, is fully available.
+
+## 4. The rest of the documentation
+
+- **`docs/guide/examples.md`** — the corpus as the example set: every
+  tour scene and every corpus document, mapped to what it
+  demonstrates and which pitfall it pins. Browse this to find the
+  worked example nearest your problem.
+- **`docs/guide/fail-loud.md`** — the refusal vocabulary, layer by
+  layer, with executed examples of reading each one. If you are new
+  here and something refused, start there.
+- **`docs/guide/north-star-audit.md`** — which demos are authorable
+  through the Python bindings today, and the named gap for each that
+  is not.
+- **`docs/LIBRARY-DESIGN.md`** — why the library is shaped this way.
+- **`docs/PATHS-DESIGN.md`** — the authoring algebra in full.
+- **`docs/DESIGN.md`** — the kernel's ratified design contract.

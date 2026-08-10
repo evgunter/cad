@@ -23,13 +23,14 @@
 //!
 //! It offers an f64-first door; it does not by itself remove the
 //! conversion tax from code already written against the generic
-//! constructors. The tour still contains ~90 of its original 95
-//! `S::from_f64` calls, because reworking scene bodies to author
-//! through this seam is a later unit's job (LIBRARY-DESIGN §L5 U2),
-//! not this one's. What landed here is the door and the deletion of
-//! the per-scene helper duplication — not a corpus-wide sweep. Read
-//! any claim that "the `from_f64` tax is paid once" as being about
-//! *this seam's* call sites, not about the corpus.
+//! constructors. The tour still spells `S::from_f64` 150 times
+//! (measured 2026-08-09 across `demos/tour/src`), because its scene
+//! bodies stay generic over the scalar so one source runs at `f64`
+//! and at certified intervals — those conversions live in code that
+//! deliberately is not f64-only. What landed here is the door and the
+//! deletion of the per-scene helper duplication, not a corpus-wide
+//! sweep. Read any claim that "the `from_f64` tax is paid once" as
+//! being about *this seam's* call sites, not about the corpus.
 //!
 //! The generic parameter stays: these are the *entry* points, so the
 //! same source still instantiates at `f64` for a normal build and at a

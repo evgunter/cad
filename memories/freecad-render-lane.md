@@ -12,12 +12,48 @@ Both are byte-reproducible: a re-render that changes nothing leaves
 
 ## The hazard, and what it actually is
 
-This host's FreeCAD **stalls after writing a frame** — a complete,
-byte-correct PNG, then the process hangs (0% CPU, `futex_do_wait`). It
-picks a different scene every pass, on an idle box as well as a loaded
-one. In a warm multi-scene session that stall lands mid-pass and every
-remaining scene is lost: that is the "warm-session deadlock" of #224,
-seen 3/3 there and twice more during #266.
+**ROOT CAUSE FOUND (2026-08-10). It is a FreeCAD self-deadlock, not a
+host quirk, and `demos/render_freecad.py` now disables the thing that
+causes it.** Caught on a hosted runner, where it fired on every attempt
+instead of occasionally — main-thread backtrace, read bottom-up:
+
+    Gui.updateGui()
+      -> a queued QTimer fires
+      -> Gui::NotificationArea::showInNotificationArea()   TAKES the lock
+      -> NotificationBox::showText -> QWidget::raise()
+      -> QPlatformWindow::raise() warns "This plugin does not
+         support raise()"   <- the offscreen QPA plugin, every time
+      -> FreeCAD routes every Qt message into its own Console
+      -> NotificationAreaObserver::sendLog
+      -> Gui::NotificationArea::pushNotification()         RETAKES it
+      -> non-recursive mutex, same thread: deadlock, forever.
+
+It needs a pending notification AND a Qt warning emitted while that
+notification is on screen. `Part`'s "STEP import is deprecated" warning
+supplies the first; the offscreen plugin supplies the second on every
+`raise()`. That is why it was frequent headless, random-looking (it
+depends on where the timer lands), and unheard-of interactively.
+
+The fix is two parameter writes before `FreeCADGui` is imported —
+`NotificationAreaEnabled` and `NonIntrusiveNotificationsEnabled` off,
+under `User parameter:BaseApp/Preferences/NotificationArea`. Order
+matters: the notification area is constructed with the main window.
+**Side effect:** FreeCAD parameters are global to the user config, so
+any machine that has run a render has the notification area off in
+interactive FreeCAD too (Preferences -> General -> Notification Area to
+restore). Isolating renders behind their own `--user-cfg` would fix
+that and make committed pixels independent of a developer's
+accumulated preferences — worth doing, not done.
+
+The historical symptom, for recognising it if it ever returns: a stall
+*after* writing a complete, byte-correct PNG (0% CPU, `futex_do_wait`),
+a different scene every pass, on an idle box as well as a loaded one —
+the "warm-session deadlock" of #224, seen 3/3 there and twice more
+during #266.
+
+**Keep the per-scene isolation anyway.** It was built to survive this
+bug, but it is also what bounds any future hang, and the staged publish
+is what keeps a half-finished pass out of the committed tree.
 
 So: **never render more than one scene per `freecadcmd` process.**
 Since #266 `render.sh` does this in both lanes, under a per-scene
@@ -49,3 +85,14 @@ load 13–19** (61% CPU — CPU/cache contention, not I/O). A full pass is
 ~2.5 min idle and can exceed an hour while cargo lanes are building, so
 a render pass and a build battery on the same box is a bad trade in
 both directions.
+
+**Or send it off-box.** `.github/workflows/render.yml` runs any lane on
+a runner on demand (`gh workflow run render.yml -f lanes=all`) and
+returns each as an artifact; `demos/README.md` ("Off-box: the hosted
+lanes") has the contract. Measured 2026-08-10 on a 2-core runner with
+llvmpipe under Xvfb: 19 scenes, **median 3 s, max 6 s, 62 s total** —
+faster than this host, and it does not compete with the build lanes.
+Artifact-only: PNG pixels are not byte-comparable across GL stacks, so
+a hosted pass cannot produce the committed cells. The UV lane *is*
+byte-reproducible off-box (verified identical), which is why it is the
+one lane CI gates.

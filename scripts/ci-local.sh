@@ -86,6 +86,7 @@ SCOPE=--workspace
 RUN_EDITOR_CORE=true
 RUN_STL=true
 RUN_STEP_EXPORT=true
+RUN_PNCAD_PY=true
 RUN_INTERVAL_BACKEND=true
 RUN_K_LINT=true
 if [ "$FULL" -eq 1 ]; then
@@ -105,6 +106,7 @@ else
       RUN_EDITOR_CORE) RUN_EDITOR_CORE="$v" ;;
       RUN_STL) RUN_STL="$v" ;;
       RUN_STEP_EXPORT) RUN_STEP_EXPORT="$v" ;;
+      RUN_PNCAD_PY) RUN_PNCAD_PY="$v" ;;
       RUN_INTERVAL_BACKEND) RUN_INTERVAL_BACKEND="$v" ;;
       RUN_K_LINT) RUN_K_LINT="$v" ;;
     esac
@@ -258,6 +260,28 @@ render_provenance() {
     python3 demos/check_render_provenance.py
 }
 
+# The UV lane's composer (demos/render-uv.sh) has no provenance problem
+# — the kernel is the only thing that could have drawn an SVG cell — but
+# it does make two claims about what it leaves OFF the sheet (one
+# representative per (body, chart); planar charts dropped as a class),
+# and a silent drop is precisely what this lane exists to prevent. Its
+# self-test pins those, plus the fail-loud on a cell that does not match
+# the emitter's root-tag contract. Stdlib-only python3, milliseconds.
+uv_composer_selftest() {
+  python3 demos/compose_uv_montage.py --selftest
+}
+
+# Drift gate for the committed UV sheet: regenerate it and diff. The two
+# PNG lanes cannot be gated (they need FreeCAD), so this is the only
+# render lane CI can reproduce — and an ungated committed artifact rots.
+# The tour is ~3s once built and the sheet is text, so a firing diff is
+# readable. Hosted mirror: the `k-lint` job's "uv sheet drift (demos)".
+uv_sheet_drift() {
+  (cd demos/tour && cargo run --release -- ../out) >/dev/null && \
+    demos/render-uv.sh >/dev/null && \
+    git diff --exit-code --stat HEAD -- demos/renders-uv/
+}
+
 watertight() {
   command -v admesh >/dev/null || { echo "ERROR: admesh not installed (apt admesh, or build 0.98.4+ from source)"; return 1; }
   cargo run -p stl --example export_acceptance -- target/stl-acceptance && \
@@ -272,6 +296,20 @@ watertight() {
 # discovery and REQUIRE_FREECAD.
 step_import() {
   scripts/check_step.sh
+}
+
+# Mirror of hosted's `python-suite` job (LIB PY-CI). Hosted runs the
+# wheel path — maturin build, venv, pip install, unittest discover.
+# The local row is the staged-cdylib fallback run-python-tests.sh
+# exists for: same cargo-built extension module, same interpreter
+# contract, same unittest discovery over the same tests/ directory —
+# only the install vehicle degrades, which keeps the row runnable even
+# on the most degraded box U9S measured (no pip, no ensurepip, no
+# maturin). The script takes the build slot itself; nested under
+# ci-local's exclusive hold that acquisition is a no-op
+# (BUILD_SLOT_HELD).
+python_suite() {
+  crates/pncad-py/run-python-tests.sh
 }
 
 # $SCOPE is the filter's package scope: `--workspace` in tier `all`, an
@@ -391,6 +429,7 @@ klint_gate() {
 # shellcheck disable=SC2086
 run_row "discipline (evaluation-code)" discipline
 run_row "render provenance (demos)"    render_provenance
+run_row "uv composer selftest (demos)" uv_composer_selftest
 run_row "rustfmt"                      cargo fmt --all --check
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
 # ε battery {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
@@ -423,6 +462,7 @@ run_row_if "$RUN_INTERVAL_BACKEND" "interval backend crate" interval_backend
 # nine members between them, and the probe sweep records margins from every
 # kernel crate — no minimal root set, so these run whenever anything builds.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
+run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift
 run_row_if "$RUN_K_LINT" "k-lint tool (fmt+clippy+litmus)" klint_tool
 run_row_if "$RUN_K_LINT" "k-lint sweep + gate"             klint_gate
 # Root package stl: the acceptance example and its whole (dev-)dependency
@@ -431,6 +471,9 @@ run_row_if "$RUN_STL" "watertight (admesh)"          watertight
 # Root package step-export: no cargo build — FreeCAD over the committed
 # fixtures, which are byte-golden against that crate's writer.
 run_row_if "$RUN_STEP_EXPORT" "step import (freecad)" step_import
+# Root package pncad-py: the wheel's build graph is the whole façade
+# stack, so this fires exactly when something the suite compiles moved.
+run_row_if "$RUN_PNCAD_PY" "python suite (staged cdylib)" python_suite
 
 echo
 echo "=== ci-local summary ==="

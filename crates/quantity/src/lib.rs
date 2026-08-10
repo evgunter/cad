@@ -1,3 +1,36 @@
+//! Typed lengths, angles and counts for the API boundary.
+//!
+//! You build a quantity by multiplying a number by a unit, and you
+//! get a plain `f64` back at the accessor. Units exist at the
+//! boundary and nowhere else — the kernel only ever sees canonical
+//! metres and radians.
+//!
+//! ```
+//! use quantity::{Angle, DEG, Length, MM, IN};
+//!
+//! let thickness = 25.0 * MM;
+//! assert_eq!(thickness.meters(), 0.025);
+//! assert_eq!(thickness.in_unit(MM), 25.0);
+//!
+//! // Same-dimension arithmetic only; mixing dimensions is a type
+//! // error at compile time, not a runtime surprise.
+//! let doubled: Length = thickness + thickness;
+//! assert_eq!(doubled.meters(), 0.05);
+//!
+//! let quarter: Angle = 90.0 * DEG;
+//! assert!((quarter.radians() - core::f64::consts::FRAC_PI_2).abs() < 1e-15);
+//!
+//! // The inch is exact by definition, not a rounded decimal.
+//! assert_eq!((1.0 * IN).meters(), 0.0254);
+//! ```
+//!
+//! In Python the same layer is spelled `25 * mm` and `90 * deg`, and
+//! mixing dimensions there raises a typed `DimensionError` because
+//! Python has no compile step to catch it. The guide's quickstart
+//! (`docs/GUIDE.md`) shows both.
+//!
+//! # Design notes
+//!
 //! The D6 API-boundary quantity layer (LIB-U8a): hand-rolled quantity
 //! newtypes, the unit table, and the display formatter.
 //!
