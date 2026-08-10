@@ -532,7 +532,12 @@ slot 0: #222, the long-turn sweep frontier (the ≥0.5-turn helix
 chord collapse under near-antipode frame roll — INTEGRAL class,
 the sweep_places minimal-rotation frame; distinct from M8-2's
 rational work, which deliberately did not move it) = **M**. Draw
-follows this entry.
+follows this entry. DRAWN: byte 9 (<252), 9 mod 3 = 0 → block
+M8-14 arm order (fable, opus, opus) — #222 (slot 0) gets FABLE;
+two opus remainders bank (#327 + M8-4 the expected consumers).
+SLOT 0 DISPATCHED (2026-08-10): lane long-turn, branch
+kernel/long-turn. Also this seam: the large-K floor residue check
+runs as a NON-A/B verification task (hygiene class, no lane row).
 LIB PROGRAM COMPLETE (#334, 2026-08-10): every §L5 unit merged,
 their rows recorded (U10 dual sample #6, R1-PARAMS, PY-CI). The
 dual-review counter is SINGLE-SERIES from here — this orchestrator
