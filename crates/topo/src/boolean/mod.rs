@@ -63,7 +63,7 @@
 //! tests pin both directions on brick fixtures.
 
 pub(crate) mod boxes;
-mod combine;
+pub(crate) mod combine;
 mod contain;
 mod finish;
 pub(crate) mod insert;

@@ -48,7 +48,7 @@ use crate::null::CurveGeom;
 /// The source→result key bridge (module docs). Only the maps the
 /// pipeline consumes are exposed; the rest are internal to the graft.
 #[derive(Debug, Default)]
-pub(super) struct GraftMap {
+pub(crate) struct GraftMap {
     /// Source vertex → result vertex.
     pub vertices: SecondaryMap<VertexKey, VertexKey>,
     /// Source face → result face.
@@ -64,7 +64,7 @@ pub(super) struct GraftMap {
 /// Transplants `src`'s single solid into `dst_solid` of `dst`
 /// (module docs). `src` is consumed by value — its arenas are read in
 /// slot order; nothing of it survives as shared state.
-pub(super) fn graft_solid<T: geom_core::Decide>(
+pub(crate) fn graft_solid<T: geom_core::Decide>(
     dst: &mut Body<T>,
     dst_solid: SolidKey,
     src: &Body<T>,
