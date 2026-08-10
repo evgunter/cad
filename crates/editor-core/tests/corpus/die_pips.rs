@@ -93,9 +93,12 @@
 //! document pins is validity (tier 1 + closed) at every ε row, under
 //! Interval, and through BOTH sweep strategies.
 
-use editor_core::{Axis3, BooleanOp, Datum, DocEdit, Node, ProfileDesc, SlotId};
-use geom_core::{Point2, Point3, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use editor_core::{
+    Axis3, BooleanOp, Datum, DocEdit, LoopProgram, Node, ProfileProgram, ProgramStep,
+    ProgramTarget, SlotId,
+};
+use geom_core::{Point3, Vec3};
+use profile::SketchPlane;
 
 use super::super::fixture::{ang, len, scl};
 use super::{CorpusDoc, Recorder};
@@ -119,19 +122,12 @@ pub fn document() -> CorpusDoc {
     let h = DIE_L / 2.0;
 
     // ---- the sharp cube, [0, L]³ ----
-    let square = ProfileLoop::new(
-        [(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: Point2::new(x, y),
-                bulge: 0.0,
-            })
-            .collect(),
-    );
-    let cube_p = r.insert(Node::Profile(ProfileDesc(Profile::new(
-        SketchPlane::xy(),
-        vec![square],
-    ))));
+    let square =
+        LoopProgram::polygon([(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)]).unwrap();
+    let cube_p = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![square],
+    }));
     let cube = r.insert(Node::Extrude {
         profile: cube_p,
         distance: len(DIE_L),
@@ -145,32 +141,25 @@ pub fn document() -> CorpusDoc {
         direction: [scl(0.0), scl(0.0), scl(1.0)],
     }));
     // Two quarter arcs meeting at the OFF-AXIS equator vertex —
-    // deviation (b): the anchor the pole elimination needs.
+    // deviation (b): the anchor the pole elimination needs. v4: the
+    // first quarter carries its AUTHORED bulge; the second is the
+    // DECLARED-SUBDIVISION step (LIB-SWITCH §5-1 fallback — measured:
+    // without the off-axis equator vertex the revolve emitter's
+    // two-pole elimination refuses, so the vertex is load-bearing).
+    // The second arc's bulge is now the tangent-chord derivation
+    // rather than the hand literal — a numbered W1-class deviation.
     let quarter = std::f64::consts::FRAC_PI_8.tan();
-    let half_disc = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(0.0, -PIP_R),
-            bulge: quarter,
-        },
-        ProfileVertex {
-            pos: Point2::new(PIP_R, 0.0),
-            bulge: quarter,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.0, PIP_R),
-            bulge: 0.0,
-        },
-    ]);
-    let ball_p = r.insert(Node::Profile(ProfileDesc(Profile::new(
+    let half_disc = half_disc_program(quarter);
+    let ball_p = r.insert(Node::Profile(ProfileProgram {
         // u = +X, v = +Z: the sketch's revolve axis lands on the world
         // +Z axis, which is the face normal.
-        SketchPlane::from_frame(
+        plane: SketchPlane::from_frame(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(1.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
         ),
-        vec![half_disc],
-    ))));
+        loops: vec![half_disc],
+    }));
     let ball = r.insert(Node::Revolve {
         profile: ball_p,
         axis,
@@ -212,4 +201,25 @@ pub fn document() -> CorpusDoc {
         },
         bump_root: pip,
     }
+}
+
+/// The half-disc loop PROGRAM (module docs' deviation (b) + the v4
+/// declared-subdivision form): quarter arc with authored bulge, the
+/// equator subdivision via `arc_continue`, diameter close.
+fn half_disc_program(quarter: f64) -> LoopProgram {
+    let lpt = |x: f64, y: f64| {
+        [
+            editor_core::Expr::literal(x, editor_core::Dimension::Length).unwrap(),
+            editor_core::Expr::literal(y, editor_core::Dimension::Length).unwrap(),
+        ]
+    };
+    LoopProgram::Chain(vec![
+        ProgramStep::At(lpt(0.0, -PIP_R)),
+        ProgramStep::ArcTo {
+            target: ProgramTarget::Point(lpt(PIP_R, 0.0)),
+            bulge: editor_core::Expr::literal(quarter, editor_core::Dimension::Scalar).unwrap(),
+        },
+        ProgramStep::ArcContinue(lpt(0.0, PIP_R)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ])
 }

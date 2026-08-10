@@ -63,9 +63,8 @@
 //! `m5_pr12_fillet_node.rs`'s `f64` row alongside validity (tier 1 +
 //! closed) and the face count.
 
-use editor_core::{DocEdit, Node, ProfileDesc, SlotId};
-use geom_core::Point2;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
+use profile::SketchPlane;
 
 use super::super::fixture::{len, prism_edges};
 use super::{CorpusDoc, Recorder};
@@ -82,19 +81,11 @@ pub const L_BUMPED: f64 = 1.25;
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
 
-    let square = ProfileLoop::new(
-        [(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: Point2::new(x, y),
-                bulge: 0.0,
-            })
-            .collect(),
-    );
-    let profile = r.insert(Node::Profile(ProfileDesc(Profile::new(
-        SketchPlane::xy(),
-        vec![square],
-    ))));
+    let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
+    let profile = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![square],
+    }));
     let cube = r.insert(Node::Extrude {
         profile,
         distance: len(L),

@@ -27,7 +27,7 @@ pub mod names;
 pub mod node;
 pub mod parse;
 pub mod persist;
-pub mod profile_desc;
+pub mod program;
 pub mod resolve;
 pub mod witness;
 
@@ -57,13 +57,16 @@ pub use names::{
     declare_node, denotation, edge_frame, face_frame, find_flush_candidates, select, select_where,
     vertex_position,
 };
-pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
+pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId, StepArg};
 pub use parse::{ParseError, parse_expr};
-pub use persist::{JointSite, NonFiniteSite, SnapshotError};
 pub use persist::{
     Loaded, MigrationStep, PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load, save,
 };
-pub use profile_desc::{DescToken, ProfileDesc, ProfileDoc};
+pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
+pub use program::{
+    LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramRefusal, ProgramStep,
+    ProgramTarget,
+};
 pub use resolve::{
     Diagnosis, FlipSet, HitTestError, MeshPatchKey, NodeVerdictDelta, PredicateDivergence,
     RecipeEditRef, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, Resolved,

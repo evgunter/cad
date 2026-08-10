@@ -198,6 +198,21 @@ pub enum EditError {
         /// The missing id.
         id: RecipeNodeId,
     },
+    /// An edit that CREATES or MODIFIES a profile program failed the
+    /// authoring-time check (LIB-SWITCH §4d, VQ9): the program is
+    /// resolved, replayed, and validated under the CURRENT parameter
+    /// environment at the edit door, so the author sees refusals at
+    /// the verb, not at first evaluation. `SetDocParam` deliberately
+    /// NEVER takes this door — a parameter edit that breaks a
+    /// downstream profile surfaces as that node's typed evaluation
+    /// error (V1 class 2: refusing programs may exist at rest); both
+    /// directions are pinned by test.
+    ProfileProgramRefused {
+        /// The profile node (for `InsertNode`, the id being minted).
+        node: RecipeNodeId,
+        /// The typed refusal.
+        refusal: crate::program::ProgramRefusal,
+    },
     /// An inserted node's input ref does not resolve to a live node
     /// (spec D3: `apply` rejects unresolvable refs).
     UnresolvedInput {
@@ -501,7 +516,11 @@ fn check_param_refs<P>(
 
 /// Validate every slot of a node payload against slot dimensions and
 /// the param table, keyed as `id` for error reporting.
-fn check_node_slots<P>(doc: &Doc<P>, id: RecipeNodeId, node: &Node<P>) -> Result<(), EditError> {
+fn check_node_slots<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    id: RecipeNodeId,
+    node: &Node<P>,
+) -> Result<(), EditError> {
     for slot in node.slots() {
         // slots() and expr() agree by construction; a miss here is a
         // vocabulary bug, surfaced as UnknownSlot rather than hidden.
@@ -569,7 +588,10 @@ fn check_acyclic<P>(doc: &Doc<P>) -> Result<(), EditError> {
 /// [`EditRecord`]. All validation is here — refs resolve, no cycles,
 /// dimension checks re-run on touched expressions (spec D6).
 #[allow(clippy::too_many_lines)] // one arm per DocEdit variant, each short
-pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, EditError> {
+pub fn apply<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    edit: &DocEdit<P>,
+) -> Result<Applied<P>, EditError> {
     let mut new = doc.clone();
     let record = match edit {
         DocEdit::InsertNode { node } => {
@@ -600,6 +622,14 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
             }
             let id = RecipeNodeId(new.next_id);
             check_node_slots(&new, id, node)?;
+            // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
+            // program entering the document resolves + replays +
+            // validates under the CURRENT param env, refusing typed
+            // here rather than at first evaluation.
+            if let Node::Profile(p) = node {
+                p.check(&new.param_env::<f64>())
+                    .map_err(|refusal| EditError::ProfileProgramRefused { node: id, refusal })?;
+            }
             new.next_id += 1;
             new.nodes.insert(id, node.clone());
             new.order.push(id);
@@ -637,6 +667,7 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
                 return Err(EditError::StructuralSlotNeedsStructuralEdit { slot: *slot });
             }
             set_slot(&mut new, *node, *slot, expr)?;
+            check_profile_after_slot_edit(&new, *node, *slot)?;
             EditRecord {
                 minted: None,
                 structural: false,
@@ -668,6 +699,7 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
                 .map_err(EditError::Dimension)?;
             let structural = path.slot.is_structural();
             set_slot(&mut new, path.node, path.slot, &rebuilt)?;
+            check_profile_after_slot_edit(&new, path.node, path.slot)?;
             EditRecord {
                 minted: None,
                 structural,
@@ -960,9 +992,26 @@ fn check_witness_site<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<(), EditError
     }
 }
 
+/// The VQ9 door after a slot edit landed in a profile program
+/// (LIB-SWITCH §4d): re-run resolve + replay + validate under the
+/// CURRENT param env; refuse typed. Non-profile slots pass through.
+fn check_profile_after_slot_edit<P: crate::ProfilePayload>(
+    new: &Doc<P>,
+    id: RecipeNodeId,
+    slot: SlotId,
+) -> Result<(), EditError> {
+    if matches!(slot, SlotId::Profile { .. })
+        && let Some(Node::Profile(p)) = new.nodes.get(&id)
+    {
+        p.check(&new.param_env::<f64>())
+            .map_err(|refusal| EditError::ProfileProgramRefused { node: id, refusal })?;
+    }
+    Ok(())
+}
+
 /// Shared slot-write path: node exists, slot exists, dimension
 /// matches, param refs valid — then write.
-fn set_slot<P: Clone>(
+fn set_slot<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
     id: RecipeNodeId,
     slot: SlotId,
@@ -990,7 +1039,7 @@ fn set_slot<P: Clone>(
     }
 }
 
-impl<P: Clone> Doc<P> {
+impl<P: Clone + crate::ProfilePayload> Doc<P> {
     /// Method form of [`apply`] (spec D2's pure edit entry point).
     pub fn apply(&self, edit: &DocEdit<P>) -> Result<Applied<P>, EditError> {
         apply(self, edit)

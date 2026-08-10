@@ -12,9 +12,9 @@
 //! `review_m5_pr9_doc_probe.rs`, and validity + the seam-arc counts
 //! are pinned by the boolean's own acceptance suites.
 
-use editor_core::{BooleanOp, DocEdit, Node, ProfileDesc, SlotId};
-use geom_core::{Affine3, Point2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use editor_core::{BooleanOp, DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
+use geom_core::{Affine3, Vec3};
+use profile::SketchPlane;
 
 use super::super::fixture::len;
 use super::{CorpusDoc, Recorder};
@@ -25,40 +25,29 @@ use super::{CorpusDoc, Recorder};
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
 
-    let plate_loop = ProfileLoop::new(
-        [(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: Point2::new(x, y),
-                bulge: 0.0,
-            })
-            .collect(),
-    );
-    let plate_p = r.insert(Node::Profile(ProfileDesc(Profile::new(
-        SketchPlane::xy(),
-        vec![plate_loop],
-    ))));
+    let plate_loop =
+        LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]).unwrap();
+    let plate_p = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![plate_loop],
+    }));
     let plate = r.insert(Node::Extrude {
         profile: plate_p,
         distance: len(0.8),
     });
 
-    let theta = 2.0 * std::f64::consts::PI / 3.0;
-    let bulge = (theta / 4.0).tan();
-    let at = |i: usize| {
-        #[allow(clippy::cast_precision_loss)]
-        let th = theta * i as f64;
-        Point2::new(1.2 + 0.35 * th.cos(), 1.7 + 0.35 * th.sin())
-    };
-    let boss_loop = ProfileLoop::new(
-        (0..3)
-            .map(|i| ProfileVertex { pos: at(i), bulge })
-            .collect(),
-    );
-    let boss_p = r.insert(Node::Profile(ProfileDesc(Profile::new(
-        SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3))),
-        vec![boss_loop],
-    ))));
+    // v4 (LIB-SWITCH corpus ruling (a)): the three-arc boss authors as
+    // the declared-subdivision closed carrier — same carrier, same 3
+    // structural seams (the rim-seam-count assertions downstream keep
+    // their meaning), vertex positions now the primitive's own libm
+    // lowering rather than hand-transcribed cos/sin (a NUMBERED
+    // deviation: the boss's export bits shift; geometry is the same
+    // circle).
+    let boss_loop = LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap();
+    let boss_p = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3))),
+        loops: vec![boss_loop],
+    }));
     let boss = r.insert(Node::Extrude {
         profile: boss_p,
         distance: len(1.0),

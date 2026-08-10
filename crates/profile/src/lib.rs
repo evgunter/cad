@@ -129,7 +129,7 @@ pub use path::program::{
 };
 pub use path::{
     ArcCarrierScalar, ArcCenterTarget, ArcTarget, ArcViaTarget, LineTarget, Open, PartialPath,
-    PathError, Start, TangentArcTarget, circle,
+    PathError, Start, TangentArcTarget, circle, circle_split,
 };
 pub use sugar::{ArcSweep, FilletLegShape, LoopBuilder, bulge_from_center, bulge_from_via};
 pub use validate::{

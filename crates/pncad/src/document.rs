@@ -53,4 +53,6 @@ pub use editor_core::{
 pub use editor_core::ContentBits;
 
 // The profile description node type and its document alias.
-pub use editor_core::{DescToken, ProfileDesc, ProfileDoc};
+pub use editor_core::{
+    LoopProgram, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, StepArg,
+};
