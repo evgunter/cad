@@ -220,34 +220,38 @@ fn the_rational_meter_survives_adversarial_weights() {
 #[test]
 fn a_rational_carrier_whose_speed_collapses_still_refuses() {
     // The honest half of the flip — the rational analogue of
-    // `a_carrier_that_doubles_back_reports_a_non_positive_meter`. A
-    // net with a REPEATED interior control point has a genuine cusp:
-    // ‖C′‖ really does collapse, and no assembly may manufacture a
-    // positive metre-per-parameter for it. The refusal machinery
-    // (`nurbs_span_meter`, `split_edge_param_interior`) reads exactly
-    // this and escalates.
+    // `a_carrier_that_doubles_back_reports_a_non_positive_meter`. Both
+    // fixtures below have a GENUINE stationary point, and each proves
+    // it in the row rather than asserting it in a comment: the sampled
+    // minimum speed is required to collapse before the meter is asked
+    // anything. No assembly may manufacture a positive
+    // metre-per-parameter for a curve that stops, and the refusal
+    // machinery (`nurbs_span_meter`, `split_edge_param_interior`)
+    // reads exactly this and escalates.
+    //
+    // 1. A cubic whose two legs are exactly ANTI-PARALLEL across a
+    //    repeated interior control point. For a cubic the homogeneous
+    //    velocity is `(1−t)²·A + t²·B` in the legs `A = P₁ − P₀` and
+    //    `B = P₃ − P₂`, which vanishes exactly when `B ∝ −A` — here
+    //    `B = −A/2`, so the curve genuinely stops (and the endpoints
+    //    still differ, so this is not the turn-around case below).
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
-    let c = NurbsCurve3::<f64>::new(
+    let stationary = NurbsCurve3::<f64>::new(
         kv,
         vec![
             Point3::new(0.0, 0.0, 0.0),
             Point3::new(1.0, 1.0, 0.0),
             Point3::new(1.0, 1.0, 0.0),
-            Point3::new(0.0, 0.2, 0.0),
+            Point3::new(0.5, 0.5, 0.0),
         ],
         vec![1.0, 0.6, 2.0, 1.0],
     )
     .unwrap();
-    let m = c.speed_lower_bound();
-    assert!(
-        !(m > 0.0),
-        "a cusped rational carrier has no positive speed bound, got {m}"
-    );
 
-    // And the exact turn-around: a net whose ends coincide really does
-    // stop and reverse, so no positive rate exists to state.
+    // 2. The exact turn-around: a net whose ends coincide really does
+    //    stop and reverse.
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-    let closed = NurbsCurve3::<f64>::new(
+    let turn_around = NurbsCurve3::<f64>::new(
         kv,
         vec![
             Point3::new(0.0, 0.0, 0.0),
@@ -257,33 +261,154 @@ fn a_rational_carrier_whose_speed_collapses_still_refuses() {
         vec![1.0, 0.5, 1.0],
     )
     .unwrap();
-    let m = closed.speed_lower_bound();
-    assert!(
-        !(m > 0.0),
-        "an out-and-back rational carrier has no positive speed bound, got {m}"
-    );
+
+    for (name, c) in [
+        ("anti-parallel legs", &stationary),
+        ("turn-around", &turn_around),
+    ] {
+        // The fixture must EARN the name: sample densely and require
+        // the true minimum speed to have collapsed. A fixture that
+        // merely turns sharply would refuse from hull conservatism,
+        // which is a different property and has its own row.
+        let mut lo = f64::INFINITY;
+        for i in 0..=40_000 {
+            let t = f64::from(i) / 40_000.0;
+            let s = c.deriv(t).norm();
+            if s < lo {
+                lo = s;
+            }
+        }
+        assert!(
+            lo < 1e-4,
+            "{name}: this row pins a GENUINE speed collapse, but the fixture's true \
+             minimum speed is {lo} — re-derive the fixture or move it to the \
+             conservatism row"
+        );
+        let m = c.speed_lower_bound();
+        assert!(
+            !(m > 0.0),
+            "{name}: a carrier that stops has no positive speed bound, got {m}"
+        );
+    }
 }
 
 #[test]
 fn the_conservative_frontier_is_stated_not_hidden() {
-    // Where the assembly gives up: a high degree AND alternating
-    // extreme weights leave the span hulls too coarse for a positive
-    // answer even after the fixed refinement schedule. That is a
-    // REFUSAL, never an unsound bound — pinned here so the frontier
-    // moves visibly if the schedule constant is ever revisited.
-    let c = quintic_net(vec![1.0, 0.01, 100.0, 0.01, 100.0, 1.0]);
-    let m = c.speed_lower_bound();
-    assert!(
-        !(m > 0.0),
-        "the stated frontier moved — degree 5 with alternating 0.01/100 weights now \
-         meters at {m}. Good news, but re-derive this row (and the schedule constant \
-         it pins) rather than deleting it."
-    );
-    // Sound even where it refuses: the answer never exceeds the truth.
-    for i in 0..=200 {
-        let t = f64::from(i) / 200.0;
-        assert!(c.deriv(t).norm() >= m - 1e-12);
+    // Where the assembly gives up while the CURVE IS FINE. Both rows
+    // below refuse with a comfortably positive true minimum speed, so
+    // what they pin is the schedule's conservatism, not a property of
+    // the geometry — stated out loud so the frontier moves visibly if
+    // `RATIONAL_METER_SPLITS` is ever revisited. Refusing is always
+    // sound; it is only ever a usability cost.
+    let sharp_turn = {
+        // A near-cusp: a repeated interior control point whose legs are
+        // NOT anti-parallel, so the curve turns hard but never stops.
+        // Opening the corner further moves the meter positive only once
+        // the turn is quite gentle — the conservatism is broad, and this
+        // row is where that is admitted.
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        NurbsCurve3::<f64>::new(
+            kv,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+                Point3::new(0.0, 0.2, 0.0),
+            ],
+            vec![1.0, 0.6, 2.0, 1.0],
+        )
+        .unwrap()
+    };
+    // A high degree AND alternating extreme weights leave the span
+    // hulls too coarse for a positive answer even after refinement.
+    let steep_weights = quintic_net(vec![1.0, 0.01, 100.0, 0.01, 100.0, 1.0]);
+
+    for (name, c, floor) in [
+        ("near-cusp", &sharp_turn, 1e-2),
+        (
+            "degree 5, alternating 0.01/100 weights",
+            &steep_weights,
+            1e-3,
+        ),
+    ] {
+        let m = c.speed_lower_bound();
+        assert!(
+            !(m > 0.0),
+            "the stated frontier moved — {name} now meters at {m}. Good news, but \
+             re-derive this row (and the schedule constant it pins) rather than \
+             deleting it."
+        );
+        // Sound even where it refuses, and the truth is positive — which
+        // is exactly what makes this conservatism rather than collapse.
+        let mut lo = f64::INFINITY;
+        for i in 0..=4000 {
+            let t = f64::from(i) / 4000.0;
+            let s = c.deriv(t).norm();
+            assert!(
+                s >= m - 1e-12,
+                "{name}: meter {m} exceeds the real speed {s}"
+            );
+            if s < lo {
+                lo = s;
+            }
+        }
+        assert!(
+            lo > floor,
+            "{name}: this row pins CONSERVATISM, so the curve must not actually stop \
+             — true minimum speed {lo}"
+        );
     }
+}
+
+/// The certified lane's own row: the `Interval` instantiation's meter
+/// must BRACKET the `f64` one for the same carrier. The `f64` lane
+/// computes the assembly with nearest rounding, so its answer is a
+/// bound up to ~ulp; the interval lane is the one that carries the
+/// enclosure, and containment is the property that makes the two
+/// readings compatible rather than merely similar.
+///
+/// Adopted from R1's review probes for PR #306
+/// (`kernel/span-review-probes`, `review_span_probe.rs`) — the review
+/// noticed the rational arm had no interval-bracket row and wrote one.
+#[cfg(feature = "interval")]
+#[test]
+fn the_interval_meter_brackets_the_f64_meter() {
+    use geom_core::{Bounds, Interval};
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let weights = vec![1.0, 0.05, 1.0];
+    let cf = NurbsCurve3::<f64>::new(
+        kv.clone(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.5, 0.3, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+        ],
+        weights.clone(),
+    )
+    .unwrap();
+    let mf = cf.speed_lower_bound();
+    assert!(mf > 0.0, "the spot carrier meters positively: {mf}");
+
+    let pt = |x: f64, y: f64, z: f64| {
+        Point3::new(
+            Interval::from_bounds(x, x),
+            Interval::from_bounds(y, y),
+            Interval::from_bounds(z, z),
+        )
+    };
+    let ci = NurbsCurve3::<Interval>::new(
+        kv,
+        vec![pt(0.0, 0.0, 0.0), pt(0.5, 0.3, 0.0), pt(1.0, 0.0, 0.0)],
+        weights,
+    )
+    .unwrap();
+    let mi = ci.speed_lower_bound();
+    assert!(
+        mi.lo() <= mf && mf <= mi.hi(),
+        "the interval meter [{}, {}] does not bracket the f64 meter {mf}",
+        mi.lo(),
+        mi.hi()
+    );
 }
 
 #[test]

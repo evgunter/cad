@@ -588,6 +588,32 @@ macro_rules! nurbs_curve {
             /// difference, a span whose control chord collapses, or a
             /// knot vector with no nonempty span — every one yields
             /// NaN. A bound is never fabricated.
+            ///
+            /// # Rounding posture
+            ///
+            /// At `f64` the assembly runs in nearest rounding, like
+            /// every other `Real`-generic bound in the kernel: the
+            /// weight-derivative hulls come through the ring (correctly
+            /// rounded), but the chord normalisation and the hull folds
+            /// do not, so the `f64` reading is a bound only up to about
+            /// a relative ulp. **The `Interval` instantiation is the
+            /// certified lane** — it encloses the same expression, and
+            /// `tests/m5_pr7_speed_meter.rs`'s bracket row pins that
+            /// the interval answer contains the `f64` one. This is the
+            /// kernel-wide posture, not a property of this bound.
+            ///
+            /// # Conservatism
+            ///
+            /// The answer is a bound, not an estimate, and the gap can
+            /// be wide. It measures at 0.86–0.97 of the true minimum on
+            /// ordinary and adversarial carriers, but a curve that
+            /// turns hard, or a high degree with alternating extreme
+            /// weights, can refuse outright while its true speed is
+            /// comfortably positive. Refusal is always sound and only
+            /// ever a usability cost; the frontier rows in
+            /// `tests/m5_pr7_speed_meter.rs` pin where it currently
+            /// falls, so [`RATIONAL_METER_SPLITS`] cannot be changed
+            /// without the trade-off becoming visible.
             fn rational_speed_lower_bound(&self) -> T {
                 let poison = T::from_f64(f64::NAN);
                 let p = self.knots.degree();
