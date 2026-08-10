@@ -846,16 +846,21 @@ jobs:
       # `extension-module` feature; abi3 needs no Python.h.
       - name: build the pncad wheel (abi3, debug profile)
         run: maturin build -m crates/pncad-py/Cargo.toml -o target/wheels
+      # The venv lives OUTSIDE target/ deliberately: rust-cache caches
+      # target/, and a cached venv skeleton restores without its bin/
+      # contents (the 2026-08-10 red-main incident — the PR run passed
+      # on a cold cache, main restored a mangled venv). RUNNER_TEMP is
+      # never cached; --clear guards against any reuse regardless.
       - name: install the wheel into a venv
         run: |
-          python -m venv target/py-ci-venv
-          target/py-ci-venv/bin/pip install target/wheels/pncad-*.whl
+          python -m venv --clear "$RUNNER_TEMP/py-ci-venv"
+          "$RUNNER_TEMP/py-ci-venv/bin/python" -m pip install target/wheels/pncad-*.whl
       # Discovery from the repo checkout: guide tests read the docs/
       # Markdown relative to their own file, and the stub check is
       # layout-invariant (validated on the wheel-venv layout, #308).
       - name: run the Python suite (unittest discover)
         run: |
-          target/py-ci-venv/bin/python -m unittest discover \
+          "$RUNNER_TEMP/py-ci-venv/bin/python" -m unittest discover \
             --start-directory crates/pncad-py/tests \
             --top-level-directory crates/pncad-py/tests \
             --verbose
