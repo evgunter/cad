@@ -555,3 +555,10 @@ U10 dual (2026-08-10): dispatch-time ordinal = 17 merged blinded
 rows + 1 = 18 → DUAL (sample #6). R1+R2 concurrent on frozen head
 5d1f132a. Both mutate guide blocks and re-derive audit oracles
 independently.
+Block LIB-7 partial (2026-08-10): R1-PARAMS (the named-parameter
+curation, residual A/R1) = S pre-logged, orchestrator-review
+class candidate but dispatched blinded → draw: single byte
+byte 135 -> fable position 0
+→ (fable, opus, opus). R1-PARAMS = slot 1 fable (S). PY-CI is
+CI-infra (no blinded lane, the row records outside quality models
+per the KLINT-GATE precedent). Remainders bank for the successor.
