@@ -21,7 +21,13 @@ use fixture::{desc, insert, len, step};
 
 /// The shared exemplar: a block (profile + extrude) and a document
 /// param, under a derived id.
-fn exemplar(label: &str) -> (ProfileDoc, editor_core::RecipeNodeId, editor_core::RecipeNodeId) {
+fn exemplar(
+    label: &str,
+) -> (
+    ProfileDoc,
+    editor_core::RecipeNodeId,
+    editor_core::RecipeNodeId,
+) {
     let doc = ProfileDoc::empty(DocumentId::derive(label));
     let (doc, profile) = insert(
         doc,
@@ -336,10 +342,7 @@ fn v5_header_id_line_round_trips_and_tamper_refuses() {
 
     // Tamper the header id line: typed IdMismatch naming both ids.
     let other = DocumentId::derive("asm1-header-tampered");
-    let tampered = text.replace(
-        &format!("id: {}", doc.id()),
-        &format!("id: {other}"),
-    );
+    let tampered = text.replace(&format!("id: {}", doc.id()), &format!("id: {other}"));
     match load(&tampered) {
         Err(PersistError::IdMismatch { header, snapshot }) => {
             assert_eq!(header, other);
