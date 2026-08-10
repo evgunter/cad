@@ -25,14 +25,18 @@
 //!
 //! # Coverage honesty (spec §3)
 //!
-//! The exportable NURBS class today is bounded by the loft/sweep
-//! skin's weight drift (#207): `sweep_body` with any curved path and
-//! `loft_body` with any non-uniform section spacing refuse at
-//! assembly (`nurbs_span_meter` poison), so the bodies this suite can
-//! round-trip are uniformly-spaced lofts — polyline profiles
-//! (non-rational, full tier 3) and arc-bearing profiles (rational
-//! walls, which since M7-7 refuse at the import gate on the banked
-//! volume lane rather than shipping). That is a statement about the
+//! The exportable NURBS class was bounded by the loft/sweep skin's
+//! weight drift (#207): `sweep_body` with any curved path and
+//! `loft_body` with any non-uniform section spacing refused at
+//! assembly (`nurbs_span_meter` poison — the meter had no rational
+//! arm at all, so a drifted weight channel was fatal on its own).
+//! #207 fixed the drift at its source and M7's rational span meter
+//! retired the poison itself, so the bodies this suite round-trips are
+//! uniformly-spaced lofts by the fixture's own choice, not by refusal
+//! — polyline profiles (non-rational, full tier 3) and arc-bearing
+//! profiles (rational walls, which since M7-7 refuse at the import
+//! gate on the banked QUADRATURE lane — a different bank from the span
+//! meter's, and the one still open). That is a statement about the
 //! builder and the quadrature, not the reader: the import side reads
 //! any file in the written vocabulary, and only the at-rest gate has
 //! anything left to say about the rational one.
