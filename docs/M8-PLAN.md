@@ -61,8 +61,13 @@ substrate → spec → dispatch cycle.
   the natural moment per docs/predicate-dimension-audit.md).
 - **#222 long-turn sweep frontier** (the ≥0.5-turn helix chord
   collapse — integral class, distinct from M8-2's rational work).
-- **The stale large-K lint floor** item from the M6 register if any
-  residue remains post-#239/#253 (verify before slating).
+- **The stale large-K lint floor** — RETIRED (verified 2026-08-10,
+  cad-work/kfloor-check-report.md): fully consumed by #239 + #253;
+  the lint code matches the K-REPORT addendum, the #250 register
+  row is closed, the latest hosted gate is 0-flag at all three ε
+  on a corpus grown +31k samples/row. The adjacent "ε=1e-6 blind
+  window" #250 row stays open BY DESIGN with its own trigger
+  (ε-policy, not floor work). No unit scoped.
 
 ## Exit shape
 
