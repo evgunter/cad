@@ -85,7 +85,8 @@ it. And the `bracket` scene is retired from the montage in favour of
 
 ## The document corpus — `crates/editor-core/tests/corpus/`
 
-17 documents in 14 modules. Where the tour shows *kernel* usage, these
+16 documents in 14 modules — `islands` registers three, every other
+module registers one. Where the tour shows *kernel* usage, these
 show **recipe** usage: each one is a `Vec<DocEdit>` edit log replayed
 onto an empty document, never a hand-built graph — so each is also a
 worked example of the surface Python speaks.
