@@ -408,7 +408,9 @@ fn main() {
         run(&stop);
     }
 
-    println!("\n-- the globe lily (Calochortus albus): a plant, at the kernel's frontier --");
+    println!(
+        "\n-- the fairy lantern (Calochortus pulchellus): a plant, at the kernel's frontier --"
+    );
     for stop in lily::stops() {
         run(&stop);
     }

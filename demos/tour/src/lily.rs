@@ -1,6 +1,9 @@
-//! **The globe lily** (*Calochortus albus*, the fairy lantern): a
-//! nodding, closed globular flower hanging from a slender arching
-//! stem, with lance-shaped basal leaves.
+//! **The fairy lantern** (*Calochortus pulchellus*, the Mount Diablo
+//! globe lily): a nodding, closed globular YELLOW flower hanging from
+//! a slender arching stem, with three long spreading sepals and
+//! lance-shaped basal leaves. The scene wore *C. albus* — the white
+//! one — until this refresh; the sepals are what tell the two apart,
+//! and the sepals are what the loft made buildable.
 //!
 //! # What the kernel can and cannot say about a plant
 //!
@@ -29,14 +32,31 @@
 //!   attachment disk where the pedicel enters, and a puckered conical
 //!   mouth closing to a small disk. Sphere zone + cone + two planes,
 //!   all exact — a `revolve` still, unchanged by this refresh.
-//! - the **leaves** are keeled blades: a thin four-line KITE section —
-//!   two sharp margins on a chord, an unequal ridge and keel across
-//!   it — carried along a gently arching circular spine by the
-//!   general-path sweep. The blade now leaves the plane it was drawn
-//!   in, which the extruded crescent could not do. Two things it
-//!   still cannot do: TAPER (findings entry 9, so one width base to
-//!   tip) and carry an ARC in its section (the skin lane refuses a
-//!   rational wall — see [`leaf`]).
+//! - the two short **leaves** are keeled blades: a thin four-line
+//!   KITE section — two sharp margins on a chord, an unequal ridge
+//!   and keel across it — carried along a gently arching circular
+//!   spine by the general-path SWEEP. The blade leaves the plane it
+//!   was drawn in, which the extruded crescent could not do. Two
+//!   things a sweep still cannot do: TAPER and ROLL. `sweep_body`
+//!   takes one profile and derives its own frame, so there is no
+//!   argument in which either could be asked for (findings entry 9).
+//! - the long basal **leaf** and the three **sepals** are the same
+//!   blade said as a LOFT, and they do both. `loft_body` takes the
+//!   sections and the placements as two lists, so the section may
+//!   change station to station — rectangle at the stem, wide flat
+//!   diamond at the belly, small diamond at the tip — and the frame
+//!   may roll about the spine on the way. The long leaf turns 160
+//!   degrees, eased hard toward the tip, which is what a real
+//!   *Calochortus* leaf lying along the ground does. Both are pinned
+//!   by measurement, not assertion: see
+//!   [`review_probes::the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`].
+//!
+//!   What the loft still cannot do is close the tip to a POINT (a
+//!   zero-width section is a degenerate segment and refuses), carry
+//!   an ARC in its section (the skin lane refuses a rational wall —
+//!   see [`leaf`]), or be JOINED to the stem it grows from (probe 8).
+//!   The tip diamonds are therefore small but real, and left visibly
+//!   so rather than shrunk until the blunt end stops showing.
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
@@ -52,12 +72,16 @@
 //! profile → bulge → radius, and placement is an argument rather than
 //! a silent sketch-frame landing.
 //!
-//! The leaf blades are the one place the lily is FITTED rather than
-//! stated. A swept skin is a NURBS surface through sampled stations,
-//! so a blade's walls are B-spline surfaces interpolating nine exact
-//! points of an exact circular spine, not a closed form of the swept
-//! kite. That is the price of leaving the plane, and it is stated here
-//! rather than hidden.
+//! The blades — swept and lofted alike — are the one place the plant
+//! is FITTED rather than stated. A skin is a NURBS surface through
+//! sampled stations, so a blade's walls are B-spline surfaces
+//! interpolating exact points of an exact circular spine, not a
+//! closed form of the swept or lofted solid. That is the price of
+//! leaving the plane, and it is stated here rather than hidden. The
+//! SEPALS' tangency to the globe is not fitted, though: the stand-off
+//! is the section's own keel and the non-entry is a two-line argument
+//! on [`sepals`], checked on the built solids by
+//! [`review_probes::the_sepals_stand_outside_the_globe_they_are_tangent_to`].
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -70,8 +94,8 @@ use pncad::profile::{ArcSweep, ProfileLoop, SketchPlane};
 use pncad::sweep::fillet::FilletError;
 use pncad::sweep::readback::{WedgeFrames, revolved_caps};
 use pncad::sweep::{
-    ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, sweep_body,
-    tube_along_arc,
+    ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, loft_body, revolve,
+    sweep_body, tube_along_arc,
 };
 use pncad::topo::{Body, BooleanError, BooleanOp, Operand, TransformError};
 
@@ -273,11 +297,70 @@ struct Kite {
     keel: f64,
 }
 
+/// The long basal leaf's placement and spine, named rather than
+/// inlined because
+/// [`review_probes::the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`]
+/// builds a SECOND blade from the very same numbers with the twist set
+/// to zero, and measures the roll as the angle between the two. A
+/// re-typed copy of these numbers would let the two drift and the
+/// measurement would quietly stop meaning anything.
+const LEAF_A_BASE: (f64, f64, f64) = (0.04, 0.05, 0.03);
+/// See [`LEAF_A_BASE`].
+const LEAF_A_DIR: (f64, f64, f64) = (-0.72, 0.52, 0.16);
+/// See [`LEAF_A_BASE`].
+const LEAF_A_UP: (f64, f64, f64) = (0.0, 0.0, 1.0);
+/// See [`LEAF_A_BASE`].
+const LEAF_A_LEN: f64 = 4.90;
+/// See [`LEAF_A_BASE`]. Negative: the blade arches OVER, which is what
+/// a basal leaf lying along the ground does.
+const LEAF_A_CURL: f64 = -0.62;
+
+/// The long basal leaf's section plan: a rectangle where it meets the
+/// stem, a wide flat diamond at the belly a fifth of the way out, and
+/// a small diamond — never a point — at the tip. The roll is 160
+/// degrees eased hard toward the tip (exponent 2.6), so the blade lies
+/// flat for most of its length and does its turning near the end, the
+/// way a real *Calochortus* leaf does.
+fn leaf_a_plan() -> Plan {
+    Plan {
+        base: Section {
+            width: 0.170,
+            ridge: 0.028,
+            keel: 0.020,
+            shoulder: 1.0,
+        },
+        belly: Section {
+            width: 0.420,
+            ridge: 0.034,
+            keel: 0.016,
+            shoulder: 0.0,
+        },
+        belly_at: 0.22,
+        tip: Section {
+            width: 0.060,
+            ridge: 0.010,
+            keel: 0.006,
+            shoulder: 0.0,
+        },
+        roll0: 0.0,
+        twist: deg(160.0),
+        twist_ease: 2.6,
+    }
+}
+
 /// Stations along a leaf's swept spine, and the v-degree its skin is
 /// fitted at (the swept-elbow corpus fixture's numbers).
 const LEAF_STATIONS: usize = 9;
 /// The leaf skin's fit degree along the path.
 const LEAF_V_DEGREE: usize = 3;
+/// Stations along the LOFTED long leaf. More than the swept blades
+/// use, because a loft's stations carry the taper and the roll as well
+/// as the spine: the skin interpolates the sections it is given and
+/// chords between them, so a roll of half a turn wants stations dense
+/// enough that no chord cuts a visible corner.
+const LOFT_STATIONS: usize = 17;
+/// Stations along a sepal — shorter blades, gentler roll.
+const SEPAL_STATIONS: usize = 13;
 
 /// A **keeled leaf blade**: a thin section carried along a gently
 /// arching spine by [`sweep_body`] — the general-path sweep, not an
@@ -314,20 +397,7 @@ fn leaf<S: Scalar>(
     section: Kite,
     curl: f64,
 ) -> Body<S> {
-    let nrm = |(x, y, z): (f64, f64, f64)| {
-        let l = (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
-        (x / l, y / l, z / l)
-    };
-    let d = nrm(dir);
-    let dot = up.0 * d.0 + up.1 * d.1 + up.2 * d.2;
-    let v = nrm((up.0 - dot * d.0, up.1 - dot * d.1, up.2 - dot * d.2));
-    // u = v x d completes a right-handed (u, v, d) frame, so the
-    // sketch plane's normal u x v is the spine's start tangent d.
-    let u = (
-        v.1 * d.2 - v.2 * d.1,
-        v.2 * d.0 - v.0 * d.2,
-        v.0 * d.1 - v.1 * d.0,
-    );
+    let (d, v, u) = blade_frame(dir, up);
     // The spine: a circular arc of length `len` turning through `curl`
     // in the (d, v) plane, i.e. radius len/curl, sampled exactly.
     let r = len / curl;
@@ -365,6 +435,321 @@ fn leaf<S: Scalar>(
 }
 
 // ---------------------------------------------------------------
+// The LOFTED blade: the two things a sweep cannot say
+// ---------------------------------------------------------------
+
+/// A lofted blade's cross-section: the [`Kite`] with two extra pairs
+/// of vertices — SHOULDERS — on the way from each margin to the ridge
+/// and the keel.
+///
+/// The shoulder parameter is what lets one section list carry a
+/// rectangle and a diamond at once. At `shoulder = 0` each shoulder
+/// sits exactly on the straight line between its two neighbours, so
+/// the outline IS the kite, said with eight segments instead of four.
+/// At `shoulder = 1` it sits at the corner of the bounding rectangle,
+/// so the outline IS the rectangle. Everything between is the eased
+/// morph the leaf's base needs — a rectangle where it meets the stem,
+/// a diamond a fifth of the way out.
+///
+/// Eight segments and not four because a loft matches segment `j` of
+/// every section to segment `j` of every other
+/// ([`pncad::sweep::LoftError`]'s `SectionShapeMismatch` arm): there
+/// is no correspondence between a 4-gon's corners and a 4-gon's tips,
+/// so the two shapes must be spelled on a common vertex budget. The
+/// collinear vertices at `shoulder = 0` are exact, not approximate —
+/// a midpoint of two authored points.
+#[derive(Clone, Copy, Debug)]
+struct Section {
+    /// Chord length, margin to margin.
+    width: f64,
+    /// Rise above the chord.
+    ridge: f64,
+    /// Drop below the chord.
+    keel: f64,
+    /// 0 = kite, 1 = the bounding rectangle.
+    shoulder: f64,
+}
+
+impl Section {
+    /// The eight-vertex outline, wound counterclockwise in the sketch
+    /// `(s, t)` frame from the `+s` margin.
+    fn outline(self) -> Vec<ProfileLoop<f64>> {
+        // The shoulder between tips `a` and `b`: their midpoint at
+        // `shoulder = 0`, their vector sum (the rectangle corner) at 1.
+        let shoulder = |a: (f64, f64), b: (f64, f64)| {
+            let m = (0.5 * (a.0 + b.0), 0.5 * (a.1 + b.1));
+            (m.0 + self.shoulder * m.0, m.1 + self.shoulder * m.1)
+        };
+        let right = (0.5 * self.width, 0.0);
+        let ridge = (0.0, self.ridge);
+        let left = (-0.5 * self.width, 0.0);
+        let keel = (0.0, -self.keel);
+        vec![pncad::authoring::polygon(&[
+            right,
+            shoulder(right, ridge),
+            ridge,
+            shoulder(ridge, left),
+            left,
+            shoulder(left, keel),
+            keel,
+            shoulder(keel, right),
+        ])]
+    }
+
+    /// Linear blend, field by field.
+    fn lerp(self, other: Self, s: f64) -> Self {
+        let f = |a: f64, b: f64| a + (b - a) * s;
+        Self {
+            width: f(self.width, other.width),
+            ridge: f(self.ridge, other.ridge),
+            keel: f(self.keel, other.keel),
+            shoulder: f(self.shoulder, other.shoulder),
+        }
+    }
+}
+
+/// How a lofted blade's section changes from attachment to tip, and
+/// how it rolls on the way.
+#[derive(Clone, Copy, Debug)]
+struct Plan {
+    /// The attachment section: a rectangle where the blade meets the
+    /// stem (`shoulder = 1`).
+    base: Section,
+    /// The widest section — the blade's belly.
+    belly: Section,
+    /// Where the belly sits, as a fraction of the spine.
+    belly_at: f64,
+    /// The tip section. A smaller diamond, never a POINT: a
+    /// zero-width section is a degenerate segment and the loft
+    /// refuses it (probe 8).
+    tip: Section,
+    /// Roll about the spine AT THE BASE, radians. The spine's bend
+    /// and the blade's facing are independent choices, and this is
+    /// what separates them: `curl` decides which way the spine arcs
+    /// (toward the frame's `v`), `roll0` decides which way the blade
+    /// faces once it gets there. A sepal wants to arc outward from
+    /// the flower and still show its face to a viewer standing to one
+    /// side, which is `curl` in the radial plane and `roll0` a quarter
+    /// turn off it.
+    roll0: f64,
+    /// FURTHER roll from base to tip, radians.
+    twist: f64,
+    /// Roll easing exponent: the roll at fraction `s` of the spine is
+    /// `twist * s^ease`. A real *Calochortus* leaf lies flat for most
+    /// of its length and does its twisting near the tip, which is
+    /// `ease` above 1.
+    twist_ease: f64,
+}
+
+impl Plan {
+    /// The section at fraction `s` of the spine.
+    fn at(self, s: f64) -> Section {
+        if s < self.belly_at {
+            self.base.lerp(self.belly, s / self.belly_at)
+        } else {
+            self.belly
+                .lerp(self.tip, (s - self.belly_at) / (1.0 - self.belly_at))
+        }
+    }
+}
+
+/// A **lofted blade**: the same arching circular spine the swept
+/// [`leaf`] rides, but with a section that CHANGES station to station
+/// and a frame that ROLLS about the spine — the two things
+/// [`sweep_body`] cannot say, because it carries one rigid profile
+/// along a frame it derives itself.
+///
+/// [`loft_body`] takes the sections and the placements as separate
+/// lists, so both are ours to author: section `k` is `plan.at(s_k)`
+/// and placement `k` is the spine frame at `s_k` rolled by
+/// `plan.twist * s_k^twist_ease` about the spine's own tangent. The
+/// walls are the same fitted skins the sweep produces — this is the
+/// same verb underneath, asked a question with more room in it.
+///
+/// The spine is set up exactly as [`leaf`]'s: a circular arc of length
+/// `len` turning through `curl` toward `up`, sampled at `stations`
+/// exact points. Two live walls bound what this can be asked for, both
+/// pinned as probes 8 and 9: the tip may not close to a point, and the
+/// spine may not turn much past 2.5 radians.
+fn lofted_blade<S: Scalar>(
+    base: (f64, f64, f64),
+    dir: (f64, f64, f64),
+    up: (f64, f64, f64),
+    len: f64,
+    curl: f64,
+    plan: Plan,
+    stations: usize,
+) -> Body<S> {
+    let (d, v, u) = blade_frame(dir, up);
+    let r = len / curl;
+    let mut sections: Vec<Vec<ProfileLoop<f64>>> = Vec::with_capacity(stations);
+    let mut places: Vec<Affine3<f64>> = Vec::with_capacity(stations);
+    for k in 0..stations {
+        #[allow(clippy::cast_precision_loss)]
+        let s = (k as f64) / ((stations - 1) as f64);
+        let a = curl * s;
+        let (sa, ca) = (a.sin(), a.cos());
+        // The spine point, and the (tangent, up) pair carried round
+        // with it — the arc turns in the (d, v) plane about u, so u
+        // itself is fixed and the roll below is the only other motion.
+        let p = (
+            base.0 + r * sa * d.0 + r * (1.0 - ca) * v.0,
+            base.1 + r * sa * d.1 + r * (1.0 - ca) * v.1,
+            base.2 + r * sa * d.2 + r * (1.0 - ca) * v.2,
+        );
+        let vk = (
+            ca * v.0 - sa * d.0,
+            ca * v.1 - sa * d.1,
+            ca * v.2 - sa * d.2,
+        );
+        // The roll: turn (u, vk) about the tangent by the eased angle.
+        let th = plan.roll0 + plan.twist * s.powf(plan.twist_ease);
+        let (st, ct) = (th.sin(), th.cos());
+        let uu = (
+            ct * u.0 + st * vk.0,
+            ct * u.1 + st * vk.1,
+            ct * u.2 + st * vk.2,
+        );
+        let vv = (
+            ct * vk.0 - st * u.0,
+            ct * vk.1 - st * u.1,
+            ct * vk.2 - st * u.2,
+        );
+        sections.push(plan.at(s).outline());
+        places.push(
+            SketchPlane::from_frame(
+                pt3(p.0, p.1, p.2),
+                v3(uu.0, uu.1, uu.2),
+                v3(vv.0, vv.1, vv.2),
+            )
+            .placement,
+        );
+    }
+    loft_body::<S>(&sections, &places, LEAF_V_DEGREE)
+        .expect("the lofted blade skins its own sections")
+        .body
+}
+
+/// The three **sepals**, the feature that reads as *pulchellus*
+/// rather than *albus*: long pointed blades that spread from high on
+/// the globe and project past it instead of being hidden by it. They
+/// are [`lofted_blade`]s for the reason the long leaf is — a sepal
+/// TAPERS, and a sepal that did not taper would read as a strap.
+///
+/// # They meet the globe TANGENTIALLY, and provably never re-enter it
+///
+/// Two bodies that overlap are not a modelling error in this scene —
+/// nothing here is joined, and the pedicel is deliberately set back
+/// INSIDE the lantern so its end cap cannot z-fight. But a sepal that
+/// merely *starts near* the flower and hopes to miss it is a fudge,
+/// and this one does not have to be: the tangency is exact
+/// arithmetic, and the staying-out is a two-line proof.
+///
+/// Write `G` for the globe centre, `R` for its radius, and take the
+/// sepal's own outward normal
+///
+/// ```text
+/// n(θ, φ) = cos θ · (−axis) + sin θ · rad(φ)
+/// ```
+///
+/// at polar angle `theta` from the flower's upper pole. Then:
+///
+/// - the base sits at `G + (R + keel) · n`, so the blade's KEEL — its
+///   deepest point below its own chord, and the only part of the
+///   section on the globe's side — grazes the sphere exactly. Not
+///   near it: the offset IS the keel the section declares;
+/// - the spine leaves along `τ = sin θ · axis + cos θ · rad`, which is
+///   perpendicular to `n` and therefore TANGENT to the sphere;
+/// - `up` is `n`, so a POSITIVE `curl` bends the spine along `+n`,
+///   away from the globe. The spine point at arc angle `a` is then
+///   `G + ((R + keel) + r(1 − cos a))·n + r sin a·τ` with `n ⊥ τ`, so
+///   its distance from `G` is
+///   `√[((R + keel) + r(1 − cos a))² + (r sin a)²] ≥ R + keel`
+///   for every `a`, the two summands being non-negative. The sepal is
+///   outside the globe at its base and gets monotonically no closer.
+///
+/// The blade starts APPRESSED — at `roll0 = 0` its broad face lies
+/// against the sphere, which is how a sepal sits — and its `twist`
+/// then rolls the face outward toward the tip. That is a real
+/// *Calochortus* habit and, not by accident, the one motion a swept
+/// blade could not have been given.
+fn sepals<S: Scalar>(
+    globe_center: (f64, f64, f64),
+    axis: (f64, f64, f64),
+    globe: f64,
+    theta: f64,
+    len: f64,
+    curl: f64,
+    plan: Plan,
+) -> Vec<Body<S>> {
+    // The two radials spanning the plane perpendicular to the flower
+    // axis: the in-xz-plane one and ŷ.
+    let e1 = (-axis.2, 0.0, axis.0);
+    let e2 = (0.0, 1.0, 0.0);
+    let (st, ct) = (theta.sin(), theta.cos());
+    // The offset that makes the keel graze rather than pierce.
+    let stand = globe + plan.base.keel;
+    (0..3)
+        .map(|i| {
+            #[allow(clippy::cast_precision_loss)]
+            let phi = 2.0 * PI * (i as f64) / 3.0;
+            let (sp, cp) = (phi.sin(), phi.cos());
+            let rad = (
+                cp * e1.0 + sp * e2.0,
+                cp * e1.1 + sp * e2.1,
+                cp * e1.2 + sp * e2.2,
+            );
+            // n: the outward normal at (theta, phi). `-axis` is the
+            // flower's upper pole, the axis pointing INTO the flower.
+            let n = (
+                ct * -axis.0 + st * rad.0,
+                ct * -axis.1 + st * rad.1,
+                ct * -axis.2 + st * rad.2,
+            );
+            // tau: the tangent there, running outward and down.
+            let tau = (
+                st * axis.0 + ct * rad.0,
+                st * axis.1 + ct * rad.1,
+                st * axis.2 + ct * rad.2,
+            );
+            let base = (
+                globe_center.0 + stand * n.0,
+                globe_center.1 + stand * n.1,
+                globe_center.2 + stand * n.2,
+            );
+            lofted_blade::<S>(base, tau, n, len, curl, plan, SEPAL_STATIONS)
+        })
+        .collect()
+}
+
+/// A blade's local frame as three world vectors: the spine's start
+/// tangent, the direction it curls toward, and the section's width
+/// axis. See [`blade_frame`].
+type BladeFrame = ((f64, f64, f64), (f64, f64, f64), (f64, f64, f64));
+
+/// The right-handed `(d, v, u)` blade frame: `d` the spine's start
+/// tangent, `v` the `up` vector Gram–Schmidt'd against it, and
+/// `u = v x d`, so a sketch plane built on `(u, v)` has `d` for its
+/// normal. Shared by [`leaf`] and [`lofted_blade`] so the swept and
+/// lofted blades sit in the SAME frame — the difference between them
+/// is the verb, not the placement.
+fn blade_frame(dir: (f64, f64, f64), up: (f64, f64, f64)) -> BladeFrame {
+    let nrm = |(x, y, z): (f64, f64, f64)| {
+        let l = (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
+        (x / l, y / l, z / l)
+    };
+    let d = nrm(dir);
+    let dot = up.0 * d.0 + up.1 * d.1 + up.2 * d.2;
+    let v = nrm((up.0 - dot * d.0, up.1 - dot * d.1, up.2 - dot * d.2));
+    let u = (
+        v.1 * d.2 - v.2 * d.1,
+        v.2 * d.0 - v.0 * d.2,
+        v.0 * d.1 - v.1 * d.0,
+    );
+    (d, v, u)
+}
+
+// ---------------------------------------------------------------
 // The plant
 // ---------------------------------------------------------------
 
@@ -391,9 +776,22 @@ pub struct Piece<S: Scalar> {
     pub caps: Option<WedgeFrames<S>>,
 }
 
+/// The main lantern's globe radius and the height above the globe
+/// centre at which the attachment disk truncates it. Named because
+/// the SEPALS stand on this sphere and must stand on the same one the
+/// lantern is revolved from — see [`sepals`].
+const FLOWER_GLOBE: f64 = 0.44;
+/// See [`FLOWER_GLOBE`].
+const FLOWER_TOP: f64 = 0.40;
+
 const GREEN_STEM: [f64; 3] = [0.36, 0.52, 0.30];
 const GREEN_LEAF: [f64; 3] = [0.44, 0.62, 0.34];
-const WHITE_TEPAL: [f64; 3] = [0.95, 0.94, 0.89];
+/// *C. pulchellus* is the YELLOW fairy lantern — clear lemon, not the
+/// white of *albus* this scene used to wear.
+const YELLOW_TEPAL: [f64; 3] = [0.95, 0.84, 0.32];
+/// The sepals are greener than the petals and stay so: on a live
+/// pulchellus they read as the yellow-green sheath the globe hangs in.
+const GREEN_SEPAL: [f64; 3] = [0.72, 0.76, 0.36];
 
 /// Builds the whole plant: two stem arcs, one branching pedicel, two
 /// nodding lanterns, three basal leaves — eight bodies, every one a
@@ -426,7 +824,74 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
     let (arch, arch_caps) = tube_arc(upper, 0.052);
     let (pedicel_body, pedicel_caps) = tube_arc(pedicel, 0.032);
 
-    vec![
+    // The main flower's attachment point and axis — the same two the
+    // lantern below is built on, named once so the sepals hang on the
+    // flower's own axis rather than a hand-copied one.
+    let flower_attach = (
+        at_flower.p.0 - 0.08 * at_flower.t.0,
+        at_flower.p.1 - 0.08 * at_flower.t.1,
+    );
+    // The sepal plan: a narrow strap at the neck easing to a lance,
+    // then tapering hard to a near-point. The roll is gentle and
+    // spread evenly (ease 1.0) — a sepal curls, it does not corkscrew.
+    let sepal_plan = Plan {
+        base: Section {
+            width: 0.105,
+            ridge: 0.014,
+            keel: 0.008,
+            shoulder: 1.0,
+        },
+        belly: Section {
+            width: 0.265,
+            ridge: 0.017,
+            keel: 0.008,
+            shoulder: 0.0,
+        },
+        belly_at: 0.30,
+        tip: Section {
+            width: 0.036,
+            ridge: 0.006,
+            keel: 0.004,
+            shoulder: 0.0,
+        },
+        // Appressed at the base (the face lies on the globe), rolling
+        // its face outward toward the tip.
+        roll0: 0.0,
+        twist: deg(75.0),
+        twist_ease: 1.3,
+    };
+    // The globe's own centre, derived from the two numbers the lantern
+    // is built with rather than copied: `FLOWER_TOP` along the flower
+    // axis from the attachment point. The sepals then stand on the
+    // sphere the lantern actually has.
+    //
+    // `theta` must clear `acos(FLOWER_TOP / FLOWER_GLOBE)` = 24.6
+    // degrees, the polar angle where the sphere is TRUNCATED by the
+    // attachment disk: above that the sphere is not part of the body,
+    // so a sepal standing there would be tangent to a surface that
+    // is not there. 38 degrees puts them on the shoulder of the globe.
+    let sepal_bodies: Vec<Body<S>> = sepals(
+        (
+            flower_attach.0 + FLOWER_TOP * at_flower.t.0,
+            0.0,
+            flower_attach.1 + FLOWER_TOP * at_flower.t.1,
+        ),
+        (at_flower.t.0, 0.0, at_flower.t.1),
+        FLOWER_GLOBE,
+        // Stand them as high on the globe as a tangency can go: the
+        // attachment disk TRUNCATES the sphere at
+        // acos(FLOWER_TOP / FLOWER_GLOBE) = 24.6 degrees, and above
+        // that there is no sphere to be tangent to. Four degrees below
+        // the truncation puts the sepal bases on the shoulder right
+        // beside the rim the pedicel enters through — as close to
+        // meeting the stem as a blade standing on this sphere can be.
+        (FLOWER_TOP / FLOWER_GLOBE).acos() + deg(4.0),
+        1.05,
+        0.40,
+        sepal_plan,
+    );
+
+    let mut pieces = vec![
         Piece {
             name: "lily_stem",
             color: GREEN_STEM,
@@ -447,18 +912,15 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
         },
         Piece {
             name: "lily_lantern",
-            color: WHITE_TEPAL,
+            color: YELLOW_TEPAL,
             // Set back 0.08 along the stem's own tangent so the
             // pedicel tip is INSIDE the flower: two bodies sharing a
             // plane would z-fight, and gluing them is probe 1.
             body: lantern(
-                (
-                    at_flower.p.0 - 0.08 * at_flower.t.0,
-                    at_flower.p.1 - 0.08 * at_flower.t.1,
-                ),
+                flower_attach,
                 at_flower.t,
-                0.44,
-                0.40,
+                FLOWER_GLOBE,
+                FLOWER_TOP,
                 0.36,
                 0.09,
                 0.16,
@@ -467,7 +929,7 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
         },
         Piece {
             name: "lily_lantern2",
-            color: WHITE_TEPAL,
+            color: YELLOW_TEPAL,
             body: lantern(
                 (
                     at_bud.p.0 - 0.06 * at_bud.t.0,
@@ -485,17 +947,21 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
         Piece {
             name: "lily_leaf_a",
             color: GREEN_LEAF,
-            body: leaf(
-                (0.04, 0.05, 0.03),
-                (-0.60, 0.66, 0.52),
-                (0.0, 0.0, 1.0),
-                1.45,
-                Kite {
-                    width: 0.195,
-                    ridge: 0.016,
-                    keel: 0.008,
-                },
-                -0.45,
+            // THE LOFTED LEAF: the one blade that tapers and twists.
+            // It is the long basal leaf a real Calochortus lays along
+            // the ground, and it does what those do near the tip —
+            // rolls most of a half turn, so the blade you were looking
+            // at edge-on you end up looking at face-on. Neither motion
+            // is expressible as a sweep (probe 9): the sweep carries
+            // ONE profile along a frame it derives itself.
+            body: lofted_blade(
+                LEAF_A_BASE,
+                LEAF_A_DIR,
+                LEAF_A_UP,
+                LEAF_A_LEN,
+                LEAF_A_CURL,
+                leaf_a_plan(),
+                LOFT_STATIONS,
             ),
             caps: None,
         },
@@ -533,7 +999,21 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
             ),
             caps: None,
         },
-    ]
+    ];
+    // The three sepals, named in order round the flower axis so the
+    // manifest and the export stems stay stable.
+    for (name, body) in ["lily_sepal_a", "lily_sepal_b", "lily_sepal_c"]
+        .into_iter()
+        .zip(sepal_bodies)
+    {
+        pieces.push(Piece {
+            name,
+            color: GREEN_SEPAL,
+            body,
+            caps: None,
+        });
+    }
+    pieces
 }
 
 /// The tour stop.
@@ -542,25 +1022,36 @@ pub fn stops() -> Vec<Stop> {
     let note = format!(
         "{} closed solids: 3 torus-segment stem tubes said in WORLD \
          coordinates (centre/axis/u_ref/radii stored exactly as \
-         given), 2 sphere-zone lanterns with conical mouths, and 3 \
-         keeled leaf blades — a four-line kite section swept along an \
-         arching NURBS spine, out of the plane it was drawn in. The \
-         five analytic bodies approximate nothing — torus, sphere, \
-         cone and plane exactly, parameters included; the blades are \
-         fitted skins, the price of leaving the plane. Nothing is \
-         JOINED: see the wall probes.",
+         given), 2 sphere-zone lanterns with conical mouths, 2 SWEPT \
+         keeled blades (one kite section carried along an arching \
+         NURBS spine), and 4 LOFTED ones — the long basal leaf and \
+         the three sepals — which taper AND roll, the two things a \
+         sweep cannot be asked for. The long leaf runs rectangle at \
+         the stem to wide diamond to small diamond, turning 160 \
+         degrees about its own spine on the way, eased toward the tip. \
+         The sepals stand TANGENT to the globe: the stand-off is the \
+         section's own keel, and no vertex of any sepal is inside the \
+         sphere. The five analytic bodies approximate nothing — torus, \
+         sphere, cone and plane exactly, parameters included; the \
+         blades are fitted skins, the price of leaving the plane. \
+         Nothing is JOINED, the leaf to its own sheath least of all: \
+         see the wall probes.",
         pieces.len()
     );
     vec![Stop {
         name: "lily",
-        caption: "globe lily (Calochortus albus)".to_string(),
+        caption: "fairy lantern (Calochortus pulchellus)".to_string(),
         montage: true,
-        story: "a nodding globe lily — arching stem, two closed globular \
-                lanterns, arching keeled basal leaves; torus/sphere/cone/plane \
-                exact to the stored parameter, blades swept out of plane",
+        story: "a nodding yellow fairy lantern — arching stem, two closed \
+                globular lanterns with three spreading sepals tangent to the \
+                globe, one long tapering twisted basal leaf and two shorter \
+                untapered ones; torus/sphere/cone/plane exact to the stored \
+                parameter, blades skinned out of plane",
         ops: "Turtle-walked G1 arc chain -> tube_along_arc(world centre/axis/ \
               u_ref/radii, windowed) tubes; revolve(Full) sphere-zone \
-              lanterns; sweep_body(kite section, arched NURBS spine) leaves",
+              lanterns; sweep_body(kite section, arched NURBS spine) for the \
+              two short leaves; loft_body(rectangle -> diamond -> diamond \
+              sections on rolled placements) for the long leaf and the sepals",
         // One chord budget for the whole scene is a poor fit here: at
         // 2e-3 the 0.44 m lantern is smooth and a 0.06 m stem tube
         // costs ~2e5 triangles, because the torus lane spends its
@@ -804,17 +1295,83 @@ pub fn wall_probes<S: Scalar>() {
         },
         "give the lanterns their three tepal seams",
     );
+    // 8. The leaf wants to GROW OUT OF the stem, not merely start
+    //    beside it: a sheath of rectangular section leaving the stem
+    //    and turning into the blade's own base angle, then joined
+    //    there. That contact is as clean as a contact gets — the two
+    //    bodies are authored on the SAME rectangle in the same plane,
+    //    so the mate is exact rather than tolerated, and
+    //    `flush_declarations` finds and declares it.
+    //
+    //    It still refuses, and the refusal is the interesting part: it
+    //    names a CURVED EDGE, not the contact. Both operands are
+    //    skinned bodies whose wall-wall seams are NURBS iso-curves,
+    //    and the boolean lane is planar-complete with curved work
+    //    wired per germ class. The declared conformal join is C7
+    //    (CONTACT-DESIGN, ratified #178) and is M8's one row in the
+    //    modeling-verb register, with this rebuild named as its
+    //    consumer — so this wall is not a gap in the plan, it is the
+    //    plan, probed.
+    let sheath = {
+        let base_section = leaf_a_plan().base;
+        // Runs back out of the leaf's base along -dir, so its bottom
+        // cap IS the leaf's bottom cap: same plane, same rectangle,
+        // opposite outward normals.
+        lofted_blade::<S>(
+            LEAF_A_BASE,
+            (-LEAF_A_DIR.0, -LEAF_A_DIR.1, -LEAF_A_DIR.2),
+            LEAF_A_UP,
+            0.34,
+            0.85,
+            Plan {
+                base: base_section,
+                belly: base_section,
+                belly_at: 0.5,
+                tip: base_section,
+                roll0: 0.0,
+                twist: 0.0,
+                twist_ease: 1.0,
+            },
+            9,
+        )
+    };
+    wall(
+        8,
+        "graft the leaf's sheath onto its blade at their shared, DECLARED rectangle",
+        crate::booleans::try_union_declared(by("lily_leaf_a"), &sheath),
+        // The KIND is the claim, as in wall 1: a curved EDGE stops
+        // this, not a curved face and not the planar contact. If this
+        // ever starts refusing on the contact instead, the sentence
+        // above is wrong and must be re-derived before it is believed.
+        |e| {
+            matches!(
+                e,
+                BooleanError::CurvedEdgeUnsupported {
+                    operand: Operand::A,
+                    ..
+                }
+            )
+        },
+        "grow the leaves out of the stem instead of standing them beside it",
+    );
+
     println!(
-        "   (wall 9 — a TAPERING sweep — is the one remaining ABSENCE, not a \
-         refusal, so it cannot be probed at runtime; it is why the swept \
-         blades above hold one width from base to tip. Walls 8 and 10 CLOSED \
-         with M6-3: `sweep::sweep_body` is the general-path sweep body and \
-         `sweep::loft_body` the skin assembly — the leaves here build three \
-         live, and `skinned::narration`'s retire-on-closure pin fired as \
-         designed. Wall 10's closure was only PARTIAL until #207: every \
-         curved path refused at assembly on the skin fit's synthesized weight \
-         channel, so the general-path sweep had no successful caller until \
-         that fix.)"
+        "   (wall 9 — a TAPERING SWEEP — is still an ABSENCE rather than a \
+         refusal, so it cannot be probed at runtime: `sweep_body` takes ONE \
+         profile and derives its own frame, so there is no argument in which \
+         a taper or a roll could be asked for and refused. What changed is \
+         that the shapes it named are no longer out of reach — `lily_leaf_a` \
+         and the three sepals are `loft_body` calls that taper AND roll, \
+         because a loft takes the sections and the placements as separate \
+         lists and both are the author's. The absence is now exactly the \
+         one-op convenience: taper along a path-following frame, without \
+         hand-placing every station. Walls 10 and 11 CLOSED with M6-3 — \
+         `sweep::sweep_body` is the general-path sweep body and \
+         `sweep::loft_body` the skin assembly, and this scene builds two \
+         swept blades and four lofted ones live. Wall 10's closure was only \
+         PARTIAL until #207: every curved path refused at assembly on the \
+         skin fit's synthesized weight channel, so the general-path sweep \
+         had no successful caller until that fix.)"
     );
 }
 
@@ -1059,7 +1616,6 @@ mod review_probes {
             ("lily_arch", 2e-3, 136_076),
             ("lily_lantern", 5e-3, 988),
             ("lily_lantern", 2e-3, 2_348),
-            ("lily_leaf_a", 2e-3, 1_276),
             ("lily_leaf_b", 2e-3, 976),
             ("lily_leaf_c", 2e-3, 826),
         ];
@@ -1085,8 +1641,14 @@ mod review_probes {
         // exact agreement would mean the volume was not measured off a
         // real tessellation, and a larger gap would mean the section
         // rolled about the tangent on its way down the path.
-        let blades: [(&str, f64, f64, f64, f64, f64); 3] = [
-            ("lily_leaf_a", 0.195, 0.016, 0.008, 1.45, 0.45),
+        //
+        // `lily_leaf_a` is NOT in this list any more, and its absence
+        // is the point: it is the lofted blade, and it both tapers and
+        // rolls. Pappus wants a rigid section carried in the normal
+        // frame, which is exactly what a loft stops being. What pins
+        // the lofted blade instead is
+        // `the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`.
+        let blades: [(&str, f64, f64, f64, f64, f64); 2] = [
             ("lily_leaf_b", 0.170, 0.015, 0.007, 1.25, 0.40),
             ("lily_leaf_c", 0.140, 0.013, 0.006, 0.95, 0.35),
         ];
@@ -1097,5 +1659,224 @@ mod review_probes {
             let rel = ((signed_volume(&m) - pappus) / pappus).abs();
             assert!(rel > 1e-5 && rel < 5e-5, "{name}: rel {rel}");
         }
+    }
+
+    /// The lofted blade's two claims — TAPER and ROLL — read off the
+    /// STORED body, not off the construction code.
+    ///
+    /// Both are read through the body's two planar cap faces, which
+    /// are the loft's end sections placed in the world. For each cap:
+    /// the vertices lying on it, their centroid, the width axis `u`
+    /// (the direction of the two farthest-apart vertices, which for
+    /// both a rectangle-with-midpoints and a kite-with-midpoints are
+    /// the two MARGINS, the section being far wider than it is thick),
+    /// and `v = n x u`.
+    ///
+    /// The section's ridge/keel ASYMMETRY is what makes the roll
+    /// measurable at all: `v`'s sign is otherwise a coin flip, because
+    /// a `u` read off a farthest-pair is only defined up to sign. The
+    /// ridge is authored strictly deeper than the keel, so the signed
+    /// extent along `v` picks the orientation out uniquely, and the
+    /// angle from the base frame to the tip frame is then a full
+    /// signed turn rather than a turn mod pi.
+    #[test]
+    fn the_lofted_blade_tapers_and_rolls_in_the_stored_geometry() {
+        let ps = pieces();
+        let b = body(&ps, "lily_leaf_a");
+        let caps = cap_frames(b);
+        assert_eq!(caps.len(), 2, "a lofted blade has exactly two caps");
+        // The BASE cap is the wide one (the rectangle at the stem);
+        // the TIP cap the narrow one.
+        let (base, tip) = if caps[0].width > caps[1].width {
+            (&caps[0], &caps[1])
+        } else {
+            (&caps[1], &caps[0])
+        };
+        // TAPER. The authored base rectangle is 0.170 margin to margin
+        // with rises 0.028/0.020, so its farthest pair is the diagonal
+        // hypot(0.170, 0.048) = 0.17665; the authored tip diamond is
+        // 0.060 margin to margin, and its farthest pair IS that chord
+        // (0.060 > hypot(0.010, 0.006)). A sweep could produce neither
+        // number from the other — one profile goes down the path.
+        assert!(
+            (base.width - 0.176_646_5).abs() < 1e-6,
+            "base cap width {}",
+            base.width
+        );
+        assert!(
+            (tip.width - 0.060).abs() < 1e-9,
+            "tip cap width {}",
+            tip.width
+        );
+        // ROLL, isolated. Comparing the blade's own two ends does NOT
+        // measure the roll: the caps live in different planes (the
+        // spine turns through `curl` between them), so any angle read
+        // across them mixes the roll with the spine's own turn, and
+        // the base cap's farthest pair is a rectangle DIAGONAL rather
+        // than its width axis, tilting the frame a further 15.8
+        // degrees. Both effects vanish if the comparison is made
+        // against the SAME blade built with the twist set to zero:
+        // identical spine, identical stations, identical sections, so
+        // the two tip caps are coplanar and their frames differ by the
+        // roll and nothing else.
+        let untwisted = lofted_blade::<f64>(
+            LEAF_A_BASE,
+            LEAF_A_DIR,
+            LEAF_A_UP,
+            LEAF_A_LEN,
+            LEAF_A_CURL,
+            Plan {
+                twist: 0.0,
+                ..leaf_a_plan()
+            },
+            LOFT_STATIONS,
+        );
+        let flat = cap_frames(&untwisted);
+        let flat_tip = if flat[0].width > flat[1].width {
+            &flat[1]
+        } else {
+            &flat[0]
+        };
+        assert!(
+            cross_norm(flat_tip.n, tip.n) < 1e-12,
+            "the twin's tip cap must be coplanar with the blade's"
+        );
+        let turn = signed_angle(flat_tip.v, tip.v, tip.n);
+        let want = deg(160.0);
+        assert!(
+            (turn.abs() - want).abs() < 1e-9,
+            "blade roll {} rad, wanted {want} (the authored twist)",
+            turn.abs()
+        );
+    }
+
+    /// The sepals' TANGENCY claim, checked against the globe the
+    /// lantern actually stores: every vertex of every sepal is at
+    /// least `FLOWER_GLOBE` from the globe centre, so no sepal enters
+    /// the flower. The doc comment on [`sepals`] argues this for the
+    /// SPINE; this measures it on the built solid, section thickness
+    /// and all.
+    #[test]
+    fn the_sepals_stand_outside_the_globe_they_are_tangent_to() {
+        let ps = pieces();
+        // The globe centre, re-derived from the lantern's own stored
+        // sphere rather than from the plant's construction.
+        let lant = body(&ps, "lily_lantern");
+        let mut centre = None;
+        for (_, f) in lant.faces() {
+            if let Some(pncad::geom_surfaces::Surface::Sphere { center, radius, .. }) =
+                lant.get_surface(f.surface)
+            {
+                assert!((radius - FLOWER_GLOBE).abs() < 1e-12);
+                centre = Some(*center);
+            }
+        }
+        let g = centre.expect("the lantern stores its globe");
+        let mut closest = f64::INFINITY;
+        for name in ["lily_sepal_a", "lily_sepal_b", "lily_sepal_c"] {
+            let s = body(&ps, name);
+            for (_, v) in s.vertices() {
+                let p = s.get_point(v.point).expect("vertex point");
+                let d = ((p.x - g.x).powi(2) + (p.y - g.y).powi(2) + (p.z - g.z).powi(2)).sqrt();
+                // 1e-12, not 0: the base keel vertex is placed AT the
+                // sphere by construction, and it gets there through a
+                // rotation composed into the section placement, so it
+                // lands within an ulp or two of R rather than on it.
+                // Anything that actually entered the flower would be
+                // inside by a section thickness, six orders of
+                // magnitude past this.
+                assert!(
+                    d >= FLOWER_GLOBE - 1e-12,
+                    "{name}: a vertex is {d} from the globe centre, inside R = {FLOWER_GLOBE}"
+                );
+                closest = closest.min(d);
+            }
+        }
+        // Two-sided: the sepals must GRAZE, not merely miss. The base
+        // section's keel is authored 0.008 and the stand-off is
+        // R + keel, so the nearest vertex sits at R + 0 (the keel
+        // vertex itself, on the sphere) — within the float noise of a
+        // rotation composed through the placement.
+        assert!(
+            closest < FLOWER_GLOBE + 1e-9,
+            "nearest sepal vertex {closest} — tangency claimed, {} of clearance found",
+            closest - FLOWER_GLOBE
+        );
+    }
+
+    /// One planar cap of a lofted blade, reduced to the numbers the
+    /// taper/roll test reads. See that test for why each is taken.
+    struct Cap {
+        /// The cap plane's stored unit normal.
+        n: Vec3<f64>,
+        /// Distance between the two farthest-apart vertices on it.
+        width: f64,
+        /// The in-plane axis perpendicular to the width, signed so it
+        /// points from the chord toward the RIDGE (the deeper of the
+        /// section's two rises).
+        v: Vec3<f64>,
+    }
+
+    /// Both caps of a lofted blade, each reduced to a [`Cap`].
+    fn cap_frames(b: &Body<f64>) -> Vec<Cap> {
+        let mut out = Vec::new();
+        for (_, f) in b.faces() {
+            let Some(&pncad::geom_surfaces::Surface::Plane { origin, normal, .. }) =
+                b.get_surface(f.surface)
+            else {
+                continue;
+            };
+            // The vertices ON this plane.
+            let on: Vec<Point3<f64>> = b
+                .vertices()
+                .filter_map(|(_, v)| b.get_point(v.point).copied())
+                .filter(|p| (*p - origin).dot(normal).abs() < 1e-9)
+                .collect();
+            assert_eq!(on.len(), 8, "a blade section has eight vertices");
+            // Farthest pair -> the width and its axis.
+            let mut width = 0.0;
+            let mut axis = Vec3::new(0.0, 0.0, 0.0);
+            for (i, a) in on.iter().enumerate() {
+                for bp in &on[i + 1..] {
+                    let d = (*bp - *a).norm();
+                    if d > width {
+                        width = d;
+                        axis = (*bp - *a) / d;
+                    }
+                }
+            }
+            // v completes the frame; its SIGN is fixed by asking which
+            // side the deeper rise (the ridge) is on.
+            let mut v = normal.cross(axis);
+            let c = on.iter().fold(Vec3::new(0.0, 0.0, 0.0), |acc, p| {
+                acc + (*p - Point3::new(0.0, 0.0, 0.0))
+            }) / 8.0;
+            let centroid = Point3::new(c.x, c.y, c.z);
+            let hi = on
+                .iter()
+                .map(|p| (*p - centroid).dot(v))
+                .fold(f64::NEG_INFINITY, f64::max);
+            let lo = on
+                .iter()
+                .map(|p| (*p - centroid).dot(v))
+                .fold(f64::INFINITY, f64::min);
+            if hi < -lo {
+                v = -v;
+            }
+            out.push(Cap {
+                n: normal,
+                width,
+                v,
+            });
+        }
+        out
+    }
+
+    /// The signed angle from `a` to `b` about `axis` (all unit, `a`
+    /// and `b` perpendicular to `axis` up to float noise).
+    fn signed_angle(a: Vec3<f64>, b: Vec3<f64>, axis: Vec3<f64>) -> f64 {
+        let s = a.cross(b).dot(axis);
+        let c = a.dot(b);
+        s.atan2(c)
     }
 }
