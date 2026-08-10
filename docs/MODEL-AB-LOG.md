@@ -480,6 +480,9 @@ order (opus, opus, fable) — M8-3 (slot 0) gets OPUS; opus slot 1 +
 fable slot 2 bank (M8-4 iso-derive arm is the expected slot-1
 consumer). SLOT 0 DISPATCHED (2026-08-10): lane rational-wall,
 branch kernel/rational-wall.
+M8-2 (PR #306) R1 ordinal FIXED AT DISPATCH (2026-08-10): 15
+merged blinded rows on main (the 13 at #301's dispatch + M8-1 +
+SWITCH-E) + 1 = **16** → SINGLE review.
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
