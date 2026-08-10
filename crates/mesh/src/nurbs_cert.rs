@@ -558,7 +558,6 @@ fn rational_face_bound(
                 }
             }
             let w_cell = w_cell.unwrap_or_else(RingInterval::poison);
-            let w_cell = RingInterval::from_bounds(w_cell.hi(), w_cell.hi()); // MUTATION M2: divide by w_max
             let zero = RingInterval::zero();
             // Weight-net magnitude sups on the cell.
             let w10 = mag_iv(window_tilde_hull(
