@@ -351,10 +351,13 @@ never a DAG node — maintained by recorded `DocEdit`s.
 
 ## A11 — The constructive-solve boundary (discharges AQ3)
 
-**(The AQ3 working session, 2026-08-10; design-conversation PR for
-Evan's sign-off.)** The v1 line between rung (b) and rung (c),
-stated so it is **decidable purely structurally** — graph shape
-plus a per-class table over authored alignment data; no geometry
+**(The AQ3 working session, 2026-08-10; REVISED same day per
+Evan's #356 review — placement moved to the cluster level so
+anchor-count errors are unrepresentable, and mates split into
+determining/declaring so redundant-consistent loops verify instead
+of refusing.)** The v1 line between rung (b) and rung (c), stated
+so it is **decidable purely structurally** — graph shape plus a
+per-class table over authored alignment data; no geometry
 inspection, no numerics beyond decided predicates. Five rules:
 
 1. **Per-pair combination.** Each mate class + alignment datum
@@ -368,39 +371,65 @@ inspection, no numerics beyond decided predicates. Five rules:
    subgroup survives), CONTRADICTORY (empty — two flushes at
    different offsets) → typed refusal naming the pair and the
    clashing declarations.
-2. **The anchor rule.** An ANCHOR is an instance whose frame is
-   determined outside the mate system: an explicit frame, or
-   pattern membership. Each mate-connected cluster must contain
-   **exactly one** anchor. Zero → typed refusal (recourse: give
-   one instance an explicit frame); two or more → over-
-   determination through the world frame, refusal naming every
-   anchor (this also catches mating two instances of one pattern
-   to each other).
-3. **The tree requirement.** After per-pair combination, each
-   cluster's mate graph must be a TREE. Any cycle → typed
-   `MateCycle` refusal **naming the cycle**, including
-   redundant-but-consistent ones: certifying a loop's closure is
-   exactly rung (c)'s witness obligation (chart-box certification),
-   not a value-equality check the coincidence ladder forbids.
-   Recourse: remove or suppress a named mate, or await rung (c).
-4. **Edge determination.** Every tree edge must be DETERMINED. An
-   UNDER edge → typed under-constraint refusal naming the pair and
-   the residual freedom in class vocabulary ("clocking about the
-   shared axis", "translation along the axis"); recourse: add the
-   complementary mate — or, if free relative motion was the
-   intent, un-mate into separate components (A9 is the sanctioned
-   home of relative freedom). Cross-edge cancellation — chains of
-   UNDER edges whose composition happens to be determined — is
-   genuine simultaneous solving and REFUSES as its named UNDER
-   edges, with rung-(c) recourse.
+2. **Placement lives on the cluster, not the instance.** Define
+   PLACEMENT CLUSTERS = connected components of the instance–mate
+   graph (the finer partition inside A9's DAG components). Each
+   cluster's rigid frame is one entry in the component record the
+   A10 registry already keeps — instances carry no explicit frame
+   of their own; a lone unmated instance is the singleton case of
+   the same field. Consequences: zero-anchor and multi-anchor
+   states are **unrepresentable** (Evan's ask); joining two
+   clusters with a new mate is ONE recorded edit (the surviving
+   cluster keeps its frame, the absorbed cluster's frame is
+   consumed into the edit record — undo restores it); deleting a
+   mate that splits a cluster mints the new cluster's frame from
+   the solved relative pose at the edit, recorded and
+   deterministic — the A10 maintenance pattern applied to frames.
+3. **Gauge.** The cluster frame places the cluster's GAUGE
+   instance: its earliest instance in document order — a
+   deterministic convention, not stored data. An edit removing the
+   gauge instance rewrites the stored frame by composing with the
+   already-solved relative pose, so every surviving instance's
+   world pose is unchanged (recorded rewrite, same pattern).
+   Pattern-placed instances are gauge-ineligible: their poses are
+   the pattern's.
+4. **Determining vs declaring mates.** In each cluster, take the
+   deterministic spanning tree of the mate graph rooted at the
+   gauge (document-order tie-breaks). TREE mates DETERMINE: each
+   must be fully-determining after per-pair combination; an UNDER
+   tree edge refuses typed, naming the pair and the residual
+   freedom in class vocabulary ("clocking about the shared axis"),
+   recourse = add the complementary mate, or delete the mate if
+   free relative motion was intended (A9 is relative freedom's
+   home). Pattern-placed instances are never tree CHILDREN (the
+   pattern already determined them; they may be tree parents).
+   NON-TREE mates DECLARE: they determine nothing and are carried
+   to evaluation as pure contact declarations, verified against
+   the solved geometry by the C2 tables — trilean, definite
+   mismatch refusing and naming the mate AND the loop it closes.
+   So: a pattern-stacked run of identical bricks mated
+   stud-to-tube VERIFIES rather than over-determines; two
+   explicitly-placed parts declared flush is a fit-check, not an
+   error; and a redundant-but-consistent loop (A–B and B–C
+   fastened, A–C also declared at the composed transform — the
+   third mate adds no placement information) closes through
+   verification, not solving. An INCONSISTENT loop dies at
+   verification of its closing mate. No cycle is ever SOLVED;
+   genuinely simultaneous systems — no spanning tree makes every
+   tree edge determining — surface as the named UNDER refusals
+   with rung-(c) recourse. (Tree choice is observably irrelevant
+   when loops are consistent; when not, the refusal names the
+   whole loop, so the citation does not depend on it.)
 5. **Evaluation.** Frames compose topologically outward from the
-   anchor; uniqueness follows from tree + single anchor (D9
-   determinism structural); Δc ≡ 0 by construction, so C5's
-   differentiability transfer (A3) holds with no witness.
+   gauge along the tree (uniqueness structural — D9 free);
+   Δc ≡ 0 by construction for tree mates (C5 transfer, A3);
+   declaring mates mint their records like any declaration (A3)
+   after verification.
 
-Named v1 losses, both honest and both already banked by A1:
-redundant-consistent cycles and cross-edge cancellation refuse
-with recourse text pointing at rung (c).
+Named v1 losses, honest and banked by A1: cross-edge cancellation
+(UNDER tree edges whose composition would determine) refuses to
+rung (c); loop CERTIFICATION beyond the C2 verification tables
+(e.g. in-band closures) escalates per C4 rather than resolving.
 
 ## Open questions
 
