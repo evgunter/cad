@@ -481,8 +481,11 @@ U1, U2+G1+G2, U3, U5, U7+SEL1+SEL2, U8a, SWITCH-P/E/PR-C with
 U8b folded in, U9S+DOORS, U10). The guide + north-star audit are
 hosted-CI-enforced (python-suite, 46 tests). The residual
 register (above) is the successor's map; category B is the
-opening program. In flight at close: #329 (R1-PARAMS, G10) on a
-merge watcher, its review to run post-merge as ordinal 19.
+opening program. #329 MERGED
+(2026-08-10, all green incl. an en-route CI catch: the fixture
+pin's embedded ε vs the tolerance sweep, fixed as an honest
+exclusion) — G10 CLOSED, R1 DISCHARGED. Its retroactive review
+(ordinal 19, frozen merge head) is the successor's first task.
 Handoff file: ~/.local/share/cad-work/handoff-prompt-lib-next.md.
 Dual-review samples 1-6 all converged on every MAJOR; sample 5
 overturned a design disposition; the variance data is in the
