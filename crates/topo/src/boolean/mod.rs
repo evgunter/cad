@@ -100,10 +100,12 @@ pub use ops::{
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
 #[cfg(feature = "sweep-testing")]
 pub use reduce::PlantedDegradation;
-// LIB-SEL2 (SELECT-DESIGN §3b): the two description doors the declared
-// rung verifies with, exposed so the flush-candidate detector asks the
-// SAME doors in candidate-generation mode (the anti-twin rule).
-pub use reduce::{SweepStrategy, SweepTrace, face_plane, face_plane_source};
+pub use reduce::{SweepStrategy, SweepTrace};
+// LIB-SEL2 (SELECT-DESIGN §3b; #304 review MINOR-1): THE flush-pair
+// verify door — descriptions, oriented sources and the verification
+// arm in one function, shared by the REST lane's verify-at-use and
+// the detector's candidate-generation mode BY CONSTRUCTION.
+pub use rest::flush_pair_relation;
 pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
 
 /// Which regularized boolean is being computed — threaded through the

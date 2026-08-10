@@ -233,14 +233,7 @@ pub(super) fn face_source<T: Decide>(
 /// crossing parity is blind to frame handedness). The consumers that
 /// read a MATERIAL side off the sign — `side_code`, the containment
 /// ray's `d·n̂` — are exactly the ones this fixes.
-///
-/// `pub` (LIB-SEL2, SELECT-DESIGN §3b): the flush-candidate detector
-/// is the C4 verifier run in candidate-generation mode, and the
-/// anti-twin rule requires it to build descriptions through THIS door
-/// — the same one the declared rung verifies with — never a re-derived
-/// twin. Returns `None` for a non-planar face (the v1 detector's
-/// honest "not a flush candidate").
-pub fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
+pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
     let f = body.get_face(face)?;
     match body.get_surface(f.surface) {
         Some(geom_surfaces::Surface::Plane { origin, normal, .. }) => Some(PlaneDesc {
@@ -274,12 +267,7 @@ pub fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<
 /// mints a value rather than borrowing the stored one (the stored
 /// source describes the SURFACE and must not be rewritten by a
 /// face-level question).
-///
-/// `pub` for the same LIB-SEL2 candidate-generation reuse as
-/// [`face_plane`]: the detector passes the identical identity evidence
-/// the verify-at-use site passes, so rung 1 decides detection exactly
-/// as it will later decide verification.
-pub fn face_plane_source<T: Decide>(
+pub(super) fn face_plane_source<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Option<crate::source::GeomSource> {

@@ -252,3 +252,47 @@ fn declare_inserts_the_pair() {
         other => panic!("expected a Declare node, got {other:?}"),
     }
 }
+
+/// **The verification-arm falsifier** (adopted from the #304 review's
+/// planted-drift probe, then aimed both ways). Two resting pairs
+/// TILTED so their angular margins, levered at the SHARED
+/// verification arm, land just inside the ambiguity band's two ends:
+/// at the correct arm BOTH refuse `PairInBand` at
+/// `bool_plane_parallel`. An arm drifted UP by ~2% turns the
+/// near-escalate tilt definite (silent empty result); an arm drifted
+/// DOWN by ~1% decides the near-zero tilt parallel and yields a
+/// finding. Either way this row fails — the arm is pinned, not
+/// hand-mirrored (review MINOR-1).
+#[test]
+fn tilted_in_band_pairs_pin_the_verification_arm() {
+    let tol = geom_core::Tolerance::get();
+    for theta in [1.01 * tol.eps, 0.99 * tol.k * tol.eps] {
+        let (c, s) = (theta.cos(), theta.sin());
+        let (doc, base) = box_at(ProfileDoc::empty(), 0.0, (0.0, 0.0), (1.0, 1.0), 1.0);
+        // A block resting on the top cap, sketched on a plane through
+        // z = 1 tilted by theta about the x axis.
+        let (doc, p) = insert(
+            doc,
+            Node::Profile(desc(
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                [0.0, c, s],
+                vec![vec![(0.25, 0.25), (0.75, 0.25), (0.75, 0.75), (0.25, 0.75)]],
+            )),
+        );
+        let (doc, tilted) = insert(
+            doc,
+            Node::Extrude {
+                profile: p,
+                distance: len(0.5),
+            },
+        );
+        let ev = eval(&doc);
+        match find_flush_candidates(&ev, base, tilted) {
+            Err(SelectRefusal::PairInBand { predicate, .. }) => {
+                assert_eq!(predicate, "bool_plane_parallel", "theta = {theta:e}");
+            }
+            other => panic!("theta = {theta:e}: expected PairInBand, got {other:?}"),
+        }
+    }
+}

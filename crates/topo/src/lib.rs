@@ -171,7 +171,7 @@ pub use boolean::{
     ContactRecords, FaceContainment, NullEdgePairRecord, Operand, OperandKeys, PairSite,
     PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError,
     SideCode, SolidContainment, SweepStrategy, SweepTrace, VfContact, VvContact, boolean_op_with,
-    boolean_reduce, boolean_reduce_declared, contfp, face_plane, face_plane_source, intersect,
+    boolean_reduce, boolean_reduce_declared, contfp, flush_pair_relation, intersect,
     intersect_with, oriented_plane_eq, point_in_solid, subtract, subtract_with, union, union_with,
 };
 #[cfg(feature = "sweep-testing")]

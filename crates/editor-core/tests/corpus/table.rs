@@ -25,8 +25,10 @@
 //!   its inner-wall planes against same-side earlier legs' (all
 //!   `SameOriented`). Declaring them is recording true intent — those
 //!   faces ARE flush by construction — and a declared pair whose
-//!   faces never meet in the op is F5's verified no-op, so the pins
-//!   below are unchanged;
+//!   faces never meet in the op is a SILENT no-op at the op (C4's
+//!   verified-at-use posture, CONTACT-DESIGN: verification happens
+//!   where declaration meets geometry, and these never meet), so the
+//!   pins below are unchanged;
 //! - the `Declare` nodes therefore carry 2/4/5/7 pairs (the
 //!   inspection comment at the assert derives the inventory) rather
 //!   than the hand-picked 2 the old segment table wrote down. The
@@ -59,8 +61,8 @@
 //! extrude plus all four unions, everything else reused).
 
 use editor_core::{
-    BooleanOp, CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Expr, Node, SlotId,
-    declare_node, evaluate, find_flush_candidates,
+    BooleanOp, CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Expr, Node, RoleSeg,
+    SlotId, declare_node, evaluate, find_flush_candidates,
 };
 use topo::PlaneRelation;
 
@@ -137,6 +139,18 @@ pub fn document() -> CorpusDoc {
                 .all(|f| f.evidence.relation == PlaneRelation::SameOriented),
             "leg {i}: {findings:#?}"
         );
+        // The N3 demonstration the hand-tracking used to carry: once a
+        // wall pair has GLUED (leg 1's union), the accumulated body's
+        // side of the next wall finding is the boolean's `Merged` row
+        // — the detector answers with the N3 merge-lane name itself.
+        if i > 0 {
+            assert!(
+                findings
+                    .iter()
+                    .any(|f| matches!(f.pair.0.path.first(), Some(RoleSeg::Merged(_)))),
+                "leg {i}: no Merged-named wall in {findings:#?}"
+            );
+        }
         let decl = r.insert(declare_node(&findings).expect("nonempty findings"));
         let uni = r.insert(Node::Boolean {
             op: BooleanOp::Union,

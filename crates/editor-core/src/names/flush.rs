@@ -30,12 +30,13 @@
 //! # The anti-twin rule (§3b): the detector IS the verifier
 //!
 //! The detector has NO predicate triple of its own. It enumerates
-//! candidate pairs and asks the SAME doors the declared rung will
-//! later verify with: [`topo::face_plane`] / [`topo::face_plane_source`]
-//! for the descriptions and identity evidence, and
-//! [`topo::oriented_plane_eq`] — the C4 `Rest` verify ladder — for
-//! the verdict, at the same 1 m verification arm the REST lane uses.
-//! Consequences, all deliberate:
+//! candidate pairs and asks the ONE door the declared rung verifies
+//! with: [`topo::flush_pair_relation`] — descriptions, oriented
+//! identity evidence, and the REST lane's verification arm all live
+//! INSIDE that shared function (#304 review MINOR-1: the arm was
+//! briefly a hand-mirrored constant here, the wire.rs "kept in step
+//! BY HAND" shape one parameter wide; it is now shared by
+//! construction). Consequences, all deliberate:
 //!
 //! - detect-then-declare can never disagree with verify-at-use (no
 //!   twin drift — the demo twins' "kept in step BY HAND" warning
@@ -89,10 +90,7 @@
 //!   and the caller holding the recipe is the one who knows.
 
 use geom_core::{Band, Decide, Indeterminate, MarginDiag};
-use topo::{
-    Body, FaceKey, PlaneEqError, PlaneIdentity, PlaneRelation, face_plane, face_plane_source,
-    oriented_plane_eq,
-};
+use topo::{Body, FaceKey, PlaneEqError, PlaneRelation, flush_pair_relation};
 
 use crate::doc::Doc;
 use crate::edit::{DocEdit, EditError, apply};
@@ -266,7 +264,7 @@ fn pair_verdict<T: Decide>(
             let verdict =
                 probe(ba, fa, bb, fb, band).map_err(|source| SelectRefusal::PairInBand {
                     pair: Box::new((na.clone(), nb.clone())),
-                    predicate: source.predicate.unwrap_or("oriented_plane_eq"),
+                    predicate: source.predicate.unwrap_or("flush_pair_relation"),
                     source,
                 })?;
             if let Some((rel, rung)) = verdict {
@@ -328,14 +326,16 @@ fn tied_disagrees<T: Decide>(
 /// non-plane face, or definitely distinct planes), `Err` = the door
 /// could not decide definitively (in-band, escalated, or poisoned).
 ///
-/// The identity evidence is exactly the verify-at-use site's
-/// (`rest::verify_declared_pairs`): oriented sources on both sides,
-/// the 1 m verification arm. The FIRST call runs `declared: false` —
-/// its `Undeclared` refusal with the verifier's definite-zero
-/// encoding ([`MarginDiag::Invalid`]) is precisely "would verify if
-/// declared"; the SECOND call (same doors, same inputs, `declared:
-/// true`) then reports the orientation the declared rung will decide
-/// at use. Deterministic, so the two calls cannot disagree.
+/// Everything — descriptions, oriented sources, AND the verification
+/// arm — comes from [`flush_pair_relation`], the one door the REST
+/// lane's verify-at-use site also calls (shared BY CONSTRUCTION;
+/// #304 review MINOR-1 retired the hand-mirrored arm). The FIRST call
+/// runs `declared: false` — its `Undeclared` refusal with the
+/// verifier's definite-zero encoding ([`MarginDiag::Invalid`]) is
+/// precisely "would verify if declared"; the SECOND call (same door,
+/// same inputs, `declared: true`) then reports the orientation the
+/// declared rung will decide at use. Deterministic, so the two calls
+/// cannot disagree.
 fn probe<T: Decide>(
     ba: &Body<T>,
     fa: FaceKey,
@@ -343,16 +343,11 @@ fn probe<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Option<(PlaneRelation, FlushRung)>, Indeterminate> {
-    let (Some(pa), Some(pb)) = (face_plane(ba, fa), face_plane(bb, fb)) else {
+    let Some(relation) = flush_pair_relation(ba, fa, bb, fb, false, band) else {
+        // Not a planar pair: not a v1 candidate, honestly.
         return Ok(None);
     };
-    let (sa, sb) = (face_plane_source(ba, fa), face_plane_source(bb, fb));
-    let id = PlaneIdentity {
-        s1: sa.as_ref(),
-        s2: sb.as_ref(),
-        declared: false,
-    };
-    match oriented_plane_eq(&pa, &pb, id, T::one(), band) {
+    match relation {
         Ok(PlaneRelation::Distinct) => Ok(None),
         // Rung 1 fired: same recipe source, exact verdict.
         Ok(rel) => Ok(Some((rel, FlushRung::SharedSource))),
@@ -362,23 +357,18 @@ fn probe<T: Decide>(
                 // docs, residuals): the pair would verify if declared.
                 // Ask the declared rung which orientation it will
                 // verify with at use.
-                let declared = PlaneIdentity {
-                    s1: sa.as_ref(),
-                    s2: sb.as_ref(),
-                    declared: true,
-                };
-                match oriented_plane_eq(&pa, &pb, declared, T::one(), band) {
-                    Ok(rel @ (PlaneRelation::SameOriented | PlaneRelation::SameOpposite)) => {
+                match flush_pair_relation(ba, fa, bb, fb, true, band) {
+                    Some(Ok(rel @ (PlaneRelation::SameOriented | PlaneRelation::SameOpposite))) => {
                         Ok(Some((rel, FlushRung::DecidedCoincident)))
                     }
                     // Unreachable by construction (the undeclared call
                     // already decided coincident); typed, never silent.
-                    Ok(PlaneRelation::Distinct) => Err(diag),
-                    Err(
+                    Some(Ok(PlaneRelation::Distinct)) | None => Err(diag),
+                    Some(Err(
                         PlaneEqError::Undeclared(d)
                         | PlaneEqError::Escalated(d)
                         | PlaneEqError::Contradicted(d),
-                    ) => Err(d),
+                    )) => Err(d),
                 }
             } else {
                 // In-band coincidence: not definite, not droppable.
