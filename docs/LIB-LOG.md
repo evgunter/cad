@@ -506,3 +506,16 @@ terminal, and fences out G2/G3/G7/G8/G9, Expr-in-profile, and
 NURBS legs. Arm: opus (LIB-7 banked slot 2). The Expr-bearing
 profile-steps door (with G9 → plate_param authorable from
 Python) is recorded here as a NAMED follow-up of PYG1.
+
+**Ordinal 19 closed (2026-08-10)**: the R1-PARAMS retroactive
+review returned APPROVE 0/1/4, rubric 5/5/5, zero silent devs —
+the row is complete in MODEL-AB-LOG. Fix pass
+(orchestrator-applied): the fixture pin's ε filter now asserts
+exactly one excluded ε line per side (the MINOR's dup-ε damage
+shape goes RED in the Rust pin instead of relying on the Python
+load refusal). Banked from the NOTEs: (a) `DocParam` binds no
+`__eq__`/`__hash__` while Rust derives PartialEq — undocumented
+asymmetry, adopt as a rider on the next bindings unit; (b) the
+LB13 guard's blind spot (arena key in a new public FN SIGNATURE
+would not trip the pub-use scan) — recorded against register
+R-series as a known-scope caveat, exposure zero today.
