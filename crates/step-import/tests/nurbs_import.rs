@@ -87,10 +87,7 @@ fn native_arc_loft() -> topo::Body<f64> {
 /// one are both correct; nothing else is. `Ok` carries the certified
 /// enclosure — the caller reuses it rather than paying a second
 /// rational quadrature, which is the expensive thing in these rows.
-fn rational_props_posture(
-    body: &topo::Body<f64>,
-    who: &str,
-) -> Option<topo::MassProperties<f64>> {
+fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::MassProperties<f64>> {
     let target = 1024.0 * geom_core::Tolerance::get().eps;
     match topo::mass_properties(body) {
         Ok(props) => Some(props),
