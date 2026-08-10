@@ -196,7 +196,8 @@ class TestPlateParam(unittest.TestCase):
     door, because plate_param's profile (three loops, two of them
     circles) is still behind gaps G1 and G9. The fixture cannot rot —
     `crates/pncad/tests/all.rs` re-authors the scene façade-only and
-    pins the saved text bit for bit."""
+    pins the saved text line for line (all but the snapshot's epsilon
+    line, which CI's tolerance sweep varies by design)."""
 
     FIXTURE = (
         Path(__file__).resolve().parents[3]

@@ -952,6 +952,14 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 /// the document crosses to Python through the persistence door, and
 /// THIS pin keeps that crossing honest: if the scene's constants or
 /// the persist schema move, the fixture cannot silently rot.
+///
+/// The pin is exact except the snapshot's ONE `"epsilon"` line:
+/// `empty()` inherits the ambient ε (`CAD_TOLERANCE_EPS`), CI's eps
+/// rows sweep it BY DESIGN, and a document authored with an explicit
+/// non-ambient ε refuses evaluation (`ToleranceConflict`) under a
+/// sweep — so ε is the one line that legitimately varies per run and
+/// is excluded from the comparison. The checked-in fixture carries
+/// the default ε (regenerate under a default environment).
 #[test]
 fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     use pncad::document::BooleanValue;
@@ -983,10 +991,18 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
         std::fs::write(path, &text).expect("the fixture writes");
         return; // freshly written; the next compile pins it
     }
+    // Everything but the swept ε line must match bit-for-bit (see the
+    // doc comment above for why ε is excluded).
+    let sans_epsilon = |t: &str| -> String {
+        t.lines()
+            .filter(|l| !l.trim_start().starts_with("\"epsilon\":"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
     assert_eq!(
-        text,
-        include_str!("plate_param.v4.pncad"),
+        sans_epsilon(&text),
+        sans_epsilon(include_str!("plate_param.v4.pncad")),
         "the saved plate_param text moved — regenerate the fixture with \
-         `PNCAD_BLESS=1 cargo test -p pncad plate_param` and re-run"
+         `PNCAD_BLESS=1 cargo test -p pncad plate_param` (default env) and re-run"
     );
 }
