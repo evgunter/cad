@@ -76,7 +76,7 @@ use crate::doc::Doc;
 use crate::eval::{Evaluation, NodeResult};
 use crate::names::{EntityKey, EntityKind, EntityRef, Entry, Qualifier, RoleSeg, StableName};
 use crate::node::{RecipeNodeId, SlotId};
-use crate::profile_desc::ProfileDesc;
+use crate::program::ProfileProgram;
 use crate::witness::WitnessBifurcation;
 
 /// Typed resolution failure — N5 VERBATIM (spec D1: the block is
@@ -297,7 +297,7 @@ pub enum Resolution {
 #[derive(Clone, Copy)]
 pub struct RunCtx<'a, T: Decide> {
     /// The document the evaluation ran on.
-    pub doc: &'a Doc<ProfileDesc>,
+    pub doc: &'a Doc<ProfileProgram>,
     /// The evaluation.
     pub eval: &'a Evaluation<T>,
 }
@@ -909,10 +909,10 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
 /// checkable-but-absent name; otherwise whatever [`crate::edit::apply`]
 /// returns.
 pub fn apply_with_names<T: Decide>(
-    doc: &Doc<ProfileDesc>,
-    edit: &crate::edit::DocEdit<ProfileDesc>,
+    doc: &Doc<ProfileProgram>,
+    edit: &crate::edit::DocEdit<ProfileProgram>,
     eval: &Evaluation<T>,
-) -> Result<crate::edit::Applied<ProfileDesc>, crate::edit::EditError> {
+) -> Result<crate::edit::Applied<ProfileProgram>, crate::edit::EditError> {
     use crate::edit::{DocEdit, EditError};
     use crate::node::Node;
     let mut names: Vec<&StableName> = Vec::new();
@@ -1066,8 +1066,8 @@ fn for_each_inner<'a>(name: &'a StableName, f: &mut impl FnMut(&'a StableName)) 
 /// bitwise, or whose Count slot references a Count doc-param that
 /// changed.
 fn structural_param_change(
-    old: &Doc<ProfileDesc>,
-    new: &Doc<ProfileDesc>,
+    old: &Doc<ProfileProgram>,
+    new: &Doc<ProfileProgram>,
     ddiff: &crate::diff::DocDiff,
     path: Option<&BTreeSet<RecipeNodeId>>,
 ) -> Option<(RecipeNodeId, SlotId)> {
@@ -1113,8 +1113,8 @@ fn structural_param_change(
 /// effects surface as verdict flips or structural-parameter
 /// diagnoses), never site (iii).
 fn recipe_edit_change(
-    old: &Doc<ProfileDesc>,
-    new: &Doc<ProfileDesc>,
+    old: &Doc<ProfileProgram>,
+    new: &Doc<ProfileProgram>,
     ddiff: &crate::diff::DocDiff,
     path: Option<&BTreeSet<RecipeNodeId>>,
 ) -> Option<RecipeEditRef> {
@@ -1142,8 +1142,8 @@ fn recipe_edit_change(
 /// (checked by copying the new continuous exprs over the old payload
 /// and comparing bitwise — total, no per-variant knowledge).
 fn continuous_only_change(
-    old: &crate::node::Node<ProfileDesc>,
-    new: &crate::node::Node<ProfileDesc>,
+    old: &crate::node::Node<ProfileProgram>,
+    new: &crate::node::Node<ProfileProgram>,
 ) -> bool {
     let mut patched = old.clone();
     for slot in new.slots() {

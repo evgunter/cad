@@ -438,7 +438,10 @@ impl Parser<'_> {
                 UnitQuantity::Length => Dimension::Length,
                 UnitQuantity::Angle => Dimension::Angle,
             };
-            return Expr::literal(value * unit.factor, dim)
+            // The literal REMEMBERS its authored unit (LIB-SWITCH §4g,
+            // U8b): canonical value from the one multiply, display
+            // unit stored as presentation metadata for the formatter.
+            return Expr::literal_with_unit(value * unit.factor, dim, unit)
                 .map_err(|error| ParseError::Dimension { pos, error });
         }
         if integral {

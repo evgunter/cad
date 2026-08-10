@@ -41,16 +41,19 @@
 //! bytes (hex, bit-exact), the appearance store (records incl. D7
 //! metadata), recorded ε, the schema version, and the edit log.
 //! Deliberately NOT persisted: evaluations, name tables,
-//! memo/content/naming keys, arena anything — all of it re-derives on
-//! replay, and the save/load/replay-identity CI row pins that the
+//! memo/content/naming keys, arena anything — and, since v4, the
+//! profile programs' REPLAYED SEGMENTS (vertices/bulges/joints are
+//! replay products of the stored programs; V3: caches live in the
+//! evaluation memo, never on disk) — all of it re-derives on replay,
+//! and the save/load/replay-identity CI row pins that the
 //! re-derivation is bit-identical.
 //!
 //! # Doors (fail loud, D2/D6.3; DESIGN engineering convention 2)
 //!
 //! Every direction-independent document check lives in ONE shared
 //! validator ([`check`]'s `validate_document`: non-finite floats
-//! ([`NonFiniteSite`]), out-of-range declared-tangent joints
-//! ([`JointSite`]), the structural document invariants
+//! ([`NonFiniteSite`]), profile-program structure faults
+//! ([`ProgramFault`]), the structural document invariants
 //! ([`SnapshotError`])), invoked by BOTH doors — a document that
 //! would refuse to load cannot be saved, by construction rather than
 //! by mirrored sweeps.
@@ -85,9 +88,9 @@ mod wire;
 use geom_core::tolerance::{Tolerance, ToleranceError};
 
 use crate::edit::{Applied, DocEdit, EditError, EditRecord, apply};
-use crate::profile_desc::{ProfileDesc, ProfileDoc};
+use crate::program::{ProfileDoc, ProfileProgram};
 
-pub use check::{JointSite, NonFiniteSite, SnapshotError};
+pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 
 /// The current schema version.
 ///
@@ -109,9 +112,19 @@ pub use check::{JointSite, NonFiniteSite, SnapshotError};
 /// honest default to migrate to and none is invented. A v2 file
 /// refuses TYPED with the regenerate recourse, exactly as v1 does.
 ///
+/// Version 4 is the **profiles-as-programs clean break** (LIB-SWITCH
+/// §4h; PROFILES-V2 ratified #242, LQ7a): `Node::Profile`'s payload
+/// switched from the opaque vertex/bulge description to the
+/// [`crate::ProfileProgram`] (Expr-bearing step lists; the program IS
+/// the definition, derived segments are unpersisted replay products),
+/// and expression literals gained the optional display-unit field
+/// (U8b, §4g). No v3 form survives verbatim — the in-repo corpora
+/// re-authored program-form — so v3 refuses TYPED with the regenerate
+/// recourse, exactly as v1/v2 do; the migration table stays empty.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these two.
-pub const SCHEMA_VERSION: u32 = 3;
+/// [`migration_step`] entry, or a ratified break like these three.
+pub const SCHEMA_VERSION: u32 = 4;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -120,7 +133,7 @@ struct FileBody {
     /// The full document snapshot.
     snapshot: ProfileDoc,
     /// The recorded edits since the snapshot, replayed on load.
-    edits: Vec<DocEdit<ProfileDesc>>,
+    edits: Vec<DocEdit<ProfileProgram>>,
 }
 
 /// A loaded document: the parsed snapshot, the parsed edit log, and
@@ -131,7 +144,7 @@ pub struct Loaded {
     /// The snapshot as saved.
     pub snapshot: ProfileDoc,
     /// The edit log as saved.
-    pub edits: Vec<DocEdit<ProfileDesc>>,
+    pub edits: Vec<DocEdit<ProfileProgram>>,
     /// The current document: snapshot with every edit replayed.
     pub doc: ProfileDoc,
     /// The replay's edit records (minted ids etc.), one per edit.
@@ -151,21 +164,18 @@ pub enum PersistError {
         /// Where the non-finite value sits.
         site: NonFiniteSite,
     },
-    /// A declared-tangent joint out of range (review MAJOR-DELTA-1 —
-    /// the `Index` channel's twin of `NonFinite`): the profile
-    /// payload is `pub`, so a stale joint is reachable without
-    /// passing an edit door, and a parsed file can carry the same
-    /// corruption. Shared-validator check: save refuses before a
+    /// A profile PROGRAM structure fault (LIB-SWITCH §4h; the retired
+    /// stored-joint refusal's successor): a wrong-dimension argument
+    /// role, or a lattice-violating step order caught by the replay
+    /// probe. The payload is `pub`, so an in-crate bug can build one
+    /// without passing an edit door, and a parsed file can carry the
+    /// same corruption. Shared-validator check: save refuses before a
     /// byte is written, load refuses with the SAME diagnostics.
-    TangentJointOutOfRange {
-        /// Where the offending payload sits.
-        site: JointSite,
-        /// The loop within the payload.
-        loop_index: usize,
-        /// The out-of-range joint index.
-        joint: u64,
-        /// The loop's vertex count (valid joints are `0..count`).
-        vertex_count: usize,
+    ProfileProgram {
+        /// The profile node carrying the fault.
+        node: crate::node::RecipeNodeId,
+        /// The typed fault.
+        fault: check::ProgramFault,
     },
     /// The serializer itself failed (I/O-free here, so effectively
     /// unreachable; surfaced rather than swallowed).
@@ -259,15 +269,9 @@ impl core::fmt::Display for PersistError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NonFinite { site } => write!(f, "persist: non-finite float at {site:?}"),
-            Self::TangentJointOutOfRange {
-                site,
-                loop_index,
-                joint,
-                vertex_count,
-            } => write!(
+            Self::ProfileProgram { node, fault } => write!(
                 f,
-                "persist: declared-tangent joint {joint} out of range at {site:?} loop \
-                 {loop_index} (valid joints are 0..{vertex_count})"
+                "persist: profile program fault at node {node:?}: {fault:?}"
             ),
             Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),
             Self::Header { found } => {
@@ -342,11 +346,12 @@ pub type MigrationStep = fn(serde_json::Value) -> Result<serde_json::Value, Migr
 /// body, so a too-old file's diagnostics name the version problem
 /// rather than whatever the stale body happens to parse as.
 ///
-/// **The table is empty, on purpose**: 1 → 2 (M5 PR 10 §4) and
-/// 2 → 3 (M6-5, ruled #217) were both ratified clean breaks. The
-/// mechanism stays because it costs nothing and D6.3's forward-only
-/// rule is unchanged; a future format change that is NOT a break adds
-/// its `n => Some(step_n)` arm here.
+/// **The table is empty, on purpose**: 1 → 2 (M5 PR 10 §4), 2 → 3
+/// (M6-5, ruled #217), and 3 → 4 (LIB-SWITCH §4h — profiles as
+/// programs, ratified LQ7a clean break) were all ratified clean
+/// breaks. The mechanism stays because it costs nothing and D6.3's
+/// forward-only rule is unchanged; a future format change that is NOT
+/// a break adds its `n => Some(step_n)` arm here.
 fn migration_step(from_version: u32) -> Option<MigrationStep> {
     /// `(from_version, step)` pairs — the whole chain, one line each.
     const TABLE: &[(u32, MigrationStep)] = &[];
@@ -363,13 +368,16 @@ fn migration_step(from_version: u32) -> Option<MigrationStep> {
 /// Every arm of the shared validator (module docs — the same checks
 /// load runs): [`PersistError::NonFinite`] naming the site of any
 /// NaN/inf in the document or edit log (D2),
-/// [`PersistError::TangentJointOutOfRange`], and
+/// [`PersistError::ProfileProgram`], and
 /// [`PersistError::Snapshot`] for a document whose structural
 /// invariants are broken (an unloadable file, refused before it
 /// exists). Plus [`PersistError::EditReplay`] for a log that cannot
 /// replay, and [`PersistError::Serialize`] if the JSON writer itself
 /// fails.
-pub fn save(snapshot: &ProfileDoc, edits: &[DocEdit<ProfileDesc>]) -> Result<String, PersistError> {
+pub fn save(
+    snapshot: &ProfileDoc,
+    edits: &[DocEdit<ProfileProgram>],
+) -> Result<String, PersistError> {
     check::validate_document(snapshot, edits)?;
     // Save/load symmetry for the LOG: load replays the edits through
     // apply's doors, so a log that refuses there must refuse HERE —
@@ -393,7 +401,7 @@ pub fn save(snapshot: &ProfileDoc, edits: &[DocEdit<ProfileDesc>]) -> Result<Str
 #[derive(serde::Serialize)]
 struct SerBody<'a> {
     snapshot: &'a ProfileDoc,
-    edits: &'a [DocEdit<ProfileDesc>],
+    edits: &'a [DocEdit<ProfileProgram>],
 }
 
 /// Parses, migrates, validates, replays, and ε-reconciles a saved

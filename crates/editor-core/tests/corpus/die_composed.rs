@@ -47,11 +47,12 @@
 //! its derived closed form at a stated relative tolerance.
 
 use editor_core::{
-    Axis3, BooleanOp, CapEnd, Datum, DocEdit, EntityKind, MeridianEnd, NamePat, Node, ProfileDesc,
-    ProfileEdgeRef, RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, SlotId, StableName,
+    Axis3, BooleanOp, CapEnd, Datum, DocEdit, EntityKind, LoopProgram, MeridianEnd, NamePat, Node,
+    ProfileEdgeRef, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SegPat,
+    SegTag, Selector, SlotId, StableName,
 };
-use geom_core::{Point2, Point3, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use geom_core::{Point3, Vec3};
+use profile::SketchPlane;
 
 use super::super::fixture::{ang, len, prism_edges, scl};
 use super::{CorpusDoc, Recorder};
@@ -210,19 +211,12 @@ pub fn document() -> CorpusDoc {
     let h = DIE_L / 2.0;
 
     // ---- the sharp cube, [0, L]³ (die_pips' chain, verbatim) ----
-    let square = ProfileLoop::new(
-        [(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: Point2::new(x, y),
-                bulge: 0.0,
-            })
-            .collect(),
-    );
-    let cube_p = r.insert(Node::Profile(ProfileDesc(Profile::new(
-        SketchPlane::xy(),
-        vec![square],
-    ))));
+    let square =
+        LoopProgram::polygon([(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)]).unwrap();
+    let cube_p = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![square],
+    }));
     let cube = r.insert(Node::Extrude {
         profile: cube_p,
         distance: len(DIE_L),
@@ -233,29 +227,18 @@ pub fn document() -> CorpusDoc {
         origin: [len(0.0), len(0.0), len(0.0)],
         direction: [scl(0.0), scl(0.0), scl(1.0)],
     }));
+    // v4: die_pips' declared-subdivision half-disc (LIB-SWITCH §5-1
+    // fallback; see die_pips for the measurement note).
     let quarter = std::f64::consts::FRAC_PI_8.tan();
-    let half_disc = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(0.0, -PIP_R),
-            bulge: quarter,
-        },
-        ProfileVertex {
-            pos: Point2::new(PIP_R, 0.0),
-            bulge: quarter,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.0, PIP_R),
-            bulge: 0.0,
-        },
-    ]);
-    let ball_p = r.insert(Node::Profile(ProfileDesc(Profile::new(
-        SketchPlane::from_frame(
+    let half_disc = half_disc_program(quarter);
+    let ball_p = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::from_frame(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(1.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
         ),
-        vec![half_disc],
-    ))));
+        loops: vec![half_disc],
+    }));
     let ball = r.insert(Node::Revolve {
         profile: ball_p,
         axis,
@@ -318,4 +301,23 @@ pub fn document() -> CorpusDoc {
         },
         bump_root: pip,
     }
+}
+
+/// The half-disc loop PROGRAM (die_pips' twin, same deviation notes).
+fn half_disc_program(quarter: f64) -> LoopProgram {
+    let lpt = |x: f64, y: f64| {
+        [
+            editor_core::Expr::literal(x, editor_core::Dimension::Length).unwrap(),
+            editor_core::Expr::literal(y, editor_core::Dimension::Length).unwrap(),
+        ]
+    };
+    LoopProgram::Chain(vec![
+        ProgramStep::At(lpt(0.0, -PIP_R)),
+        ProgramStep::ArcTo {
+            target: ProgramTarget::Point(lpt(PIP_R, 0.0)),
+            bulge: editor_core::Expr::literal(quarter, editor_core::Dimension::Scalar).unwrap(),
+        },
+        ProgramStep::ArcContinue(lpt(0.0, PIP_R)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ])
 }
