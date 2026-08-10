@@ -13,8 +13,15 @@ Narrative record: `docs/ASM-LOG.md`.
   `transform_rigid` with full re-certification (A2); instance-qualified
   naming (GQ4 wrapper × N1–N7); document identity + content-hash pins
   (A4, D9); the split/inline recorded refactorings; disjoint-assembly
-  validity (A5, per-solid checks). No kernel prerequisites — all
-  substrate shipped (the #325 door, F8/D7 multi-shell validity).
+  validity (A5, per-solid checks). Substrate correction (R1 recon,
+  2026-08-10): the ladder's "no kernel prerequisites" is false for
+  multi-solid referenced documents — `graft_disjoint` is
+  single-solid-source and `name_pattern` refuses multi-body masters;
+  a small kernel-door extension rides in ASM-2b. A2's "memoized"
+  referenced-document evaluation is also NEW machinery (today's memo
+  is per-document, in-process, ε-keyed) — and its content keys are
+  deliberately a DIFFERENT vocabulary from A4 pins (memo keys include
+  ambient ε and resolved bits; pins hash authored canonical bytes).
 - **R2 — mates, constructively**: `Mate` nodes carrying
   CONTACT-DESIGN's declaration vocabulary + alignment data (A3);
   frame-chain solving; declaration minting into the contact record
@@ -28,23 +35,39 @@ Narrative record: `docs/ASM-LOG.md`.
   equivariance-audit prerequisite, import-as-assembly post-AQ1);
   rungs (c)/(d) are their own eras.
 
-## Unit cut (provisional — the R1 substrate report refines it)
+## Unit cut (refined per the R1 substrate report,
+cad-work/asm-r1-substrate/report.md, 2026-08-10)
 
-1. **ASM-1 — identity + pins**: stable document id, canonical-bytes
-   content-hash pin, the (id × pin) wrapper; single-store = the
-   workspace (AQ1's non-gating posture).
-2. **ASM-2 — `InstantiatePart` + materialized evaluation**: the node,
-   memoized referenced-document evaluation, per-instance
-   `transform_rigid` + re-certification, ε-seam typed error,
-   instance-qualified naming, disjoint-assembly validity evidence.
-3. **ASM-3 — `Pattern`**: indices → frames at the D8 structural
-   level, indices riding provenance; proper frames only (mirror
-   stays R4).
-4. **ASM-4 — split/inline**: the recorded refactoring pair, seam =
-   crossing declarations, acceptance at structural +
-   name-resolution identity (A4's ruling).
-5. **ASM-5+ — R2** (post-AQ3): `Mate` nodes, frame-chain solve,
-   declaration minting, planar verification, the typed
+1. **ASM-1 — identity + pins (M, decision-heavy/code-light)**:
+   DocumentId; the CANONICAL-bytes definition (today's save bytes
+   include the edit log — the naive pin moves on undo-history;
+   canonical form must be defined explicitly, with the
+   metadata/appearance/witness inclusion ruled); crypto-hash dep
+   choice (none in tree); the (id × pin) wrapper; the minimal
+   workspace store (none exists — save/load are String↔Doc); the
+   v4-additive-vs-v5 schema posture ruling.
+2. **ASM-2a — `InstantiatePart`, single-solid parts (L)**: the node
+   + cross-document load/evaluate + per-pin memo + the
+   `transform_rigid`/graft loop (mirroring step-import's #325 door)
+   + ε-seam evidence + instance-qualified naming +
+   disjoint-validity evidence.
+3. **ASM-2b — multi-solid referenced documents (M)**: sub-assembly
+   instantiation — the `graft_disjoint` multi-solid-source
+   extension (the kernel touch) + multi-body instance naming (the
+   `emit.rs` refusal wall). Required before ASM-4 (a split-off
+   subtree is generally multi-solid).
+4. **ASM-3 — `Pattern` (S/M, gated on the C1 ruling)**: assembly
+   patterns vs the SHIPPED `Node::Pattern` whose product is
+   `ValuePayload::Instances` (N bodies as data, export-refused) —
+   the semantics ruling precedes the spec; provenance indices
+   already ride (`GeomSource::placed`).
+5. **ASM-4 — split/inline (L, last; depends on ASM-1's store)**:
+   new `DocEdit` arms; the codebase's first multi-document
+   operation; the acceptance harness (structural +
+   name-resolution identity).
+6. **ASM-5+ — R2** (post-AQ3): `Mate` nodes, frame-chain solve,
+   declaration minting, planar verification (census is
+   planar-corpus-only today — exactly R2's need), the typed
    simultaneous-system refusal.
 
 ## Process (the standing rules, verbatim)
