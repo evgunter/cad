@@ -17,6 +17,40 @@
 //! is deferred to the unit that binds the complete surface.
 
 use pncad::document::{DimensionError, EditError, NodeErrorKind, PersistError};
+use pncad::profile::PathError;
+
+/// The stable tag for a PATHS authoring refusal (LIB-PYG1).
+///
+/// `PathError` implements `Display`, so the human message is the
+/// kernel's own prose and the tag is the branchable discriminant —
+/// the [`persist_error_tag`] treatment, not the `Debug`-dump one.
+pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
+    match err {
+        PathError::JunctionTangent { .. } => "junction_tangent",
+        PathError::JunctionCusp { .. } => "junction_cusp",
+        PathError::TangentLineClose { .. } => "tangent_line_close",
+        PathError::SameCarrierJunction { .. } => "same_carrier_junction",
+        PathError::NoCornerForFillet { .. } => "no_corner_for_fillet",
+        PathError::AnchorOutsideTrimmedExtent { .. } => "anchor_outside_trimmed_extent",
+        PathError::ArcCarrierSpelling { .. } => "arc_carrier_spelling",
+        PathError::NonpositiveLeg { .. } => "nonpositive_leg",
+        PathError::NonpositiveFilletRadius { .. } => "nonpositive_fillet_radius",
+        PathError::NonpositiveCircleRadius { .. } => "nonpositive_circle_radius",
+        PathError::CircleSplitCount { .. } => "circle_split_count",
+        PathError::ArcContinueNeedsArcCarrier => "arc_continue_needs_arc_carrier",
+        PathError::ArcContinueOffCarrier { .. } => "arc_continue_off_carrier",
+        PathError::ZeroDirection { .. } => "zero_direction",
+        PathError::ArcViaCollinear { .. } => "arc_via_collinear",
+        PathError::DegenerateArcChord { .. } => "degenerate_arc_chord",
+        PathError::ArcCenterNotEquidistant { .. } => "arc_center_not_equidistant",
+        PathError::DegenerateArcCenter { .. } => "degenerate_arc_center",
+        PathError::FarEndAnchorWithoutFillet => "far_end_anchor_without_fillet",
+        PathError::Escalated { .. } => "escalated",
+        PathError::Band(_) => "band",
+        PathError::UnderdeterminedLeg { .. } => "underdetermined_leg",
+        PathError::OverdeterminedJunction { .. } => "overdetermined_junction",
+    }
+}
 
 /// The stable tag for an edit refusal.
 pub fn edit_error_tag(err: &EditError) -> &'static str {

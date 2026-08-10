@@ -115,6 +115,10 @@ pub enum ErrorClass {
     /// A STEP text the importer refused, or one that parsed to a
     /// non-solid (the export test oracle's refusal class).
     StepImport,
+    /// Geometry the PATHS authoring algebra refused at the call site
+    /// (junction checks, `NoCornerForFillet`, the tangent-line close,
+    /// ...) — LIB-PYG1.
+    Path,
 }
 
 impl ErrorClass {
@@ -129,6 +133,7 @@ impl ErrorClass {
             Self::Persist => "PersistError",
             Self::Export => "ExportError",
             Self::StepImport => "StepImportError",
+            Self::Path => "PathError",
         }
     }
 }
