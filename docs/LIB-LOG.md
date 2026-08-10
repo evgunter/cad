@@ -473,3 +473,17 @@ loft/sweep/tube bindings, G3 non-xy sketch planes. Plus G11
 - The U9 release checklist: reset version numbers (LQ7b), crate
   descriptions (F3), publish gates — a small unit when release
   is actually wanted.
+
+## PROGRAM COMPLETE — resting state (2026-08-10)
+
+Every LIBRARY-DESIGN §L5 unit is MERGED (the ladder as executed:
+U1, U2+G1+G2, U3, U5, U7+SEL1+SEL2, U8a, SWITCH-P/E/PR-C with
+U8b folded in, U9S+DOORS, U10). The guide + north-star audit are
+hosted-CI-enforced (python-suite, 46 tests). The residual
+register (above) is the successor's map; category B is the
+opening program. In flight at close: #329 (R1-PARAMS, G10) on a
+merge watcher, its review to run post-merge as ordinal 19.
+Handoff file: ~/.local/share/cad-work/handoff-prompt-lib-next.md.
+Dual-review samples 1-6 all converged on every MAJOR; sample 5
+overturned a design disposition; the variance data is in the
+rows. LIB-7 remainders banked (opus, opus); next dual = 21.
