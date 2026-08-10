@@ -18,23 +18,41 @@ governs how the gaps get treated:
 > library — never quietly work around it, and never contort the demo
 > to hide it.
 
-**Result: 7 of the 34 tour stops are authorable through Python today**
-— 3 outright, and 4 more only if you re-author by hand the placement
-or patterning the scene uses. 27 are blocked by a missing door.
+**Result: 11 of the 34 tour stops are authorable through Python
+today** — 7 outright, and 4 more only if you re-author by hand the
+placement or patterning the scene uses. 23 are blocked by a missing
+door.
+
+The count moved from 7 to 11 when LIB-PYG1 bound the PATHS lattice
+and closed G1 (`bracket`, `vase`, `sheave`, `bossplate`).
 
 Every YES row below is verified by executed Python in
 `crates/pncad-py/tests/test_north_star.py`, which rebuilds the scene
 and checks it against the *same exact volume oracle the Rust scene
-asserts*. Every NO row's gap is asserted as an absence in the same
-file, so **the day a gap closes, this audit fails and must be
-updated**.
+asserts*. Two of the four rows G1 unblocked are the honest exception:
+`bracket` and `vase` are scenes the Rust tour holds only to its
+generic ladder (validate, tessellate, mesh against mass properties)
+and gives no closed form, so their Python rows derive one, state the
+derivation, and assert it. Every NO row's gap is asserted as an
+absence in the same file, so **the day a gap closes, this audit fails
+and must be updated**.
 
 ## The bound surface
 
 Everything Python can say about geometry, in full:
 
-- `Node.polygon(points, elevation=…)` — one closed loop of straight
-  segments, on a plane parallel to the world xy-plane.
+- The **PATHS authoring lattice** — `Open`, `Start`, `circle`,
+  `circle_split`, and one class per lattice state (`PathOpen`,
+  `PathPoint`, `PathDirectedPoint`, `PathAngle`, `PathDirected`),
+  each exposing only its legal continuations. The full current verb
+  vocabulary: `at`, `at_on`, `angle`, `toward`, `tangent`, `turn`,
+  `to`, `to_on`, `line`, `line_to`, `arc_to`, `arc_via`,
+  `arc_center`, `arc_continue`, `tangent_arc_to`, `fillet`.
+- `Node.profile(outline, elevation=…)` — one closed loop from that
+  lattice, on a plane parallel to the world xy-plane, built from the
+  loop's recorded program.
+- `Node.polygon(points, elevation=…)` — the straight-segment
+  shortcut, unchanged.
 - `Node.extrude(profile, distance)` — along the sketch-plane normal,
   so always world +z.
 - `Node.revolve(profile, axis, angle)` about a `Node.datum_axis`.
@@ -54,23 +72,23 @@ resolves in the gap list below, and each gap there points onward to
 the LIB residual register (`docs/LIB-LOG.md`, "LIB residual register",
 category B) and to any design doc or register item that owns it. The
 `gap` column is the row's *primary* blocker — the most fundamental
-missing door — so the ids partition the 27 NO rows exactly; secondary
+missing door — so the ids partition the 23 NO rows exactly; secondary
 blockers stay named in the last column.
 
 | # | scene | Python? | gap | the missing door |
 |---|---|---|---|---|
-| 1 | `bracket` | NO | G1 | profile needs arcs (`.fillet(0.5)` mints a tangent arc leg) |
-| 2 | `plate` | NO | G9 | multi-loop profile / holes; also circles (G1) |
-| 3 | `vase` | NO | G1 | profile needs arcs (`arc_via` belly) |
-| 4 | `sheave` | NO | G1 | profile needs arcs (`arc_via` groove) |
+| 1 | `bracket` | **YES** | — | — |
+| 2 | `plate` | NO | G9 | multi-loop profile / holes |
+| 3 | `vase` | **YES** | — | — |
+| 4 | `sheave` | **YES** | — | — |
 | 5 | `chute` | **YES** | — | — |
-| 6 | `rocker` | NO | G1 | profile needs arcs (hub circles, 6 fillets); multi-loop (G9) |
+| 6 | `rocker` | NO | G9 | multi-loop profile (the two eyes are holes); arcs now author |
 | 7 | `diefillet` | NO | G4 | no fillet node (`fillet_edges` on 12 edges) |
-| 8 | `diepips` | NO | G1 | profile needs arcs; rigid placement (G7); group boolean |
+| 8 | `diepips` | NO | G7 | rigid placement (21 pips placed on six faces); group boolean; arcs now author |
 | 9 | `diecomposed` | NO | G4 | no fillet node; plus everything blocking `diepips` |
-| 10 | `lily` (8 bodies) | NO | G2 | tube/sweep; arcs (G1); non-xy planes (G3); placement (G7) |
-| 11 | `tiltedcut` | NO | G6 | no split node; also circles (G1) |
-| 12 | `bossplate` | NO | G1 | profile needs arcs (three-arc boss loop) |
+| 10 | `lily` (8 bodies) | NO | G2 | tube/sweep; non-xy planes (G3); placement (G7) |
+| 11 | `tiltedcut` | NO | G6 | no split node |
+| 12 | `bossplate` | **YES** | — | — |
 | 13 | `loft_prism` | NO | G2 | no loft |
 | 14 | `nonuniform_loft` | NO | G2 | no loft |
 | 15 | `s_duct` | NO | G2 | no sweep along a path |
@@ -146,18 +164,23 @@ is named too.
 
 | # | gap | stops | register / pointer | note |
 |---|---|---|---|---|
-| G1 | **Arcs and circles in profiles** | 7 | register B ("the big three"); `docs/PATHS-DESIGN.md` §5 + LIBRARY-DESIGN §L4 | The single biggest blocker. `Node.polygon` is straight segments only, so every rounded part is out. The fix is the PATHS lattice in the `.pyi` — specified, unbuilt, and unblocked now that v2 has landed |
 | G2 | **Loft, sweep, tube** | 8 | register B ("the big three") | No node kind for any of the path-driven body ops |
 | G3 | **Non-xy sketch planes** | 6 | register B ("the big three") | `Node.polygon` takes only an `elevation`. Any part with features on two orthogonal faces is out |
 | G4 | **Fillet node** | 2 | register B | `fillet_edges` has no document node, so no edge blends from Python |
 | G5 | **Declared flush contact** | 2 | register B; register A **R3** (the SEL2 `UndeclaredContact` refusal-menu wiring) | `Node.boolean` has no `declare` argument, so parts that *touch* cannot be glued — the detect/declare protocol (`find_flush_candidates` → `declare_node`) is entirely unbound |
-| G6 | **Split** | 1 | register B | `topo::split` has no node |
-| G9 | **Multi-loop profiles** | 1 | register B | A profile is one loop, so a plate with holes needs a boolean per hole. Also a secondary blocker on `rocker` and `az` |
-| G7 | **Rigid placement** | degrades 1 | register B | No transform node; bodies must be authored in place |
+| G6 | **Split** | 2 | register B | `topo::split` has no node |
+| G9 | **Multi-loop profiles** | 2 | register B | A profile is one loop, so a plate with holes needs a boolean per hole. `rocker` joined `plate` here when G1 closed; still a secondary blocker on `az` |
+| G7 | **Rigid placement** | 1, degrades 1 | register B | No transform node; bodies must be authored in place. `diepips` became its blocking stop when G1 closed |
 | G8 | **Pattern + structural params** | degrades 3 | register B | No pattern node and no `SetStructuralParam` edit, so `heatsink`'s actual subject — one recipe, a count edit, memoized recompute — cannot be said |
 
-G1–G6 and G9 partition the 27 NO rows (7+8+6+2+2+1+1); G7 and G8 are
-what make four rows YES\* rather than YES.
+G2–G7 and G9 partition the 23 NO rows (8+6+2+2+2+1+2 for G2, G3, G4,
+G5, G6, G7, G9); G7 additionally degrades one row and G8 degrades
+three, which is what makes four rows YES\* rather than YES.
+
+Two counts in this list were off by one before LIB-PYG1 recounted
+them: G1 read 7 stops against 6 table rows and G6 read 1 against 2.
+The rows were right and the tallies were wrong; the arithmetic above
+is taken from the table.
 
 One further gap blocks no tour scene but matters to the library:
 
@@ -169,6 +192,7 @@ One further gap blocks no tour scene but matters to the library:
 
 | # | gap | closed by | register / pointer | what is true now |
 |---|---|---|---|---|
+| G1 | **Arcs and circles in profiles** | LIB-PYG1 | register B ("the big three"); `docs/PATHS-DESIGN.md` §2/§2a/§2b + LIBRARY-DESIGN §L4 | The PATHS lattice is bound state for state: each state is its own class exposing only its legal continuations, so an off-lattice call is an `AttributeError` (and a `ty` error) rather than a runtime surprise, and every verb crosses into the same Rust machinery, so refusals fire at the call site as the same typed `PathError`. `Node.profile` builds the document node from the loop's RECORDED program. Four stops flipped to YES against the scenes' own oracles (`bracket`, `vase`, `sheave`, `bossplate`); `rocker` and `diepips` re-partitioned to G9 and G7, which is what they were always waiting on second. Residue: Expr-bearing profile steps from Python (a parametric arc radius) are still unbound — with G9, that is what would complete `plate_param`-from-Python |
 | G10 | **Named document parameters** | R1-PARAMS | register A **R1** (was "the significant one" / "highest-value single residual") — **DISCHARGED**; guide §3.2's `compile_fail` pin is now that section's passing doctest | `ParamName` and `DocParam` are curated through `pncad::document` (and the prelude), and `DocEdit.set_doc_param` is bound with them — so the parametric flagship `plate_param` is authorable façade-only (guide §3.2's doctest authors it) and its one-edit-moves-both-holes claim is executed from Python in `test_north_star.py` against the Rust rows' analytic oracle. Residue, stated plainly: Python still cannot author plate_param's *profile* from scratch (its circle loops are G1, its three-loop profile G9), so the Python test loads the document through the persistence door, pinned line-for-line by `crates/pncad/tests/all.rs` (all but the snapshot's ε line, which CI's tolerance sweep varies by design) |
 
 ## How to read this page next quarter

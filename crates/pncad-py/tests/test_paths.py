@@ -341,5 +341,26 @@ class TestTheProfileNode(unittest.TestCase):
         self.assertTrue(doc.bit_eq(replayed), "replay is bit-identical, not merely close")
 
 
+class TestTheWorkedExample(unittest.TestCase):
+    """`examples/bracket.py` is the front-door script; running it is
+    the only way it cannot rot."""
+
+    def test_the_bracket_example_runs(self):
+        import contextlib
+        import io
+        import runpy
+        from pathlib import Path
+
+        script = (
+            Path(__file__).resolve().parents[1] / "examples" / "bracket.py"
+        )
+        self.assertTrue(script.is_file(), f"missing example: {script}")
+        # The script asserts its own oracles and its own STEP
+        # round-trip; this only has to let it speak.
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            runpy.run_path(str(script), run_name="__main__")
+        self.assertIn("re-imported OK", out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
