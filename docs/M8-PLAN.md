@@ -34,7 +34,10 @@ records stay cross-referenced).
    plane×NURBS bodies first-class END-TO-END — the #288 walk row's
    full retirement.
 
-## Candidates (settled at this plan's review — Evan's call)
+## Candidates — ADOPTED (all four; Evan's 👍 on PR #302's
+affordance, comment 5234756324, 2026-08-10). Sequenced after
+M8-1..M8-4 unless a lull opens earlier; each gets its own
+substrate → spec → dispatch cycle.
 
 - **#186 assembly instancing** (dm1's blocker — the M7-6 walk row's
   named carried item; flips dm1 first-class, wild corpus 9/13 →
