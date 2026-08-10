@@ -1,8 +1,7 @@
 # Assembly Design — instances, mates, and the document seam
 
-**Status: DRAFT — design conversation live at #328; awaits Evan's
-sign-off (design-ratification class, never self-merged).** This
-document ratifies Band 3's assembly architecture inside the frame
+**Status: RATIFIED (Evan's lgtm on PR #333, 2026-08-10; design
+conversation of record: #328).** This document ratifies Band 3's assembly architecture inside the frame
 already settled elsewhere, and it deliberately re-litigates none of
 it:
 

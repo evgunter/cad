@@ -18,7 +18,7 @@ a reader entering here should know all of them exist.
 | `docs/CONTACT-DESIGN.md` | RATIFIED (#178) | Contact census & declared contact C1–C8 (closes CURVED OQ5); implementation banked |
 | `docs/PATHS-DESIGN.md` | RATIFIED (#124) | PartialPath authoring algebra (S5); implementation unscheduled by choice (no technical gate — natural slot: the usable-as-library program); the v2 representation switch is a separate later decision |
 | `docs/GUI-DESIGN.md` | RATIFIED (G1–G5) | GUI/editor architecture: three-layer split, document-as-value, edit vocabulary |
-| `docs/ASSEMBLY-DESIGN.md` | DRAFT (#328) | Band 3 assemblies A1–A8: scope ladder, assembly-evaluates-to-a-body, mates-as-declarations, pins/split-inline, validity, mirror; awaits Evan's sign-off |
+| `docs/ASSEMBLY-DESIGN.md` | RATIFIED (#333) | Band 3 assemblies A1–A8 + AQ1–AQ6: scope ladder, assembly-evaluates-to-a-body, mates-as-declarations, pins/split-inline, validity, mirror; implementation ladder R0–R4 (design-only — homes named, nothing scheduled) |
 | `docs/LIBRARY-DESIGN.md` | RATIFIED (#229) | Usable-as-a-library program L1–L7: façade, Python bindings via the document layer, v2-fronted PATHS, authoring-ergonomics unit ladder; units may run parallel with M7 (LQ5) |
 | `docs/K-REPORT.md` | Reference | K-constant evidence record (#89 CLOSED, K = 10 permanent) + milestone addenda |
 | `docs/PERF-PLAN.md` | Merged-and-advisory (D9 addendum) | Performance plan and Q-P answers |
