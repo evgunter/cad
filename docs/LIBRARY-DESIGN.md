@@ -316,6 +316,18 @@ bindings crate).
   and loft/sweep placements as plain `Affine3` values;
   document-level Expr-ized placement stays deferred (VQ8's pose
   conversation), so no schema change rides this unit.
+  **Amendment (Evan, #362, 2026-08-10): resonance with the PATHS
+  placement vocabulary is REQUIRED.** The 2-D algebra already
+  has rigid placement and mirroring (`nurbs(curve)` places a
+  curve value rigidly; `nurbs_reversed`/`nurbs_mirrored` are the
+  structural variants — reflection across the departure line,
+  curvature signs flip). The 3-D frame family must use the SAME
+  TERMS for the same concepts (mirror means reflection with the
+  stated orientation consequence; placement means rigid, no
+  scale/deform) so the two surfaces read as one vocabulary;
+  outright unification only if it falls out naturally — not
+  worth forcing (Evan's stated guess), and U4's spec must SAY
+  which of the two it did.
 
   Consequence if ratified as proposed: U4 becomes two
   dispatchable units (path legs + composition door;
