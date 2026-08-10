@@ -409,6 +409,22 @@ pub enum SelectRefusal {
         /// What dimension the expression actually has.
         dim: crate::expr::Dimension,
     },
+    /// A candidate PAIR's verify-door margin landed inside the
+    /// ambiguity band, or the door could not decide it: the flush
+    /// detector reports only DEFINITE findings, and an in-band pair
+    /// must be neither reported nor silently dropped (SELECT-DESIGN
+    /// §3a) — so the query refuses and NAMES the pair. The detector's
+    /// pair-shaped sibling of [`InBand`](Self::InBand).
+    PairInBand {
+        /// The face-name pair whose margin was indeterminate.
+        pair: Box<(StableName, StableName)>,
+        /// The verify-door funnel site (a `bool_plane_*` predicate —
+        /// detection reuses the C4 verifier's own sites and mints
+        /// none of its own).
+        predicate: &'static str,
+        /// The funnel's own diagnostic (margin, band, recourse).
+        source: geom_core::Indeterminate,
+    },
     /// The stated value expression did not evaluate.
     BadValue(crate::expr::EvalError),
     /// The ambiguity band itself could not be built (a broken ambient

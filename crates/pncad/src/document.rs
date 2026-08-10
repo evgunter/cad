@@ -49,7 +49,11 @@ pub use editor_core::{Dimension, DimensionError, Expr, ParamEnv, ParseError, par
 // a result can carry. `NodeResult`/`NodeValue`/`EvalOutcome` complete
 // the result vocabulary (LIB-DOORS F3/F4): `Evaluation::result` and
 // `Evaluation::node_error` answer in these types, so failed and
-// poisoned nodes are typed data, not a collapsed `None`.
+// poisoned nodes are typed data, not a collapsed `None`. LIB-SEL2
+// leans on the same door: the boolean's undeclared-coincidence
+// REFUSAL is the detect/declare protocol's trigger, and
+// `NodeError`/`NodeErrorKind` were unreachable without the result
+// enum that carries them.
 pub use editor_core::{
     BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, NodeError,
     NodeErrorKind, NodeResult, NodeValue, SplitSide, ValuePayload, evaluate,
