@@ -542,7 +542,7 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
 fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     // Every file of the façade's own source. A new module added here
     // without being listed is caught by the companion test below.
-    const SOURCES: [(&str, &str); 8] = [
+    const SOURCES: [(&str, &str); 9] = [
         ("lib.rs", include_str!("../src/lib.rs")),
         ("prelude.rs", include_str!("../src/prelude.rs")),
         ("select.rs", include_str!("../src/select.rs")),
@@ -551,6 +551,7 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
         ("closure.rs", include_str!("../src/closure.rs")),
         ("export.rs", include_str!("../src/export.rs")),
         ("guide.rs", include_str!("../src/guide.rs")),
+        ("workspace.rs", include_str!("../src/workspace.rs")),
     ];
     // Assembled at runtime: this file is itself scanned by the U1
     // guard, and a contiguous literal would be its own first match.
@@ -630,6 +631,7 @@ fn the_boundary_guard_scans_every_facade_source_file() {
         "closure.rs".to_string(),
         "export.rs".to_string(),
         "guide.rs".to_string(),
+        "workspace.rs".to_string(),
     ];
     listed.sort();
     assert_eq!(
