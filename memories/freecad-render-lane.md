@@ -49,3 +49,15 @@ load 13–19** (61% CPU — CPU/cache contention, not I/O). A full pass is
 ~2.5 min idle and can exceed an hour while cargo lanes are building, so
 a render pass and a build battery on the same box is a bad trade in
 both directions.
+
+## RENDER-IN-ACTIONS IS THE NORM (Evan's ruling, 2026-08-10)
+
+The hosted "render (demos)" workflow (#323/#324, wedge root-caused
+and fixed by #331 — a FreeCAD NotificationArea SELF-DEADLOCK, not
+this host's stall or budget calibration) runs all lanes: tour scene
+inputs, kernel montage, freecad montage, UV sheet. Full fan-out
+verified green 2026-08-10. **The norm going forward: renders happen
+in GitHub Actions.** Implementer briefs no longer require local
+FreeCAD passes — local renders are a preview-only iteration tool
+(the local hazards above still apply when previewing). Byte-
+stability and provenance-guard checks ride the hosted lane.

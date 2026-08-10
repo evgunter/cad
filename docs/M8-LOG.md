@@ -43,3 +43,15 @@ fallback on interior multiplicity ≥ degree; certificate EXCLUDING
 true 2π), and proved the same hole latent in the INTEGRAL lane on
 main (16/3 vs true 20/3) — filed as #313; the fix pass heals both
 lanes and blocks PR-1's merge.
+
+## Render-in-Actions norm ratified (2026-08-10)
+
+Evan's hosted render lane (#323/#324) is live: the full fan-out ran
+green after #331 root-caused the hosted wedge (a FreeCAD
+NotificationArea self-deadlock — not the local stall class, and not
+the budget hypothesis this orchestrator floated first). Norm going
+forward per Evan: ALWAYS render in Actions; local renders demoted
+to preview-only. Also this seam: LIB's #332 hotfixed the new
+python-suite job (both open PRs re-merged onto the fix); the
+ASSEMBLY-DESIGN doc ratified (#333) with the A7 record-shape rider
+landing in #325's fix pass.
