@@ -12,8 +12,8 @@ before the program opened: #317 merged as #325 WITH the A7 rider
 The A5 at-rest-door wiring is bound into CONTACT-DESIGN C7 (#337)
 so the M9 spec inherits it. Monitors armed; merge permission live.
 In flight: R1 substrate exploration (read-only, report to
-cad-work/asm-r1-substrate/). Pending with Evan: the A9 candidate
-(relatively-unconstrained = mate-graph component partition, with
-anchored frames staying document data) — chat 2026-08-10; ratifies
-into ASSEMBLY-DESIGN on his confirmation. AQ3 working session
-queued before any R2 dispatch.
+cad-work/asm-r1-substrate/). A9 RATIFIED (Evan's confirmation in
+chat, 2026-08-10: "no need to erase anchor frames") — the
+component-partition definition of relative freedom is in
+ASSEMBLY-DESIGN. AQ3 working session queued before any R2
+dispatch.

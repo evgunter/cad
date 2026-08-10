@@ -13,7 +13,7 @@ it:
 | NAMING-DESIGN N1–N7 | Names are derivation paths; this doc discharges its scope exclusion "assembly pin representation" (A4) |
 | DESIGN.md banked flags | SE(3) witnesses budgeted, not assumed from sketch machinery; ε-disagreement across referenced documents is a typed error at the seam; pattern indices ride provenance explicitly; free-move/hide are display-layer state, never persisted (G3) |
 
-Decisions are **A1–A8**; open questions **AQ1–AQ6**. Design-only:
+Decisions are **A1–A9**; open questions **AQ1–AQ6**. Design-only:
 no unit here is scheduled by this doc; the implementation ladder
 names natural homes (M8's #317, M9's C7, M10's clearance) without
 claiming them. Chat/issue rulings incorporated: the scope ladder,
@@ -262,6 +262,39 @@ Cheap to honor now, expensive to retrofit; each names its source:
   NAUO) is future breadth with no owner; this doc only requires
   that the recipe retains everything such an exporter would need —
   which A2/A3 give by construction.
+
+## A9 — Relative freedom is component structure
+
+**(Evan, chat 2026-08-10, post-ratification addendum.)** Define the
+**placement-constraint graph**: vertices are the assembly's
+instances; edges are mate nodes and pattern membership (a pattern's
+instances are rigidly related by construction). Its connected
+components partition the document into disjoint sub-DAGs, and
+**"relatively unconstrained" means exactly: in different
+components** — decidable from recipe structure alone, no solver, no
+geometry inspection.
+
+- **G3's free-move binds to this partition.** The one
+  live-editing-ish feature the v1 GUI supports — freely orienting
+  parts relative to each other — acts on whole components: between
+  components, orientation is free; within one, relative pose is
+  mate-derived, so a drag moves the whole component or refuses.
+- **Anchor frames are never erased** (Evan's ruling). Each component
+  keeps its authored explicit frames as ordinary recipe data: the
+  component partition is what makes relative freedom *derivable*,
+  not an absence of frames. Evaluation therefore stays A2's one
+  D9-deterministic `Body`, and everything needing definite world
+  coordinates — A5/F1 undeclared-contact checks, export, mass
+  properties, A7's volume queries — is untouched.
+- **Probe vs. commit.** The GUI's free-orient transform is
+  display-layer state per G3 (never persisted, visually
+  distinguishable from mated placement). Committing a probed pose,
+  if ever wanted, is an ordinary frame-edit `DocEdit` through the
+  existing edit door — no new machinery, and it is a *different
+  act* than probing.
+- **Free consequence**: the A5 connectedness lint gets its
+  expectation source — the component count is the expected
+  disconnection count.
 
 ## Open questions
 
