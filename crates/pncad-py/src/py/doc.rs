@@ -281,6 +281,37 @@ impl Node {
         })
     }
 
+    /// The profile a PATHS loop authors, on a plane parallel to the
+    /// world xy-plane, `elevation` above it (default: the xy-plane).
+    ///
+    /// The node is built from the loop's RECORDED program — the same
+    /// verbs, with the same authored arguments, that the chain wrote
+    /// — so what Python authored and what the document replays are
+    /// one program, not two spellings of one shape.
+    ///
+    /// Exactly ONE loop: multi-loop profiles (holes) and non-xy
+    /// planes are named gaps, not omissions.
+    #[staticmethod]
+    #[pyo3(signature = (outline, elevation=None))]
+    fn profile(
+        py: Python<'_>,
+        outline: &super::path::ClosedLoop,
+        elevation: Option<super::quantity::Length>,
+    ) -> PyResult<Self> {
+        let z = elevation.map_or(0.0, |e| e.0.meters());
+        let plane = pncad::profile::SketchPlane::from_frame(
+            pncad::authoring::p3::<f64>(0.0, 0.0, z),
+            pncad::authoring::v3(1.0, 0.0, 0.0),
+            pncad::authoring::v3(0.0, 1.0, 0.0),
+        );
+        Ok(Self {
+            inner: d::Node::Profile(d::ProfileProgram {
+                plane,
+                loops: vec![super::path::loop_program(py, outline)?],
+            }),
+        })
+    }
+
     /// Extrude an upstream profile along its sketch-plane normal.
     #[staticmethod]
     fn extrude(

@@ -97,6 +97,10 @@ env:
   # 2-week dependency-age rule. A dev/CI tool only — it never enters any
   # shipped build graph (the wheel's compiled code is cargo's output).
   MATURIN_VERSION: "1.14.1"
+  # `ty`, the static stub checker (LIB-PYG1). 0.0.39 was published
+  # 2026-05-22, so it clears the >=2-week dependency age policy by
+  # weeks.
+  TY_VERSION: "0.0.39"
 
 # The toolchain (channel + rustfmt/clippy components) comes from
 # rust-toolchain.toml: the dtolnay step only bootstraps/updates rustup, and
@@ -855,6 +859,16 @@ jobs:
         run: |
           python -m venv --clear "$RUNNER_TEMP/py-ci-venv"
           "$RUNNER_TEMP/py-ci-venv/bin/python" -m pip install target/wheels/pncad-*.whl
+      # The STATIC half of the §L4 type story (LIB-PYG1): `ty` checks
+      # the .pyi lattice's SIGNATURES, which the name-for-name stub
+      # check deliberately does not look at. Pinned like maturin; this
+      # step is where the row is MEASURED, so a fetch failure reds the
+      # job rather than passing quietly. `tests/test_ty.py` skips —
+      # loudly, naming the missing binary — only where no checker
+      # exists at all (the degraded local box U9S recorded).
+      - name: install ty (pinned, the static stub checker)
+        run: |
+          "$RUNNER_TEMP/py-ci-venv/bin/python" -m pip install "ty==$TY_VERSION"
       # Discovery from the repo checkout: guide tests read the docs/
       # Markdown relative to their own file, and the stub check is
       # layout-invariant (validated on the wheel-venv layout, #308).
@@ -864,6 +878,8 @@ jobs:
             --start-directory crates/pncad-py/tests \
             --top-level-directory crates/pncad-py/tests \
             --verbose
+        env:
+          PNCAD_TY: ${{ runner.temp }}/py-ci-venv/bin/ty
 
   # (The former standalone `multi-eps` job is FOLDED into the `test`
   # matrix above: its 1e-6/1e-12 rows and the old unparameterized `test`

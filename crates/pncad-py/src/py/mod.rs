@@ -1,6 +1,7 @@
 //! The PyO3 surface. Compiled only under the `python` feature.
 
 mod doc;
+mod path;
 mod quantity;
 mod value;
 
@@ -83,6 +84,16 @@ pyo3::create_exception!(
      per-variant field projection is deferred with the rest of the \
      read-back surface."
 );
+pyo3::create_exception!(
+    pncad,
+    PathError,
+    PncadError,
+    "The PATHS authoring algebra refused the geometry AT THE CALL \
+     SITE (junction check, `NoCornerForFillet`, the tangent-line \
+     close, a nonpositive radius, ...) — the same refusal the Rust \
+     surface returns, raised where the verb was written. Carries \
+     `variant`, the stable tag of the refusing arm."
+);
 
 /// Raise the exception class [`ErrorClass`] names, with `fields`
 /// attached as instance attributes.
@@ -106,6 +117,7 @@ pub(crate) fn typed_err(
         ErrorClass::Persist => PersistError::new_err(message),
         ErrorClass::Export => ExportError::new_err(message),
         ErrorClass::StepImport => StepImportError::new_err(message),
+        ErrorClass::Path => PathError::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -142,8 +154,10 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("PersistError", py.get_type::<PersistError>())?;
     m.add("ExportError", py.get_type::<ExportError>())?;
     m.add("StepImportError", py.get_type::<StepImportError>())?;
+    m.add("PathError", py.get_type::<PathError>())?;
 
     quantity::register(m)?;
+    path::register(m)?;
     doc::register(m)?;
     value::register(m)?;
 
