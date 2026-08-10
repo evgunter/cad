@@ -150,6 +150,8 @@ mod switch_display_units;
 mod switch_dump;
 #[path = "switch_naming.rs"]
 mod switch_naming;
+#[path = "switch_plate_param.rs"]
+mod switch_plate_param;
 #[path = "switch_program_key.rs"]
 mod switch_program_key;
 #[path = "switch_slots.rs"]
