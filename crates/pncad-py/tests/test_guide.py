@@ -27,6 +27,8 @@ PAGES = [
     ROOT / "docs" / "guide" / "examples.md",
     ROOT / "docs" / "guide" / "fail-loud.md",
     ROOT / "docs" / "guide" / "north-star-audit.md",
+    # The crate front door: its example is held to the same standard.
+    ROOT / "crates" / "pncad-py" / "README.md",
 ]
 
 # ```python ... ``` at the start of a line, non-greedy, capturing the body

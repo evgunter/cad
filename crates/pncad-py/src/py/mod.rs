@@ -38,7 +38,8 @@ pyo3::create_exception!(
     ValidationError,
     PncadError,
     "A body failed a topological or geometric validator. Carries \
-     `failures`, the list of validator refusals."
+     `door`, the gate that refused, and `failure_count`, how many \
+     refusals it collected."
 );
 pyo3::create_exception!(
     pncad,
