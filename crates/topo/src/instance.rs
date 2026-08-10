@@ -82,3 +82,161 @@ pub fn graft_disjoint<T: geom_core::Decide>(
     )?;
     Ok(target)
 }
+
+/// Direct rows for this door (R1 MINOR-2): the integration coverage
+/// lives in `step-import`, but the contract this module states —
+/// "nothing is fused, nothing is shared, nothing but the keys may
+/// differ" — is a kernel claim and is checked here.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom_core::Point3;
+
+    use crate::body::Body;
+    use crate::fixtures::ops_cube;
+    use crate::instance::graft_disjoint;
+
+    fn cube() -> Body<f64> {
+        ops_cube().body
+    }
+
+    /// **Disjointness.** The graft adds a SECOND solid; every arena
+    /// grows by exactly the source's contents, every shell points at
+    /// its own solid, and the two solids share not one face.
+    #[test]
+    fn a_graft_adds_a_whole_second_solid_and_shares_nothing() {
+        let src = cube();
+        let mut dst = cube();
+        let before = (
+            dst.solids().count(),
+            dst.shells().count(),
+            dst.faces().count(),
+            dst.edges().count(),
+            dst.vertices().count(),
+            dst.points().count(),
+            dst.surfaces().count(),
+        );
+        let key = graft_disjoint(&mut dst, &src).expect("a single-solid graft");
+        assert_eq!(dst.solids().count(), before.0 + 1, "one more solid");
+        assert_eq!(dst.shells().count(), before.1 + src.shells().count());
+        assert_eq!(dst.faces().count(), before.2 + src.faces().count());
+        assert_eq!(dst.edges().count(), before.3 + src.edges().count());
+        assert_eq!(dst.vertices().count(), before.4 + src.vertices().count());
+        assert_eq!(dst.points().count(), before.5 + src.points().count());
+        assert_eq!(dst.surfaces().count(), before.6 + src.surfaces().count());
+
+        // Every shell's back-pointer names the solid that lists it, and
+        // no face is claimed by two solids.
+        let mut seen = std::collections::BTreeSet::new();
+        for (sk, solid) in dst.solids() {
+            for &sh in &solid.shells {
+                assert_eq!(dst.get_shell(sh).unwrap().solid, sk, "shell back-pointer");
+                for &f in &dst.get_shell(sh).unwrap().faces {
+                    assert!(seen.insert(f), "a face in two solids is fusion");
+                }
+            }
+        }
+        // The grafted solid is the one the call named, and it holds
+        // exactly the source's shells — arrived whole, no surgery.
+        assert_eq!(
+            dst.get_solid(key).unwrap().shells.len(),
+            src.solids().next().unwrap().1.shells.len()
+        );
+        // And the union is a body: the disjoint pair validates.
+        assert_eq!(crate::validate(&dst), Ok(()), "tier 1 on the union");
+        assert_eq!(crate::validate_closed(&dst), Ok(()), "tier 2 on the union");
+    }
+
+    /// **Key remapping is a bijection onto FRESH keys.** No key of the
+    /// destination's original solid is reused by the graft, and the
+    /// grafted copy's geometry has the same VALUES under different
+    /// handles — which is the whole content of "body-lineage-scoped".
+    #[test]
+    fn the_graft_mints_fresh_keys_for_every_transplanted_entity() {
+        let src = cube();
+        let mut dst = cube();
+        let original: std::collections::BTreeSet<_> = dst.faces().map(|(k, _)| k).collect();
+        let key = graft_disjoint(&mut dst, &src).expect("a graft");
+
+        let grafted: Vec<_> = dst
+            .get_solid(key)
+            .unwrap()
+            .shells
+            .iter()
+            .flat_map(|&sh| dst.get_shell(sh).unwrap().faces.clone())
+            .collect();
+        assert_eq!(grafted.len(), src.faces().count(), "every face arrived");
+        for f in &grafted {
+            assert!(!original.contains(f), "a transplanted face reused a key");
+        }
+        // Distinct surface keys, equal surface values: the copy is a
+        // copy, not a share.
+        let src_surfaces: Vec<_> = src.surfaces().map(|(_, s)| format!("{s:?}")).collect();
+        let new_surfaces: Vec<_> = grafted
+            .iter()
+            .map(|&f| {
+                let k = dst.get_face(f).unwrap().surface;
+                (k, format!("{:?}", dst.get_surface(k).unwrap()))
+            })
+            .collect();
+        for (k, s) in &new_surfaces {
+            assert!(src_surfaces.contains(s), "the surface value travelled");
+            assert!(
+                dst.faces()
+                    .filter(|(f, _)| !grafted.contains(f))
+                    .all(|(_, face)| face.surface != *k),
+                "a transplanted surface key collided with the destination's"
+            );
+        }
+    }
+
+    /// **A planted collision refuses LOUD.** The door's precondition is
+    /// a single-solid source; a body that is not one is `JoinDesync`,
+    /// never a partial transplant.
+    #[test]
+    fn a_source_that_is_not_a_single_solid_refuses_typed() {
+        // Empty: no solid at all.
+        let mut dst = cube();
+        let err = graft_disjoint(&mut dst, &Body::<f64>::new()).expect_err("no solid to graft");
+        assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
+        assert_eq!(dst.solids().count(), 1, "and nothing was written");
+
+        // Two solids: the graft transplants ONE, so a two-solid source
+        // is a caller error, not a thing to guess at.
+        let mut two = cube();
+        graft_disjoint(&mut two, &cube()).expect("build a two-solid body");
+        let mut dst = cube();
+        let err = graft_disjoint(&mut dst, &two).expect_err("two solids in the source");
+        assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
+    }
+
+    /// The minted solid's provenance is the SOURCE's, verbatim — a
+    /// graft is not a re-birth (module docs).
+    #[test]
+    fn the_minted_solid_carries_the_source_solids_provenance() {
+        let src = cube();
+        let want = {
+            let (k, _) = src.solids().next().unwrap();
+            format!("{:?}", src.solid_provenance.get(k).unwrap())
+        };
+        let mut dst = cube();
+        let key = graft_disjoint(&mut dst, &src).expect("a graft");
+        assert_eq!(
+            format!("{:?}", dst.solid_provenance.get(key).unwrap()),
+            want
+        );
+    }
+
+    /// A cheap guard that the fixture is what these rows think it is.
+    #[test]
+    fn the_fixture_is_one_closed_cube() {
+        let b = cube();
+        assert_eq!(b.solids().count(), 1);
+        assert_eq!(b.faces().count(), 6);
+        assert_eq!(b.edges().count(), 12);
+        assert_eq!(b.vertices().count(), 8);
+        let origin = Point3::new(0.0, 0.0, 0.0);
+        let first = *b.points().next().unwrap().1;
+        assert!((first.x - origin.x).abs() < 1e-12 && (first.y - origin.y).abs() < 1e-12);
+    }
+}

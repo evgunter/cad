@@ -202,6 +202,58 @@ pub struct FaceCensus {
     pub vertices: usize,
 }
 
+/// **One materialized assembly instance** — the A7 record shape
+/// (`docs/ASSEMBLY-DESIGN.md`), kept so a flattened import can later
+/// be re-adopted as an assembly document **without re-parsing the
+/// STEP file**.
+///
+/// An AP214 assembly states N occurrences of M component
+/// representations; import materializes each occurrence as its own
+/// solid (A2 — the multi-solid body IS the evaluation product), and
+/// one of these records travels with each. The association the record
+/// carries is the one a body graph would rebuild:
+/// `component → instances → solid indices`.
+///
+/// Every field names a real record in the file, or is `None` because
+/// the file states no assembly. A file with no assembly vocabulary
+/// still gets one record per solid — `component` is the
+/// representation the solid resolved under, the placement is the
+/// identity, and there is no occurrence to name — so a consumer never
+/// has to ask whether the record exists.
+#[derive(Clone, Copy, Debug)]
+pub struct PlacedInstance {
+    /// Index of this instance's solid in the shipped body, in
+    /// [`topo::Body::solids`] order — the bridge from this record back
+    /// to the geometry it describes.
+    pub index: usize,
+    /// The `MANIFOLD_SOLID_BREP` this instance is a copy of. Repeats
+    /// across the records of one component's several occurrences: that
+    /// repetition IS the instancing.
+    pub solid: u64,
+    /// The shape representation that names `solid` — the component
+    /// representation of the assembly, or the representation the solid
+    /// resolved under in a file that places nothing.
+    pub component: u64,
+    /// The `NEXT_ASSEMBLY_USAGE_OCCURRENCE` this instance is, where
+    /// the file links one (through
+    /// `CONTEXT_DEPENDENT_SHAPE_REPRESENTATION` and
+    /// `PRODUCT_DEFINITION_SHAPE`). This is the occurrence identity a
+    /// re-adoption would hang an instance node on.
+    pub occurrence: Option<u64>,
+    /// The `REPRESENTATION_RELATIONSHIP` complex that states this
+    /// occurrence's placement.
+    pub relationship: Option<u64>,
+    /// The `ITEM_DEFINED_TRANSFORMATION` the placement was read from.
+    pub transform: Option<u64>,
+    /// The rigid map actually applied to this copy, through
+    /// [`topo::transform_rigid`]. `None` is the identity — the file
+    /// stated a placement that is the identity at ε_in, or stated
+    /// none; either way nothing moved, and recording the map as
+    /// applied (rather than as stated) is what makes the record
+    /// re-adoptable without re-deciding anything.
+    pub placement: Option<geom_core::Affine3<f64>>,
+}
+
 /// The analytic kinds D7 stage-1 surface recognition can promote a
 /// NURBS patch to. Cone, sphere, and torus recognition are banked
 /// (unimplemented; such patches stay NURBS).
@@ -378,6 +430,19 @@ pub enum StepImport {
         /// resolution order — empty for a file whose boundary graph the
         /// kernel represents as stated (every own-corpus file).
         normalizations: Vec<StructureNormalization>,
+        /// **The assembly record** ([`PlacedInstance`], A7): one entry
+        /// per solid of `body`, in `body.solids()` order, saying what
+        /// the file said about it — which component representation it
+        /// came from, which `MANIFOLD_SOLID_BREP`, which occurrence
+        /// and transform stated it, and the rigid map applied.
+        ///
+        /// Flattening is the correct evaluation product (A2: N placed
+        /// instances ARE one non-connected body), but flattening is
+        /// not forgetting: this is the structure a later
+        /// import-as-assembly-document door needs, and it is cheap
+        /// here and expensive to retrofit, so it is kept whether or
+        /// not the file states an assembly at all.
+        instances: Vec<PlacedInstance>,
     },
     /// The file carried a `GEOMETRIC_CURVE_SET` wireframe and no
     /// solid: the reconstructed carriers, exact. **No body is
@@ -407,6 +472,15 @@ impl StepImport {
     pub fn normalizations(&self) -> &[StructureNormalization] {
         match self {
             Self::Solid { normalizations, .. } => normalizations,
+            Self::Wireframe { .. } => &[],
+        }
+    }
+
+    /// The assembly record ([`PlacedInstance`], A7) — empty for a
+    /// wireframe, which has no solid to instance.
+    pub fn instances(&self) -> &[PlacedInstance] {
+        match self {
+            Self::Solid { instances, .. } => instances,
             Self::Wireframe { .. } => &[],
         }
     }
@@ -464,17 +538,18 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
             // body is entity for entity the union of the bodies gated
             // below, not a re-derivation of them.
             let mut body = topo::Body::new();
-            for instance in &model.instances {
+            let mut record = Vec::with_capacity(model.instances.len());
+            for (index, instance) in model.instances.iter().enumerate() {
                 let spec = &solids[instance.solid];
                 let one = assemble::build_one_solid(spec)?;
-                let one = match instance.map {
-                    None => one,
-                    Some(map) => topo::transform_rigid(&one, &map).map_err(|source| {
-                        StepImportError::Placement {
-                            transform: instance.site,
-                            source,
-                        }
-                    })?,
+                let one = match instance.placed {
+                    Some(entities::Placed {
+                        map: Some(map),
+                        transform,
+                        ..
+                    }) => topo::transform_rigid(&one, &map)
+                        .map_err(|source| StepImportError::Placement { transform, source })?,
+                    _ => one,
                 };
                 // The per-solid subject of the shared gate (below),
                 // asked about the PLACED copy — the body that ships.
@@ -490,6 +565,20 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
                         source: Box::new(source),
                     }
                 })?;
+                // The A7 record, minted where the instance is: `index`
+                // is the graft order, and the graft appends one solid
+                // per call, so it IS the shipped body's `solids()`
+                // order (pinned by `the_assembly_record_indexes_the_
+                // shipped_solids`).
+                record.push(PlacedInstance {
+                    index,
+                    solid: spec.id,
+                    component: instance.component,
+                    occurrence: instance.placed.and_then(|p| p.occurrence),
+                    relationship: instance.placed.map(|p| p.relationship),
+                    transform: instance.placed.map(|p| p.transform),
+                    placement: instance.placed.and_then(|p| p.map),
+                });
             }
             // **The shared at-rest validation gate** (M7-7, the #260
             // ruling (a) + D9 engineering convention 2). Every
@@ -548,6 +637,7 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
                 body,
                 eps_in,
                 normalizations: model.normalizations.clone(),
+                instances: record,
             })
         }
         entities::Shape::Wireframe(ref curves) => Ok(StepImport::Wireframe {

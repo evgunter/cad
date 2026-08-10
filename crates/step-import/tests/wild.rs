@@ -83,10 +83,16 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // stage-1 CURVE recognition (a rational quadratic that is exactly
     // a circle), which is its own unit and its own certificate — not
     // something to guess here.
-    (
-        "stepcode/dm1-id-214.stp",
-        "no intensional description certifies",
-    ),
+    //
+    // **The fragment carries the ladder's first NAMED candidate**, not
+    // just its preamble (R1 NOTE-1): the preamble alone also matches a
+    // ladder that reported ZERO attempts — the gap shape edge #668 had
+    // before the one-wall `IsoCurve` rung — so pinning it would leave
+    // this row green on a regression that turned a refusal back into a
+    // gap. "certifies — intersection:" cannot: it says the ladder had
+    // a candidate, tried it, and named it. Still the class and not the
+    // prose — no residual, no entity id, no sub-reason.
+    ("stepcode/dm1-id-214.stp", "certifies — intersection:"),
     // A spline-carried edge between analytic surfaces: the file's
     // geometry is inside the subset entity by entity, and the D7
     // ladder still cannot certify any intensional description for the

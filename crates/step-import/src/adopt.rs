@@ -612,40 +612,6 @@ fn adopt_edges(
     Ok(())
 }
 
-/// The conventional self-description for carriers the surfaces
-/// under-determine: a line is its start point's trajectory under the
-/// translation to its end, a circular arc its start point's
-/// trajectory under the rotation through the derived angle — honest
-/// pushforward data (the same shapes native constructions store),
-/// exact for the parsed carrier. Ellipse/NURBS carriers have no
-/// mapped form (none exists in `geom_brep::MappedCurve`'s vocabulary,
-/// and no exported body puts one inside a single surface); the ladder
-/// then reports every refusal typed.
-///
-/// A **Nurbs-adjacent LINE rim** (`nurbs_rim`, M7-3 item 4) takes the
-/// `PlacedSegment` shape instead of `ExtrudedPoint`, for two reasons
-/// with one root: `PlacedSegment { Line }` is the description CLASS
-/// the native loft builder stores for exactly this edge class, and it
-/// is the shape the NURBS chart's pcurve derivation accepts
-/// (`topo`'s `nurbs_iso_derive` — its `ExtrudedPoint` mint from a
-/// LINE carrier would refuse there, the measured mint blocker; the
-/// alternative, an `ExtrudedPoint` arm in `nurbs_iso_derive` itself,
-/// would widen the kernel's own certification vocabulary to spare
-/// the importer a description it can synthesize exactly). Same class
-/// and same certification surface — but NOT the same payload bits:
-/// the native builder's segment lives in sketch coordinates under the
-/// cap placement, while the synthesized one is the carrier's own
-/// interval on its own axis (`a = (t0, 0)`, `b = (t1, 0)` under a
-/// rigid frame whose x-axis is the carrier direction) — an
-/// equivalent parameterization of the same locus, exact up to the
-/// placement arithmetic (the sketch plane never crosses the STEP
-/// wire, so the native payload is not recoverable; review F5 pinned
-/// the honest statement to class level). Arc rims stay
-/// `RevolvedPoint` in both cases — on a rational wall nothing mints
-/// (the native rational body's own state), and a non-rational wall
-/// has no arc rims to mint (its profile was a polyline). Arc rims on
-/// a rational wall additionally pass the [`arc_rim_on_wall_boundary`]
-/// residual gate BEFORE this rung is offered (review F1).
 /// The **`IsoCurve` rung's candidates** for one edge (M7-3, widened to
 /// the one-wall seam case in M8).
 ///
@@ -708,6 +674,40 @@ fn iso_curve_candidates(
     }
 }
 
+/// The conventional self-description for carriers the surfaces
+/// under-determine: a line is its start point's trajectory under the
+/// translation to its end, a circular arc its start point's
+/// trajectory under the rotation through the derived angle — honest
+/// pushforward data (the same shapes native constructions store),
+/// exact for the parsed carrier. Ellipse/NURBS carriers have no
+/// mapped form (none exists in `geom_brep::MappedCurve`'s vocabulary,
+/// and no exported body puts one inside a single surface); the ladder
+/// then reports every refusal typed.
+///
+/// A **Nurbs-adjacent LINE rim** (`nurbs_rim`, M7-3 item 4) takes the
+/// `PlacedSegment` shape instead of `ExtrudedPoint`, for two reasons
+/// with one root: `PlacedSegment { Line }` is the description CLASS
+/// the native loft builder stores for exactly this edge class, and it
+/// is the shape the NURBS chart's pcurve derivation accepts
+/// (`topo`'s `nurbs_iso_derive` — its `ExtrudedPoint` mint from a
+/// LINE carrier would refuse there, the measured mint blocker; the
+/// alternative, an `ExtrudedPoint` arm in `nurbs_iso_derive` itself,
+/// would widen the kernel's own certification vocabulary to spare
+/// the importer a description it can synthesize exactly). Same class
+/// and same certification surface — but NOT the same payload bits:
+/// the native builder's segment lives in sketch coordinates under the
+/// cap placement, while the synthesized one is the carrier's own
+/// interval on its own axis (`a = (t0, 0)`, `b = (t1, 0)` under a
+/// rigid frame whose x-axis is the carrier direction) — an
+/// equivalent parameterization of the same locus, exact up to the
+/// placement arithmetic (the sketch plane never crosses the STEP
+/// wire, so the native payload is not recoverable; review F5 pinned
+/// the honest statement to class level). Arc rims stay
+/// `RevolvedPoint` in both cases — on a rational wall nothing mints
+/// (the native rational body's own state), and a non-rational wall
+/// has no arc rims to mint (its profile was a polyline). Arc rims on
+/// a rational wall additionally pass the [`arc_rim_on_wall_boundary`]
+/// residual gate BEFORE this rung is offered (review F1).
 fn mapped_self_description(
     carrier: &Curve3<f64>,
     p_start: Point3<f64>,
