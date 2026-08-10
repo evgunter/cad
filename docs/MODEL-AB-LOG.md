@@ -518,6 +518,11 @@ M8-5 (PR #322) R1 ordinal FIXED AT DISPATCH (2026-08-10): 19
 merged blinded rows on main (the 15 + SEL2 + M8-2 + DOORS + PR-C)
 + 2 R1-dispatched-unmerged (M8-3 @17, U10 @18) + 1 = **22** →
 SINGLE review.
+#317 (PR #325) R1 ordinal FIXED AT DISPATCH (2026-08-10): 19
+merged + 3 R1-dispatched-unmerged (M8-3 @17, U10 @18, M8-5 @22)
++ 1 = **23** → SINGLE review. (dm1 advances again — instancing
+machinery landed + one ladder gap closed; the remaining
+curve-recognition gap filed as #327.)
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
