@@ -62,11 +62,25 @@
 //!   [`review_probes::the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`].
 //!
 //!   What the loft still cannot do is close the tip to a POINT (a
-//!   zero-width section is a degenerate segment and refuses), carry
-//!   an ARC in its section (the skin lane refuses a rational wall —
-//!   see [`leaf`]), or be JOINED to the stem it grows from (probe 8).
-//!   The tip diamonds are therefore small but real, and left visibly
-//!   so rather than shrunk until the blunt end stops showing.
+//!   zero-width section is a degenerate segment and refuses) or be
+//!   JOINED to the stem it grows from (probe 8). The tip diamonds are
+//!   therefore small but real, and left visibly so rather than shrunk
+//!   until the blunt end stops showing.
+//!
+//! **Every blade section here is straight lines, and that is now
+//! OUTSTANDING WORK rather than a constraint.** Until #306 the skin
+//! lane carried integral sections only, so an arc — a rational NURBS —
+//! skinned to a rational wall whose carrier had no
+//! `speed_lower_bound`, and the body refused at assembly. #306 landed
+//! the span meter's rational arm and that refusal RETIRED (the pin
+//! that asserted it, `sweep`'s `m7_skin_integral` Pin 4, has flipped to
+//! the positive statement). The kite and the diamond are what the
+//! blades were given while the arcs were unavailable; they have not
+//! been revisited since the door opened. Giving the blades their
+//! lanceolate arcs back is a real follow-up, not a settled choice —
+//! and it wants checking against the QUADRATURE half of the rational
+//! bank, which #306 did not retire (`QuadratureUnsupported` keeps its
+//! own pins, and this stop prints an exact volume for every body).
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
@@ -498,17 +512,30 @@ const SEPAL_STATIONS: usize = 13;
 /// The section is a [`Kite`] of four straight lines, and the spine
 /// runs through its chord's midpoint, i.e. through the midrib.
 ///
-/// **Why straight lines and not the crescent's arcs.** The skin lane
-/// only carries INTEGRAL sections. An arc is a rational NURBS, a
-/// rational section skins to a rational wall, and a rational carrier
-/// has no `speed_lower_bound` — `nurbs_span_meter` comes back
-/// `Invalid` and the body refuses at assembly (`geom-brep`'s rung-3
-/// span meter; the same poison #207 removed for INTEGRAL inputs it
-/// never claimed to remove for rational ones). So the swept blade is
-/// the honest shape the sweep vocabulary can state today, and the
-/// arcs stay where they still work — the lanterns' meridian and the
-/// stem's tube. Nothing here approximates a curve with a chord: a
-/// kite is exactly a kite.
+/// **Why straight lines and not the crescent's arcs — a reason that
+/// has since EXPIRED.** The skin lane used to carry INTEGRAL sections
+/// only. An arc is a rational NURBS, a rational section skins to a
+/// rational wall, and a rational carrier had no `speed_lower_bound` —
+/// `nurbs_span_meter` came back `Invalid` and the body refused at
+/// assembly (`geom-brep`'s rung-3 span meter; the same poison #207
+/// removed for INTEGRAL inputs it never claimed to remove for
+/// rational ones). That is why this blade is a kite.
+///
+/// **#306 landed the meter's rational arm and the refusal retired.**
+/// A rational section skinned along a curved path now builds and its
+/// seam carriers meter positively — `sweep`'s `m7_skin_integral`
+/// Pin 4 was written to flip when this happened, and it has flipped.
+/// So the kite is no longer the honest limit of the vocabulary; it is
+/// simply what the blade was given before the door opened, and it has
+/// not been revisited since. **Restoring the lanceolate arcs is
+/// outstanding work on this stop**, with one thing to check first:
+/// #306 retired the span meter's half of the rational bank and not
+/// the QUADRATURE half, and every body in this stop prints an exact
+/// volume, so an arc-walled blade may meet `QuadratureUnsupported`
+/// where the kite does not.
+///
+/// Nothing here approximates a curve with a chord, meanwhile: a kite
+/// is exactly a kite.
 ///
 /// The spine leaves `base` along `dir` and turns through `curl`
 /// radians toward `up` (Gram–Schmidt'd against `dir`; negative `curl`
