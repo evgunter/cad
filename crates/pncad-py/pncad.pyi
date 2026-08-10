@@ -1,13 +1,26 @@
-"""Type stubs for the `pncad` extension module (LIB-U9S scaffold).
+"""Type stubs for the `pncad` extension module.
+
+`pncad` is a B-rep CAD kernel. Python speaks its DOCUMENT layer: you
+insert nodes describing what to build, evaluate the document, and read
+typed values out. `docs/GUIDE.md` §2.8 walks the canonical journey and
+`crates/pncad-py/examples/bracket.py` is a complete script.
 
 LIBRARY-DESIGN §L4's two-layer story: these stubs are the STATIC
 layer, checked by `ty`; the runtime layer lives once at the Rust
-boundary and never re-verifies inside Python.
+boundary and never re-verifies inside Python. `tests/test_stubs.py`
+compares this file name-for-name against the compiled module, so the
+two cannot drift.
 
-The PATHS lattice (`PathOpen`/`PathPoint`/`PathAngle`/`PathDirected`)
-is deliberately ABSENT: profile authoring ships only against the v2
-program representation (LQ4), so its stub lattice belongs to the unit
-that binds it, not to this scaffold.
+Refusals are typed: every exception below carries its payload as
+ATTRIBUTES, never as prose to be parsed.
+
+Deliberately ABSENT, and tracked as named gaps in
+`docs/guide/north-star-audit.md`: the PATHS authoring lattice
+(`PathOpen`/`PathPoint`/`PathAngle`/`PathDirected`, which ships only
+against the v2 program representation, LQ4), tessellation and STL,
+selectors and stable names, contact declarations, and named document
+parameters. Profile authoring here is `Node.polygon` only — one
+straight-segment loop on a plane parallel to the world xy-plane.
 """
 
 from typing import Any, Final, Optional

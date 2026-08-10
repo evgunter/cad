@@ -25,6 +25,21 @@ mixed). Named instances Evan wants eventually:
   this whole lane's shape (per-part, advisory, honest about being
   a heuristic threshold). #89's kernel half (the K value itself)
   stays with the exit-walk K-snapshot decision, separately.
+- **(0b) The connectedness lint (Evan, 2026-08-10, #328 — born from
+  the assembly-design conversation).** Warn when a body at rest has
+  more disconnected components than expected — a stray solid usually
+  means a boolean that didn't reach its operand or an instance placed
+  nowhere. Unlike the rest of this lane it is *exact*: connectivity
+  is combinatorial (the shell-partition components tier 1 already
+  computes), no heuristic threshold anywhere — the lane's first
+  fully-certified member. "Expected" is an input: assembly structure
+  / file splits mark expected disconnection naturally, and an
+  explicit per-part expectation mark is the lint-input form (both
+  Evan's framing, #328; the split-as-signal half is a natural
+  default, not a requirement). Warn, never refuse, per the lane's
+  charter. Prerequisite: the assembly design's multi-solid evaluation
+  (docs/ASSEMBLY-DESIGN.md), which is what makes "disconnected on
+  purpose" a common, expressible state.
 - **(a) Injection-molding / draft**: the shape is 1-1 along the
   pull direction (a function), with derivative everywhere below a
   max — equivalently minimum draft angle everywhere. This is a

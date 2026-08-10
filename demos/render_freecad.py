@@ -39,11 +39,58 @@ import os
 import sys
 from pathlib import Path
 
-import FreeCADGui as Gui
+import FreeCAD as App
+
+# THE WEDGE, AND WHY THIS IS THE FIRST THING THIS FILE DOES.
+#
+# FreeCAD's notification area self-deadlocks under the offscreen
+# platform plugin, and that deadlock is the "renders stall at a random
+# scene" pathology this repo has worked around for months
+# (memories/freecad-render-lane.md: wchan = futex_do_wait, a different
+# scene each time, on an idle box as well as a loaded one). Caught in
+# the act on a hosted runner (main-thread backtrace, 2026-08-10):
+#
+#   Gui.updateGui()
+#     -> a queued QTimer fires
+#     -> Gui::NotificationArea::showInNotificationArea()   TAKES the lock
+#     -> NotificationBox::showText -> QWidget::setVisible -> raise()
+#     -> QPlatformWindow::raise() warns "This plugin does not support
+#        raise()" -- the offscreen plugin cannot raise a window
+#     -> FreeCAD routes every Qt message into its own Console
+#     -> NotificationAreaObserver::sendLog
+#     -> Gui::NotificationArea::pushNotification()         RETAKES it
+#     -> non-recursive mutex, same thread: deadlock, forever.
+#
+# So it needs a pending notification AND a Qt warning emitted while that
+# notification is being shown. The tour supplies the first (Part's "STEP
+# import is deprecated" warning is itself a notification) and the
+# offscreen plugin supplies the second on every single raise() -- which
+# is why it is frequent here and unheard-of in an interactive session.
+# It is a FreeCAD bug, not a misuse: nothing this script does can make
+# re-entering that lock safe.
+#
+# Disabling the notification area removes the observer that closes the
+# loop. Both keys go off: the area itself, and the non-intrusive popup
+# whose show() is what emits the fatal warning.
+#
+# ORDER MATTERS: this runs before FreeCADGui is imported, because the
+# notification area is constructed with the main window.
+#
+# SIDE EFFECT, STATED: FreeCAD parameters are global to the user's
+# config, so this turns the notification area off for interactive
+# FreeCAD too, on any machine that has run a render. Restoring it is one
+# checkbox (Preferences -> General -> Notification Area). Isolating the
+# render behind its own user-cfg would avoid that and would make the
+# committed pixels independent of a developer's accumulated preferences
+# -- worth doing, not done here.
+_notify = App.ParamGet("User parameter:BaseApp/Preferences/NotificationArea")
+_notify.SetBool("NotificationAreaEnabled", False)
+_notify.SetBool("NonIntrusiveNotificationsEnabled", False)
+
+import FreeCADGui as Gui  # noqa: E402
 
 Gui.showMainWindow()
 
-import FreeCAD as App  # noqa: E402
 import Mesh  # noqa: E402
 import Part  # noqa: E402
 from pivy import coin  # noqa: E402
