@@ -362,18 +362,6 @@ fn half_edge_description<T: Decide>(
     Ok(*curve.description())
 }
 
-/// Derives the **exact iso-line chart image** of `half_edge` on a
-/// described NURBS chart (M6-3) — the NURBS-chart counterpart of
-/// `geom_brep::chart_pcurve`, driven by the edge's INTENSIONAL
-/// description (D2: the description is what is authoritative about
-/// which iso this locus is):
-///
-/// - An [`geom_brep::EdgeGeometry::IsoCurve`] naming THIS face's
-///   surface maps directly: `P(t) = (u, v0 + slope·(t − t0))`.
-/// - An `IsoCurve` naming the OTHER wall maps as this chart's own
-///   `u = 0` or `u = 1` boundary, the side selected by a definite
-///   endpoint residual (`pcurve_iso_side`) and then CERTIFIED by the
-///   full iso lane — a wrong pick fails loudly, never silently.
 /// The uniform clamped degree-1 knot vector on `[0, 1]` with `spans`
 /// spans — an [`Pcurve::IsoArc`]'s sub-arc locator (pure `f64`
 /// structure, which is what keeps the variant `T`-generic).

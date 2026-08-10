@@ -23,6 +23,7 @@
 //! `QuadratureBudget` whose width really missed a target that really
 //! is `1024·ε`), `Escalated` (only `props_quad_converged` may
 //! escalate). Anything else panics.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::PropsError;
 use geom_core::{Affine3, Point2, Tolerance, Vec3};

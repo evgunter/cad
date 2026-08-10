@@ -2380,8 +2380,6 @@ fn run_fitted_checks<T: PcurveFittedLane>(
 /// axis/side/domain snap slacks folded in — the cylinder lane's
 /// winding-snap idiom transposed. Every slack is exactly zero on the
 /// minted path (the builder mints exact `0`/`1` chart values).
-#[allow(clippy::too_many_lines)] // one check sequence, kept whole like its two siblings
-#[allow(clippy::too_many_arguments)] // one parameter per named quantity (the siblings' shape)
 /// **The ARC-RIM iso class** (M8-3) — certification of a
 /// [`Pcurve::IsoArc`], to the same bar as every other minted pcurve.
 ///
@@ -2648,6 +2646,8 @@ fn side_of<T: Decide>(
     })
 }
 
+#[allow(clippy::too_many_lines)] // one check sequence, kept whole like its two siblings
+#[allow(clippy::too_many_arguments)] // one parameter per named quantity (the siblings' shape)
 fn run_iso_checks<T: Decide>(
     p0: Point2<T>,
     pl: Vec2<T>,
@@ -2740,7 +2740,7 @@ fn run_iso_checks<T: Decide>(
             // this class used to carry was over-broad: what is
             // load-bearing is the shared spline space, not the
             // weights being 1.
-            if c.weights().iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+            if c.weights().iter().any(|w| !w.is_finite() || *w <= 0.0) {
                 return Err(PcurveCertifyError::IsoUnsupported {
                     what: "a seam carrier with a non-positive or non-finite weight — the \
                            rational convex-hull property is exactly the hypothesis that \
