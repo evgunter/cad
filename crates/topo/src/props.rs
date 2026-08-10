@@ -628,12 +628,24 @@ mod quad_lane {
         }
         // The rational gate fires here too (before any geometry), so
         // the recourse text reaches the +V caller verbatim.
+        //
+        // M8-3 half 2 retired the gate one level DOWN — `quad`'s
+        // `nurbs_patch_face` now routes weights ≠ 1 into a certified
+        // rational lane — so the REASON this one still stands has
+        // changed, and the text below states the new reason rather
+        // than the retired one. (R1's n1: the plan put the
+        // quad.rs-level retirement in PR-2; it landed in PR-1 because
+        // that is where the engine was written. No reachability
+        // changed — THIS gate is the binding one, and it does not move
+        // until the arc-rim chart map, M8-3 half 1.)
         if payload.weights().iter().any(|w| *w != 1.0) {
             return Err(PropsError::QuadratureUnsupported {
-                what: "RATIONAL patch flux (weights != 1): the derivative-grid hulls are \
-                       polynomial convexity facts, and a rational quotient's are not — the \
-                       rational extension (any arc-bearing profile's walls) is BANKED; loft \
-                       with a polyline profile, or wait for the rational-wall unit",
+                what: "RATIONAL patch flux (weights != 1): the patch engine certifies these \
+                       since M8-3, but every rational wall comes from an arc profile segment \
+                       and such a wall's cap rims are arcs on a NURBS chart, which no pcurve \
+                       variant can map — so no such body assembles, and the body-level lane \
+                       stays BANKED until the arc-rim chart map lands; loft with a polyline \
+                       profile, or wait for the rational-wall unit",
             });
         }
         let eps = Tolerance::get().eps;

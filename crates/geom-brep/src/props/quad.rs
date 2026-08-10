@@ -1939,6 +1939,23 @@ fn quotient_second(
 /// [`PropsError::QuadratureBudget`] carrying the measured width; a
 /// wide answer is never returned silently.
 ///
+/// # The practical envelope (measured, R1's n2)
+///
+/// The rule is O(h²) and the meter is a **LENGTH**, so the achievable
+/// width scales roughly linearly with part size while the target does
+/// not. At ε = 1e-9 and 1–2 m parts the flagship rows converge at
+/// round 6 with ~1.6× headroom; measured refusals just outside it are
+/// a quarter torus (R = 2, r = 0.5) at width 1.146e-6 against a
+/// 1.024e-6 target, a weight-ratio-100 Möbius reparameterization at
+/// 5.2e-2, and a 1e3-m cylinder. Every one of those is a typed
+/// [`PropsError::QuadratureBudget`] carrying its measured width —
+/// the frontier is honest, but it is close, and callers on large or
+/// extreme-weight parts should expect refusals rather than answers.
+/// The next levers, in order, are a higher-order rule (Simpson needs
+/// `A` to fifth derivatives) and a `w`-uniform-in-v fast path (loft
+/// walls satisfy it: weights come from the profile direction only, so
+/// the v integral is exactly polynomial).
+///
 /// # Errors
 ///
 /// [`PropsError`] — non-positive or non-finite weights, a weight hull
