@@ -52,7 +52,7 @@
 //! - [`guide::north_star_audit`] — what the Python bindings can
 //!   author today, and the named gaps.
 //!
-//! The example corpus proper is `demos/tour`: 34 stops across 19
+//! The example corpus proper is `demos/tour`: 34 stops across 15
 //! scene modules that depend on this crate and nothing else, each
 //! running the same ladder — author a profile, build a body, validate
 //! it at tiers 1→2→3/3′, measure its mass properties, tessellate,

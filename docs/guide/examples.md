@@ -49,9 +49,11 @@ bottom half of it.
 
 ## The demo tour — `demos/tour/src/`
 
-34 stops across 19 modules. The tour depends on `pncad` and **nothing
-else** — one line in its `Cargo.toml`, which is the façade's
-acceptance evidence.
+34 stops across 15 scene modules, plus shared helpers (`paths.rs`,
+`booleans.rs`, `scalar.rs`) and two non-scene lanes (`probe.rs`, the
+K-telemetry sweep; `uvdump.rs`, the per-face UV dump). The tour
+depends on `pncad` and **nothing else** — one line in its
+`Cargo.toml`, which is the façade's acceptance evidence.
 
 | scene(s) | module | demonstrates | pins |
 |---|---|---|---|
