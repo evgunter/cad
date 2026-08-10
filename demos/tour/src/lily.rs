@@ -678,6 +678,7 @@ fn sepals<S: Scalar>(
     axis: (f64, f64, f64),
     globe: f64,
     theta: f64,
+    phase: f64,
     len: f64,
     curl: f64,
     plan: Plan,
@@ -692,7 +693,7 @@ fn sepals<S: Scalar>(
     (0..3)
         .map(|i| {
             #[allow(clippy::cast_precision_loss)]
-            let phi = 2.0 * PI * (i as f64) / 3.0;
+            let phi = phase + 2.0 * PI * (i as f64) / 3.0;
             let (sp, cp) = (phi.sin(), phi.cos());
             let rad = (
                 cp * e1.0 + sp * e2.0,
@@ -886,6 +887,16 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
         // beside the rim the pedicel enters through — as close to
         // meeting the stem as a blade standing on this sphere can be.
         (FLOWER_TOP / FLOWER_GLOBE).acos() + deg(4.0),
+        // Half a turn of phase. Without it sepal 0's radial is `e1`,
+        // which for this flower's axis points almost straight at the
+        // second lantern 1.44 m away — and a 1.05 m sepal reaches it,
+        // ending up 0.027 m INSIDE that globe with 7530 mesh points
+        // to spare. Nothing in the kernel objects: these are separate
+        // bodies and this scene joins none of them, so a body passing
+        // through another is not an error the kernel could raise —
+        // which is exactly why the scene has to check. Turning the
+        // triple by pi sends sepal 0 the other way.
+        deg(180.0),
         1.05,
         0.40,
         sepal_plan,
@@ -1601,11 +1612,19 @@ mod review_probes {
     /// The five analytic rows are the SAME counts the sketch-frame
     /// revolve produced — the tube door changed which parameters are
     /// stored, not which torus they describe, so the tessellator sees
-    /// the same surface and splits it the same way. The three blade
-    /// rows are new, and they are the other half of the finding: a
-    /// swept skin over a 4-vertex section costs three orders of
-    /// magnitude less than a torus tube at the same δ, because the
-    /// torus lane spends its budget on the RING and not on the tube.
+    /// the same surface and splits it the same way. The two SWEPT
+    /// blade rows are the other half of the finding: a swept skin over
+    /// a 4-vertex section costs three orders of magnitude less than a
+    /// torus tube at the same δ, because the torus lane spends its
+    /// budget on the RING and not on the tube.
+    ///
+    /// The LOFTED bodies are deliberately absent from this table. A
+    /// loft's wall count and knot structure follow the section list
+    /// and the station count rather than one profile, so pinning their
+    /// triangle counts here would pin the demo's proportions, not a
+    /// tessellation finding — and those proportions are chosen to look
+    /// like a plant and will be re-chosen. What IS pinned about them
+    /// is geometric: see the taper/roll and sepal-tangency tests.
     #[test]
     fn finding_13_tessellation_table_reproduces() {
         use pncad::mesh::validate::{signed_volume, triangle_count};
@@ -1802,6 +1821,37 @@ mod review_probes {
             "nearest sepal vertex {closest} — tangency claimed, {} of clearance found",
             closest - FLOWER_GLOBE
         );
+
+        // And the OTHER flower. Tangency to the globe a sepal stands
+        // on says nothing about the bud 1.44 m up the stem, and the
+        // kernel will not say anything either: these are separate
+        // bodies, this scene joins none of them, so one solid passing
+        // through another is not a condition any operation here could
+        // refuse. It is the SCENE's invariant, so the scene tests it.
+        // Sepal 0's radial, unphased, points almost exactly at the bud
+        // and a 1.05 m sepal reaches 0.027 m inside it — this assert
+        // is what caught that, and reds if the phase is dropped.
+        let bud = body(&ps, "lily_lantern2");
+        let mut bud_globe = None;
+        for (_, f) in bud.faces() {
+            if let Some(pncad::geom_surfaces::Surface::Sphere { center, radius, .. }) =
+                bud.get_surface(f.surface)
+            {
+                bud_globe = Some((*center, *radius));
+            }
+        }
+        let (bc, br) = bud_globe.expect("the bud stores its globe");
+        for name in ["lily_sepal_a", "lily_sepal_b", "lily_sepal_c"] {
+            let sb = body(&ps, name);
+            for (_, v) in sb.vertices() {
+                let p = sb.get_point(v.point).expect("vertex point");
+                let d = ((p.x - bc.x).powi(2) + (p.y - bc.y).powi(2) + (p.z - bc.z).powi(2)).sqrt();
+                assert!(
+                    d > br,
+                    "{name}: a vertex is {d} inside the bud's globe R = {br}"
+                );
+            }
+        }
     }
 
     /// One planar cap of a lofted blade, reduced to the numbers the
