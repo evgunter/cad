@@ -203,12 +203,14 @@ pub fn find_flush_candidates<T: Decide>(
     Ok(out)
 }
 
+/// One side's candidates: each FACE name with the `(body, key)`
+/// candidates it resolves to in this evaluation.
+type FaceCandidates<'v, T> = Vec<(StableName, Vec<(&'v Body<T>, FaceKey)>)>;
+
 /// Every FACE name of one node's value with its resolved candidate
 /// keys — `Unique` gives one candidate, `Tied` all of them (GS-Q4:
 /// the tie is the table's fact; detection asks every candidate).
-fn face_candidates<'v, T: Decide>(
-    v: &'v NodeValue<T>,
-) -> Result<Vec<(StableName, Vec<(&'v Body<T>, FaceKey)>)>, SelectRefusal> {
+fn face_candidates<T: Decide>(v: &NodeValue<T>) -> Result<FaceCandidates<'_, T>, SelectRefusal> {
     let mut out = Vec::new();
     for (name, entry) in v.name_table.iter() {
         if name.kind != EntityKind::Face {
