@@ -460,6 +460,164 @@ pub enum EditError {
     },
 }
 
+// LIB-DOORS F6 (reopened on review): the human-readable rendering the
+// bindings' exception messages consume. The comment-style rule
+// applies — each arm states the PROBLEM (and where it is), not the
+// enum's guts; identifiers render via `Debug` because they ARE the
+// location, and the typed variant remains the machine contract.
+impl core::fmt::Display for EditError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::UnknownNode { id } => write!(f, "edit: node {} is not live", id.0),
+            Self::ProfileProgramRefused { node, refusal } => {
+                write!(
+                    f,
+                    "edit: node {}'s profile program refused: {refusal}",
+                    node.0
+                )
+            }
+            Self::UnresolvedInput { input } => {
+                write!(f, "edit: input {} does not resolve to a live node", input.0)
+            }
+            Self::WouldCycle { at } => {
+                write!(
+                    f,
+                    "edit: the recipe graph would cycle (through node {})",
+                    at.0
+                )
+            }
+            Self::DeleteWouldDangle { id, referenced_by } => write!(
+                f,
+                "edit: deleting node {} would dangle node {}'s reference to it",
+                id.0, referenced_by.0
+            ),
+            Self::UnknownSlot { id, slot } => {
+                write!(f, "edit: node {} has no slot {slot:?}", id.0)
+            }
+            Self::SlotDimensionMismatch {
+                slot,
+                expected,
+                found,
+            } => write!(
+                f,
+                "edit: slot {slot:?} needs a {expected:?} expression, got {found:?}"
+            ),
+            Self::StructuralSlotNeedsStructuralEdit { slot } => write!(
+                f,
+                "edit: slot {slot:?} is structural — use a structural edit"
+            ),
+            Self::NotStructuralSlot { slot } => {
+                write!(f, "edit: slot {slot:?} is continuous, not structural")
+            }
+            Self::UnknownDocParam { name, node, slot } => write!(
+                f,
+                "edit: document parameter {:?} does not exist (referenced by node {}, slot {slot:?})",
+                name.0, node.0
+            ),
+            Self::DocParamDimensionMismatch {
+                name,
+                node,
+                slot,
+                declared,
+                referenced,
+            } => write!(
+                f,
+                "edit: parameter {:?} is declared {declared:?} but node {} (slot {slot:?}) references it as {referenced:?}",
+                name.0, node.0
+            ),
+            Self::ContinuousParamCannotBeCount { name } => write!(
+                f,
+                "edit: parameter {:?}: a continuous parameter cannot be Count — use a Count parameter",
+                name.0
+            ),
+            Self::PathOffTree { path } => {
+                write!(f, "edit: expression path {path:?} runs off the tree")
+            }
+            Self::Dimension(e) => write!(f, "edit: {e}"),
+            Self::DeclareNamesMissingNode { name } => write!(
+                f,
+                "edit: declared name {name:?} refers to a node that is not live"
+            ),
+            Self::NonFiniteDocParam { name } => {
+                write!(f, "edit: parameter {:?}: the value must be finite", name.0)
+            }
+            Self::RebindTargetMissingNode { name } => write!(
+                f,
+                "edit: rebind target {name:?} refers to a node that is not live"
+            ),
+            Self::RebindUnknownName { name } => write!(
+                f,
+                "edit: rebind source {name:?} was never minted by this document"
+            ),
+            Self::RebindKindMismatch { from, to } => write!(
+                f,
+                "edit: a rebind cannot cross entity kinds ({from:?} to {to:?})"
+            ),
+            Self::RebindIdentity { name } => write!(
+                f,
+                "edit: rebinding {name:?} to itself is a recorded no-op — refused"
+            ),
+            Self::RebindNoReferences { name } => write!(
+                f,
+                "edit: no document site references {name:?} — nothing to repair"
+            ),
+            Self::WitnessOnNonSketch { node } => write!(
+                f,
+                "edit: node {} is not sketch-bearing — nothing to re-witness",
+                node.0
+            ),
+            Self::DuplicateWitnessEntry { node } => write!(
+                f,
+                "edit: node {} appears twice in the re-witness bulk",
+                node.0
+            ),
+            Self::EmptyWitnessBulk => {
+                f.write_str("edit: a re-witness bulk with no entries is a no-op — refused")
+            }
+            Self::NameUnresolvedInEvaluation { name } => write!(
+                f,
+                "edit: name {name:?} does not resolve in the supplied evaluation — recording the reference would strand it"
+            ),
+            Self::RebindAppearanceCollision { name, kind } => write!(
+                f,
+                "edit: the rebind would land two {kind:?} attributes on {name:?} — clear one first"
+            ),
+            Self::AppearanceWrongKind { name } => write!(
+                f,
+                "edit: appearance attaches to faces and bodies only (refused for {name:?})"
+            ),
+            Self::AppearanceNamesMissingNode { name } => write!(
+                f,
+                "edit: appearance name {name:?} refers to a node that is not live"
+            ),
+            Self::AppearanceNotSet { name, kind } => {
+                write!(f, "edit: no {kind:?} attribute is set on {name:?}")
+            }
+            Self::InvalidTolerance { value } => write!(
+                f,
+                "edit: tolerance {value:e} is not finite and strictly positive"
+            ),
+            Self::MetaUnversioned { name, key, .. } => write!(
+                f,
+                "edit: metadata {key:?} on {name:?} lacks the integer \"v\" version field"
+            ),
+            Self::MetaNonFinite { name, key, path } => write!(
+                f,
+                "edit: metadata {key:?} on {name:?} carries a non-finite float at {path}"
+            ),
+            Self::MetaNotSet { name, key } => {
+                write!(f, "edit: no metadata {key:?} is set on {name:?}")
+            }
+            Self::RebindMetadataCollision { name, key } => write!(
+                f,
+                "edit: the rebind would land two values under metadata {key:?} on {name:?} — clear one first"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for EditError {}
+
 /// What an accepted edit did (spec D6: structural edits are FLAGGED
 /// in the returned record; the record also returns the minted id —
 /// without it a caller could never reference an inserted node).

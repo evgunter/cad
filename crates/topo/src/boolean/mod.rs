@@ -101,6 +101,11 @@ pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, orient
 #[cfg(feature = "sweep-testing")]
 pub use reduce::PlantedDegradation;
 pub use reduce::{SweepStrategy, SweepTrace};
+// LIB-SEL2 (SELECT-DESIGN §3b; #304 review MINOR-1): THE flush-pair
+// verify door — descriptions, oriented sources and the verification
+// arm in one function, shared by the REST lane's verify-at-use and
+// the detector's candidate-generation mode BY CONSTRUCTION.
+pub use rest::flush_pair_relation;
 pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
 
 /// Which regularized boolean is being computed — threaded through the

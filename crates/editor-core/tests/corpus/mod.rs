@@ -49,6 +49,7 @@ pub mod die_pips;
 pub mod heatsink;
 pub mod islands;
 pub mod loft_prism;
+pub mod plate_param;
 pub mod sink;
 pub mod slots;
 pub mod table;
@@ -158,6 +159,7 @@ pub fn documents() -> Vec<CorpusDoc> {
         // the two that do not can be left out. The flipped pin and the
         // selection's provenance live in `m6_composed_node.rs`.
         die_composed::document(),
+        plate_param::document(),
     ]
 }
 

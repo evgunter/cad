@@ -38,6 +38,8 @@ mod canonical_invariance;
 mod declared_tangency;
 #[path = "interval_lane.rs"]
 mod interval_lane;
+#[path = "lift_census.rs"]
+mod lift_census;
 #[path = "path_differential.rs"]
 mod path_differential;
 #[path = "path_program.rs"]

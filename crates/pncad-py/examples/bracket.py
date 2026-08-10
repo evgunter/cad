@@ -13,14 +13,16 @@ Run it against a built module:
 
 (or `maturin develop` in a virtualenv, which does the staging for you)
 
-STEP export is NOT reachable from here yet: `step_string`/`write_step`
-take a kernel `Body`, and the curated document surface exposes no
-export door that accepts an evaluated body. That gap is recorded as a
-FINDING in the LIB-U9S PR rather than papered over by binding the
-kernel directly — which is exactly what §L3 forbids.
+The journey ends at a real STEP file (LIB-DOORS F2 closed the export
+gap: `Evaluation.step_string` is the document-layer door), and the
+script then re-reads its own output with the kernel's importer — the
+file must exist AND parse, asserted rather than assumed.
 """
 
-from pncad import BooleanOp, Doc, Node, evaluate, mm
+import os
+import tempfile
+
+from pncad import BooleanOp, Doc, Node, evaluate, import_step, mm
 
 
 def slab(doc, x, y, z):
@@ -73,6 +75,22 @@ def main():
     props = body.mass_properties()
     print(f"volume       {props.volume:.9f} m^3  (+/- {props.volume_pad:g})")
     print(f"surface area {props.surface_area:.9f} m^2  (+/- {props.area_pad:g})")
+
+    # Export STEP through the document layer (build -> measure ->
+    # export, the whole §L3 journey), then prove the file is real:
+    # it exists, and the kernel's own importer parses it back to a
+    # solid with the same volume.
+    step = ev.step_string(lightened, product_name="bracket")
+    path = os.path.join(tempfile.mkdtemp(prefix="pncad-bracket-"), "bracket.step")
+    with open(path, "w", encoding="ascii") as out:
+        out.write(step)
+    assert os.path.exists(path), "the STEP file was written"
+
+    with open(path, encoding="ascii") as inp:
+        reimported = import_step(inp.read())
+    volume = reimported.mass_properties().volume
+    assert abs(volume - props.volume) < 1e-12, "the export round-trips"
+    print(f"exported     {path} ({os.path.getsize(path)} bytes; re-imported OK)")
 
 
 if __name__ == "__main__":
