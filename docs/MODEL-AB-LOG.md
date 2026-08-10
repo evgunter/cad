@@ -508,6 +508,16 @@ M8-3 R1 ordinal FIXED AT DISPATCH (2026-08-10, on PR #309 = PR-1
 of the ruled two-PR delivery; one unit row at completion): 15
 merged + 1 R1-dispatched-unmerged unit (M8-2, holding 16) + 1 =
 **17** → SINGLE review.
+COUNTER DISCREPANCY NOTED (2026-08-10, at M8-5's dispatch): SEL2
+(#304) merged 02:21Z, ~20 min BEFORE the #306 R1 dispatch — the
+16/17 records above under-counted by one. Per the amendment,
+fixed-at-dispatch records STAND (no retroactive renumbering);
+LIB's independently-fixed U10 = 18 (#321). Re-synchronized from
+live state below.
+M8-5 (PR #322) R1 ordinal FIXED AT DISPATCH (2026-08-10): 19
+merged blinded rows on main (the 15 + SEL2 + M8-2 + DOORS + PR-C)
++ 2 R1-dispatched-unmerged (M8-3 @17, U10 @18) + 1 = **22** →
+SINGLE review.
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
