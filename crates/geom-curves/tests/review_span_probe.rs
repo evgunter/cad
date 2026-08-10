@@ -101,7 +101,10 @@ fn extreme_weight_ratios_stay_sound() {
         .unwrap();
         assert_sound(&format!("deg4 w={w:?}"), &c, 6001);
     }
-    eprintln!("worst positive ratio bound/true_min: {} ({})", worst.0, worst.1);
+    eprintln!(
+        "worst positive ratio bound/true_min: {} ({})",
+        worst.0, worst.1
+    );
     assert!(worst.0 <= 1.0 + 1e-9, "ratio above 1 is unsound");
 }
 
@@ -125,7 +128,10 @@ fn near_cusp_families_never_cross_the_truth() {
         .unwrap();
         let (m, lo) = assert_sound(&format!("near-cusp eps={eps}"), &c, 8001);
         if m > 0.0 {
-            assert!(lo > 0.0, "eps={eps}: positive meter {m} but sampled min {lo}");
+            assert!(
+                lo > 0.0,
+                "eps={eps}: positive meter {m} but sampled min {lo}"
+            );
         }
         eprintln!("eps={eps}: meter={m}, sampled_min={lo}");
     }
@@ -208,12 +214,7 @@ fn structure_extremes_stay_sound() {
             Point3::new(t, 0.2 * (t * 9.0).sin(), 0.1 * (t * 5.0).cos())
         })
         .collect();
-    let c = NurbsCurve3::<f64>::new(
-        kv,
-        pts,
-        vec![1.0, 0.4, 2.5, 0.7, 1.8, 0.3, 2.0, 1.0],
-    )
-    .unwrap();
+    let c = NurbsCurve3::<f64>::new(kv, pts, vec![1.0, 0.4, 2.5, 0.7, 1.8, 0.3, 2.0, 1.0]).unwrap();
     assert_sound("degree-7", &c, 8001);
 }
 
@@ -223,7 +224,9 @@ fn randomized_rational_nets_are_sound() {
     // log-uniform weights in [1e-4, 1e4].
     let mut state: u64 = 0x243F_6A88_85A3_08D3;
     let mut next = move || {
-        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
         #[allow(clippy::cast_precision_loss)]
         let f = ((state >> 11) as f64) / ((1u64 << 53) as f64);
         f
@@ -232,7 +235,9 @@ fn randomized_rational_nets_are_sound() {
         let p = 2 + (next() * 3.0) as usize; // 2..=4
         let spans = 1 + (next() * 3.0) as usize; // 1..=3
         let mut interior: Vec<f64> = (1..spans)
-            .map(|i| f64::from(u32::try_from(i).unwrap()) / f64::from(u32::try_from(spans).unwrap()))
+            .map(|i| {
+                f64::from(u32::try_from(i).unwrap()) / f64::from(u32::try_from(spans).unwrap())
+            })
             .collect();
         let mut kv = vec![0.0; p + 1];
         kv.append(&mut interior);
@@ -242,7 +247,9 @@ fn randomized_rational_nets_are_sound() {
         let pts: Vec<Point3<f64>> = (0..n_ctrl)
             .map(|_| Point3::new(next() * 4.0 - 2.0, next() * 4.0 - 2.0, next() * 4.0 - 2.0))
             .collect();
-        let ws: Vec<f64> = (0..n_ctrl).map(|_| 10f64.powf(next() * 8.0 - 4.0)).collect();
+        let ws: Vec<f64> = (0..n_ctrl)
+            .map(|_| 10f64.powf(next() * 8.0 - 4.0))
+            .collect();
         let c = NurbsCurve3::<f64>::new(kv, pts, ws).unwrap();
         assert_sound(&format!("fuzz case {case}"), &c, 4001);
     }
@@ -254,11 +261,7 @@ fn a_regular_carrier_that_returns_near_its_start_meters_positively() {
     // back within 0.05 of its start, speed never collapsing. The
     // per-span arm should meter it positively — reversal is not
     // disqualifying under the ratified contract — and soundly.
-    let kv = KnotVector::clamped(
-        vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0],
-        2,
-    )
-    .unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0], 2).unwrap();
     let c = NurbsCurve3::<f64>::new(
         kv,
         vec![
@@ -331,7 +334,10 @@ fn the_refusal_rows_truth_measured() {
         .unwrap();
         let m = c.speed_lower_bound();
         let lo = sampled_min_speed(&c, 20001);
-        assert!(m.is_nan() || m <= lo + 1e-9, "eps={eps} unsound: {m} > {lo}");
+        assert!(
+            m.is_nan() || m <= lo + 1e-9,
+            "eps={eps} unsound: {m} > {lo}"
+        );
         eprintln!("boundary eps={eps}: meter={m}, true min={lo}");
     }
 }

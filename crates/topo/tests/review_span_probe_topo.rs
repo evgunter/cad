@@ -70,7 +70,10 @@ fn a_returning_regular_carrier_certifies_and_splits_honestly() {
     // Regular: dense-sampled speed stays away from zero; the meter is
     // positive and sound.
     let m = carrier.speed_lower_bound();
-    assert!(m > 0.0, "reversal must not disqualify a regular carrier: {m}");
+    assert!(
+        m > 0.0,
+        "reversal must not disqualify a regular carrier: {m}"
+    );
     let mut lo = f64::INFINITY;
     for i in 0..=8000 {
         let t = h0 + (h1 - h0) * f64::from(i) / 8000.0;
@@ -107,7 +110,9 @@ fn a_returning_regular_carrier_certifies_and_splits_honestly() {
     let mid = h0 + (h1 - h0) * 0.5;
     let made = body
         .mev(
-            topo::MevSite::Lone { r#loop: seed.r#loop },
+            topo::MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
             p1,
             EdgeCurveSpec {
                 description: geom_brep::EdgeGeometry::Intersection {
