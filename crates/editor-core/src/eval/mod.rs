@@ -84,6 +84,35 @@ impl<T: Decide> Evaluation<T> {
             _ => None,
         }
     }
+
+    /// The node's result as typed data — `Ok`/`Failed`/`Poisoned`
+    /// distinguished, where [`Evaluation::value`] collapses the last
+    /// two into `None` (LIB-DOORS F3: the curated path from an
+    /// evaluation to its `NodeError`s). `None` means the id has no
+    /// entry at all: never scheduled, or past a cancelation's prefix.
+    pub fn result(&self, id: RecipeNodeId) -> Option<&NodeResult<T>> {
+        self.nodes.get(&id)
+    }
+
+    /// The typed root cause behind a node that produced no value:
+    /// `Failed` answers its own error; `Poisoned` answers the nearest
+    /// failed ancestor's (one `through` hop — see
+    /// [`NodeResult::Poisoned`]'s invariant). `None` for a node that
+    /// succeeded or has no entry.
+    pub fn node_error(&self, id: RecipeNodeId) -> Option<&NodeError> {
+        match self.nodes.get(&id)? {
+            NodeResult::Ok(_) => None,
+            NodeResult::Failed(e) => Some(e),
+            NodeResult::Poisoned { through } => match self.nodes.get(through)? {
+                // Every `through` names a `Failed` entry (the poison
+                // propagation writes nothing else there); answering
+                // `None` on a broken invariant is fail-honest — the
+                // caller sees "no root cause", not a wrong one.
+                NodeResult::Failed(e) => Some(e),
+                NodeResult::Ok(_) | NodeResult::Poisoned { .. } => None,
+            },
+        }
+    }
 }
 
 /// Whether the evaluation ran to completion (spec D5).
@@ -112,6 +141,35 @@ pub enum NodeResult<T: Decide> {
         /// The nearest failed ancestor.
         through: RecipeNodeId,
     },
+}
+
+impl<T: Decide> NodeResult<T> {
+    /// The successful value, if this result is `Ok`.
+    pub fn value(&self) -> Option<&NodeValue<T>> {
+        match self {
+            Self::Ok(v) => Some(v),
+            Self::Failed(_) | Self::Poisoned { .. } => None,
+        }
+    }
+
+    /// The typed failure, if this node ITSELF failed. A poisoned
+    /// node answers `None` — its own entry carries no error; the root
+    /// cause lives at [`NodeResult::poisoned_through`]'s target (or
+    /// ask [`Evaluation::node_error`], which walks the hop).
+    pub fn error(&self) -> Option<&NodeError> {
+        match self {
+            Self::Failed(e) => Some(e),
+            Self::Ok(_) | Self::Poisoned { .. } => None,
+        }
+    }
+
+    /// The nearest failed ancestor, if this node was poisoned.
+    pub fn poisoned_through(&self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Poisoned { through } => Some(*through),
+            Self::Ok(_) | Self::Failed(_) => None,
+        }
+    }
 }
 
 /// A successful node value (spec D2): the op-appropriate payload plus
