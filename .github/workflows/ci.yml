@@ -812,7 +812,8 @@ jobs:
   # suite asserting so IS this job's evidence).
   # Local mirror: ci-local.sh's "python suite (staged cdylib)" row —
   # same tests, same discovery; the install path degrades to the staged
-  # cdylib because that box has no pip (measured, U9S report).
+  # cdylib (run-python-tests.sh) so the row works even on the most
+  # degraded box U9S measured (no pip, no maturin).
   python-suite:
     name: python suite (wheel + guide + north-star)
     runs-on: ubuntu-latest

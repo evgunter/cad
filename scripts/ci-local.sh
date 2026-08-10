@@ -300,13 +300,14 @@ step_import() {
 
 # Mirror of hosted's `python-suite` job (LIB PY-CI). Hosted runs the
 # wheel path — maturin build, venv, pip install, unittest discover.
-# This box has no pip/ensurepip in the system Python (measured, U9S
-# report), so the local row is the staged-cdylib fallback
-# run-python-tests.sh exists for: same cargo-built extension module,
-# same interpreter contract, same unittest discovery over the same
-# tests/ directory — only the install vehicle degrades. The script
-# takes the build slot itself; nested under ci-local's exclusive hold
-# that acquisition is a no-op (BUILD_SLOT_HELD).
+# The local row is the staged-cdylib fallback run-python-tests.sh
+# exists for: same cargo-built extension module, same interpreter
+# contract, same unittest discovery over the same tests/ directory —
+# only the install vehicle degrades, which keeps the row runnable even
+# on the most degraded box U9S measured (no pip, no ensurepip, no
+# maturin). The script takes the build slot itself; nested under
+# ci-local's exclusive hold that acquisition is a no-op
+# (BUILD_SLOT_HELD).
 python_suite() {
   crates/pncad-py/run-python-tests.sh
 }
