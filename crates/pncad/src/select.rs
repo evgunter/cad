@@ -386,20 +386,22 @@
 //! use pncad::prelude::*;
 //! use pncad::document::{BooleanOp, BooleanValue, NodeErrorKind, NodeResult};
 //!
-//! let mut insert = |doc: &Doc<ProfileDesc>, node| {
+//! let mut insert = |doc: &Doc<ProfileProgram>, node| {
 //!     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
 //!     (applied.doc, applied.record.minted.expect("a minted id"))
 //! };
 //! let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-//! let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, z: f64| {
-//!     ProfileDesc(Profile::new(
-//!         SketchPlane::from_frame(p3(0.0, 0.0, z), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0)),
-//!         vec![polygon(&[(x0, y0), (x1, y0), (x1, y1), (x0, y1)])],
-//!     ))
+//! // v4 (LIB-SWITCH): the profile payload is its PROGRAM.
+//! let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, z: f64| ProfileProgram {
+//!     plane: SketchPlane::from_frame(p3(0.0, 0.0, z), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0)),
+//!     loops: vec![
+//!         LoopProgram::polygon([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])
+//!             .expect("finite corners"),
+//!     ],
 //! };
 //!
 //! // A unit box, and a smaller box RESTING on its top cap.
-//! let doc = Doc::<ProfileDesc>::empty();
+//! let doc = Doc::<ProfileProgram>::empty();
 //! let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0, 0.0)));
 //! let (doc, base) = insert(&doc, Node::Extrude { profile: pf1, distance: len(1.0) });
 //! let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, 1.0)));
