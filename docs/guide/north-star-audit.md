@@ -40,7 +40,9 @@ Everything Python can say about geometry, in full:
 - `Node.revolve(profile, axis, angle)` about a `Node.datum_axis`.
 - `Node.boolean(op, a, b)` — union, intersect, subtract, with **no**
   declaration argument.
-- Edits: `insert_node`, `delete_node`, `set_tolerance`.
+- Edits: `insert_node`, `delete_node`, `set_tolerance`, and — since
+  R1-PARAMS — `set_doc_param(ParamName, DocParam)`, the named
+  document parameter edit (guide §3.2).
 
 Plus evaluation, validation, mass properties, STEP export/import,
 persistence, and typed quantities. That is the whole vocabulary.
@@ -139,13 +141,18 @@ Ranked by how many stops each blocks first:
 | G7 | **Rigid placement** | degrades 1 | No transform node; bodies must be authored in place |
 | G8 | **Pattern + structural params** | degrades 3 | No pattern node and no `SetStructuralParam` edit, so `heatsink`'s actual subject — one recipe, a count edit, memoized recompute — cannot be said |
 
-Three further gaps block no tour scene but matter to the library:
+Two further gaps block no tour scene but matter to the library:
 
 | # | gap | why it matters |
 |---|---|---|
 | G9 | **Multi-loop profiles** | A profile is one loop, so a plate with holes needs a boolean per hole. Blocks `plate` and `az` |
-| G10 | **Named document parameters** | `SetDocParam` needs `ParamName`/`DocParam`, and neither is bound (nor re-exported by the Rust façade — see guide §3.2). So the parametric flagship `plate_param` is unauthorable from Python **and** from `pncad`. This is the gap nearest the point of the whole switch |
 | G11 | **Tessellation and STL** | No mesh door, so the guide's ladder stops at step 4 for Python: no tessellate, and no mesh-vs-exact cross-check. `Evaluation.step_string` is the only export |
+
+## Closed gaps
+
+| # | gap | closed by | what is true now |
+|---|---|---|---|
+| G10 | **Named document parameters** | R1-PARAMS | `ParamName` and `DocParam` are curated through `pncad::document` (and the prelude), and `DocEdit.set_doc_param` is bound with them — so the parametric flagship `plate_param` is authorable façade-only (guide §3.2's doctest authors it) and its one-edit-moves-both-holes claim is executed from Python in `test_north_star.py` against the Rust rows' analytic oracle. Residue, stated plainly: Python still cannot author plate_param's *profile* from scratch (its circle loops are G1, its three-loop profile G9), so the Python test loads the document through the persistence door, pinned bit-for-bit by `crates/pncad/tests/all.rs` |
 
 ## How to read this page next quarter
 

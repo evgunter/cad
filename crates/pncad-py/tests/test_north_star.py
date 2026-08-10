@@ -13,8 +13,20 @@ prompt to move a NO row to YES.
 
 import math
 import unittest
+from pathlib import Path
 
-from pncad import BooleanOp, Doc, DocEdit, Node, deg, evaluate, m
+from pncad import (
+    BooleanOp,
+    Doc,
+    DocEdit,
+    DocParam,
+    Node,
+    ParamName,
+    deg,
+    evaluate,
+    load,
+    m,
+)
 
 
 def slab(doc, x, y, z):
@@ -170,6 +182,70 @@ class TestHeatsink(unittest.TestCase):
                 )
 
 
+class TestPlateParam(unittest.TestCase):
+    """Audit gap G10, CLOSED (R1-PARAMS): named document parameters.
+
+    The corpus' parametric flagship `plate_param` — a plate whose two
+    hole radii are ONE `DocParam` — driven from Python: the
+    `set_doc_param` edit is authored here with the bound
+    `ParamName`/`DocParam` vocabulary, and the result is checked
+    against the same analytic oracle the Rust acceptance rows assert
+    (`crates/editor-core/tests/switch_plate_param.rs`).
+
+    Stated honestly: the DOCUMENT arrives through the persistence
+    door, because plate_param's profile (three loops, two of them
+    circles) is still behind gaps G1 and G9. The fixture cannot rot —
+    `crates/pncad/tests/all.rs` re-authors the scene façade-only and
+    pins the saved text bit for bit."""
+
+    FIXTURE = (
+        Path(__file__).resolve().parents[3]
+        / "crates" / "pncad" / "tests" / "plate_param.v4.pncad"
+    )
+
+    def plate(self):
+        doc = load(self.FIXTURE.read_text(encoding="utf-8")).doc
+        return doc, doc.order()[-1]  # the union is the last insert
+
+    # Plate + tab − their overlap − two cylinders of radius r: the
+    # closed form the Rust rows assert, tab included.
+    @staticmethod
+    def oracle(r):
+        return 4.0 * 2.0 * 0.5 + 1.0 * 0.75 * 0.25 - 0.5 * 0.25 * 0.25 \
+            - 2.0 * math.pi * r * r * 0.5
+
+    def test_one_param_edit_moves_both_holes_to_the_scene_oracle(self):
+        for r in (0.25, 0.4):
+            with self.subTest(hole_r=r):
+                doc, solid = self.plate()
+                doc.apply(
+                    DocEdit.set_doc_param(
+                        ParamName("hole_r"), DocParam.length(r * m)
+                    )
+                )
+                self.assertAlmostEqual(
+                    volume_of(doc, solid), self.oracle(r), delta=1e-6
+                )
+
+    def test_the_edit_is_legal_at_rest_and_replay_refuses_r_zero(self):
+        """The acceptance suite's deliberate asymmetry: `set_doc_param`
+        itself applies cleanly even for a refusing value — the refusal
+        belongs to REPLAY, which names the profile node."""
+        doc, solid = self.plate()
+        doc.apply(
+            DocEdit.set_doc_param(ParamName("hole_r"), DocParam.length(0 * m))
+        )
+        ev = evaluate(doc)
+        self.assertFalse(ev.succeeded(solid))
+        profile = doc.order()[0]  # plate_param's profile is inserted first
+        import pncad
+
+        with self.assertRaises(pncad.EvaluationError) as ctx:
+            ev.value(profile)
+        self.assertEqual(ctx.exception.reason, "node_failed")
+        self.assertEqual(ctx.exception.kind, "profile_replay")
+
+
 class TestNamedGapsAreStillGaps(unittest.TestCase):
     """The NO rows' gaps, asserted as absences.
 
@@ -184,17 +260,18 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         )
         self.assertEqual(
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
-            ["delete_node", "insert_node", "set_tolerance"],
+            ["delete_node", "insert_node", "set_doc_param", "set_tolerance"],
         )
 
     def test_the_named_gaps_are_still_gaps(self):
         import pncad
 
+        # `ParamName`/`DocParam` left this list when G10 closed
+        # (R1-PARAMS) — `TestPlateParam` above is the positive form.
         for door in [
             "tessellate", "Mesh", "write_stl",        # mesh + STL
             "select", "select_where", "Selector",     # selectors
             "StableName", "find_flush_candidates",    # names, detect/declare
-            "ParamName", "DocParam",                  # named parameters
         ]:
             with self.subTest(door=door):
                 self.assertFalse(hasattr(pncad, door), f"{door} is now bound")
