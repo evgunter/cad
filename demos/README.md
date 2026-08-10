@@ -76,18 +76,19 @@ Consequences worth stating:
   **stored** pcurve cache vs. were derived on demand (derived ones draw
   dashed — `mesh::trimmed` refuses those), the outer loop's signed
   chart area and its winding, and the worst **closure gap** between
-  consecutive traversals — measured in **3-D metres off the carriers**,
-  not in the chart. That distinction is load-bearing: a chart-space
-  closure metric false-alarms on every face that touches a chart
-  singularity or a seam, because at a sphere's pole an entire `u`-line
-  is one 3-D point. Over the M7 corpus 103 of 982 faces show such a
-  jump, every one of them exactly π/2, π or 2π; the true 3-D closure
-  gap never exceeds 9e-16 m anywhere. The chart jump is still printed,
-  greyed and named as seam/pole structure, so it informs instead of
-  alarming. Periodic charts get their seams (`u = k·2π`)
+  consecutive traversals. Periodic charts get their seams (`u = k·2π`)
   drawn as dashed magenta lines, so a seam-crossing loop is visible
   rather than inferred. Strokes are colored by pcurve form —
   `Harmonic` blue, `IsoLine` green, `Fitted` orange.
+* **Closure is measured in 3-D, not in the chart**, and that
+  distinction is load-bearing. A chart-space closure metric
+  false-alarms on every face touching a chart singularity or a seam,
+  because at a sphere's pole an entire `u`-line is one 3-D point: 103
+  of the 982 M7 faces show such a jump, every one of them exactly π/2,
+  π or 2π. Measured off the carriers instead, the true closure gap
+  never exceeds 9e-16 m anywhere in the corpus. The chart jump is
+  still printed — greyed, and named as seam/pole structure — so it
+  informs instead of alarming.
 * **Nothing is refused.** Unlike the tessellator's trim walk, this one
   accepts every pcurve form and falls back to `topo::pcurve_of`'s
   derive-on-demand, because a face the tessellator refuses is exactly
@@ -104,6 +105,43 @@ Consequences worth stating:
 
 Read it in a browser; nested-SVG-shy rasterizers are why the cells are
 placed with `transform="translate(…)"` rather than nested `<svg x= y=>`.
+
+### What the sheet says about the corpus today (M7)
+
+Most cells are rectangles, and that is a fact about the corpus rather
+than a limitation of the drawing. Of the 238 curved faces, **234 have
+boundaries built entirely from iso-curves of their own chart; only 4
+do not, and all 4 are the tilted cut.**
+
+The reason is that every curved face here is *sweep-native*. Extrude,
+revolve, loft and sweep choose the surface's chart so that one
+direction IS the sweep parameter and the other IS the profile
+parameter — so a face's boundary is the profile at the start
+(`v = const`), the profile at the end (`v = const`), and the seams
+(`u = const`). Nothing is left to trim. This is what `mesh::trimmed`
+means by "the definitional payoff — no fit anywhere", and why
+`Pcurve::IsoLine` earns a variant of its own.
+
+The tilted cut is different because its boundary did not come from the
+sweep that made the cylinder: a plane cuts that cylinder **obliquely**,
+so the section is an ellipse in 3-D and, on the cylinder chart
+(`u` = azimuth, `v` = height), the sinusoid graph
+`v = a + b·cos(u − φ)` — exactly the image `Pcurve::Harmonic`'s docs
+name.
+
+Note what does *not* break the rectangle: `bossplate` is a genuine
+curved boolean, and its cylinder walls are still iso-rectangles,
+because the boss axis is perpendicular to the plate and the
+intersection circle therefore sits at constant height. **Obliquity to
+the chart is what produces a real trim, not the operation that made
+the edge.**
+
+Consequence worth carrying into M7: the trimmed-face machinery
+(`mesh::trimmed`'s CDT over an arbitrary trim polygon plus the
+even-odd interior pick) is exercised by exactly one geometric family
+in this corpus. Everything else takes the swept-rectangle walk or
+trims along iso-lines. Imported foreign geometry will not be so
+courteous.
 
 What it is NOT: a replacement for `render.sh`. The eyeball gate needs
 shaded 3-D, and a chart domain is not a picture of the part. The
