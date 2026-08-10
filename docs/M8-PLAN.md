@@ -50,9 +50,12 @@ affordance, comment 5234756324, 2026-08-10). Sequenced after
 M8-1..M8-4 unless a lull opens earlier; each gets its own
 substrate → spec → dispatch cycle.
 
-- **#186 assembly instancing** (dm1's blocker — the M7-6 walk row's
-  named carried item; flips dm1 first-class, wild corpus 9/13 →
-  10/13).
+- **Assembly instancing, now tracked as #317** (dm1's blocker — the
+  M7-6 walk row's named carried item; flips dm1 first-class, wild
+  corpus 9/13 → 10/13). *Correction at dispatch (2026-08-10): the
+  "#186" this slate previously cited is dm1's STEP entity id (the
+  refusal site, bolt_4's transform), not a GitHub reference — no
+  tracker existed; #317 is the real one.*
 - **#214 dimensional-debt riders** (F6/F7 typed-margin fold-in —
   M8-2 touches F7's predicate and deliberately leaves the redesign;
   the natural moment per docs/predicate-dimension-audit.md).

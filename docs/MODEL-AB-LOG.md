@@ -481,6 +481,15 @@ order (opus, opus, fable) — M8-3 (slot 0) gets OPUS; opus slot 1 +
 fable slot 2 bank (M8-4 iso-derive arm is the expected slot-1
 consumer). SLOT 0 DISPATCHED (2026-08-10): lane rational-wall,
 branch kernel/rational-wall.
+Block M8-13 SLOT 1 DISPATCHED (2026-08-10): assembly instancing
+(#317, the adopted candidate — N placed instances materialize as N
+solids; rep→map association, fresh topology ids, per-instance
+rigid re-certification, the identity-coverage bug, the ε_in
+multi-context fold; dm1 flips with a derived oracle; montage
+EXCLUDED by license law); difficulty logged PRE-DISPATCH = **M**.
+Arm = OPUS (the banked slot 1 — M8-4 waits on M8-3's pcurve work,
+so the slot goes to the file-disjoint candidate). Lane instancing,
+branch import/instancing.
 M8-2 (PR #306) R1 ordinal FIXED AT DISPATCH (2026-08-10): 15
 merged blinded rows on main (the 13 at #301's dispatch + M8-1 +
 SWITCH-E) + 1 = **16** → SINGLE review.
