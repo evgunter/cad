@@ -48,7 +48,6 @@ fn extra_instance(rep: u64, id0: u64, tx: f64, ty: f64, tz: f64, deg: f64) -> St
 /// [`extra_instance`] with an explicit `rep_2` — the edge's OTHER end,
 /// which is what a nested assembly varies (a component is placed into
 /// a sub-assembly, not into the root).
-#[expect(clippy::too_many_arguments, reason = "a STEP record's own fields")]
 fn extra_instance_into(
     rep: u64,
     into: u64,

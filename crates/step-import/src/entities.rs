@@ -2882,7 +2882,12 @@ fn chains(
     let mut out = Vec::new();
     let mut stack = vec![vec![start]];
     while let Some(path) = stack.pop() {
-        let last = edges[*path.last().expect("a path is never empty")];
+        // Total by construction (a path is never empty and every index
+        // came from `edges`), and written totally anyway — this pass
+        // has no panicking door.
+        let Some(last) = path.last().and_then(|&i| edges.get(i)).copied() else {
+            continue;
+        };
         let next = from.get(&last.into).map_or(&[][..], Vec::as_slice);
         if next.is_empty() {
             out.push(path);
