@@ -5,13 +5,6 @@ metadata:
   type: project
 ---
 
-**Privacy rule (Evan, #355, 2026-08-10 — the repo may go
-public):** account EMAIL ADDRESSES other than the commit-signing
-one (evgunter@gmail.com) must never be posted to GitHub — not in
-comments, PR bodies, commits, or committed files. Refer to "its
-own account" / "another account"; the concrete address stays in
-local logs and reports under cad-work only.
-
 **Why this exists (Evan, #348 comment, 2026-08-10):** hitting the
 subscription session limit opens Claude Code's usage-credits dialog,
 which KILLS that session for the rest of the day — it does not
