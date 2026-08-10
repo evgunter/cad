@@ -457,8 +457,11 @@ loft/sweep/tube bindings, G3 non-xy sketch planes. Plus G11
   no-rot property is structural.
 - R5: the LQ7 tail as ratified-open: wheel cadence; schema-version
   ↔ package-version coupling post-release.
-- R6 (#274): the semantic-merge blind spot — the post-merge
-  main-tip run option was never adopted; recurrence risk persists.
+- R6 (#274): CLOSED BY RULING (Evan, 2026-08-10, on the issue:
+  "the cure seems worse than the poison") — no structural
+  union-checking machinery. The standing mitigation is the
+  process norm in every brief: merge main before opening,
+  re-merge on movement, build the union explicitly.
 
 **D. Deferred-by-design (need a use case, not work):**
 - LB10's straight-off-arc fillet wall (two-route menu in §2b);
@@ -506,6 +509,41 @@ terminal, and fences out G2/G3/G7/G8/G9, Expr-in-profile, and
 NURBS legs. Arm: opus (LIB-7 banked slot 2). The Expr-bearing
 profile-steps door (with G9 → plate_param authorable from
 Python) is recorded here as a NAMED follow-up of PYG1.
+
+**PYG1 MERGED — audit G1 CLOSED (2026-08-10, #346, 28/28 green,
+ordinal-20 APPROVE 0/3/3).** The lattice is bound state-for-state
+(both structural rulings proven forced), ty is a live CI gate,
+authorable 7→11, suite 48→83. Riders landed in the fix pass:
+`LoopProgram::from_recorded` (the door PYG1's finding 1 named —
+now a Rust door with a bit-for-bit contract test), prelude
+curation (ClosedLoop, circle_split, RecordedProgramError). #347
+filed kernel-side (Boolean refuses on carrier-crossing cutter
+planes — reproduced by the review at the exact r=4/r=5
+crossover; bracket.py rounds at 3 mm citing it). Banked from
+findings: the Expr-in-profile door (with G9 → plate_param from
+Python), Count still unconsumed, tour scenes without closed-form
+oracles (finding 5), the DocParam __eq__ rider (from ordinal
+19), straight-run authoring noise (finding 7 — vocabulary
+evidence for a future design conversation, not a unit).
+
+**The G2 unit-cut ruling (2026-08-10, orchestrator, from the
+substrate survey)**: audit G2 splits. Its LOFT half is mechanical
+(Node::Loft has existed since M5 PR 10 with eval + naming) and
+ships with G3 as **LIB-PYG23A** (docs/LIB-PYG23A-SPEC.md — two
+additive SketchPlane constructors, plane values + Node.loft bound,
+7 audit rows flip). Its SWEEP/TUBE half is NOT dispatchable as
+mechanical work, three independent walls: (a) wire_sweep
+unconditionally refuses — the SWEEP_FRONTIER path-composition
+lane is banked past M6 by the PR 10 MAJ ruling (kernel-side, not
+this program's to un-bank); (b) 3-D path values + the pose family
+are U4, whose landing site LQ3 is RATIFIED-OPEN (needs Evan's
+working session — U4 never ran); (c) Node::Tube does not exist,
+and a new node kind is a schema break colliding with ASM-1's
+in-flight v5 bump (coordination, not code). The sweep/tube tail
+is therefore a NAMED DESIGN CONVERSATION (U4/LQ3 + frontier +
+version coordination), recorded here as the register's G2
+residue; the audit page's rows 15–19 get the honest blocker text
+in PYG23A.
 
 **Ordinal 19 closed (2026-08-10)**: the R1-PARAMS retroactive
 review returned APPROVE 0/1/4, rubric 5/5/5, zero silent devs —
