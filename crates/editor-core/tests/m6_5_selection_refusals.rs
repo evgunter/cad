@@ -31,7 +31,7 @@ fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
     let square =
         LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).expect("finite");
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals");
     for edit in [
         DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
@@ -66,7 +66,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     use editor_core::{BooleanOp, Dimension, DocEdit, Expr, apply};
     use fixture::desc;
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals");
     let insert = |doc: &ProfileDoc, node: Node<editor_core::ProfileProgram>| {
         let a = apply(doc, &DocEdit::InsertNode { node }).expect("the fixture builds");
         let id = a.record.minted.expect("a minted id");

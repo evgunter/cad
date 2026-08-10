@@ -67,7 +67,7 @@ fn box_at(
 /// (`z ∈ [1, 1.5]`, footprint `[0.25, 0.75]²`): ONE flush plane —
 /// the resting contact at z = 1.
 fn stacked() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, base) = box_at(ProfileDoc::empty(), 0.0, (0.0, 0.0), (1.0, 1.0), 1.0);
+    let (doc, base) = box_at(ProfileDoc::empty_derived("lib_sel2_flush"), 0.0, (0.0, 0.0), (1.0, 1.0), 1.0);
     let (doc, top) = box_at(doc, 1.0, (0.25, 0.25), (0.75, 0.75), 0.5);
     (doc, base, top)
 }
@@ -100,7 +100,7 @@ fn resting_contact_is_one_same_opposite_finding() {
 /// finding is the merge-stage flavor, `SameOriented`.
 #[test]
 fn flush_walls_are_same_oriented_findings() {
-    let (doc, slab) = box_at(ProfileDoc::empty(), 0.0, (0.0, 0.0), (2.0, 1.0), 0.5);
+    let (doc, slab) = box_at(ProfileDoc::empty_derived("lib_sel2_flush"), 0.0, (0.0, 0.0), (2.0, 1.0), 0.5);
     let (doc, post) = box_at(doc, 0.0, (0.0, 0.0), (0.5, 1.0), 1.0);
     let ev = eval(&doc);
     let findings = find_flush_candidates(&ev, slab, post).unwrap();
@@ -120,7 +120,7 @@ fn flush_walls_are_same_oriented_findings() {
 /// answers EMPTY (the `select` posture), not an error.
 #[test]
 fn separated_and_unevaluated_answer_empty() {
-    let (doc, base) = box_at(ProfileDoc::empty(), 0.0, (0.0, 0.0), (1.0, 1.0), 1.0);
+    let (doc, base) = box_at(ProfileDoc::empty_derived("lib_sel2_flush"), 0.0, (0.0, 0.0), (1.0, 1.0), 1.0);
     let (doc, far) = box_at(doc, 3.0, (2.0, 2.0), (3.0, 3.0), 1.0);
     let ev = eval(&doc);
     assert!(find_flush_candidates(&ev, base, far).unwrap().is_empty());
@@ -207,7 +207,7 @@ fn in_band_gap_refuses_pair_in_band() {
     let tol = geom_core::Tolerance::get();
     // The band's midpoint: strictly inside (eps, k·eps) for any k > 1.
     let gap = 0.5 * (tol.eps + tol.k * tol.eps);
-    let (doc, base) = box_at(ProfileDoc::empty(), 0.0, (0.0, 0.0), (1.0, 1.0), 1.0);
+    let (doc, base) = box_at(ProfileDoc::empty_derived("lib_sel2_flush"), 0.0, (0.0, 0.0), (1.0, 1.0), 1.0);
     let (doc, top) = box_at(doc, 1.0 + gap, (0.25, 0.25), (0.75, 0.75), 0.5);
     let ev = eval(&doc);
     match find_flush_candidates(&ev, base, top) {
@@ -231,7 +231,7 @@ fn in_band_gap_refuses_pair_in_band() {
 /// content.
 #[test]
 fn empty_findings_refuse() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("lib_sel2_flush");
     assert!(matches!(
         declare_all(&doc, &[]),
         Err(DeclareError::NoFindings)
@@ -268,7 +268,7 @@ fn tilted_in_band_pairs_pin_the_verification_arm() {
     let tol = geom_core::Tolerance::get();
     for theta in [1.01 * tol.eps, 0.99 * tol.k * tol.eps] {
         let (c, s) = (theta.cos(), theta.sin());
-        let (doc, base) = box_at(ProfileDoc::empty(), 0.0, (0.0, 0.0), (1.0, 1.0), 1.0);
+        let (doc, base) = box_at(ProfileDoc::empty_derived("lib_sel2_flush"), 0.0, (0.0, 0.0), (1.0, 1.0), 1.0);
         // A block resting on the top cap, sketched on a plane through
         // z = 1 tilted by theta about the x axis.
         let (doc, p) = insert(

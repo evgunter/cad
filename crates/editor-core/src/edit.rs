@@ -1207,7 +1207,7 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
     /// result reproduces the edits' document BIT-IDENTICALLY (floats
     /// are stored exactly; ids re-mint deterministically).
     pub fn replay(edits: &[DocEdit<P>]) -> Result<Doc<P>, EditError> {
-        let mut doc = Doc::empty();
+        let mut doc = Doc::empty_derived("edit");
         for edit in edits {
             doc = apply(&doc, edit)?.doc;
         }

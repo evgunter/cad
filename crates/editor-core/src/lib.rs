@@ -22,6 +22,7 @@ pub mod doc;
 pub mod edit;
 pub mod eval;
 pub mod expr;
+pub mod ident;
 pub mod meta;
 pub mod names;
 pub mod node;
@@ -43,6 +44,7 @@ pub use eval::{
     EvalOutcome, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeResult, NodeValue, SplitSide,
     ValuePayload, evaluate,
 };
+pub use ident::{ContentPin, DocRef, DocumentId};
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
 };
@@ -60,7 +62,8 @@ pub use names::{
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId, StepArg};
 pub use parse::{ParseError, parse_expr};
 pub use persist::{
-    Loaded, MigrationStep, PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load, save,
+    Loaded, MigrationStep, PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, canonical_bytes,
+    content_pin, header_document_id, load, save,
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use program::{

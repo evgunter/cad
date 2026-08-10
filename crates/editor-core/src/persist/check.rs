@@ -475,7 +475,7 @@ mod tests {
     fn structurally_invalid_documents_refuse_at_save() {
         // ε = 0.0 is finite (past the float walk) but invalid — the
         // load door's EpsilonInvalid, now at save too.
-        let mut doc = ProfileDoc::empty();
+        let mut doc = ProfileDoc::empty_derived("check");
         doc.epsilon = 0.0;
         match save(&doc, &[]) {
             Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value })) => {
@@ -484,7 +484,7 @@ mod tests {
             other => panic!("non-positive ε must refuse at save, got {other:?}"),
         }
         // order naming a node the map does not hold.
-        let mut doc = ProfileDoc::empty();
+        let mut doc = ProfileDoc::empty_derived("check");
         doc.order.push(RecipeNodeId(7));
         match save(&doc, &[]) {
             Err(PersistError::Snapshot(SnapshotError::OrderMismatch)) => {}

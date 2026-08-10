@@ -49,7 +49,7 @@ fn block(
 
 #[test]
 fn union_cross_bar_names_totally() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_rework");
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
     let (doc, u) = insert(
@@ -73,7 +73,7 @@ fn union_cross_bar_names_totally() {
 
 #[test]
 fn union_cross_bar_swapped_names_totally() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_rework");
     let (doc, a) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
     let (doc, b) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, u) = insert(
@@ -95,7 +95,7 @@ fn union_cross_bar_swapped_names_totally() {
 
 #[test]
 fn subtract_cross_bar_names_totally() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_rework");
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
     let (doc, s) = insert(
@@ -117,7 +117,7 @@ fn subtract_cross_bar_names_totally() {
 
 #[test]
 fn subtract_block_from_bar_never_fails_in_naming() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_rework");
     let (doc, a) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
     let (doc, b) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, s) = insert(
@@ -148,7 +148,7 @@ fn subtract_block_from_bar_never_fails_in_naming() {
 
 #[test]
 fn split_through_operand_edges_names_totally() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_rework");
     let (doc, d) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 2.0);
     // Plane x + z = 2: contains the cube edges (0,·,2) and (2,·,0).
     let (doc, plane) = insert(
@@ -192,7 +192,7 @@ fn split_through_operand_edges_names_totally() {
 
 #[test]
 fn pattern_of_split_output_refuses_typed_never_misnames() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_rework");
     let (doc, d) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 2.0);
     let (doc, plane) = insert(
         doc,

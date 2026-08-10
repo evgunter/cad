@@ -108,6 +108,8 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
         PersistError::ProfileProgram { .. } => "profile_program",
         PersistError::Serialize { .. } => "serialize",
         PersistError::Header { .. } => "header",
+        PersistError::HeaderId { .. } => "header_id",
+        PersistError::IdMismatch { .. } => "id_mismatch",
         PersistError::UnknownSchema { .. } => "unknown_schema",
         PersistError::SchemaTooOld { .. } => "schema_too_old",
         PersistError::Migration(_) => "migration",

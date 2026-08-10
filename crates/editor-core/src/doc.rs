@@ -12,6 +12,7 @@ use geom_core::tolerance::Tolerance;
 
 use crate::appearance::{AppearanceMap, AppearanceRecord};
 use crate::expr::{Dimension, Expr, ExprPath, ParamEnv, ParamValue};
+use crate::ident::DocumentId;
 use crate::names::StableName;
 use crate::node::{Node, RecipeNodeId};
 
@@ -83,6 +84,11 @@ impl DocParam {
     deserialize = "P: serde::Deserialize<'de>"
 ))]
 pub struct Doc<P> {
+    /// The document's stable identity (ASM-1 D-1): authored data
+    /// supplied at construction, never minted from ambient randomness
+    /// in this crate. Survives every edit; excluded from the content
+    /// pin (the pin answers "which version", the id "which part").
+    pub(crate) id: DocumentId,
     /// The monotone id counter: the next [`RecipeNodeId`] to mint.
     /// Never decremented — deletion does not free ids (spec D3).
     pub(crate) next_id: u64,
@@ -120,21 +126,18 @@ pub struct Doc<P> {
     pub(crate) appearance: AppearanceMap,
 }
 
-impl<P> Default for Doc<P> {
-    fn default() -> Self {
-        Self::empty()
-    }
-}
-
 impl<P> Doc<P> {
-    /// The empty document: no nodes, no params, recorded ε = the
-    /// process's ambient tolerance (M4 PR 6 spec D4: a new document
-    /// adopts the process ε, so in-process documents NEVER disagree
-    /// with the committed tolerance; the OnceLock bootstrap commits
-    /// here on first touch if nothing committed earlier) — replay's
-    /// origin (spec D7).
-    pub fn empty() -> Self {
+    /// The empty document under the given identity: no nodes, no
+    /// params, recorded ε = the process's ambient tolerance (M4 PR 6
+    /// spec D4: a new document adopts the process ε, so in-process
+    /// documents NEVER disagree with the committed tolerance; the
+    /// OnceLock bootstrap commits here on first touch if nothing
+    /// committed earlier) — replay's origin (spec D7). The id is
+    /// authored data (ASM-1 D-1): there is no id-less document and no
+    /// ambient-randomness default.
+    pub fn empty(id: DocumentId) -> Self {
         Self {
+            id,
             next_id: 0,
             nodes: BTreeMap::new(),
             order: Vec::new(),
@@ -144,6 +147,18 @@ impl<P> Doc<P> {
             metadata: BTreeMap::new(),
             appearance: AppearanceMap::new(),
         }
+    }
+
+    /// The empty document under a label-derived identity —
+    /// [`Self::empty`] ∘ [`DocumentId::derive`], the deterministic
+    /// spelling corpus/demos/tests use.
+    pub fn empty_derived(label: &str) -> Self {
+        Self::empty(DocumentId::derive(label))
+    }
+
+    /// The document's stable identity.
+    pub fn id(&self) -> DocumentId {
+        self.id
     }
 
     /// The node with the given id, if live.
@@ -248,7 +263,8 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
     /// structurally. `PartialEq` on `Doc` remains IEEE-semantic
     /// (conflates `±0.0`); use THIS for replay pins and audits.
     pub fn bit_eq(&self, other: &Doc<P>) -> bool {
-        self.next_id == other.next_id
+        self.id == other.id
+            && self.next_id == other.next_id
             && self.order == other.order
             && self.epsilon.to_bits() == other.epsilon.to_bits()
             // Witness bytes are exact data (no float semantics to

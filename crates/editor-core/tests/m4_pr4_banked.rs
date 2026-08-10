@@ -74,7 +74,7 @@ struct BandCut {
 /// A − band(tx): the band's horizontal tail pierces the west face,
 /// its descending diagonal exits the east face (module docs).
 fn band_cut() -> BandCut {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr4_banked");
     let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 1.0);
     // The band profile on z = -0.5, extruded 2.0 (full pierce).
     // Lower boundary: (-2.5,1.0) → (2.0,1.0) → (4.5,0.8);
@@ -286,7 +286,7 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
     // survives under its wrap); overlapping at tx = 0.5 (kept-key
     // fusion drops the losing coincident-corner identities with no
     // retirement row).
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr4_banked");
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, transform) = insert(

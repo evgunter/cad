@@ -135,7 +135,7 @@ fn kiss_vertex_names(
 fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
     // WITHOUT a Declare: the new result re-discovers the surviving
     // operand-internal kiss as UNDECLARED (the documented M3 gap).
-    let (doc, a, b, base) = kiss_base(ProfileDoc::empty());
+    let (doc, a, b, base) = kiss_base(ProfileDoc::empty_derived("m4_pr5_declare"));
     let (doc_undeclared, mover) = block(doc.clone(), (1.5, 2.5), (1.5, 2.5), 1.5, 1.0);
     let (doc_undeclared, u2) = insert(
         doc_undeclared,
@@ -199,7 +199,7 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
 fn flush_plane_pair_glues_with_declare_refuses_without() {
     // Coincident-plane pair, UNDECLARED: typed refusal at the
     // coincidence door (rung (b): value equality never classifies).
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc_undeclared, u) = insert(
@@ -252,7 +252,7 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
 
     // Decoupled variant (no coincident planes): untouched — no
     // Declare needed, transversal union works as before.
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 1.25);
     let (doc, u) = insert(
@@ -280,7 +280,7 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
 /// plane — declared through the FromA-wrapped name.
 #[test]
 fn crossing_slots_recipe_document_evaluates_and_resolves() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
     let (doc, slab) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, b1) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, s1) = insert(
@@ -365,7 +365,7 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
 /// covered below.)
 #[test]
 fn declare_resolution_failures_are_typed_n5_errors() {
-    let base = ProfileDoc::empty();
+    let base = ProfileDoc::empty_derived("m4_pr5_declare");
     let (base, a) = block(base, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (base, b) = block(base, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let boolean_with = |doc: ProfileDoc, decl| {
@@ -441,7 +441,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
 /// exact volume.
 #[test]
 fn skipped_declared_merge_recipe_door_is_tier3_green() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 1.25), 0.0, 1.0);
     let (doc, decl) = insert(
@@ -512,7 +512,7 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
     // --- DeclareBothOperands: the same body value feeds both sides,
     // so the name resolves in BOTH operand tables — refused, never a
     // side guess (reviewer's probe adopted).
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let cap = fname(a, RoleSeg::Cap(CapEnd::Top));
     let (doc, decl) = insert(
@@ -537,7 +537,7 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
     // Declare names a third body's face; deleting that node AFTER the
     // Declare strands the name; resolution refuses NodeGone with the
     // derived NodeDeleted edit.
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
@@ -570,7 +570,7 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
     // --- Ambiguous: the Declare names a TIED row (the symmetric U
     // cutter's N2 tie) — refused with the tie carried honestly:
     // candidates name the tied row itself, width = the recorded tie.
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
     let (doc, ua) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
     let (doc, up) = insert(
         doc,
@@ -662,7 +662,7 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
 /// appear and the document must certify.
 #[test]
 fn crossing_slots_swapped_order_hits_the_junction_arm() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
     let (doc, slab) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, b2) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
     let (doc, s1) = insert(

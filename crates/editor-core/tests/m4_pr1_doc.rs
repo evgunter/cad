@@ -95,7 +95,7 @@ fn author_die() -> Die {
     const HALF: f64 = 0.010; // 20 mm cube
     const PITCH: f64 = 0.005; // pip grid pitch
     let mut log = Vec::new();
-    let doc = TDoc::empty();
+    let doc = TDoc::empty_derived("m4_pr1_doc");
     // Document parameter: pip depth (the variant knob).
     let (doc, _) = step(
         doc,

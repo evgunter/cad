@@ -41,7 +41,7 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
 /// against, referenced as a node exactly like any other input (GS-Q6).
 fn box_doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, p) = insert(
-        ProfileDoc::empty(),
+        ProfileDoc::empty_derived("lib_sel1_geoselect"),
         Node::Profile(fixture::desc(
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
@@ -67,7 +67,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 }
 
 fn no_params() -> ParamEnv<f64> {
-    ProfileDoc::empty().param_env::<f64>()
+    ProfileDoc::empty_derived("lib_sel1_geoselect").param_env::<f64>()
 }
 
 fn all(kind: EntityKind) -> Selector {

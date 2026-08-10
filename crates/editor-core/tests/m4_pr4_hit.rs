@@ -115,7 +115,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
     // overlapping union (fragments/seams), split (both halves),
     // partial revolve (bands/meridians/caps), linear pattern
     // (instances).
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr4_hit");
     let (doc, a) = {
         let (doc, p) = insert(
             doc,
@@ -229,7 +229,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
 #[test]
 fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     // Failed / poisoned doors.
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr4_hit");
     let (doc, p) = insert(
         doc,
         Node::Profile(desc(
