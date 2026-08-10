@@ -75,7 +75,10 @@ fn r1_replay_bit_identity_adversarial() {
             value: -0.0,
         },
     }];
-    let mut doc = Doc::empty_derived("review_m4_pr1").apply(&log[0]).unwrap().doc;
+    let mut doc = Doc::empty_derived("review_m4_pr1")
+        .apply(&log[0])
+        .unwrap()
+        .doc;
     let mut minted = Vec::new();
     for &v in &adversarial {
         let e = point_edit(len(v));
@@ -116,7 +119,10 @@ fn r1_replay_bit_identity_adversarial() {
 #[test]
 fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
     let (pos, _) = apply_all(Doc::empty_derived("review_m4_pr1"), &[point_edit(len(0.0))]);
-    let (neg, _) = apply_all(Doc::empty_derived("review_m4_pr1"), &[point_edit(len(-0.0))]);
+    let (neg, _) = apply_all(
+        Doc::empty_derived("review_m4_pr1"),
+        &[point_edit(len(-0.0))],
+    );
     // Bitwise the docs DIFFER…
     let vp = eval::<f64>(
         pos.node(pos.order()[0])

@@ -1085,7 +1085,10 @@ fn workspace_open_scans_headers_and_resolves_a_pinned_reference() {
             pin: wanted,
         })
         .expect("a true reference resolves");
-    assert!(resolved.bit_eq(&doc_a), "resolve hands back the replayed document");
+    assert!(
+        resolved.bit_eq(&doc_a),
+        "resolve hands back the replayed document"
+    );
     // The id is data on the resolved value too.
     assert_eq!(resolved.id(), doc_a.id());
 }
@@ -1114,7 +1117,7 @@ fn workspace_duplicate_id_refuses_naming_both_paths() {
 /// accept-updated-version recourse.
 #[test]
 fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
-    use pncad::document::{DocParam, Dimension, DocEdit, ParamName};
+    use pncad::document::{Dimension, DocEdit, DocParam, ParamName};
     let dir = WsDir::new("pin");
     let (doc, text) = ws_doc("ws-pin");
     let stale_pin = pncad::document::content_pin(&doc).expect("the pin computes");
@@ -1143,10 +1146,7 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
         pin: stale_pin,
     }) {
         Err(pncad::workspace::WorkspaceError::PinMismatch {
-            id,
-            wanted,
-            found,
-            ..
+            id, wanted, found, ..
         }) => {
             assert_eq!(id, doc.id());
             assert_eq!(wanted, stale_pin);

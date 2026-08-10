@@ -1234,7 +1234,10 @@ fn qualifier_delta_yields_predicate_flip_without_any_flip_set_evidence() {
     // the doc is UNCHANGED — the diff-engine and doc-diff lanes have
     // nothing (the population-cancel shape), yet the diagnosis is an
     // honest PredicateFlip derived from recorded data.
-    let (doc, n) = insert(ProfileDoc::empty_derived("m4_pr4_resolve"), Node::Declare { pairs: vec![] });
+    let (doc, n) = insert(
+        ProfileDoc::empty_derived("m4_pr4_resolve"),
+        Node::Declare { pairs: vec![] },
+    );
     let (doc, m) = insert(doc, Node::Declare { pairs: vec![] });
     let f = name1(EntityKind::Body, n, RoleSeg::OutputBody);
     let p = name1(EntityKind::Body, m, RoleSeg::OutputBody);

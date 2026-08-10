@@ -1,74 +1,75 @@
-//! Canonical semantic bytes and the content pin (ASM-1 D-2/D-3).
+//! Canonical bytes and the content pin (ASM-1 D-2/D-3, as amended
+//! 2026-08-10: include-by-default).
 //!
-//! [`canonical_bytes`] serializes exactly the SEMANTIC projection of
-//! a document — what makes two documents the same VERSION of a part
-//! (ASSEMBLY-DESIGN A4):
+//! [`canonical_bytes`] serializes the REPLAYED document — the same
+//! deterministic machinery the save body uses (BTreeMaps, pair-list
+//! structural keys, ryu shortest-round-trip floats) — with exactly
+//! TWO exclusions, each structurally justified:
 //!
-//! - INCLUDED: nodes (with their structural params and expressions),
-//!   insertion order, document params, the recorded ε (semantic: two
-//!   documents differing only in ε are different documents — the A2
-//!   seam rule), and witnesses (branch selection is geometry).
-//! - EXCLUDED: the edit log (two edit histories reaching one snapshot
-//!   pin identically; undo history must not move pins), the monotone
-//!   `next_id` counter (history residue of deletions — it constrains
-//!   future minting, not present content), metadata and appearance
-//!   (affordance, never semantics), and the [`DocumentId`] itself
-//!   (the pin answers "which version", the id "which part" — a
-//!   retargeted id with unchanged content keeps its pin).
+//! - the **edit log** — history is not state: two edit paths to one
+//!   snapshot are the same version, and undo must not move pins
+//!   (the log never appears here because the input is a [`ProfileDoc`]
+//!   value, not a save file; callers holding a (snapshot, log) pair
+//!   pin the replayed state, [`super::Loaded::doc`] — the same
+//!   replay-before-trust discipline as [`super::save`]/[`super::load`] —
+//!   so pin stability across no-op saves holds by construction);
+//! - the **[`DocumentId`]** — A4: the id answers "which part", the
+//!   pin "which version"; a document copied under a fresh id is
+//!   detectably the same content.
 //!
-//! The bytes are the deterministic JSON the persistence layer already
-//! speaks (BTreeMaps, pair-list structural keys, ryu
-//! shortest-round-trip floats), over the projection struct below —
-//! deliberately NOT the save bytes, which carry the excluded fields.
-//! Callers holding a (snapshot, edit-log) pair pin the REPLAYED
-//! document (the same discipline as [`super::save`]/[`super::load`],
-//! which replay before trusting): [`super::Loaded::doc`] is the value
-//! to pin, so pin stability across no-op saves holds by construction.
+//! Everything else is INCLUDED — nodes, order, params, recorded ε,
+//! witnesses, metadata, appearance, and every FUTURE `Doc` field,
+//! automatically: the preimage is the document's own serde form with
+//! the `id` key removed, not a curated field list, so a grown field
+//! pins by default instead of relying on someone remembering to
+//! classify it (the amendment's silent-omission rationale). New
+//! exclusions are explicit carve-outs earned by a demonstrated
+//! problem, and they ride a schema seam.
+//!
+//! Stated consequence (spec, honest): an appearance-only edit moves
+//! the pin — a consuming assembly sees an update whose
+//! re-verification passes trivially. Accepted v1 noise.
+//!
+//! [`DocumentId`]: crate::ident::DocumentId
 
 use crate::ident::ContentPin;
 use crate::program::ProfileDoc;
 
 use super::{PersistError, check};
 
-/// The serialize-only semantic projection. Field order is the wire
-/// order; changing it (or any included field's serialization) moves
-/// every pin — a format change on A4's version-identity currency,
-/// ratify like a schema bump.
-#[derive(serde::Serialize)]
-struct CanonicalDoc<'a> {
-    /// The nodes, by stable id.
-    nodes: &'a std::collections::BTreeMap<crate::node::RecipeNodeId, crate::node::Node<crate::program::ProfileProgram>>,
-    /// Insertion order of the live nodes.
-    order: &'a [crate::node::RecipeNodeId],
-    /// Document-level named parameters.
-    params: &'a std::collections::BTreeMap<crate::doc::ParamName, crate::doc::DocParam>,
-    /// The recorded modeling tolerance ε.
-    epsilon: f64,
-    /// Per-node witness data (branch selection is geometry).
-    witnesses:
-        &'a std::collections::BTreeMap<crate::node::RecipeNodeId, crate::witness::WitnessDatum>,
-}
-
-/// The canonical semantic bytes of the CURRENT document state (module
-/// docs: included/excluded fields). Runs the shared validator first
-/// (with an empty log — the projection is of a current state, not a
-/// history), so a document that could not be saved cannot be pinned.
+/// The canonical bytes of the CURRENT document state (module docs:
+/// the full serde form minus the `id` key; the edit log is absent
+/// because the input is the replayed value). Runs the shared
+/// validator first (with an empty log), so a document that could not
+/// be saved cannot be pinned. Deterministic: object keys land in
+/// serde_json's sorted map order, floats through ryu — bit-exact.
 ///
 /// # Errors
 ///
 /// The shared validator's arms ([`PersistError::NonFinite`],
 /// [`PersistError::ProfileProgram`], [`PersistError::Snapshot`]), and
-/// [`PersistError::Serialize`] if the JSON writer itself fails.
+/// [`PersistError::Serialize`] if the JSON writer itself fails or
+/// the serialized document is not the object shape this build wrote
+/// (unreachable short of a serde-impl bug; surfaced, not swallowed).
 pub fn canonical_bytes(doc: &ProfileDoc) -> Result<Vec<u8>, PersistError> {
     check::validate_document(doc, &[])?;
-    let projection = CanonicalDoc {
-        nodes: &doc.nodes,
-        order: &doc.order,
-        params: &doc.params,
-        epsilon: doc.epsilon,
-        witnesses: &doc.witnesses,
+    let mut value = serde_json::to_value(doc).map_err(|e| PersistError::Serialize {
+        message: e.to_string(),
+    })?;
+    let Some(object) = value.as_object_mut() else {
+        return Err(PersistError::Serialize {
+            message: "canonical projection: the document did not serialize as an object".into(),
+        });
     };
-    let json = serde_json::to_string(&projection).map_err(|e| PersistError::Serialize {
+    // The ONE field carve-out (D-3 as amended): identity is not
+    // content. The key is structurally present (`Doc::id` has no
+    // skip attribute); its absence is a serde-impl bug, surfaced.
+    if object.remove("id").is_none() {
+        return Err(PersistError::Serialize {
+            message: "canonical projection: the document object carries no `id` key".into(),
+        });
+    }
+    let json = serde_json::to_string(&value).map_err(|e| PersistError::Serialize {
         message: e.to_string(),
     })?;
     Ok(json.into_bytes())

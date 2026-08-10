@@ -46,7 +46,10 @@ impl DocumentId {
     /// what the save header and serde forms emit, so a non-canonical
     /// spelling is a tampered or foreign file, not data.
     pub fn parse_hex(text: &str) -> Option<Self> {
-        if text.len() != 32 || !text.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        if text.len() != 32
+            || !text
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
         {
             return None;
         }
@@ -110,7 +113,10 @@ impl ContentPin {
     /// Parses the canonical text form — exactly 64 lowercase hex
     /// digits, anything else refused (`None`).
     pub fn parse_hex(text: &str) -> Option<Self> {
-        if text.len() != 64 || !text.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        if text.len() != 64
+            || !text
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
         {
             return None;
         }

@@ -21,8 +21,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::document::{
-    ContentPin, DocRef, DocumentId, PersistError, ProfileDoc, content_pin, header_document_id,
-    load,
+    ContentPin, DocRef, DocumentId, PersistError, ProfileDoc, content_pin, header_document_id, load,
 };
 
 /// Mints a fresh random [`DocumentId`] from OS randomness — the
@@ -37,10 +36,9 @@ use crate::document::{
 /// refuses — surfaced, never papered over with a weaker source.
 pub fn random_document_id() -> Result<DocumentId, WorkspaceError> {
     let mut bytes = [0u8; 16];
-    getrandom::fill(&mut bytes)
-        .map_err(|e| WorkspaceError::RandomnessUnavailable {
-            message: e.to_string(),
-        })?;
+    getrandom::fill(&mut bytes).map_err(|e| WorkspaceError::RandomnessUnavailable {
+        message: e.to_string(),
+    })?;
     Ok(DocumentId(u128::from_be_bytes(bytes)))
 }
 
@@ -49,8 +47,7 @@ pub fn random_document_id() -> Result<DocumentId, WorkspaceError> {
 /// A4: "accept updated version" is a recorded `DocEdit`, planned for
 /// the split/inline unit — pins never move silently). Public so
 /// callers can assert on it without restating prose.
-pub const PIN_MISMATCH_RECOURSE: &str =
-    "the referenced document changed since this reference was pinned; if the new version is \
+pub const PIN_MISMATCH_RECOURSE: &str = "the referenced document changed since this reference was pinned; if the new version is \
      intended, record an \"accept updated version\" edit (the planned pin-moving DocEdit) — \
      references are never retargeted silently";
 

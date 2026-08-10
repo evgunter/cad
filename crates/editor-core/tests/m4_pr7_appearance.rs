@@ -73,7 +73,13 @@ fn block(
 
 #[test]
 fn set_appearance_validates_and_applies_purely() {
-    let (doc, ext) = block(ProfileDoc::empty_derived("m4_pr7_appearance"), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr7_appearance"),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        0.0,
+        1.0,
+    );
     let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
 
     let applied = doc
@@ -135,7 +141,13 @@ fn set_appearance_validates_and_applies_purely() {
 
 #[test]
 fn multi_attribute_per_entity_and_clear_semantics() {
-    let (doc, ext) = block(ProfileDoc::empty_derived("m4_pr7_appearance"), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr7_appearance"),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        0.0,
+        1.0,
+    );
     let body = name1(EntityKind::Body, ext, RoleSeg::OutputBody);
 
     // Clearing an attribute that is not set: loud.
@@ -329,7 +341,13 @@ fn appearance_only_edit_recomputes_zero_nodes() {
 
 #[test]
 fn transform_pass_through_carries_the_attribute_downstream() {
-    let (doc, ext) = block(ProfileDoc::empty_derived("m4_pr7_appearance"), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr7_appearance"),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        0.0,
+        1.0,
+    );
     let (doc, moved) = insert(
         doc,
         Node::Transform {
@@ -359,7 +377,13 @@ fn transform_pass_through_carries_the_attribute_downstream() {
 
 #[test]
 fn deleting_the_minting_node_strands_the_attribute_loudly() {
-    let (doc, ext) = block(ProfileDoc::empty_derived("m4_pr7_appearance"), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr7_appearance"),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        0.0,
+        1.0,
+    );
     let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
     let doc = set(doc, cap.clone(), red());
     // Deleting the extrude is allowed (N5 dangling semantics — the
@@ -389,7 +413,13 @@ fn deleting_the_minting_node_strands_the_attribute_loudly() {
 
 #[test]
 fn failed_target_node_is_a_typed_indeterminate_loss() {
-    let (doc, ext) = block(ProfileDoc::empty_derived("m4_pr7_appearance"), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr7_appearance"),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        0.0,
+        1.0,
+    );
     let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
     let doc = set(doc, cap.clone(), red());
     // Degenerate the extrusion: the node fails, the attachment is
@@ -473,7 +503,13 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
 
 #[test]
 fn structural_count_reduction_vanishes_the_instance_name_loudly() {
-    let (doc, ext) = block(ProfileDoc::empty_derived("m4_pr7_appearance"), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr7_appearance"),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        0.0,
+        1.0,
+    );
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
@@ -684,7 +720,13 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
 
 #[test]
 fn canceled_run_reports_not_evaluated_not_vanished() {
-    let (doc, ext) = block(ProfileDoc::empty_derived("m4_pr7_appearance"), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr7_appearance"),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        0.0,
+        1.0,
+    );
     let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
     let doc = set(doc, cap, red());
     let cancel = CancelToken::new();

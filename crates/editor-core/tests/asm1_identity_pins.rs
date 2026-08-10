@@ -1,17 +1,19 @@
 //! ASM-1 acceptance — document identity + content pins (spec rows
 //! 1–5 and 8, each an executable falsifier).
 //!
-//! The pin is the SHA-256 of the canonical SEMANTIC bytes (spec D-3):
-//! nodes, order, params, recorded ε, witnesses — never the edit log,
-//! metadata, appearance, or the document id. The rows below falsify
-//! each inclusion and each exclusion separately.
+//! The pin is the SHA-256 of the canonical bytes (spec D-3 as
+//! AMENDED 2026-08-10, include-by-default): the full replayed
+//! snapshot with exactly two exclusions — the edit log and the
+//! document id. Metadata and appearance are INCLUDED (rows 4e/4f).
+//! The rows below falsify each inclusion and each exclusion
+//! separately.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod fixture;
 
 use editor_core::{
-    Attr, CapEnd, Dimension, DocEdit, DocParam, DocRef, DocumentId, EntityKind, Expr, Node,
+    Attr, CapEnd, Dimension, DocEdit, DocParam, DocRef, DocumentId, EntityKind, MetaValue, Node,
     ParamName, PersistError, ProfileDoc, REGENERATE_RECOURSE, Rgba8, RoleSeg, SCHEMA_VERSION,
     StableName, WitnessDatum, content_pin, header_document_id, load, save,
 };
@@ -156,28 +158,6 @@ fn row2_undone_edit_pin_unchanged() {
     assert_eq!(content_pin(&undone).unwrap(), before);
 }
 
-/// Row 3 — affordance exclusion: appearance edits never move the pin
-/// (A4: affordance metadata, never semantics).
-#[test]
-fn row3_appearance_edit_pin_unchanged() {
-    let (doc, _, extrude) = exemplar("asm1-row3");
-    let before = content_pin(&doc).unwrap();
-    let cap = StableName {
-        kind: EntityKind::Face,
-        node: extrude,
-        path: vec![RoleSeg::Cap(CapEnd::Top)],
-    };
-    let (painted, _) = step(
-        doc,
-        DocEdit::SetAppearance {
-            name: cap,
-            attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
-        },
-    );
-    assert!(!painted.appearance().is_empty(), "the edit landed");
-    assert_eq!(content_pin(&painted).unwrap(), before);
-}
-
 /// Row 3 (and row 5) — id retarget: equal content under two ids
 /// keeps its pin; the ids stay distinct. Identity is not content.
 #[test]
@@ -203,7 +183,7 @@ fn row4_node_edit_moves_pin() {
         DocEdit::SetParam {
             node: extrude,
             slot: editor_core::SlotId::Distance,
-            value: len(0.625),
+            expr: len(0.625),
         },
     );
     assert_ne!(content_pin(&edited).unwrap(), before);
@@ -235,6 +215,56 @@ fn row4_epsilon_change_moves_pin() {
     let eps = doc.epsilon();
     let (edited, _) = step(doc, DocEdit::SetTolerance { eps: eps * 2.0 });
     assert_ne!(content_pin(&edited).unwrap(), before);
+}
+
+/// Row 4e — an appearance edit moves the pin (D-3 as amended:
+/// include-by-default; the spec states the consequence honestly —
+/// an appearance-only update re-verifies trivially, accepted v1
+/// noise).
+#[test]
+fn row4_appearance_edit_moves_pin() {
+    let (doc, _, extrude) = exemplar("asm1-row4e");
+    let before = content_pin(&doc).unwrap();
+    let cap = StableName {
+        kind: EntityKind::Face,
+        node: extrude,
+        path: vec![RoleSeg::Cap(CapEnd::Top)],
+    };
+    let (painted, _) = step(
+        doc,
+        DocEdit::SetAppearance {
+            name: cap,
+            attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
+        },
+    );
+    assert!(!painted.appearance().is_empty(), "the edit landed");
+    assert_ne!(content_pin(&painted).unwrap(), before);
+}
+
+/// Row 4f — a metadata edit moves the pin (D-3 as amended). The
+/// document-level metadata MAP has no edit door in v1, so the
+/// executable metadata edit is the appearance record's D7 metadata
+/// (`SetAppearanceMeta`) — REPORTED in the PR.
+#[test]
+fn row4_metadata_edit_moves_pin() {
+    let (doc, _, extrude) = exemplar("asm1-row4f");
+    let before = content_pin(&doc).unwrap();
+    let body = StableName {
+        kind: EntityKind::Body,
+        node: extrude,
+        path: vec![],
+    };
+    let mut m = std::collections::BTreeMap::new();
+    m.insert("v".to_owned(), MetaValue::Int(1));
+    let (annotated, _) = step(
+        doc,
+        DocEdit::SetAppearanceMeta {
+            name: body,
+            key: "tool.example/pin-row".into(),
+            value: MetaValue::Map(m),
+        },
+    );
+    assert_ne!(content_pin(&annotated).unwrap(), before);
 }
 
 /// Row 4d — a witness change moves the pin (branch selection is

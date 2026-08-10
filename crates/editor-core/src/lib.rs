@@ -44,10 +44,10 @@ pub use eval::{
     EvalOutcome, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeResult, NodeValue, SplitSide,
     ValuePayload, evaluate,
 };
-pub use ident::{ContentPin, DocRef, DocumentId};
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
 };
+pub use ident::{ContentPin, DocRef, DocumentId};
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
     ALL_SURFACE_KINDS, CapEnd, Cmp, ContactClass, CurveKind, CurveKindSet, DeclareError,

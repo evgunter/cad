@@ -142,7 +142,11 @@ fn depth_param() -> TEdit {
 /// interleaved (Transform, Subtract) pairs.
 fn author_theirs() -> Authored {
     let mut log = Vec::new();
-    let (doc, _) = step(TDoc::empty_derived("review_m4_pr1_die"), &mut log, depth_param());
+    let (doc, _) = step(
+        TDoc::empty_derived("review_m4_pr1_die"),
+        &mut log,
+        depth_param(),
+    );
     let (doc, cube_p) = step(
         doc,
         &mut log,

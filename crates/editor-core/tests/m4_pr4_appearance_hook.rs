@@ -196,7 +196,13 @@ fn ambiguous_loss_enriches_by_table_lookup_at_the_recorded_site() {
 
 #[test]
 fn node_gone_loss_enriches_with_the_derived_deletion_edit() {
-    let (doc, ext) = block(ProfileDoc::empty_derived("m4_pr4_appearance_hook"), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr4_appearance_hook"),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        0.0,
+        1.0,
+    );
     let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
     let doc = set(doc, cap.clone(), red());
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ext });
@@ -229,7 +235,13 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
     // Count 3 -> 2 vanishes instance 2's face name; the coarse loss
     // (empty structural candidates) enriches to the pinned
     // StructuralParam diagnosis plus the last-good tombstone.
-    let (doc, ext) = block(ProfileDoc::empty_derived("m4_pr4_appearance_hook"), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr4_appearance_hook"),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        0.0,
+        1.0,
+    );
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
@@ -375,7 +387,13 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
     );
 
     // Canceled: the not-evaluated arm, with the node made explicit.
-    let (doc2, ext) = block(ProfileDoc::empty_derived("m4_pr4_appearance_hook"), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc2, ext) = block(
+        ProfileDoc::empty_derived("m4_pr4_appearance_hook"),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        0.0,
+        1.0,
+    );
     let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
     let doc2 = set(doc2, cap, red());
     let cancel = CancelToken::new();
@@ -521,7 +539,13 @@ fn rebind_appearance_collision_is_refused_typed() {
 fn suggestion_map_is_total_over_the_store() {
     // A terminal node's cap: nothing wraps it, and the map still
     // carries the key (empty offers, never a dropped row).
-    let (doc, ext) = block(ProfileDoc::empty_derived("m4_pr4_appearance_hook"), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr4_appearance_hook"),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        0.0,
+        1.0,
+    );
     let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
     let doc = set(doc, cap.clone(), red());
     let ev = run(&doc);
