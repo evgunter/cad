@@ -1,0 +1,123 @@
+# TEMPORARY — delete once the hosted PNG lanes are green.
+#
+# render.yml's two montage legs both wedge on their FIRST scene: two
+# fresh freecadcmd processes per lane, each silent for ~295 s of a 300 s
+# budget, on an idle 4-core runner where the same scene takes ~16 s on a
+# developer box. The per-scene log stops immediately after the STEP
+# import, at the point the 3-D view is created.
+#
+# That is not reproducible on the dev host right now (load average 24 on
+# 8 cores makes every local timing meaningless — render.sh's own budget
+# note records 106 s for one scene at load 13), so the diagnosis goes
+# where the failure actually lives. This workflow renders ONE scene and,
+# if it has not produced a frame by `wait_secs`, dumps every thread's
+# backtrace and kernel wait channel before killing it — plus the GL/font
+# environment probe that says whether the runner has a usable GLX at
+# all.
+name: render debug (temporary)
+
+on:
+  workflow_dispatch:
+    inputs:
+      wait_secs:
+        description: "Seconds to wait for the frame before dumping a backtrace"
+        required: false
+        default: "90"
+      scene:
+        description: "Scene name to render"
+        required: false
+        default: "plate"
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      FC: /home/runner/freecad-appimage/squashfs-root/usr/bin/freecadcmd
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: render-demos
+          workspaces: |
+            .
+            demos/tour
+      - name: demo tour (scene inputs)
+        run: cd demos/tour && cargo run --release -- ../out
+
+      - name: cache freecad
+        id: cache-freecad
+        uses: actions/cache@v4
+        with:
+          path: ~/freecad-appimage
+          key: freecad-1.1.2-appimage-extracted
+      - name: install freecad (AppImage 1.1.2, checksum-verified)
+        if: steps.cache-freecad.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/freecad-appimage && cd ~/freecad-appimage
+          curl -sLO https://github.com/FreeCAD/FreeCAD/releases/download/1.1.2/FreeCAD_1.1.2-Linux-x86_64-py311.AppImage
+          curl -sLO https://github.com/FreeCAD/FreeCAD/releases/download/1.1.2/FreeCAD_1.1.2-Linux-x86_64-py311.AppImage-SHA256.txt
+          sha256sum -c FreeCAD_1.1.2-Linux-x86_64-py311.AppImage-SHA256.txt
+          chmod +x FreeCAD_1.1.2-Linux-x86_64-py311.AppImage
+          ./FreeCAD_1.1.2-Linux-x86_64-py311.AppImage --appimage-extract > /dev/null
+          rm FreeCAD_1.1.2-Linux-x86_64-py311.AppImage
+
+      # render.yml's list, plus the tools this diagnosis needs.
+      - name: deps (render.yml's set + gdb + glxinfo + fonts)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libglu1-mesa \
+            libxrender1 libxcursor1 libxinerama1 libxft2 libfontconfig1 \
+            python3-venv gdb mesa-utils fontconfig fonts-dejavu-core
+
+      # Does this runner have a usable GL at all, and does the AppImage
+      # have everything it links against? Never fails the job — the
+      # answers are the point, including the negative ones.
+      - name: environment probe
+        run: |
+          set +e
+          echo "== cores / memory"; nproc; free -g | head -2
+          echo "== unresolved libs in freecadcmd"
+          ldd "$FC" 2>&1 | grep -i "not found" || echo "  (none)"
+          echo "== glxinfo under Xvfb (software)"
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1600x1200x24" \
+            glxinfo -B 2>&1 | head -25
+          echo "== glxinfo WITHOUT LIBGL_ALWAYS_SOFTWARE"
+          xvfb-run -a --server-args="-screen 0 1600x1200x24" glxinfo -B 2>&1 | head -12
+          echo "== fonts"; fc-list 2>/dev/null | wc -l
+          echo "== dbus"; echo "DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-unset}"
+
+      - name: one scene, backtrace if it wedges
+        run: |
+          mkdir -p demos/out/stage/renders-freecad
+          cat > /tmp/probe.sh <<'EOS'
+          set -u
+          cd demos/out/stage
+          env LIBGL_ALWAYS_SOFTWARE=1 QT_QPA_PLATFORM=offscreen \
+            "$FC" ../../render_freecad.py step "scene=$SCENE" .. renders-freecad \
+            > /tmp/scene.log 2>&1 &
+          pid=$!
+          for _ in $(seq 1 "$WAIT"); do
+            [ -f "renders-freecad/$SCENE.png" ] && break
+            kill -0 $pid 2>/dev/null || break
+            sleep 1
+          done
+          if [ -f "renders-freecad/$SCENE.png" ]; then
+            echo "=== RENDERED OK ($(stat -c %s "renders-freecad/$SCENE.png") bytes)"
+          else
+            echo "=== WEDGED after ${WAIT}s — thread state"
+            for t in /proc/$pid/task/*; do
+              [ -d "$t" ] || continue
+              echo "  tid $(basename "$t") comm=$(cat "$t/comm" 2>/dev/null) wchan=$(cat "$t/wchan" 2>/dev/null)"
+            done
+            echo "=== gdb: thread apply all bt"
+            sudo gdb -p $pid -batch -ex "thread apply all bt" 2>&1 | head -250
+          fi
+          echo "=== scene log"
+          cat /tmp/scene.log
+          kill -9 $pid 2>/dev/null || true
+          EOS
+          WAIT='${{ inputs.wait_secs }}' SCENE='${{ inputs.scene }}' FC="$FC" \
+            xvfb-run -a --server-args="-screen 0 1600x1200x24" bash /tmp/probe.sh
