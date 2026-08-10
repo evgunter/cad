@@ -181,14 +181,17 @@ pub enum LiftOutcome {
     Lifted {
         /// The minted program.
         program: Vec<Step<f64>>,
-        /// How far the chain's seam was rotated from the source's
-        /// vertex 0 (0 for the carrier forms, which author no seam).
+        /// How far the seam was rotated from the source's vertex 0.
         rotation: usize,
         /// Bit-identical, or value-equal with derived bits shifted.
         fidelity: Fidelity,
-        /// The largest ulp distance over all compared values (0 iff
-        /// [`Fidelity::BitIdentical`]).
+        /// The largest ulp distance over all compared values. NOT a
+        /// restatement of `fidelity`: a pair straddling zero (0 against
+        /// sin(pi)) is ulp-far and value-near, so this reads huge while
+        /// `worst_abs` reads ~1e-16.
         worst_ulps: u64,
+        /// The largest absolute difference over all compared values.
+        worst_abs: f64,
     },
     /// A structural wall: the chain vocabulary has no shape for it.
     Refused(LiftRefusal),
@@ -213,6 +216,8 @@ pub enum LiftOutcome {
         /// How far off the worst compared value was, in ulps
         /// ([`u64::MAX`] when the shapes do not even correspond).
         worst_ulps: u64,
+        /// The largest absolute difference over all compared values.
+        worst_abs: f64,
     },
 }
 
@@ -262,22 +267,26 @@ pub fn lift_checked(loop_: &ProfileLoop<f64>) -> LiftOutcome {
         }
     };
     let want = rotated(loop_, rotation);
-    match compare(&want, &replayed) {
-        Comparison::Equal { worst_ulps } => LiftOutcome::Lifted {
+    let verdict = compare(&want, &replayed);
+    if verdict.equal {
+        LiftOutcome::Lifted {
             program,
             rotation,
-            fidelity: if worst_ulps == 0 {
+            fidelity: if verdict.bit_identical {
                 Fidelity::BitIdentical
             } else {
                 Fidelity::ValueEqual
             },
-            worst_ulps,
-        },
-        Comparison::Differs { worst_ulps } => LiftOutcome::Mismatch {
+            worst_ulps: verdict.worst_ulps,
+            worst_abs: verdict.worst_abs,
+        }
+    } else {
+        LiftOutcome::Mismatch {
             program,
             rotation,
-            worst_ulps,
-        },
+            worst_ulps: verdict.worst_ulps,
+            worst_abs: verdict.worst_abs,
+        }
     }
 }
 
@@ -312,9 +321,9 @@ fn lift_seamed(loop_: &ProfileLoop<f64>) -> Result<(Vec<Step<f64>>, usize), Lift
     // The closed-carrier forms first: a loop that IS a carrier has no
     // seam to author, and `circle`/`circle_split` say so in one step.
     if !declared.iter().any(|d| *d)
-        && let Some(program) = carrier_form(loop_)
+        && let Some(found) = carrier_form(loop_)
     {
-        return Ok((program, 0));
+        return Ok(found);
     }
 
     let rotation = match declared.iter().position(|d| !*d) {
@@ -326,28 +335,57 @@ fn lift_seamed(loop_: &ProfileLoop<f64>) -> Result<(Vec<Step<f64>>, usize), Lift
 
 /// Try the one-step carrier spellings, VERIFYING each by replay rather
 /// than by re-deriving a carrier-identity predicate.
-fn carrier_form(loop_: &ProfileLoop<f64>) -> Option<Vec<Step<f64>>> {
+///
+/// The seam is searched, not assumed: `circle` fixes its own seam at
+/// the +x pole and `circle_split` at `phase`, so a hand-authored carrier
+/// loop generally corresponds to one of them ROTATED. Returns the
+/// program and the rotation it matched at, preferring an exact match.
+fn carrier_form(loop_: &ProfileLoop<f64>) -> Option<(Vec<Step<f64>>, usize)> {
     let n = loop_.vertices.len();
-    let a = loop_.vertices.first()?;
-    let b = loop_.vertices.get(1 % n)?;
-    let (centre, radius) = arc_carrier(a.pos, b.pos, a.bulge)?;
-    let phase = (a.pos.y - centre.y).atan2(a.pos.x - centre.x);
-
-    let mut candidates = Vec::with_capacity(2);
-    if n == 2 {
-        candidates.push(vec![Step::Circle { centre, radius }]);
+    // Only a loop that is arcs all the way round can be one carrier;
+    // this guard keeps the search off every polygon.
+    if n < 2 || loop_.vertices.iter().any(|v| v.bulge == 0.0) {
+        return None;
     }
-    candidates.push(vec![Step::CircleSplit {
-        centre,
-        radius,
-        n,
-        phase,
-    }]);
-
-    candidates.into_iter().find(|program| {
-        replay(program)
-            .is_ok_and(|replayed| matches!(compare(loop_, &replayed), Comparison::Equal { .. }))
-    })
+    let mut best: Option<(Vec<Step<f64>>, usize, u64)> = None;
+    for r in 0..n {
+        let a = loop_.vertices[r];
+        let b = loop_.vertices[(r + 1) % n];
+        let Some((centre, radius)) = arc_carrier(a.pos, b.pos, a.bulge) else {
+            continue;
+        };
+        let phase = (a.pos.y - centre.y).atan2(a.pos.x - centre.x);
+        let want = rotated(loop_, r);
+        let mut candidates = Vec::with_capacity(2);
+        if n == 2 {
+            candidates.push(vec![Step::Circle { centre, radius }]);
+        }
+        candidates.push(vec![Step::CircleSplit {
+            centre,
+            radius,
+            n,
+            phase,
+        }]);
+        for program in candidates {
+            let Ok(replayed) = replay(&program) else {
+                continue;
+            };
+            let verdict = compare(&want, &replayed);
+            if !verdict.equal {
+                continue;
+            }
+            if verdict.bit_identical {
+                return Some((program, r));
+            }
+            if best
+                .as_ref()
+                .is_none_or(|(_, _, u)| verdict.worst_ulps < *u)
+            {
+                best = Some((program, r, verdict.worst_ulps));
+            }
+        }
+    }
+    best.map(|(program, r, _)| (program, r))
 }
 
 /// The chain spelling, seamed at `rotation`, with the same-carrier
@@ -401,25 +439,30 @@ fn chain_form(
 }
 
 /// Turn `arc_to` into `arc_continue` wherever the DRIVER says the
-/// junction is carrier identity (§5-1's class, met by the binder's own
-/// refusal rather than by a re-derived predicate).
+/// junction is a carrier continuation (§5-1's class, met by the
+/// binder's own refusal rather than by a re-derived predicate).
+///
+/// A cocircular arc/arc junction has zero turn, so `arc_to` classifies
+/// it `JunctionTangent` before any carrier-identity question is asked;
+/// `SameCarrierJunction` is the spelling the tangent-arc and fillet
+/// doors use for the same fact. Both are triggers. The substitution is
+/// kept only if it makes PROGRESS (the next refusal, if any, is later
+/// in the program), so a genuine two-carrier tangency — which wants a
+/// declaration, not a subdivision — is never laundered into one.
 fn repair_same_carrier(
     mut program: Vec<Step<f64>>,
     origin: &[usize],
 ) -> Result<Vec<Step<f64>>, LiftRefusal> {
-    // Each pass converts at least one step, so the program's length
-    // bounds the number of passes.
+    // Each accepted substitution moves the refusal strictly later, so
+    // the program's length bounds the number of passes.
     for _ in 0..=program.len() {
         let error = match replay(&program) {
             Ok(_) => return Ok(program),
             Err(e) => e,
         };
-        if !matches!(
-            error.kind,
-            ReplayErrorKind::Path(PathError::SameCarrierJunction { .. })
-        ) {
+        if !is_carrier_continuation(&error.kind) {
             // Some other geometric wall: leave it for the census to
-            // record with the driver's own words.
+            // record in the driver's own words.
             return Ok(program);
         }
         match program.get(error.step) {
@@ -428,8 +471,14 @@ fn repair_same_carrier(
                 ..
             }) => {
                 let p = *p;
+                let saved = program.clone();
                 if let Some(slot) = program.get_mut(error.step) {
                     *slot = Step::ArcContinue(p);
+                }
+                match replay(&program) {
+                    Ok(_) => return Ok(program),
+                    Err(next) if next.step > error.step => {}
+                    Err(_) => return Ok(saved),
                 }
             }
             Some(Step::ArcTo {
@@ -444,6 +493,16 @@ fn repair_same_carrier(
         }
     }
     Ok(program)
+}
+
+/// Is this refusal the "the incoming carrier just continues" fact?
+fn is_carrier_continuation(kind: &ReplayErrorKind<f64>) -> bool {
+    matches!(
+        kind,
+        ReplayErrorKind::Path(
+            PathError::SameCarrierJunction { .. } | PathError::JunctionTangent { .. }
+        )
+    )
 }
 
 // ------------------------------------------------------------------
@@ -469,24 +528,32 @@ fn rotated(loop_: &ProfileLoop<f64>, rotation: usize) -> ProfileLoop<f64> {
 }
 
 /// The differential verdict for one loop pair.
-enum Comparison {
-    /// The same shape, `worst_ulps` = 0 iff bit for bit.
-    Equal {
-        /// Largest ulp gap seen.
-        worst_ulps: u64,
-    },
-    /// Not the same shape.
-    Differs {
-        /// Largest ulp gap seen.
-        worst_ulps: u64,
-    },
+struct Verdict {
+    /// The two loops agree to within the value-equal thresholds.
+    equal: bool,
+    /// Every compared value matched bit for bit.
+    bit_identical: bool,
+    /// Largest ulp gap seen.
+    worst_ulps: u64,
+    /// Largest absolute gap seen.
+    worst_abs: f64,
 }
 
-fn compare(want: &ProfileLoop<f64>, got: &ProfileLoop<f64>) -> Comparison {
-    if want.vertices.len() != got.vertices.len() {
-        return Comparison::Differs {
+impl Verdict {
+    /// The verdict for loops that do not even correspond structurally.
+    fn incomparable() -> Self {
+        Self {
+            equal: false,
+            bit_identical: false,
             worst_ulps: u64::MAX,
-        };
+            worst_abs: f64::INFINITY,
+        }
+    }
+}
+
+fn compare(want: &ProfileLoop<f64>, got: &ProfileLoop<f64>) -> Verdict {
+    if want.vertices.len() != got.vertices.len() {
+        return Verdict::incomparable();
     }
     let joints = |l: &ProfileLoop<f64>| {
         let mut js = l.tangent_joints.clone();
@@ -495,26 +562,31 @@ fn compare(want: &ProfileLoop<f64>, got: &ProfileLoop<f64>) -> Comparison {
         js
     };
     if joints(want) != joints(got) {
-        return Comparison::Differs {
-            worst_ulps: u64::MAX,
-        };
+        return Verdict::incomparable();
     }
-    let mut worst = 0u64;
-    let mut equal = true;
+    let mut verdict = Verdict {
+        equal: true,
+        bit_identical: true,
+        worst_ulps: 0,
+        worst_abs: 0.0,
+    };
     for (w, g) in want.vertices.iter().zip(got.vertices.iter()) {
         for (x, y) in [(w.pos.x, g.pos.x), (w.pos.y, g.pos.y), (w.bulge, g.bulge)] {
+            if x.to_bits() != y.to_bits() {
+                verdict.bit_identical = false;
+            }
             let gap = ulps(x, y);
-            worst = worst.max(gap);
-            if gap > VALUE_EQUAL_ULPS && (x - y).abs() > VALUE_EQUAL_ABS {
-                equal = false;
+            let abs = (x - y).abs();
+            verdict.worst_ulps = verdict.worst_ulps.max(gap);
+            if abs > verdict.worst_abs {
+                verdict.worst_abs = abs;
+            }
+            if gap > VALUE_EQUAL_ULPS && abs > VALUE_EQUAL_ABS {
+                verdict.equal = false;
             }
         }
     }
-    if equal {
-        Comparison::Equal { worst_ulps: worst }
-    } else {
-        Comparison::Differs { worst_ulps: worst }
-    }
+    verdict
 }
 
 /// Distance in representable doubles, via the standard monotone
