@@ -68,7 +68,7 @@ pub use persist::{
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramRefusal, ProgramStep,
-    ProgramTarget,
+    ProgramTarget, RecordedProgramError,
 };
 pub use resolve::{
     Diagnosis, FlipSet, HitTestError, MeshPatchKey, NodeVerdictDelta, PredicateDivergence,

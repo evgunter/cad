@@ -17,7 +17,15 @@ become a kernel dependency.
 
 ## Run
 
-**Renders are hosted.** One command does the whole thing — it checks
+**Renders are hosted, and the hosted lane is the canonical producer**
+(ratified on #338; the full re-baseline landed with the #301 staleness
+refresh). Every committed frame in `renders/` and `renders-freecad/` is
+the hosted workflow's output — llvmpipe under Xvfb, FreeCAD 1.1.2
+AppImage — and byte-stability ("a clean re-render leaves `git status`
+clean") is defined against that producer. A locally-drawn frame carries
+this box's GL stack, **will** differ byte-wise, and must never be
+committed; the guard below and `check_render_provenance.py` enforce the
+commit side. One command does the whole thing — it checks
 your branch is pushed (the runner renders the *pushed* tree), triggers
 `.github/workflows/render.yml`, polls the run, and installs the
 artifacts back into the working tree at their committed paths, where you
@@ -149,10 +157,13 @@ Consequences worth stating:
 * **There is a CI drift gate**, and this is still the only lane that
   can have one — but the reason has moved. CI *can* run FreeCAD (both
   `step-import` and the hosted render lanes provision the same pinned
-  AppImage), so the obstacle is no longer availability: it is that the
-  PNG lanes' pixels come out of a GL stack, and a runner's llvmpipe is
-  not this host's, so "unchanged" is not a property a hosted PNG pass
-  can assert. This lane draws no 3-D, so its sheet is byte-reproducible
+  AppImage), so the obstacle is no longer availability. Since the
+  hosted re-baseline the committed PNG frames are the runner's own
+  output, so a hosted PNG pass can now assert "unchanged" on demand;
+  what remains is that the runner image's mesa/llvmpipe drifts month to
+  month, so a firing PNG diff could be an image update rather than a
+  geometry change — a standing CI gate for the PNG lanes still needs
+  the pinned-container work described in render.yml. This lane draws no 3-D, so its sheet is byte-reproducible
   anywhere. `uv sheet drift (demos)` regenerates it and diffs it (the
   tour is ~3s once built, and the sheet is text, so a firing diff is
   readable). A failure is either an uncommitted regeneration or a D9

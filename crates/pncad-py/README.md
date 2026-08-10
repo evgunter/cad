@@ -47,6 +47,32 @@ body.validate()
 print(f"{body.mass_properties().volume:.3e} m^3")      # 2.560e-05 m^3
 ```
 
+Rounds and arcs are the PATHS lattice, where each state of the tip is
+its own class exposing only its legal continuations:
+
+```python
+from pncad import Doc, Node, Open, Start, evaluate, mm
+
+rounded = (
+    Open.at((0 * mm, 0 * mm))
+    .line_to((40 * mm, 0 * mm))   # sharp corner here, arriving east
+    .toward(0.0, 1.0)             # departure ray: north
+    .fillet(6 * mm)               # round where that ray meets the next
+    .toward(-1.0, 0.0)            # arrival ray: west
+    .to((0 * mm, 30 * mm))        # the authored far vertex
+    .line_to(Start)
+)
+doc = Doc()
+plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded)), 8 * mm))
+assert evaluate(doc).succeeded(plate)
+```
+
+The rounded corner is never authored: you give the two rays that would
+have met there and the arc is fitted to their virtual intersection,
+trimming both. Off-lattice moves — a second director, `.tangent()` on
+a point with no incoming leg, a leading `.fillet` — are not methods
+that refuse; they are methods that do not exist.
+
 `crates/pncad-py/examples/bracket.py` is the full journey — build,
 evaluate, validate, measure, export STEP, and re-import the result to
 prove it round-trips.
@@ -86,8 +112,9 @@ guide:
 - `docs/guide/north-star-audit.md` — **what is not bound yet**, gap by
   gap. Read this before assuming a feature exists.
 - `pncad.pyi` — the stubs, checked against the compiled module by
-  `tests/test_stubs.py`. Static checking is `ty`'s job; the runtime
-  checks live once at the Rust boundary.
+  `tests/test_stubs.py` name for name, and by `ty` for signatures in
+  `tests/test_ty.py` — where the lattice's illegal states are pinned
+  as type errors. The runtime checks live once at the Rust boundary.
 
 ## Tests
 

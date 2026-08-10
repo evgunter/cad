@@ -10,7 +10,7 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use crate::errors::{DimensionError, ErrorClass, canonical_unit, dimension_tag};
-use crate::tags::{expr_dimension_error_tag, persist_error_tag};
+use crate::tags::{expr_dimension_error_tag, path_error_tag, persist_error_tag};
 use pncad::document::Dimension;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -53,6 +53,7 @@ fn error_classes_name_the_python_hierarchy() {
     assert_eq!(ErrorClass::Persist.class_name(), "PersistError");
     assert_eq!(ErrorClass::Export.class_name(), "ExportError");
     assert_eq!(ErrorClass::StepImport.class_name(), "StepImportError");
+    assert_eq!(ErrorClass::Path.class_name(), "PathError");
 }
 
 /// LIB-DOORS F5: the binding matches `Expr::literal`'s OWN refusals
@@ -77,6 +78,31 @@ fn persist_error_tags_are_stable() {
     assert_eq!(persist_error_tag(&header), "header");
     let unknown = pncad::document::load("schema: 9999\n{}").expect_err("a future schema refuses");
     assert_eq!(persist_error_tag(&unknown), "unknown_schema");
+}
+
+#[test]
+fn path_error_tags_are_stable() {
+    use pncad::prelude::{Open, Start, circle, p2};
+
+    let zero = circle(p2(0.0, 0.0), 0.0).expect_err("a zero radius refuses");
+    assert_eq!(path_error_tag(&zero), "nonpositive_circle_radius");
+
+    let tangent = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(1.0, 0.0))
+        .expect("a leg east")
+        .angle(0.0)
+        .expect_err("a corner tangent to its incoming leg refuses");
+    assert_eq!(path_error_tag(&tangent), "junction_tangent");
+
+    let overdetermined = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(1.0, 0.0))
+        .expect("a leg east")
+        .tangent()
+        .tangent_arc_to(Start)
+        .expect_err("a tangent LINE close refuses always");
+    assert_eq!(path_error_tag(&overdetermined), "tangent_line_close");
 }
 
 /// Read one flat `key = "value"` TOML table, selected by its exact

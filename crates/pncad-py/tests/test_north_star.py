@@ -16,16 +16,22 @@ import unittest
 from pathlib import Path
 
 from pncad import (
+    ArcSweep,
     BooleanOp,
     Doc,
     DocEdit,
     DocParam,
     Node,
+    Open,
     ParamName,
+    Start,
+    circle,
+    circle_split,
     deg,
     evaluate,
     load,
     m,
+    rad,
 )
 
 
@@ -247,6 +253,149 @@ class TestPlateParam(unittest.TestCase):
         self.assertEqual(ctx.exception.kind, "profile_replay")
 
 
+# ------------------------------------------------------------------
+# The rows G1 unblocked (LIB-PYG1). Each rebuilds the scene from the
+# PATHS lattice — the same verbs, the same authored numbers as the
+# Rust source — and asserts the scene's own oracle.
+# ------------------------------------------------------------------
+
+
+def y_axis(doc):
+    return doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0)))
+
+
+class TestBracket(unittest.TestCase):
+    """Tour scene `bracket` (demos/tour/src/bodies.rs, row 1): an L
+    outline with one r = 0.5 inner fillet, extruded 0.75.
+
+    The Rust scene asserts no closed form — the tour's generic ladder
+    (validate, tessellate, mesh-vs-mass-properties) is all it gets —
+    so the oracle here is derived and stated: the L's area is 5, and
+    rounding the reflex corner ADDS the region between the corner and
+    the arc, r^2 - pi*r^2/4.
+
+    `toward` rather than `angle(PI)`: only the ratio of the components
+    carries meaning, so the unit ray is stored verbatim and the two
+    trim vertices are exact — `sin(PI)` is 1.22e-16, and it would
+    perturb both by an ulp."""
+
+    def test_bracket_matches_the_derived_closed_form(self):
+        outline = (
+            Open.at((0 * m, 0 * m))
+            .line_to((3 * m, 0 * m))
+            .line_to((3 * m, 1 * m))
+            .toward(-1.0, 0.0)  # west, exactly
+            .fillet(0.5 * m)
+            .toward(0.0, 1.0)  # north, exactly
+            .to((1 * m, 3 * m))  # the filleted side ends at its far vertex
+            .line_to((0 * m, 3 * m))
+            .line_to(Start)
+        )
+        # Five sharp corners plus the arc's two tangent points; the
+        # virtual corner at (1, 1) is never a vertex.
+        self.assertEqual(outline.vertex_count, 7)
+
+        doc = Doc()
+        bracket = doc.insert(
+            Node.extrude(doc.insert(Node.profile(outline)), 0.75 * m)
+        )
+        expected = 0.75 * (5.25 - math.pi / 16.0)
+        self.assertAlmostEqual(volume_of(doc, bracket), expected, delta=1e-12)
+
+
+class TestVase(unittest.TestCase):
+    """Tour scene `vase` (demos/tour/src/bodies.rs, row 3): a belly arc
+    bound by a via point, revolved fully about the world y axis.
+
+    Oracle, derived (the Rust scene asserts none): the belly runs on
+    the circle of radius 1.3 centred at (0, 0.8) — on the axis — so
+    the solid of revolution is pi * integral of x(y)^2 dy, which comes
+    out at exactly 2.939 pi."""
+
+    def test_vase_matches_the_derived_closed_form(self):
+        outline = (
+            Open.at((0 * m, 0 * m))
+            .line_to((1.2 * m, 0 * m))
+            .line_to((1.2 * m, 0.3 * m))
+            .arc_via((1.3 * m, 0.8 * m), (0.5 * m, 2.0 * m))
+            .line_to((0.9 * m, 2.5 * m))
+            .line_to((0 * m, 2.5 * m))
+            .line_to(Start)
+        )
+        doc = Doc()
+        vase = doc.insert(
+            Node.revolve(doc.insert(Node.profile(outline)), y_axis(doc), 360 * deg)
+        )
+        self.assertAlmostEqual(volume_of(doc, vase), 2.939 * math.pi, delta=1e-12)
+
+
+class TestSheave(unittest.TestCase):
+    """Tour scene `sheave` (demos/tour/src/bodies.rs, row 4): a grooved
+    pulley — planes, cylinders, two cone shoulders and one torus
+    groove — revolved fully about the world y axis. The Rust scene's
+    own closed form is asserted verbatim.
+
+    Its STRUCTURAL oracle is not: the scene also names its surface
+    census (one torus, two cones), and counting surface kinds from
+    Python needs tessellation or a selector, both still gaps (G11 and
+    the selector surface). The volume is what this row can check."""
+
+    def test_sheave_matches_the_scene_oracle(self):
+        tip = Open.at((0.4 * m, 0 * m))
+        for x, y in [(0.9, 0.0), (0.9, 0.25), (1.6, 0.25), (1.6, 0.0),
+                     (2.0, 0.0), (2.1, 0.2)]:
+            tip = tip.line_to((x * m, y * m))
+        tip = tip.arc_via((1.8 * m, 0.5 * m), (2.1 * m, 0.8 * m))  # r = 0.3 groove
+        for x, y in [(2.0, 1.0), (1.6, 1.0), (1.6, 0.75), (0.9, 0.75),
+                     (0.9, 1.0), (0.4, 1.0)]:
+            tip = tip.line_to((x * m, y * m))
+        outline = tip.line_to(Start)
+
+        doc = Doc()
+        sheave = doc.insert(
+            Node.revolve(doc.insert(Node.profile(outline)), y_axis(doc), 360 * deg)
+        )
+        expected = 2.0 * (1997.0 / 1200.0) * math.pi - 0.189 * math.pi * math.pi
+        volume = volume_of(doc, sheave)
+        self.assertLess(abs((volume - expected) / expected), 1e-12)
+
+
+class TestBossplate(unittest.TestCase):
+    """Tour scene `bossplate` (demos/tour/src/bossplate.rs, row 12): a
+    plate fused with a round boss whose rim is THREE arcs.
+
+    The three-arc rim is the scene's point (the seam is three walls,
+    not two), and it is `circle_split` — the declared-subdivision
+    carrier — not the `circle` primitive, whose private lowering is
+    two semicircles. The Rust scene's closed form is asserted
+    verbatim; its three-seam-arc census needs tessellation, which is
+    still a gap here (G11)."""
+
+    def test_bossplate_matches_the_scene_oracle(self):
+        doc = Doc()
+        plate_outline = (
+            Open.at((0 * m, 0 * m))
+            .line_to((4 * m, 0 * m))
+            .line_to((4 * m, 4 * m))
+            .line_to((0 * m, 4 * m))
+            .line_to(Start)
+        )
+        plate = doc.insert(
+            Node.extrude(doc.insert(Node.profile(plate_outline)), 1.0 * m)
+        )
+        boss_outline = circle_split((2 * m, 2 * m), 0.5 * m, 3, 0 * rad)
+        self.assertEqual(boss_outline.vertex_count, 3, "three arcs, three walls")
+        boss = doc.insert(
+            Node.extrude(
+                doc.insert(Node.profile(boss_outline, elevation=0.4 * m)), 1.2 * m
+            )
+        )
+        fused = doc.insert(Node.boolean(BooleanOp.Union, plate, boss))
+
+        expected = 16.0 + math.pi * 0.25 * 0.6
+        self.assertAlmostEqual(volume_of(doc, fused), expected, delta=1e-6)
+
+
 class TestNamedGapsAreStillGaps(unittest.TestCase):
     """The NO rows' gaps, asserted as absences.
 
@@ -257,7 +406,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
     def test_the_bound_vocabulary_is_exactly_this(self):
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
-            ["boolean", "datum_axis", "extrude", "polygon", "revolve"],
+            ["boolean", "datum_axis", "extrude", "polygon", "profile", "revolve"],
         )
         self.assertEqual(
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
@@ -277,10 +426,29 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             with self.subTest(door=door):
                 self.assertFalse(hasattr(pncad, door), f"{door} is now bound")
 
+        # `circle` left this list when G1 closed (LIB-PYG1): it is a
+        # profile PRIMITIVE, `pncad.circle`, not a node kind, and the
+        # positive form is `TestBossplate` plus `tests/test_paths.py`.
         for node_kind in ["fillet", "loft", "sweep", "tube", "pattern",
-                          "transform", "split", "circle"]:
+                          "transform", "split"]:
             with self.subTest(node=node_kind):
                 self.assertFalse(hasattr(Node, node_kind), f"Node.{node_kind} exists")
+
+    def test_a_profile_is_still_exactly_one_loop(self):
+        """G9: holes have no door. `Node.profile` takes ONE loop, so a
+        list of them is a boundary refusal, not a silently dropped
+        second loop."""
+        outer = circle((0 * m, 0 * m), 2 * m)
+        inner = circle((0 * m, 0 * m), 1 * m)
+        with self.assertRaises(TypeError):
+            Node.profile([outer, inner])
+
+    def test_the_sketch_plane_is_still_an_elevation(self):
+        """G3: `Node.profile` mirrors `Node.polygon`'s plane story
+        exactly — a plane parallel to the world xy-plane, named by an
+        elevation and nothing else."""
+        with self.assertRaises(TypeError):
+            Node.profile(circle((0 * m, 0 * m), 1 * m), plane="yz")
 
 
 if __name__ == "__main__":

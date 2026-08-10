@@ -14,18 +14,20 @@ two cannot drift.
 Refusals are typed: every exception below carries its payload as
 ATTRIBUTES, never as prose to be parsed.
 
+Profile authoring is the PATHS lattice (`Open`, `PathOpen`,
+`PathPoint`, `PathDirectedPoint`, `PathAngle`, `PathDirected`,
+`Start`, `circle`, `circle_split`) plus the straight-segment shortcut
+`Node.polygon`; one loop, on a plane parallel to the world xy-plane.
+
 Deliberately ABSENT, and tracked as named gaps in
-`docs/guide/north-star-audit.md`: the PATHS authoring lattice
-(`PathOpen`/`PathPoint`/`PathAngle`/`PathDirected`, which ships only
-against the v2 program representation, LQ4), tessellation and STL,
-selectors and stable names, and contact declarations. Profile
-authoring here is `Node.polygon` only — one straight-segment loop on
-a plane parallel to the world xy-plane. Named document parameters
+`docs/guide/north-star-audit.md`: multi-loop profiles (holes), non-xy
+sketch planes, loft/sweep/tube, tessellation and STL, selectors and
+stable names, and contact declarations. Named document parameters
 crossed in R1-PARAMS (`ParamName`, `DocParam`,
 `DocEdit.set_doc_param` — guide §3.2).
 """
 
-from typing import Any, Final, Optional
+from typing import Any, Final, Optional, overload
 
 # --- errors -----------------------------------------------------------
 # Every subclass carries its refusal as ATTRIBUTES, never as parsed
@@ -92,6 +94,12 @@ class ExportError(PncadError):
 class StepImportError(PncadError):
     """A STEP text the importer refused (`refused`), or one that
     parsed to a non-solid (`wireframe`)."""
+
+    variant: str
+
+class PathError(PncadError):
+    """The PATHS authoring algebra refused the geometry, at the call
+    site of the verb that wrote it."""
 
     variant: str
 
@@ -171,6 +179,179 @@ inch: Final[LengthUnit]  # `in` is a Python keyword; `quantity` spells it IN
 deg: Final[AngleUnit]
 rad: Final[AngleUnit]
 
+# --- profile authoring: the PATHS lattice ------------------------------
+# PATHS-DESIGN §2. The tip's state is exactly which of {position,
+# angle} it has bound, and each state is its OWN class exposing only
+# its legal continuations — so a double director, `.tangent()` on a
+# plain point, or a leading `.fillet` is a static error here and an
+# AttributeError at runtime, exactly as it is an E0599 in Rust.
+#
+# Two spellings of one verb (an authored point, or `Start`) are
+# @overload pairs, because the RETURN follows the target: targeting
+# `Start` closes the loop.
+
+class StartToken:
+    """The type of `Start`, the bound entry as a value."""
+
+class ArcSweep:
+    """Travel sense about a centre — structural, never a value."""
+
+    Ccw: Final[ArcSweep]
+    Cw: Final[ArcSweep]
+
+class ClosedLoop:
+    """A closed loop and the program that produced it."""
+
+    @property
+    def vertex_count(self) -> int: ...
+    @property
+    def step_count(self) -> int: ...
+
+class Open:
+    """The entry: nothing bound. A token, not a value you construct."""
+
+    @staticmethod
+    def at(p: tuple[Length, Length]) -> PathPoint: ...
+    @staticmethod
+    def angle(theta: Angle) -> PathAngle: ...
+    @staticmethod
+    def toward(dx: float, dy: float) -> PathAngle: ...
+    @staticmethod
+    def at_on(
+        p: tuple[Length, Length],
+        centre: tuple[Length, Length],
+        winding: ArcSweep,
+    ) -> PathDirected: ...
+
+class PathOpen:
+    """A fillet's freshly opened arrival side: nothing bound, and
+    `Start` reachable because the entry is behind us."""
+
+    def at(self, p: tuple[Length, Length]) -> PathPoint: ...
+    def angle(self, theta: Angle) -> PathAngle: ...
+    def toward(self, dx: float, dy: float) -> PathAngle: ...
+    def to(self, target: StartToken) -> ClosedLoop: ...
+    def at_on(
+        self,
+        p: tuple[Length, Length],
+        centre: tuple[Length, Length],
+        winding: ArcSweep,
+    ) -> PathDirected: ...
+    def to_on(
+        self,
+        target: StartToken,
+        centre: tuple[Length, Length],
+        winding: ArcSweep,
+    ) -> ClosedLoop: ...
+
+class PathAngle:
+    """Direction bound, position pending."""
+
+    def at(self, p: tuple[Length, Length]) -> PathDirected: ...
+    def to(self, anchor: tuple[Length, Length]) -> PathDirectedPoint: ...
+
+class PathPoint:
+    """A plain point: position bound, no incoming carrier. There is
+    nothing to inherit here, so `tangent` and `turn` are absent."""
+
+    def angle(self, theta: Angle) -> PathDirected: ...
+    def toward(self, dx: float, dy: float) -> PathDirected: ...
+    @overload
+    def line_to(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
+    @overload
+    def line_to(self, target: StartToken) -> ClosedLoop: ...
+    @overload
+    def arc_to(
+        self, target: tuple[Length, Length], bulge: float
+    ) -> PathDirectedPoint: ...
+    @overload
+    def arc_to(self, target: StartToken, bulge: float) -> ClosedLoop: ...
+    @overload
+    def arc_via(
+        self, via: tuple[Length, Length], target: tuple[Length, Length]
+    ) -> PathDirectedPoint: ...
+    @overload
+    def arc_via(
+        self, via: tuple[Length, Length], target: StartToken
+    ) -> ClosedLoop: ...
+    @overload
+    def arc_center(
+        self,
+        centre: tuple[Length, Length],
+        target: tuple[Length, Length],
+        winding: ArcSweep,
+    ) -> PathDirectedPoint: ...
+    @overload
+    def arc_center(
+        self,
+        centre: tuple[Length, Length],
+        target: StartToken,
+        winding: ArcSweep,
+    ) -> ClosedLoop: ...
+
+class PathDirectedPoint:
+    """A leg end: position bound, and the leg's incoming end tangent
+    available as read-only intrinsic data."""
+
+    def angle(self, theta: Angle) -> PathDirected: ...
+    def toward(self, dx: float, dy: float) -> PathDirected: ...
+    def tangent(self) -> PathDirected: ...
+    def turn(self, delta: Angle) -> PathDirected: ...
+    def arc_continue(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
+    @overload
+    def line_to(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
+    @overload
+    def line_to(self, target: StartToken) -> ClosedLoop: ...
+    @overload
+    def arc_to(
+        self, target: tuple[Length, Length], bulge: float
+    ) -> PathDirectedPoint: ...
+    @overload
+    def arc_to(self, target: StartToken, bulge: float) -> ClosedLoop: ...
+    @overload
+    def arc_via(
+        self, via: tuple[Length, Length], target: tuple[Length, Length]
+    ) -> PathDirectedPoint: ...
+    @overload
+    def arc_via(
+        self, via: tuple[Length, Length], target: StartToken
+    ) -> ClosedLoop: ...
+    @overload
+    def arc_center(
+        self,
+        centre: tuple[Length, Length],
+        target: tuple[Length, Length],
+        winding: ArcSweep,
+    ) -> PathDirectedPoint: ...
+    @overload
+    def arc_center(
+        self,
+        centre: tuple[Length, Length],
+        target: StartToken,
+        winding: ArcSweep,
+    ) -> ClosedLoop: ...
+
+class PathDirected:
+    """Both bits bound — the only state legs and `fillet` consume.
+    The outgoing angle slot is full, so no second director exists."""
+
+    def line(self, len: Length) -> PathDirectedPoint: ...
+    def fillet(self, radius: Length) -> PathOpen: ...
+    @overload
+    def tangent_arc_to(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
+    @overload
+    def tangent_arc_to(self, target: StartToken) -> ClosedLoop: ...
+
+Start: Final[StartToken]
+
+def circle(centre: tuple[Length, Length], radius: Length) -> ClosedLoop: ...
+def circle_split(
+    centre: tuple[Length, Length],
+    radius: Length,
+    n: int,
+    phase: Angle,
+) -> ClosedLoop: ...
+
 # --- document ---------------------------------------------------------
 
 class NodeId:
@@ -193,6 +374,8 @@ class Node:
         points: list[tuple[Length, Length]],
         elevation: Optional[Length] = None,
     ) -> Node: ...
+    @staticmethod
+    def profile(outline: ClosedLoop, elevation: Optional[Length] = None) -> Node: ...
     @staticmethod
     def extrude(profile: NodeId, distance: Length) -> Node: ...
     @staticmethod

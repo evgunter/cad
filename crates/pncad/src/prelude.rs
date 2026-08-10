@@ -60,9 +60,15 @@ pub use profile::{
 // The PATHS authoring algebra (LIB-U2), with the LIB-G1 vocabulary
 // growth: `circle` (the one-step closed-carrier program form) and the
 // target traits the new arc binding modes dispatch through.
+// `ClosedLoop` and `circle_split` joined this group in LIB-PYG1: a
+// closing verb RETURNS a `ClosedLoop`, so a prelude user could hold
+// the value and not name its type; and `circle_split` is the
+// declared-subdivision carrier the boss corpus authors with (the
+// `bossplate` scene's three-arc rim IS one), so `circle` alone left
+// half of the closed-carrier vocabulary a crate away.
 pub use profile::{
-    ArcCenterTarget, ArcTarget, ArcViaTarget, LineTarget, Open, PartialPath, PathError, Start,
-    TangentArcTarget, circle,
+    ArcCenterTarget, ArcTarget, ArcViaTarget, ClosedLoop, LineTarget, Open, PartialPath, PathError,
+    Start, TangentArcTarget, circle, circle_split,
 };
 
 // --- 3. The four body operations ------------------------------
@@ -119,8 +125,8 @@ pub use stl::{write_ascii, write_binary};
 pub use crate::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions, Evaluation,
     Expr, LoopProgram, Node, NodeError, ParamEnv, ParamName, ParseError, PatternKind,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StepArg, ValuePayload, apply,
-    evaluate, parse_expr,
+    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RecordedProgramError, SlotId,
+    StepArg, ValuePayload, apply, evaluate, parse_expr,
 };
 pub use editor_core::StableName;
 
