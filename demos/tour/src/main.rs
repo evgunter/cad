@@ -5,7 +5,9 @@
 //! binary STL + (where the analytic subset allows) AP214 STEP per
 //! body, plus a scene manifest (`scenes.json`) for the render step
 //! (`demos/render.sh` — headless FreeCAD importing OUR STEP files,
-//! matplotlib as fallback).
+//! matplotlib as fallback) and, per face, its `(u, v)` chart with its
+//! trim loops drawn on it (`uv/*.svg` + `uv.json`, the renderer-free
+//! third lane — see [`uvdump`] and `demos/render-uv.sh`).
 //!
 //! Usage: `cargo run --release -- <outdir>` (from `demos/tour/`).
 //!
@@ -48,6 +50,7 @@ mod rocker;
 mod scalar;
 mod skinned;
 mod tube;
+mod uvdump;
 
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 use pncad::topo::{Body, ContactRecords};
@@ -178,7 +181,13 @@ struct ManifestBody {
     color: [f64; 3],
 }
 
-fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
+fn run_body(
+    sb: &SceneBody,
+    delta: f64,
+    outdir: &str,
+    scene: &str,
+    dumps: &mut Vec<uvdump::FaceDump>,
+) -> Option<ManifestBody> {
     let label = &sb.name;
 
     // Tiers 1 + 2 on every body.
@@ -304,6 +313,24 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
         "{label}: STEP expected but not produced"
     );
 
+    // The UV lane (`demos/render-uv.sh`): every face's chart domain as
+    // its own SVG. Runs beside the exports rather than in a separate
+    // pass because the pcurve caches are a property of THIS body — a
+    // reader that re-imported the STEP would be looking at re-minted
+    // ones, which is a different question.
+    let faces = uvdump::emit(scene, label, &sb.body, outdir);
+    let refused = faces.iter().filter(|f| f.note.is_some()).count();
+    println!(
+        "   [{label}] uv: {} face chart(s) dumped to uv/{}",
+        faces.len(),
+        if refused > 0 {
+            format!(" ({refused} could not be walked — drawn as labeled failure cells)")
+        } else {
+            String::new()
+        }
+    );
+    dumps.extend(faces);
+
     Some(ManifestBody {
         stl,
         step,
@@ -315,7 +342,12 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
 /// manifest. A fully STAGED stop (every body behind a frontier) has
 /// nothing to draw yet, so it narrates and emits no scene entry —
 /// `scenes.json` never carries a scene the renderers cannot render.
-fn run_stop(stop: &Stop, outdir: &str, manifest: &mut String) -> bool {
+fn run_stop(
+    stop: &Stop,
+    outdir: &str,
+    manifest: &mut String,
+    dumps: &mut Vec<uvdump::FaceDump>,
+) -> bool {
     println!("\n== {} ==", stop.name);
     println!("   {}", stop.story);
     println!("   built by: {}", stop.ops);
@@ -325,7 +357,7 @@ fn run_stop(stop: &Stop, outdir: &str, manifest: &mut String) -> bool {
     let bodies: Vec<ManifestBody> = stop
         .bodies
         .iter()
-        .filter_map(|sb| run_body(sb, stop.delta, outdir))
+        .filter_map(|sb| run_body(sb, stop.delta, outdir, stop.name, dumps))
         .collect();
     if bodies.is_empty() {
         return false;
@@ -385,9 +417,10 @@ fn main() {
     std::fs::create_dir_all(&outdir).expect("create outdir");
     let mut manifest = String::new();
     let mut scenes: Vec<String> = Vec::new();
+    let mut dumps: Vec<uvdump::FaceDump> = Vec::new();
     let mut run = |stop: &Stop| {
         manifest.clear();
-        if run_stop(stop, &outdir, &mut manifest) {
+        if run_stop(stop, &outdir, &mut manifest, &mut dumps) {
             scenes.push(manifest.clone());
         }
     };
@@ -473,5 +506,14 @@ fn main() {
 
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");
+    std::fs::write(format!("{outdir}/uv.json"), uvdump::manifest_json(&dumps))
+        .expect("write uv.json");
+    let curved = dumps.iter().filter(|d| d.curved).count();
+    let refused = dumps.iter().filter(|d| d.note.is_some()).count();
     println!("\ntour complete: STL/STEP + scenes.json in {outdir}/ — render with demos/render.sh");
+    println!(
+        "uv lane: {} face charts ({curved} curved, {refused} unwalkable) in {outdir}/uv/ \
+         + uv.json — sheet with demos/render-uv.sh",
+        dumps.len()
+    );
 }
