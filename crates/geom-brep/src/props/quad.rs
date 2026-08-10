@@ -1231,8 +1231,8 @@ impl Ladder {
         )
     }
 
-    /// `N_uu = A_u·(A_uu×A_v) + A·(A_uuu×A_v) + 2·A·(A_uu×A_uv)
-    /// + A·(A_u×A_uuv)` — the integral lane's `f_uu`, verbatim, on the
+    /// `N_uu = A_u·(A_uu×A_v) + A·(A_uuu×A_v) + 2·A·(A_uu×A_uv) +
+    /// A·(A_u×A_uuv)` — the integral lane's `f_uu`, verbatim, on the
     /// homogeneous net.
     fn num_uu(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
         let a = self.a.vec(u, v);
@@ -1246,8 +1246,8 @@ impl Ladder {
             + rv_dot(a, rv_cross(au, grid_vec(self.auuv.as_ref(), u, v)))
     }
 
-    /// `N_vv = A_v·(A_u×A_vv) + A·(A_uvv×A_v) + 2·A·(A_uv×A_vv)
-    /// + A·(A_u×A_vvv)`.
+    /// `N_vv = A_v·(A_u×A_vv) + A·(A_uvv×A_v) + 2·A·(A_uv×A_vv) +
+    /// A·(A_u×A_vvv)`.
     fn num_vv(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
         let a = self.a.vec(u, v);
         let au = grid_vec(self.au.as_ref(), u, v);
@@ -1337,8 +1337,8 @@ impl Ladder {
 
     /// `∂_u` of [`Ladder::cross_num`] — the `w_u·(A_u×A_v)` terms
     /// cancel identically:
-    /// `w(A_uu×A_v) + w(A_u×A_uv) − w_uv(A_u×A) − w_v(A_uu×A)
-    ///  − w_uu(A×A_v) − w_u(A×A_uv)`.
+    /// `w(A_uu×A_v) + w(A_u×A_uv) − w_uv(A_u×A) − w_v(A_uu×A) −
+    /// w_uu(A×A_v) − w_u(A×A_uv)`.
     fn cross_num_u(&self, w: &Self, u: Collapse<'_>, v: Collapse<'_>) -> RVec3 {
         let a = self.a.vec(u, v);
         let au = grid_vec(self.au.as_ref(), u, v);
@@ -1357,8 +1357,8 @@ impl Ladder {
     }
 
     /// `∂_v` of [`Ladder::cross_num`], the mirror:
-    /// `w(A_uv×A_v) + w(A_u×A_vv) − w_vv(A_u×A) − w_v(A_uv×A)
-    ///  − w_uv(A×A_v) − w_u(A×A_vv)`.
+    /// `w(A_uv×A_v) + w(A_u×A_vv) − w_vv(A_u×A) − w_v(A_uv×A) −
+    /// w_uv(A×A_v) − w_u(A×A_vv)`.
     fn cross_num_v(&self, w: &Self, u: Collapse<'_>, v: Collapse<'_>) -> RVec3 {
         let a = self.a.vec(u, v);
         let au = grid_vec(self.au.as_ref(), u, v);
@@ -1493,7 +1493,7 @@ fn refine_dir(
     for k in 1..QUAD2_REFINE_SPANS {
         #[allow(clippy::cast_precision_loss)]
         let t = d0 + (d1 - d0) * (k as f64 / QUAD2_REFINE_SPANS as f64);
-        if t > d0 && t < d1 && !kv.knots().iter().any(|u| *u == t) {
+        if t > d0 && t < d1 && !kv.knots().contains(&t) {
             add.push(t);
         }
     }
@@ -1649,7 +1649,7 @@ fn rational_patch_face<T: Decide>(
     // Exact `f64` structure (C6): the rational hull property IS the
     // positive-weight hypothesis, so a non-positive weight is not a
     // tolerance question but a refusal.
-    if weights.iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+    if weights.iter().any(|w| *w <= 0.0 || !w.is_finite()) {
         return Err(PropsError::QuadratureUnsupported {
             what: "a rational patch with a non-positive or non-finite weight: the \
                    convex-hull property (and with it every enclosure here) needs \
@@ -1691,7 +1691,7 @@ fn rational_patch_face<T: Decide>(
 
     let over_all = (Collapse::Over(u0, u1), Collapse::Over(v0, v1));
     let g_w = w.chan(over_all.0, over_all.1);
-    if !(g_w.lo() > 0.0) {
+    if g_w.lo() <= 0.0 || !g_w.lo().is_finite() {
         return Err(PropsError::QuadratureUnsupported {
             what: "a rational patch whose weight-function hull does not exclude zero \
                    over the trim rectangle — the quotient's enclosures are undefined",
@@ -1786,7 +1786,7 @@ fn rational_patch_face<T: Decide>(
                 let wm = w.chan(m.0, m.1);
                 let g_m = sqrt_enclosure(cm[0].sqr() + cm[1].sqr() + cm[2].sqr()) / wm.powi(3);
                 let wh = w.chan(over.0, over.1);
-                if !(wh.lo() > 0.0) {
+                if wh.lo() <= 0.0 || !wh.lo().is_finite() {
                     return Err(PropsError::QuadratureUnsupported {
                         what: "a rational patch cell whose weight hull does not exclude \
                                zero — the quotient's enclosures are undefined there",
