@@ -623,7 +623,7 @@ fn arc_carrier(a: Point2<f64>, b: Point2<f64>, bulge: f64) -> Option<(Point2<f64
     }
     let unit = chord / len;
     let normal = Vec2::new(-unit.y, unit.x);
-    let b2 = bulge * bulge;
+    let b2 = bulge.powi(2);
     let four_b = 4.0 * bulge;
     let mid = a.lerp(b, 0.5);
     Some((
