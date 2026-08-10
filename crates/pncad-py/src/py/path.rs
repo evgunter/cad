@@ -503,8 +503,7 @@ impl PathDirected {
             Directed::Plain(p) => p.clone().line(len.0.meters()),
             Directed::WithIncoming(p) => p.clone().line(len.0.meters()),
         };
-        out.map(PathDirectedPoint)
-            .map_err(|err| path_err(py, &err))
+        out.map(PathDirectedPoint).map_err(|err| path_err(py, &err))
     }
 
     /// Open a fillet of radius `radius`: this side's departure ray is
