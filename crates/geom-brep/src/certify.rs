@@ -1079,9 +1079,15 @@ fn run_checks<T: Decide>(
         // certified speed lower bound (`m/parameter`, the split-meter
         // substrate — C12.3). The meter is gated definitely-positive
         // FIRST (the collapsed-arm idiom): a zero/negative meter (a
-        // control net that doubles back) or poison (a rational
-        // carrier) cannot convert the span to metres, and no forward
-        // verdict may be fabricated from it — escalate, never guess.
+        // carrier whose speed genuinely collapses) or poison (a
+        // malformed net) cannot convert the span to metres, and no
+        // forward verdict may be fabricated from it — escalate, never
+        // guess. RATIONAL carriers used to land here unconditionally;
+        // since M7 they have their own arm of the meter and state a
+        // real bound (`speed_lower_bound`'s rational derivation).
+        // F7 note: the flagged margin here is still the BARE rate —
+        // the typed-margin fold-in F7/F6 name stays open, deliberately
+        // untouched by that unit.
         Curve3::Nurbs(n) => {
             let meter = n.speed_lower_bound();
             match geom_core::k_stats::decide_flagged("nurbs_span_meter", meter, band, "F7")

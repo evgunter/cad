@@ -114,5 +114,6 @@ pub use topo;
 pub mod authoring;
 pub mod closure;
 pub mod document;
+pub mod export;
 pub mod prelude;
 pub mod select;

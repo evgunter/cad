@@ -30,6 +30,8 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "lib_doors_node_result.rs"]
+mod lib_doors_node_result;
 #[path = "lib_sel1_geoselect.rs"]
 mod lib_sel1_geoselect;
 #[path = "lib_sel2_flush.rs"]
