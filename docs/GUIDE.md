@@ -595,4 +595,174 @@ document replays to the same bits.
 
 ## 3. Parametric models
 
+Section 2's Rust walk built a solid by calling operations. That is a
+fine way to get one solid, but the value is gone the moment the
+function returns: nothing recorded what you did, so nothing can
+re-do it with a different number.
+
+The **document layer** records it. A document is a DAG of nodes — a
+recipe — and `evaluate` turns the recipe into values. Edits are data
+(`DocEdit`), so the history is inspectable, persistable, undoable, and
+replayable, and evaluation reuses everything an edit did not touch.
+This is the same surface the Python bindings speak and the future GUI
+will speak; there is deliberately only one.
+
+Since the profiles-as-programs switch, **a profile's geometry is a
+program too**: the loops are `LoopProgram` values whose coordinates
+are `Expr`s, not baked floats. That is what makes a sketch
+parametric rather than opaque.
+
+```
+use pncad::prelude::*;
+use pncad::document::NodeResult;
+
+// Author a plate with a round hole. Both the outline and the hole
+// are programs; every coordinate is an expression.
+let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)])
+    .expect("finite corners");
+let hole = LoopProgram::Circle {
+    centre: [len(1.0), len(1.0)],
+    radius: len(0.25),
+};
+
+let mut doc = Doc::<ProfileProgram>::empty();
+let mut insert = |doc: &Doc<ProfileProgram>, node| {
+    let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
+    (applied.doc, applied.record.minted.expect("a minted id"))
+};
+
+let (next, profile) = insert(
+    &doc,
+    Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![outline, hole],
+    }),
+);
+doc = next;
+let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
+doc = next;
+
+let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+assert_eq!(ev.recomputed, 2);
+assert_eq!(ev.reused, 0);
+
+// Reach the body the same way the export door does.
+let NodeResult::Ok(value) = ev.result(plate).expect("the node is live") else {
+    panic!("the plate evaluated");
+};
+let ValuePayload::Body(body) = &value.payload else {
+    panic!("an extrude yields a body");
+};
+let props = mass_properties(body.as_ref())?;
+let expected = 4.0 * 2.0 * 0.5 - core::f64::consts::PI * 0.25 * 0.25 * 0.5;
+assert!((props.volume - expected).abs() < 1e-9);
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Now the parametric part: change one number and rebuild, reusing
+everything the change did not reach. `SetParam` replaces the
+expression in a named **slot** — never an index, so an edit cannot
+silently target the wrong argument when the node changes:
+
+```
+use pncad::prelude::*;
+# let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+# let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)]).expect("corners");
+# let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
+# let mut doc = Doc::<ProfileProgram>::empty();
+# let mut insert = |doc: &Doc<ProfileProgram>, node| {
+#     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("applies");
+#     (applied.doc, applied.record.minted.expect("minted"))
+# };
+# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![outline, hole] }));
+# doc = next;
+# let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
+# doc = next;
+# let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+// Make the plate twice as thick.
+let thicker = apply(&doc, &DocEdit::SetParam {
+    node: plate,
+    slot: SlotId::Distance,
+    expr: len(1.0),
+})?.doc;
+
+// Pass the PRIOR evaluation: the profile is untouched, so its value
+// is reused by content key and only the extrude re-runs.
+let ev2 = evaluate::<f64>(&thicker, Some(&ev), &CancelToken::new(), &EvalOptions::default());
+assert_eq!(ev2.recomputed, 1);
+assert_eq!(ev2.reused, 1);
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+`recomputed` and `reused` are not statistics for a progress bar —
+they are the acceptance counters for incremental recompute, and the
+corpus asserts on them. If an edit recomputes more than its
+downstream cone, that is a bug with a number attached.
+
+### 3.1 The parametric flagship: `plate_param`
+
+The example above drives geometry by *editing a slot*. The stronger
+form is a **named document parameter** that several places reference,
+so one edit moves all of them coherently. That is
+`crates/editor-core/tests/corpus/plate_param.rs`, and it is the
+corpus document to read after this guide: a plate with **two** holes
+whose radii are both `Expr::param("hole_r")` — one parameter, two
+loops, one edit.
+
+Its acceptance rows (`crates/editor-core/tests/switch_plate_param.rs`)
+are worth knowing because they are the four things you want to be
+true of a parametric system, stated as tests:
+
+1. Editing `hole_r` produces genuinely new geometry, and the volume
+   moves by exactly `2·π·(r₁²−r₀²)·d` — the *derivative* is the claim,
+   not merely "the number changed".
+2. One parameter drives both holes: the delta is twice a single
+   hole's.
+3. `hole_r = 0` refuses at replay with `NonpositiveCircleRadius`, and
+   the typed error names the loop and the step that failed.
+4. `hole_r = 0.8` (holes overlapping each other) refuses at
+   *validate* — a different door from the replay one, which is the
+   point: two distinct failure modes stay distinguishable.
+
+Note the deliberate asymmetry in row 3: the `SetDocParam` edit itself
+still applies cleanly. A program that refuses under the current
+binding is legal *at rest*; the refusal belongs to replay, not to the
+edit.
+
+### 3.2 A gap, stated plainly
+
+Named document parameters are **not reachable through the `pncad`
+façade today.** `DocEdit::SetDocParam` needs `ParamName` and
+`DocParam`, and `Expr::param` needs `ParamName`; none of the three is
+in the façade's curated document surface. So `plate_param` itself
+cannot be authored by a `pncad`-only consumer — it is written against
+`editor_core` directly, as a crate-internal test asset.
+
+This is a real hole in the library story, pinned here so it cannot be
+forgotten:
+
+```compile_fail
+// LIB-U10 finding: the façade does not re-export the named-parameter
+// vocabulary, so this does not compile. Slot edits (`SetParam`,
+// above) work; document-level named parameters do not.
+use pncad::document::ParamName;
+```
+
+Slot-level parametric editing, as shown in §3, is fully available.
+
 ## 4. The rest of the documentation
+
+- **`docs/guide/examples.md`** — the corpus as the example set: every
+  tour scene and every corpus document, mapped to what it
+  demonstrates and which pitfall it pins. Browse this to find the
+  worked example nearest your problem.
+- **`docs/guide/fail-loud.md`** — the refusal vocabulary, layer by
+  layer, with executed examples of reading each one. If you are new
+  here and something refused, start there.
+- **`docs/guide/north-star-audit.md`** — which demos are authorable
+  through the Python bindings today, and the named gap for each that
+  is not.
+- **`docs/LIBRARY-DESIGN.md`** — why the library is shaped this way.
+- **`docs/PATHS-DESIGN.md`** — the authoring algebra in full.
+- **`docs/DESIGN.md`** — the kernel's ratified design contract.
