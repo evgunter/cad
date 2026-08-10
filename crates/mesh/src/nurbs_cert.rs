@@ -549,12 +549,11 @@ fn rational_face_bound(
             // nonnegative numerators below, outward-rounded, and
             // poisons if positivity was never proven).
             let mut w_cell: Option<RingInterval> = None;
-            for i in iu0..=su {
-                for j in jv0..=sv {
-                    let wv = w_grid[i][j];
+            for row in w_grid.iter().take(su + 1).skip(iu0) {
+                for wv in row.iter().take(sv + 1).skip(jv0) {
                     w_cell = Some(match w_cell {
-                        None => wv,
-                        Some(h) => RingInterval::hull(h, wv),
+                        None => *wv,
+                        Some(h) => RingInterval::hull(h, *wv),
                     });
                 }
             }
@@ -1072,10 +1071,10 @@ mod tests {
             .expect("the rational pie lofts")
             .body;
         for (_, face) in body.faces() {
-            if let Some(geom_surfaces::Surface::Nurbs(p)) = body.get_surface(face.surface) {
-                if p.weights().iter().any(|w| *w != 1.0) {
-                    return (**p).clone();
-                }
+            if let Some(geom_surfaces::Surface::Nurbs(p)) = body.get_surface(face.surface)
+                && p.weights().iter().any(|w| *w != 1.0)
+            {
+                return (**p).clone();
             }
         }
         panic!("the pie loft minted no rational wall — the fixture stopped exercising M8-5");
@@ -1215,8 +1214,8 @@ mod tests {
     /// assembly answers is DUST scaled by the divisor `w_min = 1/2` —
     /// re-derived, not blind-reused from the integral thresholds:
     ///
-    /// - `muu`/`mvv`: the `Ã_dd`/`w_dd` terms are exact zeros (degree
-    ///   1) and the `w_d` hulls of a CONSTANT weight column stay
+    /// - `muu`/`mvv`: the degree-1 `Ã_dd`/`w_dd` terms are exact
+    ///   zeros and the `w_d` hulls of a CONSTANT weight column stay
     ///   outward-rounded zeros through refinement (convex combinations
     ///   of `0.5` are exact), so the cross terms are subnormal dust
     ///   over `w_min` — the integral 1e-100 class survives (measured
