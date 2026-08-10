@@ -56,6 +56,7 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_EDITOR_CORE=true|false    persistence / corpus / rebuild-latency rows
   RUN_STL=true|false            watertight (admesh) row
   RUN_STEP_EXPORT=true|false    step import (freecad) row
+  RUN_PNCAD_PY=true|false       python suite (wheel + unittest) row
   RUN_INTERVAL_BACKEND=true|false   interval-transcendentals' own workspace
   RUN_K_LINT=true|false         k-lint (gate) row
 """
@@ -204,10 +205,17 @@ def _all_tier(root: str) -> dict[str, str]:
 #               which are byte-golden against the step-export writer.
 # editor-core   persistence (D6.*), band-4 corpus (D1), rebuild latency —
 #               all `cargo test -p editor-core --test ...`.
+# pncad-py      the python-suite row builds the wheel from pncad-py, whose
+#               dependency graph is the whole façade stack (pncad ->
+#               editor-core -> ... ), so `pncad-py in closure` is exactly
+#               "something the wheel compiles moved"; the crate's own .py
+#               test/stub files live under its member directory, so they
+#               seed the same closure.
 JOB_ROOTS = {
     "RUN_EDITOR_CORE": {"editor-core"},
     "RUN_STL": {"stl"},
     "RUN_STEP_EXPORT": {"step-export"},
+    "RUN_PNCAD_PY": {"pncad-py"},
 }
 
 

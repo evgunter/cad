@@ -101,12 +101,17 @@ Consequences worth stating:
   is not boundary, so even-odd would shade a region that is not the
   face. Those cells (3 of 36 on the sheet) show the strokes alone and
   say why; the signed area and winding are likewise not claimed there.
-* **There is a CI drift gate.** The two PNG lanes cannot have one —
-  they need FreeCAD, which CI does not have — so this is the only
-  render lane CI can reproduce. `uv sheet drift (demos)` regenerates
-  the sheet and diffs it (the tour is ~3s once built, and the sheet is
-  text, so a firing diff is readable). A failure is either an
-  uncommitted regeneration or a D9 determinism finding.
+* **There is a CI drift gate**, and this is still the only lane that
+  can have one — but the reason has moved. CI *can* run FreeCAD (both
+  `step-import` and the hosted render lanes provision the same pinned
+  AppImage), so the obstacle is no longer availability: it is that the
+  PNG lanes' pixels come out of a GL stack, and a runner's llvmpipe is
+  not this host's, so "unchanged" is not a property a hosted PNG pass
+  can assert. This lane draws no 3-D, so its sheet is byte-reproducible
+  anywhere. `uv sheet drift (demos)` regenerates it and diffs it (the
+  tour is ~3s once built, and the sheet is text, so a firing diff is
+  readable). A failure is either an uncommitted regeneration or a D9
+  determinism finding.
 * **Nothing is refused.** Unlike the tessellator's trim walk, this one
   accepts every pcurve form and falls back to `topo::pcurve_of`'s
   derive-on-demand, because a face the tessellator refuses is exactly
@@ -641,6 +646,51 @@ never mistaken for a good pass.
 
 Because frames are staged and published only on a complete pass (see
 above), a wedge leaves the committed lane directory exactly as it was.
+
+### Off-box: the hosted lanes
+
+`.github/workflows/render.yml` runs the render lanes on GitHub runners,
+on demand (`workflow_dispatch` — no PR trigger, no schedule), and hands
+each one back as a run artifact:
+
+```sh
+gh workflow run render.yml -f ref=my-branch -f lanes=all
+gh run watch                        # then, when it lands:
+gh run download <run-id> -n renders-kernel    # or renders-freecad / renders-uv
+```
+
+`lanes` selects `all` (default) or one of `kernel` / `freecad` / `uv`.
+The tour is built **once** and handed to the lanes as an artifact; the
+two PNG lanes then run as parallel matrix legs (`fail-fast: false` — one
+lane wedging must not cancel the other's evidence), and the UV sheet,
+which needs no renderer, lands without waiting on either.
+
+The PNG lanes provision the **same** version-pinned, checksum-verified
+FreeCAD 1.1.2 AppImage as `ci.yml`'s `step-import` job — same cache key,
+so those rows and these share one entry and a hosted render normally
+downloads nothing — and add what *drawing* needs on top of what
+importing needs: software GL (llvmpipe) and Xvfb, because Coin's
+offscreen renderer wants a GL context and a display even though Qt
+itself stays `offscreen`.
+
+The workflow adds exactly one check of its own, and it exists for the
+kernel lane: **every leg asserts `demos/renders-preview/` does not
+exist.** That lane's matplotlib fallback exits 0, so without the
+assertion a hosted pass could be green having drawn nothing with
+FreeCAD — the frames sitting in the gitignored preview tree while the
+artifact holds the committed cells unchanged. It is a structural check
+on the #221 routing invariant above, not a new rule.
+
+**Artifact-only, by construction.** No job commits or pushes, and the
+PNG lanes' pixels are *not* expected to match the committed cells
+byte-for-byte: those were drawn against a developer host's GL stack,
+these by llvmpipe on a runner image that drifts. Each lane reports its
+diff against the committed tree in the run summary as a measurement,
+never a gate. Making a hosted PNG lane the canonical producer would mean
+pinning the whole GL stack in a container image and re-baselining the
+committed cells in one commit — a design call, not a config tweak. (The
+UV lane carries no such caveat: it is renderer-free and reproducible
+off-box, which is why it is the one lane CI actually *gates*.)
 
 `render.py` is the zero-dependency fallback for the kernel lane
 (numpy + matplotlib, pure CPU, demo-local venv): binary-STL parsing,

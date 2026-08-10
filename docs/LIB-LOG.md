@@ -423,3 +423,53 @@ satisfies V3 via resolved-bits convention.
   example set AND its coverage oracle). Feeds the curated-doors
   unit (F1/F2/F3 are exactly what blocks bracket.py today) and
   U10's example strategy.
+
+## LIB residual register (2026-08-10, at the program's close —
+## Evan's ask; kernel-functionality-tracking items excluded)
+
+Beyond "docs update as the kernel grows," five categories:
+
+**A. Curation-gap residuals (the F1 class — library-side doors):**
+- **R1 (the significant one, U10 F1)**: named document parameters
+  unreachable from the façade — SetDocParam/ParamName/DocParam not
+  curated, so plate_param cannot be authored pncad-only. Pinned by
+  a compile_fail doctest + audit gap G10. Fix = one curation pass,
+  DOORS-shaped. Highest-value single residual.
+- R2 (U10 F2): PathNoCornerReason not re-exported beside PathError
+  (the U1 closure-class, mild).
+- R3 (SEL2 follow-up): the UndeclaredContact refusal-menu WIRING
+  (the finding payload into the boolean's refusal) — shape
+  recorded in the SEL2 report.
+
+**B. Bindings-parity residuals (the north-star audit, executable):**
+G1-G11 ranked in the U10 report — the audit test FAILS as doors
+land, so this register self-enforces. The big three: G1 profile
+arcs/circles via Python (the PATHS lattice in .pyi — the §L4
+typestate stubs, deferred to post-v2, now unblocked), G2
+loft/sweep/tube bindings, G3 non-xy sketch planes. Plus G11
+(tessellation/STL from Python — completes the ladder's steps 5-6).
+
+**C. Infrastructure residuals:**
+- R4 (U10 F4, strongest available follow-up): the PYTHON TESTS ARE
+  NOT IN CI — test_guide.py and test_north_star.py (the docs' and
+  audit's no-rot machinery) run only by hand. Needs the wheel-build
+  CI job (the U9S fence deferral) — one workflow job, then the
+  no-rot property is structural.
+- R5: the LQ7 tail as ratified-open: wheel cadence; schema-version
+  ↔ package-version coupling post-release.
+- R6 (#274): the semantic-merge blind spot — the post-merge
+  main-tip run option was never adopted; recurrence risk persists.
+
+**D. Deferred-by-design (need a use case, not work):**
+- LB10's straight-off-arc fillet wall (two-route menu in §2b);
+  PATHS §7's banked items (arc-arrival fillets beyond G2's scope,
+  NURBS legs — VQ7 says segment-vocabulary work); the geometric
+  selector's reserved convexity atom (GS-Q2); the F3 crate
+  descriptions (matter only at publication).
+
+**E. The endgame pair (Evan-owned, parked by ruling):**
+- Q9: the name (Intension cleanest per the 2026-08-08 re-sweep;
+  rename = the pncad grep + the cad audit per the memory).
+- The U9 release checklist: reset version numbers (LQ7b), crate
+  descriptions (F3), publish gates — a small unit when release
+  is actually wanted.
