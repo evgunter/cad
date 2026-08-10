@@ -24,7 +24,7 @@ mod corpus;
 mod fixture;
 
 use editor_core::{
-    CancelToken, DocEdit, EvalOptions, ProfileDesc, ProfileDoc, apply, evaluate, load, save,
+    CancelToken, DocEdit, EvalOptions, ProfileDoc, ProfileProgram, apply, evaluate, load, save,
 };
 
 use corpus::documents;
@@ -57,7 +57,7 @@ fn eval_fingerprint(label: &str, doc: &ProfileDoc) -> String {
 /// state, so the (expensive) evaluation fingerprint is checked once per
 /// document — on the log shape, the one with more machinery between
 /// the bytes and the state.
-type Fixture = (String, ProfileDoc, Vec<DocEdit<ProfileDesc>>, bool);
+type Fixture = (String, ProfileDoc, Vec<DocEdit<ProfileProgram>>, bool);
 
 fn files() -> Vec<Fixture> {
     let mut out = Vec::new();

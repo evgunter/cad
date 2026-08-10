@@ -10,8 +10,8 @@
 //! pieces sit behind props' curved-quadrature frontier (M5 PR 11) —
 //! validity + the ellipse pins are the oracles.
 
-use editor_core::{Datum, DocEdit, Node, ProfileDesc, SlotId};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use editor_core::{Datum, DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
+use profile::SketchPlane;
 
 use super::super::fixture::{len, scl};
 use super::{CorpusDoc, Recorder};
@@ -28,20 +28,16 @@ pub fn document() -> CorpusDoc {
     // The disc profile: two half-circle arcs (bulge 1), radius 0.5 —
     // extrudes to a cylinder (two wall faces sharing one cylinder
     // surface, the cosurface run).
-    let disc = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: geom_core::Point2::new(-0.5, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: geom_core::Point2::new(0.5, 0.0),
-            bulge: 1.0,
-        },
-    ]);
-    let profile = r.insert(Node::Profile(ProfileDesc(Profile::new(
-        SketchPlane::xy(),
-        vec![disc],
-    ))));
+    // v4: the disc is the `circle` program form; its private two-pole
+    // lowering IS the same two half-circle arcs (canonical form
+    // bit-identical — lex-min starts the loop at the −x pole either
+    // way; only the program-order rotation differs, which is naming
+    // substrate, not geometry).
+    let disc = LoopProgram::circle(0.0, 0.0, 0.5).unwrap();
+    let profile = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![disc],
+    }));
     let cylinder = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),

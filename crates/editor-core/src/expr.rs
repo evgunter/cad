@@ -99,6 +99,25 @@ pub enum DimensionError {
     /// non-finite values legitimately, so admitting one into recipe
     /// data would smuggle poison past every downstream check).
     NonFiniteLiteral,
+    /// A literal's display unit measures a different quantity than the
+    /// literal's dimension (`mm` can only suffix a `Length`; `deg` only
+    /// an `Angle`; `Scalar` literals take no unit). LIB-SWITCH §4g: the
+    /// display unit is presentation metadata, but a MISMATCHED one is
+    /// corrupt data, refused at construction like every other dimension
+    /// fault.
+    DisplayUnitMismatch {
+        /// The dimension the unit's quantity implies.
+        unit: Dimension,
+        /// The literal's declared dimension.
+        literal: Dimension,
+    },
+    /// A persisted display-unit symbol outside quantity's closed table
+    /// (the load door's strict-vocabulary refusal; the wire form stores
+    /// the symbol as text).
+    UnknownDisplayUnit {
+        /// The unrecognized symbol.
+        symbol: String,
+    },
 }
 
 /// A dimension-checked expression tree (ratified F7 shape).
@@ -113,6 +132,91 @@ pub struct Expr {
     kind: ExprKind,
 }
 
+/// The stored display-unit CODE — quantity's closed table as a one-
+/// byte identity (the spec's "U8a's unit type/code" read at its word:
+/// storing the 32-byte [`quantity::UnitDef`] row inline grew every
+/// `Expr` by ~40 bytes and tripped `large_enum_variant` on
+/// `DocEdit::InsertNode`; the ROW is derivable from the identity, so
+/// the identity is what is stored — resolved back through
+/// [`Lit::unit_def`] at every read).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum UnitSym {
+    /// `quantity::MM`.
+    Mm,
+    /// `quantity::CM`.
+    Cm,
+    /// `quantity::M`.
+    M,
+    /// `quantity::IN`.
+    In,
+    /// `quantity::DEG`.
+    Deg,
+    /// `quantity::RAD`.
+    Rad,
+}
+
+impl UnitSym {
+    /// The table row this code names.
+    fn def(self) -> quantity::UnitDef {
+        match self {
+            Self::Mm => quantity::MM.def(),
+            Self::Cm => quantity::CM.def(),
+            Self::M => quantity::M.def(),
+            Self::In => quantity::IN.def(),
+            Self::Deg => quantity::DEG.def(),
+            Self::Rad => quantity::RAD.def(),
+        }
+    }
+
+    /// The code for a table row, by symbol — `None` for a `UnitDef`
+    /// outside the closed table (refused by the caller as an unknown
+    /// unit; the vocabulary stays closed).
+    fn from_def(u: &quantity::UnitDef) -> Option<Self> {
+        match u.symbol {
+            "mm" => Some(Self::Mm),
+            "cm" => Some(Self::Cm),
+            "m" => Some(Self::M),
+            "in" => Some(Self::In),
+            "deg" => Some(Self::Deg),
+            "rad" => Some(Self::Rad),
+            _ => None,
+        }
+    }
+}
+
+/// A stored continuous literal: the canonical-units value plus its
+/// per-literal DISPLAY unit (LIB-SWITCH §4g, U8b folded into the v4
+/// break). The unit is presentation metadata under D7's hard rules —
+/// it is EXCLUDED from equality here (so [`Expr::bit_eq`], content
+/// keys, and naming keys are all display-unit-blind by construction),
+/// excluded from [`Expr::literal_bits`], and ignored by evaluation;
+/// the value stays canonical meters/radians regardless.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Lit {
+    /// The exact canonical-units value (bit-exact per D7).
+    pub(crate) value: f64,
+    /// The display unit the literal was authored in, if any (a code
+    /// into quantity's closed table; `None` renders canonically).
+    pub(crate) display_unit: Option<UnitSym>,
+}
+
+impl Lit {
+    /// The stored unit's table row, if any.
+    pub(crate) fn unit_def(&self) -> Option<quantity::UnitDef> {
+        self.display_unit.map(UnitSym::def)
+    }
+}
+
+impl PartialEq for Lit {
+    /// IEEE-semantic on the VALUE only — the display unit is
+    /// presentation metadata and never part of expression identity
+    /// (D7; two literals differing only in display unit are the same
+    /// expression).
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
 /// The node vocabulary of the AST (private: constructors check dims).
 ///
 /// Child order (the ExprPath byte at each level, spec D5): operands in
@@ -121,7 +225,7 @@ pub struct Expr {
 pub(crate) enum ExprKind {
     /// A continuous dimensioned literal, canonical kernel units
     /// (meters/radians); bit-exact f64 storage per D7 replay identity.
-    Literal(f64),
+    Literal(Lit),
     /// A `Count` literal — exact integer (spec D4: Count is
     /// integer-valued, never a float).
     CountLiteral(i64),
@@ -190,8 +294,69 @@ impl Expr {
         }
         Ok(Self {
             dim,
-            kind: ExprKind::Literal(value),
+            kind: ExprKind::Literal(Lit {
+                value,
+                display_unit: None,
+            }),
         })
+    }
+
+    /// A continuous literal that REMEMBERS the display unit it was
+    /// authored in (LIB-SWITCH §4g; the text door's `25 mm` row).
+    /// `value` is already canonical (meters/radians) — the parser does
+    /// its one multiply before this door. The unit's quantity must
+    /// agree with `dim` ([`DimensionError::DisplayUnitMismatch`]);
+    /// everything [`Expr::literal`] refuses is refused here too.
+    ///
+    /// The unit is presentation metadata (D7): it round-trips through
+    /// persistence and feeds the display formatter, but never enters
+    /// [`Expr::bit_eq`], [`Expr::literal_bits`], content/naming keys,
+    /// or evaluation.
+    pub fn literal_with_unit(
+        value: f64,
+        dim: Dimension,
+        unit: quantity::UnitDef,
+    ) -> Result<Self, DimensionError> {
+        let unit_dim = match unit.quantity {
+            quantity::UnitQuantity::Length => Dimension::Length,
+            quantity::UnitQuantity::Angle => Dimension::Angle,
+        };
+        if unit_dim != dim {
+            return Err(DimensionError::DisplayUnitMismatch {
+                unit: unit_dim,
+                literal: dim,
+            });
+        }
+        // The closed-vocabulary door: only table rows have codes.
+        let sym = UnitSym::from_def(&unit).ok_or_else(|| DimensionError::UnknownDisplayUnit {
+            symbol: unit.symbol.to_string(),
+        })?;
+        // Run literal()'s refusal doors, then attach the unit.
+        let mut e = Self::literal(value, dim)?;
+        if let ExprKind::Literal(ref mut lit) = e.kind {
+            lit.display_unit = Some(sym);
+        }
+        Ok(e)
+    }
+
+    /// The display unit of a LITERAL expression, if one is stored
+    /// (`None` for every other kind and for canonically-authored
+    /// literals). The formatter's read side (§4g).
+    pub fn display_unit(&self) -> Option<quantity::UnitDef> {
+        match &self.kind {
+            ExprKind::Literal(lit) => lit.unit_def(),
+            _ => None,
+        }
+    }
+
+    /// A literal's exact canonical-units value (`None` for non-literal
+    /// kinds) — with [`Expr::display_unit`], the display formatter's
+    /// complete read surface.
+    pub fn literal_value(&self) -> Option<f64> {
+        match &self.kind {
+            ExprKind::Literal(lit) => Some(lit.value),
+            _ => None,
+        }
     }
 
     /// A `Count` literal — an exact integer.
@@ -433,7 +598,7 @@ impl Expr {
     pub fn literal_bits(&self, out: &mut Vec<u64>) {
         use ExprKind as K;
         match &self.kind {
-            K::Literal(v) => out.push(v.to_bits()),
+            K::Literal(lit) => out.push(lit.value.to_bits()),
             K::CountLiteral(_) | K::Param(_) => {}
             K::Neg(a) | K::Sin(a) | K::Cos(a) | K::Tan(a) | K::CountToScalar(a) => {
                 a.literal_bits(out);
@@ -668,7 +833,9 @@ fn eval_inner<T: Real>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError
         return Err(EvalError::CountExprInContinuousEval);
     }
     match &expr.kind {
-        K::Literal(v) => Ok(T::from_f64(*v)),
+        // The display unit is presentation metadata: evaluation reads
+        // only the canonical value (D7; LIB-SWITCH §4g).
+        K::Literal(lit) => Ok(T::from_f64(lit.value)),
         K::CountLiteral(_) => Err(EvalError::CountExprInContinuousEval),
         K::Param(name) => match params.bindings.get(name) {
             None => Err(EvalError::UnknownParam(name.clone())),
