@@ -8,7 +8,18 @@ import struct
 import unittest
 
 import pncad
-from pncad import BooleanOp, Doc, DocEdit, EvaluationError, Node, evaluate, m, mm
+from pncad import (
+    BooleanOp,
+    Doc,
+    DocEdit,
+    EvaluationError,
+    Node,
+    evaluate,
+    import_step,
+    load,
+    m,
+    mm,
+)
 
 
 def unit_box(doc, width, depth, height):
@@ -124,9 +135,11 @@ class TestEvaluation(unittest.TestCase):
         # 6.0 base + 1.5 post - 0.5 shared = 7.0
         self.assertEqual(body.mass_properties().volume, 7.0)
 
-    def test_a_coincident_boolean_is_refused_not_guessed(self):
+    def test_a_coincident_boolean_carries_its_typed_refusal(self):
         # Fail-loud, visible from Python: two boxes sharing the z=0
-        # plane are NOT silently fused.
+        # plane are NOT silently fused — and the refusal now arrives
+        # WITH its typed cause (LIB-DOORS F3; U9S's `no_value`
+        # placeholder is gone).
         doc = Doc()
         outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
         inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
@@ -135,10 +148,53 @@ class TestEvaluation(unittest.TestCase):
         self.assertFalse(ev.succeeded(cut))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(cut)
-        # FINDING (see the PR body): the reason is `no_value`, not the
-        # node's actual typed refusal — no curated path leads from an
-        # Evaluation to its NodeError yet.
-        self.assertEqual(caught.exception.reason, "no_value")
+        self.assertEqual(caught.exception.reason, "node_failed")
+        self.assertEqual(caught.exception.node, cut)
+        # The NodeErrorKind's stable tag: the Boolean op refused.
+        self.assertEqual(caught.exception.kind, "boolean")
+        self.assertIsNone(caught.exception.through)
+        # F6 (reopened on review): the MESSAGE is prose stating the
+        # problem, not the kernel enum's Debug guts.
+        message = str(caught.exception)
+        self.assertIn("Boolean op refused", message)
+        for guts in ("UndeclaredCoincidence", "{", "NodeError"):
+            self.assertNotIn(guts, message)
+
+    def test_a_poisoned_node_names_its_failed_ancestor(self):
+        doc = Doc()
+        outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
+        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        downstream = doc.insert(Node.boolean(BooleanOp.Union, cut, outer))
+        ev = evaluate(doc)
+        with self.assertRaises(EvaluationError) as caught:
+            ev.value(downstream)
+        self.assertEqual(caught.exception.reason, "poisoned")
+        self.assertEqual(caught.exception.node, downstream)
+        self.assertEqual(caught.exception.through, cut)
+        # The root cause's tag rides along: the ancestor's Boolean.
+        self.assertEqual(caught.exception.kind, "boolean")
+        self.assertIn("poisoned by failed ancestor", str(caught.exception))
+
+
+class TestLiteralRefusals(unittest.TestCase):
+    """LIB-DOORS F5 + fix pass: the kernel's own refusal, with the
+    offending value restored to the exception payload."""
+
+    def test_a_non_finite_literal_carries_kind_value_and_prose(self):
+        doc = Doc()
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        profile_node = doc.order()[0]
+        with self.assertRaises(pncad.LiteralError) as caught:
+            doc.insert(Node.extrude(profile_node, float("nan") * m))
+        self.assertEqual(caught.exception.kind, "non_finite")
+        self.assertNotEqual(
+            caught.exception.value, caught.exception.value
+        )  # NaN != NaN: the offending value itself rides the exception
+        message = str(caught.exception)
+        self.assertIn("finite", message)
+        self.assertNotIn("NonFiniteLiteral", message)  # prose, not variant name
+        self.assertTrue(evaluate(doc).succeeded(box), "the document is untouched")
 
 
 class TestD9BitReplaySeed(unittest.TestCase):
@@ -185,6 +241,80 @@ class TestD9BitReplaySeed(unittest.TestCase):
             struct.pack(">d", first.surface_area),
             struct.pack(">d", second.surface_area),
         )
+
+
+class TestPersistence(unittest.TestCase):
+    """LIB-DOORS F1: the schema-v4 doors, through the curated facade."""
+
+    def test_save_load_evaluate_round_trip_is_bit_exact(self):
+        doc = Doc()
+        box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
+        before = evaluate(doc).value(box).body().mass_properties().volume
+
+        text = doc.save()
+        schema = pncad.__build_info__["schema_version"]
+        self.assertTrue(
+            text.startswith(f"schema: {schema}\n"),
+            "the file speaks the build's own schema version",
+        )
+
+        loaded = load(text)
+        self.assertEqual(loaded.edit_count, 0)  # snapshot-only file
+        self.assertTrue(loaded.doc.bit_eq(doc), "load replays to the SAME document")
+        after = evaluate(loaded.doc).value(box).body().mass_properties().volume
+        # D9: the same recipe replays to the same bits.
+        self.assertEqual(struct.pack(">d", before), struct.pack(">d", after))
+
+    def test_a_garbage_file_is_a_typed_refusal(self):
+        with self.assertRaises(pncad.PersistError) as caught:
+            load("not a document")
+        self.assertEqual(caught.exception.variant, "header")
+
+    def test_an_unknown_schema_is_a_typed_refusal(self):
+        with self.assertRaises(pncad.PersistError) as caught:
+            load("schema: 9999\n{}")
+        self.assertEqual(caught.exception.variant, "unknown_schema")
+
+
+class TestStepExport(unittest.TestCase):
+    """LIB-DOORS F2: the document-layer export door and its oracle."""
+
+    def test_export_reimports_with_the_same_volume(self):
+        doc = Doc()
+        box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
+        ev = evaluate(doc)
+        step = ev.step_string(box, product_name="doors-box")
+        self.assertIn("ISO-10303-21", step)
+        # The oracle is the kernel's own importer: the text PARSES and
+        # adopts as a first-class solid whose volume agrees.
+        body = import_step(step)
+        volume = body.mass_properties().volume
+        self.assertAlmostEqual(volume, 3.0, places=9)
+
+    def test_export_of_a_profile_is_a_typed_refusal(self):
+        doc = Doc()
+        unit_box(doc, 1 * m, 1 * m, 1 * m)
+        profile_node = doc.order()[0]
+        ev = evaluate(doc)
+        with self.assertRaises(pncad.ExportError) as caught:
+            ev.step_string(profile_node)
+        self.assertEqual(caught.exception.variant, "not_a_body")
+        self.assertEqual(caught.exception.kind, "profile")
+
+    def test_export_of_a_failed_node_is_a_typed_refusal(self):
+        doc = Doc()
+        outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
+        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        ev = evaluate(doc)
+        with self.assertRaises(pncad.ExportError) as caught:
+            ev.step_string(cut)
+        self.assertEqual(caught.exception.variant, "node_failed")
+
+    def test_import_of_garbage_is_a_typed_refusal(self):
+        with self.assertRaises(pncad.StepImportError) as caught:
+            import_step("not a step file")
+        self.assertEqual(caught.exception.variant, "refused")
 
 
 class TestNoArenaKeysCross(unittest.TestCase):
