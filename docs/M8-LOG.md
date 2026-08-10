@@ -70,3 +70,16 @@ gate). The unit row lands at PR-2 (half 1, pcurve minting) per the
 ruled two-PR pattern — PR-2's finisher dispatches now; the
 arc-prism/arc-loft flip numbers re-measure against the POST-fix
 hulls (the pre-fix parked figures are stale by construction).
+
+## #317 instancing MERGED (#325, 2026-08-10) — dm1's third honest advance
+
+The instancing machinery is live (rep-graph composition, fresh-id
+materialization, graft_disjoint, the A7 record shape from the
+ratified ASSEMBLY-DESIGN) after the project's fourth
+NOT-MERGEABLE-AS-IS (nested outer transforms silently dropped —
+refuse→silently-wrong, caught by R1, answered with COMPOSE and
+three typed refusals, delta-verified against hand oracles). The
+honest headline: dm1 STILL refuses — the placement layer had
+masked two deeper ladder gaps; one (edge #668) closed in-unit, the
+other (edge #685, rational-quadratic rims) is #327, stage-1 CURVE
+recognition. The wild corpus honestly stays 9/13.
