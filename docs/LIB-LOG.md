@@ -490,3 +490,19 @@ Handoff file: ~/.local/share/cad-work/handoff-prompt-lib-next.md.
 Dual-review samples 1-6 all converged on every MAJOR; sample 5
 overturned a design disposition; the variance data is in the
 rows. LIB-7 remainders banked (opus, opus); next dual = 21.
+
+## Successor session opens — the bindings-parity program (2026-08-10)
+
+Handoff executed: #329 verified MERGED (merge 4230173, frozen
+head 9bb1916); its retroactive blinded review dispatched as
+ordinal 19 single on the frozen head. Stale SWITCH-E lanes
+(lib-swe-r1/r2, lib-switche) verified pushed+clean and removed
+(12 GB freed). Monitor suite armed. Opening unit: **LIB-PYG1**
+(docs/LIB-PYG1-SPEC.md) — the audit's G1, arcs/circles in
+profiles from Python via the §L4 typestate lattice; spec pins
+prelude-parity names, distinct state classes, quantities at the
+boundary, one-lowering (no Python-side predicates), Node.profile
+terminal, and fences out G2/G3/G7/G8/G9, Expr-in-profile, and
+NURBS legs. Arm: opus (LIB-7 banked slot 2). The Expr-bearing
+profile-steps door (with G9 → plate_param authorable from
+Python) is recorded here as a NAMED follow-up of PYG1.
