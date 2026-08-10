@@ -300,120 +300,116 @@ fn metadata_convention_doors_refuse_typed() {
 }
 
 #[test]
-fn tangent_joint_doors_refuse_typed_at_load() {
-    // A profile whose second loop-joint is declared tangent (#101):
-    // craft the file, then mangle the declaration each illegal way.
-    let mut lp = profile::ProfileLoop::new(
-        [(0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]
-            .into_iter()
-            .map(|(x, y)| profile::ProfileVertex {
-                pos: geom_core::Point2::new(x, y),
-                bulge: 0.0,
-            })
-            .collect(),
-    );
-    lp.tangent_joints = vec![1];
+fn program_structure_doors_refuse_typed_at_load() {
+    // v4 (LIB-SWITCH §4h): the stored-joint corruption class died with
+    // stored joints; the program layer's corrupt-file classes are a
+    // wrong-dimension argument ROLE and a lattice-violating step
+    // order, both refused by the shared validator on the parsed
+    // document. Craft a valid file, then mutate the JSON body.
     let (doc, _) = insert(
         ProfileDoc::empty(),
-        Node::Profile(editor_core::ProfileDesc(profile::Profile::new(
-            profile::SketchPlane::xy(),
-            vec![lp],
-        ))),
+        Node::Profile(editor_core::ProfileProgram {
+            plane: profile::SketchPlane::xy(),
+            loops: vec![editor_core::LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
+        }),
     );
     let text = save(&doc, &[]).expect("save");
-    let needle = "\"tangent_joints\": [\n                1\n              ]";
-    assert!(text.contains(needle), "fixture must contain the joint");
-    // Out of range: a DOCUMENT property, so it refuses through the
-    // shared validator with the save door's own typed diagnostics
-    // (convention 2 — one validator, both doors), naming the node.
-    let out_of_range = text.replace(
-        needle,
-        "\"tangent_joints\": [\n                9\n              ]",
-    );
-    assert_ne!(out_of_range, text);
-    match load(&out_of_range) {
-        Err(PersistError::TangentJointOutOfRange {
-            site: editor_core::persist::JointSite::Profile { node },
-            loop_index: 0,
-            joint: 9,
-            vertex_count: 5,
+    let (header, body) = text.split_once('\n').expect("header line");
+    let mut v: serde_json::Value = serde_json::from_str(body).expect("body parses");
+    // (a) Wrong-dimension role: retype the circle's centre-x literal
+    // as an Angle. The Expr door accepts an Angle literal per se; the
+    // shared validator's DIMENSION WALK refuses it in the CenterX role.
+    v["snapshot"]["nodes"]["0"]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]["dim"] =
+        serde_json::Value::String("Angle".into());
+    let mangled = format!("{header}\n{}\n", serde_json::to_string_pretty(&v).unwrap());
+    match load(&mangled) {
+        Err(PersistError::ProfileProgram {
+            node,
+            fault:
+                editor_core::ProgramFault::SlotDimension {
+                    expected: editor_core::Dimension::Length,
+                    found: editor_core::Dimension::Angle,
+                    ..
+                },
         }) => assert_eq!(node, RecipeNodeId(0)),
-        other => panic!("out-of-range joint must refuse typed at load, got {other:?}"),
+        other => panic!("wrong-dimension role must refuse typed at load, got {other:?}"),
     }
-    // Non-canonical lists: the WIRE's own rule (in-memory joints are
-    // set-semantic) — load-only by nature, refused at parse.
-    for (bad, expect) in [
-        (
-            "[\n                1, 1\n              ]",
-            "strictly increasing",
-        ),
-        (
-            "[\n                3, 1\n              ]",
-            "strictly increasing",
-        ),
-    ] {
-        let crafted = text.replace(needle, &format!("\"tangent_joints\": {bad}"));
-        assert_ne!(crafted, text);
-        match load(&crafted) {
-            Err(PersistError::Parse { message, .. }) => assert!(
-                message.contains(expect),
-                "expected {expect:?} in refusal: {message}"
-            ),
-            other => panic!("mangled joints ({bad}) must refuse typed, got {other:?}"),
+    // (b) Lattice violation: an unclosed chain (a step list that stops
+    // mid-air) — reachable only from a hand-edited file, refused by
+    // the replay PROBE with the Transition class.
+    let (doc2, _) = insert(
+        ProfileDoc::empty(),
+        Node::Profile(fixture::desc(
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
+        )),
+    );
+    let text2 = save(&doc2, &[]).expect("save");
+    let (header2, body2) = text2.split_once('\n').expect("header line");
+    let mut v2: serde_json::Value = serde_json::from_str(body2).expect("body parses");
+    let steps = v2["snapshot"]["nodes"]["0"]["Profile"]["loops"][0]["Chain"]
+        .as_array_mut()
+        .expect("chain steps");
+    steps.pop(); // drop the closing LineTo(Start)
+    let n_left = steps.len() as u32;
+    let mangled2 = format!(
+        "{header2}\n{}\n",
+        serde_json::to_string_pretty(&v2).unwrap()
+    );
+    match load(&mangled2) {
+        Err(PersistError::ProfileProgram {
+            node,
+            fault:
+                editor_core::ProgramFault::Lattice {
+                    loop_: 0,
+                    step,
+                    verb: None,
+                    ..
+                },
+        }) => {
+            assert_eq!(node, RecipeNodeId(0));
+            assert_eq!(step, n_left, "one past the end: the chain never closed");
         }
+        other => panic!("an unclosed chain must refuse typed at load, got {other:?}"),
     }
-    // The canonical declaration itself loads and survives bit-exactly.
-    let loaded = load(&text).expect("canonical joints load");
-    let Some(Node::Profile(desc)) = loaded.doc.node(RecipeNodeId(0)) else {
+    // The unmangled file loads and the program survives bit-exactly.
+    let loaded = load(&text).expect("canonical program loads");
+    let Some(Node::Profile(prog)) = loaded.doc.node(RecipeNodeId(0)) else {
         panic!("profile lost");
     };
-    assert_eq!(desc.0.loops[0].tangent_joints, vec![1]);
+    assert_eq!(prog.loops.len(), 1);
 }
 
 #[test]
-fn stale_tangent_joint_refuses_at_save_before_any_byte() {
-    use editor_core::persist::JointSite;
-    // The payload is pub: a stale joint (as after deleting a vertex
-    // in the payload) reaches the document without passing any edit
-    // door. Save must refuse — the load side would (MAJOR-DELTA-1's
-    // inversion: a save that succeeds but cannot load).
-    let mut lp = profile::ProfileLoop::new(
-        [(0.0, 0.0), (2.0, 0.0), (1.0, 1.0)]
-            .into_iter()
-            .map(|(x, y)| profile::ProfileVertex {
-                pos: geom_core::Point2::new(x, y),
-                bulge: 0.0,
-            })
-            .collect(),
-    );
-    lp.tangent_joints = vec![7]; // 3 vertices: out of range
-    let bad = editor_core::ProfileDesc(profile::Profile::new(profile::SketchPlane::xy(), vec![lp]));
-    // Snapshot site.
-    let (doc, node) = insert(ProfileDoc::empty(), Node::Profile(bad.clone()));
-    match save(&doc, &[]) {
-        Err(PersistError::TangentJointOutOfRange {
-            site: JointSite::Profile { node: at },
-            loop_index: 0,
-            joint: 7,
-            vertex_count: 3,
-        }) => assert_eq!(at, node),
-        other => panic!("stale joint in snapshot must refuse at save, got {other:?}"),
-    }
-    // Edit-log site (an unapplied log is data; the walk runs before
-    // the replay-verification pass so the site names the edit).
-    match save(
+fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
+    // v4's stronger posture (MAJOR-DELTA-1's inversion, moved a layer
+    // UP): the retired stale-joint attack corrupted the pub payload
+    // and needed the SAVE door to catch it. A lattice-violating
+    // program is refused already at `apply` (the VQ9 authoring-time
+    // check runs resolve + replay), so the corrupt state never enters
+    // a document at all — and the save-door twin (the shared
+    // validator's replay probe) stays for parsed files.
+    use editor_core::{EditError, LoopProgram, ProgramRefusal, ProgramStep};
+    let unclosed = editor_core::ProfileProgram {
+        plane: profile::SketchPlane::xy(),
+        loops: vec![LoopProgram::Chain(vec![ProgramStep::Tangent])],
+    };
+    match editor_core::apply(
         &ProfileDoc::empty(),
-        &[DocEdit::InsertNode {
-            node: Node::Profile(bad),
-        }],
+        &DocEdit::InsertNode {
+            node: Node::Profile(unclosed),
+        },
     ) {
-        Err(PersistError::TangentJointOutOfRange {
-            site: JointSite::InsertedProfile { index: 0 },
-            loop_index: 0,
-            joint: 7,
-            vertex_count: 3,
+        Err(EditError::ProfileProgramRefused {
+            refusal:
+                ProgramRefusal::Transition {
+                    loop_: 0, step: 0, ..
+                },
+            ..
         }) => {}
-        other => panic!("stale joint in edit log must refuse at save, got {other:?}"),
+        other => panic!("a lattice-violating program must refuse at apply, got {other:?}"),
     }
 }
 

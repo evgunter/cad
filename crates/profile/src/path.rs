@@ -573,6 +573,32 @@ pub enum PathError<T: Real> {
         /// The refused radius, meters (scalar-typed payload).
         radius: T,
     },
+    /// A [`circle_split`] subdivision count below 2: one vertex cannot
+    /// carry a full turn (bulge = tan(θ/4) diverges at θ = 2π), so the
+    /// smallest declared subdivision of a closed carrier is two arcs —
+    /// which is [`circle`]'s own private lowering. A structural check,
+    /// not a classified one: `n` is a count, never a measured value.
+    CircleSplitCount {
+        /// The refused subdivision count.
+        n: usize,
+    },
+    /// An [`arc_continue`](PartialPath::arc_continue) reached with no
+    /// incoming ARC carrier: the declared-subdivision step splits the
+    /// carrier the chain is already running on, so a straight incoming
+    /// leg (or a tip with no incoming leg data) has nothing to split —
+    /// a collinear "subdivision" of a line is spelled as two `line_to`
+    /// legs... which the same-carrier rule refuses, deliberately: the
+    /// recorded need is arc subdivision (the half-disc's equator
+    /// vertex); a line form would be new vocabulary with no use case.
+    ArcContinueNeedsArcCarrier,
+    /// An [`arc_continue`](PartialPath::arc_continue) target that does
+    /// not lie on the incoming carrier (|target − centre| − r decided
+    /// nonzero): the authored data contradicts itself — refused, never
+    /// re-projected (an authored point never moves, §4 item 3).
+    ArcContinueOffCarrier {
+        /// The classified radial offset, meters.
+        offset: T,
+    },
     /// A director spelled as components named no direction: the norm of
     /// `(dx, dy)` is within ε_input of zero
     /// ([`PartialPath::toward`]). Only the components' ratio is read,
@@ -747,6 +773,24 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 f,
                 "a circle needs a definitely positive radius (got {radius:?} m): r = 0 is a \
                  point and r < 0 names no circle"
+            ),
+            Self::CircleSplitCount { n } => write!(
+                f,
+                "circle_split needs at least 2 arcs (got n = {n}): a single vertex cannot \
+                 carry a full turn (bulge diverges), so the smallest subdivision of a \
+                 closed carrier is two arcs"
+            ),
+            Self::ArcContinueNeedsArcCarrier => write!(
+                f,
+                "arc_continue subdivides the incoming ARC carrier; the incoming leg here is \
+                 straight (or absent), so there is no carrier to split — author the geometry \
+                 as its own legs instead"
+            ),
+            Self::ArcContinueOffCarrier { offset } => write!(
+                f,
+                "the arc_continue target does not lie on the incoming carrier (radial offset \
+                 {offset:?} m): a subdivision vertex is ON the carrier by definition — fix the \
+                 authored point rather than expecting a re-projection"
             ),
             Self::ZeroDirection { dx, dy } => write!(
                 f,
@@ -1637,6 +1681,66 @@ pub fn circle<T: Decide>(center: Point2<T>, radius: T) -> Result<ClosedLoop<T>, 
     })
 }
 
+/// The declared-subdivision closed carrier (LIB-SWITCH §0 corpus
+/// ruling): one circle, authored WITH its seam structure — `n` arcs of
+/// equal sweep, the first vertex at angle `phase` from the +x axis,
+/// counterclockwise. Like [`circle`] it is a **one-step complete-loop
+/// program form**, not a chain, so PQ4 is untouched: the vertices are
+/// STRUCTURAL subdivisions of one carrier (same-carrier identities,
+/// nothing declared tangent), not junctions anyone claimed — the
+/// difference from [`circle`] is only that here the subdivision COUNT
+/// and PHASE are authored data rather than a private lowering detail,
+/// for the loops whose downstream naming depends on the seam count
+/// (the boss corpus document is the recorded use case).
+///
+/// Numerics, stated plainly: vertex `k` sits at
+/// `center + radius·(cos θ_k, sin θ_k)`, `θ_k = phase + k·2π/n`, and
+/// every bulge is `tan(π/(2n))` — all through the scalar's libm-pure
+/// trig (D9-deterministic; no exactness promise at axis crossings, the
+/// same posture as `.angle(θ)` directors).
+///
+/// `radius` must classify definitely positive (the [`circle`] gate,
+/// same funnel row); `n` must be ≥ 2 ([`PathError::CircleSplitCount`]
+/// — a one-vertex full turn has no bulge representation). `n` is
+/// structural (a count, never a value); `phase` is continuous.
+pub fn circle_split<T: Decide>(
+    center: Point2<T>,
+    radius: T,
+    n: usize,
+    phase: T,
+) -> Result<ClosedLoop<T>, PathError<T>> {
+    let band = linear_band()?;
+    match decide("path_circle_radius", Margin::of(radius), band) {
+        Ok(Sign::Positive) => {}
+        Ok(_) => return Err(PathError::NonpositiveCircleRadius { radius }),
+        Err(source) => return Err(PathError::Escalated { source }),
+    }
+    if n < 2 {
+        return Err(PathError::CircleSplitCount { n });
+    }
+    let n_t = T::from_f64(n as f64);
+    let bulge = (T::pi() / (T::from_f64(2.0) * n_t)).tan();
+    let vertices = (0..n)
+        .map(|k| {
+            let theta = phase + T::from_f64(2.0) * T::pi() * T::from_f64(k as f64) / n_t;
+            let (s, c) = theta.sin_cos();
+            ProfileVertex {
+                pos: Point2::new(center.x + radius * c, center.y + radius * s),
+                bulge,
+            }
+        })
+        .collect();
+    Ok(ClosedLoop {
+        loop_: ProfileLoop::new(vertices),
+        program: vec![Step::CircleSplit {
+            centre: center,
+            radius,
+            n,
+            phase,
+        }],
+    })
+}
+
 impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
     /// Adds the position bit (`Open → Point`, `Angle → Directed`) —
     /// written once, generic over the angle slot it does not touch.
@@ -1775,6 +1879,80 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         self.tip.ang = Some(theta);
         self.tip.ang_by_tangent = false;
         Ok(in_state(self.core, self.tip))
+    }
+
+    /// **The declared-subdivision step** (LIB-SWITCH §5-1 fallback,
+    /// ruled 2026-08-08): continue the incoming ARC CARRIER to
+    /// `target`, minting a STRUCTURAL subdivision vertex — a vertex the
+    /// author placed on the carrier deliberately (the half-disc's
+    /// equator vertex, which revolve naming's pole elimination anchors
+    /// on), not a junction claim of any kind.
+    ///
+    /// Semantics, precisely: the leg runs on the SAME carrier circle as
+    /// the incoming leg, in the same travel sense, from the tip to
+    /// `target`. The junction at the tip is a same-carrier IDENTITY —
+    /// exactly the class [`circle`]'s two poles are — so NO §4 junction
+    /// check runs (there is no departure to classify: the carrier
+    /// continues) and NOTHING is declared tangent (there is no tangency
+    /// claim to verify; #101's same-carrier-is-identity rule applies at
+    /// validation unchanged). The bulge is DERIVED from the carrier and
+    /// the target — authored data is the target alone.
+    ///
+    /// Refusals: no incoming arc carrier
+    /// ([`PathError::ArcContinueNeedsArcCarrier`] — a straight leg has
+    /// nothing to subdivide); a target off the carrier
+    /// ([`PathError::ArcContinueOffCarrier`] — authored points never
+    /// re-project); a degenerate chord
+    /// ([`PathError::DegenerateArcChord`]).
+    pub fn arc_continue(
+        mut self,
+        target: Point2<T>,
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+        self.core.record(Step::ArcContinue(target));
+        let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
+            site: "arc_continue on a tip without a position",
+        })?;
+        let at = pos.at;
+        let inc = pos.incoming.ok_or(PathError::UnderdeterminedLeg {
+            site: "arc_continue on a tip without incoming data",
+        })?;
+        let carrier = inc.carrier.ok_or(PathError::ArcContinueNeedsArcCarrier)?;
+        let band = linear_band()?;
+        // The target must LIE on the carrier: |target − c| − r decided
+        // coincident (in-band Zero); a definite offset is contradictory
+        // authored data.
+        let offset = (target - carrier.center).norm_squared().sqrt() - carrier.radius;
+        match decide("path_arc_continue_on_carrier", Margin::of(offset), band) {
+            Ok(Sign::Zero) => {}
+            Ok(_) => return Err(PathError::ArcContinueOffCarrier { offset }),
+            Err(source) => return Err(PathError::Escalated { source }),
+        }
+        let chord_v = target - at;
+        let chord = chord_v.norm_squared().sqrt();
+        match decide("path_arc_chord", Margin::of(chord), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => return Err(PathError::DegenerateArcChord { chord }),
+            Err(source) => return Err(PathError::Escalated { source }),
+        }
+        // The continuation departs ALONG the incoming tangent (same
+        // carrier, same sense — that is what continuing means), so the
+        // bulge is the tangent-chord relation, exactly
+        // `tangent_arc_geom`'s derivation: δ = atan2(across, along),
+        // b = tan(δ/2), end tangent = departure + 2δ. The travel sense
+        // falls out of the signed δ — no sign is ever read or
+        // classified here.
+        let u = inc.ang.unit;
+        let along = u.dot(chord_v);
+        let across = u.perp_dot(chord_v);
+        let delta = across.atan2(along);
+        let bulge = (delta / T::from_f64(2.0)).tan();
+        let end_ang = Dir::from_angle(inc.ang.ang + delta + delta);
+        self.core.push_arc(target, bulge, carrier)?;
+        let arm = carrier.radius.min(chord);
+        Ok(in_state(
+            self.core,
+            leg_end_tip(target, end_ang, arm, Some(carrier)),
+        ))
     }
 }
 

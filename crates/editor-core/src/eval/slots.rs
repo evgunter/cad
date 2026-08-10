@@ -23,10 +23,18 @@ pub(crate) enum SlotVal<T> {
 pub(crate) type SlotValues<T> = Vec<(SlotId, SlotVal<T>)>;
 
 /// Evaluates every slot; the first failure returns with its slot.
-pub(crate) fn eval_slots<T: Decide, P>(
+///
+/// Profile nodes are EXEMPT (empty result): their program slots
+/// resolve at f64 in `eval_node`'s dedicated stage (LIB-SWITCH §4b —
+/// the C6 f64 pin), never at the lane scalar, and their key
+/// contribution is the resolved program stream, not slot values.
+pub(crate) fn eval_slots<T: Decide, P: crate::ProfilePayload>(
     node: &Node<P>,
     env: &ParamEnv<T>,
 ) -> Result<SlotValues<T>, (SlotId, EvalError)> {
+    if matches!(node, Node::Profile(_)) {
+        return Ok(Vec::new());
+    }
     let mut out = Vec::new();
     for slot in node.slots() {
         let Some(expr) = node.expr(slot) else {

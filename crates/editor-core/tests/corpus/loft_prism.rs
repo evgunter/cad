@@ -33,22 +33,18 @@
 //! suite (`sweep/tests/m6_loft_body.rs`), where the derivation above
 //! is asserted against the certified enclosure.
 
-use editor_core::{DocEdit, Expr, Node, ProfileDesc, SlotId};
+use editor_core::{DocEdit, Expr, LoopProgram, Node, ProfileProgram, SlotId};
 use geom_core::{Point3, Vec3};
-use profile::{Profile, ProfileLoop, SketchPlane};
+use profile::SketchPlane;
 
 use super::{CorpusDoc, Recorder};
 
 /// One quad section at height `z` from its four corners.
-fn section(z: f64, pts: [(f64, f64); 4]) -> ProfileDesc {
-    let corners = pts
-        .iter()
-        .map(|&(x, y)| geom_core::Point2::new(x, y))
-        .collect::<Vec<_>>();
-    ProfileDesc(Profile::new(
-        SketchPlane::from_frame(Point3::new(0.0, 0.0, z), Vec3::unit_x(), Vec3::unit_y()),
-        vec![ProfileLoop::polygon(corners)],
-    ))
+fn section(z: f64, pts: [(f64, f64); 4]) -> ProfileProgram {
+    ProfileProgram {
+        plane: SketchPlane::from_frame(Point3::new(0.0, 0.0, z), Vec3::unit_x(), Vec3::unit_y()),
+        loops: vec![LoopProgram::polygon(pts).unwrap()],
+    }
 }
 
 /// The loft-prism corpus document.

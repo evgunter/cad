@@ -15,15 +15,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, DocEdit, EvalOptions, Node, ProfileDesc, ProfileDoc,
-    RecipeNodeId, ValuePayload, apply, evaluate, load, save,
+    BooleanOp, BooleanValue, CancelToken, DocEdit, EvalOptions, LoopProgram, Node, ProfileDoc,
+    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, ValuePayload, apply, evaluate, load,
+    save,
 };
-use geom_core::{Affine3, Point2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use geom_core::{Affine3, Vec3};
+use profile::SketchPlane;
 
 struct Rec {
     doc: ProfileDoc,
-    edits: Vec<DocEdit<ProfileDesc>>,
+    edits: Vec<DocEdit<ProfileProgram>>,
 }
 
 impl Rec {
@@ -33,7 +34,7 @@ impl Rec {
             edits: Vec::new(),
         }
     }
-    fn insert(&mut self, node: Node<ProfileDesc>) -> RecipeNodeId {
+    fn insert(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
         let edit = DocEdit::InsertNode { node };
         let applied = apply(&self.doc, &edit).expect("edit applies");
         self.doc = applied.doc;
@@ -48,40 +49,26 @@ fn len(v: f64) -> editor_core::Expr {
 
 /// The boss-union document: 3x3x0.8 plate, r=0.35 three-arc boss at
 /// (1.2, 1.7) from z=0.3, height 1.0.
-fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileDesc>>, RecipeNodeId) {
+fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) {
     let mut r = Rec::new();
-    let plate_loop = ProfileLoop::new(
-        [(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: Point2::new(x, y),
-                bulge: 0.0,
-            })
-            .collect(),
-    );
-    let plate_p = r.insert(Node::Profile(ProfileDesc(Profile::new(
-        SketchPlane::xy(),
-        vec![plate_loop],
-    ))));
+    let plate_loop =
+        LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]).unwrap();
+    let plate_p = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![plate_loop],
+    }));
     let plate = r.insert(Node::Extrude {
         profile: plate_p,
         distance: len(0.8),
     });
-    let theta = 2.0 * std::f64::consts::PI / 3.0;
-    let bulge = (theta / 4.0).tan();
-    let at = |i: usize| {
-        let th = theta * i as f64;
-        Point2::new(1.2 + 0.35 * th.cos(), 1.7 + 0.35 * th.sin())
-    };
-    let boss_loop = ProfileLoop::new(
-        (0..3)
-            .map(|i| ProfileVertex { pos: at(i), bulge })
-            .collect(),
-    );
-    let boss_p = r.insert(Node::Profile(ProfileDesc(Profile::new(
-        SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3))),
-        vec![boss_loop],
-    ))));
+    // v4: the corpus boss re-authored as circle_split (corpus ruling
+    // (a)); this probe mirrors it so the closed-form volume row keeps
+    // metering the SAME document shape.
+    let boss_loop = LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap();
+    let boss_p = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3))),
+        loops: vec![boss_loop],
+    }));
     let boss = r.insert(Node::Extrude {
         profile: boss_p,
         distance: len(1.0),
@@ -178,27 +165,32 @@ fn tangent_intersection_edges_survive_save_load_at_rest() {
     // the loaded body must carry the same count of intrinsic tangent
     // edges — the round trip may not silently downgrade them.
     let mut r = Rec::new();
-    let b = (std::f64::consts::PI / 8.0).tan();
-    let mut lp = ProfileLoop::new(
+    // v4: the declared-tangent joints [2, 3] author structurally —
+    // `.tangent()` before the arc and before the leg out of it.
+    let lpt = |x: f64, y: f64| {
         [
-            (0.0, 0.0, 0.0),
-            (1.0, 0.0, 0.0),
-            (1.0, 0.75, b),
-            (0.75, 1.0, 0.0),
-            (0.0, 1.0, 0.0),
+            editor_core::Expr::literal(x, editor_core::Dimension::Length).unwrap(),
+            editor_core::Expr::literal(y, editor_core::Dimension::Length).unwrap(),
         ]
-        .into_iter()
-        .map(|(x, y, bulge)| ProfileVertex {
-            pos: Point2::new(x, y),
-            bulge,
-        })
-        .collect(),
-    );
-    lp.tangent_joints = vec![2, 3];
-    let p = r.insert(Node::Profile(ProfileDesc(Profile::new(
-        SketchPlane::xy(),
-        vec![lp],
-    ))));
+    };
+    let lp = LoopProgram::Chain(vec![
+        ProgramStep::At(lpt(0.0, 0.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 0.75))),
+        ProgramStep::Tangent,
+        ProgramStep::TangentArcTo(ProgramTarget::Point(lpt(0.75, 1.0))),
+        ProgramStep::Tangent,
+        // Declared-tangent straight leg: rides the inherited
+        // direction, authored as its LENGTH (0.75 → lands at (0,1)).
+        ProgramStep::Line(
+            editor_core::Expr::literal(0.75, editor_core::Dimension::Length).unwrap(),
+        ),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let p = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![lp],
+    }));
     let ex = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),

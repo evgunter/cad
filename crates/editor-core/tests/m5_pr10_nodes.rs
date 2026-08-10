@@ -29,7 +29,7 @@ fn count(v: i64) -> Expr {
 }
 
 /// A square section at height `z`, scaled by `s`.
-fn section(z: f64, s: f64) -> editor_core::ProfileDesc {
+fn section(z: f64, s: f64) -> editor_core::ProfileProgram {
     desc(
         [0.0, 0.0, z],
         [1.0, 0.0, 0.0],
