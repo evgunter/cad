@@ -6,8 +6,8 @@
 //! flux/area lie INSIDE the returned brackets, or the call refuses
 //! typed. A returned bracket that EXCLUDES the truth is the failure.
 
-use geom_brep::props::quad::nurbs_patch_face;
 use geom_brep::props::PropsError;
+use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, RingInterval, Tolerance};
 
@@ -66,7 +66,11 @@ fn basis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
         for i in 0..(n - pdeg) {
             let da = knots[i + pdeg] - knots[i];
             let db = knots[i + pdeg + 1] - knots[i + 1];
-            let a = if da > 0.0 { (t - knots[i]) / da * nn[i] } else { 0.0 };
+            let a = if da > 0.0 {
+                (t - knots[i]) / da * nn[i]
+            } else {
+                0.0
+            };
             let b = if db > 0.0 {
                 (knots[i + pdeg + 1] - t) / db * nn[i + 1]
             } else {
@@ -361,17 +365,7 @@ fn probe_sphere_octant() {
         p(1.0, 1.0, 0.0),
         p(0.0, 1.0, 0.0),
     ];
-    let weights = [
-        1.0,
-        W2,
-        1.0,
-        W2,
-        0.5,
-        W2,
-        1.0,
-        W2,
-        1.0,
-    ];
+    let weights = [1.0, W2, 1.0, W2, 0.5, W2, 1.0, W2, 1.0];
     probe(
         "sphere-octant",
         &kv2,
@@ -559,21 +553,12 @@ fn probe_half_cylinder_interior_knot() {
 /// excluding the truth is the unsound outcome this probe hunts.
 #[test]
 fn probe_c0_kink_area() {
-    let ku = KnotVector::clamped(
-        vec![0.0, 0.0, 0.0, 1.0 / 3.0, 1.0 / 3.0, 1.0, 1.0, 1.0],
-        2,
-    )
-    .unwrap();
+    let ku =
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0 / 3.0, 1.0 / 3.0, 1.0, 1.0, 1.0], 2).unwrap();
     let kv = KnotVector::unit_segment(1);
     // profile in the xy-plane: straight (0,0)->(1,0), corner, then
     // straight (1,0)->(1,4); extruded in z by 1.
-    let prof = [
-        (0.0, 0.0),
-        (0.5, 0.0),
-        (1.0, 0.0),
-        (1.0, 2.0),
-        (1.0, 4.0),
-    ];
+    let prof = [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 2.0), (1.0, 4.0)];
     let mut net = Vec::new();
     for (x, y) in prof {
         net.push(p(x, y, 0.0));
@@ -655,7 +640,10 @@ fn probe_determinism_bits() {
         band(),
     );
     match refused {
-        Err(PropsError::QuadratureBudget { width_len, target_len }) => {
+        Err(PropsError::QuadratureBudget {
+            width_len,
+            target_len,
+        }) => {
             println!("BUDGET width_len {width_len:.6e} target {target_len:.6e}");
             assert!(width_len.is_finite() && width_len > target_len);
         }
@@ -726,7 +714,10 @@ fn diag_refine_half_circle() {
         }
     }
     println!("worst refinement deviation: {worst:e}");
-    assert!(worst < 1e-12, "refinement is NOT locus-preserving: {worst:e}");
+    assert!(
+        worst < 1e-12,
+        "refinement is NOT locus-preserving: {worst:e}"
+    );
 }
 
 /// ISOLATION: uniform weights w = 0.5 make the rational lane's
@@ -765,7 +756,13 @@ fn diag_uniform_weight_twins() {
         )
     };
     let poly = run(&[1.0; 10]).expect("integral lane");
-    println!("poly-first flux [{:.12}, {:.12}] area [{:.12}, {:.12}]", poly.flux.lo(), poly.flux.hi(), poly.area.lo(), poly.area.hi());
+    println!(
+        "poly-first flux [{:.12}, {:.12}] area [{:.12}, {:.12}]",
+        poly.flux.lo(),
+        poly.flux.hi(),
+        poly.area.lo(),
+        poly.area.hi()
+    );
     let rat = run(&[0.5; 10]).expect("rational lane");
     println!(
         "poly flux [{:.12}, {:.12}]  rational flux [{:.12}, {:.12}]",
