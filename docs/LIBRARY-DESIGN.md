@@ -3,9 +3,9 @@
 Status: **RATIFIED** (design conversation opened 2026-08-06 at
 Evan's request; first-round rulings in-chat the same day, recorded
 at §L7; Evan's sign-off 2026-08-06 in-chat, merged as PR #229).
-Recorded open residue: LQ3 (owned by U4's measured spec) and LQ7's
-tail (wheel cadence, post-release schema/package version coupling —
-deferred to implementation time). This doc turns DESIGN.md's
+Recorded open residue: LQ7's tail (wheel cadence, post-release
+schema/package version coupling — deferred to implementation
+time). LQ3 was ratified 2026-08-10 (#362) — see its entry in §L7. This doc turns DESIGN.md's
 "Beyond the kernel" sequencing item — *"usable as a library" ships
 before any GUI work begins* — from a scoping paragraph into a
 designed program.
@@ -279,9 +279,10 @@ bindings crate).
   pose/point-at/mirror family lives. Measure-first per house style;
   the survey's consumer census is the starting evidence.
 
-  **LQ3 measured proposal (2026-08-10, LIB orchestrator — the
-  design conversation Evan asked for on #355; AWAITING his
-  ruling).** The 2026-08-10 substrate survey pins the walls:
+  **LQ3 RATIFIED (Evan 👍 on #362's sign-off comment,
+  2026-08-10, with the resonance amendment below folded; M8
+  orchestrator's kernel-side concurrence on (b) recorded on the
+  thread).** The proposal as ratified: The 2026-08-10 substrate survey pins the walls:
   `sweep_body` consumes ONE `NurbsCurve3<f64>`; every scene
   hand-samples its path (17-point S-curve, interpolate degree 3)
   and hand-rolls the start frame (Gram–Schmidt with a
