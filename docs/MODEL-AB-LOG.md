@@ -523,6 +523,10 @@ merged + 3 R1-dispatched-unmerged (M8-3 @17, U10 @18, M8-5 @22)
 + 1 = **23** → SINGLE review. (dm1 advances again — instancing
 machinery landed + one ladder gap closed; the remaining
 curve-recognition gap filed as #327.)
+LIB PROGRAM COMPLETE (#334, 2026-08-10): every §L5 unit merged,
+their rows recorded (U10 dual sample #6, R1-PARAMS, PY-CI). The
+dual-review counter is SINGLE-SERIES from here — this orchestrator
+computes ordinals alone until a successor program opens.
 
 ## LIB program rows (usable-as-a-library, docs/LIBRARY-DESIGN.md; own block series per the §L8 ruling — no draw collision with the concurrent M6/M7 orchestrator)
 
