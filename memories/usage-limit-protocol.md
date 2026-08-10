@@ -5,17 +5,14 @@ metadata:
   type: project
 ---
 
-**Privacy rule (Evan, #355, 2026-08-10 — the repo may go
-public):** account email addresses other than the commit-signing
-identity must never be posted to GitHub — not in comments, PR
-bodies, commits, or committed files. Refer to accounts by role
-("this session's own account"); the concrete address stays in
-local logs under cad-work only. (Process note: #357 and #358
-recorded this rule concurrently, then #359 and #360 each deduped
-the OTHER side's copy — the file briefly carried the rule zero
-times. Restored here once. Shared-memory edits are the
-double-writer race the state-sync norm exists for: before
-editing a shared memory, fetch main and re-read it.)
+**Account identifiers stay OFF GitHub (Evan, #355, 2026-08-10,
+anticipating the repo going public; restored after the #359/#360
+dedupe crossing deleted both copies):** never post account email
+addresses — or any personal identifier beyond the commit-signing
+identity (`evgunter`) — in issues, PRs, comments, commits, or
+committed files (this file included: name accounts by role, keep
+concrete addresses in local cad-work logs only). Existing comments
+naming addresses were edited on request — do not reintroduce them.
 
 **Why this exists (Evan, #348 comment, 2026-08-10):** hitting the
 subscription session limit opens Claude Code's usage-credits dialog,
