@@ -44,7 +44,7 @@ plate = doc.insert(Node.extrude(profile, 8 * mm))
 
 body = evaluate(doc).value(plate).body()
 body.validate()
-print(body.mass_properties().volume)      # 2.56e-05 m³
+print(f"{body.mass_properties().volume:.3e} m^3")      # 2.560e-05 m^3
 ```
 
 `crates/pncad-py/examples/bracket.py` is the full journey — build,

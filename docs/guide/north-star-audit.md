@@ -47,42 +47,50 @@ persistence, and typed quantities. That is the whole vocabulary.
 
 ## The audit
 
-| # | scene | Python? | the missing door |
-|---|---|---|---|
-| 1 | `bracket` | NO | profile needs arcs (`.fillet(0.5)` mints a tangent arc leg) |
-| 2 | `plate` | NO | multi-loop profile / holes; also circles |
-| 3 | `vase` | NO | profile needs arcs (`arc_via` belly) |
-| 4 | `sheave` | NO | profile needs arcs (`arc_via` groove) |
-| 5 | `chute` | **YES** | — |
-| 6 | `rocker` | NO | profile needs arcs (hub circles, 6 fillets); multi-loop |
-| 7 | `diefillet` | NO | no fillet node (`fillet_edges` on 12 edges) |
-| 8 | `diepips` | NO | profile needs arcs; rigid placement; group boolean |
-| 9 | `diecomposed` | NO | no fillet node; plus everything blocking `diepips` |
-| 10 | `lily` (8 bodies) | NO | tube/sweep; arcs; non-xy planes; rigid placement |
-| 11 | `tiltedcut` | NO | no split node; also circles |
-| 12 | `bossplate` | NO | profile needs arcs (three-arc boss loop) |
-| 13 | `loft_prism` | NO | no loft |
-| 14 | `nonuniform_loft` | NO | no loft |
-| 15 | `s_duct` | NO | no sweep along a path |
-| 16 | `twisted_duct` | NO | no sweep along a path |
-| 17 | `twisted_duct_shadow_z` | NO | same body — no sweep |
-| 18 | `twisted_duct_shadow_y` | NO | same body — no sweep |
-| 19 | `tube_along_arc` | NO | no tube/torus door |
-| 20 | `die` | **YES** | — |
-| 21 | `table` | NO | declared flush contact |
-| 22 | `silhouette` | NO | non-xy sketch plane (T is a yz sketch extruded +x) |
-| 23 | `silhouette3` | NO | non-xy sketch plane (T on yz, C on zx) |
-| 24 | `silhouette3_shadow_z` | NO | same body — non-xy sketch planes |
-| 25 | `silhouette3_shadow_x` | NO | same body — non-xy sketch planes |
-| 26 | `silhouette3_shadow_y` | NO | same body — non-xy sketch planes |
-| 27 | `az` | NO | non-xy sketch plane (Z on yz); multi-loop (A's counter hole) |
-| 28 | `crosslap` (glued) | NO | declared flush contact — the mate refuses undeclared |
-| 29 | `crosslap_exploded` | YES\* | rigid placement (re-authorable: the lift is axis-aligned) |
-| 30 | `projectbox` | **YES** | — |
-| 31 | `cutaway` | NO | no split node; also rigid placement |
-| 32 | `heatsink5` | YES\* | pattern node + structural-param edit |
-| 33 | `heatsink7` | YES\* | pattern node + structural-param edit |
-| 34 | `heatsink9` | YES\* | pattern node + structural-param edit |
+Every NO row names its **gap id**, which is the row's pointer: the id
+resolves in the gap list below, and each gap there points onward to
+the LIB residual register (`docs/LIB-LOG.md`, "LIB residual register",
+category B) and to any design doc or register item that owns it. The
+`gap` column is the row's *primary* blocker — the most fundamental
+missing door — so the ids partition the 27 NO rows exactly; secondary
+blockers stay named in the last column.
+
+| # | scene | Python? | gap | the missing door |
+|---|---|---|---|---|
+| 1 | `bracket` | NO | G1 | profile needs arcs (`.fillet(0.5)` mints a tangent arc leg) |
+| 2 | `plate` | NO | G9 | multi-loop profile / holes; also circles (G1) |
+| 3 | `vase` | NO | G1 | profile needs arcs (`arc_via` belly) |
+| 4 | `sheave` | NO | G1 | profile needs arcs (`arc_via` groove) |
+| 5 | `chute` | **YES** | — | — |
+| 6 | `rocker` | NO | G1 | profile needs arcs (hub circles, 6 fillets); multi-loop (G9) |
+| 7 | `diefillet` | NO | G4 | no fillet node (`fillet_edges` on 12 edges) |
+| 8 | `diepips` | NO | G1 | profile needs arcs; rigid placement (G7); group boolean |
+| 9 | `diecomposed` | NO | G4 | no fillet node; plus everything blocking `diepips` |
+| 10 | `lily` (8 bodies) | NO | G2 | tube/sweep; arcs (G1); non-xy planes (G3); placement (G7) |
+| 11 | `tiltedcut` | NO | G6 | no split node; also circles (G1) |
+| 12 | `bossplate` | NO | G1 | profile needs arcs (three-arc boss loop) |
+| 13 | `loft_prism` | NO | G2 | no loft |
+| 14 | `nonuniform_loft` | NO | G2 | no loft |
+| 15 | `s_duct` | NO | G2 | no sweep along a path |
+| 16 | `twisted_duct` | NO | G2 | no sweep along a path |
+| 17 | `twisted_duct_shadow_z` | NO | G2 | same body — no sweep |
+| 18 | `twisted_duct_shadow_y` | NO | G2 | same body — no sweep |
+| 19 | `tube_along_arc` | NO | G2 | no tube/torus door |
+| 20 | `die` | **YES** | — | — |
+| 21 | `table` | NO | G5 | declared flush contact |
+| 22 | `silhouette` | NO | G3 | non-xy sketch plane (T is a yz sketch extruded +x) |
+| 23 | `silhouette3` | NO | G3 | non-xy sketch plane (T on yz, C on zx) |
+| 24 | `silhouette3_shadow_z` | NO | G3 | same body — non-xy sketch planes |
+| 25 | `silhouette3_shadow_x` | NO | G3 | same body — non-xy sketch planes |
+| 26 | `silhouette3_shadow_y` | NO | G3 | same body — non-xy sketch planes |
+| 27 | `az` | NO | G3 | non-xy sketch plane (Z on yz); multi-loop (G9) |
+| 28 | `crosslap` (glued) | NO | G5 | declared flush contact — the mate refuses undeclared |
+| 29 | `crosslap_exploded` | YES\* | G7 | rigid placement (re-authorable: the lift is axis-aligned) |
+| 30 | `projectbox` | **YES** | — | — |
+| 31 | `cutaway` | NO | G6 | no split node; also rigid placement (G7) |
+| 32 | `heatsink5` | YES\* | G8 | pattern node + structural-param edit |
+| 33 | `heatsink7` | YES\* | G8 | pattern node + structural-param edit |
+| 34 | `heatsink9` | YES\* | G8 | pattern node + structural-param edit |
 
 **YES** = the exact body is reproducible with the bound surface.
 **YES\*** = the exact body is reproducible, but only by hand-authoring
@@ -126,26 +134,35 @@ place. The undeclared lane was always enough for them.
 
 ## The gap list
 
-Ranked by how many stops each blocks first:
+Ranked by how many stops each blocks first. **Register** is the
+pointer each NO row inherits: every gap is carried as a
+bindings-parity residual in `docs/LIB-LOG.md` → "LIB residual
+register" → **category B**, which the register itself notes is
+self-enforcing because this audit's test fails as doors land. Where a
+gap also has a design doc or a lettered register item of its own, that
+is named too.
 
-| # | gap | stops blocked | note |
+| # | gap | stops | register / pointer | note |
+|---|---|---|---|---|
+| G1 | **Arcs and circles in profiles** | 7 | register B ("the big three"); `docs/PATHS-DESIGN.md` §5 + LIBRARY-DESIGN §L4 | The single biggest blocker. `Node.polygon` is straight segments only, so every rounded part is out. The fix is the PATHS lattice in the `.pyi` — specified, unbuilt, and unblocked now that v2 has landed |
+| G2 | **Loft, sweep, tube** | 8 | register B ("the big three") | No node kind for any of the path-driven body ops |
+| G3 | **Non-xy sketch planes** | 6 | register B ("the big three") | `Node.polygon` takes only an `elevation`. Any part with features on two orthogonal faces is out |
+| G4 | **Fillet node** | 2 | register B | `fillet_edges` has no document node, so no edge blends from Python |
+| G5 | **Declared flush contact** | 2 | register B; register A **R3** (the SEL2 `UndeclaredContact` refusal-menu wiring) | `Node.boolean` has no `declare` argument, so parts that *touch* cannot be glued — the detect/declare protocol (`find_flush_candidates` → `declare_node`) is entirely unbound |
+| G6 | **Split** | 1 | register B | `topo::split` has no node |
+| G9 | **Multi-loop profiles** | 1 | register B | A profile is one loop, so a plate with holes needs a boolean per hole. Also a secondary blocker on `rocker` and `az` |
+| G7 | **Rigid placement** | degrades 1 | register B | No transform node; bodies must be authored in place |
+| G8 | **Pattern + structural params** | degrades 3 | register B | No pattern node and no `SetStructuralParam` edit, so `heatsink`'s actual subject — one recipe, a count edit, memoized recompute — cannot be said |
+
+G1–G6 and G9 partition the 27 NO rows (7+8+6+2+2+1+1); G7 and G8 are
+what make four rows YES\* rather than YES.
+
+Two further gaps block no tour scene but matter to the library:
+
+| # | gap | register / pointer | why it matters |
 |---|---|---|---|
-| G1 | **Arcs and circles in profiles** | 9 | The single biggest blocker. `Node.polygon` is straight segments only, so every rounded part is out. The real fix is the PATHS lattice (`docs/PATHS-DESIGN.md` §5, LIBRARY-DESIGN §L4), whose stub classes are specified and unbuilt |
-| G2 | **Loft, sweep, tube** | 7 | No node kind for any of the path-driven body ops |
-| G3 | **Non-xy sketch planes** | 6 | `Node.polygon` takes only an `elevation`. Any part with features on two orthogonal faces is out |
-| G4 | **Fillet node** | 2 | `fillet_edges` has no document node, so no edge blends from Python |
-| G5 | **Declared flush contact** | 2 | `Node.boolean` has no `declare` argument, so parts that *touch* cannot be glued — the detect/declare protocol (`find_flush_candidates` → `declare_node`) is entirely unbound |
-| G6 | **Split** | 1 | `topo::split` has no node |
-| G7 | **Rigid placement** | degrades 1 | No transform node; bodies must be authored in place |
-| G8 | **Pattern + structural params** | degrades 3 | No pattern node and no `SetStructuralParam` edit, so `heatsink`'s actual subject — one recipe, a count edit, memoized recompute — cannot be said |
-
-Three further gaps block no tour scene but matter to the library:
-
-| # | gap | why it matters |
-|---|---|---|
-| G9 | **Multi-loop profiles** | A profile is one loop, so a plate with holes needs a boolean per hole. Blocks `plate` and `az` |
-| G10 | **Named document parameters** | `SetDocParam` needs `ParamName`/`DocParam`, and neither is bound (nor re-exported by the Rust façade — see guide §3.2). So the parametric flagship `plate_param` is unauthorable from Python **and** from `pncad`. This is the gap nearest the point of the whole switch |
-| G11 | **Tessellation and STL** | No mesh door, so the guide's ladder stops at step 4 for Python: no tessellate, and no mesh-vs-exact cross-check. `Evaluation.step_string` is the only export |
+| G10 | **Named document parameters** | register A **R1** (named "the significant one" / "highest-value single residual"); guide §3.2's `compile_fail` pin | `SetDocParam` needs `ParamName`/`DocParam`, and neither is bound (nor re-exported by the Rust façade — see guide §3.2). So the parametric flagship `plate_param` is unauthorable from Python **and** from `pncad`. This is the gap nearest the point of the whole switch |
+| G11 | **Tessellation and STL** | register B (named there as completing the ladder) | No mesh door, so Python loses steps 4 and 5 of the guide's ladder — no tessellate, and therefore no mesh-vs-exact cross-check. Step 6 does work: `Evaluation.step_string` exports STEP, and re-importing it is the strongest check available from Python |
 
 ## How to read this page next quarter
 

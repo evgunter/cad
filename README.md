@@ -15,7 +15,7 @@ cross-check, export — worked in both languages. Every code block in it is
 executed, as a doctest or by the Python test runner.
 
 - [`docs/guide/examples.md`](docs/guide/examples.md) — the corpus as the
-  example set: all 34 demo-tour stops and all 17 document-corpus entries,
+  example set: all 34 demo-tour stops and all 16 document-corpus entries,
   mapped to what each demonstrates.
 - [`docs/guide/fail-loud.md`](docs/guide/fail-loud.md) — this kernel refuses
   rather than guessing. What the refusals look like, and how to read one.

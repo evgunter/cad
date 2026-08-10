@@ -92,9 +92,9 @@ $ pip install maturin
 $ maturin develop -m crates/pncad-py/Cargo.toml --features extension-module
 ```
 
-If the box has no `pip` (this repo's dev machines are such boxes),
-build the cdylib and stage it by hand — the repo's own runner does
-exactly this:
+If the box has no `pip`, build the cdylib and stage it by hand. The
+repo's own runner does exactly this, and it is also the quickest way
+to run the Python suites:
 
 ```console
 $ ./crates/pncad-py/run-python-tests.sh          # builds, stages, runs the tests
