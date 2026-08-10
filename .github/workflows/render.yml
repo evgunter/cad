@@ -9,16 +9,26 @@
 # runner is a cold, unloaded box that gets thrown away afterwards, so it
 # is a good place to send this.
 #
-# ALL THREE LANES, FANNED OUT. The tour is built ONCE and handed to the
-# lanes as an artifact; the two FreeCAD-drawn montages then run as
-# parallel matrix legs (`fail-fast: false` — one lane wedging must not
-# cancel the other's evidence), and the UV sheet, which needs no
-# renderer at all, lands in a couple of minutes without waiting on
-# either. What comes back is an artifact per lane:
+# ALL FOUR LANES, FANNED OUT. The tour is built ONCE and handed to the
+# lanes that read it as an artifact; the two FreeCAD-drawn montages then
+# run as parallel matrix legs (`fail-fast: false` — one lane wedging
+# must not cancel the other's evidence), while the UV sheet (no renderer
+# at all) and the wild-corpus montage (matplotlib, its own generator,
+# no tour) land in minutes without waiting on either. What comes back is
+# an artifact per lane:
 #
 #   gh run download <run-id> -n renders-kernel      # kernel tessellation
 #   gh run download <run-id> -n renders-freecad     # OCC re-tessellation
 #   gh run download <run-id> -n renders-uv          # UV trim-loop sheet
+#   gh run download <run-id> -n renders-wild        # wild-corpus montage
+#
+# `scripts/render-hosted.sh` is the one-command front end for all of
+# that (push check -> dispatch -> poll -> install the artifacts back
+# into the working tree at their committed paths), and is the path the
+# local entry points now point at: they refuse to run without an
+# explicit override (demos/hosted-render-guard.sh), and every step here
+# that renders sets that override in the file, because this workflow is
+# the sanctioned renderer.
 #
 # THE KERNEL LANE'S FALLBACK HOLE IS PLUGGED HERE. That lane has a
 # matplotlib fallback which EXITS 0 and writes the gitignored preview
@@ -40,6 +50,12 @@
 #     all, so it IS reproducible on a runner. ci.yml's `k-lint` job
 #     already gates it (`uv sheet drift (demos)`); this job exists to
 #     HAND YOU THE SHEET on demand, not to check it.
+#   * wild — matplotlib's Agg rasterizer over the kernel's own
+#     tessellation of committed STEP fixtures, with pinned numpy /
+#     matplotlib and no GL anywhere in the path. Byte-reproducible
+#     off-box like the UV lane, and unlike it, PNGs — which makes it the
+#     lane render-hosted.sh round-trips to prove the artifact path
+#     preserves the provenance stamp chunks byte for byte.
 #   * kernel / FreeCAD — the committed cells were drawn against a
 #     developer host's GL stack, these are drawn by llvmpipe under Xvfb,
 #     and the runner image's mesa drifts month to month. Byte-identity
@@ -57,7 +73,7 @@ on:
         required: false
         type: choice
         default: all
-        options: [all, kernel, freecad, uv]
+        options: [all, kernel, freecad, uv, wild]
       scene_timeout:
         description: "FreeCAD per-scene wall-clock budget, seconds"
         required: false
@@ -79,6 +95,9 @@ jobs:
   tour:
     name: demo tour (scene inputs)
     runs-on: ubuntu-latest
+    # The wild lane reads its own generator's output (demos/wild/out),
+    # not the tour's — asking for it alone should not build the tour.
+    if: ${{ inputs.lanes != 'wild' }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -116,7 +135,16 @@ jobs:
         with:
           name: tour-out
           path: demos/out
+      # The render entry points refuse to run without the explicit
+      # `CAD_RENDER_LOCAL_OVERRIDE` sentence (demos/hosted-render-guard.sh)
+      # and deliberately do NOT sniff for CI. THIS workflow is the
+      # sanctioned renderer, so it says so in the file, at the step that
+      # renders — and it is the most informed acceptor of what the
+      # sentence names, since the "drift vs the committed lane" steps are
+      # that drift, measured.
       - name: compose (demos/render-uv.sh)
+        env:
+          CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
         run: demos/render-uv.sh
       - uses: actions/upload-artifact@v4
         with:
@@ -151,7 +179,7 @@ jobs:
     name: ${{ matrix.lane }} montage
     runs-on: ubuntu-latest
     needs: tour
-    if: ${{ inputs.lanes != 'uv' }}
+    if: ${{ contains(fromJSON('["all","kernel","freecad"]'), inputs.lanes) }}
     # A wedged pass is bounded by render.sh's own per-scene budget (two
     # attempts x the budget, per scene); this is the outer stop so a
     # pathological run cannot bill an hour of nothing.
@@ -170,6 +198,11 @@ jobs:
       LANE_FLAG: ${{ matrix.lane == 'freecad' && '--freecad' || '' }}
       LANE_DIR: ${{ matrix.lane == 'freecad' && 'renders-freecad' || 'renders' }}
       FREECAD_SCENE_TIMEOUT: ${{ inputs.scene_timeout || '300' }}
+      # See the uv lane's note: the entry points refuse without this
+      # sentence and do not sniff for CI. This workflow IS the sanctioned
+      # renderer, and its "pixel drift vs the committed lane" step is the
+      # measurement of the drift the sentence names.
+      CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
       # No GPU on a hosted runner: force the software rasterizer rather
       # than letting Coin pick up whatever partial GL the image ships.
       LIBGL_ALWAYS_SOFTWARE: "1"
@@ -299,5 +332,68 @@ jobs:
             echo "Changed cells:"
             echo '```'
             git status --porcelain -- "demos/$LANE_DIR/" || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # THE WILD-CORPUS LANE. FreeCAD-free by ratified scope (its cells are
+  # third-party STEP imported by `step-import` and tessellated by the
+  # kernel, drawn by render.py — matplotlib is the PRIMARY renderer
+  # here, not a fallback), so it needs no AppImage, no GL, no Xvfb, and
+  # no tour: it runs its own generator over the committed fixtures under
+  # crates/step-import/tests/fixtures/wild/.
+  #
+  # It is therefore the second lane that is genuinely BYTE-reproducible
+  # off-box — Agg is a pure-CPU rasterizer with matplotlib's own bundled
+  # fonts, and the venv's numpy/matplotlib are pinned by render-wild.sh
+  # — which is what lets scripts/render-hosted.sh use it as the
+  # round-trip proof that the artifact path preserves the provenance
+  # stamp chunks byte for byte.
+  wild:
+    name: wild-corpus montage
+    runs-on: ubuntu-latest
+    if: ${{ contains(fromJSON('["all","wild"]'), inputs.lanes) }}
+    timeout-minutes: 45
+    env:
+      # See the uv lane's note: the sanctioned renderer says so in the
+      # file, at the step that renders.
+      CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: render-demos-wild
+          workspaces: |
+            .
+            demos/wild
+      - name: venv deps
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-venv
+      - name: wild generator (import + tessellate + STL + scenes.json)
+        run: cd demos/wild && cargo run --release -- out
+      - name: render (demos/render-wild.sh)
+        run: demos/render-wild.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: renders-wild
+          path: demos/renders-wild/**
+          retention-days: 14
+      # Unlike the two FreeCAD lanes this one has no GL-stack excuse: a
+      # diff here is a real pixel change (or a determinism finding),
+      # which is exactly why it is worth reporting. Still informational —
+      # this workflow gates nothing, by the header's rule.
+      - name: pixel drift vs the committed lane (informational)
+        if: always()
+        run: |
+          {
+            echo "### wild lane — hosted vs committed"
+            echo
+            echo "Renderer-free of FreeCAD (matplotlib Agg, pinned): byte-identity"
+            echo "IS expected here, so a non-empty diff is a real finding."
+            echo
+            echo '```'
+            git status --porcelain -- demos/renders-wild/ || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

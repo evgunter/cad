@@ -16,4 +16,10 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Hosted is the default renderer; this refuses without the explicit
+# preview-only override. See demos/hosted-render-guard.sh.
+# shellcheck source=demos/hosted-render-guard.sh
+. ./hosted-render-guard.sh
+require_hosted_render "demos/render-uv.sh"
+
 exec python3 compose_uv_montage.py out renders-uv
