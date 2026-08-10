@@ -527,6 +527,12 @@ merged + 3 R1-dispatched-unmerged (M8-3 @17, U10 @18, M8-5 @22)
 + 1 = **23** → SINGLE review. (dm1 advances again — instancing
 machinery landed + one ladder gap closed; the remaining
 curve-recognition gap filed as #327.)
+Block M8-14 (2026-08-10) — triple: difficulty logged PRE-DRAW for
+slot 0: #222, the long-turn sweep frontier (the ≥0.5-turn helix
+chord collapse under near-antipode frame roll — INTEGRAL class,
+the sweep_places minimal-rotation frame; distinct from M8-2's
+rational work, which deliberately did not move it) = **M**. Draw
+follows this entry.
 LIB PROGRAM COMPLETE (#334, 2026-08-10): every §L5 unit merged,
 their rows recorded (U10 dual sample #6, R1-PARAMS, PY-CI). The
 dual-review counter is SINGLE-SERIES from here — this orchestrator
