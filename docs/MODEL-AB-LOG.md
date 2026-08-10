@@ -524,3 +524,6 @@ Block LIB-6 (2026-08-09): byte 238 (<252) → fable position 1:
 tool + plate_param) = M → slot 1 OPUS; DOORS (curated-surface
 F1-F6) = M → slot 2 fable; opus remainder banks (U10 docs is the
 natural taker).
+DOORS dual (2026-08-09): dispatch-time ordinal = 14 merged blinded
+rows + 1 = 15 → DUAL (sample #5). R1+R2 concurrent on frozen head
+cb24259b. Both run the full Python journey independently.
