@@ -1027,7 +1027,13 @@ fn refusals_survive_the_dialect_relaxations() {
     let want: Vec<(f64, f64)> = solid_x_mm(base)
         .into_iter()
         .enumerate()
-        .map(|(i, (lo, hi))| if i == 0 { (lo + 5.0, hi + 5.0) } else { (lo, hi) })
+        .map(|(i, (lo, hi))| {
+            if i == 0 {
+                (lo + 5.0, hi + 5.0)
+            } else {
+                (lo, hi)
+            }
+        })
         .collect();
     let got = solid_x_mm(split);
     assert_eq!(got.len(), 2, "two components, two solids");
@@ -1052,7 +1058,10 @@ fn refusals_survive_the_dialect_relaxations() {
         );
     let instanced = import_step(&two, &ImportOptions::default())
         .expect("two different component frames materialize as two placed solids");
-    let StepImport::Solid { body: instanced, .. } = &instanced else {
+    let StepImport::Solid {
+        body: instanced, ..
+    } = &instanced
+    else {
         panic!("a solid");
     };
     assert_eq!(census(base), census(instanced), "still the same two bodies");

@@ -2721,8 +2721,7 @@ fn resolve_shape(
     // `ADVANCED_BREP_SHAPE_REPRESENTATION` and a plain
     // `SHAPE_REPRESENTATION`) belongs to the FIRST namer in entity-id
     // order — the same one `referenced` already dedupes it to.
-    let mut owners: std::collections::BTreeMap<u64, Vec<usize>> =
-        std::collections::BTreeMap::new();
+    let mut owners: std::collections::BTreeMap<u64, Vec<usize>> = std::collections::BTreeMap::new();
     let mut wireframe: Option<(u64, Vec<Curve3<f64>>)> = None;
     let mut referenced: std::collections::BTreeSet<u64> = std::collections::BTreeSet::new();
     for (&id, instance) in &file.data {

@@ -83,7 +83,10 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // stage-1 CURVE recognition (a rational quadratic that is exactly
     // a circle), which is its own unit and its own certificate — not
     // something to guess here.
-    ("stepcode/dm1-id-214.stp", "no intensional description certifies"),
+    (
+        "stepcode/dm1-id-214.stp",
+        "no intensional description certifies",
+    ),
     // A spline-carried edge between analytic surfaces: the file's
     // geometry is inside the subset entity by entity, and the D7
     // ladder still cannot certify any intensional description for the

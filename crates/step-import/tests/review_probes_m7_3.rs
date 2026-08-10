@@ -536,7 +536,10 @@ fn probe_dm1_first_refusal_site() {
                 "PROBE dm1 refusal: edge #{id}, {} candidate(s) tried",
                 attempts.len()
             );
-            assert_eq!(id, 685, "the first rational-NURBS rim the ladder cannot certify");
+            assert_eq!(
+                id, 685,
+                "the first rational-NURBS rim the ladder cannot certify"
+            );
             // A ladder that reports NO attempt is a GAP, not a
             // refusal — the shape edge #668 had before the `IsoCurve`
             // rung was widened to the one-wall seam case. Every

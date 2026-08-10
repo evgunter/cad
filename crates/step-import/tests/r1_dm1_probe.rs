@@ -64,9 +64,9 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
 
     // (1) and (3): the disposition.
     match import_step(&text, &ImportOptions::default()) {
-        Err(StepImportError::Structure { id, what }) => panic!(
-            "the assembly layer must not refuse dm1 any more: #{id} {what}"
-        ),
+        Err(StepImportError::Structure { id, what }) => {
+            panic!("the assembly layer must not refuse dm1 any more: #{id} {what}")
+        }
         Err(StepImportError::Adoption { id, attempts }) => {
             assert_eq!(
                 id, 685,
@@ -77,8 +77,6 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
                 "and it is a refusal (candidates tried), not a gap"
             );
         }
-        other => panic!(
-            "dm1's refusal has moved into the adoption ladder; got {other:?}"
-        ),
+        other => panic!("dm1's refusal has moved into the adoption ladder; got {other:?}"),
     }
 }
