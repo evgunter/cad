@@ -13,7 +13,8 @@ when scheduled; the register never schedules anything itself.
 **Present today, for contrast**: extrude, revolve (partial/full),
 loft, sweep (straight + curved single-arc path), booleans (planar
 complete; curved per wired germ classes plane×cyl / plane×sphere),
-split, constant-radius edge fillets + in-place composition surgery,
+split, constant-radius edge fillets (**plane–plane and plane–sphere
+supports only** — see the row below) + in-place composition surgery,
 merge_coplanar_faces, rigid transform, tessellation/STL/STEP
 export, STEP import (adoption incl. recognition + tier gate).
 
@@ -22,6 +23,7 @@ export, STEP import (adoption incl. recognition + tier gate).
 | **shell / hollow** | offset the boundary inward, remove faces, thicken | Q8: offset surfaces — analytic kinds are CLOSED under offset (a D3 payoff); a NURBS offset is NOT a NURBS → needs the approximating-surface machinery (intensional spec `Offset(S,d)` + fit + certified residual ≤ ε, "exactly mirroring fitted intersection curves"). Also wants open-shell/face-removal vocabulary (D1's manifold-first boundary) | **The Utah teapot is this verb's designated demo** (Evan, 2026-08-09) — a vessel is a shelled revolve; the demo queues behind the verb |
 | **offset (surface/solid)** | the standalone Q8 operation | same as shell's core; Q8 says "needed before shelling/offset work (M5+), stated now" | shell's substrate; may land as one unit |
 | **chamfer** | the fillet's ruled-surface sibling | the fillet machinery's trimline/support-split infrastructure exists (M5 PR 12 + M6-1 surgery); a chamfer swaps the rolling-ball band for a ruled strip | likely the cheapest entry in this register |
+| **constant-radius fillet on CURVED support pairs** | the arms of C8's analytic table that M5 PR 12 did not implement — sphere×cone, cone×plane, cone×cone, sphere×sphere, and the cylinder pairs | **Not frontier (f), despite sharing its error variant.** `classify_arm` (`sweep/src/fillet/battery.rs`) implements exactly two arms — plane×plane → cylinder, plane×sphere → torus — and everything else falls through to `FilletError::SpineUnsupported`, whose payload reads `non-(plane–plane / plane–sphere)`. Its own doc comment says so: "C8's list, **restricted to the arms this unit implements**". CURVED-DESIGN C8 already ratified the missing arms as ANALYTIC: "circular-arc spine with fixed profile orientation → torus patch; … cone cases → cone/torus". On a solid of revolution the sphere×cone rim is the easy case — offset sphere and offset cone are coaxial, so the spine is a circle and the blend is a TORUS, the surface `PlaneSphereTorus` already mints (derivation not yet tested in-repo) | Consumer: the calochortus bud's sphere–cone seam (2026-08-09). **Distinguish from DESIGN frontier (f)** — that is the canal-surface general blend, for spines that are neither line nor circle, and is parked for want of a consumer. These arms need no approximating surface at all, so they are plumbing, not research. Until this row lands, `SpineUnsupported` does not by itself mean "the canal case" |
 | **variable-radius fillet** | radius varies along the spine | the canal-surface blend (banked, consumer-gated — DESIGN frontier (f)): a variable-radius spine is generically neither line nor circle | Band-3; re-opens the canal unit with a consumer |
 | **draft** | tapered replacement of walls for molding | face-replacement surgery (the M6-1 split/graft pattern generalized) + tapered-surface mint (cone/ruled) | no design record yet — needs its own conversation |
 | **hole features** | counterbore / countersink / tapped | sugar over booleans + patterns per D8 (structural parameters); the recipe-layer node vocabulary | blocked mainly on patterns |
@@ -37,4 +39,5 @@ export, STEP import (adoption incl. recognition + tier gate).
 
 Consumers waiting on rows above: the Utah teapot (shell), the full
 calochortus rebuild (C7 — in M8), helical parts (#222), the
-petal'd lily (sheet bodies).
+petal'd lily (sheet bodies), the calochortus bud's sphere–cone seam
+(constant-radius fillet on curved supports).
