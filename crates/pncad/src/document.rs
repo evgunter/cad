@@ -92,5 +92,6 @@ pub use editor_core::ContentBits;
 
 // The profile description node type and its document alias.
 pub use editor_core::{
-    LoopProgram, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, StepArg,
+    LoopProgram, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecordedProgramError,
+    StepArg,
 };

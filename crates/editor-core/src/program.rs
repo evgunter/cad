@@ -35,7 +35,7 @@
 //! gains the segments. D9 makes the load-time rebuild exact.
 
 use geom_core::Point2;
-use profile::{ArcSweep, SketchPlane, Step};
+use profile::{ArcSweep, SketchPlane, Step, Target};
 
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
 use crate::node::{SlotId, StepArg};
@@ -872,6 +872,71 @@ fn len_lit(v: f64) -> Result<Expr, DimensionError> {
     Expr::literal(v, Dimension::Length)
 }
 
+/// An Angle literal (canonical radians).
+fn ang_lit(v: f64) -> Result<Expr, DimensionError> {
+    Expr::literal(v, Dimension::Angle)
+}
+
+/// A dimensionless literal — bulges and director components.
+fn scalar_lit(v: f64) -> Result<Expr, DimensionError> {
+    Expr::literal(v, Dimension::Scalar)
+}
+
+/// A literal point.
+fn pt_lit(p: &Point2<f64>) -> Result<[Expr; 2], DimensionError> {
+    Ok([len_lit(p.x)?, len_lit(p.y)?])
+}
+
+/// A recorded target, lifted.
+fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
+    Ok(match t {
+        Target::Point(p) => ProgramTarget::Point(pt_lit(p)?),
+        Target::Start => ProgramTarget::Start,
+    })
+}
+
+/// Why a recorded PATHS program could not be lifted
+/// ([`LoopProgram::from_recorded`]).
+///
+/// Two of the three arms are unreachable through the authoring
+/// algebra — they exist because the door takes a `&[Step<f64>]`, which
+/// a caller can also hand-build.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RecordedProgramError {
+    /// A literal argument the expression layer refused.
+    Literal(DimensionError),
+    /// A subdivision count too large for the program's `u32` field.
+    /// Unreachable from `circle_split`, whose vertices would exhaust
+    /// memory first.
+    SubdivisionCount(usize),
+    /// A complete-loop carrier step recorded inside a chain.
+    /// Unreachable from the algebra: `circle` and `circle_split` are
+    /// one-step programs that bind nothing and continue into nothing.
+    CarrierInChain,
+}
+
+impl From<DimensionError> for RecordedProgramError {
+    fn from(err: DimensionError) -> Self {
+        Self::Literal(err)
+    }
+}
+
+impl core::fmt::Display for RecordedProgramError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Literal(err) => write!(f, "a recorded literal was refused: {err}"),
+            Self::SubdivisionCount(n) => {
+                write!(f, "the subdivision count {n} does not fit a u32")
+            }
+            Self::CarrierInChain => {
+                write!(f, "a complete-loop carrier step appears inside a chain")
+            }
+        }
+    }
+}
+
+impl core::error::Error for RecordedProgramError {}
+
 impl LoopProgram {
     /// A literal polygon: `At(p0)`, `LineTo(p1)`, …, `LineTo(Start)` —
     /// the VQ5 expansion of the polygon builder, at literal points
@@ -893,6 +958,109 @@ impl LoopProgram {
         }
         steps.push(ProgramStep::LineTo(ProgramTarget::Start));
         Ok(LoopProgram::Chain(steps))
+    }
+
+    /// Lift a RECORDED PATHS program to its document form — the
+    /// inverse of [`LoopProgram::resolve`] at literal arguments.
+    ///
+    /// A `ClosedLoop`'s `program` is the verbs the author wrote, with
+    /// the arguments they wrote (`profile::Step` stores authored data
+    /// only — nothing derived), so this is a verb-for-verb,
+    /// argument-for-argument re-spelling into the Expr-bearing
+    /// vocabulary, never a second lowering: the via point, the centre
+    /// and the winding ride through untouched and the bulge is derived
+    /// again at replay. Dimensions come from V2's table (coordinates,
+    /// lengths and radii `Length`; angle, turn and phase `Angle`;
+    /// bulge and director components `Scalar`).
+    ///
+    /// This is the seam between the two authoring surfaces: it is what
+    /// lets a chain written in the PATHS algebra become a
+    /// [`ProfileProgram`] node, in either host language. Parametric
+    /// authors still write the steps with their own `Expr`s — a
+    /// recorded program is literal by construction.
+    ///
+    /// The chain-vs-carrier distinction is the enum, so the one-step
+    /// complete-loop forms land in their own arms.
+    ///
+    /// # Errors
+    ///
+    /// [`RecordedProgramError`] — a refused literal, or (only from a
+    /// hand-built slice) a count that overflows `u32` or a carrier
+    /// step inside a chain.
+    pub fn from_recorded(steps: &[Step<f64>]) -> Result<Self, RecordedProgramError> {
+        if let [Step::Circle { centre, radius }] = steps {
+            return Ok(Self::Circle {
+                centre: pt_lit(centre)?,
+                radius: len_lit(*radius)?,
+            });
+        }
+        if let [
+            Step::CircleSplit {
+                centre,
+                radius,
+                n,
+                phase,
+            },
+        ] = steps
+        {
+            return Ok(Self::CircleSplit {
+                centre: pt_lit(centre)?,
+                radius: len_lit(*radius)?,
+                n: u32::try_from(*n).map_err(|_| RecordedProgramError::SubdivisionCount(*n))?,
+                phase: ang_lit(*phase)?,
+            });
+        }
+
+        let mut out = Vec::with_capacity(steps.len());
+        for step in steps {
+            out.push(match step {
+                Step::At(p) => ProgramStep::At(pt_lit(p)?),
+                Step::AtOn { p, centre, winding } => ProgramStep::AtOn {
+                    p: pt_lit(p)?,
+                    centre: pt_lit(centre)?,
+                    winding: *winding,
+                },
+                Step::Angle(theta) => ProgramStep::Angle(ang_lit(*theta)?),
+                Step::Toward { dx, dy } => ProgramStep::Toward {
+                    dx: scalar_lit(*dx)?,
+                    dy: scalar_lit(*dy)?,
+                },
+                Step::Tangent => ProgramStep::Tangent,
+                Step::Turn(delta) => ProgramStep::Turn(ang_lit(*delta)?),
+                Step::Line(len) => ProgramStep::Line(len_lit(*len)?),
+                Step::LineTo(t) => ProgramStep::LineTo(target_lit(t)?),
+                Step::ArcTo { target, bulge } => ProgramStep::ArcTo {
+                    target: target_lit(target)?,
+                    bulge: scalar_lit(*bulge)?,
+                },
+                Step::ArcVia { via, target } => ProgramStep::ArcVia {
+                    via: pt_lit(via)?,
+                    target: target_lit(target)?,
+                },
+                Step::ArcCenter {
+                    centre,
+                    target,
+                    winding,
+                } => ProgramStep::ArcCenter {
+                    centre: pt_lit(centre)?,
+                    target: target_lit(target)?,
+                    winding: *winding,
+                },
+                Step::TangentArcTo(t) => ProgramStep::TangentArcTo(target_lit(t)?),
+                Step::ArcContinue(p) => ProgramStep::ArcContinue(pt_lit(p)?),
+                Step::Fillet { radius } => ProgramStep::Fillet(len_lit(*radius)?),
+                Step::FarEndTo(p) => ProgramStep::FarEndTo(pt_lit(p)?),
+                Step::CloseTo => ProgramStep::CloseTo,
+                Step::CloseToOn { centre, winding } => ProgramStep::CloseToOn {
+                    centre: pt_lit(centre)?,
+                    winding: *winding,
+                },
+                Step::Circle { .. } | Step::CircleSplit { .. } => {
+                    return Err(RecordedProgramError::CarrierInChain);
+                }
+            });
+        }
+        Ok(Self::Chain(out))
     }
 
     /// A literal circle loop.
