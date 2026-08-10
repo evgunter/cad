@@ -169,7 +169,10 @@ fn three_instances_of_one_component() {
     }
     let v_box = (hi[0] - lo[0]) * (hi[1] - lo[1]) * (hi[2] - lo[2]);
     let v_sphere = 4.0 / 3.0 * std::f64::consts::PI * 0.5f64.powi(3);
-    let got = topo::mass_properties(&body).expect("mass properties").volume * 1e9;
+    let got = topo::mass_properties(&body)
+        .expect("mass properties")
+        .volume
+        * 1e9;
     let want = 3.0 * v_box + v_sphere;
     assert!(
         (got - want).abs() <= 1e-6 * want,
@@ -244,7 +247,11 @@ fn identity_boundary_at_eps_in() {
         "#16 = CARTESIAN_POINT('',(5.E-08,0.,0.));",
     );
     let clouds = solid_clouds(&import(&below));
-    assert_cloud_eq(&clouds[0], &base_clouds[0], "sub-eps displacement is identity");
+    assert_cloud_eq(
+        &clouds[0],
+        &base_clouds[0],
+        "sub-eps displacement is identity",
+    );
     // Above ε_in: a real placement, applied exactly.
     let above = base_text().replace(
         "#16 = CARTESIAN_POINT('',(0.,0.,0.));",
@@ -304,7 +311,10 @@ fn multi_instance_import_is_deterministic() {
         hash ^= u64::from(byte);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
-    println!("multi_instance_debug_fnv1a: {hash:016x} ({} bytes)", a.len());
+    println!(
+        "multi_instance_debug_fnv1a: {hash:016x} ({} bytes)",
+        a.len()
+    );
 }
 
 /// ATTACK (nested assembly): an outer transform whose rep_1 is a
