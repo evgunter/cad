@@ -31,11 +31,13 @@
 //! generator ray at each point's azimuth; triangle-local max radius, so
 //! apex fans certify tightly); torus — `(3/4)(R + 2r)·L_uv²` (linear
 //! interpolation against the closed-form Hessian bound `R + 2r`);
-//! described non-rational NURBS (M7, the trimmed-NURBS lane) — the
+//! described NURBS (M7, the trimmed-NURBS lane) — the
 //! same interpolation derivation against a **hull-derived** Hessian
 //! bound (second-derivative control nets by knot differencing, sup by
 //! convexity — the `nurbs_cert` module's anisotropic
-//! `(muu·a_u² + 2·muv·a_u·a_v + mvv·a_v²)/4`); rational or C⁰-creased
+//! `(muu·a_u² + 2·muv·a_u·a_v + mvv·a_v²)/4`; RATIONAL faces since
+//! M8-5, through the quotient-rule assembly over the homogeneous
+//! nets); illegal-rational or C⁰-creased
 //! NURBS faces refuse typed (partial coverage stated, never an
 //! estimated bound). All
 //! bounds are exact-arithmetic statements about the vertex positions;

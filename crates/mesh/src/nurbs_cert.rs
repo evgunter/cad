@@ -1051,6 +1051,139 @@ mod tests {
         NurbsSurface::new(kv_u, kv_v, control, weights).unwrap()
     }
 
+    /// The rational wall of the REAL construction: the M8-5 pie loft
+    /// (single-span bulge-0.4 arc profile, straight loft — the class
+    /// M8-2's rational span meter made buildable), extracted from the
+    /// assembled body.
+    fn pie_wall() -> NurbsSurface<f64> {
+        use geom_core::{Affine3, Point2, Vec3};
+        let v = |x: f64, y: f64, bulge: f64| sweep::ProfileVertex {
+            pos: Point2::new(x, y),
+            bulge,
+        };
+        let lp =
+            sweep::ProfileLoop::new(vec![v(1.0, 0.0, 0.4), v(0.0, 1.0, 0.0), v(0.0, 0.0, 0.0)]);
+        let sections = vec![vec![lp.clone()], vec![lp]];
+        let places: Vec<Affine3<f64>> = [0.0, 1.0]
+            .iter()
+            .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+            .collect();
+        let body = sweep::loft_body::<f64>(&sections, &places, 1)
+            .expect("the rational pie lofts")
+            .body;
+        for (_, face) in body.faces() {
+            if let Some(geom_surfaces::Surface::Nurbs(p)) = body.get_surface(face.surface) {
+                if p.weights().iter().any(|w| *w != 1.0) {
+                    return (**p).clone();
+                }
+            }
+        }
+        panic!("the pie loft minted no rational wall — the fixture stopped exercising M8-5");
+    }
+
+    /// The #218 per-triangle falsifier, pointed at the RATIONAL arm
+    /// (M8-5): the z1 driver's 12-deep barycentric lattice (91
+    /// samples/triangle), run on the real pie wall and the two
+    /// adversarial rational patches, over the certificate's own
+    /// `grid_steps` triangulation at two deltas. Every triangle's
+    /// sampled `|S − Π|` must be dominated by `cert(uv)` (plus f64
+    /// evaluation dust — the crate's documented ε-side slack, taken
+    /// here as 1e-12 on O(1) fixtures), and the worst ratio is
+    /// printed as the PR's evidence. Full-body z1 coverage of this
+    /// lane awaits the topo pcurve frontier
+    /// (`z1r_rational_wall_full_body_frontier_pin`).
+    #[test]
+    fn rational_z1_lattice_falsification() {
+        // Per-fixture deltas: the steep-weight `wavy_rational`'s bound
+        // is conservative (documented — a bound, not an estimate), so
+        // its fine-δ grids run to millions of triangles; the lattice's
+        // falsification power is PER TRIANGLE, not δ-dependent, so it
+        // takes coarser deltas and the two real-construction fixtures
+        // take the z1 driver's.
+        for (name, s, deltas) in [
+            ("pie_wall", pie_wall(), [3e-2, 6e-3]),
+            ("quarter_cylinder", quarter_cylinder(), [3e-2, 6e-3]),
+            ("wavy_rational", wavy_rational(), [1.0, 2e-1]),
+        ] {
+            let b = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
+            let (u0, u1) = s.knots_u().domain();
+            let (v0, v1) = s.knots_v().domain();
+            for delta in deltas {
+                let delta_s = delta / 2.0;
+                let (hu, hv) = b.grid_steps(delta_s);
+                let cells = |span: f64, h: f64| -> usize {
+                    let raw = (span / h).ceil();
+                    if raw.is_finite() && raw >= 1.0 {
+                        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                        {
+                            raw as usize
+                        }
+                    } else {
+                        1
+                    }
+                };
+                let (nu, nv) = (cells(u1 - u0, hu), cells(v1 - v0, hv));
+                let at = |i: usize, j: usize| -> [f64; 2] {
+                    #[allow(clippy::cast_precision_loss)]
+                    [
+                        u0 + (u1 - u0) * (i as f64 / nu as f64),
+                        v0 + (v1 - v0) * (j as f64 / nv as f64),
+                    ]
+                };
+                let (mut worst_ratio, mut tris) = (0.0f64, 0usize);
+                for i in 0..nu {
+                    for j in 0..nv {
+                        let (a, bb, c, d) =
+                            (at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1));
+                        for uv in [[a, bb, c], [a, c, d]] {
+                            tris += 1;
+                            let cert = b.cert(uv);
+                            let p: Vec<geom_core::Point3<f64>> =
+                                uv.iter().map(|w| s.eval(w[0], w[1])).collect();
+                            let m = 12usize;
+                            for ba in 0..=m {
+                                for bbn in 0..=(m - ba) {
+                                    #[allow(clippy::cast_precision_loss)]
+                                    let (b0, b1) = (ba as f64 / m as f64, bbn as f64 / m as f64);
+                                    let b2 = 1.0 - b0 - b1;
+                                    let (u, v) = (
+                                        b0 * uv[0][0] + b1 * uv[1][0] + b2 * uv[2][0],
+                                        b0 * uv[0][1] + b1 * uv[1][1] + b2 * uv[2][1],
+                                    );
+                                    let sv = s.eval(u, v);
+                                    let pi = Point3::new(
+                                        b0 * p[0].x + b1 * p[1].x + b2 * p[2].x,
+                                        b0 * p[0].y + b1 * p[1].y + b2 * p[2].y,
+                                        b0 * p[0].z + b1 * p[1].z + b2 * p[2].z,
+                                    );
+                                    let dev = ((sv.x - pi.x).powi(2)
+                                        + (sv.y - pi.y).powi(2)
+                                        + (sv.z - pi.z).powi(2))
+                                    .sqrt();
+                                    assert!(
+                                        dev <= cert + 1e-12,
+                                        "{name}: per-triangle violation |S-Pi| {dev} > cert \
+                                         {cert} at uv=({u},{v}) tri {uv:?}"
+                                    );
+                                    if cert > 0.0 {
+                                        worst_ratio = worst_ratio.max(dev / cert);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                println!(
+                    "{name} delta={delta:.0e}: grid {nu}x{nv} tris={tris} max d/cert={worst_ratio:.4}"
+                );
+                assert!(
+                    worst_ratio <= 1.0,
+                    "{name}: a triangle's samples exceeded its certificate"
+                );
+            }
+        }
+    }
+
     /// The POISON row the flip keeps: an ILLEGAL rational (non-positive
     /// or non-finite weight) cannot even be described —
     /// `NurbsSurface::new` refuses at the door, which is why

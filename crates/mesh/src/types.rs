@@ -105,14 +105,13 @@ pub enum TessellateError {
         face: FaceKey,
     },
     /// A DESCRIBED NURBS face outside the trimmed-NURBS lane's
-    /// certified inventory: a rational surface (a rational second
-    /// derivative is not a control-hull convexity fact — the same
-    /// deliberate absence as the chord pass's rational-carrier
-    /// refusal and `geom_core::spline::hull`'s missing rational
-    /// derivative path), a C⁰-creased direction (interior knot
-    /// multiplicity ≥ degree — the interpolation Taylor bound needs
-    /// C¹), or a degenerate degree-0 direction. Partial coverage
-    /// stated typed beats a dishonest bound (D4).
+    /// certified inventory: an ILLEGAL rational description (a
+    /// non-positive/non-finite weight voids the convex-combination
+    /// licence — legal rational faces certify through the M8-5
+    /// quotient-rule arm of `nurbs_cert`), a C⁰-creased direction
+    /// (interior knot multiplicity ≥ degree — the interpolation
+    /// Taylor bound needs C¹), or a degenerate degree-0 direction.
+    /// Partial coverage stated typed beats a dishonest bound (D4).
     UnsupportedNurbsFace {
         /// The offending face.
         face: FaceKey,
@@ -120,7 +119,9 @@ pub enum TessellateError {
         note: &'static str,
     },
     /// An edge/carrier configuration outside the certified inventory:
-    /// a rational or C⁰-kinked B-spline carrier (no hull sagitta), a
+    /// an illegal-rational (non-positive weight) or C⁰-kinked
+    /// B-spline carrier (legal rational carriers meter through the
+    /// M8-5 quotient-rule sagitta arm of `chords`), a
     /// trimmed face on a chart whose TRIMMED-TESSELLATION lane is not
     /// written (cone/sphere/torus — their pcurves mint since M6-3;
     /// the lane's geometry is still the cylinder chart's), or a

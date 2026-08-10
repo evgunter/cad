@@ -18,11 +18,13 @@
 //!
 //! Two charts construct here: **cylinder** (M5 PR 11 — the tiltedcut
 //! walls; every split cylinder wall) and, since M7's montage
-//! skin-scenes unit, **described non-rational NURBS** (the loft/sweep
+//! skin-scenes unit, **described NURBS** (the loft/sweep
 //! walls — the frontier this header used to call "the banked
 //! trimmed-NURBS lane", now promoted; NURBS faces route here
 //! unconditionally, iso-rectangle or not, because the swept-rectangle
-//! walk has no NURBS chart). The NURBS lane's certificate is the
+//! walk has no NURBS chart; RATIONAL faces since M8-5, whose Hessian
+//! bound is the quotient-rule assembly over the homogeneous nets).
+//! The NURBS lane's certificate is the
 //! hull-derived Hessian interpolation bound (`crate::nurbs_cert`:
 //! derivation, covered-vs-refused inventory); its boundary pcurves
 //! are the closed-form images (`Harmonic`, `IsoLine` — every
