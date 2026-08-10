@@ -5,6 +5,13 @@
 //! form exists, against that too. The contract under test: the true
 //! flux/area lie INSIDE the returned brackets, or the call refuses
 //! typed. A returned bracket that EXCLUDES the truth is the failure.
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::needless_range_loop,
+    clippy::useless_vec
+)]
 
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;

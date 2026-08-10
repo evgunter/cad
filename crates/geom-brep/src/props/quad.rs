@@ -900,6 +900,10 @@ fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[RingInterval]) -> Vec<RingI
         .collect()
 }
 
+/// One direction's coefficient-differentiation step: the map from a
+/// line of the grid to the same line of its derivative grid.
+type DerivTake = Box<dyn Fn(&[RingInterval]) -> Vec<RingInterval>>;
+
 impl Dir {
     /// The per-span-constant coefficient index for a point.
     fn const_index(knots: &[f64], t: f64, count: usize) -> usize {
@@ -995,36 +999,35 @@ impl PatchGrid {
         if self.nu < 2 {
             return None;
         }
-        let (next_dir, take): (Dir, Box<dyn Fn(&[RingInterval]) -> Vec<RingInterval>>) =
-            match &self.du {
-                Dir::Kv(kv) => {
-                    let kv = kv.clone();
-                    (
-                        Self::deriv_dir(&kv),
-                        Box::new(move |c: &[RingInterval]| derivative_coeffs(&kv, c)),
-                    )
-                }
-                // A `Raw` direction differentiates too — its own
-                // derivative is `Raw` one degree down, or the honest
-                // per-span constant at degree 1.
-                Dir::Raw { knots, degree } => {
-                    let (knots, degree) = (knots.clone(), *degree);
-                    let inner = knots[1..knots.len() - 1].to_vec();
-                    let next = if degree >= 2 {
-                        Dir::Raw {
-                            knots: inner,
-                            degree: degree - 1,
-                        }
-                    } else {
-                        Dir::Const { knots: inner }
-                    };
-                    (
-                        next,
-                        Box::new(move |c: &[RingInterval]| raw_deriv(&knots, degree, c)),
-                    )
-                }
-                Dir::Const { .. } => return None,
-            };
+        let (next_dir, take): (Dir, DerivTake) = match &self.du {
+            Dir::Kv(kv) => {
+                let kv = kv.clone();
+                (
+                    Self::deriv_dir(&kv),
+                    Box::new(move |c: &[RingInterval]| derivative_coeffs(&kv, c)),
+                )
+            }
+            // A `Raw` direction differentiates too — its own
+            // derivative is `Raw` one degree down, or the honest
+            // per-span constant at degree 1.
+            Dir::Raw { knots, degree } => {
+                let (knots, degree) = (knots.clone(), *degree);
+                let inner = knots[1..knots.len() - 1].to_vec();
+                let next = if degree >= 2 {
+                    Dir::Raw {
+                        knots: inner,
+                        degree: degree - 1,
+                    }
+                } else {
+                    Dir::Const { knots: inner }
+                };
+                (
+                    next,
+                    Box::new(move |c: &[RingInterval]| raw_deriv(&knots, degree, c)),
+                )
+            }
+            Dir::Const { .. } => return None,
+        };
         let mut ch = [Vec::new(), Vec::new(), Vec::new()];
         for (k, chan) in ch.iter_mut().enumerate() {
             let mut grid = vec![RingInterval::zero(); (self.nu - 1) * self.nv];
@@ -1054,33 +1057,32 @@ impl PatchGrid {
         if self.nv < 2 {
             return None;
         }
-        let (next_dir, take): (Dir, Box<dyn Fn(&[RingInterval]) -> Vec<RingInterval>>) =
-            match &self.dv {
-                Dir::Kv(kv) => {
-                    let kv = kv.clone();
-                    (
-                        Self::deriv_dir(&kv),
-                        Box::new(move |c: &[RingInterval]| derivative_coeffs(&kv, c)),
-                    )
-                }
-                Dir::Raw { knots, degree } => {
-                    let (knots, degree) = (knots.clone(), *degree);
-                    let inner = knots[1..knots.len() - 1].to_vec();
-                    let next = if degree >= 2 {
-                        Dir::Raw {
-                            knots: inner,
-                            degree: degree - 1,
-                        }
-                    } else {
-                        Dir::Const { knots: inner }
-                    };
-                    (
-                        next,
-                        Box::new(move |c: &[RingInterval]| raw_deriv(&knots, degree, c)),
-                    )
-                }
-                Dir::Const { .. } => return None,
-            };
+        let (next_dir, take): (Dir, DerivTake) = match &self.dv {
+            Dir::Kv(kv) => {
+                let kv = kv.clone();
+                (
+                    Self::deriv_dir(&kv),
+                    Box::new(move |c: &[RingInterval]| derivative_coeffs(&kv, c)),
+                )
+            }
+            Dir::Raw { knots, degree } => {
+                let (knots, degree) = (knots.clone(), *degree);
+                let inner = knots[1..knots.len() - 1].to_vec();
+                let next = if degree >= 2 {
+                    Dir::Raw {
+                        knots: inner,
+                        degree: degree - 1,
+                    }
+                } else {
+                    Dir::Const { knots: inner }
+                };
+                (
+                    next,
+                    Box::new(move |c: &[RingInterval]| raw_deriv(&knots, degree, c)),
+                )
+            }
+            Dir::Const { .. } => return None,
+        };
         let mut ch = [Vec::new(), Vec::new(), Vec::new()];
         for (k, chan) in ch.iter_mut().enumerate() {
             let mut grid = Vec::with_capacity(self.nu * (self.nv - 1));
@@ -1733,11 +1735,13 @@ fn area_midpoint_taylor<E>(
                 vmid: c_vlo + hv * 0.5,
             })?;
             let straddle = straddle_u || knots.1.iter().any(|k| *k > c_vlo && *k < c_vhi);
-            acc = acc + cell_area * if straddle {
-                c.g_hull
-            } else {
-                widen(c.g_mid, 0.5 * hu * c.g_u + 0.5 * hv * c.g_v)
-            };
+            acc = acc
+                + cell_area
+                    * if straddle {
+                        c.g_hull
+                    } else {
+                        widen(c.g_mid, 0.5 * hu * c.g_u + 0.5 * hv * c.g_v)
+                    };
         }
     }
     Ok(widen(acc, boundary_defect))
@@ -1799,7 +1803,7 @@ fn refine_dir(
     let malformed = if along_u {
         net.len() != count * nv
     } else {
-        count != nv || net.len() % nv != 0
+        count != nv || !net.len().is_multiple_of(nv)
     };
     if malformed {
         return None;
@@ -2893,7 +2897,9 @@ mod tests {
                 })
                 .collect();
             #[allow(clippy::cast_precision_loss)]
-            let profile_w: Vec<f64> = (0..count).map(|i| 0.06f64.mul_add((i % 3) as f64, 1.0)).collect();
+            let profile_w: Vec<f64> = (0..count)
+                .map(|i| 0.06f64.mul_add((i % 3) as f64, 1.0))
+                .collect();
             for rational in [false, true] {
                 let mut net_f: Vec<[f64; 3]> = Vec::with_capacity(count * nv);
                 let mut ws: Vec<f64> = Vec::with_capacity(count * nv);
@@ -2914,15 +2920,11 @@ mod tests {
                     let bv = ders_basis_funs::<f64>(&kv_v, kv_v.find_span(v), v, 1);
                     let (su, sv) = (kv_u.find_span(u), kv_v.find_span(v));
                     let (mut a, mut w) = ([[0.0f64; 3]; 3], [0.0f64; 3]);
-                    for r in 0..=pu {
-                        for s in 0..=pv {
+                    for (r, (nu0, nu1)) in bu[0].iter().zip(&bu[1]).enumerate() {
+                        for (s, (nv0, nv1)) in bv[0].iter().zip(&bv[1]).enumerate() {
                             let idx = (su - pu + r) * nv + (sv - pv + s);
                             let (ww, q) = (ws[idx], net_f[idx]);
-                            let b = [
-                                bu[0][r] * bv[0][s],
-                                bu[1][r] * bv[0][s],
-                                bu[0][r] * bv[1][s],
-                            ];
+                            let b = [nu0 * nv0, nu1 * nv0, nu0 * nv1];
                             for k in 0..3 {
                                 w[k] += b[k] * ww;
                                 for (c, aq) in a[k].iter_mut().enumerate() {
@@ -2934,11 +2936,7 @@ mod tests {
                     let quot = |k: usize| -> [f64; 3] {
                         core::array::from_fn(|c| (a[k][c] * w[0] - a[0][c] * w[k]) / (w[0] * w[0]))
                     };
-                    (
-                        core::array::from_fn(|c| a[0][c] / w[0]),
-                        quot(1),
-                        quot(2),
-                    )
+                    (core::array::from_fn(|c| a[0][c] / w[0]), quot(1), quot(2))
                 };
                 let (nu_s, nv_s) = (2048usize, 64usize);
                 #[allow(clippy::cast_precision_loss)]
@@ -2995,7 +2993,8 @@ mod tests {
                     }
                     // A typed refusal is the other sound outcome.
                     Err(
-                        PropsError::QuadratureBudget { .. } | PropsError::QuadratureUnsupported { .. },
+                        PropsError::QuadratureBudget { .. }
+                        | PropsError::QuadratureUnsupported { .. },
                     ) => {}
                     Err(e) => panic!("{row}: unsound outcome {e:?}"),
                 }
