@@ -13,7 +13,7 @@ it:
 | NAMING-DESIGN N1–N7 | Names are derivation paths; this doc discharges its scope exclusion "assembly pin representation" (A4) |
 | DESIGN.md banked flags | SE(3) witnesses budgeted, not assumed from sketch machinery; ε-disagreement across referenced documents is a typed error at the seam; pattern indices ride provenance explicitly; free-move/hide are display-layer state, never persisted (G3) |
 
-Decisions are **A1–A9**; open questions **AQ1–AQ6**. Design-only:
+Decisions are **A1–A10**; open questions **AQ1–AQ6**. Design-only:
 no unit here is scheduled by this doc; the implementation ladder
 names natural homes (M8's #317, M9's C7, M10's clearance) without
 claiming them. Chat/issue rulings incorporated: the scope ladder,
@@ -279,10 +279,10 @@ relationship would be silently contradicted by an independent drag
 — a cross-instance boolean (a weldment's operands are not freely
 orientable) and a shared driving parameter (consistent with the
 ratified drag-refusal for expression-driven values) both rightly
-connect. Carve-out so the definition does not collapse: A2's
-gathering of a document's sub-DAGs into one evaluated `Body` is
-evaluation, not reference — if the implementation has an
-output/collector node, connectivity is reckoned excluding it.
+connect. The gathering of a
+document's sub-DAGs into one evaluated `Body` is A10's root
+gather — document data, not a DAG node — so connectivity over the
+plain recipe DAG needs no carve-out.
 
 - **G3's free-move binds to this partition.** The one
   live-editing-ish feature the v1 GUI supports — freely orienting
@@ -305,6 +305,48 @@ output/collector node, connectivity is reckoned excluding it.
 - **Free consequence**: the A5 connectedness lint gets its
   expectation source — the component count is the expected
   disconnection count.
+
+## A10 — Explicit product roots (strict)
+
+**(Evan, chat 2026-08-10.)** Shipped documents have NO product
+notion: every node evaluates, and every consumer addresses a node
+id per call. A10 gives documents one. The document tracks an
+**ordered list of product roots** (node ids) as document data —
+never a DAG node — maintained by recorded `DocEdit`s.
+
+- **Invariants.** *Coverage*: every node is ancestor-of-or-equal-to
+  some root — every connected component carries at least one root;
+  no silently dead subgraphs. *Ancestor-freedom*: no root is an
+  ancestor of another (listing an extrude and its fillet would
+  gather the same material twice — typed refusal). Sibling roots
+  in one component (extrude + revolve of a shared profile) are
+  legal; they are simply not relatively unconstrained (A9).
+- **Strictness is burden-free by automatic maintenance**: a node
+  inserted with no consumers becomes a root; a node consuming
+  existing roots replaces them in the list (tip transfer — a
+  mid-authoring component carries its root until it is joined into
+  another DAG); deleting a root re-roots its orphaned sinks. All
+  recorded; explicit designate/undesignate edits override the
+  defaults. (Maintenance details are the patchable part of this
+  decision.)
+- **The product** is the deterministic gather, in list order (D9
+  ordering for free), of every body-denoting root: `Body` → its
+  solids; `Instances` → N placed solids; `Split` → its pieces (a
+  mold document wants both halves). Roots need not be body-valued
+  — a WIP profile tip or a datum contributes nothing to the `Body`
+  product — and a door that needs a body refuses typed when no
+  root denotes one.
+- **This is A2's gather and C-register disposition C1's
+  resolution**: the shipped `Node::Pattern` keeps its
+  `ValuePayload::Instances` semantics and its "patterns do not
+  implicitly union" truth — the root gather is what materializes
+  an `Instances`-valued root into placed solids of the one product
+  `Body`, with no boolean implied. The single-node export door's
+  multi-body refusal stays correct; the whole-document product is
+  the door that accepts them.
+- **A9 consequences**: free-orient units are components, now
+  explicitly represented by their roots; the connectedness lint's
+  expected component count reads off the root/component structure.
 
 ## Open questions
 

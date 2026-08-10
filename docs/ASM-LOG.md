@@ -31,8 +31,11 @@ contradictions: C1 (shipped `Node::Pattern` yields
 semantics need a ruling BEFORE ASM-3's spec; pending with Evan),
 C2 (multi-solid instantiation needs the graft-door kernel
 extension — now ASM-2b), C3 (A2's memo is new machinery — in
-ASM-2a). Also live in chat: Evan's explicit-root-tracking
-proposal (documents have NO product notion today — consumers
-address node ids per call; tracked product roots would define
-A2's one-Body gather and plausibly resolve C1). Next: ASM-1
-binding spec, after the roots/C1 conversation settles.
+ASM-2a). The roots conversation settled same day:
+**A10 RATIFIED (strict)** — explicit ordered product roots with
+coverage + ancestor-freedom invariants and automatic maintenance
+(Evan's mid-authoring framing: a WIP component carries its root
+until joined); the root gather IS A2's product and RESOLVES C1
+(shipped `Node::Pattern` semantics unchanged; the gather
+materializes `Instances`). New unit ASM-ROOTS slotted before
+ASM-2a. Next: ASM-1 binding spec.
