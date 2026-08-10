@@ -992,12 +992,21 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
         return; // freshly written; the next compile pins it
     }
     // Everything but the swept ε line must match bit-for-bit (see the
-    // doc comment above for why ε is excluded).
+    // doc comment above for why ε is excluded). Each side must carry
+    // EXACTLY one ε line: a duplicated or missing ε line is fixture
+    // damage, not sweep variance, and must fail the pin here rather
+    // than rely on a downstream load refusal.
     let sans_epsilon = |t: &str| -> String {
-        t.lines()
-            .filter(|l| !l.trim_start().starts_with("\"epsilon\":"))
-            .collect::<Vec<_>>()
-            .join("\n")
+        let (kept, excluded): (Vec<&str>, Vec<&str>) = t
+            .lines()
+            .partition(|l| !l.trim_start().starts_with("\"epsilon\":"));
+        assert_eq!(
+            excluded.len(),
+            1,
+            "expected exactly one \"epsilon\" line, found {}",
+            excluded.len()
+        );
+        kept.join("\n")
     };
     assert_eq!(
         sans_epsilon(&text),

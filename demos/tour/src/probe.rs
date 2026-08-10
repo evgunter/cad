@@ -186,7 +186,7 @@ pub fn run(out: Option<String>) {
             .map(|(i, bb)| seamed(&format!("heatsink_{}", [5, 7, 9][i]), bb))
             .collect()
     });
-    // The globe lily: the only WINDOWED TUBE built from world-
+    // The fairy lantern: the only WINDOWED TUBE built from world-
     // coordinate intent in the corpus (torus segments), plus
     // doubly-truncated sphere zones and crescent-section blades swept
     // along arching spines.
