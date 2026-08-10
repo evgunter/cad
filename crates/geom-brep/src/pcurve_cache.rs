@@ -1167,7 +1167,14 @@ impl<T: Decide> PcurveCache<T> {
             Pcurve::IsoLine { p0, pl } => {
                 run_iso_checks(*p0, *pl, t0, t1, carrier, surface, window, band)?
             }
-            harmonic => run_harmonic_checks(harmonic, t0, t1, carrier, surface, window, band)?,
+            // EXHAUSTIVE by variant, never a catch-all (D3): a
+            // catch-all here would route a NEW closed-form variant
+            // into the harmonic checker silently, and the build would
+            // not say a word. Adding a variant must be a
+            // compiler-guided edit at every dispatch site.
+            harmonic @ Pcurve::Harmonic { .. } => {
+                run_harmonic_checks(harmonic, t0, t1, carrier, surface, window, band)?
+            }
         };
         Ok(Self {
             pcurve,
@@ -1259,7 +1266,8 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
                 window,
                 band,
             ),
-            harmonic => run_harmonic_checks(
+            // Exhaustive by variant (see `certify`).
+            harmonic @ Pcurve::Harmonic { .. } => run_harmonic_checks(
                 harmonic,
                 self.param_start,
                 self.param_end,
