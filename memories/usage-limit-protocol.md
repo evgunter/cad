@@ -5,6 +5,15 @@ metadata:
   type: project
 ---
 
+**Account identifiers stay OFF GitHub (Evan, #355, 2026-08-10,
+anticipating the repo going public; restored after the #359/#360
+dedupe crossing deleted both copies):** never post account email
+addresses — or any personal identifier beyond the commit-signing
+identity (`evgunter`) — in issues, PRs, comments, commits, or
+committed files (this file included: name accounts by role, keep
+concrete addresses in local cad-work logs only). Existing comments
+naming addresses were edited on request — do not reintroduce them.
+
 **Why this exists (Evan, #348 comment, 2026-08-10):** hitting the
 subscription session limit opens Claude Code's usage-credits dialog,
 which KILLS that session for the rest of the day — it does not
