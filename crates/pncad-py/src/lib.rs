@@ -1,4 +1,11 @@
-//! Python bindings for the `pncad` authoring façade (LIB-U9S).
+//! Python bindings for the `pncad` authoring façade.
+//!
+//! User-facing documentation lives outside this crate's rustdoc: the
+//! README (`crates/pncad-py/README.md`) covers installation and the
+//! shape of the surface, `docs/GUIDE.md` §1.3/§2.8 is the quickstart
+//! and the canonical journey, and `docs/guide/north-star-audit.md`
+//! tracks what is not bound yet. What follows is for readers of *this
+//! crate's source*.
 //!
 //! # What this crate binds
 //!
