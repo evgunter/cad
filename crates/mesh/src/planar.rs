@@ -39,6 +39,79 @@
 //!   the region) or dropped (outside it), but never emitted on the
 //!   outside — which is the defect that leaks meshes.
 //!
+//! # The chart frame is re-derived from the boundary (issue #284)
+//!
+//! A plane's chart frame is pure *convention* — nothing downstream
+//! depends on which orthonormal in-plane basis is picked (the same
+//! status as seam placement), and chart coordinates only decide CDT
+//! connectivity; mesh positions come from the 3-D chords. The stored
+//! `Surface::Plane` axes are therefore **not** used here: translator
+//! noise in imported axes (components ~1e-33 where an exact axis has
+//! 0.0) projects boundary coordinates to ~1e-67 — nonzero but below
+//! spade's coordinate domain (`MIN_ALLOWED_VALUE` = 2⁻¹⁴²), and the
+//! near-degenerate chart refuses CDT insertion on bodies that are
+//! perfectly valid at rest (#284: two wild-corpus imports).
+//!
+//! Instead the frame is a pure function of the outer boundary's own
+//! 3-D chord points, in walk order ([`chart_frame`]):
+//!
+//! * **anchor** — the outer walk's FIRST point, verbatim;
+//! * **normal** — the anchor-translated Newell cross-sum over
+//!   consecutive point pairs (left-to-right, wrapping), normalized.
+//!   Newell orients the normal so the walk is CCW about it, and by
+//!   interior-left the outer walk is CCW about the face's OUTWARD
+//!   normal — so this is the outward normal by construction;
+//! * **u** — toward the walk point farthest from the anchor (the
+//!   first such point in walk order on exact ties), shed of its
+//!   normal component and normalized; **v** = normal × u.
+//!
+//! Well-conditioned by construction — u's length before normalizing
+//! is the loop's own extent scale, and the off-plane component it
+//! sheds is bounded by the carrier residual (≤ ε) — with no new
+//! tolerance and no value snapping.
+//!
+//! The anchor being an INPUT point rather than a constructed centroid
+//! is load-bearing, not a style choice, because of spade's coordinate
+//! floor (`MIN_ALLOWED_VALUE` = 2⁻¹⁴²: a coordinate must be exactly 0
+//! or at least that large). Every quantity in the frame and in the
+//! projection is then built from *differences of input floats*, and
+//! for the class this fix closes — noisy stored AXES over clean
+//! positions, the #284 wild-corpus class, whose exact-zero structure
+//! lives in exactly-equal input coordinate columns (an axis-aligned
+//! face's normal-axis column) — the guarantee is by construction:
+//! equal columns difference to exact 0, the Newell sum's in-plane
+//! components are exactly 0, the frame's out-of-plane components are
+//! exactly 0, and an exact-zero chart coordinate comes out as float
+//! 0.0 or as a residue at the ulp scale of real-sized terms
+//! (~1e-19·extent) — both spade-legal (pinned by the exactness unit
+//! falsifier in this module's tests). A constructed centroid instead
+//! seeds ulp-scale residues (its rounding) into the Newell sum, which
+//! manufactures ~1e-33-scale frame components, and a projection term
+//! `w·residue` then lands around 1e-51 — nonzero but far below the
+//! floor, the very refusal this frame exists to remove (measured on
+//! the wild OLED's bottom face while this fix was being built).
+//!
+//! That guarantee is deliberately NOT claimed for noisy boundary
+//! POSITIONS (R1 review of #301): when the points themselves carry
+//! off-plane noise ν, no exactly-equal column exists, and the far
+//! point's own v-coordinate is an *engineered* exact-zero whose float
+//! residue is ~ν² — for ν ≲ √(2⁻¹⁴²) ≈ 4e-22 that is nonzero
+//! sub-floor and the face refuses typed. In-contract (typed
+//! `Triangulation`, fail-loud), synthetic today (no corpus body hits
+//! it; wild translator noise observed so far is axis noise), pinned
+//! in `tests/newell_probes.rs`, and banked as a follow-up candidate —
+//! it is the same "valid body refuses tessellation" shape #284 itself
+//! had.
+//!
+//! Deterministic (D9): fixed evaluation order over the walk, so the
+//! frame is bit-identical across rebuilds and debug/release. Once the
+//! frame is fixed the projection is a pure per-point function, so a
+//! repeated 3-D point projects to bitwise-identical chart coordinates
+//! — the slit cancellation below depends on exactly that. A
+//! degenerate outer loop (zero extent or zero area vector) yields
+//! non-finite frame components, which spade's `insert` refuses — the
+//! typed [`TessellateError::Triangulation`] path, fail-loud.
+//!
 //! Slit note: a full-2π revolve's annulus wall is a *slit* polygon —
 //! one loop traversing its seam segment twice with bitwise-identical
 //! projected points. The CDT dedupes the repeated points to the same
@@ -61,36 +134,84 @@ use topo::{Body, EdgeKey, FaceKey, LoopKey};
 use crate::types::TessellateError;
 use crate::walk::loop_edges;
 
-/// Tessellates one planar face into outward-wound triangles.
+/// Tessellates one planar face into outward-wound triangles. The
+/// chart frame comes from [`chart_frame`], not from the face's stored
+/// `Surface::Plane` axes (module docs, issue #284).
 pub(crate) fn tessellate_planar(
     body: &Body<f64>,
     fk: FaceKey,
-    origin: Point3<f64>,
-    normal: Vec3<f64>,
-    u_ref: Vec3<f64>,
     chords: &HashMap<EdgeKey, Vec<u32>>,
     positions: &[Point3<f64>],
 ) -> Result<Vec<[u32; 3]>, TessellateError> {
     let face = body
         .get_face(fk)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    let v_ref = normal.cross(u_ref);
-    let project = |id: u32| -> [f64; 2] {
-        let w = positions[id as usize] - origin;
-        [w.dot(u_ref), w.dot(v_ref)]
-    };
 
-    // Loop id cycles (outer first, then rings in face order), each
-    // paired with its projection into the chart.
+    // Loop id cycles (outer first, then rings in face order).
     let mut loops: Vec<Vec<u32>> = Vec::with_capacity(1 + face.rings.len());
-    let mut polygons: Vec<Vec<[f64; 2]>> = Vec::with_capacity(1 + face.rings.len());
     for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-        let ids = loop_ids(body, fk, lk, chords)?;
-        polygons.push(ids.iter().map(|&id| project(id)).collect());
-        loops.push(ids);
+        loops.push(loop_ids(body, fk, lk, chords)?);
     }
 
+    // The frame from the outer boundary alone (rings lie inside the
+    // outer loop, so its extent governs the conditioning), then the
+    // pure per-point projection of every loop.
+    let (origin, u_ref, v_ref) = chart_frame(&loops[0], positions);
+    let project = |id: &u32| -> [f64; 2] {
+        let w = positions[*id as usize] - origin;
+        [w.dot(u_ref), w.dot(v_ref)]
+    };
+    let polygons: Vec<Vec<[f64; 2]>> = loops
+        .iter()
+        .map(|ids| ids.iter().map(project).collect())
+        .collect();
+
     triangulate_chart(fk, &loops, &polygons)
+}
+
+/// The boundary-derived chart frame `(anchor, u, v)` of a planar face
+/// — a pure function of the outer loop's chord points in walk order
+/// (module docs: the convention, why the anchor is an input point,
+/// conditioning, determinism, and why the stored axes are not
+/// consulted).
+///
+/// The Newell cross-sum follows `geom_brep::newell_plane`'s fixed
+/// left-to-right evaluation order (D9) but translates to the walk's
+/// first point instead of the centroid (module docs: the coordinate
+/// floor argument); certification is deliberately absent —
+/// tessellation does not re-validate (crate docs), and the in-plane
+/// axis is this lane's own extent-aligned composition, not
+/// `newell_plane`'s ambient `orthonormal_basis` pick. A degenerate
+/// loop propagates non-finite components to the CDT, which refuses
+/// typed.
+fn chart_frame(outer: &[u32], positions: &[Point3<f64>]) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
+    let at = |id: u32| positions[id as usize];
+    // Anchor: the walk's first point, verbatim.
+    let origin = at(outer[0]);
+    // Newell normal: anchor-translated cross-sum over consecutive
+    // pairs, left-to-right, wrapping. Slit walks cancel their doubled
+    // segments here exactly as they do in the shoelace.
+    let mut normal_sum = Vec3::zero();
+    for (i, &id) in outer.iter().enumerate() {
+        let next = at(outer[(i + 1) % outer.len()]);
+        normal_sum = normal_sum + (at(id) - origin).cross(next - origin);
+    }
+    let normal = normal_sum.normalize();
+    // u: toward the walk's farthest point from the anchor (strict >
+    // keeps the FIRST maximum in walk order — deterministic on exact
+    // ties), shed of its off-plane component.
+    let mut far = Vec3::zero();
+    let mut far_d2 = f64::NEG_INFINITY;
+    for &id in outer {
+        let d = at(id) - origin;
+        let d2 = d.norm_squared();
+        if d2 > far_d2 {
+            far_d2 = d2;
+            far = d;
+        }
+    }
+    let u_ref = far.reject_from(normal).normalize();
+    (origin, u_ref, normal.cross(u_ref))
 }
 
 /// Triangulates a face already reduced to its chart: `loops[i][j]` is
@@ -178,6 +299,14 @@ fn triangulate_chart(
     // looks like — so the code reads the sign rather than assuming it,
     // and would have to keep doing so even if the degeneracy argument
     // were dropped entirely.
+    //
+    // Under the boundary-derived frame (#284) the Newell normal is
+    // oriented BY the outer walk, so the outer shoelace is positive by
+    // construction and the flip is expected false — for charts built
+    // by [`tessellate_planar`]. The sign read stays: it is what makes
+    // that claim checkable rather than assumed, and replayed charts
+    // (this fn's other caller is the #111 stored-chart regression) may
+    // carry any frame.
     let flip = shoelace2(&polygons[0]) < 0.0;
 
     let inside = classify_faces(&cdt, &crossings);
@@ -405,6 +534,75 @@ mod tests {
             (total.abs() - want.abs()).abs() < 1e-12,
             "emitted area {total} does not tile the loop area {want}"
         );
+    }
+
+    /// The anchor-choice falsifier (#284, R1 MAJOR-2 of PR #301): the
+    /// module docs' input-exactness argument, pinned as executable
+    /// assertions on an OLED-bottom-shaped axis-aligned loop (equal z
+    /// column whose sum/n rounds inexactly). The frame must preserve
+    /// input exactness — anchor a boundary point verbatim, Newell
+    /// in-plane components exact 0, frame out-of-plane components
+    /// exact 0, and every projected chart coordinate either exactly
+    /// 0.0 or at spade-legal magnitude (≥ 2⁻¹⁴²). Re-anchoring at the
+    /// constructed centroid turns every one of these assertions red
+    /// (its z rounds off the input plane and seeds the Newell sum) —
+    /// this is the in-suite guard for the mutation that only the wild
+    /// generator's OLED cell used to catch.
+    #[test]
+    fn chart_frame_preserves_input_exactness_on_axis_aligned_loops() {
+        use geom_core::Point3;
+        let z = -0.0016;
+        let positions: Vec<Point3<f64>> = [
+            (0.002, 0.0),
+            (0.032036, 0.0),
+            (0.034036, 0.002),
+            (0.034036, 0.018574),
+            (0.032036, 0.020574),
+            (0.002, 0.020574),
+            (0.0, 0.018574),
+            (0.0, 0.002),
+        ]
+        .iter()
+        .map(|&(x, y)| Point3::new(x, y, z))
+        .collect();
+        #[allow(clippy::cast_possible_truncation)]
+        let outer: Vec<u32> = (0..positions.len() as u32).collect();
+
+        // The centroid of this loop is NOT an input point: its z
+        // rounds off the plane. Guard the guard: if a future edit
+        // picks coordinates where the centroid happens to be exact,
+        // this test would stop discriminating — fail it loudly then.
+        let n = positions.len() as f64;
+        let cz = positions.iter().map(|p| p.z).sum::<f64>() / n;
+        assert_ne!(
+            cz.to_bits(),
+            z.to_bits(),
+            "loop no longer discriminates the centroid anchor — pick new coordinates"
+        );
+
+        let (origin, u_ref, v_ref) = super::chart_frame(&outer, &positions);
+        assert_eq!(
+            (origin.x.to_bits(), origin.y.to_bits(), origin.z.to_bits()),
+            (
+                positions[0].x.to_bits(),
+                positions[0].y.to_bits(),
+                positions[0].z.to_bits()
+            ),
+            "anchor must be the first walk point, verbatim"
+        );
+        assert_eq!(u_ref.z, 0.0, "u out-of-plane component must be exact 0");
+        assert_eq!(v_ref.z, 0.0, "v out-of-plane component must be exact 0");
+        // The floor: every chart coordinate exactly 0.0 or spade-legal.
+        let floor = 2.0_f64.powi(-142);
+        for p in &positions {
+            let w = *p - origin;
+            for c in [w.dot(u_ref), w.dot(v_ref)] {
+                assert!(
+                    c == 0.0 || c.abs() >= floor,
+                    "chart coordinate {c:e} in spade's forbidden (0, 2^-142) band"
+                );
+            }
+        }
     }
 
     #[test]
