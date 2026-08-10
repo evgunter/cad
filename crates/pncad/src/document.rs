@@ -45,6 +45,16 @@ pub use editor_core::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, 
 // (LIB-DOORS F5).
 pub use editor_core::{Dimension, DimensionError, Expr, ParamEnv, ParseError, parse_expr};
 
+// Named document parameters (R1-PARAMS, curing LIB-U10's F1).
+// `ParamName` is a parameter's name — a plain string newtype — and
+// `DocParam` its declared dimension plus exact stored value: recipe
+// vocabulary, plain values, no arena key anywhere in either. They
+// complete doors this module already carried: `DocEdit::SetDocParam`
+// takes both and `Expr::param` takes a `ParamName`, so without them
+// the parametric flagship (`plate_param`, guide §3.2) could not be
+// authored façade-only.
+pub use editor_core::{DocParam, ParamName};
+
 // Evaluation: the service, its options, its results, and the payloads
 // a result can carry. `NodeResult`/`NodeValue`/`EvalOutcome` complete
 // the result vocabulary (LIB-DOORS F3/F4): `Evaluation::result` and
