@@ -34,6 +34,17 @@ records stay cross-referenced).
    plane×NURBS bodies first-class END-TO-END — the #288 walk row's
    full retirement.
 
+5. **M8-5 — mesh rational deviation certificate** (plan amendment,
+   2026-08-10, discovered by M8-2: the restored crescent blade
+   BUILDS AND CERTIFIES kernel-side but cannot tessellate —
+   `mesh/src/nurbs_cert.rs:151` refuses rational NURBS faces, no
+   certified Hessian bound; the THIRD rational bank). The working
+   crescent restoration is parked at
+   cad-work/span-meter-crescent.patch and rides this unit; the
+   #218 empirical per-triangle falsifier guards whatever bound
+   lands. Amendment class: a demo-raised kernel residual joining
+   the residuals milestone — recorded for retroactive review.
+
 ## Candidates — ADOPTED (all four; Evan's 👍 on PR #302's
 affordance, comment 5234756324, 2026-08-10). Sequenced after
 M8-1..M8-4 unless a lull opens earlier; each gets its own
