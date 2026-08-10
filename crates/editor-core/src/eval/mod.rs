@@ -15,11 +15,13 @@
 //! every expression evaluated during node evaluation carries the node
 //! and slot it came from.
 
+mod anchor;
 mod memo;
 mod schedule;
 mod slots;
 mod wire;
 
+pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue, embed_profile};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 
 use std::collections::BTreeMap;
@@ -27,7 +29,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use geom_core::{Decide, Indeterminate, Point3, Vec3};
-use profile::{ProfileError, ValidatedProfile};
+use profile::ProfileError;
 use sweep::{ExtrudeError, RevolveError, SkinError};
 use topo::splitting::SplitError;
 use topo::transform::TransformError;
@@ -38,7 +40,7 @@ use crate::doc::Doc;
 use crate::expr::EvalError;
 use crate::names::{NameTable, NamingError};
 use crate::node::{RecipeNodeId, SlotId, StableName};
-use crate::profile_desc::ProfileDesc;
+use crate::program::ProfileProgram;
 
 /// The result DAG (F2 verbatim, spec D2): a deterministic order plus a
 /// per-node result map, with the run's epoch, outcome, and the
@@ -82,6 +84,35 @@ impl<T: Decide> Evaluation<T> {
             _ => None,
         }
     }
+
+    /// The node's result as typed data — `Ok`/`Failed`/`Poisoned`
+    /// distinguished, where [`Evaluation::value`] collapses the last
+    /// two into `None` (LIB-DOORS F3: the curated path from an
+    /// evaluation to its `NodeError`s). `None` means the id has no
+    /// entry at all: never scheduled, or past a cancelation's prefix.
+    pub fn result(&self, id: RecipeNodeId) -> Option<&NodeResult<T>> {
+        self.nodes.get(&id)
+    }
+
+    /// The typed root cause behind a node that produced no value:
+    /// `Failed` answers its own error; `Poisoned` answers the nearest
+    /// failed ancestor's (one `through` hop — see
+    /// [`NodeResult::Poisoned`]'s invariant). `None` for a node that
+    /// succeeded or has no entry.
+    pub fn node_error(&self, id: RecipeNodeId) -> Option<&NodeError> {
+        match self.nodes.get(&id)? {
+            NodeResult::Ok(_) => None,
+            NodeResult::Failed(e) => Some(e),
+            NodeResult::Poisoned { through } => match self.nodes.get(through)? {
+                // Every `through` names a `Failed` entry (the poison
+                // propagation writes nothing else there); answering
+                // `None` on a broken invariant is fail-honest — the
+                // caller sees "no root cause", not a wrong one.
+                NodeResult::Failed(e) => Some(e),
+                NodeResult::Ok(_) | NodeResult::Poisoned { .. } => None,
+            },
+        }
+    }
 }
 
 /// Whether the evaluation ran to completion (spec D5).
@@ -110,6 +141,35 @@ pub enum NodeResult<T: Decide> {
         /// The nearest failed ancestor.
         through: RecipeNodeId,
     },
+}
+
+impl<T: Decide> NodeResult<T> {
+    /// The successful value, if this result is `Ok`.
+    pub fn value(&self) -> Option<&NodeValue<T>> {
+        match self {
+            Self::Ok(v) => Some(v),
+            Self::Failed(_) | Self::Poisoned { .. } => None,
+        }
+    }
+
+    /// The typed failure, if this node ITSELF failed. A poisoned
+    /// node answers `None` — its own entry carries no error; the root
+    /// cause lives at [`NodeResult::poisoned_through`]'s target (or
+    /// ask [`Evaluation::node_error`], which walks the hop).
+    pub fn error(&self) -> Option<&NodeError> {
+        match self {
+            Self::Failed(e) => Some(e),
+            Self::Ok(_) | Self::Poisoned { .. } => None,
+        }
+    }
+
+    /// The nearest failed ancestor, if this node was poisoned.
+    pub fn poisoned_through(&self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Poisoned { through } => Some(*through),
+            Self::Ok(_) | Self::Failed(_) => None,
+        }
+    }
 }
 
 /// A successful node value (spec D2): the op-appropriate payload plus
@@ -158,9 +218,10 @@ pub enum ValuePayload<T: Decide> {
     /// A datum evaluated to geometry values (D3: frames/axes as
     /// values; directions normalized, degenerate refused).
     Datum(DatumValue<T>),
-    /// A validated profile (D3: the wrapped description through the
-    /// profile crate's validation door).
-    Profile(Arc<ValidatedProfile<T>>),
+    /// A validated profile (D3: replayed from the node's program
+    /// through the driver, then the profile crate's validation door)
+    /// plus its program-anchor naming map ([`ProfileValue`]).
+    Profile(Arc<ProfileValue<T>>),
     /// A single body: Extrude, Revolve, Transform.
     Body(Arc<Body<T>>),
     /// A boolean's result: a body with its contact records, or the
@@ -273,8 +334,27 @@ pub enum NodeErrorKind {
         /// The expression evaluator's refusal, unaltered.
         source: EvalError,
     },
-    /// Profile validation refused the description.
+    /// Profile validation refused the replayed loops.
     Profile(ProfileError),
+    /// A profile loop's program refused at REPLAY (LIB-SWITCH §4b) —
+    /// the driver's typed refusal carried unaltered, with the loop
+    /// coordinate ([`profile::ReplayError`] carries the step). The
+    /// geometry class is V1 class 2: legal at rest, refused under this
+    /// binding.
+    ProfileReplay {
+        /// The refusing loop (program order).
+        loop_: u32,
+        /// The driver's refusal, unaltered.
+        error: profile::ReplayError<f64>,
+    },
+    /// The program-anchor derivation failed to match a canonical loop
+    /// back to a program loop — an internal invariant break
+    /// (validate's canonical form is an exact reindexing of its
+    /// input), surfaced typed rather than panicking.
+    ProfileAnchor {
+        /// The canonical loop index that failed to match.
+        loop_: u32,
+    },
     /// The extrude op refused.
     Extrude(ExtrudeError),
     /// The revolve op refused.
@@ -449,6 +529,125 @@ pub enum NodeErrorKind {
     WitnessBifurcation(crate::witness::WitnessBifurcation),
 }
 
+// LIB-DOORS F6 (reopened on review): the human-readable rendering the
+// bindings' exception messages consume. Each arm states the PROBLEM
+// in the op's vocabulary, not the payload's guts — the kernel refusal
+// rides the variant, unaltered (D2), for callers who match; prose
+// here names the failing op and its violated expectation.
+impl core::fmt::Display for NodeErrorKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Expr { slot, .. } => {
+                write!(f, "the expression at slot {slot:?} failed to evaluate")
+            }
+            Self::Profile(_) => f.write_str("the replayed profile failed validation"),
+            Self::ProfileReplay { loop_, .. } => {
+                write!(f, "profile loop {loop_}'s program refused at replay")
+            }
+            Self::ProfileAnchor { loop_ } => write!(
+                f,
+                "internal: canonical loop {loop_} failed to match back to a program loop"
+            ),
+            Self::Extrude(_) => f.write_str("the extrude op refused"),
+            Self::Revolve(_) => f.write_str("the revolve op refused"),
+            Self::Split(_) => f.write_str("the split op refused"),
+            Self::Fillet(_) => f.write_str("the fillet op refused"),
+            Self::Boolean(_) => f.write_str(
+                "the Boolean op refused its operands (undeclared coincidence is the \
+                 common case: the kernel never infers that touching faces are the \
+                 same face)",
+            ),
+            Self::Transform(_) => f.write_str("the transform op refused"),
+            Self::Skin(_) => f.write_str("the skin construction refused"),
+            Self::Loft(_) => f.write_str("the loft assembly refused"),
+            Self::CurvedSolidFrontier { what } => write!(f, "not yet buildable: {what}"),
+            Self::MissingInput { input } => {
+                write!(f, "input {} names no live node", input.0)
+            }
+            Self::ToleranceConflict {
+                document_eps,
+                process_eps,
+            } => write!(
+                f,
+                "document ε {document_eps:e} conflicts with the process ε {process_eps:e} \
+                 (one process, one ε)"
+            ),
+            Self::WrongOperand {
+                input,
+                expected,
+                found,
+            } => write!(
+                f,
+                "input {} is a {found}; the operand needs a {expected}",
+                input.0
+            ),
+            Self::EmptyOperand { input } => write!(
+                f,
+                "input {} is the empty value — the body ops take real bodies",
+                input.0
+            ),
+            Self::DegenerateDirection { role } => {
+                write!(f, "the {role} direction has zero length")
+            }
+            Self::Band(_) => {
+                f.write_str("the ambient tolerance could not form a classification band")
+            }
+            Self::MissingSlot { slot } => {
+                write!(
+                    f,
+                    "internal: the wiring expected slot {slot:?}, which is absent"
+                )
+            }
+            Self::Escalated { predicate, .. } => {
+                write!(f, "predicate {predicate} escalated (in-band indeterminacy)")
+            }
+            Self::AxisNotInSketchPlane { axis } => write!(
+                f,
+                "revolve axis (node {}) does not lie in the profile's sketch plane",
+                axis.0
+            ),
+            Self::NonPositiveCount { count } => {
+                write!(f, "pattern count {count} is not at least 1")
+            }
+            Self::UnschedulableCycle => {
+                f.write_str("the node is in, or downstream of, a dependency cycle")
+            }
+            Self::Naming(_) => f.write_str("name emission failed"),
+            Self::DeclareResolve { .. } => {
+                f.write_str("a declared name failed to resolve through the operands' tables")
+            }
+            Self::DeclareBothOperands { name } => write!(
+                f,
+                "declared name {name:?} resolves in BOTH operands — the declaration cannot pick a side"
+            ),
+            Self::DeclareUnsupportedPair { kinds, .. } => write!(
+                f,
+                "declare pair {kinds:?} is outside the v1 threading vocabulary"
+            ),
+            Self::FilletSelectionResolve { .. } => {
+                f.write_str("a fillet selection name failed to resolve")
+            }
+            Self::FilletSelectionKind { name, found } => write!(
+                f,
+                "fillet selection {name:?} denotes a {found:?}, not an edge"
+            ),
+            Self::FilletSelectionEmpty => f.write_str(
+                "the fillet selection is empty — an unfinished recipe, not the identity",
+            ),
+            Self::WitnessBifurcation(_) => f.write_str("the sketch's branch selection refused"),
+        }
+    }
+}
+
+/// The [`NodeError`] rendering: the node, then its kind's prose.
+impl core::fmt::Display for NodeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "node {} failed: {}", self.node.0, self.kind)
+    }
+}
+
+impl core::error::Error for NodeError {}
+
 /// An evaluation's identity token (spec D5, GQ2): callers tag each
 /// launched evaluation and discriminate stale results by comparing the
 /// epoch a result carries against the newest one they minted.
@@ -535,7 +734,7 @@ impl Default for EvalOptions {
 /// granularity; a canceled run returns the completed prefix with
 /// [`EvalOutcome::Canceled`].
 pub fn evaluate<T>(
-    doc: &Doc<ProfileDesc>,
+    doc: &Doc<ProfileProgram>,
     prior: Option<&Evaluation<T>>,
     cancel: &CancelToken,
     opts: &EvalOptions,
@@ -647,7 +846,7 @@ where
 /// store resolves against all-failed states (typed losses, nothing
 /// silent).
 fn refuse_tolerance_conflict<T>(
-    doc: &Doc<ProfileDesc>,
+    doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
     process_eps: f64,
@@ -714,7 +913,7 @@ fn bookkeep<T: Decide>(step: &NodeStep<T>, recomputed: &mut usize, reused: &mut 
 /// slot evaluation with (node, slot) context, content key, memo
 /// lookup, and the op wiring.
 fn eval_node<T>(
-    doc: &Doc<ProfileDesc>,
+    doc: &Doc<ProfileProgram>,
     env: &crate::expr::ParamEnv<T>,
     id: RecipeNodeId,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
@@ -767,7 +966,42 @@ where
         Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
     };
 
-    let content_key = content_key(node, &slot_values, &upstream_keys, doc.witness(id));
+    // Profile-program resolution (LIB-SWITCH §4b): program Exprs
+    // resolve at f64 — never at `T` — because they feed C6 structure
+    // selection, which must be lane-identical (the verified asymmetry:
+    // node magnitude slots stay lane-live, profile geometry is
+    // f64-pinned). Resolved ONCE here; the same values feed the
+    // content key (resolved-value convention, §4e) and the op.
+    let resolved_program = match node {
+        crate::node::Node::Profile(program) => match program.resolve(&doc.param_env::<f64>()) {
+            Ok(r) => Some(r),
+            Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
+        },
+        _ => None,
+    };
+
+    // The profile F64 PRECOMPUTE (replay + f64 validation + the naming
+    // anchor) also lives here, OUTSIDE the verdict-log bracket: it is
+    // C6 structure selection — the successor of the stored f64 bits —
+    // not a per-lane op decision, so the node's logged verdicts stay
+    // exactly the lane validation the op runs (the v1 logged surface).
+    let profile_pre = match (node, &resolved_program) {
+        (crate::node::Node::Profile(program), Some(resolved)) => {
+            match wire::prepare_profile(program, resolved) {
+                Ok(pre) => Some(pre),
+                Err(kind) => return fail(kind),
+            }
+        }
+        _ => None,
+    };
+
+    let content_key = content_key(
+        node,
+        &slot_values,
+        resolved_program.as_deref(),
+        &upstream_keys,
+        doc.witness(id),
+    );
     let naming_key = naming_key(content_key, &upstream_naming);
 
     // Memo (spec D4 + #95 disposition 2): a content-key match
@@ -795,7 +1029,15 @@ where
     // idiom-1 parallelism runs whole nodes on one worker each), so
     // logs never interleave across nodes.
     geom_core::k_stats::start_verdict_log();
-    let op = wire::run_op(id, node, doc, results, &slot_values, boolean_sweep);
+    let op = wire::run_op(
+        id,
+        node,
+        doc,
+        results,
+        &slot_values,
+        profile_pre.as_ref(),
+        boolean_sweep,
+    );
     let verdicts = geom_core::k_stats::take_verdict_log();
     match op {
         Ok((payload, name_table)) => NodeStep {
@@ -824,8 +1066,9 @@ where
 /// results — W4's "semantically invisible", honestly re-derived
 /// rather than assumed).
 fn content_key<T>(
-    node: &crate::node::Node<ProfileDesc>,
+    node: &crate::node::Node<ProfileProgram>,
     slot_values: &slots::SlotValues<T>,
+    resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     upstream_keys: &[ContentKey],
     witness: Option<&crate::witness::WitnessDatum>,
 ) -> ContentKey
@@ -876,23 +1119,35 @@ where
     // Structural payloads beyond the tag: profile floats and Declare
     // pairs (StableName is float-free by construction).
     match node {
-        Node::Profile(desc) => {
-            // Tagged token stream (profile_desc module docs): every
-            // token hashes as (tag, payload) — structure can never
-            // alias float data. Rides content-key format v2 (the tag
-            // bump above; nothing shipped under the old stream).
-            for tok in desc.tokens() {
-                match tok {
-                    crate::profile_desc::DescToken::LoopStart => h.write_tag(1),
-                    crate::profile_desc::DescToken::Float(bits) => {
-                        h.write_tag(2);
-                        h.write_u64(bits);
-                    }
-                    crate::profile_desc::DescToken::Index(i) => {
-                        h.write_tag(3);
-                        h.write_u64(i);
+        Node::Profile(program) => {
+            // LIB-SWITCH §4e: the program's structural payload feeds
+            // as (tag, payload) tokens — plane placement floats, then
+            // per loop a LoopStart tag and per RESOLVED step the verb
+            // tag + structural tags + the resolved-at-f64 bit pattern
+            // of each continuous arg (the same resolved-value
+            // convention node slots use). Derived segment floats LEFT
+            // the key (V3); display units never enter it (D7). Any
+            // edit that can change segments changes the key: structure
+            // via tags, Exprs and params via resolved bits, ε above.
+            for bits in crate::program::plane_key_bits(&program.plane) {
+                h.write_tag(2);
+                h.write_u64(bits);
+            }
+            // Present by eval_node's stage order (profiles resolve
+            // before keying); written defensively — no panic paths in
+            // this crate — and the write_tag(0) marker keeps an
+            // (impossible) absent-program key distinct from any real
+            // program's key rather than aliasing an empty one.
+            match resolved_program {
+                Some(resolved) => {
+                    for steps in resolved {
+                        h.write_tag(1); // LoopStart
+                        for step in steps {
+                            feed_step(&mut h, step);
+                        }
                     }
                 }
+                None => h.write_tag(0),
             }
         }
         Node::Declare { pairs } => {
@@ -959,6 +1214,146 @@ fn naming_key(content: ContentKey, upstream: &[(RecipeNodeId, NamingKey)]) -> Na
         h.write_u64((nk.0 >> 64) as u64);
     }
     NamingKey(h.finish().0)
+}
+
+/// Feeds one RESOLVED program step into the content key (LIB-SWITCH
+/// §4e): verb tag, structural tags (target kind, winding, the
+/// `circle_split` count), and each continuous arg's resolved-f64 bits
+/// under the float tag — (tag, payload) throughout, so structure can
+/// never alias float data (the retired token stream's rule, kept).
+fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
+    use profile::{ArcSweep, Step, Target};
+    fn f(h: &mut KeyHasher, v: f64) {
+        h.write_tag(2);
+        h.write_u64(v.to_bits());
+    }
+    fn target(h: &mut KeyHasher, t: &Target<f64>) {
+        match t {
+            Target::Start => h.write_tag(4),
+            Target::Point(p) => {
+                h.write_tag(5);
+                f(h, p.x);
+                f(h, p.y);
+            }
+        }
+    }
+    fn winding(h: &mut KeyHasher, w: ArcSweep) {
+        h.write_tag(match w {
+            ArcSweep::Ccw => 6,
+            ArcSweep::Cw => 7,
+        });
+    }
+    match step {
+        Step::At(p) => {
+            h.write_tag(10);
+            f(h, p.x);
+            f(h, p.y);
+        }
+        Step::AtOn {
+            p,
+            centre,
+            winding: w,
+        } => {
+            h.write_tag(11);
+            f(h, p.x);
+            f(h, p.y);
+            f(h, centre.x);
+            f(h, centre.y);
+            winding(h, *w);
+        }
+        Step::Angle(theta) => {
+            h.write_tag(12);
+            f(h, *theta);
+        }
+        Step::Toward { dx, dy } => {
+            h.write_tag(13);
+            f(h, *dx);
+            f(h, *dy);
+        }
+        Step::Tangent => h.write_tag(14),
+        Step::Turn(delta) => {
+            h.write_tag(15);
+            f(h, *delta);
+        }
+        Step::Line(len) => {
+            h.write_tag(16);
+            f(h, *len);
+        }
+        Step::LineTo(t) => {
+            h.write_tag(17);
+            target(h, t);
+        }
+        Step::ArcTo { target: t, bulge } => {
+            h.write_tag(18);
+            target(h, t);
+            f(h, *bulge);
+        }
+        Step::ArcVia { via, target: t } => {
+            h.write_tag(19);
+            f(h, via.x);
+            f(h, via.y);
+            target(h, t);
+        }
+        Step::ArcCenter {
+            centre,
+            target: t,
+            winding: w,
+        } => {
+            h.write_tag(20);
+            f(h, centre.x);
+            f(h, centre.y);
+            target(h, t);
+            winding(h, *w);
+        }
+        Step::TangentArcTo(t) => {
+            h.write_tag(21);
+            target(h, t);
+        }
+        Step::ArcContinue(p) => {
+            h.write_tag(28);
+            f(h, p.x);
+            f(h, p.y);
+        }
+        Step::Fillet { radius } => {
+            h.write_tag(22);
+            f(h, *radius);
+        }
+        Step::FarEndTo(p) => {
+            h.write_tag(23);
+            f(h, p.x);
+            f(h, p.y);
+        }
+        Step::CloseTo => h.write_tag(24),
+        Step::CloseToOn { centre, winding: w } => {
+            h.write_tag(25);
+            f(h, centre.x);
+            f(h, centre.y);
+            winding(h, *w);
+        }
+        Step::Circle { centre, radius } => {
+            h.write_tag(26);
+            f(h, centre.x);
+            f(h, centre.y);
+            f(h, *radius);
+        }
+        Step::CircleSplit {
+            centre,
+            radius,
+            n,
+            phase,
+        } => {
+            h.write_tag(27);
+            f(h, centre.x);
+            f(h, centre.y);
+            f(h, *radius);
+            // Structural int under its own tag (3) — the (tag,
+            // payload) discipline holds for every token, review
+            // NOTE-3 (keys are process-internal; no migration).
+            h.write_tag(3);
+            h.write_u64(*n as u64);
+            f(h, *phase);
+        }
+    }
 }
 
 fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {

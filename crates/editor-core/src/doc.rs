@@ -208,7 +208,10 @@ impl<P> Doc<P> {
     /// The expression subtree an [`ExprPath`] addresses, or `None` if
     /// the node is gone, the slot absent, or the path off the tree
     /// (spec D5).
-    pub fn expr_at(&self, path: &ExprPath) -> Option<&Expr> {
+    pub fn expr_at(&self, path: &ExprPath) -> Option<&Expr>
+    where
+        P: crate::ProfilePayload,
+    {
         self.nodes
             .get(&path.node)?
             .expr(path.slot)?
@@ -237,7 +240,7 @@ impl<P> Doc<P> {
     }
 }
 
-impl<P: PartialEq> Doc<P> {
+impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
     /// Bit-semantic document equality (spec D7's replay-identity
     /// comparator; M4 PR 1 review non-blocker): every float field —
     /// expression literals, continuous doc params, recorded ε —

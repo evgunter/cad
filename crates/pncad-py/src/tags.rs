@@ -16,12 +16,13 @@
 //! Full per-variant field projection (node ids, slots, operand roles)
 //! is deferred to the unit that binds the complete surface.
 
-use pncad::document::{EditError, NodeErrorKind};
+use pncad::document::{DimensionError, EditError, NodeErrorKind, PersistError};
 
 /// The stable tag for an edit refusal.
 pub fn edit_error_tag(err: &EditError) -> &'static str {
     match err {
         EditError::UnknownNode { .. } => "unknown_node",
+        EditError::ProfileProgramRefused { .. } => "profile_program_refused",
         EditError::UnresolvedInput { .. } => "unresolved_input",
         EditError::WouldCycle { .. } => "would_cycle",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
@@ -64,6 +65,8 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
     match kind {
         NodeErrorKind::Expr { .. } => "expr",
         NodeErrorKind::Profile { .. } => "profile",
+        NodeErrorKind::ProfileReplay { .. } => "profile_replay",
+        NodeErrorKind::ProfileAnchor { .. } => "profile_anchor",
         NodeErrorKind::Extrude { .. } => "extrude",
         NodeErrorKind::Revolve { .. } => "revolve",
         NodeErrorKind::Split { .. } => "split",
@@ -92,5 +95,57 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::FilletSelectionKind { .. } => "fillet_selection_kind",
         NodeErrorKind::FilletSelectionEmpty => "fillet_selection_empty",
         NodeErrorKind::WitnessBifurcation { .. } => "witness_bifurcation",
+    }
+}
+
+/// The stable tag for a persistence refusal (LIB-DOORS F1; the v4
+/// doors). `PersistError` DOES implement `Display`, so unlike the two
+/// above the human message is real prose — the tag is still the
+/// machine payload a caller branches on.
+pub fn persist_error_tag(err: &PersistError) -> &'static str {
+    match err {
+        PersistError::NonFinite { .. } => "non_finite",
+        PersistError::ProfileProgram { .. } => "profile_program",
+        PersistError::Serialize { .. } => "serialize",
+        PersistError::Header { .. } => "header",
+        PersistError::UnknownSchema { .. } => "unknown_schema",
+        PersistError::SchemaTooOld { .. } => "schema_too_old",
+        PersistError::Migration(_) => "migration",
+        PersistError::Parse { .. } => "parse",
+        PersistError::Snapshot(_) => "snapshot",
+        PersistError::EditReplay { .. } => "edit_replay",
+        PersistError::ToleranceConflict { .. } => "tolerance_conflict",
+        PersistError::ToleranceInvalid { .. } => "tolerance_invalid",
+    }
+}
+
+/// The stable tag for a document-layer export refusal (LIB-DOORS F2:
+/// `pncad::export::step_for_node`'s error).
+pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
+    use pncad::export::ExportError as E;
+    match err {
+        E::UnknownNode { .. } => "unknown_node",
+        E::NodeFailed { .. } => "node_failed",
+        E::Poisoned { .. } => "poisoned",
+        E::NotABody { .. } => "not_a_body",
+        E::EmptyBoolean { .. } => "empty_boolean",
+        E::Step(_) => "step_refused",
+    }
+}
+
+/// The stable tag for an expression-constructor refusal (LIB-DOORS
+/// F5: `Expr::literal`'s own error type, no longer pre-checked).
+pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
+    match err {
+        DimensionError::Mismatch { .. } => "mismatch",
+        DimensionError::MulNeedsScalar { .. } => "mul_needs_scalar",
+        DimensionError::DivNeedsScalarDivisor { .. } => "div_needs_scalar_divisor",
+        DimensionError::TrigNeedsAngle { .. } => "trig_needs_angle",
+        DimensionError::CountNeedsExplicitPromotion { .. } => "count_needs_explicit_promotion",
+        DimensionError::NotCount { .. } => "not_count",
+        DimensionError::LiteralCountIsInteger => "count_is_integer",
+        DimensionError::NonFiniteLiteral => "non_finite",
+        DimensionError::DisplayUnitMismatch { .. } => "display_unit_mismatch",
+        DimensionError::UnknownDisplayUnit { .. } => "unknown_display_unit",
     }
 }

@@ -48,6 +48,8 @@ mod m5_s10_face_sense;
 mod m5_s11_concave_sense;
 #[path = "m7_nurbs_trimmed.rs"]
 mod m7_nurbs_trimmed;
+#[path = "newell_probes.rs"]
+mod newell_probes;
 #[path = "prisms.rs"]
 mod prisms;
 #[path = "probe_review.rs"]

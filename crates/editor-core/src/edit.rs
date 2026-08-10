@@ -198,6 +198,21 @@ pub enum EditError {
         /// The missing id.
         id: RecipeNodeId,
     },
+    /// An edit that CREATES or MODIFIES a profile program failed the
+    /// authoring-time check (LIB-SWITCH §4d, VQ9): the program is
+    /// resolved, replayed, and validated under the CURRENT parameter
+    /// environment at the edit door, so the author sees refusals at
+    /// the verb, not at first evaluation. `SetDocParam` deliberately
+    /// NEVER takes this door — a parameter edit that breaks a
+    /// downstream profile surfaces as that node's typed evaluation
+    /// error (V1 class 2: refusing programs may exist at rest); both
+    /// directions are pinned by test.
+    ProfileProgramRefused {
+        /// The profile node (for `InsertNode`, the id being minted).
+        node: RecipeNodeId,
+        /// The typed refusal.
+        refusal: crate::program::ProgramRefusal,
+    },
     /// An inserted node's input ref does not resolve to a live node
     /// (spec D3: `apply` rejects unresolvable refs).
     UnresolvedInput {
@@ -445,6 +460,164 @@ pub enum EditError {
     },
 }
 
+// LIB-DOORS F6 (reopened on review): the human-readable rendering the
+// bindings' exception messages consume. The comment-style rule
+// applies — each arm states the PROBLEM (and where it is), not the
+// enum's guts; identifiers render via `Debug` because they ARE the
+// location, and the typed variant remains the machine contract.
+impl core::fmt::Display for EditError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::UnknownNode { id } => write!(f, "edit: node {} is not live", id.0),
+            Self::ProfileProgramRefused { node, refusal } => {
+                write!(
+                    f,
+                    "edit: node {}'s profile program refused: {refusal}",
+                    node.0
+                )
+            }
+            Self::UnresolvedInput { input } => {
+                write!(f, "edit: input {} does not resolve to a live node", input.0)
+            }
+            Self::WouldCycle { at } => {
+                write!(
+                    f,
+                    "edit: the recipe graph would cycle (through node {})",
+                    at.0
+                )
+            }
+            Self::DeleteWouldDangle { id, referenced_by } => write!(
+                f,
+                "edit: deleting node {} would dangle node {}'s reference to it",
+                id.0, referenced_by.0
+            ),
+            Self::UnknownSlot { id, slot } => {
+                write!(f, "edit: node {} has no slot {slot:?}", id.0)
+            }
+            Self::SlotDimensionMismatch {
+                slot,
+                expected,
+                found,
+            } => write!(
+                f,
+                "edit: slot {slot:?} needs a {expected:?} expression, got {found:?}"
+            ),
+            Self::StructuralSlotNeedsStructuralEdit { slot } => write!(
+                f,
+                "edit: slot {slot:?} is structural — use a structural edit"
+            ),
+            Self::NotStructuralSlot { slot } => {
+                write!(f, "edit: slot {slot:?} is continuous, not structural")
+            }
+            Self::UnknownDocParam { name, node, slot } => write!(
+                f,
+                "edit: document parameter {:?} does not exist (referenced by node {}, slot {slot:?})",
+                name.0, node.0
+            ),
+            Self::DocParamDimensionMismatch {
+                name,
+                node,
+                slot,
+                declared,
+                referenced,
+            } => write!(
+                f,
+                "edit: parameter {:?} is declared {declared:?} but node {} (slot {slot:?}) references it as {referenced:?}",
+                name.0, node.0
+            ),
+            Self::ContinuousParamCannotBeCount { name } => write!(
+                f,
+                "edit: parameter {:?}: a continuous parameter cannot be Count — use a Count parameter",
+                name.0
+            ),
+            Self::PathOffTree { path } => {
+                write!(f, "edit: expression path {path:?} runs off the tree")
+            }
+            Self::Dimension(e) => write!(f, "edit: {e}"),
+            Self::DeclareNamesMissingNode { name } => write!(
+                f,
+                "edit: declared name {name:?} refers to a node that is not live"
+            ),
+            Self::NonFiniteDocParam { name } => {
+                write!(f, "edit: parameter {:?}: the value must be finite", name.0)
+            }
+            Self::RebindTargetMissingNode { name } => write!(
+                f,
+                "edit: rebind target {name:?} refers to a node that is not live"
+            ),
+            Self::RebindUnknownName { name } => write!(
+                f,
+                "edit: rebind source {name:?} was never minted by this document"
+            ),
+            Self::RebindKindMismatch { from, to } => write!(
+                f,
+                "edit: a rebind cannot cross entity kinds ({from:?} to {to:?})"
+            ),
+            Self::RebindIdentity { name } => write!(
+                f,
+                "edit: rebinding {name:?} to itself is a recorded no-op — refused"
+            ),
+            Self::RebindNoReferences { name } => write!(
+                f,
+                "edit: no document site references {name:?} — nothing to repair"
+            ),
+            Self::WitnessOnNonSketch { node } => write!(
+                f,
+                "edit: node {} is not sketch-bearing — nothing to re-witness",
+                node.0
+            ),
+            Self::DuplicateWitnessEntry { node } => write!(
+                f,
+                "edit: node {} appears twice in the re-witness bulk",
+                node.0
+            ),
+            Self::EmptyWitnessBulk => {
+                f.write_str("edit: a re-witness bulk with no entries is a no-op — refused")
+            }
+            Self::NameUnresolvedInEvaluation { name } => write!(
+                f,
+                "edit: name {name:?} does not resolve in the supplied evaluation — recording the reference would strand it"
+            ),
+            Self::RebindAppearanceCollision { name, kind } => write!(
+                f,
+                "edit: the rebind would land two {kind:?} attributes on {name:?} — clear one first"
+            ),
+            Self::AppearanceWrongKind { name } => write!(
+                f,
+                "edit: appearance attaches to faces and bodies only (refused for {name:?})"
+            ),
+            Self::AppearanceNamesMissingNode { name } => write!(
+                f,
+                "edit: appearance name {name:?} refers to a node that is not live"
+            ),
+            Self::AppearanceNotSet { name, kind } => {
+                write!(f, "edit: no {kind:?} attribute is set on {name:?}")
+            }
+            Self::InvalidTolerance { value } => write!(
+                f,
+                "edit: tolerance {value:e} is not finite and strictly positive"
+            ),
+            Self::MetaUnversioned { name, key, .. } => write!(
+                f,
+                "edit: metadata {key:?} on {name:?} lacks the integer \"v\" version field"
+            ),
+            Self::MetaNonFinite { name, key, path } => write!(
+                f,
+                "edit: metadata {key:?} on {name:?} carries a non-finite float at {path}"
+            ),
+            Self::MetaNotSet { name, key } => {
+                write!(f, "edit: no metadata {key:?} is set on {name:?}")
+            }
+            Self::RebindMetadataCollision { name, key } => write!(
+                f,
+                "edit: the rebind would land two values under metadata {key:?} on {name:?} — clear one first"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for EditError {}
+
 /// What an accepted edit did (spec D6: structural edits are FLAGGED
 /// in the returned record; the record also returns the minted id —
 /// without it a caller could never reference an inserted node).
@@ -501,7 +674,11 @@ fn check_param_refs<P>(
 
 /// Validate every slot of a node payload against slot dimensions and
 /// the param table, keyed as `id` for error reporting.
-fn check_node_slots<P>(doc: &Doc<P>, id: RecipeNodeId, node: &Node<P>) -> Result<(), EditError> {
+fn check_node_slots<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    id: RecipeNodeId,
+    node: &Node<P>,
+) -> Result<(), EditError> {
     for slot in node.slots() {
         // slots() and expr() agree by construction; a miss here is a
         // vocabulary bug, surfaced as UnknownSlot rather than hidden.
@@ -569,7 +746,10 @@ fn check_acyclic<P>(doc: &Doc<P>) -> Result<(), EditError> {
 /// [`EditRecord`]. All validation is here — refs resolve, no cycles,
 /// dimension checks re-run on touched expressions (spec D6).
 #[allow(clippy::too_many_lines)] // one arm per DocEdit variant, each short
-pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, EditError> {
+pub fn apply<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    edit: &DocEdit<P>,
+) -> Result<Applied<P>, EditError> {
     let mut new = doc.clone();
     let record = match edit {
         DocEdit::InsertNode { node } => {
@@ -600,6 +780,14 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
             }
             let id = RecipeNodeId(new.next_id);
             check_node_slots(&new, id, node)?;
+            // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
+            // program entering the document resolves + replays +
+            // validates under the CURRENT param env, refusing typed
+            // here rather than at first evaluation.
+            if let Node::Profile(p) = node {
+                p.check(&new.param_env::<f64>())
+                    .map_err(|refusal| EditError::ProfileProgramRefused { node: id, refusal })?;
+            }
             new.next_id += 1;
             new.nodes.insert(id, node.clone());
             new.order.push(id);
@@ -637,6 +825,7 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
                 return Err(EditError::StructuralSlotNeedsStructuralEdit { slot: *slot });
             }
             set_slot(&mut new, *node, *slot, expr)?;
+            check_profile_after_slot_edit(&new, *node, *slot)?;
             EditRecord {
                 minted: None,
                 structural: false,
@@ -668,6 +857,7 @@ pub fn apply<P: Clone>(doc: &Doc<P>, edit: &DocEdit<P>) -> Result<Applied<P>, Ed
                 .map_err(EditError::Dimension)?;
             let structural = path.slot.is_structural();
             set_slot(&mut new, path.node, path.slot, &rebuilt)?;
+            check_profile_after_slot_edit(&new, path.node, path.slot)?;
             EditRecord {
                 minted: None,
                 structural,
@@ -960,9 +1150,26 @@ fn check_witness_site<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<(), EditError
     }
 }
 
+/// The VQ9 door after a slot edit landed in a profile program
+/// (LIB-SWITCH §4d): re-run resolve + replay + validate under the
+/// CURRENT param env; refuse typed. Non-profile slots pass through.
+fn check_profile_after_slot_edit<P: crate::ProfilePayload>(
+    new: &Doc<P>,
+    id: RecipeNodeId,
+    slot: SlotId,
+) -> Result<(), EditError> {
+    if matches!(slot, SlotId::Profile { .. })
+        && let Some(Node::Profile(p)) = new.nodes.get(&id)
+    {
+        p.check(&new.param_env::<f64>())
+            .map_err(|refusal| EditError::ProfileProgramRefused { node: id, refusal })?;
+    }
+    Ok(())
+}
+
 /// Shared slot-write path: node exists, slot exists, dimension
 /// matches, param refs valid — then write.
-fn set_slot<P: Clone>(
+fn set_slot<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
     id: RecipeNodeId,
     slot: SlotId,
@@ -990,7 +1197,7 @@ fn set_slot<P: Clone>(
     }
 }
 
-impl<P: Clone> Doc<P> {
+impl<P: Clone + crate::ProfilePayload> Doc<P> {
     /// Method form of [`apply`] (spec D2's pure edit entry point).
     pub fn apply(&self, edit: &DocEdit<P>) -> Result<Applied<P>, EditError> {
         apply(self, edit)

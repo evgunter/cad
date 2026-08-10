@@ -23,14 +23,16 @@ cargo run --release -- ../out   # build + narrate + export STL/STEP + scenes.jso
 cd ..
 ./render.sh                     # kernel-tessellation montage (renders/montage.png)
 ./render.sh --freecad           # FreeCAD/OCC STEP-lane montage (renders-freecad/montage-freecad.png)
+./render-uv.sh                  # UV trim-loop sheet (renders-uv/montage-uv.svg)
 ```
 
-Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` (untracked),
+Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` +
+`demos/out/uv/*.svg` + `demos/out/uv.json` (untracked),
 `demos/renders/*.png` (tracked — one per scene plus `montage.png`),
 `demos/renders-freecad/*.png` (tracked — the montage cells plus
-`montage-freecad.png`), and — only when the kernel lane falls back to
-matplotlib — `demos/renders-preview/renders/*.png` (gitignored; see
-below).
+`montage-freecad.png`), `demos/renders-uv/montage-uv.svg` (tracked),
+and — only when the kernel lane falls back to matplotlib —
+`demos/renders-preview/renders/*.png` (gitignored; see below).
 
 A pass in flight lives in `demos/out/stage/<lane>/` (untracked) and is
 published to the lane directory only once it is complete. FreeCAD
@@ -46,6 +48,124 @@ and a `zTXt` "Description" chunk carrying its MIBA XML), which would
 make an unchanged re-render show up dirty in `git status`. Both are
 ancillary chunks — dropping them is lossless, and it makes a dirty
 `git status` after a re-render mean the *pixels* changed.
+
+## The UV trim-loop lane (`render-uv.sh`)
+
+The third montage lane, and the odd one out: it draws no 3-D at all.
+
+A `Surface` in this kernel is unbounded — "the infinite plane", "the
+infinite cylinder". A `Face` is the patch of one that its boundary
+**loops** cut out, and those loops live in the surface's own `(u, v)`
+chart, stored as `geom_brep::Pcurve`s. That chart is *already* a 2-D
+drawing, so rendering it needs no camera, no projection and no
+silhouette machinery — which is why this is the one lane with **no
+external dependency whatsoever**: the tour writes the per-face SVGs
+(`demos/tour/src/uvdump.rs`, through `pncad::` like every other line
+of the tour), and `compose_uv_montage.py` tiles them using Python's
+standard library. No venv, no numpy/matplotlib, no `freecadcmd`.
+
+Consequences worth stating:
+
+* **The sheet is SVG, not PNG.** It is text, so an unchanged re-run
+  produces a byte-identical file and `git status` stays clean with none
+  of the wall-clock-stamp surgery the PNG lanes need. There is no
+  provenance guard here because there is no second renderer to confuse
+  it with — the kernel is the only thing that could have drawn it.
+* **It is a diagnostic, not a depiction.** Per face the cell measures
+  and prints: loop and half-edge counts, how many half-edges read a
+  **stored** pcurve cache vs. were derived on demand (derived ones draw
+  dashed — `mesh::trimmed` refuses those), the outer loop's signed
+  chart area and its winding, and the worst **closure gap** between
+  consecutive traversals. Winding is a *check*, not a readout: it is
+  compared against the face's own `Face::sense` bit, since a bore or a
+  concave groove carries `sense = false` and its outer loop is
+  legitimately CW. 879 of the 982 M7 faces are checkable (the rest
+  carry a branch jump) and all 879 agree, so the alarm colour is
+  reserved for a real contradiction rather than spent on every hole.
+  Periodic charts get their seams (`u = k·2π`)
+  drawn as dashed magenta lines, so a seam-crossing loop is visible
+  rather than inferred. Strokes are colored by pcurve form —
+  `Harmonic` blue, `IsoLine` green, `Fitted` orange.
+* **Closure is measured in 3-D, not in the chart**, and that
+  distinction is load-bearing. A chart-space closure metric
+  false-alarms on every face touching a chart singularity or a seam,
+  because at a sphere's pole an entire `u`-line is one 3-D point: 103
+  of the 982 M7 faces show such a jump, every one of them exactly π/2,
+  π or 2π. Measured off the carriers instead, the true closure gap
+  never exceeds 9e-16 m anywhere in the corpus. The chart jump is
+  still printed — greyed, and named as seam/pole structure — so it
+  informs instead of alarming.
+* **The interior fill is drawn only when it means something.** A ring
+  that contains a branch jump — a loop crossing the seam or running
+  through a pole — closes in the chart through a straight segment that
+  is not boundary, so even-odd would shade a region that is not the
+  face. Those cells (3 of 36 on the sheet) show the strokes alone and
+  say why; the signed area and winding are likewise not claimed there.
+* **There is a CI drift gate.** The two PNG lanes cannot have one —
+  they need FreeCAD, which CI does not have — so this is the only
+  render lane CI can reproduce. `uv sheet drift (demos)` regenerates
+  the sheet and diffs it (the tour is ~3s once built, and the sheet is
+  text, so a firing diff is readable). A failure is either an
+  uncommitted regeneration or a D9 determinism finding.
+* **Nothing is refused.** Unlike the tessellator's trim walk, this one
+  accepts every pcurve form and falls back to `topo::pcurve_of`'s
+  derive-on-demand, because a face the tessellator refuses is exactly
+  the face worth looking at. A face whose loops cannot be walked at all
+  gets a cell naming the reason, first on the sheet — never a gap.
+* **Selection is stated, never silent.** `out/uv.json` carries *every*
+  face of every tour body (982 at M7). The sheet takes one
+  representative per (body, chart kind) among the curved charts — the
+  richest, by distinct pcurve forms then loop count then face ordinal —
+  plus every failed walk unconditionally. Planar charts are dropped as
+  a class: a plane chart's picture is the face's own outline, which the
+  two 3-D lanes already show. The composer prints every count it
+  dropped, and all 982 SVGs stay in `out/uv/`.
+
+Read it in a browser; nested-SVG-shy rasterizers are why the cells are
+placed with `transform="translate(…)"` rather than nested `<svg x= y=>`.
+
+### What the sheet says about the corpus today (M7)
+
+Most cells are rectangles, and that is a fact about the corpus rather
+than a limitation of the drawing. Of the 238 curved faces, **234 have
+boundaries built entirely from iso-curves of their own chart; only 4
+do not, and all 4 are the tilted cut.**
+
+The reason is that every curved face here is *sweep-native*. Extrude,
+revolve, loft and sweep choose the surface's chart so that one
+direction IS the sweep parameter and the other IS the profile
+parameter — so a face's boundary is the profile at the start
+(`v = const`), the profile at the end (`v = const`), and the seams
+(`u = const`). Nothing is left to trim. This is what `mesh::trimmed`
+means by "the definitional payoff — no fit anywhere", and why
+`Pcurve::IsoLine` earns a variant of its own.
+
+The tilted cut is different because its boundary did not come from the
+sweep that made the cylinder: a plane cuts that cylinder **obliquely**,
+so the section is an ellipse in 3-D and, on the cylinder chart
+(`u` = azimuth, `v` = height), the sinusoid graph
+`v = a + b·cos(u − φ)` — exactly the image `Pcurve::Harmonic`'s docs
+name.
+
+Note what does *not* break the rectangle: `bossplate` is a genuine
+curved boolean, and its cylinder walls are still iso-rectangles,
+because the boss axis is perpendicular to the plate and the
+intersection circle therefore sits at constant height. **Obliquity to
+the chart is what produces a real trim, not the operation that made
+the edge.**
+
+Consequence worth carrying into M7: the trimmed-face machinery
+(`mesh::trimmed`'s CDT over an arbitrary trim polygon plus the
+even-odd interior pick) is exercised by exactly one geometric family
+in this corpus. Everything else takes the swept-rectangle walk or
+trims along iso-lines. Imported foreign geometry will not be so
+courteous.
+
+What it is NOT: a replacement for `render.sh`. The eyeball gate needs
+shaded 3-D, and a chart domain is not a picture of the part. The
+parked SVG lanes that *would* draw the part — a projected-edge
+wireframe, and drawing-grade hidden-line removal — are filed as
+LONGTERM-IDEAS I4(a) and I4(b).
 
 ## The matplotlib fallback is uncommittable (#221)
 
@@ -190,7 +310,7 @@ cd ..
 ./render-wild.sh              # cells + sheet -> renders-wild/
 ```
 
-**Cell count: 6, and the cell set is license law plus pinned
+**Cell count: 8, and the cell set is license law plus pinned
 capability, not discovery.** `docs/WILD-CORPUS-LICENSES.md` (the
 license audit) governs eligibility — only files the audit marks
 render-OK may appear. The derivation: 13 wild fixtures − 4 `stepcode/`
@@ -199,31 +319,30 @@ for redistributed CAx-IF models; the generator does not read them at
 all — `sg1-c5-214.stp` imports fine and is excluded by license, not
 capability) = 9 render-OK, − 1 typed import refusal
 (`b123d_nema17_bracket.step`, `SURFACE_CURVE` edge geometry — pinned
-in the generator, matching `wild.rs`) − 2 typed TESSELLATION refusals
-(`1982_MPR121.step`, `328_2500mAh_battery.step` — the mesh-lane
-finding below) = **6**. Two notes on how that differs from the audit's
-own snapshot, one in each direction:
+in the generator, matching `wild.rs`) = **8**. Two notes on how that
+differs from the audit's own snapshot:
 
 * the audit's import-status line ("only 6 import today") predates the
   M7-5 band-seam re-mint (#252), which flipped `nist_ftc_11_asme1_rb`
   and `cq_red_cube_blue_cylinder` to imports-class — both are
   render-OK rows in the audit's own table, so both are cells;
-* **the mesh-lane finding this unit surfaced**: `1982_MPR121` and
-  `328_2500mAh_battery` import first-class (census exact, volumes
-  measurable) but refuse `pncad::mesh::tessellate` typed
-  (`Triangulation`), on plain rectangular planar faces. Diagnosed in
-  `demos/wild/src/main.rs`'s module docs: the files' plane axes carry
-  translator noise (~1e-33 components), the planar chart projection
-  of a should-be-zero coordinate lands at ~1e-67, and that is below
-  spade's coordinate domain (`MIN_ALLOWED_VALUE` = 2⁻¹⁴² ≈ 1.79e-43),
-  so the CDT refuses the vertex. Own-corpus bodies never hit this
-  because the kernel authors exact axes; the fix belongs to the mesh
-  lane, not this demo.
+* **the mesh-lane finding this unit surfaced, since resolved**:
+  `1982_MPR121` and `328_2500mAh_battery` imported first-class
+  (census exact, volumes measurable) but refused
+  `pncad::mesh::tessellate` typed (`Triangulation`), on plain
+  rectangular planar faces — the files' plane axes carry translator
+  noise (~1e-33 components), the planar chart projection of a
+  should-be-zero coordinate landed at ~1e-67, below spade's
+  coordinate domain (`MIN_ALLOWED_VALUE` = 2⁻¹⁴² ≈ 1.79e-43), and
+  the CDT refused the vertex. Fixed in the mesh lane (#284,
+  `mesh::planar`'s module docs): the planar chart frame is re-derived
+  per-face from the boundary itself (Newell normal + extent-aligned
+  axes) instead of trusting stored axes, so both files are ordinary
+  cells now.
 
-`demos/wild/src/main.rs` pins the cell set, the import refusal, AND
-the two tessellation refusals, and fails loudly on drift in any
-direction, so the sheet can never detach silently from the
-attribution block below.
+`demos/wild/src/main.rs` pins the cell set AND the import refusal,
+and fails loudly on drift in any direction, so the sheet can never
+detach silently from the attribution block below.
 
 **Renderer + provenance.** Cells are drawn by `render.py` — the
 numpy+matplotlib STL renderer — as the lane's PRIMARY renderer, not a
@@ -282,11 +401,12 @@ Apache-2.0 grant linking the committed license text, and the
 modified-only-by-tessellation statement. `b123d_nema17_bracket.step`
 still refuses import (no cell), so its NOTICE-carrying entry is not
 yet needed here; the NOTICE text already rides
-`crates/step-import/NOTICE` (the audit's D1 action, done). Two of the
-named Adafruit parts (`1982 MPR121`, `328 2500mAh battery`) do not
-currently appear on the sheet (the pinned tessellation refusals
-above); their attribution rides anyway — the source files are
-committed fixtures, and the block is the audit's text verbatim.
+`crates/step-import/NOTICE` (the audit's D1 action, done). All five
+named Adafruit parts now appear on the sheet — `1982 MPR121` and
+`328 2500mAh battery`, once pinned tessellation refusals, joined
+when the #284 mesh fix landed — and the Adafruit entry already named
+them all, so the block needed no change: it is the audit's text
+verbatim.
 
 ## The stops
 

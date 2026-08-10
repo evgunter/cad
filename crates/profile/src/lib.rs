@@ -117,6 +117,7 @@
 
 mod fillet_select;
 pub mod k_stats;
+pub mod lift;
 pub mod path;
 mod seg;
 mod sugar;
@@ -124,12 +125,13 @@ mod validate;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Real, Vec3};
 
+pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
     ClosedLoop, ReplayError, ReplayErrorKind, Step, Target, TipState, Verb, replay,
 };
 pub use path::{
     ArcCarrierScalar, ArcCenterTarget, ArcTarget, ArcViaTarget, LineTarget, Open, PartialPath,
-    PathError, Start, TangentArcTarget, circle,
+    PathError, Start, TangentArcTarget, circle, circle_split,
 };
 pub use sugar::{ArcSweep, FilletLegShape, LoopBuilder, bulge_from_center, bulge_from_via};
 pub use validate::{

@@ -378,6 +378,14 @@ jobs:
           python3 demos/check_render_provenance.py --selftest
           python3 demos/check_render_provenance.py
 
+      # The UV lane's composer: no provenance question (only the kernel
+      # can have drawn an SVG cell), but its selection rule DROPS faces
+      # from the sheet, and a silent drop is what that lane exists to
+      # prevent. Same cheap-tripwire posture, stdlib only. Mirror:
+      # ci-local's "uv composer selftest (demos)" row.
+      - name: uv composer selftest (demos)
+        run: python3 demos/compose_uv_montage.py --selftest
+
   fmt:
     name: rustfmt
     runs-on: ubuntu-latest
@@ -911,6 +919,24 @@ jobs:
         run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+      # Drift gate for the committed UV sheet. The two PNG lanes cannot
+      # be gated — they need FreeCAD, which this job does not have — so
+      # this is the ONLY render lane CI can actually reproduce, and an
+      # ungated committed artifact rots silently. Regenerate and diff:
+      # the tour is ~3s once built (this job already builds it for the
+      # k-probe sweep below) and the sheet is text, so the diff is
+      # readable when it fires. A failure here is either a real change
+      # the author forgot to commit, or a D9 determinism finding — both
+      # worth stopping for. Mirror: ci-local's "uv sheet drift (demos)".
+      - name: uv sheet drift (demos)
+        run: |
+          (cd demos/tour && cargo run --release -- ../out)
+          demos/render-uv.sh
+          git diff --exit-code --stat HEAD -- demos/renders-uv/ || {
+            echo "::error::demos/renders-uv/montage-uv.svg is stale — \
+          re-run demos/tour then demos/render-uv.sh and commit the result"
+            exit 1
+          }
       - name: K-telemetry probe sweep (corpus + demo scenes, 3 eps rows)
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: large-K lint (gate — a flagged margin fails this row)

@@ -14,14 +14,21 @@
 //!   finite BY CONSTRUCTION (`Expr::literal` refuses non-finite —
 //!   ruled door 1; the load side re-runs the same constructors), so
 //!   the walk covers the float carriers outside that door: profile
-//!   payloads, continuous doc params, the recorded ε, and D7 metadata
+//!   PLANE PLACEMENTS (program args are Exprs, already doored),
+//!   continuous doc params, the recorded ε, and D7 metadata
 //!   trees (in the snapshot AND in the edit log). A NEW float-carrying
 //!   field must join this walk — the D2 round-trip property tests are
 //!   the tripwire. (Post-parse this walk cannot fire — JSON has no
 //!   non-finite tokens — which is the asymmetry being BYTE-level, not
 //!   a reason to fork the validator.)
-//! - [`first_bad_joint`] — declared-tangent joints in range, snapshot
-//!   and edit log (the `Index` channel's twin of the float walk).
+//! - [`first_program_fault`] — profile PROGRAM structure: per-slot
+//!   dimension agreement (V2's role table) and a REPLAY PROBE under
+//!   the document's params whose LATTICE violations refuse (the
+//!   corrupt-file class — no authoring surface produces them);
+//!   resolve failures and geometry refusals PASS this door (V1
+//!   class 2: refusing programs may exist at rest — they surface as
+//!   typed node errors at evaluation). The retired stored-joint walk
+//!   died with stored joints: programs persist no derived values.
 //! - [`validate_snapshot`] — the document invariants `apply`
 //!   maintains, re-checked structurally (a parsed snapshot is not
 //!   trusted; an in-memory one can be corrupted through the `pub`
@@ -41,8 +48,9 @@ use crate::edit::DocEdit;
 use crate::expr::Dimension;
 use crate::meta::MetaVersionError;
 use crate::names::StableName;
+use crate::node::SlotId;
 use crate::node::{Node, RecipeNodeId};
-use crate::profile_desc::{DescToken, ProfileDesc, ProfileDoc};
+use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
 use crate::resolve::derivation_nodes;
 
 /// Where a non-finite float sits (the D2 refusal's typed site).
@@ -55,10 +63,10 @@ pub enum NonFiniteSite {
         /// The parameter.
         name: ParamName,
     },
-    /// A float of a profile node's payload (snapshot), by position
-    /// among the REAL floats of the canonical traversal (the `Float`
-    /// tokens of [`ProfileDesc::tokens`]: placement columns, then
-    /// vertices in loop order — structural tokens do not count).
+    /// A float of a profile node's PLANE PLACEMENT (snapshot), by
+    /// position among the 12 placement floats (columns c0, c1, c2,
+    /// translation; x, y, z each). Program arguments are `Expr`s and
+    /// carry the literal door's finiteness by construction.
     Profile {
         /// The profile node.
         node: RecipeNodeId,
@@ -93,22 +101,17 @@ pub enum NonFiniteSite {
 
 /// The shared validator (module docs): every direction-independent
 /// document check, in one place, invoked by both doors. Check order
-/// is float walk → joint walk → structural invariants (the save
+/// is float walk → program walk → structural invariants (the save
 /// door's historical precedence, pinned by the refusal suite).
 pub(crate) fn validate_document(
     snapshot: &ProfileDoc,
-    edits: &[DocEdit<ProfileDesc>],
+    edits: &[DocEdit<ProfileProgram>],
 ) -> Result<(), super::PersistError> {
     if let Some(site) = first_non_finite(snapshot, edits) {
         return Err(super::PersistError::NonFinite { site });
     }
-    if let Some((site, loop_index, joint, vertex_count)) = first_bad_joint(snapshot, edits) {
-        return Err(super::PersistError::TangentJointOutOfRange {
-            site,
-            loop_index,
-            joint,
-            vertex_count,
-        });
+    if let Some((node, fault)) = first_program_fault(snapshot) {
+        return Err(super::PersistError::ProfileProgram { node, fault });
     }
     validate_snapshot(snapshot).map_err(super::PersistError::Snapshot)
 }
@@ -116,7 +119,7 @@ pub(crate) fn validate_document(
 /// The first non-finite float the format would write, or `None`.
 fn first_non_finite(
     snapshot: &ProfileDoc,
-    edits: &[DocEdit<ProfileDesc>],
+    edits: &[DocEdit<ProfileProgram>],
 ) -> Option<NonFiniteSite> {
     if !snapshot.epsilon.is_finite() {
         return Some(NonFiniteSite::Epsilon);
@@ -162,23 +165,15 @@ fn param_site(name: &ParamName, p: &DocParam) -> Option<NonFiniteSite> {
     }
 }
 
-/// Walks every `Float` token of the description — keyed off token
-/// TAGS, so the door skips NOTHING and shares no blind spot with any
-/// encoding detail (review MAJOR-1: the former bit-stream walk
-/// skipped the `u64::MAX` in-band marker, which is itself a real NaN
-/// pattern). The returned index counts REAL floats only (placement
-/// columns first, then vertices in loop order).
-fn profile_non_finite(desc: &ProfileDesc) -> Option<usize> {
-    let mut float_index = 0usize;
-    for tok in desc.tokens() {
-        if let DescToken::Float(bits) = tok {
-            if !f64::from_bits(bits).is_finite() {
-                return Some(float_index);
-            }
-            float_index += 1;
-        }
-    }
-    None
+/// Walks the program payload's RAW floats — exactly the 12 plane
+/// placement values (program arguments are `Expr`s, whose literals
+/// are finite by the construction door).
+fn profile_non_finite(program: &ProfileProgram) -> Option<usize> {
+    let a = &program.plane.placement;
+    [a.linear.c0, a.linear.c1, a.linear.c2, a.translation]
+        .iter()
+        .flat_map(|v| [v.x, v.y, v.z])
+        .position(|f| !f.is_finite())
 }
 
 fn record_non_finite(rec: &AppearanceRecord) -> Option<(String, String)> {
@@ -189,11 +184,11 @@ fn record_non_finite(rec: &AppearanceRecord) -> Option<(String, String)> {
 
 /// The float carriers an edit can smuggle past `apply` (a saved log
 /// is DATA — it has not necessarily been applied by this process).
-fn edit_non_finite(edit: &DocEdit<ProfileDesc>) -> Option<NonFiniteSite> {
+fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
     match edit {
         DocEdit::InsertNode {
-            node: Node::Profile(desc),
-        } => profile_non_finite(desc).map(|index| NonFiniteSite::InsertedProfile { index }),
+            node: Node::Profile(program),
+        } => profile_non_finite(program).map(|index| NonFiniteSite::InsertedProfile { index }),
         DocEdit::SetDocParam { name, value } => param_site(name, value),
         DocEdit::SetAppearanceMeta { name, key, value } => {
             value
@@ -373,76 +368,91 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     Ok(())
 }
 
-/// Where an out-of-range declared-tangent joint sits (review
-/// MAJOR-DELTA-1 — the `Index` channel's twin of [`NonFiniteSite`]):
-/// the profile payload is `pub`, so a stale joint (e.g. after a
-/// vertex deletion in the payload) is API-reachable without passing
-/// any edit door; a parsed file can carry the same corruption.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JointSite {
-    /// A profile node in the snapshot.
-    Profile {
-        /// The profile node.
-        node: RecipeNodeId,
+/// A profile PROGRAM structure fault (the retired stored-joint walk's
+/// successor at the program layer): a wrong-dimension argument, or a
+/// lattice-violating step order. Both are the corrupt-file class — the
+/// payload is `pub`, so an in-crate bug can also build one; both doors
+/// refuse with the same diagnostics.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ProgramFault {
+    /// A program slot's expression has the wrong dimension for its
+    /// role (V2's table, [`StepArg::dimension`]).
+    SlotDimension {
+        /// The offending slot.
+        slot: SlotId,
+        /// The role's required dimension.
+        expected: crate::expr::Dimension,
+        /// The expression's dimension.
+        found: crate::expr::Dimension,
     },
-    /// A profile payload carried by an `InsertNode` edit in the log
-    /// (the node id is minted only at replay).
-    InsertedProfile {
-        /// The edit's index in the log.
-        index: usize,
+    /// The program is not a legal lattice walk (LIB-SWITCH §4h: the
+    /// replay PROBE under the document's params refused with the
+    /// Transition class — no authoring surface can record this).
+    /// Geometry refusals and resolve failures deliberately PASS this
+    /// door: they are V1 class 2, legal at rest, surfaced as typed
+    /// node errors at evaluation.
+    Lattice {
+        /// The offending loop.
+        loop_: u32,
+        /// The offending step (one past the end for an unclosed
+        /// chain).
+        step: u32,
+        /// The tip's lattice state.
+        state: profile::TipState,
+        /// The ill-typed verb (`None` for end-of-program).
+        verb: Option<profile::Verb>,
     },
 }
 
-/// The first out-of-range declared-tangent joint, as
-/// `(site, loop_index, joint, vertex_count)` — the ONE bounds check
-/// for both doors (the mirrored `wire.rs` twin was retired at the
-/// convention-2 consolidation): save refuses before a byte is
-/// written, load refuses the parsed document with the SAME
-/// diagnostics (no unloadable file is ever produced, and no file
-/// with a stale joint ever replays). Non-canonical
-/// (unsorted/duplicated) lists are NOT refused here: they are
-/// set-semantic in memory and the wire canonicalizes them; the
-/// canonical-set rule on the wire is `wire.rs`'s load-only residue.
-fn first_bad_joint(
-    snapshot: &ProfileDoc,
-    edits: &[DocEdit<ProfileDesc>],
-) -> Option<(JointSite, usize, u64, usize)> {
+/// The first program fault in the SNAPSHOT's profile nodes (module
+/// docs). The edit log needs no twin: logged edits replay through
+/// `apply`, whose own doors (slot dimension checks + the VQ9
+/// authoring-time check) refuse the same faults at the same load.
+///
+/// A program whose Exprs fail to RESOLVE under the document's params
+/// (dangling ref, dimension drift) cannot be probed here and PASSES
+/// this walk — deliberately: resolution failures are the same
+/// binding-dependent class as geometry refusals (V1 class 2) and
+/// surface as the node's typed evaluation error; no silent acceptance
+/// exists (review NOTE-1).
+fn first_program_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, ProgramFault)> {
+    use crate::program::ProfilePayload as _;
+    let env = snapshot.param_env::<f64>();
     for (&id, node) in &snapshot.nodes {
-        if let Node::Profile(desc) = node
-            && let Some((loop_index, joint, vertex_count)) = desc_bad_joint(desc)
-        {
-            return Some((
-                JointSite::Profile { node: id },
-                loop_index,
-                joint,
-                vertex_count,
-            ));
-        }
-    }
-    for (index, edit) in edits.iter().enumerate() {
-        if let DocEdit::InsertNode {
-            node: Node::Profile(desc),
-        } = edit
-            && let Some((loop_index, joint, vertex_count)) = desc_bad_joint(desc)
-        {
-            return Some((
-                JointSite::InsertedProfile { index },
-                loop_index,
-                joint,
-                vertex_count,
-            ));
-        }
-    }
-    None
-}
-
-fn desc_bad_joint(desc: &ProfileDesc) -> Option<(usize, u64, usize)> {
-    for (loop_index, lp) in desc.0.loops.iter().enumerate() {
-        let vertex_count = lp.vertices.len();
-        for &j in &lp.tangent_joints {
-            if j >= vertex_count {
-                return Some((loop_index, j as u64, vertex_count));
+        let Node::Profile(program) = node else {
+            continue;
+        };
+        for slot in program.slots() {
+            let Some(expr) = crate::program::ProfilePayload::expr(program, slot) else {
+                continue;
+            };
+            if expr.dim() != slot.dimension() {
+                return Some((
+                    id,
+                    ProgramFault::SlotDimension {
+                        slot,
+                        expected: slot.dimension(),
+                        found: expr.dim(),
+                    },
+                ));
             }
+        }
+        if let Err(ProgramRefusal::Transition {
+            loop_,
+            step,
+            state,
+            verb,
+        }) = program.check(&env)
+        {
+            return Some((
+                id,
+                ProgramFault::Lattice {
+                    loop_,
+                    step,
+                    state,
+                    verb,
+                },
+            ));
         }
     }
     None
@@ -454,7 +464,7 @@ mod tests {
 
     use crate::node::RecipeNodeId;
     use crate::persist::{PersistError, SnapshotError, save};
-    use crate::profile_desc::ProfileDoc;
+    use crate::program::ProfileDoc;
 
     /// Convention 2's point, pinned at the unit level: a document
     /// that would refuse to load cannot be saved. Both corruptions

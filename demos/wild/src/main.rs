@@ -16,15 +16,14 @@
 //!   * every render-OK file is attempted. The ones that import AND
 //!     tessellate become cells ([`WILD_CELLS`], pinned); the one that
 //!     refuses import ([`WILD_REFUSALS`]: `b123d_nema17_bracket`,
-//!     `SURFACE_CURVE` edge geometry) and the two that import
-//!     first-class but refuse TESSELLATION
-//!     ([`WILD_RENDER_FAILURES`], typed `Triangulation`) are pinned
-//!     as typed failures. **Drift in any direction fails this tool
-//!     loudly**: a montage whose cell set moved silently would detach
-//!     the sheet from the audit's attribution block
-//!     (`demos/README.md` carries it). If a pinned failure starts
-//!     working, add the cell AND extend the attribution block per the
-//!     audit's own instructions, in the same change.
+//!     `SURFACE_CURVE` edge geometry) is pinned as a typed failure.
+//!     **Drift in any direction fails this tool loudly**: a montage
+//!     whose cell set moved silently would detach the sheet from the
+//!     audit's attribution block (`demos/README.md` carries it). If a
+//!     pinned failure starts working, add the cell AND extend the
+//!     attribution block per the audit's own instructions, in the
+//!     same change — the path the two onetime tessellation refusals
+//!     took when #284's mesh fix landed (below).
 //!
 //! The audit's import-status snapshot ("only 6 import today") predates
 //! the M7-5 band-seam re-mint (#252), which flipped
@@ -36,24 +35,23 @@
 //! file's Apache-2.0 entry follows the audit's explicit extension
 //! instructions.
 //!
-//! **The mesh-lane finding this unit surfaced** (2026-08-08): two of
-//! the eight importable files — `1982_MPR121` and
-//! `328_2500mAh_battery` — import first-class (census exact, volumes
-//! measurable) but refuse the kernel's own tessellation with
+//! **The mesh-lane finding this unit surfaced** (2026-08-08; resolved
+//! by #284): two of the eight importable files — `1982_MPR121` and
+//! `328_2500mAh_battery` — imported first-class (census exact,
+//! volumes measurable) but refused the kernel's own tessellation with
 //! `TessellateError::Triangulation`, on PLAIN RECTANGULAR planar
 //! faces. Mechanism, diagnosed: the files' plane axes carry
 //! translator noise (components like `-3.2e-33` where an exact axis
-//! would have `0.0`), so `mesh::planar`'s chart projection
-//! `w.dot(u_ref)` of a vertex that should project to exactly 0 lands
-//! at ~1e-67 — nonzero but BELOW spade 2.15.1's coordinate domain
-//! (`MIN_ALLOWED_VALUE` = 2⁻¹⁴² ≈ 1.79e-43), and the CDT's `insert`
-//! refuses the vertex. Own-corpus bodies never hit this because the
-//! kernel authors exact axes. A kernel-side fix belongs to the mesh
-//! lane (flushing sub-`MIN_ALLOWED_VALUE` chart coordinates to 0
-//! cannot move any mesh position — chart coordinates only decide CDT
-//! connectivity, positions come from the 3-D chords), not to this
-//! demo unit; until it lands the two files are pinned render
-//! failures.
+//! would have `0.0`), so the planar chart projection of a vertex that
+//! should project to exactly 0 landed at ~1e-67 — nonzero but BELOW
+//! spade 2.15.1's coordinate domain (`MIN_ALLOWED_VALUE` = 2⁻¹⁴² ≈
+//! 1.79e-43), and the CDT's `insert` refused the vertex. Own-corpus
+//! bodies never hit this because the kernel authors exact axes. The
+//! kernel-side fix (#284, `mesh::planar`'s module docs): the planar
+//! lane re-derives its chart frame per-face from the boundary itself
+//! (Newell normal + extent-aligned in-plane axes) instead of trusting
+//! the stored axes — well-conditioned by construction, no new
+//! tolerance, no value snapping. Both files are ordinary cells now.
 //!
 //! Usage: `cargo run --release -- <outdir>` (from `demos/wild/`).
 
@@ -85,19 +83,27 @@ struct Cell {
 }
 
 /// **The pinned cell set: 6 cells.** Derivation (audit table +
-/// `wild.rs` + this unit's tessellation probe): 13 wild fixtures
-/// − 4 stepcode (license-EXCLUDED, D2) = 9 render-OK, − 1 typed
-/// import refusal (`b123d_nema17_bracket`, [`WILD_REFUSALS`]) − 2
-/// typed tessellation refusals ([`WILD_RENDER_FAILURES`], the
-/// mesh-lane finding in the module docs) = **6**. Any other outcome
-/// fails loudly below.
-const WILD_CELLS: [Cell; 6] = [
+/// `wild.rs` + the tessellation record in the module docs): 13 wild
+/// fixtures − 4 stepcode (license-EXCLUDED, D2) = 9 render-OK, − 1
+/// typed import refusal (`b123d_nema17_bracket`, [`WILD_REFUSALS`])
+/// = **8** — the two onetime tessellation refusals joined the sheet
+/// when #284's boundary-derived chart frame landed. Any other
+/// outcome fails loudly below.
+const WILD_CELLS: [Cell; 8] = [
     Cell {
         fixture: "adafruit/64_Halfsize_Breadboard.step",
         name: "64_Halfsize_Breadboard",
         caption: "adafruit/64_Halfsize_Breadboard.step (MIT)",
         color: [0.84, 0.84, 0.80],
         view: (38.0, -55.0, 'z'),
+        delta_frac: 1.2e-3,
+    },
+    Cell {
+        fixture: "adafruit/328_2500mAh_battery.step",
+        name: "328_2500mAh_battery",
+        caption: "adafruit/328_2500mAh_battery.step (MIT)",
+        color: [0.66, 0.62, 0.55],
+        view: (32.0, -55.0, 'z'),
         delta_frac: 1.2e-3,
     },
     Cell {
@@ -113,6 +119,14 @@ const WILD_CELLS: [Cell; 6] = [
         name: "931_OLED_128x32_I2C",
         caption: "adafruit/931_OLED_128x32_I2C.step (MIT)",
         color: [0.36, 0.62, 0.82],
+        view: (32.0, -55.0, 'z'),
+        delta_frac: 1.2e-3,
+    },
+    Cell {
+        fixture: "adafruit/1982_MPR121.step",
+        name: "1982_MPR121",
+        caption: "adafruit/1982_MPR121.step (MIT)",
+        color: [0.30, 0.52, 0.46],
         view: (32.0, -55.0, 'z'),
         delta_frac: 1.2e-3,
     },
@@ -148,17 +162,6 @@ const WILD_CELLS: [Cell; 6] = [
 /// [`WILD_CELLS`] AND the attribution block in `demos/README.md`,
 /// per the audit.
 const WILD_REFUSALS: [(&str, &str); 1] = [("occ-oss/b123d_nema17_bracket.step", "SURFACE_CURVE")];
-
-/// Render-OK fixtures that import first-class but refuse the
-/// kernel's own TESSELLATION (the spade coordinate-domain finding —
-/// module docs). Pinned exactly like the refusals: when the mesh
-/// lane learns these faces, this tool fails loudly and the cells get
-/// added (their attribution already rides the block — the Adafruit
-/// entry names all five parts).
-const WILD_RENDER_FAILURES: [&str; 2] = [
-    "adafruit/1982_MPR121.step",
-    "adafruit/328_2500mAh_battery.step",
-];
 
 fn fixture_text(rel: &str) -> String {
     let path = format!(
@@ -310,45 +313,6 @@ fn main() {
                 "{fixture}: PINNED as a refusal but now imports — the montage grew a \
                  cell. Add it to WILD_CELLS and extend the attribution block in \
                  demos/README.md per docs/WILD-CORPUS-LICENSES.md, in the same change."
-            ),
-        }
-    }
-
-    // The pinned tessellation-failure rows: each must still import
-    // first-class AND still refuse the mesh lane typed (the spade
-    // coordinate-domain finding — module docs). Same delta policy as
-    // a real cell, so the pin measures exactly what a cell would do.
-    for fixture in WILD_RENDER_FAILURES {
-        let import =
-            import_step(&fixture_text(fixture), &ImportOptions::default()).unwrap_or_else(|e| {
-                panic!("{fixture}: pinned render-failure must still IMPORT; it refused: {e}")
-            });
-        let StepImport::Solid { body, .. } = import else {
-            panic!("{fixture}: expected a solid import");
-        };
-        let (lo, hi) = body.points().fold(
-            ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]),
-            |(lo, hi), (_, p)| {
-                (
-                    [lo[0].min(p.x), lo[1].min(p.y), lo[2].min(p.z)],
-                    [hi[0].max(p.x), hi[1].max(p.y), hi[2].max(p.z)],
-                )
-            },
-        );
-        let diag =
-            ((hi[0] - lo[0]).powi(2) + (hi[1] - lo[1]).powi(2) + (hi[2] - lo[2]).powi(2)).sqrt();
-        match pncad::mesh::tessellate(&body, diag * 1.2e-3) {
-            Err(e @ pncad::mesh::TessellateError::Triangulation { .. }) => println!(
-                "== {fixture} == imports first-class; tessellation refuses typed, as \
-                 pinned: {e:?} (the spade coordinate-domain finding)"
-            ),
-            Err(other) => {
-                panic!("{fixture}: tessellation failure drifted off its pinned class: {other:?}")
-            }
-            Ok(_) => panic!(
-                "{fixture}: PINNED as a tessellation failure but now tessellates — the \
-                 mesh lane learned this face and the montage grew a cell. Add it to \
-                 WILD_CELLS (its attribution already rides the block) in the same change."
             ),
         }
     }

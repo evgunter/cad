@@ -23,7 +23,7 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
     // a two-vertex loop (two arc segments — a circle), and a plain
     // rectangle. Both refuse at the multi-segment arm; sweep_geometry
     // is unreachable from the recipe layer.
-    let paths: Vec<(&str, editor_core::ProfileDesc)> = vec![
+    let paths: Vec<(&str, editor_core::ProfileProgram)> = vec![
         (
             "rectangle path",
             desc(
@@ -40,9 +40,9 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
                 [0.0, 0.0, 1.0],
                 vec![vec![(0.0, 0.0), (3.0, 0.0)]],
             );
-            for v in &mut d.0.loops[0].vertices {
-                v.bulge = 1.0; // two half-turn arcs: a full circle
-            }
+            // v4: the two half-turn arcs ARE the circle program form's
+            // private lowering — a full circle of diameter (0,0)–(3,0).
+            d.loops[0] = editor_core::LoopProgram::circle(1.5, 0.0, 1.5).unwrap();
             d
         }),
     ];
