@@ -32,7 +32,7 @@ use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 ///
 /// [`TessellateError`] (closed enum): invalid δ, the `Nurbs`
 /// placeholder, described NURBS faces outside the trimmed-NURBS
-/// inventory (rational / C⁰-creased — `nurbs_cert`), unsupported
+/// inventory (illegal-rational / C⁰-creased — `nurbs_cert`), unsupported
 /// carriers, rings on curved faces, empty loops, dangling keys,
 /// resolution overflow, certificate failure, CDT insertion failure.
 pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateError> {
@@ -97,7 +97,7 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
             // [`TessellateError::UnsupportedSurface`]): a NURBS face
             // has no swept-rectangle chart, so the pcurve-driven walk
             // is its only lane. The placeholder still refuses typed
-            // inside the lane; rational/C⁰ classes refuse
+            // inside the lane; illegal-rational/C⁰ classes refuse
             // [`TessellateError::UnsupportedNurbsFace`] there too.
             Surface::Nurbs(_) => crate::trimmed::tessellate_trimmed(
                 body,
