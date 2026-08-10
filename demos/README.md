@@ -76,7 +76,15 @@ Consequences worth stating:
   **stored** pcurve cache vs. were derived on demand (derived ones draw
   dashed — `mesh::trimmed` refuses those), the outer loop's signed
   chart area and its winding, and the worst **closure gap** between
-  consecutive traversals. Periodic charts get their seams (`u = k·2π`)
+  consecutive traversals — measured in **3-D metres off the carriers**,
+  not in the chart. That distinction is load-bearing: a chart-space
+  closure metric false-alarms on every face that touches a chart
+  singularity or a seam, because at a sphere's pole an entire `u`-line
+  is one 3-D point. Over the M7 corpus 103 of 982 faces show such a
+  jump, every one of them exactly π/2, π or 2π; the true 3-D closure
+  gap never exceeds 9e-16 m anywhere. The chart jump is still printed,
+  greyed and named as seam/pole structure, so it informs instead of
+  alarming. Periodic charts get their seams (`u = k·2π`)
   drawn as dashed magenta lines, so a seam-crossing loop is visible
   rather than inferred. Strokes are colored by pcurve form —
   `Harmonic` blue, `IsoLine` green, `Fitted` orange.

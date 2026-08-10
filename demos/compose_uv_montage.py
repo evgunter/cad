@@ -34,7 +34,7 @@ from pathlib import Path
 
 COLS = 4
 CELL_W = 380
-CELL_H = 320
+CELL_H = 334
 MARGIN = 18
 HEADER = 130
 

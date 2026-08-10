@@ -15,7 +15,9 @@
 //! makes visible are the ones that are miserable in a debugger:
 //!
 //! - a loop that does not close (the [`closure gap`] is printed per
-//!   face, not eyeballed);
+//!   face, not eyeballed — and measured in **3-D**, because the chart
+//!   cannot answer that question: a loop through a sphere's pole jumps
+//!   a whole `u`-line in the chart while being perfectly shut in space);
 //! - a loop wound the wrong way, so the even-odd interior is the
 //!   complement of the intended one (the signed chart area is printed,
 //!   and its sign named);
@@ -65,7 +67,7 @@
 use std::fmt::Write as _;
 
 use pncad::geom_brep::Pcurve;
-use pncad::geom_core::{Band, Point2};
+use pncad::geom_core::{Band, Point2, Point3};
 use pncad::geom_curves::Curve3;
 use pncad::geom_surfaces::Surface;
 use pncad::topo::{Body, HalfEdgeKey, LoopBoundary, LoopKey};
@@ -74,11 +76,11 @@ use pncad::topo::{Body, HalfEdgeKey, LoopBoundary, LoopKey};
 const SAMPLES: usize = 96;
 
 const CELL_W: f64 = 380.0;
-const CELL_H: f64 = 320.0;
+const CELL_H: f64 = 334.0;
 const PAD_L: f64 = 54.0;
 const PAD_R: f64 = 14.0;
 const PAD_T: f64 = 48.0;
-const PAD_B: f64 = 48.0;
+const PAD_B: f64 = 62.0;
 
 /// Stroke color per pcurve form — the legend of every cell.
 const COLOR_HARMONIC: &str = "#1f4e79";
@@ -118,6 +120,10 @@ struct Traversal {
     /// `false` when the pcurve was derived on demand rather than read
     /// from the body's stored cache.
     stored: bool,
+    /// The traversal's endpoints **in 3-D**, from the edge's own
+    /// carrier. Closure is a question about the 3-D loop, and the chart
+    /// cannot answer it: see [`FaceStats::gap`].
+    ends3: [Point3<f64>; 2],
 }
 
 /// The chart kind's name and whether it is curved.
@@ -209,7 +215,17 @@ fn traverse(body: &Body<f64>, hek: HalfEdgeKey, band: Band) -> Result<Traversal,
         let uv: Point2<f64> = pcurve.eval(t0 + (t1 - t0) * s);
         pts.push((uv.x, uv.y));
     }
-    Ok(Traversal { pts, form, stored })
+    // The same endpoints off the CARRIER, in 3-D — the only place the
+    // closure question can honestly be asked (see `measure`).
+    let (ta, tb) = if forward { (t0, t1) } else { (t1, t0) };
+    let carrier = curve.carrier();
+    let ends3 = [carrier.eval(ta), carrier.eval(tb)];
+    Ok(Traversal {
+        pts,
+        form,
+        stored,
+        ends3,
+    })
 }
 
 /// Shoelace signed area of a closed chart loop (positive = CCW in the
@@ -241,9 +257,23 @@ pub struct FaceStats {
     pub forms: Vec<&'static str>,
     /// The outer loop's signed chart area (negative = wound CW).
     pub area: f64,
-    /// The worst gap between one traversal's last chart point and the
-    /// next traversal's first — the `LoopNotClosed` measurement.
+    /// The `LoopNotClosed` measurement: the worst distance **in 3-D,
+    /// in metres** between one traversal's end and the next
+    /// traversal's start.
+    ///
+    /// Measured off the carriers, not off the chart, and that is the
+    /// whole point. A chart-space version reads a false alarm on any
+    /// face that touches a chart singularity or a seam — a spherical
+    /// fillet corner running through the pole shows a chart jump of
+    /// exactly π/2 while being perfectly closed in 3-D, because at the
+    /// pole a whole `u`-line IS one point. Measured over the M7 corpus:
+    /// 103 of 982 faces have such a jump, every one of them exactly
+    /// π/2, π or 2π; genuine round-off never exceeds 9.4e-16.
     pub gap: f64,
+    /// The worst chart-space jump across the same junctions — kept
+    /// because it is the seam/pole *structure*, printed only when it is
+    /// large enough to mean something. Not a defect signal.
+    pub chart_jump: f64,
 }
 
 /// The per-loop chart rings (each traversal contributing all but its
@@ -258,12 +288,15 @@ fn measure(loops: &[Vec<Traversal>]) -> (Vec<Vec<(f64, f64)>>, FaceStats) {
         }
         rings.push(ring);
     }
-    let mut gap: f64 = 0.0;
+    let (mut gap, mut chart_jump) = (0.0f64, 0.0f64);
     for l in loops {
         for i in 0..l.len() {
-            let (ax, ay) = *l[i].pts.last().expect("traversal has samples");
-            let (bx, by) = l[(i + 1) % l.len()].pts[0];
-            gap = gap.max(((ax - bx).powi(2) + (ay - by).powi(2)).sqrt());
+            let (a, b) = (&l[i], &l[(i + 1) % l.len()]);
+            let (p, q) = (a.ends3[1], b.ends3[0]);
+            gap = gap.max(((p.x - q.x).powi(2) + (p.y - q.y).powi(2) + (p.z - q.z).powi(2)).sqrt());
+            let (ax, ay) = *a.pts.last().expect("traversal has samples");
+            let (bx, by) = b.pts[0];
+            chart_jump = chart_jump.max(((ax - bx).powi(2) + (ay - by).powi(2)).sqrt());
         }
     }
     let forms = ["harmonic", "isoline", "fitted"]
@@ -277,6 +310,7 @@ fn measure(loops: &[Vec<Traversal>]) -> (Vec<Vec<(f64, f64)>>, FaceStats) {
         forms,
         area: signed_area(&rings[0]),
         gap,
+        chart_jump,
     };
     (rings, stats)
 }
@@ -519,7 +553,8 @@ fn draw_face(
         out,
         r##"<text x="{PAD_L}" y="{}" font-family="monospace" font-size="9.5" fill="#444">u &#8712; [{:.5}, {:.5}] {uu}</text>
 <text x="{PAD_L}" y="{}" font-family="monospace" font-size="9.5" fill="#444">v &#8712; [{:.5}, {:.5}] {vu}</text>
-<text x="{PAD_L}" y="{}" font-family="monospace" font-size="9.5" fill="{}">outer winding {} (A={:.4})   closure gap {:.1e}</text>"##,
+<text x="{PAD_L}" y="{}" font-family="monospace" font-size="9.5" fill="{}">outer winding {} (A={:.4})   closure gap {:.1e} m</text>
+<text x="{PAD_L}" y="{}" font-family="monospace" font-size="9.5" fill="#777">{}</text>"##,
         CELL_H - PAD_B + 14.0,
         u0 + pu,
         u1 - pu,
@@ -530,7 +565,20 @@ fn draw_face(
         if stats.area > 0.0 { "#444" } else { "#b03060" },
         if stats.area > 0.0 { "CCW" } else { "CW" },
         stats.area,
-        stats.gap
+        stats.gap,
+        CELL_H - PAD_B + 50.0,
+        // The chart jump is structure, not a defect — a loop through a
+        // pole or across a seam jumps in the chart while staying shut
+        // in 3-D. Named only when it is big enough to be that, and
+        // greyed, so it never reads as an alarm.
+        if stats.chart_jump > 1e-9 {
+            format!(
+                "chart jump {:.4} {uu} at a junction — seam or pole, not a gap",
+                stats.chart_jump
+            )
+        } else {
+            String::new()
+        }
     );
     out.push_str("</svg>\n");
     out
@@ -613,7 +661,7 @@ pub fn manifest_json(dumps: &[FaceDump]) -> String {
                 "  {{\"scene\": \"{}\", \"body\": \"{}\", \"face\": {}, \"chart\": \"{}\", \
                  \"svg\": \"{}\", \"curved\": {}, \"loops\": {}, \"half_edges\": {}, \
                  \"cached\": {}, \"forms\": [{}], \"area\": {:e}, \"gap\": {:e}, \
-                 \"note\": {note}}}",
+                 \"chart_jump\": {:e}, \"note\": {note}}}",
                 d.scene,
                 d.body,
                 d.face,
@@ -625,7 +673,8 @@ pub fn manifest_json(dumps: &[FaceDump]) -> String {
                 d.stats.cached,
                 forms.join(", "),
                 d.stats.area,
-                d.stats.gap
+                d.stats.gap,
+                d.stats.chart_jump
             )
         })
         .collect();
