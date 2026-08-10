@@ -115,5 +115,6 @@ pub mod authoring;
 pub mod closure;
 pub mod document;
 pub mod export;
+pub mod guide;
 pub mod prelude;
 pub mod select;
