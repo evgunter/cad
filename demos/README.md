@@ -23,14 +23,16 @@ cargo run --release -- ../out   # build + narrate + export STL/STEP + scenes.jso
 cd ..
 ./render.sh                     # kernel-tessellation montage (renders/montage.png)
 ./render.sh --freecad           # FreeCAD/OCC STEP-lane montage (renders-freecad/montage-freecad.png)
+./render-uv.sh                  # UV trim-loop sheet (renders-uv/montage-uv.svg)
 ```
 
-Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` (untracked),
+Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` +
+`demos/out/uv/*.svg` + `demos/out/uv.json` (untracked),
 `demos/renders/*.png` (tracked — one per scene plus `montage.png`),
 `demos/renders-freecad/*.png` (tracked — the montage cells plus
-`montage-freecad.png`), and — only when the kernel lane falls back to
-matplotlib — `demos/renders-preview/renders/*.png` (gitignored; see
-below).
+`montage-freecad.png`), `demos/renders-uv/montage-uv.svg` (tracked),
+and — only when the kernel lane falls back to matplotlib —
+`demos/renders-preview/renders/*.png` (gitignored; see below).
 
 A pass in flight lives in `demos/out/stage/<lane>/` (untracked) and is
 published to the lane directory only once it is complete. FreeCAD
@@ -46,6 +48,60 @@ and a `zTXt` "Description" chunk carrying its MIBA XML), which would
 make an unchanged re-render show up dirty in `git status`. Both are
 ancillary chunks — dropping them is lossless, and it makes a dirty
 `git status` after a re-render mean the *pixels* changed.
+
+## The UV trim-loop lane (`render-uv.sh`)
+
+The third montage lane, and the odd one out: it draws no 3-D at all.
+
+A `Surface` in this kernel is unbounded — "the infinite plane", "the
+infinite cylinder". A `Face` is the patch of one that its boundary
+**loops** cut out, and those loops live in the surface's own `(u, v)`
+chart, stored as `geom_brep::Pcurve`s. That chart is *already* a 2-D
+drawing, so rendering it needs no camera, no projection and no
+silhouette machinery — which is why this is the one lane with **no
+external dependency whatsoever**: the tour writes the per-face SVGs
+(`demos/tour/src/uvdump.rs`, through `pncad::` like every other line
+of the tour), and `compose_uv_montage.py` tiles them using Python's
+standard library. No venv, no numpy/matplotlib, no `freecadcmd`.
+
+Consequences worth stating:
+
+* **The sheet is SVG, not PNG.** It is text, so an unchanged re-run
+  produces a byte-identical file and `git status` stays clean with none
+  of the wall-clock-stamp surgery the PNG lanes need. There is no
+  provenance guard here because there is no second renderer to confuse
+  it with — the kernel is the only thing that could have drawn it.
+* **It is a diagnostic, not a depiction.** Per face the cell measures
+  and prints: loop and half-edge counts, how many half-edges read a
+  **stored** pcurve cache vs. were derived on demand (derived ones draw
+  dashed — `mesh::trimmed` refuses those), the outer loop's signed
+  chart area and its winding, and the worst **closure gap** between
+  consecutive traversals. Periodic charts get their seams (`u = k·2π`)
+  drawn as dashed magenta lines, so a seam-crossing loop is visible
+  rather than inferred. Strokes are colored by pcurve form —
+  `Harmonic` blue, `IsoLine` green, `Fitted` orange.
+* **Nothing is refused.** Unlike the tessellator's trim walk, this one
+  accepts every pcurve form and falls back to `topo::pcurve_of`'s
+  derive-on-demand, because a face the tessellator refuses is exactly
+  the face worth looking at. A face whose loops cannot be walked at all
+  gets a cell naming the reason, first on the sheet — never a gap.
+* **Selection is stated, never silent.** `out/uv.json` carries *every*
+  face of every tour body (982 at M7). The sheet takes one
+  representative per (body, chart kind) among the curved charts — the
+  richest, by distinct pcurve forms then loop count then face ordinal —
+  plus every failed walk unconditionally. Planar charts are dropped as
+  a class: a plane chart's picture is the face's own outline, which the
+  two 3-D lanes already show. The composer prints every count it
+  dropped, and all 982 SVGs stay in `out/uv/`.
+
+Read it in a browser; nested-SVG-shy rasterizers are why the cells are
+placed with `transform="translate(…)"` rather than nested `<svg x= y=>`.
+
+What it is NOT: a replacement for `render.sh`. The eyeball gate needs
+shaded 3-D, and a chart domain is not a picture of the part. The
+parked SVG lanes that *would* draw the part — a projected-edge
+wireframe, and drawing-grade hidden-line removal — are filed as
+LONGTERM-IDEAS I4(a) and I4(b).
 
 ## The matplotlib fallback is uncommittable (#221)
 

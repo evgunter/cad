@@ -378,6 +378,14 @@ jobs:
           python3 demos/check_render_provenance.py --selftest
           python3 demos/check_render_provenance.py
 
+      # The UV lane's composer: no provenance question (only the kernel
+      # can have drawn an SVG cell), but its selection rule DROPS faces
+      # from the sheet, and a silent drop is what that lane exists to
+      # prevent. Same cheap-tripwire posture, stdlib only. Mirror:
+      # ci-local's "uv composer selftest (demos)" row.
+      - name: uv composer selftest (demos)
+        run: python3 demos/compose_uv_montage.py --selftest
+
   fmt:
     name: rustfmt
     runs-on: ubuntu-latest

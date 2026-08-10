@@ -258,6 +258,17 @@ render_provenance() {
     python3 demos/check_render_provenance.py
 }
 
+# The UV lane's composer (demos/render-uv.sh) has no provenance problem
+# — the kernel is the only thing that could have drawn an SVG cell — but
+# it does make two claims about what it leaves OFF the sheet (one
+# representative per (body, chart); planar charts dropped as a class),
+# and a silent drop is precisely what this lane exists to prevent. Its
+# self-test pins those, plus the fail-loud on a cell that does not match
+# the emitter's root-tag contract. Stdlib-only python3, milliseconds.
+uv_composer_selftest() {
+  python3 demos/compose_uv_montage.py --selftest
+}
+
 watertight() {
   command -v admesh >/dev/null || { echo "ERROR: admesh not installed (apt admesh, or build 0.98.4+ from source)"; return 1; }
   cargo run -p stl --example export_acceptance -- target/stl-acceptance && \
@@ -391,6 +402,7 @@ klint_gate() {
 # shellcheck disable=SC2086
 run_row "discipline (evaluation-code)" discipline
 run_row "render provenance (demos)"    render_provenance
+run_row "uv composer selftest (demos)" uv_composer_selftest
 run_row "rustfmt"                      cargo fmt --all --check
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
 # ε battery {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
