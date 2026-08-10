@@ -642,6 +642,38 @@ never mistaken for a good pass.
 Because frames are staged and published only on a complete pass (see
 above), a wedge leaves the committed lane directory exactly as it was.
 
+### Off-box: the hosted STEP lane
+
+`.github/workflows/render-freecad.yml` runs `render.sh --freecad` on a
+GitHub runner, on demand (`workflow_dispatch` — no PR trigger, no
+schedule) and hands back the montage plus every cell as a run artifact:
+
+```sh
+gh workflow run render-freecad.yml -f ref=my-branch
+gh run watch                        # then, when it lands:
+gh run download <run-id> -n renders-freecad
+```
+
+It provisions the **same** version-pinned, checksum-verified FreeCAD
+1.1.2 AppImage as `ci.yml`'s `step-import` job — same cache key, so the
+two rows share one entry and a hosted render normally downloads nothing
+— and adds what drawing
+needs on top of what importing needs: software GL (llvmpipe) and Xvfb,
+because Coin's offscreen renderer wants a GL context and a display even
+though Qt itself stays `offscreen`. This is the STEP lane only — the
+kernel lane's matplotlib fallback exits 0, so a hosted kernel run could
+"pass" having drawn nothing with FreeCAD; the STEP lane's no-fallback
+contract is what makes it trustworthy unattended.
+
+**Artifact-only, by construction.** It never commits and never pushes,
+and its pixels are *not* expected to match the committed cells
+byte-for-byte: those were drawn against a developer host's GL stack,
+these by llvmpipe on a runner image that drifts. The run summary
+reports the diff against the committed tree as a measurement, not a
+gate. Making the hosted lane the canonical producer would mean pinning
+the whole GL stack in a container image and re-baselining
+`renders-freecad/` in one commit — a design call, not a config tweak.
+
 `render.py` is the zero-dependency fallback for the kernel lane
 (numpy + matplotlib, pure CPU, demo-local venv): binary-STL parsing,
 flat shading, exact backface culling (guaranteed by tier 3's +V
