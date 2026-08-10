@@ -32,6 +32,8 @@
 
 #[path = "lib_sel1_geoselect.rs"]
 mod lib_sel1_geoselect;
+#[path = "lib_sel2_flush.rs"]
+mod lib_sel2_flush;
 #[path = "lib_u5_interrogate.rs"]
 mod lib_u5_interrogate;
 #[path = "lib_u7_select.rs"]
