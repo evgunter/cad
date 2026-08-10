@@ -55,3 +55,18 @@ to preview-only. Also this seam: LIB's #332 hotfixed the new
 python-suite job (both open PRs re-merged onto the fix); the
 ASSEMBLY-DESIGN doc ratified (#333) with the A7 record-shape rider
 landing in #325's fix pass.
+
+## M8-5 MERGED (#322) + M8-3 PR-1 MERGED (#309) — the rational banks fall in sequence (2026-08-10)
+
+M8-5: both mesh gates open (Hessian + sagitta, quotient rule over
+the homogeneous nets); the review's one MAJOR was test-strength
+(the reviewer's 1500-patch sweep caught a cross-term mutation the
+suite missed — adopted, red/green). M8-3 PR-1: the rational
+patch-flux enclosure engine merged after its NOT-MERGEABLE →
+fix → delta-APPROVE arc (the #313 shared-lane heal rode it; the
+ε-posture rework made every new row three-outcome honest; final
+test-only commit orchestrator-adjudicated with CI ×3ε as the
+gate). The unit row lands at PR-2 (half 1, pcurve minting) per the
+ruled two-PR pattern — PR-2's finisher dispatches now; the
+arc-prism/arc-loft flip numbers re-measure against the POST-fix
+hulls (the pre-fix parked figures are stale by construction).
