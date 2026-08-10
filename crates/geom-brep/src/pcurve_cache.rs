@@ -2455,12 +2455,17 @@ fn run_iso_arc_checks<T: Decide>(
     };
 
     // ---- Check 2: the parameter interval, metered into metres. ----
+    //
+    // NOT a ledger-F6 site, unlike the fitted lane's twin: this class's
+    // carrier is a `Curve3::Circle` by construction (refused just
+    // above otherwise), so `param_rate` is the RADIUS and `span·rate`
+    // is arc length — a genuine metre, the harmonic lane's own door.
+    // The clause-(i) census stays at 12 shipped `decide_flagged` sites.
     let span = t1 - t0;
-    match geom_core::k_stats::decide_flagged(
+    match decide(
         "pcurve_interval_forward",
-        span * param_rate(carrier),
+        Margin::metered(span, param_rate(carrier)),
         band,
-        "F6",
     )
     .map_err(|cause| PcurveCertifyError::Escalated {
         check: PcurveCheck::ParamSpan,
