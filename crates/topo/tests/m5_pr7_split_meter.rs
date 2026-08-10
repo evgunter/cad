@@ -119,6 +119,11 @@ fn body_with_rung3_edge() -> Option<Rung3Scaffold> {
     // speed meter is definitely positive (a half loop's meter
     // honestly collapses — its endpoint tangents run perpendicular
     // to the chord — and the span gate would rightly escalate).
+    // That collapse is a property of the INTEGRAL arm's single global
+    // chord, which this fitted (unit-weight) carrier takes; the
+    // rational arm projects per span and would not collapse here.
+    // The fixture keeps the quarter either way — it is pinning the
+    // split, not the meter's conservatism.
     let (d0, d1) = loop_carrier.domain();
     let (quarter, _) = loop_carrier.split_at(d0 + (d1 - d0) * 0.25).unwrap();
     let carrier = std::sync::Arc::new(quarter);
@@ -265,17 +270,188 @@ fn the_meter_the_split_arm_will_use_is_a_real_lower_bound() {
     );
 }
 
-#[test]
-fn a_rational_carrier_would_poison_the_meter_and_escalate() {
-    // The convex-hull argument needs a non-rational derivative net.
-    // A rational carrier reports poison, and `split_edge`'s trilean
-    // then escalates rather than splitting on an invented scale.
+/// An exact quarter of the unit circle in `z = 0`, as the rational
+/// quadratic it is — the carrier shape a sweep's arc profile mints.
+/// It lies EXACTLY on the unit sphere and on the plane `z = 0`, which
+/// is what lets it certify as a rung-3 `Intersection` edge.
+fn rational_quarter_arc() -> NurbsCurve3<f64> {
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-    let control = vec![
-        Point3::new(0.0, 0.0, 0.0),
-        Point3::new(0.5, 1.0, 0.0),
-        Point3::new(1.0, 0.0, 0.0),
-    ];
-    let c = NurbsCurve3::<f64>::new(kv, control, vec![1.0, 0.5, 1.0]).unwrap();
-    assert!(c.speed_lower_bound().is_nan());
+    let w = 0.5f64.sqrt();
+    NurbsCurve3::new(
+        kv,
+        vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ],
+        vec![1.0, w, 1.0],
+    )
+    .unwrap()
+}
+
+#[test]
+fn a_rational_carrier_splits_with_a_metered_interiority() {
+    // FLIPPED from `a_rational_carrier_would_poison_the_meter_and_
+    // escalate` (M5 PR 7 → M7). The convex-hull argument still needs a
+    // non-rational derivative net, but `speed_lower_bound` no longer
+    // stops there: its rational arm assembles the bound from the
+    // HOMOGENEOUS net through the quotient rule (derivation on the
+    // method). So the `split_edge_param_interior` trilean now has a
+    // real metre-per-parameter for a rational carrier, and the arm
+    // runs end to end instead of escalating.
+    //
+    // The fixture is the plainest rational carrier there is: an exact
+    // quarter circle, which lies on the unit sphere AND on `z = 0`, so
+    // it certifies as an `Intersection` of two analytic surfaces with
+    // zero residual — a rung-3 edge whose carrier is rational on its
+    // own merits, not by any manufactured weight channel.
+    let carrier = std::sync::Arc::new(rational_quarter_arc());
+    let (h0, h1) = carrier.domain();
+    let (p0, p1) = (carrier.eval(h0), carrier.eval(h1));
+
+    let mut body = topo::Body::<f64>::new();
+    let seed = body.mvfs(p0).unwrap();
+    let sph = body
+        .set_face_surface(
+            seed.face,
+            topo::FaceSurface::New(Surface::Sphere {
+                center: Point3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }),
+        )
+        .unwrap();
+    let anchor = body.mvfs(p1).unwrap();
+    let plane = body
+        .set_face_surface(
+            anchor.face,
+            topo::FaceSurface::New(Surface::Plane {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                normal: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }),
+        )
+        .unwrap();
+    let mid = h0 + (h1 - h0) * 0.5;
+    let made = body
+        .mev(
+            topo::MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: geom_brep::EdgeGeometry::Intersection {
+                    s1: sph,
+                    s2: plane,
+                    witness: carrier.eval(mid),
+                },
+                carrier: Curve3::Nurbs(carrier.clone()),
+                param_start: h0,
+                param_end: h1,
+            },
+        )
+        .expect("a rational rung-3 edge certifies — the span meter is real now");
+
+    // The margins are honest: the meter is a genuine lower bound on
+    // the carrier's speed, and the metered interiority it hands the
+    // split gate never overstates the arc it stands for.
+    let m = carrier.speed_lower_bound();
+    assert!(m > 0.0, "a rational carrier meters positively: {m}");
+    for i in 0..=400 {
+        let t = h0 + (h1 - h0) * f64::from(i) / 400.0;
+        assert!(
+            carrier.deriv(t).norm() >= m - 1e-12,
+            "meter {m} exceeds the real speed at t = {t}"
+        );
+    }
+    let span = (h1 - h0) * 0.25;
+    let arc: f64 = (0..1000)
+        .map(|i| {
+            let a = h0 + span * f64::from(i) / 1000.0;
+            let b = h0 + span * f64::from(i + 1) / 1000.0;
+            (carrier.eval(b) - carrier.eval(a)).norm()
+        })
+        .sum();
+    assert!(
+        arc >= span * m - 1e-9,
+        "the metered margin {} overstates the arc {arc}",
+        span * m
+    );
+
+    // And the split itself runs, both children re-certifying through
+    // the ordinary gate.
+    let t_split = h0 + (h1 - h0) * 0.375;
+    let created = body
+        .split_edge(made.edge, t_split)
+        .expect("the rational split row");
+    let c1 = body
+        .get_curve_geom(created.first_curve)
+        .and_then(|g| g.certified())
+        .unwrap();
+    let c2 = body
+        .get_curve_geom(created.second_curve)
+        .and_then(|g| g.certified())
+        .unwrap();
+    assert_eq!(c1.params(), (h0, t_split));
+    assert_eq!(c2.params(), (t_split, h1));
+    let p_split = *body
+        .get_point(body.get_vertex(created.vertex).unwrap().point)
+        .unwrap();
+    assert!(
+        p_split.distance(carrier.eval(t_split)) == 0.0,
+        "the split vertex is the carrier point exactly (D9)"
+    );
+
+    // The other face of the meter is unchanged: a split parameter
+    // whose METERED distance-to-endpoint sits inside the band still
+    // refuses, on the rational arm exactly as on the integral one.
+    let mut body2 = topo::Body::<f64>::new();
+    let seed2 = body2.mvfs(p0).unwrap();
+    let sph2 = body2
+        .set_face_surface(
+            seed2.face,
+            topo::FaceSurface::New(Surface::Sphere {
+                center: Point3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }),
+        )
+        .unwrap();
+    let anchor2 = body2.mvfs(p1).unwrap();
+    let plane2 = body2
+        .set_face_surface(
+            anchor2.face,
+            topo::FaceSurface::New(Surface::Plane {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                normal: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }),
+        )
+        .unwrap();
+    let made2 = body2
+        .mev(
+            topo::MevSite::Lone {
+                r#loop: seed2.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: geom_brep::EdgeGeometry::Intersection {
+                    s1: sph2,
+                    s2: plane2,
+                    witness: carrier.eval(mid),
+                },
+                carrier: Curve3::Nurbs(carrier.clone()),
+                param_start: h0,
+                param_end: h1,
+            },
+        )
+        .unwrap();
+    let band = Band::linear().unwrap();
+    let t_bad = h0 + 0.5 * (band.zero() + band.escalate()) / m;
+    assert!(
+        body2.split_edge(made2.edge, t_bad).is_err(),
+        "an in-band interiority margin must never split, rational or not"
+    );
 }

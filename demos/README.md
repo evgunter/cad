@@ -23,14 +23,16 @@ cargo run --release -- ../out   # build + narrate + export STL/STEP + scenes.jso
 cd ..
 ./render.sh                     # kernel-tessellation montage (renders/montage.png)
 ./render.sh --freecad           # FreeCAD/OCC STEP-lane montage (renders-freecad/montage-freecad.png)
+./render-uv.sh                  # UV trim-loop sheet (renders-uv/montage-uv.svg)
 ```
 
-Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` (untracked),
+Outputs: `demos/out/*.{stl,step}` + `demos/out/scenes.json` +
+`demos/out/uv/*.svg` + `demos/out/uv.json` (untracked),
 `demos/renders/*.png` (tracked — one per scene plus `montage.png`),
 `demos/renders-freecad/*.png` (tracked — the montage cells plus
-`montage-freecad.png`), and — only when the kernel lane falls back to
-matplotlib — `demos/renders-preview/renders/*.png` (gitignored; see
-below).
+`montage-freecad.png`), `demos/renders-uv/montage-uv.svg` (tracked),
+and — only when the kernel lane falls back to matplotlib —
+`demos/renders-preview/renders/*.png` (gitignored; see below).
 
 A pass in flight lives in `demos/out/stage/<lane>/` (untracked) and is
 published to the lane directory only once it is complete. FreeCAD
@@ -46,6 +48,129 @@ and a `zTXt` "Description" chunk carrying its MIBA XML), which would
 make an unchanged re-render show up dirty in `git status`. Both are
 ancillary chunks — dropping them is lossless, and it makes a dirty
 `git status` after a re-render mean the *pixels* changed.
+
+## The UV trim-loop lane (`render-uv.sh`)
+
+The third montage lane, and the odd one out: it draws no 3-D at all.
+
+A `Surface` in this kernel is unbounded — "the infinite plane", "the
+infinite cylinder". A `Face` is the patch of one that its boundary
+**loops** cut out, and those loops live in the surface's own `(u, v)`
+chart, stored as `geom_brep::Pcurve`s. That chart is *already* a 2-D
+drawing, so rendering it needs no camera, no projection and no
+silhouette machinery — which is why this is the one lane with **no
+external dependency whatsoever**: the tour writes the per-face SVGs
+(`demos/tour/src/uvdump.rs`, through `pncad::` like every other line
+of the tour), and `compose_uv_montage.py` tiles them using Python's
+standard library. No venv, no numpy/matplotlib, no `freecadcmd`.
+
+Consequences worth stating:
+
+* **The sheet is SVG, not PNG.** It is text, so an unchanged re-run
+  produces a byte-identical file and `git status` stays clean with none
+  of the wall-clock-stamp surgery the PNG lanes need. There is no
+  provenance guard here because there is no second renderer to confuse
+  it with — the kernel is the only thing that could have drawn it.
+* **It is a diagnostic, not a depiction.** Per face the cell measures
+  and prints: loop and half-edge counts, how many half-edges read a
+  **stored** pcurve cache vs. were derived on demand (derived ones draw
+  dashed — `mesh::trimmed` refuses those), the outer loop's signed
+  chart area and its winding, and the worst **closure gap** between
+  consecutive traversals. Winding is a *check*, not a readout: it is
+  compared against the face's own `Face::sense` bit, since a bore or a
+  concave groove carries `sense = false` and its outer loop is
+  legitimately CW. 879 of the 982 M7 faces are checkable (the rest
+  carry a branch jump) and all 879 agree, so the alarm colour is
+  reserved for a real contradiction rather than spent on every hole.
+  Periodic charts get their seams (`u = k·2π`)
+  drawn as dashed magenta lines, so a seam-crossing loop is visible
+  rather than inferred. Strokes are colored by pcurve form —
+  `Harmonic` blue, `IsoLine` green, `Fitted` orange.
+* **Closure is measured in 3-D, not in the chart**, and that
+  distinction is load-bearing. A chart-space closure metric
+  false-alarms on every face touching a chart singularity or a seam,
+  because at a sphere's pole an entire `u`-line is one 3-D point: 103
+  of the 982 M7 faces show such a jump, every one of them exactly π/2,
+  π or 2π. Measured off the carriers instead, the true closure gap
+  never exceeds 9e-16 m anywhere in the corpus. The chart jump is
+  still printed — greyed, and named as seam/pole structure — so it
+  informs instead of alarming.
+* **The interior fill is drawn only when it means something.** A ring
+  that contains a branch jump — a loop crossing the seam or running
+  through a pole — closes in the chart through a straight segment that
+  is not boundary, so even-odd would shade a region that is not the
+  face. Those cells (3 of 36 on the sheet) show the strokes alone and
+  say why; the signed area and winding are likewise not claimed there.
+* **There is a CI drift gate**, and this is still the only lane that
+  can have one — but the reason has moved. CI *can* run FreeCAD (both
+  `step-import` and the hosted render lanes provision the same pinned
+  AppImage), so the obstacle is no longer availability: it is that the
+  PNG lanes' pixels come out of a GL stack, and a runner's llvmpipe is
+  not this host's, so "unchanged" is not a property a hosted PNG pass
+  can assert. This lane draws no 3-D, so its sheet is byte-reproducible
+  anywhere. `uv sheet drift (demos)` regenerates it and diffs it (the
+  tour is ~3s once built, and the sheet is text, so a firing diff is
+  readable). A failure is either an uncommitted regeneration or a D9
+  determinism finding.
+* **Nothing is refused.** Unlike the tessellator's trim walk, this one
+  accepts every pcurve form and falls back to `topo::pcurve_of`'s
+  derive-on-demand, because a face the tessellator refuses is exactly
+  the face worth looking at. A face whose loops cannot be walked at all
+  gets a cell naming the reason, first on the sheet — never a gap.
+* **Selection is stated, never silent.** `out/uv.json` carries *every*
+  face of every tour body (982 at M7). The sheet takes one
+  representative per (body, chart kind) among the curved charts — the
+  richest, by distinct pcurve forms then loop count then face ordinal —
+  plus every failed walk unconditionally. Planar charts are dropped as
+  a class: a plane chart's picture is the face's own outline, which the
+  two 3-D lanes already show. The composer prints every count it
+  dropped, and all 982 SVGs stay in `out/uv/`.
+
+Read it in a browser; nested-SVG-shy rasterizers are why the cells are
+placed with `transform="translate(…)"` rather than nested `<svg x= y=>`.
+
+### What the sheet says about the corpus today (M7)
+
+Most cells are rectangles, and that is a fact about the corpus rather
+than a limitation of the drawing. Of the 238 curved faces, **234 have
+boundaries built entirely from iso-curves of their own chart; only 4
+do not, and all 4 are the tilted cut.**
+
+The reason is that every curved face here is *sweep-native*. Extrude,
+revolve, loft and sweep choose the surface's chart so that one
+direction IS the sweep parameter and the other IS the profile
+parameter — so a face's boundary is the profile at the start
+(`v = const`), the profile at the end (`v = const`), and the seams
+(`u = const`). Nothing is left to trim. This is what `mesh::trimmed`
+means by "the definitional payoff — no fit anywhere", and why
+`Pcurve::IsoLine` earns a variant of its own.
+
+The tilted cut is different because its boundary did not come from the
+sweep that made the cylinder: a plane cuts that cylinder **obliquely**,
+so the section is an ellipse in 3-D and, on the cylinder chart
+(`u` = azimuth, `v` = height), the sinusoid graph
+`v = a + b·cos(u − φ)` — exactly the image `Pcurve::Harmonic`'s docs
+name.
+
+Note what does *not* break the rectangle: `bossplate` is a genuine
+curved boolean, and its cylinder walls are still iso-rectangles,
+because the boss axis is perpendicular to the plate and the
+intersection circle therefore sits at constant height. **Obliquity to
+the chart is what produces a real trim, not the operation that made
+the edge.**
+
+Consequence worth carrying into M7: the trimmed-face machinery
+(`mesh::trimmed`'s CDT over an arbitrary trim polygon plus the
+even-odd interior pick) is exercised by exactly one geometric family
+in this corpus. Everything else takes the swept-rectangle walk or
+trims along iso-lines. Imported foreign geometry will not be so
+courteous.
+
+What it is NOT: a replacement for `render.sh`. The eyeball gate needs
+shaded 3-D, and a chart domain is not a picture of the part. The
+parked SVG lanes that *would* draw the part — a projected-edge
+wireframe, and drawing-grade hidden-line removal — are filed as
+LONGTERM-IDEAS I4(a) and I4(b).
 
 ## The matplotlib fallback is uncommittable (#221)
 
@@ -521,6 +646,51 @@ never mistaken for a good pass.
 
 Because frames are staged and published only on a complete pass (see
 above), a wedge leaves the committed lane directory exactly as it was.
+
+### Off-box: the hosted lanes
+
+`.github/workflows/render.yml` runs the render lanes on GitHub runners,
+on demand (`workflow_dispatch` — no PR trigger, no schedule), and hands
+each one back as a run artifact:
+
+```sh
+gh workflow run render.yml -f ref=my-branch -f lanes=all
+gh run watch                        # then, when it lands:
+gh run download <run-id> -n renders-kernel    # or renders-freecad / renders-uv
+```
+
+`lanes` selects `all` (default) or one of `kernel` / `freecad` / `uv`.
+The tour is built **once** and handed to the lanes as an artifact; the
+two PNG lanes then run as parallel matrix legs (`fail-fast: false` — one
+lane wedging must not cancel the other's evidence), and the UV sheet,
+which needs no renderer, lands without waiting on either.
+
+The PNG lanes provision the **same** version-pinned, checksum-verified
+FreeCAD 1.1.2 AppImage as `ci.yml`'s `step-import` job — same cache key,
+so those rows and these share one entry and a hosted render normally
+downloads nothing — and add what *drawing* needs on top of what
+importing needs: software GL (llvmpipe) and Xvfb, because Coin's
+offscreen renderer wants a GL context and a display even though Qt
+itself stays `offscreen`.
+
+The workflow adds exactly one check of its own, and it exists for the
+kernel lane: **every leg asserts `demos/renders-preview/` does not
+exist.** That lane's matplotlib fallback exits 0, so without the
+assertion a hosted pass could be green having drawn nothing with
+FreeCAD — the frames sitting in the gitignored preview tree while the
+artifact holds the committed cells unchanged. It is a structural check
+on the #221 routing invariant above, not a new rule.
+
+**Artifact-only, by construction.** No job commits or pushes, and the
+PNG lanes' pixels are *not* expected to match the committed cells
+byte-for-byte: those were drawn against a developer host's GL stack,
+these by llvmpipe on a runner image that drifts. Each lane reports its
+diff against the committed tree in the run summary as a measurement,
+never a gate. Making a hosted PNG lane the canonical producer would mean
+pinning the whole GL stack in a container image and re-baselining the
+committed cells in one commit — a design call, not a config tweak. (The
+UV lane carries no such caveat: it is renderer-free and reproducible
+off-box, which is why it is the one lane CI actually *gates*.)
 
 `render.py` is the zero-dependency fallback for the kernel lane
 (numpy + matplotlib, pure CPU, demo-local venv): binary-STL parsing,

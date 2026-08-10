@@ -542,13 +542,15 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
 fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     // Every file of the façade's own source. A new module added here
     // without being listed is caught by the companion test below.
-    const SOURCES: [(&str, &str); 6] = [
+    const SOURCES: [(&str, &str); 8] = [
         ("lib.rs", include_str!("../src/lib.rs")),
         ("prelude.rs", include_str!("../src/prelude.rs")),
         ("select.rs", include_str!("../src/select.rs")),
         ("document.rs", include_str!("../src/document.rs")),
         ("authoring.rs", include_str!("../src/authoring.rs")),
         ("closure.rs", include_str!("../src/closure.rs")),
+        ("export.rs", include_str!("../src/export.rs")),
+        ("guide.rs", include_str!("../src/guide.rs")),
     ];
     // Assembled at runtime: this file is itself scanned by the U1
     // guard, and a contiguous literal would be its own first match.
@@ -626,10 +628,234 @@ fn the_boundary_guard_scans_every_facade_source_file() {
         "document.rs".to_string(),
         "authoring.rs".to_string(),
         "closure.rs".to_string(),
+        "export.rs".to_string(),
+        "guide.rs".to_string(),
     ];
     listed.sort();
     assert_eq!(
         on_disk, listed,
         "a facade source file is missing from the LB13 boundary guard's scan list"
     );
+}
+
+// ---------------------------------------------------------------
+// LIB-DOORS: the curated persist doors (F1), the export door (F2),
+// the result vocabulary (F3/F4), and Expr's own refusal type (F5).
+// ---------------------------------------------------------------
+
+/// The F4 set is nameable through the façade (compile-level pins,
+/// same style as the payload pins above).
+fn lib_doors_vocabulary_is_nameable() {
+    named::<Option<pncad::document::Applied<pncad::document::ProfileProgram>>>(None);
+    named::<Option<pncad::document::EditRecord>>(None);
+    named::<Option<pncad::document::NodeValue<f64>>>(None);
+    named::<Option<pncad::document::NodeResult<f64>>>(None);
+    named::<Option<pncad::document::EvalOutcome>>(None);
+    named::<Option<pncad::document::Loaded>>(None);
+    named::<Option<pncad::document::PersistError>>(None);
+    named::<Option<pncad::document::MigrationError>>(None);
+    named::<Option<pncad::document::NonFiniteSite>>(None);
+    named::<Option<pncad::document::ProgramFault>>(None);
+    named::<Option<pncad::document::SnapshotError>>(None);
+    named::<Option<pncad::document::DimensionError>>(None);
+    named::<Option<pncad::export::ExportError>>(None);
+}
+
+/// A square profile-program node, `[0,s]²` on the xy-plane.
+fn doors_square(s: f64) -> pncad::document::Node<pncad::document::ProfileProgram> {
+    use pncad::document::{
+        Dimension, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget,
+    };
+    let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
+    Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![LoopProgram::Chain(vec![
+            ProgramStep::At([lit(0.0), lit(0.0)]),
+            ProgramStep::LineTo(ProgramTarget::Point([lit(s), lit(0.0)])),
+            ProgramStep::LineTo(ProgramTarget::Point([lit(s), lit(s)])),
+            ProgramStep::LineTo(ProgramTarget::Point([lit(0.0), lit(s)])),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ])],
+    })
+}
+
+/// Insert a node, returning the (document, minted id) pair.
+fn doors_insert(
+    doc: pncad::document::ProfileDoc,
+    node: pncad::document::Node<pncad::document::ProfileProgram>,
+) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
+    let applied = pncad::document::apply(&doc, &pncad::document::DocEdit::InsertNode { node })
+        .expect("the edit is accepted");
+    let minted = applied.record.minted.expect("an insert mints an id");
+    (applied.doc, minted)
+}
+
+/// A one-box document: square(2) extruded 1.5 — volume exactly 6.0.
+/// Returns (doc, profile id, body id) — the MINTED ids, so no test
+/// couples to mint order (the R1/R2 NOTE).
+fn doors_box_doc() -> (
+    pncad::document::ProfileDoc,
+    pncad::document::RecipeNodeId,
+    pncad::document::RecipeNodeId,
+) {
+    use pncad::document::{Dimension, Expr, Node};
+    let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
+    let doc = pncad::document::ProfileDoc::empty();
+    let (doc, profile) = doors_insert(doc, doors_square(2.0));
+    let (doc, body) = doors_insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: lit(1.5),
+        },
+    );
+    (doc, profile, body)
+}
+
+fn doors_evaluate(doc: &pncad::document::ProfileDoc) -> pncad::document::Evaluation<f64> {
+    pncad::document::evaluate::<f64>(
+        doc,
+        None,
+        &pncad::document::CancelToken::new(),
+        &pncad::document::EvalOptions::default(),
+    )
+}
+
+#[test]
+fn the_persist_doors_round_trip_through_the_facade() {
+    lib_doors_vocabulary_is_nameable();
+    let (doc, _, body_node) = doors_box_doc();
+    let before = doors_evaluate(&doc);
+    let volume = mass_properties(
+        match &before.value(body_node).expect("the box evaluated").payload {
+            pncad::document::ValuePayload::Body(b) => b,
+            other => panic!("expected a body, got {}", other.kind_name()),
+        },
+    )
+    .expect("mass properties")
+    .volume;
+    assert_eq!(volume, 6.0);
+
+    let text = pncad::document::save(&doc, &[]).expect("the document saves");
+    let header = format!("schema: {}", pncad::document::SCHEMA_VERSION);
+    assert!(
+        text.starts_with(&header),
+        "the file speaks the current schema"
+    );
+
+    let loaded = pncad::document::load(&text).expect("the file loads");
+    assert!(loaded.edits.is_empty(), "no edit log was saved");
+    assert!(loaded.records.is_empty());
+    assert!(
+        loaded.doc.bit_eq(&doc),
+        "load replays to the SAME document (D9)"
+    );
+
+    let after = doors_evaluate(&loaded.doc);
+    let replayed = mass_properties(
+        match &after
+            .value(body_node)
+            .expect("the box re-evaluated")
+            .payload
+        {
+            pncad::document::ValuePayload::Body(b) => b,
+            other => panic!("expected a body, got {}", other.kind_name()),
+        },
+    )
+    .expect("mass properties")
+    .volume;
+    assert_eq!(
+        volume.to_bits(),
+        replayed.to_bits(),
+        "bit-exact replay (D9)"
+    );
+}
+
+#[test]
+fn the_export_door_serves_the_one_shot_journey() {
+    let (doc, _, body_node) = doors_box_doc();
+    let ev = doors_evaluate(&doc);
+    let step = pncad::export::step_for_node(&ev, body_node, &StepOptions::default())
+        .expect("a body value exports");
+    // The oracle is the kernel's own STEP importer: the exported text
+    // parses and adopts as a first-class solid whose volume agrees.
+    let imported = import_step(&step, &ImportOptions::default()).expect("the export re-imports");
+    match imported {
+        pncad::step_import::StepImport::Solid { body, .. } => {
+            let v = mass_properties(&body)
+                .expect("imported mass properties")
+                .volume;
+            assert!((v - 6.0).abs() < 1e-9, "imported volume {v} differs");
+        }
+        other => panic!("expected a solid import, got {other:?}"),
+    }
+}
+
+#[test]
+fn the_export_door_refuses_typed_not_vaguely() {
+    use pncad::document::{Node, RecipeNodeId};
+    use pncad::export::ExportError;
+    let (doc, profile_node, first_box) = doors_box_doc();
+    // A failing Boolean (undeclared coincidence) and its downstream.
+    let (doc, second_profile) = doors_insert(doc, doors_square(1.0));
+    let (doc, second_box) = doors_insert(
+        doc,
+        Node::Extrude {
+            profile: second_profile,
+            distance: pncad::document::Expr::literal(1.0, pncad::document::Dimension::Length)
+                .unwrap(),
+        },
+    );
+    let (doc, cut) = doors_insert(
+        doc,
+        Node::Boolean {
+            op: pncad::document::BooleanOp::Subtract,
+            a: first_box,
+            b: second_box,
+            declare: None,
+        },
+    );
+    let (doc, downstream) = doors_insert(
+        doc,
+        Node::Boolean {
+            op: pncad::document::BooleanOp::Union,
+            a: cut,
+            b: first_box,
+            declare: None,
+        },
+    );
+    let ev = doors_evaluate(&doc);
+    let opts = StepOptions::default();
+    let door = |node| pncad::export::step_for_node(&ev, node, &opts);
+    assert!(matches!(
+        door(profile_node),
+        Err(ExportError::NotABody {
+            kind: "profile",
+            ..
+        })
+    ));
+    assert!(matches!(
+        door(RecipeNodeId(u64::MAX)),
+        Err(ExportError::UnknownNode { .. })
+    ));
+    assert!(matches!(door(cut), Err(ExportError::NodeFailed { node }) if node == cut));
+    assert!(matches!(
+        door(downstream),
+        Err(ExportError::Poisoned { node, through }) if node == downstream && through == cut
+    ));
+    // The typed root cause is one door away, F3's promise.
+    assert!(ev.node_error(downstream).is_some());
+}
+
+#[test]
+fn expr_literal_refusals_are_matchable_through_the_facade() {
+    use pncad::document::{Dimension, DimensionError, Expr};
+    assert!(matches!(
+        Expr::literal(f64::NAN, Dimension::Length),
+        Err(DimensionError::NonFiniteLiteral)
+    ));
+    assert!(matches!(
+        Expr::literal(2.0, Dimension::Count),
+        Err(DimensionError::LiteralCountIsInteger)
+    ));
 }

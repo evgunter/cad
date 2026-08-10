@@ -25,6 +25,21 @@ mixed). Named instances Evan wants eventually:
   this whole lane's shape (per-part, advisory, honest about being
   a heuristic threshold). #89's kernel half (the K value itself)
   stays with the exit-walk K-snapshot decision, separately.
+- **(0b) The connectedness lint (Evan, 2026-08-10, #328 — born from
+  the assembly-design conversation).** Warn when a body at rest has
+  more disconnected components than expected — a stray solid usually
+  means a boolean that didn't reach its operand or an instance placed
+  nowhere. Unlike the rest of this lane it is *exact*: connectivity
+  is combinatorial (the shell-partition components tier 1 already
+  computes), no heuristic threshold anywhere — the lane's first
+  fully-certified member. "Expected" is an input: assembly structure
+  / file splits mark expected disconnection naturally, and an
+  explicit per-part expectation mark is the lint-input form (both
+  Evan's framing, #328; the split-as-signal half is a natural
+  default, not a requirement). Warn, never refuse, per the lane's
+  charter. Prerequisite: the assembly design's multi-solid evaluation
+  (docs/ASSEMBLY-DESIGN.md), which is what makes "disconnected on
+  purpose" a common, expressible state.
 - **(a) Injection-molding / draft**: the shape is 1-1 along the
   pull direction (a function), with derivative everywhere below a
   max — equivalently minimum draft angle everywhere. This is a
@@ -74,6 +89,53 @@ interference vocabulary (#161, rides the M6-era census/contact
 design doc) + a data-provenance story (the handbook table is an
 input with a version, like a tolerance). Pairs naturally with
 I1(b) and I2.
+
+## I4 — SVG output lanes (Evan, 2026-08-09, in-session)
+
+The kernel can draw pictures of itself in a vector format with no
+renderer in the loop. Three members, in ascending difficulty; the
+first has landed, the other two are parked here.
+
+- **(0) The UV trim-loop dump — LANDED 2026-08-09**, as the demo
+  tour's third montage lane (`demos/render-uv.sh` →
+  `renders-uv/montage-uv.svg`; emitter `demos/tour/src/uvdump.rs`).
+  Each face's `(u, v)` chart with its trim loops drawn on it. Needs
+  no projection, camera or silhouette machinery because the chart is
+  already 2-D, so the lane has NO external dependency at all —
+  unlike the two 3-D lanes, which need headless FreeCAD. It is a
+  diagnostic, not a depiction: loop closure gaps, winding, seam
+  crossings on periodic charts, and stored-vs-derived pcurve
+  provenance are all measured and drawn per face. Recorded here
+  because (a) it is the substrate the other two reuse, and (b) the
+  reason it was cheap is a design fact worth keeping: the pcurve
+  caches already exist, so the lane is a serializer over data the
+  kernel had.
+- **(a) Projected-edge SVG wireframe** — the fast alternative to
+  `render.sh` for the inner dev loop. Project the B-rep's edge
+  carriers onto a view plane and write them as SVG paths. The
+  projection is EXACT and nearly free: both orthographic and
+  perspective projection are projective maps, which act linearly on
+  a rational curve's homogeneous control points, so a
+  `Curve3::Nurbs` projects to a 2-D rational NURBS of the same
+  degree with the same knots, and `Line`/`Circle`/`Ellipse` project
+  to a line or an ellipse. SVG's own `L` and `A` (elliptic arc)
+  commands then carry those exactly; only the general rational case
+  needs the standard subdivide-to-cubics-within-ε approximation.
+  Prerequisite: none beyond I4(0)'s curve→path layer. **Explicitly
+  NOT a replacement for the montage**: with no hidden-line removal,
+  a curved solid draws with no silhouette (a cylinder is two circles
+  and nothing joining them) and a finned body is spaghetti. The
+  eyeball gate stays with the shaded lanes.
+- **(b) Drawing-grade projection with hidden lines** — already filed
+  in DESIGN.md's Band 3 ("Engineering drawings"), and it stays
+  there: the blocker is silhouette curves, which on a general NURBS
+  surface means tracing the implicit `n(u, v)·d = 0` in parameter
+  space (SSI-grade) plus a 2-D visibility pass. Noted here only so
+  the cheap two above are not mistaken for progress toward it. The
+  analytic-only middle tier (closed-form silhouettes for the five
+  analytic charts) is NOT worth taking alone — the picture is wrong
+  at every analytic/NURBS face boundary, and the tolerance-nasty
+  visibility pass is still owed.
 
 ## Process note
 

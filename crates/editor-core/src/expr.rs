@@ -120,6 +120,50 @@ pub enum DimensionError {
     },
 }
 
+// LIB-DOORS F6 (reopened on review): a human-readable rendering. The
+// comment-style rule applies — each arm states the PROBLEM, not the
+// enum's guts; the enum itself remains the machine contract.
+impl core::fmt::Display for DimensionError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Mismatch { op, left, right } => {
+                write!(f, "cannot apply `{op}` to {left:?} and {right:?}")
+            }
+            Self::MulNeedsScalar { left, right } => write!(
+                f,
+                "multiplication needs a Scalar operand ({left:?} x {right:?} would change dimension)"
+            ),
+            Self::DivNeedsScalarDivisor { left, right } => write!(
+                f,
+                "division needs a Scalar divisor ({left:?} / {right:?} is refused in v1)"
+            ),
+            Self::TrigNeedsAngle { op, found } => {
+                write!(f, "`{op}` needs an Angle operand, got {found:?}")
+            }
+            Self::CountNeedsExplicitPromotion { op } => write!(
+                f,
+                "`{op}` on a Count needs an explicit promotion (use count_to_scalar)"
+            ),
+            Self::NotCount { found } => {
+                write!(f, "a Count operand is required, got {found:?}")
+            }
+            Self::LiteralCountIsInteger => {
+                f.write_str("a count literal must be an integer (use Expr::count)")
+            }
+            Self::NonFiniteLiteral => f.write_str("a literal value must be finite"),
+            Self::DisplayUnitMismatch { unit, literal } => write!(
+                f,
+                "the display unit measures {unit:?} but the literal is {literal:?}"
+            ),
+            Self::UnknownDisplayUnit { symbol } => {
+                write!(f, "unknown display unit {symbol:?}")
+            }
+        }
+    }
+}
+
+impl core::error::Error for DimensionError {}
+
 /// A dimension-checked expression tree (ratified F7 shape).
 ///
 /// Construction goes through the smart constructors below, which run

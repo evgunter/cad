@@ -709,9 +709,9 @@ const QUAD2_HULL_BLOCKS: usize = 8;
 /// shortcut to fall back on — the midpoint rule's O(h²) IS the whole
 /// convergence story there ([`rational_patch_face`]).
 const QUAD2_RATIONAL_MAX_ROUNDS: usize = 7;
-/// Cells per axis of the RATIONAL lane's area pass (fixed, D9). Its
-/// midpoint-plus-Taylor-pad rule is O(h), so the resolution sets the
-/// area's honest width directly ([`rational_patch_face`]).
+/// Cells per axis of BOTH patch lanes' area pass (fixed, D9). The
+/// shared [`area_midpoint_taylor`] rule is O(h), so the resolution sets
+/// the area's honest width directly.
 const QUAD2_AREA_PIECES: usize = 64;
 /// Spans per axis the RATIONAL lane refines its bracketed net to
 /// before hulling anything (fixed, D9) — see [`refine_dir`] for why
@@ -900,6 +900,10 @@ fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[RingInterval]) -> Vec<RingI
         .collect()
 }
 
+/// One direction's coefficient-differentiation step: the map from a
+/// line of the grid to the same line of its derivative grid.
+type DerivTake = Box<dyn Fn(&[RingInterval]) -> Vec<RingInterval>>;
+
 impl Dir {
     /// The per-span-constant coefficient index for a point.
     fn const_index(knots: &[f64], t: f64, count: usize) -> usize {
@@ -995,36 +999,35 @@ impl PatchGrid {
         if self.nu < 2 {
             return None;
         }
-        let (next_dir, take): (Dir, Box<dyn Fn(&[RingInterval]) -> Vec<RingInterval>>) =
-            match &self.du {
-                Dir::Kv(kv) => {
-                    let kv = kv.clone();
-                    (
-                        Self::deriv_dir(&kv),
-                        Box::new(move |c: &[RingInterval]| derivative_coeffs(&kv, c)),
-                    )
-                }
-                // A `Raw` direction differentiates too — its own
-                // derivative is `Raw` one degree down, or the honest
-                // per-span constant at degree 1.
-                Dir::Raw { knots, degree } => {
-                    let (knots, degree) = (knots.clone(), *degree);
-                    let inner = knots[1..knots.len() - 1].to_vec();
-                    let next = if degree >= 2 {
-                        Dir::Raw {
-                            knots: inner,
-                            degree: degree - 1,
-                        }
-                    } else {
-                        Dir::Const { knots: inner }
-                    };
-                    (
-                        next,
-                        Box::new(move |c: &[RingInterval]| raw_deriv(&knots, degree, c)),
-                    )
-                }
-                Dir::Const { .. } => return None,
-            };
+        let (next_dir, take): (Dir, DerivTake) = match &self.du {
+            Dir::Kv(kv) => {
+                let kv = kv.clone();
+                (
+                    Self::deriv_dir(&kv),
+                    Box::new(move |c: &[RingInterval]| derivative_coeffs(&kv, c)),
+                )
+            }
+            // A `Raw` direction differentiates too — its own
+            // derivative is `Raw` one degree down, or the honest
+            // per-span constant at degree 1.
+            Dir::Raw { knots, degree } => {
+                let (knots, degree) = (knots.clone(), *degree);
+                let inner = knots[1..knots.len() - 1].to_vec();
+                let next = if degree >= 2 {
+                    Dir::Raw {
+                        knots: inner,
+                        degree: degree - 1,
+                    }
+                } else {
+                    Dir::Const { knots: inner }
+                };
+                (
+                    next,
+                    Box::new(move |c: &[RingInterval]| raw_deriv(&knots, degree, c)),
+                )
+            }
+            Dir::Const { .. } => return None,
+        };
         let mut ch = [Vec::new(), Vec::new(), Vec::new()];
         for (k, chan) in ch.iter_mut().enumerate() {
             let mut grid = vec![RingInterval::zero(); (self.nu - 1) * self.nv];
@@ -1054,33 +1057,32 @@ impl PatchGrid {
         if self.nv < 2 {
             return None;
         }
-        let (next_dir, take): (Dir, Box<dyn Fn(&[RingInterval]) -> Vec<RingInterval>>) =
-            match &self.dv {
-                Dir::Kv(kv) => {
-                    let kv = kv.clone();
-                    (
-                        Self::deriv_dir(&kv),
-                        Box::new(move |c: &[RingInterval]| derivative_coeffs(&kv, c)),
-                    )
-                }
-                Dir::Raw { knots, degree } => {
-                    let (knots, degree) = (knots.clone(), *degree);
-                    let inner = knots[1..knots.len() - 1].to_vec();
-                    let next = if degree >= 2 {
-                        Dir::Raw {
-                            knots: inner,
-                            degree: degree - 1,
-                        }
-                    } else {
-                        Dir::Const { knots: inner }
-                    };
-                    (
-                        next,
-                        Box::new(move |c: &[RingInterval]| raw_deriv(&knots, degree, c)),
-                    )
-                }
-                Dir::Const { .. } => return None,
-            };
+        let (next_dir, take): (Dir, DerivTake) = match &self.dv {
+            Dir::Kv(kv) => {
+                let kv = kv.clone();
+                (
+                    Self::deriv_dir(&kv),
+                    Box::new(move |c: &[RingInterval]| derivative_coeffs(&kv, c)),
+                )
+            }
+            Dir::Raw { knots, degree } => {
+                let (knots, degree) = (knots.clone(), *degree);
+                let inner = knots[1..knots.len() - 1].to_vec();
+                let next = if degree >= 2 {
+                    Dir::Raw {
+                        knots: inner,
+                        degree: degree - 1,
+                    }
+                } else {
+                    Dir::Const { knots: inner }
+                };
+                (
+                    next,
+                    Box::new(move |c: &[RingInterval]| raw_deriv(&knots, degree, c)),
+                )
+            }
+            Dir::Const { .. } => return None,
+        };
         let mut ch = [Vec::new(), Vec::new(), Vec::new()];
         for (k, chan) in ch.iter_mut().enumerate() {
             let mut grid = Vec::with_capacity(self.nu * (self.nv - 1));
@@ -1641,6 +1643,110 @@ fn norm_hi(v: RVec3) -> f64 {
     sqrt_enclosure(v[0].sqr() + v[1].sqr() + v[2].sqr()).hi()
 }
 
+/// Componentwise sum of two bracketed 3-vectors.
+fn rv_add(a: RVec3, b: RVec3) -> RVec3 {
+    [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+}
+
+/// One cell of the shared area grid: its closed extent per axis and the
+/// midpoint the rule evaluates at (carried rather than re-derived, so
+/// every lane's midpoint is the SAME float).
+#[derive(Clone, Copy)]
+struct AreaBox {
+    ulo: f64,
+    uhi: f64,
+    umid: f64,
+    vlo: f64,
+    vhi: f64,
+    vmid: f64,
+}
+
+/// What a lane reports for one area cell: the THIN midpoint value of
+/// the area integrand `g = |S_u×S_v|`, one-sided Lipschitz bounds on
+/// its two partials over the cell, and the smoothness-free hull of `g`
+/// over the whole cell.
+struct AreaCell {
+    /// `g(midpoint)` — thin, and the reason this rule beats the hull
+    /// rule by orders.
+    g_mid: RingInterval,
+    /// An upper bound on `sup_cell |∂_u g|`.
+    g_u: f64,
+    /// An upper bound on `sup_cell |∂_v g|`.
+    g_v: f64,
+    /// An enclosure of `g` over the whole cell — used ONLY on cells
+    /// that straddle an interior knot, where `g` may genuinely jump.
+    g_hull: RingInterval,
+}
+
+/// **The area rule both patch lanes use**: a fixed-resolution composite
+/// midpoint rule with a first-order Taylor (Lipschitz) pad,
+///
+/// ```text
+/// ∫∫_cell g ∈ A_cell·( g(m) ± [ (h_u/2)·G_u + (h_v/2)·G_v ] ),
+///     G_d ⊇ sup_cell |∂_d g|
+/// ```
+///
+/// which needs only that `g` be LIPSCHITZ on the cell — so the kink of
+/// `|·|` at a vanishing cross product is covered, and the lane's
+/// `|∂_d |c|| ≤ |∂_d c|` bound is exactly the Lipschitz constant.
+///
+/// The one thing it does NOT cover is a genuine JUMP: at an interior
+/// knot of multiplicity ≥ degree the surface is only C⁰ and `S_u`
+/// jumps, so `g` jumps and no derivative hull bounds the step. Cells
+/// straddling an interior knot therefore take the **smoothness-free
+/// hull rule** `A_cell·hull(g)` instead — the same treatment the flux
+/// path gives such cells, and the answer to R1's m1.
+///
+/// Why not the plain hull rule everywhere: every hull in this file is a
+/// control-net convexity fact and those are SPAN-GRANULAR, so on a
+/// single-span patch the per-cell hull IS the whole-patch hull and the
+/// rule never tightens (the unit square came out `[≈0, 10.4]`). Here
+/// only the pad carries hulls, so the width is genuinely O(h).
+///
+/// The area is a certified DENOMINATOR (the +V meter and the extent
+/// gate) — `boundary_defect` pads it directly.
+fn area_midpoint_taylor<E>(
+    rect: (f64, f64, f64, f64),
+    n: usize,
+    boundary_defect: f64,
+    knots: (&[f64], &[f64]),
+    mut cell: impl FnMut(AreaBox) -> Result<AreaCell, E>,
+) -> Result<RingInterval, E> {
+    let (u0, u1, v0, v1) = rect;
+    #[allow(clippy::cast_precision_loss)]
+    let (hu, hv) = ((u1 - u0) / n as f64, (v1 - v0) / n as f64);
+    let cell_area = pt(hu) * pt(hv);
+    let mut acc = RingInterval::zero();
+    for iu in 0..n {
+        #[allow(clippy::cast_precision_loss)]
+        let c_ulo = u0 + (u1 - u0) * (iu as f64 / n as f64);
+        let c_uhi = c_ulo + hu;
+        let straddle_u = knots.0.iter().any(|k| *k > c_ulo && *k < c_uhi);
+        for iv in 0..n {
+            #[allow(clippy::cast_precision_loss)]
+            let c_vlo = v0 + (v1 - v0) * (iv as f64 / n as f64);
+            let c_vhi = c_vlo + hv;
+            let c = cell(AreaBox {
+                ulo: c_ulo,
+                uhi: c_uhi,
+                umid: c_ulo + hu * 0.5,
+                vlo: c_vlo,
+                vhi: c_vhi,
+                vmid: c_vlo + hv * 0.5,
+            })?;
+            let straddle = straddle_u || knots.1.iter().any(|k| *k > c_vlo && *k < c_vhi);
+            acc = acc
+                + cell_area
+                    * if straddle {
+                        c.g_hull
+                    } else {
+                        widen(c.g_mid, 0.5 * hu * c.g_u + 0.5 * hv * c.g_v)
+                    };
+        }
+    }
+    Ok(widen(acc, boundary_defect))
+}
+
 /// Ring lerp `x + (y − x)·λ` (the plan applier's fixed association),
 /// componentwise — the rounding lands OUTWARD in the brackets, which
 /// is what makes a refined net a certified enclosure of the same
@@ -1685,10 +1791,24 @@ fn refine_dir(
         RingInterval::poison(),
     ];
     let count = kv.control_count();
-    let other = if along_u { nv } else { net.len() / nv };
-    if count == 0 || nv == 0 || net.len() != count * nv && along_u {
+    if count == 0 || nv == 0 {
         return None;
     }
+    // The net is row-major with stride `nv`. On the u pass the refined
+    // direction has `count` lines of `nv`; on the v pass it IS the
+    // stride, so `count` must BE `nv` and the line count has to divide
+    // out EXACTLY. (R1's m2: `net.len() != count * nv && along_u`
+    // parses as `(…) && along_u`, so the v pass had no shape check at
+    // all and `net.len() / nv` truncated silently.)
+    let malformed = if along_u {
+        net.len() != count * nv
+    } else {
+        count != nv || !net.len().is_multiple_of(nv)
+    };
+    if malformed {
+        return None;
+    }
+    let other = if along_u { nv } else { net.len() / nv };
     let (d0, d1) = kv.domain();
     let mut add: Vec<f64> = Vec::new();
     for k in 1..QUAD2_REFINE_SPANS {
@@ -1823,6 +1943,23 @@ fn quotient_second(
 /// [`PropsError::QuadratureBudget`] carrying the measured width; a
 /// wide answer is never returned silently.
 ///
+/// # The practical envelope (measured, R1's n2)
+///
+/// The rule is O(h²) and the meter is a **LENGTH**, so the achievable
+/// width scales roughly linearly with part size while the target does
+/// not. At ε = 1e-9 and 1–2 m parts the flagship rows converge at
+/// round 6 with ~1.6× headroom; measured refusals just outside it are
+/// a quarter torus (R = 2, r = 0.5) at width 1.146e-6 against a
+/// 1.024e-6 target, a weight-ratio-100 Möbius reparameterization at
+/// 5.2e-2, and a 1e3-m cylinder. Every one of those is a typed
+/// [`PropsError::QuadratureBudget`] carrying its measured width —
+/// the frontier is honest, but it is close, and callers on large or
+/// extreme-weight parts should expect refusals rather than answers.
+/// The next levers, in order, are a higher-order rule (Simpson needs
+/// `A` to fifth derivatives) and a `w`-uniform-in-v fast path (loft
+/// walls satisfy it: weights come from the profile direction only, so
+/// the v integral is exactly polynomial).
+///
 /// # Errors
 ///
 /// [`PropsError`] — non-positive or non-finite weights, a weight hull
@@ -1949,63 +2086,44 @@ fn rational_patch_face<T: Decide>(
         }
     }
 
-    // AREA: one fixed-resolution pass of the **midpoint rule with a
-    // first-order Taylor pad** (`g = |cross_num|/w³`):
+    // AREA: the shared [`area_midpoint_taylor`] rule with this lane's
+    // quotient integrand `g = |cross_num|/w³` and its pad
     //
-    //     ∫∫_cell g ∈ A_cell·(g(m) ± [ (h_u/2)·G_u + (h_v/2)·G_v ])
     //     G_d ⊇ sup |∂_d g| ≤ |∂_d cross_num|/w³ + 3·|cross_num|·|w_d|/w⁴
     //
-    // (`| ∂_d |c| | ≤ |∂_d c|` — the magnitude is 1-Lipschitz). The
-    // integral lane's plain hull rule is NOT usable here: control-net
-    // hulls are span-granular, so on a single-span rational patch the
-    // per-cell hull never tightens and the answer would be a decade
-    // wide. The midpoint value is THIN, and only the pad carries
-    // hulls — so this rule genuinely tightens as O(h). The area is a
-    // certified DENOMINATOR (the +V meter and the extent gate); its
-    // honest width lands in `area_pad`.
-    let area = {
-        let n = QUAD2_AREA_PIECES;
-        #[allow(clippy::cast_precision_loss)]
-        let (hu, hv) = ((u1 - u0) / n as f64, (v1 - v0) / n as f64);
-        let cell_area = pt(hu) * pt(hv);
-        let mut acc = RingInterval::zero();
-        for iu in 0..n {
-            #[allow(clippy::cast_precision_loss)]
-            let c_ulo = u0 + (u1 - u0) * (iu as f64 / n as f64);
-            for iv in 0..n {
-                #[allow(clippy::cast_precision_loss)]
-                let c_vlo = v0 + (v1 - v0) * (iv as f64 / n as f64);
-                let over = (
-                    Collapse::Over(c_ulo, c_ulo + hu),
-                    Collapse::Over(c_vlo, c_vlo + hv),
-                );
-                let m = (
-                    Collapse::At(c_ulo + hu * 0.5),
-                    Collapse::At(c_vlo + hv * 0.5),
-                );
-                let cm = a.cross_num(&w, m.0, m.1);
-                let wm = w.chan(m.0, m.1);
-                let g_m = sqrt_enclosure(cm[0].sqr() + cm[1].sqr() + cm[2].sqr()) / wm.powi(3);
-                let wh = w.chan(over.0, over.1);
-                if wh.lo() <= 0.0 || !wh.lo().is_finite() {
-                    return Err(PropsError::QuadratureUnsupported {
-                        what: "a rational patch cell whose weight hull does not exclude \
-                               zero — the quotient's enclosures are undefined there",
-                    });
-                }
-                let (w3, w4) = (wh.lo().powi(3), wh.lo().powi(4));
-                let c_hi = norm_hi(a.cross_num(&w, over.0, over.1));
-                let pad_d = |dc: RVec3, wd: RingInterval| -> f64 {
-                    norm_hi(dc) / w3 + 3.0 * c_hi * wd.mag() / w4
-                };
-                let g_u = pad_d(a.cross_num_u(&w, over.0, over.1), w.chan_u(over.0, over.1));
-                let g_v = pad_d(a.cross_num_v(&w, over.0, over.1), w.chan_v(over.0, over.1));
-                let e = 0.5 * hu * g_u + 0.5 * hv * g_v;
-                acc = acc + cell_area * widen(g_m, e);
+    // (`| ∂_d |c| | ≤ |∂_d c|` — the magnitude is 1-Lipschitz).
+    let area = area_midpoint_taylor(
+        rect,
+        QUAD2_AREA_PIECES,
+        boundary_defect,
+        (&knots_u, &knots_v),
+        |b| {
+            let over = (Collapse::Over(b.ulo, b.uhi), Collapse::Over(b.vlo, b.vhi));
+            let m = (Collapse::At(b.umid), Collapse::At(b.vmid));
+            let cm = a.cross_num(&w, m.0, m.1);
+            let wm = w.chan(m.0, m.1);
+            let g_mid = sqrt_enclosure(cm[0].sqr() + cm[1].sqr() + cm[2].sqr()) / wm.powi(3);
+            let wh = w.chan(over.0, over.1);
+            if wh.lo() <= 0.0 || !wh.lo().is_finite() {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a rational patch cell whose weight hull does not exclude \
+                           zero — the quotient's enclosures are undefined there",
+                });
             }
-        }
-        widen(acc, boundary_defect)
-    };
+            let (w3, w4) = (wh.lo().powi(3), wh.lo().powi(4));
+            let ch = a.cross_num(&w, over.0, over.1);
+            let c_hi = norm_hi(ch);
+            let pad_d = |dc: RVec3, wd: RingInterval| -> f64 {
+                norm_hi(dc) / w3 + 3.0 * c_hi * wd.mag() / w4
+            };
+            Ok(AreaCell {
+                g_mid,
+                g_u: pad_d(a.cross_num_u(&w, over.0, over.1), w.chan_u(over.0, over.1)),
+                g_v: pad_d(a.cross_num_v(&w, over.0, over.1), w.chan_v(over.0, over.1)),
+                g_hull: sqrt_enclosure(ch[0].sqr() + ch[1].sqr() + ch[2].sqr()) / wh.powi(3),
+            })
+        },
+    )?;
 
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
     let mut pieces = QUAD2_INIT_PIECES;
@@ -2096,9 +2214,10 @@ fn rational_patch_face<T: Decide>(
 /// (the `S_u·(S_u×S_uv)`-shaped triples vanish identically). Cells
 /// straddling an interior knot in either direction take the
 /// smoothness-free first-order rule `A·hull(f)`. The area rides the
-/// first-order hull rule per cell — sound at every resolution,
-/// tightening as O(h) — because the +V gate meters `V/A` and needs an
-/// honest denominator, not a tight one. A patch with non-unit weights
+/// shared [`area_midpoint_taylor`] rule (midpoint + Lipschitz pad, the
+/// hull rule only on knot-straddling cells) — sound at every
+/// resolution and O(h), because the +V gate meters `V/A` and needs an
+/// honest denominator. A patch with non-unit weights
 /// routes to [`rational_patch_face`] (M8-3), which certifies the same
 /// two numbers through the quotient rule.
 ///
@@ -2217,36 +2336,47 @@ pub fn nurbs_patch_face<T: Decide>(
             rv_cross(g_su, grid_vec(svvv.as_ref(), over_all.0, over_all.1)),
         );
 
-    // AREA: one fixed-resolution pass of the first-order hull rule
-    // (per-cell Su/Sv hulls). The area is a certified DENOMINATOR
-    // (the +V meter and the extent gate), not a convergence-gated
-    // quantity — its honest O(h) width lands in `area_pad`.
-    let area = {
-        let n = 2 * QUAD2_INIT_PIECES;
-        #[allow(clippy::cast_precision_loss)]
-        let (hu, hv) = ((u1 - u0) / n as f64, (v1 - v0) / n as f64);
-        let cell_area = pt(hu) * pt(hv);
-        let mut acc = RingInterval::zero();
-        for iu in 0..n {
-            #[allow(clippy::cast_precision_loss)]
-            let c_ulo = u0 + (u1 - u0) * (iu as f64 / n as f64);
-            for iv in 0..n {
-                #[allow(clippy::cast_precision_loss)]
-                let c_vlo = v0 + (v1 - v0) * (iv as f64 / n as f64);
-                let over = (
-                    Collapse::Over(c_ulo, c_ulo + hu),
-                    Collapse::Over(c_vlo, c_vlo + hv),
-                );
-                let cross_h = rv_cross(
-                    grid_vec(su.as_ref(), over.0, over.1),
-                    grid_vec(sv.as_ref(), over.0, over.1),
-                );
-                let norm_sq = cross_h[0].sqr() + cross_h[1].sqr() + cross_h[2].sqr();
-                acc = acc + cell_area * sqrt_enclosure(norm_sq);
-            }
-        }
-        widen(acc, boundary_defect)
-    };
+    // AREA: the shared [`area_midpoint_taylor`] rule (#313's integral
+    // half) with this lane's polynomial integrand `g = |S_u×S_v|` —
+    // the rational lane's rule at `w ≡ 1`, where the quotient pad
+    // collapses to `|∂_d (S_u×S_v)|` exactly. It replaces the plain
+    // per-cell hull rule, which was span-granular and therefore did
+    // not tighten at all: on the standard multi-arc form it returned
+    // `area.lo() == 0` and the face was refused DegenerateFace.
+    let area = area_midpoint_taylor(
+        rect,
+        QUAD2_AREA_PIECES,
+        boundary_defect,
+        (&knots_u, &knots_v),
+        |b| -> Result<AreaCell, PropsError> {
+            let over = (Collapse::Over(b.ulo, b.uhi), Collapse::Over(b.vlo, b.vhi));
+            let m = (Collapse::At(b.umid), Collapse::At(b.vmid));
+            let cm = rv_cross(
+                grid_vec(su.as_ref(), m.0, m.1),
+                grid_vec(sv.as_ref(), m.0, m.1),
+            );
+            let (h_su, h_sv) = (
+                grid_vec(su.as_ref(), over.0, over.1),
+                grid_vec(sv.as_ref(), over.0, over.1),
+            );
+            let ch = rv_cross(h_su, h_sv);
+            // ∂_u (S_u×S_v) = S_uu×S_v + S_u×S_uv, and likewise in v.
+            let d_u = rv_add(
+                rv_cross(grid_vec(suu.as_ref(), over.0, over.1), h_sv),
+                rv_cross(h_su, grid_vec(suv.as_ref(), over.0, over.1)),
+            );
+            let d_v = rv_add(
+                rv_cross(grid_vec(suv.as_ref(), over.0, over.1), h_sv),
+                rv_cross(h_su, grid_vec(svv.as_ref(), over.0, over.1)),
+            );
+            Ok(AreaCell {
+                g_mid: sqrt_enclosure(cm[0].sqr() + cm[1].sqr() + cm[2].sqr()),
+                g_u: norm_hi(d_u),
+                g_v: norm_hi(d_v),
+                g_hull: sqrt_enclosure(ch[0].sqr() + ch[1].sqr() + ch[2].sqr()),
+            })
+        },
+    )?;
 
     // ---- The exact per-span lane first (fn docs): one tensor
     // Newton–Cotes pass whose enclosure width is ring rounding only.
@@ -2362,6 +2492,100 @@ pub fn nurbs_patch_face<T: Decide>(
 mod tests {
     use super::*;
     use geom_core::Tolerance;
+
+    /// The corpus's declared ambient uncertainty — the ε the fixed
+    /// quadrature schedule (D9) is dimensioned for, and the boundary
+    /// the ε-row postures below are pinned against.
+    const CORPUS_EPS: f64 = 1e-9;
+
+    /// The three HONEST outcomes of an ε-coupled convergence row.
+    ///
+    /// The target is `QUAD_TARGET_LEN_FACTOR·ε` while the refinement
+    /// schedule is FIXED (D9), so the same patch that certifies at
+    /// ε = 1e-6 genuinely cannot at ε = 1e-12: the target is a million
+    /// times tighter and the rounds do not grow. A row asserting `Ok`
+    /// unconditionally is ε-BLIND, not strict — it fails on the hosted
+    /// ε matrix for a reason that is the lane working correctly.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum EpsPosture {
+        /// The enclosure certified — it must CONTAIN the truth.
+        Certified,
+        /// [`PropsError::QuadratureBudget`]: the fixed schedule's floor
+        /// is DEFINITELY above the run's target.
+        Budget,
+        /// The same shortfall, in-band for the run's `Band{ε, Kε}` — so
+        /// `props_quad_converged` escalates through the funnel before
+        /// the budget can run out. The two-tolerance twin the
+        /// [`PropsError::QuadratureBudget`] docs name.
+        Escalated,
+    }
+
+    /// Assert the ε-row posture of one patch outcome and return it.
+    ///
+    /// Every arm PINS its live signature so a row can never be green
+    /// for the wrong reason:
+    ///
+    /// - certified ⇒ both enclosures contain their truths (this is the
+    ///   arm that catches a tight-but-WRONG bracket, the M8-3 MAJOR);
+    /// - budget ⇒ the carried `width_len` really did exceed
+    ///   `target_len`, AND that target IS `1024·ε` for this run;
+    /// - escalated ⇒ the predicate is `props_quad_converged` and
+    ///   nothing else, with an in-band margin.
+    ///
+    /// Any other error is an unsound outcome and panics. Nothing here
+    /// widens a target, loosens a schedule, or special-cases ε into
+    /// certifying.
+    fn eps_posture(
+        row: &str,
+        out: &Result<FaceCutBounds, PropsError>,
+        truth_flux: f64,
+        truth_area: f64,
+        slack: f64,
+    ) -> EpsPosture {
+        let target = QUAD_TARGET_LEN_FACTOR * Tolerance::get().eps;
+        match out {
+            Ok(b) => {
+                for (what, encl, truth) in
+                    [("flux", b.flux, truth_flux), ("area", b.area, truth_area)]
+                {
+                    assert!(
+                        encl.lo() - slack <= truth && truth <= encl.hi() + slack,
+                        "{row}: {what} {encl:?} EXCLUDES the truth {truth}"
+                    );
+                }
+                EpsPosture::Certified
+            }
+            Err(PropsError::QuadratureBudget {
+                width_len,
+                target_len,
+            }) => {
+                assert!(
+                    width_len.is_finite() && width_len > target_len,
+                    "{row}: a budget refusal must carry a width that really missed: \
+                     {width_len:e} vs {target_len:e}"
+                );
+                assert!(
+                    (target_len - target).abs() <= target * 1e-12,
+                    "{row}: the refused target must BE 1024·ε for this run: \
+                     {target_len:e} vs {target:e}"
+                );
+                EpsPosture::Budget
+            }
+            Err(PropsError::Escalated { cause }) => {
+                assert_eq!(
+                    cause.predicate,
+                    Some("props_quad_converged"),
+                    "{row}: only the convergence predicate may escalate here: {cause:?}"
+                );
+                assert!(
+                    matches!(cause.margin, geom_core::MarginDiag::Value(m) if m.is_finite()),
+                    "{row}: the escalation must carry a finite in-band margin: {cause:?}"
+                );
+                EpsPosture::Escalated
+            }
+            Err(e) => panic!("{row}: unsound outcome {e:?}"),
+        }
+    }
 
     fn chan(c0: f64, ca: f64, cb: f64, cl: f64) -> HarmChan {
         HarmChan {
@@ -2660,17 +2884,11 @@ mod tests {
             0.0,
             Tolerance::get().eps,
             band,
-        )
-        .expect("the rational lane certifies the reparameterized square");
-        assert!(
-            out.flux.lo() <= 1.0 && 1.0 <= out.flux.hi(),
-            "flux enclosure must contain the exact 1: {:?}",
-            out.flux
         );
-        assert!(
-            out.area.lo() <= 1.0 && 1.0 <= out.area.hi(),
-            "area enclosure must contain the exact 1: {:?}",
-            out.area
+        let posture = eps_posture("reparameterized square", &out, 1.0, 1.0, 0.0);
+        eprintln!(
+            "EPS-ROW reparameterized square @ eps={:e}: {posture:?}",
+            Tolerance::get().eps
         );
     }
 
@@ -2713,18 +2931,167 @@ mod tests {
             0.0,
             Tolerance::get().eps,
             band,
-        )
-        .expect("the rational lane certifies the two-span quarter cylinder");
+        );
         let truth = core::f64::consts::PI;
-        assert!(
-            out.flux.lo() <= truth && truth <= out.flux.hi(),
-            "two-span flux must contain π: {:?}",
-            out.flux
+        let posture = eps_posture("two-span quarter cylinder", &out, truth, truth, 0.0);
+        eprintln!(
+            "EPS-ROW two-span quarter cylinder @ eps={:e}: {posture:?}",
+            Tolerance::get().eps
+        );
+    }
+
+    /// **The multiplicity ladder** (#313, the MAJOR's regression row).
+    /// One degree-3 wall, one interior knot at `u = 0.5`, walked over
+    /// every multiplicity the clamped invariant admits — `1..degree+1`,
+    /// i.e. C² down to the C⁰ kink — through BOTH lanes (non-unit
+    /// weights → rational, the unit-weight twin → integral).
+    ///
+    /// `deriv_kv` cannot represent the derivative knot vector from
+    /// multiplicity `degree` upward; before the fix that fell through
+    /// to a per-span CONSTANT first derivative, and the lane returned a
+    /// thin enclosure that EXCLUDED the truth. The oracle here is
+    /// independent — `geom_core`'s Book-A2.3 basis ladder and the
+    /// quotient rule, not this file's de Boor — and the standing claim
+    /// is the one the MAJOR broke: **an answer always contains the
+    /// truth; the alternative is a typed refusal, never a wrong
+    /// bracket.**
+    #[test]
+    #[allow(clippy::too_many_lines)] // the ladder plus its own oracle
+    fn interior_multiplicity_ladder_never_certifies_a_wrong_enclosure() {
+        use geom_core::spline::basis::ders_basis_funs;
+        let band = Band::linear().unwrap();
+        let kv_v = KnotVector::unit_segment(1);
+        let (pu, pv, nv, height) = (3usize, 1usize, 2usize, 2.0f64);
+        let mut postures: Vec<(String, EpsPosture)> = Vec::new();
+        for mult in 1..=pu {
+            let mut knots = vec![0.0; pu + 1];
+            knots.extend(core::iter::repeat_n(0.5, mult));
+            knots.extend(core::iter::repeat_n(1.0, pu + 1));
+            let kv_u = KnotVector::clamped(knots, pu).unwrap();
+            let count = kv_u.control_count();
+            // A curved wall: a flaring quarter-turn profile extruded.
+            #[allow(clippy::cast_precision_loss)]
+            let profile: Vec<(f64, f64)> = (0..count)
+                .map(|i| {
+                    let s = i as f64 / (count - 1) as f64;
+                    let (a, r) = (s * core::f64::consts::FRAC_PI_2, 0.2f64.mul_add(s, 1.0));
+                    (r * a.cos(), r * a.sin())
+                })
+                .collect();
+            #[allow(clippy::cast_precision_loss)]
+            let profile_w: Vec<f64> = (0..count)
+                .map(|i| 0.06f64.mul_add((i % 3) as f64, 1.0))
+                .collect();
+            for rational in [false, true] {
+                let mut net_f: Vec<[f64; 3]> = Vec::with_capacity(count * nv);
+                let mut ws: Vec<f64> = Vec::with_capacity(count * nv);
+                for (i, (x, y)) in profile.iter().enumerate() {
+                    for z in [0.0, height] {
+                        net_f.push([*x, *y, z]);
+                        ws.push(if rational { profile_w[i] } else { 1.0 });
+                    }
+                }
+                let net: Vec<RVec3> = net_f
+                    .iter()
+                    .map(|q| [pt(q[0]), pt(q[1]), pt(q[2])])
+                    .collect();
+                // The INDEPENDENT oracle: S = A/W through geom-core's
+                // basis ladder, S_d by the quotient rule.
+                let at = |u: f64, v: f64| -> ([f64; 3], [f64; 3], [f64; 3]) {
+                    let bu = ders_basis_funs::<f64>(&kv_u, kv_u.find_span(u), u, 1);
+                    let bv = ders_basis_funs::<f64>(&kv_v, kv_v.find_span(v), v, 1);
+                    let (su, sv) = (kv_u.find_span(u), kv_v.find_span(v));
+                    let (mut a, mut w) = ([[0.0f64; 3]; 3], [0.0f64; 3]);
+                    for (r, (nu0, nu1)) in bu[0].iter().zip(&bu[1]).enumerate() {
+                        for (s, (nv0, nv1)) in bv[0].iter().zip(&bv[1]).enumerate() {
+                            let idx = (su - pu + r) * nv + (sv - pv + s);
+                            let (ww, q) = (ws[idx], net_f[idx]);
+                            let b = [nu0 * nv0, nu1 * nv0, nu0 * nv1];
+                            for k in 0..3 {
+                                w[k] += b[k] * ww;
+                                for (c, aq) in a[k].iter_mut().enumerate() {
+                                    *aq += b[k] * ww * q[c];
+                                }
+                            }
+                        }
+                    }
+                    let quot = |k: usize| -> [f64; 3] {
+                        core::array::from_fn(|c| (a[k][c] * w[0] - a[0][c] * w[k]) / (w[0] * w[0]))
+                    };
+                    (core::array::from_fn(|c| a[0][c] / w[0]), quot(1), quot(2))
+                };
+                let (nu_s, nv_s) = (2048usize, 64usize);
+                #[allow(clippy::cast_precision_loss)]
+                let (hu, hv) = (1.0 / nu_s as f64, 1.0 / nv_s as f64);
+                let (mut o_flux, mut o_area) = (0.0f64, 0.0f64);
+                for i in 0..nu_s {
+                    for j in 0..nv_s {
+                        #[allow(clippy::cast_precision_loss)]
+                        let (u, v) = ((i as f64 + 0.5) * hu, (j as f64 + 0.5) * hv);
+                        let (s, s_u, s_v) = at(u, v);
+                        let cr = [
+                            s_u[1] * s_v[2] - s_u[2] * s_v[1],
+                            s_u[2] * s_v[0] - s_u[0] * s_v[2],
+                            s_u[0] * s_v[1] - s_u[1] * s_v[0],
+                        ];
+                        o_flux += (s[0] * cr[0] + s[1] * cr[1] + s[2] * cr[2]) * hu * hv;
+                        o_area += (cr[0].powi(2) + cr[1].powi(2) + cr[2].powi(2)).sqrt() * hu * hv;
+                    }
+                }
+                let lane = if rational { "rational" } else { "integral" };
+                let row = format!("mult {mult} / {lane}");
+                let out = nurbs_patch_face::<f64>(
+                    &kv_u,
+                    &kv_v,
+                    &net,
+                    &ws,
+                    (0.0, 1.0, 0.0, 1.0),
+                    10.0,
+                    0.0,
+                    Tolerance::get().eps,
+                    band,
+                );
+                // The slack is the ORACLE's discretization error, not
+                // the lane's: on the polynomial rows the exact
+                // Newton–Cotes lane returns the truth to rounding and
+                // the dense midpoint sum lands 2.6e-7 off it (O(h²) at
+                // 2048 u-samples, measured). 1e-5 is 40x that headroom
+                // and still ~900x tighter than the exclusion the MAJOR
+                // produced.
+                postures.push((row.clone(), eps_posture(&row, &out, o_flux, o_area, 1e-5)));
+            }
+        }
+        eprintln!(
+            "EPS-ROW multiplicity ladder @ eps={:e}: {postures:?}",
+            Tolerance::get().eps
+        );
+        // Anti-vacuity, ε-KEYED rather than waived. The INTEGRAL rows
+        // ride the exact per-span Newton–Cotes lane, whose width is
+        // ring rounding only — ε-independent, so they must certify on
+        // EVERY row of the matrix. The RATIONAL rows ride the O(h²)
+        // composite against an ε-coupled target, so they certify at the
+        // corpus ε and coarser and refuse typed below it; that boundary
+        // is PINNED, not relaxed, and a posture that moves in either
+        // direction is a finding.
+        let certified: Vec<&str> = postures
+            .iter()
+            .filter(|(_, p)| *p == EpsPosture::Certified)
+            .map(|(r, _)| r.as_str())
+            .collect();
+        let expected = if Tolerance::get().eps >= CORPUS_EPS {
+            2 * pu
+        } else {
+            pu
+        };
+        assert_eq!(
+            certified.len(),
+            expected,
+            "the ladder's ε posture MOVED at eps={:e}: certified {certified:?}, all {postures:?}",
+            Tolerance::get().eps
         );
         assert!(
-            out.area.lo() <= truth && truth <= out.area.hi(),
-            "two-span area must contain π: {:?}",
-            out.area
+            certified.iter().all(|r| r.ends_with("integral")) || certified.len() == 2 * pu,
+            "below the corpus ε only the exact-lane (integral) rows may certify: {certified:?}"
         );
     }
 
@@ -2761,18 +3128,12 @@ mod tests {
             0.0,
             Tolerance::get().eps,
             band,
-        )
-        .expect("the rational lane certifies the quarter cylinder");
-        let truth = core::f64::consts::PI;
-        assert!(
-            out.flux.lo() <= truth && truth <= out.flux.hi(),
-            "flux enclosure must contain π: {:?}",
-            out.flux
         );
-        assert!(
-            out.area.lo() <= truth && truth <= out.area.hi(),
-            "area enclosure must contain π: {:?}",
-            out.area
+        let truth = core::f64::consts::PI;
+        let posture = eps_posture("quarter cylinder", &out, truth, truth, 0.0);
+        eprintln!(
+            "EPS-ROW quarter cylinder @ eps={:e}: {posture:?}",
+            Tolerance::get().eps
         );
     }
 

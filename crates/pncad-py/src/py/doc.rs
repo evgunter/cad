@@ -8,9 +8,9 @@
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
-use crate::errors::{ErrorClass, check_literal};
+use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::edit_error_tag;
+use crate::tags::{edit_error_tag, expr_dimension_error_tag, persist_error_tag};
 use pncad::document as d;
 
 /// Raise `EditError` carrying the refusal's stable tag.
@@ -19,48 +19,51 @@ fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
     typed_err(
         py,
         ErrorClass::Edit,
-        // `EditError` implements no `Display`, so the human message is
-        // its `Debug` rendering; the machine-readable payload is the
-        // `variant` tag attached below (see `crate::tags`).
-        format!("{err:?}"),
+        // `EditError` implements `Display` (LIB-DOORS F6, reopened on
+        // review): the human message is real prose; the machine
+        // payload is the `variant` tag (see `crate::tags`).
+        err.to_string(),
         &[("variant", PyString::new(py, tag).unbind().into_any())],
     )
 }
 
-/// Raise `LiteralError` for a value the boundary refuses.
-fn literal_err(py: Python<'_>, refusal: &crate::errors::LiteralRefusal) -> PyErr {
-    use crate::errors::LiteralRefusal as R;
-    let (kind, value) = match refusal {
-        R::NonFinite { value } => ("non_finite", Some(*value)),
-        R::CountIsInteger => ("count_is_integer", None),
-    };
-    let mut fields: Vec<(&str, Py<PyAny>)> =
-        vec![("kind", PyString::new(py, kind).unbind().into_any())];
-    if let Some(value) = value {
-        match value.into_pyobject(py) {
-            Ok(bound) => fields.push(("value", bound.unbind().into_any())),
-            Err(failed) => return failed.into(),
-        }
-    }
-    typed_err(py, ErrorClass::Literal, refusal.to_string(), &fields)
+/// Raise `PersistError` carrying the refusal's stable tag.
+fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
+    let tag = persist_error_tag(err);
+    typed_err(
+        py,
+        ErrorClass::Persist,
+        // `PersistError` implements `Display`, so the human message is
+        // real prose; the machine payload is still the tag.
+        err.to_string(),
+        &[("variant", PyString::new(py, tag).unbind().into_any())],
+    )
 }
 
 /// Build a dimensioned literal expression, refusing at the boundary.
 ///
-/// `Expr::literal`'s own error type is not re-exported by the façade
-/// (a recorded FINDING), so the two conditions it refuses are checked
-/// here first; the residual `map_err` never needs to name the type.
+/// The refusal is `Expr::literal`'s OWN error type, matched — not
+/// predicted: the pre-check this function used to carry (LIB-U9S's F5
+/// workaround, from before the façade curated `DimensionError`) is
+/// gone, so the binding cannot drift from what the kernel refuses.
+/// The exception keeps U9S's payload: `kind` (the stable tag) AND
+/// `value`, the offending number — the kernel error deliberately
+/// carries no float, but the boundary has it in hand.
 pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult<d::Expr> {
-    let checked = check_literal(value, dim).map_err(|refusal| literal_err(py, &refusal))?;
-    d::Expr::literal(checked, dim).map_err(|_| {
+    d::Expr::literal(value, dim).map_err(|err| {
+        let tag = expr_dimension_error_tag(&err);
+        let value_obj = match value.into_pyobject(py) {
+            Ok(bound) => bound.unbind().into_any(),
+            Err(failed) => return failed.into(),
+        };
         typed_err(
             py,
             ErrorClass::Literal,
-            "the document layer refused a literal the boundary admitted",
-            &[(
-                "kind",
-                PyString::new(py, "kernel_refused").unbind().into_any(),
-            )],
+            format!("literal {value}: {err}"),
+            &[
+                ("kind", PyString::new(py, tag).unbind().into_any()),
+                ("value", value_obj),
+            ],
         )
     })
 }
@@ -95,7 +98,7 @@ impl NodeId {
 /// guarantees, because the swap only happens on `Ok`.
 #[pyclass(module = "pncad")]
 pub(crate) struct Doc {
-    pub(crate) inner: d::Doc<d::ProfileDesc>,
+    pub(crate) inner: d::ProfileDoc,
 }
 
 #[pymethods]
@@ -104,7 +107,7 @@ impl Doc {
     #[new]
     fn new() -> Self {
         Self {
-            inner: d::Doc::empty(),
+            inner: d::ProfileDoc::empty(),
         }
     }
 
@@ -161,6 +164,18 @@ impl Doc {
         self.inner.bit_eq(&other.inner)
     }
 
+    /// Serialize this document to the persistence text format
+    /// (LIB-DOORS F1; the schema-v4 doors, via the curated façade).
+    ///
+    /// The Python wrapper holds only the CURRENT document — its edit
+    /// history lives in the Rust values it discarded — so the file is
+    /// a snapshot with an empty edit log. That is a complete, loadable
+    /// document; the GUI's edit-log-bearing files load through the
+    /// same `load` door.
+    fn save(&self, py: Python<'_>) -> PyResult<String> {
+        d::save(&self.inner, &[]).map_err(|err| persist_err(py, &err))
+    }
+
     fn __len__(&self) -> usize {
         self.inner.len()
     }
@@ -202,7 +217,7 @@ impl BooleanOp {
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Node {
-    pub(crate) inner: d::Node<d::ProfileDesc>,
+    pub(crate) inner: d::Node<d::ProfileProgram>,
 }
 
 #[pymethods]
@@ -224,24 +239,46 @@ impl Node {
     #[staticmethod]
     #[pyo3(signature = (points, elevation=None))]
     fn polygon(
+        py: Python<'_>,
         points: Vec<(super::quantity::Length, super::quantity::Length)>,
         elevation: Option<super::quantity::Length>,
-    ) -> Self {
-        let meters: Vec<(f64, f64)> = points
-            .iter()
-            .map(|(x, y)| (x.0.meters(), y.0.meters()))
-            .collect();
+    ) -> PyResult<Self> {
         let z = elevation.map_or(0.0, |e| e.0.meters());
         let plane = pncad::profile::SketchPlane::from_frame(
             pncad::authoring::p3::<f64>(0.0, 0.0, z),
             pncad::authoring::v3(1.0, 0.0, 0.0),
             pncad::authoring::v3(0.0, 1.0, 0.0),
         );
-        let loops = vec![pncad::authoring::polygon::<f64>(&meters)];
-        let profile = pncad::profile::Profile::new(plane, loops);
-        Self {
-            inner: d::Node::Profile(d::ProfileDesc(profile)),
+        // The polygon as a loop PROGRAM (the post-switch v4 payload:
+        // the program IS the profile's definition): anchor at the
+        // first vertex, one `line_to` per remaining vertex, close by
+        // targeting `Start`. Too few points is not pre-checked — the
+        // edit door's replay probe refuses it typed, at `insert`.
+        let point = |py2: Python<'_>,
+                     p: &(super::quantity::Length, super::quantity::Length)|
+         -> PyResult<[d::Expr; 2]> {
+            Ok([
+                literal(py2, p.0.0.meters(), d::Dimension::Length)?,
+                literal(py2, p.1.0.meters(), d::Dimension::Length)?,
+            ])
+        };
+        let mut steps = Vec::with_capacity(points.len() + 1);
+        let mut vertices = points.iter();
+        if let Some(first) = vertices.next() {
+            steps.push(d::ProgramStep::At(point(py, first)?));
         }
+        for p in vertices {
+            steps.push(d::ProgramStep::LineTo(d::ProgramTarget::Point(point(
+                py, p,
+            )?)));
+        }
+        steps.push(d::ProgramStep::LineTo(d::ProgramTarget::Start));
+        Ok(Self {
+            inner: d::Node::Profile(d::ProfileProgram {
+                plane,
+                loops: vec![d::LoopProgram::Chain(steps)],
+            }),
+        })
     }
 
     /// Extrude an upstream profile along its sketch-plane normal.
@@ -325,14 +362,15 @@ impl Node {
 /// names as the ONE API surface shared by the GUI, the bindings, macro
 /// recording and headless tests.
 ///
-/// This scaffold exposes the three edits the smoke journey needs. The
-/// remaining variants (re-witnessing, appearance, rebinds, expression
-/// paths) are mechanical additions once the surface they need is
-/// curated.
+/// Three edits are exposed today: `insert_node`, `delete_node` and
+/// `set_tolerance`. The remaining variants (parameter edits,
+/// re-witnessing, appearance, rebinds, expression paths) are
+/// mechanical additions once the surface they need is curated —
+/// tracked as named gaps in `docs/guide/north-star-audit.md`.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct DocEdit {
-    pub(crate) inner: d::DocEdit<d::ProfileDesc>,
+    pub(crate) inner: d::DocEdit<d::ProfileProgram>,
 }
 
 #[pymethods]
@@ -364,6 +402,65 @@ impl DocEdit {
     }
 }
 
+/// A loaded document (LIB-DOORS F1): what the persistence door
+/// answered — the snapshot as saved, the replayed current state, and
+/// how many recorded edits the replay ran.
+#[pyclass(frozen, module = "pncad")]
+pub(crate) struct Loaded {
+    snapshot: d::ProfileDoc,
+    doc: d::ProfileDoc,
+    edit_count: usize,
+}
+
+#[pymethods]
+impl Loaded {
+    /// The current document: the snapshot with every recorded edit
+    /// replayed through the `apply` door.
+    #[getter]
+    fn doc(&self) -> Doc {
+        Doc {
+            inner: self.doc.clone(),
+        }
+    }
+
+    /// The snapshot exactly as saved, before replay.
+    #[getter]
+    fn snapshot(&self) -> Doc {
+        Doc {
+            inner: self.snapshot.clone(),
+        }
+    }
+
+    /// How many recorded edits the load replayed.
+    #[getter]
+    fn edit_count(&self) -> usize {
+        self.edit_count
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Loaded({} nodes, {} replayed edits)",
+            self.doc.len(),
+            self.edit_count
+        )
+    }
+}
+
+/// Parse, validate, and replay a saved document (LIB-DOORS F1).
+///
+/// Every refusal is a typed `PersistError` carrying the arm's stable
+/// `variant` tag — bad header, unknown schema, unparseable body, a
+/// snapshot or edit log the shared validator rejects, an ε conflict.
+#[pyfunction]
+pub(crate) fn load(py: Python<'_>, text: &str) -> PyResult<Loaded> {
+    let loaded = d::load(text).map_err(|err| persist_err(py, &err))?;
+    Ok(Loaded {
+        snapshot: loaded.snapshot,
+        doc: loaded.doc,
+        edit_count: loaded.edits.len(),
+    })
+}
+
 /// Register the document surface on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NodeId>()?;
@@ -371,5 +468,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DocEdit>()?;
     m.add_class::<Node>()?;
     m.add_class::<BooleanOp>()?;
+    m.add_class::<Loaded>()?;
+    m.add_function(wrap_pyfunction!(load, m)?)?;
     Ok(())
 }

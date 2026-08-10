@@ -1,13 +1,26 @@
-"""Type stubs for the `pncad` extension module (LIB-U9S scaffold).
+"""Type stubs for the `pncad` extension module.
+
+`pncad` is a B-rep CAD kernel. Python speaks its DOCUMENT layer: you
+insert nodes describing what to build, evaluate the document, and read
+typed values out. `docs/GUIDE.md` §2.8 walks the canonical journey and
+`crates/pncad-py/examples/bracket.py` is a complete script.
 
 LIBRARY-DESIGN §L4's two-layer story: these stubs are the STATIC
 layer, checked by `ty`; the runtime layer lives once at the Rust
-boundary and never re-verifies inside Python.
+boundary and never re-verifies inside Python. `tests/test_stubs.py`
+compares this file name-for-name against the compiled module, so the
+two cannot drift.
 
-The PATHS lattice (`PathOpen`/`PathPoint`/`PathAngle`/`PathDirected`)
-is deliberately ABSENT: profile authoring ships only against the v2
-program representation (LQ4), so its stub lattice belongs to the unit
-that binds it, not to this scaffold.
+Refusals are typed: every exception below carries its payload as
+ATTRIBUTES, never as prose to be parsed.
+
+Deliberately ABSENT, and tracked as named gaps in
+`docs/guide/north-star-audit.md`: the PATHS authoring lattice
+(`PathOpen`/`PathPoint`/`PathAngle`/`PathDirected`, which ships only
+against the v2 program representation, LQ4), tessellation and STL,
+selectors and stable names, contact declarations, and named document
+parameters. Profile authoring here is `Node.polygon` only — one
+straight-segment loop on a plane parallel to the world xy-plane.
 """
 
 from typing import Any, Final, Optional
@@ -25,10 +38,19 @@ class EditError(PncadError):
     variant: str
 
 class EvaluationError(PncadError):
-    """A node produced no value, or produced the wrong kind."""
+    """A node produced no value, or produced the wrong kind.
+
+    `reason` is `unknown_node`, `wrong_kind`, `empty_boolean`,
+    `node_failed`, or `poisoned`. `kind` (the `NodeErrorKind`'s
+    stable tag) and `through` (the nearest failed ancestor) are
+    always present, `None` where the reason has neither (LIB-DOORS
+    F3; attributes never go missing).
+    """
 
     reason: str
     node: NodeId
+    kind: Optional[str]
+    through: Optional[NodeId]
 
 class ValidationError(PncadError):
     """A body failed a validator, or mass properties could not be taken."""
@@ -44,10 +66,32 @@ class DimensionError(PncadError):
     right: str
 
 class LiteralError(PncadError):
-    """A value refused before it reached the kernel."""
+    """A value the expression layer refused (`Expr::literal`'s own
+    curated error, LIB-DOORS F5). `value` is the offending number."""
 
     kind: str
     value: float
+
+class PersistError(PncadError):
+    """A save or load the persistence doors refused (LIB-DOORS F1)."""
+
+    variant: str
+
+class ExportError(PncadError):
+    """The document-layer export door refused (LIB-DOORS F2).
+    `through` (poisoning ancestor) and `kind` (the wrong-kind value's
+    tag) are always present, `None` where inapplicable."""
+
+    variant: str
+    node: NodeId
+    through: Optional[NodeId]
+    kind: Optional[str]
+
+class StepImportError(PncadError):
+    """A STEP text the importer refused (`refused`), or one that
+    parsed to a non-solid (`wireframe`)."""
+
+    variant: str
 
 # --- quantities -------------------------------------------------------
 # Canonical metres and radians underneath (GQ5). The arithmetic is
@@ -181,7 +225,23 @@ class Doc:
     @property
     def epsilon(self) -> float: ...
     def bit_eq(self, other: Doc) -> bool: ...
+    def save(self) -> str: ...
     def __len__(self) -> int: ...
+
+class Loaded:
+    """A loaded document: snapshot, replayed current state, and the
+    replayed edit count (LIB-DOORS F1)."""
+
+    @property
+    def doc(self) -> Doc: ...
+    @property
+    def snapshot(self) -> Doc: ...
+    @property
+    def edit_count(self) -> int: ...
+
+def load(text: str) -> Loaded:
+    """Parse, validate, and replay a saved document. Raises
+    PersistError, typed."""
 
 # --- values -----------------------------------------------------------
 
@@ -234,8 +294,17 @@ class Evaluation:
     def recomputed(self) -> int: ...
     @property
     def reused(self) -> int: ...
+    def step_string(
+        self,
+        node: NodeId,
+        product_name: Optional[str] = None,
+    ) -> str: ...
 
 def evaluate(doc: Doc) -> Evaluation:
     """Evaluate a document. Total — never raises."""
+
+def import_step(text: str) -> Body:
+    """Parse a STEP text with the kernel's importer and adopt its
+    solid — the round-trip oracle. Raises StepImportError, typed."""
 
 __build_info__: Final[dict[str, Any]]

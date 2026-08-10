@@ -26,6 +26,28 @@ fn loft_at(zs: &[f64]) -> Body<f64> {
         .body
 }
 
+/// A RATIONAL-walled loft (M8-5): a pie-slice profile whose curved
+/// side is a single-span arc (bulge 0.4 — safely under the quarter-turn
+/// sub-arc split, so no C⁰ double knot), lofted straight up. Its wall
+/// is a genuinely rational NURBS face (weights `[1, cos(θ/2), 1]`) —
+/// the class M8-2's rational span meter made BUILDABLE and whose
+/// Hessian/sagitta bounds M8-5 certifies (`nurbs_cert`/`chords`).
+fn rational_pie() -> Body<f64> {
+    let v = |x: f64, y: f64, bulge: f64| sweep::ProfileVertex {
+        pos: Point2::new(x, y),
+        bulge,
+    };
+    let lp = sweep::ProfileLoop::new(vec![v(1.0, 0.0, 0.4), v(0.0, 1.0, 0.0), v(0.0, 0.0, 0.0)]);
+    let sections = vec![vec![lp.clone()], vec![lp]];
+    let places: Vec<Affine3<f64>> = [0.0, 1.0]
+        .iter()
+        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .collect();
+    loft_body::<f64>(&sections, &places, 1)
+        .expect("the rational pie lofts")
+        .body
+}
+
 fn swept_elbow() -> Body<f64> {
     let (r, h) = (3.0, 0.25);
     let path = segment_curve(
@@ -85,6 +107,48 @@ fn z1_per_triangle_certificate_falsification() {
         }
     }
     mesh::probe_stats::arm(false);
+}
+
+/// Z1R (M8-5, the FRONTIER PIN): the rational pie BUILDS (M8-2's
+/// rational span meter) and its wall's Hessian bound is certified
+/// (`nurbs_cert`'s rational arm — falsified per-triangle at unit
+/// level, `rational_z1_lattice_falsification`), but full-body
+/// tessellation still refuses TODAY one gate upstream of both M8-5
+/// gates: `topo::pcurves::chart_mints` declines to mint stored pcurve
+/// caches for rational NURBS charts (its comment still cites the
+/// pre-M8-2 "rational walls refuse at the volume door" world), and the
+/// arc cap rim's chart image (chart u = the segment's rational-Bézier
+/// parameter, carrier t = the arc ANGLE — a non-affine map) has no
+/// `Pcurve` derivation lane at all. Both live in topo/geom-brep — the
+/// M8-3 lane's crates, out of this unit's fence.
+///
+/// RETIREMENT CONDITION: when the topo lane mints rational-wall
+/// caches (IsoCurve seams derive weight-agnostically already; the arc
+/// rim needs its new image lane), this pin flips: move `rational_pie`
+/// into the z1 fixture list above and delete this test — the armed
+/// per-triangle falsifier then covers the rational lane end to end.
+#[test]
+fn z1r_rational_wall_full_body_frontier_pin() {
+    match mesh::tessellate(&rational_pie(), 1e-2) {
+        // Pinned by VARIANT plus the specific missing-cache note (R1
+        // MINOR-1): a rewording elsewhere that happens to say "pcurve"
+        // must not green this pin silently.
+        Err(mesh::TessellateError::UnsupportedCurve { note, .. }) => {
+            assert!(
+                note.contains("no stored pcurve cache"),
+                "the rational pie must refuse at the MISSING-CACHE gate (the \
+                 out-of-fence frontier), not anywhere new: {note}"
+            );
+        }
+        Err(other) => panic!(
+            "the rational pie must refuse UnsupportedCurve at the missing-cache \
+             gate, got {other:?}"
+        ),
+        Ok(_) => panic!(
+            "the rational pie tessellated — the topo pcurve frontier has LANDED; \
+             retire this pin per its doc (promote rational_pie into z1)"
+        ),
+    }
 }
 
 /// Z2 (d'): a NURBS-face half-edge with NO stored pcurve must refuse
