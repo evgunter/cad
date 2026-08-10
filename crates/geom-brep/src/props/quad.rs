@@ -698,6 +698,25 @@ const QUAD2_INIT_PIECES: usize = 8;
 /// 1-D lane because cells grow quadratically; the rule's error is
 /// O(h²), so real patches converge in the first rounds or not at all.
 const QUAD2_MAX_ROUNDS: usize = 6;
+/// Blocks per axis for the RATIONAL lane's Taylor-remainder hulls
+/// (fixed, D9 — never data-dependent). `QUAD2_INIT_PIECES` is a
+/// multiple of it, so every block owns whole cells at every
+/// refinement level ([`rational_patch_face`]).
+const QUAD2_HULL_BLOCKS: usize = 8;
+/// Refinement rounds for the RATIONAL lane (pieces double per axis
+/// per round: ≤ `8·2⁷ = 1024` per axis). More rounds than the
+/// integral composite because the rational lane has no exact per-span
+/// shortcut to fall back on — the midpoint rule's O(h²) IS the whole
+/// convergence story there ([`rational_patch_face`]).
+const QUAD2_RATIONAL_MAX_ROUNDS: usize = 7;
+/// Cells per axis of the RATIONAL lane's area pass (fixed, D9). Its
+/// midpoint-plus-Taylor-pad rule is O(h), so the resolution sets the
+/// area's honest width directly ([`rational_patch_face`]).
+const QUAD2_AREA_PIECES: usize = 64;
+/// Spans per axis the RATIONAL lane refines its bracketed net to
+/// before hulling anything (fixed, D9) — see [`refine_dir`] for why
+/// span-granular hulls make this the only lever that works.
+const QUAD2_REFINE_SPANS: usize = 16;
 
 /// A ring-bracketed 3-vector (a control point, an enclosure).
 pub type RVec3 = [RingInterval; 3];
@@ -942,6 +961,39 @@ impl PatchGrid {
         Self::collapse_1d(&self.du, &rows, u)
     }
 
+    /// **The u-first collapse**: this grid's three channels reduced in
+    /// the u direction only, leaving one v-coefficient vector each.
+    ///
+    /// Mathematically identical to [`PatchGrid::channel`]'s v-then-u
+    /// order (a tensor collapse commutes); the association differs, so
+    /// the ring rounding does — which is why only the rational lane,
+    /// whose numbers are its own, uses it. Its point is that every
+    /// cell in one column of the composite grid shares the SAME u
+    /// collapse, so hoisting it out of the inner loop turns a
+    /// per-cell `nu`-fold de Boor into a per-column one.
+    fn slice_u(&self, u: Collapse<'_>) -> [Vec<RingInterval>; 3] {
+        core::array::from_fn(|k| {
+            let mut col = vec![RingInterval::zero(); self.nu];
+            (0..self.nv)
+                .map(|j| {
+                    for (i, c) in col.iter_mut().enumerate() {
+                        *c = self.ch[k][i * self.nv + j];
+                    }
+                    Self::collapse_1d(&self.du, &col, u)
+                })
+                .collect()
+        })
+    }
+
+    /// The v collapse of a [`PatchGrid::slice_u`] result.
+    fn at_v(&self, sl: &[Vec<RingInterval>; 3], v: Collapse<'_>) -> RVec3 {
+        [
+            Self::collapse_1d(&self.dv, &sl[0], v),
+            Self::collapse_1d(&self.dv, &sl[1], v),
+            Self::collapse_1d(&self.dv, &sl[2], v),
+        ]
+    }
+
     /// The vector value/hull of the whole triple.
     fn vec(&self, u: Collapse<'_>, v: Collapse<'_>) -> RVec3 {
         [
@@ -1116,9 +1168,716 @@ fn patch_flux_exact(
     Some(flux)
 }
 
+// ---------------------------------------------------------------------
+// The RATIONAL patch lane (M8-3): `S = A/w` through the quotient rule
+// ---------------------------------------------------------------------
+
+/// The derivative ladder of one polynomial (B-spline) net, built once.
+///
+/// The ladder bottoms out in `None` exactly where the polynomial
+/// degree runs out, which [`grid_vec`] reads as the identically-zero
+/// derivative. Two instantiations: the homogeneous position net
+/// `A = w·P` (all three channels) and the weight net `w` (channel 0,
+/// the other two structural zeros).
+struct Ladder {
+    a: PatchGrid,
+    au: Option<PatchGrid>,
+    av: Option<PatchGrid>,
+    auu: Option<PatchGrid>,
+    auv: Option<PatchGrid>,
+    avv: Option<PatchGrid>,
+    auuu: Option<PatchGrid>,
+    auuv: Option<PatchGrid>,
+    auvv: Option<PatchGrid>,
+    avvv: Option<PatchGrid>,
+}
+
+impl Ladder {
+    fn build(kv_u: &KnotVector, kv_v: &KnotVector, net: &[RVec3]) -> Self {
+        let a = PatchGrid::base(kv_u, kv_v, net);
+        let au = a.deriv_u();
+        let av = a.deriv_v();
+        let auu = au.as_ref().and_then(PatchGrid::deriv_u);
+        let auv = au.as_ref().and_then(PatchGrid::deriv_v);
+        let avv = av.as_ref().and_then(PatchGrid::deriv_v);
+        let auuu = auu.as_ref().and_then(PatchGrid::deriv_u);
+        let auuv = auu.as_ref().and_then(PatchGrid::deriv_v);
+        let auvv = auv.as_ref().and_then(PatchGrid::deriv_v);
+        let avvv = avv.as_ref().and_then(PatchGrid::deriv_v);
+        Self {
+            a,
+            au,
+            av,
+            auu,
+            auv,
+            avv,
+            auuu,
+            auuv,
+            auvv,
+            avvv,
+        }
+    }
+
+    /// `N = A·(A_u×A_v)` — the flux integrand's NUMERATOR
+    /// ([`rational_patch_face`] docs derive why the quotient's other
+    /// triple products vanish).
+    fn num(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+        rv_dot(
+            self.a.vec(u, v),
+            rv_cross(
+                grid_vec(self.au.as_ref(), u, v),
+                grid_vec(self.av.as_ref(), u, v),
+            ),
+        )
+    }
+
+    /// `N_uu = A_u·(A_uu×A_v) + A·(A_uuu×A_v) + 2·A·(A_uu×A_uv)
+    /// + A·(A_u×A_uuv)` — the integral lane's `f_uu`, verbatim, on the
+    /// homogeneous net.
+    fn num_uu(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+        let a = self.a.vec(u, v);
+        let au = grid_vec(self.au.as_ref(), u, v);
+        let av = grid_vec(self.av.as_ref(), u, v);
+        let auu = grid_vec(self.auu.as_ref(), u, v);
+        let auv = grid_vec(self.auv.as_ref(), u, v);
+        rv_dot(au, rv_cross(auu, av))
+            + rv_dot(a, rv_cross(grid_vec(self.auuu.as_ref(), u, v), av))
+            + pt(2.0) * rv_dot(a, rv_cross(auu, auv))
+            + rv_dot(a, rv_cross(au, grid_vec(self.auuv.as_ref(), u, v)))
+    }
+
+    /// `N_vv = A_v·(A_u×A_vv) + A·(A_uvv×A_v) + 2·A·(A_uv×A_vv)
+    /// + A·(A_u×A_vvv)`.
+    fn num_vv(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+        let a = self.a.vec(u, v);
+        let au = grid_vec(self.au.as_ref(), u, v);
+        let av = grid_vec(self.av.as_ref(), u, v);
+        let auv = grid_vec(self.auv.as_ref(), u, v);
+        let avv = grid_vec(self.avv.as_ref(), u, v);
+        rv_dot(av, rv_cross(au, avv))
+            + rv_dot(a, rv_cross(grid_vec(self.auvv.as_ref(), u, v), av))
+            + pt(2.0) * rv_dot(a, rv_cross(auv, avv))
+            + rv_dot(a, rv_cross(au, grid_vec(self.avvv.as_ref(), u, v)))
+    }
+
+    /// `N_u = A·(A_uu×A_v) + A·(A_u×A_uv)` (the `A_u·(A_u×A_v)` term
+    /// vanishes identically).
+    fn num_u(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+        let a = self.a.vec(u, v);
+        rv_dot(
+            a,
+            rv_cross(
+                grid_vec(self.auu.as_ref(), u, v),
+                grid_vec(self.av.as_ref(), u, v),
+            ),
+        ) + rv_dot(
+            a,
+            rv_cross(
+                grid_vec(self.au.as_ref(), u, v),
+                grid_vec(self.auv.as_ref(), u, v),
+            ),
+        )
+    }
+
+    /// `N_v = A·(A_uv×A_v) + A·(A_u×A_vv)`.
+    fn num_v(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+        let a = self.a.vec(u, v);
+        rv_dot(
+            a,
+            rv_cross(
+                grid_vec(self.auv.as_ref(), u, v),
+                grid_vec(self.av.as_ref(), u, v),
+            ),
+        ) + rv_dot(
+            a,
+            rv_cross(
+                grid_vec(self.au.as_ref(), u, v),
+                grid_vec(self.avv.as_ref(), u, v),
+            ),
+        )
+    }
+
+    /// The numerator of `S_u×S_v`:
+    /// `w·(A_u×A_v) − w_v·(A_u×A) − w_u·(A×A_v)`, which sits over
+    /// `w³` ([`rational_patch_face`] docs).
+    fn cross_num(&self, w: &Self, u: Collapse<'_>, v: Collapse<'_>) -> RVec3 {
+        let a = self.a.vec(u, v);
+        let au = grid_vec(self.au.as_ref(), u, v);
+        let av = grid_vec(self.av.as_ref(), u, v);
+        let (w0, wu, wv) = (w.chan(u, v), w.chan_u(u, v), w.chan_v(u, v));
+        let base = rv_cross(au, av);
+        let ta = rv_cross(au, a);
+        let tb = rv_cross(a, av);
+        [
+            w0 * base[0] - wv * ta[0] - wu * tb[0],
+            w0 * base[1] - wv * ta[1] - wu * tb[1],
+            w0 * base[2] - wv * ta[2] - wu * tb[2],
+        ]
+    }
+
+    /// The scalar (weight-net) channel reads.
+    fn chan(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+        self.a.channel(0, u, v)
+    }
+    fn chan_u(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+        grid_vec(self.au.as_ref(), u, v)[0]
+    }
+    fn chan_v(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+        grid_vec(self.av.as_ref(), u, v)[0]
+    }
+    fn chan_uu(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+        grid_vec(self.auu.as_ref(), u, v)[0]
+    }
+    fn chan_vv(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+        grid_vec(self.avv.as_ref(), u, v)[0]
+    }
+    fn chan_uv(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+        grid_vec(self.auv.as_ref(), u, v)[0]
+    }
+
+    /// `∂_u` of [`Ladder::cross_num`] — the `w_u·(A_u×A_v)` terms
+    /// cancel identically:
+    /// `w(A_uu×A_v) + w(A_u×A_uv) − w_uv(A_u×A) − w_v(A_uu×A)
+    ///  − w_uu(A×A_v) − w_u(A×A_uv)`.
+    fn cross_num_u(&self, w: &Self, u: Collapse<'_>, v: Collapse<'_>) -> RVec3 {
+        let a = self.a.vec(u, v);
+        let au = grid_vec(self.au.as_ref(), u, v);
+        let av = grid_vec(self.av.as_ref(), u, v);
+        let auu = grid_vec(self.auu.as_ref(), u, v);
+        let auv = grid_vec(self.auv.as_ref(), u, v);
+        let terms = [
+            (w.chan(u, v), rv_cross(auu, av)),
+            (w.chan(u, v), rv_cross(au, auv)),
+            (-w.chan_uv(u, v), rv_cross(au, a)),
+            (-w.chan_v(u, v), rv_cross(auu, a)),
+            (-w.chan_uu(u, v), rv_cross(a, av)),
+            (-w.chan_u(u, v), rv_cross(a, auv)),
+        ];
+        fold_terms(&terms)
+    }
+
+    /// `∂_v` of [`Ladder::cross_num`], the mirror:
+    /// `w(A_uv×A_v) + w(A_u×A_vv) − w_vv(A_u×A) − w_v(A_uv×A)
+    ///  − w_uv(A×A_v) − w_u(A×A_vv)`.
+    fn cross_num_v(&self, w: &Self, u: Collapse<'_>, v: Collapse<'_>) -> RVec3 {
+        let a = self.a.vec(u, v);
+        let au = grid_vec(self.au.as_ref(), u, v);
+        let av = grid_vec(self.av.as_ref(), u, v);
+        let auv = grid_vec(self.auv.as_ref(), u, v);
+        let avv = grid_vec(self.avv.as_ref(), u, v);
+        let terms = [
+            (w.chan(u, v), rv_cross(auv, av)),
+            (w.chan(u, v), rv_cross(au, avv)),
+            (-w.chan_vv(u, v), rv_cross(au, a)),
+            (-w.chan_v(u, v), rv_cross(auv, a)),
+            (-w.chan_uv(u, v), rv_cross(a, av)),
+            (-w.chan_u(u, v), rv_cross(a, avv)),
+        ];
+        fold_terms(&terms)
+    }
+}
+
+/// The u-collapsed slice of the three grids the flux midpoint needs
+/// (`A`, `A_u`, `A_v`) plus the weight channel — [`PatchGrid::slice_u`]
+/// for why this exists.
+struct FluxSlice {
+    a: [Vec<RingInterval>; 3],
+    au: Option<[Vec<RingInterval>; 3]>,
+    av: Option<[Vec<RingInterval>; 3]>,
+    w: [Vec<RingInterval>; 3],
+}
+
+impl Ladder {
+    /// This ladder's flux slice at one u collapse, with the weight
+    /// ladder's base grid alongside.
+    fn flux_slice(&self, w: &Self, u: Collapse<'_>) -> FluxSlice {
+        FluxSlice {
+            a: self.a.slice_u(u),
+            au: self.au.as_ref().map(|g| g.slice_u(u)),
+            av: self.av.as_ref().map(|g| g.slice_u(u)),
+            w: w.a.slice_u(u),
+        }
+    }
+
+    /// `N/w³` from a slice, at one v collapse — the composite rule's
+    /// per-cell integrand.
+    fn integrand_at(&self, w: &Self, sl: &FluxSlice, v: Collapse<'_>) -> RingInterval {
+        let zero = [
+            RingInterval::zero(),
+            RingInterval::zero(),
+            RingInterval::zero(),
+        ];
+        let a = self.a.at_v(&sl.a, v);
+        let au = match (self.au.as_ref(), sl.au.as_ref()) {
+            (Some(g), Some(s)) => g.at_v(s, v),
+            _ => zero,
+        };
+        let av = match (self.av.as_ref(), sl.av.as_ref()) {
+            (Some(g), Some(s)) => g.at_v(s, v),
+            _ => zero,
+        };
+        rv_dot(a, rv_cross(au, av)) / w.a.at_v(&sl.w, v)[0].powi(3)
+    }
+}
+
+/// Ascending-index fold of scaled 3-vector terms (D9).
+fn fold_terms(terms: &[(RingInterval, RVec3)]) -> RVec3 {
+    let mut acc = [
+        RingInterval::zero(),
+        RingInterval::zero(),
+        RingInterval::zero(),
+    ];
+    for (c, v) in terms {
+        for k in 0..3 {
+            acc[k] = acc[k] + *c * v[k];
+        }
+    }
+    acc
+}
+
+/// An upper bound on `|v|` (2-norm) of a bracketed 3-vector.
+fn norm_hi(v: RVec3) -> f64 {
+    sqrt_enclosure(v[0].sqr() + v[1].sqr() + v[2].sqr()).hi()
+}
+
+/// Ring lerp `x + (y − x)·λ` (the plan applier's fixed association),
+/// componentwise — the rounding lands OUTWARD in the brackets, which
+/// is what makes a refined net a certified enclosure of the same
+/// patch rather than a re-approximation of it.
+fn ring_lerp(x: RVec3, y: RVec3, lambda: f64) -> RVec3 {
+    let l = pt(lambda);
+    [
+        x[0] + (y[0] - x[0]) * l,
+        x[1] + (y[1] - x[1]) * l,
+        x[2] + (y[2] - x[2]) * l,
+    ]
+}
+
+/// **Certified knot refinement of a bracketed tensor net**, one
+/// direction, to a FIXED span target (D9: the schedule is a constant,
+/// never data-dependent).
+///
+/// Why the rational lane needs it and the integral lane does not:
+/// every hull this file computes is a control-net convexity fact, and
+/// those are **span-granular** — on a single-span patch the hull over
+/// a sub-cell IS the hull over the whole patch, so no amount of
+/// quadrature refinement tightens a remainder or an area pad. The
+/// integral lane escapes through its exact per-span Newton–Cotes rule;
+/// a rational integrand has none, so the enclosure has to be tightened
+/// where it is actually loose: in the control net. Knot insertion is
+/// exact in ℝ (Book §5.2/§5.3 — it changes the representation, never
+/// the locus) and the control polygon converges to the patch at
+/// O(h²), so `QUAD2_REFINE_SPANS` spans per axis buys roughly two
+/// orders on every hull here.
+///
+/// `None` if the knot algebra refuses (a malformed net) — the caller
+/// then refuses typed rather than proceeding on an unrefined net.
+fn refine_dir(
+    kv: &KnotVector,
+    net: &[RVec3],
+    nv: usize,
+    along_u: bool,
+) -> Option<(KnotVector, Vec<RVec3>, usize)> {
+    let poison = [
+        RingInterval::poison(),
+        RingInterval::poison(),
+        RingInterval::poison(),
+    ];
+    let count = kv.control_count();
+    let other = if along_u { nv } else { net.len() / nv };
+    if count == 0 || nv == 0 || net.len() != count * nv && along_u {
+        return None;
+    }
+    let (d0, d1) = kv.domain();
+    let mut add: Vec<f64> = Vec::new();
+    for k in 1..QUAD2_REFINE_SPANS {
+        #[allow(clippy::cast_precision_loss)]
+        let t = d0 + (d1 - d0) * (k as f64 / QUAD2_REFINE_SPANS as f64);
+        if t > d0 && t < d1 && !kv.knots().iter().any(|u| *u == t) {
+            add.push(t);
+        }
+    }
+    let plans = geom_core::spline::algebra::refine_plan(kv, &vec![1.0; count], &add).ok()?;
+    // Ascending-index fold over the plan chain, then over the lines of
+    // this direction (D9).
+    let mut cur_kv = kv.clone();
+    let mut cur: Vec<Vec<RVec3>> = (0..other)
+        .map(|j| {
+            (0..count)
+                .map(|i| {
+                    let idx = if along_u { i * nv + j } else { j * nv + i };
+                    net[idx]
+                })
+                .collect()
+        })
+        .collect();
+    for plan in &plans {
+        for line in &mut cur {
+            *line = plan.apply_points(line, poison, ring_lerp);
+        }
+        cur_kv = plan.knots().clone();
+    }
+    let new_count = cur_kv.control_count();
+    let (rows, cols) = if along_u {
+        (new_count, other)
+    } else {
+        (other, new_count)
+    };
+    let mut out = vec![poison; rows * cols];
+    for (j, line) in cur.iter().enumerate() {
+        for (i, p) in line.iter().enumerate() {
+            let idx = if along_u { i * cols + j } else { j * cols + i };
+            out[idx] = *p;
+        }
+    }
+    Some((cur_kv, out, new_count))
+}
+
+/// Both directions of [`refine_dir`], u then v.
+fn refine_net(
+    kv_u: &KnotVector,
+    kv_v: &KnotVector,
+    net: &[RVec3],
+) -> Option<(KnotVector, KnotVector, Vec<RVec3>)> {
+    let nv = kv_v.control_count();
+    let (ru, net_u, _) = refine_dir(kv_u, net, nv, true)?;
+    let (rv, net_uv, _) = refine_dir(kv_v, &net_u, nv, false)?;
+    Some((ru, rv, net_uv))
+}
+
+/// `f_uu` (or `f_vv`) of the quotient `f = N/w³`, from the six hulls
+/// the two ladders supply:
+///
+/// ```text
+/// f_dd = N_dd/w³ − 6·N_d·w_d/w⁴ − 3·N·w_dd/w⁴ + 12·N·w_d²/w⁵
+/// ```
+///
+/// (differentiate `N·w⁻³` twice; the `w_d²` terms combine as
+/// `−6 + 18 = 12`). Fixed evaluation order (D9); `w_d²` goes through
+/// [`RingInterval::sqr`], never `x*x`.
+fn quotient_second(
+    n: RingInterval,
+    n_d: RingInterval,
+    n_dd: RingInterval,
+    w: RingInterval,
+    w_d: RingInterval,
+    w_dd: RingInterval,
+) -> RingInterval {
+    n_dd / w.powi(3) - pt(6.0) * n_d * w_d / w.powi(4) - pt(3.0) * n * w_dd / w.powi(4)
+        + pt(12.0) * n * w_d.sqr() / w.powi(5)
+}
+
+/// **Certified RATIONAL patch contributions** (M8-3) — the same two
+/// numbers [`nurbs_patch_face`] certifies, for a patch whose weights
+/// are not all 1.
+///
+/// # The enclosure, derived
+///
+/// Write the patch as the quotient of its homogeneous nets,
+/// `S = A/w` with `A = Σ N_i N_j w_ij P_ij` and `w = Σ N_i N_j w_ij`
+/// — **both polynomial**, so both carry the control-hull convexity
+/// facts the integral lane already runs on. The quotient rule gives
+///
+/// ```text
+/// S_u×S_v = [w·(A_u×A_v) − w_v·(A_u×A) − w_u·(A×A_v)] / w³
+/// ```
+///
+/// (the `A×A` term vanishes), and dotting with `S = A/w` kills the two
+/// triple products that carry `A` twice, leaving the **flux integrand
+/// as one polynomial over one polynomial cube**:
+///
+/// ```text
+/// f = S·(S_u×S_v) = A·(A_u×A_v) / w³ = N / w³
+/// ```
+///
+/// `N` is exactly the integral lane's integrand on the homogeneous
+/// net, so its derivative hulls are the SAME expressions
+/// ([`Ladder::num_uu`]) — the rational extension is a division, not a
+/// new geometry. Weights are `f64` structure and strictly positive
+/// (checked exactly, C6), so `w`'s control hull excludes zero on every
+/// cell and the ring division is defined; a hull that does not is
+/// poison, and poison refuses typed rather than answering wide.
+///
+/// # The rule, the remainder, and why there is no exact lane
+///
+/// A rational integrand has **no finite exact quadrature rule** — the
+/// integral-lane's per-span Newton–Cotes shortcut has no rational
+/// counterpart and none is claimed. The honest deliverable is the
+/// composite midpoint enclosure over a FIXED schedule (D9: pieces
+/// double per round from [`QUAD2_INIT_PIECES`], at most
+/// [`QUAD2_MAX_ROUNDS`] rounds — never a data-dependent iteration),
+/// with the two 1-D Taylor remainders per cell:
+///
+/// ```text
+/// ∫∫_cell f ∈ A_cell·f(m) + hull(f_uu)·h_u³h_v/24 + hull(f_vv)·h_u h_v³/24
+/// ```
+///
+/// and the smoothness-free first-order rule `A_cell·hull(f)` on cells
+/// that straddle an interior knot. The `f_dd` hulls come from
+/// [`quotient_second`]. Acceptance goes through the EXISTING named
+/// predicates (`props_quad_converged`, `props_quad_face_extent`) with
+/// the existing meter — the enclosure width as a LENGTH,
+/// `width(flux)/(3·area_mid)`, against `QUAD_TARGET_LEN_FACTOR·ε` —
+/// so this lane adds no k-census row of its own. Budget exhaustion is
+/// [`PropsError::QuadratureBudget`] carrying the measured width; a
+/// wide answer is never returned silently.
+///
+/// # Errors
+///
+/// [`PropsError`] — non-positive or non-finite weights, a weight hull
+/// that does not exclude zero, an escalated funnel decision, a
+/// degenerate face, or the typed budget refusal.
+#[allow(clippy::too_many_arguments)] // one parameter per named quantity
+#[allow(clippy::too_many_lines)] // one engine, kept whole like the integral lane
+fn rational_patch_face<T: Decide>(
+    kv_u: &KnotVector,
+    kv_v: &KnotVector,
+    control: &[RVec3],
+    weights: &[f64],
+    rect: (f64, f64, f64, f64),
+    perimeter: f64,
+    boundary_defect: f64,
+    eps: f64,
+    band: Band,
+) -> Result<FaceCutBounds, PropsError> {
+    let (u0, u1, v0, v1) = rect;
+    if weights.len() != control.len() {
+        return Err(PropsError::QuadratureUnsupported {
+            what: "a rational patch whose weight count does not match its control net",
+        });
+    }
+    // Exact `f64` structure (C6): the rational hull property IS the
+    // positive-weight hypothesis, so a non-positive weight is not a
+    // tolerance question but a refusal.
+    if weights.iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+        return Err(PropsError::QuadratureUnsupported {
+            what: "a rational patch with a non-positive or non-finite weight: the \
+                   convex-hull property (and with it every enclosure here) needs \
+                   strictly positive weights",
+        });
+    }
+    // The homogeneous position net `A = w·P` and the weight net.
+    let mut a_net: Vec<RVec3> = Vec::with_capacity(control.len());
+    let mut w_net: Vec<RVec3> = Vec::with_capacity(control.len());
+    for (c, w) in control.iter().zip(weights) {
+        let rw = pt(*w);
+        a_net.push([rw * c[0], rw * c[1], rw * c[2]]);
+        w_net.push([rw, RingInterval::zero(), RingInterval::zero()]);
+    }
+    // Certified refinement FIRST (fn docs): every hull below is a
+    // control-net fact, and only the net can tighten them.
+    let refuse_refine = PropsError::QuadratureUnsupported {
+        what: "a rational patch whose bracketed net would not refine (malformed knot \
+               structure) — the enclosure's hulls have no other lever",
+    };
+    let (r_u, r_v, a_net) = refine_net(kv_u, kv_v, &a_net).ok_or(refuse_refine.clone())?;
+    let (_, _, w_net) = refine_net(kv_u, kv_v, &w_net).ok_or(refuse_refine)?;
+    let a = Ladder::build(&r_u, &r_v, &a_net);
+    let w = Ladder::build(&r_u, &r_v, &w_net);
+
+    // The straddle lists come from the ORIGINAL knot vectors: inserted
+    // knots are artificial (the locus and its smoothness are
+    // unchanged), so they must not push cells onto the smoothness-free
+    // rule.
+    let interior = |kv: &KnotVector, lo: f64, hi: f64| -> Vec<f64> {
+        kv.knots()
+            .iter()
+            .copied()
+            .filter(|k| *k > lo && *k < hi)
+            .collect()
+    };
+    let knots_u = interior(kv_u, u0, u1);
+    let knots_v = interior(kv_v, v0, v1);
+
+    let over_all = (Collapse::Over(u0, u1), Collapse::Over(v0, v1));
+    let g_w = w.chan(over_all.0, over_all.1);
+    if !(g_w.lo() > 0.0) {
+        return Err(PropsError::QuadratureUnsupported {
+            what: "a rational patch whose weight-function hull does not exclude zero \
+                   over the trim rectangle — the quotient's enclosures are undefined",
+        });
+    }
+    // Position magnitude bound over the rectangle: `S = A/w`, so the
+    // homogeneous hull over the weight hull bounds it (1-norm
+    // over-bound of the 2-norm — only an upper bound is consumed).
+    let a_hull = a.a.vec(over_all.0, over_all.1);
+    let p_bound = (a_hull[0] / g_w).mag() + (a_hull[1] / g_w).mag() + (a_hull[2] / g_w).mag();
+
+    // The Taylor remainders' `f_dd` hulls, on a FIXED coarse block
+    // grid (D9) rather than one whole-rectangle hull. Sound because a
+    // hull over a superset contains every sub-cell's own; MUCH tighter
+    // because the quotient's dependency widening (five `w`-power
+    // divisions per term) shrinks with the region. Built once, before
+    // the rounds — `pieces` is always a multiple of
+    // `QUAD2_HULL_BLOCKS`, so each block owns whole cells at every
+    // refinement level.
+    let mut blocks: Vec<(RingInterval, RingInterval)> =
+        Vec::with_capacity(QUAD2_HULL_BLOCKS * QUAD2_HULL_BLOCKS);
+    for bu in 0..QUAD2_HULL_BLOCKS {
+        #[allow(clippy::cast_precision_loss)]
+        let (b_ulo, b_uhi) = (
+            u0 + (u1 - u0) * (bu as f64 / QUAD2_HULL_BLOCKS as f64),
+            u0 + (u1 - u0) * ((bu + 1) as f64 / QUAD2_HULL_BLOCKS as f64),
+        );
+        for bv in 0..QUAD2_HULL_BLOCKS {
+            #[allow(clippy::cast_precision_loss)]
+            let (b_vlo, b_vhi) = (
+                v0 + (v1 - v0) * (bv as f64 / QUAD2_HULL_BLOCKS as f64),
+                v0 + (v1 - v0) * ((bv + 1) as f64 / QUAD2_HULL_BLOCKS as f64),
+            );
+            let o = (Collapse::Over(b_ulo, b_uhi), Collapse::Over(b_vlo, b_vhi));
+            let (n, bw) = (a.num(o.0, o.1), w.chan(o.0, o.1));
+            blocks.push((
+                quotient_second(
+                    n,
+                    a.num_u(o.0, o.1),
+                    a.num_uu(o.0, o.1),
+                    bw,
+                    w.chan_u(o.0, o.1),
+                    w.chan_uu(o.0, o.1),
+                ),
+                quotient_second(
+                    n,
+                    a.num_v(o.0, o.1),
+                    a.num_vv(o.0, o.1),
+                    bw,
+                    w.chan_v(o.0, o.1),
+                    w.chan_vv(o.0, o.1),
+                ),
+            ));
+        }
+    }
+
+    // AREA: one fixed-resolution pass of the **midpoint rule with a
+    // first-order Taylor pad** (`g = |cross_num|/w³`):
+    //
+    //     ∫∫_cell g ∈ A_cell·(g(m) ± [ (h_u/2)·G_u + (h_v/2)·G_v ])
+    //     G_d ⊇ sup |∂_d g| ≤ |∂_d cross_num|/w³ + 3·|cross_num|·|w_d|/w⁴
+    //
+    // (`| ∂_d |c| | ≤ |∂_d c|` — the magnitude is 1-Lipschitz). The
+    // integral lane's plain hull rule is NOT usable here: control-net
+    // hulls are span-granular, so on a single-span rational patch the
+    // per-cell hull never tightens and the answer would be a decade
+    // wide. The midpoint value is THIN, and only the pad carries
+    // hulls — so this rule genuinely tightens as O(h). The area is a
+    // certified DENOMINATOR (the +V meter and the extent gate); its
+    // honest width lands in `area_pad`.
+    let area = {
+        let n = QUAD2_AREA_PIECES;
+        #[allow(clippy::cast_precision_loss)]
+        let (hu, hv) = ((u1 - u0) / n as f64, (v1 - v0) / n as f64);
+        let cell_area = pt(hu) * pt(hv);
+        let mut acc = RingInterval::zero();
+        for iu in 0..n {
+            #[allow(clippy::cast_precision_loss)]
+            let c_ulo = u0 + (u1 - u0) * (iu as f64 / n as f64);
+            for iv in 0..n {
+                #[allow(clippy::cast_precision_loss)]
+                let c_vlo = v0 + (v1 - v0) * (iv as f64 / n as f64);
+                let over = (
+                    Collapse::Over(c_ulo, c_ulo + hu),
+                    Collapse::Over(c_vlo, c_vlo + hv),
+                );
+                let m = (
+                    Collapse::At(c_ulo + hu * 0.5),
+                    Collapse::At(c_vlo + hv * 0.5),
+                );
+                let cm = a.cross_num(&w, m.0, m.1);
+                let wm = w.chan(m.0, m.1);
+                let g_m = sqrt_enclosure(cm[0].sqr() + cm[1].sqr() + cm[2].sqr()) / wm.powi(3);
+                let wh = w.chan(over.0, over.1);
+                if !(wh.lo() > 0.0) {
+                    return Err(PropsError::QuadratureUnsupported {
+                        what: "a rational patch cell whose weight hull does not exclude \
+                               zero — the quotient's enclosures are undefined there",
+                    });
+                }
+                let (w3, w4) = (wh.lo().powi(3), wh.lo().powi(4));
+                let c_hi = norm_hi(a.cross_num(&w, over.0, over.1));
+                let pad_d = |dc: RVec3, wd: RingInterval| -> f64 {
+                    norm_hi(dc) / w3 + 3.0 * c_hi * wd.mag() / w4
+                };
+                let g_u = pad_d(a.cross_num_u(&w, over.0, over.1), w.chan_u(over.0, over.1));
+                let g_v = pad_d(a.cross_num_v(&w, over.0, over.1), w.chan_v(over.0, over.1));
+                let e = 0.5 * hu * g_u + 0.5 * hv * g_v;
+                acc = acc + cell_area * widen(g_m, e);
+            }
+        }
+        widen(acc, boundary_defect)
+    };
+
+    let target_len = QUAD_TARGET_LEN_FACTOR * eps;
+    let mut pieces = QUAD2_INIT_PIECES;
+    let mut last_width_len = f64::NAN;
+    for round in 0..=QUAD2_RATIONAL_MAX_ROUNDS {
+        let mut flux = RingInterval::zero();
+        #[allow(clippy::cast_precision_loss)]
+        let (hu, hv) = ((u1 - u0) / pieces as f64, (v1 - v0) / pieces as f64);
+        let cell_area = pt(hu) * pt(hv);
+        let s_uu = pt(hu) * pt(hu).sqr() * pt(hv) / pt(24.0);
+        let s_vv = pt(hu) * pt(hv) * pt(hv).sqr() / pt(24.0);
+        for iu in 0..pieces {
+            #[allow(clippy::cast_precision_loss)]
+            let c_ulo = u0 + (u1 - u0) * (iu as f64 / pieces as f64);
+            let c_uhi = c_ulo + hu;
+            let straddle_u = knots_u.iter().any(|k| *k > c_ulo && *k < c_uhi);
+            let bu = iu * QUAD2_HULL_BLOCKS / pieces;
+            let slice = a.flux_slice(&w, Collapse::At(c_ulo + hu * 0.5));
+            for iv in 0..pieces {
+                #[allow(clippy::cast_precision_loss)]
+                let c_vlo = v0 + (v1 - v0) * (iv as f64 / pieces as f64);
+                let c_vhi = c_vlo + hv;
+                let straddle = straddle_u || knots_v.iter().any(|k| *k > c_vlo && *k < c_vhi);
+                if straddle {
+                    let over = (Collapse::Over(c_ulo, c_uhi), Collapse::Over(c_vlo, c_vhi));
+                    let cw3 = w.chan(over.0, over.1).powi(3);
+                    flux = flux + cell_area * (a.num(over.0, over.1) / cw3);
+                    continue;
+                }
+                let fm = a.integrand_at(&w, &slice, Collapse::At(c_vlo + hv * 0.5));
+                let (b_uu, b_vv) = blocks[bu * QUAD2_HULL_BLOCKS + iv * QUAD2_HULL_BLOCKS / pieces];
+                flux = flux + cell_area * fm + b_uu * s_uu + b_vv * s_vv;
+            }
+        }
+        let flux = widen(flux, boundary_defect * p_bound);
+        if flux.is_poison() || area.is_poison() {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "a rational patch enclosure poisoned (a weight hull straddling \
+                       zero, or a non-finite net) — refusing rather than answering wide",
+            });
+        }
+        let lever = (area.lo() + area.hi()) * 0.5;
+        let width_len = flux.width() / (3.0 * lever);
+        last_width_len = width_len;
+        if classify_len::<T>(
+            "props_quad_converged",
+            Margin::of(target_len - width_len),
+            band,
+        )? == Sign::Positive
+        {
+            match classify_len::<T>(
+                "props_quad_face_extent",
+                Margin::over_lever(area.lo(), perimeter),
+                band,
+            )? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
+            }
+            return Ok(FaceCutBounds { flux, area });
+        }
+        if round < QUAD2_RATIONAL_MAX_ROUNDS {
+            pieces *= 2;
+        }
+    }
+    Err(PropsError::QuadratureBudget {
+        width_len: last_width_len,
+        target_len,
+    })
+}
+
 /// **Certified NURBS-patch contributions** (M6-3 Leg C): the
 /// chart-normal volume flux `∫∫ S·(S_u×S_v) du dv` and the patch area
-/// `∫∫ |S_u×S_v| du dv` of a **non-rational** patch over the exact UV
+/// `∫∫ |S_u×S_v| du dv` of a patch over the exact UV
 /// rectangle `rect = (u0, u1, v0, v1)` — the loft/sweep wall case,
 /// where the face's stored iso-line pcurves pin the trim region to a
 /// rectangle exactly.
@@ -1138,8 +1897,9 @@ fn patch_flux_exact(
 /// smoothness-free first-order rule `A·hull(f)`. The area rides the
 /// first-order hull rule per cell — sound at every resolution,
 /// tightening as O(h) — because the +V gate meters `V/A` and needs an
-/// honest denominator, not a tight one (the RATIONAL area, which has
-/// no such bound at all, refuses upstream with the rational walls).
+/// honest denominator, not a tight one. A patch with non-unit weights
+/// routes to [`rational_patch_face`] (M8-3), which certifies the same
+/// two numbers through the quotient rule.
 ///
 /// Honesty pads (both directions accounted): `boundary_defect` is the
 /// caller's `Σ (metric edge length)·(pcurve envelope)` bound on the
@@ -1153,9 +1913,9 @@ fn patch_flux_exact(
 ///
 /// # Errors
 ///
-/// [`PropsError`] — rational weights (typed, naming the banked
-/// extension), an escalated funnel decision, a degenerate face, or
-/// the typed [`PropsError::QuadratureBudget`] refusal.
+/// [`PropsError`] — an escalated funnel decision, a degenerate face,
+/// the rational lane's own refusals, or the typed
+/// [`PropsError::QuadratureBudget`] refusal.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
 #[allow(clippy::too_many_lines)] // one engine, kept whole like the cylinder lane
 pub fn nurbs_patch_face<T: Decide>(
@@ -1169,19 +1929,26 @@ pub fn nurbs_patch_face<T: Decide>(
     eps: f64,
     band: Band,
 ) -> Result<FaceCutBounds, PropsError> {
-    if weights.iter().any(|w| *w != 1.0) {
-        return Err(PropsError::QuadratureUnsupported {
-            what: "RATIONAL patch flux (weights != 1): the derivative-grid hulls are \
-                   polynomial convexity facts, and a rational quotient's are not — the \
-                   rational extension (any arc-bearing profile's walls) is BANKED; loft \
-                   with a polyline profile, or wait for the rational-wall unit",
-        });
-    }
     let (u0, u1, v0, v1) = rect;
     if !(u1 - u0).is_finite() || u1 <= u0 || !(v1 - v0).is_finite() || v1 <= v0 {
         return Err(PropsError::QuadratureUnsupported {
             what: "empty or non-finite UV rectangle",
         });
+    }
+    // M8-3: the rational patch is the SAME integrand over a polynomial
+    // cube (`f = N/w³`), so it takes its own lane rather than refusing.
+    if weights.iter().any(|w| *w != 1.0) {
+        return rational_patch_face::<T>(
+            kv_u,
+            kv_v,
+            control,
+            weights,
+            rect,
+            perimeter,
+            boundary_defect,
+            eps,
+            band,
+        );
     }
     // The derivative grids, built once (mixed partials commute on
     // spline nets exactly).
@@ -1663,9 +2430,16 @@ mod tests {
         );
     }
 
-    /// The rational gate refuses typed, naming the banked extension.
+    /// **The M8-3 flip** of `rational_patch_refuses_typed`: the same
+    /// patch — the unit square in the `z = 1` plane, reparameterized
+    /// by a non-unit corner weight — now certifies an ENCLOSURE, and
+    /// the re-derivation is that the rational bilinear map is a
+    /// diffeomorphism of the square onto itself (corners fixed, edges
+    /// to edges, positive Jacobian), so the reparameterization cannot
+    /// move either number: flux `= ∫∫ 1·J = |Ω| = 1` and area `= 1`,
+    /// exactly what the weight-1 patch gives.
     #[test]
-    fn rational_patch_refuses_typed() {
+    fn rational_patch_encloses_the_reparameterized_square() {
         let band = Band::linear().unwrap();
         let kv = KnotVector::unit_segment(1);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
@@ -1675,7 +2449,7 @@ mod tests {
             p(1.0, 0.0, 1.0),
             p(1.0, 1.0, 1.0),
         ];
-        let err = nurbs_patch_face::<f64>(
+        let out = nurbs_patch_face::<f64>(
             &kv,
             &kv,
             &flat,
@@ -1686,10 +2460,65 @@ mod tests {
             Tolerance::get().eps,
             band,
         )
-        .unwrap_err();
-        let text = format!("{err}");
-        assert!(text.contains("RATIONAL patch flux"), "{text}");
-        assert!(text.contains("BANKED"), "{text}");
+        .expect("the rational lane certifies the reparameterized square");
+        assert!(
+            out.flux.lo() <= 1.0 && 1.0 <= out.flux.hi(),
+            "flux enclosure must contain the exact 1: {:?}",
+            out.flux
+        );
+        assert!(
+            out.area.lo() <= 1.0 && 1.0 <= out.area.hi(),
+            "area enclosure must contain the exact 1: {:?}",
+            out.area
+        );
+    }
+
+    /// A **genuinely curved** rational patch against a closed-form
+    /// oracle: the quarter cylinder `r = 1`, height 2, as the standard
+    /// rational-quadratic arc (weights `1, √2/2, 1`) crossed with a
+    /// linear height. On it `S·(S_u×S_v) = (dθ/du)(dz/dv)`, so the
+    /// flux is `∫dθ∫dz = (π/2)·2 = π` and the area is
+    /// `r·(π/2)·2 = π` — both independent of the parameterization.
+    #[test]
+    fn rational_quarter_cylinder_brackets_the_closed_form() {
+        let band = Band::linear().unwrap();
+        let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv_v = KnotVector::unit_segment(1);
+        let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
+        let h = 2.0;
+        let net = [
+            p(1.0, 0.0, 0.0),
+            p(1.0, 0.0, h),
+            p(1.0, 1.0, 0.0),
+            p(1.0, 1.0, h),
+            p(0.0, 1.0, 0.0),
+            p(0.0, 1.0, h),
+        ];
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let weights = [1.0, 1.0, w, w, 1.0, 1.0];
+        let out = nurbs_patch_face::<f64>(
+            &kv_u,
+            &kv_v,
+            &net,
+            &weights,
+            (0.0, 1.0, 0.0, 1.0),
+            2.0f64.mul_add(2.0, core::f64::consts::PI),
+            0.0,
+            Tolerance::get().eps,
+            band,
+        )
+        .expect("the rational lane certifies the quarter cylinder");
+        let truth = core::f64::consts::PI;
+        assert!(
+            out.flux.lo() <= truth && truth <= out.flux.hi(),
+            "flux enclosure must contain π: {:?}",
+            out.flux
+        );
+        assert!(
+            out.area.lo() <= truth && truth <= out.area.hi(),
+            "area enclosure must contain π: {:?}",
+            out.area
+        );
     }
 
     /// The general B-spline lane on a known integral: u = t (deg 2),
