@@ -851,4 +851,101 @@ mod tests {
             );
         }
     }
+
+    // ------------------------------------------------------------------
+    // R1 REVIEW PROBES (M8-5, PR #322): adversarial rational carriers
+    // beyond the PR's — extreme/near-zero weights and the C¹
+    // multiplicity edge — checked BOTH ways: the m-bound dominates the
+    // dense-sampled true sup‖C″‖ (via deriv2, plus the chord counts
+    // keep the measured secant deviation inside δ_s).
+    // ------------------------------------------------------------------
+
+    fn r1_secant_worst(n: &NurbsCurve3<f64>, count: usize) -> f64 {
+        let (d0, d1) = n.knots().domain();
+        #[allow(clippy::cast_precision_loss)]
+        let h = (d1 - d0) / count as f64;
+        let mut worst = 0.0f64;
+        for seg in 0..count {
+            #[allow(clippy::cast_precision_loss)]
+            let a = d0 + h * seg as f64;
+            let b = a + h;
+            let (pa, pb) = (n.eval(a), n.eval(b));
+            for k in 1..128 {
+                let t = a + h * f64::from(k) / 128.0;
+                let p = n.eval(t);
+                let lam = f64::from(k) / 128.0;
+                let chord = Point3::new(
+                    pa.x + (pb.x - pa.x) * lam,
+                    pa.y + (pb.y - pa.y) * lam,
+                    pa.z + (pb.z - pa.z) * lam,
+                );
+                worst = worst.max((p - chord).norm());
+            }
+        }
+        worst
+    }
+
+    fn r1_check(name: &str, n: &NurbsCurve3<f64>) {
+        // (a) m-bound vs dense-sampled true sup|C''|.
+        let m = rational_carrier_m_bound(n, EdgeKey::default()).expect("in inventory");
+        let (d0, d1) = n.knots().domain();
+        let mut truth = 0.0f64;
+        for k in 0..=4000 {
+            let t = d0 + (d1 - d0) * f64::from(k) / 4000.0;
+            truth = truth.max(n.deriv2(t).norm());
+        }
+        assert!(
+            truth <= m,
+            "{name}: sampled sup|C''| {truth:.6e} escapes the certified {m:.6e}"
+        );
+        println!("{name}: truth/bound = {:.4}", truth / m);
+        // (b) chord counts keep the secant inside delta_s.
+        for delta_s in [1e-2, 1e-3, 1e-4] {
+            let count = nurbs_chord_count(n, d1 - d0, delta_s, EdgeKey::default())
+                .expect("in inventory");
+            let worst = r1_secant_worst(n, count);
+            assert!(
+                worst <= delta_s * 1.0000001,
+                "{name}: secant {worst} exceeds {delta_s} over {count} chords"
+            );
+        }
+    }
+
+    /// Extreme weights (1e-2 .. 1e2) on a multi-span cubic.
+    #[test]
+    fn r1_extreme_weight_carrier() {
+        let base = wiggle();
+        let w: Vec<f64> = (0..base.control().len())
+            .map(|i| [1e-2, 1.0, 1e2, 0.3, 7.0][i % 5])
+            .collect();
+        let n = NurbsCurve3::new(base.knots().clone(), base.control().to_vec(), w).unwrap();
+        r1_check("extreme_weight_carrier", &n);
+    }
+
+    /// Near-zero-touching legal weight (1e-5) amid O(1).
+    #[test]
+    fn r1_near_zero_weight_carrier() {
+        let base = wiggle();
+        let mut w = vec![1.0; base.control().len()];
+        w[3] = 1e-5;
+        let n = NurbsCurve3::new(base.knots().clone(), base.control().to_vec(), w).unwrap();
+        r1_check("near_zero_weight_carrier", &n);
+    }
+
+    /// Interior multiplicity EXACTLY p−1 (the C¹ edge) on a RATIONAL
+    /// cubic — |C''| jumps at the double knot.
+    #[test]
+    fn r1_rational_mult_p_minus_one_carrier() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3)
+            .unwrap();
+        let pts: Vec<Point3<f64>> = (0..kv.control_count())
+            .map(|i| {
+                let t = i as f64 / 5.0;
+                Point3::new(t, (2.5 * t).sin(), 0.4 * t * t)
+            })
+            .collect();
+        let w: Vec<f64> = (0..pts.len()).map(|i| [0.3, 2.0, 0.9][i % 3]).collect();
+        let n = NurbsCurve3::new(kv, pts, w).unwrap();
+        r1_check("rational_mult_p1_carrier", &n);
+    }
 }

@@ -558,6 +558,7 @@ fn rational_face_bound(
                 }
             }
             let w_cell = w_cell.unwrap_or_else(RingInterval::poison);
+            let w_cell = RingInterval::from_bounds(w_cell.hi(), w_cell.hi()); // MUTATION M2: divide by w_max
             let zero = RingInterval::zero();
             // Weight-net magnitude sups on the cell.
             let w10 = mag_iv(window_tilde_hull(
@@ -1277,6 +1278,274 @@ mod tests {
                 assert!(note.contains("crease"));
             }
             other => panic!("expected UnsupportedNurbsFace, got {other:?}"),
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // R1 REVIEW PROBES (M8-5, PR #322): independent adversarial
+    // fixtures beyond the PR's own — extreme weight ratios, the C¹
+    // multiplicity edge on the RATIONAL arm, tiny/huge/offset patches
+    // (the recentring claim), and a Möbius-reparameterized ruling
+    // (degree-1 cross-term path). Each dense-samples the true second
+    // partials via the independently dual-validated `ders` oracle and
+    // demands domination, with a finite-difference spot cross-check.
+    // ------------------------------------------------------------------
+
+    fn sample_worst(s: &NurbsSurface<f64>, n: u32) -> (f64, f64, f64) {
+        let (u0, u1) = s.knots_u().domain();
+        let (v0, v1) = s.knots_v().domain();
+        let (mut wuu, mut wuv, mut wvv) = (0.0f64, 0.0f64, 0.0f64);
+        for i in 0..=n {
+            for j in 0..=n {
+                let u = u0 + (u1 - u0) * f64::from(i) / f64::from(n);
+                let v = v0 + (v1 - v0) * f64::from(j) / f64::from(n);
+                let jet = s.ders(u, v);
+                wuu = wuu.max(jet.duu.norm());
+                wuv = wuv.max(jet.duv.norm());
+                wvv = wvv.max(jet.dvv.norm());
+            }
+        }
+        (wuu, wuv, wvv)
+    }
+
+    fn assert_dominates(name: &str, s: &NurbsSurface<f64>, n: u32) -> (f64, f64, f64, NurbsFaceBound) {
+        let b = nurbs_face_bound(s, FaceKey::default()).expect("covered");
+        let (wuu, wuv, wvv) = sample_worst(s, n);
+        assert!(
+            wuu <= b.muu && wuv <= b.muv && wvv <= b.mvv,
+            "{name}: sampled ({wuu:.6e},{wuv:.6e},{wvv:.6e}) escapes certified \
+             ({:.6e},{:.6e},{:.6e})",
+            b.muu, b.muv, b.mvv
+        );
+        println!(
+            "{name}: truth/bound uu={:.4} uv={:.4} vv={:.4}",
+            wuu / b.muu, wuv / b.muv, wvv / b.mvv
+        );
+        (wuu, wuv, wvv, b)
+    }
+
+    /// Mixed extreme weights (1e-3 .. 1e3, interior) on a wavy
+    /// quadratic×cubic multi-span net.
+    fn extreme_weight_patch(offset: [f64; 3], scale: f64) -> NurbsSurface<f64> {
+        let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv_v =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        let wtab = [1e-3, 1.0, 1e3, 0.04, 25.0];
+        for i in 0..nu {
+            for j in 0..nv {
+                let (x, y) = (i as f64 * 0.5, j as f64 * 0.45);
+                control.push(Point3::new(
+                    offset[0] + scale * x,
+                    offset[1] + scale * y,
+                    offset[2] + scale * ((1.7 * x - 1.1 * y).sin() + 0.25 * x * y),
+                ));
+                weights.push(wtab[(3 * i + j) % 5]);
+            }
+        }
+        NurbsSurface::new(kv_u, kv_v, control, weights).unwrap()
+    }
+
+    #[test]
+    fn r1_extreme_weights_dominated() {
+        let s = extreme_weight_patch([0.0; 3], 1.0);
+        assert_dominates("extreme_weights", &s, 400);
+    }
+
+    /// Interior multiplicity EXACTLY p−1 on the RATIONAL arm — the C¹
+    /// gate's covered edge composed with the quotient rule; S_uu jumps
+    /// at the knot and the sampling straddles it.
+    #[test]
+    fn r1_rational_multiplicity_p_minus_one_dominated() {
+        for (p_deg, mult) in [(2usize, 1usize), (3, 2)] {
+            let mut knots = vec![0.0; p_deg + 1];
+            knots.extend(std::iter::repeat_n(0.5, mult));
+            knots.extend(vec![1.0; p_deg + 1]);
+            let kv_u = KnotVector::clamped(knots, p_deg).unwrap();
+            let kv_v = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+            let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
+            let mut control = Vec::new();
+            let mut weights = Vec::new();
+            for i in 0..nu {
+                for j in 0..nv {
+                    let (x, y) = (i as f64 * 0.6, j as f64 * 0.8);
+                    control.push(Point3::new(x, y, (2.1 * x - 1.3 * y).cos() + 0.4 * x * y));
+                    weights.push(match (i + j) % 3 {
+                        0 => 0.3,
+                        1 => 2.0,
+                        _ => 0.9,
+                    });
+                }
+            }
+            let s = NurbsSurface::new(kv_u, kv_v, control, weights).unwrap();
+            assert_dominates(&format!("rational_mult_p1_deg{p_deg}"), &s, 320);
+        }
+    }
+
+    /// Tiny (1e-6-scale) and huge far-from-origin (1e6 offset) copies
+    /// of the extreme-weight patch: domination must hold at both, and
+    /// the OFFSET copy's bound must stay commensurate with the centred
+    /// one (the recentring claim — no distance-to-origin inflation).
+    #[test]
+    fn r1_tiny_and_offset_patches_dominated() {
+        let tiny = extreme_weight_patch([0.0; 3], 1e-6);
+        assert_dominates("tiny_1e-6", &tiny, 250);
+        let centred = extreme_weight_patch([0.0; 3], 1.0);
+        let bc = nurbs_face_bound(&centred, FaceKey::default()).unwrap();
+        let far = extreme_weight_patch([1e6, -3e6, 2e6], 1.0);
+        let (wuu, wuv, wvv, bf) = assert_dominates("offset_1e6", &far, 250);
+        let _ = (wuu, wuv, wvv);
+        assert!(
+            bf.muu < 16.0 * bc.muu && bf.muv < 16.0 * bc.muv && bf.mvv < 16.0 * bc.mvv,
+            "recentring failed: offset bound ({},{},{}) vs centred ({},{},{})",
+            bf.muu, bf.muv, bf.mvv, bc.muu, bc.muv, bc.mvv
+        );
+    }
+
+    /// A Möbius-reparameterized ruling: degree-1 u with UNEQUAL weights
+    /// along u — S is ruled but S_uu ≠ 0 in parameter. The d20-None
+    /// path must still bound it through the surviving cross terms.
+    #[test]
+    fn r1_moebius_ruling_degree1_cross_terms_dominated() {
+        let kv_u = KnotVector::unit_segment(1);
+        let kv_v = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for i in 0..nu {
+            for j in 0..nv {
+                let (x, y) = (i as f64 * 2.0, j as f64 * 0.7);
+                control.push(Point3::new(x, y, 0.5 * y * y + 0.3 * x * y));
+                weights.push(if i == 0 { 1.0 } else { 5.0 });
+            }
+        }
+        let s = NurbsSurface::new(kv_u, kv_v, control, weights).unwrap();
+        let (wuu, _, _, b) = assert_dominates("moebius_ruling", &s, 400);
+        assert!(wuu > 1e-3, "the ruling must genuinely curve in u (fixture check)");
+        assert!(b.muu > 0.0, "muu must be real, not the integral arm's zero");
+    }
+
+    /// Near-zero-touching (but legal) weight 1e-6 amid O(1): the true
+    /// derivatives spike; the bound must still dominate.
+    #[test]
+    fn r1_near_zero_weight_dominated() {
+        let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv_v = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for i in 0..nu {
+            for j in 0..nv {
+                let (x, y) = (i as f64, j as f64);
+                control.push(Point3::new(x, y, 0.6 * (x + y).sin()));
+                weights.push(if (i, j) == (1, 1) { 1e-6 } else { 1.0 });
+            }
+        }
+        let s = NurbsSurface::new(kv_u, kv_v, control, weights).unwrap();
+        assert_dominates("near_zero_weight", &s, 600);
+    }
+
+    /// FD spot cross-check of the `ders` oracle itself on the
+    /// extreme-weight patch (independent of the dual validation).
+    #[test]
+    fn r1_ders_oracle_fd_crosscheck() {
+        let s = extreme_weight_patch([0.0; 3], 1.0);
+        let h = 1e-5;
+        for (u, v) in [(0.3, 0.4), (0.61, 0.27), (0.45, 0.55)] {
+            let jet = s.ders(u, v);
+            let fd_uu = {
+                let a = s.eval(u - h, v);
+                let b = s.eval(u, v);
+                let c = s.eval(u + h, v);
+                Point3::new(
+                    (a.x - 2.0 * b.x + c.x) / (h * h),
+                    (a.y - 2.0 * b.y + c.y) / (h * h),
+                    (a.z - 2.0 * b.z + c.z) / (h * h),
+                )
+            };
+            let n_fd = (fd_uu.x.powi(2) + fd_uu.y.powi(2) + fd_uu.z.powi(2)).sqrt();
+            let rel = (n_fd - jet.duu.norm()).abs() / jet.duu.norm().max(1.0);
+            assert!(rel < 1e-4, "ders/FD disagree at ({u},{v}): {rel:.3e}");
+        }
+    }
+
+    /// R1 claim-2 probe: my own adversarial rational fixture through
+    /// the SAME z1 lattice (12-deep barycentric, per-triangle d/cert ≤
+    /// 1) over the certificate's own grid.
+    #[test]
+    fn r1_extreme_weight_z1_lattice() {
+        let s = extreme_weight_patch([0.0; 3], 1.0);
+        let b = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
+        let (u0, u1) = s.knots_u().domain();
+        let (v0, v1) = s.knots_v().domain();
+        for delta in [1.0, 2e-1] {
+            let delta_s = delta / 2.0;
+            let (hu, hv) = b.grid_steps(delta_s);
+            // Grid capped at 96 cells/direction: the extreme-weight
+            // bound is very conservative, so the budget grid would run
+            // to millions of cells; the per-triangle claim d ≤ cert(uv)
+            // is grid-independent, so a coarser grid still falsifies.
+            let cells = |span: f64, h: f64| -> usize {
+                let raw = (span / h).ceil();
+                if raw.is_finite() && raw >= 1.0 {
+                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                    {
+                        (raw as usize).min(96)
+                    }
+                } else {
+                    1
+                }
+            };
+            let (nu, nv) = (cells(u1 - u0, hu), cells(v1 - v0, hv));
+            let at = |i: usize, j: usize| -> [f64; 2] {
+                #[allow(clippy::cast_precision_loss)]
+                [
+                    u0 + (u1 - u0) * (i as f64 / nu as f64),
+                    v0 + (v1 - v0) * (j as f64 / nv as f64),
+                ]
+            };
+            let (mut worst_ratio, mut tris) = (0.0f64, 0usize);
+            for i in 0..nu {
+                for j in 0..nv {
+                    let (a, bb, c, d) = (at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1));
+                    for uv in [[a, bb, c], [a, c, d]] {
+                        tris += 1;
+                        let cert = b.cert(uv);
+                        let p: Vec<geom_core::Point3<f64>> =
+                            uv.iter().map(|w| s.eval(w[0], w[1])).collect();
+                        let m = 12usize;
+                        for ba in 0..=m {
+                            for bbn in 0..=(m - ba) {
+                                #[allow(clippy::cast_precision_loss)]
+                                let (b0, b1) = (ba as f64 / m as f64, bbn as f64 / m as f64);
+                                let b2 = 1.0 - b0 - b1;
+                                let (u, v) = (
+                                    b0 * uv[0][0] + b1 * uv[1][0] + b2 * uv[2][0],
+                                    b0 * uv[0][1] + b1 * uv[1][1] + b2 * uv[2][1],
+                                );
+                                let sv = s.eval(u, v);
+                                let pi = Point3::new(
+                                    b0 * p[0].x + b1 * p[1].x + b2 * p[2].x,
+                                    b0 * p[0].y + b1 * p[1].y + b2 * p[2].y,
+                                    b0 * p[0].z + b1 * p[1].z + b2 * p[2].z,
+                                );
+                                let dev = ((sv.x - pi.x).powi(2)
+                                    + (sv.y - pi.y).powi(2)
+                                    + (sv.z - pi.z).powi(2))
+                                .sqrt();
+                                assert!(dev <= cert + 1e-12, "violation d={dev} cert={cert}");
+                                if cert > 0.0 {
+                                    worst_ratio = worst_ratio.max(dev / cert);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            println!("r1_extreme delta={delta:.0e}: tris={tris} max d/cert={worst_ratio:.4}");
+            assert!(worst_ratio <= 1.0);
         }
     }
 }
