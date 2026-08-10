@@ -427,7 +427,7 @@ pub fn declare_node<P>(findings: &[FlushFinding]) -> Result<Node<P>, DeclareErro
 /// # Errors
 ///
 /// [`DeclareError::Edit`] if the insert refuses.
-pub fn declare<P: Clone>(
+pub fn declare<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     finding: &FlushFinding,
 ) -> Result<(Doc<P>, RecipeNodeId), DeclareError> {
@@ -442,7 +442,7 @@ pub fn declare<P: Clone>(
 ///
 /// [`DeclareError::NoFindings`] on an empty slice,
 /// [`DeclareError::Edit`] if the insert refuses.
-pub fn declare_all<P: Clone>(
+pub fn declare_all<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     findings: &[FlushFinding],
 ) -> Result<(Doc<P>, RecipeNodeId), DeclareError> {
