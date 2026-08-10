@@ -247,5 +247,9 @@ fn die_authors_replays_and_diffs() {
     // The original document is untouched by all of the above (D2:
     // apply is pure).
     assert_eq!(die.doc.len(), 46);
-    assert!(die.doc.diff(&TDoc::replay(die.doc.id(), &die.log).unwrap()).is_empty());
+    assert!(
+        die.doc
+            .diff(&TDoc::replay(die.doc.id(), &die.log).unwrap())
+            .is_empty()
+    );
 }
