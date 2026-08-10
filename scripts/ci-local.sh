@@ -176,6 +176,15 @@ discipline() {
   # decision, so it takes the sole-bound `T: Bounds` the rule allows
   # everywhere.
   #
+  # geom-brep/src/edge_nurbs.rs is M7-8's plane × NURBS edge lane, the
+  # narrowest possible extension of that same seam: it DELEGATES to the
+  # already-listed `certify_rung3` door with a declared carrier instead
+  # of a marched one, so it inherits the door's signature rather than
+  # widening anything. Its split is written in the same shape —
+  # `EdgeNurbsLane` has certified impls for f64/Probe/Interval and a
+  # refusing one for `Dual` — and it is what keeps `Bounds` out of
+  # `topo`'s signatures.
+  #
   # profile/src/path/arc_fillet.rs is the LIB-G2 PATHS arc-carrier
   # fillet boundary (ruling LB3, 2026-08-08). The algebra forbids
   # authoring a fillet's corner, so it DERIVES 0/1/2 corners from the
@@ -200,7 +209,7 @@ discipline() {
     | grep -vE '^crates/profile/src/sugar\.rs$' \
     | grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
     | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' \
-    | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify)\.rs$' || true)
+    | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' || true)
   if [ -n "$bhits" ]; then
     echo "$bhits"
     echo "ERROR: compound Bounds bound outside the ratified seams — see geom-core/src/real.rs (Bounds scope rule)"

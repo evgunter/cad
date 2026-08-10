@@ -22,6 +22,7 @@ use pncad::document::{EditError, NodeErrorKind};
 pub fn edit_error_tag(err: &EditError) -> &'static str {
     match err {
         EditError::UnknownNode { .. } => "unknown_node",
+        EditError::ProfileProgramRefused { .. } => "profile_program_refused",
         EditError::UnresolvedInput { .. } => "unresolved_input",
         EditError::WouldCycle { .. } => "would_cycle",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
@@ -64,6 +65,8 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
     match kind {
         NodeErrorKind::Expr { .. } => "expr",
         NodeErrorKind::Profile { .. } => "profile",
+        NodeErrorKind::ProfileReplay { .. } => "profile_replay",
+        NodeErrorKind::ProfileAnchor { .. } => "profile_anchor",
         NodeErrorKind::Extrude { .. } => "extrude",
         NodeErrorKind::Revolve { .. } => "revolve",
         NodeErrorKind::Split { .. } => "split",

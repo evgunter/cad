@@ -186,9 +186,10 @@ pub fn run(out: Option<String>) {
             .map(|(i, bb)| seamed(&format!("heatsink_{}", [5, 7, 9][i]), bb))
             .collect()
     });
-    // The globe lily: the only PARTIAL revolve of an off-axis CLOSED
-    // loop in the corpus (torus segments), plus doubly-truncated
-    // sphere zones and two-arc crescent extrusions.
+    // The globe lily: the only WINDOWED TUBE built from world-
+    // coordinate intent in the corpus (torus segments), plus
+    // doubly-truncated sphere zones and crescent-section blades swept
+    // along arching spines.
     sweep(s, t, u, "lily", || {
         lily::plant::<Probe>()
             .into_iter()

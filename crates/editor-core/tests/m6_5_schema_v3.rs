@@ -16,17 +16,38 @@ use editor_core::{PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
 
 /// The pre-break bytes, kept verbatim as the refusal fixture.
 const V2: &str = include_str!("golden/v2_golden.cad");
-/// The regenerated live golden.
+/// The v3 bytes — LIVE golden until the LIB-SWITCH v4 clean break
+/// (profiles as programs); now the third refusal fixture.
 const V3: &str = include_str!("golden/v3_golden.cad");
 
 #[test]
-fn schema_version_is_three() {
-    assert_eq!(SCHEMA_VERSION, 3);
+fn schema_version_is_four() {
+    assert_eq!(SCHEMA_VERSION, 4);
 }
 
 #[test]
 fn the_checked_in_v3_file_is_really_v3() {
     assert_eq!(V3.lines().next(), Some("schema: 3"));
+}
+
+/// The LIB-SWITCH break, demonstrated: the v3 bytes that loaded green
+/// yesterday refuse TYPED today — the profile payload's wire shape is
+/// gone (programs replaced stored segments), and the ratified LQ7a
+/// posture is a clean break, never a shim.
+#[test]
+fn v3_refuses_too_old() {
+    match load(V3) {
+        Err(PersistError::SchemaTooOld {
+            found,
+            supported,
+            missing,
+        }) => {
+            assert_eq!(found, 3);
+            assert_eq!(supported, SCHEMA_VERSION);
+            assert_eq!(missing, 3, "the 3 → 4 step is the one that does not exist");
+        }
+        other => panic!("v3 must refuse SchemaTooOld, got {other:?}"),
+    }
 }
 
 /// The break, demonstrated: a v2 file refuses TYPED at the version
@@ -42,7 +63,7 @@ fn v2_refuses_too_old() {
         }) => {
             assert_eq!(found, 2);
             assert_eq!(supported, SCHEMA_VERSION);
-            assert_eq!(missing, 2, "the 2 → 3 step is the one that does not exist");
+            assert_eq!(missing, 2, "the 2 → 3 step (still) does not exist");
         }
         other => panic!("v2 must refuse SchemaTooOld, got {other:?}"),
     }
@@ -86,27 +107,21 @@ fn too_old_beats_a_broken_body() {
 #[test]
 fn the_selection_reaches_the_wire_canonical() {
     use editor_core::{
-        CapEnd, Dimension, DocEdit, Expr, Node, ProfileDesc, ProfileDoc, ProfileEdgeRef, RoleSeg,
-        StableName, apply, save,
+        CapEnd, Dimension, DocEdit, Expr, Node, ProfileDoc, ProfileEdgeRef, RoleSeg, StableName,
+        apply, save,
     };
 
-    let square = profile::ProfileLoop::new(
-        [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-            .into_iter()
-            .map(|(x, y)| profile::ProfileVertex {
-                pos: geom_core::Point2::new(x, y),
-                bulge: 0.0,
-            })
-            .collect(),
-    );
+    let square =
+        editor_core::LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
+            .expect("finite");
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length literal");
     let mut doc = ProfileDoc::empty();
     for edit in [
         DocEdit::InsertNode {
-            node: Node::Profile(ProfileDesc(profile::Profile::new(
-                profile::SketchPlane::xy(),
-                vec![square],
-            ))),
+            node: Node::Profile(editor_core::ProfileProgram {
+                plane: profile::SketchPlane::xy(),
+                loops: vec![square],
+            }),
         },
         DocEdit::InsertNode {
             node: Node::Extrude {

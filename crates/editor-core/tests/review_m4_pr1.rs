@@ -9,8 +9,14 @@ use editor_core::{
     eval_count,
 };
 
-type Doc = editor_core::Doc<&'static str>;
-type Edit = DocEdit<&'static str>;
+// v4: `Doc<P>` requires `P: ProfilePayload` (defaults = the retired
+// opaque behavior), which a foreign `&str` cannot implement here — a
+// transparent local newtype carries the same test payloads.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Fake(&'static str);
+impl editor_core::ProfilePayload for Fake {}
+type Doc = editor_core::Doc<Fake>;
+type Edit = DocEdit<Fake>;
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).unwrap()
@@ -474,7 +480,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
     let (doc, ids) = apply_all(
         Doc::empty(),
         &[Edit::InsertNode {
-            node: Node::Profile("p"),
+            node: Node::Profile(Fake("p")),
         }],
     );
     let a = doc

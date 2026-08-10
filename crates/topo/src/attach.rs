@@ -165,6 +165,25 @@ impl<T: Decide> Body<T> {
         edge: EdgeKey,
         curve: EdgeCurveSpec<T>,
     ) -> Result<CurveKey, EulerOpError> {
+        self.set_edge_curve_via(edge, curve, Self::certify_edge_spec)
+    }
+
+    /// [`Body::set_edge_curve`] with the certification door supplied by
+    /// the caller — the one axis on which the two attach doors differ
+    /// (the plane × NURBS lane, M7-8). Every precondition, every
+    /// adjacency rule and every mutation below is shared verbatim, so
+    /// the doors cannot drift apart.
+    pub(crate) fn set_edge_curve_via(
+        &mut self,
+        edge: EdgeKey,
+        curve: EdgeCurveSpec<T>,
+        certify: impl FnOnce(
+            &Self,
+            EdgeCurveSpec<T>,
+            geom_core::Point3<T>,
+            geom_core::Point3<T>,
+        ) -> Result<geom_brep::EdgeCurve<T>, EulerOpError>,
+    ) -> Result<CurveKey, EulerOpError> {
         let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
             key: EntityId::Edge(edge),
         })?;
@@ -226,7 +245,7 @@ impl<T: Decide> Body<T> {
             geom_brep::EdgeGeometry::MappedCurve(_) => {}
         }
 
-        let certified = self.certify_edge_spec(curve, p_start, p_end)?;
+        let certified = certify(self, curve, p_start, p_end)?;
 
         // ---- Mutation (infallible from here on). ----
         let new = self.add_curve(certified);

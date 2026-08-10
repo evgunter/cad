@@ -134,17 +134,24 @@ fn review_v2_header_with_broken_body_gets_the_body_diagnostic() {
 /// happens to contain nothing the new vocabulary changed — which is a
 /// statement about that file, not about the door.
 #[test]
-fn review_a_hand_edited_v2_header_over_a_v1_body_loads() {
+fn review_a_hand_edited_v2_header_over_a_v1_body_refuses_since_v4() {
+    // Through v3 this probe LOADED: the breaks were vocabulary-growth
+    // breaks and an old body happened to contain nothing the new
+    // vocabulary changed. The v4 break (LIB-SWITCH §4h) changed the
+    // PROFILE PAYLOAD's wire shape itself — stored vertices/bulges
+    // died with the representation — so a hand-edited header no longer
+    // smuggles an old body: the parse door refuses the retired
+    // `vertices` field. The edge this probe documented is CLOSED for
+    // profile-bearing files, and the refusal is typed.
     let text = format!("schema: {SCHEMA_VERSION}\n{}", body_of(V1));
     match load(&text) {
-        Ok(_) => {}
-        Err(PersistError::ToleranceConflict { .. }) => {
-            // The eps door is LAST: the bytes still parsed, validated
-            // and replayed, which is the whole claim here.
-        }
-        Err(e) => panic!(
-            "a v1 body under a live header no longer loads ({e:?}) — the format DID change: \
-             say so in the schema docs and give the bump a real migration story"
+        Err(PersistError::Parse { message, .. }) => assert!(
+            message.contains("vertices"),
+            "the refusal names the retired field: {message}"
+        ),
+        other => panic!(
+            "a v1 body under a v4 header must refuse at parse (the profile wire shape \
+             changed), got {other:?}"
         ),
     }
 }

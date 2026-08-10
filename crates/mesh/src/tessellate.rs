@@ -108,11 +108,12 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
                 &mut positions,
                 &tol,
             )?,
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => tessellate_planar(body, fk, origin, normal, u_ref, &chords, &positions)?,
+            // The planar lane derives its chart frame from the face's
+            // own boundary (planar.rs module docs, #284) — the stored
+            // plane axes are deliberately not passed: imported axes
+            // carry translator noise that projects valid boundaries
+            // below spade's coordinate domain.
+            Surface::Plane { .. } => tessellate_planar(body, fk, &chords, &positions)?,
             // Structural routing (M5 PR 11): a conic/B-spline trim
             // carrier means the face is not an iso-rectangle — the
             // pcurve-driven trimmed lane takes it; iso boundaries keep
