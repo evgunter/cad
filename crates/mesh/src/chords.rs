@@ -941,7 +941,7 @@ mod tests {
         let pts: Vec<Point3<f64>> = (0..kv.control_count())
             .map(|i| {
                 let t = i as f64 / 5.0;
-                Point3::new(t, (2.5 * t).sin(), 0.4 * t * t)
+                Point3::new(t, (2.5 * t).sin(), 0.4 * t.powi(2))
             })
             .collect();
         let w: Vec<f64> = (0..pts.len()).map(|i| [0.3, 2.0, 0.9][i % 3]).collect();

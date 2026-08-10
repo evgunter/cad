@@ -1416,7 +1416,7 @@ mod tests {
         for i in 0..nu {
             for j in 0..nv {
                 let (x, y) = (i as f64 * 2.0, j as f64 * 0.7);
-                control.push(Point3::new(x, y, 0.5 * y * y + 0.3 * x * y));
+                control.push(Point3::new(x, y, 0.5 * y.powi(2) + 0.3 * x * y));
                 weights.push(if i == 0 { 1.0 } else { 5.0 });
             }
         }
@@ -1459,9 +1459,9 @@ mod tests {
                 let b = s.eval(u, v);
                 let c = s.eval(u + h, v);
                 Point3::new(
-                    (a.x - 2.0 * b.x + c.x) / (h * h),
-                    (a.y - 2.0 * b.y + c.y) / (h * h),
-                    (a.z - 2.0 * b.z + c.z) / (h * h),
+                    (a.x - 2.0 * b.x + c.x) / h.powi(2),
+                    (a.y - 2.0 * b.y + c.y) / h.powi(2),
+                    (a.z - 2.0 * b.z + c.z) / h.powi(2),
                 )
             };
             let n_fd = (fd_uu.x.powi(2) + fd_uu.y.powi(2) + fd_uu.z.powi(2)).sqrt();
