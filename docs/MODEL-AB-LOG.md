@@ -551,3 +551,7 @@ cb24259b. Both run the full Python journey independently.
 U10 (2026-08-10): the LIB-6 opus remainder — the program's FINAL
 unit. Difficulty logged pre-dispatch: M (docs-only, breadth not
 depth). Review ordinal computed at dispatch of its review.
+U10 dual (2026-08-10): dispatch-time ordinal = 17 merged blinded
+rows + 1 = 18 → DUAL (sample #6). R1+R2 concurrent on frozen head
+5d1f132a. Both mutate guide blocks and re-derive audit oracles
+independently.
