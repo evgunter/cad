@@ -528,6 +528,7 @@ fn map_arc_trim_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>) -> ProfileError {
     }
 }
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use crate::{Profile, SketchPlane};
