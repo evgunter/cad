@@ -532,3 +532,193 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::float_cmp, clippy::panic, clippy::print_stdout)]
+mod r2_probes {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    const EPS_IN: f64 = 1e-9;
+
+    /// A closed rational-quadratic polyline-of-arcs on the circle of
+    /// `radius` in the z=0 plane through the given angle sequence
+    /// (radians), each consecutive pair one rational-quadratic span,
+    /// with the given knot breaks (domain [0,1]).
+    fn arc_chain(radius: f64, angles: &[f64], breaks: &[f64]) -> NurbsCurve3<f64> {
+        let n = angles.len() - 1;
+        assert_eq!(breaks.len(), n - 1);
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        let on = |t: f64| Point3::new(radius * t.cos(), radius * t.sin(), 0.0);
+        control.push(on(angles[0]));
+        weights.push(1.0);
+        for k in 0..n {
+            let (a, b) = (angles[k], angles[k + 1]);
+            let half = (b - a) / 2.0;
+            let c = half.cos();
+            let mid = (a + b) / 2.0;
+            control.push(Point3::new(
+                radius / c * mid.cos(),
+                radius / c * mid.sin(),
+                0.0,
+            ));
+            weights.push(c);
+            control.push(on(b));
+            weights.push(1.0);
+        }
+        let mut kn = vec![0.0, 0.0, 0.0];
+        for b in breaks {
+            kn.push(*b);
+            kn.push(*b);
+        }
+        kn.extend([1.0, 1.0, 1.0]);
+        let knots = KnotVector::clamped(kn, 2).unwrap();
+        NurbsCurve3::new(knots, control, weights).unwrap()
+    }
+
+    fn azimuths(curve: &NurbsCurve3<f64>) -> Vec<f64> {
+        let (a, b) = curve.domain();
+        (0..=4)
+            .map(|k| {
+                let p = curve.eval(a + (b - a) * f64::from(k) / 4.0);
+                p.y.atan2(p.x).to_degrees()
+            })
+            .collect()
+    }
+
+    /// R2-A: THE TURNING-WITNESS ATTACK. A closed carrier lying
+    /// EXACTLY on the circle that covers only 300°, whose five fixed
+    /// samples land at 0°, 100°, 200°, 300°, 0° — four strictly
+    /// positive wrapped increments (100, 100, 100, 60). If this
+    /// promotes, the adopted full period is a strictly larger locus
+    /// than the carrier, with a ~1e-18 "certified" residual.
+    #[test]
+    fn r2a_a_300_degree_carrier_that_passes_the_turning_witness() {
+        let d = |x: f64| x.to_radians();
+        // forward 0→100→200→300 over [0, .75], back 300→200→100→0
+        // over [.75, 1].
+        let curve = arc_chain(
+            0.005,
+            &[d(0.0), d(100.0), d(200.0), d(300.0), d(200.0), d(100.0), d(0.0)],
+            &[0.25, 0.5, 0.75, 0.75 + 1.0 / 12.0, 0.75 + 2.0 / 12.0],
+        );
+        println!("R2-A azimuths: {:?}", azimuths(&curve));
+        let outcome = recognize(&curve, EPS_IN);
+        println!("R2-A outcome: {outcome:?}");
+        assert!(
+            !matches!(outcome, CurveRecognition::Promoted { .. }),
+            "a 300-degree carrier must not become the full circle"
+        );
+    }
+
+    /// R2-B2: C6's own curve, measured. Its `third` is `TAU/6` = 60
+    /// degrees, but its corner is placed at `2r` with weight 1/2 — the
+    /// 120-degree construction. So the span is NOT on the circle and
+    /// C6 refuses on the CERTIFICATE, never reaching the turning
+    /// witness it is named for.
+    #[test]
+    fn r2b2_c6s_curve_is_not_on_its_circle() {
+        let radius = 0.005f64;
+        let on = |t: f64| Point3::new(radius * t.cos(), radius * t.sin(), 0.0);
+        let corner = |t: f64| Point3::new(2.0 * radius * t.cos(), 2.0 * radius * t.sin(), 0.0);
+        let third = core::f64::consts::TAU / 6.0;
+        println!("C6 `third` = {} deg", third.to_degrees());
+        let control = vec![on(0.0), corner(third / 2.0), on(third), corner(third / 2.0), on(0.0)];
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
+        let curve = NurbsCurve3::new(knots, control, vec![1.0, 0.5, 1.0, 0.5, 1.0]).unwrap();
+        println!("C6 azimuths: {:?}", azimuths(&curve));
+        // How far off the origin-centred circle the midpoint sits.
+        let m = curve.eval(0.5);
+        println!("C6 mid |P| = {} vs r = {radius}", (m.x * m.x + m.y * m.y).sqrt());
+        println!("C6 outcome: {:?}", recognize(&curve, EPS_IN));
+    }
+
+    /// R2-B: why C6 refuses — diagnostic, to see whether the witness
+    /// or something else does the work on the symmetric out-and-back.
+    #[test]
+    fn r2b_c6_diagnostic() {
+        let d = |x: f64| x.to_radians();
+        let curve = arc_chain(0.005, &[d(0.0), d(120.0), d(0.0)], &[0.5]);
+        println!("R2-B azimuths: {:?}", azimuths(&curve));
+        println!("R2-B outcome: {:?}", recognize(&curve, EPS_IN));
+    }
+
+    /// R2-C: CERTIFICATE SOUNDNESS. For a family of perturbed
+    /// carriers, the certified residual must be an upper bound on the
+    /// densely sampled true distance to the promoted circle.
+    #[test]
+    fn r2c_the_certified_residual_bounds_the_true_deviation() {
+        let radius = 0.005f64;
+        for (i, delta) in [0.0, 1e-12, 1e-11, 1e-10, 5e-10, 9e-10]
+            .into_iter()
+            .enumerate()
+        {
+            // Ellipse-ish: scale y, and wobble z, both at `delta`.
+            let base = super::tests_support::rational_circle(radius);
+            let mut control = base.control().to_vec();
+            for (k, p) in control.iter_mut().enumerate() {
+                p.y *= 1.0 + delta / radius;
+                if k % 2 == 1 {
+                    p.z += delta;
+                }
+            }
+            let curve =
+                NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
+            let outcome = recognize(&curve, EPS_IN);
+            let CurveRecognition::Promoted {
+                curve: Curve3::Circle { center, axis, radius: r, .. },
+                residual,
+                ..
+            } = outcome
+            else {
+                println!("R2-C[{i}] delta={delta:e}: stays NURBS");
+                continue;
+            };
+            // Dense true deviation.
+            let (a, b) = curve.domain();
+            let mut worst = 0.0f64;
+            for k in 0..=20_000 {
+                let p = curve.eval(a + (b - a) * f64::from(k) / 20_000.0);
+                let w = p - center;
+                let h = w.dot(axis);
+                let q = (w - axis * h).norm();
+                worst = worst.max((q - r).hypot(h));
+            }
+            println!(
+                "R2-C[{i}] delta={delta:e} certified={residual:e} true={worst:e} ratio={:.3}",
+                worst / residual
+            );
+            assert!(
+                worst <= residual * (1.0 + 1e-9),
+                "UNSOUND: certified {residual:e} < true {worst:e}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests_support {
+    use super::*;
+    use geom_core::spline::KnotVector;
+    /// The 3x120 rational-quadratic full circle, centred at the origin.
+    pub(crate) fn rational_circle(radius: f64) -> NurbsCurve3<f64> {
+        let tau = core::f64::consts::TAU;
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for k in 0..7 {
+            let on = k % 2 == 0;
+            let theta = tau * (k as f64) / 6.0;
+            let r = if on { radius } else { radius * 2.0 };
+            control.push(Point3::new(r * theta.cos(), r * theta.sin(), 0.0));
+            weights.push(if on { 1.0 } else { 0.5 });
+        }
+        let s = 3.0f64.sqrt();
+        let knots = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, s, s, 2.0 * s, 2.0 * s, 3.0 * s, 3.0 * s, 3.0 * s],
+            2,
+        )
+        .unwrap();
+        NurbsCurve3::new(knots, control, weights).unwrap()
+    }
+}
