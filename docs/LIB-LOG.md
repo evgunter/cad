@@ -526,8 +526,9 @@ oracles (finding 5), the DocParam __eq__ rider (from ordinal
 19), straight-run authoring noise (finding 7 — vocabulary
 evidence for a future design conversation, not a unit).
 
-**The #377 design conversation (2026-08-11, orchestrator —
-AWAITING Evan; PR carries the doc edits).** LoopBuilder
+**The #377 design conversation — RATIFIED (2026-08-11, Evan 👍
+on #386, after two follow-up rounds that strengthened the §V6
+disposition to full test-support banishment + struck V4(c)).** LoopBuilder
 retirement per Evan's in-chat ruling requires three dispositions
 beyond the §2b route (the lb-diecomposed investigation's
 findings): (a) PROFILES-V2 §V6's ratified fail-loud-demo-surface

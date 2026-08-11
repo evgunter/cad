@@ -601,8 +601,8 @@ consequence reported for ratification, not an implementer's taste:
   at `.fillet(r)` (which puts `.fillet` itself behind `Bounds`) — and
   both are ratification calls.
 
-  **LB10 revisit (2026-08-11, issue #377 — AWAITING Evan's route
-  ruling).** The "concrete use case" the deferral asked for has
+  **LB10 revisit (2026-08-11, issue #377 — RATIFIED, Evan 👍 on
+  #386: ROUTE 3).** The "concrete use case" the deferral asked for has
   arrived twice: audit gap G12 (rocker unauthorable from Python)
   and Evan's ruling that LoopBuilder retires as an authoring
   surface. The 2026-08-11 investigation established the geometry

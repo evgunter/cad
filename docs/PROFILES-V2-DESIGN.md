@@ -528,10 +528,9 @@ owed to users as a promise; not run at load, ever (clean break).
   fail-loud demo surface; under V4(c) it additionally becomes the
   raw vocabulary's recording surface (same record-as-you-lower shape
   as V1's third bullet).
-  **AMENDMENT PROPOSED (2026-08-11, issue #377 — AWAITING Evan's
-  sign-off; his in-chat ruling "LoopBuilder should go away" is the
-  driver, this edit is its ratification vehicle; strengthened
-  2026-08-11 per his two follow-ups):** this whole sentence ENDS
+  **AMENDMENT RATIFIED (2026-08-11, issue #377, Evan 👍 on #386;
+  driven by his in-chat ruling "LoopBuilder should go away";
+  strengthened per his two follow-ups before sign-off):** this whole sentence ENDS
   at the migration unit. LoopBuilder leaves the `profile` crate's
   public surface ENTIRELY and moves to test-support (the
   banished-to-the-test disposition): its one load-bearing role is
