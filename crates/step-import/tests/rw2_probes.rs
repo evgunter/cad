@@ -51,8 +51,8 @@ fn native_arc_loft() -> topo::Body<f64> {
 fn probe_round_trip_bit_identity_and_reorder() {
     let native = native_arc_loft();
     let want = topo::mass_properties(&native).expect("native certifies at default eps");
-    let text = step_export::step_string(&native, &step_export::StepOptions::default())
-        .expect("exports");
+    let text =
+        step_export::step_string(&native, &step_export::StepOptions::default()).expect("exports");
 
     let import = |t: &str, who: &str| -> topo::MassProperties<f64> {
         match step_import::import_step(t, &step_import::ImportOptions::default()) {
@@ -108,7 +108,12 @@ fn probe_round_trip_bit_identity_and_reorder() {
     }
     assert!(!data.is_empty(), "no DATA section parsed");
     data.reverse();
-    let reordered = format!("{}\n{}\n{}", head.join("\n"), data.join("\n"), tail.join("\n"));
+    let reordered = format!(
+        "{}\n{}\n{}",
+        head.join("\n"),
+        data.join("\n"),
+        tail.join("\n")
+    );
     let got2 = import(&reordered, "reversed-DATA");
     assert_eq!(
         got2.volume.to_bits(),
@@ -146,7 +151,13 @@ fn probe_dense_isoarc_residuals_at_joins() {
     let mut seen = 0usize;
     for (who, body) in &bodies {
         for (hek, cache) in body.pcurves() {
-            let geom_brep::Pcurve::IsoArc { breaks, t0: at0, angle, .. } = cache.pcurve() else {
+            let geom_brep::Pcurve::IsoArc {
+                breaks,
+                t0: at0,
+                angle,
+                ..
+            } = cache.pcurve()
+            else {
                 continue;
             };
             seen += 1;
@@ -234,7 +245,8 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
     let axis = Vec3::unit_z();
     let u_ref = Vec3::unit_x();
     let vref = axis.cross(u_ref);
-    let on = |a: f64, z: f64| center + u_ref * (radius * a.cos()) + vref * (radius * a.sin()) + axis * z;
+    let on =
+        |a: f64, z: f64| center + u_ref * (radius * a.cos()) + vref * (radius * a.sin()) + axis * z;
     let tan_pt = |a: f64, z: f64| {
         let r = radius / w;
         center + u_ref * (r * a.cos()) + vref * (r * a.sin()) + axis * z
