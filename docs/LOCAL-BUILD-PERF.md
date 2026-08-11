@@ -235,19 +235,27 @@ makes it safe for the filter to skip CI on those changes.
 `ci-local.sh` and `gate.sh` are local despite appearing in `ci.yml`: those
 are comment mentions only, verified by checking for non-comment references.
 
-### ACTION REQUIRED IN EXISTING LANES
+### The stranded-hook trap (self-healing since 2026-08-11)
 
-`new-lane.sh` sets `core.hooksPath`, and existing clones have the OLD path
-stored in their `.git/config`. After merging this, each existing lane must:
+`new-lane.sh` stores the hooks path in each clone's `.git/config`, so the
+split stranded every EXISTING lane: git finds no hooks directory and runs no
+hook **without saying anything**, so the pre-push `fmt-all --check` simply
+stops. A silent failure, which the charter does not tolerate.
 
-```
-git config core.hooksPath local-scripts/hooks
-```
+It bit this investigation's own lane first — its two pushes after the move
+ran no hook at all, and only the CI `rustfmt` row (the backstop) would have
+caught a violation.
 
-Until it does, the pre-push `fmt-all --check` hook **silently does not
-run** — git finds no hooks directory and says nothing. The CI `rustfmt` row
-is the backstop, so this cannot reach main, but it will surprise you at the
-gate rather than at push time. Fresh lanes are unaffected.
+`with-build-slot.sh` now repairs a dangling `core.hooksPath` on the spot and
+says so, because it is the one script every lane runs constantly: a stranded
+lane fixes itself on its next build instead of waiting for someone to
+remember a one-liner. If the hooks directory is missing entirely it warns
+loudly rather than proceeding quietly. The manual equivalent, if you want it
+now: `git config core.hooksPath local-scripts/hooks`.
+
+**General lesson, worth more than this instance**: a repo-relative path
+cached in per-clone git config is invisible to any repo-side rename. Grep
+for `git config` when moving directories.
 
 ## Reproducing
 

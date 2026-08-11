@@ -17,10 +17,14 @@ gate, test-fast, new-lane, clean-lanes, fmt-all, setup-build-env,
 hooks/, monitors/). Every workflow job does `rm -rf local-scripts`
 after checkout, so CI CANNOT depend on them — which is what lets
 ci-filter.py treat local-scripts/ changes as non-triggering (they used
-to force the full matrix). EXISTING LANES: after merging, run
-`git config core.hooksPath local-scripts/hooks` — the old path is
-stored in .git/config and the pre-push fmt hook SILENTLY stops running
-otherwise (CI rustfmt is the backstop). See docs/LOCAL-BUILD-PERF.md §6.
+to force the full matrix). Existing lanes had the OLD hooks path
+cached in .git/config, so the rename silently disabled their pre-push
+fmt hook (git says NOTHING when core.hooksPath is missing) — it hit the
+build-perf lane itself. with-build-slot.sh now REPAIRS a dangling
+core.hooksPath on the next build and says so, so no manual step is
+needed. General lesson: a repo-relative path cached in per-clone git
+config is invisible to a repo-side rename — grep for `git config` when
+moving directories. See docs/LOCAL-BUILD-PERF.md §6.
 
 **Lane creation.** Working clones/worktrees NEVER go in the /tmp
 session scratchpad (session-derived, silently reaped) — use

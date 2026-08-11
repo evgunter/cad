@@ -138,6 +138,30 @@ fi
 
 mkdir -p "$LOCK_DIR"
 
+# SELF-HEAL A DANGLING core.hooksPath. `new-lane.sh` stores the hooks path in
+# each clone's .git/config, so the 2026-08-11 scripts/ -> local-scripts/ split
+# stranded every EXISTING lane: git finds no hooks directory and runs no hook
+# WITHOUT SAYING ANYTHING, so the pre-push `fmt-all --check` just stops. That
+# is a silent failure, which the charter does not tolerate — and it bit this
+# repo's own build-perf lane first, whose next two pushes ran no hook at all.
+#
+# Repaired here because this script is the one thing every lane runs
+# constantly, so a stranded lane fixes itself on its next build instead of
+# waiting for someone to remember a one-liner. Cheap: two stats, and only
+# when the recorded path is missing. Loud: it says what it did.
+if git rev-parse --git-dir >/dev/null 2>&1; then
+  _hp=$(git config core.hooksPath 2>/dev/null || true)
+  if [ -n "$_hp" ] && [ ! -d "$_hp" ]; then
+    _root=$(git rev-parse --show-toplevel 2>/dev/null || echo .)
+    if [ -d "$_root/local-scripts/hooks" ]; then
+      git config core.hooksPath local-scripts/hooks
+      echo "with-build-slot: repaired dangling core.hooksPath ($_hp -> local-scripts/hooks); the pre-push fmt hook was silently disabled" >&2
+    else
+      echo "with-build-slot: WARNING core.hooksPath=$_hp does not exist — the pre-push fmt hook is NOT running" >&2
+    fi
+  fi
+fi
+
 # IF A COMPILER-CACHE DAEMON IS EVER ADDED TO THE BUILD PATH, PRE-START IT
 # HERE — before the lock fds are opened below. A daemon auto-started by a
 # slot-wrapped `cargo build` inherits fds 7/8/9 and keeps the flock held
