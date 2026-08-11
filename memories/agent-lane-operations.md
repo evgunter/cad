@@ -22,7 +22,8 @@ cached in .git/config, so the rename silently disabled their pre-push
 fmt hook (git says NOTHING when core.hooksPath is missing) — it hit the
 build-perf lane itself. with-build-slot.sh now REPAIRS a dangling
 core.hooksPath on the next build and says so, so no manual step is
-needed. General lesson: a repo-relative path cached in per-clone git
+needed — a MIGRATION SHIM, **RETIRE 2026-08-13** (grep
+`RETIRE 2026-08-13`; it nags on every acquisition past that date). General lesson: a repo-relative path cached in per-clone git
 config is invisible to a repo-side rename — grep for `git config` when
 moving directories. See docs/LOCAL-BUILD-PERF.md §6.
 

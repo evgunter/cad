@@ -253,6 +253,14 @@ remember a one-liner. If the hooks directory is missing entirely it warns
 loudly rather than proceeding quietly. The manual equivalent, if you want it
 now: `git config core.hooksPath local-scripts/hooks`.
 
+**The self-heal is a MIGRATION SHIM — RETIRE 2026-08-13 (Evan).** Every lane
+heals on its first build after merging the split, so once all lanes have
+cycled the block is dead weight, and a permanent repair path hides the very
+misconfiguration it papers over. Delete it: `grep -n 'RETIRE 2026-08-13'
+local-scripts/with-build-slot.sh` finds the whole shim (the repair block and
+its expiry notice). Past the date the script says so on every slot
+acquisition — a dated comment alone rots, so the reminder is self-enforcing.
+
 **General lesson, worth more than this instance**: a repo-relative path
 cached in per-clone git config is invisible to any repo-side rename. Grep
 for `git config` when moving directories.

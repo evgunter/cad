@@ -138,6 +138,15 @@ fi
 
 mkdir -p "$LOCK_DIR"
 
+# === MIGRATION SHIM — RETIRE 2026-08-13 (Evan) ======================
+# One-way migration aid for the 2026-08-11 scripts/ -> local-scripts/ split.
+# Every lane self-heals on its FIRST build after merging that split, so once
+# all lanes have cycled — 2026-08-13 — this block is dead weight and should
+# be DELETED, not kept "just in case": a permanent repair path hides the very
+# misconfiguration it papers over. Past the date this script says so on every
+# acquisition, which is the reminder. Grep `RETIRE 2026-08-13` for the whole
+# shim (this block plus the notice below it).
+#
 # SELF-HEAL A DANGLING core.hooksPath. `new-lane.sh` stores the hooks path in
 # each clone's .git/config, so the 2026-08-11 scripts/ -> local-scripts/ split
 # stranded every EXISTING lane: git finds no hooks directory and runs no hook
@@ -160,6 +169,11 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
       echo "with-build-slot: WARNING core.hooksPath=$_hp does not exist — the pre-push fmt hook is NOT running" >&2
     fi
   fi
+fi
+# RETIRE 2026-08-13: the shim's own expiry nag. Self-enforcing on purpose —
+# a dated comment alone rots, and this one is cheap and unmissable.
+if [ "$(date +%Y%m%d)" -gt 20260813 ]; then
+  echo "with-build-slot: MIGRATION SHIM EXPIRED — the core.hooksPath self-heal was due for deletion 2026-08-13 (grep 'RETIRE 2026-08-13' in this file; see docs/LOCAL-BUILD-PERF.md §6)" >&2
 fi
 
 # IF A COMPILER-CACHE DAEMON IS EVER ADDED TO THE BUILD PATH, PRE-START IT
