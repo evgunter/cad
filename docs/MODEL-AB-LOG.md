@@ -678,3 +678,6 @@ ASM-2K review dispatch (2026-08-11): dispatch-time ordinal = 23
 merged blinded rows on main (+ASM-1 21, PYG23A 22, M8-14 23; #376
 open) + 1 = 24 → DUAL (sample #8). R1+R2 concurrent on frozen
 head ada35468 per the same-head amendment; both Fable.
+ASM-ROOTS review dispatch (2026-08-11): ordinal 24 already fixed
+to ASM-2K; ROOTS takes the next unfixed ordinal 25 → SINGLE.
+Frozen head 5b5850b23205.
