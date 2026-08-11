@@ -693,6 +693,17 @@ different scene each time, on an idle box as well as a loaded one — so
 it is the session that wedges, not any one scene, and no session is
 reused across scenes.
 
+By default the scenes go one at a time. `CAD_RENDER_JOBS=K` renders K
+of them concurrently — still one fresh session per scene, so it does
+not reopen the wedge above — and prints the pass's wall clock next to
+the summed per-scene times, which stop being the same number above
+K=1. What concurrency trades against is the budget: the same
+measurements that sized it put a scene at 3–19 s idle and 106 s under
+load, so K scenes on a K-core box push every scene toward the
+contended figure. Keep K at or under the core count, and treat
+sequential as the reference — it is what the committed cells were
+rendered under.
+
 Each attempt runs in its own session, so the budget covers the process
 *tree*: when it expires the whole group is killed and the scene is
 retried **once**, in a fresh process. A second expiry is a loud,

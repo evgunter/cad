@@ -6,8 +6,19 @@
 # SendMessage) any agent that idled without delivering its report.
 # Lost wake-on-completion events are common; the work is usually done
 # and pushed but unreported, silently blocking the pipeline.
+#
+# The tick is anchored to WALL CLOCK, not to sleep durations: a bare
+# `sleep 3600` fires early whenever the sleep is interrupted (WSL2
+# clock skew under load, host suspend/resume), which showers the
+# orchestrator with spurious ticks. Short polls + an elapsed-time
+# check make interrupted sleeps harmless.
 set -u
+last=$(date +%s)
 while true; do
-  sleep 3600
-  echo "HOURLY AGENT CHECK-IN TICK $(date -u +%Y-%m-%dT%H:%MZ) — sweep every running subagent lane; nudge any that idled without reporting"
+  sleep 300
+  now=$(date +%s)
+  if [ $((now - last)) -ge 3300 ]; then
+    echo "HOURLY AGENT CHECK-IN TICK $(date -u +%Y-%m-%dT%H:%MZ) — sweep every running subagent lane; nudge any that idled without reporting"
+    last=$now
+  fi
 done

@@ -59,10 +59,17 @@ fn the_meter_lower_bounds_the_real_speed() {
 }
 
 #[test]
-fn a_carrier_that_doubles_back_reports_a_non_positive_meter() {
-    // No single direction bounds this curve's velocity from below, so
-    // the honest answer is "not positive" — and the caller's trilean
-    // then escalates instead of accepting a split it cannot meter.
+fn a_carrier_that_doubles_back_now_meters_its_speed() {
+    // FLIPPED (M8-14, #222): this row used to assert a non-positive
+    // meter, because "no single direction bounds this curve's velocity
+    // from below" — which was true of the ARM (one global chord), not
+    // of the curve: the meter's contract is SPEED, never injectivity,
+    // and this loop's speed never drops. The integral arm now runs a
+    // per-span scan joined with the global chord (derivation on
+    // `speed_lower_bound`), so the honest answer is positive — and
+    // still a genuine lower bound. The refusal this row really
+    // guarded — a carrier whose speed COLLAPSES — is pinned in
+    // `m8_14_long_turn_meter::a_genuine_cusp_still_refuses`.
     let pts: Vec<Point3<f64>> = (0..=40)
         .map(|i| {
             let t = f64::from(i) / 40.0;
@@ -71,10 +78,20 @@ fn a_carrier_that_doubles_back_reports_a_non_positive_meter() {
         })
         .collect();
     let c = NurbsCurve3::<f64>::interpolate(&pts, 3).unwrap();
+    let m = c.speed_lower_bound();
     assert!(
-        c.speed_lower_bound() <= 0.0,
-        "a closed loop has no positive one-directional speed bound"
+        m > 0.0,
+        "a closed loop's speed never drops, so the per-span meter must be \
+         positive, got {m}"
     );
+    for i in 0..=400 {
+        let t = f64::from(i) / 400.0;
+        let s = c.deriv(t).norm();
+        assert!(
+            s >= m - 1e-12,
+            "meter {m} exceeds the real speed {s} at t = {t}"
+        );
+    }
 }
 
 /// Both halves of the contract at once: the bound is REAL (strictly
