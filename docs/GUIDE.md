@@ -756,6 +756,118 @@ Bit-identity is a real guarantee, not a hope: the kernel uses pure
 libm and a fixed evaluation order (design decision D9), so the same
 document replays to the same bits.
 
+### A profile with holes
+
+A profile is a list of loops: the outer boundary first, then the
+holes. This is the same `ProfileProgram.loops` the Rust side fills,
+so the two languages say one thing — Rust hands `Profile::new` a
+`Vec<ProfileLoop>`, Python hands `Node.profile` a list.
+
+Nothing about the loop SET is checked at the boundary. Which loop is
+outer, whether the holes nest, whether two loops cross — that is
+`Profile::validate`'s work, and it reaches Python as a typed refusal
+at `insert`, not as a guess.
+
+```python
+import math
+
+from pncad import Doc, EditError, Node, Open, Start, circle, evaluate, m
+
+# The tour's `plate` stop: a 6 x 3 slab, 0.6 deep, with two holes.
+outer = (
+    Open.at((-3 * m, -1.5 * m))
+    .line_to((3 * m, -1.5 * m))
+    .line_to((3 * m, 1.5 * m))
+    .line_to((-3 * m, 1.5 * m))
+    .line_to(Start)
+)
+holes = [circle((-1.5 * m, 0 * m), 0.7 * m), circle((1.5 * m, 0 * m), 0.7 * m)]
+
+doc = Doc()
+sketch = doc.insert(Node.profile([outer, *holes]))
+plate = doc.insert(Node.extrude(sketch, 0.6 * m))
+
+body = evaluate(doc).value(plate).body()
+body.validate()
+area = 6.0 * 3.0 - 2.0 * math.pi * 0.7 * 0.7
+assert abs(body.mass_properties().volume - 0.6 * area) < 1e-12
+
+# Two disjoint circles are not an outline and its hole. The kernel
+# says so; the binding does not pre-empt it.
+try:
+    Doc().insert(
+        Node.profile([circle((0 * m, 0 * m), 1 * m), circle((5 * m, 0 * m), 1 * m)])
+    )
+    raise AssertionError("that profile should not have validated")
+except EditError as refusal:
+    assert refusal.variant == "profile_program_refused"
+```
+
+### Filleting edges you name
+
+A fillet blends a SELECTION of a body's edges, and the selection is
+stable names — not indices, not "all of them". There is no
+every-edge spelling on purpose: a selection is a COMMITMENT, and a
+live "all" would silently grow the day an upstream edit adds an edge.
+
+So you materialize the names you want off an evaluation, and store
+what you got. `Evaluation.all_edges(node)` is the whole-body
+materializer (with `all_faces`, `all_vertices` and `all_bodies`
+beside it), and the strings it answers with are carried to
+`Node.fillet` unread. Rust says the same thing with
+`editor_core::all_edges` and `Node::fillet`.
+
+**A name is an opaque identifier.** It is the name's own serde
+encoding — the same value a saved document carries, modulo the
+whitespace `save` pretty-prints with — but its internal structure is
+NOT API: it may change without notice, so the supported operations
+are equality, ordering, storage, and handing it back. Narrowing a
+materialized set is a SELECTOR's job. Rust has one
+(`select_where` with `GeomPred`); Python does not yet, and that is a
+named gap — see the north-star audit's G13.
+
+```python
+import math
+
+from pncad import Doc, EvaluationError, Node, evaluate, m
+
+L, R = 1.0, 0.12
+
+doc = Doc()
+square = doc.insert(
+    Node.polygon([(0 * m, 0 * m), (L * m, 0 * m), (L * m, L * m), (0 * m, L * m)])
+)
+cube = doc.insert(Node.extrude(square, L * m))
+
+# The twelve names, as of THIS evaluation. Stored into the recipe,
+# they are frozen: the repair path for a moved edge is a rebind, not
+# a re-query.
+edges = evaluate(doc).all_edges(cube)
+assert len(edges) == 12
+blank = doc.insert(Node.fillet(cube, R * m, edges))
+
+# The tour's `diefillet` blank: a shrunk core, six slab faces, twelve
+# quarter-cylinders and eight sphere octants.
+core = L - 2 * R
+want = (
+    core**3
+    + 6 * R * core**2
+    + 12 * (math.pi * R * R / 4) * core
+    + (4 / 3) * math.pi * R**3
+)
+body = evaluate(doc).value(blank).body()
+body.validate()
+assert abs(body.mass_properties().volume - want) < 1e-9 * want
+
+# An empty selection is refused by the node, not by the binding.
+empty = doc.insert(Node.fillet(cube, R * m, []))
+try:
+    evaluate(doc).value(empty)
+    raise AssertionError("an empty selection should not blend")
+except EvaluationError as refusal:
+    assert refusal.kind == "fillet_selection_empty"
+```
+
 ## 3. Parametric models
 
 Section 2's Rust walk built a solid by calling operations. That is a
@@ -1005,8 +1117,12 @@ belongs to replay.
 From Python the same edit is `DocEdit.set_doc_param(ParamName(…),
 DocParam.length(…))`, demonstrated against this exact document in
 `crates/pncad-py/tests/test_north_star.py`. Authoring the *profile*
-above from Python still awaits the audit's G1 (circles) and G9
-(multi-loop profiles) doors.
+above from Python now awaits exactly ONE door. Circles came with the
+audit's G1 and the three-loop profile with G9; what is left is a
+profile step whose argument is an EXPRESSION rather than a literal —
+the holes above are `LoopProgram::Circle { radius: Expr::param(…) }`,
+and `pncad.circle(centre, radius)` takes a `Length`, so the radius
+crosses as a number and the parameter link is lost.
 
 ## 4. The rest of the documentation
 

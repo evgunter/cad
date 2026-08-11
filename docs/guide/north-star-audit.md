@@ -18,16 +18,32 @@ governs how the gaps get treated:
 > library — never quietly work around it, and never contort the demo
 > to hide it.
 
-**Result: 18 of the 34 tour stops are authorable through Python
-today** — 14 outright, and 4 more only if you re-author by hand the
-placement or patterning the scene uses. 16 are blocked by a missing
-door.
+**Result: 24 of the 34 tour stops are authorable through Python
+today** — 20 outright, and 4 more only if you re-author by hand what
+the scene says structurally. 10 are blocked by a missing door.
 
 The count moved from 7 to 11 when LIB-PYG1 bound the PATHS lattice
-and closed G1 (`bracket`, `vase`, `sheave`, `bossplate`), and from 11
-to 18 when LIB-PYG23A bound the sketch-plane vocabulary and the loft
+and closed G1 (`bracket`, `vase`, `sheave`, `bossplate`), from 11 to
+18 when LIB-PYG23A bound the sketch-plane vocabulary and the loft
 node — closing G3 outright (`silhouette`, `silhouette3` and its three
-shadow stops) and G2's loft half (`loft_prism`, `nonuniform_loft`).
+shadow stops) and G2's loft half (`loft_prism`, `nonuniform_loft`) —
+and from 18 to 24 when LIB-PYBUNDLE bound the fillet, split,
+transform and datum-plane nodes and grew a profile past one loop,
+closing G4, G6, G7 and G9. Five stops flipped NO to YES (`plate`,
+`diefillet`, `diepips`, `tiltedcut`, `az`), `crosslap_exploded`
+stopped being a YES\* — its lift is a `Node.transform` now, not a
+hand-authored copy — and `diecomposed` went NO to YES\*.
+
+Three of that unit's stops did NOT flip outright, and each named the
+door it was actually waiting on rather than inheriting the one that
+closed: `rocker` (G12), `diecomposed` (G13), `cutaway` (G14). G12 and
+G14 are measured, executed refusals in `test_north_star.py`. G13 is
+NOT a refusal and the page no longer claims one: the composed die's
+BODY was reproduced from Python during this unit's review, by
+narrowing the materialized name set in Python code. That route reads
+inside the name text, which the binding declares an opaque
+identifier rather than a parseable value, so it is hand-authoring —
+the YES\* case — and not the selector the scene expresses.
 
 Every YES row below is verified by executed Python in
 `crates/pncad-py/tests/test_north_star.py`, which rebuilds the scene
@@ -64,9 +80,13 @@ Everything Python can say about geometry, in full:
   non-rigid frame is a well-defined skewed sketch rather than a
   refusal.
 - `Node.profile(outline, elevation=…, plane=…)` — one closed loop
-  from that lattice, on any sketch plane, built from the loop's
-  recorded program. `plane=` and `elevation=` are mutually exclusive
+  from that lattice, **or a list of them** (outer boundary first,
+  then holes), on any sketch plane, built from the loops' recorded
+  programs. `plane=` and `elevation=` are mutually exclusive
   (`elevation` is the xy sugar); passing both is a `TypeError`.
+  Nothing about the loop SET is pre-checked: nesting and containment
+  are `Profile::validate`'s work, reaching Python as a typed refusal
+  at `insert`.
 - `Node.polygon(points, elevation=…, plane=…)` — the straight-segment
   shortcut, same plane story.
 - `Node.extrude(profile, distance)` — along the sketch-plane normal,
@@ -76,8 +96,35 @@ Everything Python can say about geometry, in full:
   more section profiles in skin order, at an integer v-degree. There
   is no placement argument: each section rides its own profile's
   sketch plane.
-- `Node.boolean(op, a, b)` — union, intersect, subtract, with **no**
-  declaration argument.
+- `Node.boolean(op, a, b, declare=…)` — union, intersect, subtract.
+  `declare` is the DATA door for a declared contact: it names a
+  `Declare` node the boolean consumes. Nothing in Python can BUILD
+  one yet, so the argument is presently only reachable for a
+  declaration authored in Rust and loaded — which is why G5 is still
+  a gap.
+- `Node.fillet(target, radius, selection)` — constant-radius blends
+  on named edges. The selection is edge names as TEXT, materialized
+  off an evaluation and then FROZEN into the recipe: a commitment,
+  not a live query. There is no "every edge" spelling.
+- `Node.split(target, tool)` — cut a body by a `Node.datum_plane`.
+  The value is a split: `Value.split()` answers `(above, below)`,
+  `None` where a side is empty.
+- `Node.transform(input, translation, rotation_axis, rotation_angle)`
+  — a rigid placement, the kernel's convention unchanged: rotate
+  about the axis THROUGH THE WORLD ORIGIN, then translate.
+- `Node.datum_plane(origin, normal)` — the datum a split cuts with,
+  beside `Node.datum_axis`.
+- `Evaluation.all_edges/all_faces/all_vertices/all_bodies(node)` —
+  U7's whole-body materializers, answering the names as text. A
+  materializer, never a query: it answers for the evaluation in hand,
+  you store the answer, and a recipe holds no live selection because
+  a stored one would silently grow under an upstream edit.
+- `SketchPlane.origin/u/v/normal` and bit-exact `==` — the frame
+  reads back, and the equality is `SketchPlane::bit_eq` crossing
+  unchanged (`-0.0` keeps its own identity; there is no tolerance in
+  a plane to compare with).
+- `DocParam` compares and hashes, mirroring Rust's `PartialEq` — the
+  IEEE comparison, not `bit_eq`'s.
 - Edits: `insert_node`, `delete_node`, `set_tolerance`, and — since
   R1-PARAMS — `set_doc_param(ParamName, DocParam)`, the named
   document parameter edit (guide §3.2).
@@ -98,16 +145,16 @@ blockers stay named in the last column.
 | # | scene | Python? | gap | the missing door |
 |---|---|---|---|---|
 | 1 | `bracket` | **YES** | — | — |
-| 2 | `plate` | NO | G9 | multi-loop profile / holes |
+| 2 | `plate` | **YES** | — | — |
 | 3 | `vase` | **YES** | — | — |
 | 4 | `sheave` | **YES** | — | — |
 | 5 | `chute` | **YES** | — | — |
-| 6 | `rocker` | NO | G9 | multi-loop profile (the two eyes are holes); arcs now author |
-| 7 | `diefillet` | NO | G4 | no fillet node (`fillet_edges` on 12 edges) |
-| 8 | `diepips` | NO | G7 | rigid placement (21 pips placed on six faces); group boolean; arcs now author |
-| 9 | `diecomposed` | NO | G4 | no fillet node; plus everything blocking `diepips` |
+| 6 | `rocker` | NO | G12 | the outline's five arc-and-line corner fillets: `LoopBuilder::fillet_corner` is unbound and PATHS cannot substitute (§2b's ratified wall). Its multi-loop profile and its lattice-authored EYE now say themselves |
+| 7 | `diefillet` | **YES** | — | — |
+| 8 | `diepips` | **YES** | — | — |
+| 9 | `diecomposed` | YES\* | G13 | the fillet node says itself and so does the pipped cube; its two blends need the box edges and the pip rims SEPARATED, and no selector crosses, so the narrowing is hand-authored |
 | 10 | `lily` (8 bodies) | NO | G2 | tube/sweep, both banked (below); placement (G7) |
-| 11 | `tiltedcut` | NO | G6 | no split node |
+| 11 | `tiltedcut` | **YES** | — | — |
 | 12 | `bossplate` | **YES** | — | — |
 | 13 | `loft_prism` | **YES** | — | — |
 | 14 | `nonuniform_loft` | **YES** | — | body transfers; the scene's `loft_parameters` read-back does not — a named residue, not a gap |
@@ -123,11 +170,11 @@ blockers stay named in the last column.
 | 24 | `silhouette3_shadow_z` | **YES** | — | same body as row 23 (a camera, not a construction) |
 | 25 | `silhouette3_shadow_x` | **YES** | — | same body as row 23 |
 | 26 | `silhouette3_shadow_y` | **YES** | — | same body as row 23 |
-| 27 | `az` | NO | G9 | multi-loop profile (the A's counter is a hole); the yz sketch plane now authors |
+| 27 | `az` | **YES** | — | — |
 | 28 | `crosslap` (glued) | NO | G5 | declared flush contact — the mate refuses undeclared |
-| 29 | `crosslap_exploded` | YES\* | G7 | rigid placement (re-authorable: the lift is axis-aligned) |
+| 29 | `crosslap_exploded` | **YES** | — | — |
 | 30 | `projectbox` | **YES** | — | — |
-| 31 | `cutaway` | NO | G6 | no split node; also rigid placement (G7) |
+| 31 | `cutaway` | NO | G14 | the split and the two placements now say themselves; the CUT does not — a plane crossing boolean-minted faces refuses in the naming emitter |
 | 32 | `heatsink5` | YES\* | G8 | pattern node + structural-param edit |
 | 33 | `heatsink7` | YES\* | G8 | pattern node + structural-param edit |
 | 34 | `heatsink9` | YES\* | G8 | pattern node + structural-param edit |
@@ -135,7 +182,9 @@ blockers stay named in the last column.
 **YES** = the exact body is reproducible with the bound surface.
 **YES\*** = the exact body is reproducible, but only by hand-authoring
 what the scene expresses structurally — so the *body* transfers and
-the *point of the scene* does not.
+the *point of the scene* does not. `heatsink` hand-authors each fin
+where the scene says one pattern; `diecomposed` hand-narrows a
+materialized name set where the scene says one selector.
 
 ## What the YES rows look like
 
@@ -228,19 +277,17 @@ is named too.
 | # | gap | stops | register / pointer | note |
 |---|---|---|---|---|
 | G2 | **Sweep and tube** (loft closed) | 6 | register B ("the big three") | Loft left this gap when LIB-PYG23A bound `Node.loft`. What remains is not an unbound door but two BANKED ones. **Sweep**: `wire_sweep` refuses unconditionally (`SWEEP_FRONTIER`, `editor-core/src/eval/wire.rs`) — the path-composition lane banked past M6 by the PR 10 MAJ ruling, so binding it would flip no row and un-banking is kernel-side. **Tube**: there is no `Node::Tube` at all, and adding a node kind is a schema-version break (the v3 precedent was exactly Loft/Sweep landing) whose next bump ASM-1 owns (v5, `docs/ASM-1-SPEC.md` §D-6). The tube/sweep/3-D-path tail is a design conversation: U4's measured spec, and **LQ3, ratified 2026-08-10 (#362, LIBRARY-DESIGN §L7)** — which names the discharge site rather than building it. A `geom-curves` chain→curve composition door is what would narrow `wire_sweep`'s refusal from everything to genuinely-unjoinable chains, and that un-banking is kernel-side work needing the kernel program's concurrence. Ratified direction, landed door not yet: rows 15–18 stay NO until U4's units land, and `Node::Tube`'s schema bump stays a separate coordination item with ASM's version sequence |
-| G9 | **Multi-loop profiles** | 3 | register B | A profile is one loop, so a plate with holes needs a boolean per hole. `rocker` joined `plate` here when G1 closed; `az` joined them when G3 closed, its yz sketch plane no longer the more fundamental blocker |
-| G4 | **Fillet node** | 2 | register B | `fillet_edges` has no document node, so no edge blends from Python |
-| G5 | **Declared flush contact** | 2 | register B; register A **R3** (the SEL2 `UndeclaredContact` refusal-menu wiring) | `Node.boolean` has no `declare` argument, so parts that *touch* cannot be glued — the detect/declare protocol (`find_flush_candidates` → `declare_node`) is entirely unbound |
-| G6 | **Split** | 2 | register B | `topo::split` has no node |
-| G7 | **Rigid placement** | 1, degrades 1 | register B | No transform node; bodies must be authored in place. `diepips` became its blocking stop when G1 closed. (A sketch PLANE is now sayable — G3 — but that places a sketch, not a finished body) |
-| G8 | **Pattern + structural params** | degrades 3 | register B | No pattern node and no `SetStructuralParam` edit, so `heatsink`'s actual subject — one recipe, a count edit, memoized recompute — cannot be said |
+| G5 | **Declared flush contact** | 2 | register B; register A **R3** (the SEL2 `UndeclaredContact` refusal-menu wiring) | `Node.boolean` grew `declare=` in LIB-PYBUNDLE — the DATA door — but nothing in Python can BUILD a declaration: `Node.declare` does not exist and the detect protocol (`find_flush_candidates` → `declare_node`) is entirely unbound, so parts that *touch* still cannot be glued from Python |
+| G8 | **Pattern + structural params** | degrades 3 | register B | No pattern node and no `SetStructuralParam` edit, so `heatsink`'s actual subject — one recipe, a count edit, memoized recompute — cannot be said. MEASURED at LIB-PYBUNDLE and deliberately left unbound: binding `Node::Pattern` would flip no row, because the heatsink's shape is a pattern UNIONED into a base and a pattern evaluates to an `Instances` payload, which the boolean's operand door refuses (`wrong_operand`, `eval/wire.rs::body_operand`). The gap is the kernel payload, not the binding; `test_the_named_gaps_are_still_gaps` executes the refusal on the one plural payload Python can already produce |
+| G12 | **Corner-fillet loop building** | 1 | register B (new); issue **#377** (the `LoopBuilder` retirement conversation) | `rocker`'s outline is five corner fillets between ARC and LINE legs, authored with `profile::LoopBuilder::fillet_corner` — a second authoring surface beside the PATHS lattice, and unbound. PATHS cannot substitute: PATHS-DESIGN §2b's third ratified wall refuses a STRAIGHT arrival off an ARC departure (`arc_carrier_spelling`), and says in as many words that the rocker's arc→line corners could not migrate on that route. So this is not a bindings omission that a day's work closes — it is the raw loop-builder surface, and binding it is a design question about having two authoring vocabularies in Python. The rocker's EYE, which IS lattice-authored, already crosses |
+| G13 | **Selectors** | degrades 1 | register B (new); `docs/SELECT-DESIGN.md`; LIB-U7 | The narrowing surface is unbound: `Selector`/`NamePat` (role-path shape) and `select_where`/`GeomPred` (carrier kind, adjacency, datum distance) do not cross, so Python can MATERIALIZE a selection and carry it, and has no supported way to narrow one. Rust already narrows this exact scene — `crates/pncad/tests/lib_sel1_geoselect.rs:507-560` picks `diecomposed`'s box edges and pip rims apart with `select_where` — which is what makes this a bindings gap and not a kernel one. The wall is CONTRACTUAL, not mechanical, and the page states it as such: the name text a materializer answers with is an opaque identifier, so narrowing a set by reading inside it depends on a representation the binding does not promise. That route was executed during this unit's review and does produce the composed die, which is why row 9 is YES\* — the body transfers, hand-narrowed, and the scene's one-selector statement does not |
+| G14 | **Split across boolean-minted faces** | 1 | register B (new); issue **#380** carries the `NamingError`-`Display` diagnostic gap this refusal hides behind | KERNEL-side, and measured from Python: `Node::Split` names a cut through PASS-THROUGH faces fine (`tiltedcut` flips on it), but a plane crossing a face the boolean itself minted refuses in the naming emitter (`NodeErrorKind::Naming`). `topo::split` does the geometry — the tour's `cutaway` runs it — so the missing thing is the split emitter's coverage of boolean provenance, not a document node. A cut through a MULTI-LOOP extrude's holes names fine, so the discriminator is provenance and not section-face topology |
 
-G2, G4, G5, G6, G7 and G9 partition the 16 NO rows: 6 + 2 + 2 + 2 + 1
-+ 3 = 16, counted off the table above (G2: rows 10, 15–19; G4: 7, 9;
-G5: 21, 28; G6: 11, 31; G7: 8; G9: 2, 6, 27). G7 additionally degrades
-one row and G8 degrades three, which is what makes four rows YES\*
-rather than YES. Authorable = 14 outright + 4 YES\* = 18, and
-18 + 16 = 34.
+G2, G5, G12 and G14 partition the 10 NO rows: 6 + 2 + 1 + 1 = 10,
+counted off the table above (G2: rows 10, 15–19; G5: 21, 28; G12: 6;
+G14: 31). G13 degrades one and G8 degrades three, which is what makes
+four rows YES\* rather than YES (9; 32, 33, 34). Authorable = 20
+outright + 4 YES\* = 24, and 24 + 10 = 34.
 
 Two counts in this list were off by one before LIB-PYG1 recounted
 them: G1 read 7 stops against 6 table rows, and G6 read 1 against 2.
@@ -258,10 +305,14 @@ One further gap blocks no tour scene but matters to the library:
 
 | # | gap | closed by | register / pointer | what is true now |
 |---|---|---|---|---|
-| G1 | **Arcs and circles in profiles** | LIB-PYG1 | register B ("the big three"); `docs/PATHS-DESIGN.md` §2/§2a/§2b + LIBRARY-DESIGN §L4 | The PATHS lattice is bound state for state: each state is its own class exposing only its legal continuations, so an off-lattice call is an `AttributeError` (and a `ty` error) rather than a runtime surprise, and every verb crosses into the same Rust machinery, so refusals fire at the call site as the same typed `PathError`. `Node.profile` builds the document node from the loop's RECORDED program. Four stops flipped to YES against the scenes' own oracles (`bracket`, `vase`, `sheave`, `bossplate`); `rocker` and `diepips` re-partitioned to G9 and G7, which is what they were always waiting on second. Residue: Expr-bearing profile steps from Python (a parametric arc radius) are still unbound — with G9, that is what would complete `plate_param`-from-Python |
+| G1 | **Arcs and circles in profiles** | LIB-PYG1 | register B ("the big three"); `docs/PATHS-DESIGN.md` §2/§2a/§2b + LIBRARY-DESIGN §L4 | The PATHS lattice is bound state for state: each state is its own class exposing only its legal continuations, so an off-lattice call is an `AttributeError` (and a `ty` error) rather than a runtime surprise, and every verb crosses into the same Rust machinery, so refusals fire at the call site as the same typed `PathError`. `Node.profile` builds the document node from the loop's RECORDED program. Four stops flipped to YES against the scenes' own oracles (`bracket`, `vase`, `sheave`, `bossplate`); `rocker` and `diepips` re-partitioned to G9 and G7, which is what they were always waiting on second. Residue: Expr-bearing profile steps from Python (a parametric arc radius) are still unbound. G9 has since closed, so this is now the WHOLE of what blocks `plate_param`-from-Python — see the note under G10 |
 | G3 | **Non-xy sketch planes** | LIB-PYG23A | register B ("the big three"); `crates/profile/src/lib.rs` (`SketchPlane`) + LIBRARY-DESIGN §L3/§L4 | The sketch plane crosses as a VALUE. Rust gained two additive canonical constructors, `SketchPlane::yz()` and `SketchPlane::zx()`, beside `xy()` — the cyclic frames x→y→z→x that the tour's letterform captions already spoke — and Python binds all three plus the general `from_frame(origin, u, v)`. `Node.polygon` and `Node.profile` take `plane=`, mutually exclusive with `elevation=` (both is a `TypeError`), and both lower through the one `from_frame` seam `elevation` already used, so there is a single place a sketch plane is constructed. Rigidity stays the kernel's unchecked convention, stated in the stub and untested by any Python-side predicate: one semantics, two host languages. Five stops flipped against the scenes' own dyadic oracles — `silhouette` (4.5078125), `silhouette3` (2.798095703125) and its three shadow stops, which are the SAME body viewed down a different axis and are asserted as such. `az` re-partitioned to G9, the multi-loop counter it was always waiting on second |
 | G2's loft half | **Loft** | LIB-PYG23A | register B ("the big three"); `editor-core/src/node.rs` (`Node::Loft`, M5 PR 10) + `tests/corpus/loft_prism.rs` | `Node.loft(profiles, v_degree)` binds the document node that already existed: sections are NodeIds in skin order, `v_degree` an int crossing as `Expr::count` — the corpus twin's exact form. No placement argument, because the document design puts placement on each section's own sketch plane. Nothing is pre-checked: too few sections, a degree outside `1 ≤ d ≤ n − 1`, non-corresponding loops all refuse as the kernel's typed `LoftError` family through the existing `skin`/`loft` tags. `loft_prism` and `nonuniform_loft` flip against the derived closed forms (9 m³; 8 + 0.25/(t(1−t)) = 9.7219015 m³) bracketed by the certified pad. RESIDUE, measured not guessed: `nonuniform_loft`'s actual subject is the v-parameterization the skin CHOSE, and `sweep::loft_parameters` is not cheaply reachable — it takes `&[Section]` and `&[Affine3]`, kernel values with no Python vocabulary, and the document layer cannot supply them either because a Loft node evaluates to a `Body` and drops `LoftGeometry::section_params`. The row asserts the volume and names the residue (the LIB-PYG1 m3 precedent). What is left of G2 is banked, not unbound — see the gap list |
-| G10 | **Named document parameters** | R1-PARAMS | register A **R1** (was "the significant one" / "highest-value single residual") — **DISCHARGED**; guide §3.2's `compile_fail` pin is now that section's passing doctest | `ParamName` and `DocParam` are curated through `pncad::document` (and the prelude), and `DocEdit.set_doc_param` is bound with them — so the parametric flagship `plate_param` is authorable façade-only (guide §3.2's doctest authors it) and its one-edit-moves-both-holes claim is executed from Python in `test_north_star.py` against the Rust rows' analytic oracle. Residue, stated plainly: Python still cannot author plate_param's *profile* from scratch (its circle loops are G1, its three-loop profile G9), so the Python test loads the document through the persistence door, pinned line-for-line by `crates/pncad/tests/all.rs` (all but the snapshot's ε line, which CI's tolerance sweep varies by design) |
+| G4 | **Fillet node** | LIB-PYBUNDLE | register B; `editor-core/src/node.rs` (`Node::Fillet`, M5 PR 12 + M6-5's selection) + LIB-U7's materializers | `Node.fillet(target, radius, selection)` binds the node that already existed. The selection is edge names as TEXT — the names' own serde encoding, so a name is ONE vocabulary across Rust, Python and the file. The relation to a saved document is VALUE equality, not byte equality: `save` pretty-prints and the binding writes compact, so the two texts differ in whitespace and parse to the same JSON value, and a name taken from either round-trips through the other. **The text is OPAQUE BY CONTRACT**: it is a stable identifier, its internal structure is not API and may change without notice, and the supported operations are equality, ordering, storage and handing it back to `Node.fillet`. Reading inside a name is representation-dependence, not a selector — which is why G13 is still open and why `diecomposed` is YES\* rather than YES. `Evaluation.all_edges` and its three siblings are where a name comes from, and they MATERIALIZE: the answer is as of that evaluation, the caller stores it, and the recipe's selection is frozen from then on — a live "all edges" would silently grow under an upstream edit, which is the staleness the freeze exists to prevent. Construction goes through Rust's `Node::fillet`, so the stored set is canonical and two recipes that select the same edges are bit-identical whatever order Python listed them in (asserted with `Doc.bit_eq`). Nothing is pre-checked beyond the text being a name at all: an empty selection, an unresolvable name, a tangential edge all refuse typed at evaluate. `diefillet` flips against the scene's own closed form. `diecomposed` re-graded to YES\* under G13 — the fillet node is not what it was waiting on second |
+| G6 | **Split** | LIB-PYBUNDLE | register B; `editor-core/src/node.rs` (`Node::Split`) + `tests/corpus/cut_cylinder.rs` | `Node.split(target, tool)` binds the node, and `Node.datum_plane(origin, normal)` binds the datum it cuts with — the last of `Datum`'s three arms Python was missing. The value is a SPLIT and says so: `Value.split()` (already bound) answers `(above, below)` with `None` for an empty side, and `Value.body()` refuses rather than picking one. `tiltedcut` flips against the scene's own oracle, which is a BRACKET and not an equality — the exact half-volume πr²h/2 must lie inside the certified enclosure the mass-properties door answers with, and it does for both halves. `cutaway` re-partitioned to G14: its cut is refused by the naming emitter, not missing a node |
+| G7 | **Rigid placement** | LIB-PYBUNDLE | register B; `editor-core/src/node.rs` (`Node::Transform`) + `tests/corpus/die_pips.rs` | `Node.transform(input, translation, rotation_axis, rotation_angle)`, the kernel's convention unchanged: rotate about the axis THROUGH THE WORLD ORIGIN, then translate. A pure translation still names an axis and a zero angle — a zero-length axis refuses (`degenerate_direction`) rather than being read as "no rotation", which is the fail-loud reading. `diepips` flips OUTRIGHT, structure and all: one ball, twenty-one placements whose pole rides the face normal, the twenty-one fused into a single tool, and ONE subtract — the scene's own group operation, not a re-authoring — against `sweep/tests/m5_pr12_die.rs`'s cube-less-twenty-one-caps oracle. `crosslap_exploded` stops being YES\*: the lift is the scene's statement now |
+| G9 | **Multi-loop profiles** | LIB-PYBUNDLE | register B; `editor-core/src/node.rs` (`ProfileProgram.loops`) | `Node.profile` takes one loop OR a list of them, stubbed as an `@overload` pair, lowering through the same one seam. Validation stays kernel-side and untouched: which loop is outer, whether the holes nest, whether two loops cross is `Profile::validate`'s work, reaching Python as a typed `profile_program_refused` at `insert` (the edit door's replay probe) — the binding's only job is that the loops arrive in the order they were written. `plate` flips against a derived closed form (a rectangle less two circles, times the depth) and `az` against the scene's own exact 880383/327680. `rocker` re-partitioned to G12: its holes were never the harder half — its OUTLINE is |
+| G10 | **Named document parameters** | R1-PARAMS | register A **R1** (was "the significant one" / "highest-value single residual") — **DISCHARGED**; guide §3.2's `compile_fail` pin is now that section's passing doctest | `ParamName` and `DocParam` are curated through `pncad::document` (and the prelude), and `DocEdit.set_doc_param` is bound with them — so the parametric flagship `plate_param` is authorable façade-only (guide §3.2's doctest authors it) and its one-edit-moves-both-holes claim is executed from Python in `test_north_star.py` against the Rust rows' analytic oracle. Residue, RE-STATED now that G9 has closed (LIB-PYBUNDLE §4.4): the three-loop profile is sayable and so are the circles, so exactly ONE door still blocks authoring `plate_param` from scratch in Python — a profile step whose argument is an EXPRESSION rather than a literal. Its holes are `LoopProgram::Circle { centre, radius: Expr::param("hole_r") }`, and `pncad.circle(centre, radius)` takes a `Length`, so the radius crosses as a number and the parameter link is lost. That is G1's recorded residue, unchanged in substance and now unaccompanied: nothing else is missing. The Python test therefore still loads the document through the persistence door, pinned line-for-line by `crates/pncad/tests/all.rs` (all but the snapshot's ε line, which CI's tolerance sweep varies by design) |
 
 ## How to read this page next quarter
 

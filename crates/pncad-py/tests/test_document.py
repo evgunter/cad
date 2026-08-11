@@ -12,8 +12,10 @@ from pncad import (
     BooleanOp,
     Doc,
     DocEdit,
+    DocParam,
     EvaluationError,
     Node,
+    SketchPlane,
     evaluate,
     import_step,
     load,
@@ -333,3 +335,87 @@ class TestNoArenaKeysCross(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDocParamEquality(unittest.TestCase):
+    """LIB-PYBUNDLE rider (a): `DocParam` mirrors Rust's `PartialEq`.
+
+    Which is IEEE comparison of the stored value, NOT the bit
+    comparison `DocParam::bit_eq` makes — so the two spellings of zero
+    are the SAME parameter here and different ones to `bit_eq`,
+    exactly as in Rust. The hash follows the equality it mirrors."""
+
+    def test_equality_is_value_and_dimension(self):
+        self.assertEqual(DocParam.length(2 * m), DocParam.length(2 * m))
+        self.assertNotEqual(DocParam.length(2 * m), DocParam.length(3 * m))
+        self.assertNotEqual(DocParam.length(1 * m), DocParam.scalar(1.0))
+        self.assertNotEqual(DocParam.count(1), DocParam.scalar(1.0))
+        self.assertEqual(DocParam.count(4), DocParam.count(4))
+
+    def test_the_two_zeros_are_one_parameter_and_hash_alike(self):
+        plus, minus = DocParam.length(0.0 * m), DocParam.length(-0.0 * m)
+        self.assertEqual(plus, minus)
+        self.assertEqual(hash(plus), hash(minus))
+
+    def test_equal_parameters_are_interchangeable_dict_keys(self):
+        table = {DocParam.length(2 * m): "thickness", DocParam.count(3): "ribs"}
+        self.assertEqual(table[DocParam.length(2 * m)], "thickness")
+        self.assertEqual(table[DocParam.count(3)], "ribs")
+
+
+class TestSketchPlaneFrame(unittest.TestCase):
+    """LIB-PYBUNDLE rider (b): the plane's frame reads back, and the
+    equality that read-back supports is BIT-exact — Rust's
+    `SketchPlane::bit_eq`, crossing unchanged."""
+
+    def test_the_named_frames_read_back_as_the_cyclic_convention(self):
+        self.assertEqual(SketchPlane.xy().normal, (0.0, 0.0, 1.0))
+        self.assertEqual(SketchPlane.yz().u, (0.0, 1.0, 0.0))
+        self.assertEqual(SketchPlane.yz().normal, (1.0, 0.0, 0.0))
+        self.assertEqual(SketchPlane.zx().normal, (0.0, 1.0, 0.0))
+
+    def test_a_frame_round_trips_through_its_accessors(self):
+        frame = SketchPlane.from_frame(
+            (1 * m, 2 * m, 3 * m), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)
+        )
+        self.assertEqual([c.meters for c in frame.origin], [1.0, 2.0, 3.0])
+        rebuilt = SketchPlane.from_frame(frame.origin, frame.u, frame.v)
+        self.assertEqual(frame, rebuilt)
+        self.assertEqual(hash(frame), hash(rebuilt))
+
+    def test_equality_is_bit_exact_not_tolerant(self):
+        """The `Doc.bit_eq` precedent: a sketch plane carries no
+        epsilon, so `-0.0` keeps its own identity rather than being
+        quietly folded into `0.0`."""
+        plus = SketchPlane.from_frame(
+            (0.0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)
+        )
+        minus = SketchPlane.from_frame(
+            (-0.0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)
+        )
+        self.assertNotEqual(plus, minus)
+        self.assertEqual(plus, SketchPlane.xy())
+
+
+class TestBooleanDeclareArgument(unittest.TestCase):
+    """LIB-PYBUNDLE rider (c): `Node.boolean` grew `declare=`, the
+    DATA door for a declared contact. The protocol that BUILDS a
+    declaration is still unbound, so the only thing the argument can
+    be handed today is another node — and the kernel refuses one that
+    is not a `Declare`, typed, rather than ignoring it."""
+
+    def test_the_default_is_the_undeclared_lane(self):
+        doc = Doc()
+        a = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        b = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m))
+        fused = doc.insert(Node.boolean(BooleanOp.Union, a, b))
+        self.assertTrue(evaluate(doc).succeeded(fused))
+
+    def test_a_non_declaration_input_is_refused_not_ignored(self):
+        doc = Doc()
+        a = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        b = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m))
+        fused = doc.insert(Node.boolean(BooleanOp.Union, a, b, declare=a))
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(fused)
+        self.assertEqual(caught.exception.kind, "wrong_operand")

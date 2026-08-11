@@ -282,30 +282,56 @@ fn probe_arm_b_rim_off_wall_arc() {
 /// what this row exists for, and it still holds: the plant refuses
 /// `RimOffWallBoundary`, the true arc does not.
 ///
-/// Since M7-7 (#260 ruling (a)) the true arc stops one gate later, at
-/// the shared at-rest gate every imported solid now passes, on the
-/// BANKED rational volume lane (`VolumeUncomputable` /
-/// `QuadratureUnsupported`) — the verdict its native twin carries at
-/// rest, and no statement about the rim. So the control's assertion
-/// sharpens rather than weakens: the refusal must be the tier gate's,
-/// never the rim gate's. `nurbs_import.rs` holds the full disposition
-/// row for this body class.
+/// M7-7 (#260 ruling (a)) moved the true arc's stop one gate later, to
+/// the shared at-rest gate, on the BANKED rational volume lane.
+/// **M8-3 RETIRES that stop**: the arc rim mints (`Pcurve::IsoArc`)
+/// and the rational wall's flux certifies, so the true arc now imports
+/// FIRST-CLASS — and `StepImport::Solid` may only carry a body the
+/// shared at-rest gate passes, so `Ok` here IS the tier-3 verdict.
+///
+/// The discrimination the row exists for is therefore stated at full
+/// strength for the first time: the plant refuses `RimOffWallBoundary`
+/// and the true arc imports. A gate that refused the genuine body
+/// would now be visibly a false alarm rather than hidden behind a
+/// downstream refusal. `nurbs_import.rs` holds the full disposition
+/// row for this body class, including its ε posture.
 #[test]
 fn probe_arm_b_true_arc_rim_positive_control() {
     let native = native_arc_loft_for_probe();
     let text = step_export::step_string(&native, &step_export::StepOptions::default())
         .expect("arc loft exports");
+    let eps = geom_core::Tolerance::get().eps;
     match import(&text) {
-        Err(step_import::StepImportError::TierInvalid { errors, .. }) => assert!(
-            matches!(
-                errors.as_slice(),
-                [topo::ValidationError::VolumeUncomputable { .. }]
-            ),
-            "the true arc's only verdict is the banked rational volume lane: {errors:?}"
-        ),
+        Ok(StepImport::Solid { body, .. }) => {
+            assert_eq!(
+                topo::validate_geometric(&body),
+                Ok(()),
+                "an imported Solid is at-rest valid by construction of the gate"
+            );
+            eprintln!("PROBE true arc rim @ eps={eps:e}: FIRST-CLASS (M8-3)");
+        }
+        // The fixed schedule's honest frontier: at a tight enough ε the
+        // rational flux cannot reach `1024·ε` and the shared gate
+        // refuses TYPED with the measured width. Not a rim statement,
+        // and never widened.
+        Err(step_import::StepImportError::TierInvalid { errors, .. }) => {
+            assert!(
+                matches!(
+                    errors.as_slice(),
+                    [topo::ValidationError::VolumeUncomputable {
+                        source: topo::MassPropsError::Face {
+                            source: geom_brep::props::PropsError::QuadratureBudget { .. },
+                            ..
+                        },
+                    }]
+                ),
+                "the only surviving verdict is the fixed schedule's budget: {errors:?}"
+            );
+            eprintln!("PROBE true arc rim @ eps={eps:e}: quadrature budget (honest)");
+        }
         other => panic!(
-            "the true arc rim must clear the residual gate and stop only at the shared \
-             tier gate, got: {other:?}"
+            "the true arc rim must clear the residual gate and import, or stop only at \
+             the quadrature budget, got: {other:?}"
         ),
     }
 }

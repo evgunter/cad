@@ -78,6 +78,16 @@ on:
         description: "FreeCAD per-scene wall-clock budget, seconds"
         required: false
         default: "300"
+      render_jobs:
+        description: "Scenes rendered concurrently per FreeCAD lane (1 = sequential)"
+        required: false
+        default: "1"
+      tour_cache:
+        description: "Tour output: reuse the cache when sources are unchanged, or force a rebuild"
+        required: false
+        type: choice
+        default: use
+        options: [use, refresh]
       ref:
         description: "Branch/tag/SHA to render (default: this workflow's ref)"
         required: false
@@ -103,15 +113,47 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+
+      # THE TOUR'S OUTPUT IS CACHED ON ITS SOURCES' HASH, not rebuilt
+      # per dispatch. Measured on run 31426382563: the step is ~94 s of
+      # `cargo` and ~8 s of geometry — because Swatinem/rust-cache
+      # deliberately evicts WORKSPACE crates from what it restores, so
+      # a "full match" cache hit still recompiles all seventeen of them
+      # every run. Caching what they PRODUCE skips both halves, which
+      # is why this sits above the toolchain rather than beside it.
+      #
+      # Exact key, no `restore-keys`: a near-miss must MISS. Everything
+      # the tour reads is in the hash (the kernel crates, the tour
+      # crate, the lockfiles, the pinned toolchain), so a hit means the
+      # same bytes a rebuild would have produced — the tour is
+      # deterministic, which is what ci.yml's `uv sheet drift (demos)`
+      # gate asserts on every run. `tour_cache: refresh` forces the
+      # rebuild anyway, for when you want that assertion re-earned
+      # rather than assumed.
+      - name: tour output cache
+        id: tour-cache
+        if: ${{ inputs.tour_cache != 'refresh' }}
+        uses: actions/cache@v4
+        with:
+          path: demos/out
+          key: tour-out-v1-${{ hashFiles('crates/**', 'demos/tour/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
+
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.tour-cache.outputs.cache-hit != 'true'
       - uses: Swatinem/rust-cache@v2
+        if: steps.tour-cache.outputs.cache-hit != 'true'
         with:
           key: render-demos
           workspaces: |
             .
             demos/tour
       - name: demo tour (STL + STEP + UV SVGs + scenes.json)
+        if: steps.tour-cache.outputs.cache-hit != 'true'
         run: cd demos/tour && cargo run --release -- ../out
+      - name: where the tour came from
+        run: |
+          echo "tour output: ${{ steps.tour-cache.outputs.cache-hit == 'true' && 'restored from cache' || 'built' }}" \
+            >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: tour-out
@@ -198,6 +240,12 @@ jobs:
       LANE_FLAG: ${{ matrix.lane == 'freecad' && '--freecad' || '' }}
       LANE_DIR: ${{ matrix.lane == 'freecad' && 'renders-freecad' || 'renders' }}
       FREECAD_SCENE_TIMEOUT: ${{ inputs.scene_timeout || '300' }}
+      # Scenes rendered at once. 1 (render.sh's default) is sequential
+      # and is what the committed cells were produced under; above that,
+      # every scene's wall clock rises with contention — which is what
+      # the per-scene budget above is spent on, so the two inputs are
+      # read together, not separately.
+      CAD_RENDER_JOBS: ${{ inputs.render_jobs || '1' }}
       # See the uv lane's note: the entry points refuse without this
       # sentence and do not sniff for CI. This workflow IS the sanctioned
       # renderer, and its "pixel drift vs the committed lane" step is the
@@ -264,6 +312,9 @@ jobs:
       # one differ in the box, not in the pipeline.
       - name: render (demos/render.sh ${{ env.LANE_FLAG }})
         run: |
+          # The runner's width is the thing CAD_RENDER_JOBS has to be
+          # read against, and it is not in the job log otherwise.
+          echo "runner: $(nproc) cores, $(free -g | awk '/^Mem:/{print $2}') GB, CAD_RENDER_JOBS=$CAD_RENDER_JOBS"
           FREECADCMD="$HOME/freecad-appimage/squashfs-root/usr/bin/freecadcmd" \
             xvfb-run -a --server-args="-screen 0 1600x1200x24" \
             demos/render.sh $LANE_FLAG
