@@ -25,6 +25,12 @@
 # A budget exhausted TWICE fails the pass, loudly, naming the scene and
 # the budget — never a silent skip, never a degraded cell.
 #
+# ...AND, BY DEFAULT, ONE AT A TIME. CAD_RENDER_JOBS renders that many
+# scenes concurrently — still one fresh session per scene, so it does
+# not reopen #224; see the knob's own note for why the per-scene budget
+# is what concurrency actually trades against. Sequential is the
+# default and the only setting the budget note's measurements cover.
+#
 # NOTHING IS WRITTEN TO THE COMMITTED LANE DIRECTORY UNTIL THE PASS
 # SUCCEEDS. Every scene renders into an untracked staging tree
 # (out/stage-<lane>/); only a completed pass has its frames moved into
@@ -89,6 +95,25 @@ FREECADCMD="${FREECADCMD:-$HOME/.local/share/cad-work/freecad/squashfs-root/usr/
 SCENE_TIMEOUT="${FREECAD_SCENE_TIMEOUT:-300}"
 # Grace between the budget's SIGTERM and SIGKILL to the scene process.
 SCENE_KILL_GRACE=5
+
+# ---- how many scenes at once ---------------------------------------
+# DEFAULT 1 — strictly sequential, which is what every measurement in
+# this file's budget note was taken under. Raising it renders that many
+# scenes CONCURRENTLY, each still in its own fresh session under its own
+# budget: the #224 finding is that a REUSED session wedges, and nothing
+# here reuses one, so concurrency is orthogonal to it. What concurrency
+# does interact with is the budget, and in the direction that matters:
+# the same note measures a scene at 106 s under contention versus 3-19 s
+# idle, so K concurrent scenes on a K-core box push every scene's
+# wall-clock toward the contended number. The budget is sized for that
+# (300 s is ~3x the worst contended scene ever measured), but a box with
+# fewer cores than RENDER_JOBS is asking for the wedge-shaped failure
+# that is expensive to tell apart from a real one. Keep it <= the core
+# count.
+RENDER_JOBS="${CAD_RENDER_JOBS:-1}"
+case "$RENDER_JOBS" in
+    ''|*[!0-9]*|0) echo "CAD_RENDER_JOBS must be a positive integer, got '$RENDER_JOBS'" >&2; exit 2 ;;
+esac
 LOGDIR=out/freecad-logs
 # Where an in-flight pass lives. Untracked (out/ is gitignored), and
 # holding a directory named after each lane, so a staged frame's path
@@ -208,6 +233,65 @@ render_scene() {
     return 1
 }
 
+# ---- running the scenes --------------------------------------------
+# render_scene reports through globals, which a background job cannot
+# hand back, so the concurrent path routes the same three facts through
+# a per-scene status file. Two lines, because the reason is free text:
+#
+#   line 1:  ok|fail|wedged <seconds>
+#   line 2:  the reason (empty on success)
+#
+# The parent then reads them in SCENES.JSON ORDER, so the pass's report,
+# its failure, and which scene ends it are all identical whatever order
+# the scenes actually finished in. Only the progress chatter interleaves.
+scene_status() {
+    local name=$1 lane=$2 mode=$3
+    local st="$LOGDIR/$name.status" kind=ok
+    if render_scene "$name" "$lane" "$mode"; then
+        printf 'ok %s\n\n' "$SCENE_SECS" >"$st"
+    else
+        [ "$SCENE_TIMED_OUT" -eq 1 ] && kind=wedged || kind=fail
+        printf '%s %s\n%s\n' "$kind" "$SCENE_SECS" "$SCENE_REASON" >"$st"
+    fi
+}
+
+# Sets ST_KIND / ST_SECS / ST_REASON from a scene's status file. A
+# missing file is a bug in this script, not a scene outcome — say so
+# rather than silently treating it as either.
+ST_KIND=""; ST_SECS=0; ST_REASON=""
+read_status() {
+    local st="$LOGDIR/$1.status"
+    [ -f "$st" ] || { echo "internal: no status file for scene '$1'" >&2; exit 3; }
+    { read -r ST_KIND ST_SECS; read -r ST_REASON; } <"$st"
+}
+
+# Render every named scene, at most RENDER_JOBS in flight. `wait -n`
+# starts the next scene the moment ANY running one finishes rather than
+# draining the whole batch, so a single slow scene cannot idle the other
+# slots. At RENDER_JOBS=1 this is a plain sequential loop — the same
+# order, the same one-process-at-a-time, as before the knob existed.
+#
+# ONE BEHAVIOUR DOES CHANGE ABOVE K=1: a wedge no longer ends the pass
+# where it happens. Sequentially the loop reaches the bad scene and
+# exits; concurrently the scenes already in flight are let finish
+# first, so a wedged pass costs a batch's wall clock rather than
+# stopping dead. It is bounded either way (every scene has the same
+# budget) and the OUTCOME is identical — same scene named, same exit,
+# committed tree equally untouched — so this is a cost, not a hole.
+PASS_SECS=0   # wall clock of the whole render loop, set by render_all
+render_all() {
+    local lane=$1 mode=$2 name start
+    shift 2
+    start=$(date +%s)
+    rm -f "$LOGDIR"/*.status
+    for name in "$@"; do
+        while [ "$(jobs -rp | wc -l)" -ge "$RENDER_JOBS" ]; do wait -n; done
+        scene_status "$name" "$lane" "$mode" &
+    done
+    wait
+    PASS_SECS=$(( $(date +%s) - start ))
+}
+
 # A scene that exhausted the budget twice ends the pass. Loud, named,
 # and with the committed tree untouched — the same contract as the
 # absent-FreeCAD arm: a pass that did not finish publishes nothing.
@@ -289,21 +373,27 @@ if [ "${1:-}" = "--freecad" ]; then
     mkdir -p "$STAGE" "$LOGDIR"
     fails=0
     times=()
-    for name in $(scene_names montage); do
-        if render_scene "$name" "$RD" step; then
-            times+=("$SCENE_SECS")
-        else
+    names=$(scene_names montage)
+    # shellcheck disable=SC2086  # scene names are identifiers, by construction
+    render_all "$RD" step $names
+    for name in $names; do
+        read_status "$name"
+        case "$ST_KIND" in
+            ok) times+=("$ST_SECS") ;;
             # A wedge ends the pass; a scene that genuinely cannot be
             # imported or rendered costs one labeled cell, as before.
-            if [ "$SCENE_TIMED_OUT" -eq 1 ]; then
-                wedged "$name" "$RD"
-            fi
-            printf '%s\n' "$SCENE_REASON" >"$STAGE/$name.fail.txt"
-            echo "  [$name] FAILED — $SCENE_REASON (placeholder cell; log: $LOGDIR/$name.log)" >&2
-            fails=$((fails + 1))
-        fi
+            wedged) wedged "$name" "$RD" ;;
+            *)
+                printf '%s\n' "$ST_REASON" >"$STAGE/$name.fail.txt"
+                echo "  [$name] FAILED — $ST_REASON (placeholder cell; log: $LOGDIR/$name.log)" >&2
+                fails=$((fails + 1))
+                ;;
+        esac
     done
-    echo "STEP lane: $(scene_stats "${times[@]}") [budget ${SCENE_TIMEOUT}s/scene]"
+    # The per-scene "total" is summed wall clock, so above RENDER_JOBS=1
+    # it exceeds the pass's own wall clock — both are printed rather
+    # than one being quietly redefined.
+    echo "STEP lane: $(scene_stats "${times[@]}"), ${PASS_SECS}s wall at ${RENDER_JOBS} job(s) [budget ${SCENE_TIMEOUT}s/scene]"
     if [ "$fails" -gt 0 ]; then
         echo "$fails scene(s) fell back to placeholder cells" >&2
     fi
@@ -364,20 +454,21 @@ fi
 rm -rf "$STAGE"
 mkdir -p "$STAGE" "$LOGDIR"
 times=()
-for name in $(scene_names); do
-    if render_scene "$name" "$RD" mesh; then
-        times+=("$SCENE_SECS")
-    else
+names=$(scene_names)
+# shellcheck disable=SC2086  # scene names are identifiers, by construction
+render_all "$RD" mesh $names
+for name in $names; do
+    read_status "$name"
+    case "$ST_KIND" in
+        ok) times+=("$ST_SECS") ;;
         # This lane has no placeholder cells: a scene it cannot render
         # is a lane it cannot certify, so it goes to the preview tree
         # whole rather than committing a hole. A wedge is louder still.
-        if [ "$SCENE_TIMED_OUT" -eq 1 ]; then
-            wedged "$name" "$RD"
-        fi
-        fallback "scene '$name': $SCENE_REASON"
-    fi
+        wedged) wedged "$name" "$RD" ;;
+        *) fallback "scene '$name': $ST_REASON" ;;
+    esac
 done
-echo "kernel lane: $(scene_stats "${times[@]}") [budget ${SCENE_TIMEOUT}s/scene]"
+echo "kernel lane: $(scene_stats "${times[@]}"), ${PASS_SECS}s wall at ${RENDER_JOBS} job(s) [budget ${SCENE_TIMEOUT}s/scene]"
 
 # Same wall-clock strip as the STEP lane, before publishing.
 "$VENV/bin/python" strip_png_stamps.py "$STAGE"

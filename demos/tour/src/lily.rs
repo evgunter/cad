@@ -747,9 +747,17 @@ impl Plan {
 ///
 /// The spine is set up exactly as [`leaf`]'s: a circular arc of length
 /// `len` turning through `curl` toward `up`, sampled at `stations`
-/// exact points. Two live walls bound what this can be asked for, both
-/// pinned as probes 8 and 9: the tip may not close to a point, and the
-/// spine may not turn much past 2.5 radians.
+/// exact points. Two live walls bound what this can be asked for: the
+/// tip may not close to a point (a zero-width section is a degenerate
+/// segment), and the spine may not turn past π — the loft's stacking
+/// trilean is an END-TO-END statement, `cos(curl/2)` for a planar arc
+/// spine, so past a half turn of total position stacking it refuses
+/// `ReversedStacking` (its own filed frontier, #368). The OLD second wall —
+/// "not much past 2.5 radians", PR #316's measured `nurbs_span_meter`
+/// collapse at curl 3.0 — RETIRED with M8-14 (#222): the integral
+/// speed meter scans per span now, and
+/// `review_probes::the_spine_curl_wall_re_measured` pins both sides
+/// of the re-measured truth (3.0 builds, 3.5 refuses typed).
 fn lofted_blade<S: Scalar>(
     base: (f64, f64, f64),
     dir: (f64, f64, f64),
@@ -759,6 +767,24 @@ fn lofted_blade<S: Scalar>(
     plan: Plan,
     stations: usize,
 ) -> Body<S> {
+    try_lofted_blade(base, dir, up, len, curl, plan, stations)
+        .expect("the lofted blade skins its own sections")
+        .body
+}
+
+/// [`lofted_blade`] with the refusal surfaced instead of expected, so
+/// the curl-wall probe (M8-14, #222 — `review_probes::
+/// the_spine_curl_wall_re_measured`) can sweep the parameter and
+/// state the measured frontier rather than a remembered one.
+fn try_lofted_blade<S: Scalar>(
+    base: (f64, f64, f64),
+    dir: (f64, f64, f64),
+    up: (f64, f64, f64),
+    len: f64,
+    curl: f64,
+    plan: Plan,
+    stations: usize,
+) -> Result<pncad::sweep::Lofted<S>, pncad::sweep::LoftError> {
     let (d, v, u) = blade_frame(dir, up);
     let r = len / curl;
     let mut sections: Vec<Vec<ProfileLoop<f64>>> = Vec::with_capacity(stations);
@@ -805,8 +831,6 @@ fn lofted_blade<S: Scalar>(
         );
     }
     loft_body::<S>(&sections, &places, LEAF_V_DEGREE)
-        .expect("the lofted blade skins its own sections")
-        .body
 }
 
 /// The three **sepals**, the feature that reads as *pulchellus*
@@ -2329,5 +2353,65 @@ mod review_probes {
         let s = a.cross(b).dot(axis);
         let c = a.dot(b);
         s.atan2(c)
+    }
+
+    /// **The spine curl wall, RE-MEASURED (M8-14, #222).** PR #316's
+    /// probe table measured leaf-geometry lofts building through
+    /// curl 2.5 rad and refusing at 3.0 (`nurbs_span_meter`
+    /// `ParamSpan` escalation — the integral speed meter's single
+    /// global chord collapsing once a seam carrier turns far enough
+    /// from its own chord), and the demo prose stated "not much past
+    /// 2.5 radians" as a live wall. The per-span meter RETIRED that
+    /// wall — 2.8 and 3.0 build now — and the re-measurement found
+    /// the NEXT one, which this probe pins from both sides: past
+    /// spine turn π the loft refuses `ReversedStacking`, because the
+    /// stacking trilean is an END-TO-END statement (mean last-section
+    /// displacement against the first section's normal — for a planar
+    /// arc spine that is `cos(curl/2)`, negative past π), not a
+    /// per-slab one. That wall is GEOMETRY-INDEPENDENT of the meter
+    /// fix and is filed as its own frontier (#368); if either side
+    /// of this pin moves, re-derive the
+    /// `lofted_blade` prose with it.
+    #[test]
+    fn the_spine_curl_wall_re_measured() {
+        // The retired wall: through π the blade builds — including
+        // PR #316's measured refusals at 2.8 and 3.0.
+        for curl in [0.45, 1.0, 2.0, 2.5, 2.8, 3.0] {
+            let out = try_lofted_blade::<f64>(
+                LEAF_A_BASE,
+                LEAF_A_DIR,
+                LEAF_A_UP,
+                LEAF_A_LEN,
+                -curl,
+                leaf_a_plan(),
+                LOFT_STATIONS,
+            );
+            assert!(
+                out.is_ok(),
+                "curl {curl} rad refused ({:?}) — the span-meter wall is BACK; \
+                 re-derive this probe and the lofted_blade prose",
+                out.err()
+            );
+        }
+        // The standing wall: past π, the end-to-end stacking trilean
+        // reverses — TYPED, and pinned by variant so it fails loud if
+        // the loft's stacking statement ever changes shape.
+        for curl in [3.5, 4.7, 6.0] {
+            let out = try_lofted_blade::<f64>(
+                LEAF_A_BASE,
+                LEAF_A_DIR,
+                LEAF_A_UP,
+                LEAF_A_LEN,
+                -curl,
+                leaf_a_plan(),
+                LOFT_STATIONS,
+            );
+            assert!(
+                matches!(out, Err(pncad::sweep::LoftError::ReversedStacking)),
+                "curl {curl} rad: expected the end-to-end ReversedStacking wall, \
+                 got {out:?} — the stacking wall moved; re-derive this probe, \
+                 the lofted_blade prose, and the filed frontier together"
+            );
+        }
     }
 }
