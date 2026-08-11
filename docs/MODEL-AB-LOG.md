@@ -111,16 +111,21 @@ amended:
 - **Protocol v4 (Evan, in-chat, 2026-08-11, from the dual-review
   analysis). Four amendments; in-flight blocks complete under v3;
   v4 governs every block drawn after this entry.**
-  1. **STOPPING RULE**: the experiment STOPS when SIX dual
-     reviews have occurred in which at least one reviewer found
-     a MAJOR. **The orchestrator recording the sixth such row
-     must notify Evan explicitly** (away-channel comment
-     requesting acknowledgment — not just a log line). Running
+  1. **STOPPING RULE (clarified by Evan same day: this ends the
+     DUAL-REVIEW experiment ONLY — the implementation A/B and
+     its single reviews continue)**: dual-review sampling STOPS
+     when SIX dual reviews have occurred in which at least one
+     reviewer found a MAJOR. **The orchestrator recording the
+     sixth such row must notify Evan explicitly** (away-channel
+     comment requesting acknowledgment — not just a log line). Running
      tally, maintained here at each qualifying row: sample #1
-     (G1, converged MAJOR) and sample #4 (SWITCH-E, both-R
-     MAJORs) qualify → **2 of 6** as of 2026-08-11. (The M8
-     long-turn dual at ordinal 27 appears 0-MAJOR from its fix
-     pass; verify when its row lands.)
+     (G1, converged MAJOR), sample #4 (SWITCH-E, both-R
+     MAJORs), and the M8 long-turn dual @27 (VERIFIED by its
+     orchestrator on #398: R1 fable 0 MAJ, R2 2 MAJ,
+     reviewer-found at review time) qualify → **3 of 6** as of
+     2026-08-11. (Note for the seam analysis: that dual's R2
+     was ALREADY opus — an informal cross-model pair predating
+     the v4 pilot; label it so in the variance readout.)
   2. **STANDARDIZED VERDICT LADDER (the review format lives
      here, so its definitions do too — SEAM: rows BEFORE this
      entry used the terms freely; verdict strings before/after
