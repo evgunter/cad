@@ -154,3 +154,17 @@ point yet: the identical coverage gap rated MINOR by inspection
 overshoot). All four union mutants proven red-then-green at the fix
 pass. Helices to 2 turns certify with second-order Pappus
 convergence; ≥π planar spines advance to #368 (ReversedStacking).
+
+## M8-3 COMPLETE (#309 + #353 both merged, 2026-08-11)
+
+Rational walls are volume-computable end-to-end: the flux enclosure
+engine (PR-1, with the #313 soundness heal that fixed MAIN's own
+integral lane), and the pcurve mint that makes bodies reach it
+(PR-2, the IsoArc chart map). The arc prism and arc loft certify at
+default ε with honest Budget refusals at 1e-12; the arc loft
+round-trips STEP bit-identically — #276's honestly-refused class
+retired. The unit consumed four executors, survived the project's
+third NOT-MERGEABLE-AS-IS, and taught the ε-row lesson four more
+times. Remaining slate: #327 (dispatching now), M8-4 (scope
+tightened to the one collapsed gap), the #214 riders, #382 triage
+— then the M8 exit walk.
