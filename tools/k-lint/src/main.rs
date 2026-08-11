@@ -58,7 +58,7 @@ fn discipline(total_flags: usize) -> String {
          \x20    lint's floor refresh\", which re-derives BASELINE_FLOOR_MARGIN, the\n\
          \x20    percentile choice and the eps-coupled ratio against a fresh sweep.\n\
          \x20 2. If re-derivation is not warranted, demote this row to advisory with a\n\
-         \x20    recorded justification (ci.yml + scripts/ci-local.sh together — the\n\
+         \x20    recorded justification (ci.yml + local-scripts/ci-local.sh together — the\n\
          \x20    hosted and local rows must not drift).\n\
          \n\
          Changing geometry to get under a lint threshold is the one forbidden move.\n"

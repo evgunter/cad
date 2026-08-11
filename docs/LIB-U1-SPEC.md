@@ -107,7 +107,7 @@ untouched — profile-authoring rework is U2 PR-2, not this unit.
 2. `pncad` closure tests (§3).
 3. `cargo test -p tour` (or the tour's battery entry — discover
    it from `demos/tour`; the ε rows are part of it).
-4. Workspace battery per `scripts/test-fast.sh` locally for
+4. Workspace battery per `local-scripts/test-fast.sh` locally for
    iteration; **hosted CI is the only gate**.
 
 ## 6. PR discipline

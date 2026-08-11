@@ -181,7 +181,7 @@ topo review_m3_pr6.rs:123,184. Big-argument honesty (sin/cos
 degrade to [-1,1] for |x| ≳ 4e15) — confirm no kernel test lands
 there.
 
-**CI**: lanes (ci.yml:158-175, scripts/ci-local.sh interval rows)
+**CI**: lanes (ci.yml:158-175, local-scripts/ci-local.sh interval rows)
 keep identical invocations — they just build gmp-free now. Also
 run the crate's OWN fast suites (tests/edges.rs + unit tests) in
 your battery; run tests/certify.rs (the 300k differential lane vs

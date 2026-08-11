@@ -30,7 +30,7 @@ tie information surfaces through a typed result instead
 ## 0. Discipline (absolute)
 
 ≤~150 lines per tool call; chunked reads; skeleton-first writes;
-report ≤150 lines. Slot rules: `scripts/with-build-slot.sh --
+report ≤150 lines. Slot rules: `local-scripts/with-build-slot.sh --
 cargo ...`; `--express SECS` for ≤10-min rows; long rows default
 mutex with BLOCKING foreground waits (re-issue timeouts; setsid +
 foreground-poll past the harness cap); NEVER park. Cold-clippy

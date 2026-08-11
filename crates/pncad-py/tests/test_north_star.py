@@ -18,17 +18,25 @@ from pathlib import Path
 from pncad import (
     ArcSweep,
     BooleanOp,
+    CurveKind,
     Doc,
     DocEdit,
     DocParam,
     EditError,
+    EntityKind,
     EvaluationError,
+    GeomPred,
+    NamePat,
     Node,
     Open,
     ParamName,
     PathError,
+    SegPat,
+    SegTag,
+    Selector,
     SketchPlane,
     Start,
+    SurfaceKind,
     circle,
     circle_split,
     deg,
@@ -865,17 +873,11 @@ class TestDiefillet(unittest.TestCase):
         self.assertTrue(forward.bit_eq(backward))
 
 
-class TestDiepips(unittest.TestCase):
-    """Tour scene `diepips` (row 8): twenty-one spherical dimples on
-    the six faces of a unit cube, cut in ONE group operation.
-
-    The scene's STRUCTURE transfers whole: one ball, twenty-one
-    `Node.transform` placements whose pole rides the face normal, the
-    twenty-one balls fused into a single tool, and ONE subtract. Its
-    ball is RE-CHARTED — see `ball` below, which states why and what
-    it dodges. The scene's oracle is
-    crates/sweep/tests/m5_pr12_die.rs: the cube less twenty-one
-    spherical caps."""
+class DieScene:
+    """The 21-pip die construction rows 8 and 9 share (a mixin, not a
+    TestCase): one re-charted ball, twenty-one `Node.transform`
+    placements whose pole rides the face normal, the twenty-one balls
+    fused into a single tool, ONE subtract."""
 
     L, PIP_R, PIP_H, PIP_D = 1.0, 0.09, 0.05, 0.22
 
@@ -931,8 +933,8 @@ class TestDiepips(unittest.TestCase):
         axis = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
         return doc.insert(Node.revolve(sketch, axis, (2.0 * math.pi) * rad))
 
-    def test_diepips_matches_the_scene_oracle(self):
-        doc = Doc()
+    def pipped_die(self, doc):
+        """The pipped cube: cube ∖ (21 fused balls), one subtract."""
         sq = doc.insert(
             Node.polygon(
                 [
@@ -962,16 +964,148 @@ class TestDiepips(unittest.TestCase):
                         )
                     )
                 )
-        self.assertEqual(len(placed), 21)
+        assert len(placed) == 21
 
         tool = placed[0]
         for pip in placed[1:]:
             tool = doc.insert(Node.boolean(BooleanOp.Union, tool, pip))
-        die = doc.insert(Node.boolean(BooleanOp.Subtract, cube, tool))
+        return doc.insert(Node.boolean(BooleanOp.Subtract, cube, tool))
+
+
+class TestDiepips(DieScene, unittest.TestCase):
+    """Tour scene `diepips` (row 8): twenty-one spherical dimples on
+    the six faces of a unit cube, cut in ONE group operation.
+
+    The scene's STRUCTURE transfers whole — see `DieScene`. Its ball
+    is RE-CHARTED (`DieScene.ball` states why and what it dodges).
+    The scene's oracle is crates/sweep/tests/m5_pr12_die.rs: the cube
+    less twenty-one spherical caps."""
+
+    def test_diepips_matches_the_scene_oracle(self):
+        doc = Doc()
+        die = self.pipped_die(doc)
 
         cap = math.pi * self.PIP_H ** 2 * (3.0 * self.PIP_R - self.PIP_H) / 3.0
         want = self.L ** 3 - 21.0 * cap
         self.assertAlmostEqual(volume_of(doc, die), want, delta=1e-9 * want)
+
+
+class TestDiecomposed(DieScene, unittest.TestCase):
+    """Tour scene `diecomposed` (row 9): the pipped cube filleted IN
+    PLACE, twice — the twelve box edges at r = 0.12, then all 21 pip
+    rims at r = 0.02 — one body carrying the blank's blends, the pip
+    cavities, and the rim torus bands.
+
+    This row was YES\\* until LIB-PYSEL closed G13: the two blends
+    need the box edges and the pip rims SEPARATED, and with no
+    selector bound the only Python route read inside the opaque name
+    text — representation-dependence, not a selector (the ordinal-28
+    ruling). Now the scene says what the Rust scene says: the SAME
+    two geometric filters `lib_sel1_geoselect.rs` runs — carrier kind
+    `Line` for the box edges, `Plane`/`Sphere` adjacency for the
+    rims — executed by `select_where`, with no name text read.
+
+    The oracle is the closed form the Rust scene meters
+    (crates/sweep/tests/m6_surgery.rs, and the tour note's printed
+    V = 0.952915 m³): Steiner blank − 21·(cap + rim-torus extra),
+    the extra derived by Pappus below."""
+
+    DIE_R = 0.12  # the box-edge blend radius
+    RIM_R = 0.02  # the pip-rim blend radius
+
+    def blank_volume(self):
+        """The blank's Steiner closed form: shrunk core + 6 slabs +
+        12 quarter-cylinders + 8 sphere octants."""
+        core = self.L - 2.0 * self.DIE_R
+        return (
+            core ** 3
+            + 6.0 * self.DIE_R * core ** 2
+            + 12.0 * (math.pi * self.DIE_R ** 2 / 4.0) * core
+            + (4.0 / 3.0) * math.pi * self.DIE_R ** 3
+        )
+
+    @staticmethod
+    def spherical_cap(r, h):
+        """A height-`h` cap off a radius-`r` ball."""
+        return math.pi * h * h * (3.0 * r - h) / 3.0
+
+    def rim_fillet_extra(self):
+        """The material one rim-torus fillet removes beyond the pip
+        cap itself — the Pappus derivation `m6_surgery.rs` documents,
+        ported verbatim: first moments of the curvilinear triangle
+        between the old rim, the rolling ball's plane tangency, and
+        its pip-ball tangency, times 2π."""
+        big_r, h, r = self.PIP_R, self.PIP_H, self.RIM_R
+        d = big_r - h
+        s = math.sqrt((big_r + r) ** 2 - (d + r) ** 2)
+        rho_rim = math.sqrt(big_r * big_r - d * d)
+        k = big_r / (big_r + r)
+        t_s = (s * k, d - (d + r) * k)
+
+        def tri_m(a, b, c):
+            area2 = (b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])
+            return abs(area2) / 2.0 * ((a[0] + b[0] + c[0]) / 3.0)
+
+        def seg_m(c, rad, p, q):
+            a0 = math.atan2(p[1] - c[1], p[0] - c[0])
+            a1 = math.atan2(q[1] - c[1], q[0] - c[0])
+            if a1 - a0 > math.pi:
+                a1 -= 2.0 * math.pi
+            elif a0 - a1 > math.pi:
+                a1 += 2.0 * math.pi
+            lo, hi = min(a0, a1), max(a0, a1)
+            sector = (
+                c[0] * rad * rad * (hi - lo) / 2.0
+                + rad ** 3 * (math.sin(hi) - math.sin(lo)) / 3.0
+            )
+            return sector - tri_m(c, p, q)
+
+        p_rim = (rho_rim, 0.0)
+        t_p = (s, 0.0)
+        moment = (
+            tri_m(p_rim, t_p, t_s)
+            - seg_m((s, -r), r, t_p, t_s)
+            - seg_m((0.0, d), big_r, p_rim, t_s)
+        )
+        return 2.0 * math.pi * moment
+
+    def test_diecomposed_matches_the_scene_oracle(self):
+        doc = Doc()
+        die = self.pipped_die(doc)
+        edges = Selector.of(NamePat.of_kind(EntityKind.Edge))
+
+        # Blend 1 — the box edges, said by CARRIER KIND: of the pipped
+        # cube's 96 edges (12 box lines + 21 pips × 4 circular arcs),
+        # exactly the twelve lines. Materialized off THIS evaluation,
+        # stored, frozen — and never read as text.
+        straight = evaluate(doc).select_where(
+            die, edges, [GeomPred.curve_kind(CurveKind.Line)]
+        )
+        self.assertEqual(len(straight), 12)
+        blank = doc.insert(Node.fillet(die, self.DIE_R * m, straight))
+
+        # Blend 2 — the pip rims, said by ADJACENT KINDS: the edges
+        # whose two faces are a plane (the shrunk cap) and a sphere
+        # (the pip cavity), unordered. A full revolve's band is two
+        # half-faces, so each rim is two arcs: 21 × 2 = 42 names. The
+        # cavity meridians (sphere on BOTH sides — no dihedral wedge,
+        # unfilletable at any radius) match neither filter, exactly as
+        # in the Rust scene.
+        rims = evaluate(doc).select_where(
+            blank,
+            edges,
+            [GeomPred.adjacent_kinds(SurfaceKind.Plane, SurfaceKind.Sphere)],
+        )
+        self.assertEqual(len(rims), 42)
+        composed = doc.insert(Node.fillet(blank, self.RIM_R * m, rims))
+
+        want = self.blank_volume() - 21.0 * (
+            self.spherical_cap(self.PIP_R, self.PIP_H) + self.rim_fillet_extra()
+        )
+        # The tour note prints V to six figures; the derivation must
+        # land on the same number, or it is not the scene's oracle.
+        self.assertEqual(round(want, 6), 0.952915)
+        self.assertAlmostEqual(volume_of(doc, composed), want, delta=1e-9 * want)
 
 
 class TestTiltedcut(unittest.TestCase):
@@ -1096,11 +1230,17 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
 
         # `ParamName`/`DocParam` left this list when G10 closed
         # (R1-PARAMS) — `TestPlateParam` above is the positive form.
+        # `Selector`/`select_where` left it when G13 closed
+        # (LIB-PYSEL) — `TestDiecomposed` and
+        # `test_the_selector_surface_narrows_without_reading_names`
+        # are the positive forms; `select`/`select_where` are
+        # `Evaluation` METHODS (the materializer posture `all_edges`
+        # set), so the module-level absence below is shape, not gap.
         # `StableName` stays: a name is CARRIED as text, never
         # composed, so there is no name type and no name grammar.
         for door in [
             "tessellate", "Mesh", "write_stl",        # mesh + STL
-            "select", "select_where", "Selector",     # selectors
+            "select", "select_where",                 # methods, not module doors
             "StableName", "find_flush_candidates",    # names, detect/declare
         ]:
             with self.subTest(door=door):
@@ -1122,37 +1262,20 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             with self.subTest(node=node_kind):
                 self.assertFalse(hasattr(Node, node_kind), f"Node.{node_kind} exists")
 
-    def test_the_selector_surface_is_what_is_missing(self):
-        """G13, the gap that degrades `diecomposed`.
+    def test_the_selector_surface_narrows_without_reading_names(self):
+        """G13, CLOSED (LIB-PYSEL) — the flip of the absence this test
+        used to pin.
 
-        A selection can be TAKEN — the four whole-body materializers
-        cross — and it can be carried and stored. What does not cross
-        is anything that NARROWS one: `Selector`/`NamePat` (role-path
-        shape) and `select_where`/`GeomPred` (carrier kind, adjacency,
-        datum distance), the surface that narrows this exact scene in
-        Rust.
-
-        This test pins the door absence and the materializers' shape,
-        and it says nothing about impossibility. The name TEXT is an
-        opaque identifier by contract, not a value to read, so a
-        Python author who narrows a set by inspecting it is depending
-        on a representation this crate does not promise — which is
-        exactly what makes `diecomposed` YES\* (hand-authored) rather
-        than YES."""
-        import pncad
-
-        for door in [
-            "NamePat", "Selector", "SegPat", "TagPat", "OpGroup",
-            "GeomPred", "select", "select_where", "CurveKind",
-            "SurfaceKind", "EntityKind", "all_edges",
-        ]:
-            with self.subTest(door=door):
-                self.assertFalse(hasattr(pncad, door), f"{door} is now bound")
-
-        # The four materializers answer a WHOLE kind, and on a boolean
-        # output that is more than any one blend wants: a cube with a
-        # single pocket cut into it carries twice the edges the
-        # composed die's box blend would select.
+        A selection could always be TAKEN (the four whole-kind
+        materializers) and carried; what could not cross was anything
+        that NARROWS one. Now `Evaluation.select` (role-path shape)
+        and `Evaluation.select_where` (geometry: carrier kind,
+        adjacency, datum distance) narrow — and the name text STAYS
+        opaque by contract (the ordinal-28 ruling): both doors answer
+        in the same alphabet the materializers speak, so nothing here
+        reads inside a string. `TestDiecomposed` is the scene-scale
+        positive form; this is the pocket-cube miniature the absence
+        form used."""
         doc = Doc()
         cube = slab(doc, (0, 1), (0, 1), (0, 1))
         ev = evaluate(doc)
@@ -1163,7 +1286,53 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
 
         pip = slab(doc, (0.4, 0.6), (0.4, 0.6), (0.9, 1.2))
         pipped = doc.insert(Node.boolean(BooleanOp.Subtract, cube, pip))
-        self.assertEqual(len(evaluate(doc).all_edges(pipped)), 24)
+        ev = evaluate(doc)
+        every_edge = ev.all_edges(pipped)
+        self.assertEqual(len(every_edge), 24)
+
+        edges = Selector.of(NamePat.of_kind(EntityKind.Edge))
+        # An empty conjunction is exactly `select`, which on the
+        # whole-kind pattern is exactly the materializer: three doors,
+        # one answer, name for name.
+        self.assertEqual(ev.select(pipped, edges), every_edge)
+        self.assertEqual(ev.select_where(pipped, edges, []), every_edge)
+
+        # Structural narrowing: the pocket's own edges came from
+        # operand B of the subtraction — its 4 walls and 4 floor
+        # edges. The 4 edges of the OPENING are `Seam` (minted where
+        # the cap crosses a pocket wall, belonging to neither operand
+        # alone), and the cube kept its 12: 8 + 4 + 12 = 24.
+        from_b = Selector.of(
+            NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.FromB))
+        )
+        pocket = ev.select(pipped, from_b)
+        self.assertEqual(len(pocket), 8)
+        seam = Selector.of(
+            NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.Seam))
+        )
+        self.assertEqual(len(ev.select(pipped, seam)), 4)
+        # ...and `matches` classifies the SAME materialized texts the
+        # binding answered with, so the narrowing is checkable without
+        # a second evaluation — or a single string read.
+        self.assertEqual([n for n in every_edge if from_b.matches(n)], pocket)
+
+        # Geometric narrowing: every edge of a box-minus-box is a
+        # line, so the exact atom keeps all 24 — total, no refusal —
+        # while an atom no edge satisfies keeps none.
+        self.assertEqual(
+            ev.select_where(
+                pipped, edges, [GeomPred.curve_kind(CurveKind.Line)]
+            ),
+            every_edge,
+        )
+        self.assertEqual(
+            ev.select_where(
+                pipped,
+                edges,
+                [GeomPred.adjacent_kinds(SurfaceKind.Plane, SurfaceKind.Sphere)],
+            ),
+            [],
+        )
 
     def test_a_split_through_boolean_minted_faces_still_refuses(self):
         """G14, the gap `cutaway` now waits on — measured, not

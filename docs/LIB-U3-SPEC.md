@@ -21,7 +21,7 @@ disagreement unrepresentable).
 
 ≤~150 lines per tool call; chunked reads; skeleton-first writes;
 report ≤150 lines. Every build/battery row synchronous FOREGROUND
-(`scripts/with-build-slot.sh -- cargo ...`, long timeouts, one at
+(`local-scripts/with-build-slot.sh -- cargo ...`, long timeouts, one at
 a time, read each result); NEVER background anything or park on
 waits. You are the only build-running agent.
 

@@ -2,11 +2,11 @@
 # ONE COMMAND FOR A RENDER: install the one CI already made — or, on
 # request, dispatch -> poll -> install.
 #
-#   scripts/render-hosted.sh                      # take your branch's
+#   local-scripts/render-hosted.sh                      # take your branch's
 #                                                 # newest CI render
-#   scripts/render-hosted.sh --lane uv            # one lane of it
-#   scripts/render-hosted.sh --on-demand          # render fresh instead
-#   scripts/render-hosted.sh --run 12345678       # pull a specific run
+#   local-scripts/render-hosted.sh --lane uv            # one lane of it
+#   local-scripts/render-hosted.sh --on-demand          # render fresh instead
+#   local-scripts/render-hosted.sh --run 12345678       # pull a specific run
 #
 # TAKING IS THE DEFAULT; RENDERING IS THE FLAG. Every CI run on a pushed
 # branch renders all four lanes and gates them (ci.yml's `renders` job
@@ -73,7 +73,7 @@ POLL_INTERVAL=20
 
 usage() {
     cat <<'EOF'
-usage: scripts/render-hosted.sh [options]
+usage: local-scripts/render-hosted.sh [options]
 
   (default)                             install the render your branch's
                                         newest CI run already made
@@ -168,7 +168,7 @@ if [ "$ON_DEMAND" = 0 ] && [ -z "$RUN_ID" ]; then
     # one is the kind of helpfulness that surprises.
     [ -n "$RUN_ID" ] || die "no $CI_WORKFLOW run on '$REF' yet — CI renders every lane \
 on every push, so this usually means the branch is unpushed. Push it, or render on \
-demand: scripts/render-hosted.sh --on-demand --lane $LANE"
+demand: local-scripts/render-hosted.sh --on-demand --lane $LANE"
     say "taking $CI_WORKFLOW run $RUN_ID (no new render)"
 fi
 

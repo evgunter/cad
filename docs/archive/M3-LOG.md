@@ -555,7 +555,7 @@ narration-only — promoted to the rendered `openbox` stop (V=2.368
 exact, verified open-top-only in the render); the scoop variant moved
 to its own `scoopbox` stop; README boolean-leg section reconciled
 (die row + limitation bullets were still pre-fix-pass); ci.yml gained
-the KEEP IN SYNC back-reference to scripts/ci-local.sh (#67 comment).
+the KEEP IN SYNC back-reference to local-scripts/ci-local.sh (#67 comment).
 
 **Post-5.5 demo refresh charter (Evan, #68 comment, 2026-07-22)** — for
 the demo update that lands with/after PR 5.5, low effort explicitly
@@ -656,7 +656,7 @@ scan-to-bless), native Intersection minting on split/boolean section
 edges (test-only upgrade helper retired), below-copy minting at BOB
 pinches, validity class carried on the result wrapper not on `Body`
 (the binding F1 interpretation; 6(b) ratifies the wording into
-DESIGN.md). 6(c) = `scripts/gate.sh` per the caching investigation
+DESIGN.md). 6(c) = `local-scripts/gate.sh` per the caching investigation
 (orchestrator-reviewed, no separate reviewer — process script, its
 e2e test is running it). 6(b) = docs sweep + Evan-approved state-doc
 trim (charter bullets above); queued behind (a) because it consumes
@@ -664,7 +664,7 @@ trim (charter bullets above); queued behind (a) because it consumes
 retired from the session-start checklist (Evan: it never measured
 Fable-specific usage, the limit that actually binds).
 
-**PR 6(c) MERGED (#73, `b6df924`, 2026-07-23)** — `scripts/gate.sh`:
+**PR 6(c) MERGED (#73, `b6df924`, 2026-07-23)** — `local-scripts/gate.sh`:
 flock-serialized merge-gate runner on a persistent standalone CLONE at
 `~/.local/share/cad-gate/repo` (clone not worktree — a worktree
 parented on an ephemeral mngr checkout dies with its parent;
@@ -676,7 +676,7 @@ fingerprints). Orchestrator review found + fixed one defect
 (`bdfeed8`): as-given-first ref resolution would have gated the
 runner's never-advancing local `main` — stale sha, silent. E2E review
 run of the fixed script: 11/11 PASS, 223s warm (483s cold bootstrap,
-158s warm in acceptance). THE MERGE GATE IS NOW `scripts/gate.sh
+158s warm in acceptance). THE MERGE GATE IS NOW `local-scripts/gate.sh
 <ref>`; concurrent gate runs queue on the flock.
 
 **Pre-M4 naming doc started early (Evan, in-chat 2026-07-23)** —
@@ -847,7 +847,7 @@ merge-only history preserves it).
   tier-3′), #76 (PR 6b docs sweep + Evan-approved state-doc trim),
   #77 (session-4 orchestrator record). M3 is COMPLETE (exit section
   above).
-- **Merge gate**: `scripts/gate.sh <ref>` — flock-serialized,
+- **Merge gate**: `local-scripts/gate.sh <ref>` — flock-serialized,
   persistent clone at `~/.local/share/cad-gate/repo`, warm matrix
   ~34 min after big merges / ~3–4 min quiescent. Hosted CI still
   DOWN until Evan's billing-month rollover; when it returns, re-check

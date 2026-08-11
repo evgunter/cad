@@ -17,7 +17,7 @@ and SOLVER-DESIGN.md (#79, W1–W9 — M4 takes the *contracts*; solver
 implementation is M6). Process conventions inherited from M3
 unchanged (one implementer + one adversarial e2e reviewer +
 one fix pass per PR; binding orchestrator specs; OUTPUT DISCIPLINE;
-merge gate = scripts/gate.sh while hosted CI is down, ci.yml kept in
+merge gate = local-scripts/gate.sh while hosted CI is down, ci.yml kept in
 sync for its return).
 
 ## What M4 is, in one paragraph

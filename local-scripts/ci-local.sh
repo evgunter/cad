@@ -61,7 +61,7 @@
 # on purpose to keep its warm target/ from re-fingerprinting. See the
 # LINK/DEBUGINFO note at the top of ci.yml for the measurement.
 #
-# Merge-gate runs go through scripts/gate.sh (serialized, warm runner —
+# Merge-gate runs go through local-scripts/gate.sh (serialized, warm runner —
 # see its header for the caching guidance and RUSTFLAGS hazard).
 set -u
 cd "$(dirname "$0")/.."
@@ -126,7 +126,7 @@ fi
 # docs early-exit so docs-only runs never wait on locks; the re-exec'd
 # script re-runs the (cheap) filter, then passes this guard.
 if [ -z "${BUILD_SLOT_HELD:-}" ]; then
-  exec scripts/with-build-slot.sh -x -- scripts/ci-local.sh "${ORIG_ARGS[@]}"
+  exec local-scripts/with-build-slot.sh -x -- local-scripts/ci-local.sh "${ORIG_ARGS[@]}"
 fi
 
 declare -a NAMES RESULTS

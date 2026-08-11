@@ -1216,7 +1216,7 @@ incident):**
    *Change-filter rider (2026-07-29, Evan's ask post-Actions-budget;
    made dependency-aware 2026-07-28):* CI carries a three-tier change
    filter, implemented once in `scripts/ci-filter.py` and called by
-   both `ci.yml`'s filter job and `scripts/ci-local.sh`, so hosted and
+   both `ci.yml`'s filter job and `local-scripts/ci-local.sh`, so hosted and
    local gating cannot drift. Tier `docs` — only `*.md`/`memories/` —
    skips every build row and gates on the `docs-only` marker job.
    Tier `all` — any workspace-level file, which includes the root

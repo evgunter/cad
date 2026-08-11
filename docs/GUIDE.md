@@ -822,9 +822,9 @@ encoding — the same value a saved document carries, modulo the
 whitespace `save` pretty-prints with — but its internal structure is
 NOT API: it may change without notice, so the supported operations
 are equality, ordering, storage, and handing it back. Narrowing a
-materialized set is a SELECTOR's job. Rust has one
-(`select_where` with `GeomPred`); Python does not yet, and that is a
-named gap — see the north-star audit's G13.
+materialized set is a SELECTOR's job: `Evaluation.select` and
+`Evaluation.select_where`, the same doors Rust narrows with — the
+next section runs them.
 
 ```python
 import math
@@ -866,6 +866,82 @@ try:
     raise AssertionError("an empty selection should not blend")
 except EvaluationError as refusal:
     assert refusal.kind == "fillet_selection_empty"
+```
+
+### Narrowing a selection: select, then fillet
+
+`all_edges` answers a whole kind, and on a boolean output that is
+more than one blend wants. The narrowing language is the same one
+Rust's selector section speaks, crossed verb for verb:
+`Evaluation.select` materializes by role-path SHAPE (`Selector`, a
+union of `NamePat`s — which op minted the entity, which role, which
+side), and `Evaluation.select_where` filters the survivors by
+GEOMETRY (`GeomPred` atoms: carrier kind, adjacent-surface kinds,
+datum-relative distance, in conjunction). Both answer in the same
+opaque alphabet the materializers speak, ready for `Node.fillet`
+unread — narrowing happens through the doors, never by parsing a
+name.
+
+The scene below is the composed die's shape in miniature: a cube
+with one spherical pip cut into its top face, then ONE fillet whose
+selection is said twice geometrically — the box edges by carrier
+kind, the pip rim by the plane/sphere pair across it. What is NOT
+selected is the point: the cavity's two meridian seams are sphere on
+BOTH sides (no dihedral wedge — unfilletable at any radius), and
+they match neither filter, so the refusal falls out of the geometry.
+
+```python
+import math
+
+from pncad import (
+    BooleanOp, CurveKind, Doc, EntityKind, GeomPred, NamePat, Node,
+    Open, Selector, SketchPlane, Start, SurfaceKind, evaluate, m, rad,
+)
+
+R, H = 0.09, 0.05  # the pip ball's radius; how deep it dips in
+
+doc = Doc()
+square = doc.insert(
+    Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)])
+)
+cube = doc.insert(Node.extrude(square, 1 * m))
+
+# A ball, revolved as two quarter arcs, sunk H into the top face.
+half = (
+    Open.at((0 * m, -R * m))
+    .arc_to((R * m, 0 * m), math.tan(math.pi / 8))
+    .arc_continue((0 * m, R * m))
+    .line_to(Start)
+)
+plane = SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0))
+axis = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=plane)), axis, (2 * math.pi) * rad))
+pip = doc.insert(
+    Node.transform(ball, (0.5 * m, 0.5 * m, (1.0 + R - H) * m), (0.0, 0.0, 1.0), 0 * rad)
+)
+pipped = doc.insert(Node.boolean(BooleanOp.Subtract, cube, pip))
+
+# The two filters, materialized off ONE evaluation and stored. A
+# list of atoms is a conjunction; a union is two calls concatenated.
+edges = Selector.of(NamePat.of_kind(EntityKind.Edge))
+ev = evaluate(doc)
+straight = ev.select_where(pipped, edges, [GeomPred.curve_kind(CurveKind.Line)])
+rims = ev.select_where(
+    pipped, edges, [GeomPred.adjacent_kinds(SurfaceKind.Plane, SurfaceKind.Sphere)]
+)
+assert len(straight) == 12  # the box edges the subtraction kept
+assert len(rims) == 2       # the pip rim is two arcs, not one circle
+
+# The excluded remainder, BY GEOMETRY: sphere-on-both-sides.
+meridians = ev.select_where(
+    pipped, edges, [GeomPred.adjacent_kinds(SurfaceKind.Sphere, SurfaceKind.Sphere)]
+)
+assert len(meridians) == 2 and len(ev.all_edges(pipped)) == 16
+
+# One fillet takes both selections — stored, frozen, never re-queried.
+blended = doc.insert(Node.fillet(pipped, 0.05 * m, straight + rims))
+body = evaluate(doc).value(blended).body()
+body.validate()
 ```
 
 ## 3. Parametric models
