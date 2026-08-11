@@ -240,6 +240,15 @@ Cheap to honor now, expensive to retrofit; each names its source:
   referencing an assembly neighbor's face arrives as the
   captured-context object — wrapper-plus-pin again, held by the
   part document. Nothing here forecloses it (AQ5).
+- **Fastener relation bundles** (Evan, #356): a modeled bolt
+  closes physical loops through several contacts (shank coaxials,
+  head rest, thread fit) — a predefined fastener relation is a
+  compound declaration TEMPLATE over the existing mate vocabulary
+  (the I3 handbook-fit shape composed with SEL2's detect/declare
+  precedent for candidate generation). Sugar, never semantics:
+  each expanded declaration is an ordinary A3 mate, so nothing in
+  A11 changes; the bundle just authors the loop's declarations in
+  one gesture and names their shared provenance.
 - **Handbook fits** (I3): `Fit { g₀ }` with g₀ from a versioned
   data source — the declaration shape already fits; provenance of
   g₀ is the open half.
