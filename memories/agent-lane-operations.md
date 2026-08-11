@@ -80,7 +80,22 @@ misleading dead-holder file. Diagnose with
 `fuser -v locks/<slot>.lock` (shows the true fd holders); the fix
 is killing the inheriting process, and slot-wrapped commands
 should avoid spawning daemons (sccache/watchers) or close the fd
-(`flock -o` where supported). **Lane-takeover
+(`flock -o` where supported). `with-build-slot.sh` now pre-starts the
+sccache server before opening the lock fds, closing this for the one
+daemon every build can trigger (2026-08-11). **Express-lane cost model
+is UNVERIFIED and suspect (2026-08-11)**: the same cold workspace build
+measured **69m23s** in one window and **3m08s** in another — same
+config, same tree, 182-197 crates both times, 22x apart. The slow
+window had express-lane jobs (clippy, `cargo test`, the python suite, a
+`pncad-py` build) running ALONGSIDE the main-slot build; the fast one
+did not. #269 sized the express lane off #230's "concurrency costs
+~40%", but #230 measured two BUILDS on a box that was never
+memory-tight, whereas 10 GB with full-DWARF link jobs can cross into
+swap, where the penalty is nonlinear. If build waits feel pathological,
+suspect express-lane overlap BEFORE compiler flags — config knobs moved
+single-digit percents here against a 22x environmental term. Needs a
+#230-style measurement (express job concurrent with a battery, memory
+sampled) before the lane is resized or kept. **Lane-takeover
 courtesy (2026-08-10)**: when the orchestrator operates in a
 possibly-alive agent's lane (pushing its parked commits, merging
 its PR, or handing the lane to a successor), MESSAGE the incumbent
