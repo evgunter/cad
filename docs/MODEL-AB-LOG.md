@@ -108,6 +108,59 @@ amended:
   - Record WHO executed the fix pass (implementer-inherited vs
     orchestrator-applied) — inconsistent execution contaminates
     the fix-pass proxies.
+- **Protocol v4 (Evan, in-chat, 2026-08-11, from the dual-review
+  analysis). Four amendments; in-flight blocks complete under v3;
+  v4 governs every block drawn after this entry.**
+  1. **STOPPING RULE (clarified by Evan same day: this ends the
+     DUAL-REVIEW experiment ONLY — the implementation A/B and
+     its single reviews continue)**: dual-review sampling STOPS
+     when SIX dual reviews have occurred in which at least one
+     reviewer found a MAJOR. **The orchestrator recording the
+     sixth such row must notify Evan explicitly** (away-channel
+     comment requesting acknowledgment — not just a log line). Running
+     tally, maintained here at each qualifying row: sample #1
+     (G1, converged MAJOR), sample #4 (SWITCH-E, both-R
+     MAJORs), and the M8 long-turn dual @27 (VERIFIED by its
+     orchestrator on #398: R1 fable 0 MAJ, R2 2 MAJ,
+     reviewer-found at review time) qualify → **3 of 6** as of
+     2026-08-11. (Note for the seam analysis: that dual's R2
+     was ALREADY opus — an informal cross-model pair predating
+     the v4 pilot; label it so in the variance readout.)
+  2. **STANDARDIZED VERDICT LADDER (the review format lives
+     here, so its definitions do too — SEAM: rows BEFORE this
+     entry used the terms freely; verdict strings before/after
+     are NOT comparable for analysis).** Exactly four terms:
+     - **APPROVE** — mergeable as-is; findings (if any) are
+       optional polish.
+     - **APPROVE-WITH-FIXES** — mergeable after the listed
+       fixes; the reviewer does NOT need to re-verify (the
+       orchestrator adjudicates the fix pass).
+     - **NOT-MERGEABLE-AS-IS** — at least one finding must be
+       fixed AND re-verified (a re-review round) before merge.
+     - **REJECT** — the approach itself fails; the unit returns
+       to design/spec, not to a fix pass.
+     MERGEABLE and PASS are RETIRED (map to APPROVE). Analysis
+     note (the reason for this amendment): reviewers' FINDINGS
+     are measured reliable; their VERDICT LABELS on identical
+     substance are noisy (SWITCH-E and ASM-1 both showed
+     label divergence at converged findings) — weight findings,
+     not labels.
+  3. **Dual composition: half the duals become cross-model
+     review pilots.** Frequency unchanged (every 3rd row by the
+     same ordinal rule). Duals now come in BLOCKS OF TWO
+     {same-model, cross-model}, order shuffled per block by
+     /dev/urandom (one byte, parity — the v2 implementer-block
+     mechanism verbatim): a same-model dual is R1+R2 both fable
+     (the status quo); a cross-model dual is R1 fable + R2
+     OPUS (every PR still gets a fable review; opus reviewing
+     is a PILOT under identical briefs/blinding). The row
+     records each reviewer's model — reviews are blinded to the
+     IMPLEMENTER arm as always; reviewer model is not a secret.
+  4. **Implementation-arm block size 4: {opus, opus, opus,
+     fable}** (was v3 triples). Draw: one /dev/urandom byte,
+     REJECT ≥252 (252 = 63·4, so mod is unbiased), byte mod 4 =
+     fable's position (0–3). Difficulty still logged pre-draw
+     per dispatch; everything else unchanged.
 - Small-n caveat, stated up front: this yields a suggestive
   comparison, not significance. Read stratified by difficulty.
 
@@ -704,3 +757,20 @@ to ASM-2K; ROOTS takes the next unfixed ordinal 25 → SINGLE.
 Frozen head 5b5850b23205.
 | ASM-ROOTS | 2026-08-11 | A10 product roots: ordered roots list + coverage/ancestor-freedom invariants (one shared checker at both doors), automatic maintenance incl. replay re-derivation, schema v6 clean break, the product gather (editor-core product.rs) + export_document_step | M (logged pre-dispatch) | OPUS (block ASM-1 slot 2) | single (ordinal 25, frozen head 5b5850b2) — MERGEABLE 0/0/5 rubric 5/5/4; every roots::check clause mutation-proven red; deviation 3 (MultiSolidRoot unreachable) survived direct falsification; both fixtures re-blessed byte-identical in the reviewer's own process; e2e STEP round-trip exact | 0 silent (4 deviations reported; the sink-set equivalence observation written into module docs) | 5 | 5 | 4 | none required (0 MAJ / 0 MIN; 5 NOTEs recorded in the review report, none blocking) | MERGED #383 25/25 (one mid-flight hosted red: the pncad-py python-feature tag-map gap — caught by CI, fixed, and the lesson now rides every future brief: clippy must include -p pncad-py --features python when error surfaces move) | impl ~280k / review ~249k | impl ~5.3h / review ~4.8h |
 | ASM-2K | 2026-08-11 | multi-solid instancing kernel door: graft_disjoint_all (equivalence-tested vs sequential single grafts), uniform Instance(i) wrapping pinned for multi-solid masters, step-import zero-diff | M (logged pre-dispatch) | OPUS (block ASM-1 slot 3) | **DUAL (sample #8, ordinal 24, frozen head ada35468)** — R1 MERGEABLE 0/2/3 rubric 5/4/4; R2 MERGEABLE 0/1/4 rubric 5/4/5. FULL convergence incl. LABELS (first sample); converged MINOR = the single-solid wording at the N-solid refusal; both independently verified the D-2 deviation TRUE on unmodified main (the wall is output-body-indexed) | 0 silent (4 deviations reported incl. the spec-premise falsification; overlap-validation gap filed as #382; GraftMap name bridge banked to ASM-2b) | 5/5 | 4/4 | 4/5 | light (invariant-stating refusal split, R7 retirement pointer at the row, partial-write parity doc); executor: implementer-inherited | MERGED #381 (run green; a GitHub status-propagation wedge held the last job in_progress ~35min post-completion — reconciled on poke, nothing ours) | impl ~211k + fix ~219k / R1 ~131k+resumes / R2 ~108k | impl ~3.4h / R1 wake-fragmented / R2 ~5.3h |
+LIB-8 slot 2 dispatch (2026-08-11): PYSEL (G13 selector surface,
+docs/LIB-PYSEL-SPEC.md) = FABLE (the block's drawn position 1).
+Difficulty logged pre-dispatch: S-M (binding of an existing
+ratified vocabulary; the acceptance scene's filters already
+proven Rust-side). Slot 3 (opus) banks.
+PYSEL review ordinal fixed at dispatch (2026-08-11, PR #393 open,
+reviewed head b0517eec): claimed ordinals through 28 on main's
+ledger + 1 = **29 → SINGLE** (duals sit at 21/24/27; 30 is the
+next third). Caveat recorded: the M8 checkpoint (#374) predates
+their #387–#392 PRs — if an unrecorded M8 review dispatch
+preceded this one by wall-clock, the tiebreak precedent
+re-allocates consecutively at their seam.
+LIB-8 slot 3 dispatch (2026-08-11): LBRET (the ratified #377/#386
+retirement package, docs/LIB-LBRET-SPEC.md) = OPUS (the block's
+last banked slot — LIB-8 consumed: PYBUNDLE opus / PYSEL fable /
+LBRET opus). Difficulty logged pre-dispatch: M (one confined
+kernel door + a one-scene migration + mechanical banishment).
