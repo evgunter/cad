@@ -54,8 +54,8 @@ pub use quantity::{
 
 // --- 2. Profile authoring -------------------------------------
 pub use profile::{
-    ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, ProfileVertex,
-    SegmentKind, SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
+    ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
+    SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
 // The PATHS authoring algebra (LIB-U2), with the LIB-G1 vocabulary
 // growth: `circle` (the one-step closed-carrier program form) and the

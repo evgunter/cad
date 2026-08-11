@@ -19,9 +19,7 @@ mod common;
 
 use common::pinned;
 use geom_core::{Point2, Tolerance, Vec2};
-use profile::{
-    ArcSweep, FilletLegShape, Open, Profile, ProfileLoop, SketchPlane, Start,
-};
+use profile::{ArcSweep, FilletLegShape, Open, Profile, ProfileLoop, SketchPlane, Start};
 
 use profile::test_support::LoopBuilder;
 

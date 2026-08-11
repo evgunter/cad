@@ -593,4 +593,5 @@ mod tests {
             .collect();
         // Canonical start is (0, 0); chain: line, arc, line, arc.
         assert_eq!(kinds, vec![true, false, true, false]);
-    }}
+    }
+}

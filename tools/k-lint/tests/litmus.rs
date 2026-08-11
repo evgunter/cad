@@ -33,7 +33,7 @@
 use geom_core::k_stats::{self, Probe};
 use geom_core::{Point2, Tolerance};
 use k_lint::{BASELINE_FLOOR_MARGIN, Reason, is_eps_coupled, lint_sample};
-use profile::{Open, Profile, ProfileLoop, ProfileVertex, Start, SketchPlane, bulge_from_via};
+use profile::{Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start, bulge_from_via};
 
 fn p2(x: f64, y: f64) -> Point2<Probe> {
     Point2::new(Probe(x), Probe(y))

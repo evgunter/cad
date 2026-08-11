@@ -132,7 +132,6 @@ pub fn bulge_from_center<T: Real>(
     (theta / T::from_f64(4.0)).tan()
 }
 
-
 /// The line×line fillet's computed trim geometry — the output of
 /// [`line_line_fillet_trims`], shared verbatim by the PATHS algebra's
 /// lowering (`crate::path`) and the test-support twin so both doors emit
@@ -522,7 +521,6 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
         survivors,
     })
 }
-
 
 // ------------------------------------------------------------------
 // The arc-leg fillet's private machinery (M5 S2). Everything here is
