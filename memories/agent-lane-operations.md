@@ -71,7 +71,13 @@ timed-out call" then STACKS duplicate waiters that each burn a
 slot turn when the mutex frees (5 deep observed). Re-issue means:
 kill your own previous waiter first (or use `-n`/`--express`);
 orchestrator sweeps should scan for same-command duplicate
-waiters per lane and cull all but the newest. **fd-inheritance lock leak
+waiters per lane and cull all but the newest. **Kill targets are
+identified by YOUR OWN recorded PIDs/job ids — NEVER by pgrep
+pattern-matching a lane name** (2026-08-11: an agent
+pattern-killed two shell PIDs, tripped the harness security
+policy, and still MISSED its actual zombie holder, which the
+orchestrator had to reap; pattern-matching both over- and
+under-kills). Record the PID when you launch; kill that. **fd-inheritance lock leak
 (2026-08-11, observed live)**: flock-releases-on-death is only true
 if no CHILD inherited the lock fd — a daemon spawned under a slot
 (sccache observed; any long-lived child qualifies) keeps the flock
