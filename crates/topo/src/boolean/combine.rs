@@ -126,7 +126,13 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
     bridge: Bridge,
 ) -> Result<GraftMap, BooleanError> {
     let corrupt = || BooleanError::JoinDesync {
-        what: "graft source is not a well-formed single-solid body",
+        what: "graft source is not a well-formed body",
+    };
+    // Arity is this door's precondition, distinct from corruption: the
+    // caller states which destination each source solid lands in, so a
+    // count mismatch is a caller error, never a thing to guess at.
+    let arity = || BooleanError::JoinDesync {
+        what: "graft needs exactly one destination solid per source solid",
     };
     // Source solid → its destination, and the source order to attach
     // in. A shell's owner is its own `solid` back-pointer, so this map
@@ -136,12 +142,12 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
     {
         let mut targets = dst_solids.iter();
         for (k, _) in src.solids() {
-            let &target = targets.next().ok_or_else(corrupt)?;
+            let &target = targets.next().ok_or_else(arity)?;
             solid_map.insert(k, target);
             pairs.push((k, target));
         }
         if targets.next().is_some() {
-            return Err(corrupt());
+            return Err(arity());
         }
     }
     if pairs.is_empty() {

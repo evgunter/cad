@@ -105,20 +105,25 @@ pub fn graft_disjoint<T: geom_core::Decide>(
 ///
 /// [`BooleanError`] — as [`graft_disjoint`]: `JoinDesync` when `src`
 /// holds no solid or is otherwise not well formed, `GraftRecertify`
-/// when a transplanted edge description does not re-certify.
+/// when a transplanted edge description does not re-certify. Parity
+/// with the single door extends to the failure state: a refusal RAISED
+/// MID-TRANSPLANT (`GraftRecertify`) leaves `dst` partially written, so
+/// a failed graft's destination is spent, never resumable.
 pub fn graft_disjoint_all<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
 ) -> Result<Vec<SolidKey>, BooleanError> {
     let desync = || BooleanError::JoinDesync {
-        what: "graft source is not a well-formed single-solid body",
+        what: "graft source is not a well-formed body: a solid without provenance",
     };
     let provenances = src
         .solids()
         .map(|(k, _)| src.solid_provenance.get(k).cloned().ok_or_else(desync))
         .collect::<Result<Vec<_>, _>>()?;
     if provenances.is_empty() {
-        return Err(desync());
+        return Err(BooleanError::JoinDesync {
+            what: "graft source holds no solid to graft",
+        });
     }
     // Mint the destinations first, in source order, so the graft's
     // per-solid attachment is positional (nothing is written before
