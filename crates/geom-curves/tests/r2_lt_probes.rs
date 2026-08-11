@@ -154,7 +154,10 @@ fn the_join_lattice_is_pinned_cell_by_cell() {
     )
     .unwrap();
     let m = c.speed_lower_bound();
-    assert!(m > 0.0, "(sound, sound): expected a positive meter, got {m}");
+    assert!(
+        m > 0.0,
+        "(sound, sound): expected a positive meter, got {m}"
+    );
 
     // (poison, sound): an EXACTLY closed loop — first == last control
     // point bitwise, so the global chord is 0/0 and that assembly
@@ -182,7 +185,10 @@ fn the_join_lattice_is_pinned_cell_by_cell() {
          per-span assembly's real bound, got {m}"
     );
     let smin = dense_min_speed(&c, 4000);
-    assert!(m <= smin + 1e-9, "recovered bound {m} above true min {smin}");
+    assert!(
+        m <= smin + 1e-9,
+        "recovered bound {m} above true min {smin}"
+    );
 
     // (sound, poison): one span's own chord collapses (P0 == P2
     // bitwise, degree 2) while the global chord does not — the
@@ -223,7 +229,10 @@ fn the_join_lattice_is_pinned_cell_by_cell() {
     )
     .unwrap();
     let m = c.speed_lower_bound();
-    assert!(m.is_nan(), "(poison, poison): both abstain => poison, got {m}");
+    assert!(
+        m.is_nan(),
+        "(poison, poison): both abstain => poison, got {m}"
+    );
 
     // No laundering (D4 ¶2): a poisoned INPUT (non-finite control
     // point) poisons the projections of BOTH assemblies — the join's
