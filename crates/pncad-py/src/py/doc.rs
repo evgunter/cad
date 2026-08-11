@@ -104,10 +104,16 @@ pub(crate) struct Doc {
 #[pymethods]
 impl Doc {
     /// An empty document.
+    ///
+    /// Identity note (ASM-1 D-7): the Python surface gains no
+    /// identity door in this unit — every `Doc()` carries the same
+    /// label-derived placeholder id (deterministic, so Python-driven
+    /// saves stay reproducible). The id/pin/workspace doors are a
+    /// recorded bindings-parity pickup.
     #[new]
     fn new() -> Self {
         Self {
-            inner: d::ProfileDoc::empty(),
+            inner: d::ProfileDoc::empty_derived("pncad-py:Doc"),
         }
     }
 

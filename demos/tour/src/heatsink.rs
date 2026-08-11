@@ -82,7 +82,7 @@ fn build_doc() -> Recipe {
             .expect("finite corners"),
         ],
     };
-    let mut doc: Doc<ProfileProgram> = Doc::empty();
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("heatsink");
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
         let applied = apply(doc, &DocEdit::InsertNode { node }).expect("insert node");
         *doc = applied.doc;

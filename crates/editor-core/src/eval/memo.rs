@@ -23,6 +23,13 @@ use geom_core::Real;
 /// A node's input-content hash (spec D2/D4). Equal keys certify equal
 /// inputs (up to 128-bit hash collision); the evaluator reuses the
 /// prior value without re-running the op.
+///
+/// Deliberately a SEPARATE vocabulary from the cross-file
+/// [`crate::ContentPin`] (ASM-1 D-2): the pin is collision-resistant
+/// SHA-256 over a document's canonical authored bytes and IS version
+/// identity; this key hashes one node's evaluated inputs (resolved
+/// bits, ambient ε) with FNV and never leaves the process. Do not
+/// unify them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ContentKey(pub u128);
 

@@ -20,7 +20,7 @@
 //! plus the round-trip rows.
 //!
 //! ε note: the `SetTolerance` edit re-records the AMBIENT ε (the
-//! value `ProfileDoc::empty()` already carries). Pinning any other
+//! value `ProfileDoc::empty_derived("sink")` already carries). Pinning any other
 //! value would make the document refuse to load in every CI ε row but
 //! one — the golden fixture in `m4_pr6_golden.rs` is where a pinned ε
 //! belongs, deliberately.

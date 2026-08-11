@@ -25,7 +25,7 @@ use profile::SketchPlane;
 fn param_rect_doc(x0: f64) -> ProfileDoc {
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let x0e = || Expr::param(ParamName::new("x0"), Dimension::Length);
-    let doc = ProfileDoc::empty()
+    let doc = ProfileDoc::empty_derived("switch_naming")
         .apply(&DocEdit::SetDocParam {
             name: ParamName::new("x0"),
             value: DocParam::Continuous {
@@ -126,7 +126,7 @@ fn lex_min_swap_cannot_renumber_program_names() {
 #[test]
 fn circle_radius_edit_keeps_names() {
     let mk = |r: f64| {
-        let doc = ProfileDoc::empty()
+        let doc = ProfileDoc::empty_derived("switch_naming")
             .apply(&DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
                     plane: SketchPlane::xy(),
@@ -233,7 +233,7 @@ fn hole_circle_anchor_recovers_reversal() {
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let outer = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]).unwrap();
     let hole = LoopProgram::circle(2.0, 2.0, 0.5).unwrap();
-    let doc = ProfileDoc::empty()
+    let doc = ProfileDoc::empty_derived("switch_naming")
         .apply(&DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
                 plane: SketchPlane::xy(),

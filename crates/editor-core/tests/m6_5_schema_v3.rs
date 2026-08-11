@@ -21,8 +21,10 @@ const V2: &str = include_str!("golden/v2_golden.cad");
 const V3: &str = include_str!("golden/v3_golden.cad");
 
 #[test]
-fn schema_version_is_four() {
-    assert_eq!(SCHEMA_VERSION, 4);
+fn schema_version_is_five() {
+    // Bumped by the ASM-1 document-identity clean break (v5); this
+    // file keeps pinning the v3 refusal fixture below.
+    assert_eq!(SCHEMA_VERSION, 5);
 }
 
 #[test]
@@ -115,7 +117,7 @@ fn the_selection_reaches_the_wire_canonical() {
         editor_core::LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
             .expect("finite");
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length literal");
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("m6_5_schema_v3");
     for edit in [
         DocEdit::InsertNode {
             node: Node::Profile(editor_core::ProfileProgram {

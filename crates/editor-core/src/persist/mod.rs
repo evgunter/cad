@@ -1,4 +1,5 @@
-//! Persistence, schema v2 (M4 PR 6's format; M5 PR 10's clean break).
+//! Persistence, schema v5 (M4 PR 6's format; four ratified clean
+//! breaks since — see [`SCHEMA_VERSION`]).
 //!
 //! # Schema history
 //!
@@ -24,7 +25,10 @@
 //!
 //! # Format (spec D1)
 //!
-//! A save is TEXT: a `schema: <integer>` header line, then a JSON body
+//! A save is TEXT: a `schema: <integer>` header line, an
+//! `id: <32 lowercase hex>` line naming the document's identity (v5,
+//! ASM-1 D-6 — the workspace scan reads it without parsing the
+//! body), then a JSON body
 //! `{ "snapshot": <Doc>, "edits": [<DocEdit>…] }` — the full document
 //! snapshot plus the edit log since that snapshot. JSON via
 //! `serde_json` is the ratified shape's PR-spec aesthetic choice
@@ -37,9 +41,10 @@
 //!
 //! # What persists (spec D3)
 //!
-//! The recipe IS the save: nodes, parameters, expressions, witness
-//! bytes (hex, bit-exact), the appearance store (records incl. D7
-//! metadata), recorded ε, the schema version, and the edit log.
+//! The recipe IS the save: the document id, nodes, parameters,
+//! expressions, witness bytes (hex, bit-exact), the appearance store
+//! (records incl. D7 metadata), recorded ε, the schema version, and
+//! the edit log.
 //! Deliberately NOT persisted: evaluations, name tables,
 //! memo/content/naming keys, arena anything — and, since v4, the
 //! profile programs' REPLAYED SEGMENTS (vertices/bulges/joints are
@@ -79,6 +84,7 @@
 //! ([`PersistError::ToleranceConflict`]) — one process, one ε.
 //! [`crate::eval::evaluate`] enforces the same invariant per run.
 
+mod canon;
 mod check;
 pub mod hexbytes;
 pub(crate) mod pairs;
@@ -88,8 +94,10 @@ mod wire;
 use geom_core::tolerance::{Tolerance, ToleranceError};
 
 use crate::edit::{Applied, DocEdit, EditError, EditRecord, apply};
+use crate::ident::DocumentId;
 use crate::program::{ProfileDoc, ProfileProgram};
 
+pub use canon::{canonical_bytes, content_pin};
 pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 
 /// The current schema version.
@@ -122,9 +130,19 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// re-authored program-form — so v3 refuses TYPED with the regenerate
 /// recourse, exactly as v1/v2 do; the migration table stays empty.
 ///
+/// Version 5 is the **document-identity clean break** (ASM-1 spec
+/// D-6, same ratified terms): [`crate::Doc`] gained the required
+/// [`DocumentId`] field (ASSEMBLY-DESIGN A4 — identity ≠ pin), and
+/// the text format gained the `id:` header line so a workspace scan
+/// reads identity without parsing the body. Identity is AUTHORED data
+/// with no honest default a migration could invent, so v4 refuses
+/// TYPED with the regenerate recourse, exactly as v1–v3 do; the
+/// migration table stays empty. (A future ASM-ROOTS root list takes
+/// its own bump when it lands — noted, not decided here.)
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these three.
-pub const SCHEMA_VERSION: u32 = 4;
+/// [`migration_step`] entry, or a ratified break like these four.
+pub const SCHEMA_VERSION: u32 = 5;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -187,6 +205,23 @@ pub enum PersistError {
     Header {
         /// What the first line looked like (truncated).
         found: String,
+    },
+    /// The file has no parseable `id: <32 lowercase hex>` header line
+    /// (required since v5 — the workspace scan reads identity from the
+    /// header without parsing the body; canonical spelling only, like
+    /// the schema line).
+    HeaderId {
+        /// What the id line looked like (truncated).
+        found: String,
+    },
+    /// The header's `id:` line and the snapshot's own id field
+    /// disagree — a tampered or hand-assembled file (the save door
+    /// writes the snapshot's id, so the two agree by construction).
+    IdMismatch {
+        /// The id the header line names.
+        header: DocumentId,
+        /// The id the snapshot carries.
+        snapshot: DocumentId,
     },
     /// The header names a schema this build does not know (D6.3:
     /// refuse typed; migrations only run FORWARD from older versions).
@@ -280,6 +315,17 @@ impl core::fmt::Display for PersistError {
                     "persist: no `schema: <integer>` header (first line: {found:?})"
                 )
             }
+            Self::HeaderId { found } => {
+                write!(
+                    f,
+                    "persist: no `id: <32 lowercase hex>` header line (found: {found:?})"
+                )
+            }
+            Self::IdMismatch { header, snapshot } => write!(
+                f,
+                "persist: header id {header} disagrees with the snapshot's id {snapshot} — \
+                 tampered or hand-assembled file"
+            ),
             Self::UnknownSchema { found, newest } => write!(
                 f,
                 "persist: schema v{found} is newer than this build reads (newest v{newest}) — \
@@ -394,7 +440,13 @@ pub fn save(
     let json = serde_json::to_string_pretty(&body).map_err(|e| PersistError::Serialize {
         message: e.to_string(),
     })?;
-    Ok(format!("schema: {SCHEMA_VERSION}\n{json}\n"))
+    // The `id:` header line duplicates the snapshot's id (ASM-1 D-6)
+    // so a workspace scan reads identity without parsing the body;
+    // load verifies the two agree.
+    Ok(format!(
+        "schema: {SCHEMA_VERSION}\nid: {}\n{json}\n",
+        snapshot.id()
+    ))
 }
 
 /// The borrowing twin of [`FileBody`] (save side).
@@ -414,12 +466,17 @@ struct SerBody<'a> {
 /// guarded by the shared validator but unreachable post-parse — JSON
 /// carries no non-finite tokens, so those bytes refuse as `Parse`).
 pub fn load(text: &str) -> Result<Loaded, PersistError> {
-    let (version, body_text) = parse_header(text)?;
+    let (version, rest) = parse_header(text)?;
     // Migration chain (D1): walk explicit steps up to the current
     // version, then deserialize typed.
-    let body: FileBody = if version == SCHEMA_VERSION {
-        parse_body(body_text)?
+    let (header_id, body): (Option<DocumentId>, FileBody) = if version == SCHEMA_VERSION {
+        // The v5 header carries the document's id (ASM-1 D-6); parse
+        // it before the body so a malformed header refuses in header
+        // terms, then verify it against the snapshot below.
+        let (id, body_text) = parse_id_line(rest)?;
+        (Some(id), parse_body(body_text)?)
     } else {
+        let body_text = rest;
         // Walk the chain for AVAILABILITY first, before a byte of the
         // body is parsed: a file this build cannot reach must say so
         // in version terms (§4's clean break), not report whatever the
@@ -437,8 +494,18 @@ pub fn load(text: &str) -> Result<Loaded, PersistError> {
         for step in steps {
             value = step(value).map_err(PersistError::Migration)?;
         }
-        serde_json::from_value(value).map_err(parse_err)?
+        (None, serde_json::from_value(value).map_err(parse_err)?)
     };
+    // Header/snapshot id agreement (ASM-1 D-6): the save door writes
+    // the snapshot's own id, so disagreement is tampering, refused.
+    if let Some(header) = header_id
+        && header != body.snapshot.id()
+    {
+        return Err(PersistError::IdMismatch {
+            header,
+            snapshot: body.snapshot.id(),
+        });
+    }
     // The ONE shared validator — the same call the save door makes
     // (convention 2): a parsed document passes exactly the checks an
     // in-memory document must pass to be saved.
@@ -511,6 +578,46 @@ fn parse_header(text: &str) -> Result<(u32, &str), PersistError> {
     }
     // The window check above keeps this cast exact.
     Ok((version as u32, rest))
+}
+
+/// Splits the `id: <32 lowercase hex>` line (v5's second header line)
+/// from the body. Canonical spelling ONLY, same discipline as the
+/// schema line: exactly `id: ` then exactly 32 lowercase hex digits.
+fn parse_id_line(text: &str) -> Result<(DocumentId, &str), PersistError> {
+    let (first, rest) = text.split_once('\n').unwrap_or((text, ""));
+    let found = || first.chars().take(80).collect::<String>();
+    let Some(id_text) = first.strip_prefix("id: ") else {
+        return Err(PersistError::HeaderId { found: found() });
+    };
+    let Some(id) = DocumentId::parse_hex(id_text) else {
+        return Err(PersistError::HeaderId { found: found() });
+    };
+    Ok((id, rest))
+}
+
+/// The document id named by a save's header lines, WITHOUT parsing
+/// the body — the workspace scan's cheap read (ASM-1 D-5/D-6). Walks
+/// the same doors as [`load`]'s header phase: version window, then
+/// the v5 `id:` line; an older schema refuses [`PersistError::SchemaTooOld`]
+/// exactly as a full load would (the migration table is empty).
+///
+/// # Errors
+///
+/// [`PersistError::Header`], [`PersistError::UnknownSchema`],
+/// [`PersistError::SchemaTooOld`], [`PersistError::HeaderId`].
+pub fn header_document_id(text: &str) -> Result<DocumentId, PersistError> {
+    let (version, rest) = parse_header(text)?;
+    if version != SCHEMA_VERSION {
+        // Pre-v5 headers carry no id line; the file would refuse at
+        // load for the same reason (empty migration table).
+        return Err(PersistError::SchemaTooOld {
+            found: version,
+            supported: SCHEMA_VERSION,
+            missing: version,
+        });
+    }
+    let (id, _body) = parse_id_line(rest)?;
+    Ok(id)
 }
 
 fn parse_body(body_text: &str) -> Result<FileBody, PersistError> {

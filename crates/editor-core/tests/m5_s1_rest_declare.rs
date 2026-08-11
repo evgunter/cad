@@ -55,7 +55,7 @@ fn block(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
 /// The stacked-plates REST document: plates + Declare + union.
 /// Returns (doc, union node).
 fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m5_s1_rest_declare");
     let (doc, a) = block(doc, 0.0, 1.0);
     let (doc, b) = block(doc, 1.0, 1.0);
     // The author's intent, stated: the contact pair (A's top cap on

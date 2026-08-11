@@ -37,7 +37,7 @@ struct Scene {
 /// the refusal only adds noise. The corpus document keeps the union;
 /// this is the same profile on a bare extrude.
 fn scene() -> Scene {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("switch_plate_param");
     let doc = apply(
         &doc,
         &DocEdit::SetDocParam {

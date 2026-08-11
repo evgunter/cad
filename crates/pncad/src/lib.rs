@@ -132,3 +132,4 @@ pub mod export;
 pub mod guide;
 pub mod prelude;
 pub mod select;
+pub mod workspace;
