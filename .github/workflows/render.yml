@@ -438,11 +438,14 @@ jobs:
       # leaves behind is the COMMITTED one, untouched — it would read as
       # "no drift" and quietly pass).
       #
-      # The artifact named here is the one this job just uploaded, on
-      # this very run, so the fix costs a download rather than another
-      # render. `gh run download` unzips the lane directory's contents
-      # at the top level of the artifact, which is why -D is the lane
-      # directory itself.
+      # The fix named here installs the artifact this job just uploaded,
+      # on this very run, so it costs a download rather than another
+      # render. It goes through `render-hosted.sh` rather than a bare
+      # `gh run download`: that command REFUSES to overwrite existing
+      # files, so aimed straight at a populated lane directory — which
+      # is the only situation this message is ever printed in — it fails
+      # on the first cell. The script stages into a temp dir, installs
+      # over the lane, and runs the provenance guard on what landed.
       - name: committed lane is current (gate)
         if: ${{ inputs.gate }}
         run: |
@@ -451,7 +454,7 @@ jobs:
             echo "demos/$LANE_DIR/ matches this render."
             exit 0
           fi
-          fix="gh run download ${{ github.run_id }} -n renders-${{ matrix.lane }} -D demos/$LANE_DIR/"
+          fix="scripts/render-hosted.sh --run ${{ github.run_id }} --lane ${{ matrix.lane }}"
           # The annotation is one line by necessity (workflow commands
           # cannot carry newlines); the log above it is where the
           # explanation fits.
@@ -469,8 +472,8 @@ jobs:
                to track the canonical (hosted) producer, so that is this
                gate working, not failing.
 
-           Fix it from THIS run — the artifact below IS this render, so
-           nothing needs rendering again:
+           Fix it from THIS run — the command below installs the render
+           this job just uploaded, so nothing is rendered again:
 
              $fix
              git add demos/$LANE_DIR/ && git commit
@@ -554,7 +557,7 @@ jobs:
             echo "demos/renders-wild/ matches this render."
             exit 0
           fi
-          fix="gh run download ${{ github.run_id }} -n renders-wild -D demos/renders-wild/"
+          fix="scripts/render-hosted.sh --run ${{ github.run_id }} --lane wild"
           cat <<EOF
 
           ================================================================
@@ -565,8 +568,8 @@ jobs:
            This lane is matplotlib Agg over the kernel's own tessellation,
            pinned and GL-free, so it is byte-reproducible on any box: this
            is a real pixel change or a determinism finding, never a
-           re-rasterisation. If the change is intended, take this run's
-           render — no re-render needed:
+           re-rasterisation. If the change is intended, install this run's
+           own render — nothing is rendered again:
 
              $fix
              git add demos/renders-wild/ && git commit

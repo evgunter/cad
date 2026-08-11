@@ -42,7 +42,8 @@ each lane's artifact, and installs it at its committed path, where you
 review and commit it the ordinary way. It works on a **failed** CI run
 too — a stale committed lane is exactly what makes the gate fail, and
 that run's artifact is what makes it current. The failing row prints the
-same `gh run download` command itself.
+exact command, pinned to its own run:
+`scripts/render-hosted.sh --run <id> --lane <lane>`.
 
 **Render on demand only when CI has not covered it** — an unpushed
 branch, no CI run yet, or a deliberate re-render at a different scene
@@ -789,8 +790,13 @@ The raw commands, if you want them:
 
 ```sh
 gh workflow run render.yml -f ref=my-branch -f lanes=all
-gh run download <run-id> -n renders-kernel   # renders-freecad / renders-uv / renders-wild
+gh run download <run-id> -n renders-kernel -D /tmp/cells   # then copy over
 ```
+
+Note the `-D`: `gh run download` **refuses to overwrite existing
+files**, so pointing it straight at `demos/renders/` fails on the first
+cell — which is why the script (and the gate's failure message) stage
+into a temp directory and install from there.
 
 `lanes` selects `all` (default) or one of `kernel` / `freecad` / `uv` /
 `wild`. The tour is built **once** and handed to the lanes that read it

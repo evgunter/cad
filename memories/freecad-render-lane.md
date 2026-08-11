@@ -100,8 +100,12 @@ which resolves that run and installs each lane at its committed path,
 waiting only on the render lanes rather than on the whole CI run. It
 works on a FAILED CI run too — a stale committed lane is exactly what
 makes the gate fail, and that run's artifact is the fix (lanes upload
-before the gate compares). The failing row prints the `gh run download`
-itself.
+before the gate compares). The failing row prints that exact command.
+
+Note the failing row does NOT print a bare `gh run download`: that
+command refuses to overwrite existing files, so aimed at a populated
+lane directory — the only case it would ever be printed in — it fails
+on the first cell. `render-hosted.sh` stages into a temp dir first.
 
 **Dispatch (`--on-demand`, or `render.yml` directly) only when CI has
 not covered the tree**: unpushed branch, no CI run, or a deliberate
