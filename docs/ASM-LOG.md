@@ -73,3 +73,21 @@ next_id/undone-insert consequence is recorded in D-3 with its
 documenting test. Row in MODEL-AB-LOG. Seam swept (asm-1 + both
 review lanes). Next: ASM-ROOTS spec (A10) — block ASM-1 slot 2,
 opus; A11 conversation continues on #356.
+
+## ASM-2K + ASM-ROOTS MERGED (#381, #383, 2026-08-11); ASM-3 discharged
+
+The parallel pair landed same-day: the kernel door (multi-solid
+grafts + the multi-solid-master naming rule pinned; the D-2 spec
+premise was FALSE and both blinded reviewers verified the
+deviation on unmodified main) and A10 roots (0/0/5 MERGEABLE —
+the program cleanest verdict; invariants mutation-proven; the
+sink-set equivalence observation in module docs). Together they
+DISCHARGE ASM-3: the plan unit was "gather wiring + evidence,"
+and ROOTS row 3 already materializes Instances-at-root with
+provenance and Instance(i) names preserved, with 2K supplying
+the multi-solid-master naming rows. Findings filed: #382
+(overlap-validation doc-truth + census gap). Forward dependency
+for ASM-2a/2b: the GraftMap name-table bridge (no emitter mints
+a table for a grafted body — instance-qualified naming needs
+it). Remaining R1: ASM-2a (spec next), ASM-2b, ASM-4. Seam
+swept.
