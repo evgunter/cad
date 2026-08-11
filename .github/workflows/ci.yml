@@ -170,11 +170,14 @@ jobs:
         env:
           RUSTUP_TOOLCHAIN: stable
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="${{ github.event.pull_request.base.sha }}"
-          else
-            BASE="$(git rev-parse HEAD^1 2>/dev/null || git rev-parse HEAD)"
-          fi
+          # Always diff against the checkout's own first parent. On
+          # pull_request the checkout is the test-merge commit, so HEAD^1
+          # is by construction the exact base state the merge was built
+          # against; the event payload's base.sha can be newer than that
+          # (base moved between payload snapshot and merge-ref
+          # construction), and the skew window's commits then appear as
+          # phantom changed files that defeat the docs/closure tiers.
+          BASE="$(git rev-parse HEAD^1 2>/dev/null || git rev-parse HEAD)"
           echo "base: $BASE"
           echo "changed files:"
           git diff --name-only "$BASE"...HEAD || true
