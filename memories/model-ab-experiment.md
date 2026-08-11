@@ -59,7 +59,9 @@ cost — measured, not vibed ("with actual random numbers").
   become cross-model pilots (R2 = opus) in randomized blocks of
   two — every PR still gets a fable review; reviewer model
   recorded per row; (4) implementer blocks are now size 4
-  {opus×3, fable}, byte mod 4, reject ≥252.
+  {opus×3, fable}, byte mod 4, reject ≥252. Dual sample numbers
+  follow ORDINALS (#398-thread ratification, 2026-08-11:
+  ASM-2K@24 = #8, long-turn@27 = #9).
 
 **Readouts (conclusions live in the log, not here):** M4-close
 (n=10) and M5-close (n=40, arms 15/15) both conclude NO EVIDENCE

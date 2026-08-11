@@ -126,6 +126,12 @@ amended:
      2026-08-11. (Note for the seam analysis: that dual's R2
      was ALREADY opus — an informal cross-model pair predating
      the v4 pilot; label it so in the variance readout.)
+     **Sample numbering follows ORDINALS** (ratified in the
+     #398 thread, 2026-08-11, all three programs concurring —
+     resolving the concurrent-dispatch collision in which two
+     duals were recorded as sample #8): ASM-2K@24 = sample #8,
+     M8 long-turn@27 = sample #9; future duals number by their
+     ordinal's position in the dual sequence.
   2. **STANDARDIZED VERDICT LADDER (the review format lives
      here, so its definitions do too — SEAM: rows BEFORE this
      entry used the terms freely; verdict strings before/after
