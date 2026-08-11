@@ -54,7 +54,8 @@ caveat disclosed (R2 glimpsed R1 probe TOOLING via a shared
 scratchpad script — no findings/verdict read; recorded here for
 the row). Fix pass dispatched (implementer-inherited) on the
 5-item adjudicated union; NOT in scope: header-scan I/O, tour
-automation. MERGE BLOCKED by #366 (hosted CI billing outage) —
-fixes push checks-pending; row records at merge. A11 revision
+automation. The #366 CI
+billing outage opened and RESOLVED inside this seam (Evan restored
+the Actions budget); row records at merge. A11 revision
 awaiting sign-off on #356; A/B draw + ordinal entries in
 MODEL-AB-LOG.
