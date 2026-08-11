@@ -124,6 +124,10 @@ impl core::fmt::Display for PartFault {
     }
 }
 
+/// One cache row: the resolved part, or the typed reason there is
+/// none. Keyed by `(DocRef, ambient ε bits)` — the module docs' key.
+type Rows<T> = BTreeMap<(DocRef, u64), Result<PartValue<T>, PartFault>>;
+
 /// The cache. One per `evaluate` call; shared across its nodes.
 pub(crate) struct PartCache<'a, T: Decide> {
     resolver: Option<&'a Arc<dyn PartResolver>>,
@@ -132,7 +136,7 @@ pub(crate) struct PartCache<'a, T: Decide> {
     /// The ambient ε these entries were produced at, by bits — half
     /// the key, hoisted because it is constant within one evaluation.
     eps_bits: u64,
-    entries: Mutex<BTreeMap<(DocRef, u64), Result<PartValue<T>, PartFault>>>,
+    entries: Mutex<Rows<T>>,
     /// How many times a referenced document was actually evaluated —
     /// the D-3 sharing evidence. A counter, not a timing claim.
     evaluations: AtomicUsize,

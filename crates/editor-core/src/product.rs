@@ -253,7 +253,7 @@ pub fn product_named<P, T: Decide + PropsQuadLane>(
     // means a FAILED root refuses even when a later root would have
     // supplied a body, so the whole list is read before anything is
     // grafted.
-    let mut sources: Vec<(RecipeNodeId, u32, Arc<Body<T>>, Arc<NameTable>)> = Vec::new();
+    let mut sources: Vec<Source<T>> = Vec::new();
     let mut any_body_denoting = false;
     for &node in doc.roots() {
         let result = evaluation
@@ -325,6 +325,11 @@ pub fn product_named<P, T: Decide + PropsQuadLane>(
         .map_err(|errors| ProductError::ProductInvalid { errors })?;
     Ok((aggregate, names))
 }
+
+/// One body the gather will graft: which root contributed it, which
+/// OUTPUT-BODY index it occupies in that root's value (the index its
+/// name rows are keyed by), the body, and the root's name table.
+type Source<T> = (RecipeNodeId, u32, Arc<Body<T>>, Arc<NameTable>);
 
 /// Re-keys one grafted body's name rows onto the aggregate: the same
 /// stable names, pointing at the entities the graft minted. Body index
