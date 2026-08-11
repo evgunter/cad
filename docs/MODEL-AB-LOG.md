@@ -582,3 +582,17 @@ Block ASM-1 (2026-08-10): byte 81 (<252) → fable position 0:
 (fable, opus, opus). Difficulty logged pre-dispatch: ASM-1
 (identity + pins) = M → slot 1 fable. Opus remainders bank
 (ASM-ROOTS / ASM-2a the natural takers).
+Block LIB-8 note (2026-08-10): PYG23A rode the LIB-7 slot 3 banked
+opus remainder — LIB-7 is now fully consumed (fable, opus, opus =
+R1-PARAMS, PYG1, PYG23A). Next LIB implementation dispatch draws
+block LIB-8 fresh.
+PYG23A review ordinal fixed at dispatch (2026-08-10, PR #365 open,
+reviewed head 6dc9ec1d): merged blinded-lane rows on main = 20;
+ASM-1's concurrently-dispatched dual had already claimed 21
+(wall-clock dispatch order — its R1/R2 lanes were live before this
+dispatch). **PYG23A = ordinal 22, single.** Tiebreak recorded as
+precedent: when two units' reviews dispatch between the same pair
+of merges, dispatch wall-clock order allocates consecutive
+ordinals — the count-merged rule alone would double-assign, and
+claim-order keeps the every-3rd sampling deterministic and
+arm-independent.
