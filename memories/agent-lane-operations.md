@@ -71,7 +71,16 @@ timed-out call" then STACKS duplicate waiters that each burn a
 slot turn when the mutex frees (5 deep observed). Re-issue means:
 kill your own previous waiter first (or use `-n`/`--express`);
 orchestrator sweeps should scan for same-command duplicate
-waiters per lane and cull all but the newest. **Lane-takeover
+waiters per lane and cull all but the newest. **fd-inheritance lock leak
+(2026-08-11, observed live)**: flock-releases-on-death is only true
+if no CHILD inherited the lock fd — a daemon spawned under a slot
+(sccache observed; any long-lived child qualifies) keeps the flock
+held after the recorded holder dies, wedging the lane with a
+misleading dead-holder file. Diagnose with
+`fuser -v locks/<slot>.lock` (shows the true fd holders); the fix
+is killing the inheriting process, and slot-wrapped commands
+should avoid spawning daemons (sccache/watchers) or close the fd
+(`flock -o` where supported). **Lane-takeover
 courtesy (2026-08-10)**: when the orchestrator operates in a
 possibly-alive agent's lane (pushing its parked commits, merging
 its PR, or handing the lane to a successor), MESSAGE the incumbent
