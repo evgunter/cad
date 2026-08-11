@@ -51,7 +51,7 @@ cost — measured, not vibed ("with actual random numbers").
   experiment (only) ends at the 6th dual where ≥1 reviewer
   found a MAJOR — the implementation A/B continues, and the recording
   orchestrator MUST notify Evan explicitly (tally maintained in
-  the log; 2/6 at amendment time); (2) standardized 4-term
+  the log; 3/6 at amendment time — the M8 long-turn dual verified in); (2) standardized 4-term
   verdict ladder (APPROVE / APPROVE-WITH-FIXES /
   NOT-MERGEABLE-AS-IS / REJECT; MERGEABLE+PASS retired; seam
   noted — pre-v4 verdict strings not comparable; findings
