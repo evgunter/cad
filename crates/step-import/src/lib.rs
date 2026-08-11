@@ -185,6 +185,7 @@ mod geometry;
 mod normalize;
 mod parse;
 mod recognize;
+mod recognize_curve;
 mod units;
 
 pub use error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
@@ -378,6 +379,61 @@ pub struct StructureNormalization {
     pub kernel_census: FaceCensus,
 }
 
+/// The analytic kinds D7 stage-1 CURVE recognition can promote a NURBS
+/// carrier to (#327). Ellipse, helix, and open (partial) circular arcs
+/// are named exclusions with filed follow-ups; such carriers stay
+/// NURBS.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PromotedCurveKind {
+    /// A straight line.
+    Line,
+    /// A full, closed circle.
+    Circle,
+}
+
+impl core::fmt::Display for PromotedCurveKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Line => "line",
+            Self::Circle => "circle",
+        })
+    }
+}
+
+/// A **reported curve promotion** (D7 stage 1, #327): the file stated a
+/// NURBS carrier whose residual against an analytic curve CERTIFIED at
+/// ε_in, so the edge adopted on the analytic carrier — D3's exactness
+/// benefits restored (analytic pcurve lanes, the `MappedCurve` rungs of
+/// the adoption ladder, exact re-export).
+///
+/// **Why this is not a [`StructureNormalization`]** (the small design
+/// elaboration #327 asked for, argued): that record is FACE-keyed and
+/// carries a census pair, because a structure normalization's whole
+/// subject is a re-minted boundary graph — how many faces, edges and
+/// vertices a region became. A curve promotion re-mints NOTHING: the
+/// boundary graph is untouched, so a census pair would be the identity
+/// map twice over on a quantity the record does not even name (a curve
+/// has no face census), and the key is a CURVE entity, not a face. The
+/// honest parallel is a separate, smaller record: entity id, kind,
+/// residual. It carries no census by design, and its absence is the
+/// statement that nothing was re-tessellated.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CurvePromotion {
+    /// The curve entity instance the file states (the `EDGE_CURVE`'s
+    /// carrier — e.g. dm1's `#684`, not the `#685` edge that uses it:
+    /// one carrier may serve several edges, and the promotion is a
+    /// property of the carrier).
+    pub curve: u64,
+    /// The kind that certified.
+    pub kind: PromotedCurveKind,
+    /// The certified residual sup (METERS): the carrier's worst
+    /// deviation from the promoted curve over its whole domain. Read
+    /// off ring-coefficient hulls — exact, whole-domain, no sampling
+    /// (`recognize_curve`'s module docs carry the derivation and the
+    /// meters² → meters conversions).
+    pub residual: f64,
+}
+
 /// Per-call import options (D7's ε_in override door).
 #[derive(Clone, Debug, Default)]
 pub struct ImportOptions {
@@ -430,6 +486,10 @@ pub enum StepImport {
         /// resolution order — empty for a file whose boundary graph the
         /// kernel represents as stated (every own-corpus file).
         normalizations: Vec<StructureNormalization>,
+        /// The **curve promotions** this import applied (#327), by
+        /// ascending curve entity id — empty for a file whose carriers
+        /// are all stated analytically or all stay NURBS.
+        curve_promotions: Vec<CurvePromotion>,
         /// **The assembly record** ([`PlacedInstance`], A7): one entry
         /// per solid of `body`, in `body.solids()` order, saying what
         /// the file said about it — which component representation it
@@ -472,6 +532,18 @@ impl StepImport {
     pub fn normalizations(&self) -> &[StructureNormalization] {
         match self {
             Self::Solid { normalizations, .. } => normalizations,
+            Self::Wireframe { .. } => &[],
+        }
+    }
+
+    /// The curve promotions this import applied (#327) — empty for a
+    /// wireframe, whose carriers are handed back exactly as stated (no
+    /// edge adopts, so no carrier is promoted).
+    pub fn curve_promotions(&self) -> &[CurvePromotion] {
+        match self {
+            Self::Solid {
+                curve_promotions, ..
+            } => curve_promotions,
             Self::Wireframe { .. } => &[],
         }
     }
@@ -637,6 +709,7 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
                 body,
                 eps_in,
                 normalizations: model.normalizations.clone(),
+                curve_promotions: model.curve_promotions.clone(),
                 instances: record,
             })
         }

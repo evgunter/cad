@@ -327,7 +327,21 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
             Some(a) => a.enclosure_hull(g),
         });
     }
-    acc.unwrap_or_else(|| T::from_f64(f64::NAN))
+    // **`g` is a chart parameter in `[0, 1]` BY DEFINITION** (variant
+    // docs), and the identity above delivers exactly `0` and `1` at
+    // the arc's two ends only when `m·(angle/m)` reproduces `angle` to
+    // the bit — true for the angles the kernel BUILDS, false in
+    // general for the ones it reads off a file. Left alone, the
+    // overshoot is ~1 ulp of `g`, which lands the arc rim's chart
+    // corner ~1 ulp off the chart's own boundary and makes the
+    // rectangle certificate in `topo::props` — an EXACT f64 identity,
+    // deliberately — fail on a rim that is otherwise perfect. Clamping
+    // states the definition rather than approximating it: `locate_spans`
+    // already saturates at the end spans, so no value outside `[0, 1]`
+    // was ever a different POINT, only a different rounding of the
+    // same one.
+    acc.map(|g| g.max(T::zero()).min(T::one()))
+        .unwrap_or_else(|| T::from_f64(f64::NAN))
 }
 
 impl<T: SpanLocate> Pcurve<T> {
@@ -2503,9 +2517,22 @@ fn run_iso_arc_checks<T: Decide>(
     };
     let bad = |what: &'static str| PcurveCertifyError::IsoUnsupported { what };
     let (stretch_u, stretch_v) = nurbs_stretch_bounds(payload);
+    // The chart's OWN domain (`side_of`'s note, #327).
+    let (cu0f, cu1f) = payload.knots_u().domain();
+    let (cv0f, cv1f) = payload.knots_v().domain();
+    let (cu0, cu1) = (T::from_f64(cu0f), T::from_f64(cu1f));
+    let (cv0, cv1) = (T::from_f64(cv0f), T::from_f64(cv1f));
     // The moving channel is u and the fixed one v (the cap class'
     // geometry).
-    let (end, slack_v) = side_of(p0.y, stretch_v, pd.y.abs() * stretch_v, band, &esc)?;
+    let (end, slack_v) = side_of(
+        p0.y,
+        cv0,
+        cv1,
+        stretch_v,
+        pd.y.abs() * stretch_v,
+        band,
+        &esc,
+    )?;
     let b = crate::nurbs_iso::boundary_iso_v(payload, end)
         .map_err(|_| bad("the chart's boundary column failed to re-wrap as a curve"))?;
     // --- The construction's EXACT structure (C6). ---
@@ -2520,21 +2547,55 @@ fn run_iso_arc_checks<T: Decide>(
     #[allow(clippy::cast_precision_loss)]
     let expected: Vec<f64> = {
         let m = spans as f64;
-        let mut v = vec![0.0, 0.0, 0.0];
+        let mut v = vec![cu0f, cu0f, cu0f];
         for k in 1..spans {
-            let t = k as f64 / m;
+            let t = cu0f + (cu1f - cu0f) * (k as f64) / m;
             v.push(t);
             v.push(t);
         }
-        v.extend([1.0, 1.0, 1.0]);
+        v.extend([cu1f, cu1f, cu1f]);
         v
     };
-    if kn != expected.as_slice() {
+    if kn.len() != expected.len() {
         return Err(bad(
             "an arc rim whose chart column knots are not the uniform sub-arc structure \
-             (degree 2, one double knot per sub-arc on [0, 1])",
+             (degree 2, one double knot per sub-arc over the chart's own u domain)",
         ));
     }
+    // **The knot values, METERED rather than compared bitwise (#327).**
+    // The kernel's own arc walls carry knots it computed, so `k/m`
+    // holds to the bit and this margin is identically zero. An
+    // IMPORTED wall carries the file's printed knots — dm1's are
+    // `√3, 2√3, 3√3` each rounded on its own, so the interior breaks
+    // miss exact thirds of the domain by ~2·10⁻¹⁴ — and demanding
+    // bitwise uniformity there refuses the construction for its
+    // PRINTING rather than for its geometry. What the uniform breaks
+    // are load-bearing for is the map `g ↦ u`: within a span both the
+    // assumed and the true parameterization are affine, so a knot off
+    // by `Δ` moves the chart point by at most `Δ` in `u`, hence by at
+    // most `Δ·stretch_u` in metres. That quantity is DECIDED here and
+    // then PAID into the envelope below — never assumed away.
+    let mut knot_dev = T::zero();
+    for (a, b) in kn.iter().zip(&expected) {
+        knot_dev = knot_dev.max(T::from_f64(a - b).abs());
+    }
+    match decide(
+        "pcurve_iso_boundary",
+        Margin::metered(knot_dev, stretch_u),
+        band,
+    )
+    .map_err(&esc)?
+    {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => {
+            return Err(bad(
+                "an arc rim whose chart column knots are not the uniform sub-arc \
+                 structure (degree 2, one double knot per sub-arc over the chart's own \
+                 u domain)",
+            ));
+        }
+    }
+    let slack_knots = knot_dev * stretch_u;
     let bw = b.weights();
     if bw.len() != 2 * spans + 1 || bw.first() != Some(&1.0) || bw.last() != Some(&1.0) {
         return Err(bad(
@@ -2597,6 +2658,22 @@ fn run_iso_arc_checks<T: Decide>(
         chat.push(tangent(base + h * T::from_f64(0.5)));
         chat.push(on(base + h));
     }
+    // **The u-DIRECTION (#327).** `Ĉ` is built in `B`'s control order,
+    // which runs along the chart's INCREASING u. An imported rim whose
+    // carrier winds against the chart traverses `u: cu1 → cu0` (the
+    // mint's reversed `IsoArc`), and its `g = 0` sits at `B`'s LAST
+    // control point — so the comparison list is the same one, read
+    // backwards. Which case this is, is read off the placement, and
+    // the `slack_affine` below is what PAYS for the reading: a
+    // placement that is neither traversal pays its whole distance.
+    // Which traversal this is, is the SAME two-way boundary question
+    // `side_of` answers for the fixed channel — asked of the moving
+    // one's start, and refused typed when the answer is neither.
+    let (reversed, slack_start) = side_of(p0.x, cu0, cu1, stretch_u, T::zero(), band, &esc)?;
+    let forward = !reversed;
+    if !forward {
+        chat.reverse();
+    }
     if chat.len() != b.control().len() {
         return Err(bad(
             "an arc rim whose chart column control count is not the sub-arc construction's",
@@ -2621,8 +2698,13 @@ fn run_iso_arc_checks<T: Decide>(
     // and `stretch_u` meters it into metres. Identically zero on the
     // minted path, exactly as the iso-line class's `slack_param` and
     // the harmonic class's winding snap are.
-    let slack_affine = p0.x.abs().max((p0.x + pd.x - T::one()).abs()) * stretch_u;
-    let envelope = hull + slack_v + slack_affine;
+    let far = if forward {
+        (p0.x + pd.x - cu1).abs()
+    } else {
+        (p0.x + pd.x - cu0).abs()
+    };
+    let slack_affine = slack_start.max(far * stretch_u);
+    let envelope = hull + slack_v + slack_affine + slack_knots;
     let mut envelope_margin = T::zero();
     check_residual(
         "pcurve_envelope",
@@ -2647,28 +2729,35 @@ fn run_iso_arc_checks<T: Decide>(
 
 /// Which boundary a banded-constant chart channel sits on, plus the
 /// slack the admission costs: `w` is the channel value at `t0`,
-/// `drift` its whole-span motion bound, `arm` the stretch that meters
-/// both into metres. `Zero` at 0 → the start row, at 1 → the end row;
-/// anything else is an interior iso, refused typed. Shared by the
-/// iso-line and iso-arc classes.
+/// `(lo, hi)` the channel's own DOMAIN ends, `drift` its whole-span
+/// motion bound, `arm` the stretch that meters both into metres.
+/// `Zero` at `lo` → the start row, at `hi` → the end row; anything
+/// else is an interior iso, refused typed. Shared by the iso-line and
+/// iso-arc classes.
+///
+/// **The domain, not the unit square (#327).** A chart the kernel
+/// BUILT is normalized to `[0, 1]²` and `(lo, hi) = (0, 1)` reads
+/// exactly as before; a chart the kernel IMPORTED carries the file's
+/// own parameterization (dm1's cylinder wall is `u ∈ [0, 3√3]`),
+/// where testing against a literal `1` asks about an interior column.
 fn side_of<T: Decide>(
     w: T,
+    lo: T,
+    hi: T,
     arm: T,
     drift: T,
     band: Band,
     esc: &impl Fn(Indeterminate) -> PcurveCertifyError,
 ) -> Result<(bool, T), PcurveCertifyError> {
-    if let Sign::Zero = decide("pcurve_iso_boundary", Margin::metered(w, arm), band).map_err(esc)? {
-        return Ok((false, w.abs() * arm + drift));
-    }
-    if let Sign::Zero = decide(
-        "pcurve_iso_boundary",
-        Margin::metered(w - T::one(), arm),
-        band,
-    )
-    .map_err(esc)?
+    if let Sign::Zero =
+        decide("pcurve_iso_boundary", Margin::metered(w - lo, arm), band).map_err(esc)?
     {
-        return Ok((true, (w - T::one()).abs() * arm + drift));
+        return Ok((false, (w - lo).abs() * arm + drift));
+    }
+    if let Sign::Zero =
+        decide("pcurve_iso_boundary", Margin::metered(w - hi, arm), band).map_err(esc)?
+    {
+        return Ok((true, (w - hi).abs() * arm + drift));
     }
     Err(PcurveCertifyError::IsoUnsupported {
         what: "an INTERIOR iso (the fixed channel sits on neither chart boundary): \
@@ -2780,7 +2869,16 @@ fn run_iso_checks<T: Decide>(
                 });
             }
             let u_start = p0.x + pl.x * t0;
-            let (end, slack_u) = side_of(u_start, stretch_u, du_extent.value(), band, &esc)?;
+            let (cu0, cu1) = payload.knots_u().domain();
+            let (end, slack_u) = side_of(
+                u_start,
+                T::from_f64(cu0),
+                T::from_f64(cu1),
+                stretch_u,
+                du_extent.value(),
+                band,
+                &esc,
+            )?;
             let b = crate::nurbs_iso::boundary_iso_u(payload, end).map_err(|_| {
                 PcurveCertifyError::IsoUnsupported {
                     what: "the chart's boundary row failed to re-wrap as a curve \
@@ -2841,7 +2939,16 @@ fn run_iso_checks<T: Decide>(
                 });
             };
             let v_start = p0.y + pl.y * t0;
-            let (end, slack_v) = side_of(v_start, stretch_v, dv_extent.value(), band, &esc)?;
+            let (cv0, cv1) = payload.knots_v().domain();
+            let (end, slack_v) = side_of(
+                v_start,
+                T::from_f64(cv0),
+                T::from_f64(cv1),
+                stretch_v,
+                dv_extent.value(),
+                band,
+                &esc,
+            )?;
             let b = crate::nurbs_iso::boundary_iso_v(payload, end).map_err(|_| {
                 PcurveCertifyError::IsoUnsupported {
                     what: "the chart's boundary column failed to re-wrap as a curve \
