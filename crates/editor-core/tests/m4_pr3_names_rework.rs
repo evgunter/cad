@@ -189,6 +189,15 @@ fn split_through_operand_edges_names_totally() {
 
 // ---- R7: pattern of a multi-body master must refuse TYPED (never
 // silently conflate the split halves under instance body indices). ----
+//
+// **R7 register, narrowed (ASM-2K, PR #381).** This row is the whole
+// of what R7 still defers. The refusal is scoped to a master with
+// several output BODIES — body index is the instance index there, so
+// admitting one needs a ratified instance×body layout. A master whose
+// single body holds several SOLIDS is NOT this case and is admitted:
+// `Instance(i)` wraps every name uniformly, pinned by
+// `names::emit::pattern_tests` (the rule is stated at `name_pattern`'s
+// docs). The multi-solid reading of R7 retires there; this row stands.
 
 #[test]
 fn pattern_of_split_output_refuses_typed_never_misnames() {
