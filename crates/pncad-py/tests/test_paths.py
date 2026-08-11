@@ -131,6 +131,33 @@ class TestTheLatticeWalks(unittest.TestCase):
         )
         self.assertEqual(loop.vertex_count, 3)
 
+    def test_the_straight_arrival_off_an_arc_departure(self):
+        # §2b route 3: the entry rides the R = 5 circle, the fillet
+        # opens against that carrier, and `at_toward` binds the
+        # straight arrival's anchor AND its director in one act. The
+        # corner is DERIVED (the ray meets the circle at (±4, 3)); the
+        # reach gate discards the root the anchor never came from.
+        loop = (
+            Open.at_on((5 * m, 0 * m), (0 * m, 0 * m), ArcSweep.Ccw)
+            .fillet(0.5 * m)
+            .at_toward((0 * m, 3 * m), -1.0, 0.0)
+            .line(3 * m)
+            .line_to(Start)
+        )
+        self.assertEqual(loop.vertex_count, 4)
+
+    def test_a_straight_departure_refuses_the_route_three_door(self):
+        # The door's fence: two straight carriers are the generic
+        # `.at().toward()` pair's business, and the refusal says so.
+        with self.assertRaises(pncad.PathError) as caught:
+            (
+                Open.at((0 * m, 0 * m))
+                .toward(1.0, 0.0)
+                .fillet(0.5 * m)
+                .at_toward((3 * m, 3 * m), 0.0, 1.0)
+            )
+        self.assertEqual(caught.exception.variant, "arc_carrier_spelling")
+
     def test_the_complete_loop_carrier_forms_are_one_step(self):
         self.assertEqual(circle(ORIGIN, 1 * m).step_count, 1)
         self.assertEqual(circle(ORIGIN, 1 * m).vertex_count, 2)

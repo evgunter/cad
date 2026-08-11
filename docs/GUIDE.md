@@ -320,6 +320,52 @@ area = 0.040 * 0.030 - (0.006**2 - math.pi * 0.006**2 / 4)
 assert abs(ev.value(plate).body().mass_properties().volume - area * 0.008) < 1e-15
 ```
 
+**Corners between a line and a CIRCLE.** A fillet's two sides do not
+have to be straight. `at_on(p, centre, winding)` binds a side ON a
+carrier circle — the anchor plus the centre name the tangent there, so
+the direction is derived rather than authored — and `at_toward(p, dx,
+dy)` is its mirror: the STRAIGHT arrival off a departure that rides a
+circle. Between them the corner is again never written down; it is the
+ray-meets-circle intersection, and the gates discard the root the
+author's two anchors do not bracket.
+
+```
+use pncad::prelude::*;
+
+// Enter on the R = 5 circle at its east point, travelling
+// counterclockwise; round where that circle meets the line y = 3.
+let blended: ProfileLoop<f64> = Open
+    .at_on(p2(5.0, 0.0), p2(0.0, 0.0), ArcSweep::Ccw)?
+    .fillet(0.5)?                     // departure rides the CIRCLE
+    .at_toward(p2(0.0, 3.0), -1.0, 0.0)?  // arrival: the line y = 3, heading west
+    .line(3.0)?
+    .line_to(Start)?
+    .into();
+// The entry, the trim point on the circle, the arc's far tangent
+// point, and the straight side's end.
+assert_eq!(blended.vertices.len(), 4);
+# Ok::<(), pncad::profile::PathError<f64>>(())
+```
+
+The circle meets `y = 3` at `(±4, 3)`, and only one of those is the
+corner the author meant: the arrival is anchored at `(0, 3)` heading
+west, so it came from `(4, 3)` and never from `(−4, 3)`. That is a
+gate, not a nearest-point guess — and the same chain says the same
+thing in Python:
+
+```python
+from pncad import ArcSweep, Open, Start, m
+
+blended = (
+    Open.at_on((5 * m, 0 * m), (0 * m, 0 * m), ArcSweep.Ccw)
+    .fillet(0.5 * m)
+    .at_toward((0 * m, 3 * m), -1.0, 0.0)
+    .line(3 * m)
+    .line_to(Start)
+)
+assert blended.vertex_count == 4
+```
+
 **The plane is an argument, not an assumption.** A profile lives on a
 `SketchPlane` — a rigid frame `origin, u, v`, where sketch (x, y) maps
 to `origin + x·u + y·v`. The plane's NORMAL is `u × v`, and that is
