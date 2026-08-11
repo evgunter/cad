@@ -17,8 +17,19 @@
 //! a path the kernel refused until this unit). `L` is the
 //! interpolant's arc length by dense chordal summation; the analytic
 //! helix length `Δθ·√(r² + c²)` brackets the interpolant's from
-//! above, and both agree with the certified volume to the stated
-//! discretization tolerance.
+//! above.
+//!
+//! The certified volume is the volume of the BODY the kernel built —
+//! a stack of station-to-station skinned slabs whose frame turns by
+//! `θ_slab` per slab — not of the continuum tube, and the two differ
+//! by a MEASURED `≈ θ_slab²/4` (0.0099 at θ_slab ≈ 0.196 across the
+//! half/full/two-turn rows, which share that per-slab turn). So the
+//! oracle here is a CONVERGENCE pin, which is the stronger statement:
+//! doubling the stations must shrink the A·L gap by ~4× (second
+//! order), on top of an absolute cap at the measured level and the
+//! certified enclosure pad staying orders tighter than the
+//! discretization bracket. A volume bug would break the order; a
+//! meter regression would refuse the build outright.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -90,38 +101,58 @@ fn chordal_length(path: &NurbsCurve3<f64>, samples: usize) -> f64 {
 }
 
 /// Sweep a centered square along a helix of `turns` revolutions at
-/// `stations` stations; certify; return (volume, pad, oracle A·L).
-fn swept_helix(turns: f64, stations: usize) -> (f64, f64, f64) {
+/// `stations` stations; certify; return the relative gap to the
+/// Pappus `A·L` oracle (asserting the pad stays orders tighter).
+fn helix_oracle_gap(turns: f64, stations: usize) -> f64 {
     let path = helix_path(turns);
     let place = start_place(&path);
     let profile = quad([(-H, -H), (H, -H), (H, H), (-H, H)]);
     let swept = sweep_body::<f64>(&profile, place, &path, stations, 3)
         .unwrap_or_else(|e| panic!("a {turns}-turn helical sweep must build now: {e:?}"));
     let m = topo::props::mass_properties(&swept.body).expect("mass properties certify");
+    assert!(
+        m.volume_pad < 1e-9,
+        "{turns}-turn helix @ {stations} stations: the certified enclosure must \
+         stay far tighter than the discretization bracket (pad {})",
+        m.volume_pad
+    );
     let area = (2.0 * H) * (2.0 * H);
-    let len = chordal_length(&path, 20_000);
-    (m.volume, m.volume_pad, area * len)
+    let oracle = area * chordal_length(&path, 20_000);
+    let rel = ((m.volume - oracle) / oracle).abs();
+    println!(
+        "helix {turns} turns @ {stations} stations | certified {} (pad {}) | A*L {oracle} | rel {rel}",
+        m.volume, m.volume_pad
+    );
+    rel
+}
+
+/// The convergence pin (module docs): the coarse gap sits at the
+/// measured `θ_slab²/4` level, and doubling the stations shrinks it
+/// like the second-order quantity it is.
+fn assert_second_order(what: &str, coarse: f64, fine: f64, cap: f64) {
+    assert!(
+        coarse <= cap,
+        "{what}: coarse A·L gap {coarse} above the measured discretization \
+         level {cap} — the body is not the tube the oracle prices"
+    );
+    assert!(
+        fine <= coarse / 3.0,
+        "{what}: refining 2x only moved the A·L gap {coarse} -> {fine} — \
+         not second-order convergence; the certified volume is off for a \
+         reason discretization does not explain"
+    );
 }
 
 /// **The flip this unit exists for**: a FULL-TURN helical sweep — a
 /// complete revolution of frame roll, straight through the
 /// near-antipodal band that used to collapse the chord meter — builds
-/// and certifies, and its volume agrees with the independent Pappus
-/// oracle to the station-discretization bracket.
+/// and certifies, and its volume converges to the independent Pappus
+/// oracle at second order in the station spacing.
 #[test]
 fn a_full_turn_helical_sweep_builds_and_certifies() {
-    let (volume, pad, oracle) = swept_helix(1.0, 33);
-    let rel = ((volume - oracle) / oracle).abs();
-    assert!(
-        rel <= 1e-4,
-        "full-turn helix: certified volume {volume} vs A·L oracle {oracle} \
-         (rel {rel}) — outside the 33-station discretization bracket"
-    );
-    assert!(
-        pad < 1e-9,
-        "the certified enclosure must stay far tighter than the \
-         discretization bracket (pad {pad})"
-    );
+    let coarse = helix_oracle_gap(1.0, 33);
+    let fine = helix_oracle_gap(1.0, 65);
+    assert_second_order("full turn", coarse, fine, 1.2e-2);
     // The analytic continuum length brackets the interpolant's from
     // above (a chord never beats its arc), and tightly.
     let analytic = std::f64::consts::TAU * (R * R + (PITCH / std::f64::consts::TAU).powi(2)).sqrt();
@@ -136,13 +167,12 @@ fn a_full_turn_helical_sweep_builds_and_certifies() {
 /// filed (`≥ ~0.5 revolutions refuse`) — now builds and certifies.
 #[test]
 fn a_half_turn_helical_sweep_builds_and_certifies() {
-    let (volume, pad, oracle) = swept_helix(0.5, 17);
-    let rel = ((volume - oracle) / oracle).abs();
-    assert!(
-        rel <= 1e-4,
-        "half-turn helix: certified volume {volume} vs A·L oracle {oracle} (rel {rel})"
-    );
-    assert!(pad < 1e-9, "certified pad {pad}");
+    // The cap is looser than the longer rows' (measured 0.0147 at 17
+    // stations vs 0.0099): a half-turn tube is short enough that its
+    // two end slabs — where the roll is one-sided — carry real weight.
+    let coarse = helix_oracle_gap(0.5, 17);
+    let fine = helix_oracle_gap(0.5, 33);
+    assert_second_order("half turn", coarse, fine, 2e-2);
 }
 
 /// Multi-revolution: two full turns of frame roll (four antipodal
@@ -150,11 +180,7 @@ fn a_half_turn_helical_sweep_builds_and_certifies() {
 /// rule applies — pin the refusal and file it.
 #[test]
 fn a_two_turn_helical_sweep_builds_and_certifies() {
-    let (volume, pad, oracle) = swept_helix(2.0, 65);
-    let rel = ((volume - oracle) / oracle).abs();
-    assert!(
-        rel <= 1e-4,
-        "two-turn helix: certified volume {volume} vs A·L oracle {oracle} (rel {rel})"
-    );
-    assert!(pad < 1e-9, "certified pad {pad}");
+    let coarse = helix_oracle_gap(2.0, 65);
+    let fine = helix_oracle_gap(2.0, 129);
+    assert_second_order("two turns", coarse, fine, 1.2e-2);
 }
