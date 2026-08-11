@@ -514,7 +514,15 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
         E::NotABody { kind, .. } => {
             fields[3] = ("kind", PyString::new(py, kind).unbind().into_any());
         }
-        E::UnknownNode { .. } | E::NodeFailed { .. } | E::EmptyBoolean { .. } | E::Step(_) => {}
+        // `Product` is the WHOLE-DOCUMENT door's refusal (ASM-ROOTS
+        // D-4): it names product roots, not this call's node, so it
+        // adds no field here. The arm is spelled out because the match
+        // is exhaustive on purpose — the tripwire, not a wildcard.
+        E::UnknownNode { .. }
+        | E::NodeFailed { .. }
+        | E::EmptyBoolean { .. }
+        | E::Step(_)
+        | E::Product(_) => {}
     }
     typed_err(py, ErrorClass::Export, err.to_string(), &fields)
 }
