@@ -80,9 +80,11 @@ misleading dead-holder file. Diagnose with
 `fuser -v locks/<slot>.lock` (shows the true fd holders); the fix
 is killing the inheriting process, and slot-wrapped commands
 should avoid spawning daemons (sccache/watchers) or close the fd
-(`flock -o` where supported). `with-build-slot.sh` now pre-starts the
-sccache server before opening the lock fds, closing this for the one
-daemon every build can trigger (2026-08-11). **Express-lane cost model
+(`flock -o` where supported). sccache was briefly the machine
+rustc-wrapper on 2026-08-11 and needed exactly that guard; it was
+reverted the same day (docs/LOCAL-BUILD-PERF.md), so the guard went with
+it — if a cache/watcher daemon is ever added to the build path, pre-start
+it before with-build-slot.sh opens its fds. **Express-lane cost model
 is UNVERIFIED and suspect (2026-08-11)**: the same cold workspace build
 measured **69m23s** in one window and **3m08s** in another — same
 config, same tree, 182-197 crates both times, 22x apart. The slow

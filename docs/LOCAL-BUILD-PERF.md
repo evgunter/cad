@@ -1,0 +1,220 @@
+# Local build performance — measured findings (2026-08-11)
+
+Investigation of why ~10 concurrent agent lanes spend so much time waiting
+on the `with-build-slot.sh` mutex. **Read this before tuning local build
+config**: three knobs were tried, two were measured to be worthless or
+harmful here and reverted, and the one thing that actually explains the
+pain was not a compiler setting at all.
+
+Companion to `~/.local/share/cad-work/bazel-verdict-report.md` (hosted-CI
+compile cost) and PR #174 (which landed mold + line-tables-only on CI).
+This document is about the LOCAL box.
+
+## 0. The machine
+
+| | |
+|---|---|
+| CPU | Intel i7-1065G7 — **4 physical cores / 8 threads**, 15 W laptop part, sustaining ~1.5 GHz |
+| RAM | 12.6 GB host, **10 GB** to WSL2 (`.wslconfig memory=10GB`) |
+| Swap | 3 GB |
+| Disk | single ext4-in-VHDX |
+| gcc | 9.4 (Ubuntu 20.04) |
+| Load | serves up to ~10 concurrent Claude agent lanes |
+
+This is a 2019 ultrabook. **No configuration makes it serve ten agents
+doing Rust compilation comfortably.** The width-1 build mutex is the
+correct response to this hardware, not a workaround — see #230.
+
+## 1. The headline: machine-condition variance dwarfs every config knob
+
+The same cold `cargo build --workspace --all-targets`, **same config, same
+tree**, 182–197 crates compiled, 30 test binaries, full DWARF both times:
+
+| when | wall |
+|---|---|
+| 00:22:14 – 01:32:09 PDT | **4189 s (69m23s)** |
+| ~08:00 PDT (control) | **189 s (3m08s)** |
+
+**22x.** Both runs completed successfully (`cargo` printed its own
+`Finished ... in 69m 23s`); neither hung.
+
+Every compiler knob measured below moves single-digit percents or nothing.
+**If build waits feel pathological, this is the term to investigate — not
+flags.** The control run existed only because a 22x gap was far outside
+#174's CI-measured -38%; without it the entire difference would have been
+misattributed to the linker, and this document would be recommending mold.
+
+### Leading hypothesis (UNVERIFIED — needs a #230-style measurement)
+
+The slow window had **express-lane jobs running alongside the main-slot
+build** (`clippy`, `cargo test`, the python suite, a `pncad-py` build). The
+fast window did not.
+
+#269 sized the express lane on #230's "concurrency costs ~40%". But #230
+measured two *builds* on a box that was never memory-tight (min
+MemAvailable 5.5 GB). At 10 GB with full-DWARF link jobs, the box can cross
+into swap, where the penalty is nonlinear rather than a percentage. Swap
+activity is real here: 854k pages out observed at session start.
+
+**This is the highest-value open follow-up.** Design it like #230: express
+job concurrent with a battery, memory sampled throughout, before the lane
+is resized or kept.
+
+## 2. What was measured, and what survived
+
+All cold rows are `cargo build --workspace --all-targets` after
+`cargo clean`; edit rows append a comment to one crate and rebuild.
+
+| config | cold | edit geom-core | edit topo | `target/` |
+|---|---|---|---|---|
+| baseline (GNU ld, full DWARF, incremental) | 189 s | — | — | 4.7 GB |
+| mold + line-tables-only + sccache, cold cache | 186 s | — | — | 1.5 GB |
+| …same, warm cache | 96 s | 91 s, 89 s | 74 s, 88 s | 1.5 GB |
+| incremental, no sccache | 156 s | **18 s, 19 s** | **10 s, 12 s** | 3.8 GB |
+
+### KEPT: `debug = "line-tables-only"`
+
+`target/` **4.7 GB → 1.5 GB (-68%)**. Buys **no measurable compile time**.
+It is a SIZE knob, kept because ~10 lanes each carrying a `target/` on a
+10 GB-RAM box is page cache and disk pressure. `debug-assertions` and
+`overflow-checks` are unaffected — fail-loud postconditions keep their
+teeth, backtraces keep file:line. Only debugger variable inspection is
+lost, which no agent uses.
+
+### REVERTED: mold
+
+**189 s baseline vs 186 s with mold + thin debuginfo — noise.**
+
+This does *not* contradict #174's -38%. That was measured across **261**
+test binaries; after #179 and #387 this workspace has **14**, so the
+per-binary link constant mold attacks is now a small share of the build.
+
+Two notes for anyone tempted to re-adopt it from first principles:
+* `-fuse-ld=mold` **does not work on this box** — it needs gcc 12.1+ and
+  this is gcc 9.4. mold ships `libexec/mold/ld`; `-C link-arg=-B<that dir>`
+  is what makes gcc resolve `ld` to it. This gcc gap is the most likely
+  reason #174 read a local mold as a heavier lift than it is.
+* Reverted rather than kept-as-harmless: Ubuntu 20.04 has no mold package,
+  so it is a hand-installed dependency at a machine-specific path, and an
+  unused dependency in the build path is a liability. **Revisit only if the
+  test-target count grows back toward triple digits.**
+
+### REVERTED: sccache — the instructive one
+
+sccache is genuinely good at what it does. A new lane's cold build went
+**156 s → 96 s** at a **99.4% hit rate**: the ~225 dependency crates are
+byte-identical across lanes, content-addressed caching serves them, and
+unlike a shared `CARGO_TARGET_DIR` it cannot ping-pong between branches.
+
+**But sccache and incremental compilation are mutually exclusive.** sccache
+hard-refuses to run with `CARGO_INCREMENTAL` set:
+
+```
+sccache: incremental compilation is prohibited: Unset CARGO_INCREMENTAL to continue.
+```
+
+There is no hybrid config. Adopting sccache forces `incremental = false`
+machine-wide, and that costs:
+
+| edit → rebuild | sccache, no incremental | incremental, no sccache |
+|---|---|---|
+| geom-core (invalidates 100% of test bins) | 91 s, 89 s | **18 s, 19 s** |
+| topo (~71%) | 74 s, 88 s | **10 s, 12 s** |
+
+**5–7x slower on the edit-rebuild loop.**
+
+The trade is bad on *frequency*, which is the part that is easy to get
+wrong: sccache saves ~60 s **once per lane creation**; incremental saves
+~73 s on **every edit an agent makes**, dozens to hundreds of times a day
+per agent. The rare operation was optimized at the expense of the constant
+one.
+
+**When sccache would be right:** if lane churn ever dominates — mass
+lane creation, short-lived lanes that never reach a steady edit loop — it
+is the correct tool for exactly that. It is wrong as a default.
+
+## 3. What actually helped: fewer test binaries
+
+`crates/step-import` had no `autotests = false`, so its 26 `tests/*.rs`
+files were 26 separate `[[test]]` targets — two thirds of every remaining
+test target in the workspace. #179 collapsed the rest (249 → 12) on the
+bazel-verdict finding that per-binary codegen+link was 96% of the CI build
+job, and missed this crate.
+
+Collapsing it (#387) took the workspace 39 → 14 test targets:
+
+| | test targets | CI `build test binaries + archive` |
+|---|---|---|
+| before | 39 | 148 s |
+| after | 14 | **108 s (-27%)** |
+
+Single sample each and cache warmth may differ, so treat the percentage as
+indicative — but the direction is consistent with the per-binary cost model.
+
+**This is now gated.** `scripts/check-test-aggregation.sh` asserts at most
+one `[[test]]` target per workspace member, wired into `ci.yml`'s
+discipline job and `ci-local.sh`'s discipline row. It is the complement to
+each crate's `every_suite_file_is_aggregated` test: that test catches a
+crate that opted in but forgot a `#[path]` line, and **cannot fire for a
+crate that never opted in** — which is exactly how step-import survived
+#179. Both halves are needed.
+
+Both halves proved themselves within hours of landing: the per-crate guard
+caught `rw2_probes.rs`, which merged to main from another lane while #387
+was open and would otherwise have silently stopped compiling and running.
+
+### Consequence for agents
+
+After aggregation, `cargo test -p <crate> --test <suite>` **no longer
+works** — there is one binary named `all`, and suite names are module
+prefixes. Use:
+
+```
+cargo test -p step-import --test all <suite>::      # e.g. wild::
+```
+
+## 4. Operational traps found along the way
+
+* **Killing a slot-wrapped build does NOT free the mutex.** Children
+  inherit the flock fds, so an orphaned `cargo` reparented to init keeps
+  the slot held. Kill the whole process tree. Diagnose with
+  `fuser -v ~/.local/share/cad-work/locks/slot-1.lock`, which shows true fd
+  holders (the `.holder` files are best-effort reporting and do lie).
+* **A daemon spawned under a slot holds the lock forever.** If a compiler
+  cache or watcher is ever added to the build path, pre-start it *before*
+  `with-build-slot.sh` opens its lock fds. See the comment at that point in
+  the script.
+* **Unsetting `RUSTC_WRAPPER` does not bypass a config-file wrapper.** Once
+  `rustc-wrapper` is in `~/.cargo/config.toml`, env `RUSTC_WRAPPER=""` is
+  ignored; `CARGO_BUILD_RUSTC_WRAPPER=""` is the override that works.
+* **GitHub check rows can hang "pending" on a completed run.** Two jobs on
+  #387 reported `completed_at: null` and pending in `gh pr checks` while
+  every step read `completed/success` and the run concluded `success`.
+  Check the **run** conclusion, not the per-check rollup, or a monitor will
+  wait forever.
+* **Unquoted heredocs execute backticks in comments.** A generated config
+  file's comment containing a backticked `cargo build --workspace
+  --all-targets` was command-substituted and actually ran.
+
+## 5. If you pick this up next
+
+Ranked by expected value:
+
+1. **Measure the express-lane cost model** (§1). The 22x term. Everything
+   else is rounding error next to it.
+2. **Leave the compiler flags alone** unless the test-target count grows
+   substantially. mold and sccache are measured dead ends *at this size*;
+   §2 records the conditions under which each becomes right again.
+3. **Move builds off this box** if agent count grows. 4 cores at 1.5 GHz
+   cannot serve 10 agents; the repo already has hosted CI and a hosted
+   render lane (#323/#338), so the pattern exists.
+4. **Reduce build frequency**, not build cost: `cargo clippy`/`check` over
+   the whole workspace is ~36 s against minutes for a full build.
+
+## Reproducing
+
+Experiment scripts are in `~/.local/share/cad-work/buildperf/`
+(`build-exp.sh`, `cold-c.sh`, `aprime.sh`, `incr-exp.sh`, `incr-exp-e.sh`)
+with their raw logs. They take the exclusive slot and block every other
+lane — a full cold build here is minutes at best and over an hour at worst,
+so scope deliberately and announce it.
