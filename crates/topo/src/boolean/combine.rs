@@ -106,12 +106,51 @@ pub(crate) fn graft_solid_with<T: geom_core::Decide>(
     src: &Body<T>,
     bridge: Bridge,
 ) -> Result<GraftMap, BooleanError> {
+    graft_solids_with(dst, &[dst_solid], src, bridge)
+}
+
+/// [`graft_solid_with`] for a source holding N solids: `dst_solids`
+/// names one destination solid per source solid, **positionally in the
+/// source's solid order** (slot order, D9), and the arity must match
+/// exactly — a source solid with no destination, or a destination with
+/// no source solid, is a caller error, never a guess.
+///
+/// One pass over the source's arenas serves all N (the arenas are
+/// whole-body already; only the shell→solid attachment is per-solid),
+/// so the result is entity-for-entity what N separate single-solid
+/// grafts would have produced, in the same order.
+pub(crate) fn graft_solids_with<T: geom_core::Decide>(
+    dst: &mut Body<T>,
+    dst_solids: &[SolidKey],
+    src: &Body<T>,
+    bridge: Bridge,
+) -> Result<GraftMap, BooleanError> {
     let corrupt = || BooleanError::JoinDesync {
-        what: "graft source is not a well-formed single-solid body",
+        what: "graft source is not a well-formed body",
     };
-    let mut src_solids = src.solids();
-    let (_, src_solid) = src_solids.next().ok_or_else(corrupt)?;
-    if src_solids.next().is_some() {
+    // Arity is this door's precondition, distinct from corruption: the
+    // caller states which destination each source solid lands in, so a
+    // count mismatch is a caller error, never a thing to guess at.
+    let arity = || BooleanError::JoinDesync {
+        what: "graft needs exactly one destination solid per source solid",
+    };
+    // Source solid → its destination, and the source order to attach
+    // in. A shell's owner is its own `solid` back-pointer, so this map
+    // is the only thing the shell pass needs.
+    let mut solid_map: SecondaryMap<SolidKey, SolidKey> = SecondaryMap::new();
+    let mut pairs: Vec<(SolidKey, SolidKey)> = Vec::new();
+    {
+        let mut targets = dst_solids.iter();
+        for (k, _) in src.solids() {
+            let &target = targets.next().ok_or_else(arity)?;
+            solid_map.insert(k, target);
+            pairs.push((k, target));
+        }
+        if targets.next().is_some() {
+            return Err(arity());
+        }
+    }
+    if pairs.is_empty() {
         return Err(corrupt());
     }
 
@@ -251,12 +290,17 @@ pub(crate) fn graft_solid_with<T: geom_core::Decide>(
         }
         f.shell = *shells.get(f.shell).ok_or_else(corrupt)?;
     }
-    for (_, &dk) in shells.iter() {
+    for (sk, &dk) in shells.iter() {
+        // A shell lands under the destination of the solid that owns
+        // it in the source — its own back-pointer, so a multi-solid
+        // source keeps every shell with its solid.
+        let owner = src.shells.get(sk).ok_or_else(corrupt)?.solid;
+        let target = *solid_map.get(owner).ok_or_else(corrupt)?;
         let s = dst.shells.get_mut(dk).ok_or_else(corrupt)?;
         for f in &mut s.faces {
             *f = *faces.get(*f).ok_or_else(corrupt)?;
         }
-        s.solid = dst_solid;
+        s.solid = target;
     }
 
     // ---- Null-face records (loop-role attributes travel remapped;
@@ -387,14 +431,19 @@ pub(crate) fn graft_solid_with<T: geom_core::Decide>(
         }
     }
 
-    // ---- Attach the shells to the destination solid (source order). ----
-    let shell_list: Vec<ShellKey> = src_solid
-        .shells
-        .iter()
-        .map(|&s| shells.get(s).copied().ok_or_else(corrupt))
-        .collect::<Result<_, _>>()?;
-    let solid = dst.get_solid_mut(dst_solid).ok_or_else(corrupt)?;
-    solid.shells.extend(shell_list);
+    // ---- Attach the shells to the destination solids (source order,
+    // per solid and within each solid). ----
+    for (src_solid, dst_solid) in pairs {
+        let shell_list: Vec<ShellKey> = src
+            .get_solid(src_solid)
+            .ok_or_else(corrupt)?
+            .shells
+            .iter()
+            .map(|&s| shells.get(s).copied().ok_or_else(corrupt))
+            .collect::<Result<_, _>>()?;
+        let solid = dst.get_solid_mut(dst_solid).ok_or_else(corrupt)?;
+        solid.shells.extend(shell_list);
+    }
 
     Ok(GraftMap {
         vertices,

@@ -6,6 +6,7 @@
 # text; f64 is the honest carrier — M7-1 spec §3).
 [package]
 name = "step-import"
+autotests = false  # tests/all.rs aggregates every suite; see its header
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
@@ -44,3 +45,11 @@ step-export = { path = "../step-export" }
 sweep = { path = "../sweep" }
 # review-probe only
 profile = { path = "../profile" }
+
+# The single aggregated test binary (see tests/all.rs header). `autotests
+# = false` above means this is the ONLY test target: a suite file not
+# `#[path]`-declared in all.rs does not compile and does not run, which
+# all.rs's own `every_suite_file_is_aggregated` catches.
+[[test]]
+name = "all"
+path = "tests/all.rs"
