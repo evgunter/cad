@@ -60,7 +60,15 @@ when a field demonstrably becomes a problem, rationale recorded
 then. Consequence stated honestly: an appearance-only edit moves
 the pin, so a consuming assembly sees an update whose
 re-verification passes trivially — accepted v1 noise; a future
-carve-out, if earned, rides a schema seam.
+carve-out, if earned, rides a schema seam. Sharper consequence,
+same posture (R2 review of #364): an UNDONE INSERT moves the pin —
+delete does not decrement the monotone `next_id`, and the counter
+is document state in the include-by-default preimage. "Undo must
+not move pins" therefore holds exactly for value edits (whose
+inverses restore the full state); structural insert/delete pairs
+leave counter residue and pin as a new version. Accepted v1 noise
+on the same terms; a `next_id` carve-out, if earned, rides a
+schema seam.
 
 ## D-4: the wrapper
 

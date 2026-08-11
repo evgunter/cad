@@ -96,6 +96,17 @@ pub enum WorkspaceError {
         /// The typed persistence refusal (boxed, as in `Header`).
         error: Box<PersistError>,
     },
+    /// The document loaded, but recomputing its content pin refused
+    /// (the canonical serializer itself failed — unreachable short of
+    /// a serde bug, since the load just validated the same document;
+    /// surfaced under its own arm rather than mislabeled as a load
+    /// refusal).
+    Pin {
+        /// The file whose loaded document would not pin.
+        path: PathBuf,
+        /// The typed persistence refusal (boxed, as in `Header`).
+        error: Box<PersistError>,
+    },
     /// The document loaded, but its recomputed content pin is not the
     /// pin the reference carries: the referenced document CHANGED
     /// (ASSEMBLY-DESIGN A4). Recourse: [`PIN_MISMATCH_RECOURSE`].
@@ -138,6 +149,11 @@ impl core::fmt::Display for WorkspaceError {
             Self::Load { path, error } => {
                 write!(f, "workspace: {} refused to load: {error}", path.display())
             }
+            Self::Pin { path, error } => write!(
+                f,
+                "workspace: {} loaded but its content pin would not compute: {error}",
+                path.display()
+            ),
             Self::PinMismatch {
                 id,
                 path,
@@ -258,9 +274,11 @@ impl Workspace {
             path: path.clone(),
             error: Box::new(error),
         })?;
-        // Pin the REPLAYED document (D-3: the pin is of the semantic
-        // projection of current state, not of raw file bytes).
-        let found = content_pin(&loaded.doc).map_err(|error| WorkspaceError::Load {
+        // Pin the REPLAYED document (D-3: the pin is of the canonical
+        // form of current state — never the raw snapshot, never file
+        // bytes; a save carrying a non-empty log must pin its
+        // replayed result).
+        let found = content_pin(&loaded.doc).map_err(|error| WorkspaceError::Pin {
             path: path.clone(),
             error: Box::new(error),
         })?;

@@ -132,6 +132,19 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
         content_pin(&loaded_a.doc).unwrap(),
         content_pin(&loaded_b.doc).unwrap()
     );
+    // The loaded pin is the EDITED state's pin, not the origin's — a
+    // load that skipped replay would degrade both branches to the
+    // origin pin and the equality above would hold vacuously (R1
+    // NOTE-1); this line is what catches it.
+    assert_eq!(
+        content_pin(&loaded_a.doc).unwrap(),
+        content_pin(&a).unwrap(),
+        "the replayed load pins as the 0.9 state, never the origin"
+    );
+    assert_ne!(
+        content_pin(&loaded_a.doc).unwrap(),
+        content_pin(&origin).unwrap()
+    );
 }
 
 /// Row 2b — an undone edit leaves the pin unchanged (undo is
@@ -386,4 +399,65 @@ fn doc_ref_display_and_serde() {
     let json = serde_json::to_string(&r).unwrap();
     let back: DocRef = serde_json::from_str(&json).unwrap();
     assert_eq!(back, r);
+}
+
+/// Doc-level metadata is IN the preimage (row 4 as amended; the
+/// dual review's converged finding: silently dropping the key from
+/// the canonical form passed the whole suite). The map has no edit
+/// door in v1, so the falsifier goes through the persistence door —
+/// a crafted v5 save whose body carries non-empty `"metadata"` loads
+/// clean and pins DIFFERENTLY from its metadata-empty twin.
+#[test]
+fn row4_doc_metadata_in_preimage_via_crafted_save() {
+    let (doc, _, _) = exemplar("asm1-row4-meta");
+    let text = save(&doc, &[]).unwrap();
+    let needle = "\"metadata\": {}";
+    assert_eq!(
+        text.matches(needle).count(),
+        1,
+        "exactly the snapshot's one empty metadata map"
+    );
+    let crafted = text.replace(needle, "\"metadata\": {\"units\": \"mm\"}");
+    let twin = load(&text).unwrap();
+    let loaded = load(&crafted).unwrap();
+    assert_eq!(
+        loaded.doc.metadata().get("units").map(String::as_str),
+        Some("mm"),
+        "the crafted map survived the load doors"
+    );
+    assert_ne!(
+        content_pin(&loaded.doc).unwrap(),
+        content_pin(&twin.doc).unwrap(),
+        "metadata is content: dropping it from the preimage must fail HERE"
+    );
+}
+
+/// The spec's stated `next_id` consequence (D-3 as amended; R2
+/// MINOR-3, ruled compliant): an undone INSERT moves the pin —
+/// delete never decrements the monotone counter, and the counter is
+/// document state in the include-by-default preimage. "Undo must not
+/// move pins" holds exactly for value edits (row 2b); structural
+/// insert/delete pairs leave counter residue. Documented behavior,
+/// pinned so a silent preimage change is caught in both directions.
+#[test]
+fn stated_consequence_undone_insert_moves_pin() {
+    let (doc, _, _) = exemplar("asm1-next-id");
+    let nodes_before = doc.len();
+    let before = content_pin(&doc).unwrap();
+    let (with_extra, extra) = insert(
+        doc,
+        Node::Profile(desc(
+            [0.0, 0.0, 2.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        )),
+    );
+    let (undone, _) = step(with_extra, DocEdit::DeleteNode { id: extra });
+    assert_eq!(undone.len(), nodes_before, "the node itself is gone");
+    assert_ne!(
+        content_pin(&undone).unwrap(),
+        before,
+        "counter residue pins as a new version — the spec's stated consequence"
+    );
 }

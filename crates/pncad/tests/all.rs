@@ -1276,3 +1276,58 @@ fn random_document_ids_are_distinct() {
     let b = pncad::workspace::random_document_id().expect("OS randomness");
     assert_ne!(a, b, "128 random bits collide never in practice");
 }
+
+/// D-5's pin-the-REPLAYED-document discipline, falsified (R2
+/// MINOR-2): a workspace file saved WITH a non-empty edit log. The
+/// replayed state's pin resolves; the RAW snapshot's pin refuses
+/// PinMismatch — so a resolve that pinned `loaded.snapshot` instead
+/// of `loaded.doc` fails this row in both directions.
+#[test]
+fn workspace_resolve_pins_replayed_state_not_snapshot() {
+    use pncad::document::{Dimension, DocEdit, DocParam, ParamName};
+    let dir = WsDir::new("log");
+    let (origin, _) = ws_doc("ws-logged");
+    let edit = DocEdit::SetDocParam {
+        name: ParamName::new("depth"),
+        value: DocParam::Continuous {
+            dim: Dimension::Length,
+            value: 0.9,
+        },
+    };
+    // Save snapshot + ONE-edit log; the file's current state is the
+    // replayed result, and that is what a resolve must pin.
+    let text = pncad::document::save(&origin, std::slice::from_ref(&edit))
+        .expect("the logged document saves");
+    dir.write("logged.pncad", &text);
+    let replayed = pncad::document::apply(&origin, &edit)
+        .expect("the edit applies")
+        .doc;
+    let replayed_pin = pncad::document::content_pin(&replayed).expect("the pin computes");
+    let snapshot_pin = pncad::document::content_pin(&origin).expect("the pin computes");
+    assert_ne!(
+        replayed_pin, snapshot_pin,
+        "the log is semantic here, so the two pins must differ for this row to bite"
+    );
+
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let resolved = ws
+        .resolve(&pncad::document::DocRef {
+            id: origin.id(),
+            pin: replayed_pin,
+        })
+        .expect("the replayed state's pin is the one that resolves");
+    assert!(
+        resolved.bit_eq(&replayed),
+        "resolve hands back the replayed state"
+    );
+    match ws.resolve(&pncad::document::DocRef {
+        id: origin.id(),
+        pin: snapshot_pin,
+    }) {
+        Err(pncad::workspace::WorkspaceError::PinMismatch { wanted, found, .. }) => {
+            assert_eq!(wanted, snapshot_pin);
+            assert_eq!(found, replayed_pin);
+        }
+        other => panic!("the raw snapshot's pin must refuse PinMismatch, got {other:?}"),
+    }
+}
