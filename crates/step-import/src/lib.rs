@@ -179,6 +179,8 @@
 mod adopt;
 mod assemble;
 mod chart;
+#[cfg(test)]
+mod cr_r1_probes;
 mod entities;
 mod error;
 mod geometry;
@@ -186,8 +188,6 @@ mod normalize;
 mod parse;
 mod recognize;
 mod recognize_curve;
-#[cfg(test)]
-mod cr_r1_probes;
 mod units;
 
 pub use error::{AdoptionAttempt, AdoptionCandidate, StepImportError};

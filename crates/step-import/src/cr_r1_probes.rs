@@ -2,7 +2,7 @@
 //! the PR). Attacks on stage-1 curve recognition's certifying path.
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
-use crate::recognize_curve::{recognize, CurveRecognition};
+use crate::recognize_curve::{CurveRecognition, recognize};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 use geom_curves::{Curve3, NurbsCurve3};
@@ -24,7 +24,18 @@ fn rational_circle(radius: f64) -> NurbsCurve3<f64> {
     }
     let s = 3.0f64.sqrt();
     let knots = KnotVector::clamped(
-        vec![0.0, 0.0, 0.0, s, s, 2.0 * s, 2.0 * s, 3.0 * s, 3.0 * s, 3.0 * s],
+        vec![
+            0.0,
+            0.0,
+            0.0,
+            s,
+            s,
+            2.0 * s,
+            2.0 * s,
+            3.0 * s,
+            3.0 * s,
+            3.0 * s,
+        ],
         2,
     )
     .unwrap();
@@ -60,7 +71,9 @@ fn p1_on_circle_doubled_back_arc_must_not_promote() {
     // Sanity: every dense sample lies on the circle to ~1e-15.
     for k in 0..=200 {
         let p = curve.eval(2.0 * f64::from(k) / 200.0);
-        let d = ((p.x * p.x + p.y * p.y).sqrt() - radius).abs().max((p.z - z).abs());
+        let d = ((p.x * p.x + p.y * p.y).sqrt() - radius)
+            .abs()
+            .max((p.z - z).abs());
         assert!(d < 1e-12, "carrier must lie on the circle: {d:e} at {k}");
     }
     match recognize(&curve, EPS_IN) {
@@ -78,8 +91,7 @@ fn p2_dented_circle_above_eps_stays_nurbs() {
     let base = rational_circle(0.005);
     let mut control = base.control().to_vec();
     control[2] = control[2] + Vec3::new(1e-8, 0.0, 0.0);
-    let curve =
-        NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
+    let curve = NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
     assert!(
         !matches!(recognize(&curve, EPS_IN), CurveRecognition::Promoted { .. }),
         "a 1e-8 dent must not certify at 1e-9"
@@ -117,8 +129,7 @@ fn p4_out_of_plane_wobble_stays_nurbs() {
         .enumerate()
         .map(|(k, p)| Point3::new(p.x, p.y, p.z + if k % 2 == 0 { 1e-8 } else { -1e-8 }))
         .collect();
-    let curve =
-        NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
+    let curve = NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
     assert!(
         !matches!(recognize(&curve, EPS_IN), CurveRecognition::Promoted { .. }),
         "a 1e-8 out-of-plane wobble must not certify at 1e-9"
@@ -133,10 +144,15 @@ fn p5_reported_residual_dominates_measured_deviation() {
     let mut control = base.control().to_vec();
     // A sub-eps dent (5e-11): still certifies; residual must cover it.
     control[3] = control[3] + Vec3::new(0.0, 5e-11, 0.0);
-    let curve =
-        NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
+    let curve = NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
     let CurveRecognition::Promoted {
-        curve: Curve3::Circle { center, axis, radius, .. },
+        curve:
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                ..
+            },
         residual,
         ..
     } = recognize(&curve, EPS_IN)
