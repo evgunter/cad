@@ -526,6 +526,17 @@ oracles (finding 5), the DocParam __eq__ rider (from ordinal
 19), straight-run authoring noise (finding 7 — vocabulary
 evidence for a future design conversation, not a unit).
 
+**PYSEL MERGED — G13 CLOSED (2026-08-11, #393, ordinal-29
+APPROVE-WITH-FIXES 0/2/4).** The selector surface crosses to
+Python (trilean discipline intact, zero name-text parsing);
+diecomposed YES*→YES; audit 24→25 of 34; suite 118→128. Riders:
+the SegPat.matches drop upheld-and-stated (RoleSeg is name-text
+territory); the reviewer's ε-sliver in_band refusal row adopted;
+the pncad-py interval-passthrough CI wall fixed en route (the
+first pncad-py-only closure would have gone red without it).
+Remaining NO rows: G2 sweep/tube ×6 (U4), G5 ×2 (detect/declare
++ R3), G12 (LBRET in flight), G14 (kernel).
+
 **The #377 design conversation — RATIFIED (2026-08-11, Evan 👍
 on #386, after two follow-up rounds that strengthened the §V6
 disposition to full test-support banishment + struck V4(c)).** LoopBuilder
