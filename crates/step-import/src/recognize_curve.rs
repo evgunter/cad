@@ -24,10 +24,25 @@
 //!
 //! # Kind scope (stage 1)
 //!
-//! [`PromotedCurveKind::Line`] and [`PromotedCurveKind::Circle`], the
-//! latter restricted to the **closed full-period** class. Ellipse,
-//! helix, and partial (open) circular arcs are NAMED EXCLUSIONS with
-//! filed follow-ups — no dead per-kind code here.
+//! [`PromotedCurveKind::Circle`], restricted to the **closed
+//! full-period** class. Line-as-degree-1, ellipse, helix, and partial
+//! (open) circular arcs are NAMED EXCLUSIONS with filed follow-ups —
+//! no dead per-kind code here.
+//!
+//! **The line kind was ATTEMPTED and stopped, measured.** A degree-1
+//! carrier certifies trivially (the zero-radius cylinder composite is
+//! `dist²` to the chord line, and the control-projection excursion
+//! bounds the SEGMENT residual by convexity), and dm1's 37 polyline
+//! carriers all certify. What it costs is downstream: a promoted
+//! `Curve3::Line` changes the edge's adopted DESCRIPTION from
+//! `IsoCurve` — whose exact `Pcurve::IsoLine` chart image the mint
+//! already knows — to `MappedCurve::ExtrudedPoint` (the
+//! `adopt::mapped_self_description` arm for a line on a
+//! non-`nurbs_rim` edge), for which `topo::pcurves::nurbs_iso_derive`
+//! has no derivation at all. Measured: dm1 refuses at the FIRST such
+//! edge with `IsoUnsupported`, strictly earlier than it refuses
+//! today. Closing that is a pcurve-lane rung, not a recognition
+//! question, so it is its own unit and its own issue.
 //!
 //! # The certificate (D9-clean by construction: no sampling, no
 //! schedule)
@@ -57,35 +72,19 @@
 //! * **INV-C1 (sphere → distance).** If `| |P−c|² − r² | ≤ S` then
 //!   `| |P−c| − r | = S′/(|P−c| + r) ≤ S/r`, because `|P−c| ≥ 0` makes
 //!   the divisor at least `r`. Conversion: `δ_s = S / r`.
-//! * **INV-C2 (zero-radius cylinder → distance).** With `radius = 0`
-//!   the cylinder composite is exactly `dist(P, axis line)²`, so
-//!   `sup dist = sqrt(sup composite)`. Conversion: `δ_l = √L`.
-//! * **INV-C3 (plane ∧ sphere → distance to the CIRCLE).** Write
+//! * **INV-C2 (plane ∧ sphere → distance to the CIRCLE).** Write
 //!   `P − c = h·n̂ + q` with `q ⊥ n̂`. The plane certificate gives
 //!   `|h| ≤ δ_p`; INV-C1 gives `| |P−c| − r | ≤ δ_s`, and
 //!   `|q|² = |P−c|² − h²`. Hence `|q| ≤ r + δ_s` above and
 //!   `|q| ≥ sqrt((r−δ_s)² − δ_p²)` below, so
-//!   `| |q| − r | ≤ m := max(δ_s, r − sqrt(max(0, (r−δ_s)² − δ_p²))))`.
+//!   `| |q| − r | ≤ m := max(δ_s, r − sqrt(max(0, (r−δ_s)² − δ_p²)))`.
 //!   The distance from `P` to the circle `plane ∩ sphere` is exactly
 //!   `hypot(|q| − r, h)`, so `residual ≤ hypot(m, δ_p)`. Every step is
 //!   an inequality between certified quantities; no small-angle or
 //!   first-order step appears.
-//! * **INV-C4 (line → distance to the SEGMENT).** The line certificate
-//!   bounds the distance to the INFINITE line; the adopted edge is the
-//!   segment between the two vertices, which for a clamped carrier are
-//!   its domain ends. With `d̂` the chord direction and `ℓ` the chord
-//!   length, the projection `(P − P₀)·d̂` is affine, so on a carrier
-//!   with strictly positive weights it is bounded by its CONTROL
-//!   values (the curve is a convex combination of its control points).
-//!   Let `o` be the worst control-point excursion outside `[0, ℓ]`.
-//!   A point at line-distance `d` whose projection overshoots an end
-//!   by at most `o` is within `hypot(d, o)` of the segment, so
-//!   `residual ≤ hypot(δ_l, o)` — a SEGMENT residual, whole-domain.
 //!
 //! # Estimators (D9-clean: closed form, fixed evaluation order)
 //!
-//! * **Line**: `origin = P₀`, `dir` the normalized chord
-//!   `P_{n−1} − P₀`. Closed form; no iteration.
 //! * **Circle**: three samples of the carrier at the FIXED domain
 //!   fractions 0, ¼, ½ (fixed schedule, data-independent — D9); the
 //!   plane through them oriented by `(s₁−s₀) × (s₂−s₀)`, which is the
@@ -162,33 +161,15 @@ pub(crate) enum CurveRecognition {
 }
 
 /// Tests `curve` for promotion at the interpretation budget `eps_in`
-/// (module docs: kinds, estimators, certificates).
+/// (module docs: kind, estimator, certificate).
 ///
-/// Selection is the fixed kind-preference order **Line > Circle**. No
-/// carrier can double-certify: a line certificate at ε_in puts the
-/// whole locus within ε_in of a straight segment, and a circle
-/// certificate puts it within ε_in of a FULL circle of radius `r`,
-/// whose diameter `2r` would then have to be within `2·ε_in` of the
-/// segment — impossible for the `r > ε_in` the circle estimator
-/// requires. The order is therefore canonicalization-free; it is
-/// stated so the ladder is deterministic, not to break a tie.
+/// One kind, so no preference order exists to state. When a second
+/// kind lands, the surface recognizer's rule applies verbatim: a fixed
+/// order, and the note that a carrier certifying as two kinds is
+/// canonicalization rather than ambiguity (both analytic curves agree
+/// with the carrier, hence with each other, within 2·ε_in everywhere
+/// on it).
 pub(crate) fn recognize(curve: &NurbsCurve3<f64>, eps_in: f64) -> CurveRecognition {
-    match try_line(curve, eps_in) {
-        Ok(Some((line, residual))) => {
-            return CurveRecognition::Promoted {
-                curve: line,
-                residual,
-                kind: PromotedCurveKind::Line,
-            };
-        }
-        Err(margin) => {
-            return CurveRecognition::IllConditioned {
-                kind: PromotedCurveKind::Line,
-                margin,
-            };
-        }
-        Ok(None) => {}
-    }
     match try_circle(curve, eps_in) {
         Ok(Some((circle, residual))) => CurveRecognition::Promoted {
             curve: circle,
@@ -227,78 +208,6 @@ fn composite_sup(curve: &NurbsCurve3<f64>, surface: &ImplicitSurface) -> f64 {
         Ok(form) => form.sup_bound(),
         Err(_) => f64::NAN,
     }
-}
-
-/// The line candidate (module docs; certificate INV-C2 + INV-C4).
-/// `Err(margin)` is the estimator's conditioning refusal — a carrier
-/// whose whole control net collapses inside ε_in determines no
-/// direction and no kind at the budget; `Ok(None)` a refuted
-/// certificate.
-fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f64>, f64)>, f64> {
-    let control = curve.control();
-    let (Some(first), Some(last)) = (control.first(), control.last()) else {
-        return Ok(None);
-    };
-    // The net's extent from its first point, fixed ascending max.
-    let mut extent = 0.0f64;
-    for p in control {
-        extent = extent.max((*p - *first).norm());
-    }
-    if !extent.is_finite() {
-        return Ok(None);
-    }
-    if extent <= eps_in {
-        // Every control point inside one ε_in ball: the carrier is a
-        // point at the budget and NO kind is determined. The typed
-        // ambiguity, not a refutation.
-        return Err(extent);
-    }
-    let chord = *last - *first;
-    let chord_norm = chord.norm();
-    if !chord_norm.is_finite() {
-        return Ok(None);
-    }
-    if chord_norm <= eps_in {
-        // Ends coincident while the net does not collapse: a CLOSED
-        // carrier. A line carrier's two vertices must be distinct
-        // (`geometry::endpoint_params` refuses a closed LINE by name),
-        // so the line kind is REFUTED here rather than ambiguous — and
-        // the circle kind, whose stage-1 scope is exactly this class,
-        // gets its turn.
-        return Ok(None);
-    }
-    let dir = chord / chord_norm;
-    let origin = *first;
-    // INV-C2: the zero-radius cylinder composite IS `dist(P, line)²`.
-    let sup2 = composite_sup(
-        curve,
-        &ImplicitSurface::Cylinder {
-            point: [origin.x, origin.y, origin.z],
-            axis: [dir.x, dir.y, dir.z],
-            radius: 0.0,
-        },
-    );
-    if !(sup2.is_finite() && sup2 >= 0.0) {
-        return Ok(None);
-    }
-    let line_residual = sup2.sqrt();
-    // INV-C4: the projection is affine, so the control values bound it
-    // over the whole domain. `o` is the worst excursion outside the
-    // chord interval `[0, ℓ]`.
-    let mut overshoot = 0.0f64;
-    for p in control {
-        let t = (*p - origin).dot(dir);
-        overshoot = overshoot.max((-t).max(t - chord_norm)).max(0.0);
-    }
-    let residual = line_residual.hypot(overshoot);
-    if !residual.is_finite() {
-        return Ok(None);
-    }
-    let line = Curve3::Line {
-        origin: flush_zero_point(origin),
-        dir: flush_zero(dir),
-    };
-    Ok((residual <= eps_in).then_some((line, residual)))
 }
 
 /// The circle candidate (module docs; certificate INV-C1 + INV-C3,
@@ -414,7 +323,7 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     // INV-C1: meters² → meters, divided by the radius (the smallest
     // the divisor `|P−c| + r` can be).
     let delta_s = sphere_sup.abs() / radius;
-    // INV-C3: the two into one distance-to-the-circle bound.
+    // INV-C2: the two into one distance-to-the-circle bound.
     let inner = (radius - delta_s).powi(2) - delta_p * delta_p;
     let lower = if inner > 0.0 { inner.sqrt() } else { 0.0 };
     let m = delta_s.max(radius - lower);
