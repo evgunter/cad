@@ -63,12 +63,12 @@ cost — measured, not vibed ("with actual random numbers").
   follow ORDINALS (#398-thread ratification, 2026-08-11:
   ASM-2K@24 = #8, long-turn@27 = #9).
 
-**Readouts — deliberately NOT summarised here.** This memory and
-`docs/MODEL-AB-LOG.md` are both read by orchestrators before dispatch,
-and a directional arm result creates expectancy effects on difficulty
-logging, adjudication and dispatch sequencing. Readouts live on branch
-`ev/ab-bayes-analysis` under `analysis/model-ab/` (report.html +
-DECISIONS.md); an orchestrator with a dispatch in flight should not read
-them. The log records only arm-neutral measurement-process findings
-(reviewer noise, rubric saturation) plus the proposed amendments they
-motivate. See [[orchestration-model]].
+**Readouts — deliberately NOT summarised here, and not in the log
+either** (standing rule, Evan 2026-08-11). Both files are read by
+orchestrators before dispatch, and a directional arm result creates
+expectancy effects on difficulty logging, adjudication and dispatch
+sequencing. Readouts live on branch `ev/ab-bayes-analysis` under
+`analysis/model-ab/` (report.html, DECISIONS.md, readouts-archive.md);
+**an orchestrator with a dispatch in flight should not read them.**
+Analysis methodology is likewise not orchestrator protocol. See
+[[orchestration-model]].
