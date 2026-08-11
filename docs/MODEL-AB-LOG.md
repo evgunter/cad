@@ -623,6 +623,17 @@ merged blinded rows (the 19 at M8-5's dispatch + M8-5 + M8-C1 +
 U10 + PYG1) + 3 R1-dispatched-unmerged (M8-3 @17, PYG23A, ASM-1
 @21) + 1 = **27** → a third → DUAL (sample #8, concurrent
 same-head R1+R2 on head 3bfdf886 per the same-head amendment).
+#327 (PR #391) R1 ordinal FIXED AT DISPATCH (2026-08-11):
+claimed ordinals through 29 on main's ledger (PYSEL @29; duals
+sit at 21/24/27) + 1 = **30** → a third → DUAL (sample #10,
+concurrent same-head R1+R2 on frozen head a8995926, 32/32
+green). **FIRST v4 DUAL BLOCK DRAWN at this dispatch** (v4 item
+3; the v2 parity mechanism verbatim, convention stated: parity
+0 = same-model first, 1 = cross-model first): /dev/urandom byte
+= 231, parity 1 → **this dual is CROSS-MODEL (R1 fable + R2
+OPUS — the pilot's first opus review); the block's second slot
+(the next dual anywhere, ordinal 33 by the current rule) is
+SAME-MODEL (fable+fable)**. Verdict ladder: v4 (both briefs).
 LIB PROGRAM COMPLETE (#334, 2026-08-10): every §L5 unit merged,
 their rows recorded (U10 dual sample #6, R1-PARAMS, PY-CI). The
 dual-review counter is SINGLE-SERIES from here — this orchestrator
