@@ -153,7 +153,7 @@ use std::sync::Arc;
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::spline::SpanLocate;
+use geom_core::spline::{KnotVector, SpanLocate};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 use geom_curves::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_surfaces::Surface;
@@ -243,6 +243,91 @@ pub enum Pcurve<T: Real> {
         /// The velocity in chart coordinates (constant).
         pl: Vec2<T>,
     },
+    /// The **circular-ARC rim** on a NURBS chart (M8-3): the chart
+    /// image is again an exact straight line in UV — the boundary
+    /// column `v = 0`/`v = 1` — but the moving channel is the chart's
+    /// own **rational-quadratic Bézier parameter**, not the arc angle
+    /// the carrier is parameterized by. That mismatch is the whole
+    /// reason this is a variant and not an [`Pcurve::IsoLine`], and it
+    /// is exactly the arm M6-3 banked.
+    ///
+    /// # The map, derived
+    ///
+    /// One sub-arc of angle `h` is the rational quadratic with weights
+    /// `(1, cos(h/2), 1)` whose middle control point is the tangent
+    /// intersection. Writing `φ` for the angle measured from the
+    /// sub-arc's MID-angle and `s ∈ [0, 1]` for its Bézier parameter,
+    /// the standard identity is
+    ///
+    /// ```text
+    /// φ = 2·arctan( (2s − 1)·tan(h/4) )   ⟺   s = ½ + tan(φ/2) / (2·tan(h/4))
+    /// ```
+    ///
+    /// (check: `s = 1` gives `φ = h/2`). With `m` uniform sub-arcs the
+    /// chart parameter is `g = (k + s)/m`, `k` the sub-arc index — so
+    /// the map is **transcendental and piecewise**, representable by
+    /// none of the other three variants. The turn's sign cancels
+    /// (`tan(σx/2)/tan(σh/4) = tan(x/2)/tan(h/4)`), which is why
+    /// nothing here carries one.
+    ///
+    /// # Why this stays `T`-generic
+    ///
+    /// The sub-arcs are uniform *by construction*, so their
+    /// breakpoints on the NORMALIZED carrier parameter
+    /// `τ = (t − t0)/angle` are pure `f64` structure — `breaks` below.
+    /// Locating `k` is then [`geom_core::spline::SpanLocate`] plus
+    /// `enclosure_hull`, the same mechanism [`Pcurve::Fitted`] already
+    /// uses to stay sound at interval scalars.
+    IsoArc {
+        /// The chart point at the arc's start (`g = 0`).
+        p0: Point2<T>,
+        /// The chart displacement over the WHOLE arc (`g: 0 → 1`).
+        pd: Vec2<T>,
+        /// The carrier parameter at `g = 0`.
+        t0: T,
+        /// The arc's total turn, `t1 − t0`. Always POSITIVE on a
+        /// certified cache — check 2 (`pcurve_interval_forward`)
+        /// refuses a non-forward interval before the class is built —
+        /// so the map's own sign cancellation (variant docs) never has
+        /// a sign to carry.
+        angle: T,
+        /// Sub-arc breakpoints on `τ ∈ [0, 1]`: a uniform clamped
+        /// degree-1 knot vector with one span per sub-arc.
+        breaks: KnotVector,
+    },
+}
+
+/// The chart parameter `g(t) ∈ [0, 1]` of an [`Pcurve::IsoArc`]
+/// (variant docs for the derivation). Total: a malformed `breaks`
+/// answers poison rather than panicking (D4).
+fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
+    let spans = breaks.control_count().saturating_sub(1);
+    if spans == 0 {
+        return T::from_f64(f64::NAN);
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let m = T::from_f64(spans as f64);
+    let h = angle / m;
+    // tan(h/4) through sin/cos — no transcendental beyond the ring's
+    // own `sin_cos` (the same door every harmonic pcurve uses).
+    let (s_q, c_q) = (h * T::from_f64(0.25)).sin_cos();
+    let tan_q = s_q / c_q;
+    let set = ((t - t0) / angle).locate_spans(breaks);
+    let degree = breaks.degree();
+    let mut acc: Option<T> = None;
+    for span in set.first..=set.last {
+        #[allow(clippy::cast_precision_loss)]
+        let kf = T::from_f64(span.saturating_sub(degree) as f64);
+        let phi = (t - t0) - (kf + T::from_f64(0.5)) * h;
+        let (s_h, c_h) = (phi * T::from_f64(0.5)).sin_cos();
+        let s = T::from_f64(0.5) + (s_h / c_h) / (T::from_f64(2.0) * tan_q);
+        let g = (kf + s) / m;
+        acc = Some(match acc {
+            None => g,
+            Some(a) => a.enclosure_hull(g),
+        });
+    }
+    acc.unwrap_or_else(|| T::from_f64(f64::NAN))
 }
 
 impl<T: SpanLocate> Pcurve<T> {
@@ -260,6 +345,16 @@ impl<T: SpanLocate> Pcurve<T> {
             }
             Pcurve::Fitted(image) => image.eval(t),
             Pcurve::IsoLine { p0, pl } => Point2::new(p0.x + pl.x * t, p0.y + pl.y * t),
+            Pcurve::IsoArc {
+                p0,
+                pd,
+                t0,
+                angle,
+                breaks,
+            } => {
+                let g = iso_arc_g(t, *t0, *angle, breaks);
+                Point2::new(p0.x + pd.x * g, p0.y + pd.y * g)
+            }
         }
     }
 
@@ -331,6 +426,24 @@ impl<T: SpanLocate> Pcurve<T> {
                     v_max: a.y.max(b.y),
                 }
             }
+            // The arc rim's chart image is the SEGMENT `p0 → p0 + pd`
+            // (`g` is monotone in `t`: `tan` is monotone on
+            // `(−π/2, π/2)` and every sub-arc's `φ/2` stays inside it).
+            //
+            // This is the WHOLE-SEGMENT box, and it deliberately
+            // ignores `t0`/`t1`: sound at every window (a sub-window's
+            // image is a sub-segment) and TIGHT at the full span, which
+            // is the only span any mint asks for. A sub-window would
+            // get a conservative box — never a wrong one.
+            Pcurve::IsoArc { p0, pd, .. } => {
+                let b = Point2::new(p0.x + pd.x, p0.y + pd.y);
+                ChartWindow {
+                    u_min: p0.x.min(b.x),
+                    u_max: p0.x.max(b.x),
+                    v_min: p0.y.min(b.y),
+                    v_max: p0.y.max(b.y),
+                }
+            }
         }
     }
 
@@ -386,6 +499,21 @@ impl<T: SpanLocate> Pcurve<T> {
             Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
                 p0: Point2::new(p0.x + k * period, p0.y),
                 pl: *pl,
+            },
+            // Same reasoning as the iso-line arm: NURBS charts have no
+            // periodic azimuth, so no minted arc rim is ever shifted.
+            Pcurve::IsoArc {
+                p0,
+                pd,
+                t0,
+                angle,
+                breaks,
+            } => Pcurve::IsoArc {
+                p0: Point2::new(p0.x + k * period, p0.y),
+                pd: *pd,
+                t0: *t0,
+                angle: *angle,
+                breaks: breaks.clone(),
             },
         })
     }
@@ -1167,7 +1295,23 @@ impl<T: Decide> PcurveCache<T> {
             Pcurve::IsoLine { p0, pl } => {
                 run_iso_checks(*p0, *pl, t0, t1, carrier, surface, window, band)?
             }
-            harmonic => run_harmonic_checks(harmonic, t0, t1, carrier, surface, window, band)?,
+            Pcurve::IsoArc {
+                p0,
+                pd,
+                t0: at0,
+                angle,
+                breaks,
+            } => run_iso_arc_checks(
+                *p0, *pd, *at0, *angle, breaks, t0, t1, carrier, surface, window, band,
+            )?,
+            // EXHAUSTIVE by variant, never a catch-all (D3): a
+            // catch-all here would route a NEW closed-form variant
+            // into the harmonic checker silently, and the build would
+            // not say a word. Adding a variant must be a
+            // compiler-guided edit at every dispatch site.
+            harmonic @ Pcurve::Harmonic { .. } => {
+                run_harmonic_checks(harmonic, t0, t1, carrier, surface, window, band)?
+            }
         };
         Ok(Self {
             pcurve,
@@ -1259,7 +1403,27 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
                 window,
                 band,
             ),
-            harmonic => run_harmonic_checks(
+            Pcurve::IsoArc {
+                p0,
+                pd,
+                t0,
+                angle,
+                breaks,
+            } => run_iso_arc_checks(
+                *p0,
+                *pd,
+                *t0,
+                *angle,
+                breaks,
+                self.param_start,
+                self.param_end,
+                carrier,
+                surface,
+                window,
+                band,
+            ),
+            // Exhaustive by variant (see `certify`).
+            harmonic @ Pcurve::Harmonic { .. } => run_harmonic_checks(
                 harmonic,
                 self.param_start,
                 self.param_end,
@@ -1886,18 +2050,26 @@ fn chart_arms<T: Real>(surface: &Surface<T>) -> (T, T) {
             minor_radius,
             ..
         } => (major_radius + minor_radius, minor_radius),
-        // A NON-RATIONAL NURBS chart's honest arms are its
-        // derivative-net stretch bounds (`sup |S_u|`, `sup |S_v|`) —
-        // over-statements of the local stretch, the safe direction
-        // exactly as the sphere's. Rational charts keep the unit arms:
-        // the polynomial convexity fact behind the bound does not hold
-        // there, and no rational chart certifies a pcurve today (the
-        // iso lane's own gate refuses first, M6-3).
+        // A described NURBS chart's honest arms are its derivative-net
+        // stretch bounds (`sup |S_u|`, `sup |S_v|`) — over-statements
+        // of the local stretch, the safe direction exactly as the
+        // sphere's.
+        //
+        // **RATIONAL charts take the same arms since M8-3**, and they
+        // must: an arm under-states only in the UNSAFE direction here
+        // (`trim_containment` meters an escape, so a smaller arm makes
+        // an escape easier to admit), and before M8-3 the unit arms
+        // were harmless only because the iso lane's own rational gate
+        // refused before any rational chart reached this function.
+        // That gate is gone, so the arm has to be real —
+        // `nurbs_stretch_bounds` carries the Floater weight-ratio
+        // factor for exactly this. The placeholder keeps unit arms: it
+        // has no net to bound.
         Surface::Nurbs(ref payload) => {
-            if payload.weights().iter().all(|w| *w == 1.0) && !payload.is_placeholder() {
-                nurbs_stretch_bounds(payload)
-            } else {
+            if payload.is_placeholder() {
                 (T::one(), T::one())
+            } else {
+                nurbs_stretch_bounds(payload)
             }
         }
         _ => (T::one(), T::one()),
@@ -1937,6 +2109,16 @@ fn chart_arms_at<T: Real>(
 /// with weights ≠ 1 this formula does not bound the true derivative.
 fn nurbs_stretch_bounds<T: Real>(s: &geom_surfaces::NurbsSurface<T>) -> (T, T) {
     let (nu, nv) = s.control_counts();
+    // **The rational factor** (M8-3). The control-difference bounds
+    // below are POLYNOMIAL convexity facts. For a rational patch the
+    // standard extension (Floater 1992, derivatives of rational
+    // Bézier/B-spline forms) multiplies them by the weight ratio;
+    // squaring it is the conservative reading, and conservative is the
+    // SAFE direction for both consumers — a larger arm makes
+    // `side_of`'s boundary snap harder to admit and every slack term
+    // larger, never the reverse. Exactly 1 for a weight-1 net, so no
+    // integral-lane number moves.
+    let ratio = weight_ratio_factor::<T>(s.weights());
     let ctl = s.control();
     let mut sup_u = T::zero();
     let (pu, ku) = (s.knots_u().degree(), s.knots_u().knots());
@@ -1964,7 +2146,7 @@ fn nurbs_stretch_bounds<T: Real>(s: &geom_surfaces::NurbsSurface<T>) -> (T, T) {
             sup_v = sup_v.max((ctl[i * nv + j + 1] - ctl[i * nv + j]).norm() * factor);
         }
     }
-    (sup_u, sup_v)
+    (sup_u * ratio, sup_v * ratio)
 }
 
 /// `sup |C′|` bound for a **non-rational** spline curve — the curve
@@ -1982,7 +2164,30 @@ fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> T {
         }
         sup = sup.max((ctl[i + 1] - ctl[i]).norm() * T::from_f64(p as f64 / denom));
     }
-    sup
+    // The rational factor (M8-3), the curve-side twin of
+    // `nurbs_stretch_bounds`': the control-difference bound above is a
+    // POLYNOMIAL fact, and the standard rational extension (Floater
+    // 1992) multiplies it by the weight ratio; squaring it is the
+    // conservative reading. Exactly 1 on a unit-weight net, so no
+    // integral-lane number moves.
+    sup * weight_ratio_factor::<T>(c.weights())
+}
+
+/// `(w_max/w_min)²` for a positive weight list, `1` when the list is
+/// unit, empty or non-positive (a non-positive weight fails its own
+/// gate elsewhere; answering 1 here never widens a bound that the
+/// caller then trusts).
+fn weight_ratio_factor<T: Real>(weights: &[f64]) -> T {
+    let (mut lo, mut hi) = (f64::INFINITY, 0.0f64);
+    for w in weights {
+        lo = lo.min(*w);
+        hi = hi.max(*w);
+    }
+    if lo > 0.0 && hi.is_finite() {
+        T::from_f64((hi / lo).powi(2))
+    } else {
+        T::one()
+    }
 }
 
 /// Check 3 for either lane: `|S(P(tᵢ)) − C(tᵢ)|` at the shared
@@ -2183,6 +2388,296 @@ fn run_fitted_checks<T: PcurveFittedLane>(
 /// axis/side/domain snap slacks folded in — the cylinder lane's
 /// winding-snap idiom transposed. Every slack is exactly zero on the
 /// minted path (the builder mints exact `0`/`1` chart values).
+/// **The ARC-RIM iso class** (M8-3) — certification of a
+/// [`Pcurve::IsoArc`], to the same bar as every other minted pcurve.
+///
+/// The five checks in the same fixed order as [`run_iso_checks`]; only
+/// check 4 differs, and it is the whole content of the class.
+///
+/// # The envelope chain
+///
+/// With `P(t) = (g(t), v_side)` and `B` the chart's own boundary
+/// COLUMN at the snapped side,
+///
+/// ```text
+/// sup |S(P(t)) − C(t)|
+///   ≤ |S(g, v) − B(g)|          (the v-snap slack, exactly `side_of`'s)
+///   + |B(g)    − Ĉ(g)|          (the RATIONAL control-difference hull)
+///   + |Ĉ(g(t)) − C(t)|          (= 0: the variant's own algebraic identity)
+/// ```
+///
+/// `Ĉ` is the carrier circle re-expressed in **B's own spline space**
+/// — B's knots and B's weights, control points from the closed form
+/// (`on(θ)` and the tangent intersection `on(θ)/cos(h/2)`). Sharing
+/// the weights is what makes the middle term a convex combination:
+/// `B − Ĉ = Σ Rᵢ(u)·(bᵢ − ĉᵢ)` with `Rᵢ ≥ 0` summing to 1 (the
+/// rational hull property, positive weights), hence
+/// `sup|B − Ĉ| ≤ maxᵢ|bᵢ − ĉᵢ|`. Sampling could not do this job: a
+/// second-order between-samples bound at nine samples is `O(10⁻²) m`,
+/// six decades past useful.
+///
+/// The structure `Ĉ` assumes — degree 2, uniform clamped knots with
+/// one span per sub-arc on `[0, 1]`, weights `1, w, 1, w, …, 1` — is
+/// read as EXACT `f64` structure (C6) and refused typed when it does
+/// not hold, so an imported rational chart that is not this
+/// construction cannot slip through. That `w` really is `cos(h/2)` is
+/// the one DECIDED margin, metered into metres by the radius.
+#[allow(clippy::too_many_arguments)] // one parameter per named quantity
+#[allow(clippy::too_many_lines)] // one class, kept whole like its siblings
+fn run_iso_arc_checks<T: Decide>(
+    p0: Point2<T>,
+    pd: Vec2<T>,
+    at0: T,
+    angle: T,
+    breaks: &KnotVector,
+    t0: T,
+    t1: T,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    window: ChartWindow<T>,
+    band: Band,
+) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
+    // ---- Check 1: the certified lane. ----
+    let Surface::Nurbs(payload) = surface else {
+        return Err(PcurveCertifyError::UnsupportedChart {
+            chart: chart_name(surface),
+        });
+    };
+    if payload.is_placeholder() {
+        return Err(PcurveCertifyError::IsoUnsupported {
+            what: "the chart is the mvfs placeholder (no description yet) — a mid-surgery \
+                   fact, not a certifiable chart",
+        });
+    }
+    let Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    } = carrier
+    else {
+        return Err(PcurveCertifyError::IsoUnsupported {
+            what: "an arc-rim iso over a non-Circle carrier — the class IS the circle's \
+                   rational-quadratic reparameterization",
+        });
+    };
+
+    // ---- Check 2: the parameter interval, metered into metres. ----
+    //
+    // NOT a ledger-F6 site, unlike the fitted lane's twin: this class's
+    // carrier is a `Curve3::Circle` by construction (refused just
+    // above otherwise), so `param_rate` is the RADIUS and `span·rate`
+    // is arc length — a genuine metre, the harmonic lane's own door.
+    // The clause-(i) census stays at 12 shipped `decide_flagged` sites.
+    let span = t1 - t0;
+    match decide(
+        "pcurve_interval_forward",
+        Margin::metered(span, param_rate(carrier)),
+        band,
+    )
+    .map_err(|cause| PcurveCertifyError::Escalated {
+        check: PcurveCheck::ParamSpan,
+        sample: 0,
+        cause,
+    })? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
+    }
+
+    // ---- Check 3: the schedule, in metres through the map. ----
+    let pcurve = Pcurve::IsoArc {
+        p0,
+        pd,
+        t0: at0,
+        angle,
+        breaks: breaks.clone(),
+    };
+    let mut max_residual = T::zero();
+    schedule_residuals(&pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+
+    // ---- Check 4: the rational control-difference hull. ----
+    let esc = |cause| PcurveCertifyError::Escalated {
+        check: PcurveCheck::Envelope,
+        sample: 0,
+        cause,
+    };
+    let bad = |what: &'static str| PcurveCertifyError::IsoUnsupported { what };
+    let (stretch_u, stretch_v) = nurbs_stretch_bounds(payload);
+    // The moving channel is u and the fixed one v (the cap class'
+    // geometry).
+    let (end, slack_v) = side_of(p0.y, stretch_v, pd.y.abs() * stretch_v, band, &esc)?;
+    let b = crate::nurbs_iso::boundary_iso_v(payload, end)
+        .map_err(|_| bad("the chart's boundary column failed to re-wrap as a curve"))?;
+    // --- The construction's EXACT structure (C6). ---
+    let spans = breaks.control_count().saturating_sub(1);
+    if spans == 0 || b.knots().degree() != 2 {
+        return Err(bad(
+            "an arc rim whose chart column is not a quadratic — the rational-quadratic \
+             arc construction is the only one this class certifies",
+        ));
+    }
+    let kn = b.knots().knots();
+    #[allow(clippy::cast_precision_loss)]
+    let expected: Vec<f64> = {
+        let m = spans as f64;
+        let mut v = vec![0.0, 0.0, 0.0];
+        for k in 1..spans {
+            let t = k as f64 / m;
+            v.push(t);
+            v.push(t);
+        }
+        v.extend([1.0, 1.0, 1.0]);
+        v
+    };
+    if kn != expected.as_slice() {
+        return Err(bad(
+            "an arc rim whose chart column knots are not the uniform sub-arc structure \
+             (degree 2, one double knot per sub-arc on [0, 1])",
+        ));
+    }
+    let bw = b.weights();
+    if bw.len() != 2 * spans + 1 || bw.first() != Some(&1.0) || bw.last() != Some(&1.0) {
+        return Err(bad(
+            "an arc rim whose chart column weights are not the arc pattern",
+        ));
+    }
+    let half_w = bw.get(1).copied().unwrap_or(f64::NAN);
+    for (i, w) in bw.iter().enumerate() {
+        let want = if i % 2 == 0 { 1.0 } else { half_w };
+        if *w != want {
+            return Err(bad(
+                "an arc rim whose chart column weights are not `1, w, 1, …` with ONE \
+                 interior weight — the uniform sub-arc construction",
+            ));
+        }
+    }
+    // --- The one decided margin: `w = cos(h/2)`. ---
+    #[allow(clippy::cast_precision_loss)]
+    let m_t = T::from_f64(spans as f64);
+    let h = angle / m_t;
+    let (_, cos_half) = (h * T::from_f64(0.5)).sin_cos();
+    match decide(
+        "pcurve_iso_boundary",
+        Margin::metered(T::from_f64(half_w) - cos_half, *radius),
+        band,
+    )
+    .map_err(&esc)?
+    {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => {
+            return Err(bad(
+                "an arc rim whose chart column weight is not `cos(h/2)` for its sub-arc \
+                 angle — the column is not this circle's rational-quadratic form",
+            ));
+        }
+    }
+    // --- `Ĉ` in B's own space, and the hull. ---
+    //
+    // Angles are measured from the RIM'S OWN start, `at0` — the
+    // carrier's angle at `g = 0` — not from the carrier frame's zero.
+    // A rim that begins at a nonzero phase is the same construction
+    // rotated, and the class certifies it as such; keying the control
+    // points to absolute zero would have refused it with a message
+    // blaming the weight pattern for what is really a phase.
+    let vref = axis.cross(*u_ref);
+    let on = |a: T| {
+        let (s, c) = (at0 + a).sin_cos();
+        *center + *u_ref * (*radius * c) + vref * (*radius * s)
+    };
+    let tangent = |a: T| {
+        let (s, c) = (at0 + a).sin_cos();
+        let r = *radius / cos_half;
+        *center + *u_ref * (r * c) + vref * (r * s)
+    };
+    let mut chat: Vec<Point3<T>> = Vec::with_capacity(2 * spans + 1);
+    chat.push(on(T::zero()));
+    for k in 0..spans {
+        #[allow(clippy::cast_precision_loss)]
+        let base = h * T::from_f64(k as f64);
+        chat.push(tangent(base + h * T::from_f64(0.5)));
+        chat.push(on(base + h));
+    }
+    if chat.len() != b.control().len() {
+        return Err(bad(
+            "an arc rim whose chart column control count is not the sub-arc construction's",
+        ));
+    }
+    let mut hull = T::zero();
+    for (pb, pc) in b.control().iter().zip(&chat) {
+        hull = hull.max((*pb - *pc).norm());
+    }
+    // No domain-overshoot term: `g ∈ [0, 1]` by construction and the
+    // column's domain is exactly `[0, 1]` (checked as structure just
+    // above), so the iso-line class's `over·stretch` slack is
+    // identically zero here rather than merely small.
+    //
+    // **The admitted-input slack** (R1 MINOR-1). The chain above
+    // compares `B(g)` against `Ĉ(g)`, i.e. it reads the pcurve's u
+    // channel AS `g`. Every mint satisfies that bitwise (`p0 = (0, v)`,
+    // `pd = (1, 0)`), but `certify` is a public door and admits any
+    // placement, so the difference has to be PAID rather than assumed:
+    // `u(t) − g(t) = p0.x + (pd.x − 1)·g` is affine in `g ∈ [0, 1]`, so
+    // its sup is at an endpoint — `max(|p0.x|, |p0.x + pd.x − 1|)` —
+    // and `stretch_u` meters it into metres. Identically zero on the
+    // minted path, exactly as the iso-line class's `slack_param` and
+    // the harmonic class's winding snap are.
+    let slack_affine = p0.x.abs().max((p0.x + pd.x - T::one()).abs()) * stretch_u;
+    let envelope = hull + slack_v + slack_affine;
+    let mut envelope_margin = T::zero();
+    check_residual(
+        "pcurve_envelope",
+        PcurveCheck::Envelope,
+        0,
+        Margin::of(envelope),
+        band,
+        &mut envelope_margin,
+    )?;
+
+    // ---- Check 5: trim containment (the chart-box limb). ----
+    trim_containment(&pcurve, t0, t1, surface, window, band)?;
+
+    Ok(PcurveCertificate {
+        samples: CERT_SAMPLES,
+        max_residual,
+        envelope,
+        statement: EnvelopeStatement::MapResidualIsoHull,
+        ssi: None,
+    })
+}
+
+/// Which boundary a banded-constant chart channel sits on, plus the
+/// slack the admission costs: `w` is the channel value at `t0`,
+/// `drift` its whole-span motion bound, `arm` the stretch that meters
+/// both into metres. `Zero` at 0 → the start row, at 1 → the end row;
+/// anything else is an interior iso, refused typed. Shared by the
+/// iso-line and iso-arc classes.
+fn side_of<T: Decide>(
+    w: T,
+    arm: T,
+    drift: T,
+    band: Band,
+    esc: &impl Fn(Indeterminate) -> PcurveCertifyError,
+) -> Result<(bool, T), PcurveCertifyError> {
+    if let Sign::Zero = decide("pcurve_iso_boundary", Margin::metered(w, arm), band).map_err(esc)? {
+        return Ok((false, w.abs() * arm + drift));
+    }
+    if let Sign::Zero = decide(
+        "pcurve_iso_boundary",
+        Margin::metered(w - T::one(), arm),
+        band,
+    )
+    .map_err(esc)?
+    {
+        return Ok((true, (w - T::one()).abs() * arm + drift));
+    }
+    Err(PcurveCertifyError::IsoUnsupported {
+        what: "an INTERIOR iso (the fixed channel sits on neither chart boundary): \
+               boundary rows are control-net copies, an interior iso needs the de Boor \
+               collapse extractor — which arrives with the construction that first \
+               mints one",
+    })
+}
+
 #[allow(clippy::too_many_lines)] // one check sequence, kept whole like its two siblings
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity (the siblings' shape)
 fn run_iso_checks<T: Decide>(
@@ -2205,13 +2700,6 @@ fn run_iso_checks<T: Decide>(
         return Err(PcurveCertifyError::IsoUnsupported {
             what: "the chart is the mvfs placeholder (no description yet) — a mid-surgery \
                    fact, not a certifiable chart",
-        });
-    }
-    if payload.weights().iter().any(|w| *w != 1.0) {
-        return Err(PcurveCertifyError::IsoUnsupported {
-            what: "a RATIONAL chart (weights != 1): the control-difference stretch bounds \
-                   are polynomial convexity facts, and the rational extension is banked \
-                   with the rational-wall lane",
         });
     }
 
@@ -2244,39 +2732,6 @@ fn run_iso_checks<T: Decide>(
         sample: 0,
         cause,
     };
-    // Which boundary a banded-constant chart channel sits on, plus the
-    // slack the admission costs: `w` is the channel value at `t0`,
-    // `drift` its whole-span motion bound, `arm` the stretch that
-    // meters both into metres. `Zero` at 0 → the start row, at 1 → the
-    // end row; anything else is an interior iso, refused typed.
-    fn side_of<T: Decide>(
-        w: T,
-        arm: T,
-        drift: T,
-        band: Band,
-        esc: &impl Fn(Indeterminate) -> PcurveCertifyError,
-    ) -> Result<(bool, T), PcurveCertifyError> {
-        if let Sign::Zero =
-            decide("pcurve_iso_boundary", Margin::metered(w, arm), band).map_err(esc)?
-        {
-            return Ok((false, w.abs() * arm + drift));
-        }
-        if let Sign::Zero = decide(
-            "pcurve_iso_boundary",
-            Margin::metered(w - T::one(), arm),
-            band,
-        )
-        .map_err(esc)?
-        {
-            return Ok((true, (w - T::one()).abs() * arm + drift));
-        }
-        Err(PcurveCertifyError::IsoUnsupported {
-            what: "an INTERIOR iso (the fixed channel sits on neither chart boundary): \
-                   boundary rows are control-net copies, an interior iso needs the de Boor \
-                   collapse extractor — which arrives with the construction that first \
-                   mints one",
-        })
-    }
     let (stretch_u, stretch_v) = nurbs_stretch_bounds(payload);
     let du_extent = Margin::metered(pl.x.abs() * span, stretch_u);
     let dv_extent = Margin::metered(pl.y.abs() * span, stretch_v);
@@ -2302,10 +2757,26 @@ fn run_iso_checks<T: Decide>(
                            construction mints one",
                 });
             };
-            if c.weights().iter().any(|w| *w != 1.0) {
+            // **The re-derivation** (M8-3) of the chart-level rational
+            // gate this class used to carry. The control-difference
+            // hull below needs `B − C = Σ Rᵢ·(bᵢ − cᵢ)` with the `Rᵢ`
+            // non-negative and summing to 1. For a POLYNOMIAL pair
+            // that is the B-spline partition of unity; for a RATIONAL
+            // pair it is the rational basis `Rᵢ = NᵢwᵢΣ⁻¹`, which is
+            // the same partition of unity **provided the two curves
+            // share knots AND weights** — checked immediately below,
+            // structurally and exactly (C6) — **and the weights are
+            // strictly positive**, which is the convex-hull hypothesis
+            // itself and is checked here. So the hull is valid for
+            // rational seams too, and the blanket chart-level gate
+            // this class used to carry was over-broad: what is
+            // load-bearing is the shared spline space, not the
+            // weights being 1.
+            if c.weights().iter().any(|w| !w.is_finite() || *w <= 0.0) {
                 return Err(PcurveCertifyError::IsoUnsupported {
-                    what: "a RATIONAL seam carrier (weights != 1) — banked with the \
-                           rational-wall lane",
+                    what: "a seam carrier with a non-positive or non-finite weight — the \
+                           rational convex-hull property is exactly the hypothesis that \
+                           fails there",
                 });
             }
             let u_start = p0.x + pl.x * t0;
@@ -2364,9 +2835,9 @@ fn run_iso_checks<T: Decide>(
         (true, false) => {
             let Curve3::Line { origin, dir } = carrier else {
                 return Err(PcurveCertifyError::IsoUnsupported {
-                    what: "a cap-class iso line over a non-Line carrier: an ARC rim's \
-                           chart parameter is the segment's rational-Bézier one (not \
-                           the arc angle), banked with the rational-wall lane",
+                    what: "a cap-class iso LINE over a non-Line carrier — an arc rim is \
+                           minted as `Pcurve::IsoArc`, whose chart parameter is the \
+                           segment's rational-quadratic one (M8-3)",
                 });
             };
             let v_start = p0.y + pl.y * t0;
@@ -2377,6 +2848,27 @@ fn run_iso_checks<T: Decide>(
                            (corrupt chart structure)",
                 }
             })?;
+            // **This class keeps a rational gate, and it is the real
+            // one** (M8-3). The hull below compares the column's
+            // control points against the LINE sampled at the Greville
+            // abscissae, which is sound because a B-spline basis
+            // reproduces affine functions exactly there — LINEAR
+            // PRECISION. The rational basis has no such property, so
+            // on a rational column the Greville sample is not the
+            // line's representation in the column's own space and the
+            // control-difference hull would bound nothing. (The seam
+            // class needs no gate: there both curves are given in ONE
+            // shared space. The arc-rim class builds `Ĉ` in the
+            // column's space explicitly, which is the same fix by
+            // construction.)
+            if b.weights().iter().any(|w| *w != 1.0) {
+                return Err(PcurveCertifyError::IsoUnsupported {
+                    what: "a LINE cap rim on a RATIONAL chart column: the Greville hull is \
+                           a linear-precision fact and the rational basis has none — a line \
+                           rim whose column is rational needs its line re-expressed in that \
+                           column's own space, the arc-rim class's construction",
+                });
+            }
             let (p, kn) = (b.knots().degree(), b.knots().knots());
             let mut hull = T::zero();
             for (i, cp) in b.control().iter().enumerate() {

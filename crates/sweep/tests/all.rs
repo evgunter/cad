@@ -110,6 +110,8 @@ mod m6_surgery_interval;
 mod m6_tube;
 #[path = "m7_skin_integral.rs"]
 mod m7_skin_integral;
+#[path = "m8_14_long_turn_sweep.rs"]
+mod m8_14_long_turn_sweep;
 #[path = "mass_props.rs"]
 mod mass_props;
 #[path = "mass_props_interval.rs"]
@@ -201,3 +203,6 @@ fn every_suite_file_is_aggregated() {
          is silently dropping them: {missing:?}. Add a `#[path]` line for each."
     );
 }
+
+#[path = "m8_3_rational_volume.rs"]
+mod m8_3_rational_volume;

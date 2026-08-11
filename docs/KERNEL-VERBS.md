@@ -35,9 +35,10 @@ export, STEP import (adoption incl. recognition + tier gate).
 | **rib / text** | Band-3 conveniences | text = profile vocabulary + patterns; rib = draft-adjacent | far tail |
 | **datum planes / axes** | reference geometry | recipe-layer entities with stable names (N-doc machinery exists) | GUI-era consumer |
 | **curved boolean breadth** | cyl×sphere, sphere×sphere, cone/torus operands | the banked germ-chord lanes (DESIGN frontier (d)); the SSI lift removed the storage half | each lane is its own unit; the teapot's spout∪body would ride revolve-surface × NURBS classes — far |
-| **declared conformal / REST joins (curved)** | ball-and-socket, interference fits | **this one IS M8** — C7 (CONTACT-DESIGN, ratified #178) | listed for completeness; the register's one M8 row |
+| **point-section loft ("generalized cone")** | loft whose end section degenerates to a point (apex) | three tiers (Evan's mark-down, 2026-08-10, PR #300-era chat): (1) circle profile + straight axis = the ANALYTIC CONE — mint exact CONICAL_SURFACE (the tube_along_arc exact-intent pattern; #256 always-promote applies), mostly sugar + recognition; (2) polygon profile = pyramid, plain planar walls, possibly already expressible; (3) general curved profile = a NURBS wall with a collapsed boundary row — needs apex-degenerate certification (span meter is honestly zero at the apex, normals undefined, quadrature hulls loose) with the apex as a vertex-loop (the sphere-pole precedent) | no design conversation yet by ruling ("mark it down for the future"); tier 1 is a cheap early pick when a consumer appears |
+| **declared conformal / REST joins (curved)** | ball-and-socket, interference fits | **this one IS M9** — C7 (CONTACT-DESIGN, ratified #178; renumbered from M8 at PR #300's closure ruling) | listed for completeness; the register's one M9 row |
 
 Consumers waiting on rows above: the Utah teapot (shell), the full
-calochortus rebuild (C7 — in M8), helical parts (#222), the
+calochortus rebuild (C7 — in M9), helical parts (#222), the
 petal'd lily (sheet bodies), the calochortus bud's sphere–cone seam
-(constant-radius fillet on curved supports).
+(constant-radius fillet on curved supports, #319).

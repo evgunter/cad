@@ -13,7 +13,8 @@ it:
 | NAMING-DESIGN N1–N7 | Names are derivation paths; this doc discharges its scope exclusion "assembly pin representation" (A4) |
 | DESIGN.md banked flags | SE(3) witnesses budgeted, not assumed from sketch machinery; ε-disagreement across referenced documents is a typed error at the seam; pattern indices ride provenance explicitly; free-move/hide are display-layer state, never persisted (G3) |
 
-Decisions are **A1–A10**; open questions **AQ1–AQ6**. Design-only:
+Decisions are **A1–A11**; open questions **AQ1–AQ6** (AQ3
+discharged by A11). Design-only:
 no unit here is scheduled by this doc; the implementation ladder
 names natural homes (M8's #317, M9's C7, M10's clearance) without
 claiming them. Chat/issue rulings incorporated: the scope ladder,
@@ -239,6 +240,26 @@ Cheap to honor now, expensive to retrofit; each names its source:
   referencing an assembly neighbor's face arrives as the
   captured-context object — wrapper-plus-pin again, held by the
   part document. Nothing here forecloses it (AQ5).
+- **Fastener relation bundles** (Evan, #356): a modeled bolt
+  closes physical loops through several contacts (shank coaxials,
+  head rest, thread fit) — a predefined fastener relation is a
+  compound declaration TEMPLATE over the existing mate vocabulary
+  (the I3 handbook-fit shape composed with SEL2's detect/declare
+  precedent for candidate generation). Sugar, never semantics:
+  each expanded declaration is an ordinary A3 mate, so nothing in
+  A11 changes; the bundle just authors the loop's declarations in
+  one gesture and names their shared provenance. The bundle is
+  also the intended home of the CROSS-CHAIN COUPLING (Evan, #356):
+  when two chains of parts determine the same quantity (bolt
+  shoulder vs gasket stack), by-construction agreement means the
+  definitions SHARE A PARAMETER — cross-document parameter
+  sharing, which v1 deliberately lacks (A4: parts are
+  self-contained; the seam carries pins + declarations only). So
+  in v1 the agreement is verified, not constructed — the declared
+  rung's trilean, consistent with the coincidence ladder — and
+  the fastener relation, when designed, carries the shared
+  dimension as template data rather than punching a parameter
+  hole through the document seam.
 - **Handbook fits** (I3): `Fit { g₀ }` with g₀ from a versioned
   data source — the declaration shape already fits; provenance of
   g₀ is the open half.
@@ -348,6 +369,97 @@ never a DAG node — maintained by recorded `DocEdit`s.
   explicitly represented by their roots; the connectedness lint's
   expected component count reads off the root/component structure.
 
+## A11 — The constructive-solve boundary (discharges AQ3)
+
+**(The AQ3 working session, 2026-08-10; REVISED same day per
+Evan's #356 review — placement moved to the cluster level so
+anchor-count errors are unrepresentable, and mates split into
+determining/declaring so redundant-consistent loops verify instead
+of refusing.)** The v1 line between rung (b) and rung (c), stated
+so it is **decidable purely structurally** — graph shape plus a
+per-class table over authored alignment data; no geometry
+inspection, no numerics beyond decided predicates. Five rules:
+
+1. **Per-pair combination.** Each mate class + alignment datum
+   pins the pair's relative pose to a coset of an SE(3) subgroup
+   (frame coincidence → the identity; coaxial → rotation-about ×
+   translation-along the axis; planar rest → the planar group;
+   etc.). Multiple mates on ONE instance pair combine by exact
+   coset intersection — a small closed-form table over the class
+   pairs. Outcomes: DETERMINED (a point — coaxial-plus-flush-plus-
+   clocking, A1's own example), UNDER (a positive-dimensional
+   subgroup survives), CONTRADICTORY (empty — two flushes at
+   different offsets) → typed refusal naming the pair and the
+   clashing declarations.
+2. **Placement lives on the cluster, not the instance.** Define
+   PLACEMENT CLUSTERS = connected components of the instance–mate
+   graph (the finer partition inside A9's DAG components). Each
+   cluster's rigid frame is one entry in the component record the
+   A10 registry already keeps — instances carry no explicit frame
+   of their own; a lone unmated instance is the singleton case of
+   the same field. Consequences: zero-anchor and multi-anchor
+   states are **unrepresentable** (Evan's ask); joining two
+   clusters with a new mate is ONE recorded edit (the surviving
+   cluster keeps its frame, the absorbed cluster's frame is
+   consumed into the edit record — undo restores it); deleting a
+   mate that splits a cluster mints the new cluster's frame from
+   the solved relative pose at the edit, recorded and
+   deterministic — the A10 maintenance pattern applied to frames.
+3. **Gauge.** The cluster frame places the cluster's GAUGE
+   instance: its earliest instance in document order — a
+   deterministic convention, not stored data. An edit removing the
+   gauge instance rewrites the stored frame by composing with the
+   already-solved relative pose, so every surviving instance's
+   world pose is unchanged (recorded rewrite, same pattern).
+   Pattern-placed instances are gauge-ineligible: their poses are
+   the pattern's.
+4. **Determining vs declaring mates.** In each cluster, take the
+   deterministic spanning tree of the mate graph rooted at the
+   gauge (document-order tie-breaks). TREE mates DETERMINE: each
+   must be fully-determining after per-pair combination; an UNDER
+   tree edge refuses typed, naming the pair and the residual
+   freedom in class vocabulary ("clocking about the shared axis"),
+   recourse = add the complementary mate, or delete the mate if
+   free relative motion was intended (A9 is relative freedom's
+   home). Pattern-placed instances are never tree CHILDREN (the
+   pattern already determined them; they may be tree parents).
+   NON-TREE mates DECLARE: they determine nothing and are carried
+   to evaluation as pure contact declarations, verified against
+   the solved geometry by the C2 tables — trilean, definite
+   mismatch refusing and naming the mate AND the loop it closes.
+   **No fact is ever entered twice** (the #356 conversation's
+   sharpening): A11 never asks the author to restate a relation —
+   every non-tree declaration corresponds to a DISTINCT physical
+   contact that A5 already obligates declaring (modeled bolts, box
+   corners, patterned stud stacks). When those distinct contacts
+   form a loop, two chains of real part geometry determine the
+   same quantity — and verifying the loop-closers is a free
+   consistency check across the part documents' own dimensions,
+   not a second copy of anything the author wrote.
+   So: a pattern-stacked run of identical bricks mated
+   stud-to-tube VERIFIES rather than over-determines; two
+   explicitly-placed parts declared flush is a fit-check, not an
+   error; and a redundant-but-consistent loop (A–B and B–C
+   fastened, A–C also declared at the composed transform — the
+   third mate adds no placement information) closes through
+   verification, not solving. An INCONSISTENT loop dies at
+   verification of its closing mate. No cycle is ever SOLVED;
+   genuinely simultaneous systems — no spanning tree makes every
+   tree edge determining — surface as the named UNDER refusals
+   with rung-(c) recourse. (Tree choice is observably irrelevant
+   when loops are consistent; when not, the refusal names the
+   whole loop, so the citation does not depend on it.)
+5. **Evaluation.** Frames compose topologically outward from the
+   gauge along the tree (uniqueness structural — D9 free);
+   Δc ≡ 0 by construction for tree mates (C5 transfer, A3);
+   declaring mates mint their records like any declaration (A3)
+   after verification.
+
+Named v1 losses, honest and banked by A1: cross-edge cancellation
+(UNDER tree edges whose composition would determine) refuses to
+rung (c); loop CERTIFICATION beyond the C2 verification tables
+(e.g. in-band closures) escalates per C4 rather than resolving.
+
 ## Open questions
 
 - **AQ1 — the document store.** What a stable document id anchors
@@ -358,15 +470,22 @@ never a DAG node — maintained by recorded `DocEdit`s.
 - **AQ2 — update granularity and conflict surfacing** under the
   Cargo.lock model: whole-document pin bump only, or
   per-reference; how competing updates in one assembly surface.
-- **AQ3 — the constructive-solve boundary.** Tree-shaped mate
-  chains are clearly in; the typed refusal's exact line — cycles,
-  redundant-but-consistent mates, partially-constraining mates
-  whose composition is still determined — needs its own working
-  session, with the refusal naming the cycle.
-- **AQ4 — per-instance overrides.** v1 posture: an instance is pin
-  + frame, nothing else — no per-instance parameter overrides, no
-  per-instance suppression beyond GQ2's failure semantics.
-  Overrides are a deliberate future door, not an accident.
+- **AQ3 — DISCHARGED into A11** (working session 2026-08-10).
+- **AQ4 — per-instance arguments.** v1 posture: an instance is pin
+  + frame, nothing else — no per-instance parameters, no
+  per-instance suppression beyond GQ2's failure semantics. The
+  natural form when the door opens (the #356 conversation,
+  replacing the spooky "override" framing): a document already IS
+  a function — `build(params) → Body` — so its named parameters
+  are its SIGNATURE, its authored values are DEFAULTS, and an
+  instance is an APPLICATION: `InstantiatePart { pin, placement,
+  args }` evaluates the pinned recipe at `args` (unsupplied names
+  take defaults; memo keys on (pin, args, ε)). Nothing mutates or
+  shadows the part document; self-containment and pin semantics
+  survive untouched because arguments are assembly-side data. The
+  fastener-bundle coupling (A7) is this door's natural client —
+  one template value applied as the same argument to several
+  instances. Still a deliberate future door, not v1.
 - **AQ5 — in-context capture semantics**: the captured-context
   object's pin/update behavior (what exactly is captured; when it
   goes stale; how staleness surfaces).

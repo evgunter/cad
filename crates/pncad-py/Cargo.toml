@@ -61,6 +61,12 @@ extension-module = ["python", "pyo3/extension-module"]
 [dependencies]
 pncad = { path = "../pncad" }
 quantity = { path = "../quantity" }
+# LIB-PYBUNDLE: a `StableName` crosses to Python as TEXT, and that text
+# is the name's OWN serde encoding — the same one `save` writes into a
+# document file. Reusing it is what keeps a fillet selection ONE
+# vocabulary; inventing a second spelling is what this line avoids.
+# Workspace pin, already in the tree through `editor-core`.
+serde_json = { workspace = true }
 # PyO3 0.29.0, released 2026-06-11 — past the ~2-week dependency-age
 # policy (memories/review-and-dependency-policy.md). 0.29.1 (2026-08-02)
 # and 0.29.2 (2026-08-05) are BOTH inside the two-week window as of
