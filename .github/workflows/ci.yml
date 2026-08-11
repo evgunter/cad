@@ -1039,6 +1039,15 @@ jobs:
       # KEEP THE KEY IDENTICAL to render.yml's `tour output cache` —
       # the `v1` is the handle for busting both at once. Divergence
       # costs a miss, never a wrong hit.
+      #
+      # HOW OFTEN IT ACTUALLY HITS, measured rather than hoped: less
+      # than "every run". A PR builds against the MERGE commit, so its
+      # key moves whenever main's kernel moves — which on this repo is
+      # often — and a cache written during a PR is scoped to that PR's
+      # merge ref, invisible to every other branch. What reliably hits
+      # is a repeat push to one PR with the kernel untouched, and main's
+      # own successive runs. The step costs nothing on a miss, so this
+      # is upside without a downside, but it is not a flat -100 s.
       - name: tour output cache
         id: tour-cache
         uses: actions/cache@v4
