@@ -320,6 +320,87 @@ area = 0.040 * 0.030 - (0.006**2 - math.pi * 0.006**2 / 4)
 assert abs(ev.value(plate).body().mass_properties().volume - area * 0.008) < 1e-15
 ```
 
+**The plane is an argument, not an assumption.** A profile lives on a
+`SketchPlane` — a rigid frame `origin, u, v`, where sketch (x, y) maps
+to `origin + x·u + y·v`. The plane's NORMAL is `u × v`, and that is
+the direction `extrude` runs, so choosing the plane is choosing the
+axis. Three named frames come cyclically (x→y→z→x): `xy` (normal +z),
+`yz` (u = ŷ, v = ẑ, normal +x), `zx` (u = ẑ, v = x̂, normal +y).
+`elevation=` remains what it always was — sugar for the xy-plane, that
+far up z — and naming the plane both ways at once is a `TypeError`
+rather than a silent preference.
+
+Rigidity (u, v unit and perpendicular) is **conventional data,
+unchecked**, in Python exactly as in Rust: a non-rigid frame yields a
+well-defined skewed sketch, not poison, and the kernel's geometric
+validation is what certifies a body at rest.
+
+```python
+from pncad import Doc, Node, SketchPlane, evaluate, m
+
+doc = Doc()
+# An upright wall: a 2 x 3 sketch on the world yz-plane, extruded
+# 0.25 along that plane's normal, which is +x.
+wall = doc.insert(
+    Node.extrude(
+        doc.insert(
+            Node.polygon(
+                [(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 3 * m), (0 * m, 3 * m)],
+                plane=SketchPlane.yz(),
+            )
+        ),
+        0.25 * m,
+    )
+)
+assert abs(evaluate(doc).value(wall).body().mass_properties().volume - 1.5) < 1e-12
+
+# Naming the plane twice is refused at the boundary.
+try:
+    Node.polygon([(0 * m, 0 * m)], elevation=1 * m, plane=SketchPlane.yz())
+except TypeError:
+    pass
+else:
+    raise AssertionError("plane= and elevation= must be mutually exclusive")
+```
+
+**Stacked sections make a loft.** `Node.loft(profiles, v_degree)`
+skins a solid through two or more section profiles in skin order — and
+takes no placement argument, because each section rides its own
+profile's sketch plane. The three sections below are the corpus's
+`loft_prism`: squares at z = 0 and z = 2 with a trapezoid between
+them, whose non-parallel pair means the middle section is *not* an
+affine image of the ends, so the four walls are genuinely curved
+rather than ruled.
+
+```python
+from pncad import Doc, Node, evaluate, m
+
+SQUARE = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
+TRAPEZOID = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]
+
+doc = Doc()
+sections = [
+    doc.insert(Node.polygon([(x * m, y * m) for x, y in pts], elevation=z * m))
+    for pts, z in [(SQUARE, 0.0), (TRAPEZOID, 1.0), (SQUARE, 2.0)]
+]
+prism = doc.insert(Node.loft(sections, 2))
+
+# The degree-2 skin through sections at (0, 1/2, 1) is the quadratic
+# Lagrange interpolant: corner paths S + 4v(1-v)*D, z = 2v exactly,
+# each slice a trapezoid of area 4 + 2*d*4v(1-v) with d = 0.375, so
+# V = 8 + 8d/3 = 9 m^3 exactly. Mass properties are an ENCLOSURE, so
+# the check is that 9 lies inside the certified pad.
+props = evaluate(doc).value(prism).body().mass_properties()
+assert abs(props.volume - 9.0) <= props.volume_pad + 1e-9
+assert props.volume_pad < 1e-6
+
+# The kernel's rule, not the binding's: 1 <= v_degree <= n - 1. Three
+# sections cannot carry degree 3, and nothing here pre-checks that —
+# it refuses at evaluation, where the kernel refuses.
+overdegree = doc.insert(Node.loft(sections, 3))
+assert not evaluate(doc).succeeded(overdegree)
+```
+
 A profile becomes usable by turning it into a body. `validated` is
 the one two-call wrapper the façade adds (`Profile::new` then
 `Profile::validate`); `extrude` takes it from there:
@@ -708,7 +789,7 @@ let hole = LoopProgram::Circle {
     radius: len(0.25),
 };
 
-let mut doc = Doc::<ProfileProgram>::empty();
+let mut doc = Doc::<ProfileProgram>::empty_derived("guide");
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
@@ -752,7 +833,7 @@ use pncad::prelude::*;
 # let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
 # let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)]).expect("corners");
 # let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
-# let mut doc = Doc::<ProfileProgram>::empty();
+# let mut doc = Doc::<ProfileProgram>::empty_derived("guide");
 # let mut insert = |doc: &Doc<ProfileProgram>, node| {
 #     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
@@ -838,7 +919,7 @@ let hole = |cx: f64, cy: f64| LoopProgram::Circle {
     radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
 };
 
-let mut doc = Doc::<ProfileProgram>::empty();
+let mut doc = Doc::<ProfileProgram>::empty_derived("guide");
 
 // Declare the parameter. An ordinary edit: recorded, replayable,
 // undoable like any other.

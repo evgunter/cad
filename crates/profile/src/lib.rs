@@ -297,6 +297,27 @@ impl<T: Real> SketchPlane<T> {
         Self::new(Affine3::identity())
     }
 
+    /// The world yz-plane: u = ŷ, v = ẑ, normal = ŷ × ẑ = x̂, origin at
+    /// the world origin.
+    ///
+    /// The cyclic convention (x→y→z→x) is what the tour's letterforms
+    /// captions mean by "a yz sketch extruded +x": sketch (x, y) maps
+    /// to world (0, x, y), and the extrusion normal — the third
+    /// placement column — is +x̂.
+    pub fn yz() -> Self {
+        Self::from_frame(Point3::origin(), Vec3::unit_y(), Vec3::unit_z())
+    }
+
+    /// The world zx-plane: u = ẑ, v = x̂, normal = ẑ × x̂ = ŷ, origin at
+    /// the world origin.
+    ///
+    /// Same cyclic convention as [`Self::yz`] one step further round,
+    /// so the captions' "a zx sketch extruded +y" is literal: sketch
+    /// (x, y) maps to world (y, 0, x), and the extrusion normal is +ŷ.
+    pub fn zx() -> Self {
+        Self::from_frame(Point3::origin(), Vec3::unit_z(), Vec3::unit_x())
+    }
+
     /// The plane through `origin` spanned by `u` and `v`, with
     /// normal = u × v (computed, keeping the frame right-handed by
     /// construction when u ⊥ v are unit — which is the caller's

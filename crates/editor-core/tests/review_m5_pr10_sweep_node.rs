@@ -47,7 +47,7 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
         }),
     ];
     for (name, path_desc) in paths {
-        let mut doc = ProfileDoc::empty();
+        let mut doc = ProfileDoc::empty_derived("review_m5_pr10_sweep_node");
         let (d, profile) = insert(
             doc,
             Node::Profile(desc(
@@ -105,7 +105,7 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
 /// story about geometry it never reached.
 #[test]
 fn review_recipe_doors_precede_the_sweep_frontier() {
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("review_m5_pr10_sweep_node");
     let (d, profile) = insert(
         doc,
         Node::Profile(desc(

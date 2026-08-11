@@ -46,7 +46,7 @@ use topo::{mass_properties, validate, validate_closed};
 #[test]
 fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     // ---- body 1: dyadic cube minus embedded pip; volume EXACTLY 8 - 1/128.
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("review_m5_pr1_e2e_interval");
     let (doc, cube_p) = insert(
         doc,
         Node::Profile(desc(
@@ -186,7 +186,7 @@ fn a_non_finite_dimension_cannot_enter_the_document() {
 /// so instead of guessing.
 #[test]
 fn a_degenerate_document_refuses_typed_end_to_end() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("review_m5_pr1_e2e_interval");
     let (doc, prof) = insert(
         doc,
         Node::Profile(desc(

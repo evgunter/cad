@@ -23,7 +23,7 @@ fn key_of(doc: &ProfileDoc) -> ContentKey {
 }
 
 fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("switch_program_key");
     doc.apply(&DocEdit::InsertNode {
         node: Node::Profile(ProfileProgram {
             plane: SketchPlane::xy(),
@@ -65,7 +65,7 @@ fn verb_tags_are_structure() {
 #[test]
 fn resolved_values_feed_the_key() {
     let with_param = |value: f64| {
-        let doc = ProfileDoc::empty();
+        let doc = ProfileDoc::empty_derived("switch_program_key");
         let doc = doc
             .apply(&DocEdit::SetDocParam {
                 name: ParamName::new("r"),

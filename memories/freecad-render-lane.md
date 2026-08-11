@@ -86,13 +86,23 @@ load 13–19** (61% CPU — CPU/cache contention, not I/O). A full pass is
 a render pass and a build battery on the same box is a bad trade in
 both directions.
 
-**Or send it off-box.** `.github/workflows/render.yml` runs any lane on
-a runner on demand (`gh workflow run render.yml -f lanes=all`) and
-returns each as an artifact; `demos/README.md` ("Off-box: the hosted
-lanes") has the contract. Measured 2026-08-10 on a 2-core runner with
-llvmpipe under Xvfb: 19 scenes, **median 3 s, max 6 s, 62 s total** —
-faster than this host, and it does not compete with the build lanes.
-Artifact-only: PNG pixels are not byte-comparable across GL stacks, so
-a hosted pass cannot produce the committed cells. The UV lane *is*
-byte-reproducible off-box (verified identical), which is why it is the
-one lane CI gates.
+## RENDER-IN-ACTIONS IS THE NORM (Evan's ruling, 2026-08-10; hosted = CANONICAL PRODUCER)
+
+The hosted "render (demos)" workflow (#323/#324, wedge root-caused
+and fixed by #331 — a FreeCAD NotificationArea SELF-DEADLOCK, not
+this host's stall or budget calibration) runs all lanes on demand
+(`scripts/render-hosted.sh`, the #338 wrapper — trigger, poll,
+byte-exact artifact pull-back; local entry points refuse without
+the explicit CAD_RENDER_LOCAL_OVERRIDE sentence). Measured
+2026-08-10 on a 2-core runner (llvmpipe under Xvfb): 19 scenes,
+median 3 s, max 6 s, 62 s total — faster than this host, and it
+does not compete with the build lanes.
+
+**Committed frames are the HOSTED producer's output** (Evan's
+canonical-producer ruling on #338; the wholesale re-baseline unit
+executed it — PNG pixels are not byte-comparable ACROSS GL stacks,
+so exactly one stack can be the producer, and it is the hosted
+one). Byte-stability is defined against a repeat HOSTED render;
+local renders are preview-only (the local hazards above still
+apply when previewing) and their frames must never be committed.
+Implementer briefs no longer include local render passes.

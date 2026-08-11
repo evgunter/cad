@@ -65,7 +65,7 @@ fn boolean_body(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Body<f64> {
 /// the operands in the given order. Node ids are minted monotonically,
 /// so both docs address the Subtract by the SAME id.
 fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("review_m4_pr2");
     let (doc, pa) = insert(
         doc,
         Node::Profile(desc(
@@ -155,7 +155,7 @@ fn operand_swap_never_reuses_the_prior_subtract() {
 /// memo is keyed by id THEN content key).
 #[test]
 fn delete_and_reinsert_identical_node_recomputes() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("review_m4_pr2");
     let (doc, p) = insert(
         doc,
         Node::Profile(desc(
@@ -205,7 +205,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
 /// `through` must land on a Failed entry.
 #[test]
 fn diamond_with_two_failed_ancestors_has_deterministic_through() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("review_m4_pr2");
     let (doc, p) = insert(
         doc,
         Node::Profile(desc(
@@ -351,7 +351,7 @@ fn canceled_partials_are_typed_and_never_pollute_the_memo() {
 /// A doc mixing a diamond, a circular pattern, a revolve, a split,
 /// and a poisoned subgraph — the R5 stressor.
 fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("review_m4_pr2");
     let (doc, p) = insert(
         doc,
         Node::Profile(desc(
@@ -569,7 +569,7 @@ fn four_way_schedule_memo_identity_on_rich_doc() {
 /// A revolve doc: square at x∈[1.25,1.75] revolved about the y axis
 /// by `angle`.
 fn revolve_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("review_m4_pr2");
     let (doc, rp) = insert(
         doc,
         Node::Profile(desc(
@@ -671,7 +671,7 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
     // ways: translated (exact), and rotated π/2 about the cube center
     // axis from face-coords (1,1) — same target pocket by symmetry.
     let build = |rotate: bool| {
-        let doc = ProfileDoc::empty();
+        let doc = ProfileDoc::empty_derived("review_m4_pr2");
         let (doc, cp) = insert(
             doc,
             Node::Profile(desc(
@@ -886,7 +886,7 @@ fn wire_doors_refuse_typed() {
 #[test]
 fn datum_kind_is_key_separated() {
     let build = |axis: bool| {
-        let doc = ProfileDoc::empty();
+        let doc = ProfileDoc::empty_derived("review_m4_pr2");
         let node = if axis {
             Node::Datum(editor_core::Datum::Axis {
                 origin: [len(0.5), len(0.25), len(0.125)],

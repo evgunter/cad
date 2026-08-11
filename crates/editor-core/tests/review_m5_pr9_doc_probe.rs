@@ -30,7 +30,7 @@ struct Rec {
 impl Rec {
     fn new() -> Self {
         Self {
-            doc: ProfileDoc::empty(),
+            doc: ProfileDoc::empty_derived("review_m5_pr9_doc_probe"),
             edits: Vec::new(),
         }
     }

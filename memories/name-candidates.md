@@ -172,3 +172,5 @@ ultimately become the real name. Q9 timing RELAXED (Evan,
 placeholder) "up until the last minute" — the rename is a
 mechanical pre-release step, not a U9/U10 gate; only the actual
 RELEASE needs the real name.
+
+**DEFERRED (Evan, 2026-08-10, #355 thread): "no i don't want that anytime soon" — do not surface Q9 in check-ins; it re-opens only when Evan raises it.**

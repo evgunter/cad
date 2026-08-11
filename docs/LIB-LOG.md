@@ -526,6 +526,24 @@ oracles (finding 5), the DocParam __eq__ rider (from ordinal
 19), straight-run authoring noise (finding 7 — vocabulary
 evidence for a future design conversation, not a unit).
 
+**PYG23A MERGED — G3 CLOSED, G2's loft half closed (2026-08-11,
+#365, ordinal-22 APPROVE 0/1/4).** Authorable 11→18 (14 YES + 4
+YES*), 16 NO remain; suite 83→95; the plane vocabulary and
+Node.loft are live in Python; LQ3's ratification (#362) landed
+mid-unit and the audit's G2 text now names the real blockers.
+Banked from findings: the loft READ-BACK residue (wire_loft drops
+section_params — needs a Section/Affine3 value surface or a
+document-layer read-back door; row 14's recorded residue),
+origin-less named planes (finding 4 — the single clumsiest thing
+in the new vocabulary; candidate rider on U4b's frame family),
+SketchPlane __eq__/accessors (rider, in the PYBUNDLE spec),
+elevation= as the odd door (future xy_at retirement candidate),
+the §L4 typed-quantities structural-int exception (needs one
+written sentence in a future doc pass), YES-with-residue as a
+possible third audit mark (finding 7 — vocabulary gap, not
+resolved). The billing outage (#366) opened and closed inside
+this unit's endgame; its one red shard re-ran green.
+
 **The G2 unit-cut ruling (2026-08-10, orchestrator, from the
 substrate survey)**: audit G2 splits. Its LOFT half is mechanical
 (Node::Loft has existed since M5 PR 10 with eval + naming) and

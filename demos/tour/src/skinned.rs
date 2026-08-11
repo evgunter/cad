@@ -352,7 +352,7 @@ pub fn stops() -> Vec<Stop> {
                  (0, 1/2, 1) is the quadratic Lagrange interpolant, corner paths \
                  S + lambda(v)*D with lambda = 4v(1-v), z = 2v exactly, each slice a \
                  trapezoid of area 4 + 2*d*lambda (d = 0.375) -> \
-                 V = 8 + 16d/3 = 9 m^3 exactly; the walls RENDER here through the \
+                 V = 8 + 8d/3 = 9 m^3 exactly; the walls RENDER here through the \
                  trimmed-face NURBS tessellation lane (the M6-3 frontier's second half)"
                     .to_string(),
             ),

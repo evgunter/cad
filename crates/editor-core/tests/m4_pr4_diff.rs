@@ -72,7 +72,7 @@ struct Slide {
 }
 
 fn slide_union(tx: f64) -> Slide {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr4_diff");
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, transform) = insert(
@@ -177,7 +177,7 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
     // decision SEQUENCE changes length (one direction normalization
     // per placed instance), which must surface as divergence, never
     // as sign flips of unrelated positions.
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr4_diff");
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, pattern) = insert(
         doc,
@@ -211,7 +211,7 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
 fn failure_transitions_surface_as_status_rows() {
     // A datum plane whose normal is the knob: zeroing it fails the
     // datum and poisons its consumer.
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr4_diff");
     let (doc, body) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 2.0);
     let (doc, plane) = insert(
         doc,
@@ -255,7 +255,7 @@ fn parallel_schedule_preserves_verdict_logs() {
     // added verdict logs to node values, and the verdict sink is
     // thread-local — pin that the rayon lane records IDENTICAL logs
     // per node (the diff engine's inputs are schedule-independent).
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr4_diff");
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, _uni) = insert(

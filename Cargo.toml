@@ -99,6 +99,19 @@ spade = "2.15.1"
 # 0x3fefffffffffffff); the feature switches to full-precision parsing.
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = { version = "1.0.140", features = ["float_roundtrip"] }
+# ASM-1 (spec D-2): content pins are SHA-256 over the canonical
+# semantic bytes — the pin IS version identity (ASSEMBLY-DESIGN A4),
+# so collision resistance is required; the in-process memo's FNV
+# `ContentKey` stays a deliberately separate, weaker vocabulary.
+# RustCrypto's sha2, MIT OR Apache-2.0. 0.10.9 released 2025-04-25,
+# far past the 2-week age policy.
+sha2 = "0.10.9"
+# ASM-1 (spec D-1): OS randomness for interactively-authored document
+# ids. Document layer (`pncad`) ONLY — editor-core stays
+# deterministic-by-construction (no ambient randomness in the kernel).
+# MIT OR Apache-2.0; 0.3.4 already in-tree as a transitive
+# dev-dependency, far past the 2-week age policy.
+getrandom = "0.3.4"
 # DEV-ONLY STEP parse-back oracles for step-export's tests (F6 decision,
 # docs/M4-LOG.md 2026-07-23: in-house subset writer, adopt nothing at
 # runtime; these two crates are test oracles only). ruststep gives
