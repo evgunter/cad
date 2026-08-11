@@ -45,7 +45,7 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, Dimension, DocEdit, EntityKind, EvalOptions, Expr, Node,
-    NodeResult, ProfileDesc, ProfileDoc, RecipeNodeId, RoleSeg, StableName, ValuePayload, apply,
+    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, StableName, ValuePayload, apply,
     evaluate,
 };
 use fixture::prism_edges;
@@ -58,7 +58,7 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
 }
 
-fn insert(doc: &ProfileDoc, node: Node<ProfileDesc>) -> (ProfileDoc, RecipeNodeId) {
+fn insert(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let a = apply(doc, &DocEdit::InsertNode { node }).expect("the fixture builds");
     let id = a.record.minted.expect("a minted id");
     (a.doc, id)
@@ -105,7 +105,7 @@ fn table_of(
 /// door, the one that used to name nothing. Returns the document, the
 /// extrude and the fillet.
 fn filleted_blank() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m6_5_downstream");
     let (doc, cube) = block(&doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, blank) = insert(&doc, Node::fillet(cube, len(0.125), prism_edges(cube, 4)));
     (doc, cube, blank)
@@ -364,7 +364,7 @@ fn the_downstream_reference_survives_an_upstream_bump() {
 /// `die_fillet` authors by hand through `prism_edges`.
 #[test]
 fn all_edges_materializes_exactly_the_authored_whole_body_set() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m6_5_downstream");
     let (doc, cube) = block(&doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let ev = eval(&doc);
 
@@ -412,7 +412,7 @@ fn all_edges_materializes_exactly_the_authored_whole_body_set() {
 /// for the refusal, not two.
 #[test]
 fn all_edges_of_a_nameless_node_is_empty() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m6_5_downstream");
     let (doc, p) = insert(
         &doc,
         Node::Profile(fixture::desc(

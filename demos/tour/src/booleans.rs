@@ -1,5 +1,5 @@
 //! The tour's ONLY boolean call sites — a deliberately thin,
-//! centralized wrapper over `topo::{union, subtract, intersect}` so
+//! centralized wrapper over `pncad::topo::{union, subtract, intersect}` so
 //! any API shift is a one-file adaptation here — plus the shared
 //! exact-volume oracle every boolean scene runs its results through.
 //!
@@ -16,19 +16,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use topo::{Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind};
+use pncad::topo::{Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind};
 
 use crate::scalar::Scalar;
 
 /// A ∪* B — refusals surface to the caller; every result goes through
 /// the scene builders' exact-volume oracle before it ships.
 pub fn try_union<S: Scalar>(a: &Body<S>, b: &Body<S>) -> Result<BooleanResult<S>, BooleanError> {
-    topo::union(a, b)
+    pncad::topo::union(a, b)
 }
 
 /// A ∖* B (same posture as [`try_union`]).
 pub fn try_subtract<S: Scalar>(a: &Body<S>, b: &Body<S>) -> Result<BooleanResult<S>, BooleanError> {
-    topo::subtract(a, b)
+    pncad::topo::subtract(a, b)
 }
 
 /// A ∩* B (same posture as [`try_union`]).
@@ -36,7 +36,7 @@ pub fn try_intersect<S: Scalar>(
     a: &Body<S>,
     b: &Body<S>,
 ) -> Result<BooleanResult<S>, BooleanError> {
-    topo::intersect(a, b)
+    pncad::topo::intersect(a, b)
 }
 
 /// A ∪* B with the scene's flush contacts DECLARED (M4 PR 5: the
@@ -46,7 +46,7 @@ pub fn try_union_declared<S: Scalar>(
     a: &Body<S>,
     b: &Body<S>,
 ) -> Result<BooleanResult<S>, BooleanError> {
-    topo::union_with(a, b, &flush_declarations(a, b))
+    pncad::topo::union_with(a, b, &flush_declarations(a, b))
 }
 
 /// A ∩* B with the scene's flush contacts declared
@@ -55,31 +55,34 @@ pub fn try_intersect_declared<S: Scalar>(
     a: &Body<S>,
     b: &Body<S>,
 ) -> Result<BooleanResult<S>, BooleanError> {
-    topo::intersect_with(a, b, &flush_declarations(a, b))
+    pncad::topo::intersect_with(a, b, &flush_declarations(a, b))
 }
 
 /// Demo-authoring convenience (M4 PR 5, same shape as the kernel test
-/// suites'): the [`topo::BooleanDeclarations`] declaring every
+/// suites'): the [`pncad::topo::BooleanDeclarations`] declaring every
 /// geometrically-plausible cross-operand flush-plane face pair — the
 /// scene author BUILT the contact deliberately; this writes the
 /// intent down. Certification still happens inside the op through
 /// the verified declared rung.
-pub fn flush_declarations<S: Scalar>(a: &Body<S>, b: &Body<S>) -> topo::BooleanDeclarations {
-    use geom_core::k_stats::{decide, decide_flagged};
-    use geom_core::{Length, Sign};
-    let band = geom_core::Band::linear().unwrap();
-    let planes =
-        |body: &Body<S>| -> Vec<(topo::FaceKey, geom_core::Point3<S>, geom_core::Vec3<S>)> {
-            body.faces()
-                .filter_map(|(k, f)| match body.get_surface(f.surface) {
-                    Some(&geom_surfaces::Surface::Plane { origin, normal, .. }) => {
-                        Some((k, origin, normal))
-                    }
-                    _ => None,
-                })
-                .collect()
-        };
-    let mut decls = topo::BooleanDeclarations::none();
+pub fn flush_declarations<S: Scalar>(a: &Body<S>, b: &Body<S>) -> pncad::topo::BooleanDeclarations {
+    use pncad::geom_core::k_stats::{decide, decide_flagged};
+    use pncad::geom_core::{Margin, Sign};
+    let band = pncad::geom_core::Band::linear().unwrap();
+    let planes = |body: &Body<S>| -> Vec<(
+        pncad::topo::FaceKey,
+        pncad::geom_core::Point3<S>,
+        pncad::geom_core::Vec3<S>,
+    )> {
+        body.faces()
+            .filter_map(|(k, f)| match body.get_surface(f.surface) {
+                Some(&pncad::geom_surfaces::Surface::Plane { origin, normal, .. }) => {
+                    Some((k, origin, normal))
+                }
+                _ => None,
+            })
+            .collect()
+    };
+    let mut decls = pncad::topo::BooleanDeclarations::none();
     for &(fa, oa, na) in &planes(a) {
         for &(fb, ob, nb) in &planes(b) {
             if matches!(
@@ -103,10 +106,10 @@ pub fn flush_declarations<S: Scalar>(a: &Body<S>, b: &Body<S>) -> topo::BooleanD
                 Ok(Sign::Negative) => S::from_f64(-1.0),
                 _ => continue,
             };
-            let da = na.dot(oa - geom_core::Point3::origin());
-            let db = nb.dot(ob - geom_core::Point3::origin());
+            let da = na.dot(oa - pncad::geom_core::Point3::origin());
+            let db = nb.dot(ob - pncad::geom_core::Point3::origin());
             if matches!(
-                decide("demo_flush_offset", Length::of(da - sigma * db), band),
+                decide("demo_flush_offset", Margin::of(da - sigma * db), band),
                 Ok(Sign::Zero)
             ) {
                 decls.coincident_faces.push((fa, fb));
@@ -143,7 +146,7 @@ pub enum Verdict<S: Scalar> {
 pub fn check<S: Scalar>(r: Result<BooleanResult<S>, BooleanError>, expected: f64) -> Verdict<S> {
     match r {
         Ok(BooleanResult::Body(b)) => {
-            let v = topo::mass_properties(&b.body)
+            let v = pncad::topo::mass_properties(&b.body)
                 .expect("mass properties")
                 .volume
                 .f();

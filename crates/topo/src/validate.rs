@@ -239,7 +239,7 @@
 use core::fmt;
 
 use geom_brep::{CertifyError, DihedralClass, classify_dihedral};
-use geom_core::{Band, BandError, Decide, Indeterminate, Length, Real, Sign};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign};
 use geom_surfaces::Surface;
 use slotmap::{Key, SecondaryMap};
 
@@ -259,7 +259,7 @@ use crate::entity::{
 /// sanctioned [`Decide`] door, and tags any escalation.
 pub(crate) fn decide<T: Decide>(
     name: &'static str,
-    margin: Length<T>,
+    margin: Margin<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
@@ -1667,7 +1667,15 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
             continue;
         };
-        if let Err(error) = curve.recertify(p_start, p_end, |k| body.surfaces.get(k).cloned(), band)
+        // The at-rest pass takes the plane × NURBS DOOR (M7-8): this
+        // tier already requires a bracket-carrying scalar
+        // (`PropsQuadLane`), so the lane that certifies a described
+        // NURBS operand is available here — and an imported body of
+        // that class must re-derive its certificate at rest exactly as
+        // it did at attach time. Re-certification re-derives; it never
+        // trusts the stored certificate.
+        if let Err(error) =
+            curve.recertify_nurbs_lane(p_start, p_end, |k| body.surfaces.get(k).cloned(), band)
         {
             errors.push(ValidationError::EdgeCertification {
                 edge: edge_key,
@@ -1734,7 +1742,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                     continue;
                 };
                 let residual = (point - origin).dot(normal);
-                match decide("planar_face_residual", Length::of(residual), band) {
+                match decide("planar_face_residual", Margin::of(residual), band) {
                     Ok(Sign::Zero) => {}
                     Ok(Sign::Positive | Sign::Negative) => {
                         errors.push(ValidationError::PlanarFaceResidual {
@@ -1895,7 +1903,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                 let arm = geom_brep::curvature_lever_arm(s_plus, p)
                     .min(geom_brep::curvature_lever_arm(s_minus, p))
                     .min(extent);
-                let margin = Length::sagitta(jet.kappa_rel.abs(), arm);
+                let margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
                 match decide("tangent_second_order", margin, band) {
                     Ok(Sign::Positive) => {}
                     Ok(Sign::Zero | Sign::Negative) => {
@@ -1948,7 +1956,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             };
             for &p in &samples {
                 let residual = (p - origin).dot(normal);
-                match decide("planar_boundary_residual", Length::of(residual), band) {
+                match decide("planar_boundary_residual", Margin::of(residual), band) {
                     Ok(Sign::Zero) => continue,
                     Ok(Sign::Positive | Sign::Negative) => {
                         errors.push(ValidationError::PlanarBoundaryResidual {
@@ -2078,7 +2086,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             };
             if decide(
                 "bool_ring_run_winding",
-                Length::over_lever(outward.dot(newell), perimeter),
+                Margin::over_lever(outward.dot(newell), perimeter),
                 band,
             ) == Ok(wrong)
             {
@@ -2199,7 +2207,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                 let v_hi = props.volume + T::from_f64(props.volume_pad);
                 if let Ok(Sign::Negative) = decide(
                     "positive_volume",
-                    Length::over_lever(v_hi, props.surface_area),
+                    Margin::over_lever(v_hi, props.surface_area),
                     band,
                 ) {
                     errors.push(ValidationError::NegativeVolume);

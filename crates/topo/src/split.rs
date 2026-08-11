@@ -24,7 +24,7 @@
 //! reduction sweep (M3 PRs 2 and 4).
 
 use geom_brep::CertifyError;
-use geom_core::{Band, Decide, Length, Sign};
+use geom_core::{Band, Decide, Margin, Sign};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
@@ -182,20 +182,22 @@ impl<T: Decide> Body<T> {
             // is metered at the CERTIFIED LOWER BOUND on ‖C′(t)‖ —
             // the same conservative posture as the conic lane's minor
             // semi-axis, derived from the derivative control net's
-            // convex-hull property (see
-            // `NurbsCurve3::speed_lower_bound`). A carrier that
-            // doubles back, or a rational one, yields a non-positive
-            // or poison meter, and the interiority trilean below then
-            // escalates honestly instead of accepting a split that is
-            // not clear of the endpoints in meters.
+            // convex-hull property for an integral net, and (since M7)
+            // from the quotient-rule assembly over the HOMOGENEOUS net
+            // for a rational one — see `NurbsCurve3::speed_lower_bound`
+            // for both derivations. A carrier whose speed genuinely
+            // collapses yields a non-positive or poison meter, and the
+            // interiority trilean below then escalates honestly instead
+            // of accepting a split that is not clear of the endpoints
+            // in meters.
             geom_curves::Curve3::Nurbs(ref n) => n.speed_lower_bound(),
         };
         let band = Band::linear().map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
         for margin in [
-            Length::metered(t - t0, scale),
-            Length::metered(t1 - t, scale),
+            Margin::metered(t - t0, scale),
+            Margin::metered(t1 - t, scale),
         ] {
             match geom_core::k_stats::decide("split_edge_param_interior", margin, band) {
                 Ok(Sign::Positive) => {}

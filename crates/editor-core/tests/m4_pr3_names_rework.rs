@@ -49,7 +49,7 @@ fn block(
 
 #[test]
 fn union_cross_bar_names_totally() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_rework");
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
     let (doc, u) = insert(
@@ -73,7 +73,7 @@ fn union_cross_bar_names_totally() {
 
 #[test]
 fn union_cross_bar_swapped_names_totally() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_rework");
     let (doc, a) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
     let (doc, b) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, u) = insert(
@@ -95,7 +95,7 @@ fn union_cross_bar_swapped_names_totally() {
 
 #[test]
 fn subtract_cross_bar_names_totally() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_rework");
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
     let (doc, s) = insert(
@@ -117,7 +117,7 @@ fn subtract_cross_bar_names_totally() {
 
 #[test]
 fn subtract_block_from_bar_never_fails_in_naming() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_rework");
     let (doc, a) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
     let (doc, b) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, s) = insert(
@@ -148,7 +148,7 @@ fn subtract_block_from_bar_never_fails_in_naming() {
 
 #[test]
 fn split_through_operand_edges_names_totally() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_rework");
     let (doc, d) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 2.0);
     // Plane x + z = 2: contains the cube edges (0,·,2) and (2,·,0).
     let (doc, plane) = insert(
@@ -189,10 +189,19 @@ fn split_through_operand_edges_names_totally() {
 
 // ---- R7: pattern of a multi-body master must refuse TYPED (never
 // silently conflate the split halves under instance body indices). ----
+//
+// **R7 register, narrowed (ASM-2K, PR #381).** This row is the whole
+// of what R7 still defers. The refusal is scoped to a master with
+// several output BODIES — body index is the instance index there, so
+// admitting one needs a ratified instance×body layout. A master whose
+// single body holds several SOLIDS is NOT this case and is admitted:
+// `Instance(i)` wraps every name uniformly, pinned by
+// `names::emit::pattern_tests` (the rule is stated at `name_pattern`'s
+// docs). The multi-solid reading of R7 retires there; this row stands.
 
 #[test]
 fn pattern_of_split_output_refuses_typed_never_misnames() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_rework");
     let (doc, d) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 2.0);
     let (doc, plane) = insert(
         doc,

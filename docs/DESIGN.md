@@ -18,6 +18,7 @@ a reader entering here should know all of them exist.
 | `docs/CONTACT-DESIGN.md` | RATIFIED (#178) | Contact census & declared contact C1–C8 (closes CURVED OQ5); implementation banked |
 | `docs/PATHS-DESIGN.md` | RATIFIED (#124) | PartialPath authoring algebra (S5); implementation unscheduled by choice (no technical gate — natural slot: the usable-as-library program); the v2 representation switch is a separate later decision |
 | `docs/GUI-DESIGN.md` | RATIFIED (G1–G5) | GUI/editor architecture: three-layer split, document-as-value, edit vocabulary |
+| `docs/ASSEMBLY-DESIGN.md` | RATIFIED (#333) | Band 3 assemblies A1–A8 + AQ1–AQ6: scope ladder, assembly-evaluates-to-a-body, mates-as-declarations, pins/split-inline, validity, mirror; implementation ladder R0–R4 (design-only — homes named, nothing scheduled) |
 | `docs/LIBRARY-DESIGN.md` | RATIFIED (#229) | Usable-as-a-library program L1–L7: façade, Python bindings via the document layer, v2-fronted PATHS, authoring-ergonomics unit ladder; units may run parallel with M7 (LQ5) |
 | `docs/K-REPORT.md` | Reference | K-constant evidence record (#89 CLOSED, K = 10 permanent) + milestone addenda |
 | `docs/PERF-PLAN.md` | Merged-and-advisory (D9 addendum) | Performance plan and Q-P answers |
@@ -864,7 +865,7 @@ applied to error handling. Five commitments:
    deviation from specified geometry at a single point. Four
    clauses make that semantics structural instead of conventional:
    (i) **Margins are lengths, by signature.** The `classify`/Band
-   seam takes a `#[repr(transparent)]` `Length<T>` newtype (erased
+   seam takes a `#[repr(transparent)]` `Margin<T>` newtype (erased
    at compile time; NO dimension algebra, no generic dimension
    parameter — most kernel functions are single-kind per argument,
    so the annotation is a signature fact, not a genericity layer).
@@ -885,7 +886,7 @@ applied to error handling. Five commitments:
    excluded from the seam entirely (Evan's #213 layering ruling):
    inequalities between integral results — the volume_backstop
    family — decide on bare T through the invariant lane
-   (`k_stats::decide_invariant`), no Length minted, and a certified
+   (`k_stats::decide_invariant`), no Margin minted, and a certified
    violation is a Corrupt-class kernel-invariant error, never a
    validity refusal. A
    site where no door honestly fits is
@@ -916,13 +917,13 @@ applied to error handling. Five commitments:
    positive lever cannot move a sign but keeps the recorded margin
    a length (K-telemetry attribution stays dimensionally honest).
    Rollout: the classify seam first (every recorded margin becomes
-   `Length<T>` by signature); extension is opportunistic as
+   `Margin<T>` by signature); extension is opportunistic as
    signatures get touched — no big-bang sweep. The migration ledger
    is `docs/predicate-dimension-audit.md` (the audited family is
    already clean by measurement; F12's expression-layer row is the
    first out-of-family site the newtype would catch at compile
    time). *Clause (i) is EXECUTED (the margin-migrate unit):
-   `geom_core::k_stats::decide` takes `Length<T>` by signature, the
+   `geom_core::k_stats::decide` takes `Margin<T>` by signature, the
    blessed doors live beside `Band` in `geom-core::predicate`, and
    the ledger's flagged rows ride the row-keyed
    `k_stats::decide_flagged` finding lane — visible typed debt, not
@@ -1017,6 +1018,38 @@ defining data. Pipeline sketch:
 3. **Healing**: where no intensional description is satisfied within ε
    (gaps, sloppy source tolerances), repair (refit/nudge) or fail loudly
    with a typed error naming the unhealable entities (D4 ¶5).
+4. **The shared at-rest gate** (ratified 2026-08-08, issue #260 option
+   (a)): steps 1–3 certify each *entity's* description; the *body* is
+   then handed to the kernel's own at-rest validator — the tier-3
+   battery, or the tier-3′ form where declared contacts exist — and
+   only a body it passes ships from import. Same function, same tiers,
+   as a native body's caller runs; import holds no idea of validity of
+   its own, so there is nothing to drift (D9 engineering convention 2
+   — structural sharing, one validator). A body that fails is a typed
+   *validity* refusal naming the failing check and its entities, an
+   escalated verdict included (escalate-never-guess: an undecidable
+   verdict is a refusal, not a pass).
+
+   *Per solid, not merely per file.* Several tier-3 invariants are
+   whole-body sums — the +V check is boundary flux over every shell —
+   so in a multi-solid file an inside-out solid cancels against a
+   right-side-out neighbour and the aggregate reads Zero, which is
+   exempt. "Every imported solid passes the gate" therefore means each
+   solid is asked on its own body, before aggregation, with the
+   refusal naming which one; the aggregate pass remains for the
+   cross-solid structure no per-solid view can see.
+
+   *Scope, named.* On a body with no declared contacts, 3′ is tier 3
+   **plus the coincidence census actually run** — strictly stronger.
+   Imports declare no contacts (F1 forbids scan-to-bless), so an
+   imported assembly whose parts *touch* is checked less than its
+   natively built twin, whose pipeline carries the declarations. Making
+   import-side contacts expressible belongs to the M8 contact program
+   (C7); until then this is a named residue, not an equivalence.
+
+   Making un-gated bodies *unrepresentable* at every kernel door — a
+   currency type only the gate can mint — is the structural
+   completion, banked at #250 with #260 as its design record.
 
 **Adoption tolerance ≠ kernel tolerance.** The generator's precision is
 unknown and usually worse than ε, so adoption takes a per-import *input

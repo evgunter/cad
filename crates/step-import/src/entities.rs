@@ -24,6 +24,7 @@ use crate::error::StepImportError;
 use crate::geometry;
 use crate::normalize;
 use crate::parse::{Instance, Record, StepFile, Value};
+use crate::recognize;
 use crate::units::{self, UnitKind};
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 
@@ -42,11 +43,57 @@ pub(crate) struct Model {
     pub(crate) shape: Shape,
     /// The structure normalizations minted during resolution, as data.
     pub(crate) normalizations: Vec<StructureNormalization>,
-    /// The assembly's rigid placement of the file's content (M7-4 Leg
-    /// D), when the file states a non-identity one — applied to the
-    /// finished body through the kernel's own
-    /// [`topo::transform_rigid`] door.
-    pub(crate) placement: Option<Affine3<f64>>,
+    /// **What the file asks to be MATERIALIZED**, in resolution order:
+    /// one entry per placed instance of a solid (M8 instancing), or —
+    /// for a file whose assembly places nothing — one unplaced entry
+    /// per solid. Never empty for a `Shape::Solids` model, and every
+    /// entry's `solid` indexes that vector.
+    pub(crate) instances: Vec<SolidInstance>,
+}
+
+/// One materialization of one `MANIFOLD_SOLID_BREP`: which solid, and
+/// the rigid frame the assembly places that copy in.
+///
+/// A component representation named by three
+/// `NEXT_ASSEMBLY_USAGE_OCCURRENCE`s yields three of these over the
+/// same `solid` index with three different maps — the copies are made
+/// at materialization (each its own body, each mapped through
+/// [`topo::transform_rigid`] and grafted in), never by sharing
+/// topology.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SolidInstance {
+    /// Index into the model's `Shape::Solids` vector.
+    pub(crate) solid: usize,
+    /// The shape representation that NAMES this instance's solid —
+    /// the component representation for an assembly, and the
+    /// representation the solid resolved under otherwise. The key of
+    /// the A7 association (component → instances → solids).
+    pub(crate) component: u64,
+    /// What the ASSEMBLY says about this copy, or `None` for a file
+    /// whose assembly places nothing. Every entity id inside names a
+    /// real record — an unplaced instance carries no ids at all rather
+    /// than a sentinel, so a refusal can never point at `#0`.
+    pub(crate) placed: Option<Placed>,
+}
+
+/// The assembly's statement about one instance (see
+/// [`SolidInstance::placed`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Placed {
+    /// The rigid map, composed along the placement chain — `None` is
+    /// the identity (the component is where its own representation
+    /// says it is).
+    pub(crate) map: Option<Affine3<f64>>,
+    /// The `ITEM_DEFINED_TRANSFORMATION` of this instance's OWN
+    /// (innermost) placement — the record a refusal names.
+    pub(crate) transform: u64,
+    /// The `REPRESENTATION_RELATIONSHIP` complex that states this
+    /// occurrence.
+    pub(crate) relationship: u64,
+    /// The `NEXT_ASSEMBLY_USAGE_OCCURRENCE` the relationship is linked
+    /// to through `CONTEXT_DEPENDENT_SHAPE_REPRESENTATION` /
+    /// `PRODUCT_DEFINITION_SHAPE`, where the file states one.
+    pub(crate) occurrence: Option<u64>,
 }
 
 /// The shape content of the data section.
@@ -72,6 +119,13 @@ pub(crate) struct SolidSpec {
     pub(crate) edges: BTreeMap<u64, EdgeSpec>,
     /// Every vertex referenced, keyed by `VERTEX_POINT` id.
     pub(crate) vertices: BTreeMap<u64, Point3<f64>>,
+    /// Edge ids of seam generators MINTED by the band re-mint
+    /// (M7-5): D1 states each one spatially as its surface's u_ref
+    /// half-plane, so adoption must certify it as
+    /// [`geom_brep::EdgeGeometry::Seam`] or refuse — the conventional
+    /// mapped-curve fallback is withheld for these ids
+    /// ([`crate::adopt`]).
+    pub(crate) band_seams: std::collections::BTreeSet<u64>,
 }
 
 /// One `ADVANCED_FACE`.
@@ -88,6 +142,14 @@ pub(crate) struct FaceSpec {
     /// The bounds: outer first (`FACE_OUTER_BOUND`), rings after in
     /// stored order.
     pub(crate) loops: Vec<LoopSpec>,
+    /// True for a detected SEAMLESS periodic band (M7-5): a
+    /// cylinder/torus face whose two bounds each wrap the chart's full
+    /// u period, with no seam generator between them. Tagged at
+    /// [`Resolver::face`] and consumed at shell level by
+    /// [`crate::normalize::band_seam`], which re-mints the face as one
+    /// single-loop face joined by a minted seam generator (and clears
+    /// the tag); a tagged face never reaches assembly.
+    pub(crate) band: bool,
 }
 
 /// One `FACE_BOUND` / `FACE_OUTER_BOUND` as read: what the file said
@@ -619,6 +681,18 @@ impl<'a> Resolver<'a> {
                     u_ref,
                 })
             }
+            "QUASI_UNIFORM_SURFACE" => {
+                let expected = "QUASI_UNIFORM_SURFACE(name, u_degree, v_degree, \
+                                ((points)), form, u_closed, v_closed, self_intersect)";
+                let [_, du, dv, points, _, _, _, _] = args.as_slice() else {
+                    return Err(StepImportError::MalformedRecord { id, expected });
+                };
+                let (nu, nv, control) = self.control_net(id, points, expected)?;
+                let weights = vec![1.0; control.len()];
+                let ku = quasi_uniform_knots(id, as_usize(id, du, expected)?, nu)?;
+                let kv = quasi_uniform_knots(id, as_usize(id, dv, expected)?, nv)?;
+                self.nurbs_surface(id, ku, kv, control, weights)
+            }
             "B_SPLINE_SURFACE_WITH_KNOTS" => {
                 let expected = "B_SPLINE_SURFACE_WITH_KNOTS(name, u_degree, v_degree, \
                                 ((points)), form, u_closed, v_closed, self_intersect, \
@@ -767,10 +841,12 @@ impl<'a> Resolver<'a> {
     }
 
     /// An `EDGE_CURVE`'s (or curve set's) curve reference → the kernel
-    /// carrier, exact. Covers the writer's four printers: `LINE`,
+    /// carrier, exact. Covers the writer's four printers — `LINE`,
     /// `CIRCLE`, `ELLIPSE`, `B_SPLINE_CURVE_WITH_KNOTS` (simple
     /// non-rational form and the `RATIONAL_B_SPLINE_CURVE` complex
-    /// instance).
+    /// instance) — plus the knots-implied `QUASI_UNIFORM_CURVE`
+    /// sub-type ([`quasi_uniform_knots`]), which the writer never
+    /// emits but I-DEAS-lineage translators do.
     fn curve(&self, from: u64, id: u64) -> Result<Curve3<f64>, StepImportError> {
         let instance = self.instance(from, id)?;
         if instance.records.len() > 1 {
@@ -855,6 +931,18 @@ impl<'a> Resolver<'a> {
                     minor: self.as_length(id, minor, expected)?,
                     u_ref,
                 })
+            }
+            "QUASI_UNIFORM_CURVE" => {
+                let expected = "QUASI_UNIFORM_CURVE(name, degree, (points), form, \
+                                closed, self_intersect)";
+                let [_, degree, points, _, _, _] = args.as_slice() else {
+                    return Err(StepImportError::MalformedRecord { id, expected });
+                };
+                let control = self.control_points(id, points, expected)?;
+                let knots =
+                    quasi_uniform_knots(id, as_usize(id, degree, expected)?, control.len())?;
+                let weights = vec![1.0; control.len()];
+                self.nurbs(id, knots, control, weights)
             }
             "B_SPLINE_CURVE_WITH_KNOTS" => {
                 let expected = "B_SPLINE_CURVE_WITH_KNOTS(name, degree, (points), \
@@ -1078,8 +1166,8 @@ impl<'a> Resolver<'a> {
             return Err(StepImportError::MalformedRecord { id, expected });
         };
         let surface_id = as_ref(id, surface_ref, expected)?;
-        let surface = self.surface(id, surface_id)?;
-        let sense = as_bool(id, same_sense, expected)?;
+        let mut surface = self.surface(id, surface_id)?;
+        let mut sense = as_bool(id, same_sense, expected)?;
         let mut bound_specs = Vec::new();
         for bound in as_list(id, bounds, expected)? {
             let bound_id = as_ref(id, bound, expected)?;
@@ -1090,6 +1178,50 @@ impl<'a> Resolver<'a> {
                 id,
                 what: "an ADVANCED_FACE with no bounds",
             });
+        }
+        // **D7 stage-1 surface recognition (ruling #256).** Every NURBS
+        // surface is tested for promotion HERE — at the face, before
+        // the multi-bound gate below, which is exactly the gate a
+        // promoted plane's trim rings must reach as a Plane (a
+        // normalize-level pass would be too late; the refusal fires in
+        // this function). Promotion is verified-not-trusted: it fires
+        // iff the recognizer's residual certifies at ε_in, and a patch
+        // that certifies nowhere stays NURBS silently — the state
+        // whose import behavior this crate already documents. The
+        // promotion is reported through the normalizations channel
+        // (census identity; the recorded residual bounds the motion),
+        // and the face's `same_sense` composes with the chart
+        // orientation so the promoted chart means what the NURBS chart
+        // meant.
+        let mut ill_conditioned = None;
+        if let Surface::Nurbs(ref patch) = surface
+            && !patch.is_placeholder()
+        {
+            match recognize::recognize(patch.as_ref(), self.eps_in) {
+                recognize::Recognition::Promoted {
+                    surface: promoted,
+                    residual,
+                    kind,
+                } => {
+                    if recognize::chart_flipped(patch.as_ref(), &promoted) {
+                        sense = !sense;
+                    }
+                    let census = bounds_census(&bound_specs, edges);
+                    self.normalizations
+                        .borrow_mut()
+                        .push(StructureNormalization {
+                            face: id,
+                            kind: NormalizationKind::SurfacePromotion { to: kind, residual },
+                            file_census: census,
+                            kernel_census: census,
+                        });
+                    surface = promoted;
+                }
+                recognize::Recognition::StaysNurbs => {}
+                recognize::Recognition::IllConditioned { kind, margin } => {
+                    ill_conditioned = Some((kind, margin));
+                }
+            }
         }
         // The edge-free closed face: one VERTEX_LOOP and nothing else.
         if bound_specs.iter().any(|b| b.vertex_loop.is_some()) {
@@ -1112,34 +1244,64 @@ impl<'a> Resolver<'a> {
         // naming the face, rather than at the far end holding a body
         // whose volume nothing can compute.
         //
-        // What arrives this way is not a hole: it is Open CASCADE's
-        // SEAMLESS periodic face — a cylinder's lateral band, or a
-        // fillet torus's, stated as its two rim circles with no seam
-        // generator between them. The kernel's own writer never emits
-        // one (it splits a periodic face at its seam), and the remedy
-        // is the same family as the sphere/cone/torus re-mints already
-        // in `normalize`: split the band into half-faces joined by
-        // minted generators at a chosen azimuth. That is a unit of
-        // work, not a line, and it is recorded rather than guessed at.
-        //
-        // A multi-ring NURBS face (M7-3) refuses HERE too, and its
-        // frontier is deeper still: outerness inference needs a chart
-        // inversion (`chart::uv_of`) that no NURBS surface has, and
-        // the kernel has no trimmed-NURBS volume construction either
-        // -- wild rational multi-ring faces (dm1-id-214's 11 trim
-        // rings) are stage-1 recognition territory, banked. The
-        // exported class never reaches this gate: every loft wall is
-        // single-bound, outer by definition below.
+        // What can also arrive this way is not a hole: it is Open
+        // CASCADE's SEAMLESS periodic face — a cylinder's lateral
+        // band, or a fillet torus's, stated as its two rim circles
+        // with no seam generator between them. The kernel's own
+        // writer never emits one (it splits a periodic face at its
+        // seam). Since M7-5 the cylinder and torus cases NORMALIZE:
+        // the shape is recognized here (two bounds, each wrapping the
+        // chart's full u period) and tagged through to shell level,
+        // where `normalize::band_seam` re-mints the face as one
+        // single-loop face joined by a minted seam generator at the
+        // surface's own u_ref azimuth — the edge-free sphere's
+        // license, recorded as a `StructureNormalization`. The band
+        // face has no outer bound to infer (its two rims are not
+        // inside one another — `SeamDependent` both ways), so it
+        // returns before the outerness walk; the mint's single loop
+        // is outer by construction.
         if loops.len() > 1 && !matches!(surface, Surface::Plane { .. }) {
+            if is_periodic_band(&surface, &loops, edges) {
+                return Ok(vec![FaceSpec {
+                    id,
+                    surface,
+                    sense,
+                    loops,
+                    band: true,
+                }]);
+            }
+            // A multi-bound curved face refuses HERE — and since D7
+            // stage-1 recognition (above), a NURBS surface reaches
+            // this gate only AFTER promotion was tried: rings on
+            // promoted PLANES have already left through the
+            // plane-guard on this branch, so what refuses is rings on
+            // genuinely curved patches — promoted cylinders included
+            // (the kernel has no volume construction for a curved
+            // face with rings) — and rings on NURBS that certified as
+            // no implemented analytic kind. Where the face could ONLY
+            // import by promotion and the recognizer's estimator was
+            // ill-conditioned at ε_in, the refusal is D7's typed
+            // ambiguity instead of this bare topology one.
+            if let Some((kind, margin)) = ill_conditioned {
+                return Err(StepImportError::RecognitionAmbiguous {
+                    id,
+                    surface: surface_id,
+                    kind,
+                    margin,
+                });
+            }
             return Err(StepImportError::Topology {
                 id,
-                what: "a curved ADVANCED_FACE with more than one bound — either an \
-                       interior ring on a curved patch or Open CASCADE's seamless \
-                       periodic band (two rim circles, no seam generator). The kernel \
-                       has no volume construction for a curved face with rings, so \
-                       adopting it would hand back a body that is not tier-3 valid; \
-                       re-minting the band as half-faces is the remedy and is not \
-                       done here",
+                what: "a curved ADVANCED_FACE with more than one bound that is not a \
+                       recognized periodic band — an interior ring on a curved patch \
+                       (a promoted cylinder's, or a NURBS patch's that certified as no \
+                       implemented analytic kind at ε_in — stage-1 recognition \
+                       promotes certified planes and cylinders, and rings on promoted \
+                       planes import; the kernel has no volume construction for a \
+                       curved face with rings) or a seamless periodic band on a chart \
+                       the M7-5 band re-mint does not cover (cylinder and torus bands \
+                       normalize; a cone or sphere-zone band would take the same \
+                       seam-generator re-mint, extended to its chart)",
             });
         }
         let outer = self.outer_bound_index(id, &surface, &loops, &bound_specs, edges)?;
@@ -1152,6 +1314,7 @@ impl<'a> Resolver<'a> {
             surface,
             sense,
             loops,
+            band: false,
         }])
     }
 
@@ -1399,6 +1562,7 @@ impl<'a> Resolver<'a> {
                     },
                 ],
             }],
+            band: false,
         };
         // Each lune walks one meridian down and the other back up. The
         // face's `same_sense` is honored, not healed: a reversed face
@@ -1674,11 +1838,13 @@ impl<'a> Resolver<'a> {
             faces,
             edges,
             vertices,
+            band_seams: std::collections::BTreeSet::new(),
         };
         // The reported structure normalizations for periodic faces the
         // kernel cannot represent as stated (Leg C).
         normalize::normalize_shell(
             &mut solid,
+            self.eps_in,
             &mut || self.mint_id(),
             &mut self.normalizations.borrow_mut(),
         )?;
@@ -1697,6 +1863,148 @@ impl<'a> Resolver<'a> {
         }
         Ok(curves)
     }
+}
+
+/// Whether a multi-bound curved face is Open CASCADE's SEAMLESS
+/// periodic band (M7-5): a cylinder or torus face with exactly two
+/// bounds, each a closed chain whose chart image wraps the full u
+/// period exactly once, the two in opposite directions (any coherent
+/// band's rims oppose, whichever `same_sense` the face states).
+///
+/// The recognition is chain-agnostic — a rim may be one self-loop
+/// circle (every fixture's shape) or several arcs — because it reads
+/// the CHART, not the chain: each use is sampled along its own
+/// parameter interval through the kernel's chart inverse
+/// ([`chart::uv_of`]) and the loop's total u displacement is
+/// accumulated with unwrapping. Anything that does not read cleanly
+/// (a point off the chart, a step too long to unwrap) is simply not
+/// detected as a band and takes the gate's typed refusal — detection
+/// never guesses.
+/// The boundary-graph census a face's stated bounds contribute — the
+/// identity census a surface promotion records on both sides of its
+/// mapping (the promotion changes the surface DESCRIPTION, never the
+/// tessellation). Distinct edges and distinct vertices over every
+/// bound; a `VERTEX_LOOP` bound contributes its one vertex.
+fn bounds_census(bounds: &[BoundSpec], edges: &BTreeMap<u64, EdgeSpec>) -> FaceCensus {
+    let mut edge_ids = std::collections::BTreeSet::new();
+    let mut vertex_ids = std::collections::BTreeSet::new();
+    for bound in bounds {
+        if let Some(v) = bound.vertex_loop {
+            vertex_ids.insert(v);
+        }
+        for u in &bound.uses {
+            edge_ids.insert(u.edge);
+            if let Some(spec) = edges.get(&u.edge) {
+                vertex_ids.insert(spec.start);
+                vertex_ids.insert(spec.end);
+            }
+        }
+    }
+    FaceCensus {
+        faces: 1,
+        edges: edge_ids.len(),
+        vertices: vertex_ids.len(),
+    }
+}
+
+/// The implied clamped knot vector of a `QUASI_UNIFORM_CURVE` /
+/// `QUASI_UNIFORM_SURFACE` record, synthesized closed-form.
+///
+/// ISO 10303-42's `quasi_uniform_knots` states the SHAPE, not the
+/// values: end knots at multiplicity `degree + 1`, interior knots at
+/// multiplicity 1, evenly spaced. Any even spacing describes the same
+/// locus up to an affine reparameterization (which nothing downstream
+/// observes — parameter intervals are re-derived against the carrier,
+/// pcurves are re-minted), so the synthesis fixes integer spacing
+/// `0, 1, …, control_points − degree` as the canonical instance. No ε
+/// enters: the knots are exact small integers.
+fn quasi_uniform_knots(
+    id: u64,
+    degree: usize,
+    control_points: usize,
+) -> Result<KnotVector, StepImportError> {
+    let expected = "a quasi-uniform B-spline with more control points than its \
+                    degree (fewer describe no spline of that degree)";
+    if control_points <= degree {
+        return Err(StepImportError::MalformedRecord { id, expected });
+    }
+    let spans = control_points - degree;
+    let mut flat = Vec::with_capacity(control_points + degree + 1);
+    flat.extend(std::iter::repeat_n(0.0, degree + 1));
+    for k in 1..spans {
+        flat.push(k as f64);
+    }
+    flat.extend(std::iter::repeat_n(spans as f64, degree + 1));
+    KnotVector::clamped(flat, degree).map_err(|_| StepImportError::MalformedRecord {
+        id,
+        expected: "a clamped knot vector synthesized from the quasi-uniform shape",
+    })
+}
+
+fn is_periodic_band(
+    surface: &Surface<f64>,
+    loops: &[LoopSpec],
+    edges: &BTreeMap<u64, EdgeSpec>,
+) -> bool {
+    if !matches!(surface, Surface::Cylinder { .. } | Surface::Torus { .. }) {
+        return false;
+    }
+    let [a, b] = loops else {
+        return false;
+    };
+    let (Some(wa), Some(wb)) = (
+        loop_u_wrap(surface, a, edges),
+        loop_u_wrap(surface, b, edges),
+    ) else {
+        return false;
+    };
+    // Full-period wrap, once, each way. The 1e-6 rad slack is a
+    // recognition tolerance on a TOPOLOGICAL count (the wrap number is
+    // an integer multiple of 2π up to sampling arithmetic), not a
+    // geometric budget — nothing minted depends on it.
+    let full = |w: f64| (w.abs() - core::f64::consts::TAU).abs() < 1e-6;
+    full(wa) && full(wb) && wa * wb < 0.0
+}
+
+/// The loop's total signed chart-u displacement: each use sampled
+/// along its traversal, mapped through [`chart::uv_of`], adjacent
+/// samples unwrapped across the seam. `None` when any sample misses
+/// the chart or two adjacent samples are more than a quarter period
+/// apart (too sparse to unwrap without guessing).
+fn loop_u_wrap(
+    surface: &Surface<f64>,
+    lp: &LoopSpec,
+    edges: &BTreeMap<u64, EdgeSpec>,
+) -> Option<f64> {
+    use core::f64::consts::{PI, TAU};
+    // 16 steps per edge puts adjacent samples of a full-period rim
+    // ~0.39 rad apart — far inside the unwrap threshold below.
+    const STEPS: usize = 16;
+    let mut total = 0.0;
+    let mut prev: Option<f64> = None;
+    for use_ in &lp.uses {
+        let spec = edges.get(&use_.edge)?;
+        for k in 0..=STEPS {
+            let f = k as f64 / STEPS as f64;
+            let f = if use_.forward { f } else { 1.0 - f };
+            let t = spec.t0 + (spec.t1 - spec.t0) * f;
+            let u = chart::uv_of(surface, spec.carrier.eval(t))?.x;
+            if let Some(p) = prev {
+                let mut d = u - p;
+                if d > PI {
+                    d -= TAU;
+                } else if d < -PI {
+                    d += TAU;
+                }
+                if d.abs() > PI / 2.0 {
+                    return None;
+                }
+                total += d;
+            }
+            prev = Some(u);
+        }
+    }
+    Some(total)
 }
 
 /// How deep a chain of `CONVERSION_BASED_UNIT`s may nest before the
@@ -2255,70 +2563,89 @@ impl<'a> Resolver<'a> {
     }
 }
 
-/// The **assembly layer** (M7-2 Leg D), accepted at the identity and
-/// refused anywhere else.
+/// The **assembly layer** — resolved into the instance list the
+/// materializer works from (M7-2 Leg D → M7-4 Leg D → M8 instancing).
 ///
-/// FreeCAD's `Import.export` path (what GUI users hit) wraps a
-/// multi-body document in AP214's assembly vocabulary:
+/// FreeCAD's `Import.export` path (what GUI users hit) and every AP214
+/// assembly translator wrap multi-body content in the same vocabulary:
 /// `NEXT_ASSEMBLY_USAGE_OCCURRENCE` links product to component,
 /// `CONTEXT_DEPENDENT_SHAPE_REPRESENTATION` links the component's own
 /// representation to the assembly root through a complex
-/// `( REPRESENTATION_RELATIONSHIP … REPRESENTATION_RELATIONSHIP_WITH_
-/// TRANSFORMATION(#t) SHAPE_REPRESENTATION_RELATIONSHIP() )`, and
-/// `#t` is an `ITEM_DEFINED_TRANSFORMATION` naming two placements: the
-/// component's frame and where it sits in the assembly.
+/// `( REPRESENTATION_RELATIONSHIP('', '', #rep_1, #rep_2) …
+/// REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(#t)
+/// SHAPE_REPRESENTATION_RELATIONSHIP() )`, and `#t` is an
+/// `ITEM_DEFINED_TRANSFORMATION` naming two placements: the
+/// component's own frame and where THIS OCCURRENCE sits in the
+/// assembly.
 ///
-/// The product-structure entities are ignorable (the importer already
-/// ignores the whole PRODUCT family), but the transform is NOT: a
-/// non-identity one means the geometry as stated is NOT where the
-/// assembly puts it, and importing the raw geometry would silently
-/// place every body wrong. Every file M7-2 measured had the identity
-/// there (FreeCAD bakes placement into the exported shape), so that
-/// pass traversed, accepted the identity, and refused everything else.
+/// **The association was always right there.** `rep_1` is the
+/// component representation and `rep_2` the assembly root, so the
+/// complex record says *which content* the transform places — one
+/// occurrence, one map, one component. M7-2 traversed these and
+/// accepted only the identity; M7-4 Leg D added the one RIGID map, but
+/// insisted it cover ALL of the file's content, because a placed body
+/// was placed by transforming the finished body once and there was
+/// nowhere to put a second frame. This pass reads the same records the
+/// same way and keeps the per-relationship association instead of
+/// collapsing it:
 ///
-/// **M7-4 Leg D** keeps the refusal's teeth and adds the one case a
-/// wild file can legitimately state: a RIGID motion. The two
-/// placements are read as orthonormal frames, the map that carries the
-/// first onto the second is composed, and:
+/// - each relationship contributes **one instance per solid of the
+///   representation it names**, carrying that relationship's map;
+/// - a component representation named by three occurrences therefore
+///   materializes three times, each copy mapped by its own frame
+///   ([`SolidInstance`]);
+/// - the identity (at ε_in) is carried as `None` — nothing moves, the
+///   M7-2 behavior bit for bit — and an identity-placed component is
+///   still RECORDED as covered (the coverage bug M8 fixed: the old
+///   pass `continue`d past its own bookkeeping, so an identity
+///   component read as never placed at all);
+/// - a mirror (det = −1) or any scaling refuses typed at
+///   [`Resolver::item_defined_transformation`], naming the transform.
+///   A mirror is not a placement — it reverses handedness, and which
+///   way a mirrored solid's faces then point is a question about the
+///   file's intent that an importer must not answer by guessing.
 ///
-/// - the identity (at ε_in) answers `None` — nothing moves, the M7-2
-///   behavior bit for bit;
-/// - a rigid motion — orthonormal linear part, determinant +1 at ε_in
-///   — answers the map, which the caller hands to the kernel's own
-///   [`topo::transform_rigid`] door (which re-checks rigidity with
-///   decided predicates and RE-CERTIFIES every carrier: this pass
-///   proposes, the kernel disposes);
-/// - a mirror (det = −1) or any scaling refuses typed, naming the
-///   transform. A mirror is not a placement — it reverses handedness,
-///   and which way a mirrored solid's faces then point is a question
-///   about the file's intent that an importer must not answer by
-///   guessing.
+/// **Order** is the relationship entity's id, ascending (`file.data`
+/// is a `BTreeMap`), and within one relationship the solids in the
+/// order [`resolve_shape`] found them — entity-id order end to end,
+/// D9's determinism, and what `Shape::Solids` has always documented.
 ///
-/// **What is still refused: per-component placement.** One map for the
-/// whole file is a placed part; two different maps over different
-/// components is assembly instancing — a body graph with per-instance
-/// frames, which this crate has no representation for and which is a
-/// later unit. It refuses typed rather than importing some components
-/// placed and others not.
-fn resolve_assembly_placement(
+/// **What still refuses**: content the assembly does not place at all,
+/// beside components it does. A solid the file never places would
+/// otherwise ride along at its stated coordinates while its neighbours
+/// move — placing only some of a file's content, guessed. And a
+/// representation whose content ANOTHER representation already claims
+/// (the same `MANIFOLD_SOLID_BREP` named twice, deduplicated at
+/// resolution) cannot be placed independently: its map would have
+/// nowhere to land, so it refuses rather than being dropped.
+fn resolve_instances(
     r: &Resolver<'_>,
     file: &StepFile,
     roots: &ContentRoots,
-) -> Result<Option<Affine3<f64>>, StepImportError> {
-    let mut placement: Option<(u64, Affine3<f64>)> = None;
+    owners: &std::collections::BTreeMap<u64, Vec<usize>>,
+    solids: usize,
+) -> Result<Vec<SolidInstance>, StepImportError> {
+    // One edge of the assembly graph, in relationship-entity-id order:
+    // (relationship id, rep_1 = the placed representation, rep_2 = the
+    // representation it is placed INTO, transform id, the map).
+    let mut relationships: Vec<Edge> = Vec::new();
     let mut placed_reps = std::collections::BTreeSet::new();
     for (&id, instance) in &file.data {
-        let mut related: Option<u64> = None;
+        let mut related: Option<(u64, u64)> = None;
         let mut transform: Option<u64> = None;
         for (kw, args) in &instance.records {
             match kw.as_str() {
                 "REPRESENTATION_RELATIONSHIP" => {
                     let expected = "REPRESENTATION_RELATIONSHIP(name, description, \
                                     #rep_1, #rep_2)";
-                    let [_, _, rep_1, _] = args.as_slice() else {
+                    let [_, _, rep_1, rep_2] = args.as_slice() else {
                         return Err(StepImportError::MalformedRecord { id, expected });
                     };
-                    related = Some(as_ref(id, rep_1, expected)?);
+                    // BOTH ends. `rep_2` is what makes the chain
+                    // visible: a nested assembly's inner relationship
+                    // places a component into a SUB-ASSEMBLY, and only
+                    // `rep_2` says so.
+                    related = Some((as_ref(id, rep_1, expected)?, as_ref(id, rep_2, expected)?));
                 }
                 "REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION" => {
                     let expected = "REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(\
@@ -2332,55 +2659,274 @@ fn resolve_assembly_placement(
             }
         }
         let Some(tid) = transform else { continue };
-        let Some(map) = r.item_defined_transformation(id, tid)? else {
-            continue; // the identity: the component is where it says.
+        // A transform that relates nothing places nothing, and reading
+        // it as "the whole file" is the guess this pass exists to stop.
+        let Some((rep, into)) = related else {
+            return Err(StepImportError::MalformedRecord {
+                id,
+                expected: "a REPRESENTATION_RELATIONSHIP beside the \
+                           _WITH_TRANSFORMATION half (the transform names no \
+                           representation to place)",
+            });
         };
-        if let Some(rep) = related {
-            placed_reps.insert(rep);
+        let map = r.item_defined_transformation(id, tid)?;
+        // BEFORE the identity test, not after: an identity-placed
+        // component IS covered by the assembly, and recording that is
+        // what the stray check below reads.
+        placed_reps.insert(rep);
+        relationships.push(Edge {
+            id,
+            rep,
+            into,
+            tid,
+            map,
+        });
+    }
+
+    // A file whose assembly places nothing — no relationship carries a
+    // transform at all — materializes exactly its solids, unplaced, in
+    // the order they resolved. This is every own-corpus and most wild
+    // files, and it is the same body it has always been.
+    if relationships.is_empty() {
+        let mut out = Vec::with_capacity(solids);
+        for (&rep, mine) in owners {
+            for &solid in mine {
+                out.push(SolidInstance {
+                    solid,
+                    component: rep,
+                    placed: None,
+                });
+            }
         }
-        match placement {
-            None => placement = Some((tid, map)),
-            Some((_, prev)) if same_map(&prev, &map) => {}
-            Some(_) => {
+        // `owners` is keyed by representation id, so the walk above is
+        // representation order, not solid order; the model's contract
+        // is the SOLIDS' own resolution order (D9, entity-id).
+        out.sort_by_key(|i| i.solid);
+        debug_assert_eq!(out.len(), solids, "every solid materializes once");
+        return Ok(out);
+    }
+    // `NEXT_ASSEMBLY_USAGE_OCCURRENCE` by relationship, for the A7
+    // record: `CONTEXT_DEPENDENT_SHAPE_REPRESENTATION(#rr, #pds)` and
+    // `PRODUCT_DEFINITION_SHAPE(name, description, #pd)` link the
+    // transform-carrying relationship to the product OCCURRENCE it
+    // places. This is descriptive metadata — which occurrence, for a
+    // later re-adoption as an assembly document — so a file that omits
+    // or reshapes the link records `None` rather than refusing: it
+    // must never turn an importing file into a refusing one.
+    let mut occurrences: std::collections::BTreeMap<u64, u64> = std::collections::BTreeMap::new();
+    for (&id, instance) in &file.data {
+        let [(kw, args)] = instance.records.as_slice() else {
+            continue;
+        };
+        if kw != "CONTEXT_DEPENDENT_SHAPE_REPRESENTATION" {
+            continue;
+        }
+        let [rr, pds] = args.as_slice() else { continue };
+        let expected = "CONTEXT_DEPENDENT_SHAPE_REPRESENTATION(#rr, #pds)";
+        let (Ok(rr), Ok(pds)) = (as_ref(id, rr, expected), as_ref(id, pds, expected)) else {
+            continue;
+        };
+        let Ok(pds) = r.instance(id, pds) else {
+            continue;
+        };
+        let [(kw, args)] = pds.records.as_slice() else {
+            continue;
+        };
+        if kw != "PRODUCT_DEFINITION_SHAPE" {
+            continue;
+        }
+        let [_, _, pd] = args.as_slice() else {
+            continue;
+        };
+        let Ok(pd) = as_ref(id, pd, expected) else {
+            continue;
+        };
+        if r.instance(id, pd).is_ok_and(|i| {
+            i.records
+                .iter()
+                .any(|(kw, _)| kw == "NEXT_ASSEMBLY_USAGE_OCCURRENCE")
+        }) {
+            occurrences.insert(rr, pd);
+        }
+    }
+
+    // Every representation that carries model content must be placed by
+    // the assembly; one it never names would ride along at its stated
+    // coordinates while its neighbours move.
+    if let Some(&stray) = roots.reps.iter().find(|id| !placed_reps.contains(id)) {
+        return Err(StepImportError::Structure {
+            id: stray,
+            what: "a shape representation the assembly's placements do not cover, \
+                   beside components they do — placing only some of a file's content \
+                   is a guess about the rest, refused",
+        });
+    }
+
+    // **The chain walk.** An assembly is a GRAPH of representations:
+    // each relationship is an edge `rep_1 → rep_2` carrying a map, a
+    // component's own relationship places it into whatever holds it,
+    // and a NESTED assembly places that holder into something else
+    // again. One instance is therefore one PATH from a component
+    // representation up to a representation nothing places — and its
+    // frame is the composition of that path's maps, outermost last.
+    //
+    // Reading only the first edge is exactly the silent-wrong-geometry
+    // hole this walk exists to close: a sub-assembly's own frame would
+    // be dropped and its parts would import at their sub-assembly
+    // coordinates, which is a plausible body at the wrong place.
+    let mut from: std::collections::BTreeMap<u64, Vec<usize>> = std::collections::BTreeMap::new();
+    for (i, e) in relationships.iter().enumerate() {
+        from.entry(e.rep).or_default().push(i);
+    }
+    let mut out = Vec::new();
+    let mut used = vec![false; relationships.len()];
+    for (start, e) in relationships.iter().enumerate() {
+        let mine = owners.get(&e.rep).map_or(&[][..], Vec::as_slice);
+        if mine.is_empty() {
+            // Not a component's own edge. Either an intermediate one
+            // (walked below, as the continuation of some component's
+            // path) or the deduplication case, refused next.
+            //
+            // A content representation whose solids another
+            // representation already claims (the same MSB named twice
+            // — deduplicated at resolution, so it materializes under
+            // the FIRST namer) cannot also be placed here: this map
+            // has nowhere to land.
+            if roots.reps.contains(&e.rep) {
                 return Err(StepImportError::Structure {
-                    id: tid,
-                    what: "a second, different assembly placement — placing components \
-                           independently is assembly instancing, which this importer \
-                           has no body graph to hold; refused rather than importing \
-                           some components placed and others not",
+                    id: e.id,
+                    what: "a placed representation whose solids another representation \
+                           already names — one body cannot take two independent \
+                           assembly frames, refused rather than silently dropping one",
+                });
+            }
+            continue;
+        }
+        for path in chains(&relationships, &from, start)? {
+            // Compose outermost-last: a point of the component goes
+            // through its own frame first, then through each holder's.
+            let mut map: Option<Affine3<f64>> = None;
+            for &edge in &path {
+                used[edge] = true;
+                map = match (map, relationships[edge].map) {
+                    (m, None) => m,
+                    (None, Some(outer)) => Some(outer),
+                    (Some(inner), Some(outer)) => Some(compose(&outer, &inner)),
+                };
+            }
+            for &solid in mine {
+                out.push(SolidInstance {
+                    solid,
+                    component: e.rep,
+                    placed: Some(Placed {
+                        map,
+                        transform: e.tid,
+                        relationship: e.id,
+                        occurrence: occurrences.get(&e.id).copied(),
+                    }),
                 });
             }
         }
     }
-    let Some((tid, map)) = placement else {
-        return Ok(None);
-    };
-    // Every representation that carries model content must be governed
-    // by that one placement; a solid the assembly never places would
-    // otherwise ride along at its stated coordinates.
-    if let Some(&stray) = roots.reps.iter().find(|id| !placed_reps.contains(id)) {
+    // Every stated placement must have PLACED something. A relationship
+    // no component's chain reaches states a frame that governs no
+    // geometry — which is either a file this reader misunderstands or a
+    // component it failed to find, and both are refusals rather than a
+    // body assembled around a transform nobody applied.
+    if let Some(i) = used.iter().position(|u| !u) {
         return Err(StepImportError::Structure {
-            id: stray,
-            what: "a shape representation the assembly's placement does not cover, \
-                   beside components it does — placing only some of a file's content \
-                   is assembly instancing, refused rather than guessed",
+            id: relationships[i].id,
+            what: "an assembly placement no component's placement chain reaches — its \
+                   transform would govern no geometry, refused rather than importing \
+                   a body around a frame nobody applied",
         });
     }
-    let _ = tid;
-    Ok(Some(map))
+    Ok(out)
 }
 
-/// Two maps as the same placement — bitwise, because they come from
-/// the same arithmetic over the same file when they are the same
-/// placement, and a *near*-equality here would silently merge two
-/// components' distinct frames.
-fn same_map(a: &Affine3<f64>, b: &Affine3<f64>) -> bool {
-    let cols = |m: &Affine3<f64>| [m.linear.c0, m.linear.c1, m.linear.c2, m.translation];
-    cols(a).iter().zip(cols(b).iter()).all(|(x, y)| {
-        x.x.to_bits() == y.x.to_bits()
-            && x.y.to_bits() == y.y.to_bits()
-            && x.z.to_bits() == y.z.to_bits()
-    })
+/// One edge of the assembly graph (see [`resolve_instances`]).
+#[derive(Clone, Copy, Debug)]
+struct Edge {
+    /// The `REPRESENTATION_RELATIONSHIP` complex's entity id.
+    id: u64,
+    /// `rep_1` — the representation this edge PLACES.
+    rep: u64,
+    /// `rep_2` — the representation it is placed into.
+    into: u64,
+    /// The `ITEM_DEFINED_TRANSFORMATION`'s entity id.
+    tid: u64,
+    /// The map, `None` at the identity.
+    map: Option<Affine3<f64>>,
+}
+
+/// Every path from edge `start` up to a representation nothing places,
+/// as edge-index lists innermost-first.
+///
+/// A representation placed into several holders (or a holder itself
+/// occurring several times) branches, and each branch is a distinct
+/// instance — that IS assembly instancing, one level up. Paths are
+/// enumerated in ascending relationship-entity-id order at every
+/// branch, so the instance list is entity-id deterministic end to end
+/// (D9), exactly as the flat case always was.
+///
+/// # Errors
+///
+/// A cycle refuses typed: a representation that (transitively) places
+/// itself states no finite set of instances, and unrolling it to some
+/// depth would be a guess.
+fn chains(
+    edges: &[Edge],
+    from: &std::collections::BTreeMap<u64, Vec<usize>>,
+    start: usize,
+) -> Result<Vec<Vec<usize>>, StepImportError> {
+    let mut out = Vec::new();
+    let mut stack = vec![vec![start]];
+    while let Some(path) = stack.pop() {
+        // Total by construction (a path is never empty and every index
+        // came from `edges`), and written totally anyway — this pass
+        // has no panicking door.
+        let Some(last) = path.last().and_then(|&i| edges.get(i)).copied() else {
+            continue;
+        };
+        let next = from.get(&last.into).map_or(&[][..], Vec::as_slice);
+        if next.is_empty() {
+            out.push(path);
+            continue;
+        }
+        // Descending here so the ascending order comes back off the
+        // LIFO stack — the branch order is the file's own entity ids.
+        for &edge in next.iter().rev() {
+            if path.iter().any(|&p| edges[p].rep == edges[edge].rep) {
+                return Err(StepImportError::Structure {
+                    id: edges[edge].id,
+                    what: "an assembly placement chain that returns to a representation \
+                           it already places — a representation that places itself states \
+                           no finite set of instances, refused rather than unrolled to a \
+                           guessed depth",
+                });
+            }
+            let mut branch = path.clone();
+            branch.push(edge);
+            stack.push(branch);
+        }
+    }
+    // The LIFO above yields paths in reverse branch order; sort back to
+    // the file's own order (a path is a list of ascending-id edges, so
+    // lexicographic on the edge ids IS entity-id order).
+    out.sort_by_key(|p| p.iter().map(|&i| edges[i].id).collect::<Vec<_>>());
+    Ok(out)
+}
+
+/// `outer ∘ inner` — apply `inner` first. Plain composition of two
+/// affine maps; both are rigid by the time they get here (each came
+/// through [`Resolver::item_defined_transformation`]'s determinant
+/// gate), and a composition of rotations is a rotation, so the kernel's
+/// own `transform_rigid` door still has the last word on the result.
+fn compose(outer: &Affine3<f64>, inner: &Affine3<f64>) -> Affine3<f64> {
+    Affine3::from_parts(
+        outer.linear * inner.linear,
+        outer.linear * inner.translation + outer.translation,
+    )
 }
 
 /// Shape content **by resolution** (M7-1 review MINOR-4): solids come
@@ -2391,8 +2937,19 @@ fn same_map(a: &Affine3<f64>, b: &Affine3<f64>) -> bool {
 /// one of them (an orphan is refused rather than guessed to be model
 /// content or silently dropped). Mixed solid+wireframe content and a
 /// second curve set are outside the subset, refused typed.
-fn resolve_shape(r: &Resolver<'_>, file: &StepFile) -> Result<Shape, StepImportError> {
+fn resolve_shape(
+    r: &Resolver<'_>,
+    file: &StepFile,
+) -> Result<(Shape, std::collections::BTreeMap<u64, Vec<usize>>), StepImportError> {
     let mut solids = Vec::new();
+    // Which representation NAMED each solid, as `rep -> solid indices`.
+    // The assembly layer places representations, so materialization
+    // needs the association resolution already establishes; a solid
+    // named twice (a NIST translator writes the same MSB into both an
+    // `ADVANCED_BREP_SHAPE_REPRESENTATION` and a plain
+    // `SHAPE_REPRESENTATION`) belongs to the FIRST namer in entity-id
+    // order — the same one `referenced` already dedupes it to.
+    let mut owners: std::collections::BTreeMap<u64, Vec<usize>> = std::collections::BTreeMap::new();
     let mut wireframe: Option<(u64, Vec<Curve3<f64>>)> = None;
     let mut referenced: std::collections::BTreeSet<u64> = std::collections::BTreeSet::new();
     for (&id, instance) in &file.data {
@@ -2426,6 +2983,7 @@ fn resolve_shape(r: &Resolver<'_>, file: &StepFile) -> Result<Shape, StepImportE
                         // coincident solids — a body no file describes.
                         [(k, sargs)] if k == "MANIFOLD_SOLID_BREP" => {
                             if referenced.insert(item_id) {
+                                owners.entry(id).or_default().push(solids.len());
                                 solids.push(r.solid(item_id, sargs)?);
                             }
                         }
@@ -2489,8 +3047,8 @@ fn resolve_shape(r: &Resolver<'_>, file: &StepFile) -> Result<Shape, StepImportE
         }
     }
     match (solids.is_empty(), wireframe) {
-        (false, None) => Ok(Shape::Solids(solids)),
-        (true, Some((_, curves))) => Ok(Shape::Wireframe(curves)),
+        (false, None) => Ok((Shape::Solids(solids), owners)),
+        (true, Some((_, curves))) => Ok((Shape::Wireframe(curves), owners)),
         (true, None) => Err(StepImportError::NothingToImport),
         (false, Some((wid, _))) => Err(StepImportError::Structure {
             id: wid,
@@ -2514,7 +3072,18 @@ fn unit_pass_resolver(file: &StepFile) -> Resolver<'_> {
 }
 
 /// Resolves the parsed file into a [`Model`] (module docs).
-pub(crate) fn resolve(file: &StepFile) -> Result<Model, StepImportError> {
+///
+/// `eps_override` is [`crate::ImportOptions::eps_in`], plumbed to the
+/// resolver so the per-call override governs INTERPRETATION — D7's
+/// contract for ε_in (stage-1 surface recognition decides promotion at
+/// it; the direction/frame verbatim-adoption windows and the placement
+/// rigidity check spend the same budget). The model still carries the
+/// file's own declared uncertainty, which is what
+/// [`crate::StepImport::eps_in`] reports when no override was given.
+pub(crate) fn resolve(
+    file: &StepFile,
+    eps_override: Option<f64>,
+) -> Result<Model, StepImportError> {
     let r = unit_pass_resolver(file);
 
     // The header must declare a schema (Part 21's FILE_SCHEMA). The
@@ -2539,11 +3108,12 @@ pub(crate) fn resolve(file: &StepFile) -> Result<Model, StepImportError> {
         file,
         length_scale: units.length_scale,
         angle_scale: units.angle_scale,
-        // A file with no declared uncertainty gets no interpretation
+        // The override wins where given (doc above). A file with no
+        // declared uncertainty and no override gets no interpretation
         // budget here; the shape pass below refuses first when there
         // is nothing to import, and `MissingUncertainty` is raised
         // after it, when a body really was on the table.
-        eps_in: units.uncertainty_m.unwrap_or(0.0),
+        eps_in: eps_override.unwrap_or(units.uncertainty_m.unwrap_or(0.0)),
         // Past every stated id, so minted topology cannot collide.
         next_id: std::cell::Cell::new(
             file.data
@@ -2555,14 +3125,48 @@ pub(crate) fn resolve(file: &StepFile) -> Result<Model, StepImportError> {
         ),
         normalizations: std::cell::RefCell::new(Vec::new()),
     };
-    let shape = resolve_shape(&r, file)?;
-    let placement = resolve_assembly_placement(&r, file, &roots)?;
+    let (shape, owners) = resolve_shape(&r, file)?;
+    // The instance list is resolved for a SOLID model only: a
+    // wireframe has no body to place, and an assembly of wireframes is
+    // not in the subset.
+    let instances = match shape {
+        Shape::Solids(ref solids) => resolve_instances(&r, file, &roots, &owners, solids.len())?,
+        Shape::Wireframe(_) => Vec::new(),
+    };
     Ok(Model {
-        placement,
+        instances,
         uncertainty_m: units
             .uncertainty_m
             .ok_or(StepImportError::MissingUncertainty)?,
         shape,
         normalizations: r.normalizations.into_inner(),
     })
+}
+
+/// **R1 review probe (PR #264, C2c)** — review branch only: the
+/// QUASI_UNIFORM implied-knot synthesis, multi-span shape, must be
+/// bit-identical to the stated-knots form (integer spacing, clamped).
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod r1_review_probes {
+    use super::quasi_uniform_knots;
+    use geom_core::spline::KnotVector;
+
+    #[test]
+    fn quasi_uniform_synthesis_matches_stated_integer_knots_bitwise() {
+        // degree 2, 5 control points → spans = 3 → [0,0,0,1,2,3,3,3].
+        let synth = quasi_uniform_knots(1, 2, 5).unwrap();
+        let stated = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap();
+        assert_eq!(
+            format!("{synth:?}"),
+            format!("{stated:?}"),
+            "synthesized vs stated multi-span knots"
+        );
+        // dm1's actual shape: degree 1, 2 points → [0,0,1,1].
+        let dm1 = quasi_uniform_knots(1, 1, 2).unwrap();
+        let dm1_stated = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        assert_eq!(format!("{dm1:?}"), format!("{dm1_stated:?}"));
+        // Degenerate: control_points == degree refuses.
+        assert!(quasi_uniform_knots(1, 2, 2).is_err());
+    }
 }

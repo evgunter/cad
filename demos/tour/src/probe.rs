@@ -22,9 +22,9 @@
 
 use std::io::Write as _;
 
-use geom_core::Sign;
-use geom_core::k_stats::{self, Probe, SampleOutcome};
-use topo::{Body, ContactRecords};
+use pncad::geom_core::Sign;
+use pncad::geom_core::k_stats::{self, Probe, SampleOutcome};
+use pncad::topo::{Body, ContactRecords};
 
 use crate::{
     az, bodies, bool_bodies, bossplate, crosslap, curvedcut, cutaway, heatsink, letterforms, lily,
@@ -39,21 +39,22 @@ fn plain(name: &str, b: Body<Probe>) -> ProbeBody {
     (name.to_string(), b, None)
 }
 
-fn seamed(name: &str, bb: topo::BooleanBody<Probe>) -> ProbeBody {
+fn seamed(name: &str, bb: pncad::topo::BooleanBody<Probe>) -> ProbeBody {
     (name.to_string(), bb.body, Some(bb.contacts))
 }
 
 /// `run_body`'s validation ladder, export lanes omitted.
 fn validate_probe(label: &str, body: &Body<Probe>, contacts: Option<&ContactRecords>) {
-    topo::validate(body).unwrap_or_else(|e| panic!("{label}: tier 1 at Probe: {e:?}"));
-    topo::validate_closed(body).unwrap_or_else(|e| panic!("{label}: tier 2 at Probe: {e:?}"));
+    pncad::topo::validate(body).unwrap_or_else(|e| panic!("{label}: tier 1 at Probe: {e:?}"));
+    pncad::topo::validate_closed(body)
+        .unwrap_or_else(|e| panic!("{label}: tier 2 at Probe: {e:?}"));
     match contacts {
-        Some(c) => topo::validate_pseudomanifold(body, c)
+        Some(c) => pncad::topo::validate_pseudomanifold(body, c)
             .unwrap_or_else(|e| panic!("{label}: tier 3' at Probe: {e:?}")),
-        None => topo::validate_geometric(body)
+        None => pncad::topo::validate_geometric(body)
             .unwrap_or_else(|e| panic!("{label}: tier 3 at Probe: {e:?}")),
     }
-    topo::mass_properties(body).unwrap_or_else(|e| panic!("{label}: mass at Probe: {e:?}"));
+    pncad::topo::mass_properties(body).unwrap_or_else(|e| panic!("{label}: mass at Probe: {e:?}"));
 }
 
 fn outcome_str(o: SampleOutcome) -> &'static str {
@@ -101,7 +102,7 @@ fn sweep<F: FnOnce() -> Vec<ProbeBody>>(
 /// The sweep entry point (`demo-tour k-probe [out.csv]`; stdout when
 /// no path is given).
 pub fn run(out: Option<String>) {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = pncad::geom_core::Tolerance::get().eps;
     let mut csv = String::from("shape,predicate,margin,band_zero,band_escalate,outcome\n");
     let (mut total, mut unnamed) = (0usize, 0usize);
     let s = &mut csv;
@@ -185,9 +186,10 @@ pub fn run(out: Option<String>) {
             .map(|(i, bb)| seamed(&format!("heatsink_{}", [5, 7, 9][i]), bb))
             .collect()
     });
-    // The globe lily: the only PARTIAL revolve of an off-axis CLOSED
-    // loop in the corpus (torus segments), plus doubly-truncated
-    // sphere zones and two-arc crescent extrusions.
+    // The fairy lantern: the only WINDOWED TUBE built from world-
+    // coordinate intent in the corpus (torus segments), plus
+    // doubly-truncated sphere zones and crescent-section blades swept
+    // along arching spines.
     sweep(s, t, u, "lily", || {
         lily::plant::<Probe>()
             .into_iter()

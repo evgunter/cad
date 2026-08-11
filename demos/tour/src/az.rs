@@ -35,14 +35,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tolerance, Vec3};
-use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
-use sweep::{Extrusion, extrude};
-use topo::Body;
+use pncad::geom_core::{Point3, Vec3};
+use pncad::profile::{ProfileLoop, SketchPlane};
+use pncad::sweep::{Extrusion, extrude};
+use pncad::topo::Body;
 
 use crate::booleans::{check, expect_seamed, try_intersect};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
+use pncad::authoring::validated;
 
 /// Exact volume oracle: 880383/327680 (counter-hole A × Z), derived by
 /// independent exact-fraction integration for the #93 acceptance test
@@ -68,18 +69,11 @@ const A_OUTLINE: [(f64, f64); 8] = [
 /// prism is genus 1 before the boolean ever runs.
 const A_COUNTER: [(f64, f64); 3] = [(0.90625, 1.4375), (1.09375, 1.4375), (1.0, 2.0)];
 
+/// Letterform polygons, authored through the PATHS algebra (LIB-U2
+/// PR-2): same vertices, same loop — said as a chain of `line_to`s
+/// closing at `Start`.
 fn lp<S: Scalar>(poly: &[(f64, f64)]) -> ProfileLoop<S> {
-    ProfileLoop::polygon(
-        poly.iter()
-            .map(|&(x, y)| Point2::new(S::from_f64(x), S::from_f64(y)))
-            .collect::<Vec<_>>(),
-    )
-}
-
-fn validated<S: Scalar>(plane: SketchPlane<S>, loops: Vec<ProfileLoop<S>>) -> ValidatedProfile<S> {
-    Profile::new(plane, loops)
-        .validate(Tolerance::get())
-        .expect("A x Z profile")
+    crate::paths::path_polygon(poly)
 }
 
 /// The A prism: xy sketch at z = -1/16, extruded 2.125 along +z
@@ -93,7 +87,7 @@ fn a_prism<S: Scalar>() -> Body<S> {
         Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
     );
     extrude(
-        &validated(plane, vec![lp(&A_OUTLINE), lp(&A_COUNTER)]),
+        &validated(plane, vec![lp(&A_OUTLINE), lp(&A_COUNTER)]).expect("A x Z profile"),
         Extrusion::Distance(S::from_f64(2.125)),
     )
     .expect("extrude A")
@@ -122,7 +116,7 @@ fn z_prism<S: Scalar>() -> Body<S> {
         Vec3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(1.0)),
     );
     extrude(
-        &validated(plane, vec![lp(&z_poly)]),
+        &validated(plane, vec![lp(&z_poly)]).expect("A x Z profile"),
         Extrusion::Distance(S::from_f64(2.125)),
     )
     .expect("extrude Z")
@@ -131,7 +125,7 @@ fn z_prism<S: Scalar>() -> Body<S> {
 
 /// Builds the A × Z intersect result (generic — the Probe sweep runs
 /// the same construction).
-pub(crate) fn build<S: Scalar>() -> topo::BooleanBody<S> {
+pub(crate) fn build<S: Scalar>() -> pncad::topo::BooleanBody<S> {
     expect_seamed(
         "A x Z intersect (counter-hole A)",
         check(try_intersect(&a_prism::<S>(), &z_prism::<S>()), V_AZ),

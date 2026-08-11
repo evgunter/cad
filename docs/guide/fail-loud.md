@@ -1,0 +1,375 @@
+# The fail-loud tour
+
+Most CAD kernels are built to produce *something*. When the input is
+ambiguous they snap, heal, or fall back to a tolerance, and you find
+out later — from a part that does not fit, or a mesh with a hole in
+it, or a volume that is quietly 0.4% wrong.
+
+This kernel refuses instead. When it would have to assume something
+you did not say, it stops and returns a typed value naming the
+assumption it declined to make. That is the single most important
+thing to understand about using it, so this page is a tour of the
+refusals themselves: what they look like at each layer, and how to
+read one.
+
+Three properties hold everywhere:
+
+- **Refusals are typed data, never strings.** Every error is an enum
+  (Rust) or an exception with attributes (Python). You match on it,
+  you read its payload, you branch. Nothing here asks you to parse a
+  message.
+- **A refusal names the specific thing.** Not "invalid geometry" — the
+  loop, the step, the node, the pair of entities, the margin, the
+  band.
+- **Nothing is softened at a boundary.** The façade adds no `unwrap`
+  and no default; the Python bindings translate the same typed
+  payloads rather than flattening them to `ValueError`.
+
+Every block below is executed.
+
+## 1. Authoring: the refusal that happens before geometry exists
+
+The PATHS algebra refuses at the moment you *say* the thing, which is
+the cheapest possible place — before a profile exists, let alone a
+body.
+
+The first class is the **junction check**. Every corner is classified
+where it is authored, and a corner that turns out to be *accidentally*
+tangent — the classic source of invisible bad geometry — is refused
+rather than emitted:
+
+```
+use pncad::prelude::*;
+use pncad::profile::PathError;
+
+// Arrive heading east, then declare a departure that is also east.
+// That is not a corner; it is a tangency nobody asked for.
+let refused = Open
+    .at(p2(0.0, 0.0))
+    .line_to(p2(1.0, 0.0))
+    .expect("the leg is fine")
+    .toward(1.0, 0.0);
+
+assert!(matches!(refused, Err(PathError::JunctionTangent { margin, .. }) if margin == 0.0));
+```
+
+The payload carries the **margin** — how far from tangent the
+junction actually was. Zero here, because the two directions are
+exactly equal; a near-miss would report the small number instead, and
+that number is what tells you whether you have a modelling error or a
+sliver.
+
+The second class is structural: a fillet needs a corner, meaning two
+rays that actually meet. Turn north, then arrive north, and there is
+no corner to round:
+
+```
+use pncad::prelude::*;
+use pncad::profile::PathError;
+use pncad::profile::path::PathNoCornerReason;
+
+let refused = Open
+    .at(p2(0.0, 0.0))
+    .line_to(p2(1.0, 0.0))
+    .expect("the leg is fine")
+    .toward(0.0, 1.0)          // departure ray: north. A real corner.
+    .expect("north")
+    .fillet(0.25)
+    .expect("the radius is positive")
+    .toward(0.0, 1.0)          // arrival ray: north as well...
+    .expect("north again")
+    .to(p2(1.0, 2.0));         // ...so the two carriers never meet
+
+assert!(matches!(
+    refused,
+    Err(PathError::NoCornerForFillet {
+        reason: PathNoCornerReason::CarriersParallel,
+        ..
+    })
+));
+```
+
+Note what did *not* happen: no arc of radius 0.25 was placed
+somewhere plausible, and no zero-length segment was emitted. The
+payload carries the radius back, so a caller fitting a blend can
+retry with a different one and report exactly what it tried.
+
+A tangency you *declared* but did not build is the mirror case,
+`TangencyContradicted`. Declarations are verified, never trusted.
+
+## 2. Profile validation: the loop as a whole
+
+Junction checks are local. Some defects are global, and they are
+caught by `Profile::validate` — the door `validated` runs for you:
+
+```
+use pncad::prelude::*;
+use pncad::profile::ProfileError;
+
+// A bowtie: the two diagonals cross. Every corner is locally fine.
+let bowtie = ProfileLoop::polygon([
+    p2(0.0, 0.0), p2(1.0, 1.0), p2(1.0, 0.0), p2(0.0, 1.0),
+]);
+let refused = validated(SketchPlane::<f64>::xy(), vec![bowtie]);
+
+assert!(matches!(refused, Err(ProfileError::NonSimple { .. })));
+```
+
+This is why `demos/tour/src/bodies.rs` keeps its `finale_fail_loud`
+bowtie authored through the **raw** constructor permanently: the
+algebra's checks are local and would pass it, so the scene exists to
+prove the profile-level validator catches what they cannot.
+
+## 3. Contact: the refusal that defines this kernel
+
+Here is the one that surprises people, and the one most worth
+understanding. Two boxes stacked so they share a face plane:
+
+```
+use pncad::prelude::*;
+use pncad::topo::BooleanError;
+# type E = Box<dyn std::error::Error>;
+# fn slab(z: (f64, f64)) -> Result<Body<f64>, E> {
+#     let rect = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+# }
+let lower = slab((0.0, 1.0))?;   // z from 0 to 1
+let upper = slab((1.0, 2.0))?;   // z from 1 to 2 — they meet exactly at z = 1
+
+let refused = union(&lower, &upper);
+assert!(matches!(refused, Err(BooleanError::UndeclaredCoincidence { .. })));
+# Ok::<(), E>(())
+```
+
+Those two boxes obviously form a 1 × 1 × 2 block, and most kernels
+will hand you one. This one will not, and the reason is worth stating
+carefully.
+
+The kernel has two floating-point planes that are equal *as far as it
+can tell at this tolerance*. Treating them as the same face means
+deciding that a numerical coincidence was intentional. Sometimes it
+is — you meant to glue these parts. Sometimes it is a 0.001 mm
+modelling error that a tolerant kernel will silently weld into a part
+that cannot be manufactured. **The kernel cannot tell the difference,
+so it refuses to guess, and asks you.**
+
+You answer by *declaring* the contact. The declaration is data
+attached to the operation — `union_with(&a, &b, &decls)` — and it is
+verified, not believed: a declaration whose planes are in fact
+distinct is `ContradictedDeclaration`. So the fail-loud property
+survives the escape hatch.
+
+Working examples of the declared path, in increasing order of realism:
+`demos/tour/src/booleans.rs` (the declare door itself),
+`demos/tour/src/crosslap.rs` (which asserts *live* that the
+undeclared version still refuses, with a "retire this if it ever
+stops refusing" panic), and the `table` corpus document, which
+declares every leg contact by name through the detect/declare
+protocol (`find_flush_candidates` → `declare_node`).
+
+Notice the shape of that protocol: detection *proposes*, a human or a
+recipe *declares*. Value equality never classifies on its own — there
+is no `detect_and_apply` anywhere in this codebase, and that absence
+is deliberate.
+
+## 4. The edit door: refusals before anything is evaluated
+
+Document edits are checked when applied. Deleting a node something
+else depends on would leave a dangling reference, so it is refused
+and the document is left untouched:
+
+```
+use pncad::prelude::*;
+use pncad::document::EditError;
+
+let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
+    .expect("finite corners");
+
+let doc = Doc::<ProfileProgram>::empty_derived("guide");
+let applied = apply(&doc, &DocEdit::InsertNode {
+    node: Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![square] }),
+})?;
+let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
+let doc = apply(&doc, &DocEdit::InsertNode {
+    node: Node::Extrude { profile, distance: len(1.0) },
+})?.doc;
+
+let refused = apply(&doc, &DocEdit::DeleteNode { id: profile });
+assert!(matches!(refused, Err(EditError::DeleteWouldDangle { .. })));
+assert_eq!(doc.len(), 2, "the refused edit changed nothing");
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+An edit is a value that either applies or does not. There is no
+half-applied state to clean up.
+
+## 5. Evaluation: total, and therefore inspectable
+
+Evaluation is the one layer that does **not** refuse by raising,
+and the reason is structural: a document is a DAG, and one broken
+node should not hide the state of every other node. So `evaluate` is
+*total* — it always returns, and each node carries its own outcome.
+
+```python
+from pncad import BooleanOp, Doc, EvaluationError, Node, evaluate, mm
+
+
+def slab(doc, z0, z1):
+    profile = doc.insert(
+        Node.polygon(
+            [(0 * mm, 0 * mm), (10 * mm, 0 * mm), (10 * mm, 10 * mm), (0 * mm, 10 * mm)],
+            elevation=z0,
+        )
+    )
+    return doc.insert(Node.extrude(profile, z1 - z0))
+
+
+# The same undeclared coincidence as section 3, now inside a document.
+doc = Doc()
+lower = slab(doc, 0 * mm, 10 * mm)
+upper = slab(doc, 10 * mm, 20 * mm)
+glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+
+ev = evaluate(doc)                     # does NOT raise
+assert ev.succeeded(lower)             # the operands are fine...
+assert not ev.succeeded(glued)         # ...the union is not
+
+# Reading a failed node's value is what raises, and the payload says why.
+try:
+    ev.value(glued)
+    raise AssertionError("expected a typed refusal")
+except EvaluationError as err:
+    assert err.reason == "node_failed"
+    assert err.node == glued
+```
+
+A node downstream of a failure is not itself broken — it is
+**poisoned**, and it says so, naming the node that actually failed:
+
+```python
+from pncad import BooleanOp, Doc, EvaluationError, Node, evaluate, mm
+
+doc = Doc()
+
+
+def slab(z0, z1):
+    profile = doc.insert(
+        Node.polygon(
+            [(0 * mm, 0 * mm), (10 * mm, 0 * mm), (10 * mm, 10 * mm), (0 * mm, 10 * mm)],
+            elevation=z0,
+        )
+    )
+    return doc.insert(Node.extrude(profile, z1 - z0))
+
+
+lower = slab(0 * mm, 10 * mm)
+upper = slab(10 * mm, 20 * mm)
+broken = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+third = slab(-20 * mm, -10 * mm)
+downstream = doc.insert(Node.boolean(BooleanOp.Union, broken, third))
+
+ev = evaluate(doc)
+try:
+    ev.value(downstream)
+    raise AssertionError("expected a typed refusal")
+except EvaluationError as err:
+    assert err.reason == "poisoned"
+    assert err.through == broken, "the poisoned node names the one that broke"
+```
+
+That `through` field is the difference between "something upstream
+failed" and a debugging session. In a 500-node document it points
+straight at the culprit.
+
+## 6. Validation: a vector, not the first complaint
+
+The tier ladder returns `Result<(), Vec<ValidationError>>`. The vector
+is deliberate: a body with a real problem usually has several
+symptoms, and reporting only the first one costs you a round trip per
+symptom.
+
+```
+use pncad::prelude::*;
+# type E = Box<dyn std::error::Error>;
+# let rect = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+# let body = extrude(&validated(SketchPlane::<f64>::xy(), vec![rect])?, Extrusion::Distance(real(1.0)))?.body;
+match validate_geometric(&body) {
+    Ok(()) => { /* the body is sound at tier 3 */ }
+    Err(failures) => {
+        // Every failure, not just the first: report them all at once.
+        for failure in &failures {
+            eprintln!("tier 3 refusal: {failure:?}");
+        }
+        panic!("{} validation failures", failures.len());
+    }
+}
+# Ok::<(), E>(())
+```
+
+In Python the same ladder raises `ValidationError` carrying `door`
+(which gate refused) and `failure_count`. For a worked refusal, see
+the `plate_param` corpus row where a hole radius grows until the two
+holes overlap: it refuses at *validate*, a different door from the
+replay refusal the same document produces at radius zero. Two failure
+modes, two doors, kept distinguishable.
+
+## 7. The boundary layers: quantities, literals, export
+
+The Python boundary refuses before a bad value ever reaches the
+kernel. Dimensions are checked by construction:
+
+```python
+from pncad import DimensionError, LiteralError, Node, PncadError, deg, mm
+
+try:
+    25 * mm + 90 * deg
+    raise AssertionError("expected a typed refusal")
+except DimensionError as err:
+    assert (err.op, err.left, err.right) == ("+", "length", "angle")
+
+# A bare number is not a length either — the dimension is named.
+try:
+    25 * mm + 3
+    raise AssertionError("expected a typed refusal")
+except DimensionError as err:
+    assert err.right == "scalar"
+
+# Non-finite values are refused where they enter, not where they explode.
+try:
+    Node.extrude(None, float("nan") * mm)
+    raise AssertionError("expected a typed refusal")
+except (LiteralError, TypeError) as err:
+    if isinstance(err, LiteralError):
+        assert err.kind == "non_finite"
+
+# Every one of these is a PncadError, so a caller can catch the family.
+assert issubclass(DimensionError, PncadError)
+```
+
+Export refuses in the same style. `ExportError` names the node and,
+when the value was the wrong shape, the kind it actually found — so
+"you asked me to export a profile" is a matchable fact rather than a
+message. On the Rust side, STEP export has three refusals you should
+*expect* rather than fix — `UnsupportedSurface`, `UnsupportedCurve`,
+`CurvedShellClassification` — meaning the AP242 writer has no
+representation for a surface the modeller can legitimately build. The
+tour tolerates exactly those three, per scene, and panics on anything
+else. That is the right posture to copy: enumerate the refusals you
+accept, and let every other one be loud.
+
+## Reading a refusal, in general
+
+1. **Match the variant.** It names the class of thing that went
+   wrong.
+2. **Read the payload.** It names the specific entity, node, loop,
+   step, or pair.
+3. **If there is a margin and a band, the answer is not "loosen the
+   tolerance".** An `Escalated` refusal means the decision was
+   genuinely in-band — a sliver — and the model is ill-conditioned at
+   this ε. The recourse is to fix the geometry or state the intent,
+   not to widen the band until the kernel stops noticing.
+4. **If it is a coincidence refusal, decide whether you meant it.**
+   If you did, declare it. If you did not, you just found a bug in
+   your model that a tolerant kernel would have shipped.

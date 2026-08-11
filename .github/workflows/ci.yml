@@ -89,6 +89,18 @@ concurrency:
 # mirror convention covers the matrix, not the runner's linker.
 env:
   NEXTEST_VERSION: "0.9.140"
+  # maturin rides the same pattern as nextest: pinned here (single source
+  # of truth), installed from the official GitHub-release prebuilt at the
+  # pinned URL — no third-party action. 1.14.1 (released 2026-06-19) is
+  # the exact binary the U9S/DOORS/U10 wheels were built and validated
+  # with locally; ~7 weeks old at adoption (2026-08-09), well past the
+  # 2-week dependency-age rule. A dev/CI tool only — it never enters any
+  # shipped build graph (the wheel's compiled code is cargo's output).
+  MATURIN_VERSION: "1.14.1"
+  # `ty`, the static stub checker (LIB-PYG1). 0.0.39 was published
+  # 2026-05-22, so it clears the >=2-week dependency age policy by
+  # weeks.
+  TY_VERSION: "0.0.39"
 
 # The toolchain (channel + rustfmt/clippy components) comes from
 # rust-toolchain.toml: the dtolnay step only bootstraps/updates rustup, and
@@ -141,6 +153,7 @@ jobs:
       run_editor_core: ${{ steps.classify.outputs.RUN_EDITOR_CORE }}
       run_stl: ${{ steps.classify.outputs.RUN_STL }}
       run_step_export: ${{ steps.classify.outputs.RUN_STEP_EXPORT }}
+      run_pncad_py: ${{ steps.classify.outputs.RUN_PNCAD_PY }}
       run_interval_backend: ${{ steps.classify.outputs.RUN_INTERVAL_BACKEND }}
       run_k_lint: ${{ steps.classify.outputs.RUN_K_LINT }}
     steps:
@@ -157,11 +170,14 @@ jobs:
         env:
           RUSTUP_TOOLCHAIN: stable
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="${{ github.event.pull_request.base.sha }}"
-          else
-            BASE="$(git rev-parse HEAD^1 2>/dev/null || git rev-parse HEAD)"
-          fi
+          # Always diff against the checkout's own first parent. On
+          # pull_request the checkout is the test-merge commit, so HEAD^1
+          # is by construction the exact base state the merge was built
+          # against; the event payload's base.sha can be newer than that
+          # (base moved between payload snapshot and merge-ref
+          # construction), and the skew window's commits then appear as
+          # phantom changed files that defeat the docs/closure tiers.
+          BASE="$(git rev-parse HEAD^1 2>/dev/null || git rev-parse HEAD)"
           echo "base: $BASE"
           echo "changed files:"
           git diff --name-only "$BASE"...HEAD || true
@@ -214,10 +230,29 @@ jobs:
       # (certified) from `Dual` (typed refusal, no bracket to offer).
       # `ssi/enclose.rs` is deliberately absent — it decides nothing, so
       # it takes the sole-bound `T: Bounds` the rule allows everywhere.
+      # geom-brep/src/edge_nurbs.rs is M7-8's plane × NURBS edge lane,
+      # the narrowest possible extension of that same seam: it DELEGATES
+      # to the already-listed `certify_rung3` door with a declared
+      # carrier instead of a marched one, inheriting the door's
+      # signature rather than widening anything. Its split is written in
+      # the same shape — `EdgeNurbsLane` splits f64/Probe/Interval
+      # (certified) from `Dual` (typed refusal) — and it is what keeps
+      # `Bounds` out of `topo`'s signatures.
       # Sole-bound `T: Bounds`
       # (certification/driver code) is untouched by this check. A NEW
       # file writing a compound Bounds bound fails here until it is
       # ratified into the real.rs rule AND this allowlist.
+      # profile/src/path/arc_fillet.rs is the LIB-G2 PATHS arc-carrier
+      # fillet boundary (ruling LB3, 2026-08-08): the algebra forbids
+      # authoring a fillet's corner, so it DERIVES 0/1/2 corners from the
+      # two carriers and the S8 choice is over (corner, candidate) pairs —
+      # it decides (the carrier-meet and angular advance/reach gates) and
+      # reads the selection channel in one function, which is
+      # `Decide + Bounds` honestly, carrying sugar.rs's ratified
+      # justification verbatim: a representation-level choice between
+      # already-classified constructions, never a re-decision of geometry.
+      # Confined to this one file so path.rs itself stays bracket-free;
+      # fillet_select.rs is NOT listed (sole-bound `T: Bounds`).
       - name: Bounds compound-bound allowlist (ratified 2026-07-29)
         run: |
           hits=$(grep -rnE '\+\s*(geom_core::)?Bounds\b' crates/*/src \
@@ -227,7 +262,8 @@ jobs:
             | grep -vE '^crates/topo/src/props\.rs$' \
             | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
             | grep -vE '^crates/profile/src/sugar\.rs$' \
-            | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify)\.rs$' \
+            | grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
+            | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
             | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' || true)
           if [ -n "$hits" ]; then
             echo "$hits"
@@ -340,7 +376,10 @@ jobs:
 
       # RENDER PROVENANCE (#221 follow-up). Every committed per-scene
       # PNG under demos/renders{,-freecad}/ must carry FreeCAD's
-      # signature tEXt chunks; the two matplotlib-COMPOSED montage
+      # signature tEXt chunks; demos/renders-wild/ (the wild-corpus
+      # lane, FreeCAD-free by scope) runs inverted per-lane rules —
+      # matplotlib-drawn cells carrying the wild lane's own Author
+      # stamp; the matplotlib-COMPOSED montage
       # sheets are the only exemption, and are asserted to be exactly
       # that. A matplotlib fallback frame in a committed path fails
       # here, naming the file. Stdlib-only python3 — it rides this job
@@ -354,6 +393,14 @@ jobs:
         run: |
           python3 demos/check_render_provenance.py --selftest
           python3 demos/check_render_provenance.py
+
+      # The UV lane's composer: no provenance question (only the kernel
+      # can have drawn an SVG cell), but its selection rule DROPS faces
+      # from the sheet, and a silent drop is what that lane exists to
+      # prevent. Same cheap-tripwire posture, stdlib only. Mirror:
+      # ci-local's "uv composer selftest (demos)" row.
+      - name: uv composer selftest (demos)
+        run: python3 demos/compose_uv_montage.py --selftest
 
   fmt:
     name: rustfmt
@@ -749,6 +796,94 @@ jobs:
       - name: freecad import check (validity, counts, volume)
         run: REQUIRE_FREECAD=1 FREECADCMD="$HOME/freecad-appimage/squashfs-root/usr/bin/freecadcmd" scripts/check_step.sh
 
+  # LIB PY-CI (residual register R4; U10 follow-up F4): the Python suite
+  # as a hosted job. Builds the pncad wheel with maturin, installs it
+  # into a venv, and runs the FULL crates/pncad-py unittest set by
+  # DISCOVERY — the same invocation crates/pncad-py/run-python-tests.sh
+  # uses — so new test modules (e.g. #318's test_guide.py /
+  # test_north_star.py) are picked up the moment they merge, with no
+  # edit here. DELIBERATELY OFF the Rust-only critical path: nothing
+  # `needs` this job, and the Rust jobs stay green with no Python
+  # present (the U9S gating property — pyo3 rides the non-default
+  # `python` feature, which only maturin turns on). Its failure still
+  # reds the PR — that is the point.
+  #
+  # Root package pncad-py (see JOB_ROOTS in scripts/ci-filter.py): the
+  # wheel compiles pncad-py's whole dependency graph — the entire façade
+  # stack — so `pncad-py in closure` is exactly the condition under
+  # which anything this job runs can have moved; the .py tests and .pyi
+  # stub live under the member directory and seed the same closure.
+  # Budget: one job, one Python version, no matrix, debug-profile build
+  # (release is not required to prove the suite; the D9 bit-exactness
+  # pins hold at any opt level — opt never moves rounding, and the
+  # suite asserting so IS this job's evidence).
+  # Local mirror: ci-local.sh's "python suite (staged cdylib)" row —
+  # same tests, same discovery; the install path degrades to the staged
+  # cdylib (run-python-tests.sh) so the row works even on the most
+  # degraded box U9S measured (no pip, no maturin).
+  python-suite:
+    name: python suite (wheel + guide + north-star)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_pncad_py == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      # Python pinned at 3.12 — the interpreter the suite was written
+      # and validated on (U9S/DOORS/U10 all ran the local 3.12). The
+      # wheel is abi3-py38, so this is a determinism pin, not a
+      # compatibility ceiling. actions/setup-python@v5 (GA 2023-12)
+      # clears the ~2-week age policy by years — the same
+      # long-aged-major-tag class as the checkout@v4 / cache@v4 /
+      # upload-artifact@v4 pins this workflow already rides.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      # Separate cache key: the `python` feature graph (pyo3 + 4 more
+      # crates) differs from every other job's — same CACHE SEPARATION
+      # reasoning as build-interval (job-id separation is automatic;
+      # the explicit key makes it intentional and survives a rename).
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: python
+      - name: install maturin (pinned, official prebuilt)
+        run: curl -LsSf "https://github.com/PyO3/maturin/releases/download/v$MATURIN_VERSION/maturin-x86_64-unknown-linux-musl.tar.gz" | tar zxf - -C "$HOME/.cargo/bin" maturin
+      # Debug profile on purpose (no --release): fastest honest build.
+      # pyproject.toml's [tool.maturin] supplies module name + the
+      # `extension-module` feature; abi3 needs no Python.h.
+      - name: build the pncad wheel (abi3, debug profile)
+        run: maturin build -m crates/pncad-py/Cargo.toml -o target/wheels
+      # The venv lives OUTSIDE target/ deliberately: rust-cache caches
+      # target/, and a cached venv skeleton restores without its bin/
+      # contents (the 2026-08-10 red-main incident — the PR run passed
+      # on a cold cache, main restored a mangled venv). RUNNER_TEMP is
+      # never cached; --clear guards against any reuse regardless.
+      - name: install the wheel into a venv
+        run: |
+          python -m venv --clear "$RUNNER_TEMP/py-ci-venv"
+          "$RUNNER_TEMP/py-ci-venv/bin/python" -m pip install target/wheels/pncad-*.whl
+      # The STATIC half of the §L4 type story (LIB-PYG1): `ty` checks
+      # the .pyi lattice's SIGNATURES, which the name-for-name stub
+      # check deliberately does not look at. Pinned like maturin; this
+      # step is where the row is MEASURED, so a fetch failure reds the
+      # job rather than passing quietly. `tests/test_ty.py` skips —
+      # loudly, naming the missing binary — only where no checker
+      # exists at all (the degraded local box U9S recorded).
+      - name: install ty (pinned, the static stub checker)
+        run: |
+          "$RUNNER_TEMP/py-ci-venv/bin/python" -m pip install "ty==$TY_VERSION"
+      # Discovery from the repo checkout: guide tests read the docs/
+      # Markdown relative to their own file, and the stub check is
+      # layout-invariant (validated on the wheel-venv layout, #308).
+      - name: run the Python suite (unittest discover)
+        run: |
+          "$RUNNER_TEMP/py-ci-venv/bin/python" -m unittest discover \
+            --start-directory crates/pncad-py/tests \
+            --top-level-directory crates/pncad-py/tests \
+            --verbose
+        env:
+          PNCAD_TY: ${{ runner.temp }}/py-ci-venv/bin/ty
+
   # (The former standalone `multi-eps` job is FOLDED into the `test`
   # matrix above: its 1e-6/1e-12 rows and the old unparameterized `test`
   # job were three compilations of bit-identical binaries; they are now
@@ -838,16 +973,26 @@ jobs:
         env:
           CAD_TOLERANCE_EPS: ${{ matrix.eps }}
 
-  # M4 PR 8b spec D3: the large-K fragility lint. ADVISORY first
-  # iteration — the lint tool prints flags and always exits 0 on
-  # findings; this job can only fail on harness breakage (sweep or
-  # parse failure), a hygiene regression, or the #99 litmus no longer
-  # firing. The committed baseline + threshold provenance:
-  # docs/k-report-data/m4-eps-*.csv.gz and tools/k-lint/src/lib.rs
-  # (docs/K-REPORT.md M4 addendum has the histogram + percentile
-  # reasoning).
+  # Spec D3: the large-K fragility lint. A GATE — a flagged margin
+  # fails this row (the tool exits 2 and prints the interpretation
+  # discipline; harness breakage exits 1 in its own voice). The row
+  # also fails on a hygiene regression or the #99 litmus no longer
+  # firing.
+  #
+  # READ THE FAILURE BEFORE TOUCHING GEOMETRY: a fired lint is evidence
+  # that the margin DISTRIBUTION moved — possibly that a threshold or
+  # the baseline is stale. Recourse is re-derivation (docs/K-REPORT.md,
+  # "M7 addendum (2026-08-07): the large-K lint's floor refresh"), or a
+  # recorded demotion to advisory; never a geometry nudge to get under
+  # the threshold. The tool prints all of this on failure.
+  #
+  # The committed baseline + threshold provenance:
+  # docs/k-report-data/m7-eps-*.csv.gz and tools/k-lint/src/lib.rs
+  # (docs/K-REPORT.md M7 addendum has the histogram, the percentile
+  # re-argument, and the ε-coupled ruling; the m4-/m5- baselines stay
+  # committed as the durable record).
   k-lint:
-    name: k-lint (advisory)
+    name: k-lint (gate)
     runs-on: ubuntu-latest
     needs: filter
     # No minimal root set, deliberately: this is the ONLY job that compiles
@@ -864,20 +1009,53 @@ jobs:
           workspaces: |
             .
             demos/tour
+            demos/wild
             tools/k-lint
       # Hosted mirror of ci-local's "demos tour (fmt + clippy)" row:
       # the tour is workspace-excluded, so the fmt/clippy jobs above
       # never see it — and this is the job that builds it anyway (the
-      # demo scenes are half the lint's subject matter).
+      # demo scenes are half the lint's subject matter). demos/wild
+      # (the wild-corpus montage generator) rides the same row for the
+      # same reason.
       - name: demos tour fmt + clippy
         run: cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+      - name: demos wild fmt + clippy
+        run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+      # Drift gate for the committed UV sheet. The two PNG lanes cannot
+      # be gated — they need FreeCAD, which this job does not have — so
+      # this is the ONLY render lane CI can actually reproduce, and an
+      # ungated committed artifact rots silently. Regenerate and diff:
+      # the tour is ~3s once built (this job already builds it for the
+      # k-probe sweep below) and the sheet is text, so the diff is
+      # readable when it fires. A failure here is either a real change
+      # the author forgot to commit, or a D9 determinism finding — both
+      # worth stopping for. Mirror: ci-local's "uv sheet drift (demos)".
+      #
+      # The render entry points refuse to run without the explicit
+      # `CAD_RENDER_LOCAL_OVERRIDE` sentence (demos/hosted-render-guard.sh)
+      # and deliberately do NOT sniff for CI: the exemption is written
+      # here, at the step that renders, where a reviewer sees it. This
+      # row is a sanctioned automated render — renderer-free, and the
+      # `git diff --exit-code` below is what makes drift a failure rather
+      # than a commit.
+      - name: uv sheet drift (demos)
+        env:
+          CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
+        run: |
+          (cd demos/tour && cargo run --release -- ../out)
+          demos/render-uv.sh
+          git diff --exit-code --stat HEAD -- demos/renders-uv/ || {
+            echo "::error::demos/renders-uv/montage-uv.svg is stale — \
+          re-run demos/tour then demos/render-uv.sh and commit the result"
+            exit 1
+          }
       - name: K-telemetry probe sweep (corpus + demo scenes, 3 eps rows)
         run: scripts/k_probe_sweep.sh target/k-fresh
-      - name: large-K lint (advisory — prints, never fails on findings)
+      - name: large-K lint (gate — a flagged margin fails this row)
         run: |
           cd tools/k-lint && cargo run -- \
-            ../../target/k-fresh/m4-eps-1e-6.csv \
-            ../../target/k-fresh/m4-eps-1e-9.csv \
-            ../../target/k-fresh/m4-eps-1e-12.csv
+            ../../target/k-fresh/k-eps-1e-6.csv \
+            ../../target/k-fresh/k-eps-1e-9.csv \
+            ../../target/k-fresh/k-eps-1e-12.csv

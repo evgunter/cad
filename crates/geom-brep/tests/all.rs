@@ -42,10 +42,16 @@ mod m5_pr12_circle_certificate;
 mod m5_pr7_ssi;
 #[path = "m5_pr9_tangent.rs"]
 mod m5_pr9_tangent;
+#[path = "m7_8_plane_nurbs_edge.rs"]
+mod m7_8_plane_nurbs_edge;
 #[path = "pcurve_conic.rs"]
 mod pcurve_conic;
 #[path = "pcurve_parameter_finding.rs"]
 mod pcurve_parameter_finding;
+#[path = "r1_pxn_probes.rs"]
+mod r1_pxn_probes;
+#[path = "review_flux_probes_r1.rs"]
+mod review_flux_probes_r1;
 #[path = "review_m2_pr3_certify.rs"]
 mod review_m2_pr3_certify;
 #[path = "review_m2_pr7_props.rs"]
@@ -66,6 +72,8 @@ mod review_m6_3_chart_probes;
 mod review_m6_surgery_rider;
 #[path = "review_pr12_meridian_probe.rs"]
 mod review_pr12_meridian_probe;
+#[path = "review_r1_rational_probes.rs"]
+mod review_r1_rational_probes;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
 #[path = "rim_dim_scale_twins.rs"]

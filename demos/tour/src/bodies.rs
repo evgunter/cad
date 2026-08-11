@@ -10,22 +10,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tolerance, Vec2};
-use profile::{LoopBuilder, Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use pncad::geom_core::{Tolerance, Vec2};
+use pncad::prelude::{Open, Start};
+use pncad::profile::{Profile, ProfileLoop, SketchPlane};
+use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-
-fn p2<S: Scalar>(x: f64, y: f64) -> Point2<S> {
-    Point2::new(S::from_f64(x), S::from_f64(y))
-}
-
-fn validated<S: Scalar>(loops: Vec<ProfileLoop<S>>) -> ValidatedProfile<S> {
-    Profile::new(SketchPlane::xy(), loops)
-        .validate(Tolerance::get())
-        .expect("profile validation")
-}
+use pncad::authoring::{p2, validated};
 
 fn axis_y<S: Scalar>() -> RevolveAxis<S> {
     RevolveAxis {
@@ -34,22 +26,19 @@ fn axis_y<S: Scalar>() -> RevolveAxis<S> {
     }
 }
 
-/// A circle as a two-vertex closed arc carrier (bulge 1 = semicircle).
+/// A circle loop, algebra-authored (LIB-G1): `circle` is a one-step
+/// complete-loop PROGRAM FORM, not a chain — it authors no seam, so the
+/// conventional two-semicircle split is its private lowering and PQ4
+/// (no mid-carrier seams for chains) is untouched. Lowers to exactly
+/// the two-vertex bulge-1 loop this helper used to build by hand.
 fn circle<S: Scalar>(cx: f64, cy: f64, r: f64) -> ProfileLoop<S> {
-    ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(cx + r, cy),
-            bulge: S::from_f64(1.0),
-        },
-        ProfileVertex {
-            pos: p2(cx - r, cy),
-            bulge: S::from_f64(1.0),
-        },
-    ])
+    pncad::profile::circle(p2(cx, cy), S::from_f64(r))
+        .expect("circle radius is positive")
+        .into()
 }
 
 /// L-bracket: polyline + one fillet arc at the inner corner, extruded.
-pub fn bracket<S: Scalar>() -> topo::Body<S> {
+pub fn bracket<S: Scalar>() -> pncad::topo::Body<S> {
     // The inner corner (1, 1) carries an r = 0.5 tangent fillet,
     // authored through the CONSTRUCTIVE path (#101): `fillet` computes
     // the tangent points (1.5, 1)/(1, 1.5) and the arc bulge exactly
@@ -64,28 +53,60 @@ pub fn bracket<S: Scalar>() -> topo::Body<S> {
     // demo's authoring path, not just a convenience. (The 1.146 datum
     // itself lives on as the large-K lint's litmus fixture —
     // tools/k-lint.)
-    let lp = LoopBuilder::start(p2(0.0, 0.0))
+    //
+    // Algebra-authored at LIB-G1, which is where the two constructors
+    // it needed arrived. LIB-U2 PR-2 measured why it could not move
+    // then: the corner is never authored, so the PATHS spelling reaches
+    // it through a director, and `.angle(PI)` carries sin(PI) = 1.22e-16
+    // into the ray — 1 ulp on both trim vertices. `.toward(-1, 0)` fixes
+    // the RAY instead of an angle, so the corner comes out exactly
+    // (1, 1). The filleted side then has to END at its authored far
+    // vertex (1, 3), which needed the far-end anchor `.to(p)` — before
+    // it, the only spellings were a synthetic mid-side anchor plus a
+    // measured length. The lowering is bit-identical to the raw chain
+    // this replaces (pinned in path_differential).
+    let lp = Open
+        .at(p2(0.0, 0.0))
         .line_to(p2(3.0, 0.0))
+        .expect("bracket base")
         .line_to(p2(3.0, 1.0))
-        .fillet(p2(1.0, 1.0), p2(1.0, 3.0), S::from_f64(0.5)) // r = 0.5 inner fillet
+        .expect("bracket riser")
+        .toward(S::from_f64(-1.0), S::from_f64(0.0))
+        .expect("west, exactly")
+        .fillet(S::from_f64(0.5)) // r = 0.5 inner fillet
         .expect("bracket fillet fits")
-        .line_to(p2(1.0, 3.0))
+        .toward(S::from_f64(0.0), S::from_f64(1.0))
+        .expect("north, exactly")
+        .to(p2(1.0, 3.0))
+        .expect("the filleted side ends at its far vertex")
         .line_to(p2(0.0, 3.0))
-        .close();
-    extrude(&validated(vec![lp]), Extrusion::Distance(S::from_f64(0.75)))
-        .expect("extrude bracket")
-        .body
+        .expect("bracket top")
+        .line_to(Start)
+        .expect("bracket seam")
+        .into();
+    extrude(
+        &validated(SketchPlane::xy(), vec![lp]).expect("profile validation"),
+        Extrusion::Distance(S::from_f64(0.75)),
+    )
+    .expect("extrude bracket")
+    .body
 }
 
 /// Rectangular plate with two circular holes: a genus-2 extrusion.
-pub fn plate<S: Scalar>() -> topo::Body<S> {
-    let outer = ProfileLoop::polygon([p2(-3.0, -1.5), p2(3.0, -1.5), p2(3.0, 1.5), p2(-3.0, 1.5)]);
+pub fn plate<S: Scalar>() -> pncad::topo::Body<S> {
+    // Outer rectangle algebra-authored at LIB-U2 PR-2, the hole circles
+    // at LIB-G1 (see `circle`) — per-loop wholesale, never mixed within
+    // a loop.
+    let outer = crate::paths::path_polygon(&[(-3.0, -1.5), (3.0, -1.5), (3.0, 1.5), (-3.0, 1.5)]);
     let holes = vec![circle(-1.5, 0.0, 0.7), circle(1.5, 0.0, 0.7)];
     let mut loops = vec![outer];
     loops.extend(holes);
-    extrude(&validated(loops), Extrusion::Distance(S::from_f64(0.6)))
-        .expect("extrude plate")
-        .body
+    extrude(
+        &validated(SketchPlane::xy(), loops).expect("profile validation"),
+        Extrusion::Distance(S::from_f64(0.6)),
+    )
+    .expect("extrude plate")
+    .body
 }
 
 /// Solid vase: an axis-touching profile — conical base, spherical
@@ -93,19 +114,36 @@ pub fn plate<S: Scalar>() -> topo::Body<S> {
 /// swept surface is a sphere zone; an OFF-axis arc carrier sweeps a
 /// ring torus — see the sheave, which showcases exactly that), conical
 /// flared lip — fully revolved about the y axis.
-pub fn vase<S: Scalar>() -> topo::Body<S> {
+pub fn vase<S: Scalar>() -> pncad::topo::Body<S> {
     // Belly arc: circle of radius 1.3 centered at (0, 0.8) — on the
     // axis — from (1.2, 0.3) through (1.3, 0.8) to (0.5, 2.0).
-    let lp = LoopBuilder::start(p2(0.0, 0.0))
+    // Algebra-authored (LIB-G1): `arc_via` is the through-point binding
+    // mode the belly wanted all along — all three points are authored
+    // and stored verbatim, and the bulge is derived at lowering by the
+    // same closed form the raw chain used, so nothing computed is
+    // re-typed and the lowering is bit-identical.
+    let lp = Open
+        .at(p2(0.0, 0.0))
         .line_to(p2(1.2, 0.0))
+        .expect("vase base")
         .line_to(p2(1.2, 0.3))
-        .arc_to_via(p2(1.3, 0.8), p2(0.5, 2.0))
+        .expect("vase base wall")
+        .arc_via(p2(1.3, 0.8), p2(0.5, 2.0))
+        .expect("vase belly arc")
         .line_to(p2(0.9, 2.5))
+        .expect("vase lip flare")
         .line_to(p2(0.0, 2.5))
-        .close();
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-        .expect("revolve vase")
-        .body
+        .expect("vase lip")
+        .line_to(Start)
+        .expect("vase axis seam")
+        .into();
+    revolve(
+        &validated(SketchPlane::xy(), vec![lp]).expect("profile validation"),
+        axis_y(),
+        Revolution::Full,
+    )
+    .expect("revolve vase")
+    .body
 }
 
 /// Rope-groove sheave (the donut's AND the pulley's successor): full
@@ -117,32 +155,54 @@ pub fn vase<S: Scalar>() -> topo::Body<S> {
 /// stop carries all four analytic surface kinds (plane, cylinder,
 /// cone, torus), which is why the pulley (plane/cylinder/cone only)
 /// retired into it at the #91 revision pass. Center bore → genus 1.
-pub fn sheave<S: Scalar>() -> (topo::Body<S>, String) {
-    let lp = LoopBuilder::start(p2(0.4, 0.0))
+pub fn sheave<S: Scalar>() -> (pncad::topo::Body<S>, String) {
+    // Algebra-authored (LIB-G1): the groove is an `arc_via` through
+    // its own deepest point, between two chord-derived line sides.
+    let lp = Open
+        .at(p2(0.4, 0.0))
         .line_to(p2(0.9, 0.0))
+        .expect("sheave hub face")
         .line_to(p2(0.9, 0.25))
+        .expect("sheave hub step")
         .line_to(p2(1.6, 0.25))
+        .expect("sheave web")
         .line_to(p2(1.6, 0.0))
+        .expect("sheave web step")
         .line_to(p2(2.0, 0.0))
+        .expect("sheave rim face")
         .line_to(p2(2.1, 0.2)) // tapered shoulder: cone zone
-        .arc_to_via(p2(1.8, 0.5), p2(2.1, 0.8)) // groove: r = 0.3 semicircle
+        .expect("sheave lower shoulder")
+        .arc_via(p2(1.8, 0.5), p2(2.1, 0.8)) // groove: r = 0.3 semicircle
+        .expect("sheave rope groove")
         .line_to(p2(2.0, 1.0)) // tapered shoulder: cone zone
+        .expect("sheave upper shoulder")
         .line_to(p2(1.6, 1.0))
+        .expect("sheave rim back")
         .line_to(p2(1.6, 0.75))
+        .expect("sheave web step (back)")
         .line_to(p2(0.9, 0.75))
+        .expect("sheave web (back)")
         .line_to(p2(0.9, 1.0))
+        .expect("sheave hub step (back)")
         .line_to(p2(0.4, 1.0))
-        .close();
-    let body: topo::Body<S> = revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-        .expect("revolve sheave")
-        .body;
+        .expect("sheave hub face (back)")
+        .line_to(Start)
+        .expect("sheave bore seam")
+        .into();
+    let body: pncad::topo::Body<S> = revolve(
+        &validated(SketchPlane::xy(), vec![lp]).expect("profile validation"),
+        axis_y(),
+        Revolution::Full,
+    )
+    .expect("revolve sheave")
+    .body;
     // Closed-form volume by Pappus (independent derivation, exact
     // rationals): hub + web + rim annuli + two cone shoulder wedges,
     // minus the revolved half-disc groove:
     //   V = 2*pi*(1997/1200) - (189/1000)*pi^2.
     let pi = core::f64::consts::PI;
     let oracle = 2.0 * (1997.0 / 1200.0) * pi - 0.189 * pi * pi;
-    let v = topo::mass_properties(&body)
+    let v = pncad::topo::mass_properties(&body)
         .expect("sheave mass properties")
         .volume
         .f();
@@ -151,18 +211,18 @@ pub fn sheave<S: Scalar>() -> (topo::Body<S>, String) {
         rel < 1e-12,
         "sheave volume {v} vs closed-form {oracle} (rel {rel:.3e})"
     );
-    let kind_count = |pred: fn(&topo::Surface<S>) -> bool| {
+    let kind_count = |pred: fn(&pncad::topo::Surface<S>) -> bool| {
         body.faces()
             .filter(|(_, f)| body.get_surface(f.surface).is_some_and(pred))
             .count()
     };
     assert_eq!(
-        kind_count(|s| matches!(s, topo::Surface::Torus { .. })),
+        kind_count(|s| matches!(s, pncad::topo::Surface::Torus { .. })),
         1,
         "the groove must be a torus wall"
     );
     assert_eq!(
-        kind_count(|s| matches!(s, topo::Surface::Cone { .. })),
+        kind_count(|s| matches!(s, pncad::topo::Surface::Cone { .. })),
         2,
         "the rim shoulders must be cone walls"
     );
@@ -180,19 +240,20 @@ pub fn sheave<S: Scalar>() -> (topo::Body<S>, String) {
 /// partial revolve — a curved trough with wedge caps at both ends,
 /// annular rims, and four cylinder bands. A more interesting partial
 /// revolve than the old plain rectangle, still boolean-free.
-pub fn chute<S: Scalar>() -> (topo::Body<S>, String) {
-    let lp = ProfileLoop::polygon([
-        p2(1.0, 0.0),
-        p2(1.75, 0.0),
-        p2(1.75, 0.625),
-        p2(1.5625, 0.625),
-        p2(1.5625, 0.1875),
-        p2(1.1875, 0.1875),
-        p2(1.1875, 0.625),
-        p2(1.0, 0.625),
+pub fn chute<S: Scalar>() -> (pncad::topo::Body<S>, String) {
+    // C-channel polygon: algebra-authored (LIB-U2 PR-2).
+    let lp = crate::paths::path_polygon(&[
+        (1.0, 0.0),
+        (1.75, 0.0),
+        (1.75, 0.625),
+        (1.5625, 0.625),
+        (1.5625, 0.1875),
+        (1.1875, 0.1875),
+        (1.1875, 0.625),
+        (1.0, 0.625),
     ]);
-    let body: topo::Body<S> = revolve(
-        &validated(vec![lp]),
+    let body: pncad::topo::Body<S> = revolve(
+        &validated(SketchPlane::xy(), vec![lp]).expect("profile validation"),
         axis_y(),
         Revolution::Partial(S::from_f64(3.0 * core::f64::consts::FRAC_PI_2)),
     )
@@ -201,7 +262,7 @@ pub fn chute<S: Scalar>() -> (topo::Body<S>, String) {
     // Pappus for the partial sweep (independent derivation, exact):
     // profile first moment 429/1024, angle 3pi/2 => V = (1287/2048)pi.
     let oracle = (1287.0 / 2048.0) * core::f64::consts::PI;
-    let v = topo::mass_properties(&body)
+    let v = pncad::topo::mass_properties(&body)
         .expect("chute mass properties")
         .volume
         .f();
@@ -228,7 +289,7 @@ fn stop(
     delta: f64,
     view: View,
     color: [f64; 3],
-    body: topo::Body<f64>,
+    body: pncad::topo::Body<f64>,
     note: Option<String>,
 ) -> Stop {
     Stop {
@@ -267,7 +328,7 @@ pub fn stops() -> Vec<Stop> {
         off_sheet(stop(
             "bracket",
             "L-bracket with a filleted inner corner (polyline + tangent arc profile)",
-            "LoopBuilder (line_to/arc_to_via) -> Profile::validate -> extrude(Distance)",
+            "PATHS algebra (toward/fillet/far-end anchor) -> Profile::validate -> extrude(Distance)",
             1e-2,
             View {
                 elev: 32.0,
@@ -295,7 +356,7 @@ pub fn stops() -> Vec<Stop> {
         stop(
             "vase",
             "solid vase — axis-touching profile, spherical belly zone + conical lip",
-            "LoopBuilder line/arc_to_via -> revolve(axis y, Full); sphere/cone/plane faces",
+            "PATHS algebra (line_to/arc_via) -> revolve(axis y, Full); sphere/cone/plane faces",
             2e-2,
             View {
                 elev: 16.0,
@@ -310,7 +371,7 @@ pub fn stops() -> Vec<Stop> {
             "sheave",
             "rope-groove sheave — hub, web, TAPERED rim shoulders, semicircular groove: \
              plane + cylinder + cone + torus on one part",
-            "LoopBuilder polyline + arc -> revolve(axis y, Full), genus 1",
+            "PATHS algebra polyline + arc_via -> revolve(axis y, Full), genus 1",
             5e-2,
             View {
                 elev: 26.0,
@@ -347,6 +408,12 @@ pub fn stops() -> Vec<Stop> {
 pub fn finale_fail_loud<S: Scalar>() {
     println!("\n== finale: fail-loud ==");
     println!("   a bowtie (self-intersecting) profile is refused before any sweep runs:");
+    // PERMANENTLY raw (LIB-U2 PR-2, reaffirmed at LIB-G1): this is the
+    // RAW layer's fail-loud demo — validate refusing a
+    // self-intersecting chain — not a sweep profile. The algebra's
+    // junction checks are LOCAL and would pass this loop (all four
+    // corners are sharp), so raw authoring is the whole point; no
+    // amount of vocabulary growth changes that.
     let bowtie: ProfileLoop<S> =
         ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 2.0), p2(2.0, 0.0), p2(0.0, 2.0)]);
     match Profile::new(SketchPlane::xy(), vec![bowtie]).validate(Tolerance::get()) {

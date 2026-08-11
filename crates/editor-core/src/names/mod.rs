@@ -24,7 +24,11 @@ mod emit;
 mod emit_fillet;
 mod emit_sweep;
 mod emit_topo;
+mod flush;
+mod geompred;
+mod interrogate;
 mod role;
+mod select;
 mod table;
 
 pub use emit::NamingError;
@@ -32,10 +36,22 @@ pub(crate) use emit::{empty, name_pattern};
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
+pub use flush::{
+    ContactClass, DeclareError, FlushEvidence, FlushFinding, FlushRung, declare, declare_all,
+    declare_node, find_flush_candidates,
+};
+pub use geompred::{
+    ALL_SURFACE_KINDS, Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal,
+    SurfaceKindSet,
+};
+pub use interrogate::{
+    Denotation, InterrogateError, denotation, edge_frame, face_frame, vertex_position,
+};
 pub use role::{
     CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport,
     RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,
 };
+pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{EntityKey, EntityRef, Entry, NameTable};
 
 /// **Every edge name of a node's output body, as of THIS evaluation**
@@ -57,13 +73,53 @@ pub fn all_edges<T: geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
     node: crate::node::RecipeNodeId,
 ) -> Vec<StableName> {
+    all_of_kind(ev, node, EntityKind::Edge)
+}
+
+/// **Every face name of a node's output body, as of THIS evaluation**
+/// — [`all_edges`]'s sibling (LIB-U7 deliverable 1), same contract:
+/// filter, sort, dedup; empty for a node with no value or no table.
+pub fn all_faces<T: geom_core::Decide>(
+    ev: &crate::eval::Evaluation<T>,
+    node: crate::node::RecipeNodeId,
+) -> Vec<StableName> {
+    all_of_kind(ev, node, EntityKind::Face)
+}
+
+/// **Every vertex name of a node's output body, as of THIS
+/// evaluation** — [`all_edges`]'s sibling, same contract.
+pub fn all_vertices<T: geom_core::Decide>(
+    ev: &crate::eval::Evaluation<T>,
+    node: crate::node::RecipeNodeId,
+) -> Vec<StableName> {
+    all_of_kind(ev, node, EntityKind::Vertex)
+}
+
+/// **Every body name a node's evaluation carries, as of THIS
+/// evaluation** — [`all_edges`]'s sibling, same contract. Usually one
+/// row (a body-producing op mints one [`RoleSeg::OutputBody`]); a
+/// split's two halves are the plural case.
+pub fn all_bodies<T: geom_core::Decide>(
+    ev: &crate::eval::Evaluation<T>,
+    node: crate::node::RecipeNodeId,
+) -> Vec<StableName> {
+    all_of_kind(ev, node, EntityKind::Body)
+}
+
+/// The one body of all four materializers (they differ only in the
+/// kind they keep): the node's table, filtered, in canonical order.
+fn all_of_kind<T: geom_core::Decide>(
+    ev: &crate::eval::Evaluation<T>,
+    node: crate::node::RecipeNodeId,
+    kind: EntityKind,
+) -> Vec<StableName> {
     let Some(crate::eval::NodeResult::Ok(value)) = ev.nodes.get(&node) else {
         return Vec::new();
     };
     let mut out: Vec<StableName> = value
         .name_table
         .iter()
-        .filter(|(name, _)| name.kind == EntityKind::Edge)
+        .filter(|(name, _)| name.kind == kind)
         .map(|(name, _)| name.clone())
         .collect();
     out.sort();

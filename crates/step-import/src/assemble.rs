@@ -59,7 +59,7 @@ use std::collections::BTreeMap;
 use topo::{Body, HalfEdgeKey, LoopKey, MefSite, MekrSite, MevSite, VertexKey};
 
 use crate::adopt;
-use crate::entities::{Model, SolidSpec};
+use crate::entities::SolidSpec;
 use crate::error::StepImportError;
 
 /// One edge-use in the flattened target complex.
@@ -801,17 +801,18 @@ fn assemble_solid(body: &mut Body<f64>, solid: &SolidSpec) -> Result<(), StepImp
     adopt::finish(body, solid, &assembled)
 }
 
-/// Builds the whole body: one kernel solid (one shell) per
-/// `MANIFOLD_SOLID_BREP`, then the body-wide pcurve re-mint (the
-/// kernel's own cache machinery — since M6-3 every curved chart
-/// mints: cylinder, cone, sphere, torus and described non-rational
-/// NURBS; plane faces stay derive-on-demand, and a boundary class
-/// outside every derivation route leaves its face honestly uncached
-/// — exactly a native body's state).
-pub(crate) fn build_body(
-    solids: &[SolidSpec],
-    _model: &Model,
-) -> Result<Body<f64>, StepImportError> {
+/// One `MANIFOLD_SOLID_BREP` assembled into a body of its OWN, so the
+/// shared at-rest gate can be asked about that solid alone: the
+/// whole-body invariants the gate checks include summed ones (the +V
+/// flux sum over every shell), which cannot see a single inside-out
+/// solid whose neighbours cancel it. Same assembly, same pcurve mint,
+/// same geometry — only the arena's contents differ.
+pub(crate) fn build_one_solid(solid: &SolidSpec) -> Result<Body<f64>, StepImportError> {
+    build(std::slice::from_ref(solid))
+}
+
+/// The assembly both doors share verbatim.
+fn build(solids: &[SolidSpec]) -> Result<Body<f64>, StepImportError> {
     let mut body = Body::new();
     for solid in solids {
         assemble_solid(&mut body, solid)?;

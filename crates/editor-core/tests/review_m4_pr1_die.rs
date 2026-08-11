@@ -16,6 +16,9 @@ use editor_core::{
 
 #[derive(Debug, Clone, PartialEq)]
 struct FakeProfile(&'static str);
+// The v4 payload trait: fake payloads take the slot-free, check-free
+// defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
+impl editor_core::ProfilePayload for FakeProfile {}
 
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;
@@ -139,7 +142,11 @@ fn depth_param() -> TEdit {
 /// interleaved (Transform, Subtract) pairs.
 fn author_theirs() -> Authored {
     let mut log = Vec::new();
-    let (doc, _) = step(TDoc::empty(), &mut log, depth_param());
+    let (doc, _) = step(
+        TDoc::empty_derived("review_m4_pr1_die"),
+        &mut log,
+        depth_param(),
+    );
     let (doc, cube_p) = step(
         doc,
         &mut log,
@@ -208,7 +215,7 @@ fn author_theirs() -> Authored {
 fn author_mine() -> Authored {
     let mut log = Vec::new();
     let (doc, cube_p) = step(
-        TDoc::empty(),
+        TDoc::empty_derived("review_m4_pr1_die"),
         &mut log,
         TEdit::InsertNode {
             node: Node::Profile(FakeProfile("square-20mm")),
@@ -313,8 +320,11 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
 
     // Replay identity holds for BOTH edit orders (PartialEq + the
     // stricter role-isomorphism check against self is implied).
-    assert_eq!(TDoc::replay(&theirs.log).unwrap(), theirs.doc);
-    assert_eq!(TDoc::replay(&mine.log).unwrap(), mine.doc);
+    assert_eq!(
+        TDoc::replay(theirs.doc.id(), &theirs.log).unwrap(),
+        theirs.doc
+    );
+    assert_eq!(TDoc::replay(mine.doc.id(), &mine.log).unwrap(), mine.doc);
 
     // The two authorings are payload-isomorphic under relabeling.
     assert_role_isomorphic(&theirs, &mine);

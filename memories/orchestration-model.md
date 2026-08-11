@@ -55,6 +55,20 @@ Evan only at genuine design forks.
 unit; the incident narratives that earned them live in this file's
 git history and the M-logs):**
 
+- **Orchestrator switch procedure (Evan, PR #285 comment
+  5230318576, executed 2026-08-09)**: the outgoing orchestrator
+  performs the switch itself — finalize the handoff file
+  (cad-work/handoff-prompt-*.md) with the LIVE resting state incl.
+  per-lane resume instructions for any in-flight agents (they die
+  with the session; lanes survive pushed); push every lane's local
+  commits (if a lane's own agent may be alive and holding git
+  state, note it in the handoff instead of fighting the lock);
+  commit crucial state; then `tmux split-window` a new pane IN THE
+  SAME tmux session + same CLAUDE_CONFIG_DIR (keeps the login),
+  launch `claude` (model fable), send-keys the handoff kickoff,
+  verify the successor is working via capture-pane, and finally
+  kill ONLY YOUR OWN PANE — never the session (the successor lives
+  in it), never the other orchestrator's session.
 - **Session start**: install + arm the scripted monitor suite —
   `cp scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` from
   an up-to-date checkout, then arm each as a persistent Monitor
@@ -73,6 +87,14 @@ git history and the M-logs):**
 - **State-sync PRs (Evan, #96)**: the orchestrator branch must not
   accumulate a large unmerged delta — open a docs-only PR to main
   at every pipeline seam.
+- **Local clippy verification is only real from a COLD lint state
+  for touched crates** (2026-08-08, #264's triple-red lesson):
+  cargo replays cached diagnostics at their recording-time
+  severity, so a target linted warm under an allow-warnings
+  invocation passes a later `-D warnings` run un-relinted — a
+  clean exit is a FALSE NEGATIVE. Brief line: verify with
+  `cargo clean -p <touched-crates> && cargo clippy <CI's exact
+  crate list> --all-targets -- -D warnings`.
 - **Every subagent spec header**: OUTPUT DISCIPLINE (≤~150 lines
   per tool call, chunked reads, skeleton-first writes, reports
   ≤150 lines — the 64k output limit kills agents that draft whole
@@ -81,7 +103,23 @@ git history and the M-logs):**
   every build/battery row as a synchronous FOREGROUND Bash call,
   one at a time, reading each result before the next; NEVER arm
   waiters, monitors, or background chains for your own
-  builds/tests" (waiter-parking is endemic without it).
+  builds/tests; when the build-slot queue is busy, a BLOCKING
+  foreground wait is the correct state — re-issue a timed-out
+  call rather than parking" (waiter-parking is endemic without
+  it; the slot-queue flavor — agents assuming the flock will
+  notify them — recurred 3× on 2026-08-08 even with the shorter
+  sentence).
 - **Reviews**: assign reviewers explicit claims to falsify; promote
   reviewer suites into CI after the fix pass
-  ([[review-and-dependency-policy]]).
+  ([[review-and-dependency-policy]]). Dual-review sampling per the
+  A/B v3 amendment: every 3rd merged BLINDED-LANE implementation
+  row (both orchestrators' series combined, merge order on main)
+  gets an independent R2 — same brief, own lane, no R1 access;
+  fix pass consumes the adjudicated union.
+- **Two standing brief lines (Evan, 2026-08-08)**: (i) k-lint
+  discipline — "if the k-lint gate fires, do NOT change geometry
+  to silence it; a fired lint is distribution evidence — re-derive
+  the baseline per the K-REPORT runbook or escalate to the
+  orchestrator" (his design, #243 comment 5224869607); (ii)
+  comment style — comments state the INVARIANT, not the history:
+  no retired-type archaeology, no unit tags (#245 nit → #251).

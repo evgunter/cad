@@ -9,8 +9,14 @@ use editor_core::{
     eval_count,
 };
 
-type Doc = editor_core::Doc<&'static str>;
-type Edit = DocEdit<&'static str>;
+// v4: `Doc<P>` requires `P: ProfilePayload` (defaults = the retired
+// opaque behavior), which a foreign `&str` cannot implement here — a
+// transparent local newtype carries the same test payloads.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Fake(&'static str);
+impl editor_core::ProfilePayload for Fake {}
+type Doc = editor_core::Doc<Fake>;
+type Edit = DocEdit<Fake>;
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).unwrap()
@@ -69,7 +75,10 @@ fn r1_replay_bit_identity_adversarial() {
             value: -0.0,
         },
     }];
-    let mut doc = Doc::empty().apply(&log[0]).unwrap().doc;
+    let mut doc = Doc::empty_derived("review_m4_pr1")
+        .apply(&log[0])
+        .unwrap()
+        .doc;
     let mut minted = Vec::new();
     for &v in &adversarial {
         let e = point_edit(len(v));
@@ -95,7 +104,7 @@ fn r1_replay_bit_identity_adversarial() {
     let e = point_edit(len(-ulp1));
     doc = doc.apply(&e).unwrap().doc;
     log.push(e);
-    let replayed = Doc::replay(&log).unwrap();
+    let replayed = Doc::replay(doc.id(), &log).unwrap();
     assert_bit_identical(&replayed, &doc);
     // The crate's own bit-semantic comparator agrees (fix pass).
     assert!(replayed.bit_eq(&doc), "Doc::bit_eq on replay");
@@ -109,8 +118,11 @@ fn r1_replay_bit_identity_adversarial() {
 /// verification tooling is what conflates.
 #[test]
 fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
-    let (pos, _) = apply_all(Doc::empty(), &[point_edit(len(0.0))]);
-    let (neg, _) = apply_all(Doc::empty(), &[point_edit(len(-0.0))]);
+    let (pos, _) = apply_all(Doc::empty_derived("review_m4_pr1"), &[point_edit(len(0.0))]);
+    let (neg, _) = apply_all(
+        Doc::empty_derived("review_m4_pr1"),
+        &[point_edit(len(-0.0))],
+    );
     // Bitwise the docs DIFFER…
     let vp = eval::<f64>(
         pos.node(pos.order()[0])
@@ -236,7 +248,7 @@ fn r2_contradictory_param_dims_caught_downstream() {
     ));
     // apply: a slot carrying the contradiction is refused whichever
     // dimension the doc table declares.
-    let doc = Doc::empty()
+    let doc = Doc::empty_derived("review_m4_pr1")
         .apply(&Edit::SetDocParam {
             name: ParamName::new("q"),
             value: DocParam::Continuous {
@@ -302,7 +314,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
             position: [e0, len(0.0), len(0.0)],
         }),
     };
-    let a = Doc::empty().apply(&ins).unwrap();
+    let a = Doc::empty_derived("review_m4_pr1").apply(&ins).unwrap();
     let id = a.record.minted.unwrap();
     let path = ExprPath {
         node: id,
@@ -356,7 +368,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
             position: [e0, len(0.0), len(0.0)],
         }),
     };
-    let a = Doc::empty().apply(&ins).unwrap();
+    let a = Doc::empty_derived("review_m4_pr1").apply(&ins).unwrap();
     let id = a.record.minted.unwrap();
     let referent = ExprPath {
         node: id,
@@ -409,7 +421,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
 fn r4_stablename_node_refs_escape_ref_validation() {
     use editor_core::{EntityKind, Node, StableName};
     let (doc, ids) = apply_all(
-        Doc::empty(),
+        Doc::empty_derived("review_m4_pr1"),
         &[point_edit(len(1.0))], // the node the name will denote
     );
     let target = ids[0];
@@ -445,7 +457,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     // (2) Insert a Declare naming an id that never existed: REFUSED
     // (fix pass, ruled carve-out).
     let phantom = RecipeNodeId(9999);
-    let res = Doc::empty().apply(&declare(phantom));
+    let res = Doc::empty_derived("review_m4_pr1").apply(&declare(phantom));
     match res {
         Err(EditError::DeclareNamesMissingNode { name }) => {
             assert_eq!(name.node, phantom, "refusal names the typo'd id");
@@ -453,7 +465,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
         other => panic!("phantom StableName.node must be refused, got {other:?}"),
     }
     // Contrast: a DAG-edge ref to the same phantom is refused.
-    let res2 = Doc::empty().apply(&Edit::InsertNode {
+    let res2 = Doc::empty_derived("review_m4_pr1").apply(&Edit::InsertNode {
         node: Node::Extrude {
             profile: phantom,
             distance: len(1.0),
@@ -472,9 +484,9 @@ fn r4_stablename_node_refs_escape_ref_validation() {
 fn r4_cycle_unconstructible_by_any_edit_sequence() {
     use editor_core::Node;
     let (doc, ids) = apply_all(
-        Doc::empty(),
+        Doc::empty_derived("review_m4_pr1"),
         &[Edit::InsertNode {
-            node: Node::Profile("p"),
+            node: Node::Profile(Fake("p")),
         }],
     );
     let a = doc
@@ -513,7 +525,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
 #[test]
 fn r4_setdocparam_sweep_and_no_delete_arm() {
     let name = ParamName::new("d");
-    let doc = Doc::empty()
+    let doc = Doc::empty_derived("review_m4_pr1")
         .apply(&Edit::SetDocParam {
             name: name.clone(),
             value: DocParam::Continuous {
@@ -579,7 +591,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
 #[test]
 fn r5_apply_pure_and_deterministic_bitwise() {
     let (doc, ids) = apply_all(
-        Doc::empty(),
+        Doc::empty_derived("review_m4_pr1"),
         &[point_edit(len(-0.0)), point_edit(len(5e-324))],
     );
     let snapshot = doc.clone();
@@ -660,7 +672,7 @@ fn r6_nonfinite_doors_closed() {
         DimensionError::NonFiniteLiteral
     );
     for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        let res = Doc::empty().apply(&Edit::SetDocParam {
+        let res = Doc::empty_derived("review_m4_pr1").apply(&Edit::SetDocParam {
             name: ParamName::new("poison"),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
@@ -737,7 +749,7 @@ fn r8_interval_lane_representative_and_zero_divisor() {
 fn r4_structural_flag_false_positive_but_no_false_negative() {
     use editor_core::{Node, PatternKind};
     let cnt_param = ParamName::new("n");
-    let doc = Doc::empty()
+    let doc = Doc::empty_derived("review_m4_pr1")
         .apply(&Edit::SetDocParam {
             name: cnt_param.clone(),
             value: DocParam::Count { value: 4 },

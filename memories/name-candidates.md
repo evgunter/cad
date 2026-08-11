@@ -1,6 +1,6 @@
 ---
 name: name-candidates
-description: Q9 project-name candidates — Evan's shortlist (Intension, Noumenon/Noumena, Selvage, Tertium) with justifications + the full rejected/backup slate and availability as of 2026-07-25
+description: Q9 project-name candidates — Evan's shortlist with justifications + the full backup slate; availability RE-SWEPT 2026-08-08 (Selvage LOST; Intension cleanest)
 metadata:
   type: project
 ---
@@ -10,6 +10,20 @@ and 2026-07-25 and shortlisted four to revisit later. Naming brief he gave: a su
 nod to what makes this kernel different — the FUNCTIONAL/INTENSIONAL
 core (the object *is* its definition; everything else derived from
 it), everything explicit, no assumptions/silent fudging.
+
+## Availability re-sweep (2026-08-08; full tables in cad-work/q9-availability-2026-08.md)
+
+- **Selvage: LOST** — crates.io claimed 2026-07-24 (a LoRa crate — the
+  day BEFORE the last sweep recorded it free); PyPI taken by an active
+  AI code-review tool; selvage.dev live. Off the board.
+- **Noumenon**: PyPI taken (pre-alpha stub); crates.io still free.
+- **Noumena**: both registries clean but real crowding (Noumena-Network
+  AI org with a ★106 Rust repo; NOUMENA Digital's NPL product).
+- **Intension, Tertium**: fully clean on crates.io + PyPI; Intension is
+  the only shortlist name also quiet on GitHub and in the trademark
+  sanity look.
+- All 7 backups (Scruple, Quiddity, Apartness, Realizer, Quadrance,
+  Esakia, Glivenko) remain free on both registries.
 
 ## Shortlist (Evan-liked, all crates.io-AVAILABLE; first three checked
 2026-07-23, Tertium 2026-07-25)
@@ -153,5 +167,10 @@ CAD") until Q9 ratifies the real name — chosen greppable on purpose.
 At rename time: grep for `pncad`, AND audit `cad` occurrences
 broadly (workspace paths, repo name, doc prose, lane scripts'
 hardcoded clone URL) — Evan's note: many `cad` occurrences should
-ultimately become the real name. Q9 becomes genuinely imminent
-before U9/U10 (wheels + docs are the public-name surface).
+ultimately become the real name. Q9 timing RELAXED (Evan,
+2026-08-08): keep `pncad` (or another recorded greppable
+placeholder) "up until the last minute" — the rename is a
+mechanical pre-release step, not a U9/U10 gate; only the actual
+RELEASE needs the real name.
+
+**DEFERRED (Evan, 2026-08-10, #355 thread): "no i don't want that anytime soon" — do not surface Q9 in check-ins; it re-opens only when Evan raises it.**

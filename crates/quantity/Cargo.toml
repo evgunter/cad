@@ -1,0 +1,18 @@
+[package]
+name = "quantity"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+# LIB-U8a: the D6 API-boundary quantity layer — newtypes (Length/Angle/
+# Count), the unit table + constants, and the display formatter. It sits
+# BELOW editor-core on purpose: the expression text parser (editor-core)
+# reads the unit table, and the pncad façade re-exports the types, so
+# the one home that serves both is a leaf crate with no dependencies.
+[dependencies]
+
+[dev-dependencies]
+proptest = { workspace = true }

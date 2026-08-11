@@ -13,6 +13,9 @@ use editor_core::{Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, Reci
 /// Opaque profile payload (spec D1/D3): tests never look inside.
 #[derive(Debug, Clone, PartialEq)]
 struct FakeProfile(&'static str);
+// The v4 payload trait: fake payloads take the slot-free, check-free
+// defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
+impl editor_core::ProfilePayload for FakeProfile {}
 
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;
@@ -92,7 +95,7 @@ fn author_die() -> Die {
     const HALF: f64 = 0.010; // 20 mm cube
     const PITCH: f64 = 0.005; // pip grid pitch
     let mut log = Vec::new();
-    let doc = TDoc::empty();
+    let doc = TDoc::empty_derived("m4_pr1_doc");
     // Document parameter: pip depth (the variant knob).
     let (doc, _) = step(
         doc,
@@ -202,7 +205,7 @@ fn die_authors_replays_and_diffs() {
     assert_eq!(die.doc.len(), 46);
 
     // Replay identity (spec D7): from empty, BIT-IDENTICAL.
-    let replayed = TDoc::replay(&die.log).unwrap();
+    let replayed = TDoc::replay(die.doc.id(), &die.log).unwrap();
     assert_eq!(replayed, die.doc);
     assert!(replayed.diff(&die.doc).is_empty());
     assert_eq!(replayed.epsilon().to_bits(), die.doc.epsilon().to_bits());
@@ -244,5 +247,9 @@ fn die_authors_replays_and_diffs() {
     // The original document is untouched by all of the above (D2:
     // apply is pure).
     assert_eq!(die.doc.len(), 46);
-    assert!(die.doc.diff(&TDoc::replay(&die.log).unwrap()).is_empty());
+    assert!(
+        die.doc
+            .diff(&TDoc::replay(die.doc.id(), &die.log).unwrap())
+            .is_empty()
+    );
 }

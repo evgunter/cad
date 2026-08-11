@@ -53,7 +53,7 @@ impl DocDiff {
     }
 }
 
-impl<P: PartialEq> Doc<P> {
+impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
     /// Node-granular structural diff, `self` → `other` (spec D7).
     pub fn diff(&self, other: &Doc<P>) -> DocDiff {
         let mut nodes = Vec::new();

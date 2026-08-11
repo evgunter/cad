@@ -38,6 +38,14 @@ mod canonical_invariance;
 mod declared_tangency;
 #[path = "interval_lane.rs"]
 mod interval_lane;
+#[path = "lift_census.rs"]
+mod lift_census;
+#[path = "path_differential.rs"]
+mod path_differential;
+#[path = "path_program.rs"]
+mod path_program;
+#[path = "path_property.rs"]
+mod path_property;
 #[path = "rejections.rs"]
 mod rejections;
 #[path = "review_m2_pr2.rs"]
@@ -52,6 +60,8 @@ mod review_s6_probe;
 mod review_s8_probe;
 #[path = "scalar_channels.rs"]
 mod scalar_channels;
+#[path = "sketch_plane.rs"]
+mod sketch_plane;
 #[path = "validate_ok.rs"]
 mod validate_ok;
 

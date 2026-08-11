@@ -22,12 +22,16 @@ pub mod doc;
 pub mod edit;
 pub mod eval;
 pub mod expr;
+pub mod ident;
 pub mod meta;
 pub mod names;
 pub mod node;
+pub mod parse;
 pub mod persist;
-pub mod profile_desc;
+pub mod product;
+pub mod program;
 pub mod resolve;
+pub mod roots;
 pub mod witness;
 
 pub use appearance::{
@@ -45,18 +49,30 @@ pub use eval::{
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
 };
+pub use ident::{ContentPin, DocRef, DocumentId};
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
-    CapEnd, EntityKey, EntityKind, EntityRef, Entry, MeridianEnd, NameTable, NamingError,
-    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SideVerdict,
-    SplitHalf, StableName, all_edges,
+    ALL_SURFACE_KINDS, CapEnd, Cmp, ContactClass, CurveKind, CurveKindSet, DeclareError,
+    Denotation, EntityKey, EntityKind, EntityRef, Entry, FlushEvidence, FlushFinding, FlushRung,
+    GeomPred, InterrogateError, MeridianEnd, NamePat, NameTable, NamingError, OpGroup,
+    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
+    SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName,
+    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, declare, declare_all,
+    declare_node, denotation, edge_frame, face_frame, find_flush_candidates, select, select_where,
+    vertex_position,
 };
-pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
-pub use persist::{JointSite, NonFiniteSite, SnapshotError};
+pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId, StepArg};
+pub use parse::{ParseError, parse_expr};
 pub use persist::{
-    Loaded, MigrationStep, PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load, save,
+    Loaded, MigrationStep, PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, canonical_bytes,
+    content_pin, header_document_id, load, save,
 };
-pub use profile_desc::{DescToken, ProfileDesc, ProfileDoc};
+pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
+pub use product::{ProductError, product};
+pub use program::{
+    LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramRefusal, ProgramStep,
+    ProgramTarget, RecordedProgramError,
+};
 pub use resolve::{
     Diagnosis, FlipSet, HitTestError, MeshPatchKey, NodeVerdictDelta, PredicateDivergence,
     RecipeEditRef, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, Resolved,
@@ -69,6 +85,7 @@ pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictSummary,
     diff_summaries, verdict_summary,
 };
+pub use roots::RootFault;
 pub use witness::{
     BifurcationKind, BranchCertification, BranchMarginEvidence, Implicated, WitnessAge,
     WitnessBifurcation, WitnessDatum,

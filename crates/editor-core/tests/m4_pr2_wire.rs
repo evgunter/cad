@@ -57,7 +57,7 @@ fn y_axis(doc: ProfileDoc, origin_z: f64) -> (ProfileDoc, editor_core::RecipeNod
 
 #[test]
 fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
     // Unit square touching the axis: full revolve → cylinder r=1 h=1.
     let (doc, prof) = insert(
         doc,
@@ -89,7 +89,7 @@ fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
 
 #[test]
 fn revolve_axis_out_of_plane_is_a_typed_refusal() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
     let (doc, prof) = insert(
         doc,
         Node::Profile(desc(
@@ -122,7 +122,7 @@ fn revolve_axis_out_of_plane_is_a_typed_refusal() {
 
 #[test]
 fn rotational_transform_wires_and_preserves_volume() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
     let (doc, cube) = unit_cube(doc, 2.0, 0.0);
     let (doc, moved) = insert(
         doc,
@@ -146,7 +146,7 @@ fn rotational_transform_wires_and_preserves_volume() {
 
 #[test]
 fn linear_pattern_evaluates_instances_as_data() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
     let (doc, cube) = unit_cube(doc, 0.0, 0.0);
     let (doc, pat) = insert(
         doc,
@@ -202,7 +202,7 @@ fn linear_pattern_evaluates_instances_as_data() {
 
 #[test]
 fn circular_pattern_rotates_about_the_datum_axis() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
     let (doc, cube) = unit_cube(doc, 2.0, 0.0);
     // The z axis through the origin, as a datum.
     let (doc, axis) = insert(
@@ -237,7 +237,7 @@ fn circular_pattern_rotates_about_the_datum_axis() {
 #[test]
 fn typed_refusal_doors() {
     // Degenerate datum normal.
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
     let (doc, plane) = insert(
         doc,
         Node::Datum(Datum::Plane {
@@ -257,7 +257,7 @@ fn typed_refusal_doors() {
     }
 
     // Non-positive pattern count.
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
     let (doc, cube) = unit_cube(doc, 0.0, 0.0);
     let (doc, pat) = insert(
         doc,
@@ -314,7 +314,7 @@ fn typed_refusal_doors() {
 
 #[test]
 fn declare_passes_through_and_boolean_accepts_it() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
     let (doc, a) = unit_cube(doc, 0.0, 0.0);
     let (doc, b) = unit_cube(doc, 0.5, 0.0); // overlapping, flush y/z planes
     // M4 PR 5: the flush contacts are DECLARED by name — this test's

@@ -53,11 +53,42 @@ folklore is stale). CAD_SLOT_WIDTH=2 re-widens if hardware
 changes; batteries then take ALL slots (`-x`) — two concurrent
 batteries are the documented OOM shape. `ci-local.sh` (hence gate.sh) and
 `test-fast.sh` self-acquire, so the standard entry points queue
-automatically; wrap raw `cargo` invocations yourself. Agents
+automatically; wrap raw `cargo` invocations yourself. **Express lane (#269,
+2026-08-09)**: short jobs (≤10 min declared budget) use
+`with-build-slot.sh --express [SECS]` — own slot, self-enforcing
+timeout, never starves behind a battery; batteries and default
+jobs keep the main mutex. Holder prints now verify PID liveness
+and show hold duration (#235 fixed). Long rows that must survive
+the harness 590s timeout: launch under setsid, then poll the
+output file foreground. Agents
 choose `-n` (grab-or-exit-75, then retry/fall back) vs default
 blocking wait (`-w SECS` caps it) — a blocking wait can eat a Bash
 call's 10-min cap, so briefs should prefer `-n` + retry for long
-queues. The number of ALIVE agents is no longer capped at two —
+queues. **Orphan-waiter stacking (2026-08-09, observed live)**: a
+harness-timed-out Bash call does NOT kill its with-build-slot
+flock waiter — the orphan stays queued, and "re-issue the
+timed-out call" then STACKS duplicate waiters that each burn a
+slot turn when the mutex frees (5 deep observed). Re-issue means:
+kill your own previous waiter first (or use `-n`/`--express`);
+orchestrator sweeps should scan for same-command duplicate
+waiters per lane and cull all but the newest. **fd-inheritance lock leak
+(2026-08-11, observed live)**: flock-releases-on-death is only true
+if no CHILD inherited the lock fd — a daemon spawned under a slot
+(sccache observed; any long-lived child qualifies) keeps the flock
+held after the recorded holder dies, wedging the lane with a
+misleading dead-holder file. Diagnose with
+`fuser -v locks/<slot>.lock` (shows the true fd holders); the fix
+is killing the inheriting process, and slot-wrapped commands
+should avoid spawning daemons (sccache/watchers) or close the fd
+(`flock -o` where supported). **Lane-takeover
+courtesy (2026-08-10)**: when the orchestrator operates in a
+possibly-alive agent's lane (pushing its parked commits, merging
+its PR, or handing the lane to a successor), MESSAGE the incumbent
+first (or simultaneously) — an unannounced takeover reads as a
+rogue actor from inside the lane and costs the agent a diagnostic
+detour (observed: the M8-3 PR-1 finisher escalated a
+"lane-ownership violation" that was three legitimate orchestrator
+actions plus its own successor). The number of ALIVE agents is no longer capped at two —
 only concurrent heavy cargo is; more than two lanes may exist if
 disk allows. An OOM-killed test still shows as a bare "Terminated"
 single-row FAIL — check what else was running and rerun quiet

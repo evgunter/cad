@@ -6,22 +6,11 @@
 use core::f64::consts::FRAC_PI_2;
 
 use geom_core::{Affine3, Point2, Point3, Vec3};
-use sweep::skin::SectionSegments;
 use sweep::{SketchSegment, loft_body, segment_curve, sweep_body};
 use topo::Body;
 
-fn quad(pts: [(f64, f64); 4]) -> SectionSegments {
-    let seg = |a: (f64, f64), b: (f64, f64)| SketchSegment::Line {
-        a: Point2::new(a.0, a.1),
-        b: Point2::new(b.0, b.1),
-    };
-    vec![vec![
-        seg(pts[0], pts[1]),
-        seg(pts[1], pts[2]),
-        seg(pts[2], pts[3]),
-        seg(pts[3], pts[0]),
-    ]]
-}
+mod common;
+use common::quad;
 
 const SQ: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
 const TRAP: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
@@ -34,6 +23,28 @@ fn loft_at(zs: &[f64]) -> Body<f64> {
         .collect();
     loft_body::<f64>(&sections, &places, 2)
         .expect("loft builds")
+        .body
+}
+
+/// A RATIONAL-walled loft (M8-5): a pie-slice profile whose curved
+/// side is a single-span arc (bulge 0.4 — safely under the quarter-turn
+/// sub-arc split, so no C⁰ double knot), lofted straight up. Its wall
+/// is a genuinely rational NURBS face (weights `[1, cos(θ/2), 1]`) —
+/// the class M8-2's rational span meter made BUILDABLE and whose
+/// Hessian/sagitta bounds M8-5 certifies (`nurbs_cert`/`chords`).
+fn rational_pie() -> Body<f64> {
+    let v = |x: f64, y: f64, bulge: f64| sweep::ProfileVertex {
+        pos: Point2::new(x, y),
+        bulge,
+    };
+    let lp = sweep::ProfileLoop::new(vec![v(1.0, 0.0, 0.4), v(0.0, 1.0, 0.0), v(0.0, 0.0, 0.0)]);
+    let sections = vec![vec![lp.clone()], vec![lp]];
+    let places: Vec<Affine3<f64>> = [0.0, 1.0]
+        .iter()
+        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .collect();
+    loft_body::<f64>(&sections, &places, 1)
+        .expect("the rational pie lofts")
         .body
 }
 
@@ -79,6 +90,12 @@ fn z1_per_triangle_certificate_falsification() {
         ("loft_prism", loft_at(&[0.0, 1.0, 2.0])),
         ("nonuniform_loft", loft_at(&[0.0, 1.0, 3.0])),
         ("swept_elbow", swept_elbow()),
+        // Promoted from the Z1R frontier pin at M8-3: the rational
+        // wall's arc cap rim now mints a stored pcurve
+        // (`Pcurve::IsoArc`), so the rational pie tessellates and the
+        // armed per-triangle falsifier covers the RATIONAL lane end to
+        // end — which is what its retirement condition asked for.
+        ("rational_pie", rational_pie()),
     ] {
         for delta in [3e-2, 6e-3] {
             let _ = mesh::probe_stats::take();

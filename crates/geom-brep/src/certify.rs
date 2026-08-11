@@ -52,7 +52,7 @@
 //! by more than ε without failing loudly — a cache, never a peer.
 
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, BandError, Decide, Indeterminate, Length, Point3, Real, Sign};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign};
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
 
@@ -136,6 +136,17 @@ pub enum CertCheck {
     /// `|carrier(tᵢ) − S(u, v(tᵢ))|` at a sample (M6-3; the
     /// wall–wall-seam class of `docs/M5-LOG.md` PR 9c item 6(iii)).
     IsoResidual,
+    /// Intersection, plane × NURBS (M7-8): limb 1's largest sampled
+    /// on-locus residual over both operands — the closed-form plane
+    /// distance and the certified foot distance on the wall.
+    PlaneNurbsOnLocus,
+    /// Intersection, plane × NURBS (M7-8): limb 2's certified
+    /// **sup-norm** bound over the whole span — the number that
+    /// certifies (a bound, never a sampled max).
+    PlaneNurbsHull,
+    /// Intersection, plane × NURBS (M7-8): the lane's own margins as a
+    /// whole, named when one of them escalates.
+    PlaneNurbsCertificate,
 }
 
 /// Typed certification failure (D4 ¶3): actionable, closed enum. The
@@ -159,9 +170,16 @@ pub enum CertifyError {
     /// A described surface is the `Nurbs` kind (no implicit form —
     /// its residual story is the SSI foot-point machinery, not this
     /// module's), or a `Nurbs` carrier arrived under a conventional
-    /// (`MappedCurve`/`Seam`) description. Rung-3 carriers certify
-    /// only as the `Intersection` of two analytic surfaces (M5 PR 9,
-    /// C12.3 — the class the curved-boolean zip mints).
+    /// (`MappedCurve`/`Seam`) description.
+    ///
+    /// TWO `Intersection` rungs certify, and this variant is what is
+    /// left over. The analytic rung: both operands analytic (M5 PR 9,
+    /// C12.3 — the class the curved-boolean zip mints). The **plane ×
+    /// NURBS** rung (M7-8): exactly one PLANE and one described NURBS
+    /// wall, declare-and-check, reachable only through
+    /// [`EdgeCurve::certify_nurbs_lane`] — a caller on the plain
+    /// [`EdgeCurve::certify`] door injects no lane and still lands
+    /// here, and NURBS × NURBS has no certificate in this build.
     Unimplemented,
     /// An `Intersection` description names one surface twice — a
     /// same-surface locus is a `Seam`, never an intersection.
@@ -248,6 +266,12 @@ pub enum CertifyError {
     /// The linear band could not be built from the run's tolerance
     /// (absurd ε — see `Band::linear`'s error docs).
     Band(BandError),
+    /// `Intersection` of a PLANE and a described NURBS wall (M7-8):
+    /// the declare-and-check lane refused, carrying its own measured
+    /// bound. The file's carrier was adopted as EVIDENCE and did not
+    /// hold up — this variant is the evidence's verdict, with the
+    /// number.
+    PlaneNurbs(crate::edge_nurbs::PlaneNurbsRefusal),
 }
 
 impl core::fmt::Display for CertifyError {
@@ -260,8 +284,9 @@ impl core::fmt::Display for CertifyError {
                 f,
                 "certification: a Nurbs described surface, or a Nurbs carrier under a \
                  conventional description, cannot be certified in this build — rung-3 \
-                 carriers certify only as the Intersection of two analytic surfaces \
-                 (M5 PR 9, C12.3)"
+                 carriers certify as the Intersection of two analytic surfaces \
+                 (M5 PR 9, C12.3), or of one plane and one described NURBS wall through \
+                 the declare-and-check lane (M7-8); NURBS x NURBS has no certificate"
             ),
             Self::IntersectionSameSurface { key } => write!(
                 f,
@@ -290,6 +315,10 @@ impl core::fmt::Display for CertifyError {
                 f,
                 "certification: {check:?} residual at sample {sample} definitely exceeds \
                  the tolerance band (the cache does not represent the description, D4 ¶2)"
+            ),
+            Self::PlaneNurbs(refusal) => write!(
+                f,
+                "certification: the plane × NURBS Intersection lane refused — {refusal}"
             ),
             Self::NotTransverse { sample } => write!(
                 f,
@@ -525,7 +554,7 @@ impl<T: Decide> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         band: Band,
     ) -> Result<Self, CertifyError> {
-        let certificate = run_checks(&spec, start, end, &surfaces, band)?;
+        let certificate = run_checks(&spec, start, end, &surfaces, None, band)?;
         Ok(Self {
             description: spec.description,
             carrier: spec.carrier,
@@ -550,7 +579,96 @@ impl<T: Decide> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         band: Band,
     ) -> Result<Certificate<T>, CertifyError> {
-        run_checks(&self.spec(), start, end, &surfaces, band)
+        run_checks(&self.spec(), start, end, &surfaces, None, band)
+    }
+}
+
+/// The **injected plane × NURBS lane** — the one certification duty
+/// this module cannot discharge from `T: Decide` alone.
+///
+/// Limb 2 and limb 3 of the plane × NURBS certificate are C9-ring hull
+/// bounds and the foot point is a bracket read, so the honest
+/// derivation needs `T: Decide + Bounds`
+/// ([`crate::EdgeNurbsLane`]'s static split). Raising `certify`'s own
+/// bound would push `Bounds` through every `T: Decide` signature in
+/// `topo` — hundreds of them, for a capability three of the four
+/// sealed scalars have unconditionally. So the capability is
+/// **injected at the door** instead, exactly as the surface arena is:
+/// a caller that can derive the certificate hands one in, and a caller
+/// that cannot passes `None` and gets the same
+/// [`CertifyError::Unimplemented`] refusal a described `Nurbs` operand
+/// has always produced. There is no third outcome — no door accepts
+/// the description without the certificate.
+pub type NurbsLane<'a, T> = &'a dyn Fn(
+    &geom_curves::NurbsCurve3<T>,
+    &Surface<T>,
+    &geom_surfaces::NurbsSurface<T>,
+    T,
+    Band,
+) -> Result<
+    crate::edge_nurbs::PlaneNurbsLimbs<T>,
+    crate::edge_nurbs::PlaneNurbsRefusal,
+>;
+
+impl<T: crate::edge_nurbs::EdgeNurbsLane> EdgeCurve<T> {
+    /// [`EdgeCurve::certify`] **with the plane × NURBS lane wired in**
+    /// ([`NurbsLane`]): the door for callers whose scalar can derive
+    /// the declare-and-check certificate of an `Intersection` between
+    /// a PLANE and a described NURBS wall (M7-8).
+    ///
+    /// Every other check is identical, in the same order. The dual
+    /// scalar reaches this door too and its refusing lane impl answers
+    /// there, so the outcome is typed rather than absent.
+    ///
+    /// # Errors
+    ///
+    /// As [`EdgeCurve::certify`], plus [`CertifyError::PlaneNurbs`]
+    /// carrying the lane's measured bound.
+    pub fn certify_nurbs_lane(
+        spec: EdgeCurveSpec<T>,
+        start: Point3<T>,
+        end: Point3<T>,
+        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        band: Band,
+    ) -> Result<Self, CertifyError> {
+        let certificate = run_checks(
+            &spec,
+            start,
+            end,
+            &surfaces,
+            Some(&T::plane_nurbs_limbs),
+            band,
+        )?;
+        Ok(Self {
+            description: spec.description,
+            carrier: spec.carrier,
+            param_start: spec.param_start,
+            param_end: spec.param_end,
+            certificate,
+        })
+    }
+
+    /// [`EdgeCurve::recertify`] with the plane × NURBS lane wired in
+    /// — the at-rest pass for a body that may carry the M7-8 class.
+    ///
+    /// # Errors
+    ///
+    /// As [`EdgeCurve::certify_nurbs_lane`].
+    pub fn recertify_nurbs_lane(
+        &self,
+        start: Point3<T>,
+        end: Point3<T>,
+        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        band: Band,
+    ) -> Result<Certificate<T>, CertifyError> {
+        run_checks(
+            &self.spec(),
+            start,
+            end,
+            &surfaces,
+            Some(&T::plane_nurbs_limbs),
+            band,
+        )
     }
 }
 
@@ -575,6 +693,67 @@ impl<T: Real> EdgeCurve<T> {
     /// The attachment-time certification record.
     pub fn certificate(&self) -> &Certificate<T> {
         &self.certificate
+    }
+
+    /// The same certified carrier with its description's **SURFACE
+    /// KEYS** rewritten, for a transplant into another body's arenas.
+    ///
+    /// A surface key is an arena handle, not geometry: `Intersection`,
+    /// `TangentIntersection`, `Seam` and `IsoCurve` name the surfaces
+    /// their locus is stated against, and a graft that re-creates
+    /// those surfaces BITWISE under fresh keys has changed the handles
+    /// and nothing else. The certificate — a residual over the
+    /// description, the carrier, the interval and the surfaces' VALUES
+    /// — is therefore still the certificate of exactly this geometry,
+    /// and travels verbatim, like provenance.
+    ///
+    /// This is the only door that mints an `EdgeCurve` without a run
+    /// of the schedule, and it is narrow on purpose: nothing but the
+    /// keys may differ, so it cannot express a geometry change. Its
+    /// existence is what lets a transplant carry descriptions whose
+    /// surfaces the certification lanes cannot re-certify at all (a
+    /// rational NURBS wall certifies nowhere — see
+    /// `CertifyError::Unimplemented`), which is not a licence to
+    /// invent a certificate: the source body's run is the certificate.
+    ///
+    /// `None` when `remap` does not answer for a key the description
+    /// names — a dangling handle is never written.
+    #[must_use]
+    pub fn with_remapped_surfaces(
+        &self,
+        mut remap: impl FnMut(crate::keys::SurfaceKey) -> Option<crate::keys::SurfaceKey>,
+    ) -> Option<Self> {
+        let description = match self.description {
+            EdgeGeometry::Intersection { s1, s2, witness } => EdgeGeometry::Intersection {
+                s1: remap(s1)?,
+                s2: remap(s2)?,
+                witness,
+            },
+            EdgeGeometry::TangentIntersection { s1, s2, witness } => {
+                EdgeGeometry::TangentIntersection {
+                    s1: remap(s1)?,
+                    s2: remap(s2)?,
+                    witness,
+                }
+            }
+            EdgeGeometry::Seam { surface } => EdgeGeometry::Seam {
+                surface: remap(surface)?,
+            },
+            EdgeGeometry::IsoCurve { surface, u, v0, v1 } => EdgeGeometry::IsoCurve {
+                surface: remap(surface)?,
+                u,
+                v0,
+                v1,
+            },
+            EdgeGeometry::MappedCurve(m) => EdgeGeometry::MappedCurve(m),
+        };
+        Some(Self {
+            description,
+            carrier: self.carrier.clone(),
+            param_start: self.param_start,
+            param_end: self.param_end,
+            certificate: self.certificate,
+        })
     }
 
     /// The carrier parameter at schedule sample `i` (i ∈ 0…8):
@@ -747,7 +926,7 @@ fn check_residual<T: Decide>(
     name: &'static str,
     check: CertCheck,
     sample: u32,
-    residual: Length<T>,
+    residual: Margin<T>,
     band: Band,
     max_residual: &mut T,
 ) -> Result<(), CertifyError> {
@@ -772,6 +951,7 @@ fn run_checks<T: Decide>(
     start: Point3<T>,
     end: Point3<T>,
     surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    lane: Option<NurbsLane<'_, T>>,
     band: Band,
 ) -> Result<Certificate<T>, CertifyError> {
     // ---- Check 1: implementedness / description well-formedness. ----
@@ -834,16 +1014,41 @@ fn run_checks<T: Decide>(
             v0: T,
             v1: T,
         },
+        /// `Intersection` of a PLANE and a described NURBS wall
+        /// (M7-8): the declare-and-check lane's shape.
+        PlaneNurbs {
+            plane: Surface<T>,
+            wall: std::sync::Arc<geom_surfaces::NurbsSurface<T>>,
+            witness: Point3<T>,
+        },
     }
     let resolved = match spec.description {
         EdgeGeometry::Intersection { s1, s2, witness } => {
             if s1 == s2 {
                 return Err(CertifyError::IntersectionSameSurface { key: s1 });
             }
-            Resolved::Intersection {
-                surf1: resolve(s1)?,
-                surf2: resolve(s2)?,
-                witness,
+            // The plane × NURBS lane (M7-8) is tried FIRST, because it
+            // is the only reading under which a described `Nurbs`
+            // operand certifies at all: `resolve` below refuses one
+            // typed, and did so unconditionally before this unit. The
+            // pairing must be exactly one PLANE and one described NURBS
+            // wall — a NURBS × NURBS `Intersection` still has no
+            // certificate (the C5 table's general rung), and its
+            // refusal is the same `Unimplemented` as ever.
+            if let Some((plane, wall)) =
+                lane.and_then(|_| plane_nurbs_pair(surfaces(s1), surfaces(s2)))
+            {
+                Resolved::PlaneNurbs {
+                    plane,
+                    wall,
+                    witness,
+                }
+            } else {
+                Resolved::Intersection {
+                    surf1: resolve(s1)?,
+                    surf2: resolve(s2)?,
+                    witness,
+                }
             }
         }
         EdgeGeometry::TangentIntersection { s1, s2, witness } => {
@@ -891,7 +1096,7 @@ fn run_checks<T: Decide>(
     };
     match &spec.carrier {
         Curve3::Circle { radius, .. } => {
-            let arc = Length::levered(span, *radius);
+            let arc = Margin::levered(span, *radius);
             match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
@@ -900,7 +1105,7 @@ fn run_checks<T: Decide>(
             // Zero (exactly full period, the scaffolding/rim case) and
             // Positive (a partial arc) both pass; definitely negative
             // is the alias family.
-            let headroom = Length::levered(T::tau() - span, *radius);
+            let headroom = Margin::levered(T::tau() - span, *radius);
             match decide("interval_span_winding", headroom, band).map_err(span_escalated)? {
                 Sign::Positive | Sign::Zero => {}
                 Sign::Negative => return Err(CertifyError::WindingExceeded),
@@ -914,19 +1119,19 @@ fn run_checks<T: Decide>(
         // bound applies: the 8kτ sample-alias argument is about the
         // parameter period, which the ellipse shares with the circle.
         Curve3::Ellipse { minor, .. } => {
-            let arc = Length::levered(span, *minor);
+            let arc = Margin::levered(span, *minor);
             match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
             }
-            let headroom = Length::levered(T::tau() - span, *minor);
+            let headroom = Margin::levered(T::tau() - span, *minor);
             match decide("interval_span_winding", headroom, band).map_err(span_escalated)? {
                 Sign::Positive | Sign::Zero => {}
                 Sign::Negative => return Err(CertifyError::WindingExceeded),
             }
         }
         Curve3::Line { .. } => {
-            match decide("interval_span_forward", Length::of(span), band).map_err(span_escalated)? {
+            match decide("interval_span_forward", Margin::of(span), band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
             }
@@ -935,9 +1140,15 @@ fn run_checks<T: Decide>(
         // certified speed lower bound (`m/parameter`, the split-meter
         // substrate — C12.3). The meter is gated definitely-positive
         // FIRST (the collapsed-arm idiom): a zero/negative meter (a
-        // control net that doubles back) or poison (a rational
-        // carrier) cannot convert the span to metres, and no forward
-        // verdict may be fabricated from it — escalate, never guess.
+        // carrier whose speed genuinely collapses) or poison (a
+        // malformed net) cannot convert the span to metres, and no
+        // forward verdict may be fabricated from it — escalate, never
+        // guess. RATIONAL carriers used to land here unconditionally;
+        // since M7 they have their own arm of the meter and state a
+        // real bound (`speed_lower_bound`'s rational derivation).
+        // F7 note: the flagged margin here is still the BARE rate —
+        // the typed-margin fold-in F7/F6 name stays open, deliberately
+        // untouched by that unit.
         Curve3::Nurbs(n) => {
             let meter = n.speed_lower_bound();
             match geom_core::k_stats::decide_flagged("nurbs_span_meter", meter, band, "F7")
@@ -952,7 +1163,7 @@ fn run_checks<T: Decide>(
                     }));
                 }
             }
-            let arc = Length::metered(span, meter);
+            let arc = Margin::metered(span, meter);
             match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
@@ -965,7 +1176,7 @@ fn run_checks<T: Decide>(
         "carrier_endpoint_start",
         CertCheck::EndpointStart,
         0,
-        Length::of(spec.carrier.eval(t0).distance(start)),
+        Margin::of(spec.carrier.eval(t0).distance(start)),
         band,
         &mut max_residual,
     )?;
@@ -973,7 +1184,7 @@ fn run_checks<T: Decide>(
         "carrier_endpoint_end",
         CertCheck::EndpointEnd,
         CERT_SAMPLES - 1,
-        Length::of(spec.carrier.eval(t1).distance(end)),
+        Margin::of(spec.carrier.eval(t1).distance(end)),
         band,
         &mut max_residual,
     )?;
@@ -998,7 +1209,7 @@ fn run_checks<T: Decide>(
                     "carrier_on_surface_1",
                     CertCheck::Surface1Residual,
                     i,
-                    Length::of(implicit_residual(surf1, p)),
+                    Margin::of(implicit_residual(surf1, p)),
                     band,
                     &mut max_residual,
                 )?;
@@ -1006,7 +1217,7 @@ fn run_checks<T: Decide>(
                     "carrier_on_surface_2",
                     CertCheck::Surface2Residual,
                     i,
-                    Length::of(implicit_residual(surf2, p)),
+                    Margin::of(implicit_residual(surf2, p)),
                     band,
                     &mut max_residual,
                 )?;
@@ -1040,7 +1251,7 @@ fn run_checks<T: Decide>(
                     "tangent_on_surface_1",
                     CertCheck::Surface1Residual,
                     i,
-                    Length::of(r1),
+                    Margin::of(r1),
                     band,
                     &mut max_residual,
                 )?;
@@ -1048,7 +1259,7 @@ fn run_checks<T: Decide>(
                     "tangent_on_surface_2",
                     CertCheck::Surface2Residual,
                     i,
-                    Length::of(r2),
+                    Margin::of(r2),
                     band,
                     &mut max_residual,
                 )?;
@@ -1058,7 +1269,7 @@ fn run_checks<T: Decide>(
                     let arm = crate::implicit::curvature_lever_arm(surf1, p)
                         .min(crate::implicit::curvature_lever_arm(surf2, p))
                         .min(extent);
-                    let so_margin = Length::sagitta(jet.kappa_rel.abs(), arm);
+                    let so_margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
                     match decide("tangent_second_order", so_margin, band) {
                         Ok(Sign::Positive) => {}
                         // A magnitude margin: Zero is the G2/osculating
@@ -1082,7 +1293,7 @@ fn run_checks<T: Decide>(
                         "tangent_normal_parallel",
                         CertCheck::TangentParallel,
                         i,
-                        Length::levered_inv(jet.sin_theta, jet.kappa_rel.abs()),
+                        Margin::levered_inv(jet.sin_theta, jet.kappa_rel.abs()),
                         band,
                         &mut max_residual,
                     )?;
@@ -1094,7 +1305,7 @@ fn run_checks<T: Decide>(
                     "carrier_matches_mapped_source",
                     CertCheck::MappedSource,
                     i,
-                    Length::of(p.distance(mc.eval(s))),
+                    Margin::of(p.distance(mc.eval(s))),
                     band,
                     &mut max_residual,
                 )?;
@@ -1104,7 +1315,7 @@ fn run_checks<T: Decide>(
                     "carrier_on_seam_surface",
                     CertCheck::SeamSurface,
                     i,
-                    Length::of(implicit_residual(s, p)),
+                    Margin::of(implicit_residual(s, p)),
                     band,
                     &mut max_residual,
                 )?;
@@ -1115,7 +1326,7 @@ fn run_checks<T: Decide>(
                         "carrier_in_seam_halfplane",
                         CertCheck::SeamHalfplane,
                         i,
-                        Length::of(w.dot(v_ref)),
+                        Margin::of(w.dot(v_ref)),
                         band,
                         &mut max_residual,
                     )?;
@@ -1123,12 +1334,17 @@ fn run_checks<T: Decide>(
                         "carrier_on_seam_side",
                         CertCheck::SeamSide,
                         i,
-                        Length::of((T::zero() - w.dot(u_ref)).max(T::zero())),
+                        Margin::of((T::zero() - w.dot(u_ref)).max(T::zero())),
                         band,
                         &mut max_residual,
                     )?;
                 }
             }
+            // The plane × NURBS lane owns its OWN schedule (denser
+            // than this one, and shared with the certificate's foot
+            // points), so it runs once after the loop rather than
+            // per-sample here — see the block below check 4.
+            Resolved::PlaneNurbs { .. } => {}
             // The iso lane (M6-3): the genuinely metric residual
             // |C(tᵢ) − S(u, v(tᵢ))| with v affine in the parameter —
             // the same schedule fraction the Mapped arm uses, so the
@@ -1140,7 +1356,7 @@ fn run_checks<T: Decide>(
                     "carrier_on_iso_curve",
                     CertCheck::IsoResidual,
                     i,
-                    Length::of(p.distance(surface.eval(*u, v))),
+                    Margin::of(p.distance(surface.eval(*u, v))),
                     band,
                     &mut max_residual,
                 )?;
@@ -1166,11 +1382,11 @@ fn run_checks<T: Decide>(
             "tangent_hull_sup",
             CertCheck::TangentHull,
             0,
-            Length::of(tangent_resid_max + bounds.residual_sag),
+            Margin::of(tangent_resid_max + bounds.residual_sag),
             band,
             &mut max_residual,
         )?;
-        let tube = Length::sagitta(tangent_kappa_min - bounds.kappa_drift, tangent_arm_min);
+        let tube = Margin::sagitta(tangent_kappa_min - bounds.kappa_drift, tangent_arm_min);
         match decide("tangent_tube_margin", tube, band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => {
@@ -1184,6 +1400,57 @@ fn run_checks<T: Decide>(
                 });
             }
         }
+    }
+
+    // ---- Intersection, plane × NURBS only (M7-8): the whole
+    // declare-and-check certificate — the closed-form plane residual,
+    // the certified foot residual on the wall, the between-samples
+    // sup bound, the per-sample transversality and the uniqueness
+    // tube. The lane refuses typed WITH its measured bound; a
+    // transversality failure lands in this module's existing
+    // vocabulary, exactly as the analytic arm's does. ----
+    if let Resolved::PlaneNurbs { plane, wall, .. } = &resolved {
+        let Curve3::Nurbs(ref carrier) = spec.carrier else {
+            return Err(CertifyError::PlaneNurbs(
+                crate::edge_nurbs::PlaneNurbsRefusal::Unsupported {
+                    what: "the declared carrier of a plane × NURBS Intersection must be a \
+                           spline: the certificate's limbs are hull statements about a \
+                           control net",
+                },
+            ));
+        };
+        // `resolved` is only ever `PlaneNurbs` when the door injected
+        // a lane (the resolution arm above), so this is not a fallback.
+        let Some(lane) = lane else {
+            return Err(CertifyError::Unimplemented);
+        };
+        let limbs = lane(carrier, plane, wall, extent, band).map_err(|e| match e {
+            crate::edge_nurbs::PlaneNurbsRefusal::NotTransverse { sample } => {
+                CertifyError::NotTransverse { sample }
+            }
+            crate::edge_nurbs::PlaneNurbsRefusal::Escalated(cause) => CertifyError::Escalated {
+                check: CertCheck::PlaneNurbsCertificate,
+                sample: 0,
+                cause,
+            },
+            other => CertifyError::PlaneNurbs(other),
+        })?;
+        check_residual(
+            "plane_nurbs_on_locus",
+            CertCheck::PlaneNurbsOnLocus,
+            0,
+            Margin::of(limbs.on_locus_max),
+            band,
+            &mut max_residual,
+        )?;
+        check_residual(
+            "plane_nurbs_hull_sup",
+            CertCheck::PlaneNurbsHull,
+            0,
+            Margin::of(limbs.hull_sup),
+            band,
+            &mut max_residual,
+        )?;
     }
 
     // ---- Check 5: witness residuals + mid-parameter pin
@@ -1205,7 +1472,7 @@ fn run_checks<T: Decide>(
             "witness_on_surface_1",
             CertCheck::WitnessSurface1,
             0,
-            Length::of(implicit_residual(surf1, *witness)),
+            Margin::of(implicit_residual(surf1, *witness)),
             band,
             &mut max_residual,
         )?;
@@ -1213,7 +1480,7 @@ fn run_checks<T: Decide>(
             "witness_on_surface_2",
             CertCheck::WitnessSurface2,
             0,
-            Length::of(implicit_residual(surf2, *witness)),
+            Margin::of(implicit_residual(surf2, *witness)),
             band,
             &mut max_residual,
         )?;
@@ -1224,7 +1491,35 @@ fn run_checks<T: Decide>(
             "witness_at_mid_parameter",
             CertCheck::WitnessMidpoint,
             (CERT_SAMPLES - 1) / 2,
-            Length::of(mid.distance(*witness)),
+            Margin::of(mid.distance(*witness)),
+            band,
+            &mut max_residual,
+        )?;
+    }
+
+    // The plane × NURBS witness (M7-8): the plane side is the same
+    // closed-form residual the analytic arm checks; the wall side is
+    // discharged by the lane's own schedule, which contains the
+    // mid-parameter exactly (`PXN_FIT_SAMPLES` is odd). The
+    // mid-parameter pin is unchanged — the witness contract does not
+    // move at this rung.
+    if let Resolved::PlaneNurbs { plane, witness, .. } = &resolved {
+        check_residual(
+            "witness_on_surface_1",
+            CertCheck::WitnessSurface1,
+            0,
+            Margin::of(implicit_residual(plane, *witness)),
+            band,
+            &mut max_residual,
+        )?;
+        let mid = spec
+            .carrier
+            .eval(sample_param(t0, t1, (CERT_SAMPLES - 1) / 2));
+        check_residual(
+            "witness_at_mid_parameter",
+            CertCheck::WitnessMidpoint,
+            (CERT_SAMPLES - 1) / 2,
+            Margin::of(mid.distance(*witness)),
             band,
             &mut max_residual,
         )?;
@@ -1234,6 +1529,25 @@ fn run_checks<T: Decide>(
         samples: CERT_SAMPLES,
         max_residual,
     })
+}
+
+/// The plane × NURBS pairing, in either order: exactly one PLANE and
+/// exactly one **described** NURBS wall (the mvfs placeholder is a
+/// mid-surgery "no description yet" fact, never an operand).
+///
+/// `None` for every other pair, which then takes the analytic path and
+/// its existing refusals verbatim.
+fn plane_nurbs_pair<T: Real>(
+    s1: Option<Surface<T>>,
+    s2: Option<Surface<T>>,
+) -> Option<(Surface<T>, std::sync::Arc<geom_surfaces::NurbsSurface<T>>)> {
+    let (a, b) = (s1?, s2?);
+    let described = |n: &std::sync::Arc<geom_surfaces::NurbsSurface<T>>| !n.is_placeholder();
+    match (&a, &b) {
+        (Surface::Plane { .. }, Surface::Nurbs(n)) if described(n) => Some((a.clone(), n.clone())),
+        (Surface::Nurbs(n), Surface::Plane { .. }) if described(n) => Some((b.clone(), n.clone())),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -1326,6 +1640,110 @@ mod tests {
         };
         let err = EdgeCurve::certify(spec.clone(), p0, p1, |_| None, band()).unwrap_err();
         assert!(matches!(err, CertifyError::Escalated { .. }), "{err:?}");
+    }
+
+    /// **`with_remapped_surfaces`** (R1 MINOR-2 for PR #325): the
+    /// transplant door. Only the description's surface HANDLES may
+    /// differ — carrier, interval and certificate travel verbatim —
+    /// and a handle the remap cannot answer for yields `None` rather
+    /// than a dangling reference.
+    #[test]
+    fn remapping_surface_keys_changes_the_handles_and_nothing_else() {
+        let planes = || {
+            vec![
+                Surface::Plane {
+                    origin: Point3::origin(),
+                    normal: Vec3::unit_z(),
+                    u_ref: Vec3::unit_x(),
+                },
+                Surface::Plane {
+                    origin: Point3::origin(),
+                    normal: Vec3::unit_y(),
+                    u_ref: Vec3::unit_x(),
+                },
+            ]
+        };
+        let (src_keys, src_lookup) = table(planes());
+        // A SECOND table standing for the destination body's arenas:
+        // the same surface VALUES under DIFFERENT keys, which is
+        // exactly what a graft produces. Two fresh slotmaps mint the
+        // same slots, so the destination is offset by a filler — the
+        // handles have to actually differ for this row to mean
+        // anything.
+        let mut dst_surfaces = vec![Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        }];
+        dst_surfaces.extend(planes());
+        let (dst_all, dst_lookup) = table(dst_surfaces);
+        let dst_keys = [dst_all[1], dst_all[2]];
+        assert!(
+            src_keys[0] != dst_keys[0] && src_keys[1] != dst_keys[1],
+            "the two tables must mint distinct handles"
+        );
+        let p0 = Point3::origin();
+        let p1 = Point3::new(1.0, 0.0, 0.0);
+        let spec = EdgeCurveSpec {
+            description: EdgeGeometry::Intersection {
+                s1: src_keys[0],
+                s2: src_keys[1],
+                witness: Point3::new(0.5, 0.0, 0.0),
+            },
+            carrier: Curve3::Line {
+                origin: p0,
+                dir: Vec3::unit_x(),
+            },
+            param_start: 0.0,
+            param_end: 1.0,
+        };
+        let certified = EdgeCurve::certify(spec, p0, p1, &src_lookup, band()).unwrap();
+
+        let bridge = |k: SurfaceKey| src_keys.iter().position(|s| *s == k).map(|i| dst_keys[i]);
+        let moved = certified
+            .with_remapped_surfaces(bridge)
+            .expect("every named surface has a destination");
+
+        // The handles moved.
+        match *moved.description() {
+            EdgeGeometry::Intersection { s1, s2, witness } => {
+                assert_eq!(s1, dst_keys[0]);
+                assert_eq!(s2, dst_keys[1]);
+                // ...and the witness, a POINT, did not.
+                assert!((witness.x - 0.5).abs() < 1e-15);
+            }
+            ref other => panic!("the description class changed: {other:?}"),
+        }
+        // Nothing else did.
+        assert_eq!(
+            format!("{:?}", moved.carrier()),
+            format!("{:?}", certified.carrier())
+        );
+        assert_eq!(moved.params(), certified.params());
+        assert_eq!(
+            format!("{:?}", moved.certificate()),
+            format!("{:?}", certified.certificate()),
+            "the certificate travels verbatim — the geometry did not change"
+        );
+        // And the moved copy is genuinely certified AGAINST the
+        // destination's surfaces: re-certification there agrees, which
+        // is the claim the graft's `RemapKeys` bridge relies on.
+        moved.recertify(p0, p1, &dst_lookup, band()).unwrap();
+
+        // A remap that cannot answer writes nothing.
+        assert!(
+            certified.with_remapped_surfaces(|_| None).is_none(),
+            "a dangling handle is never written"
+        );
+        // A description with no surface keys survives any remap.
+        let mapped_only = EdgeCurve::certify(line_spec(p0, p1), p0, p1, |_| None, band()).unwrap();
+        let same = mapped_only
+            .with_remapped_surfaces(|_| None)
+            .expect("a MappedCurve names no surface");
+        assert_eq!(
+            format!("{:?}", same.description()),
+            format!("{:?}", mapped_only.description())
+        );
     }
 
     #[test]

@@ -11,14 +11,14 @@ mod fixture;
 
 use editor_core::{
     Attr, AttrKind, BooleanOp, BranchCertification, CancelToken, Dimension, DocEdit, DocParam,
-    EntityKind, EvalOptions, Expr, ExprPath, MetaValue, Node, ParamName, PersistError, ProfileDesc,
-    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SCHEMA_VERSION, SlotId, StableName, WitnessDatum,
+    EntityKind, EvalOptions, Expr, ExprPath, MetaValue, Node, ParamName, PersistError, ProfileDoc,
+    ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SCHEMA_VERSION, SlotId, StableName, WitnessDatum,
     apply, evaluate, load, save,
 };
 use fixture::{desc, insert, len};
 
 fn small() -> (ProfileDoc, String) {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr6_review_probes");
     let (doc, p) = insert(
         doc,
         Node::Profile(desc(
@@ -53,66 +53,55 @@ fn small() -> (ProfileDoc, String) {
 
 /// ATTACK 1: the save-door NaN walk skips bits == u64::MAX (the
 /// float_bits loop marker), but 0xFFFF_FFFF_FFFF_FFFF is itself a real
-/// NaN and `ProfileDesc.0` is pub. Does save accept it?
+/// NaN and the payload is pub. Does save accept it? (v4: the payload's
+/// only RAW floats are the 12 plane placement values — program args
+/// are Exprs whose literal door refuses non-finite at construction, so
+/// the attack surface SHRANK to the placement.)
 #[test]
 fn attack_all_ones_nan_slips_save_door() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr6_review_probes");
     let mut d = desc(
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
     );
-    d.0.loops[0].vertices[1].pos.x = f64::from_bits(u64::MAX); // a NaN
+    d.plane.placement.translation.y = f64::from_bits(u64::MAX); // a NaN
     let (doc, _) = insert(doc, Node::Profile(d));
     match save(&doc, &[]) {
         Err(PersistError::NonFinite {
             site: editor_core::persist::NonFiniteSite::Profile { node, index },
         }) => {
-            // MAJOR-1 fixed: the door walks Float TOKENS (tag-keyed),
-            // so the former in-band marker value is just data here.
-            // Index counts real floats: 12 placement floats, then
-            // vertex 0 (x,y,bulge), then vertex 1's x = 15.
+            // Placement floats in column order: c0, c1, c2, then
+            // translation (x, y, z) — translation.y = index 10.
             assert_eq!(node, RecipeNodeId(0));
-            assert_eq!(index, 15);
+            assert_eq!(index, 10);
         }
         other => panic!("all-ones NaN must refuse typed at save, got {other:?}"),
     }
 }
 
-/// MAJOR-1's structural fix, pinned at the substrate: the traversal
-/// is TAGGED — no float payload can alias a loop boundary, and the
-/// former sentinel value is ordinary data in every position.
+/// MAJOR-1's structural fix, restated at the v4 substrate: loop shape
+/// is STRUCTURE (the program enum), so no float value can alias a
+/// loop boundary — and the former NaN-payload attack is now refused
+/// one layer EARLIER, at the Expr literal door, so the sentinel class
+/// cannot even be built into program data.
 #[test]
 fn tokens_separate_structure_from_data() {
-    use editor_core::DescToken;
     let quad = |loops: Vec<Vec<(f64, f64)>>| {
         desc([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], loops)
     };
-    // The marker's original job survives the retype: loop shape stays
-    // token-distinct.
+    // Loop shape stays structure-distinct: (2 loops of 1 point) vs
+    // (1 loop of 2 points) — different programs, never a value alias.
     let two_loops = quad(vec![vec![(0.0, 0.0)], vec![(1.0, 1.0)]]);
     let one_loop = quad(vec![vec![(0.0, 0.0), (1.0, 1.0)]]);
-    assert_ne!(two_loops.tokens(), one_loop.tokens());
     assert!(two_loops != one_loop);
-    // The former sentinel bit pattern is DATA: it appears as a Float
-    // token, never as structure, and changes equality like any float.
-    let mut nan_bulge = quad(vec![vec![(0.0, 0.0), (1.0, 1.0)]]);
-    nan_bulge.0.loops[0].vertices[0].bulge = f64::from_bits(u64::MAX);
-    assert!(
-        nan_bulge.tokens().contains(&DescToken::Float(u64::MAX)),
-        "all-ones bits must ride a Float token"
-    );
-    assert!(nan_bulge != one_loop, "NaN payload is a real difference");
-    assert_eq!(
-        nan_bulge
-            .tokens()
-            .iter()
-            .filter(|t| matches!(t, DescToken::LoopStart))
-            .count(),
-        1,
-        "payload value must never mint structure"
-    );
+    // The NaN payload class dies at construction (ruled door 1): a
+    // program literal cannot carry the all-ones pattern at all.
+    assert!(matches!(
+        editor_core::Expr::literal(f64::from_bits(u64::MAX), editor_core::Dimension::Scalar),
+        Err(editor_core::DimensionError::NonFiniteLiteral)
+    ));
 }
 
 /// ATTACK 2: duplicate JSON object keys in serde-derived BTreeMaps
@@ -248,9 +237,9 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
         )
     };
-    let mut doc = ProfileDoc::empty();
-    let mut edits: Vec<DocEdit<ProfileDesc>> = Vec::new();
-    let mut push = |doc: &mut ProfileDoc, e: DocEdit<ProfileDesc>| -> Option<RecipeNodeId> {
+    let mut doc = ProfileDoc::empty_derived("m4_pr6_review_probes");
+    let mut edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
+    let mut push = |doc: &mut ProfileDoc, e: DocEdit<ProfileProgram>| -> Option<RecipeNodeId> {
         let a = apply(doc, &e).unwrap_or_else(|err| panic!("edit {e:?} refused: {err:?}"));
         *doc = a.doc;
         edits.push(e);
@@ -475,7 +464,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     push(&mut doc, DocEdit::SetTolerance { eps: amb });
 
     // Round-trip as a FULL LOG from an empty snapshot.
-    let text = save(&ProfileDoc::empty(), &edits).expect("save log");
+    let text = save(&ProfileDoc::empty_derived("m4_pr6_review_probes"), &edits).expect("save log");
     let loaded = load(&text).expect("load log");
     assert_eq!(loaded.edits, edits, "edit log round-trip");
     assert!(loaded.doc.bit_eq(&doc), "replayed doc bit-identical");

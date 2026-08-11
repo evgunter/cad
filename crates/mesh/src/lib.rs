@@ -31,11 +31,13 @@
 //! generator ray at each point's azimuth; triangle-local max radius, so
 //! apex fans certify tightly); torus — `(3/4)(R + 2r)·L_uv²` (linear
 //! interpolation against the closed-form Hessian bound `R + 2r`);
-//! described non-rational NURBS (M7, the trimmed-NURBS lane) — the
+//! described NURBS (M7, the trimmed-NURBS lane) — the
 //! same interpolation derivation against a **hull-derived** Hessian
 //! bound (second-derivative control nets by knot differencing, sup by
 //! convexity — the `nurbs_cert` module's anisotropic
-//! `(muu·a_u² + 2·muv·a_u·a_v + mvv·a_v²)/4`); rational or C⁰-creased
+//! `(muu·a_u² + 2·muv·a_u·a_v + mvv·a_v²)/4`; RATIONAL faces since
+//! M8-5, through the quotient-rule assembly over the homogeneous
+//! nets); illegal-rational or C⁰-creased
 //! NURBS faces refuse typed (partial coverage stated, never an
 //! estimated bound). All
 //! bounds are exact-arithmetic statements about the vertex positions;
@@ -177,54 +179,55 @@ pub mod walk;
 pub use tessellate::tessellate;
 pub use types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 
-/// REVIEW PROBE support (env-gated; dead in normal runs): global
-/// per-triangle certificate headroom stats.
+/// REVIEW PROBE support (dead in normal runs): per-triangle
+/// certificate headroom stats, **thread-local** (R1 of the M8-5 PR,
+/// MINOR-2): tessellation runs entirely on the calling thread, so
+/// arming and stats scoped to the arming thread make the armed
+/// evidence rows reproducible under a parallel test runner — a
+/// concurrent test's tessellations can no longer contaminate the
+/// driving test's `take()`. Soundness never depended on this (every
+/// recorded sample is also assert-checked in place in `trimmed`);
+/// this is about the EVIDENCE being attributable.
 pub mod probe_stats {
-    use std::sync::Mutex;
-    use std::sync::atomic::{AtomicBool, Ordering};
-    /// (worst measured deviation, its cert, max ratio d/cert, count).
-    pub static STATS: Mutex<(f64, f64, f64, u64)> = Mutex::new((0.0, 0.0, 0.0, 0));
-    /// Arms the per-triangle falsifier in `trimmed` (MIN-1 adoption:
-    /// the reviewer's probe promoted from env-gated to the SUITE'S
-    /// guard — the driving test arms it in-process, so it runs
-    /// unconditionally under the hosted gate; under a threaded runner
-    /// arming may also sample concurrent tessellations, which only
-    /// widens coverage).
-    static ARMED: AtomicBool = AtomicBool::new(false);
-    /// Arm/disarm the falsifier.
+    use std::cell::Cell;
+    thread_local! {
+        /// (worst measured deviation, its cert, max ratio d/cert,
+        /// count) — this thread's accumulator.
+        static STATS: Cell<(f64, f64, f64, u64)> = const { Cell::new((0.0, 0.0, 0.0, 0)) };
+        /// Is the falsifier armed on this thread?
+        static ARMED: Cell<bool> = const { Cell::new(false) };
+    }
+    /// Arm/disarm the falsifier for tessellations on THIS thread.
     pub fn arm(on: bool) {
-        ARMED.store(on, Ordering::SeqCst);
+        ARMED.with(|a| a.set(on));
     }
     /// Is the falsifier armed? (Also true when the reviewer's original
-    /// `NURBS_PROBE` env var is set — the manual drive stays usable.)
+    /// `NURBS_PROBE` env var is set — the manual drive stays usable,
+    /// process-wide.)
     pub fn armed() -> bool {
-        ARMED.load(Ordering::SeqCst) || std::env::var_os("NURBS_PROBE").is_some()
+        ARMED.with(Cell::get) || std::env::var_os("NURBS_PROBE").is_some()
     }
     /// Record one sample: measured deviation `d` against its
     /// triangle's certificate `cert`.
     pub fn record(d: f64, cert: f64) {
-        let mut s = STATS
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if d > s.0 {
-            s.0 = d;
-            s.1 = cert;
-        }
-        if cert > 0.0 {
-            let r = d / cert;
-            if r > s.2 {
-                s.2 = r;
+        STATS.with(|c| {
+            let mut s = c.get();
+            if d > s.0 {
+                s.0 = d;
+                s.1 = cert;
             }
-        }
-        s.3 += 1;
+            if cert > 0.0 {
+                let r = d / cert;
+                if r > s.2 {
+                    s.2 = r;
+                }
+            }
+            s.3 += 1;
+            c.set(s);
+        });
     }
-    /// Take-and-reset the accumulated stats.
+    /// Take-and-reset this thread's accumulated stats.
     pub fn take() -> (f64, f64, f64, u64) {
-        let mut s = STATS
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let out = *s;
-        *s = (0.0, 0.0, 0.0, 0);
-        out
+        STATS.with(|c| c.replace((0.0, 0.0, 0.0, 0)))
     }
 }

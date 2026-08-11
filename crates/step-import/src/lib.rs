@@ -48,6 +48,42 @@
 //!    chart that mints natively mints here — cylinder, cone, sphere,
 //!    torus, described non-rational NURBS; plane faces stay
 //!    derive-on-demand, exactly what a natively built body carries).
+//! 5. **The shared at-rest gate** (M7-7, #260 ruling (a);
+//!    [`import_step`]): the body is handed to
+//!    `topo::validate_geometric` — the kernel's own at-rest validator,
+//!    tiers 1–3, the same function on the same body a native
+//!    construction's caller runs — and only a body it passes ships as
+//!    [`StepImport::Solid`]. Steps 1–4 certify each edge's
+//!    description; this certifies the BODY, which is what "import is
+//!    adoption" has to mean if it means anything.
+//!
+//!    Asked once per `MANIFOLD_SOLID_BREP` **on that solid's own
+//!    body**, and once on the assembled body. Per solid because
+//!    several of the gate's invariants are whole-body sums (check 7's
+//!    +V is the boundary flux over every shell), so an inside-out
+//!    solid can be cancelled by a right-side-out neighbour and the
+//!    aggregate reads Zero, which is exempt — "every imported solid
+//!    passes the gate" is only true if each solid is a subject. The
+//!    refusal names which one. There is exactly one place in this
+//!    crate that calls the validator (`gate`), and it is
+//!    unconditional there: no body kind is exempt, no verdict class is
+//!    filtered (an escalated verdict refuses like any other —
+//!    escalate-never-guess).
+//!
+//!    This is D9 engineering convention 2 applied to the door #260
+//!    found open: import cannot hold an idea of validity that differs
+//!    from the kernel's, because it has no validation code of its own
+//!    to drift. Files that describe bodies the kernel refuses at rest
+//!    refuse at import, typed, naming the failing check and its
+//!    entities ([`StepImportError::TierInvalid`]) — a statement about
+//!    the FILE's geometry, never the kernel-bug voice.
+//!
+//!    **Scope, named**: the gate is tier 3, and 3′ on an empty contact
+//!    record is strictly stronger (it runs the coincidence census).
+//!    Imports declare no contacts, so an imported assembly whose parts
+//!    TOUCH is checked less than its native twin, whose pipeline
+//!    carries declarations. Import-side declared contacts are banked
+//!    with the M8 contact program (D7 step 4).
 //!
 //! # Two tolerances (D7)
 //!
@@ -89,9 +125,11 @@
 //! loft/sweep skin's chord-length fit drifts unit weights on any
 //! curved-path sweep or non-uniformly spaced loft, so those bodies
 //! refuse at BUILD time and no file of them exists to import. The
-//! round-trippable class today is uniformly-spaced lofts: polyline
-//! profiles (non-rational, full tier 3) and arc-bearing profiles
-//! (rational walls — the typed tier-3 limitation below).
+//! round-trippable class today is uniformly-spaced lofts with polyline
+//! profiles (non-rational, full tier 3). Arc-bearing profiles export
+//! and read, but their rational walls have no volume quadrature yet
+//! (the banked rational-patch-flux lane), so the at-rest gate below
+//! refuses them at import until that lane lands.
 //!
 //! # The wild (M7-4; `docs/M7-4-SPEC.md`)
 //!
@@ -127,12 +165,16 @@
 //! - **Edge sense**: `EDGE_CURVE` `same_sense` `.F.` composes into the
 //!   half-edge direction; no carrier is ever reversed.
 //!
-//! Two things the wild states that this reader still refuses, both
-//! named at the point of refusal: a curved face carrying rings —
-//! Open CASCADE's seamless periodic band — because `topo` has no
-//! volume construction for one and the body would not be tier-3
-//! valid; and edges the D7 ladder cannot certify, which is the same
-//! refusal it has always been.
+//! What the wild states that this reader still refuses is named at
+//! the point of refusal: a curved face carrying a genuine interior
+//! ring — `topo` has no volume construction for one, so the body
+//! would not be tier-3 valid — and edges the D7 ladder cannot
+//! certify, the same refusal it has always been. Open CASCADE's
+//! seamless periodic band, formerly in this list, NORMALIZES since
+//! M7-5: cylinder and torus bands take the seam re-mint
+//! ([`NormalizationKind::SeamlessPeriodicBand`]); band shapes on
+//! other charts keep a typed refusal naming that re-mint as the
+//! recourse.
 
 mod adopt;
 mod assemble;
@@ -142,6 +184,7 @@ mod error;
 mod geometry;
 mod normalize;
 mod parse;
+mod recognize;
 mod units;
 
 pub use error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
@@ -159,9 +202,81 @@ pub struct FaceCensus {
     pub vertices: usize,
 }
 
+/// **One materialized assembly instance** — the A7 record shape
+/// (`docs/ASSEMBLY-DESIGN.md`), kept so a flattened import can later
+/// be re-adopted as an assembly document **without re-parsing the
+/// STEP file**.
+///
+/// An AP214 assembly states N occurrences of M component
+/// representations; import materializes each occurrence as its own
+/// solid (A2 — the multi-solid body IS the evaluation product), and
+/// one of these records travels with each. The association the record
+/// carries is the one a body graph would rebuild:
+/// `component → instances → solid indices`.
+///
+/// Every field names a real record in the file, or is `None` because
+/// the file states no assembly. A file with no assembly vocabulary
+/// still gets one record per solid — `component` is the
+/// representation the solid resolved under, the placement is the
+/// identity, and there is no occurrence to name — so a consumer never
+/// has to ask whether the record exists.
+#[derive(Clone, Copy, Debug)]
+pub struct PlacedInstance {
+    /// Index of this instance's solid in the shipped body, in
+    /// [`topo::Body::solids`] order — the bridge from this record back
+    /// to the geometry it describes.
+    pub index: usize,
+    /// The `MANIFOLD_SOLID_BREP` this instance is a copy of. Repeats
+    /// across the records of one component's several occurrences: that
+    /// repetition IS the instancing.
+    pub solid: u64,
+    /// The shape representation that names `solid` — the component
+    /// representation of the assembly, or the representation the solid
+    /// resolved under in a file that places nothing.
+    pub component: u64,
+    /// The `NEXT_ASSEMBLY_USAGE_OCCURRENCE` this instance is, where
+    /// the file links one (through
+    /// `CONTEXT_DEPENDENT_SHAPE_REPRESENTATION` and
+    /// `PRODUCT_DEFINITION_SHAPE`). This is the occurrence identity a
+    /// re-adoption would hang an instance node on.
+    pub occurrence: Option<u64>,
+    /// The `REPRESENTATION_RELATIONSHIP` complex that states this
+    /// occurrence's placement.
+    pub relationship: Option<u64>,
+    /// The `ITEM_DEFINED_TRANSFORMATION` the placement was read from.
+    pub transform: Option<u64>,
+    /// The rigid map actually applied to this copy, through
+    /// [`topo::transform_rigid`]. `None` is the identity — the file
+    /// stated a placement that is the identity at ε_in, or stated
+    /// none; either way nothing moved, and recording the map as
+    /// applied (rather than as stated) is what makes the record
+    /// re-adoptable without re-deciding anything.
+    pub placement: Option<geom_core::Affine3<f64>>,
+}
+
+/// The analytic kinds D7 stage-1 surface recognition can promote a
+/// NURBS patch to. Cone, sphere, and torus recognition are banked
+/// (unimplemented; such patches stay NURBS).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PromotedKind {
+    /// A plane.
+    Plane,
+    /// A cylinder.
+    Cylinder,
+}
+
+impl core::fmt::Display for PromotedKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Plane => "plane",
+            Self::Cylinder => "cylinder",
+        })
+    }
+}
+
 /// Which normalization was applied (each one a named, bounded case —
 /// never an open licence to re-mint).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum NormalizationKind {
     /// A **closed face with no edges**: a whole sphere arrives as one
     /// `ADVANCED_FACE` bounded by a `VERTEX_LOOP` (Open CASCADE drops
@@ -196,6 +311,45 @@ pub enum NormalizationKind {
     /// (check 6, M6-6) refuses the inside-out face adoption would
     /// build, so the refusal fires pre-body instead.
     FullPeriodTorus,
+    /// A **seamless periodic band** (M7-5): a cylinder or torus
+    /// lateral face stated as its two full-period rim bounds with NO
+    /// seam generator between them (Open CASCADE never splits a
+    /// periodic face on export). The kernel's face model has one outer
+    /// loop plus rings, and a curved face with a ring has no volume
+    /// construction (`RingOnCurvedFace`), so the band cannot adopt as
+    /// stated. Re-minted as the kernel's own shape for the same locus:
+    /// ONE single-loop face whose loop walks one rim, the minted seam
+    /// generator (the surface's u_ref ruling for a cylinder, its u_ref
+    /// meridian arc for a torus), the other rim, and the generator
+    /// again reversed — the seam edge used twice, exactly what a
+    /// natively revolved wall carries. Where a rim has no vertex at
+    /// the u_ref azimuth it is split there first, and the split
+    /// propagates to every face sharing that rim. The face's winding
+    /// is DERIVED (each rim's chart-u direction against `same_sense`);
+    /// an orientation-inverted cylinder band refuses typed pre-body,
+    /// and a torus band's winding × sense pair selects which of the
+    /// two v-intervals between its rims the face covers.
+    SeamlessPeriodicBand,
+    /// A **NURBS surface promoted to an analytic kind** (D7 stage 1,
+    /// ruling #256): the patch's residual against the fitted analytic
+    /// surface CERTIFIED at ε_in, so the face is adopted on the
+    /// analytic chart — D3's exactness benefits restored to the
+    /// imported body (analytic pcurve lanes, exact tier-3 volume,
+    /// curved sense arms). The boundary graph is untouched: the
+    /// census pair on the record is the identity map, and the
+    /// geometric motion is bounded by the recorded residual (~0 for
+    /// an exact emission). Reported, never silent — this is the one
+    /// normalization that changes a surface's DESCRIPTION rather than
+    /// its tessellation.
+    SurfacePromotion {
+        /// The kind that certified.
+        to: PromotedKind,
+        /// The certified residual sup (meters): the patch's worst
+        /// deviation from the promoted surface over the certification
+        /// domain (control-net bound or fixed sampled grid — the
+        /// recognizer's dual track).
+        residual: f64,
+    },
 }
 
 /// A **reported structure normalization** (D7 stage-3 repair, in its
@@ -207,7 +361,7 @@ pub enum NormalizationKind {
 /// the same surface is cut into faces, edges, and vertices. The census
 /// pair is the mapping a reader needs to reconcile the file's counts
 /// with the imported body's.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StructureNormalization {
     /// The `ADVANCED_FACE` entity instance the file states.
     pub face: u64,
@@ -215,7 +369,12 @@ pub struct StructureNormalization {
     pub kind: NormalizationKind,
     /// The census the file states for that region.
     pub file_census: FaceCensus,
-    /// The census the kernel minted in its place.
+    /// The census as THIS mint left the region — a mint-event value,
+    /// not an at-rest one: a later normalization may split an edge the
+    /// region shares (a band's rim shared with a neighbouring band)
+    /// and the earlier record is not revised. The records' deltas sum
+    /// to the body's totals exactly; per-face at-rest counts are the
+    /// body's to answer.
     pub kernel_census: FaceCensus,
 }
 
@@ -244,16 +403,25 @@ pub enum StepImport {
     /// (matching what independent readers report for e.g. the
     /// kiss assembly).
     Solid {
-        /// The adopted body — first-class: Euler-built, certified,
-        /// tier-valid at rest, **to the tier its native twin
-        /// certifies to** (M7-3, the rational arm's honest
-        /// conditioning): a body whose native construction is tier-3
-        /// valid imports tier-3 valid; a body whose native twin
-        /// refuses tier 3 typed — a rational-walled loft, whose
-        /// volume quadrature names the banked rational lane —
-        /// imports with tiers 1/2 valid and the SAME typed tier-3
-        /// refusal (pinned by test). Nothing imports into a state
-        /// its native twin does not occupy.
+        /// The adopted body — first-class: Euler-built, certified, and
+        /// **tier-valid at rest, checked** (M7-7, #260 ruling (a)):
+        /// `topo::validate_geometric` passed on THIS body, and on each
+        /// of its solids taken alone, before it was handed out — so
+        /// the promise is a measurement rather than a claim, and it is
+        /// the promise a native body's caller makes with the same
+        /// call. (Per solid as well as whole, because the gate's +V
+        /// invariant is a flux SUM: on a multi-solid body an
+        /// inside-out solid can hide behind a right-side-out one.)
+        ///
+        /// The M7-3 statement it replaces — "tier-valid to the tier
+        /// its native twin certifies to" — no longer has a case to
+        /// cover: a body whose native twin refuses tier 3 (the
+        /// rational-walled loft, whose volume quadrature names the
+        /// banked rational lane) does not arrive here at all; the gate
+        /// hands back its verdicts as
+        /// [`StepImportError::TierInvalid`]. Nothing imports into a
+        /// state its native twin does not occupy — and nothing imports
+        /// into a state the kernel will not certify.
         body: Body<f64>,
         /// The import's input tolerance ε_in (meters): the override if
         /// given, else the file's declared uncertainty.
@@ -262,6 +430,19 @@ pub enum StepImport {
         /// resolution order — empty for a file whose boundary graph the
         /// kernel represents as stated (every own-corpus file).
         normalizations: Vec<StructureNormalization>,
+        /// **The assembly record** ([`PlacedInstance`], A7): one entry
+        /// per solid of `body`, in `body.solids()` order, saying what
+        /// the file said about it — which component representation it
+        /// came from, which `MANIFOLD_SOLID_BREP`, which occurrence
+        /// and transform stated it, and the rigid map applied.
+        ///
+        /// Flattening is the correct evaluation product (A2: N placed
+        /// instances ARE one non-connected body), but flattening is
+        /// not forgetting: this is the structure a later
+        /// import-as-assembly-document door needs, and it is cheap
+        /// here and expensive to retrofit, so it is kept whether or
+        /// not the file states an assembly at all.
+        instances: Vec<PlacedInstance>,
     },
     /// The file carried a `GEOMETRIC_CURVE_SET` wireframe and no
     /// solid: the reconstructed carriers, exact. **No body is
@@ -294,6 +475,15 @@ impl StepImport {
             Self::Wireframe { .. } => &[],
         }
     }
+
+    /// The assembly record ([`PlacedInstance`], A7) — empty for a
+    /// wireframe, which has no solid to instance.
+    pub fn instances(&self) -> &[PlacedInstance] {
+        match self {
+            Self::Solid { instances, .. } => instances,
+            Self::Wireframe { .. } => &[],
+        }
+    }
 }
 
 /// Imports a Part 21 exchange file (crate docs for subset and
@@ -303,8 +493,9 @@ impl StepImport {
 ///
 /// [`StepImportError`] — malformed syntax, dangling references,
 /// entities outside the exported subset, units the subset does not
-/// cover, topology that does not assemble, or geometry the D7
-/// adoption ladder cannot certify. Files written by
+/// cover, topology that does not assemble, geometry the D7 adoption
+/// ladder cannot certify, or a body the kernel's shared at-rest gate
+/// refuses ([`StepImportError::TierInvalid`]). Files written by
 /// `step_export::step_string` from finished kernel bodies import
 /// cleanly.
 pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, StepImportError> {
@@ -314,27 +505,139 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
         return Err(StepImportError::InvalidEpsOverride { value: eps });
     }
     let file = parse::parse_file(text)?;
-    let model = entities::resolve(&file)?;
+    let model = entities::resolve(&file, options.eps_in)?;
     let eps_in = options.eps_in.unwrap_or(model.uncertainty_m);
     match model.shape {
         entities::Shape::Solids(ref solids) => {
-            let body = assemble::build_body(solids, &model)?;
-            // The assembly's placement, through the kernel's own door
-            // (M7-4 Leg D): `transform_rigid` re-checks rigidity with
-            // decided predicates and re-certifies every carrier
-            // against the mapped geometry, so a placed body is as
-            // first-class as an unplaced one — and a map this reader
-            // let through that the kernel will not becomes a typed
-            // refusal, never a silently skewed body.
-            let body = match model.placement {
-                None => body,
-                Some(map) => topo::transform_rigid(&body, &map)
-                    .map_err(|source| StepImportError::Placement { source })?,
-            };
+            // **Materialization** (M8 instancing). The model says what
+            // to make: one entry per placed INSTANCE, each naming a
+            // solid and the frame that copy sits in. N occurrences of
+            // one component representation are N entries over the same
+            // solid index, and each is built into a body of its OWN —
+            // fresh topology, fresh arena keys, no structure shared
+            // between copies. Sharing was never on the table: a
+            // `SolidSpec`'s maps are keyed by the file's entity ids,
+            // so two copies assembled into one arena would collide id
+            // for id.
+            //
+            // Each instance then goes through the kernel's own
+            // placement door (M7-4 Leg D, unchanged): `transform_rigid`
+            // re-checks rigidity with decided predicates and
+            // RE-CERTIFIES every carrier against the mapped geometry,
+            // so a placed copy is as first-class as an unplaced one —
+            // and a map this reader let through that the kernel will
+            // not becomes a typed refusal, never a silently skewed
+            // body. N instances is N re-certifications, paid per copy
+            // because each copy is a different body.
+            //
+            // The copies meet in one arena through
+            // `topo::graft_disjoint` — the disjoint half of the
+            // boolean pipeline's combine door, which transplants a
+            // body's solid under a solid of its own with fresh keys in
+            // deterministic slot order. Nothing is fused; the shipped
+            // body is entity for entity the union of the bodies gated
+            // below, not a re-derivation of them.
+            let mut body = topo::Body::new();
+            let mut record = Vec::with_capacity(model.instances.len());
+            for (index, instance) in model.instances.iter().enumerate() {
+                let spec = &solids[instance.solid];
+                let one = assemble::build_one_solid(spec)?;
+                let one = match instance.placed {
+                    Some(entities::Placed {
+                        map: Some(map),
+                        transform,
+                        ..
+                    }) => topo::transform_rigid(&one, &map)
+                        .map_err(|source| StepImportError::Placement { transform, source })?,
+                    _ => one,
+                };
+                // The per-solid subject of the shared gate (below),
+                // asked about the PLACED copy — the body that ships.
+                // With one instance the per-solid and aggregate
+                // subjects are the same body, so this call is skipped
+                // as an identity, never as an exemption.
+                if model.instances.len() > 1 {
+                    gate(&one, Some(spec.id))?;
+                }
+                topo::graft_disjoint(&mut body, &one).map_err(|source| {
+                    StepImportError::Instance {
+                        solid: spec.id,
+                        source: Box::new(source),
+                    }
+                })?;
+                // The A7 record, minted where the instance is: `index`
+                // is the graft order, and the graft appends one solid
+                // per call, so it IS the shipped body's `solids()`
+                // order (pinned by `the_assembly_record_indexes_the_
+                // shipped_solids`).
+                record.push(PlacedInstance {
+                    index,
+                    solid: spec.id,
+                    component: instance.component,
+                    occurrence: instance.placed.and_then(|p| p.occurrence),
+                    relationship: instance.placed.map(|p| p.relationship),
+                    transform: instance.placed.map(|p| p.transform),
+                    placement: instance.placed.and_then(|p| p.map),
+                });
+            }
+            // **The shared at-rest validation gate** (M7-7, the #260
+            // ruling (a) + D9 engineering convention 2). Every
+            // imported solid is held to the kernel's invariants by the
+            // SAME function a native body's caller runs at rest —
+            // `topo::validate_geometric`, tiers 1–3 — reached only
+            // through `gate` below, which adds no opinion of its own:
+            // no kind predicate selects which bodies are asked (the
+            // band re-mint's backstop was that opinion, and it
+            // dissolved here — bands were only special because
+            // ordinary solids skipped the gate), and no verdict filter
+            // decides which failures matter (an escalated verdict is a
+            // refusal, not a pass: escalate-never-guess). Adoption
+            // certifies each EDGE's intensional description; this
+            // certifies the BODY, which is what `StepImport::Solid`
+            // promises at rest.
+            //
+            // Asked twice, for two different subjects. Several of the
+            // gate's invariants are WHOLE-BODY sums — check 7's +V is
+            // the boundary flux summed over every shell — so a solid
+            // stated inside-out cancels against a right-side-out
+            // neighbour and the aggregate reads Zero, which is exempt.
+            // "Every imported solid passes the gate" therefore has to
+            // mean each INSTANCE's own body, which is exactly the body
+            // the materialization loop above already holds, and the
+            // refusal names which `MANIFOLD_SOLID_BREP` it came from.
+            // The aggregate pass stays: it is the subject that owns
+            // the cross-solid structure (shared arena integrity, edges
+            // across shells) no per-solid view can see.
+            //
+            // With one instance the two subjects are the same body, so
+            // the per-solid call would re-run the aggregate call on
+            // identical geometry — skipped as an identity, never as an
+            // exemption.
+            //
+            // The per-solid subject is the PLACED copy (M8): the body
+            // that ships is the union of exactly these, so gating them
+            // before placement would gate something else. It costs
+            // nothing in verdicts — `transform_rigid` admits only
+            // det = +1 maps and re-certifies every carrier against the
+            // mapped geometry, so no tier-3 verdict is a function of
+            // the placement — and it costs nothing in honesty.
+            //
+            // Tier 3, not the 3′ form: the tier-3′ census gate is the
+            // currency of DECLARED-contact bodies (`BooleanBody`), and
+            // an imported body declares none. **Scope, stated
+            // honestly**: 3′ on an empty contact record is tier 3 plus
+            // the census actually run, which is strictly stronger, so
+            // an imported assembly whose parts TOUCH is checked less
+            // than its native twin — the touch is neither declared nor
+            // discovered here (F1 forbids scan-to-bless). Import-side
+            // declared contacts are banked with the M8 contact
+            // program (D7 step 4).
+            gate(&body, None)?;
             Ok(StepImport::Solid {
                 body,
                 eps_in,
                 normalizations: model.normalizations.clone(),
+                instances: record,
             })
         }
         entities::Shape::Wireframe(ref curves) => Ok(StepImport::Wireframe {
@@ -342,4 +645,16 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
             eps_in,
         }),
     }
+}
+
+/// The reader's ONLY contact with the kernel's at-rest validator: pass
+/// a body, get the verdicts back as a typed refusal naming the subject
+/// (`solid` = the `MANIFOLD_SOLID_BREP` asked about alone, `None` = the
+/// assembled body). Nothing is filtered, nothing is reworded, no
+/// verdict class is privileged — the whole point is that import has no
+/// validation logic that could drift from the kernel's (D9 engineering
+/// convention 2). If this function ever grows a condition, the gate has
+/// grown an opinion.
+fn gate(body: &topo::Body<f64>, solid: Option<u64>) -> Result<(), StepImportError> {
+    topo::validate_geometric(body).map_err(|errors| StepImportError::TierInvalid { solid, errors })
 }

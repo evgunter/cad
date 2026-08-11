@@ -30,13 +30,20 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
    (`cargo-slots.txt` is RETIRED in place); until the script
    lands on main, the 10 GB / two-parallel-cargo-lanes ceiling is
    enforced by this log's slot line.
+   **SUPERSEDED same night: PR #230 MERGED (2026-08-07 ~00:00)**
+   — `scripts/with-build-slot.sh`, machine-wide flock semaphore,
+   WIDTH 1 (serial builds measured ~40% faster than 2-wide;
+   PR #230 has the numbers). Both running implementers were
+   messaged to wrap every cargo call in it; all future dispatch
+   briefs carry it. Any number of agents may be alive — only
+   their builds queue.
 
 ## Dispatch record
 
 | Unit | Spec | Model (draw) | Lane | Status |
 |---|---|---|---|---|
-| U1 façade | docs/LIB-U1-SPEC.md | OPUS (block LIB-1 draw byte 13 = opus,fable; difficulty S logged pre-draw) | lib-u1 | dispatched 2026-08-06 |
-| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | dispatched 2026-08-06 |
+| U1 façade | docs/LIB-U1-SPEC.md | OPUS (block LIB-1 draw byte 13 = opus,fable; difficulty S logged pre-draw) | lib-u1 | **MERGED #232** (27/27; A/B row recorded at merge). Review APPROVE-WITH-FIXES 0/2/3, rubric 5/3/3; fix pass complete (guard pin proven by executed falsification; Band into prelude; 2 honest closure exceptions). Residue filed: #234 (DuplicateName unnameable), serde_json::Value exception flagged for U9 (see backlog note), #235 (stale .holder cosmetics). Lanes cleaned. |
+| U2 PATHS | docs/LIB-U2-SPEC.md | fable (block LIB-1 remainder; difficulty L logged pre-draw) | lib-u2 | **PR-1 MERGED #233** (26/1-skip; A/B row recorded at merge — review 1/1/3, rubric 5/4/5; sign-domain gates landed via the crash-surviving lane diff, adopted by a finisher). **PR-2 MERGED #238** (review APPROVE 0/0/3, rubric 5/4/5, zero silent devs; all seven claims independently re-executed incl. the bracket's exact ulp drift). **UNIT U2 CLOSED.** NOTE-3 pickup banked: the zero-geometry-diff contract has no re-runnable in-repo pin — bank a differential regression row as a U3 rider. |
 
 ## Orchestrator decisions (LB-numbered)
 
@@ -54,6 +61,112 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
   importable from the façade) with a compile-level test, not as a
   one-off re-export.
 
+## v2-conversation evidence accumulator
+
+Findings that feed the profiles-as-programs representation draft
+(ruling 3 above); source = the U2 PR-1 implementer report:
+
+- **Stadium/slot profiles are UNAUTHORABLE in the ratified
+  surface** (finding 7): both-sides-tangent closer + parallel
+  carriers — every closure door refuses, and PQ4 blocks mid-carrier
+  seams. Real vocabulary gap, not an implementation artifact.
+- NURBS legs have no v1 representation to lower to (finding 1) —
+  banked for v2 exactly as PATHS-DESIGN anticipated.
+- ε_input plumbing for the algebra's junction checks is
+  unspecified in the doc (finding 2; run-global Tolerance::get()
+  used) — the v2 spec should say where path-authoring tolerance
+  comes from.
+- Fillet-trim canonicalization is anchor-based (finding 10) —
+  defines the bit-identity expectation for PR-2's scene rework
+  (anchor-consistent scenes lower bit-identically; others change
+  SAID not shape and need per-scene care).
+
+**PR-2's corpus-scale walls (report §6; the richest v2 input yet):**
+
+1. **Directors-as-angles are ulp-dirty** (sin_cos quantization) —
+   the corpus's ONE line×line fillet (bracket, the #101 showcase)
+   could not move because .angle(PI) carries 1.22e-16 into the
+   ray; chord-derived directions are exact. Exactness depends on
+   which spelling bound the ray.
+2. **Missing arc binding modes**: via-point (4 loops) and
+   centre-first (2 loops, one with documented carrier intent).
+3. **Closed carriers unauthorable** (4 plain circles — the
+   corpus's most common raw shape); finding 7 generalizes to any
+   closed-carrier/both-sides-tangent loop.
+4. **Arc-carrier fillets** (rocker's 5: arc×line, arc×arc) all
+   outside the v1 line×line door.
+5. **No far-end-anchor spelling** for a post-fillet side ending
+   at a sharp vertex.
+6. Polygon/rect sugar is the single most-wanted verb (12 of 26
+   loop sites are polygons; slab's extents tuples are already
+   dimension expressions the chain re-flattens).
+7. "Algebra-authored ≠ validated" (junction checks are local;
+   the bowtie authors cleanly) — an honest doc point, not a bug.
+
+## U9 backlog notes (accumulating)
+
+- `MigrationStep`'s `serde_json::Value` payload is the one closure
+  exception a Python binding will actually meet (U1 audit) —
+  decide at U9 whether pncad re-exports serde_json or the payload
+  gets a typed wrapper.
+- `BooleanOp` name collision (topo's in the prelude, editor_core's
+  by path) — revisit if bindings prefer the document-layer one.
+
+## Incident log
+
+- **2026-08-07 (day): WSL CRASH** (Evan, evening). Symptoms as
+  seen from this side: the U2 PR-1 fix pass died TWICE to stream
+  stalls ("no progress for 600s"), then the orchestrator session
+  itself was down ~10h. Probable trigger: machine load (the U1
+  fix agent had measured load 14–19 under three concurrent
+  lanes; the U1 fix-pass byte-identity re-run was blocked 4×
+  by the same contention). Crash-window battery results were
+  already treated as suspect; ~151 lines of partial fix work in
+  the lib-u2 lane survived intact. On resume: monitors re-armed,
+  state re-verified (#233 OPEN/MERGEABLE, main unmoved at
+  e7213f6), one fresh finisher dispatched — ONE build-running
+  agent at a time until WSL stability is understood; width-1
+  slot locks remain the ceiling for anything heavier.
+
+## Program state at the U2-close seam (2026-08-08)
+
+- **U1 + U2 both MERGED** (#232, #233, #238); A/B rows recorded.
+- **PROFILES-V2-DESIGN RATIFIED (#242 MERGED, 2026-08-08)** after
+  a three-round conversation: round 1 accepted the drift-proof
+  driver construction + serde-as-transport; round 2's probe
+  RETRACTED the bowtie-forces-raw-seat claim; round 3 Evan
+  delegated VQ1 — **RULED (b)-DIRECT** (chain-only schema; the
+  additive-vs-subtractive LQ7 asymmetry decides: raw can be added
+  later additively, removal has a pre-release deadline).
+  **Revised ladder consequence**: vocabulary-growth units precede
+  the switch — **G1** (cheap set: circle primitive, arc_via,
+  arc_center, far-end anchor, VQ4 exact directors) then **G2**
+  (arc-carrier fillet modes; sizing starts by measuring sugar's
+  existing arc-leg fillet forms, M5 S2/#137); then the SWITCH
+  unit(s) (schema v4 chain-only, replay driver, Expr binding,
+  slot addressing); U9 queues behind the switch (Evan: no hurry).
+  U5/U6/U7/U8 remain freely schedulable around them.
+- **U3 MERGED #245** (2026-08-08; A/B row at merge — review
+  APPROVE 0/0/3, zero silent devs, all claims independently
+  re-executed; the base was found to silently BUILD an invalid
+  interior section where the branch refuses typed). One
+  vocabulary for all four body ops; SectionSegments deleted;
+  the census's split-brain door closed structurally. NOTE
+  riders banked for the G-series: error-precedence doc line,
+  per-call loop clone. Lanes lib-u3/lib-u3-review cleaned.
+- **G1 MERGED #254** (2026-08-08; dual-rubric A/B row at merge).
+  The bracket moves bit-identically (VQ4 proven); raw census
+  down to 3 (boss/rocker/bowtie); ArrivalKind fix red-checked
+  both directions. Far-end-anchor design fork ADJUDICATED at
+  merge: `.angle(θ).to(p)` accepted — both reviews' conformance
+  audits found it doc-faithful (no new DOF, shared resolution
+  path, entry refusal parallels U2's `.at` precedent), the
+  Start-variant absence stays pinned. G2 remains: rocker's
+  arc-carrier fillets. Lanes cleaned. |
+- Next in judgment scope after U3: U5 (read-back), U6/U7
+  (relations/selection); U4 wants its LQ3 measured spec; U8→U9
+  queue behind GQ5 + the v2 ruling.
+
 ## Resting state (2026-08-06)
 
 Slots: 1 = lib-u1 (Opus), 2 = lib-u2 (fable). Monitors:
@@ -63,3 +176,443 @@ The v2 representation design conversation is QUEUED behind U2
 PR-2's merge (ruling 3 above). Next units in judgment scope after
 U1/U2: U3 (SectionSegments retirement) and U5 (read-back) are the
 natural nexts; U7 unblocked (M6-5 merged #219/#220).
+
+**Dual-review sample #1 = G1** (2026-08-08): post-amendment
+implementation rows are U3 (1), M7-5 (2; the other orchestrator's
+KLINT-GATE correctly excluded as CI-infra), G1 (3) → G1 draws the
+first dual sample. R1 and R2 both in flight against the same head
+(lanes lib-g1-review / lib-g1-review2), identical briefs, R2
+blinded to R1's existence and report. Both rubric triples and
+finding counts will be recorded R1/R2 in the row; fix pass off
+the adjudicated union.
+
+**Dual-review sample #1 result (G1/#254)**: R1 and R2 CONVERGED —
+both APPROVE-WITH-FIXES, both independently found the identical
+MAJOR (Zero-fit far-end anchor emits an unauthored outgoing
+tangency declaration → spurious TangencyContradicted on legal
+sharp continuations; §4-item-2 declaration-without-construction).
+Complementary residue: R1 got the §3 table ordering + merge
+footprint notes; R2 got the t2-vs-anchor verbatim-vertexhood gap,
+the §2a PQ4-phrasing clause, and the missing in-band gate rows.
+First reviewer-variance data point: HIGH agreement on the
+consequential finding, disjoint tails. Fix pass dispatched off
+the union.
+
+**G2 dispatched** (2026-08-08, OPUS — first slot of triple LIB-3
+(opus,opus,fable), L pre-logged; lane lib-g2, branch
+lib/g2-arcfillets, spec docs/LIB-G2-SPEC.md from the executed
+census). Risk item named in the brief: derived-corner bitwise
+exactness for the rocker differentials. G2 = post-amendment row 4
+(single review); remainders (opus, fable) bank for the next two
+units. After G2: the SWITCH unit (schema v4 + replay driver +
+Expr binding per PROFILES-V2) is the ladder's next rung — its
+spec is the orchestrator's next writing task.
+
+## G2 findings-back rulings (LB3–LB6, 2026-08-08; high-confidence
+## elaboration class — Evan retroactive, veto window on #259)
+
+- **LB3 (the Bounds blocker)**: the compound-Bounds allowlist
+  EXTENDS to one new file — a `path` arc-fillet submodule
+  confining the lifted-S8-ladder call — carrying sugar.rs's
+  ratified justification verbatim (same rule, same diagnostic
+  channel, representation-level selection between
+  already-classified constructions; never a re-decision of
+  geometry). This PRESERVES the S8 amendment (plain deterministic
+  selection, no funnel entry) — the decide-predicate route would
+  violate it and refuse-multi-candidate forecloses the eye. The
+  G2 fence is amended: the ONE allowlist line for that file is
+  permitted, reported.
+- **LB4 (anchor lottery)**: NO anchor-fitting, ever. The
+  squared-radius circle×circle form is ruled IN as the design
+  (structurally exact — the correct closed form, not fitting).
+  Sites migrate only where their NATURAL anchors (design-stated
+  points, provenance reported per site) land bitwise; others stay
+  raw with the wall named — the bracket precedent extended.
+  "Line×circle corner derivation is anchor-rounding-dependent" is
+  a named wall and v2-accumulator evidence.
+- **LB5 (seam-at-fillet)**: the rocker OUTLINE stays raw — its
+  mid-arc seam vertex is authored topology (one vertex, one
+  lateral face) that the algebra's seam-fillet retrim would eat
+  and PQ4/item-4 correctly refuses to reproduce as a mid-carrier
+  junction. Wall named; v2 evidence. The EYE migrates (its sharp
+  tip is a genuine two-carrier junction that the new Start
+  spelling keeps).
+- **LB6 (naming fork)**: `.to_on(Start, centre, winding)`
+  accepted — the addition §2a item 4 was deliberately left open
+  for; distinct from `.to(Start)` (same-carrier retrim) by
+  exactly the two-carrier-junction distinction the implementer
+  identified.
+
+- **LB3 AMENDED (2026-08-08, from Evan's factoring question on
+  #259)**: the selection family (nearest_candidate + the lifted
+  joint ladder) moves to its own shared module
+  (`profile::fillet_select`-shaped, allowlisted with the S8
+  justification, both doors call it) rather than living per-door.
+  End state: THREE allowlisted files — sugar.rs boundary, path
+  boundary, fillet_select — each with a purpose-matched one-line
+  justification. Rationale: the discipline tracks type-level
+  bounds, so boundary files can't leave the allowlist, but the
+  selection family is a coherent design object with two consumers
+  and future S8-family growth lands there. Implementer redirected
+  mid-flight; the extraction's bitwise pin guards the move.
+
+- **LB3 correction (implementer finding, accepted)**: TWO
+  boundary allowlist entries, not three, and NO CI change —
+  `fillet_select.rs` uses sole-bound `T: Bounds`, which the
+  ratified rule permits everywhere (the tripwire matches only
+  compound bounds). The factoring SHRINKS the discipline
+  surface. §3 surface still to land; its design is fully
+  recorded (#259/#261/report), so a fresh finisher rebuilds it
+  mechanically. G2 session errors self-reported honestly (slot
+  held ~2h across a branch switch; ~250 lines lost to an
+  over-broad rm) — both recorded for the A/B row's fix-pass
+  narrative.
+
+- **LB7 (U7 scope, from the census)**: U7-v1 ships STRUCTURAL
+  selectors only — role-path-shape queries over the ratified
+  RoleSeg vocabulary (RimEdge(Top,_), Seam{Cap,Band}, …),
+  all_faces/all_vertices materializer siblings, and the missing
+  pncad doors (NameTable/EntityKind/EntityRef/all_edges/
+  edge_name-family exports — StableName is currently write-only
+  at the façade). Everything stays a MATERIALIZER (evaluate →
+  resolve → store Vec<StableName>) per the M6-5 freeze doctrine;
+  no live queries in recipes. GEOMETRIC predicates (carrier
+  kind, adjacent-surface pairs, convexity, position) are
+  DEFERRED to a designed follow-up: they are decided-predicate
+  sites under DESIGN.md's margins discipline and interact with
+  unratified GQ7 — shipping them library-first would de-facto
+  ratify GUI selection mechanics. Structural-first forecloses
+  nothing (geometric selectors add later under their own
+  design); the naming collision with profile::fillet_select is
+  noted — U7's module gets a distinct name.
+
+- **LB8 (U8 split, from the census)**: U8's display-unit STORAGE
+  (per-literal units → ExprKind::Literal/WireExpr/bit_eq/schema
+  v4) collides with the SWITCH unit's surface — the schema
+  breaks ONCE, so U8b (storage + full 25mm round-trip) FOLDS
+  INTO the switch unit's spec. U8a (quantity newtypes at the D6
+  boundary, unit table, formatter-with-unit-as-argument, the
+  checking text parser against the current AST) ships now,
+  schema-free. The geom-core Length<T> name collision is a named
+  spec risk. Difficulties pre-logged: U7-v1 = M, U8a = M. Draws:
+  U7 → LIB-3 slot 2 (OPUS), U8a → LIB-3 slot 3 (fable).
+
+- **Note (Evan, in-chat 2026-08-08)**: LB7/LB8 confirmed as
+  sequencing-class. When the geometric-selector follow-up is
+  designed, it should RE-HOME GQ7's selection-filter portion out
+  of GUI-DESIGN into the library design docs — Evan: "a bunch of
+  general-usefulness stuff got originally mentioned in
+  GUI-DESIGN even though it's more broadly applicable." The GUI
+  becomes a consumer of the general mechanism, not its owner.
+
+**SWITCH spec drafted (2026-08-08, PR #263 — OPEN, awaiting two
+Evan inputs)**: (1) PROFILES-V2 §V3 REVISED — the naming-stability
+claim was contradicted by the required measurement
+(canonicalization is geometry-dependent; lex-band crossings
+renumber; posture = the M6-5 freeze doctrine, Vanished fail-loud);
+(2) corpus-authorability dent to VQ1(b) — boss's 3-arc split and
+the die half-disc are same-carrier-by-design, chain-unauthorable
+forever; recommendation = split-control primitives in the
+circle() lowering style; half-disc equator-vertex measurement
+ordered first. Spec staging: 3 PRs as TWO A/B units (SWITCH-P
+profile L, SWITCH-E editor-core+lift XL); hard-sequenced behind
+the G2 finisher (path.rs) and U8a (Unit type). Drafter also
+re-verified f64-resolution and found memo hashing already
+satisfies V3 via resolved-bits convention.
+
+- **LB9 (Evan on #267)**: geom-core's classify-seam `Length<T>`
+  RENAMES to `Margin<T>` (the audit's own vocabulary) — a
+  mechanical workspace sweep as its own orchestrator-review PR,
+  sequenced after U8a's review concludes; the quantity `Length`
+  then owns the name unqualified. And F4's preimage search is
+  recorded as the STATELESS STOPGAP: the switch spec's U8b
+  section must state that stored per-literal provenance
+  supersedes the search on the authored path (search remains
+  only for computed values, where the information genuinely
+  does not exist).
+
+- **LB10 (G2 finisher's mechanism wall)**: the
+  straight-arrival-off-arc-departure refusal is ACCEPTED as a
+  recorded wall (§2b) — no corpus consumer exists (rocker's
+  outline is raw per LB5), it is unreachable from pre-existing
+  programs, and both escape routes (path.rs as a second
+  compound-Bounds allowlist entry; capability erasure putting
+  .fillet behind Bounds) enlarge exactly the audit surface LB3's
+  confinement exists to keep small. Revisit with a concrete use
+  case, PATHS §7 posture; the two-route menu is recorded in §2b.
+  Also noted from the finisher: the setsid lesson (harness
+  timeout kills the process group — slot-queued runs need
+  setsid to survive) goes to the lane-ops memory at next seam.
+
+## Seam state (2026-08-09, the parallel batch closes)
+
+- **U8a MERGED #267** (row recorded); **G2 CLOSED, MERGED #268**
+  (row recorded; raw census = boss→circle_split-at-switch /
+  outline LB5 / bowtie permanent). **Margin rename #270** (LB9)
+  merging on green — k-lint margin stream byte-identical, 377
+  sites. **Express lane #269 MERGED**, #235 closed; lane-ops
+  memory updated (--express + setsid patterns; all future briefs
+  carry them).
+- **SWITCH-P DISPATCHED** (opus, LIB-4 slot 1, L pre-logged;
+  spec §3, lane lib-switchp). SWITCH-E waits on SWITCH-P + the
+  U7 merge; its spec §§4-8 already binding.
+- **U7 review still in flight** (the last of the batch's
+  verdicts; slot-queue dominated).
+- Dual-review counter: provisional U8a=4, G2=5 (pending the M7
+  orchestrator's #266-class confirmation on the #268 thread);
+  row 6 = the next blinded merge (likely U7 or M7-6) — flagged
+  at merge time; retroactive R2 is the remedy if the count
+  shifts.
+
+- **Dual-review counter CONFIRMED** (M7 orchestrator, #268
+  thread): #266 orchestrator-class; U8a=4, G2=5 → **U7 = row 6,
+  draws dual review**. R1 was dispatched as single before the
+  count resolved; remedy per protocol = R2 dispatched at U7's
+  merge against the frozen merge head, independent (no R1
+  access). Fix pass consumes the R1∪R2 union — so U7's fix pass
+  WAITS for R2, and the merge happens after both (the row
+  records both rubrics at merge as usual).
+
+- **LB11 (U6 scope, from the census — U6 DOES NOT DISPATCH as a
+  unit now).** The census found: (a) the P9 flush helper is
+  value-inferred declaration — C4's forbidden pattern, legal only
+  in fixture code; the honest library form is detect(findings) /
+  declare(Node::Declare by name) / two-armed refusal menu (no
+  absorb arm, per the #256 ban); (b) the DETECTOR is a geometric
+  selector — inside LB7's deferred scope; (c) P5's declared-offset
+  is authoring/expression-layer (derived table = base + stated
+  deltas — Expr-shared-subtree territory), re-homed to
+  post-SWITCH-E. Consequence: U6's substance merges into the
+  GEOMETRIC-SELECTOR FOLLOW-UP design conversation, which now has
+  three consumers (LB7's deferred predicates, GQ7 re-homing,
+  U6's finder+declaration+menu) and is ripe to draft. The thin
+  declare-by-name sugar ships with it, not before. Fixture twins
+  stay put (legal where they are).
+
+- **LB13 (Evan, in-chat 2026-08-09): the LB12 seal deepens, two
+  parts.** (a) `pncad` DROPS the whole-crate `editor_core`
+  re-export (measured: 2 tour consumers, both curated-servable)
+  — the document layer exposes only its curated surface;
+  kernel-direct crates KEEP module re-exports (keys are that
+  layer's native vocabulary; U1 closure property unaffected).
+  Preliminary-no per the VQ1 asymmetry: widening later is
+  additive, narrowing post-release is breaking. (b) The boundary
+  becomes a TEST, not a soft rule: a rustdoc-JSON public-API
+  check that no arena-key type appears in any signature of
+  pncad's document-layer surface (source-grep guards miss
+  signature leaks — exactly how EntityRef escaped). Lands on
+  U5's fix pass (same territory as LB12).
+
+## Evan review-thread inputs (2026-08-09, recorded)
+
+- **Demo byte-identity is a SOFT constraint going forward** (#289):
+  "always ok to update demo objects in a way that is not
+  byte-identical — they should demonstrate the natural and easy
+  way to use the library." Operational: byte-identity remains the
+  DEFAULT acceptance for mechanical migrations (it proves
+  nothing-changed cheaply), but demo-improvement diffs are
+  acceptable when the point IS the better authoring; specs should
+  say which contract applies. Claimed byte-identity is still
+  verified as claimed.
+- **Lint-drift check** (#290): the pncad-py hand-restated [lints]
+  table needs a drift test vs the workspace set — folded into the
+  U9S review as a formal claim.
+- **NEW EXPLICIT GOAL** (#290): "make all the demos authorable
+  through the python bindings" — recorded as the U9/U10
+  acceptance north star (the tour corpus becomes the bindings'
+  example set AND its coverage oracle). Feeds the curated-doors
+  unit (F1/F2/F3 are exactly what blocks bracket.py today) and
+  U10's example strategy.
+
+## LIB residual register (2026-08-10, at the program's close —
+## Evan's ask; kernel-functionality-tracking items excluded)
+
+Beyond "docs update as the kernel grows," five categories:
+
+**A. Curation-gap residuals (the F1 class — library-side doors):**
+- **R1 (the significant one, U10 F1)**: named document parameters
+  unreachable from the façade — SetDocParam/ParamName/DocParam not
+  curated, so plate_param cannot be authored pncad-only. Pinned by
+  a compile_fail doctest + audit gap G10. Fix = one curation pass,
+  DOORS-shaped. Highest-value single residual.
+- R2 (U10 F2): PathNoCornerReason not re-exported beside PathError
+  (the U1 closure-class, mild).
+- R3 (SEL2 follow-up): the UndeclaredContact refusal-menu WIRING
+  (the finding payload into the boolean's refusal) — shape
+  recorded in the SEL2 report.
+
+**B. Bindings-parity residuals (the north-star audit, executable):**
+G1-G11 ranked in the U10 report — the audit test FAILS as doors
+land, so this register self-enforces. The big three: G1 profile
+arcs/circles via Python (the PATHS lattice in .pyi — the §L4
+typestate stubs, deferred to post-v2, now unblocked), G2
+loft/sweep/tube bindings, G3 non-xy sketch planes. Plus G11
+(tessellation/STL from Python — completes the ladder's steps 5-6).
+
+**C. Infrastructure residuals:**
+- R4 (U10 F4, strongest available follow-up): the PYTHON TESTS ARE
+  NOT IN CI — test_guide.py and test_north_star.py (the docs' and
+  audit's no-rot machinery) run only by hand. Needs the wheel-build
+  CI job (the U9S fence deferral) — one workflow job, then the
+  no-rot property is structural.
+- R5: the LQ7 tail as ratified-open: wheel cadence; schema-version
+  ↔ package-version coupling post-release.
+- R6 (#274): CLOSED BY RULING (Evan, 2026-08-10, on the issue:
+  "the cure seems worse than the poison") — no structural
+  union-checking machinery. The standing mitigation is the
+  process norm in every brief: merge main before opening,
+  re-merge on movement, build the union explicitly.
+
+**D. Deferred-by-design (need a use case, not work):**
+- LB10's straight-off-arc fillet wall (two-route menu in §2b);
+  PATHS §7's banked items (arc-arrival fillets beyond G2's scope,
+  NURBS legs — VQ7 says segment-vocabulary work); the geometric
+  selector's reserved convexity atom (GS-Q2); the F3 crate
+  descriptions (matter only at publication).
+
+**E. The endgame pair (Evan-owned, parked by ruling):**
+- Q9: the name (Intension cleanest per the 2026-08-08 re-sweep;
+  rename = the pncad grep + the cad audit per the memory).
+- The U9 release checklist: reset version numbers (LQ7b), crate
+  descriptions (F3), publish gates — a small unit when release
+  is actually wanted.
+
+## PROGRAM COMPLETE — resting state (2026-08-10)
+
+Every LIBRARY-DESIGN §L5 unit is MERGED (the ladder as executed:
+U1, U2+G1+G2, U3, U5, U7+SEL1+SEL2, U8a, SWITCH-P/E/PR-C with
+U8b folded in, U9S+DOORS, U10). The guide + north-star audit are
+hosted-CI-enforced (python-suite, 46 tests). The residual
+register (above) is the successor's map; category B is the
+opening program. #329 MERGED
+(2026-08-10, all green incl. an en-route CI catch: the fixture
+pin's embedded ε vs the tolerance sweep, fixed as an honest
+exclusion) — G10 CLOSED, R1 DISCHARGED. Its retroactive review
+(ordinal 19, frozen merge head) is the successor's first task.
+Handoff file: ~/.local/share/cad-work/handoff-prompt-lib-next.md.
+Dual-review samples 1-6 all converged on every MAJOR; sample 5
+overturned a design disposition; the variance data is in the
+rows. LIB-7 remainders banked (opus, opus); next dual = 21.
+
+## Successor session opens — the bindings-parity program (2026-08-10)
+
+Handoff executed: #329 verified MERGED (merge 4230173, frozen
+head 9bb1916); its retroactive blinded review dispatched as
+ordinal 19 single on the frozen head. Stale SWITCH-E lanes
+(lib-swe-r1/r2, lib-switche) verified pushed+clean and removed
+(12 GB freed). Monitor suite armed. Opening unit: **LIB-PYG1**
+(docs/LIB-PYG1-SPEC.md) — the audit's G1, arcs/circles in
+profiles from Python via the §L4 typestate lattice; spec pins
+prelude-parity names, distinct state classes, quantities at the
+boundary, one-lowering (no Python-side predicates), Node.profile
+terminal, and fences out G2/G3/G7/G8/G9, Expr-in-profile, and
+NURBS legs. Arm: opus (LIB-7 banked slot 2). The Expr-bearing
+profile-steps door (with G9 → plate_param authorable from
+Python) is recorded here as a NAMED follow-up of PYG1.
+
+**PYG1 MERGED — audit G1 CLOSED (2026-08-10, #346, 28/28 green,
+ordinal-20 APPROVE 0/3/3).** The lattice is bound state-for-state
+(both structural rulings proven forced), ty is a live CI gate,
+authorable 7→11, suite 48→83. Riders landed in the fix pass:
+`LoopProgram::from_recorded` (the door PYG1's finding 1 named —
+now a Rust door with a bit-for-bit contract test), prelude
+curation (ClosedLoop, circle_split, RecordedProgramError). #347
+filed kernel-side (Boolean refuses on carrier-crossing cutter
+planes — reproduced by the review at the exact r=4/r=5
+crossover; bracket.py rounds at 3 mm citing it). Banked from
+findings: the Expr-in-profile door (with G9 → plate_param from
+Python), Count still unconsumed, tour scenes without closed-form
+oracles (finding 5), the DocParam __eq__ rider (from ordinal
+19), straight-run authoring noise (finding 7 — vocabulary
+evidence for a future design conversation, not a unit).
+
+**The #377 design conversation — RATIFIED (2026-08-11, Evan 👍
+on #386, after two follow-up rounds that strengthened the §V6
+disposition to full test-support banishment + struck V4(c)).** LoopBuilder
+retirement per Evan's in-chat ruling requires three dispositions
+beyond the §2b route (the lb-diecomposed investigation's
+findings): (a) PROFILES-V2 §V6's ratified fail-loud-demo-surface
+role — amendment drafted in place; (b) **LB4 disposition
+PROPOSED**: rocker migrates under the #289 oracle-equality
+contract (derived corners 0–4 ulps off authored anchors are the
+natural-authoring outcome; the no-anchor-fitting DOCTRINE is
+untouched — nothing fits anchors, the demo simply stops
+transcribing them); (c) **LB5 disposition PROPOSED**: the
+outline's mid-arc seam vertex re-anchors on migration — the
+scene's point is the rocker's shape, not its seam placement, so
+authored-topology preservation yields to the demo-purpose rule;
+the topology change is stated at the site. The bowtie stays
+permanently raw (ProfileLoop data, not LoopBuilder). Sequencing:
+ruling first, then ONE S-M unit (the §2b door + rocker migration
++ prelude/guide removal + G12 flip).
+
+**PYBUNDLE MERGED — G4/G6/G7/G9 CLOSED (2026-08-11, #376,
+ordinal-28 APPROVE-WITH-FIXES 1/2/3).** Audit 18→24 of 34
+authorable (20 YES + 4 YES*); 10 NO remain: G2 sweep/tube ×6
+(U4-gated), G5 declared-contact ×2 (the detect/declare slice with
+R3), G12 rocker (#377), G14 cutaway split-naming (#380 adjacent).
+Suite 95→118. The round's substance: the reviewer authored FULL
+diecomposed from Python by parsing name-text provenance,
+falsifying the fresh G13 wall — RULED both-arms (row→YES*;
+name-text OPAQUE BY CONTRACT — parsing the encoding is
+representation-dependence, refused by doctrine; G13 re-scoped to
+the unbound Python SELECTOR surface, which Rust already serves,
+lib_sel1_geoselect.rs:507-560). Three new gap ids stand: G12
+(LoopBuilder/§2b — the #377 design conversation, which the
+lb-diecomposed investigation showed also needs LB4/LB5
+disposition and a §V6 amendment), G13 (Python selectors — the
+natural NEXT unit, small), G14 (kernel split-naming wall).
+G8 measured-unbound (pattern Instances cannot feed a boolean —
+kernel payload gap, unchanged). Issues: #377, #380.
+plate_param-from-Python: ONE door left (Expr-bearing profile
+steps).
+
+**PYG23A MERGED — G3 CLOSED, G2's loft half closed (2026-08-11,
+#365, ordinal-22 APPROVE 0/1/4).** Authorable 11→18 (14 YES + 4
+YES*), 16 NO remain; suite 83→95; the plane vocabulary and
+Node.loft are live in Python; LQ3's ratification (#362) landed
+mid-unit and the audit's G2 text now names the real blockers.
+Banked from findings: the loft READ-BACK residue (wire_loft drops
+section_params — needs a Section/Affine3 value surface or a
+document-layer read-back door; row 14's recorded residue),
+origin-less named planes (finding 4 — the single clumsiest thing
+in the new vocabulary; candidate rider on U4b's frame family),
+SketchPlane __eq__/accessors (rider, in the PYBUNDLE spec),
+elevation= as the odd door (future xy_at retirement candidate),
+the §L4 typed-quantities structural-int exception (needs one
+written sentence in a future doc pass), YES-with-residue as a
+possible third audit mark (finding 7 — vocabulary gap, not
+resolved). The billing outage (#366) opened and closed inside
+this unit's endgame; its one red shard re-ran green.
+
+**The G2 unit-cut ruling (2026-08-10, orchestrator, from the
+substrate survey)**: audit G2 splits. Its LOFT half is mechanical
+(Node::Loft has existed since M5 PR 10 with eval + naming) and
+ships with G3 as **LIB-PYG23A** (docs/LIB-PYG23A-SPEC.md — two
+additive SketchPlane constructors, plane values + Node.loft bound,
+7 audit rows flip). Its SWEEP/TUBE half is NOT dispatchable as
+mechanical work, three independent walls: (a) wire_sweep
+unconditionally refuses — the SWEEP_FRONTIER path-composition
+lane is banked past M6 by the PR 10 MAJ ruling (kernel-side, not
+this program's to un-bank); (b) 3-D path values + the pose family
+are U4, whose landing site LQ3 is RATIFIED-OPEN (needs Evan's
+working session — U4 never ran); (c) Node::Tube does not exist,
+and a new node kind is a schema break colliding with ASM-1's
+in-flight v5 bump (coordination, not code). The sweep/tube tail
+is therefore a NAMED DESIGN CONVERSATION (U4/LQ3 + frontier +
+version coordination), recorded here as the register's G2
+residue; the audit page's rows 15–19 get the honest blocker text
+in PYG23A.
+
+**Ordinal 19 closed (2026-08-10)**: the R1-PARAMS retroactive
+review returned APPROVE 0/1/4, rubric 5/5/5, zero silent devs —
+the row is complete in MODEL-AB-LOG. Fix pass
+(orchestrator-applied): the fixture pin's ε filter now asserts
+exactly one excluded ε line per side (the MINOR's dup-ε damage
+shape goes RED in the Rust pin instead of relying on the Python
+load refusal). Banked from the NOTEs: (a) `DocParam` binds no
+`__eq__`/`__hash__` while Rust derives PartialEq — undocumented
+asymmetry, adopt as a rider on the next bindings unit; (b) the
+LB13 guard's blind spot (arena key in a new public FN SIGNATURE
+would not trip the pub-use scan) — recorded against register
+R-series as a known-scope caveat, exposure zero today.

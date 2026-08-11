@@ -22,18 +22,18 @@
 
 use std::collections::HashMap;
 
-use geom_core::{Affine3, Point2, Tolerance, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanBody, BooleanResult, Curve3};
+use pncad::geom_core::{Affine3, Point2, Tolerance, Vec3};
+use pncad::profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use pncad::sweep::{Extrusion, extrude};
+use pncad::topo::{Body, BooleanBody, BooleanResult, Curve3};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 
 /// The plate: a 4×4×1 block, z ∈ [0, 1].
 fn plate<S: Scalar>() -> Body<S> {
-    let p2 = |x: f64, y: f64| Point2::new(S::from_f64(x), S::from_f64(y));
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(4.0, 0.0), p2(4.0, 4.0), p2(0.0, 4.0)]);
+    // Algebra-authored (LIB-U2 PR-2).
+    let lp = crate::paths::path_polygon(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .unwrap();
@@ -46,6 +46,17 @@ fn plate<S: Scalar>() -> Body<S> {
 /// z = 0.4 (strictly inside the plate), extruded 1.2 → pokes out to
 /// z = 1.6.
 fn boss<S: Scalar>() -> Body<S> {
+    // Stays raw after LIB-G1 — MEASURED deviation 1, not assumed. The
+    // circle primitive would author this circle happily, but its
+    // private lowering is the conventional TWO-semicircle split, and
+    // this boss is deliberately split into THREE 120-degree arcs of one
+    // carrier: the stop's whole point is a transverse curved boolean
+    // crossing a three-face rim seam, and the assertion below pins the
+    // count. Migrating would change the topology the demo exists to
+    // show — a geometry diff, which this rework's contract refuses. The
+    // primitive offers no seam-count argument BY DESIGN (it authors no
+    // seam at all), so the raw chain stays the way to say "this
+    // particular split".
     let b120 = (core::f64::consts::PI / 6.0).tan();
     let at = |deg: f64| {
         let th = deg.to_radians();
@@ -84,7 +95,9 @@ fn boss<S: Scalar>() -> Body<S> {
 /// The union (a seamed boolean body — 3′ validates with its own
 /// declared contacts, like every boolean stop).
 pub fn build<S: Scalar>() -> BooleanBody<S> {
-    match topo::union(&plate::<S>(), &boss::<S>()).expect("the first transverse curved boolean") {
+    match pncad::topo::union(&plate::<S>(), &boss::<S>())
+        .expect("the first transverse curved boolean")
+    {
         BooleanResult::Body(bb) => bb,
         other => panic!("the boss union yields a body, got {other:?}"),
     }
@@ -95,8 +108,8 @@ pub fn build<S: Scalar>() -> BooleanBody<S> {
 /// of exactly TWO triangles — the curved wall's and the ringed top
 /// face's — through the SAME mesh vertex ids.
 fn assert_seam_chords_shared(body: &Body<f64>, delta: f64) -> usize {
-    let mesh = mesh::tessellate(body, delta).expect("boss∪plate tessellates");
-    mesh::validate::check_mesh(&mesh).expect("watertight");
+    let mesh = pncad::mesh::tessellate(body, delta).expect("boss∪plate tessellates");
+    pncad::mesh::validate::check_mesh(&mesh).expect("watertight");
     let mut uses: HashMap<(u32, u32), u32> = HashMap::new();
     for patch in &mesh.patches {
         for t in &patch.triangles {
@@ -139,7 +152,7 @@ fn assert_seam_chords_shared(body: &Body<f64>, delta: f64) -> usize {
 pub fn stops() -> Vec<Stop> {
     let bb = build::<f64>();
     let expect = 16.0 + core::f64::consts::PI * 0.25 * 0.6;
-    let vol = topo::mass_properties(&bb.body).unwrap().volume;
+    let vol = pncad::topo::mass_properties(&bb.body).unwrap().volume;
     assert!(
         (vol - expect).abs() < 1e-6,
         "vol(plate∪boss) = {vol}, closed form {expect}"

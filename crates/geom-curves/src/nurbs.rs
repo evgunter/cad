@@ -72,6 +72,16 @@ fn validate_counts(knots: &KnotVector, control: usize, weights: &[f64]) -> Resul
     Ok(())
 }
 
+/// The rational speed meter's **fixed refinement schedule** (D9: a
+/// structure choice, never a decision): before the per-span scan of
+/// `speed_lower_bound`'s rational arm, every nonempty span is split
+/// into this many equal pieces by knot insertion. Knot insertion is
+/// evaluation-invariant, so the curve is unchanged; only the hulls the
+/// bound is assembled from shrink. The constant is a measured
+/// trade-off, not a tuning knob — see the `rational_speed_lower_bound`
+/// docs and the adversarial rows in `tests/m5_pr7_speed_meter.rs`.
+const RATIONAL_METER_SPLITS: usize = 16;
+
 macro_rules! nurbs_curve {
     ($Curve:ident, $Point:ident, $Vector:ident, $($c:ident),+) => {
         /// A validated NURBS curve (module docs: data model, evaluation
@@ -394,40 +404,165 @@ macro_rules! nurbs_curve {
             /// `Qᵢ = p·(Pᵢ₊₁ − Pᵢ)/(uᵢ₊ₚ₊₁ − uᵢ₊₁)`, so on every span
             /// `C′(t)` is a **convex combination** of the local `Qᵢ`.
             /// Fix any unit direction `d`: then
-            /// `‖C′‖ ≥ d·C′ ≥ minᵢ (d·Qᵢ)`. The direction taken is the
-            /// curve's own chord (first to last control point), which
-            /// is the one a monotone carrier advances along. The result
-            /// may be zero or negative — a curve that doubles back has
-            /// no positive lower bound in any single direction — and
-            /// that is reported honestly, so the margin collapses and
-            /// the caller's trilean escalates rather than guessing.
+            /// `‖C′‖ ≥ d·C′ ≥ minᵢ (d·Qᵢ)` over the `Qᵢ` active where
+            /// `d` is applied. Since M8-14 (#222) the arm runs **two
+            /// independent assemblies** of that inequality and states
+            /// their join:
             ///
-            /// **Rational carriers yield poison**: the derivative of a
-            /// rational B-spline is not a convex combination of any
-            /// control net, so this argument does not apply. Fitted
-            /// carriers are integral (the fitting stack produces unit
-            /// weights), which is exactly the case this serves.
+            /// 1. the **global-chord** assembly — the retired original
+            ///    arm, verbatim: one direction (first→last control
+            ///    point, the chord a monotone carrier advances along),
+            ///    min over ALL `Qᵢ`;
+            /// 2. the **per-span** assembly — the M8-2 rational
+            ///    template carried over: each nonempty span projects
+            ///    its ACTIVE `Qᵢ` (`i ∈ span−p .. span`) on the span's
+            ///    own control chord `P_span − P_{span−p}`, and the
+            ///    whole domain is the ascending `Real::min` fold over
+            ///    spans. A per-span direction is legitimate because
+            ///    `‖C′(t)‖ ≥ d_s·C′(t)` holds for *every* unit `d_s`,
+            ///    so the min over spans of per-span bounds still
+            ///    bounds the whole domain (the M8-2 review's
+            ///    soundness argument, unchanged).
+            ///
+            /// **The join**: an assembly whose direction collapsed
+            /// (poison) abstains; if both abstain the answer is
+            /// poison; if both are real the answer is their `max` —
+            /// sound because each is independently a lower bound on
+            /// the same `inf‖C′‖`. Every cell of that lattice — both
+            /// abstentions, both-poison, and the poisoned-INPUT
+            /// no-laundering claim below — is EXERCISED on
+            /// bitwise-exact fixtures by the adopted review probes
+            /// (`tests/lt_r1_probes.rs::r1_join_abstention_logic`,
+            /// `tests/r2_lt_probes.rs::the_join_lattice_is_pinned_cell_by_cell`),
+            /// and the same suites' randomized fuzz kills the unsound
+            /// near-neighbors of the scan (active window shifted, last
+            /// span dropped, either arm deleted from the join) that
+            /// the smooth-interpolant corpus alone cannot detect. The
+            /// join is therefore **never
+            /// below the retired single-chord arm** on any carrier
+            /// that arm bounded (the M8-14 corpus pins exactly that,
+            /// green rows as floors), while a long-turn carrier (a
+            /// helix past half a revolution, a closed loop) whose
+            /// speed never drops no longer collapses the meter merely
+            /// because its tangent leaves the global chord's
+            /// half-space — that collapse was a MEASUREMENT artifact
+            /// of assembly 1, and assembly 2 retires it.
+            ///
+            /// The result may still be zero or negative — a genuine
+            /// stationary point (cusp, turn-around) defeats every
+            /// direction on its own span — and that is reported
+            /// honestly, so the margin collapses and the caller's
+            /// trilean escalates rather than guessing.
+            ///
+            /// **Rational carriers** take the second arm,
+            /// [`Self::rational_speed_lower_bound`] — the derivative of
+            /// a rational spline is *not* a convex combination of any
+            /// control net, so the argument above does not apply
+            /// directly and a quotient-rule assembly stands in. The
+            /// contract (whole domain, m/param, honestly non-positive
+            /// when the curve gives the assembly nothing to stand on,
+            /// poison when the structure refuses) is the same on both
+            /// arms.
+            ///
+            /// # What the bound does and does not certify
+            ///
+            /// It certifies **speed**, and through speed, **arc
+            /// length**: over any parameter interval `[a, b]` inside
+            /// the domain, `(b − a)·bound ≤ ∫ₐᵇ ‖C′‖`. That is exactly
+            /// what every consumer asks of it — `interval_span_forward`
+            /// converts a parameter span to metres of arc,
+            /// `split_edge_param_interior` converts a distance-to-
+            /// endpoint the same way.
+            ///
+            /// It certifies **nothing about injectivity, turning, or
+            /// monotone advance along any direction**. A carrier may
+            /// reverse, loop, or return arbitrarily close to a point it
+            /// has already visited and still meter positively, provided
+            /// its speed never collapses — reversal is not
+            /// disqualifying, only a genuine stationary point (a cusp,
+            /// a turn-around, a degenerate span) is. Callers that need
+            /// non-self-intersection or a bounded turn must obtain it
+            /// elsewhere; this number will not supply it, and reading it
+            /// as if it did would be reading an arc-length rate as a
+            /// chord-distance rate.
+            ///
+            /// Both arms project per span (the integral arm since
+            /// M8-14 — before that its single global direction also
+            /// collapsed on any curve that turns away from its chord,
+            /// which is what refused every ≥ half-turn sweep path).
+            /// Both are sound lower bounds on `‖C′‖`; neither is a
+            /// claim about the curve's shape beyond its speed.
+            ///
+            /// The arm is chosen on **f64 structure** (`w_j == 1.0`
+            /// exactly), never on an evaluation scalar.
+            ///
+            /// # Rounding posture
+            ///
+            /// The chord directions are `chord/‖chord‖` — unit only to
+            /// rounding at `f64`, so the plain-f64 reading is a bound
+            /// up to about a relative ulp (both review harnesses
+            /// measured the worst case one ulp on the SOUND side).
+            /// This is the kernel-wide posture shared with the
+            /// rational arm; the `Interval` instantiation is the
+            /// certified lane, and the bracket row in
+            /// `tests/m5_pr7_speed_meter.rs` pins containment.
+            ///
+            /// # Poison (total, D4 ¶2)
+            ///
+            /// A zero degree, fewer than two control points, a
+            /// non-positive difference of the knots framing any
+            /// derivative coefficient (`u_{i+p+1} ≤ u_{i+1}` — a
+            /// structural violation the old arm turned into ±∞/NaN
+            /// arithmetic instead of naming), a knot vector with no
+            /// nonempty span, or BOTH assemblies abstaining — every
+            /// one yields NaN. A bound is never fabricated. The
+            /// knot-difference clause is DEFENSIVE: it needs an
+            /// interior multiplicity of `p + 1`, which Clamped-v1
+            /// validation forbids (interior multiplicity ≤ `p`, end
+            /// multiplicity exactly `p + 1` with nonempty end spans),
+            /// so no validated constructor reaches it — it guards
+            /// future unvalidated paths, and is an untestable-by-
+            /// construction claim, stated as such rather than pinned.
+            ///
+            /// Structural misses INSIDE the per-span scan (an active
+            /// window past the control net, an index underflow) poison
+            /// the WHOLE meter rather than abstaining the one
+            /// assembly — deliberate asymmetry: chord collapse is a
+            /// fact about a well-formed curve, a range miss is a
+            /// construction-invariant break, and fail-loud beats
+            /// recovering around corrupted structure.
+            ///
+            /// The join's one-sided recovery is NOT poison
+            /// laundering: an assembly abstains only when its own
+            /// chord DIRECTION collapsed (`0/0`), a structural fact
+            /// about which projections exist, while a poisoned INPUT
+            /// (a non-finite control point) poisons the projections
+            /// of every assembly whose active set touches it — the
+            /// global assembly's min covers all `Qᵢ` and the span
+            /// containing the point poisons the per-span fold, so
+            /// corrupted data still reaches the caller as poison
+            /// through both arms at once. `Real::is_poison` here
+            /// discriminates assembly structure, never geometry: the
+            /// geometric decision (is the bound positive?) stays with
+            /// the caller's trilean.
             pub fn speed_lower_bound(&self) -> T {
                 let poison = T::from_f64(f64::NAN);
-                // Rational ⇒ the convexity argument does not hold.
+                // Rational ⇒ the convexity argument does not hold
+                // directly; the quotient-rule arm takes over.
                 if self.weights.iter().any(|w| *w != 1.0) {
-                    return poison;
+                    return self.rational_speed_lower_bound();
                 }
                 let p = self.knots.degree();
                 if p == 0 || self.control.len() < 2 {
                     return poison;
                 }
                 let knots = self.knots.knots();
-                // The chord direction (first to last control point);
-                // a clamped curve interpolates both, so this is the
-                // curve's own end-to-end direction.
-                let Some((first, last)) = self.control.first().zip(self.control.last()) else {
-                    return poison;
-                };
-                let chord = *last - *first;
-                let n = chord.norm();
-                let d = chord / n;
-                let mut acc: Option<T> = None;
+                // Derivative coefficients, once for the curve:
+                // `Qᵢ = p·(Pᵢ₊₁ − Pᵢ)/(uᵢ₊ₚ₊₁ − uᵢ₊₁)`. The knot
+                // difference is checked POSITIVE on f64 structure —
+                // the totality clause above — so every coefficient
+                // below is finite arithmetic on finite structure.
+                let mut coeffs = Vec::with_capacity(self.control.len() - 1);
                 for i in 0..(self.control.len() - 1) {
                     let (Some(a), Some(b)) = (self.control.get(i), self.control.get(i + 1)) else {
                         return poison;
@@ -435,18 +570,432 @@ macro_rules! nurbs_curve {
                     let (Some(&lo), Some(&hi)) = (knots.get(i + 1), knots.get(i + p + 1)) else {
                         return poison;
                     };
+                    let du = hi - lo;
+                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                    if !(du > 0.0) {
+                        return poison;
+                    }
                     #[allow(clippy::cast_precision_loss)]
-                    let scale = T::from_f64(p as f64) / T::from_f64(hi - lo);
-                    let q = (*b - *a) * scale;
-                    let v = d.dot(q);
+                    let scale = T::from_f64(p as f64) / T::from_f64(du);
+                    coeffs.push((*b - *a) * scale);
+                }
+                // ---- Assembly 1: the global chord (the retired
+                // original arm, verbatim — same direction, same fold
+                // order, bit-identical where it was defined). ----
+                let (Some(first), Some(last)) = (self.control.first(), self.control.last()) else {
+                    return poison;
+                };
+                let global = {
+                    let chord = *last - *first;
+                    // A collapsed chord makes this 0/0 ⇒ poison ⇒ the
+                    // assembly abstains at the join (the rational
+                    // arm's chord treatment).
+                    let d = chord / chord.norm();
+                    let mut acc: Option<T> = None;
+                    for q in &coeffs {
+                        let v = d.dot(*q);
+                        acc = Some(match acc {
+                            None => v,
+                            // `Real::min`/`max` are NaN-propagating
+                            // (poison in, poison out) and total — no
+                            // comparison here or below.
+                            Some(m) => m.min(v),
+                        });
+                    }
+                    acc.unwrap_or(poison)
+                };
+                // ---- Assembly 2: per-span chords (the M8-2 rational
+                // template), fixed ascending span order (D9): the min
+                // of `d_span·Qᵢ` over the ACTIVE coefficients
+                // (`i ∈ span−p .. span`), folded over spans. ----
+                let perspan = {
+                    let mut acc: Option<T> = None;
+                    for span in self.knots.first_span()..=self.knots.last_span() {
+                        if !self.knots.span_is_nonempty(span) {
+                            continue;
+                        }
+                        // Range misses below poison the WHOLE meter
+                        // (early return), not just this assembly —
+                        // a construction-invariant break fails loud
+                        // (doc: "Poison", the stated asymmetry with
+                        // chord-collapse abstention).
+                        let Some(lo_i) = span.checked_sub(p) else {
+                            return poison;
+                        };
+                        if span >= self.control.len() {
+                            return poison;
+                        }
+                        let Some(active) = coeffs.get(lo_i..span) else {
+                            return poison;
+                        };
+                        // The span's own control chord, as unit
+                        // direction; collapse ⇒ 0/0 ⇒ this span
+                        // poisons THIS assembly (which then abstains
+                        // at the join — the other assembly still
+                        // covers the same span soundly).
+                        let (Some(a), Some(b)) =
+                            (self.control.get(lo_i), self.control.get(span))
+                        else {
+                            return poison;
+                        };
+                        let chord = *b - *a;
+                        let d = chord / chord.norm();
+                        for q in active {
+                            let v = d.dot(*q);
+                            acc = Some(match acc {
+                                None => v,
+                                Some(m) => m.min(v),
+                            });
+                        }
+                    }
+                    acc.unwrap_or(poison)
+                };
+                // ---- The join (doc: "The join"). ----
+                match (global.is_poison(), perspan.is_poison()) {
+                    (true, true) => poison,
+                    (true, false) => perspan,
+                    (false, true) => global,
+                    (false, false) => global.max(perspan),
+                }
+            }
+
+            /// The **rational arm** of [`Self::speed_lower_bound`]: a
+            /// certified lower bound on `‖C′(t)‖` over the whole domain
+            /// for a carrier with non-unit weights, in m/param.
+            ///
+            /// # The bound (the invariant this function computes)
+            ///
+            /// Write `C = A/w` with `A = Σ N_j w_j P_j` and
+            /// `w = Σ N_j w_j`. For any fixed point `c`, the translate
+            /// `Ã = A − c·w` is the B-spline with coefficients
+            /// `a_j = w_j·(P_j − c)`, `C − c = Ã/w`, and the quotient
+            /// rule gives the identity everything here rests on:
+            ///
+            /// ```text
+            /// C′ = (Ã′ − (C − c)·w′) / w
+            /// ```
+            ///
+            /// Fix a **unit** direction `d`. Then `‖C′‖ ≥ d·C′` and
+            ///
+            /// ```text
+            /// d·C′  ≥  ( min_i (d·Q_i)  −  sup|C − c|·sup|w′| ) / w
+            /// ```
+            ///
+            /// where `Q_i = p·(a_{i+1} − a_i)/(u_{i+p+1} − u_{i+1})` are
+            /// `Ã′`'s coefficients (the knot-difference formula of
+            /// `geom_core::spline::hull::derivative_coeffs`, applied to
+            /// the HOMOGENEOUS coefficients — hull.rs deliberately has
+            /// no rational derivative path, because this assembly
+            /// belongs with the consumer that owns the homogeneous
+            /// form). Each ingredient is a hull over the coefficients
+            /// active on the span, licensed by the same convexity fact
+            /// as the integral arm plus **strictly positive weights**
+            /// (checked here, poison otherwise — without it neither the
+            /// rational basis nor `w`'s own hull is a convex
+            /// combination):
+            ///
+            /// - `min_i (d·Q_i)` over the active `Q`, since `Ã′` is a
+            ///   degree-`p−1` B-spline in the `Q_i`;
+            /// - `sup|C − c| ≤ max_j ‖P_j − c‖` — `C − c` is a convex
+            ///   combination of the `P_j − c` (positive weights) and
+            ///   the norm is convex;
+            /// - `sup|w′| ≤ max_i |q_i|` over the weight spline's own
+            ///   derivative coefficients, taken through
+            ///   [`spline::hull::derivative_coeffs`] so the knot
+            ///   difference is rounded in the ring, not at `f64`.
+            ///
+            /// **The denominator is `w_max`, not `w_min`.** `w` itself
+            /// is a convex combination of the active weights, so
+            /// `w ∈ [w_min, w_max]`. For a *non-negative* numerator the
+            /// conservative division is by the LARGEST denominator; for
+            /// a negative one it is by the smallest. (The opposite
+            /// choice — dividing by the min-weight floor, as
+            /// `geom_surfaces::recognize`'s conic-derivative work does
+            /// — is the direction for an UPPER bound on the derivative,
+            /// and would be unsound here.) Which case applies is a
+            /// question about a `Real`, which this code may not ask, so
+            /// it takes the **lattice min of both divisions**: that is
+            /// `L/w_max` exactly when `L ≥ 0` and `L/w_min` exactly
+            /// when `L < 0`, with no comparison and no branch.
+            ///
+            /// # Schedule (D9: structure, never a decision)
+            ///
+            /// The above is evaluated **per nonempty span** — active
+            /// coefficients only, with the span's own control centroid
+            /// as `c` and the span's own control chord
+            /// `P_span − P_{span−p}` as `d` — and the whole-domain
+            /// answer is the ascending `Real::min` fold over spans.
+            /// This is a fixed constant schedule read off the knot
+            /// vector (f64 structure), and it is what keeps the
+            /// `sup|C − c|` term span-sized rather than curve-sized: a
+            /// per-span direction is legitimate because
+            /// `‖C′(t)‖ ≥ d_s·C′(t)` holds for *every* unit `d_s`, so
+            /// the min over spans of per-span bounds still bounds the
+            /// whole domain. The integral arm adopted the same
+            /// per-span scan in M8-14 (#222), joined with its
+            /// original global chord — see [`Self::speed_lower_bound`].
+            ///
+            /// A per-span direction bounds SPEED and nothing else — see
+            /// [`Self::speed_lower_bound`]'s "what the bound does and
+            /// does not certify". Successive spans may point anywhere,
+            /// so this arm meters a carrier that reverses, as it should:
+            /// only a genuine stationary point drives the answer
+            /// non-positive.
+            ///
+            /// # Poison (total, D4 ¶2)
+            ///
+            /// A zero degree, fewer than two control points, any
+            /// non-positive or non-finite weight, a non-positive knot
+            /// difference, a span whose control chord collapses, or a
+            /// knot vector with no nonempty span — every one yields
+            /// NaN. A bound is never fabricated.
+            ///
+            /// # Rounding posture
+            ///
+            /// At `f64` the assembly runs in nearest rounding, like
+            /// every other `Real`-generic bound in the kernel: the
+            /// weight-derivative hulls come through the ring (correctly
+            /// rounded), but the chord normalisation and the hull folds
+            /// do not, so the `f64` reading is a bound only up to about
+            /// a relative ulp. **The `Interval` instantiation is the
+            /// certified lane** — it encloses the same expression, and
+            /// `tests/m5_pr7_speed_meter.rs`'s bracket row pins that
+            /// the interval answer contains the `f64` one. This is the
+            /// kernel-wide posture, not a property of this bound.
+            ///
+            /// # Conservatism
+            ///
+            /// The answer is a bound, not an estimate, and the gap can
+            /// be wide. It measures at 0.86–0.97 of the true minimum on
+            /// ordinary and adversarial carriers, but a curve that
+            /// turns hard, or a high degree with alternating extreme
+            /// weights, can refuse outright while its true speed is
+            /// comfortably positive. Refusal is always sound and only
+            /// ever a usability cost; the frontier rows in
+            /// `tests/m5_pr7_speed_meter.rs` pin where it currently
+            /// falls, so [`RATIONAL_METER_SPLITS`] cannot be changed
+            /// without the trade-off becoming visible.
+            fn rational_speed_lower_bound(&self) -> T {
+                let poison = T::from_f64(f64::NAN);
+                let p = self.knots.degree();
+                if p == 0 || self.control.len() < 2 {
+                    return poison;
+                }
+                // The convex-combination licence, re-checked here on
+                // f64 STRUCTURE (never on an evaluation scalar):
+                // `!(w > 0.0)` catches NaN too.
+                #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                if self.weights.iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+                    return poison;
+                }
+                // The refinement schedule (D9 structure, a fixed
+                // constant): every nonempty span is split into
+                // `RATIONAL_METER_SPLITS` equal pieces before the scan.
+                // Knot insertion is evaluation-invariant, so this
+                // changes no geometry — it only shrinks every hull the
+                // bound is assembled from, which is what buys a
+                // POSITIVE answer on steep weight ratios where the
+                // one-span assembly is dominated by `sup‖C − c‖·sup|w′|`.
+                let mut add = Vec::new();
+                for span in self.knots.first_span()..=self.knots.last_span() {
+                    if !self.knots.span_is_nonempty(span) {
+                        continue;
+                    }
+                    let (Some(&lo), Some(&hi)) =
+                        (self.knots.knots().get(span), self.knots.knots().get(span + 1))
+                    else {
+                        return poison;
+                    };
+                    for k in 1..RATIONAL_METER_SPLITS {
+                        #[allow(clippy::cast_precision_loss)]
+                        let f = k as f64 / RATIONAL_METER_SPLITS as f64;
+                        let u = lo + (hi - lo) * f;
+                        // Skip a split point that floating point has
+                        // collapsed onto a span end — refinement is a
+                        // tightening, never a correctness condition.
+                        if u > lo && u < hi {
+                            add.push(u);
+                        }
+                    }
+                }
+                let Ok(refined) = self.refine_knots(&add) else {
+                    return poison;
+                };
+                refined.rational_span_scan()
+            }
+
+            /// The per-span scan of [`Self::rational_speed_lower_bound`],
+            /// run on the refined curve: the ascending `Real::min` fold
+            /// of [`Self::rational_span_bound`] over nonempty spans.
+            fn rational_span_scan(&self) -> T {
+                let poison = T::from_f64(f64::NAN);
+                let p = self.knots.degree();
+                // Re-checked on the REFINED weights: knot insertion
+                // keeps positivity in ℝ, and this function may not
+                // assume floating point did.
+                #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                if p == 0 || self.weights.iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+                    return poison;
+                }
+                let knots = self.knots.knots();
+                // `w′`'s coefficient enclosures, once for the curve:
+                // index `i` holds `q_i`, poison for a bad knot
+                // difference (which then poisons this bound).
+                let dw = spline::hull::derivative_coeffs(&self.knots, &self.weights);
+                let origin = $Point::new($({ let _ = stringify!($c); T::zero() }),+);
+                let mut acc: Option<T> = None;
+                // Fixed ascending span order (D9).
+                for span in self.knots.first_span()..=self.knots.last_span() {
+                    if !self.knots.span_is_nonempty(span) {
+                        continue;
+                    }
+                    let (Some(first), last) = (span.checked_sub(p), span) else {
+                        return poison;
+                    };
+                    if last >= self.control.len() {
+                        return poison;
+                    }
+                    let b = self.rational_span_bound(knots, &dw, origin, first, last);
                     acc = Some(match acc {
-                        None => v,
-                        // `Real::min` is NaN-propagating (poison in,
-                        // poison out) and total — no comparison here.
-                        Some(m) => m.min(v),
+                        None => b,
+                        // NaN-propagating lattice fold — poison in,
+                        // poison out, no comparison.
+                        Some(m) => m.min(b),
                     });
                 }
                 acc.unwrap_or(poison)
+            }
+
+            /// One span's arm of [`Self::rational_speed_lower_bound`]
+            /// (the derivation lives there). `first ..= last` are the
+            /// coefficient indices active on the span, already range-
+            /// checked; `dw` holds the weight spline's derivative
+            /// coefficient enclosures.
+            fn rational_span_bound(
+                &self,
+                knots: &[f64],
+                dw: &[RingInterval],
+                origin: $Point<T>,
+                first: usize,
+                last: usize,
+            ) -> T {
+                let poison = T::from_f64(f64::NAN);
+                let p = self.knots.degree();
+                let Some(active) = self.control.get(first..=last) else {
+                    return poison;
+                };
+                #[allow(clippy::cast_precision_loss)]
+                let count = T::from_f64(active.len() as f64);
+                // The span's own control centroid — the translation
+                // that keeps `sup‖C − c‖` span-sized.
+                let mut sum = origin - origin;
+                for pt in active {
+                    sum = sum + (*pt - origin);
+                }
+                let c = origin + sum / count;
+                // The span's control chord, as unit direction.
+                let (Some(a), Some(b)) = (active.first(), active.last()) else {
+                    return poison;
+                };
+                let chord = *b - *a;
+                let d = chord / chord.norm();
+                // The SIGNED hull of `d·(C − c)` on the span — the
+                // rational value hull (`hull::span_hull_rational`'s
+                // fact: positive weights make the rational basis a
+                // nonnegative partition of unity) read through `d`.
+                // Ascending `Real::min`/`Real::max` folds.
+                let mut s_lo: Option<T> = None;
+                let mut s_hi: Option<T> = None;
+                for pt in active {
+                    let s = d.dot(*pt - c);
+                    s_lo = Some(match s_lo {
+                        None => s,
+                        Some(m) => m.min(s),
+                    });
+                    s_hi = Some(match s_hi {
+                        None => s,
+                        Some(m) => m.max(s),
+                    });
+                }
+                let (Some(s_lo), Some(s_hi)) = (s_lo, s_hi) else {
+                    return poison;
+                };
+                // `w`'s hull on the span (f64 structure comparisons on
+                // f64 weights — the `removal_pass_bound` precedent).
+                let Some(w_active) = self.weights.get(first..=last) else {
+                    return poison;
+                };
+                let mut w_min = f64::INFINITY;
+                let mut w_max = 0.0f64;
+                for w in w_active {
+                    if *w < w_min {
+                        w_min = *w;
+                    }
+                    if *w > w_max {
+                        w_max = *w;
+                    }
+                }
+                // The numerator's two terms over the active derivative
+                // indices `[first, last)`.
+                let mut num: Option<T> = None;
+                let (mut wp_lo, mut wp_hi) = (f64::INFINITY, f64::NEG_INFINITY);
+                for i in first..last {
+                    let (Some(&lo), Some(&hi)) = (knots.get(i + 1), knots.get(i + p + 1)) else {
+                        return poison;
+                    };
+                    let du = hi - lo;
+                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                    if !(du > 0.0) {
+                        return poison;
+                    }
+                    let (Some(pi), Some(pj)) = (self.control.get(i), self.control.get(i + 1))
+                    else {
+                        return poison;
+                    };
+                    let (Some(&wi), Some(&wj)) = (self.weights.get(i), self.weights.get(i + 1))
+                    else {
+                        return poison;
+                    };
+                    #[allow(clippy::cast_precision_loss)]
+                    let scale = T::from_f64(p as f64) / T::from_f64(du);
+                    // Homogeneous, centroid-translated: a_j = w_j·(P_j − c).
+                    let ai = (*pi - c) * T::from_f64(wi);
+                    let aj = (*pj - c) * T::from_f64(wj);
+                    let v = d.dot((aj - ai) * scale);
+                    num = Some(match num {
+                        None => v,
+                        Some(m) => m.min(v),
+                    });
+                    // `w′`'s SIGNED hull, from the ring-rounded
+                    // coefficients (`!(a >= b)` so a poisoned
+                    // coefficient poisons the hull rather than being
+                    // skipped by a false comparison).
+                    let Some(q) = dw.get(i) else {
+                        return poison;
+                    };
+                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                    if !(q.lo() >= wp_lo) {
+                        wp_lo = q.lo();
+                    }
+                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                    if !(q.hi() <= wp_hi) {
+                        wp_hi = q.hi();
+                    }
+                }
+                let Some(num) = num else {
+                    return poison;
+                };
+                // `sup (d·(C − c))·w′` over the two signed hulls: the
+                // ascending `Real::max` fold of the four corner
+                // products (a magnitude product `sup|·|·sup|·|` would
+                // be sound but needlessly loose — it throws away the
+                // sign correlation that steep weight ramps live in).
+                let (lo, hi) = (T::from_f64(wp_lo), T::from_f64(wp_hi));
+                let corner = (s_lo * lo).max(s_lo * hi).max(s_hi * lo).max(s_hi * hi);
+                let l = num - corner;
+                // `min(L/w_max, L/w_min)` — the correct division in
+                // both numerator signs, without asking the sign.
+                (l / T::from_f64(w_max)).min(l / T::from_f64(w_min))
             }
 
             pub(crate) fn same_structure_deviation_bound(&self, other: &Self) -> T {

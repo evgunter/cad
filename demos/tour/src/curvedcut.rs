@@ -14,10 +14,10 @@
 //!
 //! - tier 3 passes in full (check 7 consumes the certified quadrature
 //!   bounds);
-//! - `topo::mass_properties` returns a certified ENCLOSURE (midpoint ±
+//! - `pncad::topo::mass_properties` returns a certified ENCLOSURE (midpoint ±
 //!   pad) whose bracket contains the closed form πr²H/2 per half —
 //!   asserted below;
-//! - `mesh::tessellate` routes the conic-trimmed walls through the
+//! - `pncad::mesh::tessellate` routes the conic-trimmed walls through the
 //!   pcurve-driven trimmed lane and the halves are watertight.
 //!
 //! So the pins are RETIRED per their own instructions: `SceneBody::
@@ -28,11 +28,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tolerance, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
-use sweep::{Extrusion, extrude};
-use topo::splitting::{SplitPart, SplitPlane, split};
-use topo::{Body, Curve3, EdgeGeometry};
+use pncad::geom_core::{Point2, Point3, Tolerance, Vec3};
+use pncad::profile::{Profile, SketchPlane, ValidatedProfile};
+use pncad::sweep::{Extrusion, extrude};
+use pncad::topo::splitting::{SplitPart, SplitPlane, split};
+use pncad::topo::{Body, Curve3, EdgeGeometry};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -48,17 +48,11 @@ const PHI: f64 = 0.3;
 /// extrudes to a cylinder whose two wall faces share ONE cylinder
 /// surface.
 fn disc<S: Scalar>() -> ValidatedProfile<S> {
+    // Algebra-authored (LIB-G1): the one-step circle program form.
     let p2 = |x: f64, y: f64| Point2::new(S::from_f64(x), S::from_f64(y));
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(-R, 0.0),
-            bulge: S::from_f64(1.0),
-        },
-        ProfileVertex {
-            pos: p2(R, 0.0),
-            bulge: S::from_f64(1.0),
-        },
-    ]);
+    let lp = pncad::profile::circle(p2(0.0, 0.0), S::from_f64(R))
+        .expect("disc radius is positive")
+        .into();
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .expect("the disc profile validates")
@@ -118,7 +112,7 @@ fn section_narration<S: Scalar>(label: &str, body: &Body<S>) -> String {
     // The PR 11 certified enclosure, asserted against the closed form:
     // the tilted plane passes through the axis midpoint, so EACH half
     // encloses exactly πr²H/2.
-    let m = topo::mass_properties(body).expect("the PR 11 quadrature lane computes");
+    let m = pncad::topo::mass_properties(body).expect("the PR 11 quadrature lane computes");
     let half_exact = core::f64::consts::PI * R * R * H / 2.0;
     let (v, pad) = (m.volume.f(), m.volume_pad);
     assert!(

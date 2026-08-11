@@ -966,3 +966,254 @@ checkpoint cadence, arm-names-out-of-review-scope), A/B state
 (blocks through M7-8 consumed; M7-9 next), and the first moves.
 This session hands off clean: nothing running, all seams on
 main.
+
+## Successor session (2026-08-07): KLINT merged — the runway's first step is done
+
+New orchestrator (same machine session; monitors inherited armed,
+both slots free — the stale .holder PIDs were dead, #235's shape).
+Handoff reading done in full; waited out Evan's requested pause;
+noted the CONCURRENT LIB orchestrator (LIBRARY-DESIGN.md, own A/B
+block series per §L8 — #232/#233/#236-era merges; no draw
+collision).
+
+**KLINT MERGED as #239 (2026-08-07): the k-lint baseline floor is
+CURRENT and the advisory channel is clean.** Block M7-9 opened per
+protocol (difficulty M logged pre-draw, byte 47 = opus,fable).
+Floor 1.5e-3 → 4.0e-5 (P0 of the ε-independent ambient definite
+population, 1.35M samples/row; the binding family is
+`volume_backstop` on die_pips/die_composed — NOT the two families
+M5-2 predicted, which rose out of the way). `props_quad_converged`
+left both metre rules for rule 4 (|m| < 150·ε, calibrated on its
+own |m|/ε population). **M7-F1 ruled (orchestrator + review
+concurring): rule 2's definite arm capped at the floor** — uncapped
+it prints 54 permanent known-feature flags at 1e-6 (the calibration
+population itself; the M4-era 102-flag dead channel is the
+existence proof against that posture). The honest residual is
+MEASURED and pinned by adopted probes: at ε=1e-6 a definite margin
+in [4e-5, 1e-3) is watched by no rule (empty window at tight rows);
+that is ε-policy walk material, not a lint defect. Review
+APPROVE-WITH-FIXES 0/1/4 (rubric 5/4/4), 5/5 mutations killed,
+committed baseline byte-reproduced by a cold sweep; fix pass light,
+14 tool tests. A/B row recorded AT MERGE. Advisory posture kept;
+gating readiness noted as walk material. Snapshot contract written:
+the baseline is a provenanced snapshot at its measured head, re-cut
+when the distribution moves (main's tour grew path_junction_turn
+mid-flight, +293 samples/row, lints 0/0/0 — no re-cut needed).
+
+**M6's ratified content AND its last hygiene item are now both
+DONE. Next: the M6 EXIT WALK** — drafted at docs/M6-EXIT-WALK.md
+(every M6-PLAN criterion verbatim, M5-walk format); finalizing the
+k-lint cell + hosted-green citation, then presenting to Evan via a
+docs-only PR with the explicit closure affordance. After his
+ruling: the two M7 units (band-seam re-mint takes the block M7-9
+fable remainder), the M7 walk, and M8's opening (C7).
+
+## Seam entry (2026-08-08): M6 CLOSED; k-lint GATED; M7-5 MERGED — one unit left before the walk
+
+**M6 CLOSED** (Evan's lgtm on #243's affordance, comment 5224869607;
+the ratified walk is docs/M6-EXIT-WALK.md; carried-items register =
+#250). Riding the same ruling: **the k-lint row is a GATE** (#253 —
+exit-2 findings voice carrying the interpretation discipline, exit-1
+harness voice, baseline gates green; #250 row closed).
+
+**M7-5 (band-seam re-mint) MERGED as #252** — both wild refusal
+fixtures import first-class; census/oracles exact; the project's
+second NOT-MERGEABLE-AS-IS (A/B row has the prose: the unwired
+import-path backstop, the ~18° winding window minting silent
+complements, the unpinned refusal — all closed, re-review APPROVE,
+window proven GONE by dense sweep). Beyond-scope fact recorded in
+#252's body: ordinary (non-band) imported solids get NO tier
+validation at import — worth its own conversation before the M7
+walk treats "imports are tier-valid at rest" as a blanket claim.
+
+**A/B state**: v3 triples adopted (M7-10 open: byte 205 →
+opus,fable,opus; slot 0 = the gate flip, MERGED, excluded class);
+M7-9 completed as a v2 pair (KLINT opus + M7-5 fable, both rows
+recorded at merge under the v3 discipline). Dual-review count:
+U3 = 1, M7-5 = 2 (single review, verified G1 unmerged at merge);
+the NEXT blinded-lane merge (likely G1 or stage-1) is row 3 → R2.
+
+**Runway**: stage-1 NURBS recognition (M7-10 fable slot; substrate
+→ spec → dispatch) → the M7 EXIT WALK (present to Evan) → M8 opens
+with C7 per the standing ruling. Banked/watch: #235 (stale slot
+holders — cosmetic), the FreeCAD per-scene timeout, #222, #214
+riders, Q9 (fuse burning: the lib program approaches U9/U10).
+
+## M7-8 — plane × NURBS intersection certification (declare-and-check)
+
+The last M7 code unit, per Evan's #264 ruling ("definitely certify
+plane×NURBS intersections … a 'declare and check that it actually
+works out' case"). Spec: `docs/M7-8-SPEC.md`.
+
+**The pin FLIPPED.** `cylinder_envelope_refuses_and_the_seam_orphan_
+is_pinned` is retired and replaced by `the_seam_orphan_certifies_as_
+a_plane_nurbs_intersection`: the arc-prism mixed promoted/stays-NURBS
+body imports first-class, and its wall–wall seam (EDGE_CURVE #130 —
+the edge that had no bitwise IsoCurve rung and no certification path)
+now carries a certified `EdgeGeometry::Intersection` between the
+promoted `y = 1` cap plane and the stays-NURBS arc wall. Re-derived
+at ε_in = 1e-9: on-locus residual 2.48e-16 m, certified
+between-samples sup 6.32e-12 m, uniqueness tube radius 0.25 m with
+transversality 1.22 m over 32 boxes, min sin θ = 0.7071 (the 45°
+the quarter-cylinder meets the cap at).
+
+**The carrier is EVIDENCE, never truth.** The seam spline's middle
+control point pushed 1e-3 m off the wall (staying exactly on the cap
+plane, so the NURBS-side residual has to do the catching) refuses
+through the importer with the measured bound in the payload —
+`CertifyError::PlaneNurbs(Limb { .. })`, surfaced verbatim in the
+adoption refusal's text.
+
+**Shape.** The lane is INJECTED at the door rather than bound into
+`topo`: `EdgeCurve::certify_nurbs_lane` takes a `NurbsLane` function
+whose derivation needs `Decide + Bounds`, and `Body::set_edge_curve_
+nurbs_lane` is a second attach door onto verbatim-shared
+preconditions, adjacency rules and mutation. No door accepts the
+class uncertified; the plain `T: Decide` door still refuses a
+described NURBS operand with `Unimplemented` (pinned).
+
+**Measured and REJECTED as scope expansion** (reported, not shipped):
+widening `transform_rigid` and the six boolean entry points to carry
+the lane. It type-checks, but it cascades into five `editor-core`
+signatures and two `topo` tests for a capability no acceptance row
+needs — transform/boolean re-certification of an imported plane ×
+NURBS body is a real question, and it is BANKED for its own unit
+rather than smuggled in here.
+
+**Honest limits, reported.**
+
+- *Tier-3 at rest is native-twin parity, not `Ok(())`.* The arc
+  prism's wall is RATIONAL, so both the native body and the imported
+  one refuse tier 3 with the same banked rational-quadrature refusal
+  (M7-3's Arm B). The unit proves what it can: the at-rest pass finds
+  NO certification failure — every edge, the new seam included,
+  re-derives its certificate through `recertify_nurbs_lane`.
+- *The near-miss row changed meaning.* Nudging the wall's mid-arc
+  control point 5·ε off the cylinder no longer refuses, because the
+  seam sits at the patch's `u = 1` edge where that point's basis
+  weight vanishes. The row now pins that SEPARATION explicitly; the
+  perturbation that must be caught is the carrier-side falsifier.
+- *The flip is ε-DEPENDENT, and both postures are pinned.* The seam's
+  certified between-samples sup is 6.32e-12 m — the promoted plane
+  wall's boundary column and the arc wall's own column agree only to
+  the arc endpoint's rounding, and the first-order envelope cannot
+  say better. So the pin flips at ε_in = 1e-9 (default) and 1e-6,
+  and at the 1e-12 matrix row the same geometry refuses TYPED,
+  carrying that number: `Escalated { check: PlaneNurbsCertificate,
+  cause: Indeterminate { margin: 6.31561637745462e-12, band: { zero:
+  1e-12, escalate: 1e-11 }, predicate: "ssi_hull_sup_chart" } }`.
+  This is the spec's clause 3 landing exactly as written — the bound
+  too loose at ε refuses WITH its measurement, and nothing was
+  widened to make the row green. Tightening it needs the banked
+  algebraic spline-product hull certificate (the same bank that owes
+  the cylinder track), not a gate change.
+- *A COLD-LINT catch on inherited work* (×2): SU2's probe file shipped
+  without its `#![allow(clippy::unwrap_used, …)]` header, and SU3's
+  new `impl` block sat after `mod tests` in `topo/src/euler.rs`
+  (`clippy::items_after_test_module`). Both would have failed the
+  clippy gate; both were caught by the cold pass, not by a warm one.
+
+**Tangency refuses in `certify`'s OWN vocabulary.** A planted
+near-parallel plane raises `CertifyError::NotTransverse` — the same
+variant the analytic arm raises, so a caller reads one refusal rather
+than two dialects. No `TangentIntersection` adoption rung was invented
+(the spec's STOP).
+
+**THE UNION COLLISION, RULED — option (c), and what executing it
+measured.** #276's tier-at-import gate landed mid-unit and turned
+acceptance row 1 red: the arc prism's stays-NURBS wall is RATIONAL, so
+the at-rest pass refuses `QuadratureUnsupported` (M7-3 Arm B's banked
+rational patch flux) and the opinion-free gate refuses the import. The
+refusal is POST-ADOPTION — the seam certifies exactly as before. The
+orchestrator ruled option (c): re-fixture onto an integral wall and
+re-pin the arc prism as a waypoint. (a) was rejected as contradicting
+Evan's sequencing of the rational-quadrature work into the post-walk
+stretch; (b) as the verdict-filter shape #260 ruling (a) dissolved.
+
+Executing (c) measured a SECOND gap, and it is the more interesting
+one. The integral twin (`offset_square_prism` — a square lofted
+degree-2 through three places whose middle one is offset in `x`, so two
+walls stay exactly planar and promote while two bow and stay NURBS,
+every weight 1) IS tier-valid at rest: `Ok(())`, not parity with a
+refusing twin. But its seam never reaches the declare-and-check rung:
+
+- With OUR OWN bytes the seam carrier is bit-identical to the wall's
+  boundary column, so the bitwise `IsoCurve` rung answers first. All
+  four wall seams take it — measured, and now asserted.
+- State the seam in ANY foreign form (the pin moves one control point
+  one ULP in `z`) and the `Intersection` rung certifies it — and then
+  pcurve minting refuses `IsoUnsupported`, because `nurbs_iso_derive`
+  derives chart images for `IsoCurve` and `PlacedSegment` descriptions
+  only. An `Intersection` on a described NURBS chart has no arm.
+
+So the two wall kinds fail in opposite directions and leave NO fixture
+that is first-class end to end today: rational walls waive pcurve
+minting entirely (`pcurves.rs`: "the placeholder and rational walls
+mint nothing"), so the seam sails through import but the body is
+tier-invalid; integral walls are tier-valid, but their pcurve is
+demanded and cannot be derived. **Acceptance row 1's body-level claim
+is therefore not demonstrable in this tree** — reported as a spec
+deviation, not worked around. What IS proven, twice over, is the rung
+itself: certification at the lane and at the door with measured limbs,
+the seam-orphan adoption refusal retired, and both fixtures' honest ε
+postures pinned with their flip-when-fixed conditions named (rational
+patch flux for the arc prism; an `Intersection` arm on
+`nurbs_iso_derive` for the integral twin).
+
+**Batteries on the ruled union** (every row a foreground run under a
+build slot): step-import **160 passed / 0 failed** at each of ε_in
+default, 1e-6 and 1e-12 — count invariant across the matrix, because
+each fixture's ε-dependent posture is pinned inside its own test;
+geom-brep **227 passed / 0 failed** (220 shipped + the 6 adopted R1
+envelope probes + the wall-side falsifier). Workspace
+`cargo check --all-targets` clean after each merge (the #274 lesson:
+the union is built explicitly, never assumed from two green branches),
+and COLD-LINT — `cargo clean -p geom-brep -p step-import -p topo`, then
+clippy, clippy `--features interval` and `fmt-all --check` — clean.
+
+## Seam entry (2026-08-09, successor orchestrator): M7's CONTENT IS DONE — the walk goes to Evan
+
+**The orchestrator handoff executed mid-cycle** (Evan's ask, #285):
+this session inherited two live units, recovered both dead lanes'
+unpushed commits, and ran both endgames with fresh agents. Merged
+this seam: **#276** (M7-7 tier-at-import — per-solid gating earned
+at R1, ε-row-honest pins from the 477-cell sweep, delta re-review
+0 MAJ), **#288** (M7-8 plane×NURBS declare-and-check — the
+seam-orphan class retired; R1's MAJOR was envelope test-coverage,
+closed by adopting R1's own probes with mutation red/green proof),
+**#294** (calochortus partial refresh — tube-door exact-intent
+stems, out-of-plane kite-section leaves, the rational-section
+frontier pinned in crates/sweep), plus the WMONTAGE post-#276
+re-verify (byte-stable) and state-sync #295.
+
+**The one design ruling made unilaterally (retroactive-review
+class, full reasoning in #288's body): the #276-union collision
+ruled option (c), re-fixture.** The at-rest gate + the Arm B
+quadrature bank + the rational-walled fixture were individually
+correct and jointly unsatisfiable; verdict-filtering is forbidden
+by #260 (a), and un-banking the quadrature mid-unit would
+contradict Evan's demo-hardening-stretch sequencing. Executing (c)
+measured a SECOND gap (no `Intersection` arm in
+`nurbs_iso_derive`), so no mixed fixture is first-class end-to-end
+today — reported as a spec deviation with both flip conditions
+named in-code, never smoothed.
+
+**Runway from here (all ruled)**: the exit walk PR (closure =
+Evan's 👍 on the affordance) → the demo-hardening stretch as its
+own chunk (#284 Newell re-anchor; span-meter rational speed bound;
+rational-patch-flux quadrature — the last two retire this seam's
+banked refusals; #298 is LIB's #299) → M8 opens with C7.
+
+## M7 CLOSED (2026-08-09): Evan's 👍 on PR #300's final affordance (comment 5234714306)
+
+docs/M7-EXIT-WALK.md is the ratified done-state of record. The same
+👍 ratified the milestone restructure: **M8 = kernel residuals**
+(M8-1 = #284/#301 Newell re-anchor, in fix pass at ratification;
+M8-2 = rational span-meter, implementing; M8-3 = rational-patch-flux
+quadrature; M8-4 = the nurbs_iso_derive Intersection arm; register
+candidates settled at the M8-PLAN review), **M9 = C7** (the
+declared-contact join lane pulled forward as its own logical unit —
+Evan, this thread; the lily FULL rebuild rides it), **M10 = error
+propagation** (signed clearance; the C7 co-design records stay
+cross-referenced). This log continues as the historical record;
+M8-LOG opens with the M8-PLAN.

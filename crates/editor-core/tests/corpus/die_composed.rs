@@ -47,11 +47,12 @@
 //! its derived closed form at a stated relative tolerance.
 
 use editor_core::{
-    Axis3, BooleanOp, CapEnd, Datum, DocEdit, EntityKind, MeridianEnd, Node, ProfileDesc,
-    ProfileEdgeRef, RecipeNodeId, RoleSeg, SlotId, StableName,
+    Axis3, BooleanOp, CapEnd, Datum, DocEdit, EntityKind, LoopProgram, MeridianEnd, NamePat, Node,
+    ProfileEdgeRef, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SegPat,
+    SegTag, Selector, SlotId, StableName,
 };
-use geom_core::{Point2, Point3, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use geom_core::{Point3, Vec3};
+use profile::SketchPlane;
 
 use super::super::fixture::{ang, len, prism_edges, scl};
 use super::{CorpusDoc, Recorder};
@@ -94,11 +95,19 @@ const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
 /// was not INEXPRESSIBLE, it was unnameable. Fourteen names later it
 /// is neither.
 ///
-/// The names are AUTHORED, not queried, because a selection freezes
-/// (`Node::Fillet`'s payload docs). `every_selected_name_is_a_live_
-/// edge_of_the_target` in `m6_composed_node.rs` checks the authored
-/// set against the target's actual table, so a drift in the boolean
-/// emitter fails loudly here rather than silently reselecting.
+/// **This list is now the ORACLE, not the source** (LIB-U7). The
+/// document below no longer hand-authors its selection: it evaluates
+/// the target and materializes [`selector`] against the target's own
+/// name table, which is what a document author can do too. The
+/// fourteen names spelled out here stay because they are the
+/// independent statement of what the selector must produce — the
+/// equivalence is pinned in `lib_u7_select.rs`, and a drift in
+/// either the boolean emitter or the selector fails loudly against
+/// this list rather than silently reselecting.
+///
+/// The result is still FROZEN: materializing happens once, at
+/// authoring time, and the names go into the recipe (`Node::Fillet`'s
+/// payload docs; the growth path is still `DocEdit::Rebind`).
 pub fn selection(cube: RecipeNodeId, ball: RecipeNodeId, pipped: RecipeNodeId) -> Vec<StableName> {
     let at = |seg: RoleSeg| StableName {
         kind: EntityKind::Edge,
@@ -132,6 +141,46 @@ pub fn selection(cube: RecipeNodeId, ball: RecipeNodeId, pipped: RecipeNodeId) -
     out
 }
 
+/// **The same fourteen names, said STRUCTURALLY** (LIB-U7): a
+/// selector over role-path shape, materialized against the target's
+/// table. It takes no node ids at all — the shape of the names IS the
+/// description.
+///
+/// Two alternatives, one per row of `selection`'s table:
+///
+/// 1. `FromA(_)` — every edge the subtraction carried through from
+///    operand A, i.e. the cube's twelve box edges (eight cap rims and
+///    four struts). Saying "carried through from A" is exactly the
+///    intent; enumerating twelve `RimEdge`/`LateralEdge` names was
+///    the P10 relocation.
+/// 2. `Seam { a: Cap(Top), b: Band | BandPi }` — the pip rim, the two
+///    arcs the zip minted where the cube's top cap crosses the ball's
+///    lower band. A full revolve's band is two half-faces split at the
+///    seam meridians, so the rim is two arcs and the band role has two
+///    variants; the union says both.
+///
+/// What is NOT selected falls out of the shapes: the cavity meridians
+/// are `FromB(Meridian(..))`, and neither alternative admits a `FromB`
+/// segment. The co-surface refusal stays EXCLUDED by description
+/// rather than by a hand-maintained omission.
+///
+/// No geometric field appears anywhere above — no carrier kind, no
+/// adjacent-surface pair, no position. That is the LB7 fence
+/// (`crates/editor-core/src/names/select.rs` module docs).
+pub fn selector() -> Selector {
+    let edge = || NamePat::of_kind(EntityKind::Edge);
+    let face = |tag: SegTag| NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(tag));
+    let cap_top =
+        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top));
+    let pip_rim =
+        |band: SegTag| edge().seg(SegPat::tag(SegTag::Seam).of([cap_top.clone(), face(band)]));
+    Selector::any_of([
+        edge().seg(SegPat::tag(SegTag::FromA)),
+        pip_rim(SegTag::Band),
+        pip_rim(SegTag::BandPi),
+    ])
+}
+
 /// The two cavity meridians — the names the selection deliberately
 /// LEAVES OUT (the co-surface seams). Named here so the pin that
 /// checks the exclusion reads the same list the docs above describe.
@@ -162,19 +211,12 @@ pub fn document() -> CorpusDoc {
     let h = DIE_L / 2.0;
 
     // ---- the sharp cube, [0, L]³ (die_pips' chain, verbatim) ----
-    let square = ProfileLoop::new(
-        [(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: Point2::new(x, y),
-                bulge: 0.0,
-            })
-            .collect(),
-    );
-    let cube_p = r.insert(Node::Profile(ProfileDesc(Profile::new(
-        SketchPlane::xy(),
-        vec![square],
-    ))));
+    let square =
+        LoopProgram::polygon([(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)]).unwrap();
+    let cube_p = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![square],
+    }));
     let cube = r.insert(Node::Extrude {
         profile: cube_p,
         distance: len(DIE_L),
@@ -185,29 +227,18 @@ pub fn document() -> CorpusDoc {
         origin: [len(0.0), len(0.0), len(0.0)],
         direction: [scl(0.0), scl(0.0), scl(1.0)],
     }));
+    // v4: die_pips' declared-subdivision half-disc (LIB-SWITCH §5-1
+    // fallback; see die_pips for the measurement note).
     let quarter = std::f64::consts::FRAC_PI_8.tan();
-    let half_disc = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(0.0, -PIP_R),
-            bulge: quarter,
-        },
-        ProfileVertex {
-            pos: Point2::new(PIP_R, 0.0),
-            bulge: quarter,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.0, PIP_R),
-            bulge: 0.0,
-        },
-    ]);
-    let ball_p = r.insert(Node::Profile(ProfileDesc(Profile::new(
-        SketchPlane::from_frame(
+    let half_disc = half_disc_program(quarter);
+    let ball_p = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::from_frame(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(1.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
         ),
-        vec![half_disc],
-    ))));
+        loops: vec![half_disc],
+    }));
     let ball = r.insert(Node::Revolve {
         profile: ball_p,
         axis,
@@ -232,7 +263,19 @@ pub fn document() -> CorpusDoc {
     // `selection`'s table). One node, one call: the F-e measurement
     // (M6-5 §0) established that a single `fillet_edges` takes the
     // twelve open chains and the closed rim together.
-    let composed = r.insert(Node::fillet(pipped, len(R), selection(cube, ball, pipped)));
+    //
+    // LIB-U7: MATERIALIZED, not authored — evaluate the target, run
+    // the structural `selector()` over its name table, store the
+    // result. This is the whole authoring loop a document author has
+    // (the `all_edges` precedent, `names/mod.rs`), and it is why the
+    // fourteen names below are no longer spelled by hand here. The
+    // stored set is frozen from this point exactly as before.
+    let ev = super::eval::<f64>(&r.doc);
+    let composed = r.insert(Node::fillet(
+        pipped,
+        len(R),
+        editor_core::select(&ev, pipped, &selector()),
+    ));
 
     CorpusDoc {
         name: "die_composed",
@@ -258,4 +301,23 @@ pub fn document() -> CorpusDoc {
         },
         bump_root: pip,
     }
+}
+
+/// The half-disc loop PROGRAM (die_pips' twin, same deviation notes).
+fn half_disc_program(quarter: f64) -> LoopProgram {
+    let lpt = |x: f64, y: f64| {
+        [
+            editor_core::Expr::literal(x, editor_core::Dimension::Length).unwrap(),
+            editor_core::Expr::literal(y, editor_core::Dimension::Length).unwrap(),
+        ]
+    };
+    LoopProgram::Chain(vec![
+        ProgramStep::At(lpt(0.0, -PIP_R)),
+        ProgramStep::ArcTo {
+            target: ProgramTarget::Point(lpt(PIP_R, 0.0)),
+            bulge: editor_core::Expr::literal(quarter, editor_core::Dimension::Scalar).unwrap(),
+        },
+        ProgramStep::ArcContinue(lpt(0.0, PIP_R)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ])
 }

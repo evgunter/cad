@@ -73,7 +73,7 @@
 
 use std::collections::BTreeSet;
 
-use geom_core::{Band, Decide, Length, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
 use crate::boolean::{ContactRecords, ContainError, FaceContainment, contfp};
@@ -281,7 +281,7 @@ fn invalid(band: Band, predicate: &'static str) -> geom_core::Indeterminate {
 /// (already pushed).
 fn gap_is_zero<T: Decide>(
     name: &'static str,
-    margin: Length<T>,
+    margin: Margin<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
@@ -310,7 +310,7 @@ fn sweep_vertex_vertex<T: Decide>(
 ) {
     for (i, &(ka, pa)) in geo.verts.iter().enumerate() {
         for &(kb, pb) in &geo.verts[i + 1..] {
-            let Some(zero) = gap_is_zero("pm_census_vv_gap", Length::norm3(pa - pb), band, errors)
+            let Some(zero) = gap_is_zero("pm_census_vv_gap", Margin::norm3(pa - pb), band, errors)
             else {
                 continue;
             };
@@ -332,7 +332,7 @@ fn sweep_vertex_edge<T: Decide>(geo: &Geo<T>, band: Band, errors: &mut Vec<Valid
             if vk == e.v0 || vk == e.v1 {
                 continue; // structural adjacency
             }
-            let off = Length::norm3((q - e.p0).cross(e.dir));
+            let off = Margin::norm3((q - e.p0).cross(e.dir));
             let Some(on_line) = gap_is_zero("pm_census_ve_line_gap", off, band, errors) else {
                 continue;
             };
@@ -344,7 +344,7 @@ fn sweep_vertex_edge<T: Decide>(geo: &Geo<T>, band: Band, errors: &mut Vec<Valid
             // escalation on an on-line vertex is a genuine sliver.
             let mut interior = true;
             for m in [s, e.len - s] {
-                match decide("pm_census_ve_span", Length::of(m), band) {
+                match decide("pm_census_ve_span", Margin::of(m), band) {
                     Ok(Sign::Positive) => {}
                     Ok(_) => interior = false,
                     Err(cause) => {
@@ -370,7 +370,7 @@ fn sweep_vertex_edge<T: Decide>(geo: &Geo<T>, band: Band, errors: &mut Vec<Valid
 /// `Some(false)` definitely off, `None` escalated (pushed).
 fn signed_is_zero<T: Decide>(
     name: &'static str,
-    margin: Length<T>,
+    margin: Margin<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
@@ -423,7 +423,7 @@ fn sweep_vertex_face<T: Decide>(
                 continue; // structural adjacency
             }
             let residual = (q - f.origin).dot(f.normal);
-            match signed_is_zero("pm_census_vf_residual", Length::of(residual), band, errors) {
+            match signed_is_zero("pm_census_vf_residual", Margin::of(residual), band, errors) {
                 Some(true) => {}
                 _ => continue,
             }
@@ -452,7 +452,7 @@ fn tri_cmp<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<core::cmp::Ordering> {
-    match decide("pm_census_span_order", Length::of(a - b), band) {
+    match decide("pm_census_span_order", Margin::of(a - b), band) {
         Ok(Sign::Positive) => Some(core::cmp::Ordering::Greater),
         Ok(Sign::Negative) => Some(core::cmp::Ordering::Less),
         Ok(Sign::Zero) => Some(core::cmp::Ordering::Equal),
@@ -472,12 +472,12 @@ fn edge_vertex_at<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<VertexKey> {
-    match signed_is_zero("pm_census_bound_end", Length::of(s), band, errors) {
+    match signed_is_zero("pm_census_bound_end", Margin::of(s), band, errors) {
         Some(true) => return Some(e.v0),
         Some(false) => {}
         None => return None,
     }
-    match signed_is_zero("pm_census_bound_end", Length::of(e.len - s), band, errors) {
+    match signed_is_zero("pm_census_bound_end", Margin::of(e.len - s), band, errors) {
         Some(true) => Some(e.v1),
         _ => None,
     }
@@ -509,7 +509,7 @@ fn ef_bound_backed<T: Decide>(
         };
         if gap_is_zero(
             "pm_census_bound_vertex",
-            Length::norm3(pw - q),
+            Margin::norm3(pw - q),
             band,
             errors,
         ) == Some(true)
@@ -539,8 +539,8 @@ fn sweep_edge_face<T: Decide>(
             let r0 = (e.p0 - f.origin).dot(f.normal);
             let r1 = (p1 - f.origin).dot(f.normal);
             let (s0, s1) = match (
-                decide("pm_census_ef_residual", Length::of(r0), band),
-                decide("pm_census_ef_residual", Length::of(r1), band),
+                decide("pm_census_ef_residual", Margin::of(r0), band),
+                decide("pm_census_ef_residual", Margin::of(r1), band),
             ) {
                 (Ok(s0), Ok(s1)) => (s0, s1),
                 (a, b) => {
@@ -596,13 +596,13 @@ fn ef_overlap_lane<T: Decide>(
         let Some(&pw) = geo.vmap.get(&w) else {
             continue;
         };
-        let off = Length::norm3((pw - e.p0).cross(e.dir));
+        let off = Margin::norm3((pw - e.p0).cross(e.dir));
         if gap_is_zero("pm_census_ef_cut_gap", off, band, errors) != Some(true) {
             continue;
         }
         let s = (pw - e.p0).dot(e.dir);
-        let lo = decide("pm_census_ef_cut_span", Length::of(s), band);
-        let hi = decide("pm_census_ef_cut_span", Length::of(e.len - s), band);
+        let lo = decide("pm_census_ef_cut_span", Margin::of(s), band);
+        let hi = decide("pm_census_ef_cut_span", Margin::of(e.len - s), band);
         if matches!(lo, Ok(Sign::Positive)) && matches!(hi, Ok(Sign::Positive)) {
             cuts.push(s);
         }
@@ -631,7 +631,7 @@ fn ef_overlap_lane<T: Decide>(
     for i in 0..cuts.len() - 1 {
         let (a, b) = (cuts[i], cuts[i + 1]);
         if !matches!(
-            decide("pm_census_span_gap", Length::of(b - a), band),
+            decide("pm_census_span_gap", Margin::of(b - a), band),
             Ok(Sign::Positive)
         ) {
             continue; // empty/degenerate cell (escalations via sort/gap)
@@ -676,7 +676,7 @@ fn sweep_edge_edge<T: Decide>(
             let arm = ea.len.min(eb.len);
             match gap_is_zero(
                 "pm_census_ee_parallel",
-                Length::levered(ncross.norm(), arm),
+                Margin::levered(ncross.norm(), arm),
                 band,
                 errors,
             ) {
@@ -699,7 +699,7 @@ fn ee_crossing_lane<T: Decide>(
 ) {
     let d = eb.p0 - ea.p0;
     let nn = ncross.norm_squared();
-    let gap = Length::levered_inv(d.dot(ncross).abs(), ncross.norm());
+    let gap = Margin::levered_inv(d.dot(ncross).abs(), ncross.norm());
     if gap_is_zero("pm_census_ee_gap", gap, band, errors) != Some(true) {
         return;
     }
@@ -707,7 +707,7 @@ fn ee_crossing_lane<T: Decide>(
     let sb = d.cross(ea.dir).dot(ncross) / nn;
     let mut interior = true;
     for m in [sa, ea.len - sa, sb, eb.len - sb] {
-        match decide("pm_census_ee_span", Length::of(m), band) {
+        match decide("pm_census_ee_span", Margin::of(m), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => interior = false,
             Err(cause) => {
@@ -738,7 +738,7 @@ fn ee_collinear_lane<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) {
-    let off = Length::norm3((eb.p0 - ea.p0).cross(ea.dir));
+    let off = Margin::norm3((eb.p0 - ea.p0).cross(ea.dir));
     if gap_is_zero("pm_census_ee_line_gap", off, band, errors) != Some(true) {
         return;
     }
@@ -759,7 +759,7 @@ fn ee_collinear_lane<T: Decide>(
         Some(_) => ea.len,
         None => return,
     };
-    match decide("pm_census_ee_overlap", Length::of(hi - lo), band) {
+    match decide("pm_census_ee_overlap", Margin::of(hi - lo), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return, // point/empty overlap: pass-1 territory
         Err(cause) => {
@@ -825,7 +825,7 @@ fn confirm_declarations<T: Decide>(
             errors.push(stale); // consumed into one vertex: not a contact
             continue;
         }
-        match gap_is_zero("pm_census_confirm_vv", Length::norm3(pa - pb), band, errors) {
+        match gap_is_zero("pm_census_confirm_vv", Margin::norm3(pa - pb), band, errors) {
             Some(true) | None => {}
             Some(false) => errors.push(stale),
         }
@@ -846,7 +846,7 @@ fn confirm_declarations<T: Decide>(
         };
         match signed_is_zero(
             "pm_census_confirm_vf",
-            Length::of((q - f.origin).dot(f.normal)),
+            Margin::of((q - f.origin).dot(f.normal)),
             band,
             errors,
         ) {

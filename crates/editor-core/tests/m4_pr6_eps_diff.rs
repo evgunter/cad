@@ -43,16 +43,30 @@ const EPS_NEW: &str = "1e-4";
 /// `segment_straightness` margin between the two audit ε values.
 fn thin_profile_doc() -> ProfileDoc {
     let (doc, _) = insert(
-        ProfileDoc::empty(),
+        ProfileDoc::empty_derived("m4_pr6_eps_diff"),
         Node::Profile({
-            let mut d = desc(
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-            );
-            // Give the (1,1) → (0,1) segment its thin bulge.
-            d.0.loops[0].vertices[2].bulge = 2e-6;
+            // v4: the thin bulge authors as an arc_to step with its
+            // AUTHORED bulge (the program stores exactly the value the
+            // retired form stored on the vertex).
+            use editor_core::{Dimension, Expr, LoopProgram, ProgramStep, ProgramTarget};
+            let lpt = |x: f64, y: f64| {
+                [
+                    Expr::literal(x, Dimension::Length).unwrap(),
+                    Expr::literal(y, Dimension::Length).unwrap(),
+                ]
+            };
+            let mut d = desc([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![]);
+            d.loops = vec![LoopProgram::Chain(vec![
+                ProgramStep::At(lpt(0.0, 0.0)),
+                ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 0.0))),
+                ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 1.0))),
+                // The (1,1) → (0,1) segment's thin bulge.
+                ProgramStep::ArcTo {
+                    target: ProgramTarget::Point(lpt(0.0, 1.0)),
+                    bulge: Expr::literal(2e-6, Dimension::Scalar).unwrap(),
+                },
+                ProgramStep::LineTo(ProgramTarget::Start),
+            ])];
             d
         }),
     );

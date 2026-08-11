@@ -3,9 +3,9 @@
 Status: **RATIFIED** (design conversation opened 2026-08-06 at
 Evan's request; first-round rulings in-chat the same day, recorded
 at §L7; Evan's sign-off 2026-08-06 in-chat, merged as PR #229).
-Recorded open residue: LQ3 (owned by U4's measured spec) and LQ7's
-tail (wheel cadence, post-release schema/package version coupling —
-deferred to implementation time). This doc turns DESIGN.md's
+Recorded open residue: LQ7's tail (wheel cadence, post-release
+schema/package version coupling — deferred to implementation
+time). LQ3 was ratified 2026-08-10 (#362) — see its entry in §L7. This doc turns DESIGN.md's
 "Beyond the kernel" sequencing item — *"usable as a library" ships
 before any GUI work begins* — from a scoping paragraph into a
 designed program.
@@ -278,6 +278,68 @@ bindings crate).
   constructors vs `sweep` vocabulary vs both; where the
   pose/point-at/mirror family lives. Measure-first per house style;
   the survey's consumer census is the starting evidence.
+
+  **LQ3 RATIFIED (Evan 👍 on #362's sign-off comment,
+  2026-08-10, with the resonance amendment below folded; M8
+  orchestrator's kernel-side concurrence on (b) recorded on the
+  thread).** The proposal as ratified: The 2026-08-10 substrate survey pins the walls:
+  `sweep_body` consumes ONE `NurbsCurve3<f64>`; every scene
+  hand-samples its path (17-point S-curve, interpolate degree 3)
+  and hand-rolls the start frame (Gram–Schmidt with a
+  `n.z.abs()<0.9` dodge — P1); `Node::Sweep` already spells the
+  path as a PROFILE NODE whose first loop's chain is the
+  trajectory; and `wire_sweep` refuses everything via
+  `SWEEP_FRONTIER` because a profile chain is many segments and
+  §10.4 wants one curve — the banked "joined-path composition
+  lane". So LQ3 is really three sub-questions:
+
+  (a) **Where do exact 3-D path legs live?** PROPOSED: in the
+  `profile`/PATHS layer as an OPEN-CHAIN vocabulary (the 2-D
+  algebra's junction discipline, minus closure), because the
+  document layer has already committed to "path = profile node" —
+  a second path type would fork the surface G1 unified. NURBS
+  legs stay VQ7-banked.
+
+  (b) **Where does chain→curve composition live?** PROPOSED: a
+  `geom-curves` door (exact C¹ join of line/arc/nurbs legs into
+  one curve — the §10.4 consumer's own vocabulary), which is
+  ALSO the discharge site for the banked SWEEP_FRONTIER: when
+  the door exists, `wire_sweep`'s refusal narrows from
+  everything to genuinely-unjoinable chains. This un-banking is
+  kernel-side work and needs the kernel program's concurrence
+  (coordinate with the M8/ASM side; it is not a LIB unit to
+  self-authorize).
+
+  (c) **Where does the pose/point-at/mirror family live?**
+  PROPOSED: frame CONSTRUCTORS in `geom-core` (point-at, mirror,
+  path-start frame with the degenerate-axis policy stated — the
+  P1 recipe written once), consumed by `SketchPlane::from_frame`
+  and loft/sweep placements as plain `Affine3` values;
+  document-level Expr-ized placement stays deferred (VQ8's pose
+  conversation), so no schema change rides this unit.
+  **Amendment (Evan, #362, 2026-08-10): resonance with the PATHS
+  placement vocabulary is REQUIRED.** The 2-D algebra already
+  has rigid placement and mirroring (`nurbs(curve)` places a
+  curve value rigidly; `nurbs_reversed`/`nurbs_mirrored` are the
+  structural variants — reflection across the departure line,
+  curvature signs flip). The 3-D frame family must use the SAME
+  TERMS for the same concepts (mirror means reflection with the
+  stated orientation consequence; placement means rigid, no
+  scale/deform) so the two surfaces read as one vocabulary;
+  outright unification only if it falls out naturally — not
+  worth forcing (Evan's stated guess), and U4's spec must SAY
+  which of the two it did.
+
+  Consequence if ratified as proposed: U4 becomes two
+  dispatchable units (path legs + composition door;
+  frame-constructor family), the sweep audit rows (15–18) get a
+  real path to YES, and `Node::Tube`'s schema bump remains a
+  separate coordination item with ASM's version sequence.
+  Alternatives considered and why not: path legs as raw
+  `geom-curves` constructors only (no junction discipline — the
+  exact re-typing class PATHS exists to kill); path legs as
+  `sweep`-local vocabulary (invisible to the document layer,
+  contradicting Node::Sweep's existing spelling).
 - **LQ4 — v2 profiles-as-programs timing: RULED — pulled to the
   front.** See §L3's front-loaded arc and U2. Python never ships
   the opaque-profile intermediate state.

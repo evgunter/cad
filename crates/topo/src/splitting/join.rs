@@ -48,7 +48,7 @@
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, Decide, Indeterminate, Length, Point3, Real, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign};
 use slotmap::SecondaryMap;
 
 use super::containment::{LoopContainment, PointInLoopError, point_in_loop};
@@ -794,7 +794,7 @@ fn chord_spec<T: Decide>(
         // onto the escape-aligned axis, so the ship path is polar.
         match decide(
             "split_sphere_section_polar",
-            Length::levered(axis.cross(*sph_axis).norm(), *sph_r),
+            Margin::levered(axis.cross(*sph_axis).norm(), *sph_r),
             band,
         )
         .map_err(|diag| SplitJoinError::Escalated { face, diag })?
@@ -881,7 +881,7 @@ fn chord_spec<T: Decide>(
                 // comparison; a zero span is a degenerate chord site.
                 let (carrier, s1, s2) = match decide(
                     "split_tangent_chord_forward",
-                    Length::metered(t2 - t1, len),
+                    Margin::metered(t2 - t1, len),
                     band,
                 )
                 .map_err(|diag| SplitJoinError::Escalated { face, diag })?
@@ -973,7 +973,7 @@ fn chord_spec<T: Decide>(
     // escalates F6 with that lever arm. Fixed evaluation order, no
     // data-dependent iteration (D9).
     let contains = |margin: T| -> Result<bool, SplitJoinError> {
-        match decide("split_arc_window", Length::levered(margin, r_c), band)
+        match decide("split_arc_window", Margin::levered(margin, r_c), band)
             .map_err(|diag| SplitJoinError::Escalated { face, diag })?
         {
             Sign::Positive | Sign::Zero => Ok(true),
@@ -1042,7 +1042,7 @@ fn chord_spec<T: Decide>(
     // classification routes elsewhere, refused typed if it arrives.
     let ccw_is_up = match decide(
         "split_arc_chart_orientation",
-        Length::levered(n_e.dot(a_c), sa),
+        Margin::levered(n_e.dot(a_c), sa),
         band,
     )
     .map_err(|diag| SplitJoinError::Escalated { face, diag })?
@@ -1267,7 +1267,7 @@ fn bool_planar_chord_spec<T: Decide>(
         };
         match decide(
             "split_sphere_section_polar",
-            Length::levered(axis.cross(a_c).norm(), r_c),
+            Margin::levered(axis.cross(a_c).norm(), r_c),
             band,
         )
         .map_err(|diag| SplitJoinError::Escalated { face, diag })?
@@ -1370,7 +1370,7 @@ fn bool_planar_chord_spec<T: Decide>(
     let tau = T::tau();
     let a1 = chart_az(p1);
     let contains = |margin: T| -> Result<bool, SplitJoinError> {
-        match decide("split_arc_window", Length::levered(margin, r_c), band)
+        match decide("split_arc_window", Margin::levered(margin, r_c), band)
             .map_err(|diag| SplitJoinError::Escalated { face, diag })?
         {
             Sign::Positive | Sign::Zero => Ok(true),
@@ -1392,7 +1392,7 @@ fn bool_planar_chord_spec<T: Decide>(
     let dn_in = contains(width - x1)? && contains(x1 + g - tau)?;
     let ccw_is_up = match decide(
         "split_arc_chart_orientation",
-        Length::levered(n_e.dot(a_c), sa),
+        Margin::levered(n_e.dot(a_c), sa),
         band,
     )
     .map_err(|diag| SplitJoinError::Escalated { face, diag })?
@@ -1556,7 +1556,7 @@ fn between_edge_in_plane<T: Decide>(
             match lane {
                 JoinLane::Planar => Err(corrupt()),
                 JoinLane::Split(ctx) => {
-                    let margin = Length::of((mid - ctx.plane.origin).dot(ctx.plane.normal));
+                    let margin = Margin::of((mid - ctx.plane.origin).dot(ctx.plane.normal));
                     match decide("split_conic_inplane_mid", margin, band) {
                         Ok(Sign::Zero) => Ok(Some(true)),
                         Ok(Sign::Positive | Sign::Negative) => Ok(Some(false)),
@@ -1607,7 +1607,7 @@ fn between_edge_in_plane<T: Decide>(
                     // Ledger row F8 (unchanged): (cosΔ − cos h)·r is
                     // quadratic in the angular deviation for narrow
                     // windows; the margin is a length (levered) today.
-                    let margin = Length::levered(r_hat.dot(m_hat) - c_h, *r_c);
+                    let margin = Margin::levered(r_hat.dot(m_hat) - c_h, *r_c);
                     match decide("bool_between_arc_window", margin, band) {
                         Ok(Sign::Positive) => Ok(Some(true)),
                         Ok(Sign::Negative) => Ok(Some(false)),
@@ -1630,7 +1630,7 @@ fn between_edge_in_plane<T: Decide>(
 /// computation choice between two identical formulas; its degenerate
 /// and in-band arms keep the direct one (deterministic tie-break, D9).
 fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
-    match decide("split_chart_azimuth_frame", Length::of(x), band) {
+    match decide("split_chart_azimuth_frame", Margin::of(x), band) {
         Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
         Ok(Sign::Positive | Sign::Zero) | Err(_) => y.atan2(x),
     }
@@ -1763,7 +1763,7 @@ fn run_azimuth_window<T: Decide>(
                     let d = (p - *center).dot(*axis);
                     match decide(
                         "split_sphere_window_pole",
-                        Length::of(*radius - d.abs()),
+                        Margin::of(*radius - d.abs()),
                         band,
                     )
                     .map_err(|diag| SplitJoinError::Escalated { face, diag })?
@@ -1772,7 +1772,7 @@ fn run_azimuth_window<T: Decide>(
                         Sign::Negative => return Err(corrupt()),
                         Sign::Zero => {
                             let south =
-                                match decide("split_sphere_window_pole_side", Length::of(d), band)
+                                match decide("split_sphere_window_pole_side", Margin::of(d), band)
                                     .map_err(|diag| SplitJoinError::Escalated { face, diag })?
                                 {
                                     Sign::Negative => true,
@@ -2272,7 +2272,7 @@ impl<T: Decide> Sweep<T> {
         // `/ (perimeter * 0.5)` computed 4·|A|/P, double the
         // documented spec — dimensionally identical, but the doc is
         // the contract.)
-        let margin = Length::over_lever(twice_area.abs(), perimeter);
+        let margin = Margin::over_lever(twice_area.abs(), perimeter);
         match decide("split_section_area", margin, self.band) {
             Ok(Sign::Positive) => Ok(()),
             Ok(_) => Err(SplitJoinError::DegenerateSection { face }),

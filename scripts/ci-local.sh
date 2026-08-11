@@ -86,6 +86,7 @@ SCOPE=--workspace
 RUN_EDITOR_CORE=true
 RUN_STL=true
 RUN_STEP_EXPORT=true
+RUN_PNCAD_PY=true
 RUN_INTERVAL_BACKEND=true
 RUN_K_LINT=true
 if [ "$FULL" -eq 1 ]; then
@@ -105,6 +106,7 @@ else
       RUN_EDITOR_CORE) RUN_EDITOR_CORE="$v" ;;
       RUN_STL) RUN_STL="$v" ;;
       RUN_STEP_EXPORT) RUN_STEP_EXPORT="$v" ;;
+      RUN_PNCAD_PY) RUN_PNCAD_PY="$v" ;;
       RUN_INTERVAL_BACKEND) RUN_INTERVAL_BACKEND="$v" ;;
       RUN_K_LINT) RUN_K_LINT="$v" ;;
     esac
@@ -175,6 +177,30 @@ discipline() {
   # `Dual`. `ssi/enclose.rs` is deliberately NOT listed — it needs no
   # decision, so it takes the sole-bound `T: Bounds` the rule allows
   # everywhere.
+  #
+  # geom-brep/src/edge_nurbs.rs is M7-8's plane × NURBS edge lane, the
+  # narrowest possible extension of that same seam: it DELEGATES to the
+  # already-listed `certify_rung3` door with a declared carrier instead
+  # of a marched one, so it inherits the door's signature rather than
+  # widening anything. Its split is written in the same shape —
+  # `EdgeNurbsLane` has certified impls for f64/Probe/Interval and a
+  # refusing one for `Dual` — and it is what keeps `Bounds` out of
+  # `topo`'s signatures.
+  #
+  # profile/src/path/arc_fillet.rs is the LIB-G2 PATHS arc-carrier
+  # fillet boundary (ruling LB3, 2026-08-08). The algebra forbids
+  # authoring a fillet's corner, so it DERIVES 0/1/2 corners from the
+  # two carriers and the S8 choice is over (corner, candidate) pairs —
+  # it therefore DECIDES (the carrier-meet and angular advance/reach
+  # gates) and reads the selection channel in one function, which is
+  # `Decide + Bounds` honestly. It carries sugar.rs's ratified
+  # justification verbatim: the pick is a plain deterministic selection
+  # rule on the f64 diagnostic channel, a representation-level choice
+  # between already-classified constructions, never a re-decision of
+  # geometry. The compound bound is confined to this ONE file so
+  # `path.rs` itself stays bracket-free; `fillet_select.rs`, which
+  # states the ladder, is deliberately NOT listed — sole-bound
+  # `T: Bounds`, which the rule allows everywhere.
   local bhits
   bhits=$(grep -rnE '\+\s*(geom_core::)?Bounds\b' crates/*/src \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
@@ -183,8 +209,9 @@ discipline() {
     | grep -vE '^crates/topo/src/props\.rs$' \
     | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
     | grep -vE '^crates/profile/src/sugar\.rs$' \
+    | grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
     | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' \
-    | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify)\.rs$' || true)
+    | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' || true)
   if [ -n "$bhits" ]; then
     echo "$bhits"
     echo "ERROR: compound Bounds bound outside the ratified seams — see geom-core/src/real.rs (Bounds scope rule)"
@@ -220,7 +247,10 @@ discipline() {
 # Render provenance (#221 follow-up): every committed per-scene PNG in
 # demos/renders{,-freecad}/ must carry FreeCAD's signature tEXt chunks,
 # so a matplotlib fallback frame in a committed path fails loud instead
-# of riding into a montage cell. Stdlib-only python3 (no venv, no
+# of riding into a montage cell; demos/renders-wild/ (the wild-corpus
+# lane, FreeCAD-free by scope) runs inverted per-lane rules — its
+# cells must be matplotlib-drawn AND carry the wild lane's own Author
+# stamp. Stdlib-only python3 (no venv, no
 # FreeCAD, milliseconds) — hence an always-run row, not a filtered one:
 # a guard that a tier selection can skip is not a guard. Runs its own
 # self-test first (the guard must be shown to fire). Hosted mirror: the
@@ -228,6 +258,35 @@ discipline() {
 render_provenance() {
   python3 demos/check_render_provenance.py --selftest && \
     python3 demos/check_render_provenance.py
+}
+
+# The UV lane's composer (demos/render-uv.sh) has no provenance problem
+# — the kernel is the only thing that could have drawn an SVG cell — but
+# it does make two claims about what it leaves OFF the sheet (one
+# representative per (body, chart); planar charts dropped as a class),
+# and a silent drop is precisely what this lane exists to prevent. Its
+# self-test pins those, plus the fail-loud on a cell that does not match
+# the emitter's root-tag contract. Stdlib-only python3, milliseconds.
+uv_composer_selftest() {
+  python3 demos/compose_uv_montage.py --selftest
+}
+
+# Drift gate for the committed UV sheet: regenerate it and diff. The two
+# PNG lanes cannot be gated (they need FreeCAD), so this is the only
+# render lane CI can reproduce — and an ungated committed artifact rots.
+# The tour is ~3s once built and the sheet is text, so a firing diff is
+# readable. Hosted mirror: the `k-lint` job's "uv sheet drift (demos)".
+#
+# The `CAD_RENDER_LOCAL_OVERRIDE` sentence is set HERE, in the file, at
+# the one step that renders: the entry points refuse without it
+# (demos/hosted-render-guard.sh) and deliberately do not sniff for CI.
+# This row is a sanctioned automated render — renderer-free, and
+# `git diff --exit-code` un-does the question of drift by failing on it.
+uv_sheet_drift() {
+  (cd demos/tour && cargo run --release -- ../out) >/dev/null && \
+    CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift \
+    demos/render-uv.sh >/dev/null && \
+    git diff --exit-code --stat HEAD -- demos/renders-uv/
 }
 
 watertight() {
@@ -244,6 +303,20 @@ watertight() {
 # discovery and REQUIRE_FREECAD.
 step_import() {
   scripts/check_step.sh
+}
+
+# Mirror of hosted's `python-suite` job (LIB PY-CI). Hosted runs the
+# wheel path — maturin build, venv, pip install, unittest discover.
+# The local row is the staged-cdylib fallback run-python-tests.sh
+# exists for: same cargo-built extension module, same interpreter
+# contract, same unittest discovery over the same tests/ directory —
+# only the install vehicle degrades, which keeps the row runnable even
+# on the most degraded box U9S measured (no pip, no ensurepip, no
+# maturin). The script takes the build slot itself; nested under
+# ci-local's exclusive hold that acquisition is a no-op
+# (BUILD_SLOT_HELD).
+python_suite() {
+  crates/pncad-py/run-python-tests.sh
 }
 
 # $SCOPE is the filter's package scope: `--workspace` in tier `all`, an
@@ -330,24 +403,32 @@ interval_backend() {
 # same two commands before its probe sweep (the tour must build there
 # anyway — the demo scenes are half the lint's subject matter).
 demos_hygiene() {
-  (cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
+  (cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings) && \
+    (cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
 }
 
-# M4 PR 8b spec D3: the large-K fragility lint (mirrors ci.yml's
-# `k-lint` job). Two rows: the tool's own hygiene + tests (the #99
-# litmus MUST fire — that part gates), then the fresh probe sweep +
-# the ADVISORY lint (prints flags, exits 0 on findings; fails only on
-# harness breakage). Thresholds + provenance: tools/k-lint/src/lib.rs,
-# docs/K-REPORT.md M4 addendum.
+# Spec D3: the large-K fragility lint (mirrors ci.yml's `k-lint` job —
+# hosted and local must not drift, which is this script's whole point).
+# Two rows: the tool's own hygiene + tests (the #99 litmus MUST fire),
+# then the fresh probe sweep + the LINT GATE — a flagged margin fails
+# the row (exit 2, with the interpretation discipline printed);
+# harness breakage fails it in its own voice (exit 1).
+#
+# On a failure, read the tool's message before touching geometry: a
+# fired lint is evidence that the margin DISTRIBUTION moved, and the
+# recourse is re-derivation or a recorded demotion, never a geometry
+# nudge. Thresholds + provenance: tools/k-lint/src/lib.rs,
+# docs/K-REPORT.md ("M7 addendum (2026-08-07): the large-K lint's
+# floor refresh").
 klint_tool() {
   (cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 }
-klint_advisory() {
+klint_gate() {
   scripts/k_probe_sweep.sh target/k-fresh || return 1
   (cd tools/k-lint && cargo run -- \
-    ../../target/k-fresh/m4-eps-1e-6.csv \
-    ../../target/k-fresh/m4-eps-1e-9.csv \
-    ../../target/k-fresh/m4-eps-1e-12.csv)
+    ../../target/k-fresh/k-eps-1e-6.csv \
+    ../../target/k-fresh/k-eps-1e-9.csv \
+    ../../target/k-fresh/k-eps-1e-12.csv)
 }
 
 # Rows always run (discipline greps are cheap; rustfmt is --all by design
@@ -355,6 +436,7 @@ klint_advisory() {
 # shellcheck disable=SC2086
 run_row "discipline (evaluation-code)" discipline
 run_row "render provenance (demos)"    render_provenance
+run_row "uv composer selftest (demos)" uv_composer_selftest
 run_row "rustfmt"                      cargo fmt --all --check
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
 # ε battery {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
@@ -387,14 +469,18 @@ run_row_if "$RUN_INTERVAL_BACKEND" "interval backend crate" interval_backend
 # nine members between them, and the probe sweep records margins from every
 # kernel crate — no minimal root set, so these run whenever anything builds.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
+run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift
 run_row_if "$RUN_K_LINT" "k-lint tool (fmt+clippy+litmus)" klint_tool
-run_row_if "$RUN_K_LINT" "k-lint sweep + advisory lint"    klint_advisory
+run_row_if "$RUN_K_LINT" "k-lint sweep + gate"             klint_gate
 # Root package stl: the acceptance example and its whole (dev-)dependency
 # chain profile -> sweep -> topo -> mesh live under it.
 run_row_if "$RUN_STL" "watertight (admesh)"          watertight
 # Root package step-export: no cargo build — FreeCAD over the committed
 # fixtures, which are byte-golden against that crate's writer.
 run_row_if "$RUN_STEP_EXPORT" "step import (freecad)" step_import
+# Root package pncad-py: the wheel's build graph is the whole façade
+# stack, so this fires exactly when something the suite compiles moved.
+run_row_if "$RUN_PNCAD_PY" "python suite (staged cdylib)" python_suite
 
 echo
 echo "=== ci-local summary ==="

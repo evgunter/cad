@@ -18,11 +18,13 @@
 //!
 //! Two charts construct here: **cylinder** (M5 PR 11 — the tiltedcut
 //! walls; every split cylinder wall) and, since M7's montage
-//! skin-scenes unit, **described non-rational NURBS** (the loft/sweep
+//! skin-scenes unit, **described NURBS** (the loft/sweep
 //! walls — the frontier this header used to call "the banked
 //! trimmed-NURBS lane", now promoted; NURBS faces route here
 //! unconditionally, iso-rectangle or not, because the swept-rectangle
-//! walk has no NURBS chart). The NURBS lane's certificate is the
+//! walk has no NURBS chart; RATIONAL faces since M8-5, whose Hessian
+//! bound is the quotient-rule assembly over the homogeneous nets).
+//! The NURBS lane's certificate is the
 //! hull-derived Hessian interpolation bound (`crate::nurbs_cert`:
 //! derivation, covered-vs-refused inventory); its boundary pcurves
 //! are the closed-form images (`Harmonic`, `IsoLine` — every
@@ -481,6 +483,19 @@ fn trim_polygon(
         match cache.pcurve() {
             Pcurve::Harmonic { .. } => {}
             Pcurve::IsoLine { .. } if nurbs_chart => {}
+            // The arc rim is the NURBS chart's other minted closed
+            // form (M8-3) — same boundary line, rational-quadratic
+            // parameter. It has no meaning on an analytic chart.
+            Pcurve::IsoArc { .. } if nurbs_chart => {}
+            Pcurve::IsoArc { .. } => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: he.edge,
+                    note: "trimmed face half-edge carries an ARC-RIM pcurve on an \
+                           analytic chart — the class is a NURBS chart's rational \
+                           quadratic parameterization and no mint produces it \
+                           elsewhere",
+                });
+            }
             Pcurve::IsoLine { .. } => {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: he.edge,

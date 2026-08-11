@@ -5,9 +5,29 @@
 //! binary STL + (where the analytic subset allows) AP214 STEP per
 //! body, plus a scene manifest (`scenes.json`) for the render step
 //! (`demos/render.sh` — headless FreeCAD importing OUR STEP files,
-//! matplotlib as fallback).
+//! matplotlib as fallback) and, per face, its `(u, v)` chart with its
+//! trim loops drawn on it (`uv/*.svg` + `uv.json`, the renderer-free
+//! third lane — see [`uvdump`] and `demos/render-uv.sh`).
 //!
 //! Usage: `cargo run --release -- <outdir>` (from `demos/tour/`).
+//!
+//! # The demos' purpose (Evan, 2026-08-09 — binding for every edit here)
+//!
+//! These scenes exist to demonstrate REAL, NATURAL library usage —
+//! the way a user would actually write the model. Consequences:
+//!
+//! - It is always acceptable to update a demo in a way that is NOT
+//!   byte-identical when the point is better authoring; mechanical
+//!   migrations (imports, plumbing) should still prove byte-identity
+//!   because there the diff proves nothing changed.
+//! - If some aspect of a demo is AWKWARD to write through the public
+//!   surface, that awkwardness is a LIBRARY FINDING: record it (gap
+//!   comment here + the orchestrator's log) as something to fix in
+//!   the library — never quietly work around it, and never contort
+//!   the demo to hide it.
+//! - Standing goal: every demo authorable through the Python
+//!   bindings; what a demo cannot do through the curated document
+//!   surface is a named gap, not a private exception.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -23,15 +43,17 @@ mod diefillet;
 mod heatsink;
 mod letterforms;
 mod lily;
+mod paths;
 mod probe;
 mod projectbox;
 mod rocker;
 mod scalar;
 mod skinned;
 mod tube;
+mod uvdump;
 
-use mesh::validate::{check_mesh, signed_volume, triangle_count};
-use topo::{Body, ContactRecords};
+use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
+use pncad::topo::{Body, ContactRecords};
 
 /// One body of a tour scene: its own STL/STEP exports, its own
 /// validation posture. `contacts` is `Some` exactly when the body is a
@@ -159,13 +181,19 @@ struct ManifestBody {
     color: [f64; 3],
 }
 
-fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
+fn run_body(
+    sb: &SceneBody,
+    delta: f64,
+    outdir: &str,
+    scene: &str,
+    dumps: &mut Vec<uvdump::FaceDump>,
+) -> Option<ManifestBody> {
     let label = &sb.name;
 
     // Tiers 1 + 2 on every body.
-    topo::validate(&sb.body)
+    pncad::topo::validate(&sb.body)
         .unwrap_or_else(|e| panic!("{label}: tier-1 structural validation failed: {e:?}"));
-    topo::validate_closed(&sb.body)
+    pncad::topo::validate_closed(&sb.body)
         .unwrap_or_else(|e| panic!("{label}: tier-2 closed-solid validation failed: {e:?}"));
 
     // Tier 3 / 3′: boolean results validate AS THEY ARE, with the
@@ -173,12 +201,12 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
     // geometric gate (on contact-free bodies the two gates agree).
     match &sb.contacts {
         Some(contacts) => {
-            topo::validate_pseudomanifold(&sb.body, contacts).unwrap_or_else(|e| {
+            pncad::topo::validate_pseudomanifold(&sb.body, contacts).unwrap_or_else(|e| {
                 panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}")
             });
         }
         None => {
-            topo::validate_geometric(&sb.body)
+            pncad::topo::validate_geometric(&sb.body)
                 .unwrap_or_else(|e| panic!("{label}: tier-3 geometric validation failed: {e:?}"));
         }
     }
@@ -199,11 +227,11 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
     // contribute certified quadrature enclosures: `volume` is then a
     // bracket midpoint with half-width `volume_pad` (0.0 on
     // closed-form bodies).
-    let props = topo::mass_properties(&sb.body).expect("mass properties");
+    let props = pncad::topo::mass_properties(&sb.body).expect("mass properties");
 
     // Tessellate, self-check the mesh, and compare its signed volume
     // against the exact one as an end-to-end sanity ribbon.
-    let mesh = mesh::tessellate(&sb.body, delta).expect("tessellate");
+    let mesh = pncad::mesh::tessellate(&sb.body, delta).expect("tessellate");
     check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: check_mesh failed: {e:?}"));
     let v_mesh = signed_volume(&mesh);
     assert!(v_mesh > 0.0, "{label}: mesh signed volume must be positive");
@@ -227,7 +255,7 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
     let stl_name = format!("{label}.stl");
     let stl_path = format!("{outdir}/{stl_name}");
     let mut stl_buf = Vec::new();
-    stl::write_binary(&mesh, &mut stl_buf)
+    pncad::stl::write_binary(&mesh, &mut stl_buf)
         .unwrap_or_else(|e| panic!("{label}: STL write failed: {e:?}"));
     std::fs::write(&stl_path, &stl_buf).expect("write stl");
     let stl = stl_name.clone();
@@ -240,9 +268,9 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
     // a refusal anywhere here is now a regression rather than a
     // narrated frontier.
     let step_name = format!("{label}.step");
-    let step = match step_export::step_string(
+    let step = match pncad::step_export::step_string(
         &sb.body,
-        &step_export::StepOptions {
+        &pncad::step_export::StepOptions {
             product_name: label.clone(),
             ..Default::default()
         },
@@ -260,9 +288,9 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
         // arm is kept, not deleted: it is what keeps a future curved
         // frontier from being silently dropped from the manifest.
         Err(
-            e @ (step_export::StepExportError::UnsupportedSurface { .. }
-            | step_export::StepExportError::UnsupportedCurve { .. }
-            | step_export::StepExportError::CurvedShellClassification { .. }),
+            e @ (pncad::step_export::StepExportError::UnsupportedSurface { .. }
+            | pncad::step_export::StepExportError::UnsupportedCurve { .. }
+            | pncad::step_export::StepExportError::CurvedShellClassification { .. }),
         ) => {
             assert!(
                 !sb.step_expected,
@@ -285,6 +313,24 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
         "{label}: STEP expected but not produced"
     );
 
+    // The UV lane (`demos/render-uv.sh`): every face's chart domain as
+    // its own SVG. Runs beside the exports rather than in a separate
+    // pass because the pcurve caches are a property of THIS body — a
+    // reader that re-imported the STEP would be looking at re-minted
+    // ones, which is a different question.
+    let faces = uvdump::emit(scene, label, &sb.body, outdir);
+    let refused = faces.iter().filter(|f| f.note.is_some()).count();
+    println!(
+        "   [{label}] uv: {} face chart(s) dumped to uv/{}",
+        faces.len(),
+        if refused > 0 {
+            format!(" ({refused} could not be walked — drawn as labeled failure cells)")
+        } else {
+            String::new()
+        }
+    );
+    dumps.extend(faces);
+
     Some(ManifestBody {
         stl,
         step,
@@ -296,7 +342,12 @@ fn run_body(sb: &SceneBody, delta: f64, outdir: &str) -> Option<ManifestBody> {
 /// manifest. A fully STAGED stop (every body behind a frontier) has
 /// nothing to draw yet, so it narrates and emits no scene entry —
 /// `scenes.json` never carries a scene the renderers cannot render.
-fn run_stop(stop: &Stop, outdir: &str, manifest: &mut String) -> bool {
+fn run_stop(
+    stop: &Stop,
+    outdir: &str,
+    manifest: &mut String,
+    dumps: &mut Vec<uvdump::FaceDump>,
+) -> bool {
     println!("\n== {} ==", stop.name);
     println!("   {}", stop.story);
     println!("   built by: {}", stop.ops);
@@ -306,7 +357,7 @@ fn run_stop(stop: &Stop, outdir: &str, manifest: &mut String) -> bool {
     let bodies: Vec<ManifestBody> = stop
         .bodies
         .iter()
-        .filter_map(|sb| run_body(sb, stop.delta, outdir))
+        .filter_map(|sb| run_body(sb, stop.delta, outdir, stop.name, dumps))
         .collect();
     if bodies.is_empty() {
         return false;
@@ -366,9 +417,10 @@ fn main() {
     std::fs::create_dir_all(&outdir).expect("create outdir");
     let mut manifest = String::new();
     let mut scenes: Vec<String> = Vec::new();
+    let mut dumps: Vec<uvdump::FaceDump> = Vec::new();
     let mut run = |stop: &Stop| {
         manifest.clear();
-        if run_stop(stop, &outdir, &mut manifest) {
+        if run_stop(stop, &outdir, &mut manifest, &mut dumps) {
             scenes.push(manifest.clone());
         }
     };
@@ -389,7 +441,9 @@ fn main() {
         run(&stop);
     }
 
-    println!("\n-- the globe lily (Calochortus albus): a plant, at the kernel's frontier --");
+    println!(
+        "\n-- the fairy lantern (Calochortus pulchellus): a plant, at the kernel's frontier --"
+    );
     for stop in lily::stops() {
         run(&stop);
     }
@@ -454,5 +508,14 @@ fn main() {
 
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");
+    std::fs::write(format!("{outdir}/uv.json"), uvdump::manifest_json(&dumps))
+        .expect("write uv.json");
+    let curved = dumps.iter().filter(|d| d.curved).count();
+    let refused = dumps.iter().filter(|d| d.note.is_some()).count();
     println!("\ntour complete: STL/STEP + scenes.json in {outdir}/ — render with demos/render.sh");
+    println!(
+        "uv lane: {} face charts ({curved} curved, {refused} unwalkable) in {outdir}/uv/ \
+         + uv.json — sheet with demos/render-uv.sh",
+        dumps.len()
+    );
 }

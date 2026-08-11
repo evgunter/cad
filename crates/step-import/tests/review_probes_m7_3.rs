@@ -26,17 +26,10 @@ fn solid(text: &str, who: &str) -> topo::Body<f64> {
 
 /// The committed fixture's native twin (step-export/tests/common).
 fn native_loft_prism() -> topo::Body<f64> {
-    let quad = |pts: [(f64, f64); 4]| -> sweep::SectionSegments {
-        let seg = |a: (f64, f64), b: (f64, f64)| sweep::SketchSegment::Line {
-            a: Point2::new(a.0, a.1),
-            b: Point2::new(b.0, b.1),
-        };
-        vec![vec![
-            seg(pts[0], pts[1]),
-            seg(pts[1], pts[2]),
-            seg(pts[2], pts[3]),
-            seg(pts[3], pts[0]),
-        ]]
+    let quad = |pts: [(f64, f64); 4]| -> sweep::Section {
+        vec![profile::ProfileLoop::polygon(
+            pts.iter().map(|&(x, y)| Point2::new(x, y)),
+        )]
     };
     let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
@@ -109,21 +102,17 @@ fn probe_all_unit_weight_rational_instance_imports_identically() {
 /// arc rims are not mintable, and the arc carrier no longer lies on
 /// the (now non-rational) wall. Must refuse typed, never launder.
 fn native_arc_loft_for_probe() -> topo::Body<f64> {
-    let arc_section = |s: f64| -> sweep::SectionSegments {
-        let seg = |a: (f64, f64), b: (f64, f64)| sweep::SketchSegment::Line {
-            a: Point2::new(a.0, a.1),
-            b: Point2::new(b.0, b.1),
+    let arc_section = |s: f64| -> sweep::Section {
+        let v = |x: f64, y: f64, bulge: f64| profile::ProfileVertex {
+            pos: Point2::new(x, y),
+            bulge,
         };
-        vec![vec![
-            seg((-s, -s), (s, -s)),
-            sweep::SketchSegment::Arc {
-                a: Point2::new(s, -s),
-                b: Point2::new(s, s),
-                bulge: 0.4142135623730951,
-            },
-            seg((s, s), (-s, s)),
-            seg((-s, s), (-s, -s)),
-        ]]
+        vec![profile::ProfileLoop::new(vec![
+            v(-s, -s, 0.0),
+            v(s, -s, 0.4142135623730951),
+            v(s, s, 0.0),
+            v(-s, s, 0.0),
+        ])]
     };
     let sections = vec![arc_section(1.0), arc_section(1.25), arc_section(1.0)];
     let places = vec![
@@ -287,20 +276,64 @@ fn probe_arm_b_rim_off_wall_arc() {
     }
 }
 
-/// The positive control beside the flipped F1 plant: the TRUE arc
-/// rim passes the same residual gate and the body imports to the
-/// Arm-B state (t1/t2 valid; the full native-state pin lives in
-/// `nurbs_import.rs`). A gate that refused the genuine body would be
-/// a false alarm, not a certification.
+/// The positive control beside the flipped F1 plant: the TRUE arc rim
+/// passes the residual gate — a gate that refused the genuine body
+/// would be a false alarm, not a certification. That discrimination is
+/// what this row exists for, and it still holds: the plant refuses
+/// `RimOffWallBoundary`, the true arc does not.
+///
+/// M7-7 (#260 ruling (a)) moved the true arc's stop one gate later, to
+/// the shared at-rest gate, on the BANKED rational volume lane.
+/// **M8-3 RETIRES that stop**: the arc rim mints (`Pcurve::IsoArc`)
+/// and the rational wall's flux certifies, so the true arc now imports
+/// FIRST-CLASS — and `StepImport::Solid` may only carry a body the
+/// shared at-rest gate passes, so `Ok` here IS the tier-3 verdict.
+///
+/// The discrimination the row exists for is therefore stated at full
+/// strength for the first time: the plant refuses `RimOffWallBoundary`
+/// and the true arc imports. A gate that refused the genuine body
+/// would now be visibly a false alarm rather than hidden behind a
+/// downstream refusal. `nurbs_import.rs` holds the full disposition
+/// row for this body class, including its ε posture.
 #[test]
 fn probe_arm_b_true_arc_rim_positive_control() {
     let native = native_arc_loft_for_probe();
     let text = step_export::step_string(&native, &step_export::StepOptions::default())
         .expect("arc loft exports");
-    let body = solid(&text, "true arc loft");
-    assert_eq!(census(&body), census(&native), "census matches the source");
-    assert_eq!(topo::validate(&body), Ok(()), "t1");
-    assert_eq!(topo::validate_closed(&body), Ok(()), "t2");
+    let eps = geom_core::Tolerance::get().eps;
+    match import(&text) {
+        Ok(StepImport::Solid { body, .. }) => {
+            assert_eq!(
+                topo::validate_geometric(&body),
+                Ok(()),
+                "an imported Solid is at-rest valid by construction of the gate"
+            );
+            eprintln!("PROBE true arc rim @ eps={eps:e}: FIRST-CLASS (M8-3)");
+        }
+        // The fixed schedule's honest frontier: at a tight enough ε the
+        // rational flux cannot reach `1024·ε` and the shared gate
+        // refuses TYPED with the measured width. Not a rim statement,
+        // and never widened.
+        Err(step_import::StepImportError::TierInvalid { errors, .. }) => {
+            assert!(
+                matches!(
+                    errors.as_slice(),
+                    [topo::ValidationError::VolumeUncomputable {
+                        source: topo::MassPropsError::Face {
+                            source: geom_brep::props::PropsError::QuadratureBudget { .. },
+                            ..
+                        },
+                    }]
+                ),
+                "the only surviving verdict is the fixed schedule's budget: {errors:?}"
+            );
+            eprintln!("PROBE true arc rim @ eps={eps:e}: quadrature budget (honest)");
+        }
+        other => panic!(
+            "the true arc rim must clear the residual gate and import, or stop only at \
+             the quadrature budget, got: {other:?}"
+        ),
+    }
 }
 
 /// V4 — review F5's measurement: the synthesized descriptions vs the
@@ -418,79 +451,98 @@ fn probe_rim_same_sense_flip_is_honest() {
     }
 }
 
-/// V5 — review F4, now the corrected pin: the first re-export
-/// diverges from the committed fixture in exactly THREE `-0.0 → 0.0`
-/// component tokens (fixture `#3 = DIRECTION('', (1.0, -0.0, -0.0))`
-/// carries two, `#43 = DIRECTION('', (1.0, -0.0, 0.0))` one) — the
-/// documented `plus_zero` parse-hygiene class, no other divergence —
-/// and the second export is a byte-identical fixed point of the
-/// first. (The original PR prose claimed "exactly 2 tokens";
-/// measured false by this probe, corrected at the fix pass.)
+/// V5, RE-STATED at M7-6 per the #256 ruling. The old pin (token
+/// streams aligned, exactly three `-0.0 → 0.0` flips) described the
+/// pre-promotion world; since D7 stage-1 always-promote, loft_prism's
+/// two exactly-planar walls (faces #104/#142, residual 0.0) import as
+/// PLANES, and the first re-export states them analytically — a
+/// STRUCTURAL divergence from the committed bytes that is exactly the
+/// promotion and nothing else. The re-stated pin:
+///
+/// * the divergence is the promotion: 2 of the 4 committed
+///   `B_SPLINE_SURFACE_WITH_KNOTS` walls re-export as `PLANE` records
+///   (2 planes → 4, 4 splines → 2), and the promotion is REPORTED
+///   (both records, census-identity, residual exactly 0.0);
+/// * the promoted ONE-CYCLE fixed point: the first re-export
+///   re-imports and re-exports byte-identically (censuses and
+///   certified volumes across the cycle are `roundtrip.rs`'s
+///   `fixed_point` row, green over the whole corpus; the volume
+///   against the NATIVE body is `committed_corpus`'s, also green —
+///   "volumes equal across the promotion", executed).
 #[test]
-fn probe_reexport_two_token_divergence() {
+fn probe_reexport_promotion_divergence() {
     let orig = fixture("loft_prism", "step");
-    let body = solid(&orig, "loft_prism");
+    let StepImport::Solid {
+        body,
+        normalizations,
+        ..
+    } = import(&orig).expect("loft_prism imports")
+    else {
+        panic!("loft_prism must import as a solid");
+    };
+    let promos: Vec<_> = normalizations
+        .iter()
+        .filter_map(|n| match n.kind {
+            step_import::NormalizationKind::SurfacePromotion { to, residual } => {
+                assert_eq!(
+                    n.file_census, n.kernel_census,
+                    "promotion never re-tessellates"
+                );
+                Some((n.face, to, residual))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        promos,
+        vec![
+            (104, step_import::PromotedKind::Plane, 0.0),
+            (142, step_import::PromotedKind::Plane, 0.0),
+        ],
+        "the enumerated promotions: the two exactly-planar walls, residual 0.0"
+    );
     let options = step_export::StepOptions {
         product_name: "loft_prism".to_owned(),
         ..step_export::StepOptions::default()
     };
     let out = step_export::step_string(&body, &options).expect("re-export");
-    let toks = |s: &str| -> Vec<String> { s.split_whitespace().map(str::to_owned).collect() };
-    let a = toks(&orig);
-    let b = toks(&out);
-    let diffs: Vec<(usize, &String, &String)> = a
-        .iter()
-        .zip(b.iter())
-        .enumerate()
-        .filter(|(_, (x, y))| x != y)
-        .map(|(i, (x, y))| (i, x, y))
-        .collect();
-    eprintln!(
-        "PROBE token diff: lens {} vs {}, {} differing token pairs",
-        a.len(),
-        b.len(),
-        diffs.len()
+    let count = |s: &str, pat: &str| s.matches(pat).count();
+    assert_eq!(
+        (
+            count(&orig, "= PLANE("),
+            count(&orig, "B_SPLINE_SURFACE_WITH_KNOTS(")
+        ),
+        (2, 4),
+        "committed: 2 cap planes + 4 spline walls"
     );
-    for (i, x, y) in diffs.iter().take(10) {
-        eprintln!("  tok {i}: {x} -> {y}");
-    }
-    // The corrected claim (F4): exactly three -0.0 -> 0.0 component
-    // flips, and nothing else differs.
-    let geo: Vec<_> = diffs
-        .iter()
-        .filter(|(_, x, _)| x.contains("-0.0"))
-        .collect();
-    eprintln!(
-        "PROBE: {} of the diffs are -0.0 tokens; {} are other",
-        geo.len(),
-        diffs.len() - geo.len()
+    assert_eq!(
+        (
+            count(&out, "= PLANE("),
+            count(&out, "B_SPLINE_SURFACE_WITH_KNOTS(")
+        ),
+        (4, 2),
+        "re-export: the two promoted walls state their planes"
     );
-    assert_eq!(a.len(), b.len(), "token streams stay aligned");
-    assert_eq!(geo.len(), 3, "exactly three -0.0 tokens diverge");
-    // Outside the -0.0 class the ONE legitimate divergence is the
-    // uncertainty record, and only when the ambient ε differs from
-    // the 1e-9 the committed fixture was written at (roundtrip.rs's
-    // documented posture; the CI matrix runs 1e-6/1e-12 rows).
-    for (i, x, y) in diffs.iter().filter(|(_, x, _)| !x.contains("-0.0")) {
-        assert!(
-            x.contains("1.0E-9") && y.contains("1.0E-"),
-            "token {i}: divergence outside the -0.0 class that is not the \
-             uncertainty record at a non-default ambient ε: {x} -> {y}"
-        );
-        assert_ne!(
-            geom_core::Tolerance::get().eps,
-            1e-9,
-            "at the corpus's own ε the uncertainty record must not diverge"
-        );
-    }
-    // Second export must be a fixed point of the first.
+    // The promoted one-cycle fixed point.
     let body2 = solid(&out, "first re-export");
     let out2 = step_export::step_string(&body2, &options).expect("second re-export");
     assert_eq!(out, out2, "fixed point from the first re-export on");
 }
 
-/// V6: dm1-id-214's first refusal site is genuinely #667
-/// QUASI_UNIFORM_CURVE.
+/// V6, re-anchored at M8: dm1-id-214's first refusal site has moved
+/// three times, always FORWARD, and each move retired a distance.
+/// From `#667 QUASI_UNIFORM_CURVE` (parse vocabulary, retired by M7-6's
+/// knots-implied synthesis) past the whole geometry pass — the 24
+/// NURBS surfaces recognize, the trim rings ride the promoted planes —
+/// to the ASSEMBLY layer at `#186`, the second differing per-component
+/// transform (M7-4 Leg D's instancing refusal). M8 retires THAT: the
+/// file's 3 breps and 7 occurrences materialize as 7 placed instances,
+/// so the site moves past the assembly layer entirely and into the D7
+/// adoption ladder, which is reached only after every face of every
+/// brep resolved AND every instance's frame was read and applied.
+///
+/// The site is now an EDGE, and pinning that it is one is the point:
+/// `Structure` here again would mean a structural refusal came back.
 #[test]
 fn probe_dm1_first_refusal_site() {
     let path: std::path::PathBuf = [
@@ -505,15 +557,25 @@ fn probe_dm1_first_refusal_site() {
     .collect();
     let text = std::fs::read_to_string(&path).unwrap();
     match import(&text) {
-        Err(step_import::StepImportError::UnsupportedEntity { id, keyword }) => {
-            eprintln!("PROBE dm1 refusal: #{id} {keyword}");
+        Err(step_import::StepImportError::Adoption { id, attempts }) => {
+            eprintln!(
+                "PROBE dm1 refusal: edge #{id}, {} candidate(s) tried",
+                attempts.len()
+            );
             assert_eq!(
-                (id, keyword.as_str()),
-                (667, "QUASI_UNIFORM_CURVE"),
-                "the re-anchored pin"
+                id, 685,
+                "the first rational-NURBS rim the ladder cannot certify"
+            );
+            // A ladder that reports NO attempt is a GAP, not a
+            // refusal — the shape edge #668 had before the `IsoCurve`
+            // rung was widened to the one-wall seam case. Every
+            // refusal this suite pins must name what it tried.
+            assert!(
+                !attempts.is_empty(),
+                "a refusal names the candidates it tried"
             );
         }
-        other => panic!("dm1-id-214 must refuse UnsupportedEntity, got {other:?}"),
+        other => panic!("dm1-id-214 must refuse at the adoption ladder, got {other:?}"),
     }
 }
 

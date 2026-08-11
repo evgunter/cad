@@ -29,7 +29,7 @@ fn count(v: i64) -> Expr {
 }
 
 /// A square section at height `z`, scaled by `s`.
-fn section(z: f64, s: f64) -> editor_core::ProfileDesc {
+fn section(z: f64, s: f64) -> editor_core::ProfileProgram {
     desc(
         [0.0, 0.0, z],
         [1.0, 0.0, 0.0],
@@ -46,7 +46,7 @@ fn section(z: f64, s: f64) -> editor_core::ProfileDesc {
 /// A three-section loft document; the middle section is scaled, so no
 /// wall is ruled (§5's "at least one non-affine pair").
 fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes");
     let mut profiles = Vec::new();
     for (z, s) in [(0.0, 1.0), (1.0, 1.6), (2.0, 1.0)] {
         let (d, id) = insert(doc, Node::Profile(section(z, s)));
@@ -88,7 +88,7 @@ fn loft_inputs_are_its_profiles_in_order() {
 
 #[test]
 fn sweep_inputs_are_profile_then_path_and_it_carries_both_slots() {
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes");
     let (d, profile) = insert(doc, Node::Profile(section(0.0, 1.0)));
     doc = d;
     let (d, path) = insert(doc, Node::Profile(section(0.0, 1.0)));
@@ -173,7 +173,7 @@ fn a_loft_document_round_trips_bit_identically_at_schema_v2() {
 
 #[test]
 fn a_sweep_document_round_trips_bit_identically_at_schema_v2() {
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes");
     let (d, profile) = insert(doc, Node::Profile(section(0.0, 1.0)));
     doc = d;
     let (d, path) = insert(doc, Node::Profile(section(0.0, 2.0)));
@@ -247,7 +247,7 @@ fn a_well_formed_loft_evaluates_to_a_body() {
 /// door, not the frontier — the §2 compatibility refusal is live.
 #[test]
 fn mismatched_sections_refuse_before_the_frontier() {
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes");
     let (d, a) = insert(doc, Node::Profile(section(0.0, 1.0)));
     doc = d;
     // A triangle where the other section is a quad: no correspondence.
@@ -328,7 +328,7 @@ fn a_non_profile_input_refuses_typed() {
 /// recipe layer cannot build.
 #[test]
 fn a_sweep_node_reaches_its_own_wider_frontier() {
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes");
     let (d, profile) = insert(doc, Node::Profile(section(0.0, 1.0)));
     doc = d;
     let (d, path) = insert(doc, Node::Profile(section(0.0, 2.0)));
@@ -359,7 +359,7 @@ fn a_sweep_node_reaches_its_own_wider_frontier() {
 /// reads as a slot error, not as a frontier story.
 #[test]
 fn a_sweeps_structural_slots_are_checked_before_the_frontier() {
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes");
     let (d, profile) = insert(doc, Node::Profile(section(0.0, 1.0)));
     doc = d;
     let (d, path) = insert(doc, Node::Profile(section(0.0, 2.0)));

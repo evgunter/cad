@@ -19,20 +19,28 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{
-    CancelToken, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Expr, Node, PatternKind,
-    ProfileDesc, RecipeNodeId, SlotId, ValuePayload, apply, evaluate,
+use std::collections::BTreeMap;
+
+use pncad::document::{
+    CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Expr, LoopProgram, Node, PatternKind,
+    ProfileProgram, RecipeNodeId, SlotId, ValuePayload, apply, evaluate, parse_expr,
 };
-use geom_core::{Point3, Vec3};
-use profile::{Profile, ProfileLoop, SketchPlane};
+use pncad::geom_core::{Point3, Vec3};
+use pncad::profile::SketchPlane;
 
 use crate::booleans::{check, expect_seamed, try_union};
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
 
-fn p2(x: f64, y: f64) -> geom_core::Point2<f64> {
-    geom_core::Point2::new(x, y)
+/// The U8a text door, no params in scope: the tour's expressions are
+/// authored the way a user would type them (`250 mm`, `5`) and go
+/// through the checking parser. The canonical-meter BITS are unchanged
+/// (250·10⁻³ lands on the same dyadic 0.25 the tour used to hand-write
+/// — pinned in editor-core's u8a_parse suite), so this is a SAID
+/// change: exports stay byte-identical.
+fn pe(src: &str) -> Expr {
+    parse_expr(src, &BTreeMap::new()).expect("tour expression")
 }
+use crate::{SceneBody, Stop, View};
 
 const BASE_VOL: f64 = 3.0 * 1.0 * 0.25;
 /// Per-fin material gain: 0.1875 x 0.75 footprint, 0.8125 tall, minus
@@ -40,67 +48,70 @@ const BASE_VOL: f64 = 3.0 * 1.0 * 0.25;
 const FIN_GAIN: f64 = 0.1875 * 0.75 * (0.8125 - 0.0625);
 
 struct Recipe {
-    doc: Doc<ProfileDesc>,
+    doc: Doc<ProfileProgram>,
     base_e: RecipeNodeId,
     pattern: RecipeNodeId,
 }
 
 fn build_doc() -> Recipe {
-    let base_profile = Profile::new(
-        SketchPlane::xy(),
-        vec![ProfileLoop::polygon([
-            p2(0.0, 0.0),
-            p2(3.0, 0.0),
-            p2(3.0, 1.0),
-            p2(0.0, 1.0),
-        ])],
-    );
+    // v4 (LIB-SWITCH): the document stores the PROGRAM — the polygon
+    // chain (`At`, `LineTo`…, `LineTo(Start)`), replayed through the
+    // driver at every evaluation.
+    let base_profile = ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![
+            LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 1.0), (0.0, 1.0)])
+                .expect("finite corners"),
+        ],
+    };
     // Fin sketch sits at z = 0.1875 — 1/16 INSIDE the 0.25-thick base.
     let fin_plane = SketchPlane::from_frame(
         Point3::new(0.0, 0.0, 0.1875),
         Vec3::new(1.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
     );
-    let fin_profile = Profile::new(
-        fin_plane,
-        vec![ProfileLoop::polygon([
-            p2(0.25, 0.125),
-            p2(0.4375, 0.125),
-            p2(0.4375, 0.875),
-            p2(0.25, 0.875),
-        ])],
-    );
-    let mut doc: Doc<ProfileDesc> = Doc::empty();
-    let insert = |doc: &mut Doc<ProfileDesc>, node| -> RecipeNodeId {
+    let fin_profile = ProfileProgram {
+        plane: fin_plane,
+        loops: vec![
+            LoopProgram::polygon([
+                (0.25, 0.125),
+                (0.4375, 0.125),
+                (0.4375, 0.875),
+                (0.25, 0.875),
+            ])
+            .expect("finite corners"),
+        ],
+    };
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("heatsink");
+    let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
         let applied = apply(doc, &DocEdit::InsertNode { node }).expect("insert node");
         *doc = applied.doc;
         applied.record.minted.expect("insert mints an id")
     };
-    let base_p = insert(&mut doc, Node::Profile(ProfileDesc(base_profile)));
+    let base_p = insert(&mut doc, Node::Profile(base_profile));
     let base_e = insert(
         &mut doc,
         Node::Extrude {
             profile: base_p,
-            distance: Expr::literal(0.25, Dimension::Length).unwrap(),
+            distance: pe("250 mm"),
         },
     );
-    let fin_p = insert(&mut doc, Node::Profile(ProfileDesc(fin_profile)));
+    let fin_p = insert(&mut doc, Node::Profile(fin_profile));
     let fin_e = insert(
         &mut doc,
         Node::Extrude {
             profile: fin_p,
-            distance: Expr::literal(0.8125, Dimension::Length).unwrap(),
+            distance: pe("812.5 mm"),
         },
     );
-    let scalar = |v: f64| Expr::literal(v, Dimension::Scalar).unwrap();
     let pattern = insert(
         &mut doc,
         Node::Pattern {
             input: fin_e,
-            count: Expr::count(5),
+            count: pe("5"),
             kind: PatternKind::Linear {
-                direction: [scalar(1.0), scalar(0.0), scalar(0.0)],
-                spacing: Expr::literal(0.3125, Dimension::Length).unwrap(),
+                direction: [pe("1.0"), pe("0.0"), pe("0.0")],
+                spacing: pe("312.5 mm"),
             },
         },
     );
@@ -113,7 +124,7 @@ fn build_doc() -> Recipe {
 
 /// Unions the pattern's fin instances into the base — one solid, exact
 /// volume after every union (demo-side; see module docs).
-fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize) -> topo::BooleanBody<S> {
+fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize) -> pncad::topo::BooleanBody<S> {
     let base = match &ev.value(r.base_e).expect("base evaluated").payload {
         ValuePayload::Body(b) => (**b).clone(),
         other => panic!("base payload: {other:?}"),
@@ -125,7 +136,7 @@ fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize) -> topo::Boolea
     assert_eq!(fins.len(), n, "pattern instance count");
     let mut acc = base;
     let mut vol = BASE_VOL;
-    let mut last: Option<topo::BooleanBody<S>> = None;
+    let mut last: Option<pncad::topo::BooleanBody<S>> = None;
     for (i, fin) in fins.iter().enumerate() {
         vol += FIN_GAIN;
         let bb = expect_seamed(
@@ -143,7 +154,7 @@ fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize) -> topo::Boolea
 /// shows (5 → 7 → 9, each re-eval fed the prior as memo), generic —
 /// the Probe sweep records the document-evaluation predicates AND the
 /// union chain at every count.
-pub(crate) fn probe_solids<S: Scalar>() -> Vec<topo::BooleanBody<S>> {
+pub(crate) fn probe_solids<S: Scalar>() -> Vec<pncad::topo::BooleanBody<S>> {
     let r = build_doc();
     let cancel = CancelToken::new();
     let opts = EvalOptions::default();
@@ -157,7 +168,7 @@ pub(crate) fn probe_solids<S: Scalar>() -> Vec<topo::BooleanBody<S>> {
             &DocEdit::SetStructuralParam {
                 node: r.pattern,
                 slot: SlotId::Count,
-                expr: Expr::count(n as i64),
+                expr: pe(&format!("{n}")),
             },
         )
         .expect("count edit");
@@ -188,7 +199,7 @@ pub fn stops() -> Vec<Stop> {
             &DocEdit::SetStructuralParam {
                 node: r.pattern,
                 slot: SlotId::Count,
-                expr: Expr::count(n as i64),
+                expr: pe(&format!("{n}")),
             },
         )
         .expect("count edit");

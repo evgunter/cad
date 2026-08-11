@@ -18,10 +18,18 @@ cost — measured, not vibed ("with actual random numbers").
 **Standing instructions:**
 
 - Applies to implementation tasks dispatched after 2026-07-25.
-  Current protocol is v2: blocked randomization (opus/fable pairs,
-  shuffled per block), pre-draw difficulty logging, blinded
-  reviewers, fixed-rubric CODE QUALITY REPORT in every review, row
-  recorded AT MERGE. Details in the log.
+  **Current protocol is v3 (2026-08-08): blocked randomization
+  over TRIPLES {opus, opus, fable}** (unbiased urandom draw for
+  fable's position — reject bytes ≥252, mod 3), pre-draw
+  difficulty logging, blinded reviewers, fixed-rubric CODE
+  QUALITY REPORT in every review, row recorded AT MERGE.
+  In-flight v2 pair blocks completed as pairs. Details in the log.
+- **Recording discipline (2026-08-08, from the bayes-analysis
+  readout)**: tokens AND wall-clock recorded PER PHASE (impl /
+  fix / review) at merge for every row, gaps annotated; ≥1 line
+  of prose per MAJOR; "silent" = silent spec deviation only;
+  record who ran the fix pass. Full text in the log's protocol
+  section.
 - **Blinding vs merge-only collision (2026-08-02, ruled)**: the
   harness's Co-Authored-By trailer NAMES THE MODEL — in an
   implementer lane that breaks blinding. Implementer briefs say "NO
@@ -29,7 +37,14 @@ cost — measured, not vibed ("with actual random numbers").
   harness convention); if a model mention lands in a PUSHED commit,
   STOP and report to the orchestrator — never rewrite history
   yourself." Orchestrator commits keep the trailer (the
-  orchestrator is not blinded).
+  orchestrator is not blinded). **Reviewer probe commits are a
+  ruled exception (2026-08-09, twice: #288's ca6ba904, #301's
+  32a95363)**: a reviewer's own pushed probe commit may carry the
+  trailer — reviews are protocol-fable (public knowledge), so
+  authorship-preserving adoption into the implementation branch
+  does NOT break blinding once the unit's reviews are delivered;
+  implementers still correctly STOP-and-report it, and the ruling
+  is recorded no-action in the A/B row.
 
 **Readouts (conclusions live in the log, not here):** M4-close
 (n=10) and M5-close (n=40, arms 15/15) both conclude NO EVIDENCE

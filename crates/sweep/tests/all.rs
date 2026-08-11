@@ -38,6 +38,8 @@ mod extrude_interval;
 mod issue93_az_intersect;
 #[path = "k_report.rs"]
 mod k_report;
+#[path = "lib_u3_sections.rs"]
+mod lib_u3_sections;
 #[path = "m3_pr5_extrude_booleans.rs"]
 mod m3_pr5_extrude_booleans;
 #[path = "m5_pr10_frontier.rs"]
@@ -108,6 +110,8 @@ mod m6_surgery_interval;
 mod m6_tube;
 #[path = "m7_skin_integral.rs"]
 mod m7_skin_integral;
+#[path = "m8_14_long_turn_sweep.rs"]
+mod m8_14_long_turn_sweep;
 #[path = "mass_props.rs"]
 mod mass_props;
 #[path = "mass_props_interval.rs"]
@@ -199,3 +203,6 @@ fn every_suite_file_is_aggregated() {
          is silently dropping them: {missing:?}. Add a `#[path]` line for each."
     );
 }
+
+#[path = "m8_3_rational_volume.rs"]
+mod m8_3_rational_volume;

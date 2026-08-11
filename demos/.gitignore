@@ -1,9 +1,16 @@
-# Demo-local build/venv/output artifacts. Only the tour sources,
-# render scripts, and the rendered PNGs under renders/ are tracked.
+# Demo-local build/venv/output artifacts. Only the tour/wild sources,
+# render scripts, the rendered PNGs under renders*/ and the UV lane's
+# SVG sheet (renders-uv/montage-uv.svg — text, so it diffs) are
+# tracked. The UV lane's per-face cells live under out/uv/ and are not:
+# there are ~1000 of them, and the sheet is the artifact worth keeping.
+# (`out/` matches at any depth, so demos/wild/out/ is covered too.)
 tour/target/
+wild/target/
 out/
 .venv/
 target-demo/
-renders/.freecad_ok
 renders-freecad/*.fail.txt
+# out/ already covers the render staging trees (out/stage-renders*/)
+# and the per-scene FreeCAD logs; spelled out because they are the
+# only place an in-flight pass exists.
 out/freecad-logs/

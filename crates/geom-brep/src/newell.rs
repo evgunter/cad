@@ -65,7 +65,7 @@
 //! limited. (M2 PR 3 review, N3 — pinned by the promoted
 //! `fixed_n3_*` test.)
 
-use geom_core::{Band, Decide, Indeterminate, Length, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 use geom_surfaces::Surface;
 
 use crate::dihedral::decide;
@@ -162,7 +162,7 @@ pub fn newell_plane<T: Decide>(
     // Certification: every vertex within ε of the plane.
     for (i, p) in points.iter().enumerate() {
         let residual = (*p - centroid).dot(normal);
-        match decide("newell_plane_residual", Length::of(residual), band) {
+        match decide("newell_plane_residual", Margin::of(residual), band) {
             Ok(Sign::Zero) => {}
             Ok(Sign::Positive | Sign::Negative) => {
                 return Err(NewellError::NotPlanar { vertex: i });

@@ -16,6 +16,12 @@ export fixture, an `.expect` sidecar, or `check_step.sh` semantics
 goes to a design-conversation PR seen by Evan — never a direct
 edit.
 
+**Renumbering note (ratified with M7's closure, PR #300 comment
+5234714306):** this document's "M8 = error propagation" references
+predate the restructure. Current structure: **M8 = kernel
+residuals** (docs/M8-PLAN.md), **M9 = C7** (declared-contact join
+lane + lily FULL rebuild), **M10 = error propagation**.
+
 ## The contract (D7, restated as obligations)
 
 Import **reconstructs the intensional description** the extensional
@@ -104,3 +110,49 @@ waypoints that flip as the vocabulary grows, potentially after
 applying recommended geometry fixes where the foreign data
 carries slivers (ties to the banked #89 sliver-lint idea,
 LONGTERM-IDEAS I1(0)).
+
+
+## Runway addendum (2026-08-09 — the orchestrator's live plate; updated at seams)
+
+*(Terminology: "block M7-N" in MODEL-AB-LOG is an A/B arm-assignment
+block, not a unit. Units are M7-1…M7-7 below. This section exists so
+the plate is visible on main between seam entries; the log tails
+remain the authoritative narrative.)*
+
+**Units as executed** (the plan's four grew to seven — each growth
+ruled on a thread, none silent):
+
+| unit | what | state |
+|---|---|---|
+| M7-1 | import crate + own-corpus round-trip | MERGED #183 |
+| M7-2 | FreeCAD foreign corpus | MERGED #189 |
+| M7-3 | NURBS faces (+ARM B) | MERGED #209 |
+| M7-4 | wild corpus + dialects | MERGED #193 |
+| M7-5 | band-seam re-mint (the plan's S9-flip pattern executed) | MERGED #252 |
+| M7-6 | stage-1 recognition (always-promote, #256; whole-patch envelope) | MERGED #264 (pair struck from variance sample — same-head amendment) |
+| M7-7 | tier-at-import (the #260 (a) ruling; shared gate) | MERGED #276 (per-solid gating earned at review; ε-row-honest pins; delta re-review 0 MAJ) |
+| M7-8 | plane×NURBS intersection certification (ruled on #264's thread) — the last M7 code unit | MERGED #288. The #276 union collision RULED (option (c), re-fixture — preserves both the #260 (a) no-verdict-filter law and the stretch sequencing): the seam-orphan CLASS is retired (declare-and-check certifies, envelope mutation-pinned post-fix); the arc prism re-pinned as an ADVANCED waypoint (seam certifies, body refuses the banked rational quadrature — flips at stretch item 1b); the integral twin offset_square_prism is tier-valid at rest and measured the SECOND gap (nurbs_iso_derive has no Intersection arm — foreign-restated seams refuse IsoUnsupported at pcurve minting), both flip conditions named in-code |
+| demo | wild-corpus montage, KERNEL-TESSELLATION lane only | MERGED #283; post-#276 re-verify DONE (byte-stable on the union) |
+| demo | calochortus (globe-lily) PARTIAL refresh: tube_along_arc exact-intent stems (finding 11's workaround retired), curved-path sweep_body leaves (KITE section — the rational-section frontier refused the crescent, pinned in crates/sweep with flip-when-fixed), twisted-duct spine vocabulary. The FULL rebuild stays M8 (findings 1/2/7 are C7 machinery) | MERGED #294 (27/27 incl. k-lint gate; both lanes eyeballed; byte-stable re-render) |
+| demo | Utah(-ish) teapot | RE-SEQUENCED (Evan, 2026-08-09): designated as the SHELL verb's demo — queues behind shell/offset (see docs/KERNEL-VERBS.md), not an M7/M8 item |
+
+**Then**: the M7 EXIT WALK (docs/M7-EXIT-WALK.md — only M7-8's
+cells + the tally remain open) → presented for Evan's closure
+ruling → **the DEMO-HARDENING STRETCH** (Evan's directive,
+2026-08-09, in-session + "after the exit walk in another chunk"):
+iron out the demo-raised issues before M8 — #284 (mesh chart-frame
+Newell re-anchor; flips two wild tessellation refusals), the
+rational-carrier span-meter speed bound (unblocks rational-section
+sweeps — the calochortus crescent; flips the crates/sweep pin),
+then the rational-patch-flux quadrature (arc-loft round-trip,
+tier-3 on rational walls; the M7-3 Arm B bank). #298 (pre-push
+hook lock) is LIB's #299. **Then M8 opens with C7** (the join
+lane; contact/signed-clearance co-design — ruled at #223) and the
+M8-PLAN gets drafted against ERROR-DESIGN + CONTACT-DESIGN; the
+lily FULL rebuild rides there as the demo moment.
+
+**Adjacent/banked (not on the critical path)**: the M6 carried-items
+register (#250) incl. the gate-minted-validity-currency design
+(#260) and the structural analytic-mint sidecar (#256); Q9 naming
+(fresh availability data banked; Evan's call); k-lint gating landed
+(#253); render/slot infra landed (#266, #269 — the latter LIB-side).

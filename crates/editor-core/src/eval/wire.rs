@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::k_stats::decide;
-use geom_core::{Affine3, Band, Decide, Length, Mat3, Point2, Point3, Sign, Tolerance, Vec2, Vec3};
+use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tolerance, Vec2, Vec3};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
@@ -16,11 +16,12 @@ use topo::{
     Body, BooleanDeclarations, BooleanResult, CarriedContacts, GeomSource, VfContact, VvContact,
 };
 
+use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
 use crate::names::{self, NameTable};
 use crate::node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
-use crate::profile_desc::ProfileDesc;
+use crate::program::ProfileProgram;
 
 type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
 /// An op's product: the payload plus its eagerly-emitted name table
@@ -31,12 +32,16 @@ type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 
 /// Runs one node's op against its (already Ok) inputs and evaluated
 /// slots, emitting the node's name table alongside the payload.
+/// `profile_pre` is the profile node's f64 precompute (present exactly
+/// for `Node::Profile` — computed in `eval_node`'s resolution stage,
+/// outside the verdict bracket).
 pub(crate) fn run_op<T>(
     id: RecipeNodeId,
-    node: &Node<ProfileDesc>,
-    doc: &crate::doc::Doc<ProfileDesc>,
+    node: &Node<ProfileProgram>,
+    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
+    profile_pre: Option<&ProfilePre>,
     boolean_sweep: topo::SweepStrategy,
 ) -> OpResult<T>
 where
@@ -44,7 +49,7 @@ where
 {
     match node {
         Node::Datum(d) => Ok((wire_datum(d, vals)?, names::empty())),
-        Node::Profile(desc) => Ok((wire_profile(desc)?, names::empty())),
+        Node::Profile(_) => Ok((wire_profile(profile_pre)?, names::empty())),
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals),
         Node::Revolve { profile, axis, .. } => wire_revolve(id, *profile, *axis, results, vals),
         Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals),
@@ -179,7 +184,7 @@ fn band() -> Result<Band, NodeErrorKind> {
 /// Normalizes a direction-valued vector; decided-zero length refuses,
 /// in-band indeterminacy escalates (all through the one door).
 fn unit<T: Decide>(v: Vec3<T>, role: &'static str) -> Result<Vec3<T>, NodeErrorKind> {
-    match decide("eval_direction_norm", Length::norm3(v), band()?) {
+    match decide("eval_direction_norm", Margin::norm3(v), band()?) {
         Ok(Sign::Positive) => Ok(v.normalize()),
         Ok(_) => Err(NodeErrorKind::DegenerateDirection { role }),
         Err(source) => Err(NodeErrorKind::Escalated {
@@ -229,12 +234,83 @@ fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>) -> PayloadResult<T> {
     }))
 }
 
-fn wire_profile<T: Decide>(desc: &ProfileDesc) -> PayloadResult<T> {
-    let validated = desc
-        .embed::<T>()
+/// The profile node's F64 PRECOMPUTE (LIB-SWITCH §4b): the resolved
+/// program replays through `profile::replay` — the driver, the ONLY
+/// path from steps to geometry — then the assembled `Profile<f64>`
+/// validates at f64 (the C6 structure-selection gate, which also
+/// yields the canonical form the program-anchor naming map is derived
+/// from). Runs OUTSIDE the verdict bracket (`eval_node`): these are
+/// structure decisions, the successor of the stored f64 bits, not
+/// per-lane op decisions. VQ6 is closed here and in the op below: the
+/// replay-time junction checks and both validations run under the
+/// SAME `Tolerance::get()` the evaluation pins.
+pub(crate) fn prepare_profile(
+    program: &ProfileProgram,
+    resolved: &[Vec<profile::Step<f64>>],
+) -> Result<ProfilePre, NodeErrorKind> {
+    let mut loops = Vec::with_capacity(resolved.len());
+    for (li, steps) in resolved.iter().enumerate() {
+        let lp = profile::replay(steps).map_err(|error| NodeErrorKind::ProfileReplay {
+            loop_: li as u32,
+            error,
+        })?;
+        loops.push(lp);
+    }
+    let profile_f64 = profile::Profile::new(program.plane, loops);
+    let validated_f64 = profile_f64
         .validate(Tolerance::get())
         .map_err(NodeErrorKind::Profile)?;
-    Ok(ValuePayload::Profile(Arc::new(validated)))
+    let naming = anchor::derive_naming(&validated_f64, &profile_f64.loops).ok_or({
+        // A canonical loop failed to match any program loop — an
+        // internal invariant break, typed (the loop coordinate is not
+        // recoverable from the failed derivation; 0 names the walk).
+        NodeErrorKind::ProfileAnchor { loop_: 0 }
+    })?;
+    Ok(ProfilePre {
+        profile_f64,
+        naming,
+    })
+}
+
+/// The profile node's op: embed the precomputed f64 profile into the
+/// lane scalar and validate under the run tolerance — exactly the
+/// pre-switch op, so the node's logged verdicts are unchanged.
+fn wire_profile<T: Decide>(pre: Option<&ProfilePre>) -> PayloadResult<T> {
+    let Some(pre) = pre else {
+        // Unreachable by eval_node's stage order; typed, never a panic.
+        return Err(NodeErrorKind::MissingSlot {
+            slot: SlotId::Profile {
+                loop_: 0,
+                step: 0,
+                arg: crate::node::StepArg::PointX,
+            },
+        });
+    };
+    let validated = anchor::embed_profile::<T>(&pre.profile_f64)
+        .validate(Tolerance::get())
+        .map_err(NodeErrorKind::Profile)?;
+    Ok(ValuePayload::Profile(Arc::new(ProfileValue {
+        validated,
+        naming: pre.naming.clone(),
+    })))
+}
+
+/// Applies the program-anchor rewrite to an emitted table (identity
+/// anchors skip the rebuild). A collision is an internal bug (the
+/// rewrite is a bijection per loop), refused typed.
+fn anchored(
+    table: Arc<NameTable>,
+    naming: &ProfileNaming,
+) -> Result<Arc<NameTable>, NodeErrorKind> {
+    if naming.is_identity() {
+        return Ok(table);
+    }
+    match anchor::remap_table(&table, naming) {
+        Some(t) => Ok(Arc::new(t)),
+        None => Err(NodeErrorKind::Naming(names::NamingError::Emission {
+            what: "program-anchor rewrite collided (bijection invariant broken)",
+        })),
+    }
 }
 
 fn wire_extrude<T: Decide>(
@@ -252,10 +328,13 @@ fn wire_extrude<T: Decide>(
         });
     };
     let distance = need_scalar(vals, SlotId::Distance)?;
-    let mut built = extrude(vp, Extrusion::Distance(distance)).map_err(NodeErrorKind::Extrude)?;
+    let mut built =
+        extrude(&vp.validated, Extrusion::Distance(distance)).map_err(NodeErrorKind::Extrude)?;
     // Eager N4 emission from the emitter's own maps, BEFORE the
-    // structural handoff is dropped.
+    // structural handoff is dropped — then the program-anchor rewrite
+    // (canonical → program indices; LIB-SWITCH §6).
     let table = names::name_extrude(id, &built).map_err(NodeErrorKind::Naming)?;
+    let table = anchored(table, &vp.naming)?;
     stamp_minted(&mut built.body, id);
     Ok((ValuePayload::Body(Arc::new(built.body)), table))
 }
@@ -287,7 +366,7 @@ fn wire_revolve<T: Decide>(
     // 3-D datum axis must lie in the profile's plane (decided; a
     // definite out-of-plane component is a typed refusal, spec D3's
     // "wire, don't invent" — projecting silently would be invention).
-    let place = vp.plane().placement;
+    let place = vp.validated.plane().placement;
     let (u, v_axis, n) = (place.linear.c0, place.linear.c1, place.linear.c2);
     let plane_origin = Point3::new(
         place.translation.x,
@@ -318,7 +397,7 @@ fn wire_revolve<T: Decide>(
     };
     in_plane(
         "revolve_axis_origin_in_plane",
-        decide("revolve_axis_origin_in_plane", Length::of(rel.dot(n)), b),
+        decide("revolve_axis_origin_in_plane", Margin::of(rel.dot(n)), b),
     )?;
     in_plane(
         "revolve_axis_dir_in_plane",
@@ -353,8 +432,9 @@ fn wire_revolve<T: Decide>(
             });
         }
     };
-    let mut built = revolve(vp, axis2, revolution).map_err(NodeErrorKind::Revolve)?;
+    let mut built = revolve(&vp.validated, axis2, revolution).map_err(NodeErrorKind::Revolve)?;
     let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
+    let table = anchored(table, &vp.naming)?;
     stamp_minted(&mut built.body, id);
     Ok((ValuePayload::Body(Arc::new(built.body)), table))
 }
@@ -401,7 +481,7 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
     id: RecipeNodeId,
     target: RecipeNodeId,
     selection: &[names::StableName],
-    doc: &crate::doc::Doc<ProfileDesc>,
+    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
 ) -> OpResult<T> {
@@ -460,7 +540,7 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
 /// this kernel inherits (D9) regardless of how the recipe sorted.
 fn resolve_selection(
     selection: &[names::StableName],
-    doc: &crate::doc::Doc<ProfileDesc>,
+    doc: &crate::doc::Doc<ProfileProgram>,
     target: &NameTable,
 ) -> Result<Vec<topo::EdgeKey>, NodeErrorKind> {
     use crate::names::{EntityKey, Entry};
@@ -594,7 +674,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
     a: RecipeNodeId,
     b: RecipeNodeId,
     declare: Option<RecipeNodeId>,
-    doc: &crate::doc::Doc<ProfileDesc>,
+    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     boolean_sweep: topo::SweepStrategy,
 ) -> OpResult<T> {
@@ -679,7 +759,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
 /// together.
 fn resolve_declarations(
     pairs: &[(names::StableName, names::StableName)],
-    doc: &crate::doc::Doc<ProfileDesc>,
+    doc: &crate::doc::Doc<ProfileProgram>,
     a_table: &NameTable,
     b_table: &NameTable,
 ) -> Result<BooleanDeclarations, NodeErrorKind> {
@@ -900,10 +980,12 @@ fn wire_pattern<T: Decide>(
 /// was NOT true as written until #207 closed. `sweep_body` with any
 /// CURVED path refused at assembly — the skin fit synthesized a weight
 /// channel for integral sections, the walls came out bitwise rational,
-/// and `nurbs_span_meter` poisoned — so between M6-3 and #207 the
-/// machinery had zero successful curved-path callers anywhere in the
-/// tree, and only the straight-path/uniform-loft slice was exercised.
-/// The claim stands today on a real caller:
+/// and `nurbs_span_meter` poisoned (the meter had no rational arm
+/// then; M7's rational span meter has since given it one, so a
+/// rational wall is no longer fatal on its own) — so between M6-3 and
+/// #207 the machinery had zero successful curved-path callers anywhere
+/// in the tree, and only the straight-path/uniform-loft slice was
+/// exercised. The claim stands today on a real caller:
 /// `sweep/tests/m7_skin_integral.rs` builds, validates and measures a
 /// quarter-torus elbow, and `step-export/tests/m7_swept_elbow.rs` puts
 /// it on the wire.
@@ -925,47 +1007,45 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
 /// therefore not a shortcut — it is the only way the Interval lane
 /// encloses the SAME surface the `f64` lane defines.
 fn section_of(
-    doc: &crate::doc::Doc<ProfileDesc>,
+    doc: &crate::doc::Doc<ProfileProgram>,
     id: RecipeNodeId,
-) -> Result<(sweep::SectionSegments, Affine3<f64>), NodeErrorKind> {
-    let Some(Node::Profile(desc)) = doc.nodes.get(&id) else {
+) -> Result<(sweep::Section, Affine3<f64>, ProfileNaming), NodeErrorKind> {
+    let Some(Node::Profile(program)) = doc.nodes.get(&id) else {
         return Err(NodeErrorKind::WrongOperand {
             input: id,
             expected: "profile node",
             found: "not a profile node",
         });
     };
-    // The profile's own validation door still runs: a section that
-    // would not extrude does not skin either.
-    let validated = desc
-        .embed::<f64>()
+    // LIB-SWITCH §4b at the loft/sweep seam: the section is the
+    // node's program RESOLVED at f64 and REPLAYED — the same C6/D9
+    // pipeline the profile node runs. The profile's own validation
+    // door still runs first, so a bad section reads as a profile
+    // error at the NODE (the §2 compatibility contract) before the
+    // library door re-gates it — and the f64 canonical form yields
+    // the program-anchor naming map for the loft emitter's refs.
+    let resolved = program
+        .resolve(&doc.param_env::<f64>())
+        .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
+    let mut loops = Vec::with_capacity(resolved.len());
+    for (li, steps) in resolved.iter().enumerate() {
+        let lp = profile::replay(steps).map_err(|error| NodeErrorKind::ProfileReplay {
+            loop_: li as u32,
+            error,
+        })?;
+        loops.push(lp);
+    }
+    let profile_f64 = profile::Profile::new(program.plane, loops.clone());
+    let validated = profile_f64
         .validate(Tolerance::get())
         .map_err(NodeErrorKind::Profile)?;
+    let naming = anchor::derive_naming(&validated, &loops)
+        .ok_or(NodeErrorKind::ProfileAnchor { loop_: 0 })?;
     let place = validated.plane().placement;
-    let chains = desc
-        .0
-        .loops
-        .iter()
-        .map(|lp| {
-            let n = lp.vertices.len();
-            (0..n)
-                .map(|j| {
-                    let a = lp.vertices[j];
-                    let b = lp.vertices[(j + 1) % n];
-                    if a.bulge == 0.0 {
-                        sweep::SketchSegment::Line { a: a.pos, b: b.pos }
-                    } else {
-                        sweep::SketchSegment::Arc {
-                            a: a.pos,
-                            b: b.pos,
-                            bulge: a.bulge,
-                        }
-                    }
-                })
-                .collect()
-        })
-        .collect();
-    Ok((chains, place))
+    // The sections are the REPLAYED loops (program order — exactly
+    // the stored-loop handoff LIB-U3 established, one derivation
+    // earlier): positions, bulges, declared joints verbatim.
+    Ok((loops, place, naming))
 }
 
 /// A structural (Count) slot, refused typed when absent or unusable.
@@ -980,16 +1060,29 @@ fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, Nod
 fn wire_loft<T: Decide>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
-    doc: &crate::doc::Doc<ProfileDesc>,
+    doc: &crate::doc::Doc<ProfileProgram>,
     vals: &SlotValues<T>,
 ) -> OpResult<T> {
     let v_degree = need_count(vals, SlotId::VDegree)?;
     let mut sections = Vec::with_capacity(profiles.len());
     let mut places = Vec::with_capacity(profiles.len());
-    for pid in profiles {
-        let (chain, place) = section_of(doc, *pid)?;
+    let mut first_naming = ProfileNaming::default();
+    for (i, pid) in profiles.iter().enumerate() {
+        let (chain, place, naming) = section_of(doc, *pid)?;
         sections.push(chain);
         places.push(place);
+        if i == 0 {
+            // The loft emitter's profile refs are canonical (loop,
+            // segment) indices of the SECTION combinatorics; sections
+            // must correspond, so the FIRST section's anchor is the
+            // rewrite for the emitted table. PINNED LIMITATION
+            // (reported; review NOTE): a later section authored
+            // rotated/reversed relative to section 0 anchors to
+            // section 0's map, not its own — acceptable while the
+            // kernel requires corresponding sections; revisit if loft
+            // ever accepts per-section reparametrization.
+            first_naming = naming;
+        }
     }
     // The geometry/profile doors keep their historical node-error
     // shapes (the §2 compatibility contract predates the builder);
@@ -1002,6 +1095,7 @@ fn wire_loft<T: Decide>(
     // Eager N4 emission from the builder's own maps, BEFORE the
     // structural handoff is dropped (the extrude idiom).
     let table = names::name_loft(id, &built).map_err(NodeErrorKind::Naming)?;
+    let table = anchored(table, &first_naming)?;
     stamp_minted(&mut built.body, id);
     Ok((ValuePayload::Body(Arc::new(built.body)), table))
 }
@@ -1017,7 +1111,7 @@ fn wire_loft<T: Decide>(
 fn wire_sweep<T: Decide>(
     profile: RecipeNodeId,
     path: RecipeNodeId,
-    doc: &crate::doc::Doc<ProfileDesc>,
+    doc: &crate::doc::Doc<ProfileProgram>,
     vals: &SlotValues<T>,
 ) -> OpResult<T> {
     let _stations = need_count(vals, SlotId::Stations)?;

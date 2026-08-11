@@ -133,6 +133,8 @@ pub mod euler_ring;
 #[cfg(test)]
 pub(crate) mod fixtures;
 pub mod geometry;
+
+pub mod instance;
 #[cfg(test)]
 pub(crate) mod iso;
 pub mod merge_faces;
@@ -171,8 +173,8 @@ pub use boolean::{
     ContactRecords, FaceContainment, NullEdgePairRecord, Operand, OperandKeys, PairSite,
     PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError,
     SideCode, SolidContainment, SweepStrategy, SweepTrace, VfContact, VvContact, boolean_op_with,
-    boolean_reduce, boolean_reduce_declared, contfp, intersect, intersect_with, oriented_plane_eq,
-    point_in_solid, subtract, subtract_with, union, union_with,
+    boolean_reduce, boolean_reduce_declared, contfp, flush_pair_relation, intersect,
+    intersect_with, oriented_plane_eq, point_in_solid, subtract, subtract_with, union, union_with,
 };
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{PlantedDegradation, sweep_traces, sweep_traces_with_pad};
@@ -187,12 +189,13 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
 pub use geom_brep::{
-    CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, Pcurve, PcurveCache,
-    PcurveCertifyError,
+    CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, EdgeNurbsLane, Pcurve,
+    PcurveCache, PcurveCertifyError,
 };
 pub use geom_curves::Curve3;
 pub use geom_surfaces::Surface;
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
+pub use instance::{graft_disjoint, graft_disjoint_all};
 pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use pcurves::{PcurveMintError, mint_pcurves, pcurve_of};

@@ -53,35 +53,26 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Point3, Tolerance, Vec3};
-use profile::SketchPlane;
-use sweep::skin::{SectionSegments, loft_geometry, sweep_geometry};
-use sweep::{SketchSegment, segment_curve};
+use pncad::geom_core::{Affine3, Point2, Point3, Tolerance, Vec3};
+use pncad::profile::{ProfileLoop, ProfileVertex, SketchPlane};
+use pncad::sweep::skin::{Section, loft_geometry, sweep_geometry};
+use pncad::sweep::{SketchSegment, segment_curve};
 
 use crate::{SceneBody, Stop, View};
 
-/// A square-with-an-arc section, scaled by `s`.
-fn chain(s: f64) -> SectionSegments {
-    let p = |x: f64, y: f64| Point2::new(x * s, y * s);
-    vec![vec![
-        SketchSegment::Line {
-            a: p(0.0, 0.0),
-            b: p(2.0, 0.0),
-        },
-        SketchSegment::Arc {
-            a: p(2.0, 0.0),
-            b: p(2.0, 1.0),
-            bulge: 0.25,
-        },
-        SketchSegment::Line {
-            a: p(2.0, 1.0),
-            b: p(0.0, 1.0),
-        },
-        SketchSegment::Line {
-            a: p(0.0, 1.0),
-            b: p(0.0, 0.0),
-        },
-    ]]
+/// A square-with-an-arc section, scaled by `s` (LIB-U3 profile
+/// vocabulary: one loop, the arc as vertex 1's bulge).
+fn chain(s: f64) -> Section {
+    let v = |x: f64, y: f64, bulge: f64| ProfileVertex {
+        pos: Point2::new(x * s, y * s),
+        bulge,
+    };
+    vec![ProfileLoop::new(vec![
+        v(0.0, 0.0, 0.0),
+        v(2.0, 0.0, 0.25),
+        v(2.0, 1.0, 0.0),
+        v(0.0, 1.0, 0.0),
+    ])]
 }
 
 /// The tour's loft + sweep stop.
@@ -190,20 +181,13 @@ pub fn narration() {
 // ---- The scene constructions (corpus fixtures, constant for
 // constant — `step-export/tests/common/mod.rs`) -------------------
 
-/// A closed four-segment polyline section (one loop, four lines) —
-/// the plainest INTEGRAL profile: unit weights, no arc anywhere.
-/// `common/mod.rs::quad`, verbatim.
-fn quad(pts: [(f64, f64); 4]) -> SectionSegments {
-    let seg = |a: (f64, f64), b: (f64, f64)| SketchSegment::Line {
-        a: Point2::new(a.0, a.1),
-        b: Point2::new(b.0, b.1),
-    };
-    vec![vec![
-        seg(pts[0], pts[1]),
-        seg(pts[1], pts[2]),
-        seg(pts[2], pts[3]),
-        seg(pts[3], pts[0]),
-    ]]
+/// A closed four-line quad section (one loop) — the plainest
+/// INTEGRAL profile: unit weights, no arc anywhere.
+/// `common/mod.rs::quad`, verbatim (LIB-U3 profile vocabulary).
+fn quad(pts: [(f64, f64); 4]) -> Section {
+    vec![ProfileLoop::polygon(
+        pts.iter().map(|&(x, y)| Point2::new(x, y)),
+    )]
 }
 
 /// The prism's end sections (`common/mod.rs::PRISM_SQUARE`).
@@ -228,7 +212,15 @@ fn lofted_at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
 
 /// The square/trapezoid/square section stack both loft scenes share —
 /// the minimal pair's shared half.
-fn prism_sections() -> Vec<SectionSegments> {
+/// The middle section's v-parameter at the montage spacing
+/// (z = 0/0.15/2), `3√29/(3√29 + √5701)` — the pin the stop's note
+/// narrates, checked against `loft_parameters` at build time.
+// The shortest form that round-trips to the same f64 as the note's
+// 0.17625368909901809 (that last digit is past f64's precision, which
+// is why the narration keeps it and the constant does not).
+const NONUNIFORM_T: f64 = 0.1762536890990181;
+
+fn prism_sections() -> Vec<Section> {
     vec![
         quad(PRISM_SQUARE),
         quad(PRISM_TRAPEZOID),
@@ -260,9 +252,10 @@ pub fn stops() -> Vec<Stop> {
         up: 'z',
     };
 
-    let prism = sweep::loft_body::<f64>(&prism_sections(), &lofted_at_z(&[0.0, 1.0, 2.0]), 2)
-        .expect("shape (iii) loft builds")
-        .body;
+    let prism =
+        pncad::sweep::loft_body::<f64>(&prism_sections(), &lofted_at_z(&[0.0, 1.0, 2.0]), 2)
+            .expect("shape (iii) loft builds")
+            .body;
     // Montage-v2 spacing: z = 0/0.15/2, not the corpus fixture's
     // 0/1/3. Measured on the #218 sheet, 0/1/3 was invisible as a
     // pair member: its bulge peaks at 48.8% of height with half-width
@@ -273,7 +266,21 @@ pub fn stops() -> Vec<Stop> {
     // dramatically (numbers in the stop's note). The corpus fixture
     // keeps 0/1/3 — this scene now LEADS the corpus, the s_duct/lily
     // precedent.
-    let nonuniform = sweep::loft_body::<f64>(&prism_sections(), &lofted_at_z(&[0.0, 0.15, 2.0]), 2)
+    let nonuniform_places = lofted_at_z(&[0.0, 0.15, 2.0]);
+    // The middle section's v-parameter, ASKED (LIB-U5 deliverable 1)
+    // rather than re-derived: the note below narrates
+    // t = 3√29/(3√29 + √5701) and every number downstream of it, so
+    // the derivation is pinned against the kernel's own answer here.
+    // Before this door existed the note's algebra was the only record
+    // of what `skin_parameters` had chosen.
+    let params = pncad::sweep::loft_parameters(&prism_sections(), &nonuniform_places, 2)
+        .expect("the non-uniform sections skin");
+    assert_eq!(
+        params,
+        vec![0.0, NONUNIFORM_T, 1.0],
+        "the narrated v-parameterization is no longer what the skin chose"
+    );
+    let nonuniform = pncad::sweep::loft_body::<f64>(&prism_sections(), &nonuniform_places, 2)
         .expect("the non-uniform loft builds")
         .body;
 
@@ -304,9 +311,9 @@ pub fn stops() -> Vec<Stop> {
             Point3::new(0.0, S_R + S_R * ph.sin(), 2.0 * S_R - S_R * ph.cos())
         }))
         .collect();
-    let path =
-        geom_curves::NurbsCurve3::interpolate(&s_points, 3).expect("the S path interpolates");
-    let s_duct = sweep::sweep_body::<f64>(
+    let path = pncad::geom_curves::NurbsCurve3::interpolate(&s_points, 3)
+        .expect("the S path interpolates");
+    let s_duct = pncad::sweep::sweep_body::<f64>(
         &quad([
             (-ELBOW_H, -ELBOW_H),
             (ELBOW_H, -ELBOW_H),
@@ -345,7 +352,7 @@ pub fn stops() -> Vec<Stop> {
                  (0, 1/2, 1) is the quadratic Lagrange interpolant, corner paths \
                  S + lambda(v)*D with lambda = 4v(1-v), z = 2v exactly, each slice a \
                  trapezoid of area 4 + 2*d*lambda (d = 0.375) -> \
-                 V = 8 + 16d/3 = 9 m^3 exactly; the walls RENDER here through the \
+                 V = 8 + 8d/3 = 9 m^3 exactly; the walls RENDER here through the \
                  trimmed-face NURBS tessellation lane (the M6-3 frontier's second half)"
                     .to_string(),
             ),
@@ -376,7 +383,9 @@ pub fn stops() -> Vec<Stop> {
                  Derivation at 0/0.15/2: skin_parameters averages cumulative CHORD \
                  lengths over the first strip's control rows (the flared bottom \
                  corners), so t = 3*sqrt(29)/(3*sqrt(29) + sqrt(5701)) = \
-                 0.17625368909901809; the corner flare is the quadratic Lagrange \
+                 0.17625368909901809 — which the scene now ASKS the kernel for \
+                 (sweep::loft_parameters) and pins this derivation against, \
+                 rather than re-deriving it in prose; the corner flare is the quadratic Lagrange \
                  bump lambda(v) = v(1-v)/(t(1-t)), slice area 4 + 2d*lambda \
                  (d = 0.375), z(v) the quadratic through (0,0),(t,0.15),(1,2), and \
                  int v(1-v) z'(v) dv = H/6 for ANY quadratic z, so \
@@ -454,14 +463,18 @@ pub fn stops() -> Vec<Stop> {
     // the degree-3 interpolant through 33 exact points). A revolve's
     // spine is a planar circular arc; gluing revolves concatenates
     // planar arcs — nothing glued from revolves has a spine with
-    // nonzero torsion. MEASURED path-vocabulary context (montage-v2
-    // probe): full helix turns refuse typed today (ReversedStacking
-    // past ~half a turn of position stacking; the corner-path chord
-    // meter — nurbs_span_meter — collapses when the frame's roll
-    // makes a corner path double back), so the twisted cubic, whose
-    // tangent stays within a modest cone of its chord, is the
-    // strongest REACHABLE nonzero-torsion demonstration, and it is
-    // the mathematically definitive one.
+    // nonzero torsion. MEASURED path-vocabulary context, RE-MEASURED
+    // at M8-14 (#222): full helix turns BUILD AND CERTIFY now —
+    // half-turn, full-turn and two-turn helical sweeps pass the tier
+    // ladder against a Pappus A·L oracle (sweep's
+    // m8_14_long_turn_sweep suite). The montage-v2 refusal this
+    // paragraph used to record (the corner-path chord meter —
+    // nurbs_span_meter — collapsing when the frame's near-antipodal
+    // roll makes a corner path double back against its global chord)
+    // retired when the integral speed meter went per-span; the
+    // twisted cubic stays as THIS cell because it is the
+    // mathematically definitive nonzero-torsion demonstration, no
+    // longer merely the strongest reachable one.
     let (tc_a, tc_b, tc_c) = (2.2, 1.3, 1.5);
     let cubic_points: Vec<Point3<f64>> = (0..=32)
         .map(|k| {
@@ -469,8 +482,8 @@ pub fn stops() -> Vec<Stop> {
             Point3::new(tc_a * t, tc_b * t * t, tc_c * t * t * t)
         })
         .collect();
-    let cubic_path =
-        geom_curves::NurbsCurve3::interpolate(&cubic_points, 3).expect("the cubic interpolates");
+    let cubic_path = pncad::geom_curves::NurbsCurve3::interpolate(&cubic_points, 3)
+        .expect("the cubic interpolates");
     // Profile plane normal to the start tangent (the same frame
     // recipe the narration uses).
     let place = {
@@ -486,7 +499,7 @@ pub fn stops() -> Vec<Stop> {
         let u = u / u.norm();
         SketchPlane::from_frame(cubic_path.eval(lo), u, n.cross(u)).placement
     };
-    let twisted = sweep::sweep_body::<f64>(
+    let twisted = pncad::sweep::sweep_body::<f64>(
         &quad([
             (-ELBOW_H, -ELBOW_H),
             (ELBOW_H, -ELBOW_H),

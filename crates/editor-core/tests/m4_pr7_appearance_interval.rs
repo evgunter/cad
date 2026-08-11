@@ -53,7 +53,7 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
     // An overlapping union plus a free extrude — enough to exercise
     // resolved rows (operand-wrapped and pass-through names), a
     // Vanished loss, and multi-attribute entries at both lanes.
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr7_appearance_interval");
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, decl) = declare_x_offset_flush(doc, a, b);

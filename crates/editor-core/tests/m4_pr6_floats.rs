@@ -21,7 +21,7 @@ use proptest::prelude::*;
 /// Round-trips one value through every float slot at once; returns
 /// the loaded document for slot-by-slot bit assertions.
 fn round_trip(value: f64) -> ProfileDoc {
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("m4_pr6_floats");
     let push = |d: &ProfileDoc, e| editor_core::apply(d, &e).expect("edit").doc;
     doc = push(
         &doc,
@@ -33,7 +33,11 @@ fn round_trip(value: f64) -> ProfileDoc {
             },
         },
     );
-    // Expression literal (via the constructor door — finite only).
+    // The profile's RAW-float channel is the PLANE PLACEMENT under v4
+    // (program args are Exprs, and the VQ9 door validates program
+    // GEOMETRY, so arbitrary-magnitude coordinates no longer belong in
+    // loops — they ride the placement, which validation passes
+    // through as conventional data).
     doc = push(
         &doc,
         DocEdit::InsertNode {
@@ -41,11 +45,7 @@ fn round_trip(value: f64) -> ProfileDoc {
                 [value, 0.0, 0.0],
                 [1.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0],
-                vec![vec![
-                    (0.0, 0.0),
-                    (1.0, value.abs().min(1e6) + 1.0),
-                    (value, 2e9),
-                ]],
+                vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
             )),
         },
     );
@@ -84,13 +84,12 @@ fn check_all_slots(value: f64) {
     let Some(Node::Profile(prof)) = doc.node(editor_core::RecipeNodeId(0)) else {
         panic!("profile lost");
     };
-    // The value rides the placement origin and the vertices; find it
-    // by scanning the Float tokens (tags separate structure from
-    // data, so this scan can never match a boundary).
-    assert!(
-        prof.tokens()
-            .contains(&editor_core::DescToken::Float(value.to_bits())),
-        "profile floats lost {value:?}"
+    // The value rides the placement origin (v4's raw-float channel);
+    // arbitrary-value EXPRESSION coverage is the datum literal below.
+    assert_bits(
+        "profile placement",
+        value,
+        prof.plane.placement.translation.x,
     );
     let Some(Node::Datum(editor_core::Datum::Point { position })) =
         doc.node(editor_core::RecipeNodeId(1))
@@ -140,7 +139,7 @@ fn epsilon_round_trips_bit_exactly() {
     // ε is recorded in-document (D4); its bits survive save/load.
     // (The in-process reconcile door requires it to MATCH the
     // committed ambient ε, so the probe uses the ambient value.)
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr6_floats");
     let text = save(&doc, &[]).expect("save");
     let loaded = load(&text).expect("load");
     assert_bits("epsilon", doc.epsilon(), loaded.doc.epsilon());

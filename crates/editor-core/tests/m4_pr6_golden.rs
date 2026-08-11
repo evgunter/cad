@@ -23,14 +23,14 @@
 mod fixture;
 
 use editor_core::{
-    Attr, CancelToken, Dimension, DocEdit, DocParam, EntityKind, EvalOptions, Expr, MetaValue,
-    Node, NodeResult, ParamName, PersistError, ProfileDesc, ProfileDoc, Rgba8, RoleSeg, StableName,
-    WitnessDatum, apply, evaluate, load, save,
+    Attr, CancelToken, Dimension, DocEdit, DocParam, EntityKind, EvalOptions, Expr, LoopProgram,
+    MetaValue, Node, NodeResult, ParamName, PersistError, ProfileDoc, ProfileProgram, ProgramStep,
+    ProgramTarget, Rgba8, RoleSeg, StableName, WitnessDatum, apply, evaluate, load, save,
 };
-use fixture::{desc, len};
+use fixture::desc;
 
-const GOLDEN: &str = include_str!("golden/v3_golden.cad");
-const GOLDEN_PATH: &str = "tests/golden/v3_golden.cad";
+const GOLDEN: &str = include_str!("golden/v6_golden.cad");
+const GOLDEN_PATH: &str = "tests/golden/v6_golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
@@ -47,9 +47,15 @@ const GOLDEN_PATH: &str = "tests/golden/v3_golden.cad";
 /// same `tangent_joints` wire coverage); content change only, format
 /// unchanged — both byte generations parse under the same schema-1
 /// loader.
-fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileDesc>>) {
-    let mut doc = ProfileDoc::empty();
-    let push = |d: &ProfileDoc, e: &DocEdit<ProfileDesc>| apply(d, e).expect("golden edit").doc;
+fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
+    let mut doc = ProfileDoc::empty_derived("m4_pr6_golden");
+    let push = |d: &ProfileDoc, e: &DocEdit<ProfileProgram>| apply(d, e).expect("golden edit").doc;
+    let lpt = |x: f64, y: f64| {
+        [
+            Expr::literal(x, Dimension::Length).expect("finite"),
+            Expr::literal(y, Dimension::Length).expect("finite"),
+        ]
+    };
     doc = push(&doc, &DocEdit::SetTolerance { eps: 1e-9 });
     doc = push(
         &doc,
@@ -61,13 +67,20 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileDesc>>) {
             },
         },
     );
-    let mut d = desc(
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]],
-    );
-    d.0.loops[0].vertices[1].bulge = 0.25; // an arc segment
+    // v4 re-authoring (content-preserving): the quad with one arc
+    // segment authors as a chain whose arc step carries its AUTHORED
+    // bulge — the same 0.25 the retired form stored on vertex 1.
+    let mut d = desc([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![]);
+    d.loops = vec![LoopProgram::Chain(vec![
+        ProgramStep::At(lpt(0.0, 0.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(lpt(2.0, 0.0))),
+        ProgramStep::ArcTo {
+            target: ProgramTarget::Point(lpt(2.0, 1.0)),
+            bulge: Expr::literal(0.25, Dimension::Scalar).expect("finite"),
+        },
+        ProgramStep::LineTo(ProgramTarget::Point(lpt(0.0, 1.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ])];
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -92,52 +105,61 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileDesc>>) {
     // the golden from day one. (#120: this replaced the original
     // COLLINEAR declaration, which the #101 same-carrier rule
     // refuses — the old exemplar was sick.)
-    let mut bracket = profile::ProfileLoop::new(
-        [
-            (0.0, 0.0, 0.0),
-            (3.0, 0.0, 0.0),
-            (3.0, 1.0, 0.0),
-            (1.5, 1.0, -(std::f64::consts::SQRT_2 - 1.0)),
-            (1.0, 1.5, 0.0),
-            (1.0, 3.0, 0.0),
-            (0.0, 3.0, 0.0),
-        ]
-        .into_iter()
-        .map(|(x, y, bulge)| profile::ProfileVertex {
-            pos: geom_core::Point2::new(x, y),
-            bulge,
-        })
-        .collect(),
-    );
-    bracket.tangent_joints = vec![3, 4];
+    // v4: the hand-declared joints author STRUCTURALLY — `.tangent()`
+    // before the arc and before the leg out of it (the corpus
+    // bracket's own program form; the arc bulge is now the tangent-arc
+    // derivation, the W1 ulp class).
+    let bracket = LoopProgram::Chain(vec![
+        ProgramStep::At(lpt(0.0, 0.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(lpt(3.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(lpt(3.0, 1.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(lpt(1.5, 1.0))),
+        ProgramStep::Tangent,
+        ProgramStep::TangentArcTo(ProgramTarget::Point(lpt(1.0, 1.5))),
+        ProgramStep::Tangent,
+        // A declared-tangent straight leg RIDES the inherited
+        // direction, so it authors as a LENGTH (`line(1.5)` — the
+        // (1, 1.5) → (1, 3) run), not a second target.
+        ProgramStep::Line(Expr::literal(1.5, Dimension::Length).expect("finite")),
+        ProgramStep::LineTo(ProgramTarget::Point(lpt(0.0, 3.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileDesc(profile::Profile::new(
-                profile::SketchPlane::xy(),
-                vec![bracket],
-            ))),
+            node: Node::Profile(ProfileProgram {
+                plane: profile::SketchPlane::xy(),
+                loops: vec![bracket],
+            }),
         },
     );
-    let fillet_loop = profile::ProfileLoop::builder(geom_core::Point2::new(0.0, 0.0))
-        .line_to(geom_core::Point2::new(3.0, 0.0))
-        .line_to(geom_core::Point2::new(3.0, 1.0))
-        .fillet(
-            geom_core::Point2::new(1.0, 1.0),
-            geom_core::Point2::new(1.0, 3.0),
-            0.5,
-        )
-        .expect("golden fillet fits")
-        .line_to(geom_core::Point2::new(1.0, 3.0))
-        .line_to(geom_core::Point2::new(0.0, 3.0))
-        .close();
+    // v4: the constructed fillet authors as the chain fillet form
+    // (exact `toward` directors — G1/VQ4).
+    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let fillet_loop = LoopProgram::Chain(vec![
+        ProgramStep::At(lpt(0.0, 0.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(lpt(3.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(lpt(3.0, 1.0))),
+        ProgramStep::Toward {
+            dx: scl(-1.0),
+            dy: scl(0.0),
+        },
+        ProgramStep::Fillet(Expr::literal(0.5, Dimension::Length).expect("finite")),
+        ProgramStep::Toward {
+            dx: scl(0.0),
+            dy: scl(1.0),
+        },
+        ProgramStep::FarEndTo(lpt(1.0, 3.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(lpt(0.0, 3.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileDesc(profile::Profile::new(
-                profile::SketchPlane::xy(),
-                vec![fillet_loop],
-            ))),
+            node: Node::Profile(ProfileProgram {
+                plane: profile::SketchPlane::xy(),
+                loops: vec![fillet_loop],
+            }),
         },
     );
     doc = push(
@@ -178,11 +200,15 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileDesc>>) {
             value: MetaValue::Map(m),
         },
     );
-    // The committed EDIT LOG half: one trailing continuous edit.
+    // The committed EDIT LOG half: one trailing continuous edit —
+    // authored through the TEXT door with a display unit, so the v4
+    // wire's per-literal `unit` field is pinned in the FROZEN bytes
+    // (§4g: value canonical meters, `"unit": "mm"` on the wire).
     let edits = vec![DocEdit::SetParam {
         node: editor_core::RecipeNodeId(1),
         slot: editor_core::SlotId::Distance,
-        expr: len(0.5),
+        expr: editor_core::parse_expr("500 mm", &std::collections::BTreeMap::new())
+            .expect("golden unit literal"),
     }];
     (doc, edits)
 }
@@ -203,7 +229,7 @@ fn golden_bytes_are_frozen() {
     }
     assert_eq!(
         text, GOLDEN,
-        "schema-v3 wire bytes drifted from the committed golden — this is a FORMAT \
+        "schema-v6 wire bytes drifted from the committed golden — this is a FORMAT \
          CHANGE: it needs a ratified schema bump + migration step, never a re-bless in passing"
     );
 }

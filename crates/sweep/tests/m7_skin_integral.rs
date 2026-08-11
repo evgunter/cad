@@ -3,13 +3,13 @@
 //! Before this suite the §10.3 skin solved the weight channel even when
 //! every input section was non-rational, and the LU round-trip landed
 //! that channel an ulp off `1.0` for most parameterizations. A wall
-//! with a non-unit weight is bitwise RATIONAL, so its seam carrier's
-//! `speed_lower_bound` poisons (documented: the derivative of a
-//! rational B-spline is not a convex combination of any control net),
-//! the `nurbs_span_meter` margin comes back `Invalid`, and the body
-//! refuses at assembly. The measured blast radius was everything the
-//! uniform lane hid: `sweep_body` with ANY curved path had zero
-//! successful callers in the tree, and `loft_body` refused ANY
+//! with a non-unit weight is bitwise RATIONAL, and when this suite was
+//! written `speed_lower_bound` poisoned for ANY rational carrier (the
+//! derivative of a rational B-spline is not a convex combination of any
+//! control net), so the `nurbs_span_meter` margin came back `Invalid`
+//! and the body refused at assembly. The measured blast radius was
+//! everything the uniform lane hid: `sweep_body` with ANY curved path
+//! had zero successful callers in the tree, and `loft_body` refused ANY
 //! non-uniform section spacing.
 //!
 //! The pins here are the three halves of that statement: the drift is
@@ -18,6 +18,15 @@
 //! not be built now build and pass the tier ladder with derived
 //! measures, and the uniform case that always worked did not move a
 //! bit.
+//!
+//! **M7 (rational span meter): Pin 4 has flipped.** The meter grew a
+//! rational arm — a quotient-rule assembly over the homogeneous control
+//! net — so a rational wall no longer refuses at `nurbs_span_meter` on
+//! account of being rational. Pin 4 below now asserts the positive
+//! statement its own retirement condition specified. The drift fix the
+//! first three pins hold is untouched and still the right fix: a
+//! manufactured weight channel is a lie about the geometry whether or
+//! not the meter can cope with it.
 
 // Panicking is a test's failure mechanism (workspace lint policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -27,41 +36,22 @@ use core::f64::consts::{FRAC_PI_2, PI};
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use geom_curves::NurbsCurve3;
 use geom_curves::fit::interpolate_columns;
-use sweep::skin::{LoftGeometry, SectionSegments, loft_geometry, segment_curve, sweep_geometry};
+use sweep::skin::{LoftGeometry, Section, loft_geometry, segment_curve, sweep_geometry};
 use sweep::{SketchSegment, loft_body, sweep_body};
 
-/// A closed square chain of half-width `h`, centred on the sketch
+mod common;
+use common::quad;
+
+/// A closed square section of half-width `h`, centred on the sketch
 /// origin — the plainest possible INTEGRAL profile (four lines, unit
 /// weights, no arc anywhere).
-fn square(h: f64) -> SectionSegments {
-    let seg = |a: (f64, f64), b: (f64, f64)| SketchSegment::Line {
-        a: Point2::new(a.0, a.1),
-        b: Point2::new(b.0, b.1),
-    };
-    let p = [(-h, -h), (h, -h), (h, h), (-h, h)];
-    vec![vec![
-        seg(p[0], p[1]),
-        seg(p[1], p[2]),
-        seg(p[2], p[3]),
-        seg(p[3], p[0]),
-    ]]
+fn square(h: f64) -> Section {
+    quad([(-h, -h), (h, -h), (h, h), (-h, h)])
 }
 
 /// The `loft_prism` corpus sections: squares at the ends, a NON-AFFINE
 /// trapezoid in the middle (so the walls are genuinely curved in v).
-fn prism_sections() -> Vec<SectionSegments> {
-    let quad = |pts: [(f64, f64); 4]| -> SectionSegments {
-        let seg = |a: (f64, f64), b: (f64, f64)| SketchSegment::Line {
-            a: Point2::new(a.0, a.1),
-            b: Point2::new(b.0, b.1),
-        };
-        vec![vec![
-            seg(pts[0], pts[1]),
-            seg(pts[1], pts[2]),
-            seg(pts[2], pts[3]),
-            seg(pts[3], pts[0]),
-        ]]
-    };
+fn prism_sections() -> Vec<Section> {
     vec![
         quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
         quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
@@ -341,4 +331,87 @@ fn the_swept_bodys_seam_carriers_meter_positively() {
         }
     }
     assert_eq!(seen, 4, "the elbow has four wall–wall seams");
+}
+
+// ---------------------------------------------------------------------
+// Pin 4: the frontier the rational span meter DID move (M7) — a
+// RATIONAL section
+// ---------------------------------------------------------------------
+
+/// A closed CIRCLE of radius `r` about the sketch origin: the
+/// two-vertex bulge-1 chain, i.e. two semicircular arcs. The plainest
+/// possible RATIONAL profile — an arc's exact NURBS form carries
+/// non-unit weights, and there is no parameterization of a circle that
+/// does not.
+fn circle_section(r: f64) -> Section {
+    vec![sweep::ProfileLoop::new(vec![
+        sweep::ProfileVertex {
+            pos: Point2::new(-r, 0.0),
+            bulge: 1.0,
+        },
+        sweep::ProfileVertex {
+            pos: Point2::new(r, 0.0),
+            bulge: 1.0,
+        },
+    ])]
+}
+
+/// **A rational section swept along a curved path builds, and its seam
+/// carriers meter positively.**
+///
+/// FLIPPED per this pin's own retirement condition (M7, the rational
+/// span meter). It used to assert a refusal: a section that is rational
+/// on its own merits — an arc's weights are not an artifact to be
+/// removed, they *are* the arc — skinned to a genuinely rational wall,
+/// whose seam carrier's `speed_lower_bound` returned the documented
+/// poison, so `nurbs_span_meter` had no metre-per-parameter and
+/// escalated at `CertCheck::ParamSpan`.
+///
+/// The banked rational-wall unit landed the meter's rational arm (a
+/// quotient-rule assembly over the HOMOGENEOUS control net, derivation
+/// on `NurbsCurve3::speed_lower_bound`), so the refusal is gone and the
+/// positive statement takes its place, exactly as
+/// [`the_swept_bodys_seam_carriers_meter_positively`] states it for the
+/// integral lane: the body builds, and every NURBS carrier on it
+/// reports a real, positive metre-per-parameter.
+///
+/// (The QUADRATURE half of the rational bank is a different frontier
+/// and is NOT retired by this: `QuadratureUnsupported` has its own
+/// pins.)
+#[test]
+fn a_rational_section_on_a_curved_path_meters_at_the_span_meter() {
+    let swept = sweep_body::<f64>(
+        &circle_section(ELBOW_H),
+        Affine3::identity(),
+        &elbow_path(),
+        9,
+        3,
+    )
+    .expect(
+        "a rational section skins to a body the certifier accepts — if this refuses, \
+         the rational span meter has regressed and #207's frontier moved BACK",
+    );
+    let body = &swept.body;
+    let mut seen = 0usize;
+    for (_, edge) in body.edges() {
+        let topo::CurveGeom::Certified(curve) =
+            body.get_curve_geom(edge.curve).expect("curve key resolves")
+        else {
+            panic!("a finished body has no null scaffolding");
+        };
+        if let geom_curves::Curve3::Nurbs(c) = curve.carrier() {
+            let s = c.speed_lower_bound();
+            assert!(
+                s > 0.0,
+                "a rational wall's carrier meters {s} (poison or non-positive) — the \
+                 span-meter refusal is back"
+            );
+            seen += 1;
+        }
+    }
+    assert!(
+        seen > 0,
+        "the rational sweep produced no NURBS carrier at all — the fixture stopped \
+         exercising the thing it pins"
+    );
 }

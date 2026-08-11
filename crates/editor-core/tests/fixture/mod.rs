@@ -16,11 +16,12 @@
 #![allow(dead_code)] // shared across test binaries; not all use all of it
 
 use editor_core::{
-    CapEnd, Dimension, DocEdit, DocParam, EntityKind, Expr, Node, ParamName, ProfileDesc,
-    ProfileDoc, ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName,
+    CapEnd, Dimension, DocEdit, DocParam, EntityKind, Expr, LoopProgram, Node, ParamName,
+    ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg,
+    StableName,
 };
-use geom_core::{Point2, Point3, Vec3};
-use profile::{Profile, ProfileLoop, SketchPlane};
+use geom_core::{Point3, Vec3};
+use profile::SketchPlane;
 
 /// The pip depth the document's `pip_depth` parameter starts at.
 pub const DEPTH: f64 = 0.125;
@@ -38,23 +39,26 @@ pub fn scl(v: f64) -> Expr {
 }
 
 /// Applies an edit, returning the new doc and any minted id.
-pub fn step(doc: ProfileDoc, edit: DocEdit<ProfileDesc>) -> (ProfileDoc, Option<RecipeNodeId>) {
+pub fn step(doc: ProfileDoc, edit: DocEdit<ProfileProgram>) -> (ProfileDoc, Option<RecipeNodeId>) {
     let applied = doc.apply(&edit).unwrap();
     (applied.doc, applied.record.minted)
 }
 
-pub fn insert(doc: ProfileDoc, node: Node<ProfileDesc>) -> (ProfileDoc, RecipeNodeId) {
+pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let (doc, minted) = step(doc, DocEdit::InsertNode { node });
     (doc, minted.unwrap())
 }
 
-/// A profile description: `loops` on the plane with the given frame.
+/// A profile PROGRAM: polygon `loops` on the plane with the given
+/// frame (LIB-SWITCH §4i: the corpus's polygon choke point — under v4
+/// each loop is a chain program, `At(p0), LineTo(p1), …,
+/// LineTo(Start)`, the VQ5 expansion at literal points).
 pub fn desc(
     origin: [f64; 3],
     u: [f64; 3],
     v: [f64; 3],
     loops: Vec<Vec<(f64, f64)>>,
-) -> ProfileDesc {
+) -> ProfileProgram {
     let plane = SketchPlane::from_frame(
         Point3::new(origin[0], origin[1], origin[2]),
         Vec3::new(u[0], u[1], u[2]),
@@ -62,9 +66,9 @@ pub fn desc(
     );
     let loops = loops
         .into_iter()
-        .map(|pts| ProfileLoop::polygon(pts.into_iter().map(|(x, y)| Point2::new(x, y))))
+        .map(|pts| LoopProgram::polygon(pts).expect("finite corners"))
         .collect();
-    ProfileDesc(Profile::new(plane, loops))
+    ProfileProgram { plane, loops }
 }
 
 /// An axis-aligned square of half-width `h` centered at (cx, cy).
@@ -85,7 +89,7 @@ pub struct Recorder {
     /// The document as edited so far.
     pub doc: ProfileDoc,
     /// The recorded log.
-    pub edits: Vec<DocEdit<ProfileDesc>>,
+    pub edits: Vec<DocEdit<ProfileProgram>>,
 }
 
 impl Default for Recorder {
@@ -98,14 +102,14 @@ impl Recorder {
     /// A recorder over the empty document.
     pub fn new() -> Self {
         Self {
-            doc: ProfileDoc::empty(),
+            doc: ProfileDoc::empty_derived("mod"),
             edits: Vec::new(),
         }
     }
 
     /// Applies an edit (the doors refusing is a loud test failure)
     /// and records it; returns any minted id.
-    pub fn push(&mut self, edit: DocEdit<ProfileDesc>) -> Option<RecipeNodeId> {
+    pub fn push(&mut self, edit: DocEdit<ProfileProgram>) -> Option<RecipeNodeId> {
         let applied = editor_core::apply(&self.doc, &edit).expect("recorded edit must apply");
         self.doc = applied.doc;
         self.edits.push(edit);
@@ -113,7 +117,7 @@ impl Recorder {
     }
 
     /// Inserts a node, returning its minted id.
-    pub fn insert(&mut self, node: Node<ProfileDesc>) -> RecipeNodeId {
+    pub fn insert(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
         self.push(DocEdit::InsertNode { node }).expect("minted id")
     }
 }
@@ -122,7 +126,7 @@ impl Recorder {
 pub struct Die {
     pub doc: ProfileDoc,
     /// The document's full edit log (snapshot = the empty document).
-    pub edits: Vec<DocEdit<ProfileDesc>>,
+    pub edits: Vec<DocEdit<ProfileProgram>>,
     /// The final Subtract (the die body).
     pub final_node: RecipeNodeId,
     /// The +z face's pip-master Extrude (the poisoning target: its

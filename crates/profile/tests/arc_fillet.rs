@@ -909,3 +909,124 @@ fn fillet_leg_reach_trio_definite_and_exact() {
         "got {refused:?}"
     );
 }
+
+/// **The extraction's bit-identity pin** (LIB-G2 §2). `fillet_corner`'s
+/// candidate loop and selection now live in the shared, `Bounds`-free
+/// `arc_fillet_trims` seam, with the S8 pick applied at this door — the
+/// `line_line_fillet_trims` pattern one level up. The extraction is
+/// behavior-preserving, and "preserving" here means BITWISE: the
+/// literals below were captured from the pre-extraction build and must
+/// keep reproducing exactly, for every corner class the seam carries.
+///
+/// A failure here is not a tolerance question. It means the shared seam
+/// re-derived a quantity the shipped constructor derived differently,
+/// and every downstream differential fixture (the algebra's included)
+/// rests on these bits.
+/// A vertex's `(x, y, bulge)` raw f64 bits — the channel the pin below
+/// compares on, because "bit-identical" is the actual claim.
+type VertexBits = (u64, u64, u64);
+
+/// One pinned corner class: its name, the loop it builds, and the bits
+/// the pre-extraction build produced.
+type PinnedCase<'a> = (&'a str, ProfileLoop<f64>, &'a [VertexBits]);
+
+#[test]
+fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
+    let dump = |lp: &ProfileLoop<f64>| -> Vec<VertexBits> {
+        lp.vertices
+            .iter()
+            .map(|v| (v.pos.x.to_bits(), v.pos.y.to_bits(), v.bulge.to_bits()))
+            .collect()
+    };
+    let cases: [PinnedCase; 5] = [
+        (
+            "line_arc_internal",
+            line_arc_internal(0.5).expect("fits"),
+            &[
+                (0, 0, 0),
+                (4609047870845172685, 0, 4602837688965596816),
+                (
+                    4611170888069347942,
+                    4604180019048437077,
+                    4599397266714018680,
+                ),
+                (0, 4611686018427387904, 0),
+            ],
+        ),
+        (
+            "line_arc_external",
+            line_arc_external(0.5).expect("fits"),
+            &[
+                (0, 0, 0),
+                (4609820566382232627, 0, 13822769303568794487),
+                (
+                    4611814801016897894,
+                    13823048456275842389,
+                    4599397266714018680,
+                ),
+                (4613937818241073152, 13830554455654793216, 0),
+                (4613937818241073152, 13835058055282163712, 0),
+                (0, 13835058055282163712, 0),
+            ],
+        ),
+        (
+            "arc_line",
+            arc_line(0.5).expect("fits"),
+            &[
+                (0, 4611686018427387904, 13823463879570942096),
+                (
+                    4611504036046923850,
+                    4600877379321698714,
+                    4600091842716166289,
+                ),
+                (4612698179346440494, 0, 0),
+                (4616189618054758400, 0, 0),
+                (4616189618054758400, 4613937818241073152, 0),
+                (13830554455654793216, 4613937818241073152, 0),
+            ],
+        ),
+        (
+            "arc_arc_internal",
+            arc_arc_internal(0.25).expect("fits"),
+            &[
+                (4607182418800017408, 0, 4598009223490746920),
+                (
+                    4594314991293244560,
+                    4610070593513891235,
+                    4599325607115144255,
+                ),
+                (
+                    13817687028148020368,
+                    4610070593513891235,
+                    4598009223490746919,
+                ),
+                (13830554455654793216, 0, 0),
+            ],
+        ),
+        (
+            "arc_arc_mixed",
+            arc_arc_mixed(0.25).expect("fits"),
+            &[
+                (4607182418800017408, 0, 4596857349751359594),
+                (
+                    4599676419421066584,
+                    4609392389112809011,
+                    13826831122041030753,
+                ),
+                (
+                    4601392076421969632,
+                    4611310551952855325,
+                    13826067637668438915,
+                ),
+                (4613937818241073152, 0, 0),
+            ],
+        ),
+    ];
+    for (name, lp, want) in &cases {
+        assert_eq!(
+            &dump(lp)[..],
+            *want,
+            "{name}: the extracted seam moved a bit"
+        );
+    }
+}

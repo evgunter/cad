@@ -61,7 +61,7 @@ pub mod surgery;
 
 use core::fmt;
 
-use geom_core::{Band, BandError, Decide, Indeterminate, Length, Sign};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Sign};
 use topo::{EdgeKey, FaceKey, VertexKey};
 
 pub use battery::{BatteryVerdict, ChainClosure, Convexity, FilletRequest, Link, run_battery};
@@ -75,7 +75,7 @@ pub use naming::{FilletNaming, RimSide};
 /// the sanctioned [`Decide`] door, and tags any escalation.
 pub(crate) fn decide<T: Decide>(
     name: &'static str,
-    margin: Length<T>,
+    margin: Margin<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)

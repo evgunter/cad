@@ -53,8 +53,14 @@ occ-oss/ — files committed into two Apache-2.0 Python CAD projects
     it is redistributed on the CadQuery maintainers' assertion that
     the repository license covers its committed test data.
   b123d_nema17_bracket.step
-    Source: https://github.com/gumyr/build123d (docs)
+    Source: https://github.com/gumyr/build123d
+    (docs/topology_selection/examples/nema-17-bracket.step)
     License: Apache-2.0 (see occ-oss/LICENSE-build123d.txt).
+    Upstream NOTICE, reproduced per Apache-2.0 section 4(d):
+      Copyright (c) 2022-2025 The build123d Contributors.
+      Licensed under the Apache License, Version 2.0.
+      build123d originated from, and was inspired by, the
+      CadQuery project.
 
 Nothing in `tests/fixtures/wild/` is part of the published library; the
 crate's own code remains dual-licensed MIT OR Apache-2.0 with the rest

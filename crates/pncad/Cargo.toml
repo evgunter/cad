@@ -1,0 +1,69 @@
+# The authoring façade (LIB-U1): ONE crate to depend on. It owns no
+# geometry — it re-exports the kernel crates as modules, curates a
+# prelude, and pays the `f64` -> `T: Real` conversion once at the
+# seam so authoring code never writes `T::from_f64` or a turbofish.
+# `pncad` is the Q9 placeholder name; `publish = false` holds
+# workspace-wide until the project has its real one.
+[package]
+name = "pncad"
+autotests = false  # tests/all.rs aggregates every suite; see its header
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Forwards geom-core's certified interval scalar to every re-exported
+# crate that has the feature, so CI's interval lane builds the façade
+# uniformly with the rest of the workspace. `bvh` has no such feature
+# and is not re-exported here (see lib.rs).
+interval = [
+    "editor-core/interval",
+    "geom-brep/interval",
+    "geom-core/interval",
+    "geom-curves/interval",
+    "geom-surfaces/interval",
+    "mesh/interval",
+    "profile/interval",
+    "step-export/interval",
+    "step-import/interval",
+    "stl/interval",
+    "sweep/interval",
+    "topo/interval",
+]
+
+# Every authoring-surface crate. The façade's whole job is that a
+# consumer names none of these itself.
+[dependencies]
+editor-core = { path = "../editor-core" }
+geom-brep = { path = "../geom-brep" }
+geom-core = { path = "../geom-core" }
+geom-curves = { path = "../geom-curves" }
+geom-surfaces = { path = "../geom-surfaces" }
+mesh = { path = "../mesh" }
+profile = { path = "../profile" }
+quantity = { path = "../quantity" }
+step-export = { path = "../step-export" }
+step-import = { path = "../step-import" }
+stl = { path = "../stl" }
+sweep = { path = "../sweep" }
+topo = { path = "../topo" }
+# ASM-1 spec D-1: OS randomness for `random_document_id` — interactive
+# authoring mints ids HERE, never inside the deterministic kernel.
+getrandom = { workspace = true }
+
+# ONE test binary for the whole suite (see tests/all.rs). Each extra
+# test target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
+#
+# No dev-dependencies, as hygiene — NOT as an enforcement mechanism.
+# An earlier comment here claimed an empty dev-dependency list made
+# the closure tests incapable of naming a kernel crate; that is false.
+# Cargo passes `--extern` for the ordinary [dependencies] above to
+# test targets too, so all twelve are in scope in tests/all.rs
+# regardless. What actually enforces the closure property is the
+# self-scanning guard test in that file.
+[[test]]
+name = "all"
+path = "tests/all.rs"

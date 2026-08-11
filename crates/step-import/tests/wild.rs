@@ -17,8 +17,13 @@
 //! Where the two disagree by construction, the sidecar says so: Open
 //! CASCADE splits a periodic carrier at its seam on import and counts
 //! the seam edge and its vertices, and the kernel does not (D7 —
-//! adopt what the file states, do not heal it). Those fixtures carry
-//! `KERNEL_EDGES` / `KERNEL_VERTICES` lines beside the oracle's.
+//! adopt what the file states, do not heal it); conversely the
+//! kernel's M7-5 band re-mint seams a SEAMLESS periodic band at the
+//! surface's own u_ref azimuth (a reported `StructureNormalization`,
+//! never silent), which can count MORE than OCC's healing where OCC
+//! re-charts a seam onto an existing rim vertex instead. Those
+//! fixtures carry `KERNEL_EDGES` / `KERNEL_VERTICES` lines beside
+//! the oracle's.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -30,7 +35,7 @@ use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 /// The imports-class corpus: files that import to a first-class,
 /// tier-valid body, each with an oracle-derived `.expect` sidecar.
-const WILD_IMPORTS: [&str; 7] = [
+const WILD_IMPORTS: [&str; 9] = [
     "adafruit/328_2500mAh_battery.step",
     "adafruit/1982_MPR121.step",
     "adafruit/805_slide_switch.step",
@@ -38,25 +43,56 @@ const WILD_IMPORTS: [&str; 7] = [
     "adafruit/64_Halfsize_Breadboard.step",
     "nist/nist_ftc_09_asme1_rd.stp",
     "stepcode/sg1-c5-214.stp",
+    // The two band-class fixtures, refusal-class until M7-5's seam
+    // re-mint (`the_band_re_mint_reports_its_normalizations`).
+    "nist/nist_ftc_11_asme1_rb.stp",
+    "occ-oss/cq_red_cube_blue_cylinder.step",
 ];
 
 /// The refusal corpus: files whose typed refusal is itself the
 /// contract being pinned. Each entry is the fixture and the substring
 /// its message must carry — the class, not the prose.
-const WILD_REFUSALS: [(&str, &str); 6] = [
-    // Wild NURBS territory past the M7-3 own-corpus slice. The
-    // B_SPLINE_SURFACE_WITH_KNOTS vocabulary itself imports since
-    // M7-3, so the refusal moved DEEPER (the pinned substring was
-    // re-derived by measurement, not left to drift): the first record
-    // this reader cannot interpret is now `QUASI_UNIFORM_CURVE`
-    // (#667) — a spline sub-type whose knots are implied rather than
-    // stated (36 such records). Behind it stand the rest of this
-    // file's measured distance from the subset: 7/19 RATIONAL
-    // surfaces with multi-span knots, 11 trim rings on faces (no
-    // NURBS `uv_of`), 14 rational edge carriers, and edges that are
-    // no wall's boundary iso — stage-1 recognition / general
-    // adoption, banked.
-    ("stepcode/dm1-id-214.stp", "QUASI_UNIFORM_CURVE"),
+const WILD_REFUSALS: [(&str, &str); 4] = [
+    // **The instancing refusal is gone (M8); this row now pins what
+    // was BEHIND it.** dm1 is a seven-instance assembly (l-bracket +
+    // 3 bolts + 3 nuts: 3 breps named by 7 `NEXT_ASSEMBLY_USAGE_
+    // OCCURRENCE`s through 7 per-component
+    // `ITEM_DEFINED_TRANSFORMATION`s), and the M7-4 Leg D refusal at
+    // the second differing map (#186, bolt_4) was the file's LAST
+    // structural obstacle — every one of the seven now materializes
+    // under its own frame. The refusal that surfaced behind it is a
+    // GEOMETRY one, and it is not a regression: the placement layer
+    // used to run BEFORE assembly, so no edge of this file had ever
+    // reached the D7 adoption ladder.
+    //
+    // What the ladder finds, measured on this branch: M7-6 promoted
+    // dm1's 17 plane-class patches to certified Planes (residual 0.0)
+    // and honestly DECLINED its 7 rational cylinders (the whole-patch
+    // envelope does not certify them, and no promotion happens without
+    // a whole-patch certificate). A stay-NURBS cylinder's own
+    // parameterization seam is now describable — the `IsoCurve` rung,
+    // widened in M8 to the one-wall case, certifies it as the patch's
+    // `u = 0` column, which is what carried the ladder past edge #668
+    // — but its circular RIM is not: the file states that rim as a
+    // rational quadratic B-spline between a promoted cap Plane and the
+    // stay-NURBS wall, and no rung certifies a NURBS carrier there
+    // (`Intersection` fails transversality on the tangency;
+    // `TangentIntersection` reports NURBS × NURBS has no certificate;
+    // the conventional rung has no mapped self-description for a NURBS
+    // carrier). The first such edge is #685. Retiring THAT distance is
+    // stage-1 CURVE recognition (a rational quadratic that is exactly
+    // a circle), which is its own unit and its own certificate — not
+    // something to guess here.
+    //
+    // **The fragment carries the ladder's first NAMED candidate**, not
+    // just its preamble (R1 NOTE-1): the preamble alone also matches a
+    // ladder that reported ZERO attempts — the gap shape edge #668 had
+    // before the one-wall `IsoCurve` rung — so pinning it would leave
+    // this row green on a regression that turned a refusal back into a
+    // gap. "certifies — intersection:" cannot: it says the ladder had
+    // a candidate, tried it, and named it. Still the class and not the
+    // prose — no residual, no entity id, no sub-reason.
+    ("stepcode/dm1-id-214.stp", "certifies — intersection:"),
     // A spline-carried edge between analytic surfaces: the file's
     // geometry is inside the subset entity by entity, and the D7
     // ladder still cannot certify any intensional description for the
@@ -72,15 +108,9 @@ const WILD_REFUSALS: [(&str, &str); 6] = [
     // three times over (3-D plus two pcurves), which the subset does
     // not read.
     ("occ-oss/b123d_nema17_bracket.step", "SURFACE_CURVE"),
-    // Open CASCADE's SEAMLESS periodic faces — a band stated as its
-    // two rim circles with no seam generator between them. Both files
-    // below are otherwise fully in the subset; see
-    // `the_periodic_band_refusal_is_a_named_kernel_gap`.
-    ("nist/nist_ftc_11_asme1_rb.stp", "curved ADVANCED_FACE"),
-    (
-        "occ-oss/cq_red_cube_blue_cylinder.step",
-        "curved ADVANCED_FACE",
-    ),
+    // Open CASCADE's SEAMLESS periodic bands (`nist_ftc_11_asme1_rb`,
+    // `cq_red_cube_blue_cylinder`) were refusal-class here until the
+    // M7-5 seam re-mint flipped both to `WILD_IMPORTS`.
 ];
 
 /// A wild fixture's text (bytes as committed — CRLF line endings and
@@ -146,15 +176,17 @@ fn solid(name: &str) -> (topo::Body<f64>, f64) {
 /// end to end on the committed files.
 ///
 /// The wild corpus is bounded on both sides, and each bound is a fact
-/// about the files rather than about the kernel:
+/// about the files rather than about the kernel (re-measured
+/// 2026-08-07 at the M7-5 band flip, 9 imports-class fixtures):
 ///
-/// | ambient ε | outcome over the 7 imports-class fixtures |
+/// | ambient ε | outcome over the 9 imports-class fixtures |
 /// |---|---|
-/// | 1e-12 | 6 import; `nist_ftc_09` refuses at the D7 adoption ladder |
-/// | 1e-11 | 6 import; the same one refuses |
-/// | 1e-10 … 1e-8 (default 1e-9) | all 7 import, all three tiers green |
-/// | 1e-7 | 6 import; `nist_ftc_09` refuses |
-/// | 1e-6 | 4 import; the finer-featured ones refuse at the pcurve mint gate |
+/// | 1e-12 | 8 certify; `nist_ftc_09` refuses at the D7 adoption ladder |
+/// | 1e-11 | 8 certify; the same one refuses |
+/// | 1e-10 | 8 certify; `nist_ftc_09` refuses at the pcurve loop unwrap |
+/// | 1e-9 (default) … 1e-8 | all 9 import, all three tiers green |
+/// | 1e-7 | 9 certify (outside the pinned window; see below) |
+/// | 1e-6 | 9 certify (outside the pinned window; see below) |
 ///
 /// **The floor** is the wild's own contribution to this story, and the
 /// FreeCAD corpus has nothing like it: a NIST inch translator prints
@@ -163,14 +195,25 @@ fn solid(name: &str) -> (topo::Body<f64>, f64) {
 /// larger than the band the adoption gates decide in. The file is not
 /// wrong and the kernel is not wrong; the file simply does not state
 /// itself to that precision, and the gate says so by name instead of
-/// certifying a carrier it cannot.
+/// certifying a carrier it cannot. The floor MOVED between M7-4's
+/// measurement and M7-5's re-measurement — at ε = 1e-10 `nist_ftc_09`
+/// now refuses typed at the pcurve re-mint's single-branch unwrap
+/// (measured identically on this branch and on the main it forked
+/// from, so the drift predates the band unit; the two band fixtures
+/// themselves import and certify at EVERY decade 1e-12 … 1e-6) — so
+/// the pinned floor is now the measured 1e-9.
 ///
-/// **The ceiling** is the same millimetre-scale story the FreeCAD
-/// corpus tells: above it the pcurve mint gate refuses, typed.
+/// **The ceiling**: M7-4 measured refusals above 1e-8 (the pcurve
+/// mint gate); at the M7-5 re-measurement all 9 certify at 1e-7 and
+/// 1e-6 under [`assert_sub_tolerance_obligation`]. Certifying is a
+/// weaker row than the full oracle comparison, and re-ratifying a
+/// wider window would change what the hosted 1e-6 matrix row
+/// exercises — that re-widening is a recorded pickup, not done here;
+/// the pinned ceiling stays 1e-8.
 ///
 /// Outside the window the certifying rows skip LOUDLY and assert
 /// [`assert_sub_tolerance_obligation`] instead — never nothing.
-const WILD_EPS_FLOOR: f64 = 1e-10;
+const WILD_EPS_FLOOR: f64 = 1e-9;
 const WILD_EPS_CEILING: f64 = 1e-8;
 
 /// Whether the ambient ε is inside the window this corpus certifies
@@ -324,17 +367,28 @@ fn the_committed_corpus_still_carries_the_dialects_it_was_chosen_for() {
     );
     // Leg C: a VECTOR magnitude that is not 1, and non-unit ratios.
     assert!(any(&|t| t.contains("VECTOR('',#131,10.)")), "Leg C");
-    // Leg D: an assembly transform PRESENT — never traversed. The only
-    // committed fixture carrying one (`dm1-id-214`) refuses at
-    // `QUASI_UNIFORM_CURVE #667` inside `resolve_shape`, which runs
-    // strictly before `resolve_assembly_placement`, so this line pins
-    // vocabulary and nothing more. That is deviation 1 of the M7-4
-    // report rather than an oversight: NO file in the 28-file hunt has
-    // both geometry and a non-identity transform. Leg D's apply path
-    // and both its refusals are exercised on planted mutations of
-    // `twobody_importexport`'s real transforms, in
+    // Leg D: an assembly transform PRESENT and — since M7-6 —
+    // genuinely TRAVERSED on a wild file: `dm1-id-214`'s geometry
+    // resolves clean through `resolve_shape` (stage-1 promotion), so
+    // the assembly layer reads its seven per-component transforms for
+    // real. Since M8 it no longer refuses them: each occurrence's
+    // `REPRESENTATION_RELATIONSHIP` says which component the map
+    // places, and the seven materialize as seven placed instances of
+    // the three breps. The file's remaining refusal is a geometry one
+    // (the WILD_REFUSALS row). Per-instance placement CORRECTNESS —
+    // that each frame lands on its own component and on no other — is
+    // pinned on planted mutations of `twobody_importexport`'s real
+    // transforms, per solid, in
     // `freecad.rs::refusals_survive_the_dialect_relaxations` (d).
     assert!(any(&|t| t.contains("ITEM_DEFINED_TRANSFORMATION")), "Leg D");
+    // The knots-implied spline sub-types (M7-6 vocabulary): the
+    // corpus carries both QUASI_UNIFORM forms (dm1's 31 curves + 5
+    // surfaces), read with synthesized clamped knots.
+    assert!(
+        any(&|t| t.contains("QUASI_UNIFORM_CURVE"))
+            && any(&|t| t.contains("QUASI_UNIFORM_SURFACE")),
+        "the QUASI_UNIFORM vocabulary"
+    );
     // Leg E: an EDGE_CURVE stated against its carrier.
     assert!(
         any(&|t| t.contains(",.F.) ;") || t.contains(",.F.);")),
@@ -350,8 +404,10 @@ fn the_committed_corpus_still_carries_the_dialects_it_was_chosen_for() {
 // ---- Row 2: the cross-dialect fixed point --------------------------
 
 /// **Row 2.** A wild body written out by this project's own writer and
-/// read back is the SAME body — census and volume to the bit — and
-/// the second export is byte-identical to the first.
+/// read back is the SAME body — census exactly, every geometric datum
+/// bit-preserved, volume to summation order (the in-row comment says
+/// why that last budget is ulps rather than zero) — and the second
+/// export is byte-identical to the first.
 ///
 /// This is the sharpest statement the wild corpus supports. The first
 /// import is an interpretation of a foreign dialect; everything after
@@ -379,10 +435,26 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
             census(&again),
             "{name}: census across the wire"
         );
-        assert_eq!(
+        // Volume across the wire: the same per-face contributions,
+        // summed in each body's face-ARENA order — which is the
+        // assembly walk's mef order, keyed by the input's entity
+        // NUMBERING. A wild file may number a shell's records in an
+        // order our canonical re-numbering does not reproduce
+        // (measured on `cq_red_cube_blue_cylinder` at the M7-5 flip:
+        // its cube shell's interleaved ids close faces in a different
+        // order than the re-import of our own export does, while
+        // every carrier, parameter interval, and vertex of the two
+        // bodies compares BIT-equal). Only the summation order moves,
+        // so the honest exactness budget is a few ulps of the total,
+        // not zero; the sharper claims still hold exactly — the
+        // census above, and the byte-identical second export below.
+        let (v1, v2) = (
             topo::mass_properties(&body).unwrap().volume,
             topo::mass_properties(&again).unwrap().volume,
-            "{name}: volume across the wire, to the bit"
+        );
+        assert!(
+            (v1 - v2).abs() <= 4.0 * f64::EPSILON * v1.abs(),
+            "{name}: volume across the wire, to summation order: {v1} vs {v2}"
         );
         let second = step_export::step_string(&again, &options).unwrap();
         assert_eq!(
@@ -424,39 +496,78 @@ fn wild_refusals_are_typed_and_name_their_class() {
     }
 }
 
-/// **The named kernel gap behind two of those refusals.** Open
-/// CASCADE never splits a periodic face: a cylinder's lateral band
-/// arrives as its two rim circles with no seam generator between
-/// them, and the kernel's face model has one outer loop and rings.
-/// Adopting the second circle as a *ring* type-checks and produces a
-/// body that passes tiers 1 and 2 — and whose volume no construction
-/// in `topo` can compute (`RingOnCurvedFace`), which makes tier 3
-/// refuse with it.
+/// **The band re-mint, pinned as data.** Open CASCADE never splits a
+/// periodic face: a cylinder's or torus's lateral band arrives as its
+/// two full-period rim circles with no seam generator between them,
+/// and the kernel's face model (one outer loop plus rings) has no
+/// volume construction for the ring adoption would make of the second
+/// rim (`RingOnCurvedFace`). Until M7-5 that was a NAMED refusal on
+/// both fixtures here; the band seam re-mint (`normalize::band_seam`)
+/// retired it by minting the seam generator at the surface's own
+/// u_ref azimuth and re-writing each band as one single-loop face.
 ///
-/// So the import refuses instead, at the face, and this row pins that
-/// the reason is the gap and not a dialect misread: both fixtures'
-/// offending faces are analytic surfaces bounded by ordinary circles,
-/// every entity in them inside the subset.
+/// This row pins the flip's honesty: the mint is REPORTED, never
+/// silent, and its census mapping is exactly the one derived from
+/// first principles — a rim whose vertex already sits at the u_ref
+/// azimuth splits nowhere (ftc_11's cylinders), every other rim
+/// splits once (cq's two rims; ftc_11's tori, whose rim vertices sit
+/// at −π/2 and π), and every band gains exactly one seam edge.
+/// One pinned band mapping: the `ADVANCED_FACE` entity id, the
+/// boundary census the file states for it, and the census the re-mint
+/// leaves — each census as (faces, edges, vertices).
+type BandCensusRow = (u64, (usize, usize, usize), (usize, usize, usize));
+
 #[test]
-fn the_periodic_band_refusal_is_a_named_kernel_gap() {
-    for name in [
-        "nist/nist_ftc_11_asme1_rb.stp",
-        "occ-oss/cq_red_cube_blue_cylinder.step",
-    ] {
-        let text = wild(name);
-        assert!(
-            !text.contains("B_SPLINE") && !text.contains("SURFACE_CURVE"),
-            "{name}: the band refusal must not be standing in for a subset gap"
-        );
-        let StepImportError::Topology { what, .. } =
-            import_step(&text, &ImportOptions::default()).unwrap_err()
+fn the_band_re_mint_reports_its_normalizations() {
+    use step_import::{FaceCensus, NormalizationKind};
+    let rows: [(&str, &[BandCensusRow]); 2] = [
+        (
+            "occ-oss/cq_red_cube_blue_cylinder.step",
+            // One cylinder band; both rim vertices half a turn from
+            // u_ref, so both rims split.
+            &[(54, (1, 2, 2), (1, 5, 4))],
+        ),
+        (
+            "nist/nist_ftc_11_asme1_rb.stp",
+            // Two cylinder bands whose rim vertices sit AT u_ref (no
+            // splits), two torus bands splitting both rims each —
+            // rims #128 and #91 shared ACROSS bands, so those splits
+            // also patch the neighbouring band's minted loop.
+            &[
+                (95, (1, 2, 2), (1, 3, 2)),
+                (135, (1, 2, 2), (1, 3, 2)),
+                (175, (1, 2, 2), (1, 5, 4)),
+                (187, (1, 2, 2), (1, 5, 4)),
+            ],
+        ),
+    ];
+    for (name, expected) in rows {
+        let Ok(StepImport::Solid { normalizations, .. }) =
+            import_step(&wild(name), &ImportOptions::default())
         else {
-            panic!("{name}: the band refuses at the face");
+            panic!("{name}: the band fixture imports first-class since M7-5");
         };
-        assert!(
-            what.contains("seamless periodic band") && what.contains("tier-3"),
-            "{name}: the refusal must say which gap it is: {what}"
-        );
+        let census = |(faces, edges, vertices)| FaceCensus {
+            faces,
+            edges,
+            vertices,
+        };
+        let got: Vec<_> = normalizations
+            .iter()
+            .map(|n| (n.face, n.kind, n.file_census, n.kernel_census))
+            .collect();
+        let want: Vec<_> = expected
+            .iter()
+            .map(|&(face, file, kernel)| {
+                (
+                    face,
+                    NormalizationKind::SeamlessPeriodicBand,
+                    census(file),
+                    census(kernel),
+                )
+            })
+            .collect();
+        assert_eq!(got, want, "{name}: the reported band normalizations");
     }
 }
 

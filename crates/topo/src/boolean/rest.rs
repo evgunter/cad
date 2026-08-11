@@ -69,7 +69,7 @@
 //! (REST rests are consumed into structure — the census's consumed
 //! class), tier gates, and the volume backstop.
 
-use geom_core::{Band, Bounds, Decide, Length, Sign};
+use geom_core::{Band, Bounds, Decide, Margin, Sign};
 use slotmap::SecondaryMap;
 
 use super::combine::graft_solid;
@@ -396,7 +396,7 @@ fn enumerate_segments<T: Decide>(
                 }
                 let chord = germs[j].point - germs[i].point;
                 let dist = chord.norm();
-                match decide("bool_join_nearest", Length::of(dist), band).map_err(escalate)? {
+                match decide("bool_join_nearest", Margin::of(dist), band).map_err(escalate)? {
                     Sign::Positive => {}
                     _ => continue,
                 }
@@ -406,9 +406,9 @@ fn enumerate_segments<T: Decide>(
                 // band — class (c)).
                 let f1 = germs[i].dir.dot(chord);
                 let f2 = germs[j].dir.dot(-chord);
-                if decide("bool_join_facing", Length::of(f1), band).map_err(escalate)?
+                if decide("bool_join_facing", Margin::of(f1), band).map_err(escalate)?
                     != Sign::Positive
-                    || decide("bool_join_facing", Length::of(f2), band).map_err(escalate)?
+                    || decide("bool_join_facing", Margin::of(f2), band).map_err(escalate)?
                         != Sign::Positive
                 {
                     continue;
@@ -416,7 +416,7 @@ fn enumerate_segments<T: Decide>(
                 best = match best {
                     None => Some((dist, i, j)),
                     Some((bd, bi, bj)) => {
-                        match decide("bool_join_nearest", Length::of(dist - bd), band)
+                        match decide("bool_join_nearest", Margin::of(dist - bd), band)
                             .map_err(escalate)?
                         {
                             Sign::Negative => Some((dist, i, j)),
@@ -454,6 +454,49 @@ fn enumerate_segments<T: Decide>(
 /// surface sets.
 type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>);
 
+/// **The one flush-pair door**: the C4 verify ladder for a single
+/// cross-body face pair — descriptions through [`face_plane`]
+/// (outward, sense-folded), identity through [`face_plane_source`]
+/// (oriented sources, S10: the descriptions compared are the two
+/// faces' OUTWARD normals, so rung 1's `orient` tags carry the face
+/// senses too — REST contact is precisely the `SameOpposite`
+/// verdict), and the verdict through [`super::oriented_plane_eq`] at
+/// the verification arm, which lives HERE and nowhere else: **1 m** —
+/// the declared rung contradicts only on DEFINITE margins, so the arm
+/// only meters the angular sliver band (exact fixtures decide
+/// definitely either way).
+///
+/// Both consumers go through this one function BY CONSTRUCTION: the
+/// verify-at-use site ([`verify_declared_pairs`], `declared: true`)
+/// and the LIB-SEL2 detector's candidate-generation mode
+/// (`declared: false`, then `true` for the orientation a declaration
+/// would later verify with). That construction is the anti-twin rule
+/// (SELECT-DESIGN §3b) applied to the last parameter standing: the
+/// #304 review's planted-drift probe showed a hand-mirrored arm
+/// passes every axis-aligned suite, so the arm is shared rather than
+/// mirrored.
+///
+/// `None`: not a planar pair — there is no description to compare
+/// (the detector's honest "not a v1 candidate"; the REST lane treats
+/// it as an invariant violation at its own site).
+pub fn flush_pair_relation<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    declared: bool,
+    band: Band,
+) -> Option<Result<PlaneRelation, PlaneEqError>> {
+    let (pa, pb) = (face_plane(a, fa)?, face_plane(b, fb)?);
+    let (ga, gb) = (face_plane_source(a, fa), face_plane_source(b, fb));
+    let id = PlaneIdentity {
+        s1: ga.as_ref(),
+        s2: gb.as_ref(),
+        declared,
+    };
+    Some(super::oriented_plane_eq(&pa, &pb, id, T::one(), band))
+}
+
 /// Verifies every declared face pair through the declared rung and
 /// returns the opposite-oriented (REST-contact) surface sets per
 /// operand. A definitely-distinct declared pair is the typed
@@ -468,27 +511,16 @@ fn verify_declared_pairs<T: Decide>(
     let mut a_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
     let mut b_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
     for &(fa, fb) in &decls.coincident_faces {
-        let pa = face_plane(a, fa).ok_or(BooleanError::ClassificationInvariant {
-            what: "REST lane: declared A face lost its plane",
-        })?;
-        let pb = face_plane(b, fb).ok_or(BooleanError::ClassificationInvariant {
-            what: "REST lane: declared B face lost its plane",
-        })?;
-        // Oriented sources (S10): the descriptions being compared are
-        // the two faces' OUTWARD normals, so rung 1's `orient` tags
-        // must carry the face senses too — REST contact is precisely
-        // the SameOpposite verdict, and a same-source pair whose only
-        // difference IS the sense bit is exactly such a contact.
-        let (ga, gb) = (face_plane_source(a, fa), face_plane_source(b, fb));
-        let id = PlaneIdentity {
-            s1: ga.as_ref(),
-            s2: gb.as_ref(),
-            declared: true,
-        };
-        // Verification arm: 1 m — the declared rung contradicts only
-        // on DEFINITE margins, so the arm only meters the angular
-        // sliver band (exact fixtures decide definitely either way).
-        match super::oriented_plane_eq(&pa, &pb, id, T::one(), band) {
+        // The one flush-pair door ([`flush_pair_relation`]): oriented
+        // sources, sense-folded descriptions, and the verification
+        // arm all live inside it — shared with the LIB-SEL2 detector
+        // by construction.
+        let relation = flush_pair_relation(a, fa, b, fb, true, band).ok_or(
+            BooleanError::ClassificationInvariant {
+                what: "REST lane: a declared face lost its plane",
+            },
+        )?;
+        match relation {
             Ok(PlaneRelation::SameOpposite) => {
                 let sa = a
                     .get_face(fa)

@@ -11,14 +11,14 @@
 //! is a transparent f64 wrapper; its arithmetic delegates verbatim),
 //! so every oracle asserted at f64 holds bit-identically at Probe.
 
-use editor_core::ContentBits;
-use geom_core::{Bounds, Decide, Probe};
+use pncad::document::ContentBits;
+use pncad::geom_core::{Bounds, Decide, Probe};
 
 /// A scalar the tour can build scenes at: kernel-decidable, document-
 /// evaluable (the heat-sink recipe), and exactly f64-extractable for
 /// narration.
 pub trait Scalar:
-    Decide + Bounds + ContentBits + topo::PropsQuadLane + Send + Sync + Copy + 'static
+    Decide + Bounds + ContentBits + pncad::topo::PropsQuadLane + Send + Sync + Copy + 'static
 {
     /// The exact f64 value (narration/oracles only — never decisions).
     fn f(self) -> f64;

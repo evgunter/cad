@@ -27,24 +27,17 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
 /// door instead of mutating one: a cube, an extrude, and a fillet
 /// whose selection is the plant.
 fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
-    use editor_core::{Dimension, DocEdit, Expr, ProfileDesc, apply};
-    let square = profile::ProfileLoop::new(
-        [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-            .into_iter()
-            .map(|(x, y)| profile::ProfileVertex {
-                pos: geom_core::Point2::new(x, y),
-                bulge: 0.0,
-            })
-            .collect(),
-    );
+    use editor_core::{Dimension, DocEdit, Expr, LoopProgram, ProfileProgram, apply};
+    let square =
+        LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).expect("finite");
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals");
     for edit in [
         DocEdit::InsertNode {
-            node: Node::Profile(ProfileDesc(profile::Profile::new(
-                profile::SketchPlane::xy(),
-                vec![square],
-            ))),
+            node: Node::Profile(ProfileProgram {
+                plane: profile::SketchPlane::xy(),
+                loops: vec![square],
+            }),
         },
         DocEdit::InsertNode {
             node: Node::Extrude {
@@ -73,8 +66,8 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     use editor_core::{BooleanOp, Dimension, DocEdit, Expr, apply};
     use fixture::desc;
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-    let mut doc = ProfileDoc::empty();
-    let insert = |doc: &ProfileDoc, node: Node<editor_core::ProfileDesc>| {
+    let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals");
+    let insert = |doc: &ProfileDoc, node: Node<editor_core::ProfileProgram>| {
         let a = apply(doc, &DocEdit::InsertNode { node }).expect("the fixture builds");
         let id = a.record.minted.expect("a minted id");
         (a.doc, id)

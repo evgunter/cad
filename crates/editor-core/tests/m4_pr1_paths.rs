@@ -11,6 +11,9 @@ use editor_core::{
 /// inside `P` (spec D1/D3 — PR 2 instantiates the real profile type).
 #[derive(Debug, Clone, PartialEq)]
 struct FakeProfile(&'static str);
+// The v4 payload trait: fake payloads take the slot-free, check-free
+// defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
+impl editor_core::ProfilePayload for FakeProfile {}
 
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;
@@ -26,7 +29,7 @@ fn scl(v: f64) -> Expr {
 /// profile + extrude(distance = a + b), returning (doc, profile id,
 /// extrude id).
 fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
-    let doc = TDoc::empty();
+    let doc = TDoc::empty_derived("m4_pr1_paths");
     let a = doc
         .apply(&TEdit::InsertNode {
             node: Node::Profile(FakeProfile("square")),
@@ -118,7 +121,7 @@ fn expr_path_survives_edits_to_unrelated_subtrees() {
 fn recipe_node_ids_are_never_reused() {
     // Delete then insert: the freed id must NOT come back (spec D3 —
     // N1's substrate contract).
-    let doc = TDoc::empty();
+    let doc = TDoc::empty_derived("m4_pr1_paths");
     let a = doc
         .apply(&TEdit::InsertNode {
             node: Node::Profile(FakeProfile("p0")),
@@ -140,7 +143,7 @@ fn recipe_node_ids_are_never_reused() {
 
 #[test]
 fn dangling_ref_rejected() {
-    let doc = TDoc::empty();
+    let doc = TDoc::empty_derived("m4_pr1_paths");
     let ghost = RecipeNodeId(99);
     let err = doc
         .apply(&TEdit::InsertNode {
@@ -157,7 +160,7 @@ fn dangling_ref_rejected() {
 fn self_reference_cannot_forge_the_next_id() {
     // Guessing the about-to-mint id is still an unresolved ref: refs
     // must resolve among EXISTING nodes, so insertion cannot cycle.
-    let doc = TDoc::empty();
+    let doc = TDoc::empty_derived("m4_pr1_paths");
     let guessed = RecipeNodeId(0); // empty doc will mint 0 next
     let err = doc
         .apply(&TEdit::InsertNode {

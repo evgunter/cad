@@ -17,8 +17,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Vec3};
-use topo::BooleanBody;
+use pncad::geom_core::{Affine3, Vec3};
+use pncad::topo::BooleanBody;
 
 use crate::bool_bodies::slab;
 use crate::booleans::{check, describe, expect_seamed, try_subtract, try_union};
@@ -34,7 +34,7 @@ const BEAM_VOL: f64 = 4.0 * 0.5 * 0.5;
 
 /// Beam A runs along x, notched from the TOP at the crossing.
 fn beam_a<S: Scalar>() -> BooleanBody<S> {
-    let beam: topo::Body<S> = slab((0.0, 4.0), (1.75, 2.25), (0.0, 0.5));
+    let beam: pncad::topo::Body<S> = slab((0.0, 4.0), (1.75, 2.25), (0.0, 0.5));
     let cutter = slab((1.75, 2.25), (1.5, 2.5), (0.25, 0.75));
     expect_seamed(
         "beam A notch subtract",
@@ -46,7 +46,7 @@ fn beam_a<S: Scalar>() -> BooleanBody<S> {
 /// Beam B runs along y, notched from the BOTTOM — the two half-depth
 /// notches interlock.
 fn beam_b<S: Scalar>() -> BooleanBody<S> {
-    let beam: topo::Body<S> = slab((1.75, 2.25), (0.0, 4.0), (0.0, 0.5));
+    let beam: pncad::topo::Body<S> = slab((1.75, 2.25), (0.0, 4.0), (0.0, 0.5));
     let cutter = slab((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25));
     expect_seamed(
         "beam B notch subtract",
@@ -64,7 +64,7 @@ pub(crate) fn build<S: Scalar>() -> (
     BooleanBody<S>,
     BooleanBody<S>,
     BooleanBody<S>,
-    topo::Body<S>,
+    pncad::topo::Body<S>,
     String,
 ) {
     let a = beam_a::<S>();
@@ -106,7 +106,7 @@ pub(crate) fn build<S: Scalar>() -> (
         S::from_f64(0.0),
         S::from_f64(1.25),
     ));
-    let b_lifted = topo::transform_rigid(&b.body, &lift).expect("lift beam B");
+    let b_lifted = pncad::topo::transform_rigid(&b.body, &lift).expect("lift beam B");
     (a, b, glued, b_lifted, refusal)
 }
 

@@ -22,19 +22,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tolerance};
-use profile::{
-    ArcSweep, FilletLegShape, LoopBuilder, Profile, ProfileLoop, SegmentKind, SketchPlane,
-    ValidatedProfile,
+use pncad::geom_core::Tolerance;
+use pncad::profile::{
+    ArcSweep, FilletLegShape, LoopBuilder, Open, Profile, ProfileLoop, SegmentKind, SketchPlane,
+    Start, ValidatedProfile,
 };
-use sweep::{Extrusion, extrude};
+use pncad::sweep::{Extrusion, extrude};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-
-fn p2<S: Scalar>(x: f64, y: f64) -> Point2<S> {
-    Point2::new(S::from_f64(x), S::from_f64(y))
-}
+use pncad::authoring::p2;
 
 fn arc<S: Scalar>(cx: f64, cy: f64) -> FilletLegShape<S> {
     FilletLegShape::Arc {
@@ -79,6 +76,32 @@ fn eye_fillet_center_y() -> f64 {
 /// keel→boss (line×arc), boss→upper flank (arc×line), flank→hub
 /// (line×arc). Every one of them is a fillet; not a single tangent
 /// point in this function was computed by hand.
+///
+/// **Stays raw after LIB-G2 — two NAMED walls, both measured, neither
+/// an oversight** (LIB-LOG rulings LB5 and LB4; the eye migrated, this
+/// did not):
+///
+/// 1. **The mid-arc seam is authored topology (LB5).** The start sits
+///    mid-hub-arc, so the loop's first and last segments continue the
+///    SAME hub carrier. The algebra's seam fillet (`.to(Start)`)
+///    RETRIMS the entry vertex to the fillet arc's end, which would eat
+///    this vertex — one vertex, one lateral face after extrusion — and
+///    `.to_on(Start, …)` does not apply either, since it exists for a
+///    junction of two DIFFERENT carriers. PQ4 and §4 item 4 are right
+///    to refuse reproducing a same-carrier mid-arc junction; the
+///    vertex is intent, not an artifact.
+/// 2. **Line×circle derived corners are anchor-rounding-dependent
+///    (LB4).** Four of these five corners are arc↔line, and the derived
+///    corner then lands 0–4 ulps off the authored one depending on
+///    which on-path anchor the author names — unlike the eye's
+///    circle×circle corner, which the squared-radius form makes
+///    structurally exact. Migrating a site by hunting for an anchor
+///    whose rounding happens to cancel would be fitting the authoring
+///    to the fixture, which LB4 rules out. So these stay hand-authored
+///    until the derivation itself is exact, and this stop's exports
+///    stay byte-identical.
+///
+/// Both are v2-accumulator evidence, recorded in PATHS-DESIGN §2b.
 fn outline<S: Scalar>() -> ProfileLoop<S> {
     let (hx, hy, _) = HUB;
     let (bx, by, _) = BOSS;
@@ -150,19 +173,28 @@ fn outline<S: Scalar>() -> ProfileLoop<S> {
 /// legs' extents and survive the corner-side test. The rule picks the
 /// one nearest the authored corner; the sharp bottom tip is where its
 /// rival sat.
+///
+/// **Authored through the PATHS algebra (LIB-G2 §4)** — the whole loop
+/// in three binders, and NEITHER tip is written down.
+///
+/// The entry is bound ON the right lobe (`at_on`: anchor + centre +
+/// winding, the tangent derived), the fillet opens, and `to_on` closes
+/// on the LEFT lobe through `Start`. The top corner is DERIVED as the
+/// two carriers' circle×circle intersection — the squared-radius form
+/// lands it bitwise on the `(0, √¾)` a hand author would type — and the
+/// bottom tip is kept, because `to_on` closes on a *different* carrier
+/// and that vertex is a genuine two-carrier junction (`to(Start)` would
+/// retrim it away). Bit-identity with the raw `fillet_corner` chain is
+/// pinned in `profile`'s differential suite.
 fn eye<S: Scalar>() -> ProfileLoop<S> {
     let tip = eye_tip();
-    LoopBuilder::start(p2(0.0, -tip))
-        .fillet_corner(
-            arc(-0.5, 0.0),
-            p2(0.0, tip),
-            arc(0.5, 0.0),
-            p2(0.0, -tip),
-            S::from_f64(R_EYE),
-            Tolerance::get(),
-        )
+    Open.at_on(p2(0.0, -tip), p2(-0.5, 0.0), ArcSweep::Ccw)
+        .expect("the eye's bottom tip lies on the right lobe's carrier")
+        .fillet(S::from_f64(R_EYE))
+        .expect("a definitely positive eye radius")
+        .to_on(Start, p2(0.5, 0.0), ArcSweep::Ccw)
         .expect("the near candidate resolves the eye slot's tip")
-        .close_arc_center(p2(0.5, 0.0), ArcSweep::Ccw)
+        .into()
 }
 
 /// The validated rocker profile: outline + eye slot.
@@ -173,7 +205,7 @@ pub fn profile<S: Scalar>() -> ValidatedProfile<S> {
 }
 
 /// The plate: profile extruded 1/2 m.
-pub fn rocker<S: Scalar>() -> topo::Body<S> {
+pub fn rocker<S: Scalar>() -> pncad::topo::Body<S> {
     extrude(&profile::<S>(), Extrusion::Distance(S::from_f64(0.5)))
         .expect("extrude rocker")
         .body
@@ -185,17 +217,29 @@ pub fn rocker<S: Scalar>() -> topo::Body<S> {
 /// line; panics if the far pocket was picked (that would be the branch
 /// rule silently changing under the demo).
 fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
-    let center = vp
-        .loops()
-        .iter()
-        .flat_map(|lp| lp.segments().iter())
-        .find_map(|s| match s.kind {
-            SegmentKind::Arc { center, radius, .. } if (radius - R_EYE).abs() < 1e-12 => {
-                Some(center)
-            }
-            _ => None,
-        })
-        .expect("the eye fillet classifies at its authored radius");
+    // Which segment is the fillet at the eye's top corner? ASKED
+    // (LIB-U5 deliverable 4), not fished for. `blend_arcs` reads the
+    // loop's DECLARED tangent joints — an arc tangent at both ends is
+    // what a corner fillet leaves behind — so no float is compared to
+    // find it. This used to scan every segment of every loop for "the
+    // arc whose radius equals R_EYE", which would find the wrong arc
+    // the moment two blends shared a radius, and nothing at all if
+    // the stored radius drifted an ulp.
+    let eye_loop = vp.loops().last().expect("the profile has loops");
+    let blends = pncad::sweep::readback::blend_arcs(eye_loop);
+    let [blend] = blends.as_slice() else {
+        panic!(
+            "the eye slot has exactly one filleted corner, found {}",
+            blends.len()
+        )
+    };
+    let SegmentKind::Arc { center, radius, .. } = blend.kind else {
+        panic!("a fillet is an arc")
+    };
+    assert!(
+        (radius - R_EYE).abs() < 1e-12,
+        "the eye fillet is authored at R_EYE"
+    );
     let want = eye_fillet_center_y();
     assert!(
         center.x.abs() < 1e-12 && (center.y - want).abs() < 1e-12,
