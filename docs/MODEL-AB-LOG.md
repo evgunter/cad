@@ -696,3 +696,8 @@ Block ASM-2 (2026-08-11): byte 92 (<252) → fable position 2.
 Difficulty logged pre-draw: ASM-2A (InstantiatePart single-solid)
 = L → slot 1. Slot 1 arm per the draw; remainders bank (ASM-2b,
 ASM-4 the natural takers).
+ASM-2A review dispatch (2026-08-12): next unfixed ordinal per the
+ledger = 31 (peers fixed through 30) → SINGLE, fable, v4 ladder.
+Frozen head 4544922c. P2 fields: L / structural (classified
+post-draw from spec, pre-ruling dispatch — noted per my #409
+adoption).
