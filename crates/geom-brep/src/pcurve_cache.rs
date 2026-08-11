@@ -285,7 +285,11 @@ pub enum Pcurve<T: Real> {
         pd: Vec2<T>,
         /// The carrier parameter at `g = 0`.
         t0: T,
-        /// The total (unsigned) arc angle, `t1 − t0`.
+        /// The arc's total turn, `t1 − t0`. Always POSITIVE on a
+        /// certified cache — check 2 (`pcurve_interval_forward`)
+        /// refuses a non-forward interval before the class is built —
+        /// so the map's own sign cancellation (variant docs) never has
+        /// a sign to carry.
         angle: T,
         /// Sub-arc breakpoints on `τ ∈ [0, 1]`: a uniform clamped
         /// degree-1 knot vector with one span per sub-arc.
@@ -424,9 +428,13 @@ impl<T: SpanLocate> Pcurve<T> {
             }
             // The arc rim's chart image is the SEGMENT `p0 → p0 + pd`
             // (`g` is monotone in `t`: `tan` is monotone on
-            // `(−π/2, π/2)` and every sub-arc's `φ/2` stays inside it),
-            // so the endpoint box is tight here too — and it does not
-            // depend on `t0`/`t1`, which only re-cut the same segment.
+            // `(−π/2, π/2)` and every sub-arc's `φ/2` stays inside it).
+            //
+            // This is the WHOLE-SEGMENT box, and it deliberately
+            // ignores `t0`/`t1`: sound at every window (a sub-window's
+            // image is a sub-segment) and TIGHT at the full span, which
+            // is the only span any mint asks for. A sub-window would
+            // get a conservative box — never a wrong one.
             Pcurve::IsoArc { p0, pd, .. } => {
                 let b = Point2::new(p0.x + pd.x, p0.y + pd.y);
                 ChartWindow {
@@ -2494,7 +2502,7 @@ fn run_iso_arc_checks<T: Decide>(
         cause,
     };
     let bad = |what: &'static str| PcurveCertifyError::IsoUnsupported { what };
-    let (_, stretch_v) = nurbs_stretch_bounds(payload);
+    let (stretch_u, stretch_v) = nurbs_stretch_bounds(payload);
     // The moving channel is u and the fixed one v (the cap class'
     // geometry).
     let (end, slack_v) = side_of(p0.y, stretch_v, pd.y.abs() * stretch_v, band, &esc)?;
@@ -2564,13 +2572,20 @@ fn run_iso_arc_checks<T: Decide>(
         }
     }
     // --- `Ĉ` in B's own space, and the hull. ---
+    //
+    // Angles are measured from the RIM'S OWN start, `at0` — the
+    // carrier's angle at `g = 0` — not from the carrier frame's zero.
+    // A rim that begins at a nonzero phase is the same construction
+    // rotated, and the class certifies it as such; keying the control
+    // points to absolute zero would have refused it with a message
+    // blaming the weight pattern for what is really a phase.
     let vref = axis.cross(*u_ref);
     let on = |a: T| {
-        let (s, c) = a.sin_cos();
+        let (s, c) = (at0 + a).sin_cos();
         *center + *u_ref * (*radius * c) + vref * (*radius * s)
     };
     let tangent = |a: T| {
-        let (s, c) = a.sin_cos();
+        let (s, c) = (at0 + a).sin_cos();
         let r = *radius / cos_half;
         *center + *u_ref * (r * c) + vref * (r * s)
     };
@@ -2595,7 +2610,19 @@ fn run_iso_arc_checks<T: Decide>(
     // column's domain is exactly `[0, 1]` (checked as structure just
     // above), so the iso-line class's `over·stretch` slack is
     // identically zero here rather than merely small.
-    let envelope = hull + slack_v;
+    //
+    // **The admitted-input slack** (R1 MINOR-1). The chain above
+    // compares `B(g)` against `Ĉ(g)`, i.e. it reads the pcurve's u
+    // channel AS `g`. Every mint satisfies that bitwise (`p0 = (0, v)`,
+    // `pd = (1, 0)`), but `certify` is a public door and admits any
+    // placement, so the difference has to be PAID rather than assumed:
+    // `u(t) − g(t) = p0.x + (pd.x − 1)·g` is affine in `g ∈ [0, 1]`, so
+    // its sup is at an endpoint — `max(|p0.x|, |p0.x + pd.x − 1|)` —
+    // and `stretch_u` meters it into metres. Identically zero on the
+    // minted path, exactly as the iso-line class's `slack_param` and
+    // the harmonic class's winding snap are.
+    let slack_affine = p0.x.abs().max((p0.x + pd.x - T::one()).abs()) * stretch_u;
+    let envelope = hull + slack_v + slack_affine;
     let mut envelope_margin = T::zero();
     check_residual(
         "pcurve_envelope",

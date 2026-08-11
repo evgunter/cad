@@ -10,6 +10,21 @@
 //!    is 2) certified through the same public door the mint uses —
 //!    carrier-keyed means the class accepts any chart that really is
 //!    this circle's uniform rational-quadratic form.
+//!
+//! **Adopted at the fix pass as the class's NEGATIVE CONTROL (R1
+//! MAJOR-1).** Before this file, skipping `run_iso_arc_checks`
+//! entirely — early-returning a zero certificate — turned nothing red
+//! anywhere in the workspace: every shipped row mints an
+//! exact-by-construction chart whose checks pass trivially, so the
+//! rows prove the class ACCEPTS the truth and never that it REFUSES a
+//! lie. Re-applying that mutation on the fix head now fails probe 3's
+//! negative control ("a wrong interior weight must refuse", answering
+//! a fabricated `envelope: 0.0` certificate); reverted, green.
+//!
+//! Probe 2 alone does NOT kill that mutation and is not meant to: a
+//! perfect mint's envelope is legitimately `0`, so a zero certificate
+//! is not by itself evidence of anything, and probe 2's bound collapses
+//! onto its own f64-rounding allowance. The lock is the REFUSAL side.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Vec3};

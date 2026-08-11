@@ -204,15 +204,29 @@ fn arc_loft_natively_computes_its_rational_volume() {
             );
             let got = topo::mass_properties(&body).expect("imported rational mass properties");
             let want = native_props.as_ref().expect("the native side certified");
-            // The two enclosures are of the SAME solid, so they must
-            // overlap; each is certified, so the check is a real one.
-            assert!(
-                (got.volume - want.volume).abs() <= got.volume_pad + want.volume_pad,
-                "the round trip must reproduce the volume within the two certified pads: \
+            // **BIT identity, not overlap** (R1 MINOR-2). Overlap is
+            // what soundness needs — two certified enclosures of one
+            // solid must intersect — but it is not what actually
+            // happens, and asserting the weaker fact would let a real
+            // divergence hide inside a pad. The reader reconstructs the
+            // same chart and the same trim, so the same quadrature runs
+            // on the same bits: pin THAT, and let a single ulp of drift
+            // be a finding.
+            assert_eq!(
+                got.volume.to_bits(),
+                want.volume.to_bits(),
+                "the round trip must reproduce the volume BIT-identically: \
                  imported {} ± {}, native {} ± {}",
                 got.volume,
                 got.volume_pad,
                 want.volume,
+                want.volume_pad,
+            );
+            assert_eq!(
+                got.volume_pad.to_bits(),
+                want.volume_pad.to_bits(),
+                "and the same certified pad: imported {}, native {}",
+                got.volume_pad,
                 want.volume_pad,
             );
             println!(
