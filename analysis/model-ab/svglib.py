@@ -262,3 +262,56 @@ def legend(entries):
                    '</span>%s</span>' % (col, esc(lab)))
     out.append("</div>")
     return "".join(out)
+
+
+def slope(groups, xlabel, width=880, row_h=30, xlo=None, xhi=None,
+          title=None, left=170):
+    """Paired R1->R2 slope chart. groups: [{label, a, b}] one row each."""
+    right = 90
+    top = 44 if title else 16
+    h = top + row_h * len(groups) + 44
+    allv = [v for g in groups for v in (g["a"], g["b"])]
+    lo = xlo if xlo is not None else min(allv)
+    hi = xhi if xhi is not None else max(allv)
+    if hi == lo:
+        hi = lo + 1
+    pad = (hi - lo) * 0.08
+    sc = Scale(lo - pad, hi + pad, left, width - right)
+    p = ['<svg viewBox="0 0 %d %d" width="100%%" role="img" class="chart" '
+         'aria-label="%s">' % (width, h, esc(xlabel))]
+    if title:
+        p.append('<text x="0" y="18" class="ct">%s</text>' % esc(title))
+    t = math.floor(lo)
+    while t <= hi:
+        X = sc(t)
+        p.append('<line x1="%.1f" y1="%d" x2="%.1f" y2="%d" class="grid"/>'
+                 % (X, top - 6, X, top + row_h * len(groups)))
+        p.append('<text x="%.1f" y="%d" class="tick" text-anchor="middle">%g'
+                 '</text>' % (X, top + row_h * len(groups) + 17, t))
+        t += 1
+    for k, g in enumerate(groups):
+        y = top + row_h * k + row_h / 2.0
+        p.append('<text x="0" y="%.1f" class="rowlab">%s</text>'
+                 % (y + 4, esc(g["label"])))
+        A, B = sc(g["a"]), sc(g["b"])
+        same = abs(g["a"] - g["b"]) < 1e-9
+        p.append('<g><title>%s: R1=%g  R2=%g%s</title>'
+                 % (esc(g["label"]), g["a"], g["b"],
+                    "  (agree)" if same else "  (differ)"))
+        if not same:
+            p.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" '
+                     'stroke="var(--muted)" stroke-width="2" '
+                     'stroke-linecap="round" opacity="0.55"/>'
+                     % (A, y, B, y))
+        p.append('<circle cx="%.1f" cy="%.1f" r="5" fill="%s" '
+                 'stroke="var(--surface-1)" stroke-width="2"/>' % (A, y, FABLE))
+        p.append('<circle cx="%.1f" cy="%.1f" r="5" fill="%s" '
+                 'stroke="var(--surface-1)" stroke-width="2"/>' % (B, y, OPUS))
+        p.append('</g>')
+        p.append('<text x="%d" y="%.1f" class="val">%s</text>'
+                 % (width - right + 10, y + 4,
+                    "agree" if same else "%g→%g" % (g["a"], g["b"])))
+    p.append('<text x="%.1f" y="%d" class="axlab" text-anchor="middle">%s'
+             '</text>' % ((left + width - right) / 2.0, h - 6, esc(xlabel)))
+    p.append('</svg>')
+    return "\n".join(p)

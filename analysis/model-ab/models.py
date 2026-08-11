@@ -22,6 +22,9 @@ def fit_count(y, X, family="poisson", prior_sd=None, seed=1,
         prior_sd = [1.5] + [0.8] * (p - 1)
     nb = family == "negbin"
     npar = p + (1 if nb else 0)
+    # lgamma(y+1) is constant per observation; hoisting it out of the inner
+    # loop is worth real wall-clock here (millions of evaluations, no scipy).
+    data = [(yi, xi, math.lgamma(yi + 1.0)) for yi, xi in zip(y, X)]
 
     def logpost(th):
         beta = th[:p]
@@ -32,12 +35,18 @@ def fit_count(y, X, family="poisson", prior_sd=None, seed=1,
             log_phi = th[p]
             lp += log_normal_pdf(log_phi, 1.5, 1.5)
             phi = math.exp(log_phi)
-        for yi, xi in zip(y, X):
+            for yi, xi, _ in data:
+                e = _eta(beta, xi)
+                if e > 20 or e < -20:
+                    return -1e300
+                lp += log_negbin_pmf(yi, math.exp(e), phi)
+            return lp
+        for yi, xi, lg in data:
             e = _eta(beta, xi)
             if e > 20 or e < -20:
                 return -1e300
-            mu = math.exp(e)
-            lp += log_negbin_pmf(yi, mu, phi) if nb else log_poisson_pmf(yi, mu)
+            # log Poisson pmf, with the constant term precomputed
+            lp += yi * e - math.exp(e) - lg
         return lp
 
     def init(c):

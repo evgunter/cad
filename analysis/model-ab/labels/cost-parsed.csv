@@ -1,62 +1,100 @@
 row_id,tok_impl,tok_fix,tok_review,tok_total_stated,h_impl,h_fix,h_review,h_total_stated,contaminated,contamination_kind,active_note,raw_tokens,raw_wall
-1,NA,NA,NA,1150,NA,NA,NA,19,1,crash,5,"~1.15M (incl. 2 crash resumes)","~19h wall incl. crash gap (~5h active)"
-2,NA,NA,NA,58,NA,NA,NA,0.107,0,none,NA,"58k","6.4 min"
-3,NA,NA,NA,1490,NA,NA,NA,26,1,crash,NA,"~1.49M (incl. crash resume)","~26h wall incl. crash gap"
-4,NA,NA,NA,880,NA,NA,NA,9,1,crash,NA,"~880k","~9h wall (incl. crash gap)"
-5,NA,NA,NA,134,NA,NA,NA,1,0,none,NA,"134k","~1h"
-6,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"—","—"
-7,NA,NA,NA,263,NA,NA,NA,3,0,none,NA,"~263k","~3h"
-8,NA,NA,NA,356,NA,NA,NA,8,1,limit,NA,"~356k","~8h wall (incl. limit gap)"
-9,NA,NA,NA,573,NA,NA,NA,26,1,limit,NA,"~573k","~26h wall (incl. limit gap)"
-10,NA,NA,NA,640,NA,NA,NA,11,0,none,NA,"~640k","~11h wall"
-11,277,NA,NA,NA,8,NA,NA,NA,0,none,NA,"~277k impl (+fix tbd)","~8h impl wall"
-12,465,530,NA,NA,11,0.5,NA,NA,0,none,NA,"~465k impl + ~530k fix","~11h impl + ~0.5h fix wall"
-13,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","(in log)"
-14,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(fix tbd)","(in log)"
-15,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","(in log)"
-16,NA,NA,NA,94,NA,NA,NA,0.28,0,none,NA,"~94k","~17min"
-17,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","interrupted twice (spend limit + 529); finisher pattern"
-18,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","interrupted once (529); finisher pattern; impl notably complete pre-review"
-19,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","first REJECT of the project; fix pass deepened the unit"
-20,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","zip is purely structural — no new numeric predicate"
-21,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","(in log)"
-22,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","(in log)"
-23,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","(in log)"
-24,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","(in log)"
-25,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","(in log)"
-26,281,323,NA,NA,4.3,4,NA,NA,1,outage,NA,"~281k impl + ~323k fix","~4.3h impl + ~4h fix wall (incl. outage gap)"
-27,178,NA,123,NA,2.5,NA,NA,NA,0,none,NA,"~178k impl + ~123k review","~2.5h impl wall"
-28,NA,NA,NA,742,NA,NA,NA,36,1,outage,NA,"~742k impl+fix (in-lane)","~1.5 days wall incl. outage #10"
-29,325,396,NA,NA,NA,NA,NA,48,1,outage,NA,"~325k impl + ~396k fix","~2 days wall incl. outage #10"
-30,128,NA,143,NA,NA,NA,NA,6,0,none,NA,"~128k impl + ~143k review","~6h wall"
-31,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","(in log)"
-32,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","(in log)"
-33,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","(in log)"
-34,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","(in log)"
-35,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","(in log)"
-36,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"—","—"
-37,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"—","—"
-38,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"—","—"
-39,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"—","—"
-40,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"—","—"
-41,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"—","—"
-42,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"—","—"
-M6-1,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,"(in log)","(in log)"
-M6-2,437,467,NA,NA,5.4,8.7,NA,NA,1,ci_wait,NA,"~437k impl + ~467k fix","~5.4h impl + ~8.7h fix wall (incl. CI waits under CPU pin)"
-M6-3,642,NA,231,NA,7,0.4,2,NA,0,none,NA,"partial (M6 session unrecorded) + ~642k completion + ~231k review + fix segment (figures unreliable across resumes)","~7h completion + ~2h review + ~0.4h fix all under the 20-45x pin"
-M6-5,294,NA,162,NA,4.6,NA,1.6,NA,0,none,NA,"~294k impl + ~162k review","~4.6h impl + ~1.6h review"
-M6-6,241,259,175,NA,3.1,0.3,2.7,NA,0,none,NA,"~241k impl + ~175k review + ~259k fix","~3.1h impl + ~2.7h review + ~0.3h fix"
-M7-1,441,37,181,NA,1.9,0.5,0.6,NA,0,none,NA,"~441k impl + ~181k review + ~37k fix (resumed segment)","~1.9h impl + ~0.6h review + ~0.5h fix active"
-M7-2,422,33,169,NA,2.6,0.6,0.8,NA,0,none,NA,"~422k impl + ~169k review + ~33k fix","~2.6h impl (incl. gate-red loop) + ~0.8h review + ~0.6h fix"
-M7-3,277,343,180,NA,2.5,1,1.2,NA,0,none,NA,"~277k impl + ~180k review + ~343k fix","~2.5h impl + ~1.2h review + ~1h fix"
-M7-4,372,NA,167,NA,1.8,1.1,1.2,NA,0,none,NA,"~372k impl + ~167k review + 2 fix resumes (per-segment figures unreliable)","~1.8h impl + ~1.2h review + ~1.1h fixes"
-RIM-DIM,290,370,154,NA,3,0.8,0.9,NA,0,none,NA,"~290k impl + ~154k review + ~370k fix segment","~3h impl + ~0.9h review + ~0.8h fix all under the 20-45x pin"
-F3+F4,254,312,113,NA,1,1.2,0.42,NA,0,none,NA,"~254k impl + ~113k review + ~312k fix","~1h impl (post-outage) + ~25min review + ~1.2h fix"
-KERNEL,279,NA,117,NA,2,NA,1.3,NA,0,none,NA,"~279k impl + ~117k review + micro fix","~2h impl + ~1.3h review"
-SKINFIT,153,NA,108,NA,2.5,NA,1.2,NA,0,none,NA,"~153k impl + ~108k review","~2.5h impl + ~1.2h review"
-FOLD,149,180,164,NA,1.9,0.2,1.8,NA,0,none,NA,"~149k impl + ~164k review + ~180k fix","~1.9h impl + ~1.8h review + ~0.2h fix"
-MONTAGE,139,NA,NA,NA,NA,NA,NA,0.5,0,none,NA,"~139k impl","~0.5h"
-MIGRATE,327,438,147,NA,4.5,6,0.7,NA,0,none,NA,"~327k impl + ~147k review + ~438k fix","~4.5h impl + ~0.7h review + ~6h fix (incl. the design rounds)"
-MESH,444,NA,163,NA,8.3,NA,2.8,NA,0,none,NA,"~444k impl (incl. conflict fix + visual rework) + ~163k review","~8.3h impl wall + ~2.8h review"
-MV2,304,NA,NA,NA,NA,NA,NA,5.7,0,none,NA,"~304k impl","~5.7h wall (render-heavy)"
-GUARD,136,NA,NA,NA,NA,NA,NA,4.6,0,none,NA,"~136k impl","~4.6h wall (render-verification-heavy)"
+1,NA,NA,NA,1150,NA,NA,NA,19,1,crash,5,~1.15M (incl. 2 crash resumes),~19h wall incl. crash gap (~5h active)
+2,NA,NA,NA,58,NA,NA,NA,0.107,0,none,NA,58k,6.4 min
+3,NA,NA,NA,1490,NA,NA,NA,26,1,crash,NA,~1.49M (incl. crash resume),~26h wall incl. crash gap
+4,NA,NA,NA,880,NA,NA,NA,9,1,crash,NA,~880k,~9h wall (incl. crash gap)
+5,NA,NA,NA,134,NA,NA,NA,1,0,none,NA,134k,~1h
+6,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,—,—
+7,NA,NA,NA,263,NA,NA,NA,3,0,none,NA,~263k,~3h
+8,NA,NA,NA,356,NA,NA,NA,8,1,limit,NA,~356k,~8h wall (incl. limit gap)
+9,NA,NA,NA,573,NA,NA,NA,26,1,limit,NA,~573k,~26h wall (incl. limit gap)
+10,NA,NA,NA,640,NA,NA,NA,11,0,none,NA,~640k,~11h wall
+11,277,NA,NA,NA,8,NA,NA,NA,0,none,NA,~277k impl (+fix tbd),~8h impl wall
+12,465,530,NA,NA,11,0.5,NA,NA,0,none,NA,~465k impl + ~530k fix,~11h impl + ~0.5h fix wall
+13,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),(in log)
+14,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(fix tbd),(in log)
+15,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),(in log)
+16,NA,NA,NA,94,NA,NA,NA,0.28,0,none,NA,~94k,~17min
+17,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),interrupted twice (spend limit + 529); finisher pattern
+18,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),interrupted once (529); finisher pattern; impl notably complete pre-review
+19,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),first REJECT of the project; fix pass deepened the unit
+20,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),zip is purely structural — no new numeric predicate
+21,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),(in log)
+22,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),(in log)
+23,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),(in log)
+24,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),(in log)
+25,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),(in log)
+26,281,323,NA,NA,4.3,4,NA,NA,1,outage,NA,~281k impl + ~323k fix,~4.3h impl + ~4h fix wall (incl. outage gap)
+27,178,NA,123,NA,2.5,NA,NA,NA,0,none,NA,~178k impl + ~123k review,~2.5h impl wall
+28,NA,NA,NA,742,NA,NA,NA,36,1,outage,NA,~742k impl+fix (in-lane),~1.5 days wall incl. outage #10
+29,325,396,NA,NA,NA,NA,NA,48,1,outage,NA,~325k impl + ~396k fix,~2 days wall incl. outage #10
+30,128,NA,143,NA,NA,NA,NA,6,0,none,NA,~128k impl + ~143k review,~6h wall
+31,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),(in log)
+32,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),(in log)
+33,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),(in log)
+34,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),(in log)
+35,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),(in log)
+36,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,—,—
+37,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,—,—
+38,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,—,—
+39,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,—,—
+40,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,—,—
+41,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,—,—
+42,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,—,—
+M6-1,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,(in log),(in log)
+M6-2,437,467,NA,NA,5.4,8.7,NA,NA,1,ci_wait,NA,~437k impl + ~467k fix,~5.4h impl + ~8.7h fix wall (incl. CI waits under CPU pin)
+M6-3,642,NA,231,NA,7,0.4,2,NA,0,none,NA,partial (M6 session unrecorded) + ~642k completion + ~231k review + fix segment (figures unreliable across resumes),~7h completion + ~2h review + ~0.4h fix all under the 20-45x pin
+M6-5,294,NA,162,NA,4.6,NA,1.6,NA,0,none,NA,~294k impl + ~162k review,~4.6h impl + ~1.6h review
+M6-6,241,259,175,NA,3.1,0.3,2.7,NA,0,none,NA,~241k impl + ~175k review + ~259k fix,~3.1h impl + ~2.7h review + ~0.3h fix
+M7-1,441,37,181,NA,1.9,0.5,0.6,NA,0,none,NA,~441k impl + ~181k review + ~37k fix (resumed segment),~1.9h impl + ~0.6h review + ~0.5h fix active
+M7-2,422,33,169,NA,2.6,0.6,0.8,NA,0,none,NA,~422k impl + ~169k review + ~33k fix,~2.6h impl (incl. gate-red loop) + ~0.8h review + ~0.6h fix
+M7-3,277,343,180,NA,2.5,1,1.2,NA,0,none,NA,~277k impl + ~180k review + ~343k fix,~2.5h impl + ~1.2h review + ~1h fix
+M7-4,372,NA,167,NA,1.8,1.1,1.2,NA,0,none,NA,~372k impl + ~167k review + 2 fix resumes (per-segment figures unreliable),~1.8h impl + ~1.2h review + ~1.1h fixes
+RIM-DIM,290,370,154,NA,3,0.8,0.9,NA,0,none,NA,~290k impl + ~154k review + ~370k fix segment,~3h impl + ~0.9h review + ~0.8h fix all under the 20-45x pin
+F3+F4,254,312,113,NA,1,1.2,0.42,NA,0,none,NA,~254k impl + ~113k review + ~312k fix,~1h impl (post-outage) + ~25min review + ~1.2h fix
+KERNEL,279,NA,117,NA,2,NA,1.3,NA,0,none,NA,~279k impl + ~117k review + micro fix,~2h impl + ~1.3h review
+SKINFIT,153,NA,108,NA,2.5,NA,1.2,NA,0,none,NA,~153k impl + ~108k review,~2.5h impl + ~1.2h review
+FOLD,149,180,164,NA,1.9,0.2,1.8,NA,0,none,NA,~149k impl + ~164k review + ~180k fix,~1.9h impl + ~1.8h review + ~0.2h fix
+MONTAGE,139,NA,NA,NA,NA,NA,NA,0.5,0,none,NA,~139k impl,~0.5h
+MIGRATE,327,438,147,NA,4.5,6,0.7,NA,0,none,NA,~327k impl + ~147k review + ~438k fix,~4.5h impl + ~0.7h review + ~6h fix (incl. the design rounds)
+MESH,444,NA,163,NA,8.3,NA,2.8,NA,0,none,NA,~444k impl (incl. conflict fix + visual rework) + ~163k review,~8.3h impl wall + ~2.8h review
+MV2,304,NA,NA,NA,NA,NA,NA,5.7,0,none,NA,~304k impl,~5.7h wall (render-heavy)
+GUARD,136,NA,NA,NA,NA,NA,NA,4.6,0,none,NA,~136k impl,~4.6h wall (render-verification-heavy)
+KLINT,184,222,89,NA,2.3,0.3,0.6,NA,0,none,NA,~184k impl + ~89k review + ~222k fix (resumed segment),~2.3h impl + ~0.6h review + ~0.3h fix (no gaps)
+KLINT-GATE,103,0,NA,NA,1.4,0,NA,NA,0,none,NA,impl ~103k / review n/a (orchestrator) / fix 0 (per-phase),impl ~1.4h / fix 0 (no gaps)
+RTIMEOUT,202,0,NA,NA,3.7,NA,NA,NA,1,starvation,NA,impl ~202k / review n/a (orchestrator) / fix 0 (per-phase),impl ~3.7h (render-verification-heavy incl. the 90-min mutex starvation gap ANNOTATED)
+WMONTAGE,208,0,NA,NA,1.2,NA,NA,NA,0,none,NA,impl ~208k / review n/a / fix 0 (per-phase),impl ~1.2h (no gaps)
+M7-6,396,500,205,NA,2.5,4,4.6,NA,0,none,R2tok=152;R2h=0.6,impl ~396k + fix segments ~500k (multi-resume per-segment attribution unreliable — annotated) / R1 ~205k + ~44k delta / R2 ~152k,impl ~2.5h + fixes ~4h (slot-starvation gaps annotated) / R1 ~4.6h + delta ~0.6h / R2 ~0.6h
+REBASELINE,115,NA,NA,NA,NA,NA,NA,5,0,none,NA,impl ~115k cumulative (multi-segment incl. two nudge recoveries),~5h wall (dominated by the ref-build compile + two hosted runs; two parked windows nudged annotated)
+RENDER-CLI,101,NA,NA,NA,NA,NA,NA,0.4,0,none,NA,impl ~101k,~0.4h (no gaps)
+M8-C1,NA,NA,135,363,NA,NA,2.7,6,0,none,NA,impl+fix ~363k cumulative / R1 ~135k + delta ~21k,impl+fix ~6h cumulative wall (multi-segment slot waits annotated) / R1 ~2.7h + delta ~0.9h
+M8-5,254,14,158,NA,0.9,0.2,1.0,NA,0,none,NA,impl ~254k + fix ~14k / R1 ~158k,impl ~0.9h + fix ~0.2h / R1 ~1.0h (no gaps)
+M8-2,264,NA,126,NA,4.3,0.5,1.0,NA,0,none,NA,impl ~264k cumulative (incl. ruling + fix segments) / R1 ~126k,impl ~4.3h + fix ~0.5h / R1 ~1.0h (no gaps)
+M8-1,150,50,136,NA,1.3,0.7,2.0,NA,0,none,NA,impl ~150k + fix ~50k / R1 ~136k,impl ~1.3h / fix ~0.7h / R1 ~2.0h (no gaps)
+M7-8,NA,NA,206,NA,NA,NA,6.1,NA,1,stall,NA,impl segments UNRECORDED (both died with the predecessor session); finisher ~275k cumulative across 3 segments; R1 ~206k,finisher ~6.8h across segments (slot-contention gaps annotated); R1 ~6.1h wall (incl. stale-loop tail); impl wall unrecorded
+CALOCH,248,NA,NA,NA,NA,NA,NA,7.6,1,starvation,NA,impl ~248k (incl. ruling application),~7.6h wall — ~50 min parked (nudged) + ~4h slot starvation by the SEL1 battery ANNOTATED; active work the remainder
+M7-7,NA,NA,NA,NA,NA,NA,NA,NA,0,none,NA,impl + R1 + first fix segment: UNRECORDED (all three died with the predecessor session — the handoff gap annotated); finisher ~156k; delta review ~141k; orchestrator ~2k,finisher ~4.6h (slot-starvation gaps annotated); delta review ~3.0h; impl/R1 wall unrecorded
+M7-5,300,73,236,NA,1.0,1.1,2.4,NA,0,none,NA,impl ~300k + ~1k clippy fix / review ~236k + ~44k delta / fix ~73k (per-phase),impl ~1.0h + fix ~1.1h / review ~2.4h + ~0.7h delta (no gaps)
+U2,364,49,166,NA,4.1,NA,1.1,NA,0,none,NA,~364k impl + ~166k review + ~49k finisher (2 dead fix segments unrecorded),~4.1h impl + ~1.1h review + fixes fragmented across the WSL crash
+SWITCH-P,222,235,135,NA,0.9,0.4,0.5,NA,0,none,NA,impl ~222k / review ~135k / fix ~235k,impl ~0.9h / review ~0.5h / fix ~0.4h
+U7,172,0,159,NA,1.9,0.1,5,NA,0,none,R2tok=126;R2h=0.6,impl ~172k / R1 ~159k(incl. limit-kill resume) / R2 ~126k / fix 0,impl ~1.9h / R1 ~5h wall (limit gap annotated) / R2 ~0.6h / fix ~0.1h
+G2,909,374,176,NA,7.2,0.7,3.7,NA,1,starvation,tok_impl=543+366 segments;h_impl=2.1+5.1,impl ~543k(orig fragmented incl. 2 stale-waiter wakeups) + ~366k(finisher) / review ~176k / fix ~374k(cumulative-resumed unreliable),impl ~2.1h+~5.1h / review ~3.7h / fix ~0.7h — slot-wait dominated throughout annotated
+G1,544,335,188,NA,5.3,0.8,1.9,NA,1,starvation,R2tok=180;R2h=1.2,impl ~544k (parked+resumed) / R1 ~188k / R2 ~180k / fix ~335k,impl ~5.3h (incl. slot waits at load ~20) / R1 ~1.9h / R2 ~1.2h / fix ~0.8h (no gaps)
+U3,246,0,114,NA,0.96,0,0.41,NA,0,none,NA,impl ~246k / review ~114k / fix 0 (per-phase per v3 discipline),impl ~0.96h / review ~0.41h / fix 0 (no gaps)
+U1,158,242,152,NA,1,2.3,1.5,NA,0,none,NA,~158k impl + ~152k review + ~242k fix,~1h impl + ~1.5h review + ~2.3h fix
+U5,235,307,170,NA,0.9,2.6,0.7,NA,0,none,R2tok=154;R2h=0.5,impl ~235k / R1 ~170k / R2 ~154k / fix ~307k,impl ~0.9h / R1 ~0.7h / R2 ~0.5h / fix ~2.6h
+U9S,244,274,262,NA,5,0.3,1.5,NA,0,none,NA,impl ~244k / review ~262k(incl. limit-kill resume) / fix ~274k,impl ~5h / review ~1.5h active / fix ~0.3h
+SEL1,483,288,354,NA,2.2,0.4,1.5,NA,0,none,NA,impl ~483k (incl. limit-kill resume) / review ~354k (incl. limit-kill resume) / fix ~288k,impl ~2.2h active / review ~1.5h active / fix ~0.4h — limit gaps annotated
+SWITCH-E,605,673,275,NA,NA,NA,NA,NA,1,limit,R2tok=217;tok_impl_plus=1,impl ~605k+ / R1 ~275k / R2 ~217k / fix ~673k — all limit-fragmented annotated,wall figures unreliable across 3 limit gaps + the CONFLICTING window
+SEL2,284,349,128,NA,NA,NA,NA,NA,1,limit,NA,impl ~284k / review ~128k / fix ~349k — limit-fragmented annotated,wall fragmented across 2 limit gaps
+DOORS,228,287,143,NA,0.7,0.7,0.6,NA,0,none,R2tok=258,impl ~228k / R1 ~143k / R2 ~258k(incl. parking resumes) / fix ~287k,impl ~0.7h / R1 ~0.6h / R2 fragmented / fix ~0.7h
+PR-C,476,266,128,NA,3,2.3,0.5,NA,0,none,NA,impl ~476k (2 segments) / review ~128k / fix ~266k,impl ~3h / review ~0.5h / fix ~2.3h
+PYG1,333,70,165,NA,1.4,0.75,3.5,NA,1,starvation,NA,impl ~333k / review ~165k / fix ~70k,impl ~1.4h active / review ~3.5h (~2h slot contention annotated) / fix ~45min active (cancelled slot tail excluded)
+U10,270,567,272,NA,NA,NA,NA,NA,1,starvation,R2tok=142,impl ~270k / R1 ~272k(2 resumes) / R2 ~142k / fix ~567k(2 segments),slot-wait-dominated annotated
+R1-PARAMS,165,NA,82,NA,1.1,0.2,0.7,NA,0,none,NA,impl ~165k / review ~82k / fix orchestrator-direct (negligible),impl ~1.1h / review ~0.7h (15:01–15:42Z one 2-min slot wait no gaps) / fix ~0.2h
+PY-CI,203,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,impl ~203k + hotfix orchestrator-direct,—
+PYG23A,135,15,126,NA,4.8,0.3,3.0,NA,0,none,NA,impl ~135k + ~55k surveys / review ~126k / fix ~15k,impl ~4.8h wall (verification slot-contended annotated) / review ~3.0h / fix ~0.3h
+ASM-1,275,266,155,NA,5.9,NA,7.3,NA,0,none,R2tok=166;R2tok_plus=1,impl ~275k + fix ~266k / R1 ~155k / R2 ~166k+2 lost-wake resumes,impl ~5.9h / R1 ~7.3h / R2 wake-fragmented annotated
+PYBUNDLE,300,318,142,NA,1.5,1.7,2.3,NA,1,starvation,NA,impl ~300k / review ~142k / fix ~318k,impl ~1.5h / review ~2.3h (~70min slot contention annotated) / fix ~1.7h
+ASM-ROOTS,280,NA,249,NA,5.3,NA,4.8,NA,0,none,NA,impl ~280k / review ~249k,impl ~5.3h / review ~4.8h
+ASM-2K,211,219,131,NA,3.4,NA,NA,NA,0,none,R2tok=108;R2h=5.3;tok_review_plus=1,impl ~211k + fix ~219k / R1 ~131k+resumes / R2 ~108k,impl ~3.4h / R1 wake-fragmented / R2 ~5.3h

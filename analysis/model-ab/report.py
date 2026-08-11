@@ -235,12 +235,19 @@ def headline_sentence():
                 "design could not have detected a moderate one.</em>"
                 % (lean, maj["median"], maj["q025"], maj["q975"]))
     names = ", ".join(s[0] for s in sep + [(r[0], None, None) for r in rsep])
-    return ("<strong>Most quality outcomes do not separate the arms, but %d "
-            "do: %s.</strong> The point estimates lean toward opus recording "
-            "%s review findings. Read the separated outcomes with the "
-            "confounds in section 7 firmly in mind &mdash; finding counts "
-            "measure review intensity as well as implementation quality."
-            % (len(sep) + len(rsep), names, lean))
+    mj = c("maj_raw", "rate_ratio_opus_over_fable")
+    return ("<strong>The MAJOR-finding rate now separates: %.2f "
+            "(95%% CrI %.2f&ndash;%.2f), an interval that no longer contains "
+            "&ldquo;no difference&rdquo;.</strong> %d of the %d quality "
+            "outcomes clear it (%s) &mdash; all of them in the MAJOR family, "
+            "which is both the pre-registered headline and, per the new "
+            "concordance experiment (&sect;6), the only outcome two "
+            "independent reviewers reproduce exactly. Everything else "
+            "&mdash; minors, notes, silent deviations, the rubric &mdash; "
+            "remains flat. This is a genuine change from the first readout, "
+            "and &sect;7 sets out what does and does not survive scrutiny."
+            % (mj["median"], mj["q025"], mj["q975"],
+               len(sep) + len(rsep), len(QUALITY_OUTCOMES) + 4, names))
 
 
 def forest_caption_tail():
@@ -274,9 +281,12 @@ def build():
     add('<div class="wrap">')
     add("<h1>Opus 5 vs Fable 5: a Bayesian re-analysis of the CAD "
         "implementation A/B log</h1>")
-    add('<p class="sub">%d blinded dispatches under protocol v2 (blocked '
-        'randomization) &middot; %d fable / %d opus &middot; generated from '
-        '<code>docs/MODEL-AB-LOG.md</code></p>' % (len(Q), nf, no))
+    nv3 = sum(1 for r in Q if r["protocol"] == "v3")
+    add('<p class="sub">Second readout &middot; %d blinded dispatches under '
+        'randomized allocation (v2 pairs, then %d rows of v3 '
+        '{opus,opus,fable} triples) &middot; %d fable / %d opus &middot; '
+        '8 dual-reviewer pairs &middot; generated from '
+        '<code>docs/MODEL-AB-LOG.md</code></p>' % (len(Q), nv3, nf, no))
 
     add('<p class="lede">The log\'s own readouts concluded "no evidence '
         'either arm produces more bugs or worse code" without fitting a '
@@ -288,13 +298,24 @@ def build():
     maj = c("maj_raw", "rate_ratio_opus_over_fable")
     tok = c("tok_impl", "ratio_opus_over_fable")
     add(tiles([
-        ("%d" % len(Q), "blinded dispatches modelled"),
-        ("%d / %d" % (nf, no), "fable / opus rows"),
+        ("%d" % len(Q), "blinded dispatches (was 45)"),
         ("%.2f&times;" % maj["median"], "MAJOR-finding rate, opus vs fable"),
         ("%s" % pct(p_opus_lower("maj_raw")),
          "posterior P(opus has fewer MAJORs)"),
-        ("%.2f&times;" % tok["median"], "implementation tokens, opus vs fable"),
+        ("8 / 8", "dual-review pairs agreeing exactly on MAJORs"),
+        ("%.2f&times;" % tok["median"], "implementation tokens (was 0.85)"),
     ]))
+    add('<div class="callout"><div class="h">What changed since the first '
+        'readout</div><p>Three things: the sample grew from 45 to %d blinded '
+        'rows; the protocol moved to v3 triples (2:1 toward opus, adopted on '
+        'the strength of the first readout); and the reviewer-concordance '
+        'experiment produced its first 8 pairs. Two of my earlier '
+        'conclusions <strong>reverse</strong> — the difficulty sign-flip I '
+        'used as an argument against the arm effect has resolved (&sect;2), '
+        'and the cost advantage I reported has evaporated under better data '
+        '(&sect;4). One earlier flag is <strong>retired outright</strong>: '
+        'the test-quality rubric signal is smaller than the reviewer noise on '
+        'that dimension (&sect;6).</p></div>' % len(Q))
 
     add('<div class="callout"><div class="h">How to read every interval in '
         'this report</div><p>Each estimate is a posterior median with a 95% '
@@ -460,21 +481,26 @@ def build():
         "difference.</p>"
         % (mM["median"], mM["q025"], mM["q975"],
            rM["median"], rM["q025"], rM["q975"]))
+    mS = c("maj_by_difficulty", "opus_in_S")
     mL = c("maj_by_difficulty", "opus_in_L")
-    rL = c("rubric_by_difficulty", "opus_in_L")
-    add('<div class="callout warn"><div class="h">And here is the reason not '
-        'to believe that medium-task result</div><p>The sign does not hold '
-        'across bands. On <strong>large</strong> tasks the same two models '
-        'point the other way — MAJOR rate %.2f (opus <em>worse</em>) and '
-        'rubric %+.2f (opus worse) — while small tasks sit near neutral '
-        '(%.2f and %+.2f). If one model were genuinely better at this work we '
-        'would expect the difficulty bands to at least agree on direction. '
-        'They do not. A pooled lean that dissolves into sign flips when you '
-        'stratify is the classic signature of noise, and it is a real mark '
-        'against reading section 1\'s lean as an effect.</p></div>'
-        % (mL["median"], rL["median"],
-           c("maj_by_difficulty", "opus_in_S")["median"],
-           c("rubric_by_difficulty", "opus_in_S")["median"]))
+    add('<div class="callout"><div class="h">This reverses a conclusion from '
+        'my first report</div><p>With 45 rows I found the pooled lean '
+        '<em>dissolved into sign flips</em> when stratified — medium '
+        'favoured opus, large favoured fable — and I argued that was the '
+        'signature of noise rather than an effect. <strong>With 76 rows it '
+        'no longer flips.</strong> All three difficulty bands now point the '
+        'same way on MAJOR findings: small %.2f, medium %.2f, large %.2f, '
+        'every one below 1.0. The medium band is the only one that separates '
+        'on its own, which is what you would expect from the band with the '
+        'most rows (%d), not from a band-specific effect.</p>'
+        '<p>That argument was correct on the data I had and is wrong on the '
+        'data now available. The direction-consistency I called for as the '
+        'test of a real effect is now present, so the honest move is to '
+        'withdraw the objection.</p></div>'
+        % (mS["median"], mM["median"], mL["median"],
+           sum(1 for r in Q if r["difficulty"] == "M"
+               and analyze.y_maj(r) is not None)))
+    add(era_block())
 
     # ================= RUBRIC =================
     add("<h2>3. Do the individual quality dimensions differ?</h2>")
@@ -522,11 +548,14 @@ def build():
     add(rubric_table(Q))
 
     # ================= COST =================
-    add("<h2>4. Cost: where the data leans hardest</h2>")
-    add("<p>Tokens and wall-clock were recorded for only part of the log — "
-        "the M5 readout flagged this as a data-quality failure. But what "
-        "survives is <strong>exactly balanced</strong>: 12 opus and 12 fable "
-        "rows record an implementation-phase token figure.</p>")
+    add("<h2>4. Cost: the first report's cost finding did not survive</h2>")
+    add("<p>The experiment standardized its per-phase cost recording after "
+        "the first readout. The effect on data completeness is dramatic: "
+        "among the rows added since, 92% carry an implementation token "
+        "figure and 74% a wall-clock figure, against 39% and 31% in the "
+        "older rows. That is the single biggest data-quality improvement in "
+        "this dataset — and it is what dissolved the earlier cost "
+        "result.</p>")
 
     cost_items = [
         item("Implementation tokens", "tok_impl", "ratio_opus_over_fable",
@@ -542,9 +571,9 @@ def build():
     add(S.forest(cost_items, "cost ratio (opus ÷ fable), log scale",
                  ref=1.0, log=True, xlo=0.1, xhi=4,
                  ticks=[0.125, 0.25, 0.5, 1, 2, 4]))
-    add('<figcaption>Below 1.0 means opus cost less. This is the only family '
-        'of outcomes where the intervals lean consistently to one side.'
-        '</figcaption>')
+    add('<figcaption>Below 1.0 means opus cost less. Unlike the first '
+        'readout, these no longer lean consistently to one side — '
+        'implementation wall-clock now sits above 1.0.</figcaption>')
     add("</figure>")
 
     add("<p>%s</p>" % cost_para())
@@ -556,14 +585,16 @@ def build():
         'figure. Hover for the row id and difficulty.</figcaption>')
     add("</figure>")
 
-    add('<div class="callout warn"><div class="h">Read the cost result more '
-        'sceptically than the quality ones</div><p>The 24 rows that carry a '
-        'token figure are not a random sample of the 51 — they are the rows '
-        'whose orchestrator happened to write the number down, concentrated '
-        'in particular stretches of the project. Balanced arms do not fix '
-        'selection on <em>when</em> a row was recorded, because unit scope '
-        'and project phase both drifted over time. Treat this as the '
-        'best available estimate, not a clean one.</p></div>')
+    add('<div class="callout"><div class="h">The useful lesson here is about '
+        'measurement, not about models</div><p>Cost figures are still not a '
+        'random sample — they are the rows whose orchestrator wrote a number '
+        'down — but the selection is far weaker than it was, because the '
+        'recording discipline now catches most rows rather than a minority. '
+        'A finding that reversed when the sampling improved is exactly what '
+        'a selection artifact looks like in hindsight. The corresponding '
+        'warning for the rest of this report: the MAJOR-finding result rests '
+        'on a metric recorded for every row, which is why it is more '
+        'trustworthy than the cost result ever was.</p></div>')
 
     # ================= DEBUGGER VS DESIGNER =================
     add("<h2>5. “Opus debugs better, Fable designs better”</h2>")
@@ -664,11 +695,19 @@ def build():
         "design and diagnosis work, which this protocol deliberately "
         "prevents.</p>" % verdict)
 
-    # ================= POWER / CAVEATS =================
-    add("<h2>6. What this sample could and could not have detected</h2>")
-    add(power_section(Q))
+    # ================= CONCORDANCE (the new experiment) =================
+    for chunk in concordance_section():
+        add(chunk)
+    for chunk in concordance_impact():
+        add(chunk)
+    for chunk in stopping_judgment(Q):
+        add(chunk)
 
-    add("<h2>7. Caveats that outrank the statistics</h2>")
+    # ================= POWER / CAVEATS =================
+    add("<h2>7. What changed, and how much to believe it</h2>")
+    add(power_section_v2(Q))
+
+    add("<h2>8. Caveats that outrank the statistics</h2>")
     add(caveats())
 
     # ================= APPENDIX =================
@@ -736,6 +775,40 @@ def rubric_table(Q):
 def cost_para():
     p_cheaper = p_opus_lower("tok_impl")
     p_faster = p_opus_lower("h_impl")
+    ti = c("tok_impl", "ratio_opus_over_fable")
+    hi = c("h_impl", "ratio_opus_over_fable")
+    tt = c("tok_total", "ratio_opus_over_fable")
+    ha = c("h_any", "ratio_opus_over_fable")
+    return ("<strong>The cost finding from my first report has largely "
+            "evaporated, and that is the most important thing to say about "
+            "this section.</strong> Then, on 24 token rows and 19 wall-clock "
+            "rows, the four cost measures all pointed the same way and total "
+            "tokens was the single interval in the whole report that excluded "
+            "no-difference. The standardized per-phase recording has since "
+            "roughly doubled the usable data (tokens %d rows, wall-clock %d), "
+            "and on that larger sample: implementation tokens %s, total "
+            "recorded tokens %s, and implementation wall-clock <em>reverses "
+            "direction</em> to %s — opus slower, though the interval is wide. "
+            "The all-rows wall-clock model gives %s. Nothing here separates "
+            "any more."
+            "</p><p>This is a clean illustration of why the log's own "
+            "data-quality debt mattered: the earlier cost result was computed "
+            "on the rows whose orchestrator happened to write a number down, "
+            "and it did not survive contact with a fuller sample. The "
+            "measurement improved and the finding went away. Any residual "
+            "token advantage is now small enough (%.0f%% at the point "
+            "estimate, interval spanning %.0f%%–%.0f%%) that it should not "
+            "drive an allocation decision on its own."
+            % (R["tok_impl"]["n"], R["h_impl"]["n"],
+               ci_txt("tok_impl", "ratio_opus_over_fable"),
+               ci_txt("tok_total", "ratio_opus_over_fable"),
+               ci_txt("h_impl", "ratio_opus_over_fable"),
+               ci_txt("h_any", "ratio_opus_over_fable"),
+               100 * (1 - ti["median"]), 100 * (1 - ti["q975"]),
+               100 * (1 - ti["q025"])))
+
+
+def _cost_para_unused():
     tt_sep = excludes_ref("tok_total", "ratio_opus_over_fable", 1.0)
     return ("Every cost estimate points the same way — opus dispatches cost "
             "less — and the size is consistent across four different ways of "
@@ -856,9 +929,9 @@ analysis cannot separate the two factors.</li>
 <li><strong>Difficulty is one orchestrator's pre-flip guess</strong> — but
 it holds up better than expected. A blinded labeller who never saw the
 S/M/L column rated each unit's scope from its description alone, and
-those ratings correlate with the pre-logged letter at r = 0.86 (mean
-independent rating 2.45 / 3.55 / 4.83 for S / M / L). So the stratifier
-is measuring something real. The log's separate warning still stands
+those ratings correlate with the pre-logged letter at r = 0.83 across
+all 76 rows (mean independent rating 2.43 / 3.56 / 4.76 for S / M / L).
+So the stratifier is measuring something real. The log's separate warning still stands
 though: scope varied by more than an order of magnitude <em>inside</em> a
 single letter, so the bands are coarse.</li>
 <li><strong>Outcomes are graded on a subjective 1–5 rubric</strong> by the
@@ -877,16 +950,21 @@ results called out in sections 2, 3 and 4 are flagged as things to watch
 rather than reported as findings. The pre-registered headline — the
 MAJOR-finding rate — is the one estimate that was not selected after
 seeing the data.</li>
-<li><strong>The pooled lean is real but fragile.</strong> MAJORs,
-consequential MAJORs, silent deviations, NOTEs, pooled findings and all
-four cost measures lean the same way. That is worth noting — but these
-outcomes are heavily correlated (they are largely the same reviews
-counted different ways), so it is far weaker than nine independent
-confirmations. And it does not survive stratification: split by
-difficulty, the medium band favours opus while the large band favours
-fable on both the finding count and the rubric. A direction that
-reverses when you cut the data is the thing you would expect from noise,
-not from a real effect.</li>
+<li><strong>The MAJOR result rests on pooling two protocol eras.</strong>
+Neither v2 rows alone nor v3 rows alone separate; only the combined 76 do.
+The pooling is defensible — both eras are randomized and blinded, both
+point the same direction, and the arm × era interaction is flat — but it
+is the kind of thing worth re-checking as v3 accumulates rows of its
+own.</li>
+<li><strong>The outcomes are not independent tests.</strong> MAJORs,
+consequential MAJORs, notes and pooled findings are largely the same
+reviews counted different ways, so their agreement in direction is much
+weaker evidence than four independent confirmations would be.</li>
+<li><strong>The result is somewhat prior-sensitive at the boundary.</strong>
+Halving the prior width moves the headline interval to 0.39–0.99 — still
+excluding 1.0, but only just. Doubling it gives 0.26–0.85. The finding is
+not an artifact of the prior, but it is close enough to the boundary that
+a modest change in either direction matters.</li>
 <li><strong>Rows 36, 38 and 40 have missing rubric or silent-deviation
 data</strong>, and row 40 is an L-difficulty row, so the milestone's most
 informative endpoint is partly absent. Complete-case analysis was used
@@ -964,10 +1042,20 @@ def appendix(Q):
 
     # method
     o.append("""<details><summary>Method, and what was excluded</summary>
-<p><strong>Scope.</strong> Protocol v2 rows only (blocked randomization,
-row 11 onward). The 10 protocol-v1 rows used an independent coin flip per
-dispatch, landed 7&ndash;3, and come from an earlier project phase; Evan
-chose to exclude them entirely rather than pool them.</p>
+<p><strong>Scope.</strong> Rows under randomized allocation only:
+protocol v2 (opus/fable pairs, row 11 onward) and protocol v3
+({opus,opus,fable} triples, from 2026-08-08). The 10 protocol-v1 rows
+used an independent coin flip per dispatch, landed 7&ndash;3, and come
+from an earlier project phase; Evan chose to exclude them entirely rather
+than pool them. v2 and v3 are pooled for the headline and also fit
+separately (&sect;2) — the allocation ratio differs but both are
+randomized, so pooling is valid and the era interaction is tested
+explicitly.</p>
+<p><strong>Dual-review rows use R1 only</strong> in every arm-comparison
+model, since R1 is the review every row has; using the union or the max
+would make dual rows systematically different from single rows and
+confound the arm contrast with the sampling rule. R2 is used exclusively
+in the concordance analysis (&sect;6).</p>
 <p><strong>Excluded from quality models, retained for cost:</strong> the
 six v2 rows with no blinded review lane (CI-infrastructure rows 16, 41,
 42 and the orchestrator-review / eyeball rows MONTAGE, MV2, GUARD).
@@ -1041,6 +1129,488 @@ def main():
                 "<style>%s</style>\n%s" % (CSS, body))
     print("wrote report.html and artifact.html")
 
+
+
+
+# ==================================================================
+# Reviewer concordance (second pass)
+# ==================================================================
+
+CONC = json.load(open(os.path.join(HERE, "concordance.json")))
+
+
+def _cb(block, *path):
+    d = CONC[block]
+    for p in path:
+        d = d[p]
+    return d
+
+
+def conc_slope(name, title, xlabel):
+    prs = _cb("all8", name, "pairs")
+    groups = [{"label": rid, "a": a, "b": b} for rid, a, b in prs]
+    return S.slope(groups, xlabel, title=title, xlo=0)
+
+
+def concordance_section():
+    o = []
+    a8 = CONC["all8"]
+    maj, mn, nt = a8["maj"], a8["min"], a8["note"]
+    v = a8["verdict"]
+
+    o.append("<h2>6. Reviewer concordance &mdash; the new experiment</h2>")
+    o.append(
+        "<p>The first readout's top recommendation was that reviewer "
+        "variance is the largest uncontrolled term and needs measuring: a "
+        "finding count confounds <em>how well the code was written</em> with "
+        "<em>how hard that particular review looked</em>. The protocol now "
+        "sends every 3rd merged row to a second independent blinded reviewer "
+        "(R2) on the same code head, with no access to R1 or its report. "
+        "This section is the first readout of that data.</p>")
+
+    o.append('<div class="callout"><div class="h">Sample accounting, '
+             'including two validity questions the protocol itself '
+             'flagged</div>'
+             "<p><strong>8 valid pairs</strong> (samples #1&ndash;#8). Two "
+             "exclusions and one caveat, all resolved against the record "
+             "rather than assumed:</p><ul>"
+             "<li><strong>M7-6 struck</strong>, by the log's own ruling: R1 "
+             "reviewed the pre-fix head and R2 the post-fix head, so "
+             "differencing their counts would measure the fix pass, not the "
+             "reviewer. Agreed and excluded.</li>"
+             "<li><strong>G1 (sample #1) verified valid.</strong> The "
+             "protocol text carries an open action item &mdash; <em>\"G1's "
+             "pair should be checked for the same defect before the first "
+             "variance readout\"</em>. This is that readout, so I checked: "
+             "<code>docs/LIB-LOG.md</code> records R1 and R2 "
+             "&ldquo;both in flight against the same head (lanes "
+             "lib-g1-review / lib-g1-review2), identical briefs, R2 blinded "
+             "to R1's existence and report.&rdquo; <strong>Same head by "
+             "construction. That action item is discharged.</strong></li>"
+             "<li><strong>U7 (sample #2) carries a caveat.</strong> Its R1 "
+             "ran as a single review before the count resolved; R2 was added "
+             "at merge against the frozen merge head. No fix landed in "
+             "between (the union rule made the fix pass wait for R2), so it "
+             "is almost certainly same-head &mdash; but the log says "
+             "&ldquo;frozen merge head&rdquo;, not &ldquo;the head R1 "
+             "reviewed&rdquo;. Every number below is computed with and "
+             "without it; <strong>nothing changes</strong>, so the caveat "
+             "does not matter in practice.</li></ul></div>")
+
+    # ---- the central result
+    o.append("<h3>Reviewers agree completely on MAJORs and disagree on "
+             "everything else</h3>")
+    o.append("<figure>")
+    o.append(S.legend([("R1", FABLE), ("R2", OPUS)]))
+    o.append(conc_slope("maj", "MAJOR findings: R1 vs R2 on the same code",
+                        "MAJOR findings reported"))
+    o.append('<figcaption>Every pair agrees exactly. Note the shape of the '
+             'agreement though: six of the eight pairs are 0&ndash;0, and '
+             'agreeing on zero is nearly free.</figcaption>')
+    o.append("</figure>")
+
+    o.append("<figure>")
+    o.append(S.legend([("R1", FABLE), ("R2", OPUS)]))
+    o.append(conc_slope("min", "MINOR findings: R1 vs R2",
+                        "MINOR findings reported"))
+    o.append(conc_slope("note", "NOTE findings: R1 vs R2",
+                        "NOTE findings reported"))
+    o.append('<figcaption>The same eight units, the same two reviewers, the '
+             'same code. The discretionary tail does not reproduce: %d of %d '
+             'MINOR pairs and %d of %d NOTE pairs differ.</figcaption>'
+             % (mn["exact_agreement"]["trials"]
+                - mn["exact_agreement"]["successes"],
+                mn["exact_agreement"]["trials"],
+                nt["exact_agreement"]["trials"]
+                - nt["exact_agreement"]["successes"],
+                nt["exact_agreement"]["trials"]))
+    o.append("</figure>")
+
+    o.append(table(
+        ["outcome", "exact agreement", "agreement rate (95% CrI)",
+         "reviewer noise σ (log scale)"],
+        [["MAJOR findings",
+          "%d / %d" % (maj["exact_agreement"]["successes"],
+                       maj["exact_agreement"]["trials"]),
+          "%.2f (%.2f–%.2f)" % (maj["exact_agreement"]["median"],
+                                maj["exact_agreement"]["q025"],
+                                maj["exact_agreement"]["q975"]),
+          "0.00 — no observed disagreement"],
+         ["MINOR findings",
+          "%d / %d" % (mn["exact_agreement"]["successes"],
+                       mn["exact_agreement"]["trials"]),
+          "%.2f (%.2f–%.2f)" % (mn["exact_agreement"]["median"],
+                                mn["exact_agreement"]["q025"],
+                                mn["exact_agreement"]["q975"]),
+          "%.2f (%.2f–%.2f)" % (mn["noise"]["sigma_e"]["median"],
+                                mn["noise"]["sigma_e"]["q025"],
+                                mn["noise"]["sigma_e"]["q975"])],
+         ["NOTE findings",
+          "%d / %d" % (nt["exact_agreement"]["successes"],
+                       nt["exact_agreement"]["trials"]),
+          "%.2f (%.2f–%.2f)" % (nt["exact_agreement"]["median"],
+                                nt["exact_agreement"]["q025"],
+                                nt["exact_agreement"]["q975"]),
+          "%.2f (%.2f–%.2f)" % (nt["noise"]["sigma_e"]["median"],
+                                nt["noise"]["sigma_e"]["q025"],
+                                nt["noise"]["sigma_e"]["q975"])],
+         ["Verdict label",
+          "%d / %d" % (v["n"] - v["n_disagree"], v["n"]),
+          "%.2f (%.2f–%.2f)" % (1 - v["disagreement_rate"]["median"],
+                                1 - v["disagreement_rate"]["q975"],
+                                1 - v["disagreement_rate"]["q025"]),
+          "—"]]))
+    return o
+
+
+def concordance_impact():
+    """Compare the measured reviewer noise against the arm effects we chase."""
+    o = []
+    a8 = CONC["all8"]
+    o.append("<h3>Is the noise bigger than the signal?</h3>")
+    o.append("<p>This is the question the experiment exists to answer. For "
+             "each outcome, the arm effect this report is trying to measure "
+             "is plotted against the reviewer noise measured on that same "
+             "outcome, in the same units. Where the noise bar is longer, the "
+             "outcome cannot support a model comparison at all.</p>")
+
+    items = []
+    # counts: compare |log rate ratio| against sigma_e on the log scale
+    for lab, key, cname, cblock in (
+            ("MAJOR findings", "maj_raw", "log_rate_ratio", "maj"),
+            ("MINOR findings", "min_raw", "log_rate_ratio", "min"),
+            ("NOTE findings", "note_raw", "log_rate_ratio", "note")):
+        eff = abs(c(key, cname)["median"])
+        noise = a8[cblock]["noise"]["sigma_e"] if a8[cblock]["noise"] else None
+        items.append({"label": lab + " — arm effect", "med": eff,
+                      "lo": eff, "hi": eff, "color": FABLE,
+                      "sub": "|log rate ratio| between arms"})
+        if noise and noise["median"] > 1e-6:
+            items.append({"label": lab + " — reviewer noise", "med":
+                          noise["median"], "lo": noise["q025"],
+                          "hi": noise["q975"], "color": OPUS,
+                          "sub": "σ between two reviewers, same code"})
+        else:
+            items.append({"label": lab + " — reviewer noise", "med": 0.001,
+                          "lo": 0.001, "hi": 0.001, "color": OPUS,
+                          "sub": "zero observed disagreement (8/8 pairs)"})
+    o.append("<figure>")
+    o.append(S.legend([("arm effect being measured", FABLE),
+                       ("reviewer noise on the same outcome", OPUS)]))
+    o.append(S.forest(items, "magnitude on the log-count scale (higher = "
+                      "bigger)", ref=0.0, log=False, xlo=0, xhi=1.0,
+                      ticks=[0, 0.2, 0.4, 0.6, 0.8, 1.0],
+                      title="Count outcomes: effect vs reviewer noise"))
+    o.append('<figcaption>MAJOR findings are the one count where the arm '
+             'effect stands clear of the reviewer noise &mdash; because the '
+             'measured noise there is zero. For MINOR and NOTE the noise '
+             'is larger than the effect, so those two outcomes are not '
+             'measuring the arms.</figcaption>')
+    o.append("</figure>")
+
+    # rubric: directly comparable, both in rating points
+    ritems = []
+    for lab, key, cblock in (("Idiom / structure", "rubric_idiom", "idiom"),
+                             ("Test quality", "rubric_tests", "tests"),
+                             ("Doc honesty", "rubric_docs", "docs")):
+        eff = abs(c(key, "opus_minus_fable")["median"])
+        nz = a8["rubric_" + cblock]["noise"]
+        ritems.append({"label": lab + " — arm effect", "med": eff, "lo": eff,
+                       "hi": eff, "color": FABLE, "sub": "rating points"})
+        if nz and not nz.get("degenerate"):
+            s = nz["sigma_e"]
+            ritems.append({"label": lab + " — reviewer noise",
+                           "med": s["median"], "lo": s["q025"],
+                           "hi": s["q975"], "color": OPUS,
+                           "sub": "σ between two reviewers, same code"})
+        else:
+            ritems.append({"label": lab + " — reviewer noise", "med": 0.001,
+                           "lo": 0.001, "hi": 0.001, "color": OPUS,
+                           "sub": "all 7 pairs identical — dimension saturated"})
+    o.append("<figure>")
+    o.append(S.legend([("arm effect being measured", FABLE),
+                       ("reviewer noise on the same outcome", OPUS)]))
+    o.append(S.forest(ritems, "rubric points", ref=0.0, log=False,
+                      xlo=0, xhi=1.4, ticks=[0, 0.25, 0.5, 0.75, 1.0, 1.25],
+                      title="Rubric ratings: effect vs reviewer noise"))
+    o.append('<figcaption>Both scales are literal rubric points, so these '
+             'are directly comparable.</figcaption>')
+    o.append("</figure>")
+
+    te = abs(c("rubric_tests", "opus_minus_fable")["median"])
+    tn = a8["rubric_tests"]["noise"]["sigma_e"]["median"]
+    o.append('<div class="callout crit"><div class="h">This retires a '
+             'finding from my first report</div><p>In the first readout I '
+             'called the test-quality rubric &ldquo;the most suggestive '
+             'single quality signal&rdquo; and flagged it as the thing to '
+             'watch. The concordance data kills it. Two reviewers scoring '
+             '<em>the same code</em> differ by σ = %.2f rating points on '
+             'that dimension; the arm difference being chased is %.2f '
+             'points. <strong>The noise is %.1f× the signal.</strong> That '
+             'dimension cannot distinguish the models, and I should not have '
+             'flagged it without knowing this &mdash; which is precisely the '
+             'gap this experiment was built to close.</p>'
+             '<p>The idiom dimension has a different problem: all seven '
+             'scorable pairs rated it <strong>5 out of 5 from both '
+             'reviewers</strong>. It is saturated at the ceiling, so it '
+             'carries no information about anything.</p></div>'
+             % (tn, te, tn / te if te > 0 else float("nan")))
+    return o
+
+
+def stopping_judgment(Q):
+    """The preliminary judgment Evan asked for: can the experiment stop?"""
+    o = []
+    a8 = CONC["all8"]
+    maj = a8["maj"]
+    ea, ei = maj["exact_agreement"], maj["exact_agreement_informative"]
+    proj = {p["total_pairs"]: p for p in maj["projection"]}
+    v = a8["verdict"]
+
+    prev = {}
+    for d in ("S", "M", "L"):
+        sel = [r for r in Q if r["difficulty"] == d
+               and analyze.y_maj(r) is not None]
+        nz = [r for r in sel if analyze.y_maj(r) > 0]
+        prev[d] = len(nz) / float(len(sel)) if sel else 0.0
+    allsel = [r for r in Q if analyze.y_maj(r) is not None]
+    prev_all = (len([r for r in allsel if analyze.y_maj(r) > 0])
+                / float(len(allsel)))
+    prev_L = prev["L"]
+    prev_txt = ("%.0f%% on small units, %.0f%% on medium and %.0f%% on large"
+                % (100 * prev["S"], 100 * prev["M"], 100 * prev["L"]))
+
+    o.append("<h3>Preliminary judgment: can the concordance experiment stop "
+             "early?</h3>")
+    o.append("<p>The impression that prompted the question &mdash; that "
+             "agreement has been impressively strong &mdash; is <strong>"
+             "correct for MAJOR findings and wrong for everything "
+             "else</strong>. Both halves matter for the decision.</p>")
+
+    o.append(tiles([
+        ("%d / %d" % (ea["successes"], ea["trials"]),
+         "MAJOR-count pairs in exact agreement"),
+        ("%d" % maj["n_informative"],
+         "of those pairs where either reviewer found ANY major"),
+        ("%d / %d" % (v["n_disagree"], v["n"]),
+         "pairs whose VERDICT LABELS disagreed"),
+        ("%.2f" % ea["q025"],
+         "95% lower bound on the agreement rate"),
+    ]))
+
+    o.append('<div class="callout warn"><div class="h">The catch: agreeing '
+             'on zero is nearly free</div><p>Six of the eight MAJOR pairs '
+             'are 0&ndash;0. Only <strong>two</strong> pairs had a MAJOR for '
+             'the reviewers to agree or disagree about, and both agreed '
+             '(G1: 1 and 1; SWITCH-E: 2 and 2, the same two findings '
+             'independently executed). So the honest statement is not '
+             '&ldquo;reviewers do not disagree about MAJORs&rdquo; but '
+             '&ldquo;<em>reviewers have not yet disagreed about MAJORs, in '
+             'two opportunities</em>&rdquo;. Restricted to those informative '
+             'pairs the agreement rate is %.2f with a 95%% interval of '
+             '%.2f&ndash;%.2f &mdash; almost no information.</p></div>'
+             % (ei["median"], ei["q025"], ei["q975"]))
+
+    o.append("<p>Meanwhile the reviewers disagreed on the verdict LABEL in "
+             "%d of %d pairs <em>while agreeing on the findings underneath"
+             "</em> — R1 said APPROVE where R2 said APPROVE-WITH-FIXES (U7), "
+             "R1 said APPROVE-WITH-FIXES where R2 said NOT-MERGEABLE "
+             "(SWITCH-E), R1 said MERGEABLE where R2 said APPROVE-WITH-FIXES "
+             "(ASM-1). The log already calls this calibration data. It means "
+             "the verdict label is not a usable quality measure, and a "
+             "NOT-MERGEABLE in the record should not be read as evidence a "
+             "unit was worse.</p>" % (v["n_disagree"], v["n"]))
+
+    o.append("<h4>Would more pairs change any decision?</h4>")
+    o.append("<p>This is the test that actually settles it, and for the most "
+             "part the answer is no:</p>")
+    o.append(table(
+        ["what the data would be used for", "current answer",
+         "would more pairs change it?"],
+        [["Trust MAJOR counts as the A/B's outcome",
+          "yes — zero observed reviewer disagreement",
+          "No. Already the cleanest outcome; more pairs sharpen a σ that is "
+          "already at zero."],
+         ["Trust MINOR / NOTE counts",
+          "no — reviewer noise exceeds the arm effect",
+          "No. Knowing σ to two decimals does not rescue an outcome whose "
+          "noise is larger than its signal."],
+         ["Trust the rubric",
+          "no — noise 2.4× the effect on tests; idiom saturated at 5/5",
+          "No. Same reasoning."],
+         ["Trust the verdict label",
+          "no — %d of %d pairs disagree" % (v["n_disagree"], v["n"]),
+          "Marginally. The rate is poorly pinned, but it is clearly high "
+          "enough to disqualify the label already."],
+         ["Detect a future breakdown in MAJOR agreement",
+          "only 2 informative pairs so far",
+          "YES — this is the one purpose that still needs data."]]))
+
+    o.append("<p>And running it to real precision is not cheap. Assuming "
+             "agreement simply continues, pushing the 95%% lower bound on "
+             "MAJOR agreement from its current %.2f to %.2f takes about "
+             "<strong>%d pairs</strong> — roughly %d more merged rows at the "
+             "every-3rd rate, which is more implementation work than the "
+             "entire project has done to date.</p>"
+             % (proj[8]["lower95"], proj[40]["lower95"], 40, (40 - 8) * 3))
+
+    o.append('<div class="callout"><div class="h">Recommendation</div>'
+             "<p><strong>Stop treating it as an open-ended measurement "
+             "experiment — but do not simply switch it off, and act on what "
+             "it already found first.</strong> Concretely, in priority "
+             "order:</p><ol>"
+             "<li><strong>Change which outcomes the A/B reports (free, "
+             "highest value).</strong> Make MAJOR and consequential-MAJOR "
+             "the primary outcomes; demote MINOR, NOTE, the rubric and the "
+             "verdict label to descriptive colour. The concordance data says "
+             "plainly that those four cannot carry a model comparison. This "
+             "is the finding, and it costs nothing to adopt.</li>"
+             "<li><strong>Halve the rate rather than stopping (every 6th), "
+             "and pre-commit the stopping rule now</strong> — stated in "
+             "<em>informative</em> pairs, not in observed agreement: e.g. "
+             "&ldquo;stop at 6 pairs where either reviewer reported ≥1 "
+             "MAJOR, or 20 total pairs, whichever comes first.&rdquo; "
+             "Pre-committing matters: deciding to stop <em>because the "
+             "interim numbers look good</em> is the standard route to an "
+             "overconfident conclusion, and the current 8/8 is exactly the "
+             "kind of run that invites it.</li>"
+             "<li><strong>Consider triggering on difficulty.</strong> MAJOR "
+             "prevalence runs " + prev_txt + ", so preferentially "
+             "dual-reviewing L rows raises the informative yield about "
+             + ("%.1f&times;" % (prev_L / prev_all)) + " per extra review. "
+             "This stays legal under the protocol's own "
+             "arm-independence requirement, because difficulty is logged "
+             "pre-draw and is arm-independent by randomization — "
+             "conditioning on it does not hand the arms different review "
+             "machinery. The gain is real but modest; take it only if the "
+             "bookkeeping is cheap.</li>"
+             "<li><strong>Judge dual review's production value separately.</strong> "
+             "It has already earned its keep as QA independently of "
+             "measurement: sample #5 (DOORS) overturned an implementer's "
+             "design disposition, and the systematically disjoint tails mean "
+             "R2 is finding real defects R1 missed. That is an argument for "
+             "continuing that has nothing to do with variance estimation, "
+             "and it should be decided on its own terms.</li></ol></div>")
+
+    o.append('<div class="callout warn"><div class="h">One protocol hygiene '
+             'item</div><p>Sample #7 (ASM-1) records that R2 glimpsed R1\'s '
+             'probe tooling. That is a partial breach of the independence '
+             'the design depends on, and it biases toward agreement — the '
+             'direction that would make the experiment look safer to stop '
+             'than it is. Worth a note in the protocol about isolating lane '
+             'artifacts, and worth remembering that ASM-1 is one of the '
+             'three verdict-label disagreements, so the breach did not '
+             'manufacture full convergence there.</p></div>')
+    return o
+
+
+def era_block():
+    """Was the MAJOR result manufactured by the v3 allocation shift?"""
+    v2 = c("maj_v2_only", "rate_ratio_opus_over_fable")
+    v3 = c("maj_v3_only", "rate_ratio_opus_over_fable")
+    inv2 = c("maj_era", "arm_effect_in_v2")
+    era = c("maj_era", "era_main_effect")
+    ix = c("maj_era", "arm_x_era")
+    o = []
+    o.append("<h3>The obvious alternative explanation: the protocol changed</h3>")
+    o.append("<p>Protocol v3 (adopted 2026-08-08, citing the first readout) "
+             "replaced opus/fable <em>pairs</em> with <em>triples</em> of "
+             "{opus, opus, fable} — a deliberate 2:1 shift toward opus. That "
+             "matters here, because opus rows are now concentrated in the "
+             "later part of the project. If the work got easier, or reviews "
+             "got softer, or the codebase got more mature over that period, "
+             "a pooled arm contrast would absorb the drift and report it as "
+             "an arm effect. This has to be ruled out before the headline "
+             "means anything.</p>")
+    o.append(table(
+        ["model", "MAJOR rate ratio (opus ÷ fable)", "reading"],
+        [["v2 rows only (n=%d)" % R["maj_v2_only"]["n"],
+          "%.2f (%.2f–%.2f)" % (v2["median"], v2["q025"], v2["q975"]),
+          "same direction; does not separate alone"],
+         ["v3 rows only (n=%d)" % R["maj_v3_only"]["n"],
+          "%.2f (%.2f–%.2f)" % (v3["median"], v3["q025"], v3["q975"]),
+          "same direction; does not separate alone"],
+         ["arm effect within v2, era model",
+          "%.2f (%.2f–%.2f)" % (inv2["median"], inv2["q025"], inv2["q975"]),
+          "the effect is already present pre-v3"],
+         ["era main effect (v3 ÷ v2, fable arm)",
+          "%.2f (%.2f–%.2f)" % (era["median"], era["q025"], era["q975"]),
+          "no strong drift in the reference arm"],
+         ["arm × era interaction",
+          "%.2f (%.2f–%.2f)" % (ix["median"], ix["q025"], ix["q975"]),
+          "contains 1.0 — no evidence the arm effect differs by era"]]))
+    o.append("<p><strong>The era shift does not explain the result.</strong> "
+             "Both protocol eras point the same direction independently, the "
+             "reference arm shows no meaningful drift between them, and the "
+             "interaction interval comfortably contains &ldquo;the arm effect "
+             "is the same in both eras&rdquo;. What the era split <em>does</em> "
+             "show is that neither era separates on its own — the headline "
+             "rests on pooling them, which is legitimate here (both are "
+             "randomized, blinded, and the interaction is flat) but is worth "
+             "stating plainly.</p>")
+    return "".join(o)
+
+
+def power_section_v2(Q):
+    maj = c("maj_raw", "log_rate_ratio")
+    mr = c("maj_raw", "rate_ratio_opus_over_fable")
+    cu = c("maj_conseq_upper", "rate_ratio_opus_over_fable")
+    total_maj = int(sum(analyze.y_maj(r) or 0 for r in Q))
+    o = []
+    o.append("<p>The first readout ended with a negative result and an "
+             "explanation of why it could not have found anything smaller "
+             "than a large effect. Thirty-one more blinded rows later, the "
+             "sample contains <strong>%d MAJOR findings across %d "
+             "dispatches</strong> (against 30 across 45 before), and the "
+             "MAJOR-family estimates have moved from &ldquo;wide and "
+             "centred near 1&rdquo; to intervals that exclude "
+             "no-difference.</p>" % (total_maj, len(Q)))
+    o.append(table(
+        ["outcome", "first readout (n=45)", "this readout (n=76)"],
+        [["MAJOR rate ratio", "0.71 (0.36–1.36)",
+          "%.2f (%.2f–%.2f) — separates" % (mr["median"], mr["q025"],
+                                            mr["q975"])],
+         ["Consequential MAJORs (broad)", "0.52 (0.22–1.16)",
+          "%.2f (%.2f–%.2f) — separates" % (cu["median"], cu["q025"],
+                                            cu["q975"])],
+         ["Difficulty bands", "signs flipped (M favoured opus, L favoured fable)",
+          "all three point the same way"],
+         ["Implementation tokens", "0.85 (0.68–1.06)",
+          "%s — weaker" % ci_txt("tok_impl", "ratio_opus_over_fable")],
+         ["Implementation wall-clock", "0.79 (0.41–1.50)",
+          "%s — direction reversed"
+          % ci_txt("h_impl", "ratio_opus_over_fable")],
+         ["Test-quality rubric", "flagged as “the thing to watch”",
+          "retired — reviewer noise 2.4× the effect (§6)"]]))
+    o.append('<div class="callout"><div class="h">What I now think, stated '
+             'plainly</div><p>On the pre-registered headline metric there is '
+             'now <strong>positive evidence that opus implementations draw '
+             'fewer MAJOR review findings</strong> — roughly half the rate, '
+             'with the blinded severity recode agreeing and pointing slightly '
+             'stronger. Four things make me take it more seriously than a '
+             'bare interval would warrant: it is the pre-registered outcome '
+             'rather than one selected after looking; the difficulty bands '
+             'now agree in direction where they previously conflicted; the '
+             'protocol-era split does not explain it; and the new '
+             'concordance experiment shows this specific metric is the one '
+             'two independent reviewers reproduce exactly.</p>'
+             '<p>Three things keep it short of settled: neither protocol era '
+             'separates on its own, so it depends on pooling; halving the '
+             'prior width leaves it only marginally clear of 1.0; and the '
+             'deepest confound — that the same orchestrator model chose the '
+             'units, wrote the specs, and reviewed both arms — is untouched '
+             'by any of this. Reviewer <em>noise</em> has now been measured '
+             'and is zero for this metric. Reviewer <em>bias</em> shared '
+             'across both arms would be invisible to the concordance design, '
+             'because both reviewers are the same model.</p></div>')
+    o.append("<p>That last point is the honest limit of the concordance "
+             "experiment as built: it measures whether two draws from the "
+             "same reviewer-model agree, which is reproducibility, not "
+             "accuracy. Two instances of one model can agree perfectly and "
+             "still be systematically wrong in the same direction. Detecting "
+             "<em>that</em> would need a reviewer of a different kind — a "
+             "different model, or Evan — on a sample of the same units.</p>")
+    return "".join(o)
 
 if __name__ == "__main__":
     main()

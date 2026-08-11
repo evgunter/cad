@@ -31,9 +31,27 @@ docs/MODEL-AB-LOG.md
   ├─ core-rows.csv          arm, difficulty, recorded counts, rubric
   │                         (the only file that knows the arms)
   │
-  ├─ analyze.py ──→ results.json    ~30 models
+  ├─ merge_new.py           folds second-pass labels into the masters
+  ├─ analyze.py ──→ results.json      ~34 models
+  ├─ refit.py                re-runs any model missing the R-hat bar
+  ├─ concordance.py ──→ concordance.json   reviewer-agreement analysis
   └─ report.py  ──→ report.html
 ```
+
+## Second pass (2026-08-11)
+
+Adds 38 rows (protocol v3 = {opus,opus,fable} triples), and the
+**reviewer-concordance** experiment: every 3rd merged row gets a second
+independent blinded reviewer on the same code head. `concordance.py`
+estimates how much of a finding count is the reviewer rather than the
+code — the confound the first readout named as its binding measurement
+problem.
+
+Headline changes from the first readout: the MAJOR-finding rate now
+separates (0.51, 95% CrI 0.29–0.90); the earlier cost advantage
+evaporated under better recording; the difficulty sign-flip resolved; and
+the test-quality rubric signal is retired, because reviewer noise on that
+dimension is 2.4x the effect.
 
 ## Why it looks like this
 

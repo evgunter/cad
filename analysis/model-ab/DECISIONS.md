@@ -122,3 +122,49 @@ panel refits the headline with half and double that width. Centring the
 prior on zero is deliberate: with n this small the prior is doing real
 work, and the honest default is scepticism of a difference, not of its
 absence.
+
+## Second pass (2026-08-11) — post-v3 rows + reviewer concordance
+
+**Q14 — Is G1's pair valid same-head data?** The protocol's own text
+flags this as an open item: *"G1's pair should be checked for the same
+defect before the first variance readout."* This readout is that
+readout, so it had to be answered rather than assumed.
+→ **G1 is VALID.** `docs/LIB-LOG.md` (dual-review sample #1 entry)
+records "R1 and R2 both in flight against the same head (lanes
+lib-g1-review / lib-g1-review2), identical briefs, R2 blinded to R1's
+existence and report." Same head by construction, before the amendment
+that later guaranteed it. **The protocol's flagged action item is
+discharged affirmatively.**
+
+**Q15 — Is U7's pair (sample #2) valid same-head data?** Weaker.
+LIB-LOG records that U7's R1 "was dispatched as single before the count
+resolved", and the remedy was "R2 dispatched at U7's merge against the
+frozen merge head". That is the protocol's late-trigger fallback, but
+the fallback as ratified says R2 runs on *the same head R1 primarily
+reviewed*, and the log says *the frozen merge head* — not provably the
+same string. What makes it probably fine: U7's fix pass explicitly
+WAITED for R2 (the union rule), so no fix commits landed between the two
+reviews.
+→ **Treated as VALID-WITH-CAVEAT**, and every concordance number is
+reported both with and without it. If the two differ materially the
+report says so rather than picking one.
+
+**Q16 — M7-6.** Struck by the log itself (R1 pre-fix head, R2 post-fix
+head). → Excluded from all variance estimates, retained only in a
+descriptive footnote. Agreed with the log's own ruling; differencing
+those counts would measure the fix pass, not the reviewer.
+
+**Q17 — Which reviewer's numbers feed the ARM analysis?** Dual rows have
+two finding triples. Using the max, the union, or a mean would make dual
+rows systematically different from single-reviewer rows and confound the
+arm contrast with the sampling rule.
+→ **R1 only** for every arm-comparison model, since R1 is the review
+every row has. R2 is used exclusively in the concordance analysis. This
+keeps the arm series identically distributed across dual and single rows
+— the same reasoning the protocol used to make the sampling rule
+arm-independent.
+
+**Q18 — Difficulty scale gained XL and M-L.** → `low-M`→M, `M-L`→L,
+`XL` kept distinct in the data and folded into L for modelling (a single
+row cannot support its own level); noted in the report. `infra-class`
+rows have no difficulty and are excluded from quality models anyway.

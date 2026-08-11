@@ -1,62 +1,100 @@
 row_id,character,design_load,debug_load,scope_size,evidence
-1,diagnose_repair,3,3,4,"one credited a main bug the fix already fixed"
-2,diagnose_repair,1,2,1,"#99 tour ε-panic ... 1 line (orchestrator-applied); zero kernel diff"
-3,build_new,4,2,5,"M4 PR 6 persistence ... token retype + strict maps + goldens + save symmetry sweep"
-4,mixed,3,3,3,"#101 declared tangency ... fillet Result + fit predicate + 6 pins"
-5,diagnose_repair,2,3,2,"fresh probes: main refuses branch exact 8.25"
-6,build_new,4,2,4,"thin-row"
-7,infra_docs,2,2,2,"A×Z render scene ... fallback fix + two-sided pin + narration"
-8,diagnose_repair,2,4,3,"#111 CDT needle triangle ... decimal slip + comment + coordinated pin flip"
-9,infra_docs,3,2,4,"M4 PR 8a corpus+latency ... corpus/persistence/latency rows"
-10,infra_docs,3,2,3,"M4 PR 8b K-lint + pickups ... planted-fragility catch 175 flags"
-11,migrate_refactor,2,2,3,"M5 PR 1 interval-crate adoption ... computable deletion + 3 suite adoptions"
-12,build_new,4,2,5,"M5 PR 3 NURBS substrate part 1 ... all 21 reviewer attacks held"
-13,build_new,4,2,3,"M5 PR 2 C9 interval ring ... sign clamp + zero annihilator proven as ℝ-facts"
-14,build_new,4,2,5,"M5 PR 4 projection+fitting+LSQ ... direct bound survived ~1M-sample falsification"
-15,build_new,4,2,4,"M5 PR 8 BVH crate + sweep wiring ... both MAJ = design forks ruled by Evan"
-16,infra_docs,2,2,2,"CI dependency-closure filter (determinator/nextest eval) ... CI infra"
-17,migrate_refactor,2,2,3,"two-tolerance message sweep ... no-semantic-change proven by full-diff read"
-18,build_new,3,2,3,"M5 S2 arc-leg fillet sugar ... construction math fully verified"
-19,mixed,4,4,5,"root-based crossing lane exposing+fixing 2 further latent defects"
-20,mixed,3,4,3,"silent corrupt STL via hole-creating merge role inversion — pre-existing machinery"
-21,build_new,4,3,4,"M5 PR 6 certified pcurve storage ... snap slack provably zero on minted caches"
-22,infra_docs,2,2,2,"M5 S7 CI/docs hygiene (ε-row retirement + cache-key audit)"
-23,build_new,5,1,3,"nearest-corner fillet selection ladder ... mixed enclosing/non-enclosing impossibility proved"
-24,diagnose_repair,3,4,3,"chord_spec azimuth-window repair ... silent wrong body independently confirmed at merge-base"
-25,build_new,5,3,5,"M5 PR 7 SSI (march + three-limb certificate) ... core held under adversarial re-derivation"
-26,build_new,4,3,4,"tensor Bernstein compose + plane×NURBS retirement ... bound 6.5 orders tighter"
-27,infra_docs,2,2,2,"M5 demo unit: rocker arc-fillet stop + staged tiltedcut"
-28,mixed,5,5,5,"Interval root cause (infinity seeds + branch-cut-free cone) ... then triple gate-red"
-29,build_new,4,3,5,"M5 PR 10 sweeps/lofts + schema v2 clean break ... closed-form loft between sections"
-30,migrate_refactor,2,1,3,"55+6 sites converted 2 false positives restructured 54 allowlisted"
-31,mixed,4,4,4,"banked completions (sphere doors + blocker map) ... five executed blockers re-planned the milestone"
-32,build_new,4,3,5,"M5 PR 11 tessellation + certified quadrature ... star find = the accidentally-load-bearing factor-2"
-33,build_new,3,3,3,"M5 S10 face orientation sense ... the enabling infrastructure for S11's fix"
-34,mixed,5,3,3,"criterion survived 6 adversarial constructions unmodified ... containment defects DEAD"
-35,build_new,3,3,3,"curved revert wiring + per-class ∖/∩ opening ... class boundary proven COMPLETE"
-36,mixed,3,3,3,"die-pips enablers ... MAJ = new executed: the multi-normal escape hole"
-37,build_new,3,2,3,"M5 PR 13 curved STEP subset ... 0/2/3 APPROVE"
-38,infra_docs,2,1,2,"demo dual-montage (kernel + FreeCAD/OCC lanes)"
-39,migrate_refactor,2,1,2,"M5 S4 save/load shared-validator consolidation ... 0/0 APPROVE"
-40,build_new,4,3,5,"constant-radius fillets + the die ... MAJ = octant e0 pick: tier-3 lost on non-square prisms"
-41,infra_docs,3,2,3,"CI build-once/shard (compile per MODE nextest archives) ... 4 → 2 workspace builds"
-42,infra_docs,2,1,3,"exit sweep (K snapshot DESIGN/envelope exit walk A/B readout) ... docs/telemetry"
-M6-1,build_new,4,3,4,"composed die via in-place surgery + circle-clearance rider ... every verb on ONE body"
-M6-2,build_new,4,3,4,"SSI generic-T lift + Pcurve::Fitted + non-vacuous fitted cache at rest"
-M7-1,build_new,4,2,5,"step-import crate: Part-21 parser + rotation-system Euler assembly + D7 adoption ladder"
-M7-2,mixed,4,4,4,"torus normalization = SYMPTOM-FLIP laundering an inside-out torus ... scale-vs-absolute-ε"
-M7-4,build_new,3,3,4,"wild corpus: 4-vein license-verified fixtures ... MIN-1 was an INHERITED knot-multiplicity SIGABRT"
-RIM-DIM,diagnose_repair,3,5,4,"fix corrects real VERDICT FLIPS both directions — pre-fix silently grouped 50ε-separated rims"
-M6-3,build_new,4,4,5,"loft/sweep body assembly: IsoCurve seams ... six red jobs root-caused first"
-F3+F4,diagnose_repair,4,5,3,"T1 silent-disable reproduced instrumented at merge-base — only 1 of 3 bound checks ran"
-KERNEL,build_new,3,2,3,"KERNEL_* sidecar fields + live staleness row + step-import consumer swap"
-SKINFIT,diagnose_repair,4,4,2,"#207 fix: integral skin fit never synthesizes a rational wall ... the denominator never computed"
-M7-3,mixed,4,4,4,"MAJ-1 = Arm B's uncertified class — a different circle through the same endpoints laundered"
-FOLD,infra_docs,3,3,2,"corpus-widening fold: nonuniform_loft + swept_elbow (15→17) first non-default RTOL"
-MONTAGE,infra_docs,2,2,2,"montage refresh: tube cell + count pins; 3 NURBS scenes blocked on mesh"
-MIGRATE,migrate_refactor,3,3,5,"classify-seam migration: Length<T> by signature ~351 door sites the invariant lane"
-M6-5,build_new,4,2,4,"edge-selection fillet vocabulary PR-1: emitter + Vec<StableName> node + v3 break"
-MESH,build_new,5,3,4,"trimmed-NURBS tessellation lane: hull-derived Hessian certificate + both consumers"
-MV2,infra_docs,3,2,3,"montage-v2: cell curation twisted_duct (measured path vocabulary) true minimal loft pair"
-GUARD,infra_docs,3,2,2,"render-guard: the matplotlib fallback structurally uncommittable (preview dir + provenance guard)"
-M6-6,mixed,3,3,3,"EVERY previously-invisible curved sense flip now refuses CurvedSenseInverted"
+1,diagnose_repair,3,3,4,one credited a main bug the fix already fixed
+2,diagnose_repair,1,2,1,#99 tour ε-panic ... 1 line (orchestrator-applied); zero kernel diff
+3,build_new,4,2,5,M4 PR 6 persistence ... token retype + strict maps + goldens + save symmetry sweep
+4,mixed,3,3,3,#101 declared tangency ... fillet Result + fit predicate + 6 pins
+5,diagnose_repair,2,3,2,fresh probes: main refuses branch exact 8.25
+6,build_new,4,2,4,thin-row
+7,infra_docs,2,2,2,A×Z render scene ... fallback fix + two-sided pin + narration
+8,diagnose_repair,2,4,3,#111 CDT needle triangle ... decimal slip + comment + coordinated pin flip
+9,infra_docs,3,2,4,M4 PR 8a corpus+latency ... corpus/persistence/latency rows
+10,infra_docs,3,2,3,M4 PR 8b K-lint + pickups ... planted-fragility catch 175 flags
+11,migrate_refactor,2,2,3,M5 PR 1 interval-crate adoption ... computable deletion + 3 suite adoptions
+12,build_new,4,2,5,M5 PR 3 NURBS substrate part 1 ... all 21 reviewer attacks held
+13,build_new,4,2,3,M5 PR 2 C9 interval ring ... sign clamp + zero annihilator proven as ℝ-facts
+14,build_new,4,2,5,M5 PR 4 projection+fitting+LSQ ... direct bound survived ~1M-sample falsification
+15,build_new,4,2,4,M5 PR 8 BVH crate + sweep wiring ... both MAJ = design forks ruled by Evan
+16,infra_docs,2,2,2,CI dependency-closure filter (determinator/nextest eval) ... CI infra
+17,migrate_refactor,2,2,3,two-tolerance message sweep ... no-semantic-change proven by full-diff read
+18,build_new,3,2,3,M5 S2 arc-leg fillet sugar ... construction math fully verified
+19,mixed,4,4,5,root-based crossing lane exposing+fixing 2 further latent defects
+20,mixed,3,4,3,silent corrupt STL via hole-creating merge role inversion — pre-existing machinery
+21,build_new,4,3,4,M5 PR 6 certified pcurve storage ... snap slack provably zero on minted caches
+22,infra_docs,2,2,2,M5 S7 CI/docs hygiene (ε-row retirement + cache-key audit)
+23,build_new,5,1,3,nearest-corner fillet selection ladder ... mixed enclosing/non-enclosing impossibility proved
+24,diagnose_repair,3,4,3,chord_spec azimuth-window repair ... silent wrong body independently confirmed at merge-base
+25,build_new,5,3,5,M5 PR 7 SSI (march + three-limb certificate) ... core held under adversarial re-derivation
+26,build_new,4,3,4,tensor Bernstein compose + plane×NURBS retirement ... bound 6.5 orders tighter
+27,infra_docs,2,2,2,M5 demo unit: rocker arc-fillet stop + staged tiltedcut
+28,mixed,5,5,5,Interval root cause (infinity seeds + branch-cut-free cone) ... then triple gate-red
+29,build_new,4,3,5,M5 PR 10 sweeps/lofts + schema v2 clean break ... closed-form loft between sections
+30,migrate_refactor,2,1,3,55+6 sites converted 2 false positives restructured 54 allowlisted
+31,mixed,4,4,4,banked completions (sphere doors + blocker map) ... five executed blockers re-planned the milestone
+32,build_new,4,3,5,M5 PR 11 tessellation + certified quadrature ... star find = the accidentally-load-bearing factor-2
+33,build_new,3,3,3,M5 S10 face orientation sense ... the enabling infrastructure for S11's fix
+34,mixed,5,3,3,criterion survived 6 adversarial constructions unmodified ... containment defects DEAD
+35,build_new,3,3,3,curved revert wiring + per-class ∖/∩ opening ... class boundary proven COMPLETE
+36,mixed,3,3,3,die-pips enablers ... MAJ = new executed: the multi-normal escape hole
+37,build_new,3,2,3,M5 PR 13 curved STEP subset ... 0/2/3 APPROVE
+38,infra_docs,2,1,2,demo dual-montage (kernel + FreeCAD/OCC lanes)
+39,migrate_refactor,2,1,2,M5 S4 save/load shared-validator consolidation ... 0/0 APPROVE
+40,build_new,4,3,5,constant-radius fillets + the die ... MAJ = octant e0 pick: tier-3 lost on non-square prisms
+41,infra_docs,3,2,3,CI build-once/shard (compile per MODE nextest archives) ... 4 → 2 workspace builds
+42,infra_docs,2,1,3,exit sweep (K snapshot DESIGN/envelope exit walk A/B readout) ... docs/telemetry
+M6-1,build_new,4,3,4,composed die via in-place surgery + circle-clearance rider ... every verb on ONE body
+M6-2,build_new,4,3,4,SSI generic-T lift + Pcurve::Fitted + non-vacuous fitted cache at rest
+M7-1,build_new,4,2,5,step-import crate: Part-21 parser + rotation-system Euler assembly + D7 adoption ladder
+M7-2,mixed,4,4,4,torus normalization = SYMPTOM-FLIP laundering an inside-out torus ... scale-vs-absolute-ε
+M7-4,build_new,3,3,4,wild corpus: 4-vein license-verified fixtures ... MIN-1 was an INHERITED knot-multiplicity SIGABRT
+RIM-DIM,diagnose_repair,3,5,4,fix corrects real VERDICT FLIPS both directions — pre-fix silently grouped 50ε-separated rims
+M6-3,build_new,4,4,5,loft/sweep body assembly: IsoCurve seams ... six red jobs root-caused first
+F3+F4,diagnose_repair,4,5,3,T1 silent-disable reproduced instrumented at merge-base — only 1 of 3 bound checks ran
+KERNEL,build_new,3,2,3,KERNEL_* sidecar fields + live staleness row + step-import consumer swap
+SKINFIT,diagnose_repair,4,4,2,#207 fix: integral skin fit never synthesizes a rational wall ... the denominator never computed
+M7-3,mixed,4,4,4,MAJ-1 = Arm B's uncertified class — a different circle through the same endpoints laundered
+FOLD,infra_docs,3,3,2,corpus-widening fold: nonuniform_loft + swept_elbow (15→17) first non-default RTOL
+MONTAGE,infra_docs,2,2,2,montage refresh: tube cell + count pins; 3 NURBS scenes blocked on mesh
+MIGRATE,migrate_refactor,3,3,5,classify-seam migration: Length<T> by signature ~351 door sites the invariant lane
+M6-5,build_new,4,2,4,edge-selection fillet vocabulary PR-1: emitter + Vec<StableName> node + v3 break
+MESH,build_new,5,3,4,trimmed-NURBS tessellation lane: hull-derived Hessian certificate + both consumers
+MV2,infra_docs,3,2,3,montage-v2: cell curation twisted_duct (measured path vocabulary) true minimal loft pair
+GUARD,infra_docs,3,2,2,render-guard: the matplotlib fallback structurally uncommittable (preview dir + provenance guard)
+M6-6,mixed,3,3,3,EVERY previously-invisible curved sense flip now refuses CurvedSenseInverted
+KLINT,infra_docs,3,3,3,k-lint baseline-floor refresh: ε-independent P0 floor 4.0e-5 + ε-coupled rule 4 + rule-2 cap
+KLINT-GATE,infra_docs,2,1,2,k-lint gate flip: findings fail the row (exit 2 + the interpretation-discipline message)
+RTIMEOUT,infra_docs,3,4,3,per-scene FreeCAD process isolation + timeout with kill-and-retry (#224 follow-up)
+WMONTAGE,infra_docs,2,3,3,wild-corpus montage: 6 license-cleared cells through the kernel's own import + tessellation
+M7-6,build_new,5,3,4,stage-1 NURBS recognition: whole-patch certification envelope + exact Gauss planar flux
+REBASELINE,infra_docs,2,4,3,full render re-baseline to the hosted canonical producer; mechanism SPLIT and measured
+RENDER-CLI,infra_docs,2,1,2,hosted-render one-command wrapper (push-check dispatch polling byte-exact pull-back)
+M8-C1,build_new,4,3,4,assembly instancing: per-instance materialization + nested-assembly COMPOSITION
+M8-5,build_new,5,2,3,mesh rational deviation certificate: quotient-rule Hessian sup bound + rational sagitta/chord
+M8-2,build_new,5,2,3,rational-carrier speed_lower_bound: per-span quotient-rule chord-projection bound
+M8-1,diagnose_repair,3,4,2,#284 Newell chart-frame re-anchor: the two wild tessellation refusals flip montage 6→8
+M7-8,build_new,4,3,4,plane×NURBS intersection certification (declare-and-check): geom-brep edge lane + NurbsLane door
+CALOCH,infra_docs,3,3,3,calochortus partial refresh: stems via tube_along_arc; leaves sweep out of plane; kite section
+M7-7,mixed,3,4,4,tier-at-import: every imported solid through the SHARED at-rest gate; per-SOLID gating
+M7-5,build_new,4,4,4,band-seam re-mint: seamless periodic cylinder/torus bands import first-class
+U2,build_new,5,2,5,PATHS algebra: typestate lattice lowering to ProfileLoop differential/property/compile-fail suites
+SWITCH-P,build_new,5,2,5,profiles-as-programs PR-A: Step vocabulary (17 variants) 26 binder sites DynTip replay driver
+U7,build_new,4,2,3,structural selectors + name doors: Selector/NamePat/SegTag matcher + materializers
+G2,mixed,5,3,4,arc-carrier fillet modes: extraction seam + fillet_select module + the §3 surface/eye/§2b
+G1,build_new,4,3,4,PATHS vocabulary growth cheap set: circle/arc_via/arc_center/far-end anchor + corpus migration
+U3,migrate_refactor,3,2,4,SectionSegments retirement: loft/sweep speak ProfileLoop; 42 sites migrated
+U1,build_new,3,2,3,pncad façade crate + prelude; tour on ONE kernel dependency
+U5,build_new,3,2,4,read-back doors: loft_parameters/section_params name→geometry cap doors + Pose blend_arcs
+U9S,build_new,4,3,4,Python bindings scaffold: pncad-py (PyO3/maturin abi3) typed quantities .pyi stubs
+SEL1,build_new,4,2,3,geometric selectors PR-1: GeomPred exact/decided split select_where sel_* census rows
+SWITCH-E,build_new,5,3,5,profiles-as-programs PR-B: ProfileProgram + Expr steps schema v4 + display units
+SEL2,build_new,4,3,3,detect/declare protocol: find_flush_candidates + declare/declare_all sugar corner-table migration
+DOORS,build_new,3,2,3,curated-surface gaps F1-F6: persist doors (v4) document-layer export door typed node failures
+PR-C,build_new,4,3,3,the v1→program lift tool (refusal-driven re-implements no predicate) + plate_param
+PYG1,build_new,4,3,4,Python PATHS lattice: 7 typestate classes + Node.profile from the recorded program
+U10,infra_docs,3,2,4,docs/tutorials/corpus-as-examples: GUIDE both languages via include_str! doctests
+R1-PARAMS,build_new,2,2,2,named-parameter curation: ParamName/DocParam through pncad::document + set_doc_param
+PY-CI,infra_docs,2,3,2,the python-suite hosted job (wheel + venv + discovery)
+PYG23A,build_new,3,2,3,audit G3 + G2's loft half: SketchPlane::yz()/zx() additive + plane= on both profile doors
+ASM-1,build_new,4,2,4,document identity + content pins: DocumentId/ContentPin/DocRef + schema v5 clean break
+PYBUNDLE,build_new,3,3,4,audit G4/G6/G7/G9 close + riders: Node.fillet/split/transform/datum_plane multi-loop profile
+ASM-ROOTS,build_new,4,2,4,A10 product roots: ordered roots list + coverage/ancestor-freedom invariants schema v6
+ASM-2K,build_new,3,2,3,multi-solid instancing kernel door: graft_disjoint_all + uniform Instance(i) wrapping

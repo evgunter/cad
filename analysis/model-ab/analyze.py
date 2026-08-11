@@ -69,12 +69,25 @@ def load():
     return rows
 
 
+RANDOMIZED = ("v2", "v3")   # v2 = opus/fable pairs, v3 = {opus,opus,fable}
+
+
 def v2_quality(rows):
-    return [r for r in rows if r["protocol"] == "v2" and r["blinded_lane"] == "1"]
+    """All blinded-lane rows under a randomized protocol (v2 or v3)."""
+    return [r for r in rows
+            if r["protocol"] in RANDOMIZED and r["blinded_lane"] == "1"]
 
 
 def v2_all(rows):
-    return [r for r in rows if r["protocol"] == "v2"]
+    return [r for r in rows if r["protocol"] in RANDOMIZED]
+
+
+def only(rows, proto):
+    return [r for r in rows if r["protocol"] == proto]
+
+
+def is_v3(r):
+    return 1.0 if r["protocol"] == "v3" else 0.0
 
 
 def opus(r):
@@ -370,6 +383,13 @@ def main():
     print("\n== debugger vs designer (character interaction) ==")
     character_models(Q)
 
+    print("\n== protocol era: does v3 (2:1 triples) look like v2? ==")
+    count_model("maj_v2_only", "MAJORs, protocol v2 rows only",
+                only(Q, "v2"), y_maj)
+    count_model("maj_v3_only", "MAJORs, protocol v3 rows only",
+                only(Q, "v3"), y_maj)
+    era_model(Q)
+
     print("\n== prior sensitivity on the headline ==")
     count_model("maj_prior_half", "MAJORs, prior half width", Q, y_maj,
                 prior_scale=0.5)
@@ -397,6 +417,32 @@ def ordered_fix(rows):
            {"odds_ratio_bigger_fix_opus": (0, math.exp),
             "log_odds": (0, None)},
            extra={"arm_means": arm_means(rows, y_fix_size)}, rows_used=used)
+
+
+def era_model(rows):
+    """MAJOR rate with an era main effect and an arm x era interaction.
+
+    Guards against reading a protocol-era shift as an arm effect: v3
+    allocates 2:1 toward opus, so if the project got easier or the reviews
+    got softer over time, the pooled arm contrast would absorb it.
+    """
+    y, X, used = [], [], []
+    for r in rows:
+        v = y_maj(r)
+        if v is None:
+            continue
+        o, e = opus(r), is_v3(r)
+        y.append(v)
+        X.append([1.0, o, e, o * e, dS(r), dL(r)])
+        used.append(r["row_id"])
+    chains, npar = fit_count(y, X, prior_sd=[1.5] + [1.0] * 5)
+    record("maj_era", "MAJORs: arm x protocol era", chains, npar,
+           ["intercept", "opus", "era_v3", "opus_x_v3", "diff_S", "diff_L"],
+           len(y),
+           {"arm_effect_in_v2": (1, math.exp),
+            "era_main_effect": (2, math.exp),
+            "arm_x_era": (3, math.exp)},
+           rows_used=used)
 
 
 def interaction_difficulty(rows, yfun, key, title, gauss=False):

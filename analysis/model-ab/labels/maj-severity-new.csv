@@ -1,0 +1,20 @@
+row_id,maj_index,category,silent,evidence
+M7-6,1,defect_in_scope,0,"MAJ = certification track shipped GRID-ONLY — no between-samples envelope spec D-c required"
+M8-C1,1,defect_in_scope,0,"nested-assembly outer transforms SILENTLY DROPPED — a refuse→silently-wrong REGRESSION"
+M8-5,1,unclear,0,"MAJ = TEST STRENGTH not code — dropping v0·w11 cross-term survived the entire shipped suite"
+M8-1,1,claim_or_doc,0,"well-conditioned by construction FALSIFIED by execution for off-plane POSITION noise"
+M8-1,2,unclear,0,"the load-bearing anchor judgment had ZERO CI-run coverage — centroid mutation survived"
+M7-8,1,unclear,0,"the between-samples envelope had ZERO shipped-test coverage; the envelope ITSELF held"
+M7-7,1,defect_in_scope,1,"per-solid guarantee was FALSE on multi-solid files — inverted cube SHIPPED beside a normal cube"
+M7-5,1,defect_in_scope,0,"an inside-out torus band imported CERTIFY-GREEN at V=−3.61e-7 m³ — backstop never ran"
+M7-5,2,defect_in_scope,0,"chart_direction misread winding in an ~18° window — VALID washer imported silent COMPLEMENT"
+M7-5,3,unclear,0,"the ruled inverted-cylinder refusal was deletable with the suite green (unpinned)"
+U2,1,defect_in_scope,1,"MAJ-1 = sign domain ungated — negative line(len) stranded the authored anchor ~0.5 off-path"
+G1,1,defect_in_scope,0,"CONVERGED identical MAJOR: unconditional outgoing tangency → spurious TangencyContradicted"
+SWITCH-E,1,defect_in_scope,0,"hole-circle naming parity: the semicircle faces silently swapped program names"
+SWITCH-E,2,process_or_ci,0,"clippy-red head = hosted interval battery never ran"
+PYBUNDLE,1,claim_or_doc,0,"reviewer EXECUTED full diecomposed from Python falsifying G13's cannot be said prose"
+# no-lane: KLINT-GATE, PY-CI
+# non-blinded review class with 0 MAJ reported: RTIMEOUT, WMONTAGE, REBASELINE, RENDER-CLI, CALOCH
+# dual-review rows (R1's MAJORs coded only): M7-6, U7, G1, U5, SWITCH-E, DOORS, U10, ASM-1, ASM-2K
+# 0-MAJ rows (no lines emitted): KLINT, M8-2, SWITCH-P, U7, G2, U3, U1, U5, U9S, SEL1, SEL2, DOORS, PR-C, PYG1, U10, R1-PARAMS, PYG23A, ASM-1, ASM-ROOTS, ASM-2K

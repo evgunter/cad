@@ -101,9 +101,10 @@ em.q{color:var(--text-primary);font-style:normal;font-weight:600}
 <body>
 <div class="wrap">
 <h1>Opus 5 vs Fable 5: a Bayesian re-analysis of the CAD implementation A/B log</h1>
-<p class="sub">45 blinded dispatches under protocol v2 (blocked randomization) &middot; 24 fable / 21 opus &middot; generated from <code>docs/MODEL-AB-LOG.md</code></p>
-<p class="lede">The log's own readouts concluded "no evidence either arm produces more bugs or worse code" without fitting a model. This fits models — one per outcome, each estimating how much the arm shifts it — so the answer carries an interval instead of an impression. <strong>No quality outcome separates the arms at the 95% level &mdash; but the point estimates are not centred on &ldquo;identical&rdquo; either.</strong> They lean fairly consistently toward opus recording fewer review findings (MAJOR-rate ratio 0.71, 95% CrI 0.36&ndash;1.36) and costing less. Every interval still contains no-difference. And the lean does not survive stratification &mdash; split by task difficulty, the direction reverses between the medium and large bands (&sect;2) &mdash; which is what sampling noise looks like rather than an effect. The defensible summary is the log's own, now with numbers attached: <em>no demonstrated quality difference, and this design could not have detected a moderate one.</em></p>
-<div class="tiles"><div class="tile"><div class="k">45</div><div class="l">blinded dispatches modelled</div></div><div class="tile"><div class="k">24 / 21</div><div class="l">fable / opus rows</div></div><div class="tile"><div class="k">0.71&times;</div><div class="l">MAJOR-finding rate, opus vs fable</div></div><div class="tile"><div class="k">84%</div><div class="l">posterior P(opus has fewer MAJORs)</div></div><div class="tile"><div class="k">0.85&times;</div><div class="l">implementation tokens, opus vs fable</div></div></div>
+<p class="sub">Second readout &middot; 76 blinded dispatches under randomized allocation (v2 pairs, then 25 rows of v3 {opus,opus,fable} triples) &middot; 35 fable / 41 opus &middot; 8 dual-reviewer pairs &middot; generated from <code>docs/MODEL-AB-LOG.md</code></p>
+<p class="lede">The log's own readouts concluded "no evidence either arm produces more bugs or worse code" without fitting a model. This fits models — one per outcome, each estimating how much the arm shifts it — so the answer carries an interval instead of an impression. <strong>The MAJOR-finding rate now separates: 0.51 (95% CrI 0.29&ndash;0.90), an interval that no longer contains &ldquo;no difference&rdquo;.</strong> 3 of the 11 quality outcomes clear it (MAJOR findings, consequential MAJORs (strict), consequential MAJORs (broad)) &mdash; all of them in the MAJOR family, which is both the pre-registered headline and, per the new concordance experiment (&sect;6), the only outcome two independent reviewers reproduce exactly. Everything else &mdash; minors, notes, silent deviations, the rubric &mdash; remains flat. This is a genuine change from the first readout, and &sect;7 sets out what does and does not survive scrutiny.</p>
+<div class="tiles"><div class="tile"><div class="k">76</div><div class="l">blinded dispatches (was 45)</div></div><div class="tile"><div class="k">0.51&times;</div><div class="l">MAJOR-finding rate, opus vs fable</div></div><div class="tile"><div class="k">99%</div><div class="l">posterior P(opus has fewer MAJORs)</div></div><div class="tile"><div class="k">8 / 8</div><div class="l">dual-review pairs agreeing exactly on MAJORs</div></div><div class="tile"><div class="k">0.91&times;</div><div class="l">implementation tokens (was 0.85)</div></div></div>
+<div class="callout"><div class="h">What changed since the first readout</div><p>Three things: the sample grew from 45 to 76 blinded rows; the protocol moved to v3 triples (2:1 toward opus, adopted on the strength of the first readout); and the reviewer-concordance experiment produced its first 8 pairs. Two of my earlier conclusions <strong>reverse</strong> — the difficulty sign-flip I used as an argument against the arm effect has resolved (&sect;2), and the cost advantage I reported has evaporated under better data (&sect;4). One earlier flag is <strong>retired outright</strong>: the test-quality rubric signal is smaller than the reviewer noise on that dimension (&sect;6).</p></div>
 <div class="callout"><div class="h">How to read every interval in this report</div><p>Each estimate is a posterior median with a 95% credible interval. For rate and cost outcomes the scale is <em class="q">multiplicative</em>: 1.0 means the arms are identical, 2.0 means opus produces twice the rate, 0.5 means half. For rating outcomes the scale is <em class="q">additive</em> rubric points and the reference is 0. Priors are centred on "no difference" and are weakly informative, so with n this small they pull estimates toward 1.0 (or 0) — an interval that excludes the reference has to earn it.</p></div>
 <h2>1. Is either arm producing worse work?</h2>
 <p>Seven outcomes, each modelled separately with the arm and the pre-logged S/M/L difficulty as predictors. Counts use Poisson regression on the log-rate scale; the plotted quantity is the rate ratio. The last two are the blinded severity recode, fit as a bound because the coder marked 9 of 40 MAJORs too thinly described to classify.</p>
@@ -127,98 +128,98 @@ em.q{color:var(--text-primary);font-style:normal;font-weight:600}
 <line x1="558.9" y1="18" x2="558.9" y2="264" class="refline"/>
 <text x="0" y="47.0" class="rowlab">MAJOR findings</text>
 <text x="0" y="58.0" class="rowsub">the headline defect count</text>
-<title>MAJOR findings: 0.71 [0.36, 1.36]</title>
-<g><title>MAJOR findings  median 0.71, 95% CrI [0.36, 1.36]  n=45</title>
-<line x1="465.8" y1="43.0" x2="587.4" y2="43.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="487.7" y1="43.0" x2="567.7" y2="43.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="528.0" cy="43.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>MAJOR findings: 0.51 [0.29, 0.90]</title>
+<g><title>MAJOR findings  median 0.51, 95% CrI [0.29, 0.90]  n=76</title>
+<line x1="445.5" y1="43.0" x2="548.9" y2="43.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="463.8" y1="43.0" x2="531.8" y2="43.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="497.0" cy="43.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="47.0" class="val">0.71</text>
+<text x="822" y="47.0" class="val">0.51</text>
 <text x="0" y="81.0" class="rowlab">MINOR findings</text>
-<title>MINOR findings: 1.09 [0.75, 1.56]</title>
-<g><title>MINOR findings  median 1.09, 95% CrI [0.75, 1.56]  n=44</title>
-<line x1="532.8" y1="77.0" x2="599.9" y2="77.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="545.4" y1="77.0" x2="588.9" y2="77.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="566.9" cy="77.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>MINOR findings: 1.03 [0.77, 1.38]</title>
+<g><title>MINOR findings  median 1.03, 95% CrI [0.77, 1.38]  n=75</title>
+<line x1="534.2" y1="77.0" x2="588.6" y2="77.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="543.4" y1="77.0" x2="580.3" y2="77.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="561.7" cy="77.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="81.0" class="val">1.09</text>
+<text x="822" y="81.0" class="val">1.03</text>
 <text x="0" y="115.0" class="rowlab">NOTE findings</text>
-<title>NOTE findings: 0.87 [0.62, 1.22]</title>
-<g><title>NOTE findings  median 0.87, 95% CrI [0.62, 1.22]  n=42</title>
-<line x1="515.0" y1="111.0" x2="577.1" y2="111.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="526.0" y1="111.0" x2="565.9" y2="111.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="546.0" cy="111.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>NOTE findings: 0.88 [0.68, 1.13]</title>
+<g><title>NOTE findings  median 0.88, 95% CrI [0.68, 1.13]  n=73</title>
+<line x1="523.5" y1="111.0" x2="570.2" y2="111.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="531.9" y1="111.0" x2="562.5" y2="111.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="547.2" cy="111.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="115.0" class="val">0.87</text>
+<text x="822" y="115.0" class="val">0.88</text>
 <text x="0" y="149.0" class="rowlab">All findings pooled</text>
-<title>All findings pooled: 0.89 [0.70, 1.13]</title>
-<g><title>All findings pooled  median 0.89, 95% CrI [0.70, 1.13]  n=42</title>
-<line x1="526.3" y1="145.0" x2="570.5" y2="145.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="533.9" y1="145.0" x2="562.7" y2="145.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="548.3" cy="145.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>All findings pooled: 0.85 [0.71, 1.03]</title>
+<g><title>All findings pooled  median 0.85, 95% CrI [0.71, 1.03]  n=73</title>
+<line x1="526.8" y1="145.0" x2="561.4" y2="145.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="533.0" y1="145.0" x2="555.4" y2="145.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="544.4" cy="145.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="149.0" class="val">0.89</text>
+<text x="822" y="149.0" class="val">0.85</text>
 <text x="0" y="183.0" class="rowlab">Silent deviations</text>
 <text x="0" y="194.0" class="rowsub">the metric the protocol weights worst</text>
-<title>Silent deviations: 0.78 [0.29, 2.03]</title>
-<g><title>Silent deviations  median 0.78, 95% CrI [0.29, 2.03]  n=43</title>
-<line x1="445.2" y1="179.0" x2="624.1" y2="179.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="476.3" y1="179.0" x2="592.8" y2="179.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="536.0" cy="179.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Silent deviations: 1.07 [0.50, 2.31]</title>
+<g><title>Silent deviations  median 1.07, 95% CrI [0.50, 2.31]  n=73</title>
+<line x1="494.7" y1="179.0" x2="635.8" y2="179.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="519.2" y1="179.0" x2="611.9" y2="179.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="565.1" cy="179.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="183.0" class="val">0.78</text>
+<text x="822" y="183.0" class="val">1.07</text>
 <text x="0" y="217.0" class="rowlab">Consequential MAJORs (strict)</text>
 <text x="0" y="228.0" class="rowsub">blinded recode, ambiguous cases excluded</text>
-<title>Consequential MAJORs (strict): 0.53 [0.21, 1.28]</title>
-<g><title>Consequential MAJORs (strict)  median 0.53, 95% CrI [0.21, 1.28]  n=45</title>
-<line x1="415.2" y1="213.0" x2="581.7" y2="213.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="446.0" y1="213.0" x2="553.4" y2="213.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="501.1" cy="213.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Consequential MAJORs (strict): 0.44 [0.21, 0.92]</title>
+<g><title>Consequential MAJORs (strict)  median 0.44, 95% CrI [0.21, 0.92]  n=76</title>
+<line x1="414.0" y1="213.0" x2="551.5" y2="213.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="438.7" y1="213.0" x2="527.2" y2="213.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="483.5" cy="213.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="217.0" class="val">0.53</text>
+<text x="822" y="217.0" class="val">0.44</text>
 <text x="0" y="251.0" class="rowlab">Consequential MAJORs (broad)</text>
 <text x="0" y="262.0" class="rowsub">blinded recode, ambiguous cases counted as defects</text>
-<title>Consequential MAJORs (broad): 0.52 [0.22, 1.15]</title>
-<g><title>Consequential MAJORs (broad)  median 0.52, 95% CrI [0.22, 1.15]  n=45</title>
-<line x1="420.4" y1="247.0" x2="572.1" y2="247.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="447.4" y1="247.0" x2="547.1" y2="247.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="498.3" cy="247.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Consequential MAJORs (broad): 0.41 [0.21, 0.78]</title>
+<g><title>Consequential MAJORs (broad)  median 0.41, 95% CrI [0.21, 0.78]  n=76</title>
+<line x1="413.1" y1="247.0" x2="536.5" y2="247.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="436.3" y1="247.0" x2="517.6" y2="247.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="476.8" cy="247.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="251.0" class="val">0.52</text>
+<text x="822" y="251.0" class="val">0.41</text>
 <text x="557.0" y="304" class="axlab" text-anchor="middle">rate ratio (opus ÷ fable), log scale</text>
 </svg>
-<figcaption>Dot = posterior median, thick band = 80% credible interval, thin line = 95%. The dashed line at 1.0 is &ldquo;the arms are identical&rdquo;. Every interval crosses it.</figcaption>
+<figcaption>Dot = posterior median, thick band = 80% credible interval, thin line = 95%. The dashed line at 1.0 is &ldquo;the arms are identical&rdquo;. 3 of 7 intervals clear it: MAJOR findings, consequential MAJORs (strict), consequential MAJORs (broad).</figcaption>
 </figure>
-<p>The MAJOR-finding rate ratio is 0.71 (95% CrI 0.36 to 1.36). The raw tallies behind it are 19 MAJORs across 24 fable dispatches and 11 across 21 opus ones, so the point estimate leans toward opus — but with only 30 MAJOR findings in the entire sample, the interval spans a factor of 4 from end to end. Silent deviations — the metric the protocol deliberately weights worst — give 0.78 (95% CrI 0.29 to 2.03), on just 10 events.</p>
+<p>The MAJOR-finding rate ratio is 0.51 (95% CrI 0.29 to 0.90). The raw tallies behind it are 29 MAJORs across 35 fable dispatches and 16 across 41 opus ones, so the point estimate leans toward opus — but with only 45 MAJOR findings in the entire sample, the interval spans a factor of 3 from end to end. Silent deviations — the metric the protocol deliberately weights worst — give 1.07 (95% CrI 0.50 to 2.31), on just 19 events.</p>
 <figure>
 <div class="legend"><span class="lg"><span class="sw" style="background:var(--series-2)"></span>MAJOR findings</span><span class="lg"><span class="sw" style="background:var(--series-1)"></span>silent deviations</span></div>
 <svg viewBox="0 0 880 250" width="100%" role="img" class="chart" aria-label="rate ratio, opus ÷ fable (log scale)">
 <text x="0" y="18" class="ct">Posterior distributions, not just intervals</text>
-<line x1="38.4" y1="40" x2="38.4" y2="206.0" class="grid"/>
-<text x="38.4" y="223" class="tick" text-anchor="middle">0.13</text>
-<line x1="192.2" y1="40" x2="192.2" y2="206.0" class="grid"/>
-<text x="192.2" y="223" class="tick" text-anchor="middle">0.25</text>
-<line x1="346.1" y1="40" x2="346.1" y2="206.0" class="grid"/>
-<text x="346.1" y="223" class="tick" text-anchor="middle">0.5</text>
-<line x1="500.0" y1="40" x2="500.0" y2="206.0" class="grid"/>
-<text x="500.0" y="223" class="tick" text-anchor="middle">1</text>
-<line x1="653.8" y1="40" x2="653.8" y2="206.0" class="grid"/>
-<text x="653.8" y="223" class="tick" text-anchor="middle">2</text>
-<line x1="807.7" y1="40" x2="807.7" y2="206.0" class="grid"/>
-<text x="807.7" y="223" class="tick" text-anchor="middle">4</text>
+<line x1="21.3" y1="40" x2="21.3" y2="206.0" class="grid"/>
+<text x="21.3" y="223" class="tick" text-anchor="middle">0.13</text>
+<line x1="178.8" y1="40" x2="178.8" y2="206.0" class="grid"/>
+<text x="178.8" y="223" class="tick" text-anchor="middle">0.25</text>
+<line x1="336.3" y1="40" x2="336.3" y2="206.0" class="grid"/>
+<text x="336.3" y="223" class="tick" text-anchor="middle">0.5</text>
+<line x1="493.8" y1="40" x2="493.8" y2="206.0" class="grid"/>
+<text x="493.8" y="223" class="tick" text-anchor="middle">1</text>
+<line x1="651.3" y1="40" x2="651.3" y2="206.0" class="grid"/>
+<text x="651.3" y="223" class="tick" text-anchor="middle">2</text>
+<line x1="808.8" y1="40" x2="808.8" y2="206.0" class="grid"/>
+<text x="808.8" y="223" class="tick" text-anchor="middle">4</text>
 <line x1="896.1" y1="40" x2="896.1" y2="206.0" class="grid"/>
 <text x="896.1" y="223" class="tick" text-anchor="middle">8</text>
-<line x1="500.0" y1="40" x2="500.0" y2="206.0" class="refline"/>
-<polygon points="54.0,206.0 54.0,206.0 59.0,206.0 64.1,206.0 69.1,206.0 74.2,206.0 79.2,206.0 84.3,206.0 89.3,206.0 94.4,206.0 99.4,206.0 104.4,206.0 109.5,206.0 114.5,205.9 119.6,205.9 124.6,205.9 129.7,205.8 134.7,205.7 139.7,205.6 144.8,205.6 149.8,205.5 154.9,205.4 159.9,205.3 165.0,205.1 170.0,204.8 175.1,204.6 180.1,204.3 185.1,204.0 190.2,203.7 195.2,203.5 200.3,203.2 205.3,202.9 210.4,202.5 215.4,201.9 220.5,201.1 225.5,200.1 230.5,198.9 235.6,197.7 240.6,196.5 245.7,195.3 250.7,194.0 255.8,192.7 260.8,191.3 265.8,189.6 270.9,187.6 275.9,185.2 281.0,182.4 286.0,179.1 291.1,175.4 296.1,171.2 301.2,166.6 306.2,161.5 311.2,156.0 316.3,150.1 321.3,143.9 326.4,137.5 331.4,130.9 336.5,124.3 341.5,117.7 346.6,111.0 351.6,104.3 356.6,97.7 361.7,91.2 366.7,85.2 371.8,79.7 376.8,75.0 381.9,71.0 386.9,67.8 391.9,65.1 397.0,62.9 402.0,61.1 407.1,59.7 412.1,58.7 417.2,58.1 422.2,57.8 427.3,57.8 432.3,57.9 437.3,58.1 442.4,58.4 447.4,59.2 452.5,60.5 457.5,62.6 462.6,65.8 467.6,69.9 472.7,75.2 477.7,81.4 482.7,88.3 487.8,95.8 492.8,103.4 497.9,110.9 502.9,118.0 508.0,124.6 513.0,130.7 518.1,136.4 523.1,141.7 528.1,146.8 533.2,151.8 538.2,156.7 543.3,161.4 548.3,165.8 553.4,169.9 558.4,173.6 563.4,177.0 568.5,180.0 573.5,182.7 578.6,185.3 583.6,187.7 588.7,189.9 593.7,192.0 598.8,194.0 603.8,195.7 608.8,197.3 613.9,198.7 618.9,200.0 624.0,201.2 629.0,202.2 634.1,203.0 639.1,203.7 644.2,204.3 649.2,204.8 654.2,205.1 659.3,205.3 664.3,205.5 669.4,205.6 674.4,205.6 679.5,205.6 684.5,205.6 689.5,205.6 694.6,205.7 699.6,205.7 704.7,205.8 709.7,205.8 714.8,205.9 719.8,205.9 724.9,206.0 729.9,206.0 734.9,206.0 740.0,206.0 745.0,206.0 750.1,206.0 755.1,206.0 760.2,206.0 765.2,206.0 770.3,206.0 775.3,206.0 780.3,206.0 785.4,206.0 790.4,206.0 795.5,206.0 800.5,206.0 805.6,206.0 810.6,206.0 815.6,206.0 820.7,206.0 825.7,206.0 830.8,206.0 835.8,206.0 840.9,206.0 845.9,206.0 851.0,206.0 856.0,206.0 856.0,206.0" fill="var(--series-2)" opacity="0.16"/>
-<polyline points="54.0,206.0 59.0,206.0 64.1,206.0 69.1,206.0 74.2,206.0 79.2,206.0 84.3,206.0 89.3,206.0 94.4,206.0 99.4,206.0 104.4,206.0 109.5,206.0 114.5,205.9 119.6,205.9 124.6,205.9 129.7,205.8 134.7,205.7 139.7,205.6 144.8,205.6 149.8,205.5 154.9,205.4 159.9,205.3 165.0,205.1 170.0,204.8 175.1,204.6 180.1,204.3 185.1,204.0 190.2,203.7 195.2,203.5 200.3,203.2 205.3,202.9 210.4,202.5 215.4,201.9 220.5,201.1 225.5,200.1 230.5,198.9 235.6,197.7 240.6,196.5 245.7,195.3 250.7,194.0 255.8,192.7 260.8,191.3 265.8,189.6 270.9,187.6 275.9,185.2 281.0,182.4 286.0,179.1 291.1,175.4 296.1,171.2 301.2,166.6 306.2,161.5 311.2,156.0 316.3,150.1 321.3,143.9 326.4,137.5 331.4,130.9 336.5,124.3 341.5,117.7 346.6,111.0 351.6,104.3 356.6,97.7 361.7,91.2 366.7,85.2 371.8,79.7 376.8,75.0 381.9,71.0 386.9,67.8 391.9,65.1 397.0,62.9 402.0,61.1 407.1,59.7 412.1,58.7 417.2,58.1 422.2,57.8 427.3,57.8 432.3,57.9 437.3,58.1 442.4,58.4 447.4,59.2 452.5,60.5 457.5,62.6 462.6,65.8 467.6,69.9 472.7,75.2 477.7,81.4 482.7,88.3 487.8,95.8 492.8,103.4 497.9,110.9 502.9,118.0 508.0,124.6 513.0,130.7 518.1,136.4 523.1,141.7 528.1,146.8 533.2,151.8 538.2,156.7 543.3,161.4 548.3,165.8 553.4,169.9 558.4,173.6 563.4,177.0 568.5,180.0 573.5,182.7 578.6,185.3 583.6,187.7 588.7,189.9 593.7,192.0 598.8,194.0 603.8,195.7 608.8,197.3 613.9,198.7 618.9,200.0 624.0,201.2 629.0,202.2 634.1,203.0 639.1,203.7 644.2,204.3 649.2,204.8 654.2,205.1 659.3,205.3 664.3,205.5 669.4,205.6 674.4,205.6 679.5,205.6 684.5,205.6 689.5,205.6 694.6,205.7 699.6,205.7 704.7,205.8 709.7,205.8 714.8,205.9 719.8,205.9 724.9,206.0 729.9,206.0 734.9,206.0 740.0,206.0 745.0,206.0 750.1,206.0 755.1,206.0 760.2,206.0 765.2,206.0 770.3,206.0 775.3,206.0 780.3,206.0 785.4,206.0 790.4,206.0 795.5,206.0 800.5,206.0 805.6,206.0 810.6,206.0 815.6,206.0 820.7,206.0 825.7,206.0 830.8,206.0 835.8,206.0 840.9,206.0 845.9,206.0 851.0,206.0 856.0,206.0" fill="none" stroke="var(--series-2)" stroke-width="2" stroke-linejoin="round"><title>MAJOR findings</title></polyline>
-<line x1="275.5" y1="215.0" x2="568.9" y2="215.0" stroke="var(--series-2)" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
-<polygon points="54.0,206.0 54.0,205.8 59.0,205.7 64.1,205.7 69.1,205.6 74.2,205.4 79.2,205.3 84.3,205.2 89.3,205.0 94.4,204.8 99.4,204.6 104.4,204.4 109.5,204.1 114.5,203.9 119.6,203.6 124.6,203.4 129.7,203.1 134.7,202.8 139.7,202.6 144.8,202.3 149.8,202.0 154.9,201.6 159.9,201.3 165.0,200.8 170.0,200.4 175.1,199.9 180.1,199.4 185.1,198.8 190.2,198.1 195.2,197.3 200.3,196.5 205.3,195.5 210.4,194.5 215.4,193.3 220.5,192.0 225.5,190.6 230.5,189.0 235.6,187.3 240.6,185.5 245.7,183.6 250.7,181.5 255.8,179.4 260.8,177.3 265.8,175.1 270.9,172.9 275.9,170.7 281.0,168.5 286.0,166.3 291.1,164.1 296.1,161.8 301.2,159.4 306.2,157.1 311.2,154.6 316.3,152.1 321.3,149.6 326.4,147.1 331.4,144.5 336.5,142.0 341.5,139.4 346.6,136.8 351.6,134.0 356.6,131.2 361.7,128.3 366.7,125.2 371.8,122.1 376.8,118.9 381.9,115.8 386.9,112.9 391.9,110.2 397.0,107.8 402.0,105.8 407.1,104.1 412.1,102.8 417.2,101.9 422.2,101.2 427.3,100.8 432.3,100.6 437.3,100.6 442.4,100.7 447.4,101.0 452.5,101.5 457.5,102.1 462.6,102.9 467.6,103.9 472.7,105.2 477.7,106.7 482.7,108.4 487.8,110.4 492.8,112.6 497.9,114.9 502.9,117.4 508.0,120.0 513.0,122.6 518.1,125.2 523.1,127.7 528.1,130.1 533.2,132.3 538.2,134.4 543.3,136.4 548.3,138.4 553.4,140.3 558.4,142.3 563.4,144.5 568.5,146.9 573.5,149.5 578.6,152.4 583.6,155.4 588.7,158.5 593.7,161.6 598.8,164.7 603.8,167.7 608.8,170.4 613.9,173.0 618.9,175.3 624.0,177.4 629.0,179.3 634.1,181.0 639.1,182.6 644.2,184.1 649.2,185.5 654.2,186.9 659.3,188.3 664.3,189.6 669.4,191.0 674.4,192.4 679.5,193.7 684.5,195.0 689.5,196.2 694.6,197.4 699.6,198.4 704.7,199.3 709.7,200.2 714.8,200.9 719.8,201.6 724.9,202.1 729.9,202.7 734.9,203.2 740.0,203.6 745.0,204.0 750.1,204.3 755.1,204.6 760.2,204.9 765.2,205.1 770.3,205.2 775.3,205.3 780.3,205.4 785.4,205.4 790.4,205.4 795.5,205.4 800.5,205.4 805.6,205.4 810.6,205.4 815.6,205.4 820.7,205.4 825.7,205.4 830.8,205.5 835.8,205.5 840.9,205.6 845.9,205.6 851.0,205.7 856.0,205.8 856.0,206.0" fill="var(--series-1)" opacity="0.16"/>
-<polyline points="54.0,205.8 59.0,205.7 64.1,205.7 69.1,205.6 74.2,205.4 79.2,205.3 84.3,205.2 89.3,205.0 94.4,204.8 99.4,204.6 104.4,204.4 109.5,204.1 114.5,203.9 119.6,203.6 124.6,203.4 129.7,203.1 134.7,202.8 139.7,202.6 144.8,202.3 149.8,202.0 154.9,201.6 159.9,201.3 165.0,200.8 170.0,200.4 175.1,199.9 180.1,199.4 185.1,198.8 190.2,198.1 195.2,197.3 200.3,196.5 205.3,195.5 210.4,194.5 215.4,193.3 220.5,192.0 225.5,190.6 230.5,189.0 235.6,187.3 240.6,185.5 245.7,183.6 250.7,181.5 255.8,179.4 260.8,177.3 265.8,175.1 270.9,172.9 275.9,170.7 281.0,168.5 286.0,166.3 291.1,164.1 296.1,161.8 301.2,159.4 306.2,157.1 311.2,154.6 316.3,152.1 321.3,149.6 326.4,147.1 331.4,144.5 336.5,142.0 341.5,139.4 346.6,136.8 351.6,134.0 356.6,131.2 361.7,128.3 366.7,125.2 371.8,122.1 376.8,118.9 381.9,115.8 386.9,112.9 391.9,110.2 397.0,107.8 402.0,105.8 407.1,104.1 412.1,102.8 417.2,101.9 422.2,101.2 427.3,100.8 432.3,100.6 437.3,100.6 442.4,100.7 447.4,101.0 452.5,101.5 457.5,102.1 462.6,102.9 467.6,103.9 472.7,105.2 477.7,106.7 482.7,108.4 487.8,110.4 492.8,112.6 497.9,114.9 502.9,117.4 508.0,120.0 513.0,122.6 518.1,125.2 523.1,127.7 528.1,130.1 533.2,132.3 538.2,134.4 543.3,136.4 548.3,138.4 553.4,140.3 558.4,142.3 563.4,144.5 568.5,146.9 573.5,149.5 578.6,152.4 583.6,155.4 588.7,158.5 593.7,161.6 598.8,164.7 603.8,167.7 608.8,170.4 613.9,173.0 618.9,175.3 624.0,177.4 629.0,179.3 634.1,181.0 639.1,182.6 644.2,184.1 649.2,185.5 654.2,186.9 659.3,188.3 664.3,189.6 669.4,191.0 674.4,192.4 679.5,193.7 684.5,195.0 689.5,196.2 694.6,197.4 699.6,198.4 704.7,199.3 709.7,200.2 714.8,200.9 719.8,201.6 724.9,202.1 729.9,202.7 734.9,203.2 740.0,203.6 745.0,204.0 750.1,204.3 755.1,204.6 760.2,204.9 765.2,205.1 770.3,205.2 775.3,205.3 780.3,205.4 785.4,205.4 790.4,205.4 795.5,205.4 800.5,205.4 805.6,205.4 810.6,205.4 815.6,205.4 820.7,205.4 825.7,205.4 830.8,205.5 835.8,205.5 840.9,205.6 845.9,205.6 851.0,205.7 856.0,205.8" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round"><title>silent deviations</title></polyline>
-<line x1="225.7" y1="215.0" x2="657.2" y2="215.0" stroke="var(--series-1)" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+<line x1="493.8" y1="40" x2="493.8" y2="206.0" class="refline"/>
+<polygon points="54.0,206.0 54.0,206.0 59.0,205.9 64.1,205.9 69.1,205.8 74.2,205.7 79.2,205.7 84.3,205.7 89.3,205.7 94.4,205.7 99.4,205.8 104.4,205.8 109.5,205.7 114.5,205.6 119.6,205.5 124.6,205.3 129.7,205.0 134.7,204.7 139.7,204.4 144.8,204.0 149.8,203.7 154.9,203.2 159.9,202.7 165.0,201.9 170.0,200.9 175.1,199.6 180.1,197.9 185.1,195.8 190.2,193.5 195.2,191.2 200.3,188.8 205.3,186.5 210.4,184.1 215.4,181.5 220.5,178.7 225.5,175.5 230.5,172.0 235.6,168.1 240.6,163.7 245.7,158.9 250.7,153.6 255.8,147.8 260.8,141.7 265.8,135.5 270.9,129.3 275.9,123.2 281.0,117.0 286.0,110.4 291.1,103.2 296.1,95.6 301.2,88.0 306.2,80.8 311.2,74.5 316.3,69.2 321.3,65.1 326.4,61.9 331.4,59.6 336.5,58.2 341.5,57.8 346.6,58.2 351.6,59.5 356.6,61.7 361.7,64.7 366.7,68.8 371.8,73.9 376.8,79.6 381.9,85.5 386.9,91.3 391.9,96.8 397.0,102.1 402.0,107.5 407.1,113.4 412.1,119.9 417.2,126.8 422.2,133.9 427.3,140.8 432.3,147.3 437.3,153.3 442.4,158.7 447.4,163.6 452.5,168.2 457.5,172.4 462.6,176.2 467.6,179.6 472.7,182.7 477.7,185.6 482.7,188.3 487.8,191.0 492.8,193.7 497.9,196.3 502.9,198.6 508.0,200.4 513.0,201.8 518.1,202.8 523.1,203.4 528.1,203.8 533.2,204.1 538.2,204.3 543.3,204.5 548.3,204.7 553.4,205.0 558.4,205.2 563.4,205.4 568.5,205.6 573.5,205.8 578.6,205.9 583.6,205.9 588.7,206.0 593.7,206.0 598.8,206.0 603.8,206.0 608.8,206.0 613.9,206.0 618.9,206.0 624.0,206.0 629.0,206.0 634.1,206.0 639.1,206.0 644.2,206.0 649.2,206.0 654.2,206.0 659.3,206.0 664.3,206.0 669.4,206.0 674.4,206.0 679.5,206.0 684.5,206.0 689.5,206.0 694.6,206.0 699.6,206.0 704.7,206.0 709.7,206.0 714.8,206.0 719.8,206.0 724.9,206.0 729.9,206.0 734.9,206.0 740.0,206.0 745.0,206.0 750.1,206.0 755.1,206.0 760.2,206.0 765.2,206.0 770.3,206.0 775.3,206.0 780.3,206.0 785.4,206.0 790.4,206.0 795.5,206.0 800.5,206.0 805.6,206.0 810.6,206.0 815.6,206.0 820.7,206.0 825.7,206.0 830.8,206.0 835.8,206.0 840.9,206.0 845.9,206.0 851.0,206.0 856.0,206.0 856.0,206.0" fill="var(--series-2)" opacity="0.16"/>
+<polyline points="54.0,206.0 59.0,205.9 64.1,205.9 69.1,205.8 74.2,205.7 79.2,205.7 84.3,205.7 89.3,205.7 94.4,205.7 99.4,205.8 104.4,205.8 109.5,205.7 114.5,205.6 119.6,205.5 124.6,205.3 129.7,205.0 134.7,204.7 139.7,204.4 144.8,204.0 149.8,203.7 154.9,203.2 159.9,202.7 165.0,201.9 170.0,200.9 175.1,199.6 180.1,197.9 185.1,195.8 190.2,193.5 195.2,191.2 200.3,188.8 205.3,186.5 210.4,184.1 215.4,181.5 220.5,178.7 225.5,175.5 230.5,172.0 235.6,168.1 240.6,163.7 245.7,158.9 250.7,153.6 255.8,147.8 260.8,141.7 265.8,135.5 270.9,129.3 275.9,123.2 281.0,117.0 286.0,110.4 291.1,103.2 296.1,95.6 301.2,88.0 306.2,80.8 311.2,74.5 316.3,69.2 321.3,65.1 326.4,61.9 331.4,59.6 336.5,58.2 341.5,57.8 346.6,58.2 351.6,59.5 356.6,61.7 361.7,64.7 366.7,68.8 371.8,73.9 376.8,79.6 381.9,85.5 386.9,91.3 391.9,96.8 397.0,102.1 402.0,107.5 407.1,113.4 412.1,119.9 417.2,126.8 422.2,133.9 427.3,140.8 432.3,147.3 437.3,153.3 442.4,158.7 447.4,163.6 452.5,168.2 457.5,172.4 462.6,176.2 467.6,179.6 472.7,182.7 477.7,185.6 482.7,188.3 487.8,191.0 492.8,193.7 497.9,196.3 502.9,198.6 508.0,200.4 513.0,201.8 518.1,202.8 523.1,203.4 528.1,203.8 533.2,204.1 538.2,204.3 543.3,204.5 548.3,204.7 553.4,205.0 558.4,205.2 563.4,205.4 568.5,205.6 573.5,205.8 578.6,205.9 583.6,205.9 588.7,206.0 593.7,206.0 598.8,206.0 603.8,206.0 608.8,206.0 613.9,206.0 618.9,206.0 624.0,206.0 629.0,206.0 634.1,206.0 639.1,206.0 644.2,206.0 649.2,206.0 654.2,206.0 659.3,206.0 664.3,206.0 669.4,206.0 674.4,206.0 679.5,206.0 684.5,206.0 689.5,206.0 694.6,206.0 699.6,206.0 704.7,206.0 709.7,206.0 714.8,206.0 719.8,206.0 724.9,206.0 729.9,206.0 734.9,206.0 740.0,206.0 745.0,206.0 750.1,206.0 755.1,206.0 760.2,206.0 765.2,206.0 770.3,206.0 775.3,206.0 780.3,206.0 785.4,206.0 790.4,206.0 795.5,206.0 800.5,206.0 805.6,206.0 810.6,206.0 815.6,206.0 820.7,206.0 825.7,206.0 830.8,206.0 835.8,206.0 840.9,206.0 845.9,206.0 851.0,206.0 856.0,206.0" fill="none" stroke="var(--series-2)" stroke-width="2" stroke-linejoin="round"><title>MAJOR findings</title></polyline>
+<line x1="213.7" y1="215.0" x2="469.0" y2="215.0" stroke="var(--series-2)" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+<polygon points="54.0,206.0 54.0,206.0 59.0,206.0 64.1,206.0 69.1,206.0 74.2,206.0 79.2,206.0 84.3,206.0 89.3,206.0 94.4,206.0 99.4,206.0 104.4,206.0 109.5,206.0 114.5,206.0 119.6,206.0 124.6,206.0 129.7,206.0 134.7,206.0 139.7,206.0 144.8,206.0 149.8,206.0 154.9,206.0 159.9,206.0 165.0,205.9 170.0,205.9 175.1,205.8 180.1,205.8 185.1,205.7 190.2,205.6 195.2,205.5 200.3,205.4 205.3,205.2 210.4,205.1 215.4,205.0 220.5,204.9 225.5,204.8 230.5,204.7 235.6,204.6 240.6,204.4 245.7,204.3 250.7,204.0 255.8,203.8 260.8,203.5 265.8,203.1 270.9,202.6 275.9,202.1 281.0,201.4 286.0,200.5 291.1,199.5 296.1,198.4 301.2,197.1 306.2,195.7 311.2,194.2 316.3,192.7 321.3,191.0 326.4,189.4 331.4,187.6 336.5,185.8 341.5,184.0 346.6,182.1 351.6,180.2 356.6,178.1 361.7,176.0 366.7,173.8 371.8,171.5 376.8,169.1 381.9,166.6 386.9,164.0 391.9,161.2 397.0,158.3 402.0,155.2 407.1,152.0 412.1,148.5 417.2,144.8 422.2,141.1 427.3,137.3 432.3,133.5 437.3,129.9 442.4,126.6 447.4,123.6 452.5,120.9 457.5,118.4 462.6,116.1 467.6,113.9 472.7,111.5 477.7,109.0 482.7,106.4 487.8,103.6 492.8,100.9 497.9,98.4 502.9,96.4 508.0,95.1 513.0,94.6 518.1,95.1 523.1,96.5 528.1,98.8 533.2,101.7 538.2,105.1 543.3,108.7 548.3,112.5 553.4,116.2 558.4,119.7 563.4,123.1 568.5,126.3 573.5,129.3 578.6,132.1 583.6,134.8 588.7,137.4 593.7,139.9 598.8,142.3 603.8,144.8 608.8,147.3 613.9,149.9 618.9,152.7 624.0,155.7 629.0,158.8 634.1,162.0 639.1,165.3 644.2,168.5 649.2,171.5 654.2,174.4 659.3,177.0 664.3,179.5 669.4,181.7 674.4,183.9 679.5,185.9 684.5,187.9 689.5,189.8 694.6,191.5 699.6,193.1 704.7,194.6 709.7,195.9 714.8,197.0 719.8,198.0 724.9,198.9 729.9,199.7 734.9,200.4 740.0,201.1 745.0,201.8 750.1,202.4 755.1,203.1 760.2,203.6 765.2,204.1 770.3,204.5 775.3,204.8 780.3,205.1 785.4,205.3 790.4,205.5 795.5,205.6 800.5,205.6 805.6,205.7 810.6,205.7 815.6,205.7 820.7,205.7 825.7,205.7 830.8,205.8 835.8,205.8 840.9,205.8 845.9,205.8 851.0,205.9 856.0,205.9 856.0,206.0" fill="var(--series-1)" opacity="0.16"/>
+<polyline points="54.0,206.0 59.0,206.0 64.1,206.0 69.1,206.0 74.2,206.0 79.2,206.0 84.3,206.0 89.3,206.0 94.4,206.0 99.4,206.0 104.4,206.0 109.5,206.0 114.5,206.0 119.6,206.0 124.6,206.0 129.7,206.0 134.7,206.0 139.7,206.0 144.8,206.0 149.8,206.0 154.9,206.0 159.9,206.0 165.0,205.9 170.0,205.9 175.1,205.8 180.1,205.8 185.1,205.7 190.2,205.6 195.2,205.5 200.3,205.4 205.3,205.2 210.4,205.1 215.4,205.0 220.5,204.9 225.5,204.8 230.5,204.7 235.6,204.6 240.6,204.4 245.7,204.3 250.7,204.0 255.8,203.8 260.8,203.5 265.8,203.1 270.9,202.6 275.9,202.1 281.0,201.4 286.0,200.5 291.1,199.5 296.1,198.4 301.2,197.1 306.2,195.7 311.2,194.2 316.3,192.7 321.3,191.0 326.4,189.4 331.4,187.6 336.5,185.8 341.5,184.0 346.6,182.1 351.6,180.2 356.6,178.1 361.7,176.0 366.7,173.8 371.8,171.5 376.8,169.1 381.9,166.6 386.9,164.0 391.9,161.2 397.0,158.3 402.0,155.2 407.1,152.0 412.1,148.5 417.2,144.8 422.2,141.1 427.3,137.3 432.3,133.5 437.3,129.9 442.4,126.6 447.4,123.6 452.5,120.9 457.5,118.4 462.6,116.1 467.6,113.9 472.7,111.5 477.7,109.0 482.7,106.4 487.8,103.6 492.8,100.9 497.9,98.4 502.9,96.4 508.0,95.1 513.0,94.6 518.1,95.1 523.1,96.5 528.1,98.8 533.2,101.7 538.2,105.1 543.3,108.7 548.3,112.5 553.4,116.2 558.4,119.7 563.4,123.1 568.5,126.3 573.5,129.3 578.6,132.1 583.6,134.8 588.7,137.4 593.7,139.9 598.8,142.3 603.8,144.8 608.8,147.3 613.9,149.9 618.9,152.7 624.0,155.7 629.0,158.8 634.1,162.0 639.1,165.3 644.2,168.5 649.2,171.5 654.2,174.4 659.3,177.0 664.3,179.5 669.4,181.7 674.4,183.9 679.5,185.9 684.5,187.9 689.5,189.8 694.6,191.5 699.6,193.1 704.7,194.6 709.7,195.9 714.8,197.0 719.8,198.0 724.9,198.9 729.9,199.7 734.9,200.4 740.0,201.1 745.0,201.8 750.1,202.4 755.1,203.1 760.2,203.6 765.2,204.1 770.3,204.5 775.3,204.8 780.3,205.1 785.4,205.3 790.4,205.5 795.5,205.6 800.5,205.6 805.6,205.7 810.6,205.7 815.6,205.7 820.7,205.7 825.7,205.7 830.8,205.8 835.8,205.8 840.9,205.8 845.9,205.8 851.0,205.9 856.0,205.9" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round"><title>silent deviations</title></polyline>
+<line x1="335.3" y1="215.0" x2="683.8" y2="215.0" stroke="var(--series-1)" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
 <line x1="54" y1="206.0" x2="856" y2="206.0" class="axis"/>
 <text x="455.0" y="244" class="axlab" text-anchor="middle">rate ratio, opus ÷ fable (log scale)</text>
 </svg>
-<figcaption>The bar under each curve is its 95% interval. The MAJOR-rate posterior puts 84% of its mass below 1.0 and the silent-deviation posterior 69% &mdash; but both curves keep substantial mass on <em>both</em> sides of the dashed line, which is what &ldquo;underpowered&rdquo; looks like.</figcaption>
+<figcaption>The bar under each curve is its 95% interval. The MAJOR-rate posterior puts 99% of its mass below 1.0 and the silent-deviation posterior 43% &mdash; but both curves keep substantial mass on <em>both</em> sides of the dashed line, which is what &ldquo;underpowered&rdquo; looks like.</figcaption>
 </figure>
 <h3>The underlying counts</h3>
 <p>Model output is only as good as what went in, so here is every modelled dispatch as a dot.</p>
@@ -234,7 +235,7 @@ em.q{color:var(--text-primary);font-style:normal;font-weight:600}
 <text x="604.2" y="193" class="tick" text-anchor="middle">2</text>
 <line x1="812.5" y1="38" x2="812.5" y2="176" class="grid"/>
 <text x="812.5" y="193" class="tick" text-anchor="middle">3</text>
-<text x="0" y="70.0" class="rowlab">S  (n=11)</text>
+<text x="0" y="70.0" class="rowlab">S  (n=14)</text>
 <circle cx="395.8" cy="62.4" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>17 — fable, S, 1 MAJOR</title></circle>
 <circle cx="187.5" cy="58.9" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>22 — opus, S, 0 MAJOR</title></circle>
 <circle cx="187.5" cy="69.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>23 — fable, S, 0 MAJOR</title></circle>
@@ -246,49 +247,80 @@ em.q{color:var(--text-primary);font-style:normal;font-weight:600}
 <circle cx="187.5" cy="56.6" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>KERNEL — fable, S, 0 MAJOR</title></circle>
 <circle cx="187.5" cy="64.7" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>SKINFIT — opus, S, 0 MAJOR</title></circle>
 <circle cx="395.8" cy="57.3" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>FOLD — opus, S, 1 MAJOR</title></circle>
-<text x="0" y="114.0" class="rowlab">M  (n=22)</text>
+<circle cx="604.2" cy="57.7" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M8-1 — fable, S, 2 MAJOR</title></circle>
+<circle cx="187.5" cy="64.5" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>U1 — opus, S, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="72.6" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>R1-PARAMS — fable, S, 0 MAJOR</title></circle>
+<text x="0" y="114.0" class="rowlab">M  (n=45)</text>
 <line x1="138" y1="88.0" x2="850" y2="88.0" class="sep"/>
-<circle cx="187.5" cy="101.7" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>11 — opus, M, 0 MAJOR</title></circle>
-<circle cx="187.5" cy="108.5" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>13 — opus, M, 0 MAJOR</title></circle>
-<circle cx="604.2" cy="116.6" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>15 — fable, M, 2 MAJOR</title></circle>
-<circle cx="395.8" cy="102.4" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>18 — opus, M, 1 MAJOR</title></circle>
-<circle cx="395.8" cy="104.4" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>20 — fable, M, 1 MAJOR</title></circle>
-<circle cx="187.5" cy="112.6" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>21 — opus, M, 0 MAJOR</title></circle>
-<circle cx="187.5" cy="119.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>26 — fable, M, 0 MAJOR</title></circle>
-<circle cx="187.5" cy="111.6" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>33 — opus, M, 0 MAJOR</title></circle>
-<circle cx="187.5" cy="107.9" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>34 — fable, M, 0 MAJOR</title></circle>
-<circle cx="187.5" cy="119.6" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>35 — opus, M, 0 MAJOR</title></circle>
-<circle cx="395.8" cy="100.8" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>36 — fable, M, 1 MAJOR</title></circle>
-<circle cx="187.5" cy="117.3" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>37 — opus, M, 0 MAJOR</title></circle>
-<circle cx="187.5" cy="105.7" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-1 — fable, M, 0 MAJOR</title></circle>
-<circle cx="395.8" cy="102.8" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-2 — opus, M, 1 MAJOR</title></circle>
-<circle cx="187.5" cy="102.3" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-4 — opus, M, 0 MAJOR</title></circle>
-<circle cx="395.8" cy="106.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>RIM-DIM — fable, M, 1 MAJOR</title></circle>
-<circle cx="395.8" cy="116.4" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>F3+F4 — opus, M, 1 MAJOR</title></circle>
-<circle cx="812.5" cy="103.5" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-3 — fable, M, 3 MAJOR</title></circle>
-<circle cx="604.2" cy="111.7" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>MIGRATE — fable, M, 2 MAJOR</title></circle>
-<circle cx="187.5" cy="112.8" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-5 — opus, M, 0 MAJOR</title></circle>
-<circle cx="187.5" cy="107.4" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>MESH — fable, M, 0 MAJOR</title></circle>
-<circle cx="395.8" cy="111.0" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-6 — fable, M, 1 MAJOR</title></circle>
-<text x="0" y="158.0" class="rowlab">L  (n=12)</text>
+<circle cx="187.5" cy="102.4" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>11 — opus, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="104.4" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>13 — opus, M, 0 MAJOR</title></circle>
+<circle cx="604.2" cy="112.6" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>15 — fable, M, 2 MAJOR</title></circle>
+<circle cx="395.8" cy="119.1" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>18 — opus, M, 1 MAJOR</title></circle>
+<circle cx="395.8" cy="111.6" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>20 — fable, M, 1 MAJOR</title></circle>
+<circle cx="187.5" cy="107.9" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>21 — opus, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="119.6" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>26 — fable, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="100.8" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>33 — opus, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="117.3" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>34 — fable, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="105.7" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>35 — opus, M, 0 MAJOR</title></circle>
+<circle cx="395.8" cy="102.8" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>36 — fable, M, 1 MAJOR</title></circle>
+<circle cx="187.5" cy="102.3" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>37 — opus, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="106.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-1 — fable, M, 0 MAJOR</title></circle>
+<circle cx="395.8" cy="116.4" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-2 — opus, M, 1 MAJOR</title></circle>
+<circle cx="187.5" cy="103.5" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-4 — opus, M, 0 MAJOR</title></circle>
+<circle cx="395.8" cy="111.7" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>RIM-DIM — fable, M, 1 MAJOR</title></circle>
+<circle cx="395.8" cy="112.8" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>F3+F4 — opus, M, 1 MAJOR</title></circle>
+<circle cx="812.5" cy="107.4" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-3 — fable, M, 3 MAJOR</title></circle>
+<circle cx="604.2" cy="111.0" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>MIGRATE — fable, M, 2 MAJOR</title></circle>
+<circle cx="187.5" cy="101.2" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-5 — opus, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="101.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>MESH — fable, M, 0 MAJOR</title></circle>
+<circle cx="395.8" cy="104.0" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-6 — fable, M, 1 MAJOR</title></circle>
+<circle cx="187.5" cy="113.7" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>KLINT — opus, M, 0 MAJOR</title></circle>
+<circle cx="395.8" cy="108.5" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-6 — fable, M, 1 MAJOR</title></circle>
+<circle cx="395.8" cy="106.2" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M8-C1 — opus, M, 1 MAJOR</title></circle>
+<circle cx="395.8" cy="111.7" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M8-5 — fable, M, 1 MAJOR</title></circle>
+<circle cx="187.5" cy="109.1" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M8-2 — opus, M, 0 MAJOR</title></circle>
+<circle cx="395.8" cy="105.9" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-8 — opus, M, 1 MAJOR</title></circle>
+<circle cx="395.8" cy="116.0" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-7 — opus, M, 1 MAJOR</title></circle>
+<circle cx="812.5" cy="114.0" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-5 — fable, M, 3 MAJOR</title></circle>
+<circle cx="187.5" cy="104.8" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>U7 — opus, M, 0 MAJOR</title></circle>
+<circle cx="395.8" cy="111.5" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>G1 — opus, M, 1 MAJOR</title></circle>
+<circle cx="187.5" cy="110.5" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>U3 — fable, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="117.6" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>U5 — opus, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="114.6" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>U9S — opus, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="105.7" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>SEL1 — opus, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="119.7" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>SEL2 — fable, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="102.3" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>DOORS — fable, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="108.3" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>PR-C — opus, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="115.2" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>U10 — opus, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="103.0" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>PYG23A — opus, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="109.8" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>ASM-1 — fable, M, 0 MAJOR</title></circle>
+<circle cx="395.8" cy="100.7" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>PYBUNDLE — opus, M, 1 MAJOR</title></circle>
+<circle cx="187.5" cy="113.4" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>ASM-ROOTS — opus, M, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="115.4" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>ASM-2K — opus, M, 0 MAJOR</title></circle>
+<text x="0" y="158.0" class="rowlab">L  (n=17)</text>
 <line x1="138" y1="132.0" x2="850" y2="132.0" class="sep"/>
-<circle cx="187.5" cy="145.2" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>12 — fable, L, 0 MAJOR</title></circle>
-<circle cx="187.5" cy="145.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>14 — fable, L, 0 MAJOR</title></circle>
-<circle cx="812.5" cy="148.0" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>19 — fable, L, 3 MAJOR</title></circle>
-<circle cx="604.2" cy="157.7" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>25 — opus, L, 2 MAJOR</title></circle>
-<circle cx="812.5" cy="152.5" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>28 — fable, L, 3 MAJOR</title></circle>
-<circle cx="395.8" cy="150.2" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>29 — opus, L, 1 MAJOR</title></circle>
-<circle cx="395.8" cy="155.7" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>31 — opus, L, 1 MAJOR</title></circle>
-<circle cx="187.5" cy="153.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>32 — fable, L, 0 MAJOR</title></circle>
-<circle cx="395.8" cy="149.9" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>40 — opus, L, 1 MAJOR</title></circle>
-<circle cx="395.8" cy="160.0" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-1 — fable, L, 1 MAJOR</title></circle>
-<circle cx="604.2" cy="158.0" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-2 — opus, L, 2 MAJOR</title></circle>
-<circle cx="187.5" cy="148.8" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-3 — fable, L, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="155.5" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>12 — fable, L, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="161.6" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>14 — fable, L, 0 MAJOR</title></circle>
+<circle cx="812.5" cy="150.2" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>19 — fable, L, 3 MAJOR</title></circle>
+<circle cx="604.2" cy="158.0" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>25 — opus, L, 2 MAJOR</title></circle>
+<circle cx="812.5" cy="155.9" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>28 — fable, L, 3 MAJOR</title></circle>
+<circle cx="395.8" cy="155.6" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>29 — opus, L, 1 MAJOR</title></circle>
+<circle cx="395.8" cy="153.1" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>31 — opus, L, 1 MAJOR</title></circle>
+<circle cx="187.5" cy="160.9" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>32 — fable, L, 0 MAJOR</title></circle>
+<circle cx="395.8" cy="163.0" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>40 — opus, L, 1 MAJOR</title></circle>
+<circle cx="395.8" cy="153.5" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-1 — fable, L, 1 MAJOR</title></circle>
+<circle cx="604.2" cy="157.3" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-2 — opus, L, 2 MAJOR</title></circle>
+<circle cx="187.5" cy="145.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-3 — fable, L, 0 MAJOR</title></circle>
+<circle cx="395.8" cy="158.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>U2 — fable, L, 1 MAJOR</title></circle>
+<circle cx="187.5" cy="157.0" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>SWITCH-P — opus, L, 0 MAJOR</title></circle>
+<circle cx="187.5" cy="164.0" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>G2 — opus, L, 0 MAJOR</title></circle>
+<circle cx="604.2" cy="160.5" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>SWITCH-E — fable, L, 2 MAJOR</title></circle>
+<circle cx="187.5" cy="149.6" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>PYG1 — opus, L, 0 MAJOR</title></circle>
 <text x="500.0" y="212" class="axlab" text-anchor="middle">MAJOR findings recorded for the dispatch</text>
 </svg>
 <figcaption>Vertical position is jitter only. Hover a dot for the row id. Most dispatches on both arms recorded zero MAJORs.</figcaption>
 </figure>
-<details><summary>Table view &mdash; raw counts by arm and difficulty</summary><table><thead><tr><th>difficulty</th><th>arm</th><th class="n">rows</th><th class="n">MAJOR total</th><th class="n">MAJOR mean</th><th class="n">silent devs</th><th class="n">rubric mean</th></tr></thead><tbody><tr><td>S</td><td>fable</td><td class="n">6</td><td class="n">1</td><td class="n">0.17</td><td class="n">0</td><td class="n">4.47</td></tr><tr><td></td><td>opus</td><td class="n">5</td><td class="n">1</td><td class="n">0.20</td><td class="n">0</td><td class="n">4.50</td></tr><tr><td>M</td><td>fable</td><td class="n">11</td><td class="n">11</td><td class="n">1.00</td><td class="n">3</td><td class="n">4.24</td></tr><tr><td></td><td>opus</td><td class="n">11</td><td class="n">3</td><td class="n">0.27</td><td class="n">1</td><td class="n">4.52</td></tr><tr><td>L</td><td>fable</td><td class="n">7</td><td class="n">7</td><td class="n">1.00</td><td class="n">3</td><td class="n">4.33</td></tr><tr><td></td><td>opus</td><td class="n">5</td><td class="n">7</td><td class="n">1.40</td><td class="n">3</td><td class="n">4.08</td></tr><tr><td>all</td><td>fable</td><td class="n">24</td><td class="n">19</td><td class="n">0.79</td><td class="n">6</td><td class="n">4.33</td></tr><tr><td></td><td>opus</td><td class="n">21</td><td class="n">11</td><td class="n">0.52</td><td class="n">4</td><td class="n">4.42</td></tr></tbody></table></details>
+<details><summary>Table view &mdash; raw counts by arm and difficulty</summary><table><thead><tr><th>difficulty</th><th>arm</th><th class="n">rows</th><th class="n">MAJOR total</th><th class="n">MAJOR mean</th><th class="n">silent devs</th><th class="n">rubric mean</th></tr></thead><tbody><tr><td>S</td><td>fable</td><td class="n">8</td><td class="n">3</td><td class="n">0.38</td><td class="n">0</td><td class="n">4.48</td></tr><tr><td></td><td>opus</td><td class="n">6</td><td class="n">1</td><td class="n">0.17</td><td class="n">0</td><td class="n">4.33</td></tr><tr><td>M</td><td>fable</td><td class="n">18</td><td class="n">16</td><td class="n">0.89</td><td class="n">3</td><td class="n">4.13</td></tr><tr><td></td><td>opus</td><td class="n">27</td><td class="n">8</td><td class="n">0.30</td><td class="n">6</td><td class="n">4.44</td></tr><tr><td>L</td><td>fable</td><td class="n">9</td><td class="n">10</td><td class="n">1.11</td><td class="n">5</td><td class="n">4.37</td></tr><tr><td></td><td>opus</td><td class="n">8</td><td class="n">7</td><td class="n">0.88</td><td class="n">5</td><td class="n">4.24</td></tr><tr><td>all</td><td>fable</td><td class="n">35</td><td class="n">29</td><td class="n">0.83</td><td class="n">8</td><td class="n">4.28</td></tr><tr><td></td><td>opus</td><td class="n">41</td><td class="n">16</td><td class="n">0.39</td><td class="n">11</td><td class="n">4.39</td></tr></tbody></table></details>
 <h2>2. Does the answer depend on S / M / L?</h2>
 <p>This was the specific question the log's protocol asked to be read stratified. Fitting a separate arm effect inside each difficulty band:</p>
 <figure>
@@ -310,29 +342,29 @@ em.q{color:var(--text-primary);font-style:normal;font-weight:600}
 <text x="784.7" y="166" class="tick" text-anchor="middle">32</text>
 <line x1="557.0" y1="38" x2="557.0" y2="148" class="refline"/>
 <text x="0" y="67.0" class="rowlab">Small tasks</text>
-<title>Small tasks: 0.75 [0.18, 3.06]</title>
-<g><title>Small tasks  median 0.75, 95% CrI [0.18, 3.06]  n=45</title>
-<line x1="442.6" y1="63.0" x2="630.4" y2="63.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="476.2" y1="63.0" x2="600.1" y2="63.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="537.7" cy="63.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Small tasks: 0.57 [0.13, 2.17]</title>
+<g><title>Small tasks  median 0.57, 95% CrI [0.13, 2.17]  n=76</title>
+<line x1="425.0" y1="63.0" x2="608.0" y2="63.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="460.0" y1="63.0" x2="577.5" y2="63.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="519.6" cy="63.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="67.0" class="val">0.75</text>
+<text x="822" y="67.0" class="val">0.57</text>
 <text x="0" y="101.0" class="rowlab">Medium tasks</text>
-<title>Medium tasks: 0.40 [0.14, 1.04]</title>
-<g><title>Medium tasks  median 0.40, 95% CrI [0.14, 1.04]  n=45</title>
-<line x1="426.8" y1="97.0" x2="559.4" y2="97.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="452.2" y1="97.0" x2="538.8" y2="97.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="496.4" cy="97.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Medium tasks: 0.40 [0.18, 0.84]</title>
+<g><title>Medium tasks  median 0.40, 95% CrI [0.18, 0.84]  n=76</title>
+<line x1="445.3" y1="97.0" x2="545.8" y2="97.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="463.2" y1="97.0" x2="529.2" y2="97.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="497.3" cy="97.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
 <text x="822" y="101.0" class="val">0.40</text>
 <text x="0" y="135.0" class="rowlab">Large tasks</text>
-<title>Large tasks: 1.31 [0.52, 3.32]</title>
-<g><title>Large tasks  median 1.31, 95% CrI [0.52, 3.32]  n=45</title>
-<line x1="514.0" y1="131.0" x2="635.8" y2="131.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="534.7" y1="131.0" x2="613.3" y2="131.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="575.0" cy="131.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Large tasks: 0.84 [0.34, 2.04]</title>
+<g><title>Large tasks  median 0.84, 95% CrI [0.34, 2.04]  n=76</title>
+<line x1="485.5" y1="131.0" x2="603.9" y2="131.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="507.6" y1="131.0" x2="582.9" y2="131.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="545.9" cy="131.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="135.0" class="val">1.31</text>
+<text x="822" y="135.0" class="val">0.84</text>
 <text x="557.0" y="188" class="axlab" text-anchor="middle">MAJOR-finding rate ratio (opus ÷ fable), log scale</text>
 </svg>
 <figcaption>Splitting 45 rows three ways leaves very little in each band, which is exactly what these intervals show. Nothing here is distinguishable from no effect.</figcaption>
@@ -356,35 +388,36 @@ em.q{color:var(--text-primary);font-style:normal;font-weight:600}
 <text x="814.0" y="166" class="tick" text-anchor="middle">2</text>
 <line x1="557.0" y1="38" x2="557.0" y2="148" class="refline"/>
 <text x="0" y="67.0" class="rowlab">Small tasks</text>
-<title>Small tasks: 0.04 [-0.39, 0.44]</title>
-<g><title>Small tasks  median 0.04, 95% CrI [-0.39, 0.44]  n=39</title>
-<line x1="507.2" y1="63.0" x2="613.6" y2="63.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="527.1" y1="63.0" x2="596.0" y2="63.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="561.7" cy="63.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Small tasks: -0.14 [-0.58, 0.30]</title>
+<g><title>Small tasks  median -0.14, 95% CrI [-0.58, 0.30]  n=68</title>
+<line x1="482.6" y1="63.0" x2="595.1" y2="63.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="502.9" y1="63.0" x2="576.2" y2="63.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="538.7" cy="63.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="67.0" class="val">0.04</text>
+<text x="822" y="67.0" class="val">-0.14</text>
 <text x="0" y="101.0" class="rowlab">Medium tasks</text>
-<title>Medium tasks: 0.27 [-0.01, 0.55]</title>
-<g><title>Medium tasks  median 0.27, 95% CrI [-0.01, 0.55]  n=39</title>
-<line x1="555.1" y1="97.0" x2="627.7" y2="97.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="567.9" y1="97.0" x2="614.8" y2="97.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="592.2" cy="97.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Medium tasks: 0.30 [0.07, 0.54]</title>
+<g><title>Medium tasks  median 0.30, 95% CrI [0.07, 0.54]  n=68</title>
+<line x1="565.6" y1="97.0" x2="626.8" y2="97.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="576.4" y1="97.0" x2="616.1" y2="97.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="596.2" cy="97.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="101.0" class="val">0.27</text>
+<text x="822" y="101.0" class="val">0.30</text>
 <text x="0" y="135.0" class="rowlab">Large tasks</text>
-<title>Large tasks: -0.24 [-0.63, 0.13]</title>
-<g><title>Large tasks  median -0.24, 95% CrI [-0.63, 0.13]  n=39</title>
-<line x1="476.0" y1="131.0" x2="574.2" y2="131.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="494.4" y1="131.0" x2="556.7" y2="131.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="526.4" cy="131.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Large tasks: -0.12 [-0.50, 0.23]</title>
+<g><title>Large tasks  median -0.12, 95% CrI [-0.50, 0.23]  n=68</title>
+<line x1="492.4" y1="131.0" x2="587.0" y2="131.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="509.5" y1="131.0" x2="571.6" y2="131.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="541.4" cy="131.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="135.0" class="val">-0.24</text>
+<text x="822" y="135.0" class="val">-0.12</text>
 <text x="557.0" y="188" class="axlab" text-anchor="middle">difference in mean rubric rating (opus − fable), rubric points</text>
 </svg>
 <figcaption>Same picture on the subjective quality ratings. The rubric runs 1–5, so an effect worth caring about would be at least half a point; the intervals admit effects that large in both directions.</figcaption>
 </figure>
-<p>The honest reading is that this design cannot answer the stratified question. The difficulty split was a good idea for balance — and it worked, the arms are near-even in every band — but it does not create the power to detect a difficulty-dependent effect. The one cell worth naming is <strong>medium</strong>, the best-populated band at 11 rows per arm, where opus shows both a lower MAJOR rate (0.40, 95% CrI 0.14–1.04) and a higher rubric (+0.27, -0.01 to +0.55) — each just barely failing to exclude no difference.</p>
-<div class="callout warn"><div class="h">And here is the reason not to believe that medium-task result</div><p>The sign does not hold across bands. On <strong>large</strong> tasks the same two models point the other way — MAJOR rate 1.31 (opus <em>worse</em>) and rubric -0.24 (opus worse) — while small tasks sit near neutral (0.75 and +0.04). If one model were genuinely better at this work we would expect the difficulty bands to at least agree on direction. They do not. A pooled lean that dissolves into sign flips when you stratify is the classic signature of noise, and it is a real mark against reading section 1's lean as an effect.</p></div>
+<p>The honest reading is that this design cannot answer the stratified question. The difficulty split was a good idea for balance — and it worked, the arms are near-even in every band — but it does not create the power to detect a difficulty-dependent effect. The one cell worth naming is <strong>medium</strong>, the best-populated band at 11 rows per arm, where opus shows both a lower MAJOR rate (0.40, 95% CrI 0.18–0.84) and a higher rubric (+0.30, +0.07 to +0.54) — each just barely failing to exclude no difference.</p>
+<div class="callout"><div class="h">This reverses a conclusion from my first report</div><p>With 45 rows I found the pooled lean <em>dissolved into sign flips</em> when stratified — medium favoured opus, large favoured fable — and I argued that was the signature of noise rather than an effect. <strong>With 76 rows it no longer flips.</strong> All three difficulty bands now point the same way on MAJOR findings: small 0.57, medium 0.40, large 0.84, every one below 1.0. The medium band is the only one that separates on its own, which is what you would expect from the band with the most rows (45), not from a band-specific effect.</p><p>That argument was correct on the data I had and is wrong on the data now available. The direction-consistency I called for as the test of a real effect is now present, so the honest move is to withdraw the objection.</p></div>
+<h3>The obvious alternative explanation: the protocol changed</h3><p>Protocol v3 (adopted 2026-08-08, citing the first readout) replaced opus/fable <em>pairs</em> with <em>triples</em> of {opus, opus, fable} — a deliberate 2:1 shift toward opus. That matters here, because opus rows are now concentrated in the later part of the project. If the work got easier, or reviews got softer, or the codebase got more mature over that period, a pooled arm contrast would absorb the drift and report it as an arm effect. This has to be ruled out before the headline means anything.</p><table><thead><tr><th>model</th><th>MAJOR rate ratio (opus ÷ fable)</th><th>reading</th></tr></thead><tbody><tr><td>v2 rows only (n=51)</td><td>0.67 (0.35–1.23)</td><td>same direction; does not separate alone</td></tr><tr><td>v3 rows only (n=25)</td><td>0.50 (0.19–1.34)</td><td>same direction; does not separate alone</td></tr><tr><td>arm effect within v2, era model</td><td>0.62 (0.32–1.14)</td><td>the effect is already present pre-v3</td></tr><tr><td>era main effect (v3 ÷ v2, fable arm)</td><td>0.89 (0.37–1.84)</td><td>no strong drift in the reference arm</td></tr><tr><td>arm × era interaction</td><td>0.54 (0.17–1.67)</td><td>contains 1.0 — no evidence the arm effect differs by era</td></tr></tbody></table><p><strong>The era shift does not explain the result.</strong> Both protocol eras point the same direction independently, the reference arm shows no meaningful drift between them, and the interaction interval comfortably contains &ldquo;the arm effect is the same in both eras&rdquo;. What the era split <em>does</em> show is that neither era separates on its own — the headline rests on pooling them, which is legitimate here (both are randomized, blinded, and the interaction is flat) but is worth stating plainly.</p>
 <h2>3. Do the individual quality dimensions differ?</h2>
 <p>The rubric scores three things separately: idiom/structure, whether tests pin the real contract, and doc/comment honesty. If the arms differ in <em>character</em> rather than in overall quality, this is where it would show.</p>
 <figure>
@@ -405,46 +438,46 @@ em.q{color:var(--text-primary);font-style:normal;font-weight:600}
 <text x="771.2" y="180" class="tick" text-anchor="middle">1</text>
 <line x1="557.0" y1="18" x2="557.0" y2="162" class="refline"/>
 <text x="0" y="47.0" class="rowlab">Idiom / structure</text>
-<title>Idiom / structure: -0.06 [-0.37, 0.24]</title>
-<g><title>Idiom / structure  median -0.06, 95% CrI [-0.37, 0.24]  n=39</title>
-<line x1="478.7" y1="43.0" x2="607.7" y2="43.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="500.9" y1="43.0" x2="584.6" y2="43.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="543.4" cy="43.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Idiom / structure: 0.08 [-0.13, 0.27]</title>
+<g><title>Idiom / structure  median 0.08, 95% CrI [-0.13, 0.27]  n=68</title>
+<line x1="529.4" y1="43.0" x2="615.5" y2="43.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="546.0" y1="43.0" x2="600.4" y2="43.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="573.7" cy="43.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="47.0" class="val">-0.06</text>
+<text x="822" y="47.0" class="val">0.08</text>
 <text x="0" y="81.0" class="rowlab">Test quality</text>
-<title>Test quality: 0.27 [-0.04, 0.58]</title>
-<g><title>Test quality  median 0.27, 95% CrI [-0.04, 0.58]  n=39</title>
-<line x1="547.4" y1="77.0" x2="680.4" y2="77.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="571.7" y1="77.0" x2="656.8" y2="77.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="614.0" cy="77.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Test quality: 0.26 [-0.06, 0.58]</title>
+<g><title>Test quality  median 0.26, 95% CrI [-0.06, 0.58]  n=68</title>
+<line x1="544.6" y1="77.0" x2="681.1" y2="77.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="569.4" y1="77.0" x2="656.1" y2="77.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="613.6" cy="77.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="81.0" class="val">0.27</text>
+<text x="822" y="81.0" class="val">0.26</text>
 <text x="0" y="115.0" class="rowlab">Doc / comment honesty</text>
-<title>Doc / comment honesty: 0.02 [-0.36, 0.42]</title>
-<g><title>Doc / comment honesty  median 0.02, 95% CrI [-0.36, 0.42]  n=39</title>
-<line x1="479.3" y1="111.0" x2="647.3" y2="111.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="508.7" y1="111.0" x2="617.1" y2="111.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="562.1" cy="111.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Doc / comment honesty: 0.02 [-0.29, 0.32]</title>
+<g><title>Doc / comment honesty  median 0.02, 95% CrI [-0.29, 0.32]  n=68</title>
+<line x1="495.1" y1="111.0" x2="624.7" y2="111.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="519.0" y1="111.0" x2="602.9" y2="111.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="560.5" cy="111.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
 <text x="822" y="115.0" class="val">0.02</text>
 <text x="0" y="149.0" class="rowlab">All three averaged</text>
 <text x="0" y="160.0" class="rowsub">the pooled rubric score</text>
-<title>All three averaged: 0.08 [-0.13, 0.28]</title>
-<g><title>All three averaged  median 0.08, 95% CrI [-0.13, 0.28]  n=39</title>
-<line x1="529.1" y1="145.0" x2="616.9" y2="145.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="545.6" y1="145.0" x2="602.3" y2="145.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="573.5" cy="145.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>All three averaged: 0.12 [-0.08, 0.31]</title>
+<g><title>All three averaged  median 0.12, 95% CrI [-0.08, 0.31]  n=68</title>
+<line x1="540.6" y1="145.0" x2="623.2" y2="145.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="556.0" y1="145.0" x2="608.6" y2="145.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="582.5" cy="145.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="149.0" class="val">0.08</text>
+<text x="822" y="149.0" class="val">0.12</text>
 <text x="557.0" y="202" class="axlab" text-anchor="middle">difference in rating (opus − fable), rubric points</text>
 </svg>
-<figcaption>All four intervals straddle zero. The averaged score spans -0.13 to +0.28 rubric points, on the 39 dispatches that recorded a full rubric.</figcaption>
+<figcaption>All four intervals straddle zero. The averaged score spans -0.08 to +0.31 rubric points, on the 68 dispatches that recorded a full rubric.</figcaption>
 </figure>
-<p>The three dimensions do not move together, which is mildly interesting. Idiom is flat (-0.06 (95% CrI -0.37 to 0.24)), docs are flat (0.02 (95% CrI -0.36 to 0.42)), but <strong>test quality</strong> is the most suggestive single quality signal in the report: 0.27 (95% CrI -0.04 to 0.58), with 96% of the posterior favouring opus. It still does not exclude zero, and it is one of roughly thirty estimates computed here — at that many looks, one interval sitting at the edge of separation is the expected amount of noise, not a finding. Flagged as the thing to watch if the experiment continues, nothing more.</p>
-<details><summary>Table view &mdash; rubric means and modelled differences</summary><table><thead><tr><th>dimension</th><th>fable mean</th><th>opus mean</th><th>modelled difference (opus − fable)</th></tr></thead><tbody><tr><td>idiom</td><td>4.76  (n=21)</td><td>4.72  (n=18)</td><td>-0.06 (95% CrI -0.37 to 0.24)</td></tr><tr><td>tests</td><td>4.02  (n=21)</td><td>4.31  (n=18)</td><td>0.27 (95% CrI -0.04 to 0.58)</td></tr><tr><td>docs</td><td>4.19  (n=21)</td><td>4.22  (n=18)</td><td>0.02 (95% CrI -0.36 to 0.42)</td></tr><tr><td>mean</td><td>4.33  (n=21)</td><td>4.42  (n=18)</td><td>0.08 (95% CrI -0.13 to 0.28)</td></tr></tbody></table></details>
-<h2>4. Cost: where the data leans hardest</h2>
-<p>Tokens and wall-clock were recorded for only part of the log — the M5 readout flagged this as a data-quality failure. But what survives is <strong>exactly balanced</strong>: 12 opus and 12 fable rows record an implementation-phase token figure.</p>
+<p>The three dimensions do not move together, which is mildly interesting. Idiom is flat (0.08 (95% CrI -0.13 to 0.27)), docs are flat (0.02 (95% CrI -0.29 to 0.32)), but <strong>test quality</strong> is the most suggestive single quality signal in the report: 0.26 (95% CrI -0.06 to 0.58), with 95% of the posterior favouring opus. It still does not exclude zero, and it is one of roughly thirty estimates computed here — at that many looks, one interval sitting at the edge of separation is the expected amount of noise, not a finding. Flagged as the thing to watch if the experiment continues, nothing more.</p>
+<details><summary>Table view &mdash; rubric means and modelled differences</summary><table><thead><tr><th>dimension</th><th>fable mean</th><th>opus mean</th><th>modelled difference (opus − fable)</th></tr></thead><tbody><tr><td>idiom</td><td>4.77  (n=30)</td><td>4.87  (n=38)</td><td>0.08 (95% CrI -0.13 to 0.27)</td></tr><tr><td>tests</td><td>3.92  (n=30)</td><td>4.14  (n=38)</td><td>0.26 (95% CrI -0.06 to 0.58)</td></tr><tr><td>docs</td><td>4.17  (n=30)</td><td>4.16  (n=38)</td><td>0.02 (95% CrI -0.29 to 0.32)</td></tr><tr><td>mean</td><td>4.28  (n=30)</td><td>4.39  (n=38)</td><td>0.12 (95% CrI -0.08 to 0.31)</td></tr></tbody></table></details>
+<h2>4. Cost: the first report's cost finding did not survive</h2>
+<p>The experiment standardized its per-phase cost recording after the first readout. The effect on data completeness is dramatic: among the rows added since, 92% carry an implementation token figure and 74% a wall-clock figure, against 39% and 31% in the older rows. That is the single biggest data-quality improvement in this dataset — and it is what dissolved the earlier cost result.</p>
 <figure>
 <svg viewBox="0 0 880 208" width="100%" role="img" class="chart" aria-label="cost ratio (opus ÷ fable), log scale">
 <line x1="331.1" y1="18" x2="331.1" y2="162" class="grid"/>
@@ -461,96 +494,130 @@ em.q{color:var(--text-primary);font-style:normal;font-weight:600}
 <text x="814.0" y="180" class="tick" text-anchor="middle">4</text>
 <line x1="620.8" y1="18" x2="620.8" y2="162" class="refline"/>
 <text x="0" y="47.0" class="rowlab">Implementation tokens</text>
-<text x="0" y="58.0" class="rowsub">impl phase only, n=24, balanced 12/12</text>
-<title>Implementation tokens: 0.85 [0.68, 1.06]</title>
-<g><title>Implementation tokens  median 0.85, 95% CrI [0.68, 1.06]  n=24</title>
-<line x1="567.4" y1="43.0" x2="629.0" y2="43.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="578.3" y1="43.0" x2="617.5" y2="43.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="597.7" cy="43.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<text x="0" y="58.0" class="rowsub">impl phase only, n=59, balanced 12/12</text>
+<title>Implementation tokens: 0.91 [0.76, 1.09]</title>
+<g><title>Implementation tokens  median 0.91, 95% CrI [0.76, 1.09]  n=59</title>
+<line x1="583.0" y1="43.0" x2="633.0" y2="43.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="591.8" y1="43.0" x2="624.3" y2="43.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="608.1" cy="43.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="47.0" class="val">0.85</text>
+<text x="822" y="47.0" class="val">0.91</text>
 <text x="0" y="81.0" class="rowlab">Total recorded tokens</text>
 <text x="0" y="92.0" class="rowsub">impl+fix+review where recorded; phases conflated</text>
-<title>Total recorded tokens: 0.71 [0.52, 0.99]</title>
-<g><title>Total recorded tokens  median 0.71, 95% CrI [0.52, 0.99]  n=26</title>
-<line x1="529.1" y1="77.0" x2="619.8" y2="77.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="544.7" y1="77.0" x2="602.5" y2="77.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="574.1" cy="77.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Total recorded tokens: 0.84 [0.65, 1.09]</title>
+<g><title>Total recorded tokens  median 0.84, 95% CrI [0.65, 1.09]  n=63</title>
+<line x1="561.3" y1="77.0" x2="632.5" y2="77.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="573.4" y1="77.0" x2="620.4" y2="77.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="597.1" cy="77.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="81.0" class="val">0.71</text>
+<text x="822" y="81.0" class="val">0.84</text>
 <text x="0" y="115.0" class="rowlab">Implementation wall-clock</text>
 <text x="0" y="126.0" class="rowsub">active impl hours</text>
-<title>Implementation wall-clock: 0.79 [0.41, 1.50]</title>
-<g><title>Implementation wall-clock  median 0.79, 95% CrI [0.41, 1.50]  n=19</title>
-<line x1="497.0" y1="111.0" x2="677.1" y2="111.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="530.7" y1="111.0" x2="645.0" y2="111.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="588.0" cy="111.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Implementation wall-clock: 1.08 [0.70, 1.66]</title>
+<g><title>Implementation wall-clock  median 1.08, 95% CrI [0.70, 1.66]  n=47</title>
+<line x1="571.1" y1="111.0" x2="691.1" y2="111.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="593.5" y1="111.0" x2="670.1" y2="111.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="632.1" cy="111.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="115.0" class="val">0.79</text>
+<text x="822" y="115.0" class="val">1.08</text>
 <text x="0" y="149.0" class="rowlab">Wall-clock, all rows</text>
 <text x="0" y="160.0" class="rowsub">+ covariate for gap-contaminated figures</text>
-<title>Wall-clock, all rows: 0.63 [0.31, 1.32]</title>
-<g><title>Wall-clock, all rows  median 0.63, 95% CrI [0.31, 1.32]  n=26</title>
-<line x1="457.4" y1="145.0" x2="659.6" y2="145.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="492.6" y1="145.0" x2="622.2" y2="145.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="556.7" cy="145.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Wall-clock, all rows: 0.77 [0.48, 1.25]</title>
+<g><title>Wall-clock, all rows  median 0.77, 95% CrI [0.48, 1.25]  n=58</title>
+<line x1="519.1" y1="145.0" x2="652.1" y2="145.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="541.2" y1="145.0" x2="629.5" y2="145.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="584.7" cy="145.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="149.0" class="val">0.63</text>
+<text x="822" y="149.0" class="val">0.77</text>
 <text x="557.0" y="202" class="axlab" text-anchor="middle">cost ratio (opus ÷ fable), log scale</text>
 </svg>
-<figcaption>Below 1.0 means opus cost less. This is the only family of outcomes where the intervals lean consistently to one side.</figcaption>
+<figcaption>Below 1.0 means opus cost less. Unlike the first readout, these no longer lean consistently to one side — implementation wall-clock now sits above 1.0.</figcaption>
 </figure>
-<p>Every cost estimate points the same way — opus dispatches cost less — and the size is consistent across four different ways of measuring it. Implementation token spend, the cleanest measure (impl phase only, arms balanced 12/12), is 0.85 (95% CrI 0.68 to 1.06), putting 93% of the posterior mass below 1.0. Implementation wall-clock gives 0.79 (95% CrI 0.41 to 1.50) (probability 77% that opus was faster). Total recorded token spend gives 0.71 (95% CrI 0.52 to 0.99) — the one interval in this report that excludes no-difference. <strong>Note which one separates and which does not:</strong> the measure whose 95% interval clears 1.0 is the <em>conflated</em> one, which sums implementation, fix and review tokens across rows that record different subsets of those phases; the tighter-provenance measure does not clear it. That ordering is the wrong way round for a clean result, and it is the reason this section says &ldquo;leans&rdquo; rather than &ldquo;shows&rdquo;.</p>
+<p><strong>The cost finding from my first report has largely evaporated, and that is the most important thing to say about this section.</strong> Then, on 24 token rows and 19 wall-clock rows, the four cost measures all pointed the same way and total tokens was the single interval in the whole report that excluded no-difference. The standardized per-phase recording has since roughly doubled the usable data (tokens 59 rows, wall-clock 47), and on that larger sample: implementation tokens 0.91 (95% CrI 0.76 to 1.09), total recorded tokens 0.84 (95% CrI 0.65 to 1.09), and implementation wall-clock <em>reverses direction</em> to 1.08 (95% CrI 0.70 to 1.66) — opus slower, though the interval is wide. The all-rows wall-clock model gives 0.77 (95% CrI 0.48 to 1.25). Nothing here separates any more.</p><p>This is a clean illustration of why the log's own data-quality debt mattered: the earlier cost result was computed on the rows whose orchestrator happened to write a number down, and it did not survive contact with a fuller sample. The measurement improved and the finding went away. Any residual token advantage is now small enough (9% at the point estimate, interval spanning -9%–24%) that it should not drive an allocation decision on its own.</p>
 <figure>
 <div class="legend"><span class="lg"><span class="sw" style="background:var(--series-1)"></span>fable</span><span class="lg"><span class="sw" style="background:var(--series-2)"></span>opus</span></div>
 <svg viewBox="0 0 880 218" width="100%" role="img" class="chart" aria-label="implementation tokens (thousands)">
 <text x="0" y="18" class="ct">Recorded implementation token spend</text>
 <line x1="187.5" y1="38" x2="187.5" y2="176" class="grid"/>
-<text x="187.5" y="193" class="tick" text-anchor="middle">128</text>
-<line x1="292.1" y1="38" x2="292.1" y2="176" class="grid"/>
-<text x="292.1" y="193" class="tick" text-anchor="middle">214</text>
-<line x1="396.6" y1="38" x2="396.6" y2="176" class="grid"/>
-<text x="396.6" y="193" class="tick" text-anchor="middle">300</text>
-<line x1="501.2" y1="38" x2="501.2" y2="176" class="grid"/>
-<text x="501.2" y="193" class="tick" text-anchor="middle">386</text>
-<line x1="605.8" y1="38" x2="605.8" y2="176" class="grid"/>
-<text x="605.8" y="193" class="tick" text-anchor="middle">472</text>
-<line x1="710.4" y1="38" x2="710.4" y2="176" class="grid"/>
-<text x="710.4" y="193" class="tick" text-anchor="middle">558</text>
-<text x="0" y="70.0" class="rowlab">S  (n=8)</text>
-<circle cx="248.3" cy="62.4" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>27 — opus, S, 178k impl tokens</title></circle>
-<circle cx="187.5" cy="58.9" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>30 — fable, S, 128k impl tokens</title></circle>
-<circle cx="371.1" cy="69.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>KERNEL — fable, S, 279k impl tokens</title></circle>
-<circle cx="217.9" cy="57.3" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>SKINFIT — opus, S, 153k impl tokens</title></circle>
-<circle cx="213.0" cy="66.7" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>FOLD — opus, S, 149k impl tokens</title></circle>
-<circle cx="200.9" cy="63.3" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>MONTAGE — opus, S, 139k impl tokens</title></circle>
-<circle cx="401.5" cy="57.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>MV2 — fable, S, 304k impl tokens</title></circle>
-<circle cx="197.2" cy="66.2" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>GUARD — opus, S, 136k impl tokens</title></circle>
-<text x="0" y="114.0" class="rowlab">M  (n=11)</text>
+<text x="187.5" y="193" class="tick" text-anchor="middle">101</text>
+<line x1="291.9" y1="38" x2="291.9" y2="176" class="grid"/>
+<text x="291.9" y="193" class="tick" text-anchor="middle">236</text>
+<line x1="396.3" y1="38" x2="396.3" y2="176" class="grid"/>
+<text x="396.3" y="193" class="tick" text-anchor="middle">371</text>
+<line x1="500.8" y1="38" x2="500.8" y2="176" class="grid"/>
+<text x="500.8" y="193" class="tick" text-anchor="middle">506</text>
+<line x1="605.2" y1="38" x2="605.2" y2="176" class="grid"/>
+<text x="605.2" y="193" class="tick" text-anchor="middle">641</text>
+<line x1="709.6" y1="38" x2="709.6" y2="176" class="grid"/>
+<text x="709.6" y="193" class="tick" text-anchor="middle">776</text>
+<text x="0" y="70.0" class="rowlab">S  (n=17)</text>
+<circle cx="247.1" cy="62.4" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>27 — opus, S, 178k impl tokens</title></circle>
+<circle cx="208.4" cy="58.9" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>30 — fable, S, 128k impl tokens</title></circle>
+<circle cx="325.2" cy="69.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>KERNEL — fable, S, 279k impl tokens</title></circle>
+<circle cx="227.7" cy="57.3" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>SKINFIT — opus, S, 153k impl tokens</title></circle>
+<circle cx="224.6" cy="66.7" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>FOLD — opus, S, 149k impl tokens</title></circle>
+<circle cx="216.9" cy="63.3" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>MONTAGE — opus, S, 139k impl tokens</title></circle>
+<circle cx="344.5" cy="57.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>MV2 — fable, S, 304k impl tokens</title></circle>
+<circle cx="214.6" cy="66.2" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>GUARD — opus, S, 136k impl tokens</title></circle>
+<circle cx="189.0" cy="56.6" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>KLINT-GATE — opus, S, 103k impl tokens</title></circle>
+<circle cx="265.6" cy="64.7" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>RTIMEOUT — opus, S, 202k impl tokens</title></circle>
+<circle cx="270.3" cy="57.3" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>WMONTAGE — fable, S, 208k impl tokens</title></circle>
+<circle cx="198.3" cy="57.7" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>REBASELINE — fable, S, 115k impl tokens</title></circle>
+<circle cx="187.5" cy="64.5" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>RENDER-CLI — opus, S, 101k impl tokens</title></circle>
+<circle cx="225.4" cy="72.6" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M8-1 — fable, S, 150k impl tokens</title></circle>
+<circle cx="301.2" cy="58.4" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>CALOCH — opus, S, 248k impl tokens</title></circle>
+<circle cx="231.6" cy="60.4" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>U1 — opus, S, 158k impl tokens</title></circle>
+<circle cx="237.0" cy="68.6" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>R1-PARAMS — fable, S, 165k impl tokens</title></circle>
+<text x="0" y="114.0" class="rowlab">M  (n=31)</text>
 <line x1="138" y1="88.0" x2="850" y2="88.0" class="sep"/>
-<circle cx="368.7" cy="100.6" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>11 — opus, M, 277k impl tokens</title></circle>
-<circle cx="373.5" cy="108.7" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>26 — fable, M, 281k impl tokens</title></circle>
-<circle cx="563.2" cy="101.3" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-2 — opus, M, 437k impl tokens</title></circle>
-<circle cx="484.2" cy="101.7" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-4 — opus, M, 372k impl tokens</title></circle>
-<circle cx="384.5" cy="108.5" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>RIM-DIM — fable, M, 290k impl tokens</title></circle>
-<circle cx="340.7" cy="116.6" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>F3+F4 — opus, M, 254k impl tokens</title></circle>
-<circle cx="368.7" cy="102.4" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-3 — fable, M, 277k impl tokens</title></circle>
-<circle cx="429.5" cy="104.4" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>MIGRATE — fable, M, 327k impl tokens</title></circle>
-<circle cx="389.3" cy="112.6" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-5 — opus, M, 294k impl tokens</title></circle>
-<circle cx="571.7" cy="119.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>MESH — fable, M, 444k impl tokens</title></circle>
-<circle cx="324.9" cy="111.6" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-6 — fable, M, 241k impl tokens</title></circle>
-<text x="0" y="158.0" class="rowlab">L  (n=5)</text>
+<circle cx="323.6" cy="119.1" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>11 — opus, M, 277k impl tokens</title></circle>
+<circle cx="326.7" cy="111.6" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>26 — fable, M, 281k impl tokens</title></circle>
+<circle cx="447.4" cy="107.9" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-2 — opus, M, 437k impl tokens</title></circle>
+<circle cx="397.1" cy="119.6" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-4 — opus, M, 372k impl tokens</title></circle>
+<circle cx="333.7" cy="100.8" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>RIM-DIM — fable, M, 290k impl tokens</title></circle>
+<circle cx="305.8" cy="117.3" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>F3+F4 — opus, M, 254k impl tokens</title></circle>
+<circle cx="323.6" cy="105.7" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-3 — fable, M, 277k impl tokens</title></circle>
+<circle cx="362.3" cy="102.8" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>MIGRATE — fable, M, 327k impl tokens</title></circle>
+<circle cx="336.8" cy="102.3" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-5 — opus, M, 294k impl tokens</title></circle>
+<circle cx="452.8" cy="106.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>MESH — fable, M, 444k impl tokens</title></circle>
+<circle cx="295.8" cy="116.4" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-6 — fable, M, 241k impl tokens</title></circle>
+<circle cx="251.7" cy="103.5" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>KLINT — opus, M, 184k impl tokens</title></circle>
+<circle cx="415.7" cy="111.7" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-6 — fable, M, 396k impl tokens</title></circle>
+<circle cx="305.8" cy="112.8" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M8-5 — fable, M, 254k impl tokens</title></circle>
+<circle cx="313.6" cy="107.4" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M8-2 — opus, M, 264k impl tokens</title></circle>
+<circle cx="341.4" cy="111.0" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-5 — fable, M, 300k impl tokens</title></circle>
+<circle cx="242.4" cy="101.2" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>U7 — opus, M, 172k impl tokens</title></circle>
+<circle cx="530.2" cy="101.1" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>G1 — opus, M, 544k impl tokens</title></circle>
+<circle cx="299.7" cy="104.0" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>U3 — fable, M, 246k impl tokens</title></circle>
+<circle cx="291.2" cy="113.7" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>U5 — opus, M, 235k impl tokens</title></circle>
+<circle cx="298.1" cy="108.5" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>U9S — opus, M, 244k impl tokens</title></circle>
+<circle cx="483.0" cy="106.2" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>SEL1 — opus, M, 483k impl tokens</title></circle>
+<circle cx="329.1" cy="111.7" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>SEL2 — fable, M, 284k impl tokens</title></circle>
+<circle cx="285.7" cy="109.1" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>DOORS — fable, M, 228k impl tokens</title></circle>
+<circle cx="477.6" cy="105.9" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>PR-C — opus, M, 476k impl tokens</title></circle>
+<circle cx="318.2" cy="116.0" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>U10 — opus, M, 270k impl tokens</title></circle>
+<circle cx="213.8" cy="114.0" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>PYG23A — opus, M, 135k impl tokens</title></circle>
+<circle cx="322.1" cy="104.8" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>ASM-1 — fable, M, 275k impl tokens</title></circle>
+<circle cx="341.4" cy="111.5" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>PYBUNDLE — opus, M, 300k impl tokens</title></circle>
+<circle cx="326.0" cy="110.5" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>ASM-ROOTS — opus, M, 280k impl tokens</title></circle>
+<circle cx="272.6" cy="117.6" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>ASM-2K — opus, M, 211k impl tokens</title></circle>
+<text x="0" y="158.0" class="rowlab">L  (n=10)</text>
 <line x1="138" y1="132.0" x2="850" y2="132.0" class="sep"/>
-<circle cx="597.3" cy="151.9" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>12 — fable, L, 465k impl tokens</title></circle>
-<circle cx="427.0" cy="163.6" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>29 — opus, L, 325k impl tokens</title></circle>
-<circle cx="568.1" cy="144.8" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-1 — fable, L, 441k impl tokens</title></circle>
-<circle cx="545.0" cy="161.3" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-2 — opus, L, 422k impl tokens</title></circle>
-<circle cx="812.5" cy="149.7" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-3 — fable, L, 642k impl tokens</title></circle>
+<circle cx="469.1" cy="158.6" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>12 — fable, L, 465k impl tokens</title></circle>
+<circle cx="360.8" cy="149.7" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>29 — opus, L, 325k impl tokens</title></circle>
+<circle cx="450.5" cy="163.7" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-1 — fable, L, 441k impl tokens</title></circle>
+<circle cx="435.8" cy="146.3" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M7-2 — opus, L, 422k impl tokens</title></circle>
+<circle cx="606.0" cy="152.3" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>M6-3 — fable, L, 642k impl tokens</title></circle>
+<circle cx="390.9" cy="159.2" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>U2 — fable, L, 364k impl tokens</title></circle>
+<circle cx="281.1" cy="147.0" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>SWITCH-P — opus, L, 222k impl tokens</title></circle>
+<circle cx="812.5" cy="153.8" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>G2 — opus, L, 909k impl tokens</title></circle>
+<circle cx="577.4" cy="144.7" r="4.6" fill="var(--series-1)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>SWITCH-E — fable, L, 605k impl tokens</title></circle>
+<circle cx="367.0" cy="157.4" r="4.6" fill="var(--series-2)" fill-opacity="0.85" stroke="var(--surface-1)" stroke-width="1.5"><title>PYG1 — opus, L, 333k impl tokens</title></circle>
 <text x="500.0" y="212" class="axlab" text-anchor="middle">implementation tokens (thousands)</text>
 </svg>
 <figcaption>Every dispatch that recorded an implementation token figure. Hover for the row id and difficulty.</figcaption>
 </figure>
-<div class="callout warn"><div class="h">Read the cost result more sceptically than the quality ones</div><p>The 24 rows that carry a token figure are not a random sample of the 51 — they are the rows whose orchestrator happened to write the number down, concentrated in particular stretches of the project. Balanced arms do not fix selection on <em>when</em> a row was recorded, because unit scope and project phase both drifted over time. Treat this as the best available estimate, not a clean one.</p></div>
+<div class="callout"><div class="h">The useful lesson here is about measurement, not about models</div><p>Cost figures are still not a random sample — they are the rows whose orchestrator wrote a number down — but the selection is far weaker than it was, because the recording discipline now catches most rows rather than a minority. A finding that reversed when the sampling improved is exactly what a selection artifact looks like in hindsight. The corresponding warning for the rest of this report: the MAJOR-finding result rests on a metric recorded for every row, which is why it is more trustworthy than the cost result ever was.</p></div>
 <h2>5. “Opus debugs better, Fable designs better”</h2>
 <div class="callout crit"><div class="h">The clean version of this test does not exist in this dataset</div><p>By protocol, <em class="q">all design work, all specs, and all reviews are Fable, on both arms</em>. There is zero arm variation on the design axis, so no amount of modelling can compare the models as designers here. What follows are two proxies built from the implementation rows, and they should be read as hypothesis-generating at best.</p></div>
 <p>A blinded labeller — which never saw the arm column — coded each unit's character (building new machinery vs diagnosing and repairing existing code) and rated how much open-ended design judgment and how much diagnostic work it demanded. If the folk claim were true and large, the arm effect should change sign between those regimes.</p>
@@ -574,31 +641,31 @@ em.q{color:var(--text-primary);font-style:normal;font-weight:600}
 <line x1="558.9" y1="38" x2="558.9" y2="148" class="refline"/>
 <text x="0" y="67.0" class="rowlab">Arm × build-new-machinery</text>
 <text x="0" y="78.0" class="rowsub">MAJOR rate; ratio of ratios</text>
-<title>Arm × build-new-machinery: 1.68 [0.50, 5.65]</title>
-<g><title>Arm × build-new-machinery  median 1.68, 95% CrI [0.50, 5.65]  n=45</title>
-<line x1="495.6" y1="63.0" x2="718.2" y2="63.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="536.7" y1="63.0" x2="680.7" y2="63.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="606.8" cy="63.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Arm × build-new-machinery: 1.29 [0.47, 3.58]</title>
+<g><title>Arm × build-new-machinery  median 1.29, 95% CrI [0.47, 3.58]  n=76</title>
+<line x1="489.3" y1="63.0" x2="676.4" y2="63.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="522.4" y1="63.0" x2="643.8" y2="63.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="582.2" cy="63.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="67.0" class="val">1.68</text>
+<text x="822" y="67.0" class="val">1.29</text>
 <text x="0" y="101.0" class="rowlab">Arm × diagnostic load</text>
 <text x="0" y="112.0" class="rowsub">MAJOR rate, per +1 debug-load point</text>
-<title>Arm × diagnostic load: 0.98 [0.46, 2.00]</title>
-<g><title>Arm × diagnostic load  median 0.98, 95% CrI [0.46, 2.00]  n=45</title>
-<line x1="488.0" y1="97.0" x2="622.6" y2="97.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="512.2" y1="97.0" x2="599.5" y2="97.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="556.8" cy="97.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Arm × diagnostic load: 1.14 [0.61, 2.09]</title>
+<g><title>Arm × diagnostic load  median 1.14, 95% CrI [0.61, 2.09]  n=76</title>
+<line x1="513.0" y1="97.0" x2="626.7" y2="97.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="533.6" y1="97.0" x2="607.2" y2="97.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="571.0" cy="97.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="101.0" class="val">0.98</text>
+<text x="822" y="101.0" class="val">1.14</text>
 <text x="0" y="135.0" class="rowlab">Arm × design load</text>
 <text x="0" y="146.0" class="rowsub">MAJOR rate, per +1 design-load point</text>
-<title>Arm × design load: 1.95 [0.78, 4.86]</title>
-<g><title>Arm × design load  median 1.95, 95% CrI [0.78, 4.86]  n=45</title>
-<line x1="535.7" y1="131.0" x2="704.4" y2="131.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="566.3" y1="131.0" x2="674.2" y2="131.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="620.1" cy="131.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Arm × design load: 1.18 [0.58, 2.48]</title>
+<g><title>Arm × design load  median 1.18, 95% CrI [0.58, 2.48]  n=76</title>
+<line x1="508.9" y1="131.0" x2="642.4" y2="131.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="531.1" y1="131.0" x2="618.8" y2="131.0" stroke="var(--series-2)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="573.8" cy="131.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="135.0" class="val">1.95</text>
+<text x="822" y="135.0" class="val">1.18</text>
 <text x="557.0" y="188" class="axlab" text-anchor="middle">interaction effect on MAJOR rate (ratio scale, log)</text>
 </svg>
 <figcaption>1.0 means the arm effect is the same in both regimes — i.e. no specialization. These are interaction terms, the hardest thing to estimate at small n, and it shows.</figcaption>
@@ -623,31 +690,31 @@ em.q{color:var(--text-primary);font-style:normal;font-weight:600}
 <line x1="557.0" y1="38" x2="557.0" y2="148" class="refline"/>
 <text x="0" y="67.0" class="rowlab">Arm × build-new-machinery</text>
 <text x="0" y="78.0" class="rowsub">rubric points</text>
-<title>Arm × build-new-machinery: 0.21 [-0.23, 0.67]</title>
-<g><title>Arm × build-new-machinery  median 0.21, 95% CrI [-0.23, 0.67]  n=39</title>
-<line x1="517.6" y1="63.0" x2="672.6" y2="63.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="543.9" y1="63.0" x2="644.3" y2="63.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="593.7" cy="63.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Arm × build-new-machinery: 0.04 [-0.38, 0.45]</title>
+<g><title>Arm × build-new-machinery  median 0.04, 95% CrI [-0.38, 0.45]  n=68</title>
+<line x1="492.0" y1="63.0" x2="634.4" y2="63.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="517.8" y1="63.0" x2="609.9" y2="63.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="564.5" cy="63.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="67.0" class="val">0.21</text>
+<text x="822" y="67.0" class="val">0.04</text>
 <text x="0" y="101.0" class="rowlab">Arm × diagnostic load</text>
 <text x="0" y="112.0" class="rowsub">rubric points per +1 debug-load</text>
-<title>Arm × diagnostic load: -0.12 [-0.39, 0.16]</title>
-<g><title>Arm × diagnostic load  median -0.12, 95% CrI [-0.39, 0.16]  n=39</title>
-<line x1="490.2" y1="97.0" x2="583.8" y2="97.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="506.3" y1="97.0" x2="566.9" y2="97.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="537.1" cy="97.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Arm × diagnostic load: 0.12 [-0.12, 0.34]</title>
+<g><title>Arm × diagnostic load  median 0.12, 95% CrI [-0.12, 0.34]  n=68</title>
+<line x1="536.9" y1="97.0" x2="615.0" y2="97.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="551.2" y1="97.0" x2="602.6" y2="97.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="577.1" cy="97.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="101.0" class="val">-0.12</text>
+<text x="822" y="101.0" class="val">0.12</text>
 <text x="0" y="135.0" class="rowlab">Arm × design load</text>
 <text x="0" y="146.0" class="rowsub">rubric points per +1 design-load</text>
-<title>Arm × design load: -0.05 [-0.31, 0.21]</title>
-<g><title>Arm × design load  median -0.05, 95% CrI [-0.31, 0.21]  n=39</title>
-<line x1="503.1" y1="131.0" x2="593.0" y2="131.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-<line x1="520.5" y1="131.0" x2="577.6" y2="131.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
-<circle cx="548.7" cy="131.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<title>Arm × design load: 0.09 [-0.15, 0.31]</title>
+<g><title>Arm × design load  median 0.09, 95% CrI [-0.15, 0.31]  n=68</title>
+<line x1="531.9" y1="131.0" x2="610.0" y2="131.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<line x1="546.0" y1="131.0" x2="597.3" y2="131.0" stroke="var(--series-1)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+<circle cx="571.6" cy="131.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
 </g>
-<text x="822" y="135.0" class="val">-0.05</text>
+<text x="822" y="135.0" class="val">0.09</text>
 <text x="557.0" y="188" class="axlab" text-anchor="middle">interaction effect on rubric rating (points)</text>
 </svg>
 <figcaption>Nothing separates from zero.</figcaption>
@@ -708,9 +775,352 @@ em.q{color:var(--text-primary);font-style:normal;font-weight:600}
 <figcaption>Binary outcomes at n≈45 with rare events produce very wide odds ratios. None of these is informative about the folk claim.</figcaption>
 </figure>
 <p><strong>Verdict on the folk claim: untestable here, and not even weakly supported by the proxies.</strong> Every interaction interval spans &ldquo;substantially better&rdquo; to &ldquo;substantially worse&rdquo; in both regimes. That is not evidence against the claim either — it is the signature of a dataset with no power to address it. Testing it properly would need dispatches where the arm actually varies on design and diagnosis work, which this protocol deliberately prevents.</p>
-<h2>6. What this sample could and could not have detected</h2>
-<p>The useful question is not “is there a difference?” but “what sizes of difference would this sample have caught?” The whole v2 sample contains <strong>30 MAJOR findings across 45 dispatches</strong>. That is the binding constraint: a Poisson rate estimated from 30 events simply cannot be pinned down tightly.</p><div class="tiles"><div class="tile"><div class="k">0.36&times;</div><div class="l">lower end of the MAJOR-rate interval</div></div><div class="tile"><div class="k">1.36&times;</div><div class="l">upper end of the same interval</div></div><div class="tile"><div class="k">3.7&times;</div><div class="l">ratio of upper to lower &mdash; the width of our ignorance</div></div><div class="tile"><div class="k">&plusmn;0.28</div><div class="l">rubric points still plausible either way</div></div></div><p>In plain terms: a real 25–30% difference in either direction would leave a trace almost identical to what this sample shows — a point estimate off 1.0 with an interval far too wide to call. That is precisely the situation we are in. The MAJOR-rate posterior is centred at 0.71, i.e. the <em>point estimate</em> says opus recorded about 29% fewer MAJOR findings; but the interval runs 0.36 to 1.36, so the same data is comfortably consistent with opus being meaningfully better <em>and</em> with it being somewhat worse.</p><p>So the log's own conclusion — “no evidence either arm produces more bugs or worse code; a large effect would probably have shown” — <strong>survives the modelling intact</strong>. What the modelling adds is a sharper boundary on it. The pooled point estimates are not centred on &ldquo;identical&rdquo;; they lean toward opus. But that lean reverses sign when the data is split by difficulty (&sect;2), which is the behaviour of noise rather than of an effect, and in any case no interval in the quality family clears no-difference. The defensible claim remains the negative one.</p><div class="callout"><div class="h">If the experiment continues, the highest-value change is not more rows</div><p>Reviewer variance is the largest uncontrolled term, and it is currently unmeasurable: one orchestrator model reviewed every dispatch on both arms, so a finding count confounds how well the code was written with how hard that particular review looked. Sending a sample of implementations to <em class="q">two independent reviewers</em> and recording both would let a future readout estimate that variance and divide it out. Recording tokens and wall-clock at merge for every row — the log already recommends this and then stopped doing it — would roughly double the usable n on the one family of outcomes that currently leans hardest.</p></div>
-<h2>7. Caveats that outrank the statistics</h2>
+<h2>6. Reviewer concordance &mdash; the new experiment</h2>
+<p>The first readout's top recommendation was that reviewer variance is the largest uncontrolled term and needs measuring: a finding count confounds <em>how well the code was written</em> with <em>how hard that particular review looked</em>. The protocol now sends every 3rd merged row to a second independent blinded reviewer (R2) on the same code head, with no access to R1 or its report. This section is the first readout of that data.</p>
+<div class="callout"><div class="h">Sample accounting, including two validity questions the protocol itself flagged</div><p><strong>8 valid pairs</strong> (samples #1&ndash;#8). Two exclusions and one caveat, all resolved against the record rather than assumed:</p><ul><li><strong>M7-6 struck</strong>, by the log's own ruling: R1 reviewed the pre-fix head and R2 the post-fix head, so differencing their counts would measure the fix pass, not the reviewer. Agreed and excluded.</li><li><strong>G1 (sample #1) verified valid.</strong> The protocol text carries an open action item &mdash; <em>"G1's pair should be checked for the same defect before the first variance readout"</em>. This is that readout, so I checked: <code>docs/LIB-LOG.md</code> records R1 and R2 &ldquo;both in flight against the same head (lanes lib-g1-review / lib-g1-review2), identical briefs, R2 blinded to R1's existence and report.&rdquo; <strong>Same head by construction. That action item is discharged.</strong></li><li><strong>U7 (sample #2) carries a caveat.</strong> Its R1 ran as a single review before the count resolved; R2 was added at merge against the frozen merge head. No fix landed in between (the union rule made the fix pass wait for R2), so it is almost certainly same-head &mdash; but the log says &ldquo;frozen merge head&rdquo;, not &ldquo;the head R1 reviewed&rdquo;. Every number below is computed with and without it; <strong>nothing changes</strong>, so the caveat does not matter in practice.</li></ul></div>
+<h3>Reviewers agree completely on MAJORs and disagree on everything else</h3>
+<figure>
+<div class="legend"><span class="lg"><span class="sw" style="background:var(--series-1)"></span>R1</span><span class="lg"><span class="sw" style="background:var(--series-2)"></span>R2</span></div>
+<svg viewBox="0 0 880 328" width="100%" role="img" class="chart" aria-label="MAJOR findings reported">
+<text x="0" y="18" class="ct">MAJOR findings: R1 vs R2 on the same code</text>
+<line x1="212.8" y1="38" x2="212.8" y2="284" class="grid"/>
+<text x="212.8" y="301" class="tick" text-anchor="middle">0</text>
+<line x1="480.0" y1="38" x2="480.0" y2="284" class="grid"/>
+<text x="480.0" y="301" class="tick" text-anchor="middle">1</text>
+<line x1="747.2" y1="38" x2="747.2" y2="284" class="grid"/>
+<text x="747.2" y="301" class="tick" text-anchor="middle">2</text>
+<text x="0" y="63.0" class="rowlab">G1</text>
+<g><title>G1: R1=1  R2=1  (agree)</title>
+<circle cx="480.0" cy="59.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="480.0" cy="59.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="63.0" class="val">agree</text>
+<text x="0" y="93.0" class="rowlab">U7</text>
+<g><title>U7: R1=0  R2=0  (agree)</title>
+<circle cx="212.8" cy="89.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="212.8" cy="89.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="93.0" class="val">agree</text>
+<text x="0" y="123.0" class="rowlab">U5</text>
+<g><title>U5: R1=0  R2=0  (agree)</title>
+<circle cx="212.8" cy="119.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="212.8" cy="119.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="123.0" class="val">agree</text>
+<text x="0" y="153.0" class="rowlab">SWITCH-E</text>
+<g><title>SWITCH-E: R1=2  R2=2  (agree)</title>
+<circle cx="747.2" cy="149.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="747.2" cy="149.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="153.0" class="val">agree</text>
+<text x="0" y="183.0" class="rowlab">DOORS</text>
+<g><title>DOORS: R1=0  R2=0  (agree)</title>
+<circle cx="212.8" cy="179.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="212.8" cy="179.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="183.0" class="val">agree</text>
+<text x="0" y="213.0" class="rowlab">U10</text>
+<g><title>U10: R1=0  R2=0  (agree)</title>
+<circle cx="212.8" cy="209.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="212.8" cy="209.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="213.0" class="val">agree</text>
+<text x="0" y="243.0" class="rowlab">ASM-1</text>
+<g><title>ASM-1: R1=0  R2=0  (agree)</title>
+<circle cx="212.8" cy="239.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="212.8" cy="239.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="243.0" class="val">agree</text>
+<text x="0" y="273.0" class="rowlab">ASM-2K</text>
+<g><title>ASM-2K: R1=0  R2=0  (agree)</title>
+<circle cx="212.8" cy="269.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="212.8" cy="269.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="273.0" class="val">agree</text>
+<text x="480.0" y="322" class="axlab" text-anchor="middle">MAJOR findings reported</text>
+</svg>
+<figcaption>Every pair agrees exactly. Note the shape of the agreement though: six of the eight pairs are 0&ndash;0, and agreeing on zero is nearly free.</figcaption>
+</figure>
+<figure>
+<div class="legend"><span class="lg"><span class="sw" style="background:var(--series-1)"></span>R1</span><span class="lg"><span class="sw" style="background:var(--series-2)"></span>R2</span></div>
+<svg viewBox="0 0 880 298" width="100%" role="img" class="chart" aria-label="MINOR findings reported">
+<text x="0" y="18" class="ct">MINOR findings: R1 vs R2</text>
+<line x1="212.8" y1="38" x2="212.8" y2="254" class="grid"/>
+<text x="212.8" y="271" class="tick" text-anchor="middle">0</text>
+<line x1="390.9" y1="38" x2="390.9" y2="254" class="grid"/>
+<text x="390.9" y="271" class="tick" text-anchor="middle">1</text>
+<line x1="569.1" y1="38" x2="569.1" y2="254" class="grid"/>
+<text x="569.1" y="271" class="tick" text-anchor="middle">2</text>
+<line x1="747.2" y1="38" x2="747.2" y2="254" class="grid"/>
+<text x="747.2" y="271" class="tick" text-anchor="middle">3</text>
+<text x="0" y="63.0" class="rowlab">G1</text>
+<g><title>G1: R1=1  R2=1  (agree)</title>
+<circle cx="390.9" cy="59.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="390.9" cy="59.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="63.0" class="val">agree</text>
+<text x="0" y="93.0" class="rowlab">U7</text>
+<g><title>U7: R1=1  R2=1  (agree)</title>
+<circle cx="390.9" cy="89.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="390.9" cy="89.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="93.0" class="val">agree</text>
+<text x="0" y="123.0" class="rowlab">U5</text>
+<g><title>U5: R1=2  R2=2  (agree)</title>
+<circle cx="569.1" cy="119.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="569.1" cy="119.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="123.0" class="val">agree</text>
+<text x="0" y="153.0" class="rowlab">DOORS</text>
+<g><title>DOORS: R1=3  R2=2  (differ)</title>
+<line x1="747.2" y1="149.0" x2="569.1" y2="149.0" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+<circle cx="747.2" cy="149.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="569.1" cy="149.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="153.0" class="val">3→2</text>
+<text x="0" y="183.0" class="rowlab">U10</text>
+<g><title>U10: R1=1  R2=2  (differ)</title>
+<line x1="390.9" y1="179.0" x2="569.1" y2="179.0" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+<circle cx="390.9" cy="179.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="569.1" cy="179.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="183.0" class="val">1→2</text>
+<text x="0" y="213.0" class="rowlab">ASM-1</text>
+<g><title>ASM-1: R1=1  R2=3  (differ)</title>
+<line x1="390.9" y1="209.0" x2="747.2" y2="209.0" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+<circle cx="390.9" cy="209.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="747.2" cy="209.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="213.0" class="val">1→3</text>
+<text x="0" y="243.0" class="rowlab">ASM-2K</text>
+<g><title>ASM-2K: R1=2  R2=1  (differ)</title>
+<line x1="569.1" y1="239.0" x2="390.9" y2="239.0" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+<circle cx="569.1" cy="239.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="390.9" cy="239.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="243.0" class="val">2→1</text>
+<text x="480.0" y="292" class="axlab" text-anchor="middle">MINOR findings reported</text>
+</svg>
+<svg viewBox="0 0 880 298" width="100%" role="img" class="chart" aria-label="NOTE findings reported">
+<text x="0" y="18" class="ct">NOTE findings: R1 vs R2</text>
+<line x1="212.8" y1="38" x2="212.8" y2="254" class="grid"/>
+<text x="212.8" y="271" class="tick" text-anchor="middle">0</text>
+<line x1="319.7" y1="38" x2="319.7" y2="254" class="grid"/>
+<text x="319.7" y="271" class="tick" text-anchor="middle">1</text>
+<line x1="426.6" y1="38" x2="426.6" y2="254" class="grid"/>
+<text x="426.6" y="271" class="tick" text-anchor="middle">2</text>
+<line x1="533.4" y1="38" x2="533.4" y2="254" class="grid"/>
+<text x="533.4" y="271" class="tick" text-anchor="middle">3</text>
+<line x1="640.3" y1="38" x2="640.3" y2="254" class="grid"/>
+<text x="640.3" y="271" class="tick" text-anchor="middle">4</text>
+<line x1="747.2" y1="38" x2="747.2" y2="254" class="grid"/>
+<text x="747.2" y="271" class="tick" text-anchor="middle">5</text>
+<text x="0" y="63.0" class="rowlab">G1</text>
+<g><title>G1: R1=3  R2=2  (differ)</title>
+<line x1="533.4" y1="59.0" x2="426.6" y2="59.0" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+<circle cx="533.4" cy="59.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="426.6" cy="59.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="63.0" class="val">3→2</text>
+<text x="0" y="93.0" class="rowlab">U7</text>
+<g><title>U7: R1=3  R2=3  (agree)</title>
+<circle cx="533.4" cy="89.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="533.4" cy="89.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="93.0" class="val">agree</text>
+<text x="0" y="123.0" class="rowlab">U5</text>
+<g><title>U5: R1=5  R2=2  (differ)</title>
+<line x1="747.2" y1="119.0" x2="426.6" y2="119.0" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+<circle cx="747.2" cy="119.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="426.6" cy="119.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="123.0" class="val">5→2</text>
+<text x="0" y="153.0" class="rowlab">DOORS</text>
+<g><title>DOORS: R1=4  R2=3  (differ)</title>
+<line x1="640.3" y1="149.0" x2="533.4" y2="149.0" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+<circle cx="640.3" cy="149.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="533.4" cy="149.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="153.0" class="val">4→3</text>
+<text x="0" y="183.0" class="rowlab">U10</text>
+<g><title>U10: R1=4  R2=4  (agree)</title>
+<circle cx="640.3" cy="179.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="640.3" cy="179.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="183.0" class="val">agree</text>
+<text x="0" y="213.0" class="rowlab">ASM-1</text>
+<g><title>ASM-1: R1=4  R2=4  (agree)</title>
+<circle cx="640.3" cy="209.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="640.3" cy="209.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="213.0" class="val">agree</text>
+<text x="0" y="243.0" class="rowlab">ASM-2K</text>
+<g><title>ASM-2K: R1=3  R2=4  (differ)</title>
+<line x1="533.4" y1="239.0" x2="640.3" y2="239.0" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+<circle cx="533.4" cy="239.0" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+<circle cx="640.3" cy="239.0" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="800" y="243.0" class="val">3→4</text>
+<text x="480.0" y="292" class="axlab" text-anchor="middle">NOTE findings reported</text>
+</svg>
+<figcaption>The same eight units, the same two reviewers, the same code. The discretionary tail does not reproduce: 4 of 7 MINOR pairs and 4 of 7 NOTE pairs differ.</figcaption>
+</figure>
+<table><thead><tr><th>outcome</th><th>exact agreement</th><th>agreement rate (95% CrI)</th><th>reviewer noise σ (log scale)</th></tr></thead><tbody><tr><td>MAJOR findings</td><td>8 / 8</td><td>0.93 (0.66–1.00)</td><td>0.00 — no observed disagreement</td></tr><tr><td>MINOR findings</td><td>3 / 7</td><td>0.44 (0.16–0.76)</td><td>0.38 (0.22–0.80)</td></tr><tr><td>NOTE findings</td><td>3 / 7</td><td>0.44 (0.16–0.76)</td><td>0.27 (0.16–0.60)</td></tr><tr><td>Verdict label</td><td>5 / 8</td><td>0.61 (0.30–0.86)</td><td>—</td></tr></tbody></table>
+<h3>Is the noise bigger than the signal?</h3>
+<p>This is the question the experiment exists to answer. For each outcome, the arm effect this report is trying to measure is plotted against the reviewer noise measured on that same outcome, in the same units. Where the noise bar is longer, the outcome cannot support a model comparison at all.</p>
+<figure>
+<div class="legend"><span class="lg"><span class="sw" style="background:var(--series-1)"></span>arm effect being measured</span><span class="lg"><span class="sw" style="background:var(--series-2)"></span>reviewer noise on the same outcome</span></div>
+<svg viewBox="0 0 880 296" width="100%" role="img" class="chart" aria-label="magnitude on the log-count scale (higher = bigger)">
+<text x="0" y="18" class="ct">Count outcomes: effect vs reviewer noise</text>
+<line x1="299.9" y1="38" x2="299.9" y2="250" class="grid"/>
+<text x="299.9" y="268" class="tick" text-anchor="middle">0</text>
+<line x1="402.8" y1="38" x2="402.8" y2="250" class="grid"/>
+<text x="402.8" y="268" class="tick" text-anchor="middle">0.2</text>
+<line x1="505.6" y1="38" x2="505.6" y2="250" class="grid"/>
+<text x="505.6" y="268" class="tick" text-anchor="middle">0.4</text>
+<line x1="608.4" y1="38" x2="608.4" y2="250" class="grid"/>
+<text x="608.4" y="268" class="tick" text-anchor="middle">0.6</text>
+<line x1="711.2" y1="38" x2="711.2" y2="250" class="grid"/>
+<text x="711.2" y="268" class="tick" text-anchor="middle">0.8</text>
+<line x1="814.0" y1="38" x2="814.0" y2="250" class="grid"/>
+<text x="814.0" y="268" class="tick" text-anchor="middle">1</text>
+<line x1="299.9" y1="38" x2="299.9" y2="250" class="refline"/>
+<text x="0" y="67.0" class="rowlab">MAJOR findings — arm effect</text>
+<text x="0" y="78.0" class="rowsub">|log rate ratio| between arms</text>
+<title>MAJOR findings — arm effect: 0.67 [0.67, 0.67]</title>
+<g><title>MAJOR findings — arm effect  median 0.67, 95% CrI [0.67, 0.67]</title>
+<line x1="645.7" y1="63.0" x2="645.7" y2="63.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<circle cx="645.7" cy="63.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="822" y="67.0" class="val">0.67</text>
+<text x="0" y="101.0" class="rowlab">MAJOR findings — reviewer noise</text>
+<text x="0" y="112.0" class="rowsub">σ between two reviewers, same code</text>
+<title>MAJOR findings — reviewer noise: 0.00 [0.00, 0.00]</title>
+<g><title>MAJOR findings — reviewer noise  median 0.00, 95% CrI [0.00, 0.00]</title>
+<line x1="300.0" y1="97.0" x2="300.1" y2="97.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<circle cx="300.0" cy="97.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="822" y="101.0" class="val">0.00</text>
+<text x="0" y="135.0" class="rowlab">MINOR findings — arm effect</text>
+<text x="0" y="146.0" class="rowsub">|log rate ratio| between arms</text>
+<title>MINOR findings — arm effect: 0.03 [0.03, 0.03]</title>
+<g><title>MINOR findings — arm effect  median 0.03, 95% CrI [0.03, 0.03]</title>
+<line x1="315.7" y1="131.0" x2="315.7" y2="131.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<circle cx="315.7" cy="131.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="822" y="135.0" class="val">0.03</text>
+<text x="0" y="169.0" class="rowlab">MINOR findings — reviewer noise</text>
+<text x="0" y="180.0" class="rowsub">σ between two reviewers, same code</text>
+<title>MINOR findings — reviewer noise: 0.38 [0.22, 0.80]</title>
+<g><title>MINOR findings — reviewer noise  median 0.38, 95% CrI [0.22, 0.80]</title>
+<line x1="414.6" y1="165.0" x2="709.0" y2="165.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<circle cx="494.4" cy="165.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="822" y="169.0" class="val">0.38</text>
+<text x="0" y="203.0" class="rowlab">NOTE findings — arm effect</text>
+<text x="0" y="214.0" class="rowsub">|log rate ratio| between arms</text>
+<title>NOTE findings — arm effect: 0.13 [0.13, 0.13]</title>
+<g><title>NOTE findings — arm effect  median 0.13, 95% CrI [0.13, 0.13]</title>
+<line x1="365.2" y1="199.0" x2="365.2" y2="199.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<circle cx="365.2" cy="199.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="822" y="203.0" class="val">0.13</text>
+<text x="0" y="237.0" class="rowlab">NOTE findings — reviewer noise</text>
+<text x="0" y="248.0" class="rowsub">σ between two reviewers, same code</text>
+<title>NOTE findings — reviewer noise: 0.27 [0.16, 0.60]</title>
+<g><title>NOTE findings — reviewer noise  median 0.27, 95% CrI [0.16, 0.60]</title>
+<line x1="383.3" y1="233.0" x2="608.2" y2="233.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<circle cx="441.2" cy="233.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="822" y="237.0" class="val">0.27</text>
+<text x="557.0" y="290" class="axlab" text-anchor="middle">magnitude on the log-count scale (higher = bigger)</text>
+</svg>
+<figcaption>MAJOR findings are the one count where the arm effect stands clear of the reviewer noise &mdash; because the measured noise there is zero. For MINOR and NOTE the noise is larger than the effect, so those two outcomes are not measuring the arms.</figcaption>
+</figure>
+<figure>
+<div class="legend"><span class="lg"><span class="sw" style="background:var(--series-1)"></span>arm effect being measured</span><span class="lg"><span class="sw" style="background:var(--series-2)"></span>reviewer noise on the same outcome</span></div>
+<svg viewBox="0 0 880 296" width="100%" role="img" class="chart" aria-label="rubric points">
+<text x="0" y="18" class="ct">Rubric ratings: effect vs reviewer noise</text>
+<line x1="299.7" y1="38" x2="299.7" y2="250" class="grid"/>
+<text x="299.7" y="268" class="tick" text-anchor="middle">0</text>
+<line x1="391.5" y1="38" x2="391.5" y2="250" class="grid"/>
+<text x="391.5" y="268" class="tick" text-anchor="middle">0.25</text>
+<line x1="483.4" y1="38" x2="483.4" y2="250" class="grid"/>
+<text x="483.4" y="268" class="tick" text-anchor="middle">0.5</text>
+<line x1="575.2" y1="38" x2="575.2" y2="250" class="grid"/>
+<text x="575.2" y="268" class="tick" text-anchor="middle">0.75</text>
+<line x1="667.1" y1="38" x2="667.1" y2="250" class="grid"/>
+<text x="667.1" y="268" class="tick" text-anchor="middle">1</text>
+<line x1="758.9" y1="38" x2="758.9" y2="250" class="grid"/>
+<text x="758.9" y="268" class="tick" text-anchor="middle">1.25</text>
+<line x1="299.7" y1="38" x2="299.7" y2="250" class="refline"/>
+<text x="0" y="67.0" class="rowlab">Idiom / structure — arm effect</text>
+<text x="0" y="78.0" class="rowsub">rating points</text>
+<title>Idiom / structure — arm effect: 0.08 [0.08, 0.08]</title>
+<g><title>Idiom / structure — arm effect  median 0.08, 95% CrI [0.08, 0.08]</title>
+<line x1="328.3" y1="63.0" x2="328.3" y2="63.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<circle cx="328.3" cy="63.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="822" y="67.0" class="val">0.08</text>
+<text x="0" y="101.0" class="rowlab">Idiom / structure — reviewer noise</text>
+<text x="0" y="112.0" class="rowsub">all 7 pairs identical — dimension saturated</text>
+<title>Idiom / structure — reviewer noise: 0.00 [0.00, 0.00]</title>
+<g><title>Idiom / structure — reviewer noise  median 0.00, 95% CrI [0.00, 0.00]</title>
+<line x1="300.1" y1="97.0" x2="300.1" y2="97.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<circle cx="300.1" cy="97.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="822" y="101.0" class="val">0.00</text>
+<text x="0" y="135.0" class="rowlab">Test quality — arm effect</text>
+<text x="0" y="146.0" class="rowsub">rating points</text>
+<title>Test quality — arm effect: 0.26 [0.26, 0.26]</title>
+<g><title>Test quality — arm effect  median 0.26, 95% CrI [0.26, 0.26]</title>
+<line x1="396.8" y1="131.0" x2="396.8" y2="131.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<circle cx="396.8" cy="131.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="822" y="135.0" class="val">0.26</text>
+<text x="0" y="169.0" class="rowlab">Test quality — reviewer noise</text>
+<text x="0" y="180.0" class="rowsub">σ between two reviewers, same code</text>
+<title>Test quality — reviewer noise: 0.64 [0.38, 1.22]</title>
+<g><title>Test quality — reviewer noise  median 0.64, 95% CrI [0.38, 1.22]</title>
+<line x1="441.0" y1="165.0" x2="749.0" y2="165.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<circle cx="533.0" cy="165.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="822" y="169.0" class="val">0.64</text>
+<text x="0" y="203.0" class="rowlab">Doc honesty — arm effect</text>
+<text x="0" y="214.0" class="rowsub">rating points</text>
+<title>Doc honesty — arm effect: 0.02 [0.02, 0.02]</title>
+<g><title>Doc honesty — arm effect  median 0.02, 95% CrI [0.02, 0.02]</title>
+<line x1="305.7" y1="199.0" x2="305.7" y2="199.0" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<circle cx="305.7" cy="199.0" r="5.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="822" y="203.0" class="val">0.02</text>
+<text x="0" y="237.0" class="rowlab">Doc honesty — reviewer noise</text>
+<text x="0" y="248.0" class="rowsub">σ between two reviewers, same code</text>
+<title>Doc honesty — reviewer noise: 0.54 [0.33, 1.08]</title>
+<g><title>Doc honesty — reviewer noise  median 0.54, 95% CrI [0.33, 1.08]</title>
+<line x1="419.6" y1="233.0" x2="695.3" y2="233.0" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+<circle cx="499.6" cy="233.0" r="5.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>
+</g>
+<text x="822" y="237.0" class="val">0.54</text>
+<text x="557.0" y="290" class="axlab" text-anchor="middle">rubric points</text>
+</svg>
+<figcaption>Both scales are literal rubric points, so these are directly comparable.</figcaption>
+</figure>
+<div class="callout crit"><div class="h">This retires a finding from my first report</div><p>In the first readout I called the test-quality rubric &ldquo;the most suggestive single quality signal&rdquo; and flagged it as the thing to watch. The concordance data kills it. Two reviewers scoring <em>the same code</em> differ by σ = 0.64 rating points on that dimension; the arm difference being chased is 0.26 points. <strong>The noise is 2.4× the signal.</strong> That dimension cannot distinguish the models, and I should not have flagged it without knowing this &mdash; which is precisely the gap this experiment was built to close.</p><p>The idiom dimension has a different problem: all seven scorable pairs rated it <strong>5 out of 5 from both reviewers</strong>. It is saturated at the ceiling, so it carries no information about anything.</p></div>
+<h3>Preliminary judgment: can the concordance experiment stop early?</h3>
+<p>The impression that prompted the question &mdash; that agreement has been impressively strong &mdash; is <strong>correct for MAJOR findings and wrong for everything else</strong>. Both halves matter for the decision.</p>
+<div class="tiles"><div class="tile"><div class="k">8 / 8</div><div class="l">MAJOR-count pairs in exact agreement</div></div><div class="tile"><div class="k">2</div><div class="l">of those pairs where either reviewer found ANY major</div></div><div class="tile"><div class="k">3 / 8</div><div class="l">pairs whose VERDICT LABELS disagreed</div></div><div class="tile"><div class="k">0.66</div><div class="l">95% lower bound on the agreement rate</div></div></div>
+<div class="callout warn"><div class="h">The catch: agreeing on zero is nearly free</div><p>Six of the eight MAJOR pairs are 0&ndash;0. Only <strong>two</strong> pairs had a MAJOR for the reviewers to agree or disagree about, and both agreed (G1: 1 and 1; SWITCH-E: 2 and 2, the same two findings independently executed). So the honest statement is not &ldquo;reviewers do not disagree about MAJORs&rdquo; but &ldquo;<em>reviewers have not yet disagreed about MAJORs, in two opportunities</em>&rdquo;. Restricted to those informative pairs the agreement rate is 0.79 with a 95% interval of 0.29&ndash;0.99 &mdash; almost no information.</p></div>
+<p>Meanwhile the reviewers disagreed on the verdict LABEL in 3 of 8 pairs <em>while agreeing on the findings underneath</em> — R1 said APPROVE where R2 said APPROVE-WITH-FIXES (U7), R1 said APPROVE-WITH-FIXES where R2 said NOT-MERGEABLE (SWITCH-E), R1 said MERGEABLE where R2 said APPROVE-WITH-FIXES (ASM-1). The log already calls this calibration data. It means the verdict label is not a usable quality measure, and a NOT-MERGEABLE in the record should not be read as evidence a unit was worse.</p>
+<h4>Would more pairs change any decision?</h4>
+<p>This is the test that actually settles it, and for the most part the answer is no:</p>
+<table><thead><tr><th>what the data would be used for</th><th>current answer</th><th>would more pairs change it?</th></tr></thead><tbody><tr><td>Trust MAJOR counts as the A/B's outcome</td><td>yes — zero observed reviewer disagreement</td><td>No. Already the cleanest outcome; more pairs sharpen a σ that is already at zero.</td></tr><tr><td>Trust MINOR / NOTE counts</td><td>no — reviewer noise exceeds the arm effect</td><td>No. Knowing σ to two decimals does not rescue an outcome whose noise is larger than its signal.</td></tr><tr><td>Trust the rubric</td><td>no — noise 2.4× the effect on tests; idiom saturated at 5/5</td><td>No. Same reasoning.</td></tr><tr><td>Trust the verdict label</td><td>no — 3 of 8 pairs disagree</td><td>Marginally. The rate is poorly pinned, but it is clearly high enough to disqualify the label already.</td></tr><tr><td>Detect a future breakdown in MAJOR agreement</td><td>only 2 informative pairs so far</td><td>YES — this is the one purpose that still needs data.</td></tr></tbody></table>
+<p>And running it to real precision is not cheap. Assuming agreement simply continues, pushing the 95% lower bound on MAJOR agreement from its current 0.66 to 0.91 takes about <strong>40 pairs</strong> — roughly 96 more merged rows at the every-3rd rate, which is more implementation work than the entire project has done to date.</p>
+<div class="callout"><div class="h">Recommendation</div><p><strong>Stop treating it as an open-ended measurement experiment — but do not simply switch it off, and act on what it already found first.</strong> Concretely, in priority order:</p><ol><li><strong>Change which outcomes the A/B reports (free, highest value).</strong> Make MAJOR and consequential-MAJOR the primary outcomes; demote MINOR, NOTE, the rubric and the verdict label to descriptive colour. The concordance data says plainly that those four cannot carry a model comparison. This is the finding, and it costs nothing to adopt.</li><li><strong>Halve the rate rather than stopping (every 6th), and pre-commit the stopping rule now</strong> — stated in <em>informative</em> pairs, not in observed agreement: e.g. &ldquo;stop at 6 pairs where either reviewer reported ≥1 MAJOR, or 20 total pairs, whichever comes first.&rdquo; Pre-committing matters: deciding to stop <em>because the interim numbers look good</em> is the standard route to an overconfident conclusion, and the current 8/8 is exactly the kind of run that invites it.</li><li><strong>Consider triggering on difficulty.</strong> MAJOR prevalence runs 21% on small units, 40% on medium and 59% on large, so preferentially dual-reviewing L rows raises the informative yield about 1.4&times; per extra review. This stays legal under the protocol's own arm-independence requirement, because difficulty is logged pre-draw and is arm-independent by randomization — conditioning on it does not hand the arms different review machinery. The gain is real but modest; take it only if the bookkeeping is cheap.</li><li><strong>Judge dual review's production value separately.</strong> It has already earned its keep as QA independently of measurement: sample #5 (DOORS) overturned an implementer's design disposition, and the systematically disjoint tails mean R2 is finding real defects R1 missed. That is an argument for continuing that has nothing to do with variance estimation, and it should be decided on its own terms.</li></ol></div>
+<div class="callout warn"><div class="h">One protocol hygiene item</div><p>Sample #7 (ASM-1) records that R2 glimpsed R1's probe tooling. That is a partial breach of the independence the design depends on, and it biases toward agreement — the direction that would make the experiment look safer to stop than it is. Worth a note in the protocol about isolating lane artifacts, and worth remembering that ASM-1 is one of the three verdict-label disagreements, so the breach did not manufacture full convergence there.</p></div>
+<h2>7. What changed, and how much to believe it</h2>
+<p>The first readout ended with a negative result and an explanation of why it could not have found anything smaller than a large effect. Thirty-one more blinded rows later, the sample contains <strong>45 MAJOR findings across 76 dispatches</strong> (against 30 across 45 before), and the MAJOR-family estimates have moved from &ldquo;wide and centred near 1&rdquo; to intervals that exclude no-difference.</p><table><thead><tr><th>outcome</th><th>first readout (n=45)</th><th>this readout (n=76)</th></tr></thead><tbody><tr><td>MAJOR rate ratio</td><td>0.71 (0.36–1.36)</td><td>0.51 (0.29–0.90) — separates</td></tr><tr><td>Consequential MAJORs (broad)</td><td>0.52 (0.22–1.16)</td><td>0.41 (0.21–0.78) — separates</td></tr><tr><td>Difficulty bands</td><td>signs flipped (M favoured opus, L favoured fable)</td><td>all three point the same way</td></tr><tr><td>Implementation tokens</td><td>0.85 (0.68–1.06)</td><td>0.91 (95% CrI 0.76 to 1.09) — weaker</td></tr><tr><td>Implementation wall-clock</td><td>0.79 (0.41–1.50)</td><td>1.08 (95% CrI 0.70 to 1.66) — direction reversed</td></tr><tr><td>Test-quality rubric</td><td>flagged as “the thing to watch”</td><td>retired — reviewer noise 2.4× the effect (§6)</td></tr></tbody></table><div class="callout"><div class="h">What I now think, stated plainly</div><p>On the pre-registered headline metric there is now <strong>positive evidence that opus implementations draw fewer MAJOR review findings</strong> — roughly half the rate, with the blinded severity recode agreeing and pointing slightly stronger. Four things make me take it more seriously than a bare interval would warrant: it is the pre-registered outcome rather than one selected after looking; the difficulty bands now agree in direction where they previously conflicted; the protocol-era split does not explain it; and the new concordance experiment shows this specific metric is the one two independent reviewers reproduce exactly.</p><p>Three things keep it short of settled: neither protocol era separates on its own, so it depends on pooling; halving the prior width leaves it only marginally clear of 1.0; and the deepest confound — that the same orchestrator model chose the units, wrote the specs, and reviewed both arms — is untouched by any of this. Reviewer <em>noise</em> has now been measured and is zero for this metric. Reviewer <em>bias</em> shared across both arms would be invisible to the concordance design, because both reviewers are the same model.</p></div><p>That last point is the honest limit of the concordance experiment as built: it measures whether two draws from the same reviewer-model agree, which is reproducibility, not accuracy. Two instances of one model can agree perfectly and still be systematically wrong in the same direction. Detecting <em>that</em> would need a reviewer of a different kind — a different model, or Evan — on a sample of the same units.</p>
+<h2>8. Caveats that outrank the statistics</h2>
 
 <p>These are inherited from the log, and no amount of modelling fixes
 them. They are listed because they dominate the uncertainty that the
@@ -724,9 +1134,9 @@ analysis cannot separate the two factors.</li>
 <li><strong>Difficulty is one orchestrator's pre-flip guess</strong> — but
 it holds up better than expected. A blinded labeller who never saw the
 S/M/L column rated each unit's scope from its description alone, and
-those ratings correlate with the pre-logged letter at r = 0.86 (mean
-independent rating 2.45 / 3.55 / 4.83 for S / M / L). So the stratifier
-is measuring something real. The log's separate warning still stands
+those ratings correlate with the pre-logged letter at r = 0.83 across
+all 76 rows (mean independent rating 2.43 / 3.56 / 4.76 for S / M / L).
+So the stratifier is measuring something real. The log's separate warning still stands
 though: scope varied by more than an order of magnitude <em>inside</em> a
 single letter, so the bands are coarse.</li>
 <li><strong>Outcomes are graded on a subjective 1–5 rubric</strong> by the
@@ -745,16 +1155,21 @@ results called out in sections 2, 3 and 4 are flagged as things to watch
 rather than reported as findings. The pre-registered headline — the
 MAJOR-finding rate — is the one estimate that was not selected after
 seeing the data.</li>
-<li><strong>The pooled lean is real but fragile.</strong> MAJORs,
-consequential MAJORs, silent deviations, NOTEs, pooled findings and all
-four cost measures lean the same way. That is worth noting — but these
-outcomes are heavily correlated (they are largely the same reviews
-counted different ways), so it is far weaker than nine independent
-confirmations. And it does not survive stratification: split by
-difficulty, the medium band favours opus while the large band favours
-fable on both the finding count and the rubric. A direction that
-reverses when you cut the data is the thing you would expect from noise,
-not from a real effect.</li>
+<li><strong>The MAJOR result rests on pooling two protocol eras.</strong>
+Neither v2 rows alone nor v3 rows alone separate; only the combined 76 do.
+The pooling is defensible — both eras are randomized and blinded, both
+point the same direction, and the arm × era interaction is flat — but it
+is the kind of thing worth re-checking as v3 accumulates rows of its
+own.</li>
+<li><strong>The outcomes are not independent tests.</strong> MAJORs,
+consequential MAJORs, notes and pooled findings are largely the same
+reviews counted different ways, so their agreement in direction is much
+weaker evidence than four independent confirmations would be.</li>
+<li><strong>The result is somewhat prior-sensitive at the boundary.</strong>
+Halving the prior width moves the headline interval to 0.39–0.99 — still
+excluding 1.0, but only just. Doubling it gives 0.26–0.85. The finding is
+not an artifact of the prior, but it is close enough to the boundary that
+a modest change in either direction matters.</li>
 <li><strong>Rows 36, 38 and 40 have missing rubric or silent-deviation
 data</strong>, and row 40 is an L-difficulty row, so the milestone's most
 informative endpoint is partly absent. Complete-case analysis was used
@@ -767,11 +1182,21 @@ that, reviewer variance and implementation quality stay confounded no
 matter how many rows accumulate.</p>
 
 <h2>Appendix</h2>
-<details><summary>Model inventory and MCMC convergence diagnostics (31 models)</summary><p>Worst split-R-hat and smallest effective sample size across all parameters of each model. R-hat below 1.01 and ESS above 400 is the acceptance bar used here.</p><table><thead><tr><th>key</th><th>model</th><th class="n">n</th><th class="n">worst R-hat</th><th class="n">min ESS</th><th>status</th></tr></thead><tbody><tr><td>char_maj</td><td>MAJORs: arm x build-new</td><td class="n">45</td><td class="n">1.0063</td><td class="n">1094</td><td>ok</td></tr><tr><td>char_rubric</td><td>Rubric mean: arm x build-new</td><td class="n">39</td><td class="n">1.0022</td><td class="n">2308</td><td>ok</td></tr><tr><td>converged</td><td>Fix pass converged clean</td><td class="n">43</td><td class="n">1.0007</td><td class="n">1914</td><td>ok</td></tr><tr><td>findings_total</td><td>All findings per dispatch</td><td class="n">42</td><td class="n">1.0010</td><td class="n">1327</td><td>ok</td></tr><tr><td>fix_size</td><td>Fix-pass size (ordered logit, 0=none..4=heavy)</td><td class="n">42</td><td class="n">1.0014</td><td class="n">3084</td><td>ok</td></tr><tr><td>gate_red_any</td><td>Any red gate round</td><td class="n">45</td><td class="n">1.0020</td><td class="n">1520</td><td>ok</td></tr><tr><td>h_any</td><td>Any wall-clock hours (log, + contamination covar)</td><td class="n">26</td><td class="n">1.0048</td><td class="n">1077</td><td>ok</td></tr><tr><td>h_impl</td><td>Implementation wall-clock hours (log)</td><td class="n">19</td><td class="n">1.0046</td><td class="n">1361</td><td>ok</td></tr><tr><td>maj_by_difficulty</td><td>MAJORs by difficulty</td><td class="n">45</td><td class="n">1.0046</td><td class="n">1287</td><td>ok</td></tr><tr><td>maj_conseq_lower</td><td>Consequential MAJORs (unclear excluded)</td><td class="n">45</td><td class="n">1.0016</td><td class="n">2068</td><td>ok</td></tr><tr><td>maj_conseq_upper</td><td>Consequential MAJORs (unclear included)</td><td class="n">45</td><td class="n">1.0012</td><td class="n">1912</td><td>ok</td></tr><tr><td>maj_prior_double</td><td>MAJORs, prior double width</td><td class="n">45</td><td class="n">1.0009</td><td class="n">1510</td><td>ok</td></tr><tr><td>maj_prior_half</td><td>MAJORs, prior half width</td><td class="n">45</td><td class="n">1.0024</td><td class="n">1729</td><td>ok</td></tr><tr><td>maj_raw</td><td>MAJOR findings per dispatch</td><td class="n">45</td><td class="n">1.0024</td><td class="n">1577</td><td>ok</td></tr><tr><td>maj_raw_nb</td><td>MAJOR findings (negative binomial)</td><td class="n">45</td><td class="n">1.0034</td><td class="n">1778</td><td>ok</td></tr><tr><td>min_raw</td><td>MINOR findings per dispatch</td><td class="n">44</td><td class="n">1.0023</td><td class="n">1413</td><td>ok</td></tr><tr><td>mod_debug_maj</td><td>MAJORs: arm x debug-load</td><td class="n">45</td><td class="n">1.0061</td><td class="n">1148</td><td>ok</td></tr><tr><td>mod_debug_rubric</td><td>Rubric: arm x debug-load</td><td class="n">39</td><td class="n">1.0046</td><td class="n">1007</td><td>ok</td></tr><tr><td>mod_design_maj</td><td>MAJORs: arm x design-load</td><td class="n">45</td><td class="n">1.0071</td><td class="n">1223</td><td>ok</td></tr><tr><td>mod_design_rubric</td><td>Rubric: arm x design-load</td><td class="n">39</td><td class="n">1.0041</td><td class="n">994</td><td>ok</td></tr><tr><td>note_raw</td><td>NOTE findings per dispatch</td><td class="n">42</td><td class="n">1.0014</td><td class="n">1287</td><td>ok</td></tr><tr><td>rubric_by_difficulty</td><td>Rubric mean by difficulty</td><td class="n">39</td><td class="n">1.0056</td><td class="n">749</td><td>ok</td></tr><tr><td>rubric_docs</td><td>Doc / comment honesty rating</td><td class="n">39</td><td class="n">1.0060</td><td class="n">1183</td><td>ok</td></tr><tr><td>rubric_idiom</td><td>Idiom / structure rating</td><td class="n">39</td><td class="n">1.0059</td><td class="n">1246</td><td>ok</td></tr><tr><td>rubric_mean</td><td>Rubric mean (idiom/tests/docs)</td><td class="n">39</td><td class="n">1.0074</td><td class="n">1031</td><td>ok</td></tr><tr><td>rubric_tests</td><td>Test quality rating</td><td class="n">39</td><td class="n">1.0028</td><td class="n">1179</td><td>ok</td></tr><tr><td>self_caught</td><td>Implementer self-caught an error</td><td class="n">45</td><td class="n">1.0022</td><td class="n">2697</td><td>ok</td></tr><tr><td>silent_any</td><td>Any silent deviation</td><td class="n">43</td><td class="n">1.0010</td><td class="n">1796</td><td>ok</td></tr><tr><td>silent_count</td><td>Silent deviations per dispatch</td><td class="n">43</td><td class="n">1.0015</td><td class="n">1660</td><td>ok</td></tr><tr><td>tok_impl</td><td>Implementation tokens (log scale)</td><td class="n">24</td><td class="n">1.0032</td><td class="n">1226</td><td>ok</td></tr><tr><td>tok_total</td><td>Total recorded tokens (log, phases conflated)</td><td class="n">26</td><td class="n">1.0044</td><td class="n">975</td><td>ok</td></tr></tbody></table></details><details><summary>Prior sensitivity on the headline result</summary><p>The MAJOR-count model refit with the arm-coefficient prior halved and doubled in width. If the conclusion moved with the prior, the data would not be driving it.</p><table><thead><tr><th>prior on arm coefficient</th><th class="n">rate ratio (median)</th><th>95% CrI</th></tr></thead><tbody><tr><td>half width  N(0, 0.4)</td><td class="n">0.81</td><td>0.48 – 1.37</td></tr><tr><td>as used     N(0, 0.8)</td><td class="n">0.71</td><td>0.36 – 1.36</td></tr><tr><td>double width N(0, 1.6)</td><td class="n">0.68</td><td>0.32 – 1.38</td></tr><tr><td>negative binomial, N(0, 0.8)</td><td class="n">0.71</td><td>0.34 – 1.42</td></tr></tbody></table><p>The median barely moves; only the interval width responds, exactly as it should. The negative-binomial fit, which allows overdispersion beyond Poisson, agrees.</p></details><details><summary>Method, and what was excluded</summary>
-<p><strong>Scope.</strong> Protocol v2 rows only (blocked randomization,
-row 11 onward). The 10 protocol-v1 rows used an independent coin flip per
-dispatch, landed 7&ndash;3, and come from an earlier project phase; Evan
-chose to exclude them entirely rather than pool them.</p>
+<details><summary>Model inventory and MCMC convergence diagnostics (34 models)</summary><p>Worst split-R-hat and smallest effective sample size across all parameters of each model. R-hat below 1.01 and ESS above 400 is the acceptance bar used here.</p><table><thead><tr><th>key</th><th>model</th><th class="n">n</th><th class="n">worst R-hat</th><th class="n">min ESS</th><th>status</th></tr></thead><tbody><tr><td>char_maj</td><td>MAJORs: arm x build-new</td><td class="n">76</td><td class="n">1.0070</td><td class="n">747</td><td>ok</td></tr><tr><td>char_rubric</td><td>Rubric mean: arm x build-new</td><td class="n">68</td><td class="n">1.0052</td><td class="n">1375</td><td>ok</td></tr><tr><td>converged</td><td>Fix pass converged clean</td><td class="n">43</td><td class="n">1.0007</td><td class="n">1914</td><td>ok</td></tr><tr><td>findings_total</td><td>All findings per dispatch</td><td class="n">73</td><td class="n">1.0028</td><td class="n">1171</td><td>ok</td></tr><tr><td>fix_size</td><td>Fix-pass size (ordered logit, 0=none..4=heavy)</td><td class="n">42</td><td class="n">1.0014</td><td class="n">3084</td><td>ok</td></tr><tr><td>gate_red_any</td><td>Any red gate round</td><td class="n">45</td><td class="n">1.0020</td><td class="n">1520</td><td>ok</td></tr><tr><td>h_any</td><td>Any wall-clock hours (log, + contamination covar)</td><td class="n">58</td><td class="n">1.0034</td><td class="n">1234</td><td>ok</td></tr><tr><td>h_impl</td><td>Implementation wall-clock hours (log)</td><td class="n">47</td><td class="n">1.0034</td><td class="n">968</td><td>ok</td></tr><tr><td>maj_by_difficulty</td><td>MAJORs by difficulty</td><td class="n">76</td><td class="n">1.0047</td><td class="n">1163</td><td>ok</td></tr><tr><td>maj_conseq_lower</td><td>Consequential MAJORs (unclear excluded)</td><td class="n">76</td><td class="n">1.0020</td><td class="n">2233</td><td>ok</td></tr><tr><td>maj_conseq_upper</td><td>Consequential MAJORs (unclear included)</td><td class="n">76</td><td class="n">1.0024</td><td class="n">1640</td><td>ok</td></tr><tr><td>maj_era</td><td>MAJORs: arm x protocol era</td><td class="n">76</td><td class="n">1.0026</td><td class="n">1161</td><td>ok</td></tr><tr><td>maj_prior_double</td><td>MAJORs, prior double width</td><td class="n">76</td><td class="n">1.0019</td><td class="n">1601</td><td>ok</td></tr><tr><td>maj_prior_half</td><td>MAJORs, prior half width</td><td class="n">76</td><td class="n">1.0014</td><td class="n">1625</td><td>ok</td></tr><tr><td>maj_raw</td><td>MAJOR findings per dispatch</td><td class="n">76</td><td class="n">1.0022</td><td class="n">1718</td><td>ok</td></tr><tr><td>maj_raw_nb</td><td>MAJOR findings (negative binomial)</td><td class="n">76</td><td class="n">1.0036</td><td class="n">1649</td><td>ok</td></tr><tr><td>maj_v2_only</td><td>MAJORs, protocol v2 rows only</td><td class="n">51</td><td class="n">1.0016</td><td class="n">1419</td><td>ok</td></tr><tr><td>maj_v3_only</td><td>MAJORs, protocol v3 rows only</td><td class="n">25</td><td class="n">1.0014</td><td class="n">2143</td><td>ok</td></tr><tr><td>min_raw</td><td>MINOR findings per dispatch</td><td class="n">75</td><td class="n">1.0024</td><td class="n">1241</td><td>ok</td></tr><tr><td>mod_debug_maj</td><td>MAJORs: arm x debug-load</td><td class="n">76</td><td class="n">1.0030</td><td class="n">1140</td><td>ok</td></tr><tr><td>mod_debug_rubric</td><td>Rubric: arm x debug-load</td><td class="n">68</td><td class="n">1.0036</td><td class="n">850</td><td>ok</td></tr><tr><td>mod_design_maj</td><td>MAJORs: arm x design-load</td><td class="n">76</td><td class="n">1.0036</td><td class="n">1526</td><td>ok</td></tr><tr><td>mod_design_rubric</td><td>Rubric: arm x design-load</td><td class="n">68</td><td class="n">1.0054</td><td class="n">927</td><td>ok</td></tr><tr><td>note_raw</td><td>NOTE findings per dispatch</td><td class="n">73</td><td class="n">1.0017</td><td class="n">1236</td><td>ok</td></tr><tr><td>rubric_by_difficulty</td><td>Rubric mean by difficulty</td><td class="n">68</td><td class="n">1.0097</td><td class="n">737</td><td>ok</td></tr><tr><td>rubric_docs</td><td>Doc / comment honesty rating</td><td class="n">68</td><td class="n">1.0037</td><td class="n">975</td><td>ok</td></tr><tr><td>rubric_idiom</td><td>Idiom / structure rating</td><td class="n">68</td><td class="n">1.0060</td><td class="n">741</td><td>ok</td></tr><tr><td>rubric_mean</td><td>Rubric mean (idiom/tests/docs)</td><td class="n">68</td><td class="n">1.0078</td><td class="n">1054</td><td>ok</td></tr><tr><td>rubric_tests</td><td>Test quality rating</td><td class="n">68</td><td class="n">1.0094</td><td class="n">1092</td><td>ok</td></tr><tr><td>self_caught</td><td>Implementer self-caught an error</td><td class="n">45</td><td class="n">1.0022</td><td class="n">2697</td><td>ok</td></tr><tr><td>silent_any</td><td>Any silent deviation</td><td class="n">73</td><td class="n">1.0009</td><td class="n">1516</td><td>ok</td></tr><tr><td>silent_count</td><td>Silent deviations per dispatch</td><td class="n">73</td><td class="n">1.0016</td><td class="n">1514</td><td>ok</td></tr><tr><td>tok_impl</td><td>Implementation tokens (log scale)</td><td class="n">59</td><td class="n">1.0084</td><td class="n">1145</td><td>ok</td></tr><tr><td>tok_total</td><td>Total recorded tokens (log, phases conflated)</td><td class="n">63</td><td class="n">1.0025</td><td class="n">1214</td><td>ok</td></tr></tbody></table></details><details><summary>Prior sensitivity on the headline result</summary><p>The MAJOR-count model refit with the arm-coefficient prior halved and doubled in width. If the conclusion moved with the prior, the data would not be driving it.</p><table><thead><tr><th>prior on arm coefficient</th><th class="n">rate ratio (median)</th><th>95% CrI</th></tr></thead><tbody><tr><td>half width  N(0, 0.4)</td><td class="n">0.62</td><td>0.38 – 0.99</td></tr><tr><td>as used     N(0, 0.8)</td><td class="n">0.51</td><td>0.29 – 0.90</td></tr><tr><td>double width N(0, 1.6)</td><td class="n">0.48</td><td>0.26 – 0.85</td></tr><tr><td>negative binomial, N(0, 0.8)</td><td class="n">0.52</td><td>0.28 – 0.93</td></tr></tbody></table><p>The median barely moves; only the interval width responds, exactly as it should. The negative-binomial fit, which allows overdispersion beyond Poisson, agrees.</p></details><details><summary>Method, and what was excluded</summary>
+<p><strong>Scope.</strong> Rows under randomized allocation only:
+protocol v2 (opus/fable pairs, row 11 onward) and protocol v3
+({opus,opus,fable} triples, from 2026-08-08). The 10 protocol-v1 rows
+used an independent coin flip per dispatch, landed 7&ndash;3, and come
+from an earlier project phase; Evan chose to exclude them entirely rather
+than pool them. v2 and v3 are pooled for the headline and also fit
+separately (&sect;2) — the allocation ratio differs but both are
+randomized, so pooling is valid and the era interaction is tested
+explicitly.</p>
+<p><strong>Dual-review rows use R1 only</strong> in every arm-comparison
+model, since R1 is the review every row has; using the union or the max
+would make dual rows systematically different from single rows and
+confound the arm contrast with the sampling rule. R2 is used exclusively
+in the concordance analysis (&sect;6).</p>
 <p><strong>Excluded from quality models, retained for cost:</strong> the
 six v2 rows with no blinded review lane (CI-infrastructure rows 16, 41,
 42 and the orchestrator-review / eyeball rows MONTAGE, MV2, GUARD).
