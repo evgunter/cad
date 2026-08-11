@@ -340,7 +340,7 @@ fn row8_v4_file_refuses_typed() {
 
 // ---- Door pins beyond the numbered rows ----
 
-/// The save header carries `schema: 5` then `id: <32 hex>`, the scan
+/// The save header carries `schema: 6` then `id: <32 hex>`, the scan
 /// helper reads the id back, and load verifies header/snapshot
 /// agreement (tamper refuses typed).
 #[test]

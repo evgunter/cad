@@ -1,4 +1,4 @@
-schema: 5
+schema: 6
 id: 7ddec231df0049f879136a2f7624647d
 {
   "snapshot": {
@@ -450,6 +450,11 @@ id: 7ddec231df0049f879136a2f7624647d
     },
     "order": [
       0,
+      1,
+      2,
+      3
+    ],
+    "roots": [
       1,
       2,
       3
