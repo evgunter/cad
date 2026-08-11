@@ -1141,6 +1141,48 @@ jobs:
       # changes as non-triggering (its _is_docs).
       - name: prune local-scripts (hosted CI may not depend on them)
         run: rm -rf local-scripts
+
+      # THE TOUR'S OUTPUT, ON RENDER.YML'S KEY. `uv sheet drift` below
+      # is the only RELEASE build of demos/tour in this job — the
+      # k-probe sweep is a debug run, a different artifact set — and it
+      # exists solely to regenerate demos/out for the sheet. Measured at
+      # 107 s on run 31511197721, nearly all compile. render.yml's tour
+      # job caches exactly this directory on exactly this key, so the
+      # two share one entry.
+      #
+      # IT DOES NOT WEAKEN THE DRIFT GATE. The key hashes every source
+      # the tour reads, so a hit means the tour cannot have produced
+      # different bytes; a tour that CHANGED misses and rebuilds, which
+      # is the only case that row exists to catch.
+      #
+      # IT MUST RUN BEFORE ANY CARGO STEP, and that is not a style
+      # preference. `hashFiles` globs the WORKING TREE, so once
+      # `demos tour fmt + clippy` has run, `demos/tour/**` matches
+      # everything under `demos/tour/target/` too and the key stops
+      # describing the sources at all. Placed after clippy it computed a
+      # different hash than render.yml's tour job did for the same
+      # commit, in the same run — a permanent miss that still looked
+      # like a working cache. Keep it directly under the checkout.
+      #
+      # KEEP THE KEY IDENTICAL to render.yml's `tour output cache` —
+      # the `v1` is the handle for busting both at once. Divergence
+      # costs a miss, never a wrong hit.
+      #
+      # HOW OFTEN IT ACTUALLY HITS, measured rather than hoped: less
+      # than "every run". A PR builds against the MERGE commit, so its
+      # key moves whenever main's kernel moves — which on this repo is
+      # often — and a cache written during a PR is scoped to that PR's
+      # merge ref, invisible to every other branch. What reliably hits
+      # is a repeat push to one PR with the kernel untouched, and main's
+      # own successive runs. The step costs nothing on a miss, so this
+      # is upside without a downside, but it is not a flat -100 s.
+      - name: tour output cache
+        id: tour-cache
+        uses: actions/cache@v4
+        with:
+          path: demos/out
+          key: tour-out-v1-${{ hashFiles('crates/**', 'demos/tour/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
+
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -1179,11 +1221,29 @@ jobs:
       # row is a sanctioned automated render — renderer-free, and the
       # `git diff --exit-code` below is what makes drift a failure rather
       # than a commit.
+      # THE TOUR'S OUTPUT, ON RENDER.YML'S KEY. The `cargo run --release`
+      # below is the only RELEASE build of demos/tour in this job — the
+      # k-probe sweep further down is a debug run, a different artifact
+      # set — and it exists solely to regenerate demos/out for the
+      # sheet. Measured at 107 s on run 31511197721, nearly all of it
+      # compile. render.yml's tour job caches exactly this directory on
+      # exactly this key, so the two share one entry.
+      #
+      # IT DOES NOT WEAKEN THE DRIFT GATE. The key hashes every source
+      # the tour reads, so a hit means the tour cannot have produced
+      # different bytes than the cached ones; a tour that CHANGED misses
+      # and rebuilds, which is the only case this row exists to catch.
+      #
       - name: uv sheet drift (demos)
         env:
           CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
+          TOUR_CACHED: ${{ steps.tour-cache.outputs.cache-hit }}
         run: |
-          (cd demos/tour && cargo run --release -- ../out)
+          if [ "$TOUR_CACHED" = "true" ]; then
+            echo "demos/out restored from cache — the tour's sources are unchanged, so its output is too"
+          else
+            (cd demos/tour && cargo run --release -- ../out)
+          fi
           demos/render-uv.sh
           git diff --exit-code --stat HEAD -- demos/renders-uv/ || {
             echo "::error::demos/renders-uv/montage-uv.svg is stale — \
@@ -1215,10 +1275,13 @@ jobs:
   # anything builds at all" is the right trigger for it too.
   #
   # A FAILING ROW HANDS OVER ITS OWN FIX: each lane uploads its render
-  # to THIS run and names the `gh run download` that installs it, so a
-  # stale lane costs a download and a commit, never a second render.
-  # `render_jobs: 2` matches the runner's core count — measured
-  # byte-identical to sequential, at ~20% less wall clock.
+  # to THIS run and names the command that installs it, so a stale lane
+  # costs a download and a commit, never a second render.
+  #
+  # Scene concurrency is left to render.yml's own default (2, the
+  # runner's core count) rather than restated here: this job renders the
+  # canonical frames, so it must not be the place a second opinion about
+  # how they are produced can creep in.
   renders:
     name: render lanes
     needs: filter
@@ -1227,4 +1290,3 @@ jobs:
     with:
       gate: true
       lanes: all
-      render_jobs: "2"

@@ -89,10 +89,17 @@ on:
         description: "FreeCAD per-scene wall-clock budget, seconds"
         required: false
         default: "300"
+      # 2, matching the runner's core count (2 cores / 7 GB, printed by
+      # the render step). Measured byte-identical to sequential across
+      # all 55 cells of both PNG lanes, at ~20% less wall clock, so the
+      # canonical producer runs this way and a dispatch matches it
+      # rather than quietly rendering under a different regime.
+      # render.sh's OWN default stays 1: it cannot know a developer
+      # box's core count, and this workflow can.
       render_jobs:
         description: "Scenes rendered concurrently per FreeCAD lane (1 = sequential)"
         required: false
-        default: "1"
+        default: "2"
       tour_cache:
         description: "Tour output: reuse the cache when sources are unchanged, or force a rebuild"
         required: false
@@ -119,7 +126,7 @@ on:
       render_jobs:
         type: string
         required: false
-        default: "1"
+        default: "2"
       tour_cache:
         type: string
         required: false
@@ -181,6 +188,14 @@ jobs:
       # crate, the lockfiles, the pinned toolchain), so a hit means the
       # same bytes a rebuild would have produced — the tour is
       # deterministic, which is what ci.yml's `uv sheet drift (demos)`
+      # DIRECTLY UNDER THE CHECKOUT, BEFORE ANY CARGO STEP. `hashFiles`
+      # globs the working tree, so a cargo step running first would put
+      # `demos/tour/target/` inside the `demos/tour/**` pattern and the
+      # key would describe build artifacts instead of sources. ci.yml's
+      # copy of this step was placed after a clippy row and computed a
+      # different hash for the same commit, in the same run — a
+      # permanent miss that still looked like a working cache.
+      #
       # gate asserts on every run. `tour_cache: refresh` forces the
       # rebuild anyway, for when you want that assertion re-earned
       # rather than assumed.
