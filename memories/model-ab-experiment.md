@@ -47,8 +47,9 @@ cost — measured, not vibed ("with actual random numbers").
   is recorded no-action in the A/B row.
 
 - **Protocol v4 (Evan, 2026-08-11)** — four amendments, full text
-  in the log: (1) STOPPING RULE — the experiment ends at the 6th
-  dual review where ≥1 reviewer found a MAJOR, and the recording
+  in the log: (1) STOPPING RULE — the DUAL-REVIEW
+  experiment (only) ends at the 6th dual where ≥1 reviewer
+  found a MAJOR — the implementation A/B continues, and the recording
   orchestrator MUST notify Evan explicitly (tally maintained in
   the log; 2/6 at amendment time); (2) standardized 4-term
   verdict ladder (APPROVE / APPROVE-WITH-FIXES /
