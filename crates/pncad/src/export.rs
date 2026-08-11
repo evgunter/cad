@@ -24,7 +24,9 @@
 //! a `Split` or `Instances` value denotes SEVERAL bodies and gets a
 //! typed refusal naming its kind, not a silent first-element pick.
 
-use editor_core::{BooleanValue, Evaluation, NodeResult, RecipeNodeId, ValuePayload};
+use editor_core::{
+    BooleanValue, Evaluation, NodeResult, ProductError, ProfileDoc, RecipeNodeId, ValuePayload,
+};
 use step_export::{StepExportError, StepOptions, step_string};
 
 /// Why [`step_for_node`] refused. Fail-loud and typed, D2-style; the
@@ -69,6 +71,10 @@ pub enum ExportError {
     },
     /// The body was denoted but the STEP writer refused it.
     Step(StepExportError),
+    /// The whole-document door's gather refused (ASM-ROOTS D-4): no
+    /// body-denoting root, a failed root, or a kernel refusal while
+    /// gathering.
+    Product(ProductError),
 }
 
 impl core::fmt::Display for ExportError {
@@ -100,6 +106,7 @@ impl core::fmt::Display for ExportError {
                 )
             }
             Self::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
+            Self::Product(e) => write!(f, "export: {e}"),
         }
     }
 }
@@ -148,4 +155,30 @@ pub fn step_for_node(
         }
     };
     step_string(body, options).map_err(ExportError::Step)
+}
+
+/// Serializes the WHOLE DOCUMENT's product — the A10 gather of every
+/// body-denoting product root, in root-list order — as a STEP (AP214
+/// Part 21) exchange file (ASM-ROOTS D-4).
+///
+/// This is the door that accepts what [`step_for_node`] refuses: a
+/// pattern's instances, a split's two halves, several disjoint tips.
+/// One writer path serves both cases — `step_export` already emits one
+/// `MANIFOLD_SOLID_BREP` per shell of every solid, which is exactly
+/// the shape an imported multi-solid assembly round-trips through — so
+/// a one-solid product is not a special case here, it is the same call
+/// with one solid.
+///
+/// # Errors
+///
+/// [`ExportError::Product`] carrying the gather's own typed refusal
+/// (no body-denoting root, a failed root, a kernel graft or validity
+/// refusal), or [`ExportError::Step`] carrying the writer's.
+pub fn export_document_step(
+    evaluation: &Evaluation<f64>,
+    doc: &ProfileDoc,
+    options: &StepOptions,
+) -> Result<String, ExportError> {
+    let body = editor_core::product(doc, evaluation).map_err(ExportError::Product)?;
+    step_string(&body, options).map_err(ExportError::Step)
 }

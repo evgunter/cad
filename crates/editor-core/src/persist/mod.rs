@@ -140,9 +140,19 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// migration table stays empty. (A future ASM-ROOTS root list takes
 /// its own bump when it lands — noted, not decided here.)
 ///
+/// Version 6 is that bump: the **product-roots clean break**
+/// (ASM-ROOTS spec D-1, ASSEMBLY-DESIGN A10). [`crate::Doc`] gained
+/// the ordered `roots` list, and a v5 file carries none. A migration
+/// COULD compute today's sink set — but not its ORDER, which is
+/// product-solid order and therefore semantic (it moves the content
+/// pin), so the migrated document's product would be an invented
+/// answer to a question the file never recorded. There is no honest
+/// default; v5 refuses TYPED with the regenerate recourse, exactly as
+/// v1–v4 do, and the migration table stays empty.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these four.
-pub const SCHEMA_VERSION: u32 = 5;
+/// [`migration_step`] entry, or a ratified break like these five.
+pub const SCHEMA_VERSION: u32 = 6;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -393,8 +403,9 @@ pub type MigrationStep = fn(serde_json::Value) -> Result<serde_json::Value, Migr
 /// rather than whatever the stale body happens to parse as.
 ///
 /// **The table is empty, on purpose**: 1 → 2 (M5 PR 10 §4), 2 → 3
-/// (M6-5, ruled #217), and 3 → 4 (LIB-SWITCH §4h — profiles as
-/// programs, ratified LQ7a clean break) were all ratified clean
+/// (M6-5, ruled #217), 3 → 4 (LIB-SWITCH §4h — profiles as programs,
+/// ratified LQ7a clean break), 4 → 5 (ASM-1 D-6 — document identity)
+/// and 5 → 6 (ASM-ROOTS D-1 — product roots) were all ratified clean
 /// breaks. The mechanism stays because it costs nothing and D6.3's
 /// forward-only rule is unchanged; a future format change that is NOT
 /// a break adds its `n => Some(step_n)` arm here.

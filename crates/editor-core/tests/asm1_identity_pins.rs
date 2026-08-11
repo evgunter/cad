@@ -306,7 +306,7 @@ fn row4_witness_change_moves_pin() {
 }
 
 /// Row 8 — a v4 file refuses TYPED with the regenerate recourse (the
-/// ratified clean-break shape, re-pinned for v5). The body is the
+/// ratified clean-break shape, re-pinned at each bump). The body is the
 /// repo's own frozen v4 golden, so the refusal is against real bytes.
 #[test]
 fn row8_v4_file_refuses_typed() {
@@ -340,11 +340,11 @@ fn row8_v4_file_refuses_typed() {
 
 // ---- Door pins beyond the numbered rows ----
 
-/// The save header carries `schema: 5` then `id: <32 hex>`, the scan
+/// The save header carries `schema: 6` then `id: <32 hex>`, the scan
 /// helper reads the id back, and load verifies header/snapshot
 /// agreement (tamper refuses typed).
 #[test]
-fn v5_header_id_line_round_trips_and_tamper_refuses() {
+fn header_id_line_round_trips_and_tamper_refuses() {
     let (doc, _, _) = exemplar("asm1-header");
     let text = save(&doc, &[]).unwrap();
     let mut lines = text.lines();
@@ -405,7 +405,7 @@ fn doc_ref_display_and_serde() {
 /// dual review's converged finding: silently dropping the key from
 /// the canonical form passed the whole suite). The map has no edit
 /// door in v1, so the falsifier goes through the persistence door —
-/// a crafted v5 save whose body carries non-empty `"metadata"` loads
+/// a crafted save whose body carries non-empty `"metadata"` loads
 /// clean and pins DIFFERENTLY from its metadata-empty twin.
 #[test]
 fn row4_doc_metadata_in_preimage_via_crafted_save() {
