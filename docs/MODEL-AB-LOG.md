@@ -688,3 +688,10 @@ docs/LIB-PYSEL-SPEC.md) = FABLE (the block's drawn position 1).
 Difficulty logged pre-dispatch: S-M (binding of an existing
 ratified vocabulary; the acceptance scene's filters already
 proven Rust-side). Slot 3 (opus) banks.
+PYSEL review ordinal fixed at dispatch (2026-08-11, PR #393 open,
+reviewed head b0517eec): claimed ordinals through 28 on main's
+ledger + 1 = **29 → SINGLE** (duals sit at 21/24/27; 30 is the
+next third). Caveat recorded: the M8 checkpoint (#374) predates
+their #387–#392 PRs — if an unrecorded M8 review dispatch
+preceded this one by wall-clock, the tiebreak precedent
+re-allocates consecutively at their seam.
