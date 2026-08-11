@@ -471,10 +471,21 @@ rung (c); loop CERTIFICATION beyond the C2 verification tables
   Cargo.lock model: whole-document pin bump only, or
   per-reference; how competing updates in one assembly surface.
 - **AQ3 — DISCHARGED into A11** (working session 2026-08-10).
-- **AQ4 — per-instance overrides.** v1 posture: an instance is pin
-  + frame, nothing else — no per-instance parameter overrides, no
-  per-instance suppression beyond GQ2's failure semantics.
-  Overrides are a deliberate future door, not an accident.
+- **AQ4 — per-instance arguments.** v1 posture: an instance is pin
+  + frame, nothing else — no per-instance parameters, no
+  per-instance suppression beyond GQ2's failure semantics. The
+  natural form when the door opens (the #356 conversation,
+  replacing the spooky "override" framing): a document already IS
+  a function — `build(params) → Body` — so its named parameters
+  are its SIGNATURE, its authored values are DEFAULTS, and an
+  instance is an APPLICATION: `InstantiatePart { pin, placement,
+  args }` evaluates the pinned recipe at `args` (unsupplied names
+  take defaults; memo keys on (pin, args, ε)). Nothing mutates or
+  shadows the part document; self-containment and pin semantics
+  survive untouched because arguments are assembly-side data. The
+  fastener-bundle coupling (A7) is this door's natural client —
+  one template value applied as the same argument to several
+  instances. Still a deliberate future door, not v1.
 - **AQ5 — in-context capture semantics**: the captured-context
   object's pin/update behavior (what exactly is captured; when it
   goes stale; how staleness surfaces).
