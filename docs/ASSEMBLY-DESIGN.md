@@ -416,6 +416,13 @@ inspection, no numerics beyond decided predicates. Five rules:
    to evaluation as pure contact declarations, verified against
    the solved geometry by the C2 tables — trilean, definite
    mismatch refusing and naming the mate AND the loop it closes.
+   **Never authored-redundant, only physically-redundant** (the
+   #356 conversation's sharpening): A11 never requires stating a
+   relation twice — non-tree declarations arise exactly where a
+   physical loop of touching parts exists (modeled bolts, box
+   corners, patterned stud stacks), each one a contact A5 already
+   obligates; verifying the loop-closers is a free consistency
+   check across the part documents' own dimensions.
    So: a pattern-stacked run of identical bricks mated
    stud-to-tube VERIFIES rather than over-determines; two
    explicitly-placed parts declared flush is a fit-check, not an
