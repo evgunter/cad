@@ -538,6 +538,11 @@ two opus remainders bank (#327 + M8-4 the expected consumers).
 SLOT 0 DISPATCHED (2026-08-10): lane long-turn, branch
 kernel/long-turn. Also this seam: the large-K floor residue check
 runs as a NON-A/B verification task (hygiene class, no lane row).
+#222 (PR #369) R1 ordinal FIXED AT DISPATCH (2026-08-11): 23
+merged blinded rows (the 19 at M8-5's dispatch + M8-5 + M8-C1 +
+U10 + PYG1) + 3 R1-dispatched-unmerged (M8-3 @17, PYG23A, ASM-1
+@21) + 1 = **27** → a third → DUAL (sample #8, concurrent
+same-head R1+R2 on head 3bfdf886 per the same-head amendment).
 LIB PROGRAM COMPLETE (#334, 2026-08-10): every §L5 unit merged,
 their rows recorded (U10 dual sample #6, R1-PARAMS, PY-CI). The
 dual-review counter is SINGLE-SERIES from here — this orchestrator
