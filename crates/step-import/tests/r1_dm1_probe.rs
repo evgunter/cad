@@ -69,18 +69,45 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
     assert_eq!(transforms, 7, "one per occurrence");
     assert_eq!(breps, 3, "three component representations, seven instances");
 
-    // (1) and (3): the disposition.
+    // (1) and (3): the disposition — a two-cell claim, because the
+    // ambient band selects which frontier is first (see the coarse
+    // arm below).
+    let coarse = geom_core::Tolerance::get().eps > 1e-9;
     match import_step(&text, &ImportOptions::default()) {
         Err(StepImportError::Structure { id, what }) => {
             panic!("the assembly layer must not refuse dm1 any more: #{id} {what}")
         }
-        Err(StepImportError::Adoption { id, attempts }) => panic!(
-            "the D7 ladder must not refuse dm1 any more (#327 retired edge #685): \
-             #{id}, {} candidate(s)",
-            attempts.len()
-        ),
+        // **The coarse-band cell** (#327's ε sweep, third outcome).
+        // Retiring #685 let the ladder reach edges it had never
+        // reached at any band, and at a COARSE ambient ε the first of
+        // them — `#389`, a two-point `QUASI_UNIFORM_CURVE` polyline
+        // that stays NURBS — is offered ZERO candidates. That is a
+        // GAP, not a refusal, and it is PRE-EXISTING: nothing #327
+        // touches can reach a degree-1 open carrier (the circle
+        // estimator refuses an open curve before it estimates
+        // anything), and the edge was simply masked behind #685 at
+        // every band until now. Named, pinned, and filed rather than
+        // averaged away — the cell says which outcome belongs to
+        // which band, which is the whole point of sweeping.
+        Err(StepImportError::Adoption { id, attempts }) => {
+            assert!(
+                coarse,
+                "at a fine ambient band the D7 ladder must not refuse dm1 at all \
+                 (#327 retired edge #685): #{id}, {} candidate(s)",
+                attempts.len()
+            );
+            assert_eq!(id, 389, "the coarse-band cell's edge");
+            assert!(
+                attempts.is_empty(),
+                "and it is the polyline GAP, not a refusal with candidates"
+            );
+        }
         Err(e @ StepImportError::TierInvalid { .. }) => {
             let shown = e.to_string();
+            assert!(
+                !coarse,
+                "the coarse band's cell is the #389 ladder gap, not the gate: {shown}"
+            );
             assert!(
                 shown.contains("the certified quadrature enclosure stalled at"),
                 "the frontier is now the rational-patch-flux lane, not the ladder: {shown}"

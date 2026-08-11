@@ -121,7 +121,7 @@ const EPS_IN_ROWS: [(&str, Option<f64>); 3] =
 ///   the NIST inch translator prints ~12 significant digits, so the
 ///   file does not state itself to 1e-12 m, and the adoption ladder
 ///   says so by name instead of certifying a carrier it cannot.
-const EPS_ROWS: [(&str, f64, &str, Disposition); 18] = [
+const EPS_ROWS: [(&str, f64, &str, Disposition); 27] = [
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
     (FTC11, 1e-9, "file", Refused(SEAM_HALFPLANE_DEFINITE)),
     (FTC11, 1e-9, "1e-6", Refused(TANGENT_PLANES_COINCIDE)),
@@ -142,9 +142,34 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 18] = [
     (NIST09, 1e-12, "file", Refused(ENDPOINT_START_MAPPED_CURVE)),
     (NIST09, 1e-12, "1e-6", Refused(ENDPOINT_START_MAPPED_CURVE)),
     (NIST09, 1e-12, "1e-12", Refused(ENDPOINT_START_MAPPED_CURVE)),
+    // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
+    // Six cells at the rational-flux stall, three at the ladder's
+    // `#389` gap; ε_in moves nothing, which is itself the measurement
+    // (recognition certifies this file's carriers with ~14 decades of
+    // margin, so no interpretation budget in this sweep changes what
+    // is promoted).
+    (DM1, 1e-9, "file", Refused(RATIONAL_FLUX_STALL)),
+    (DM1, 1e-9, "1e-6", Refused(RATIONAL_FLUX_STALL)),
+    (DM1, 1e-9, "1e-12", Refused(RATIONAL_FLUX_STALL)),
+    (DM1, 1e-6, "file", Refused(LADDER_NO_DESCRIPTION)),
+    (DM1, 1e-6, "1e-6", Refused(LADDER_NO_DESCRIPTION)),
+    (DM1, 1e-6, "1e-12", Refused(LADDER_NO_DESCRIPTION)),
+    (DM1, 1e-12, "file", Refused(RATIONAL_FLUX_STALL)),
+    (DM1, 1e-12, "1e-6", Refused(RATIONAL_FLUX_STALL)),
+    (DM1, 1e-12, "1e-12", Refused(RATIONAL_FLUX_STALL)),
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
+const DM1: &str = "tests/fixtures/wild/stepcode/dm1-id-214.stp";
+/// dm1's fine-band sub-reason: the shared at-rest gate cannot compute
+/// the exact-B-rep volume of a RATIONAL cylinder wall — the banked
+/// rational-patch-flux lane, named specifically so the gate's preamble
+/// (which a tier-1/2 regression would also match) cannot stand in.
+const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure stalled at";
+/// dm1's coarse-band sub-reason: the ladder's own refusal on edge
+/// `#389`, a two-point `QUASI_UNIFORM_CURVE` polyline that stays NURBS
+/// and is offered zero candidates.
+const LADDER_NO_DESCRIPTION: &str = "edge #389: no intensional description certifies";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 
 /// The seam carrier's residual is DECIDEDLY outside the band.
@@ -293,8 +318,17 @@ const CORPUS: [(&str, Disposition); 53] = [
         // stall specifically rather than the gate's preamble, because
         // the preamble would also match a tier-1/2 verdict, which
         // would be a regression and not this lane.
-        "tests/fixtures/wild/stepcode/dm1-id-214.stp",
-        Refused("the certified quadrature enclosure stalled at"),
+        //
+        // **ε-SENSITIVE since #327**, and the sweep is the reason to
+        // know it: at the two FINE ambient bands the frontier is the
+        // rational-flux stall above, but at ambient 1e-6 the ladder
+        // stops earlier, on edge `#389`. Retiring #685 is what made
+        // #389 reachable at all — it had been masked behind #685 at
+        // every band — so the coarse cell is a PRE-EXISTING gap newly
+        // exposed, not a movement of anything #327 built. Nine cells
+        // in `EPS_ROWS`; ε_in moves none of them.
+        DM1,
+        EpsSensitive,
     ),
     (
         "tests/fixtures/wild/stepcode/io1-cm-214.stp",

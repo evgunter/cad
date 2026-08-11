@@ -562,14 +562,29 @@ fn probe_dm1_first_refusal_site() {
     .iter()
     .collect();
     let text = std::fs::read_to_string(&path).unwrap();
+    // Two cells, because the ambient band selects which frontier is
+    // first: at a COARSE ε the ladder now reaches `#389` — a
+    // two-point polyline carrier that stays NURBS and is offered zero
+    // candidates, a PRE-EXISTING gap that was masked behind #685 at
+    // every band until #327 retired it. Named, not averaged.
+    let coarse = geom_core::Tolerance::get().eps > 1e-9;
     match import(&text) {
         Err(e @ step_import::StepImportError::TierInvalid { .. }) => {
             let shown = e.to_string();
             eprintln!("PROBE dm1 refusal: {shown}");
+            assert!(!coarse, "the coarse cell is the #389 ladder gap: {shown}");
             assert!(
                 shown.contains("the certified quadrature enclosure stalled at"),
                 "the site is the rational-patch-flux lane: {shown}"
             );
+        }
+        Err(step_import::StepImportError::Adoption { id, attempts }) => {
+            eprintln!(
+                "PROBE dm1 refusal: edge #{id}, {} candidate(s)",
+                attempts.len()
+            );
+            assert!(coarse, "the fine cells are past the ladder entirely");
+            assert_eq!(id, 389, "the coarse-band cell's edge");
         }
         other => panic!("dm1-id-214 must refuse at the at-rest gate, got {other:?}"),
     }
