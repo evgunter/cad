@@ -17,7 +17,7 @@
 //! is deferred to the unit that binds the complete surface.
 
 use pncad::document::{
-    DimensionError, EditError, NodeErrorKind, PersistError, RecordedProgramError,
+    DimensionError, EditError, NodeErrorKind, PersistError, RecordedProgramError, RootFault,
 };
 use pncad::profile::PathError;
 
@@ -104,6 +104,21 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::MetaNonFinite { .. } => "meta_non_finite",
         EditError::MetaNotSet { .. } => "meta_not_set",
         EditError::RebindMetadataCollision { .. } => "rebind_metadata_collision",
+        // The product-root invariants (ASM-ROOTS D-2) tag per FAULT,
+        // not per wrapper: which invariant broke is what a caller
+        // branches on.
+        EditError::Roots(fault) => root_fault_tag(fault),
+    }
+}
+
+/// The stable tag for a product-root invariant refusal (ASM-ROOTS
+/// D-2) — shared by every door that carries a `RootFault`.
+pub fn root_fault_tag(fault: &RootFault) -> &'static str {
+    match fault {
+        RootFault::NotLive { .. } => "root_not_live",
+        RootFault::Duplicate { .. } => "root_duplicate",
+        RootFault::Ancestor { .. } => "root_ancestor",
+        RootFault::Uncovered { .. } => "root_uncovered",
     }
 }
 
@@ -179,6 +194,23 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         E::NotABody { .. } => "not_a_body",
         E::EmptyBoolean { .. } => "empty_boolean",
         E::Step(_) => "step_refused",
+        E::Product(inner) => product_error_tag(inner),
+    }
+}
+
+/// The stable tag for a whole-document product refusal (ASM-ROOTS
+/// D-4: `editor_core::product`'s error).
+pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
+    use pncad::document::ProductError as E;
+    match err {
+        E::UnknownNode { .. } => "unknown_node",
+        E::RootFailed { .. } => "root_failed",
+        E::RootPoisoned { .. } => "root_poisoned",
+        E::NoBodyRoots => "no_body_roots",
+        E::MultiSolidRoot { .. } => "multi_solid_root",
+        E::Graft { .. } => "graft_refused",
+        E::SolidInvalid { .. } => "solid_invalid",
+        E::ProductInvalid { .. } => "product_invalid",
     }
 }
 
