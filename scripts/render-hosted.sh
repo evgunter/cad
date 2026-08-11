@@ -261,7 +261,11 @@ while :; do
 
     if [ "$signature" != "$last_signature" ] || [ $(( now - last_print )) -ge 300 ]; then
         printf '    [%s]\n' "$(date +%H:%M:%S)"
-        jq -r '.jobs[] | "      \(.conclusion // .status | ascii_upcase)  \(.name)"' <<<"$lanes_view"
+        # `gh` reports an unfinished job's conclusion as "", not null,
+        # and jq's `//` only falls through on null/false — so the state
+        # has to be chosen explicitly or every in-flight lane prints
+        # blank where its status belongs.
+        jq -r '.jobs[] | "      \(if (.conclusion // "") == "" then .status else .conclusion end | ascii_upcase)  \(.name)"' <<<"$lanes_view"
         last_signature="$signature"
         last_print="$now"
     fi
@@ -284,7 +288,7 @@ done
 # failing — the one case you most want the frames — leaves them intact.
 # So failures are reported and the download decides: no artifact for a
 # requested lane is the real error, and it is raised there.
-failed="$(jq -r '.jobs[] | select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != null)
+failed="$(jq -r '.jobs[] | select((.conclusion // "") != "" and .conclusion != "success" and .conclusion != "skipped")
                  | "      \(.conclusion | ascii_upcase)  \(.name)"' <<<"$lanes_view")"
 if [ -n "$failed" ]; then
     echo >&2
