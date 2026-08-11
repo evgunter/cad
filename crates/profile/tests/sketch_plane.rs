@@ -103,3 +103,40 @@ fn the_three_planes_round_trip_the_sketch_basis_cyclically() {
         assert_eq!(pt(plane.to_world(Point2::new(0.0, 0.0))), (0.0, 0.0, 0.0));
     }
 }
+
+#[test]
+fn the_frame_accessors_read_back_exactly_what_from_frame_wrote() {
+    // The accessors are PROJECTIONS of the stored placement, not a
+    // recomputation, so the round trip is bitwise — including the
+    // signed zero, which is why `origin` transcribes the translation
+    // rather than adding it to the coordinate origin.
+    let o = Point3::new(-0.0, 2.0, 3.5);
+    let (u, v) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let plane = SketchPlane::from_frame(o, u, v);
+
+    assert_eq!(plane.origin().x.to_bits(), (-0.0f64).to_bits());
+    assert_eq!(pt(plane.origin()), (-0.0, 2.0, 3.5));
+    assert_eq!(vc(plane.u()), (0.0, 1.0, 0.0));
+    assert_eq!(vc(plane.v()), (0.0, 0.0, 1.0));
+    assert_eq!(vc(plane.normal()), normal(&plane));
+
+    let rebuilt = SketchPlane::from_frame(plane.origin(), plane.u(), plane.v());
+    assert!(plane.bit_eq(&rebuilt));
+}
+
+#[test]
+fn plane_equality_is_bit_exact_and_the_two_zeros_differ() {
+    // The `Doc::bit_eq` precedent (spec D7): a sketch plane carries no
+    // ε, so the only honest equality it can offer compares BITS —
+    // `-0.0` keeps its own identity rather than being folded away.
+    let frame = |x: f64| {
+        SketchPlane::from_frame(
+            Point3::new(x, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        )
+    };
+    assert!(frame(0.0).bit_eq(&SketchPlane::xy()));
+    assert!(!frame(0.0).bit_eq(&frame(-0.0)));
+    assert!(frame(-0.0).bit_eq(&frame(-0.0)));
+}

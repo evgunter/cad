@@ -580,6 +580,29 @@ fn nurbs_tighten(
         // harmonic form (|P′| = |−pa·sin t + pb·cos t + pl|).
         let (su, sv) = match cache.pcurve() {
             Pcurve::IsoLine { pl, .. } => (pl.x.abs(), pl.y.abs()),
+            // The ARC rim (M8-3). With `s = ½ + tan(φ/2)/(2·tan(h/4))`
+            // and `g = (k + s)/m`,
+            //   `dg/dt = sec²(φ/2) / (4·m·tan(h/4))`,
+            // maximal at the sub-arc ends (`|φ| = h/2`), where
+            // `sec²(h/4)/(4·m·tan(h/4)) = 1/(2·m·sin(h/2))`.
+            // A closed-form sup over the whole span, like the other
+            // two arms — no sampling.
+            Pcurve::IsoArc {
+                pd, angle, breaks, ..
+            } => {
+                let spans = breaks.control_count().saturating_sub(1);
+                if spans == 0 {
+                    return Err(TessellateError::UnsupportedCurve {
+                        edge: ek,
+                        note: "an arc-rim pcurve with no sub-arc structure — a malformed \
+                               cache, not a chord-schedule question",
+                    });
+                }
+                #[allow(clippy::cast_precision_loss)]
+                let m = spans as f64;
+                let rate = 1.0 / (2.0 * m * (angle / (2.0 * m)).sin());
+                (pd.x.abs() * rate, pd.y.abs() * rate)
+            }
             Pcurve::Harmonic { pa, pb, pl, .. } => (
                 pa.x.abs() + pb.x.abs() + pl.x.abs(),
                 pa.y.abs() + pb.y.abs() + pl.y.abs(),

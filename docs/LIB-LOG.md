@@ -526,6 +526,27 @@ oracles (finding 5), the DocParam __eq__ rider (from ordinal
 19), straight-run authoring noise (finding 7 — vocabulary
 evidence for a future design conversation, not a unit).
 
+**PYBUNDLE MERGED — G4/G6/G7/G9 CLOSED (2026-08-11, #376,
+ordinal-28 APPROVE-WITH-FIXES 1/2/3).** Audit 18→24 of 34
+authorable (20 YES + 4 YES*); 10 NO remain: G2 sweep/tube ×6
+(U4-gated), G5 declared-contact ×2 (the detect/declare slice with
+R3), G12 rocker (#377), G14 cutaway split-naming (#380 adjacent).
+Suite 95→118. The round's substance: the reviewer authored FULL
+diecomposed from Python by parsing name-text provenance,
+falsifying the fresh G13 wall — RULED both-arms (row→YES*;
+name-text OPAQUE BY CONTRACT — parsing the encoding is
+representation-dependence, refused by doctrine; G13 re-scoped to
+the unbound Python SELECTOR surface, which Rust already serves,
+lib_sel1_geoselect.rs:507-560). Three new gap ids stand: G12
+(LoopBuilder/§2b — the #377 design conversation, which the
+lb-diecomposed investigation showed also needs LB4/LB5
+disposition and a §V6 amendment), G13 (Python selectors — the
+natural NEXT unit, small), G14 (kernel split-naming wall).
+G8 measured-unbound (pattern Instances cannot feed a boolean —
+kernel payload gap, unchanged). Issues: #377, #380.
+plate_param-from-Python: ONE door left (Expr-bearing profile
+steps).
+
 **PYG23A MERGED — G3 CLOSED, G2's loft half closed (2026-08-11,
 #365, ordinal-22 APPROVE 0/1/4).** Authorable 11→18 (14 YES + 4
 YES*), 16 NO remain; suite 83→95; the plane vocabulary and

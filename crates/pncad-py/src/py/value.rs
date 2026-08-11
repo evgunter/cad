@@ -285,6 +285,12 @@ fn lengths(p: pncad::geom_core::Point3<f64>) -> (Length, Length, Length) {
     )
 }
 
+/// Project a materializer's names into their canonical text — the one
+/// alphabet `Node.fillet` reads (see `doc::name_text`).
+fn names(py: Python<'_>, found: Vec<pncad::prelude::StableName>) -> PyResult<Vec<String>> {
+    found.iter().map(|n| super::doc::name_text(py, n)).collect()
+}
+
 /// A node's successful value.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Value {
@@ -444,6 +450,45 @@ impl Evaluation {
     /// The evaluation order.
     fn order(&self) -> Vec<NodeId> {
         self.inner.order.iter().copied().map(NodeId).collect()
+    }
+
+    /// **Every edge name of `node`'s output body, as of THIS
+    /// evaluation** — the U7 materializer, crossing as text.
+    ///
+    /// This is the door a `Node.fillet` selection comes through, and
+    /// it MATERIALIZES rather than queries: it answers for the
+    /// evaluation in hand, the caller stores the answer, and from that
+    /// moment the selection is frozen like any other. A recipe holds
+    /// no live "all edges", because a stored one would silently grow
+    /// under an upstream edit — the staleness the freeze prevents.
+    ///
+    /// The answer is the WHOLE kind, and each string is an OPAQUE
+    /// identifier: its internal structure is not API (see
+    /// `doc::name_text`), so narrowing the set is a SELECTOR's job and
+    /// no selector crosses yet — the audit's G13.
+    ///
+    /// Empty when the node has no value, no name table, or no edges.
+    /// The fillet node is what refuses an EMPTY selection, so the
+    /// emptiness surfaces there rather than here.
+    fn all_edges(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_edges(&self.inner, node.0))
+    }
+
+    /// Every FACE name of `node`'s output, [`Self::all_edges`]'s
+    /// sibling — same contract, same alphabet.
+    fn all_faces(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_faces(&self.inner, node.0))
+    }
+
+    /// Every VERTEX name of `node`'s output, same contract.
+    fn all_vertices(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_vertices(&self.inner, node.0))
+    }
+
+    /// Every BODY name `node`'s evaluation carries, same contract.
+    /// Usually one row; a split's two halves are the plural case.
+    fn all_bodies(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
+        names(py, pncad::select::all_bodies(&self.inner, node.0))
     }
 
     /// How many nodes were recomputed rather than reused from the memo.

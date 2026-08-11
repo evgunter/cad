@@ -201,6 +201,12 @@ fn traverse(body: &Body<f64>, hek: HalfEdgeKey, band: Band) -> Result<Traversal,
     let form = match &pcurve {
         Pcurve::Harmonic { .. } => "harmonic",
         Pcurve::IsoLine { .. } => "isoline",
+        // The RATIONAL wall's arc cap rim (M8-3). Its chart image is
+        // the same straight boundary line `IsoLine` draws, but its
+        // moving channel is the chart's own rational-quadratic
+        // parameter, so the samples below are NOT evenly spaced in
+        // `u` — which is exactly what this sheet is for showing.
+        Pcurve::IsoArc { .. } => "isoarc",
         Pcurve::Fitted(_) => "fitted",
     };
     let n = if straight || matches!(pcurve, Pcurve::IsoLine { .. }) {
