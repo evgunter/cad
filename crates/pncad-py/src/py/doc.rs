@@ -70,16 +70,26 @@ pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult
 
 /// A stable name as Python holds it: the name's OWN serde text.
 ///
-/// INVARIANT: this is the encoding the persistence door writes —
-/// `StableName` has exactly one serialization, and the binding reuses
-/// it rather than minting a second spelling. The strings
-/// `Evaluation.all_edges` answers with are the strings a saved
-/// document's `selection` array contains, so a name is one vocabulary
-/// across Rust, Python and the file format.
+/// # The text is OPAQUE BY CONTRACT
 ///
-/// The text is a TOKEN, not a display form: it travels from a
-/// materializer to a selection unread, exactly as the Rust surface
-/// carries the value.
+/// It is a stable IDENTIFIER — carried from a materializer to a
+/// selection unread, exactly as the Rust surface carries the value —
+/// and its internal structure is **not API**. Parsing it is
+/// representation-dependence: the encoding may change without notice,
+/// and code that reads inside a name is code this crate will break.
+/// The supported operations are equality, ordering, storage, and
+/// handing it back to [`Node::fillet`]. Narrowing a set of names is a
+/// SELECTOR's job, and no selector crosses yet (the audit's G13).
+///
+/// # Why this encoding
+///
+/// `StableName` has exactly one serialization and the binding reuses
+/// it rather than minting a second spelling, so a name is one
+/// vocabulary across Rust, Python and the file format. The relation
+/// to a saved document is VALUE equality, not byte equality: `save`
+/// pretty-prints and this writes compact, so the two texts differ in
+/// whitespace and parse to the same JSON value — and a name taken
+/// from either round-trips through the other.
 pub(crate) fn name_text(py: Python<'_>, name: &pncad::prelude::StableName) -> PyResult<String> {
     serde_json::to_string(name).map_err(|err| {
         typed_err(
@@ -679,10 +689,12 @@ impl Node {
     /// `target`'s edges.
     ///
     /// `selection` is edge names as text — the strings
-    /// `Evaluation.all_edges` answers with, which are the names' own
-    /// serde encoding (see the module's `name_text`). A name is
-    /// carried, not composed: there is no name-building vocabulary in
-    /// Python, and there is deliberately no "every edge" spelling.
+    /// `Evaluation.all_edges` answers with. A name is CARRIED, not
+    /// composed and not read: the text is an opaque identifier whose
+    /// internal structure is not API (see [`name_text`]), so there is
+    /// no name-building vocabulary in Python and no supported way to
+    /// filter a materialized set. There is deliberately no "every
+    /// edge" spelling either.
     ///
     /// THE SELECTION FREEZES, exactly as in Rust: it is a commitment
     /// as of the evaluation you read it from, and an upstream edit

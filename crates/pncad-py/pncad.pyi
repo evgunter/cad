@@ -358,6 +358,7 @@ def circle_split(
 class NodeId:
     """A recipe node's identity. NOT an arena key (§L3)."""
 
+    def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
 class BooleanOp:
@@ -403,7 +404,12 @@ class SketchPlane:
     def v(self) -> tuple[float, float, float]: ...
     @property
     def normal(self) -> tuple[float, float, float]: ...
+    def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
+
+    # Equality is BIT-exact — Rust's `SketchPlane::bit_eq`, crossing
+    # unchanged. A sketch plane carries no epsilon, so `-0.0` keeps its
+    # own identity rather than being folded into `0.0`.
 
 class Node:
     """A recipe node, before insertion."""
@@ -484,6 +490,7 @@ class ParamName:
     def __init__(self, name: str) -> None: ...
     @property
     def name(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
 class DocParam:
@@ -501,7 +508,12 @@ class DocParam:
     def scalar(value: float) -> DocParam: ...
     @staticmethod
     def count(value: int) -> DocParam: ...
+    def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
+
+    # Equality mirrors Rust's `PartialEq` — the IEEE comparison of the
+    # stored value, NOT `DocParam::bit_eq`'s. So the two spellings of
+    # zero are the same parameter, and the hash folds `-0.0` to match.
 
 class DocEdit:
     """A single edit — the G1 edit vocabulary (§L3)."""
@@ -595,7 +607,14 @@ class Evaluation:
     def all_edges(self, node: NodeId) -> list[str]:
         """Every edge name of `node`'s output, as of THIS evaluation —
         the strings `Node.fillet` selects with. A MATERIALIZER: store
-        what it answers, because a recipe holds no live selection."""
+        what it answers, because a recipe holds no live selection.
+
+        Each string is an OPAQUE identifier. Its internal structure is
+        not API — it may change without notice — so the supported
+        operations are equality, ordering, storage, and handing it back
+        to `Node.fillet`. Narrowing the set is a SELECTOR's job, and no
+        selector crosses yet (the audit's G13).
+        """
 
     def all_faces(self, node: NodeId) -> list[str]: ...
     def all_vertices(self, node: NodeId) -> list[str]: ...

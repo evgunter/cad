@@ -813,10 +813,18 @@ live "all" would silently grow the day an upstream edit adds an edge.
 So you materialize the names you want off an evaluation, and store
 what you got. `Evaluation.all_edges(node)` is the whole-body
 materializer (with `all_faces`, `all_vertices` and `all_bodies`
-beside it); the strings it answers with are the names' own encoding,
-byte for byte what a saved document holds, and they are carried to
+beside it), and the strings it answers with are carried to
 `Node.fillet` unread. Rust says the same thing with
 `editor_core::all_edges` and `Node::fillet`.
+
+**A name is an opaque identifier.** It is the name's own serde
+encoding — the same value a saved document carries, modulo the
+whitespace `save` pretty-prints with — but its internal structure is
+NOT API: it may change without notice, so the supported operations
+are equality, ordering, storage, and handing it back. Narrowing a
+materialized set is a SELECTOR's job. Rust has one
+(`select_where` with `GeomPred`); Python does not yet, and that is a
+named gap — see the north-star audit's G13.
 
 ```python
 import math

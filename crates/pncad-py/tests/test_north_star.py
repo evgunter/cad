@@ -869,11 +869,13 @@ class TestDiepips(unittest.TestCase):
     """Tour scene `diepips` (row 8): twenty-one spherical dimples on
     the six faces of a unit cube, cut in ONE group operation.
 
-    The scene's structure transfers whole: one ball, twenty-one
+    The scene's STRUCTURE transfers whole: one ball, twenty-one
     `Node.transform` placements whose pole rides the face normal, the
-    twenty-one balls fused into a single tool, and ONE subtract. The
-    scene's oracle is crates/sweep/tests/m5_pr12_die.rs: the cube less
-    twenty-one spherical caps."""
+    twenty-one balls fused into a single tool, and ONE subtract. Its
+    ball is RE-CHARTED — see `ball` below, which states why and what
+    it dodges. The scene's oracle is
+    crates/sweep/tests/m5_pr12_die.rs: the cube less twenty-one
+    spherical caps."""
 
     L, PIP_R, PIP_H, PIP_D = 1.0, 0.09, 0.05, 0.22
 
@@ -903,8 +905,19 @@ class TestDiepips(unittest.TestCase):
 
     def ball(self, doc):
         """A radius-PIP_R sphere at the origin, pole along +z: the
-        half-disc revolved fully, charted the way the scene charts it
-        (two quarter arcs, so no meridian runs pole to pole)."""
+        half-disc revolved fully.
+
+        The CHART is not the scene's. Both the scene
+        (`demos/tour/src/diefillet.rs::ball`) and the oracle test
+        (`sweep/tests/m5_pr12_die.rs::ball_at`) revolve ONE bulge-1
+        semicircular arc; that chart refuses through the document
+        layer (`kind == "naming"` — a meridian running pole to pole
+        gives the revolve emitter a two-vertex all-on-axis loop it
+        cannot name). This is the corpus `die_pips` workaround
+        instead: two quarter arcs, so no meridian runs pole to pole.
+        Same sphere, differently charted — the volume oracle is
+        untouched by it, and the re-chart is what makes the scene
+        reachable at all."""
         plane = SketchPlane.from_frame(
             (0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0)
         )
@@ -1109,27 +1122,48 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             with self.subTest(node=node_kind):
                 self.assertFalse(hasattr(Node, node_kind), f"Node.{node_kind} exists")
 
-    def test_a_selection_can_be_materialized_but_never_filtered(self):
-        """G13, the gap `diecomposed` now waits on. Every whole-body
-        materializer crosses, so a selection can be TAKEN; nothing
-        crosses that narrows one, so a recipe that blends the twelve
-        box edges of a pipped cube and leaves its pip rims alone
-        cannot be said. The pipped body's edges arrive as ONE set."""
+    def test_the_selector_surface_is_what_is_missing(self):
+        """G13, the gap that degrades `diecomposed`.
+
+        A selection can be TAKEN — the four whole-body materializers
+        cross — and it can be carried and stored. What does not cross
+        is anything that NARROWS one: `Selector`/`NamePat` (role-path
+        shape) and `select_where`/`GeomPred` (carrier kind, adjacency,
+        datum distance), the surface that narrows this exact scene in
+        Rust.
+
+        This test pins the door absence and the materializers' shape,
+        and it says nothing about impossibility. The name TEXT is an
+        opaque identifier by contract, not a value to read, so a
+        Python author who narrows a set by inspecting it is depending
+        on a representation this crate does not promise — which is
+        exactly what makes `diecomposed` YES\* (hand-authored) rather
+        than YES."""
         import pncad
 
-        for door in ["NamePat", "GeomPred", "CurveKind", "EntityKind", "all_edges"]:
+        for door in [
+            "NamePat", "Selector", "SegPat", "TagPat", "OpGroup",
+            "GeomPred", "select", "select_where", "CurveKind",
+            "SurfaceKind", "EntityKind", "all_edges",
+        ]:
             with self.subTest(door=door):
                 self.assertFalse(hasattr(pncad, door), f"{door} is now bound")
 
+        # The four materializers answer a WHOLE kind, and on a boolean
+        # output that is more than any one blend wants: a cube with a
+        # single pocket cut into it carries twice the edges the
+        # composed die's box blend would select.
         doc = Doc()
         cube = slab(doc, (0, 1), (0, 1), (0, 1))
         ev = evaluate(doc)
-        # The four materializers, and nothing between them and a
-        # selection: the answer is the WHOLE kind, in canonical order.
         self.assertEqual(len(ev.all_edges(cube)), 12)
         self.assertEqual(len(ev.all_faces(cube)), 6)
         self.assertEqual(len(ev.all_vertices(cube)), 8)
         self.assertEqual(len(ev.all_bodies(cube)), 1)
+
+        pip = slab(doc, (0.4, 0.6), (0.4, 0.6), (0.9, 1.2))
+        pipped = doc.insert(Node.boolean(BooleanOp.Subtract, cube, pip))
+        self.assertEqual(len(evaluate(doc).all_edges(pipped)), 24)
 
     def test_a_split_through_boolean_minted_faces_still_refuses(self):
         """G14, the gap `cutaway` now waits on — measured, not

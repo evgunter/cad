@@ -462,6 +462,11 @@ impl Evaluation {
     /// no live "all edges", because a stored one would silently grow
     /// under an upstream edit — the staleness the freeze prevents.
     ///
+    /// The answer is the WHOLE kind, and each string is an OPAQUE
+    /// identifier: its internal structure is not API (see
+    /// `doc::name_text`), so narrowing the set is a SELECTOR's job and
+    /// no selector crosses yet — the audit's G13.
+    ///
     /// Empty when the node has no value, no name table, or no edges.
     /// The fillet node is what refuses an EMPTY selection, so the
     /// emptiness surfaces there rather than here.
