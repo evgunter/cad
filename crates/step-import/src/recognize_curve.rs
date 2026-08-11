@@ -335,7 +335,7 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     // the divisor `|P−c| + r` can be).
     let delta_s = sphere_sup.abs() / radius;
     // INV-C2: the two into one distance-to-the-circle bound.
-    let inner = (radius - delta_s).powi(2) - delta_p * delta_p;
+    let inner = (radius - delta_s).powi(2) - delta_p.powi(2);
     let lower = if inner > 0.0 { inner.sqrt() } else { 0.0 };
     let m = delta_s.max(radius - lower);
     let residual = m.hypot(delta_p);
