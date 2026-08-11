@@ -1097,3 +1097,44 @@ fn a_straight_arrival_off_an_arc_departure_refuses_naming_the_carrier_doors() {
         .unwrap_err();
     check(err);
 }
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(64))]
+
+    /// **LB10 route 3**: whatever the arrival's height and the fillet's
+    /// radius, `.at_toward` puts the arrival side EXACTLY on the ray the
+    /// author named — the trim point rides `y = h`, the anchor lies on
+    /// the trimmed side (strictly between the trim point and the leg's
+    /// far end), and the lowered loop validates.
+    ///
+    /// The anchor is never emitted as a vertex: it anchors the side, and
+    /// the side's run is emitted by the leg that ends it. That is the
+    /// straight-arrival rule, unchanged by the carrier on the departure.
+    #[test]
+    fn at_toward_puts_its_arrival_on_the_authored_ray(
+        h in 1.0f64..4.0,
+        r in 0.1f64..0.6,
+    ) {
+        let lowered = Open
+            .at_on(p2(5.0, 0.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
+            .unwrap()
+            .fillet(r)
+            .unwrap()
+            .at_toward(p2(0.0, h), -1.0, 0.0)
+            .unwrap()
+            .line(3.0)
+            .unwrap()
+            .line_to(Start)
+            .unwrap();
+        let lowered = pinned(lowered);
+        // (5,0) the entry, t1 on the circle, t2 on the ray, (-3,h).
+        prop_assert_eq!(lowered.vertices.len(), 4);
+        let t2 = lowered.vertices[2].pos;
+        prop_assert!((t2.y - h).abs() < 1e-12, "t2 rides y = h: {:?}", t2);
+        prop_assert!(t2.x > 0.0, "the trim point is short of the anchor: {:?}", t2);
+        let far = lowered.vertices[3].pos;
+        prop_assert_eq!(far.x.to_bits(), (-3.0f64).to_bits());
+        prop_assert_eq!(far.y.to_bits(), h.to_bits());
+        validate_ok(&lowered);
+    }
+}

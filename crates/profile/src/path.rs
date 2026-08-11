@@ -1334,8 +1334,9 @@ impl<T: Decide> Core<T> {
         if pending.carrier.is_some() {
             return Err(PathError::ArcCarrierSpelling {
                 site: "a fillet departing on an arc carrier binds its arrival with \
-                       .at_on(p, centre, winding) or .to_on(Start, centre, winding) — a \
-                       straight-carrier arrival door cannot resolve it",
+                       .at_on(p, centre, winding), .at_toward(p, dx, dy) (a STRAIGHT \
+                       arrival — LB10 route 3) or .to_on(Start, centre, winding); the \
+                       generic straight-carrier arrival doors cannot resolve it",
             });
         }
         let band = linear_band()?;

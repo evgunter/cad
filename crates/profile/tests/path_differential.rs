@@ -805,3 +805,115 @@ fn the_advance_gate_discards_the_root_at_the_incoming_anchor() {
     // claim here is the geometric one, not a bit pattern.
     assert!(t1.y.abs() < 1e-15, "side 1 rides the ray y = 0: {t1:?}");
 }
+
+/// **LB10 route 3, the mandatory differential row**: a STRAIGHT arrival
+/// off an ARC departure, both ways.
+///
+/// The entry is bound ON the R = 5 circle at `(5, 0)`, the fillet opens
+/// against that carrier, and `.at_toward((0, 3), −1, 0)` binds the
+/// arrival's anchor and its exact director in one act. The corner is
+/// DERIVED as the ray × circle intersection and is exact here by
+/// construction — the line `y = 3` meets the circle at `(±4, 3)`, both
+/// representable — so the hand chain, which AUTHORS `(4, 3)`, is fed the
+/// same numbers and the two loops must agree to the bit.
+///
+/// The gates do the choosing, not a value comparison: the `(−4, 3)` root
+/// passes the advance gate (it is ahead of `(5, 0)` going CCW) and is
+/// discarded by the arrival side's REACH gate, since the anchor `(0, 3)`
+/// travelling west never came from it.
+#[test]
+fn straight_arrival_off_an_arc_departure_matches_loopbuilder_fillet_corner() {
+    let centre = p2(0.0, 0.0);
+    let r = 0.5;
+    let algebra = Open
+        .at_on(p2(5.0, 0.0), centre, ArcSweep::Ccw)
+        .unwrap()
+        .fillet(r)
+        .unwrap()
+        .at_toward(p2(0.0, 3.0), -1.0, 0.0)
+        .unwrap()
+        .line(3.0)
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    let algebra = pinned(algebra);
+    let hand = LoopBuilder::start(p2(5.0, 0.0))
+        .fillet_corner(
+            FilletLegShape::Arc {
+                center: centre,
+                sweep: ArcSweep::Ccw,
+            },
+            p2(4.0, 3.0),
+            FilletLegShape::Line,
+            p2(-3.0, 3.0),
+            r,
+            Tolerance::get(),
+        )
+        .unwrap()
+        .line_to(p2(-3.0, 3.0))
+        .close();
+    assert_loops_identical(&algebra, &hand);
+    assert_validate_identically(&algebra, &hand);
+}
+
+/// The route-3 door refuses the pair `path.rs` owns: a straight
+/// departure with a straight arrival never reaches the boundary module,
+/// and the refusal NAMES the generic doors rather than falling through
+/// to the two-straight-carriers backstop.
+#[test]
+fn at_toward_refuses_a_straight_departure() {
+    let err = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0)
+        .unwrap()
+        .fillet(0.5)
+        .unwrap()
+        .at_toward(p2(3.0, 3.0), 0.0, 1.0)
+        .unwrap_err();
+    assert!(
+        matches!(err, profile::PathError::ArcCarrierSpelling { site } if site.contains(".at(p).toward(dx, dy)")),
+        "the straight pair is path.rs's business: {err:?}"
+    );
+}
+
+/// A director naming no direction refuses exactly as `.toward` does —
+/// the door binds the same slot, so it inherits the same refusal, and
+/// it fires BEFORE any fillet resolution.
+#[test]
+fn at_toward_refuses_a_zero_director() {
+    let err = Open
+        .at_on(p2(5.0, 0.0), p2(0.0, 0.0), ArcSweep::Ccw)
+        .unwrap()
+        .fillet(0.5)
+        .unwrap()
+        .at_toward(p2(0.0, 3.0), 0.0, 0.0)
+        .unwrap_err();
+    assert!(
+        matches!(err, profile::PathError::ZeroDirection { .. }),
+        "a zero director names no arrival carrier: {err:?}"
+    );
+}
+
+/// A parallel arrival: the line `y = 6` misses the R = 5 circle, so the
+/// carriers admit no corner at all and the refusal is
+/// `CarriersDoNotMeet` — the §2b vocabulary, not a fit failure.
+#[test]
+fn at_toward_refuses_carriers_that_never_meet() {
+    let err = Open
+        .at_on(p2(5.0, 0.0), p2(0.0, 0.0), ArcSweep::Ccw)
+        .unwrap()
+        .fillet(0.5)
+        .unwrap()
+        .at_toward(p2(0.0, 6.0), -1.0, 0.0)
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            profile::PathError::NoCornerForFillet {
+                reason: profile::path::PathNoCornerReason::CarriersDoNotMeet,
+                ..
+            }
+        ),
+        "a ray clear of the circle names no corner: {err:?}"
+    );
+}
