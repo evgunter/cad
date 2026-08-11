@@ -27,3 +27,118 @@ anchor judgment has an in-suite falsifier that reds under the
 centroid mutation via a 1-ulp anchor assert). #303 filed
 register-class from the review's large-coordinate probing. A/B row
 recorded at merge. Next: M8-3 (quadrature) substrate → block M8-13.
+
+## M8-2 MERGED (#306, 2026-08-10)
+
+Rational carriers meter: the per-span quotient-rule bound survived
+the review's full adversarial battery with zero unsound cases
+(worst bound/truth 0.9987), the ruled deviation (arc-length
+contract, not injectivity) verified consumer-by-consumer, and the
+sweep-crate pin flipped to its positive statement. The crescent
+restoration is parked at the discovered mesh rational-Hessian bank
+(M8-5 by plan amendment). Meanwhile #309 (M8-3 PR-1) went
+NOT-MERGEABLE-AS-IS — the third of the project: the reviewer
+executed a REAL soundness hole (deriv_kv's silent Dir::Const
+fallback on interior multiplicity ≥ degree; certificate EXCLUDING
+true 2π), and proved the same hole latent in the INTEGRAL lane on
+main (16/3 vs true 20/3) — filed as #313; the fix pass heals both
+lanes and blocks PR-1's merge.
+
+## Render-in-Actions norm ratified (2026-08-10)
+
+Evan's hosted render lane (#323/#324) is live: the full fan-out ran
+green after #331 root-caused the hosted wedge (a FreeCAD
+NotificationArea self-deadlock — not the local stall class, and not
+the budget hypothesis this orchestrator floated first). Norm going
+forward per Evan: ALWAYS render in Actions; local renders demoted
+to preview-only. Also this seam: LIB's #332 hotfixed the new
+python-suite job (both open PRs re-merged onto the fix); the
+ASSEMBLY-DESIGN doc ratified (#333) with the A7 record-shape rider
+landing in #325's fix pass.
+
+## M8-5 MERGED (#322) + M8-3 PR-1 MERGED (#309) — the rational banks fall in sequence (2026-08-10)
+
+M8-5: both mesh gates open (Hessian + sagitta, quotient rule over
+the homogeneous nets); the review's one MAJOR was test-strength
+(the reviewer's 1500-patch sweep caught a cross-term mutation the
+suite missed — adopted, red/green). M8-3 PR-1: the rational
+patch-flux enclosure engine merged after its NOT-MERGEABLE →
+fix → delta-APPROVE arc (the #313 shared-lane heal rode it; the
+ε-posture rework made every new row three-outcome honest; final
+test-only commit orchestrator-adjudicated with CI ×3ε as the
+gate). The unit row lands at PR-2 (half 1, pcurve minting) per the
+ruled two-PR pattern — PR-2's finisher dispatches now; the
+arc-prism/arc-loft flip numbers re-measure against the POST-fix
+hulls (the pre-fix parked figures are stale by construction).
+
+## #317 instancing MERGED (#325, 2026-08-10) — dm1's third honest advance
+
+The instancing machinery is live (rep-graph composition, fresh-id
+materialization, graft_disjoint, the A7 record shape from the
+ratified ASSEMBLY-DESIGN) after the project's fourth
+NOT-MERGEABLE-AS-IS (nested outer transforms silently dropped —
+refuse→silently-wrong, caught by R1, answered with COMPOSE and
+three typed refusals, delta-verified against hand oracles). The
+honest headline: dm1 STILL refuses — the placement layer had
+masked two deeper ladder gaps; one (edge #668) closed in-unit, the
+other (edge #685, rational-quadratic rims) is #327, stage-1 CURVE
+recognition. The wild corpus honestly stays 9/13.
+
+## RESTING STATE (2026-08-11, usage-limit checkpoint — Evan's ask)
+
+**Merged this stretch**: M8-1 (#301), M8-2 (#306), M8-5 (#322),
+M8-C1/#317 instancing (#325), M8-3 PR-1 (#309, the #313 heal),
+RENDER-CLI (#338), REBASELINE (#354) — every row in MODEL-AB-LOG at
+merge. K-floor candidate RETIRED (verified). #274 closed per Evan.
+The hosted render lane is the canonical producer end-to-end.
+
+**IN FLIGHT at checkpoint** (agents die with the session; lanes
+survive pushed):
+
+- **M8-3 PR-2 (#353, head e35ad12c, 28/28 green)**: unit's last
+  half. Blinded review RUNNING in lane rw2-review — report at
+  cad-work/rw2-review-report.md is PARTIAL-HONEST (code-level
+  verification COMPLETE incl. the chart-map hand-derivation
+  CORRECT; provisional APPROVE-WITH-FIXES 0/2/3; execution rows
+  listed in the report with exact commands). Successor: finish the
+  execution rows per the report OR dispatch a fresh reviewer to
+  execute them; then fix pass (implementer died earlier — fresh
+  finisher), merge, record the M8-3 UNIT row (ordinal 17,
+  two-PR pattern, PR-1 already merged).
+- **#222 (#369, head 3bfdf886, checks green at dispatch)**: DUAL
+  reviewed (sample #8, ordinal 27, concurrent same-head): R1
+  APPROVE-WITH-FIXES 0/2/2, R2 APPROVE-WITH-FIXES 2/1/2 —
+  CONVERGED on shipped-coverage gaps (R2 demonstrated unsound
+  mutants surviving; calibration note: R1 rated the same gap MINOR
+  by inspection, R2 MAJOR by demonstration — variance-sample
+  material). Union fix pass DISPATCHED to the implementer (adopt
+  both probe branches kernel/lt-r1-probes + kernel/lt-r2-probes,
+  kill the four named mutants red/green). Successor: verify the
+  fix-pass push, then merge + row (fable, block M8-14 slot 0).
+  Follow-up #368 filed (≥π ReversedStacking).
+
+**QUEUED (ruled)**: #327 curve recognition (spec-ready — see task
+record + the substrate in this session's log; dispatch AFTER #353
+merges, opens block M8-14 slot 1 opus... correction: consumes the
+banked M8-14 opus remainder; Evan's inclusion-or-follow-up rule
+binds the spec); M8-4 iso-derive Intersection arm (scope TIGHTENED
+by #353: the mixed-prism and integral-twin classes collapsed onto
+this one named gap; banked M8-14 opus remainder); then the #214
+F6/F7 riders (last slate item) → the M8 EXIT WALK to Evan.
+
+**Counter state**: single... shared again (LIB successor + ASM).
+Fixed ordinals: M8-3@17, ASM-1@21 (merged), PYG23A (merged), #369
+@27 dual. SEL2 discrepancy noted in the log (records stand, no
+retroactive renumber). Count from the ledger entries above + the
+other programs' row-syncs at next dispatch.
+
+**Machine**: monitors armed (disk, hourly, away-channel with
+watchlist, usage-watch per-account); lanes long-turn + rw2-review
++ lt-r1 + lt-r2 live (clean the review lanes after their probe
+branches are confirmed pushed); the fd-inheritance lock leak +
+orphan-waiter + takeover-courtesy rules are in
+memories/agent-lane-operations.md. Render: hosted-only
+(scripts/render-hosted.sh; local override sentence required).
+
+**Evan-pending**: nothing except the eventual M8 walk. Q9
+DEFERRED (do not surface). The lily is Evan's canvas.
