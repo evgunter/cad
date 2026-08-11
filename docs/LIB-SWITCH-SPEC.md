@@ -39,7 +39,7 @@ silent fixes.
 ## 0. Discipline (absolute)
 
 ≤~150 lines per tool call; chunked reads; skeleton-first writes.
-Every heavy cargo row `scripts/with-build-slot.sh -- cargo ...`,
+Every heavy cargo row `local-scripts/with-build-slot.sh -- cargo ...`,
 synchronous FOREGROUND, long timeouts (≤590000), one at a time;
 NEVER background or park. Clippy at default AND
 `--features interval`, plus the discipline greps, BEFORE each PR.

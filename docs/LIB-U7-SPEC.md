@@ -13,7 +13,7 @@ it, don't re-survey. Deviations numbered and REPORTED.
 
 ≤~150 lines per tool call; chunked reads; skeleton-first writes;
 report ≤150 lines. Every heavy cargo row
-`scripts/with-build-slot.sh -- cargo ...`, synchronous FOREGROUND,
+`local-scripts/with-build-slot.sh -- cargo ...`, synchronous FOREGROUND,
 long timeouts (≤590000), one at a time; NEVER background or park.
 Clippy default AND `--features interval` + discipline greps BEFORE
 opening. Commit AND push per chunk. NO Co-Authored-By, no model

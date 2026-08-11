@@ -11,7 +11,7 @@ is the unrelated Rust vocabulary-growth unit — do not confuse them.
 ## 0. Discipline (absolute)
 
 ≤~150 lines per tool call; chunked reads; skeleton-first writes.
-Slot rules: `scripts/with-build-slot.sh -- cargo ...`;
+Slot rules: `local-scripts/with-build-slot.sh -- cargo ...`;
 `--express SECS` for ≤10-min rows; long rows default mutex,
 BLOCKING foreground waits (timeout 590000, re-issue after killing
 your own previous waiter; setsid+poll past the cap); NEVER park —

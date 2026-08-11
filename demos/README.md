@@ -33,8 +33,8 @@ run on a pushed branch renders all four lanes and gates them (ci.yml's
 exist as artifacts on that run. Take them:
 
 ```sh
-scripts/render-hosted.sh                        # install what CI rendered
-scripts/render-hosted.sh --lane uv              # one lane of it
+local-scripts/render-hosted.sh                        # install what CI rendered
+local-scripts/render-hosted.sh --lane uv              # one lane of it
 ```
 
 That is the default: it resolves your branch's newest CI run, downloads
@@ -43,7 +43,7 @@ review and commit it the ordinary way. It works on a **failed** CI run
 too — a stale committed lane is exactly what makes the gate fail, and
 that run's artifact is what makes it current. The failing row prints the
 exact command, pinned to its own run:
-`scripts/render-hosted.sh --run <id> --lane <lane>`.
+`local-scripts/render-hosted.sh --run <id> --lane <lane>`.
 
 **Render on demand only when CI has not covered it** — an unpushed
 branch, no CI run yet, or a deliberate re-render at a different scene
@@ -51,8 +51,8 @@ budget. Dispatching when CI has already rendered the same tree renders
 it twice, which is why it is the flag rather than the default:
 
 ```sh
-scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
-scripts/render-hosted.sh --run 31402416551      # take a specific run's artifacts
+local-scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
+local-scripts/render-hosted.sh --run 31402416551      # take a specific run's artifacts
 ```
 
 The local entry points below **refuse to run** without an explicit
@@ -78,7 +78,7 @@ cd ..
 CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift
 ```
 
-in the environment they print a pointer at `scripts/render-hosted.sh`
+in the environment they print a pointer at `local-scripts/render-hosted.sh`
 and **exit nonzero**.
 
 The value is a sentence on purpose. `1` / `yes` / `true` are what
@@ -282,7 +282,7 @@ the filesystem level, and one silently reached a committed montage cell
   file. Both `render.sh` lanes run it after the stamp strip and
   **before** composing the montage, so a sheet is never composed from an
   uncertified cell set; it is also an always-run row in
-  `scripts/ci-local.sh` and a step in ci.yml's `discipline` job (stdlib
+  `local-scripts/ci-local.sh` and a step in ci.yml's `discipline` job (stdlib
   only — no venv, no FreeCAD). The wild-corpus lane (`renders-wild/`)
   runs under the same guard with INVERTED per-lane rules — there
   matplotlib is the primary renderer, and cells must carry the wild
@@ -383,7 +383,7 @@ keeps the same shape (grid, captions, provenance banner via
 `compose_montage.py`) under its own title and banner.
 
 ```sh
-scripts/render-hosted.sh --lane wild   # the default path (hosted; installs renders-wild/)
+local-scripts/render-hosted.sh --lane wild   # the default path (hosted; installs renders-wild/)
 
 # preview only — see "Preview mode: the local override"
 cd demos/wild
@@ -749,15 +749,15 @@ over one pipeline**:
 * **on demand** (`workflow_dispatch`) — for a tree CI has not seen, or a
   re-render at a different scene budget.
 
-`scripts/render-hosted.sh` is the front end for both, and the thing to
+`local-scripts/render-hosted.sh` is the front end for both, and the thing to
 use:
 
 ```sh
-scripts/render-hosted.sh                        # install what CI already rendered
-scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
-scripts/render-hosted.sh --lane wild --verify   # + prove the pull is byte-exact
-scripts/render-hosted.sh --run <id>             # take a specific run, no re-render
-scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
+local-scripts/render-hosted.sh                        # install what CI already rendered
+local-scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
+local-scripts/render-hosted.sh --lane wild --verify   # + prove the pull is byte-exact
+local-scripts/render-hosted.sh --run <id>             # take a specific run, no re-render
+local-scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
 ```
 
 Taking is the default and rendering is the flag, because dispatching

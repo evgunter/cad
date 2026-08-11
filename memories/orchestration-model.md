@@ -70,7 +70,7 @@ git history and the M-logs):**
   kill ONLY YOUR OWN PANE — never the session (the successor lives
   in it), never the other orchestrator's session.
 - **Session start**: install + arm the scripted monitor suite —
-  `cp scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` from
+  `cp local-scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` from
   an up-to-date checkout, then arm each as a persistent Monitor
   from the INSTALLED copies (checkouts switch refs). The
   github-away-channel script bakes in both reaction endpoints
@@ -81,14 +81,19 @@ git history and the M-logs):**
   own threads, new-issue/PR events stay repo-wide. Arm as:
   `CAD_CHANNEL_SELF_TAG="(<ROLE> orchestrator)"
   CAD_CHANNEL_BRANCH_PREFIXES=<prefixes> bash .../github-away-channel.sh`.
-  **Branch-prefix registry (the convention is now an explicit
-  rule — name unit branches under your program's prefix):**
-  LIB = `lib/,mngr/cad-lib-plus`; ASM = `asm/,mngr/cad-assemblies`;
-  M8/kernel = `kernel/,mesh/,import/,infra/,demos/,m7/,mngr/cad-implement`
-  (the kernel program's lanes span all its subsystem prefixes —
-  the #396 registry correction; a bare `kernel/` misses e.g.
-  `import/curve-recognition`); adjust here if a
-  program's orchestrator branch differs. **Canonical summons
+  **Branch-prefix convention (an explicit rule, stated as the
+  CLEAN example — Evan, #396):** each program owns ONE short
+  prefix; every unit/lane branch goes under it and the
+  orchestrator branch is `<prefix>orchestrator`. For a program
+  with role tag `(FOO orchestrator)`: unit branches
+  `foo/<unit>`, orchestrator branch `foo/orchestrator`, armed
+  with `CAD_CHANNEL_BRANCH_PREFIXES=foo/` — one prefix, nothing
+  to enumerate. Programs whose live branches predate this
+  standardization arm with their actual prefix list (each
+  session records its own in its handoff; do not maintain a
+  central legacy registry here — it rots, as the seven-prefix
+  kernel-program entry demonstrated) and fold renames in at
+  natural seams; new programs use the clean shape from day one. **Canonical summons
   keywords (Evan)**: `@ orchestrators` reaches everyone;
   `@ lib` / `@ m8` / `@ asm` reach one (derived from the tag
   automatically — no ADDRESSES env needed normally). Two

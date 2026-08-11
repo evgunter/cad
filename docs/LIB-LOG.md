@@ -31,7 +31,7 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
    lands on main, the 10 GB / two-parallel-cargo-lanes ceiling is
    enforced by this log's slot line.
    **SUPERSEDED same night: PR #230 MERGED (2026-08-07 ~00:00)**
-   — `scripts/with-build-slot.sh`, machine-wide flock semaphore,
+   — `local-scripts/with-build-slot.sh`, machine-wide flock semaphore,
    WIDTH 1 (serial builds measured ~40% faster than 2-wide;
    PR #230 has the numbers). Both running implementers were
    messaged to wrap every cargo call in it; all future dispatch

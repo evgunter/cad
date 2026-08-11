@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Repo pre-push hook (activated by scripts/new-lane.sh via core.hooksPath):
+# Repo pre-push hook (activated by local-scripts/new-lane.sh via core.hooksPath):
 # every .rs file in the outgoing commits must be rustfmt-clean before a
 # push leaves the machine. ~9s of gate round-trip pain motivated it
 # (2026-08-03, PR #166).
@@ -43,7 +43,7 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
   else
     echo "pre-push: unbounded push range and no origin/main merge-base;" >&2
     echo "pre-push: falling back to full fmt-all --check (takes cargo lock)" >&2
-    exec bash "$root/scripts/fmt-all.sh" --check
+    exec bash "$root/local-scripts/fmt-all.sh" --check
   fi
 
   while IFS= read -r f; do
@@ -60,7 +60,7 @@ done
 
 if [ "$fail" -ne 0 ]; then
   echo "pre-push: unformatted .rs files in the outgoing commits (above)." >&2
-  echo "pre-push: fix with scripts/fmt-all.sh (or rustfmt --edition 2024" >&2
+  echo "pre-push: fix with local-scripts/fmt-all.sh (or rustfmt --edition 2024" >&2
   echo "pre-push: <files>), commit, and re-push. Do NOT --no-verify." >&2
   exit 1
 fi
