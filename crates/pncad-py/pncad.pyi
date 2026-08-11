@@ -17,14 +17,15 @@ ATTRIBUTES, never as prose to be parsed.
 Profile authoring is the PATHS lattice (`Open`, `PathOpen`,
 `PathPoint`, `PathDirectedPoint`, `PathAngle`, `PathDirected`,
 `Start`, `circle`, `circle_split`) plus the straight-segment shortcut
-`Node.polygon`; one loop, on a plane parallel to the world xy-plane.
+`Node.polygon`; one loop or a list of them, on any sketch plane.
 
 Deliberately ABSENT, and tracked as named gaps in
-`docs/guide/north-star-audit.md`: multi-loop profiles (holes), non-xy
-sketch planes, loft/sweep/tube, tessellation and STL, selectors and
-stable names, and contact declarations. Named document parameters
-crossed in R1-PARAMS (`ParamName`, `DocParam`,
-`DocEdit.set_doc_param` — guide §3.2).
+`docs/guide/north-star-audit.md`: sweep and tube, tessellation and
+STL, the pattern node with its structural-parameter edit, the
+SELECTOR language (a stable name can be materialized and carried,
+never composed or filtered by carrier kind), and the detect/declare
+protocol that would build the `Node.declare` `Node.boolean`'s
+`declare=` consumes.
 """
 
 from typing import Any, Final, Optional, overload
@@ -394,6 +395,15 @@ class SketchPlane:
         u: tuple[float, float, float],
         v: tuple[float, float, float],
     ) -> SketchPlane: ...
+    @property
+    def origin(self) -> tuple[Length, Length, Length]: ...
+    @property
+    def u(self) -> tuple[float, float, float]: ...
+    @property
+    def v(self) -> tuple[float, float, float]: ...
+    @property
+    def normal(self) -> tuple[float, float, float]: ...
+    def __hash__(self) -> int: ...
 
 class Node:
     """A recipe node, before insertion."""
@@ -404,9 +414,17 @@ class Node:
         elevation: Optional[Length] = None,
         plane: Optional[SketchPlane] = None,
     ) -> Node: ...
+    @overload
     @staticmethod
     def profile(
         outline: ClosedLoop,
+        elevation: Optional[Length] = None,
+        plane: Optional[SketchPlane] = None,
+    ) -> Node: ...
+    @overload
+    @staticmethod
+    def profile(
+        outline: list[ClosedLoop],
         elevation: Optional[Length] = None,
         plane: Optional[SketchPlane] = None,
     ) -> Node: ...
@@ -422,7 +440,42 @@ class Node:
         direction: tuple[float, float, float],
     ) -> Node: ...
     @staticmethod
-    def boolean(op: BooleanOp, a: NodeId, b: NodeId) -> Node: ...
+    def datum_plane(
+        origin: tuple[Length, Length, Length],
+        normal: tuple[float, float, float],
+    ) -> Node: ...
+    @staticmethod
+    def fillet(target: NodeId, radius: Length, selection: list[str]) -> Node:
+        """Constant-radius blends on named edges of `target`.
+
+        `selection` is edge names as TEXT — the strings
+        `Evaluation.all_edges` answers with. The set FREEZES at
+        authoring time; an empty one, an unresolvable name, or an edge
+        the roller cannot enter refuses typed at `evaluate`.
+        """
+
+    @staticmethod
+    def split(target: NodeId, tool: NodeId) -> Node:
+        """Split `target` by `tool` (a `datum_plane`). The value is a
+        split — read it with `Value.split()`, not `Value.body()`."""
+
+    @staticmethod
+    def transform(
+        input: NodeId,
+        translation: tuple[Length, Length, Length],
+        rotation_axis: tuple[float, float, float],
+        rotation_angle: Angle,
+    ) -> Node:
+        """A rigid placement: rotate about `rotation_axis` through the
+        WORLD ORIGIN by `rotation_angle`, then translate. A pure
+        translation passes any non-degenerate axis and a zero angle;
+        a zero-length axis refuses rather than meaning "no rotation".
+        """
+
+    @staticmethod
+    def boolean(
+        op: BooleanOp, a: NodeId, b: NodeId, declare: Optional[NodeId] = None
+    ) -> Node: ...
 
 class ParamName:
     """A document-level parameter name (guide §3.2). NOT an arena
@@ -448,6 +501,7 @@ class DocParam:
     def scalar(value: float) -> DocParam: ...
     @staticmethod
     def count(value: int) -> DocParam: ...
+    def __hash__(self) -> int: ...
 
 class DocEdit:
     """A single edit — the G1 edit vocabulary (§L3)."""
@@ -538,6 +592,14 @@ class Evaluation:
     def value(self, node: NodeId) -> Value: ...
     def succeeded(self, node: NodeId) -> bool: ...
     def order(self) -> list[NodeId]: ...
+    def all_edges(self, node: NodeId) -> list[str]:
+        """Every edge name of `node`'s output, as of THIS evaluation —
+        the strings `Node.fillet` selects with. A MATERIALIZER: store
+        what it answers, because a recipe holds no live selection."""
+
+    def all_faces(self, node: NodeId) -> list[str]: ...
+    def all_vertices(self, node: NodeId) -> list[str]: ...
+    def all_bodies(self, node: NodeId) -> list[str]: ...
     @property
     def recomputed(self) -> int: ...
     @property
