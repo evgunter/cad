@@ -713,3 +713,12 @@ Mixed units take the class of the part that carries the risk; if that is
 genuinely ambiguous, record `numeric`. Logged pre-draw for the same
 reason difficulty is: assigning it after the fact, from the review
 narrative, would let the label absorb the outcome.
+LBRET review ordinal fixed at dispatch (2026-08-11, PR #413 open,
+reviewed head = the 33/33-green fix head): claimed through 30
+(M8's #327 cross-model dual, #405) + 1 = **31 → SINGLE** (33 is
+the next third, taking the banked same-model twin per #405).
+Reviewer: fable (v4 — singles stay fable). LBRET's row will note
+task-class was not pre-logged (dispatched before the #409
+amendment); post-hoc it is a MIXED unit (numeric door + 
+structural banishment) which under the amendment's rule records
+as numeric — noted for the analysis as classified-post-hoc.
