@@ -40,9 +40,10 @@ use pncad::select as s;
 // ---------------------------------------------------------------
 // The enum vocabulary: fieldless mirrors of the kernel's own enums,
 // crossing one-way (Python constructs, Rust evaluates). Each mirror
-// carries a `from_kernel` in `growth_tripwire` below whose match is
-// EXHAUSTIVE with no wildcard arm, so a kernel variant this file does
-// not know stops the build instead of silently not crossing.
+// has a match in `growth_tripwire` (end of file) over the KERNEL
+// enum, EXHAUSTIVE with no wildcard arm, so a kernel variant this
+// file does not know stops the build instead of silently not
+// crossing.
 // ---------------------------------------------------------------
 
 /// Which entity kind a name denotes.
@@ -737,6 +738,131 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
         other => format!("selection refused: {other:?}"),
     };
     typed_err(py, ErrorClass::Select, message, &fields)
+}
+
+/// **Kernel-growth tripwires**: one function per mirrored enum,
+/// matching the KERNEL type with NO wildcard arm — so a kernel
+/// variant this file does not mirror stops the `python`-feature build
+/// here instead of silently never crossing. Never called; the
+/// exhaustiveness IS the assertion (the `SegTag::of` precedent,
+/// `editor-core/src/names/select.rs`).
+#[allow(
+    dead_code,
+    reason = "compile-time exhaustiveness tripwires; the match is the check, no caller needed"
+)]
+mod growth_tripwire {
+    use super::{
+        CapEnd, Cmp, CurveKind, EntityKind, KSurfaceKind, MeridianEnd, OpGroup, RimSupport,
+        SegTag, SideArg, SplitHalf, SurfaceKind, s,
+    };
+
+    fn entity_kind(k: s::EntityKind) -> EntityKind {
+        match k {
+            s::EntityKind::Body => EntityKind::Body,
+            s::EntityKind::Face => EntityKind::Face,
+            s::EntityKind::Edge => EntityKind::Edge,
+            s::EntityKind::Vertex => EntityKind::Vertex,
+        }
+    }
+
+    fn seg_tag(k: s::SegTag) -> SegTag {
+        match k {
+            s::SegTag::OutputBody => SegTag::OutputBody,
+            s::SegTag::Cap => SegTag::Cap,
+            s::SegTag::Lateral => SegTag::Lateral,
+            s::SegTag::RimEdge => SegTag::RimEdge,
+            s::SegTag::LateralEdge => SegTag::LateralEdge,
+            s::SegTag::CapVertex => SegTag::CapVertex,
+            s::SegTag::Band => SegTag::Band,
+            s::SegTag::BandRim => SegTag::BandRim,
+            s::SegTag::BandRimPi => SegTag::BandRimPi,
+            s::SegTag::BandPi => SegTag::BandPi,
+            s::SegTag::Meridian => SegTag::Meridian,
+            s::SegTag::MeridianVertex => SegTag::MeridianVertex,
+            s::SegTag::RevolveCap => SegTag::RevolveCap,
+            s::SegTag::Pole => SegTag::Pole,
+            s::SegTag::AxisEdge => SegTag::AxisEdge,
+            s::SegTag::FromA => SegTag::FromA,
+            s::SegTag::FromB => SegTag::FromB,
+            s::SegTag::Seam => SegTag::Seam,
+            s::SegTag::Merged => SegTag::Merged,
+            s::SegTag::Fragment => SegTag::Fragment,
+            s::SegTag::SplitBody => SegTag::SplitBody,
+            s::SegTag::SectionFace => SegTag::SectionFace,
+            s::SegTag::SectionEdge => SegTag::SectionEdge,
+            s::SegTag::SplitFragment => SegTag::SplitFragment,
+            s::SegTag::CrossingVertex => SegTag::CrossingVertex,
+            s::SegTag::OnToolVertex => SegTag::OnToolVertex,
+            s::SegTag::FromTarget => SegTag::FromTarget,
+            s::SegTag::BlendFace => SegTag::BlendFace,
+            s::SegTag::CornerFace => SegTag::CornerFace,
+            s::SegTag::TrimEdge => SegTag::TrimEdge,
+            s::SegTag::FootVertex => SegTag::FootVertex,
+            s::SegTag::CornerArc => SegTag::CornerArc,
+            s::SegTag::BandFace => SegTag::BandFace,
+            s::SegTag::BandTrim => SegTag::BandTrim,
+            s::SegTag::BandFoot => SegTag::BandFoot,
+            s::SegTag::BandCross => SegTag::BandCross,
+            s::SegTag::BandCut => SegTag::BandCut,
+            s::SegTag::BandSlit => SegTag::BandSlit,
+            s::SegTag::Instance => SegTag::Instance,
+        }
+    }
+
+    fn op_group(k: s::OpGroup) -> OpGroup {
+        match k {
+            s::OpGroup::Shared => OpGroup::Shared,
+            s::OpGroup::Extrude => OpGroup::Extrude,
+            s::OpGroup::Revolve => OpGroup::Revolve,
+            s::OpGroup::Boolean => OpGroup::Boolean,
+            s::OpGroup::Split => OpGroup::Split,
+            s::OpGroup::Fillet => OpGroup::Fillet,
+            s::OpGroup::Pattern => OpGroup::Pattern,
+        }
+    }
+
+    fn side(k: s::Side) -> SideArg {
+        match k {
+            s::Side::Cap(s::CapEnd::Top) => SideArg::Cap(CapEnd::Top),
+            s::Side::Cap(s::CapEnd::Bottom) => SideArg::Cap(CapEnd::Bottom),
+            s::Side::Meridian(s::MeridianEnd::Start) => SideArg::Meridian(MeridianEnd::Start),
+            s::Side::Meridian(s::MeridianEnd::End) => SideArg::Meridian(MeridianEnd::End),
+            s::Side::Meridian(s::MeridianEnd::Seam) => SideArg::Meridian(MeridianEnd::Seam),
+            s::Side::Meridian(s::MeridianEnd::Pi) => SideArg::Meridian(MeridianEnd::Pi),
+            s::Side::Split(s::SplitHalf::Above) => SideArg::Split(SplitHalf::Above),
+            s::Side::Split(s::SplitHalf::Below) => SideArg::Split(SplitHalf::Below),
+            s::Side::Rim(s::RimSupport::Plane) => SideArg::Rim(RimSupport::Plane),
+            s::Side::Rim(s::RimSupport::Curved) => SideArg::Rim(RimSupport::Curved),
+        }
+    }
+
+    fn curve_kind(k: s::CurveKind) -> CurveKind {
+        match k {
+            s::CurveKind::Line => CurveKind::Line,
+            s::CurveKind::Circle => CurveKind::Circle,
+            s::CurveKind::Ellipse => CurveKind::Ellipse,
+            s::CurveKind::Nurbs => CurveKind::Nurbs,
+        }
+    }
+
+    fn surface_kind(k: KSurfaceKind) -> SurfaceKind {
+        match k {
+            KSurfaceKind::Plane => SurfaceKind::Plane,
+            KSurfaceKind::Cylinder => SurfaceKind::Cylinder,
+            KSurfaceKind::Cone => SurfaceKind::Cone,
+            KSurfaceKind::Sphere => SurfaceKind::Sphere,
+            KSurfaceKind::Torus => SurfaceKind::Torus,
+            KSurfaceKind::Nurbs => SurfaceKind::Nurbs,
+        }
+    }
+
+    fn cmp(k: s::Cmp) -> Cmp {
+        match k {
+            s::Cmp::Approx => Cmp::Approx,
+            s::Cmp::Greater => Cmp::Greater,
+            s::Cmp::Less => Cmp::Less,
+        }
+    }
 }
 
 /// Register the selector surface on the module.
