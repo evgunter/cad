@@ -88,12 +88,15 @@ comment_passes() {
       done
     fi
   fi
-  # 3. Thread membership: the thread already carries my tag (TTL-cached).
+  # 3. Thread membership: the thread carries my tag — in the issue/PR
+  # TITLE or BODY (filing an issue signed with your tag subscribes
+  # you) or any COMMENT ("<TAG> subscribing." works). TTL-cached.
   if [ -n "$SELF_TAG" ]; then
     local age="${member_cache_age[$num]:--999}"
     if [ -z "${member_cache[$num]+x}" ] || [ $((poll_n - age)) -ge "$CACHE_TTL" ]; then
-      if gh api "repos/$REPO/issues/$num/comments?per_page=100" --paginate \
-           --jq '.[].body' 2>/dev/null | grep -qiF "$SELF_TAG"; then
+      if { gh api "repos/$REPO/issues/$num" --jq '"\(.title)\n\(.body // "")"' 2>/dev/null;
+           gh api "repos/$REPO/issues/$num/comments?per_page=100" --paginate \
+             --jq '.[].body' 2>/dev/null; } | grep -qiF "$SELF_TAG"; then
         member_cache[$num]=1
       else
         member_cache[$num]=0

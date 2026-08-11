@@ -93,7 +93,11 @@ git history and the M-logs):**
   your role tag — the tag IS the thread subscription; (ii) to
   watch a thread your filter doesn't match, post
   "(<ROLE> orchestrator) subscribing." on it — the tag in that
-  comment subscribes you from the next poll. Sign-off watchlist path:
+  comment subscribes you from the next poll; (iii) SIGN ISSUE
+  BODIES with your tag when filing — the membership check reads
+  title+body+comments, so a signed filing auto-subscribes you to
+  its thread (and makes authorship visible across the shared
+  account). Sign-off watchlist path:
   `~/.local/share/cad-work/signoff-watchlist-m7.txt` (per the
   sole-orchestrator wind-down). No usage-limit monitor (dropped,
   Evan 2026-07-23) — the stopping rule covers it.
