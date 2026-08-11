@@ -39,8 +39,8 @@ lane, 8 threads / 10 GB):
 
 | run | config | wall | target/ | sccache |
 |---|---|---|---|---|
-| A  | baseline, taken 02:22–03:32 | **4189 s** (69m23s) | — | — |
-| A' | baseline CONTROL, same window as C | **189 s** | 4.7 GB | — |
+| A  | baseline, 00:22:14–01:32:09 PDT | **4189 s** (69m23s) | — | — |
+| A' | baseline CONTROL, ~6.5 h later (08:00) | **189 s** | 4.7 GB | — |
 | C1 | mold + line-tables-only + sccache, cache empty | **186 s** | 1.5 GB | 21% hits |
 | C2 | same, cache warm (= what a NEW LANE costs) | **96 s** | 1.5 GB | 99.4% hits |
 

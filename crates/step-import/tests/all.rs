@@ -79,6 +79,8 @@ mod review_probes_m7_3;
 mod review_r1_tier_gate_probes;
 #[path = "roundtrip.rs"]
 mod roundtrip;
+#[path = "rw2_probes.rs"]
+mod rw2_probes;
 #[path = "tier_gate.rs"]
 mod tier_gate;
 #[path = "wild.rs"]
