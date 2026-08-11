@@ -469,6 +469,22 @@ fn wild_refusals_are_typed_and_name_their_class() {
             .err()
             .unwrap_or_else(|| panic!("{name}: this fixture must refuse"));
         let message = err.to_string();
+        // **dm1 is ε-SENSITIVE since #327** (`tier_gate.rs` pins all
+        // nine cells; this row states the same two-cell fact). At the
+        // fine ambient bands the frontier is the rational-flux stall
+        // the row records; at ambient 1e-6 the ladder stops earlier,
+        // on edge `#389` — a two-point `QUASI_UNIFORM_CURVE` polyline
+        // that stays NURBS and is offered zero candidates. That edge
+        // was masked behind #685 at every band until #327 retired
+        // #685, so the coarse cell is a pre-existing gap newly
+        // exposed. Both fragments are the SUB-REASON, never the
+        // shared preamble, so neither cell can go green on the other
+        // one's regression.
+        let class = if name.contains("dm1-id-214") && geom_core::Tolerance::get().eps > 1e-9 {
+            "edge #389: no intensional description certifies"
+        } else {
+            class
+        };
         assert!(
             message.contains(class),
             "{name}: refusal must name {class:?}, got: {message}"
