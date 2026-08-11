@@ -83,3 +83,62 @@ honest headline: dm1 STILL refuses — the placement layer had
 masked two deeper ladder gaps; one (edge #668) closed in-unit, the
 other (edge #685, rational-quadratic rims) is #327, stage-1 CURVE
 recognition. The wild corpus honestly stays 9/13.
+
+## RESTING STATE (2026-08-11, usage-limit checkpoint — Evan's ask)
+
+**Merged this stretch**: M8-1 (#301), M8-2 (#306), M8-5 (#322),
+M8-C1/#317 instancing (#325), M8-3 PR-1 (#309, the #313 heal),
+RENDER-CLI (#338), REBASELINE (#354) — every row in MODEL-AB-LOG at
+merge. K-floor candidate RETIRED (verified). #274 closed per Evan.
+The hosted render lane is the canonical producer end-to-end.
+
+**IN FLIGHT at checkpoint** (agents die with the session; lanes
+survive pushed):
+
+- **M8-3 PR-2 (#353, head e35ad12c, 28/28 green)**: unit's last
+  half. Blinded review RUNNING in lane rw2-review — report at
+  cad-work/rw2-review-report.md is PARTIAL-HONEST (code-level
+  verification COMPLETE incl. the chart-map hand-derivation
+  CORRECT; provisional APPROVE-WITH-FIXES 0/2/3; execution rows
+  listed in the report with exact commands). Successor: finish the
+  execution rows per the report OR dispatch a fresh reviewer to
+  execute them; then fix pass (implementer died earlier — fresh
+  finisher), merge, record the M8-3 UNIT row (ordinal 17,
+  two-PR pattern, PR-1 already merged).
+- **#222 (#369, head 3bfdf886, checks green at dispatch)**: DUAL
+  reviewed (sample #8, ordinal 27, concurrent same-head): R1
+  APPROVE-WITH-FIXES 0/2/2, R2 APPROVE-WITH-FIXES 2/1/2 —
+  CONVERGED on shipped-coverage gaps (R2 demonstrated unsound
+  mutants surviving; calibration note: R1 rated the same gap MINOR
+  by inspection, R2 MAJOR by demonstration — variance-sample
+  material). Union fix pass DISPATCHED to the implementer (adopt
+  both probe branches kernel/lt-r1-probes + kernel/lt-r2-probes,
+  kill the four named mutants red/green). Successor: verify the
+  fix-pass push, then merge + row (fable, block M8-14 slot 0).
+  Follow-up #368 filed (≥π ReversedStacking).
+
+**QUEUED (ruled)**: #327 curve recognition (spec-ready — see task
+record + the substrate in this session's log; dispatch AFTER #353
+merges, opens block M8-14 slot 1 opus... correction: consumes the
+banked M8-14 opus remainder; Evan's inclusion-or-follow-up rule
+binds the spec); M8-4 iso-derive Intersection arm (scope TIGHTENED
+by #353: the mixed-prism and integral-twin classes collapsed onto
+this one named gap; banked M8-14 opus remainder); then the #214
+F6/F7 riders (last slate item) → the M8 EXIT WALK to Evan.
+
+**Counter state**: single... shared again (LIB successor + ASM).
+Fixed ordinals: M8-3@17, ASM-1@21 (merged), PYG23A (merged), #369
+@27 dual. SEL2 discrepancy noted in the log (records stand, no
+retroactive renumber). Count from the ledger entries above + the
+other programs' row-syncs at next dispatch.
+
+**Machine**: monitors armed (disk, hourly, away-channel with
+watchlist, usage-watch per-account); lanes long-turn + rw2-review
++ lt-r1 + lt-r2 live (clean the review lanes after their probe
+branches are confirmed pushed); the fd-inheritance lock leak +
+orphan-waiter + takeover-courtesy rules are in
+memories/agent-lane-operations.md. Render: hosted-only
+(scripts/render-hosted.sh; local override sentence required).
+
+**Evan-pending**: nothing except the eventual M8 walk. Q9
+DEFERRED (do not surface). The lily is Evan's canvas.
