@@ -187,7 +187,7 @@ let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
 let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
     .expect("finite corners");
 
-let doc = Doc::<ProfileProgram>::empty();
+let doc = Doc::<ProfileProgram>::empty_derived("guide");
 let applied = apply(&doc, &DocEdit::InsertNode {
     node: Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![square] }),
 })?;

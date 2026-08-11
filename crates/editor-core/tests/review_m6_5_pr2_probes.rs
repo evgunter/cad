@@ -45,7 +45,7 @@ fn table_of(
 /// {Cap(Bottom), Cap(Top), Wall(0..3)}, all kind Face.
 #[test]
 fn p1_whole_body_supports_wrap_exactly_the_targets_face_names() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes");
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(fixture::desc(
@@ -147,7 +147,7 @@ fn p2_surgery_supports_wrap_names_the_target_table_carries() {
 #[test]
 fn p3_whole_body_totality_holds_for_a_triangular_prism() {
     use editor_core::resolve::{Resolution, RunCtx, resolve};
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes");
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(fixture::desc(

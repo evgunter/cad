@@ -5,7 +5,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
+use editor_core::{DocumentId, PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
 
 const V1: &str = include_str!("golden/v1_golden.cad");
 const V2: &str = include_str!("golden/v2_golden.cad");
@@ -108,7 +108,10 @@ fn review_v1_header_with_broken_body_is_too_old() {
 /// diagnostic (Parse), not a version arm.
 #[test]
 fn review_v2_header_with_broken_body_gets_the_body_diagnostic() {
-    let text = format!("schema: {SCHEMA_VERSION}\n{{\"snapshot\": [1,2,\n");
+    // The v5 header carries the id line; the probe's subject is the
+    // BODY diagnostic, so the header is well-formed.
+    let id = DocumentId::derive("review-broken-body");
+    let text = format!("schema: {SCHEMA_VERSION}\nid: {id}\n{{\"snapshot\": [1,2,\n");
     let text = text.as_str();
     let err = load(text).expect_err("must refuse");
     assert!(matches!(err, PersistError::Parse { .. }), "{err:?}");
@@ -143,7 +146,8 @@ fn review_a_hand_edited_v2_header_over_a_v1_body_refuses_since_v4() {
     // smuggles an old body: the parse door refuses the retired
     // `vertices` field. The edge this probe documented is CLOSED for
     // profile-bearing files, and the refusal is typed.
-    let text = format!("schema: {SCHEMA_VERSION}\n{}", body_of(V1));
+    let id = DocumentId::derive("review-hand-edited-header");
+    let text = format!("schema: {SCHEMA_VERSION}\nid: {id}\n{}", body_of(V1));
     match load(&text) {
         Err(PersistError::Parse { message, .. }) => assert!(
             message.contains("vertices"),

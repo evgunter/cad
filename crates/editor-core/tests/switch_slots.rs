@@ -17,7 +17,7 @@ use editor_core::{
 use profile::SketchPlane;
 
 fn circle_doc(r: f64) -> ProfileDoc {
-    ProfileDoc::empty()
+    ProfileDoc::empty_derived("switch_slots")
         .apply(&DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
                 plane: SketchPlane::xy(),
@@ -200,7 +200,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
 /// exist at rest.
 #[test]
 fn set_doc_param_never_refuses_for_downstream_profiles() {
-    let doc = ProfileDoc::empty()
+    let doc = ProfileDoc::empty_derived("switch_slots")
         .apply(&DocEdit::SetDocParam {
             name: ParamName::new("r"),
             value: DocParam::Continuous {
@@ -265,7 +265,7 @@ fn insert_node_checks_program_dimensions() {
             radius: Expr::literal(0.5, Dimension::Angle).unwrap(),
         }],
     };
-    match ProfileDoc::empty().apply(&DocEdit::InsertNode {
+    match ProfileDoc::empty_derived("switch_slots").apply(&DocEdit::InsertNode {
         node: Node::Profile(bad),
     }) {
         Err(EditError::SlotDimensionMismatch {

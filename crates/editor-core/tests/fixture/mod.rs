@@ -102,7 +102,7 @@ impl Recorder {
     /// A recorder over the empty document.
     pub fn new() -> Self {
         Self {
-            doc: ProfileDoc::empty(),
+            doc: ProfileDoc::empty_derived("mod"),
             edits: Vec::new(),
         }
     }

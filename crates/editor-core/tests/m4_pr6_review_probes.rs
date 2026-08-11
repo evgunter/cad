@@ -18,7 +18,7 @@ use editor_core::{
 use fixture::{desc, insert, len};
 
 fn small() -> (ProfileDoc, String) {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr6_review_probes");
     let (doc, p) = insert(
         doc,
         Node::Profile(desc(
@@ -59,7 +59,7 @@ fn small() -> (ProfileDoc, String) {
 /// the attack surface SHRANK to the placement.)
 #[test]
 fn attack_all_ones_nan_slips_save_door() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr6_review_probes");
     let mut d = desc(
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
@@ -237,7 +237,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
         )
     };
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("m4_pr6_review_probes");
     let mut edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let mut push = |doc: &mut ProfileDoc, e: DocEdit<ProfileProgram>| -> Option<RecipeNodeId> {
         let a = apply(doc, &e).unwrap_or_else(|err| panic!("edit {e:?} refused: {err:?}"));
@@ -464,7 +464,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     push(&mut doc, DocEdit::SetTolerance { eps: amb });
 
     // Round-trip as a FULL LOG from an empty snapshot.
-    let text = save(&ProfileDoc::empty(), &edits).expect("save log");
+    let text = save(&ProfileDoc::empty_derived("m4_pr6_review_probes"), &edits).expect("save log");
     let loaded = load(&text).expect("load log");
     assert_eq!(loaded.edits, edits, "edit log round-trip");
     assert!(loaded.doc.bit_eq(&doc), "replayed doc bit-identical");

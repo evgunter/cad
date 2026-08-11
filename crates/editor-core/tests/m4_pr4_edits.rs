@@ -61,7 +61,7 @@ struct Three {
 }
 
 fn three() -> Three {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr4_edits");
     let (doc, _, a) = block(doc, (0.0, 1.0), (0.0, 1.0));
     let (doc, _, b) = block(doc, (2.0, 3.0), (0.0, 1.0));
     let (doc, _, c) = block(doc, (4.0, 5.0), (0.0, 1.0));
@@ -235,7 +235,7 @@ fn datum(schema: u32, bytes: &[u8]) -> WitnessDatum {
 
 #[test]
 fn rewitness_stores_on_sketch_nodes_only_and_replays() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr4_edits");
     let (doc, profile, extrude) = block(doc, (0.0, 1.0), (0.0, 1.0));
     let w = datum(1, b"assignment-v1");
     let applied = doc
@@ -297,7 +297,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
 
 #[test]
 fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr4_edits");
     let (doc, p1, e1) = block(doc, (0.0, 1.0), (0.0, 1.0));
     let (doc, p2, _e2) = block(doc, (2.0, 3.0), (0.0, 1.0));
     let cert = BranchCertification {
@@ -342,7 +342,7 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
 
 #[test]
 fn witness_change_moves_the_content_key_and_reproduces_bits() {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr4_edits");
     let (doc, profile, extrude) = block(doc, (0.0, 1.0), (0.0, 1.0));
     let ev1 = run(&doc, None);
     let (doc2, _) = step(

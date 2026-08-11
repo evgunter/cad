@@ -22,6 +22,7 @@ pub mod doc;
 pub mod edit;
 pub mod eval;
 pub mod expr;
+pub mod ident;
 pub mod meta;
 pub mod names;
 pub mod node;
@@ -46,6 +47,7 @@ pub use eval::{
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
 };
+pub use ident::{ContentPin, DocRef, DocumentId};
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
     ALL_SURFACE_KINDS, CapEnd, Cmp, ContactClass, CurveKind, CurveKindSet, DeclareError,
@@ -60,7 +62,8 @@ pub use names::{
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId, StepArg};
 pub use parse::{ParseError, parse_expr};
 pub use persist::{
-    Loaded, MigrationStep, PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load, save,
+    Loaded, MigrationStep, PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, canonical_bytes,
+    content_pin, header_document_id, load, save,
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use program::{

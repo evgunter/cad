@@ -242,7 +242,7 @@ fn cancelation_returns_a_typed_partial_result() {
 fn disjoint_subtract_to_empty_is_a_typed_success() {
     use editor_core::{BooleanOp, Node};
     // A 1×1×1 cube inside a 3×3×3 cube: inner ∖ outer = ∅.
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr2_eval");
     let (doc, small_p) = fixture::insert(
         doc,
         Node::Profile(fixture::desc(
@@ -312,7 +312,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
 #[test]
 fn split_evaluates_both_parts_role_tagged() {
     use editor_core::{Datum, DatumValue, Node, SplitSide};
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr2_eval");
     let (doc, prof) = fixture::insert(
         doc,
         Node::Profile(fixture::desc(
