@@ -747,9 +747,14 @@ impl Plan {
 ///
 /// The spine is set up exactly as [`leaf`]'s: a circular arc of length
 /// `len` turning through `curl` toward `up`, sampled at `stations`
-/// exact points. Two live walls bound what this can be asked for, both
-/// pinned as probes 8 and 9: the tip may not close to a point, and the
-/// spine may not turn much past 2.5 radians.
+/// exact points. ONE live wall bounds what this can be asked for (the
+/// tip may not close to a point — a zero-width section is a
+/// degenerate segment). The OLD second wall — "the spine may not turn
+/// much past 2.5 radians", PR #316's measured `nurbs_span_meter`
+/// collapse at curl 3.0 — RETIRED with M8-14 (#222): the integral
+/// speed meter scans per span now, and
+/// `review_probes::the_spine_curl_wall_re_measured` pins leaf-A
+/// geometry building through a full turn of spine curl.
 fn lofted_blade<S: Scalar>(
     base: (f64, f64, f64),
     dir: (f64, f64, f64),
@@ -759,6 +764,24 @@ fn lofted_blade<S: Scalar>(
     plan: Plan,
     stations: usize,
 ) -> Body<S> {
+    try_lofted_blade(base, dir, up, len, curl, plan, stations)
+        .expect("the lofted blade skins its own sections")
+        .body
+}
+
+/// [`lofted_blade`] with the refusal surfaced instead of expected, so
+/// the curl-wall probe (M8-14, #222 — `review_probes::
+/// the_spine_curl_wall_re_measured`) can sweep the parameter and
+/// state the measured frontier rather than a remembered one.
+fn try_lofted_blade<S: Scalar>(
+    base: (f64, f64, f64),
+    dir: (f64, f64, f64),
+    up: (f64, f64, f64),
+    len: f64,
+    curl: f64,
+    plan: Plan,
+    stations: usize,
+) -> Result<pncad::sweep::Lofted<S>, pncad::sweep::LoftError> {
     let (d, v, u) = blade_frame(dir, up);
     let r = len / curl;
     let mut sections: Vec<Vec<ProfileLoop<f64>>> = Vec::with_capacity(stations);
@@ -805,8 +828,6 @@ fn lofted_blade<S: Scalar>(
         );
     }
     loft_body::<S>(&sections, &places, LEAF_V_DEGREE)
-        .expect("the lofted blade skins its own sections")
-        .body
 }
 
 /// The three **sepals**, the feature that reads as *pulchellus*
@@ -2329,5 +2350,38 @@ mod review_probes {
         let s = a.cross(b).dot(axis);
         let c = a.dot(b);
         s.atan2(c)
+    }
+
+    /// **The spine curl wall, RE-MEASURED (M8-14, #222).** PR #316's
+    /// probe table measured leaf-geometry lofts building through
+    /// curl 2.5 rad and refusing at 3.0 (`nurbs_span_meter`
+    /// `ParamSpan` escalation — the integral speed meter's single
+    /// global chord collapsing once a seam carrier turns far enough
+    /// from its own chord), and the demo prose stated "not much past
+    /// 2.5 radians" as a live wall. The per-span meter retires that
+    /// wall: this probe re-runs the sweep on leaf A's own geometry
+    /// (its base/dir/up/len/plan/stations, curl magnitude swept) and
+    /// pins the re-measured truth — every curl through a FULL TURN of
+    /// spine now builds. If a row refuses again, the wall is BACK:
+    /// re-derive this probe and the `lofted_blade` doc prose together.
+    #[test]
+    fn the_spine_curl_wall_re_measured() {
+        for curl in [0.45, 1.0, 2.0, 2.5, 2.8, 3.0, 3.5, 4.0, 4.7, 5.5, 6.0, 6.28] {
+            let out = try_lofted_blade::<f64>(
+                LEAF_A_BASE,
+                LEAF_A_DIR,
+                LEAF_A_UP,
+                LEAF_A_LEN,
+                -curl,
+                leaf_a_plan(),
+                LOFT_STATIONS,
+            );
+            assert!(
+                out.is_ok(),
+                "curl {curl} rad refused ({:?}) — the spine curl wall moved; \
+                 re-derive this probe and the lofted_blade prose",
+                out.err()
+            );
+        }
     }
 }

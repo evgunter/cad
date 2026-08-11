@@ -463,14 +463,18 @@ pub fn stops() -> Vec<Stop> {
     // the degree-3 interpolant through 33 exact points). A revolve's
     // spine is a planar circular arc; gluing revolves concatenates
     // planar arcs — nothing glued from revolves has a spine with
-    // nonzero torsion. MEASURED path-vocabulary context (montage-v2
-    // probe): full helix turns refuse typed today (ReversedStacking
-    // past ~half a turn of position stacking; the corner-path chord
-    // meter — nurbs_span_meter — collapses when the frame's roll
-    // makes a corner path double back), so the twisted cubic, whose
-    // tangent stays within a modest cone of its chord, is the
-    // strongest REACHABLE nonzero-torsion demonstration, and it is
-    // the mathematically definitive one.
+    // nonzero torsion. MEASURED path-vocabulary context, RE-MEASURED
+    // at M8-14 (#222): full helix turns BUILD AND CERTIFY now —
+    // half-turn, full-turn and two-turn helical sweeps pass the tier
+    // ladder against a Pappus A·L oracle (sweep's
+    // m8_14_long_turn_sweep suite). The montage-v2 refusal this
+    // paragraph used to record (the corner-path chord meter —
+    // nurbs_span_meter — collapsing when the frame's near-antipodal
+    // roll makes a corner path double back against its global chord)
+    // retired when the integral speed meter went per-span; the
+    // twisted cubic stays as THIS cell because it is the
+    // mathematically definitive nonzero-torsion demonstration, no
+    // longer merely the strongest reachable one.
     let (tc_a, tc_b, tc_c) = (2.2, 1.3, 1.5);
     let cubic_points: Vec<Point3<f64>> = (0..=32)
         .map(|k| {
