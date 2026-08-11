@@ -35,27 +35,40 @@ stays a deliberately separate vocabulary (substrate C3) — no
 unification, and a comment on each type names the other to keep
 them from drifting together.
 
-## D-3: canonical bytes — the semantic projection
+## D-3: canonical bytes — full replayed snapshot, two exclusions
 
-`canonical_bytes(doc)` serializes, with the existing deterministic
-machinery (BTreeMaps, pair-list keys, ryu floats), exactly the
-SEMANTIC projection of a replayed document:
+**(AMENDED per Evan's #345 comment, 2026-08-10: include-by-default
+replaces the earlier semantic projection.)** `canonical_bytes(doc)`
+serializes, with the existing deterministic machinery (BTreeMaps,
+pair-list keys, ryu floats), the REPLAYED document (log applied
+first, same discipline as `persist::save`) with exactly two
+exclusions, each structurally justified:
 
-- INCLUDED: nodes, order, structural + document params, recorded
-  ε (semantic — two docs differing only in ε are different
-  documents; this is what the A2 seam checks), witnesses (branch
-  selection is geometry), and — when ASM-ROOTS lands — the root
-  list.
-- EXCLUDED: the edit log (two edit histories reaching one
-  snapshot pin identically; undo history must not move pins),
-  metadata, appearance (A4: affordance metadata, never
-  semantics), and the `DocumentId` itself (the pin answers "which
-  version," the id answers "which part" — a retargeted id with
-  unchanged content keeps its pin).
+- the **edit log** — history is not state: two edit paths to one
+  snapshot are the same version, and undo must not move pins;
+- the **`DocumentId`** — A4: the id answers "which part," the pin
+  "which version"; a document copied under a fresh id is
+  detectably the same content.
 
-The projection replays the log first (same discipline as
-`persist::save`). Pin stability across no-op saves holds by
-construction.
+Everything else is INCLUDED — nodes, order, structural + document
+params, recorded ε, witnesses, metadata, appearance, and the root
+list when ASM-ROOTS lands. Rationale: include-by-default is
+evolution-safe — a future `Doc` field pins automatically instead
+of relying on someone remembering to classify it into a projection
+(a silent-omission trap); exclusions are explicit carve-outs made
+when a field demonstrably becomes a problem, rationale recorded
+then. Consequence stated honestly: an appearance-only edit moves
+the pin, so a consuming assembly sees an update whose
+re-verification passes trivially — accepted v1 noise; a future
+carve-out, if earned, rides a schema seam. Sharper consequence,
+same posture (R2 review of #364): an UNDONE INSERT moves the pin —
+delete does not decrement the monotone `next_id`, and the counter
+is document state in the include-by-default preimage. "Undo must
+not move pins" therefore holds exactly for value edits (whose
+inverses restore the full state); structural insert/delete pairs
+leave counter residue and pin as a new version. Accepted v1 noise
+on the same terms; a `next_id` carve-out, if earned, rides a
+schema seam.
 
 ## D-4: the wrapper
 
@@ -98,10 +111,11 @@ the concurrent program (report §9's five files).
 1. Pin determinism: same construction twice → equal pins.
 2. History independence: two DIFFERENT edit paths to one
    snapshot → equal pins; an undone edit → pin unchanged.
-3. Affordance exclusion: metadata/appearance edits → pin
-   unchanged; id retarget → pin unchanged.
-4. Semantic inclusion: a node edit, a param edit, an ε change,
-   a witness change → pin MOVES (each its own row).
+3. Exclusions: id retarget → pin unchanged (metadata/appearance
+   rows moved to row 4 by the D-3 amendment).
+4. Inclusion by default: a node edit, a param edit, an ε change,
+   a witness change, a metadata edit, an appearance edit → pin
+   MOVES (each its own row).
 5. id/pin separation: equal-content docs under two ids → equal
    pins, distinct ids.
 6. Duplicate-id workspace → typed refusal naming both paths.

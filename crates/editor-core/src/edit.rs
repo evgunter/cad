@@ -1203,11 +1203,13 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
         apply(self, edit)
     }
 
-    /// Replay an edit list from the EMPTY document (spec D7): the
-    /// result reproduces the edits' document BIT-IDENTICALLY (floats
-    /// are stored exactly; ids re-mint deterministically).
-    pub fn replay(edits: &[DocEdit<P>]) -> Result<Doc<P>, EditError> {
-        let mut doc = Doc::empty();
+    /// Replay an edit list from the EMPTY document under the given
+    /// identity (spec D7): the result reproduces the edits' document
+    /// BIT-IDENTICALLY (floats are stored exactly; ids re-mint
+    /// deterministically). The document id is supplied, not replayed:
+    /// identity is authored data the log never carries (ASM-1 D-1).
+    pub fn replay(id: crate::DocumentId, edits: &[DocEdit<P>]) -> Result<Doc<P>, EditError> {
+        let mut doc = Doc::empty(id);
         for edit in edits {
             doc = apply(&doc, edit)?.doc;
         }

@@ -39,3 +39,37 @@ until joined); the root gather IS A2's product and RESOLVES C1
 (shipped `Node::Pattern` semantics unchanged; the gather
 materializes `Instances`). New unit ASM-ROOTS slotted before
 ASM-2a. Next: ASM-1 binding spec.
+
+## Seam: ASM-1 dual review complete; fix pass in flight (2026-08-11)
+
+ASM-1 delivered as PR #364 (28/28 green pre-#366). Dual review
+(ordinal 21, sample #7, frozen head f04d08e8): R1 MERGEABLE 0/1/4
+rubric 5/5/4; R2 APPROVE-WITH-FIXES 0/3/4 rubric 5/4/3. CONVERGED
+on the one headline gap (doc-level metadata preimage inclusion has
+no falsifier) — verdict LABELS again differed on identical
+0-MAJOR substance (SWITCH-E precedent). Disjoint tails: R2 the
+replayed-pin discipline + the next_id/undone-insert consequence;
+R1 the skipped-replay assert + error-mapping cosmetics. Blinding
+caveat disclosed (R2 glimpsed R1 probe TOOLING via a shared
+scratchpad script — no findings/verdict read; recorded here for
+the row). Fix pass dispatched (implementer-inherited) on the
+5-item adjudicated union; NOT in scope: header-scan I/O, tour
+automation. The #366 CI
+billing outage opened and RESOLVED inside this seam (Evan restored
+the Actions budget); row records at merge. A11 revision
+awaiting sign-off on #356; A/B draw + ordinal entries in
+MODEL-AB-LOG.
+
+## ASM-1 MERGED (#364, 2026-08-11)
+
+Identity and pins are live: documents carry authored DocumentIds
+(derive/random split keeps the kernel deterministic), pins are
+SHA-256 over include-by-default canonical bytes (exclusions
+exactly {id, log}), schema v5 with the id header line refuses
+v4 typed, and pncad::workspace resolves DocRefs with typed
+DuplicateId/PinMismatch refusals. The dual review converged on
+one test-strength gap, now closed with executing falsifiers; the
+next_id/undone-insert consequence is recorded in D-3 with its
+documenting test. Row in MODEL-AB-LOG. Seam swept (asm-1 + both
+review lanes). Next: ASM-ROOTS spec (A10) — block ASM-1 slot 2,
+opus; A11 conversation continues on #356.

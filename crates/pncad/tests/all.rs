@@ -542,7 +542,7 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
 fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     // Every file of the façade's own source. A new module added here
     // without being listed is caught by the companion test below.
-    const SOURCES: [(&str, &str); 8] = [
+    const SOURCES: [(&str, &str); 9] = [
         ("lib.rs", include_str!("../src/lib.rs")),
         ("prelude.rs", include_str!("../src/prelude.rs")),
         ("select.rs", include_str!("../src/select.rs")),
@@ -551,6 +551,7 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
         ("closure.rs", include_str!("../src/closure.rs")),
         ("export.rs", include_str!("../src/export.rs")),
         ("guide.rs", include_str!("../src/guide.rs")),
+        ("workspace.rs", include_str!("../src/workspace.rs")),
     ];
     // Assembled at runtime: this file is itself scanned by the U1
     // guard, and a contiguous literal would be its own first match.
@@ -630,6 +631,7 @@ fn the_boundary_guard_scans_every_facade_source_file() {
         "closure.rs".to_string(),
         "export.rs".to_string(),
         "guide.rs".to_string(),
+        "workspace.rs".to_string(),
     ];
     listed.sort();
     assert_eq!(
@@ -700,7 +702,7 @@ fn doors_box_doc() -> (
 ) {
     use pncad::document::{Dimension, Expr, Node};
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
-    let doc = pncad::document::ProfileDoc::empty();
+    let doc = pncad::document::ProfileDoc::empty_derived("all");
     let (doc, profile) = doors_insert(doc, doors_square(2.0));
     let (doc, body) = doors_insert(
         doc,
@@ -719,6 +721,93 @@ fn doors_evaluate(doc: &pncad::document::ProfileDoc) -> pncad::document::Evaluat
         &pncad::document::CancelToken::new(),
         &pncad::document::EvalOptions::default(),
     )
+}
+
+/// The seam between the two authoring surfaces (LIB-PYG1 finding 1,
+/// adopted): a chain written in the PATHS algebra becomes a
+/// `ProfileProgram` node, in Rust, through one door.
+///
+/// Before `LoopProgram::from_recorded` existed, a Rust author holding
+/// a `ClosedLoop` had no way to make a document node out of it — the
+/// literal helpers take raw numbers, not a recorded program — so this
+/// contract had no test because it had no door.
+#[test]
+fn a_recorded_paths_chain_becomes_a_profile_program_node() {
+    use pncad::document::{Dimension, Expr, LoopProgram, Node, ProfileProgram};
+
+    // The guide's rounded outline: a 40 x 30 rectangle with one r = 6
+    // corner filleted away. `toward` binds the rays exactly.
+    let authored: ClosedLoop<f64> = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(40.0, 0.0))
+        .expect("a leg east")
+        .toward(0.0, 1.0)
+        .expect("north, exactly")
+        .fillet(6.0)
+        .expect("the corner rounds")
+        .toward(-1.0, 0.0)
+        .expect("west, exactly")
+        .to(p2(0.0, 30.0))
+        .expect("the arrival side ends at its far vertex")
+        .line_to(Start)
+        .expect("the seam closes");
+
+    let lifted = LoopProgram::from_recorded(&authored.program).expect("the recorded program lifts");
+
+    // Replaying the LIFTED program reproduces the AUTHORED loop bit
+    // for bit — the lift re-spells the verbs, it does not re-lower.
+    let steps = lifted
+        .resolve(&ParamEnv::<f64>::default(), 0)
+        .expect("literal arguments resolve");
+    let replayed = pncad::profile::replay(&steps).expect("the lifted program replays");
+    assert_eq!(replayed.vertices.len(), authored.loop_.vertices.len());
+    for (got, want) in replayed.vertices.iter().zip(&authored.loop_.vertices) {
+        assert_eq!(got.pos.x.to_bits(), want.pos.x.to_bits());
+        assert_eq!(got.pos.y.to_bits(), want.pos.y.to_bits());
+        assert_eq!(got.bulge.to_bits(), want.bulge.to_bits());
+    }
+
+    // And it evaluates as a document node.
+    let doc = pncad::document::ProfileDoc::empty_derived("all");
+    let (doc, profile) = doors_insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane: SketchPlane::xy(),
+            loops: vec![lifted],
+        }),
+    );
+    let (doc, body) = doors_insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: Expr::literal(8.0, Dimension::Length).expect("a finite thickness"),
+        },
+    );
+    let evaluated = doors_evaluate(&doc);
+    let volume = mass_properties(
+        match &evaluated.value(body).expect("the plate evaluated").payload {
+            ValuePayload::Body(b) => b,
+            other => panic!("expected a body, got {other:?}"),
+        },
+    )
+    .expect("mass properties")
+    .volume;
+    // 40 x 30, less what the r = 6 round takes off, times 8 thick.
+    let area = 40.0 * 30.0 - (36.0 - core::f64::consts::PI * 36.0 / 4.0);
+    assert!((volume - area * 8.0).abs() < 1e-9, "volume {volume}");
+
+    // The one-step complete-loop forms land in their own arms, never
+    // as a chain.
+    let disc = circle(p2(0.0, 0.0), 5.0).expect("a positive radius");
+    assert!(matches!(
+        LoopProgram::from_recorded(&disc.program).expect("the circle lifts"),
+        LoopProgram::Circle { .. }
+    ));
+    let boss = circle_split(p2(2.0, 2.0), 0.5, 3, 0.0).expect("three arcs");
+    assert!(matches!(
+        LoopProgram::from_recorded(&boss.program).expect("the split circle lifts"),
+        LoopProgram::CircleSplit { n: 3, .. }
+    ));
 }
 
 #[test]
@@ -879,7 +968,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
     };
 
-    let doc = pncad::document::ProfileDoc::empty();
+    let doc = pncad::document::ProfileDoc::empty_derived("all");
     let doc = apply(
         &doc,
         &DocEdit::SetDocParam {
@@ -945,7 +1034,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 
 /// R1-PARAMS: `plate_param` authors façade-only, evaluates to the
 /// corpus scene's analytic oracle, and its saved text is pinned as
-/// `tests/plate_param.v4.pncad` — the fixture the Python audit loads
+/// `tests/plate_param.v5.pncad` — the fixture the Python audit loads
 /// (`crates/pncad-py/tests/test_north_star.py`) to author the
 /// `set_doc_param` edit from Python. Python cannot yet author this
 /// profile from scratch (audit gaps G1/G9: circles, multi-loop), so
@@ -987,7 +1076,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
 
     let text = pncad::document::save(&doc, &[]).expect("the document saves");
     if std::env::var_os("PNCAD_BLESS").is_some() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v4.pncad");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v5.pncad");
         std::fs::write(path, &text).expect("the fixture writes");
         return; // freshly written; the next compile pins it
     }
@@ -1010,8 +1099,235 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     };
     assert_eq!(
         sans_epsilon(&text),
-        sans_epsilon(include_str!("plate_param.v4.pncad")),
+        sans_epsilon(include_str!("plate_param.v5.pncad")),
         "the saved plate_param text moved — regenerate the fixture with \
          `PNCAD_BLESS=1 cargo test -p pncad plate_param` (default env) and re-run"
     );
+}
+
+// ---- ASM-1: the workspace store (spec D-5; acceptance rows 6, 7) ----
+
+/// A fresh scratch directory for one workspace test, cleaned up on
+/// drop (best-effort — a leftover scratch dir must never fail a
+/// LATER run, so each name is process-unique).
+struct WsDir(std::path::PathBuf);
+
+impl WsDir {
+    fn new(tag: &str) -> Self {
+        let dir = std::env::temp_dir().join(format!("pncad-ws-{tag}-{}", std::process::id()));
+        // A stale same-name dir (crashed prior run of THIS pid-slot)
+        // would poison the scan; remove then create.
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("scratch dir creates");
+        Self(dir)
+    }
+    fn write(&self, name: &str, text: &str) -> std::path::PathBuf {
+        let path = self.0.join(name);
+        std::fs::write(&path, text).expect("fixture writes");
+        path
+    }
+}
+
+impl Drop for WsDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// A one-block document under the given derived-id label, saved.
+fn ws_doc(label: &str) -> (pncad::document::ProfileDoc, String) {
+    use pncad::document::{Expr, Node};
+    let doc = pncad::document::ProfileDoc::empty(pncad::document::DocumentId::derive(label));
+    let (doc, profile) = doors_insert(doc, doors_square(2.0));
+    let (doc, _) = doors_insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: Expr::literal(1.5, pncad::document::Dimension::Length).unwrap(),
+        },
+    );
+    let text = pncad::document::save(&doc, &[]).expect("the document saves");
+    (doc, text)
+}
+
+/// Open + resolve happy path: the scan maps ids to paths from the
+/// header line alone, and a true (id, pin) reference resolves to the
+/// replayed document.
+#[test]
+fn workspace_open_scans_headers_and_resolves_a_pinned_reference() {
+    let dir = WsDir::new("ok");
+    let (doc_a, text_a) = ws_doc("ws-part-a");
+    let (_doc_b, text_b) = ws_doc("ws-part-b");
+    dir.write("a.pncad", &text_a);
+    dir.write("b.pncad", &text_b);
+    // Non-documents are ignored by the scan.
+    dir.write("notes.txt", "not a document");
+
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    assert_eq!(ws.documents().len(), 2);
+    assert!(ws.documents().contains_key(&doc_a.id()));
+
+    let wanted = pncad::document::content_pin(&doc_a).expect("the pin computes");
+    let resolved = ws
+        .resolve(&pncad::document::DocRef {
+            id: doc_a.id(),
+            pin: wanted,
+        })
+        .expect("a true reference resolves");
+    assert!(
+        resolved.bit_eq(&doc_a),
+        "resolve hands back the replayed document"
+    );
+    // The id is data on the resolved value too.
+    assert_eq!(resolved.id(), doc_a.id());
+}
+
+/// Row 6 — duplicate id: two files claiming one id refuse the OPEN,
+/// typed, naming both paths.
+#[test]
+fn workspace_duplicate_id_refuses_naming_both_paths() {
+    let dir = WsDir::new("dup");
+    let (_, text) = ws_doc("ws-dup");
+    let p1 = dir.write("first.pncad", &text);
+    let p2 = dir.write("second.pncad", &text);
+
+    match pncad::workspace::Workspace::open(&dir.0) {
+        Err(pncad::workspace::WorkspaceError::DuplicateId { id, first, second }) => {
+            assert_eq!(id, pncad::document::DocumentId::derive("ws-dup"));
+            // The scan is path-sorted, so first/second are stable.
+            assert_eq!((first, second), (p1, p2));
+        }
+        other => panic!("duplicate ids must refuse DuplicateId, got {other:?}"),
+    }
+}
+
+/// Row 7 — pin mismatch at resolve: the document changed since the
+/// reference was pinned; typed refusal carrying BOTH pins and the
+/// accept-updated-version recourse.
+#[test]
+fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
+    use pncad::document::{Dimension, DocEdit, DocParam, ParamName};
+    let dir = WsDir::new("pin");
+    let (doc, text) = ws_doc("ws-pin");
+    let stale_pin = pncad::document::content_pin(&doc).expect("the pin computes");
+
+    // The referenced document moves on: a recorded semantic edit.
+    let edited = pncad::document::apply(
+        &doc,
+        &DocEdit::SetDocParam {
+            name: ParamName::new("depth"),
+            value: DocParam::Continuous {
+                dim: Dimension::Length,
+                value: 0.75,
+            },
+        },
+    )
+    .expect("the edit applies")
+    .doc;
+    let new_text = pncad::document::save(&edited, &[]).expect("the edited document saves");
+    dir.write("part.pncad", &new_text);
+    drop(text);
+
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let found_pin = pncad::document::content_pin(&edited).expect("the pin computes");
+    match ws.resolve(&pncad::document::DocRef {
+        id: doc.id(),
+        pin: stale_pin,
+    }) {
+        Err(pncad::workspace::WorkspaceError::PinMismatch {
+            id, wanted, found, ..
+        }) => {
+            assert_eq!(id, doc.id());
+            assert_eq!(wanted, stale_pin);
+            assert_eq!(found, found_pin);
+            let shown = pncad::workspace::WorkspaceError::PinMismatch {
+                id,
+                path: std::path::PathBuf::new(),
+                wanted,
+                found,
+            }
+            .to_string();
+            assert!(
+                shown.contains(pncad::workspace::PIN_MISMATCH_RECOURSE),
+                "{shown}"
+            );
+        }
+        other => panic!("a moved pin must refuse PinMismatch, got {other:?}"),
+    }
+
+    // An id the workspace has never seen refuses typed too.
+    match ws.resolve(&pncad::document::DocRef {
+        id: pncad::document::DocumentId::derive("ws-absent"),
+        pin: stale_pin,
+    }) {
+        Err(pncad::workspace::WorkspaceError::UnknownId { id }) => {
+            assert_eq!(id, pncad::document::DocumentId::derive("ws-absent"));
+        }
+        other => panic!("an unknown id must refuse UnknownId, got {other:?}"),
+    }
+}
+
+/// The interactive-authoring id constructor mints DISTINCT ids from
+/// OS randomness (document layer only — the kernel has no ambient
+/// randomness door).
+#[test]
+fn random_document_ids_are_distinct() {
+    let a = pncad::workspace::random_document_id().expect("OS randomness");
+    let b = pncad::workspace::random_document_id().expect("OS randomness");
+    assert_ne!(a, b, "128 random bits collide never in practice");
+}
+
+/// D-5's pin-the-REPLAYED-document discipline, falsified (R2
+/// MINOR-2): a workspace file saved WITH a non-empty edit log. The
+/// replayed state's pin resolves; the RAW snapshot's pin refuses
+/// PinMismatch — so a resolve that pinned `loaded.snapshot` instead
+/// of `loaded.doc` fails this row in both directions.
+#[test]
+fn workspace_resolve_pins_replayed_state_not_snapshot() {
+    use pncad::document::{Dimension, DocEdit, DocParam, ParamName};
+    let dir = WsDir::new("log");
+    let (origin, _) = ws_doc("ws-logged");
+    let edit = DocEdit::SetDocParam {
+        name: ParamName::new("depth"),
+        value: DocParam::Continuous {
+            dim: Dimension::Length,
+            value: 0.9,
+        },
+    };
+    // Save snapshot + ONE-edit log; the file's current state is the
+    // replayed result, and that is what a resolve must pin.
+    let text = pncad::document::save(&origin, std::slice::from_ref(&edit))
+        .expect("the logged document saves");
+    dir.write("logged.pncad", &text);
+    let replayed = pncad::document::apply(&origin, &edit)
+        .expect("the edit applies")
+        .doc;
+    let replayed_pin = pncad::document::content_pin(&replayed).expect("the pin computes");
+    let snapshot_pin = pncad::document::content_pin(&origin).expect("the pin computes");
+    assert_ne!(
+        replayed_pin, snapshot_pin,
+        "the log is semantic here, so the two pins must differ for this row to bite"
+    );
+
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let resolved = ws
+        .resolve(&pncad::document::DocRef {
+            id: origin.id(),
+            pin: replayed_pin,
+        })
+        .expect("the replayed state's pin is the one that resolves");
+    assert!(
+        resolved.bit_eq(&replayed),
+        "resolve hands back the replayed state"
+    );
+    match ws.resolve(&pncad::document::DocRef {
+        id: origin.id(),
+        pin: snapshot_pin,
+    }) {
+        Err(pncad::workspace::WorkspaceError::PinMismatch { wanted, found, .. }) => {
+            assert_eq!(wanted, snapshot_pin);
+            assert_eq!(found, replayed_pin);
+        }
+        other => panic!("the raw snapshot's pin must refuse PinMismatch, got {other:?}"),
+    }
 }

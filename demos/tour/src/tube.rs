@@ -4,7 +4,7 @@
 //!
 //! # Why this is a scene and not "another torus"
 //!
-//! The sheave's groove and the globe lily's three stem tubes already
+//! The sheave's groove and the fairy lantern's three stem tubes already
 //! put ring-torus walls on the montage — but both arrive by
 //! `revolve`, which reconstructs the tube radius from the profile's
 //! bulge arcs (the lily's stored `minor_radius` sits 3.9e-16 below

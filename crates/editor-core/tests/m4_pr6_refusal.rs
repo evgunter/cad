@@ -18,7 +18,7 @@ use fixture::{desc, insert, len};
 
 /// A small valid document (profile + extrude + witness) and its save.
 fn small() -> (ProfileDoc, String) {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr6_refusal");
     let (doc, p) = insert(
         doc,
         Node::Profile(desc(
@@ -307,14 +307,17 @@ fn program_structure_doors_refuse_typed_at_load() {
     // order, both refused by the shared validator on the parsed
     // document. Craft a valid file, then mutate the JSON body.
     let (doc, _) = insert(
-        ProfileDoc::empty(),
+        ProfileDoc::empty_derived("m4_pr6_refusal"),
         Node::Profile(editor_core::ProfileProgram {
             plane: profile::SketchPlane::xy(),
             loops: vec![editor_core::LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
         }),
     );
     let text = save(&doc, &[]).expect("save");
-    let (header, body) = text.split_once('\n').expect("header line");
+    // v5 headers are TWO lines (schema, id); split both off.
+    let (schema_line, rest) = text.split_once('\n').expect("schema line");
+    let (id_line, body) = rest.split_once('\n').expect("id line");
+    let header = format!("{schema_line}\n{id_line}");
     let mut v: serde_json::Value = serde_json::from_str(body).expect("body parses");
     // (a) Wrong-dimension role: retype the circle's centre-x literal
     // as an Angle. The Expr door accepts an Angle literal per se; the
@@ -338,7 +341,7 @@ fn program_structure_doors_refuse_typed_at_load() {
     // mid-air) — reachable only from a hand-edited file, refused by
     // the replay PROBE with the Transition class.
     let (doc2, _) = insert(
-        ProfileDoc::empty(),
+        ProfileDoc::empty_derived("m4_pr6_refusal"),
         Node::Profile(fixture::desc(
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
@@ -347,7 +350,9 @@ fn program_structure_doors_refuse_typed_at_load() {
         )),
     );
     let text2 = save(&doc2, &[]).expect("save");
-    let (header2, body2) = text2.split_once('\n').expect("header line");
+    let (schema_line2, rest2) = text2.split_once('\n').expect("schema line");
+    let (id_line2, body2) = rest2.split_once('\n').expect("id line");
+    let header2 = format!("{schema_line2}\n{id_line2}");
     let mut v2: serde_json::Value = serde_json::from_str(body2).expect("body parses");
     let steps = v2["snapshot"]["nodes"]["0"]["Profile"]["loops"][0]["Chain"]
         .as_array_mut()
@@ -397,7 +402,7 @@ fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
         loops: vec![LoopProgram::Chain(vec![ProgramStep::Tangent])],
     };
     match editor_core::apply(
-        &ProfileDoc::empty(),
+        &ProfileDoc::empty_derived("m4_pr6_refusal"),
         &DocEdit::InsertNode {
             node: Node::Profile(unclosed),
         },

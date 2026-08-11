@@ -21,7 +21,7 @@ use proptest::prelude::*;
 /// Round-trips one value through every float slot at once; returns
 /// the loaded document for slot-by-slot bit assertions.
 fn round_trip(value: f64) -> ProfileDoc {
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("m4_pr6_floats");
     let push = |d: &ProfileDoc, e| editor_core::apply(d, &e).expect("edit").doc;
     doc = push(
         &doc,
@@ -139,7 +139,7 @@ fn epsilon_round_trips_bit_exactly() {
     // ε is recorded in-document (D4); its bits survive save/load.
     // (The in-process reconcile door requires it to MATCH the
     // committed ambient ε, so the probe uses the ambient value.)
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr6_floats");
     let text = save(&doc, &[]).expect("save");
     let loaded = load(&text).expect("load");
     assert_bits("epsilon", doc.epsilon(), loaded.doc.epsilon());

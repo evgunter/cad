@@ -54,6 +54,9 @@ rayon = { workspace = true }
 # JSON writer/reader and the migration chain live in `persist`.
 serde = { workspace = true }
 serde_json = { workspace = true }
+# ASM-1 spec D-2: SHA-256 for content pins (`ContentPin`) — the
+# collision-resistant version identity of ASSEMBLY-DESIGN A4.
+sha2 = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

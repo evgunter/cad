@@ -86,11 +86,25 @@ pub use editor_core::{
     SnapshotError, load, save,
 };
 
+// Document identity and content pins (ASM-1; ASSEMBLY-DESIGN A4).
+// `DocumentId` answers "which part" (authored at construction —
+// `DocumentId::derive` for deterministic callers, this crate's
+// `workspace::random_document_id` for interactive authoring);
+// `ContentPin` answers "which version" (SHA-256 of the canonical
+// semantic bytes); `DocRef` pairs them — the value cross-document
+// references carry. `canonical_bytes`/`content_pin` are the pin
+// doors; `header_document_id` is the workspace scan's cheap header
+// read. The store itself lives in [`crate::workspace`].
+pub use editor_core::{
+    ContentPin, DocRef, DocumentId, canonical_bytes, content_pin, header_document_id,
+};
+
 // The content-hashing trait a scalar must satisfy to be evaluated
 // through the document layer (the memo currency's substrate).
 pub use editor_core::ContentBits;
 
 // The profile description node type and its document alias.
 pub use editor_core::{
-    LoopProgram, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, StepArg,
+    LoopProgram, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecordedProgramError,
+    StepArg,
 };

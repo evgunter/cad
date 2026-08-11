@@ -50,6 +50,9 @@ step-import = { path = "../step-import" }
 stl = { path = "../stl" }
 sweep = { path = "../sweep" }
 topo = { path = "../topo" }
+# ASM-1 spec D-1: OS randomness for `random_document_id` — interactive
+# authoring mints ids HERE, never inside the deterministic kernel.
+getrandom = { workspace = true }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra
 # test target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

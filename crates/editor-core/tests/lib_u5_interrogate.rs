@@ -35,7 +35,7 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
 /// A unit box as an extruded square, and its extrude node.
 fn box_doc() -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = fixture::insert(
-        ProfileDoc::empty(),
+        ProfileDoc::empty_derived("lib_u5_interrogate"),
         Node::Profile(fixture::desc(
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],

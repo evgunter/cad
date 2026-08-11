@@ -43,7 +43,7 @@ fn block(
 /// The corpus: an overlapping union, a through-slot subtract, and a
 /// plane split — all dyadic.
 fn corpus() -> ProfileDoc {
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_interval");
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, decl_u) = declare_x_offset_flush(doc, a, b);

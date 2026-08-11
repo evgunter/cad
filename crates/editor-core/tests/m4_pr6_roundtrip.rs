@@ -64,7 +64,7 @@ fn files() -> Vec<Fixture> {
     for d in documents() {
         out.push((
             format!("{}_log", d.name),
-            ProfileDoc::empty(),
+            ProfileDoc::empty_derived("m4_pr6_roundtrip"),
             d.edits.clone(),
             true,
         ));
