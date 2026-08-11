@@ -586,4 +586,23 @@ ASM-1 review dispatch (2026-08-10): dispatch-time ordinal = 20
 merged blinded rows on main (PYG1 = 20; #353 open) + 1 = 21 →
 DUAL (sample #7). R1+R2 concurrent on frozen head f04d08e82206
 per the same-head amendment; both Fable per protocol.
+Block LIB-8 note (2026-08-10): PYG23A rode the LIB-7 slot 3 banked
+opus remainder — LIB-7 is now fully consumed (fable, opus, opus =
+R1-PARAMS, PYG1, PYG23A). Next LIB implementation dispatch draws
+block LIB-8 fresh.
+PYG23A review ordinal fixed at dispatch (2026-08-10, PR #365 open,
+reviewed head 6dc9ec1d): merged blinded-lane rows on main = 20;
+ASM-1's concurrently-dispatched dual had already claimed 21
+(wall-clock dispatch order — its R1/R2 lanes were live before this
+dispatch). **PYG23A = ordinal 22, single.** Tiebreak recorded as
+precedent: when two units' reviews dispatch between the same pair
+of merges, dispatch wall-clock order allocates consecutive
+ordinals — the count-merged rule alone would double-assign, and
+claim-order keeps the every-3rd sampling deterministic and
+arm-independent.
+| PYG23A | 2026-08-11 | audit G3 + G2's loft half: SketchPlane::yz()/zx() additive + Python plane values, plane= on both profile doors, Node.loft (Expr::count), 7 audit rows flipped w/ exact oracles, ty fixtures +3, guide blocks | M (spec-sized, logged pre-dispatch) | OPUS (block LIB-7 slot 3, banked — LIB-7 consumed) | single (ordinal 22, reviewed head 6dc9ec1d; the concurrent-dispatch tiebreak entry above) — APPROVE 0/1/4, rubric 5/4/4 (all six oracles independently re-derived — silhouettes by exact integer grid-count, nonuniform's t from chord geometry, loft 9 analytically; finding 1 CONFIRMED genuine: wire_loft drops section_params, no Section/Affine3 vocabulary; zero-new-test-binaries verified; MINOR = PR-body "12 marked lines" vs 13 in-file; NOTE-2 = the V=8+16d/3 derivation typo, PRE-EXISTING in skinned.rs and copied faithfully — value 9 correct; NOTE-3 = "asserted" oversold a by-construction sharing) | 0 silent substantive (9 reported findings all verified genuine) | 5 | 4 | 4 | tiny, text-level (count 13; the derivation typo fixed at FIVE sites — the review named 3, repo-grep found demos/README + the corpus twin; sharing reworded by-construction; touched rows re-run 95 OK); executor: implementer-inherited | MERGED #365 (one interval shard red in the #366 billing-outage window, green on re-run — not a code failure); G3 CLOSED + G2's loft half: authorable 11→18, NO 16, suite 83→95; findings feed: loft read-back residue (row 14), origin-less named planes, SketchPlane eq/accessors rider, Count-exception doc note | impl ~135k + ~55k surveys / review ~126k / fix ~15k | impl ~4.8h wall (verification slot-contended, annotated) / review ~3.0h / fix ~0.3h |
+Block LIB-8 draw (2026-08-11): byte 10 (<252, accepted) → fable
+position 1 → (opus, fable, opus). Slot 1 = PYBUNDLE
+(G4/G6/G7/G9 + riders, docs/LIB-PYBUNDLE-SPEC.md), difficulty
+logged pre-dispatch: M. Slots 2 (fable) and 3 (opus) bank.
 | ASM-1 | 2026-08-11 | document identity + content pins: DocumentId/ContentPin/DocRef, include-by-default canonical bytes (D-3 amended mid-flight #348), schema v5 clean break + id header line, read-side workspace store with typed DuplicateId/PinMismatch, mechanical-only Python surface | M (logged pre-draw) | fable (block ASM-1 slot 1) | **DUAL (sample #7, ordinal 21, frozen head f04d08e8)** — R1 MERGEABLE 0/1/4 rubric 5/5/4; R2 APPROVE-WITH-FIXES 0/3/4 rubric 5/4/3. CONVERGED on the one headline gap (doc-metadata preimage inclusion unfalsified) — verdict LABELS differed on identical 0-MAJOR substance (calibration data, SWITCH-E precedent). Disjoint tails: R2 replayed-pin discipline + next_id/undone-insert consequence; R1 skipped-replay assert + Pin error-mapping. Blinding caveat disclosed: R2 glimpsed R1 probe TOOLING (shared-scratchpad script investigation; no findings read) | 0 silent (5 deviations reported in the PR incl. the cross-crate ctor relocation + header-agreement completion) | 5/5 | 5/4 | 4/3 | moderate (all 5 union items: crafted-save metadata falsifier, logged-fixture replayed-pin falsifier both-directions, next_id consequence into spec D-3 + documenting test, skipped-replay assert, WorkspaceError::Pin arm); executor: implementer-inherited | MERGED #364 28/28 (spanning the #366 billing outage); PINS EXIST: id answers which-part, pin answers which-version, the workspace resolves and refuses typed | impl ~275k + fix ~266k / R1 ~155k / R2 ~166k+2 lost-wake resumes | impl ~5.9h / R1 ~7.3h / R2 wake-fragmented, annotated |
