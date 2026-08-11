@@ -402,7 +402,7 @@ fn row4_set_placement_moves_undoes_and_refuses() {
 
     let before = run(&doc, &opts);
     let before_body = product(&doc, &before).expect("gathers");
-    assert_eq!(doc.placement(ids[0]).is_identity_bits(), true);
+    assert!(doc.placement(ids[0]).is_identity_bits());
 
     let (moved, _) = step(
         doc.clone(),
