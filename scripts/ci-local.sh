@@ -149,11 +149,18 @@ run_row_if() {
   fi
 }
 
-# --- discipline (evaluation-code): the three tripwire greps, verbatim ---
+# --- discipline (evaluation-code): the tripwire greps, verbatim ---
 discipline() {
   local rc=0
   if grep -rnE '\bReal\s*\+' crates/*/src; then
     echo "ERROR: found 'Real +' bound(s) above — evaluation-code discipline forbids extra bounds on scalar type parameters"
+    rc=1
+  fi
+  # Test-aggregation discipline: one [[test]] target per crate. Mirrors
+  # ci.yml's step of the same name, calling the SAME script — see its
+  # header for why this is a gate (per-test-binary codegen+link was 96%
+  # of the build job, measured) and how #179 missed step-import.
+  if ! scripts/check-test-aggregation.sh; then
     rc=1
   fi
   # Compound Bounds allowlist (ratified 2026-07-29; geom-core real.rs
