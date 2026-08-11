@@ -316,6 +316,17 @@ jobs:
             echo "::error::found 'Real +' bound(s) above — evaluation-code discipline forbids extra bounds on scalar type parameters"
             exit 1
           fi
+      # Test-aggregation discipline: one [[test]] target per crate. Each
+      # extra one is a full codegen+link of the ~40-rlib graph — 96% of
+      # this workflow's build job, measured (bazel-verdict report). #179
+      # collapsed 249 targets to 12 on that evidence and MISSED
+      # step-import, which silently kept 26 (two thirds of every remaining
+      # test target in the workspace) until the 2026-08-10 build-contention
+      # investigation found it. The complementary per-crate
+      # `every_suite_file_is_aggregated` test cannot fire for a crate that
+      # never opted in — that is the hole this closes.
+      - name: test-aggregation discipline
+        run: scripts/check-test-aggregation.sh
       # Bit-identity coincidence checking is RETIRED from production
       # (M4 PR 5, NAMING-DESIGN N6; DESIGN.md roadmap; Evan, #53): the
       # declared rung is GeomSource lookup, and the production-consumer
