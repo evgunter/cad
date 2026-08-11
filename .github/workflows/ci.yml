@@ -1051,11 +1051,41 @@ jobs:
       # row is a sanctioned automated render — renderer-free, and the
       # `git diff --exit-code` below is what makes drift a failure rather
       # than a commit.
+      # THE TOUR'S OUTPUT, ON RENDER.YML'S KEY. The `cargo run --release`
+      # below is the only RELEASE build of demos/tour in this job — the
+      # k-probe sweep further down is a debug run, a different artifact
+      # set — and it exists solely to regenerate demos/out for the
+      # sheet. Measured at 107 s on run 31511197721, nearly all of it
+      # compile. render.yml's tour job caches exactly this directory on
+      # exactly this key, so the two share one entry.
+      #
+      # IT DOES NOT WEAKEN THE DRIFT GATE. The key hashes every source
+      # the tour reads, so a hit means the tour cannot have produced
+      # different bytes than the cached ones; a tour that CHANGED misses
+      # and rebuilds, which is the only case this row exists to catch.
+      #
+      # KEEP THE KEY IDENTICAL to render.yml's `tour output cache` —
+      # including the `v1`, which is the handle for busting both at
+      # once. Divergence costs a miss, never a wrong hit: a different
+      # pattern list yields a different key, and a different key just
+      # rebuilds.
+      - name: tour output cache
+        id: tour-cache
+        uses: actions/cache@v4
+        with:
+          path: demos/out
+          key: tour-out-v1-${{ hashFiles('crates/**', 'demos/tour/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
+
       - name: uv sheet drift (demos)
         env:
           CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
+          TOUR_CACHED: ${{ steps.tour-cache.outputs.cache-hit }}
         run: |
-          (cd demos/tour && cargo run --release -- ../out)
+          if [ "$TOUR_CACHED" = "true" ]; then
+            echo "demos/out restored from cache — the tour's sources are unchanged, so its output is too"
+          else
+            (cd demos/tour && cargo run --release -- ../out)
+          fi
           demos/render-uv.sh
           git diff --exit-code --stat HEAD -- demos/renders-uv/ || {
             echo "::error::demos/renders-uv/montage-uv.svg is stale — \
@@ -1087,10 +1117,13 @@ jobs:
   # anything builds at all" is the right trigger for it too.
   #
   # A FAILING ROW HANDS OVER ITS OWN FIX: each lane uploads its render
-  # to THIS run and names the `gh run download` that installs it, so a
-  # stale lane costs a download and a commit, never a second render.
-  # `render_jobs: 2` matches the runner's core count — measured
-  # byte-identical to sequential, at ~20% less wall clock.
+  # to THIS run and names the command that installs it, so a stale lane
+  # costs a download and a commit, never a second render.
+  #
+  # Scene concurrency is left to render.yml's own default (2, the
+  # runner's core count) rather than restated here: this job renders the
+  # canonical frames, so it must not be the place a second opinion about
+  # how they are produced can creep in.
   renders:
     name: render lanes
     needs: filter
@@ -1099,4 +1132,3 @@ jobs:
     with:
       gate: true
       lanes: all
-      render_jobs: "2"

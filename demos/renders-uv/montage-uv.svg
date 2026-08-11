@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1556" height="3840" viewBox="0 0 1556 3840">
+<svg xmlns="http://www.w3.org/2000/svg" width="1557" height="3840" viewBox="0 0 1556 3840">
 <rect x="0" y="0" width="1556" height="3840" fill="#ffffff"/>
 <text x="18" y="40" font-family="sans-serif" font-size="19" font-weight="bold" fill="#111">UV trim loops — a face is a bounded patch of an UNBOUNDED surface; this is that boundary, drawn in the surface’s own chart</text>
 <text x="18" y="59" font-family="sans-serif" font-size="12" fill="#555">Kernel-only lane: no camera, no projection, no silhouettes, no external renderer. Compare renders/montage.png (our tessellation) and renders-freecad/montage-freecad.png (OCC’s).</text>
