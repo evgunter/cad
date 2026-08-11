@@ -176,11 +176,11 @@ low_faces: list[str] = ev.select_where(
 
 # §2b route 3: a STRAIGHT arrival off a departure bound on an arc
 # carrier — anchor and exact director in one act.
-blended = (
+carrier_corner = (
     Open.at_on((5 * m, 0 * m), (0 * m, 0 * m), ArcSweep.Ccw)
     .fillet(0.5 * m)
     .at_toward((0 * m, 3 * m), -1.0, 0.0)
     .line(3 * m)
     .line_to(Start)
 )
-blended_vertices: int = blended.vertex_count
+carrier_corner_vertices: int = carrier_corner.vertex_count
