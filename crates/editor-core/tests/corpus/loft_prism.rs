@@ -20,12 +20,13 @@
 //! slice is a trapezoid of area `4 + 2dλ`, so
 //!
 //! ```text
-//! V = ∫₀² A dz = 2·∫₀¹ (4 + 2d·4v(1−v)) dv = 8 + 8d·(2/3)·? …
-//!   = 8 + 4d·(2/3)·2 = 8 + 16d/3 = 8 + 2 = 9 m³ exactly.
+//! V = ∫₀² A dz = 2·∫₀¹ (4 + 2d·4v(1−v)) dv
+//!   = 2·(4 + 8d·∫₀¹ v(1−v) dv) = 2·(4 + 8d/6) = 8 + 8d/3
+//!   = 8 + 1 = 9 m³ exactly (d = 0.375).
 //! ```
 //!
-//! (Check: ∫₀¹ λ dv = 4(1/2 − 1/3) = 2/3; V = 2(4 + 2d·2/3)
-//! = 8 + 8d/3·… — with d = 0.375: 8·0.375/3 = 1. V = 9.)
+//! (Check: ∫₀¹ λ dv = 4(1/2 − 1/3) = 2/3, so V = 2(4 + 2d·2/3)
+//! = 8 + 8d/3 — with d = 0.375: 8·0.375/3 = 1. V = 9.)
 //!
 //! The corpus `pin` stays `None` — pins assert EXACT f64 equality and
 //! a quadrature midpoint is an enclosure, not a closed form. The

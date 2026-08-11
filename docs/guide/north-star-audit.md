@@ -198,9 +198,11 @@ assert abs(body.mass_properties().volume - 8.505859375) < 1e-12
 ```
 
 Rows 24–26 are the same body as row 23 seen down a different axis, so
-they flip together and the Python row asserts the sharing rather than
-rebuilding three solids — exactly what the Rust scene does with
-`three.body.clone()`.
+they flip together and the Python rows read one node three times
+rather than rebuilding three solids — exactly what the Rust scene does
+with `three.body.clone()`. The sharing is true BY CONSTRUCTION, not by
+a discriminating assertion: there is no body-identity surface in
+Python that could make it one.
 
 `loft_prism` and `nonuniform_loft` are the minimal pair: the same
 three sections and the same v-degree, differing only in where the

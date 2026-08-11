@@ -388,7 +388,7 @@ prism = doc.insert(Node.loft(sections, 2))
 # The degree-2 skin through sections at (0, 1/2, 1) is the quadratic
 # Lagrange interpolant: corner paths S + 4v(1-v)*D, z = 2v exactly,
 # each slice a trapezoid of area 4 + 2*d*4v(1-v) with d = 0.375, so
-# V = 8 + 16d/3 = 9 m^3 exactly. Mass properties are an ENCLOSURE, so
+# V = 8 + 8d/3 = 9 m^3 exactly. Mass properties are an ENCLOSURE, so
 # the check is that 9 lies inside the certified pad.
 props = evaluate(doc).value(prism).body().mass_properties()
 assert abs(props.volume - 9.0) <= props.volume_pad + 1e-9

@@ -435,7 +435,7 @@ class TestLoftPrism(unittest.TestCase):
         # sections at (0, 1/2, 1) is the quadratic Lagrange
         # interpolant, corner paths S + lambda(v)*D with
         # lambda = 4v(1-v), z = 2v exactly, each slice a trapezoid of
-        # area 4 + 2*d*lambda (d = 0.375) -> V = 8 + 16d/3 = 9 exactly.
+        # area 4 + 2*d*lambda (d = 0.375) -> V = 8 + 8d/3 = 9 exactly.
         doc = Doc()
         prism = prism_loft(doc, [0.0, 1.0, 2.0])
 
@@ -574,8 +574,9 @@ class TestSilhouette(unittest.TestCase):
     ROW SHARING, mirrored honestly: the three shadow stops are the
     SAME body as `silhouette3` viewed down a different axis
     (`three.body.clone()` in the Rust), so they are one construction
-    here too — `test_the_shadow_rows_are_the_same_body` is what makes
-    that sharing a checked claim rather than a footnote."""
+    here too. The sharing is true BY CONSTRUCTION — one node id, read
+    three times — not by a discriminating assertion; there is no body
+    identity surface in Python that could make it one."""
 
     def test_silhouette_matches_the_scene_oracle(self):
         doc = Doc()
@@ -587,20 +588,26 @@ class TestSilhouette(unittest.TestCase):
         _, three = silhouette3(doc)
         self.assertAlmostEqual(volume_of(doc, three), V_3WAY, delta=1e-9)
 
-    def test_the_shadow_rows_are_the_same_body(self):
-        """Rows 24-26 flip because rows 23's body is theirs: the
-        shadows are a CAMERA, not a construction. Asserted, not
-        assumed — the three stops must be bit-identical to the parent
-        or the sharing claim in the audit is false."""
+    def test_the_shadow_rows_read_row_23s_body(self):
+        """Rows 24-26 flip because row 23's body is theirs: the
+        shadows are a CAMERA, not a construction.
+
+        What this row shows, exactly: each shadow stop resolves to the
+        SAME node id, so re-reading it yields row 23's oracle. It is
+        not a discriminating check — one node read three times cannot
+        disagree with itself — and it is not meant to be. The sharing
+        is a property of the construction above (one `three`, exactly
+        as the Rust scene clones one body); this row pins that the
+        thing being shared is the oracle-bearing body."""
         doc = Doc()
         _, three = silhouette3(doc)
         ev = evaluate(doc)
-        volumes = {
-            name: ev.value(three).body().mass_properties().volume
-            for name in ("shadow_z", "shadow_x", "shadow_y")
-        }
-        self.assertEqual(set(volumes.values()), {volumes["shadow_z"]})
-        self.assertAlmostEqual(volumes["shadow_z"], V_3WAY, delta=1e-9)
+        shadows = {axis: three for axis in ("z", "x", "y")}
+        self.assertEqual(set(shadows.values()), {three}, "one node, three stops")
+        for axis, node in shadows.items():
+            with self.subTest(shadow=axis):
+                volume = ev.value(node).body().mass_properties().volume
+                self.assertAlmostEqual(volume, V_3WAY, delta=1e-9)
 
 
 class TestTheSketchPlaneVocabulary(unittest.TestCase):
