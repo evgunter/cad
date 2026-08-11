@@ -540,6 +540,16 @@ two opus remainders bank (#327 + M8-4 the expected consumers).
 SLOT 0 DISPATCHED (2026-08-10): lane long-turn, branch
 kernel/long-turn. Also this seam: the large-K floor residue check
 runs as a NON-A/B verification task (hygiene class, no lane row).
+Block M8-14 SLOT 1 DISPATCHED (2026-08-11): #327 stage-1 CURVE
+recognition (dm1's last blocker; recognition-only — the ladder's
+downstream path exists; Circle in-scope with the full-period case
+pre-flagged, Line-as-degree-1 attempt-or-first-follow-up,
+Ellipse/helix NAMED EXCLUSIONS with follow-ups per Evan's binding
+rule; certificate = spline-compose hull bounds, D9-clean; the
+promoted-fixed-point re-pin honesty; an edge-keyed promotion
+record variant); difficulty logged PRE-DISPATCH = **M**. Arm =
+OPUS (the first banked M8-14 remainder). Lane curve-rec, branch
+import/curve-recognition.
 #222 (PR #369) R1 ordinal FIXED AT DISPATCH (2026-08-11): 23
 merged blinded rows (the 19 at M8-5's dispatch + M8-5 + M8-C1 +
 U10 + PYG1) + 3 R1-dispatched-unmerged (M8-3 @17, PYG23A, ASM-1
