@@ -52,6 +52,8 @@ mod nurbs_differential;
 mod nurbs_interval;
 #[path = "projection.rs"]
 mod projection;
+#[path = "r2_lt_probes.rs"]
+mod r2_lt_probes;
 #[path = "review_m5_pr2_e2e.rs"]
 mod review_m5_pr2_e2e;
 #[path = "review_m5_pr3_attack.rs"]
