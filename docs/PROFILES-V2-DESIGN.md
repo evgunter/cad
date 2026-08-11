@@ -528,6 +528,17 @@ owed to users as a promise; not run at load, ever (clean break).
   fail-loud demo surface; under V4(c) it additionally becomes the
   raw vocabulary's recording surface (same record-as-you-lower shape
   as V1's third bullet).
+  **AMENDMENT PROPOSED (2026-08-11, issue #377 — AWAITING Evan's
+  sign-off; his in-chat ruling "LoopBuilder should go away" is the
+  driver, this edit is its ratification vehicle):** the
+  fail-loud-DEMO-surface half of this sentence ENDS once the
+  rocker migrates to the lattice (the sole remaining authoring
+  site). Retained: the differential-twin/lowering-verification
+  role and the V4(c) recording-surface role — both internal, both
+  test-facing. At the migration unit, LoopBuilder leaves the
+  pncad prelude and the guide's authoring vocabulary; raw
+  `ProfileLoop` DATA remains kernel vocabulary (the bowtie's
+  permanent rawness never used LoopBuilder and is unaffected).
 - **Junction predicates and the k_stats funnel**: `path_junction_
   turn`, `path_corner_*` etc. classify at replay exactly as at typed
   authoring; no new predicate semantics, only a new call site.
