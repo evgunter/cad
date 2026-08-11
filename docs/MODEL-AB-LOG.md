@@ -853,9 +853,14 @@ the amendments below depend on them:
 
 ### Proposed amendments — NOT ratified, for Evan's ruling
 
-- **P1 — Rubric status.** Retire `idiom` or re-anchor its scale: it is
-  currently a merge blocker enforcing collection of a field that has
-  never varied between reviewers. Add the same sentence the v4 verdict
+- **P1 — Rubric status.** Retire `idiom` or re-anchor its scale. To be
+  precise about the cost, since an earlier draft of this proposal
+  overstated it: the merge blocker attaches to the **rubric as a whole**,
+  not to `idiom`, so retiring it removes no gate. What it removes is
+  review-format work — every review must produce an idiom rating *and a
+  line of evidence for it* — spent on the one dimension that has never
+  differed between two reviewers reading the same code. Separately, and
+  independent of whether `idiom` stays: add the sentence the v4 verdict
   ladder got — weight findings, not rubric scores.
 - **P2 — Pre-specify the subgroup splits before more data**, capped at
   two, recorded as a dedicated one-word column logged **before the
