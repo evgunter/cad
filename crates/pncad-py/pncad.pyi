@@ -366,6 +366,35 @@ class BooleanOp:
     Intersect: Final[BooleanOp]
     Subtract: Final[BooleanOp]
 
+class SketchPlane:
+    """The rigid placement of a sketch plane in 3-space.
+
+    Sketch (x, y) maps to world `origin + x*u + y*v`, and the plane's
+    NORMAL is `u x v` — the direction `Node.extrude` runs, so the
+    plane is what chooses an extrusion's axis. The named frames are
+    cyclic (x->y->z->x): `xy` has normal +z, `yz` (u = y, v = z) has
+    normal +x, `zx` (u = z, v = x) has normal +y.
+
+    Rigidity — u, v unit and perpendicular — is CONVENTIONAL DATA,
+    UNCHECKED, exactly as in Rust: nothing here verifies it, and a
+    non-rigid frame yields a well-defined skewed sketch rather than
+    poison. Geometric certification is the kernel's tier-3 validation
+    at rest; the binding adds no orthogonality predicate of its own.
+    """
+
+    @staticmethod
+    def xy() -> SketchPlane: ...
+    @staticmethod
+    def yz() -> SketchPlane: ...
+    @staticmethod
+    def zx() -> SketchPlane: ...
+    @staticmethod
+    def from_frame(
+        origin: tuple[Length, Length, Length],
+        u: tuple[float, float, float],
+        v: tuple[float, float, float],
+    ) -> SketchPlane: ...
+
 class Node:
     """A recipe node, before insertion."""
 
@@ -373,13 +402,20 @@ class Node:
     def polygon(
         points: list[tuple[Length, Length]],
         elevation: Optional[Length] = None,
+        plane: Optional[SketchPlane] = None,
     ) -> Node: ...
     @staticmethod
-    def profile(outline: ClosedLoop, elevation: Optional[Length] = None) -> Node: ...
+    def profile(
+        outline: ClosedLoop,
+        elevation: Optional[Length] = None,
+        plane: Optional[SketchPlane] = None,
+    ) -> Node: ...
     @staticmethod
     def extrude(profile: NodeId, distance: Length) -> Node: ...
     @staticmethod
     def revolve(profile: NodeId, axis: NodeId, angle: Angle) -> Node: ...
+    @staticmethod
+    def loft(profiles: list[NodeId], v_degree: int) -> Node: ...
     @staticmethod
     def datum_axis(
         origin: tuple[Length, Length, Length],
