@@ -98,7 +98,7 @@ pub use geom_surfaces;
 /// Certified tessellation and the mesh validation cross-checks.
 pub use mesh;
 /// 2-D profile authoring: loops, vertices, sketch planes, the
-/// `LoopBuilder` sugar, and the validation tiers.
+/// the PATHS authoring lattice, and the validation tiers.
 pub use profile;
 /// The D6 API-boundary quantity layer (LIB-U8a): `Length`/`Angle`/
 /// `Count` newtypes, the unit table + constants (`25.0 * MM`), and

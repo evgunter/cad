@@ -33,7 +33,7 @@
 use geom_core::k_stats::{self, Probe};
 use geom_core::{Point2, Tolerance};
 use k_lint::{BASELINE_FLOOR_MARGIN, Reason, is_eps_coupled, lint_sample};
-use profile::{LoopBuilder, Profile, ProfileLoop, SketchPlane};
+use profile::{Open, Profile, ProfileLoop, ProfileVertex, Start, SketchPlane, bulge_from_via};
 
 fn p2(x: f64, y: f64) -> Point2<Probe> {
     Point2::new(Probe(x), Probe(y))
@@ -62,28 +62,51 @@ fn carrier_line_circle_margin(lp: ProfileLoop<Probe>) -> f64 {
 /// carries no tangency declaration and validates wherever the margin
 /// is definite (the compiled default; at 1e-6 it was #99's panic).
 fn old_bracket_loop() -> ProfileLoop<Probe> {
-    LoopBuilder::start(p2(0.0, 0.0))
-        .line_to(p2(3.0, 0.0))
-        .line_to(p2(3.0, 1.0))
-        .line_to(p2(1.5, 1.0))
-        .arc_to_via(p2(1.146, 1.146), p2(1.0, 1.5))
-        .line_to(p2(1.0, 3.0))
-        .line_to(p2(0.0, 3.0))
-        .close()
+    // RAW loop data, deliberately: this datum's whole point is a via
+    // point that is NOT tangent, and the authoring lattice's junction
+    // check refuses to mint a near-tangent junction at ε = 1e-6 — which
+    // is exactly the escalation #99 was. The historical shape is a
+    // vertex table, so it is written as one; the bulge comes from the
+    // same public constructor the raw builder called.
+    let (start, via, end) = (p2(1.5, 1.0), p2(1.146, 1.146), p2(1.0, 1.5));
+    let v = |pos, bulge| ProfileVertex { pos, bulge };
+    ProfileLoop::new(vec![
+        v(p2(0.0, 0.0), Probe(0.0)),
+        v(p2(3.0, 0.0), Probe(0.0)),
+        v(p2(3.0, 1.0), Probe(0.0)),
+        v(start, bulge_from_via(start, via, end)),
+        v(end, Probe(0.0)),
+        v(p2(1.0, 3.0), Probe(0.0)),
+        v(p2(0.0, 3.0), Probe(0.0)),
+    ])
 }
 
 /// The shipped bracket loop (post-#100/#101): the fillet constructor
 /// computes the tangent arc exactly and DECLARES both joints (an
 /// undeclared exact tangency would refuse typed — #101 discipline).
 fn fixed_bracket_loop() -> ProfileLoop<Probe> {
-    LoopBuilder::start(p2(0.0, 0.0))
+    // The shipped bracket, authored through the lattice: the corner is
+    // reached by an exact axis director and the filleted side ends at
+    // its authored far vertex, which is the spelling `profile`'s
+    // differential suite pins bit-for-bit against the raw chain.
+    Open.at(p2(0.0, 0.0))
         .line_to(p2(3.0, 0.0))
+        .unwrap()
         .line_to(p2(3.0, 1.0))
-        .fillet(p2(1.0, 1.0), p2(1.0, 3.0), Probe(0.5))
+        .unwrap()
+        .toward(Probe(-1.0), Probe(0.0))
+        .unwrap()
+        .fillet(Probe(0.5))
         .expect("bracket fillet fits")
-        .line_to(p2(1.0, 3.0))
+        .toward(Probe(0.0), Probe(1.0))
+        .unwrap()
+        .to(p2(1.0, 3.0))
+        .unwrap()
         .line_to(p2(0.0, 3.0))
-        .close()
+        .unwrap()
+        .line_to(Start)
+        .unwrap()
+        .loop_
 }
 
 /// The supported ε rows, as (band_zero, band_escalate) with the

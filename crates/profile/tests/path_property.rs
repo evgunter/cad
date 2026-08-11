@@ -23,8 +23,9 @@ use common::pinned;
 use geom_core::{Point2, Tolerance};
 use profile::path::{HasAng, HasPos, WithIncoming};
 use profile::{
-    LoopBuilder, Open, PartialPath, PathError, Profile, ProfileLoop, SketchPlane, Start,
+    Open, PartialPath, PathError, Profile, ProfileLoop, SketchPlane, Start,
 };
+use profile::test_support::LoopBuilder;
 use proptest::prelude::*;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {

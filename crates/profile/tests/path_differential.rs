@@ -20,8 +20,10 @@ mod common;
 use common::pinned;
 use geom_core::{Point2, Tolerance, Vec2};
 use profile::{
-    ArcSweep, FilletLegShape, LoopBuilder, Open, Profile, ProfileLoop, SketchPlane, Start,
+    ArcSweep, FilletLegShape, Open, Profile, ProfileLoop, SketchPlane, Start,
 };
+
+use profile::test_support::LoopBuilder;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
