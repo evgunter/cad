@@ -428,7 +428,17 @@ macro_rules! nurbs_curve {
             /// (poison) abstains; if both abstain the answer is
             /// poison; if both are real the answer is their `max` —
             /// sound because each is independently a lower bound on
-            /// the same `inf‖C′‖`. The join is therefore **never
+            /// the same `inf‖C′‖`. Every cell of that lattice — both
+            /// abstentions, both-poison, and the poisoned-INPUT
+            /// no-laundering claim below — is EXERCISED on
+            /// bitwise-exact fixtures by the adopted review probes
+            /// (`tests/lt_r1_probes.rs::r1_join_abstention_logic`,
+            /// `tests/r2_lt_probes.rs::the_join_lattice_is_pinned_cell_by_cell`),
+            /// and the same suites' randomized fuzz kills the unsound
+            /// near-neighbors of the scan (active window shifted, last
+            /// span dropped, either arm deleted from the join) that
+            /// the smooth-interpolant corpus alone cannot detect. The
+            /// join is therefore **never
             /// below the retired single-chord arm** on any carrier
             /// that arm bounded (the M8-14 corpus pins exactly that,
             /// green rows as floors), while a long-turn carrier (a
@@ -486,6 +496,17 @@ macro_rules! nurbs_curve {
             /// The arm is chosen on **f64 structure** (`w_j == 1.0`
             /// exactly), never on an evaluation scalar.
             ///
+            /// # Rounding posture
+            ///
+            /// The chord directions are `chord/‖chord‖` — unit only to
+            /// rounding at `f64`, so the plain-f64 reading is a bound
+            /// up to about a relative ulp (both review harnesses
+            /// measured the worst case one ulp on the SOUND side).
+            /// This is the kernel-wide posture shared with the
+            /// rational arm; the `Interval` instantiation is the
+            /// certified lane, and the bracket row in
+            /// `tests/m5_pr7_speed_meter.rs` pins containment.
+            ///
             /// # Poison (total, D4 ¶2)
             ///
             /// A zero degree, fewer than two control points, a
@@ -494,7 +515,22 @@ macro_rules! nurbs_curve {
             /// structural violation the old arm turned into ±∞/NaN
             /// arithmetic instead of naming), a knot vector with no
             /// nonempty span, or BOTH assemblies abstaining — every
-            /// one yields NaN. A bound is never fabricated.
+            /// one yields NaN. A bound is never fabricated. The
+            /// knot-difference clause is DEFENSIVE: it needs an
+            /// interior multiplicity of `p + 1`, which Clamped-v1
+            /// validation forbids (interior multiplicity ≤ `p`, end
+            /// multiplicity exactly `p + 1` with nonempty end spans),
+            /// so no validated constructor reaches it — it guards
+            /// future unvalidated paths, and is an untestable-by-
+            /// construction claim, stated as such rather than pinned.
+            ///
+            /// Structural misses INSIDE the per-span scan (an active
+            /// window past the control net, an index underflow) poison
+            /// the WHOLE meter rather than abstaining the one
+            /// assembly — deliberate asymmetry: chord collapse is a
+            /// fact about a well-formed curve, a range miss is a
+            /// construction-invariant break, and fail-loud beats
+            /// recovering around corrupted structure.
             ///
             /// The join's one-sided recovery is NOT poison
             /// laundering: an assembly abstains only when its own
@@ -578,6 +614,11 @@ macro_rules! nurbs_curve {
                         if !self.knots.span_is_nonempty(span) {
                             continue;
                         }
+                        // Range misses below poison the WHOLE meter
+                        // (early return), not just this assembly —
+                        // a construction-invariant break fails loud
+                        // (doc: "Poison", the stated asymmetry with
+                        // chord-collapse abstention).
                         let Some(lo_i) = span.checked_sub(p) else {
                             return poison;
                         };
