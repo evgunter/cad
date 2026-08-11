@@ -75,7 +75,18 @@ git history and the M-logs):**
   from the INSTALLED copies (checkouts switch refs). The
   github-away-channel script bakes in both reaction endpoints
   (issues + pulls — inline-comment 👍s live under the pulls
-  endpoint). Sign-off watchlist path:
+  endpoint). **Comment filtering (Evan, 2026-08-11)**: arm the
+  away-channel WITH your program's routing env so per-comment
+  spam stays scoped to your own threads — new-issue/PR events
+  remain repo-wide. The signals are automatic (branch prefixes +
+  your role tag + @-addresses; no per-thread bookkeeping):
+  `CAD_CHANNEL_BRANCH_PREFIXES=<your branch prefixes>
+  CAD_CHANNEL_SELF_TAG="(<ROLE> orchestrator)"
+  CAD_CHANNEL_ADDRESSES="@ <role>,@ all orchestrators"` — e.g.
+  the LIB session uses prefixes `lib/,mngr/cad-lib-plus`, tag
+  `(LIB orchestrator)`, addresses `@ lib,@ all orchestrators`.
+  ALWAYS sign cross-thread comments with your tag — the tag IS
+  the thread subscription. Sign-off watchlist path:
   `~/.local/share/cad-work/signoff-watchlist-m7.txt` (per the
   sole-orchestrator wind-down). No usage-limit monitor (dropped,
   Evan 2026-07-23) — the stopping rule covers it.
