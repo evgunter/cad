@@ -21,11 +21,11 @@ amended:
 - **Protocol v3 (Evan, 2026-08-08, post-bayes-readout): TRIPLES.**
   Blocks are now the shuffled multiset {opus, opus, fable} —
   rationale: the readout shows no quality separation, a consistent
-  lean toward opus on findings and cost (**the COST half of this clause
-  is RETIRED by the second readout, 2026-08-11 — on roughly double the
-  cost data the token lean shrank to 0.91 and wall-clock reversed to
-  1.08, neither separating; the findings half strengthened and now
-  separates**), and modest power loss at
+  lean toward opus on findings and cost (**this rationale's evidence
+  base is SUPERSEDED as of the second readout, 2026-08-11 — the cost
+  data roughly doubled and no longer supports the clause as written;
+  the current readout is off-file, see the readout pointer below**),
+  and modest power loss at
   2:1 (~12% contrast-variance inflation), so allocation shifts
   toward the cheaper arm while keeping a live fable stream for
   drift detection. Draw: one /dev/urandom byte, REJECT values
@@ -806,71 +806,73 @@ LBRET opus). Difficulty logged pre-dispatch: M (one confined
 kernel door + a one-scene migration + mechanical banishment).
 | PYSEL | 2026-08-11 | audit G13 close: the selector surface from Python — select/select_where, Selector/NamePat/SegPat + 10 mirrored enums, GeomPred exact/decided as typed structure, typed SelectRefusal; diecomposed YES*→YES on the scene's own two filters, zero name-text parsing | S-M (logged pre-dispatch) | fable (block LIB-8 slot 2) | single (ordinal 29, reviewed head b0517eec; reviewer fable — pre-v4 dual rules, single row) — APPROVE-WITH-FIXES 0/2/4, rubric 5/4/4 (all 8 claim groups executed on the reviewer's own build: oracle independently re-computed, 12/42 counts reconciled against lib_sel1's one-pip miniature (12+2 — both right), audit arithmetic re-derived, the interval-passthrough CI wall reproduced exactly on main's manifest, "23 NO rows" tally confirmed pre-existing (genuine drive-by fix); MINOR-1 = SegPat.matches dropped SILENTLY while the same class got numbered findings — the drop itself UPHELD (RoleSeg reachable only by name-text parsing, forbidden by ordinal-28); MINOR-2 = a report claim ("recorded beside G1's residue") not true in the tree; trilean parity probed end-to-end incl. an eps-sliver refusal construction the review authored) | 1 silent (MINOR-1; 11 reported, all verified genuine) | 5 | 4 | 4 | light (drop stated as finding 12; the Expr-comparand residue line added to the audit page making the claim true; the reviewer's in_band ε-sliver row ADOPTED — suite 127→128; §0 re-merge against #394/#399); executor: implementer-inherited (unit itself limit-fragmented: killed at the Fable window mid-implementation, resumed with uncommitted work intact — the push-per-chunk lesson re-taught) | MERGED #393 33/33; G13 CLOSED — audit 24→25 of 34 authorable (21 YES + 4 YES*), 9 NO (G2:6 G5:2 G12→#377 pending LBRET G14:1 — recount at LBRET); suite 118→128; the latent pncad-py interval-passthrough CI wall fixed en route | impl ~330k (limit-fragmented, annotated) / review ~148k / fix ~15k | impl ~29min active + resume / review ~55min / fix ~19min |
 
-## Second Bayesian readout (2026-08-11) — n = 76 blinded rows, 9 dual pairs
+## Second readout (2026-08-11) — POINTER ONLY, results deliberately off-file
 
-Full analysis, all model output, and the judgment-call record live on
-branch `ev/ab-bayes-analysis` under `analysis/model-ab/` (`report.html`,
-`DECISIONS.md`). Only the conclusions that bind future behaviour are
-recorded here.
+**Arm-comparison results are NOT recorded in this document, by design.**
+Every orchestrator reads this file before dispatching, and a directional
+arm result creates expectancy effects on the things orchestrators
+control — difficulty logging, finding adjudication, dispatch sequencing
+— which would contaminate the data the experiment is still collecting.
+A null readout barely biases; a directional one does. Readouts therefore
+live on branch `ev/ab-bayes-analysis` (`analysis/model-ab/report.html`,
+with `DECISIONS.md` recording every judgment call), and an orchestrator
+with a dispatch in flight should not read them.
 
-1. **The MAJOR-finding rate separates: 0.51 (95% CrI 0.29–0.90)** — the
-   first quality interval in this experiment to exclude no-difference.
-   The blinded severity recode agrees (0.44 / 0.41). It is not an
-   artifact of v3's allocation shift (arm × era interaction flat; both
-   eras point the same way, neither separating alone — the result rests
-   on pooling them), it survives an overdispersed refit (0.52,
-   0.28–0.93), and all three difficulty bands now agree in direction,
-   which retires the first readout's sign-flip objection. Nothing else
-   separates.
-2. **The first readout's COST finding is retired** — see the annotation
-   on the v3 entry above. Better recording roughly doubled the sample
-   and the lean did not survive it.
-3. **MAJOR counts are NOT reviewer-invariant.** Correcting this
-   readout's own earlier claim: on the first eight pairs agreement was
-   8/8 with zero estimated noise; sample #9 disagreed 0 vs 2 and moved
-   reviewer noise to σ = 0.42 on the log scale — now the largest of the
-   three count outcomes. The mechanism is recorded in the M8-14a row and
-   is review DEPTH, not disagreement about facts (the same gap was MINOR
-   to R1 by inspection, MAJOR to R2 by demonstration). Only three of the
-   nine pairs were informative (non-0–0), agreeing 2 of 3 — which is why
-   v4's "six duals with a MAJOR" stopping rule is the right shape.
+Only **measurement-process** findings are recorded here — they are
+arm-neutral (they describe the review instrument, not either model) and
+the amendments below depend on them:
 
-   | outcome | exact agreement | reviewer noise σ (log) |
-   |---|---|---|
-   | MAJOR | 8 / 9 | 0.42 (0.27–0.78) |
-   | MINOR | 3 / 8 | 0.38 (0.23–0.75) |
-   | NOTE | 4 / 8 | 0.25 (0.16–0.52) |
+- **Reviewer noise, from 9 same-model dual pairs** (sample #9 corrected
+  to same-model; no cross-model dual has run yet):
 
-4. **Two rubric dimensions are not carrying information.** `idiom` was
-   5/5 from both reviewers in **every** scorable dual pair — saturated,
-   cannot discriminate. Test quality has reviewer noise of 0.64 rating
-   points against a 0.26-point arm difference, which makes it
-   underpowered (~6× the rows for MAJOR-count precision), not unusable.
-   This retires the first readout's flag that test quality was the most
-   suggestive quality signal.
-5. **Scope note.** Dual rows contribute R1 only to the arm comparison,
-   so the arm series stays identically distributed across dual and
-   single rows. The concordance design measures reproducibility within
-   one reviewer model, not accuracy; only the v4 cross-model pilot can
-   address shared bias, and it has no data yet.
+  | outcome | exact agreement | reviewer noise σ (log) |
+  |---|---|---|
+  | MAJOR | 8 / 9 | 0.42 (0.27–0.78) |
+  | MINOR | 3 / 8 | 0.38 (0.23–0.75) |
+  | NOTE | 4 / 8 | 0.25 (0.16–0.52) |
+
+  MAJOR counts are **not** reviewer-invariant — an earlier claim to the
+  contrary (made on the first eight pairs, which agreed 8/8) is
+  withdrawn. The mechanism is recorded in the M8-14a row and is review
+  DEPTH, not disagreement about facts: the same gap was MINOR to R1 by
+  inspection and MAJOR to R2 by demonstration. Only three of the nine
+  pairs were informative (non-0–0), agreeing 2 of 3 — which is why v4's
+  "six duals with a MAJOR" stopping rule is the right shape.
+- **`idiom` is saturated**: 5/5 from both reviewers in every scorable
+  dual pair. It has never varied between reviewers and cannot
+  discriminate. Test quality carries reviewer noise of 0.64 rating
+  points, large relative to any difference the rubric is used to
+  detect — underpowered rather than unusable.
+- **Scope rule in force for the analysis**: dual rows contribute **R1
+  only** to the arm comparison, so the arm series stays identically
+  distributed across dual and single rows.
+- **What the concordance design cannot see**: it measures
+  reproducibility within one reviewer model, not accuracy. Two instances
+  of one model can agree and be wrong together; only the v4 cross-model
+  pilot addresses that, and it has no data yet.
 
 ### Proposed amendments — NOT ratified, for Evan's ruling
 
-- **P1 — Rubric status.** Retire `idiom` or re-anchor its scale (it is
-  currently a merge blocker enforcing a field that has never varied
-  between reviewers), and add the same sentence the v4 verdict ladder
-  got: weight findings, not rubric scores.
+- **P1 — Rubric status.** Retire `idiom` or re-anchor its scale: it is
+  currently a merge blocker enforcing collection of a field that has
+  never varied between reviewers. Add the same sentence the v4 verdict
+  ladder got — weight findings, not rubric scores.
 - **P2 — Pre-specify the subgroup splits before more data**, capped at
-  two, logged as a dedicated one-word column **before the draw** (same
-  discipline as difficulty; inferring it from prose later is the
-  degrees-of-freedom problem this clause exists to avoid). Proposed:
-  *primary* large vs not-large (free — already logged, and MAJOR
-  prevalence runs 21% / 40% / 59% across S/M/L so L rows carry the most
-  signal); *secondary* numeric-predicate vs structural, two-sided.
-  Explicitly NOT build-new vs repair: 48 rows against 5, and the blocker
-  is the work mix, not the statistics. Subgroup contrasts need ~4× the
-  rows of a main effect, so naming the split in advance is what makes
-  the answer meaningful when it arrives.
+  two, recorded as a dedicated one-word column logged **before the
+  draw** (same discipline as difficulty; inferring it from prose
+  afterwards is the researcher-degrees-of-freedom problem this clause
+  exists to avoid). Proposed: *primary* large vs not-large — free, since
+  difficulty is already logged, and MAJOR prevalence rises across S/M/L
+  (21% / 40% / 59% pooled over both arms) so large rows carry the most
+  signal per row; *secondary* numeric-predicate vs structural,
+  two-sided, one new pre-logged word, motivated by this project's
+  expensive failures being silent wrong geometry rather than plumbing.
+  Explicitly **NOT** build-new vs repair: the corpus is 48 build-new
+  rows against 5 repair rows, so the blocker is the work mix, not the
+  statistics, and routing repair work into the experiment to fix that
+  would distort the project to serve the measurement. Subgroup contrasts
+  need roughly 4× the rows of a main effect, so naming the split in
+  advance is what makes the eventual answer mean anything.
 - **P3 — Stratified allocation for the primary split**: 1:1 within
   L/XL, v4's 3:1 elsewhere. L/XL is ~22% of dispatches, so overall fable
   share moves only ~25% → ~30% while the subgroup gets balanced arms.
@@ -880,3 +882,11 @@ recorded here.
   rubric columns — the datum exists in the review report, so this is a
   transcription gap, but the record-at-merge rule does not say whether
   that counts as missing. Worth one clarifying clause.
+- **P5 — Make the off-file rule explicit, and check the existing text.**
+  If directional results do not belong in an orchestrator-facing file,
+  then two passages already in this document are the larger leak: the
+  **M5-close readout** section and **protocol v3's rationale**, both of
+  which state arm-directional conclusions. Proposed: state the
+  results-off-file rule in the protocol block, and either move those two
+  passages to the analysis branch or reduce them to pointers. Left as a
+  proposal rather than done unilaterally, since it edits ratified text.

@@ -63,17 +63,12 @@ cost — measured, not vibed ("with actual random numbers").
   follow ORDINALS (#398-thread ratification, 2026-08-11:
   ASM-2K@24 = #8, long-turn@27 = #9).
 
-**Readouts (conclusions live in the log, not here):** M4-close
-(n=10) and M5-close (n=40) concluded NO EVIDENCE either arm produces
-more bugs or worse code. **The second Bayesian readout (2026-08-11,
-n=76 blinded rows + 9 dual pairs) changes that**: the MAJOR-finding
-rate now separates at 0.51 (95% CrI 0.29-0.90), it survives the
-protocol-era check and an overdispersed refit, and all three difficulty
-bands agree in direction. The same readout RETIRES the earlier cost
-finding (better recording; token lean shrank, wall-clock reversed) and
-corrects its own earlier claim that MAJOR counts are reviewer-invariant
-- sample #9 disagreed 0 vs 2, putting reviewer noise on MAJOR counts at
-0.42 on the log scale. Full text + proposed amendments P1-P4 in the
-log's "Second Bayesian readout" section; analysis on branch
-`ev/ab-bayes-analysis` under `analysis/model-ab/`. See
-[[orchestration-model]].
+**Readouts — deliberately NOT summarised here.** This memory and
+`docs/MODEL-AB-LOG.md` are both read by orchestrators before dispatch,
+and a directional arm result creates expectancy effects on difficulty
+logging, adjudication and dispatch sequencing. Readouts live on branch
+`ev/ab-bayes-analysis` under `analysis/model-ab/` (report.html +
+DECISIONS.md); an orchestrator with a dispatch in flight should not read
+them. The log records only arm-neutral measurement-process findings
+(reviewer noise, rubric saturation) plus the proposed amendments they
+motivate. See [[orchestration-model]].
