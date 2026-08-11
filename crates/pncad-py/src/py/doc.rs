@@ -79,7 +79,9 @@ pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult
 /// and code that reads inside a name is code this crate will break.
 /// The supported operations are equality, ordering, storage, and
 /// handing it back to [`Node::fillet`]. Narrowing a set of names is a
-/// SELECTOR's job, and no selector crosses yet (the audit's G13).
+/// SELECTOR's job — `Evaluation.select` / `select_where` (LIB-PYSEL),
+/// which answer in this same alphabet; the binding is the one
+/// licensed reader of the text (the ordinal-28 ruling).
 ///
 /// # Why this encoding
 ///
@@ -111,7 +113,7 @@ pub(crate) fn name_text(py: Python<'_>, name: &pncad::prelude::StableName) -> Py
 /// with no kernel refusal to forward. A WELL-FORMED name that denotes
 /// nothing in this document refuses at the kernel's own door
 /// (`fillet_selection_resolve`), which is where that belongs.
-fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName> {
+pub(crate) fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName> {
     serde_json::from_str(text).map_err(|err| {
         pyo3::exceptions::PyValueError::new_err(format!(
             "not a stable name: {text:?} ({err}) — names come from \

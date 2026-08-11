@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Shared CI change filter — the SINGLE implementation of change
 classification, used by BOTH .github/workflows/ci.yml (its `filter` job is
-a thin YAML wrapper) and scripts/ci-local.sh. There is no second copy of
+a thin YAML wrapper) and local-scripts/ci-local.sh. There is no second copy of
 these rules anywhere; hosted and local runs are gated identically, and the
 synthetic-diff tests exercise the one script both of them call.
 
@@ -69,12 +69,28 @@ import os
 import subprocess
 import sys
 
-# Files that are documentation and nothing else. Deliberately narrow: only
-# Markdown (anywhere) and the memories/ tree. No crate includes a .md file
-# into its docs (`include_str!` is unused), so a .md change cannot move a
-# doc-test.
+# Files that cannot move a hosted CI result.
+#
+# Documentation: deliberately narrow — only Markdown (anywhere) and the
+# memories/ tree. No crate includes a .md file into its docs (`include_str!`
+# is unused), so a .md change cannot move a doc-test.
+#
+# local-scripts/: the LOCAL half of the tooling split (2026-08-11). Hosted
+# CI cannot depend on anything in there, and that is enforced STRUCTURALLY
+# rather than by convention — every workflow job deletes the directory as
+# its first step after checkout, so a workflow that grew a reference to it
+# fails immediately and loudly instead of silently coupling the hosted gate
+# to a developer's machine. Scripts hosted CI DOES run stay in scripts/ and
+# keep forcing TIER=all, because a change to any of them can move a result.
+#
+# Still an allowlist, still fails closed: a new top-level directory, or a
+# new file directly under scripts/, is unrecognised and lands in TIER=all.
 def _is_docs(path: str) -> bool:
-    return path.startswith("memories/") or path.endswith(".md")
+    return (
+        path.startswith("memories/")
+        or path.endswith(".md")
+        or path.startswith("local-scripts/")
+    )
 
 
 def _run(cmd: list[str], cwd: str) -> str:

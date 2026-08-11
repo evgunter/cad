@@ -65,6 +65,30 @@ pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
     }
 }
 
+/// The stable tag for a selection refusal (LIB-PYSEL: the
+/// `Evaluation.select_where` door).
+///
+/// `SelectRefusal` is `#[non_exhaustive]`, so unlike this module's
+/// other matches the wildcard arm is FORCED on this crate and the
+/// compile-time drift alarm is unavailable. Its replacement lives in
+/// `src/tests.rs`: a pin constructs the current arms and asserts each
+/// tag, so a kernel arm arriving without a tag here surfaces as
+/// `unclassified` in a red test rather than silently in Python.
+pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
+    use pncad::select::SelectRefusal as R;
+    match err {
+        R::InBand { .. } => "in_band",
+        R::TiedDisagrees { .. } => "tied_disagrees",
+        R::Unreadable { .. } => "unreadable",
+        R::NotADatum { .. } => "not_a_datum",
+        R::NotALength { .. } => "not_a_length",
+        R::PairInBand { .. } => "pair_in_band",
+        R::BadValue(_) => "bad_value",
+        R::Band => "band",
+        _ => "unclassified",
+    }
+}
+
 /// The stable tag for an edit refusal.
 pub fn edit_error_tag(err: &EditError) -> &'static str {
     match err {

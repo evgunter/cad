@@ -5,7 +5,28 @@ least one diagnostic. These are exactly the states PATHS-DESIGN §2
 declares unrepresentable, plus the typed-quantity boundary.
 """
 
-from pncad import Doc, Node, NodeId, Open, SketchPlane, Start, circle, deg, m, mm
+from pncad import (
+    Cmp,
+    CurveKind,
+    Doc,
+    EntityKind,
+    GeomPred,
+    NamePat,
+    Node,
+    NodeId,
+    Open,
+    SegPat,
+    SegTag,
+    Selector,
+    SketchPlane,
+    Start,
+    SurfaceKind,
+    circle,
+    deg,
+    evaluate,
+    m,
+    mm,
+)
 
 # A second director on a tip whose angle slot is already full.
 Open.at((0 * mm, 0 * mm)).angle(0 * deg).angle(90 * deg)  # ty: error
@@ -68,3 +89,37 @@ Node.profile([circle((0 * m, 0 * m), 1 * m), "hole"])  # ty: error
 
 # The plane's frame components are read-only projections, not slots.
 SketchPlane.xy().origin = (0 * m, 0 * m, 0 * m)  # ty: error
+
+# LIB-PYSEL. The selector vocabulary refuses the same mixings Rust
+# refuses at compile time. (There is no "decided where exact is
+# required" row: the Rust list type mixes exact and decided atoms
+# freely, so the stub mirrors what compiles.)
+
+# A curve-kind set holds CURVE kinds; a surface-kind set holds
+# SURFACE kinds — the two families do not stand in for each other.
+GeomPred.curve_kind(SurfaceKind.Plane)  # ty: error
+GeomPred.adjacent_kinds(CurveKind.Line, SurfaceKind.Sphere)  # ty: error
+
+# A datum-distance comparand is a Length: not a bare float, not an
+# Angle — the dimension crosses as the type.
+GeomPred.datum_distance(solid, Cmp.Approx, 1.0)  # ty: error
+GeomPred.datum_distance(solid, Cmp.Approx, 90 * deg)  # ty: error
+
+# The comparison is the trilean value, not a string spelling of one.
+GeomPred.datum_distance(solid, ">", 1 * m)  # ty: error
+
+# A selector unions NAME patterns; a segment pattern is not one, and
+# `tag`/`group`/`side` take their own vocabularies.
+Selector.of(SegPat.any())  # ty: error
+SegPat.tag(EntityKind.Edge)  # ty: error
+SegPat.group(SegTag.Cap)  # ty: error
+SegPat.tag(SegTag.RimEdge).side("top")  # ty: error
+NamePat.of_kind(SegTag.Cap)  # ty: error
+
+# The geometric stage takes predicates, not kinds, and the selector
+# argument is a Selector, not a bare pattern.
+evaluate(doc).select_where(solid, Selector.of(NamePat.any()), [CurveKind.Line])  # ty: error
+evaluate(doc).select(solid, NamePat.any())  # ty: error
+
+# Patterns are immutable values: the builder verbs return NEW ones.
+NamePat.any().kind = EntityKind.Edge  # ty: error
