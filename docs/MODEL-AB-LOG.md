@@ -21,7 +21,11 @@ amended:
 - **Protocol v3 (Evan, 2026-08-08, post-bayes-readout): TRIPLES.**
   Blocks are now the shuffled multiset {opus, opus, fable} —
   rationale: the readout shows no quality separation, a consistent
-  lean toward opus on findings and cost, and modest power loss at
+  lean toward opus on findings and cost (**the COST half of this clause
+  is RETIRED by the second readout, 2026-08-11 — on roughly double the
+  cost data the token lean shrank to 0.91 and wall-clock reversed to
+  1.08, neither separating; the findings half strengthened and now
+  separates**), and modest power loss at
   2:1 (~12% contrast-variance inflation), so allocation shifts
   toward the cheaper arm while keeping a live fable stream for
   drift detection. Draw: one /dev/urandom byte, REJECT values
@@ -801,3 +805,146 @@ last banked slot — LIB-8 consumed: PYBUNDLE opus / PYSEL fable /
 LBRET opus). Difficulty logged pre-dispatch: M (one confined
 kernel door + a one-scene migration + mechanical banishment).
 | PYSEL | 2026-08-11 | audit G13 close: the selector surface from Python — select/select_where, Selector/NamePat/SegPat + 10 mirrored enums, GeomPred exact/decided as typed structure, typed SelectRefusal; diecomposed YES*→YES on the scene's own two filters, zero name-text parsing | S-M (logged pre-dispatch) | fable (block LIB-8 slot 2) | single (ordinal 29, reviewed head b0517eec; reviewer fable — pre-v4 dual rules, single row) — APPROVE-WITH-FIXES 0/2/4, rubric 5/4/4 (all 8 claim groups executed on the reviewer's own build: oracle independently re-computed, 12/42 counts reconciled against lib_sel1's one-pip miniature (12+2 — both right), audit arithmetic re-derived, the interval-passthrough CI wall reproduced exactly on main's manifest, "23 NO rows" tally confirmed pre-existing (genuine drive-by fix); MINOR-1 = SegPat.matches dropped SILENTLY while the same class got numbered findings — the drop itself UPHELD (RoleSeg reachable only by name-text parsing, forbidden by ordinal-28); MINOR-2 = a report claim ("recorded beside G1's residue") not true in the tree; trilean parity probed end-to-end incl. an eps-sliver refusal construction the review authored) | 1 silent (MINOR-1; 11 reported, all verified genuine) | 5 | 4 | 4 | light (drop stated as finding 12; the Expr-comparand residue line added to the audit page making the claim true; the reviewer's in_band ε-sliver row ADOPTED — suite 127→128; §0 re-merge against #394/#399); executor: implementer-inherited (unit itself limit-fragmented: killed at the Fable window mid-implementation, resumed with uncommitted work intact — the push-per-chunk lesson re-taught) | MERGED #393 33/33; G13 CLOSED — audit 24→25 of 34 authorable (21 YES + 4 YES*), 9 NO (G2:6 G5:2 G12→#377 pending LBRET G14:1 — recount at LBRET); suite 118→128; the latent pncad-py interval-passthrough CI wall fixed en route | impl ~330k (limit-fragmented, annotated) / review ~148k / fix ~15k | impl ~29min active + resume / review ~55min / fix ~19min |
+
+## Second Bayesian readout (2026-08-11) — n = 76 blinded rows, 9 dual pairs
+
+Method and full output: branch `ev/ab-bayes-analysis`,
+`analysis/model-ab/` (report.html, plus `DECISIONS.md` recording every
+judgment call). Scope: rows under randomized allocation only — protocol
+v2 and v3, blinded-lane rows, **76** of them (fable 35 / opus 41).
+Protocol-v1 rows and no-blinded-lane rows (CI infra, demos,
+orchestrator-review classes) are excluded from every quality model, as
+before. Dual rows contribute **R1 only** to the arm comparison, so the
+arm series stays identically distributed across dual and single rows.
+34 models, all at split-R-hat < 1.01 and ESS > 400; the sampler is
+cross-checked against deterministic grid quadrature (max discrepancy
+0.013).
+
+**1. The MAJOR-finding rate now separates.** Rate ratio (opus ÷ fable)
+**0.51, 95% CrI 0.29–0.90** — the first quality interval in this
+experiment that excludes no-difference. The blinded severity recode
+agrees and points slightly stronger (0.44 strict / 0.41 broad, both
+excluding 1.0). Negative-binomial refit, which absorbs overdispersion,
+gives 0.52 (0.28–0.93) — the finding survives an overdispersed model.
+Nothing else separates: minors 1.03, notes 0.88, silent deviations 1.07,
+rubric mean +0.12 points.
+
+**2. It is not an artifact of the v3 allocation shift.** Fitted
+separately, v2 rows give 0.67 (0.35–1.23) and v3 rows 0.50 (0.19–1.34) —
+same direction, neither separating alone. In an arm × era model the era
+main effect is 0.89 (0.37–1.84) and the interaction 0.54 (0.17–1.67),
+both comfortably containing 1.0. **The headline rests on pooling the two
+eras**, which is legitimate (both randomized and blinded, interaction
+flat) but should be stated.
+
+**3. The difficulty sign-flip resolved.** The first readout found the
+pooled lean dissolving into sign flips when stratified, and argued that
+was noise-shaped. At n=76 all three bands point the same way: S 0.57,
+M 0.40 (the only band separating alone, and the best-populated at 45
+rows), L 0.84. That objection is withdrawn.
+
+**4. The first readout's COST finding did not survive.** Standardized
+per-phase recording roughly doubled the usable sample (impl tokens
+24 → 59 rows, impl wall-clock 19 → 47). On that larger sample:
+implementation tokens 0.91 (0.76–1.09), total recorded tokens 0.84
+(0.65–1.09), and implementation wall-clock **reverses** to 1.08
+(0.70–1.66). Nothing separates. The earlier result was computed on the
+minority of rows that happened to record a number, and did not survive a
+fuller sample. **Consequence for the record: protocol v3's rationale
+cites "a consistent lean toward opus on findings and cost" — the COST
+half of that clause is retired. The findings half strengthened.**
+
+**5. Reviewer concordance (9 valid same-model pairs).** Corrected for
+the sample-#9 model mislabel; no cross-model dual has run yet.
+
+| outcome | exact agreement | reviewer noise σ (log scale) |
+|---|---|---|
+| MAJOR | 8 / 9 | **0.42 (0.27–0.78)** |
+| MINOR | 3 / 8 | 0.38 (0.23–0.75) |
+| NOTE | 4 / 8 | 0.25 (0.16–0.52) |
+| verdict label | 5 / 8 (pre-v4 vocabulary) | — |
+
+**MAJOR counts are NOT reviewer-invariant, and this readout corrects an
+earlier claim of mine that they were.** On the eight pairs available
+before sample #9 the MAJOR agreement was 8/8 and the estimated noise was
+zero; sample #9 disagreed 0 vs 2 and moved σ to 0.42, now the *largest*
+of the three count outcomes. The mechanism is recorded in the row and is
+the one the first readout warned about: the same gap was MINOR to R1 *by
+inspection* and MAJOR to R2 *by demonstration* (two genuinely unsound
+mutants surviving the 73-test battery). That is review depth, not
+disagreement about facts.
+
+**Prevalence caveat, unchanged and now more binding:** six of the nine
+pairs are 0–0, so only **three** pairs were informative, and those agree
+2 of 3 (0.61, 95% CrI 0.19–0.93). Almost no information. The v4 stopping
+rule — six duals in which at least one reviewer found a MAJOR — is the
+right shape precisely because 0–0 pairs are nearly free agreement.
+
+**6. Two rubric dimensions are not carrying information.** Across the
+scorable dual pairs **idiom was 5/5 from both reviewers in every single
+pair** — saturated at the ceiling, so it cannot discriminate anything.
+Test quality has reviewer noise of **0.64 rating points** against an arm
+difference of 0.26 points, i.e. noise ≈ 2.4× signal; docs 0.54 points
+against 0.02. This retires the first readout's flag that test-quality
+rubric was "the most suggestive quality signal" — it is not a signal at
+this precision. Note the honest framing: noise inflates the standard
+error, it does not forbid the comparison. Test quality is *underpowered*
+(roughly 6× the rows for the precision MAJOR counts already have), not
+unusable. Idiom is the one that is genuinely dead, and for a different
+reason.
+
+**7. What the concordance design cannot see.** It measures whether two
+draws from the *same reviewer model* agree — reproducibility, not
+accuracy. Two instances of one model can agree perfectly and be
+systematically wrong together. Only the v4 cross-model pilot can address
+that, and as of this readout it has zero data (sample #10 is the first).
+
+### Proposed amendments — NOT ratified, for Evan's ruling
+
+Raised by this readout; recorded here as proposals so the log stays the
+single normative source. Nothing below is in force.
+
+**P1 — Rubric status.** Retire `idiom` or re-anchor its scale so 5 means
+something (it is currently a merge blocker enforcing collection of a
+field that has never varied between reviewers). Either way, add the
+same sentence the v4 verdict ladder got: *weight findings, not rubric
+scores*, so a future readout does not cite a rubric delta as evidence.
+
+**P2 — Pre-specify the subgroup splits, before more data.** The interest
+in task-type differences is real but subgroup contrasts need roughly 4×
+the rows of a main effect (~4.7× at 3:1). At the observed ~5 blinded
+rows/day that is reachable in about two months — but only if the split
+is named in advance; testing several and reporting the one that
+separates manufactures findings. Proposed, capped at two:
+- **Primary: large vs not-large (L/XL vs S/M).** Free — difficulty is
+  already logged pre-draw, L rows are already near-balanced (9 fable /
+  8 opus of 17), and MAJOR prevalence rises 21% → 40% → 59% across
+  S/M/L, so L rows carry the most signal per row.
+- **Secondary: numeric-predicate vs structural.** One new pre-logged
+  word. Domain-motivated: this project's expensive failures are silent
+  wrong geometry from ε/numeric reasoning, not from plumbing, and the
+  log already draws the distinction informally (row 20: "zip is purely
+  structural — no new numeric predicate"). Two-sided; no prior direction.
+- **Explicitly NOT build-new vs repair**, despite being the folk claim
+  the experiment started from. The blocker is the work mix, not the
+  statistics: 48 build_new rows against 5 diagnose_repair. No allocation
+  rule rescues a 5-row cell, and routing repair work into the experiment
+  to fix that would distort the project to serve the measurement.
+Mechanics: a dedicated one-word column logged at dispatch **before the
+draw**, same discipline as difficulty. Inferred-from-prose later is the
+researcher-degrees-of-freedom problem this clause exists to avoid.
+
+**P3 — Stratified allocation for the primary split.** Hold **1:1 within
+L/XL** while everything else runs the v4 3:1. L/XL is ~22% of dispatches
+(17 of 76), so overall fable share moves only ~25% → ~30%, while the
+subgroup you most want to resolve gets balanced arms. Legitimate under
+the protocol's own constraint because the probability depends only on
+difficulty, which is logged pre-draw and arm-independent.
+
+**P4 — Data note.** `SEL2` merged with `(in report)` in all three rubric
+columns. The datum exists in the review report, so this is a
+transcription gap rather than a collection failure — but it is the only
+such gap among the 25 v3 blinded rows, and the record-at-merge rule does
+not currently say whether "in the report but not the table" counts as
+missing. Worth one clarifying clause, given that a self-sufficient table
+is what makes re-running the analysis cheap.
