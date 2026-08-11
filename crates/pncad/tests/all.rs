@@ -880,6 +880,87 @@ fn the_export_door_serves_the_one_shot_journey() {
     }
 }
 
+/// A square of side `s` whose lower-left corner sits at `x`.
+fn doors_square_at(s: f64, x: f64) -> pncad::document::Node<pncad::document::ProfileProgram> {
+    use pncad::document::{
+        Dimension, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget,
+    };
+    let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
+    Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![LoopProgram::Chain(vec![
+            ProgramStep::At([lit(x), lit(0.0)]),
+            ProgramStep::LineTo(ProgramTarget::Point([lit(x + s), lit(0.0)])),
+            ProgramStep::LineTo(ProgramTarget::Point([lit(x + s), lit(s)])),
+            ProgramStep::LineTo(ProgramTarget::Point([lit(x), lit(s)])),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ])],
+    })
+}
+
+/// ASM-ROOTS row 3/D-4 at the façade: the WHOLE-DOCUMENT export door
+/// ships what the per-node door refuses. Two disjoint tips gather into
+/// a 2-solid product, and the kernel's own STEP importer is the oracle
+/// — the text re-imports as two solids whose volumes are additive.
+#[test]
+fn the_document_export_door_ships_the_multi_solid_product() {
+    use pncad::document::{Dimension, Expr, Node};
+    let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
+    let doc = pncad::document::ProfileDoc::empty_derived("asm-roots-doc-export");
+    let (doc, p0) = doors_insert(doc, doors_square_at(2.0, 0.0));
+    let (doc, b0) = doors_insert(
+        doc,
+        Node::Extrude {
+            profile: p0,
+            distance: lit(1.5),
+        },
+    );
+    let (doc, p1) = doors_insert(doc, doors_square_at(1.0, 10.0));
+    let (doc, b1) = doors_insert(
+        doc,
+        Node::Extrude {
+            profile: p1,
+            distance: lit(1.0),
+        },
+    );
+    assert_eq!(doc.roots(), &[b0, b1][..], "both tips are product roots");
+    let ev = doors_evaluate(&doc);
+
+    // The per-node door speaks for ONE node, so no node in this
+    // document denotes its product; the whole-document door does.
+    let text = pncad::export::export_document_step(&ev, &doc, &StepOptions::default())
+        .expect("the product exports");
+    let imported = import_step(&text, &ImportOptions::default()).expect("the export re-imports");
+    match imported {
+        pncad::step_import::StepImport::Solid { body, .. } => {
+            assert_eq!(body.solids().count(), 2, "two disjoint solids ship");
+            let v = mass_properties(&body)
+                .expect("imported mass properties")
+                .volume;
+            assert!(
+                (v - (2.0 * 2.0 * 1.5 + 1.0)).abs() < 1e-9,
+                "imported volume {v} is not the parts' sum"
+            );
+        }
+        other => panic!("expected a solid import, got {other:?}"),
+    }
+}
+
+/// The same door's typed refusal: a profile-only document has no body
+/// product, and the refusal says exactly that (ASM-ROOTS row 4).
+#[test]
+fn the_document_export_door_refuses_a_bodiless_document() {
+    use pncad::document::ProductError;
+    use pncad::export::ExportError;
+    let doc = pncad::document::ProfileDoc::empty_derived("asm-roots-doc-export-bodiless");
+    let (doc, _profile) = doors_insert(doc, doors_square_at(2.0, 0.0));
+    let ev = doors_evaluate(&doc);
+    match pncad::export::export_document_step(&ev, &doc, &StepOptions::default()) {
+        Err(ExportError::Product(ProductError::NoBodyRoots)) => {}
+        other => panic!("a profile-only document must refuse NoBodyRoots, got {other:?}"),
+    }
+}
+
 #[test]
 fn the_export_door_refuses_typed_not_vaguely() {
     use pncad::document::{Node, RecipeNodeId};
