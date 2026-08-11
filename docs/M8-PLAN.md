@@ -34,21 +34,40 @@ records stay cross-referenced).
    plane×NURBS bodies first-class END-TO-END — the #288 walk row's
    full retirement.
 
+5. **M8-5 — mesh rational deviation certificate** (plan amendment,
+   2026-08-10, discovered by M8-2: the restored crescent blade
+   BUILDS AND CERTIFIES kernel-side but cannot tessellate —
+   `mesh/src/nurbs_cert.rs:151` refuses rational NURBS faces, no
+   certified Hessian bound; the THIRD rational bank). The working
+   crescent restoration is parked at
+   cad-work/span-meter-crescent.patch and rides this unit; the
+   #218 empirical per-triangle falsifier guards whatever bound
+   lands. Amendment class: a demo-raised kernel residual joining
+   the residuals milestone — recorded for retroactive review.
+
 ## Candidates — ADOPTED (all four; Evan's 👍 on PR #302's
 affordance, comment 5234756324, 2026-08-10). Sequenced after
 M8-1..M8-4 unless a lull opens earlier; each gets its own
 substrate → spec → dispatch cycle.
 
-- **#186 assembly instancing** (dm1's blocker — the M7-6 walk row's
-  named carried item; flips dm1 first-class, wild corpus 9/13 →
-  10/13).
+- **Assembly instancing, now tracked as #317** (dm1's blocker — the
+  M7-6 walk row's named carried item; flips dm1 first-class, wild
+  corpus 9/13 → 10/13). *Correction at dispatch (2026-08-10): the
+  "#186" this slate previously cited is dm1's STEP entity id (the
+  refusal site, bolt_4's transform), not a GitHub reference — no
+  tracker existed; #317 is the real one.*
 - **#214 dimensional-debt riders** (F6/F7 typed-margin fold-in —
   M8-2 touches F7's predicate and deliberately leaves the redesign;
   the natural moment per docs/predicate-dimension-audit.md).
 - **#222 long-turn sweep frontier** (the ≥0.5-turn helix chord
   collapse — integral class, distinct from M8-2's rational work).
-- **The stale large-K lint floor** item from the M6 register if any
-  residue remains post-#239/#253 (verify before slating).
+- **The stale large-K lint floor** — RETIRED (verified 2026-08-10,
+  cad-work/kfloor-check-report.md): fully consumed by #239 + #253;
+  the lint code matches the K-REPORT addendum, the #250 register
+  row is closed, the latest hosted gate is 0-flag at all three ε
+  on a corpus grown +31k samples/row. The adjacent "ε=1e-6 blind
+  window" #250 row stays open BY DESIGN with its own trigger
+  (ε-policy, not floor work). No unit scoped.
 
 ## Exit shape
 
