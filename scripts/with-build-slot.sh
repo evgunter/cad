@@ -137,6 +137,21 @@ if [ -n "${BUILD_SLOT_HELD:-}" ]; then
 fi
 
 mkdir -p "$LOCK_DIR"
+
+# Pre-start the sccache server BEFORE the lock fds exist (below), so it can
+# never inherit them. This is the fd-inheritance lock leak from the
+# 2026-08-11 memory entry, and sccache is the daemon it was observed with:
+# a server auto-started by a slot-wrapped `cargo build` inherits fds 7/8/9
+# and keeps the flock held forever after its parent dies — wedging the
+# machine-wide mutex behind a holder file that names a dead pid. Since
+# 2026-08-11 sccache is the machine's rustc-wrapper (memories/
+# machine-build-config.md), so EVERY build would otherwise be able to
+# trigger that spawn. Idle timeout 0 keeps this server alive so a later
+# build never re-spawns one under a slot.
+if command -v sccache >/dev/null 2>&1; then
+  SCCACHE_IDLE_TIMEOUT=0 sccache --start-server >/dev/null 2>&1 || true
+fi
+
 # Slot fds: express -> fd 7, slot 1 -> fd 8, slot 2 -> fd 9. Opened
 # once; flock -n per attempt. The fds (and locks) are inherited across
 # the final exec and by the command's children, so the slot frees only
