@@ -582,3 +582,7 @@ Block ASM-1 (2026-08-10): byte 81 (<252) → fable position 0:
 (fable, opus, opus). Difficulty logged pre-dispatch: ASM-1
 (identity + pins) = M → slot 1 fable. Opus remainders bank
 (ASM-ROOTS / ASM-2a the natural takers).
+ASM-1 review dispatch (2026-08-10): dispatch-time ordinal = 20
+merged blinded rows on main (PYG1 = 20; #353 open) + 1 = 21 →
+DUAL (sample #7). R1+R2 concurrent on frozen head f04d08e82206
+per the same-head amendment; both Fable per protocol.
