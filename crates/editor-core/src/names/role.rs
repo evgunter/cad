@@ -416,6 +416,21 @@ pub enum RoleSeg {
     /// became it.
     BandSlit(Box<StableName>),
 
+    // ---- Instantiate part (ASM-2A D-4: the name bridge) ----
+    /// An entity of an instantiated part's product, named under the
+    /// instance (argument: its PART-LOCAL stable name).
+    ///
+    /// The instance's identity rides in the enclosing
+    /// [`StableName::node`] — the instantiate node — and the referenced
+    /// DOCUMENT's identity rides in that node's `doc_ref`, so neither is
+    /// repeated here: one qualifier per instance is all the
+    /// distinctness the part-local names need, exactly as
+    /// [`RoleSeg::Instance`] carries a pattern's.
+    InPart {
+        /// The entity's name inside the referenced document's product.
+        of: Box<StableName>,
+    },
+
     // ---- Pattern ----
     /// Instance `i` of the pattern's master (i is the D8-structural
     /// index — A8/N1; `of` is the master entity's name).

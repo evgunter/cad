@@ -21,7 +21,8 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::document::{
-    ContentPin, DocRef, DocumentId, PersistError, ProfileDoc, content_pin, header_document_id, load,
+    ContentPin, DocRef, DocumentId, PartResolver, PersistError, ProfileDoc, ResolveFailure,
+    ResolveFault, content_pin, header_document_id, load,
 };
 
 /// Mints a fresh random [`DocumentId`] from OS randomness — the
@@ -291,5 +292,36 @@ impl Workspace {
             });
         }
         Ok(loaded.doc)
+    }
+}
+
+/// The document seam (ASM-2A D-3; ASSEMBLY-DESIGN A2/A4): a workspace
+/// IS what an evaluation resolves references through.
+///
+/// The verdict classification is this layer's because this layer is the
+/// one that knows: only the store can tell "the pin does not hold" from
+/// "the ε does not reconcile" from "no such document". Every other
+/// refusal is `Unresolved` — honestly wide, since the kernel's recourse
+/// for all of them is the same.
+impl PartResolver for Workspace {
+    fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, ResolveFailure> {
+        Workspace::resolve(self, doc_ref).map_err(|e| ResolveFailure {
+            fault: match &e {
+                WorkspaceError::PinMismatch { .. } => ResolveFault::PinMismatch,
+                // A2's ε seam, observed exactly where ASM-1's load door
+                // already refuses it: one process, one ε, so a document
+                // recording a different one cannot be evaluated at all.
+                WorkspaceError::Load { error, .. }
+                    if matches!(**error, PersistError::ToleranceConflict { .. }) =>
+                {
+                    ResolveFault::EpsilonSeam
+                }
+                _ => ResolveFault::Unresolved,
+            },
+            message: match &e {
+                WorkspaceError::PinMismatch { .. } => format!("{e}; {PIN_MISMATCH_RECOURSE}"),
+                _ => e.to_string(),
+            },
+        })
     }
 }

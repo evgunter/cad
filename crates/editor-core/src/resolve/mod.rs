@@ -981,6 +981,9 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
             | RoleSeg::CrossingVertex { edge: n, .. }
             | RoleSeg::OnToolVertex { of: n, .. }
             | RoleSeg::Instance { of: n, .. }
+            // ASM-2A: an instance-qualified name DERIVES from the
+            // part-local name it wraps.
+            | RoleSeg::InPart { of: n }
             // The fillet vocabulary (M6-5): every argument is the
             // SOURCE entity the blend was born for — derivation, not
             // discrimination.
