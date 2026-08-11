@@ -29,20 +29,33 @@
 #       (e.g. "(LIB orchestrator)"). A COMMENT passes if its thread
 #       already contains the tag (you joined the conversation — covers
 #       cross-program threads and issues you filed or answered), or if
-#       the comment BODY mentions the tag or your @-address
-#       (CAD_CHANNEL_ADDRESSES, comma-separated, e.g.
-#       "@ lib,@ all orchestrators") — so Evan can always summon you
-#       on any thread.
-# Unset ⇒ legacy behavior (every comment passes). Thread-membership
-# lookups are cached per issue number for CACHE_TTL polls; a fresh
-# self-comment updates the cache within one TTL, so worst case a
-# reply lands one cycle late, never lost.
+#       the comment BODY mentions the tag or one of your addresses.
+# Addresses are the CANONICAL summons keywords (Evan, 2026-08-11):
+#       "@ orchestrators" reaches everyone (every session includes
+#       it); "@ <role>" (e.g. "@ lib", "@ m8", "@ asm") reaches one.
+#       "@ <role>" is DERIVED from the tag automatically; extend with
+#       CAD_CHANNEL_ADDRESSES (comma-separated) only for extras.
+# BOTH CAD_CHANNEL_SELF_TAG and CAD_CHANNEL_BRANCH_PREFIXES are
+# REQUIRED — arming without them is an ERROR (fail-loud; an armed
+# monitor dies immediately and the arm-time notification names the
+# fix), so a session cannot silently fall back to firehose mode.
+# The per-program prefix registry lives in
+# memories/orchestration-model.md (lib/, asm/, kernel/, mngr/<yours>).
+# Thread-membership lookups are cached per issue number for CACHE_TTL
+# polls; a fresh self-comment updates the cache within one TTL, so
+# worst case a reply lands one cycle late, never lost.
 set -u
 REPO="evgunter/cad"
 WATCHLIST="${CAD_SIGNOFF_WATCHLIST:-$HOME/.local/share/cad-work/signoff-watchlist.txt}"
 BRANCH_PREFIXES="${CAD_CHANNEL_BRANCH_PREFIXES:-}"
 SELF_TAG="${CAD_CHANNEL_SELF_TAG:-}"
-ADDRESSES="${CAD_CHANNEL_ADDRESSES:-}"
+if [ -z "$BRANCH_PREFIXES" ] || [ -z "$SELF_TAG" ]; then
+  echo "away-channel: ERROR — CAD_CHANNEL_SELF_TAG and CAD_CHANNEL_BRANCH_PREFIXES are required at arm time (see memories/orchestration-model.md for your program's values)" >&2
+  exit 78  # EX_CONFIG
+fi
+# "@ <role>" derived from the tag: "(LIB orchestrator)" -> "@ lib".
+role=$(printf '%s' "$SELF_TAG" | tr -d '()' | awk '{print tolower($1)}')
+ADDRESSES="@ orchestrators,@ ${role}${CAD_CHANNEL_ADDRESSES:+,$CAD_CHANNEL_ADDRESSES}"
 CACHE_TTL="${CAD_CHANNEL_CACHE_TTL:-10}"   # polls between membership re-checks
 touch "$WATCHLIST"
 
@@ -53,8 +66,6 @@ poll_n=0
 
 # Does this COMMENT event pass the filter? $1=issue/PR number, $2=body.
 comment_passes() {
-  # Legacy: no filter configured.
-  [ -z "$BRANCH_PREFIXES" ] && [ -z "$SELF_TAG" ] && return 0
   local num="$1" body="$2"
   # 1. Body summons: my tag or any of my @-addresses (case-insensitive).
   if [ -n "$SELF_TAG" ] && printf '%s' "$body" | grep -qiF "$SELF_TAG"; then return 0; fi
