@@ -20,11 +20,16 @@ amended:
   implementer's agent, so it inherits the arm.
 - **Protocol v3 (Evan, 2026-08-08, post-bayes-readout): TRIPLES.**
   Blocks are now the shuffled multiset {opus, opus, fable} —
-  rationale: recorded off-file with the readouts (it stated
-  arm-directional conclusions; see the results-off-file rule below), plus
-  modest power loss at 2:1 (~12% contrast-variance inflation). Allocation
-  shifts per the block rule above while keeping a live fable stream for
-  drift detection. Draw: one /dev/urandom byte, REJECT values
+  rationale (RESTATED 2026-08-11 in non-leaking terms; the original
+  cited arm-directional results and moved off-file with the readouts):
+  **the fable usage limit binds before the total limit**, so fable
+  dispatches consume the scarce budget and opus dispatches are close to
+  free at the margin. Allocation therefore shifts per the block rule
+  above while keeping a live fable stream for drift detection, at a
+  modest power cost (~12% contrast-variance inflation at 2:1; ~33% at
+  v4's 3:1, both relative to balanced). Note for planning: because the
+  contrast's precision is governed by the SMALLER arm, fable rows are
+  the binding constraint on how fast any question here can be answered. Draw: one /dev/urandom byte, REJECT values
   ≥252 (redraw — avoids modulo bias), then byte mod 3 = fable's
   position (0/1/2). Difficulty still logged pre-draw per
   dispatch. Everything else unchanged (blinding, Fable for
