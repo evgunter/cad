@@ -8,8 +8,8 @@
 # spent on a sub-workspace fmt miss (2026-08-03, PR #166) before this
 # script existed; it runs in ~2 s.
 #
-#   scripts/fmt-all.sh          format in place
-#   scripts/fmt-all.sh --check  fail loudly if anything is unformatted
+#   local-scripts/fmt-all.sh          format in place
+#   local-scripts/fmt-all.sh --check  fail loudly if anything is unformatted
 #                               (the pre-push / CI-mirror mode)
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -27,6 +27,6 @@ while IFS= read -r lock; do
 done < <(find . -name Cargo.lock -not -path '*/target/*' -not -path '*/.git/*' | sort)
 
 if [ "$fail" -ne 0 ]; then
-  echo "fmt-all: run scripts/fmt-all.sh (no --check) to fix, then re-push" >&2
+  echo "fmt-all: run local-scripts/fmt-all.sh (no --check) to fix, then re-push" >&2
   exit 1
 fi

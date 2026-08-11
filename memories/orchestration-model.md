@@ -70,7 +70,7 @@ git history and the M-logs):**
   kill ONLY YOUR OWN PANE — never the session (the successor lives
   in it), never the other orchestrator's session.
 - **Session start**: install + arm the scripted monitor suite —
-  `cp scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` from
+  `cp local-scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` from
   an up-to-date checkout, then arm each as a persistent Monitor
   from the INSTALLED copies (checkouts switch refs). The
   github-away-channel script bakes in both reaction endpoints

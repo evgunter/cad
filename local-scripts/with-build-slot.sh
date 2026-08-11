@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # with-build-slot.sh — machine-wide build-slot semaphore for agent lanes.
 #
-#   scripts/with-build-slot.sh [-x | --express [SECS]] [-n] [-w SECS] -- <command> [args...]
+#   local-scripts/with-build-slot.sh [-x | --express [SECS]] [-n] [-w SECS] -- <command> [args...]
 #
 # Replaces the soft "two lanes" convention (and the retired
 # cargo-slots.txt registry) with real locks: slot lockfiles under
@@ -138,19 +138,16 @@ fi
 
 mkdir -p "$LOCK_DIR"
 
-# Pre-start the sccache server BEFORE the lock fds exist (below), so it can
-# never inherit them. This is the fd-inheritance lock leak from the
-# 2026-08-11 memory entry, and sccache is the daemon it was observed with:
-# a server auto-started by a slot-wrapped `cargo build` inherits fds 7/8/9
-# and keeps the flock held forever after its parent dies — wedging the
-# machine-wide mutex behind a holder file that names a dead pid. Since
-# 2026-08-11 sccache is the machine's rustc-wrapper (memories/
-# machine-build-config.md), so EVERY build would otherwise be able to
-# trigger that spawn. Idle timeout 0 keeps this server alive so a later
-# build never re-spawns one under a slot.
-if command -v sccache >/dev/null 2>&1; then
-  SCCACHE_IDLE_TIMEOUT=0 sccache --start-server >/dev/null 2>&1 || true
-fi
+# IF A COMPILER-CACHE DAEMON IS EVER ADDED TO THE BUILD PATH, PRE-START IT
+# HERE — before the lock fds are opened below. A daemon auto-started by a
+# slot-wrapped `cargo build` inherits fds 7/8/9 and keeps the flock held
+# forever after its parent dies, wedging the machine-wide mutex behind a
+# holder file naming a dead pid (the fd-inheritance lock leak, memories/
+# agent-lane-operations.md). sccache was briefly the machine rustc-wrapper
+# on 2026-08-11 and needed exactly that guard; it was reverted the same day
+# (it forces CARGO_INCREMENTAL=0, which measured 5-7x slower on the
+# edit-rebuild loop — see local-scripts/setup-build-env.sh), so the guard is gone
+# with it rather than left running a daemon nothing uses.
 
 # Slot fds: express -> fd 7, slot 1 -> fd 8, slot 2 -> fd 9. Opened
 # once; flock -n per attempt. The fds (and locks) are inherited across

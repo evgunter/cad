@@ -16,7 +16,7 @@ interactions are findings-back, not silent fixes.
 
 ≤~150 lines per tool call; chunked reads; skeleton-first writes;
 report ≤150 lines. Every heavy cargo row
-`scripts/with-build-slot.sh -- cargo ...`, synchronous FOREGROUND,
+`local-scripts/with-build-slot.sh -- cargo ...`, synchronous FOREGROUND,
 long timeouts (≤590000), one at a time; NEVER background or park —
 nothing notifies you; stopping kills the run. Run clippy at default
 AND `--features interval`, plus the discipline greps, BEFORE

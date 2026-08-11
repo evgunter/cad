@@ -182,9 +182,9 @@ lane per existing convention):
 - Commit in reviewable stages (suggested: helpers extraction → census
   + certification → descendant map → D6 → D7 → fixtures/corpus);
   push after EVERY commit.
-- Gate: full `./scripts/ci-local.sh` green on the branch merged with
+- Gate: full `./local-scripts/ci-local.sh` green on the branch merged with
   current main, run SERIALIZED (no concurrent gate runs; if
-  `scripts/gate.sh` exists on main by then, use it).
+  `local-scripts/gate.sh` exists on main by then, use it).
 - Open the PR with a full writeup (per-decision D1–D9 outcomes,
   derivations, closure table, deviations). Do NOT merge — adversarial
   review follows.
