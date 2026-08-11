@@ -108,6 +108,54 @@ amended:
   - Record WHO executed the fix pass (implementer-inherited vs
     orchestrator-applied) — inconsistent execution contaminates
     the fix-pass proxies.
+- **Protocol v4 (Evan, in-chat, 2026-08-11, from the dual-review
+  analysis). Four amendments; in-flight blocks complete under v3;
+  v4 governs every block drawn after this entry.**
+  1. **STOPPING RULE**: the experiment STOPS when SIX dual
+     reviews have occurred in which at least one reviewer found
+     a MAJOR. **The orchestrator recording the sixth such row
+     must notify Evan explicitly** (away-channel comment
+     requesting acknowledgment — not just a log line). Running
+     tally, maintained here at each qualifying row: sample #1
+     (G1, converged MAJOR) and sample #4 (SWITCH-E, both-R
+     MAJORs) qualify → **2 of 6** as of 2026-08-11. (The M8
+     long-turn dual at ordinal 27 appears 0-MAJOR from its fix
+     pass; verify when its row lands.)
+  2. **STANDARDIZED VERDICT LADDER (the review format lives
+     here, so its definitions do too — SEAM: rows BEFORE this
+     entry used the terms freely; verdict strings before/after
+     are NOT comparable for analysis).** Exactly four terms:
+     - **APPROVE** — mergeable as-is; findings (if any) are
+       optional polish.
+     - **APPROVE-WITH-FIXES** — mergeable after the listed
+       fixes; the reviewer does NOT need to re-verify (the
+       orchestrator adjudicates the fix pass).
+     - **NOT-MERGEABLE-AS-IS** — at least one finding must be
+       fixed AND re-verified (a re-review round) before merge.
+     - **REJECT** — the approach itself fails; the unit returns
+       to design/spec, not to a fix pass.
+     MERGEABLE and PASS are RETIRED (map to APPROVE). Analysis
+     note (the reason for this amendment): reviewers' FINDINGS
+     are measured reliable; their VERDICT LABELS on identical
+     substance are noisy (SWITCH-E and ASM-1 both showed
+     label divergence at converged findings) — weight findings,
+     not labels.
+  3. **Dual composition: half the duals become cross-model
+     review pilots.** Frequency unchanged (every 3rd row by the
+     same ordinal rule). Duals now come in BLOCKS OF TWO
+     {same-model, cross-model}, order shuffled per block by
+     /dev/urandom (one byte, parity — the v2 implementer-block
+     mechanism verbatim): a same-model dual is R1+R2 both fable
+     (the status quo); a cross-model dual is R1 fable + R2
+     OPUS (every PR still gets a fable review; opus reviewing
+     is a PILOT under identical briefs/blinding). The row
+     records each reviewer's model — reviews are blinded to the
+     IMPLEMENTER arm as always; reviewer model is not a secret.
+  4. **Implementation-arm block size 4: {opus, opus, opus,
+     fable}** (was v3 triples). Draw: one /dev/urandom byte,
+     REJECT ≥252 (252 = 63·4, so mod is unbiased), byte mod 4 =
+     fable's position (0–3). Difficulty still logged pre-draw
+     per dispatch; everything else unchanged.
 - Small-n caveat, stated up front: this yields a suggestive
   comparison, not significance. Read stratified by difficulty.
 
