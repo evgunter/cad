@@ -203,3 +203,6 @@ fn every_suite_file_is_aggregated() {
          is silently dropping them: {missing:?}. Add a `#[path]` line for each."
     );
 }
+
+#[path = "m8_3_rational_volume.rs"]
+mod m8_3_rational_volume;

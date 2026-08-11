@@ -10,6 +10,7 @@ from pncad import (
     ArcSweep,
     BooleanOp,
     Doc,
+    Length,
     Node,
     NodeId,
     Open,
@@ -84,3 +85,44 @@ sections: list[NodeId] = [
 ]
 skinned = doc.insert(Node.loft(sections, 2))
 skinned_volume: float = evaluate(doc).value(skinned).body().mass_properties().volume
+
+# LIB-PYBUNDLE: a multi-loop profile is a LIST of closed loops — the
+# outer boundary first, then the holes, in description order.
+plate_with_holes: NodeId = doc.insert(
+    Node.extrude(
+        doc.insert(
+            Node.profile(
+                [
+                    circle((0 * m, 0 * m), 3 * m),
+                    circle((-1 * m, 0 * m), 0.5 * m),
+                    circle((1 * m, 0 * m), 0.5 * m),
+                ]
+            )
+        ),
+        1 * m,
+    )
+)
+
+# Fillet by NAME: the materializer answers as of this evaluation, the
+# selection is stored, and from then on it is frozen.
+blend_edges: list[str] = evaluate(doc).all_edges(upright)
+blended: NodeId = doc.insert(Node.fillet(upright, 0.05 * m, blend_edges))
+
+# Split by a datum plane; the value is a split, read as two optional
+# bodies rather than one.
+cutter: NodeId = doc.insert(Node.datum_plane((0 * m, 0 * m, 1 * m), (0.0, 0.0, 1.0)))
+halves = evaluate(doc).value(doc.insert(Node.split(plate_with_holes, cutter))).split()
+
+# A rigid placement: rotate about an axis through the world origin,
+# then translate.
+placed: NodeId = doc.insert(
+    Node.transform(plate_with_holes, (0 * m, 0 * m, 2 * m), (0.0, 0.0, 1.0), 90 * deg)
+)
+
+# The plane's frame, read back; and the bit-exact equality the read-back
+# supports.
+plane_origin: tuple[Length, Length, Length] = offset_frame.origin
+plane_normal: tuple[float, float, float] = offset_frame.normal
+same_plane: bool = offset_frame == SketchPlane.from_frame(
+    offset_frame.origin, offset_frame.u, offset_frame.v
+)
