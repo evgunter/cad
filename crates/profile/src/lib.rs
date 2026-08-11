@@ -341,11 +341,15 @@ impl<T: Real> SketchPlane<T> {
     ///
     /// The four accessors below READ the frame [`from_frame`] wrote:
     /// they are projections of `placement`, never a recomputation, so
-    /// `from_frame(o, u, v)` round-trips through them exactly.
+    /// `from_frame(o, u, v)` round-trips through them BITWISE. That is
+    /// why the translation is transcribed component by component
+    /// rather than added to the coordinate origin — `0 + (-0) = 0`
+    /// would quietly launder a signed zero the stored frame kept.
     ///
     /// [`from_frame`]: Self::from_frame
     pub fn origin(&self) -> Point3<T> {
-        Point3::origin() + self.placement.translation
+        let t = self.placement.translation;
+        Point3::new(t.x, t.y, t.z)
     }
 
     /// The plane's u direction — the placement's first linear column,
