@@ -530,15 +530,26 @@ owed to users as a promise; not run at load, ever (clean break).
   as V1's third bullet).
   **AMENDMENT PROPOSED (2026-08-11, issue #377 — AWAITING Evan's
   sign-off; his in-chat ruling "LoopBuilder should go away" is the
-  driver, this edit is its ratification vehicle):** the
-  fail-loud-DEMO-surface half of this sentence ENDS once the
-  rocker migrates to the lattice (the sole remaining authoring
-  site). Retained: the differential-twin/lowering-verification
-  role and the V4(c) recording-surface role — both internal, both
-  test-facing. At the migration unit, LoopBuilder leaves the
-  pncad prelude and the guide's authoring vocabulary; raw
-  `ProfileLoop` DATA remains kernel vocabulary (the bowtie's
-  permanent rawness never used LoopBuilder and is unaffected).
+  driver, this edit is its ratification vehicle; strengthened
+  2026-08-11 per his two follow-ups):** this whole sentence ENDS
+  at the migration unit. LoopBuilder leaves the `profile` crate's
+  public surface ENTIRELY and moves to test-support (the
+  banished-to-the-test disposition): its one load-bearing role is
+  the differential twin — an independent second implementation
+  the PATHS lowering is verified against — and that value
+  survives intact living beside the tests that use it (no source
+  code outside sugar.rs calls it; every in-src mention is a doc
+  comment). The V4(c) recording-surface clause is STRUCK as
+  never-implemented-and-no-consumer: recording landed only on the
+  lattice (SWITCH-P's record-as-you-lower); raw loops are
+  kernel-direct and never persisted, so nothing ever needed raw
+  authoring to record (the corpus clean-break confirmed this —
+  its raw census went to circle_split/declared-subdivision or
+  stayed kernel-layer). Raw `ProfileLoop` DATA
+  (`polygon`/`new` — the bowtie) remains kernel vocabulary; it
+  never was LoopBuilder. The handful of cross-crate TEST
+  consumers (step-export fixtures, mesh, k-lint litmus) migrate
+  to lattice or raw-data spellings at the unit.
 - **Junction predicates and the k_stats funnel**: `path_junction_
   turn`, `path_corner_*` etc. classify at replay exactly as at typed
   authoring; no new predicate semantics, only a new call site.
