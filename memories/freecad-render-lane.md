@@ -86,6 +86,36 @@ load 13–19** (61% CPU — CPU/cache contention, not I/O). A full pass is
 a render pass and a build battery on the same box is a bad trade in
 both directions.
 
+## GET RENDERS FROM CI, NOT BY DISPATCHING (2026-08-11)
+
+`ci.yml`'s `renders` job calls `render.yml` as a **gate** on every push
+that builds anything: it renders all four lanes over the PR's merge
+commit and FAILS when a committed lane no longer matches. So the frames
+for your tree normally already exist as artifacts on your branch's CI
+run, and the way to get them is
+
+    scripts/render-hosted.sh          # <- the DEFAULT is to take CI's
+
+which resolves that run and installs each lane at its committed path,
+waiting only on the render lanes rather than on the whole CI run. It
+works on a FAILED CI run too — a stale committed lane is exactly what
+makes the gate fail, and that run's artifact is the fix (lanes upload
+before the gate compares). The failing row prints that exact command.
+
+Note the failing row does NOT print a bare `gh run download`: that
+command refuses to overwrite existing files, so aimed at a populated
+lane directory — the only case it would ever be printed in — it fails
+on the first cell. `render-hosted.sh` stages into a temp dir first.
+
+**Dispatch (`--on-demand`, or `render.yml` directly) only when CI has
+not covered the tree**: unpushed branch, no CI run, or a deliberate
+re-render at a different scene budget. Dispatching otherwise renders
+the same tree twice.
+
+Expect the two PNG lanes to re-baseline when the runner image's mesa
+bumps (roughly monthly). That is the gate working, not failing; it
+costs one mechanical commit of the artifact.
+
 ## RENDER-IN-ACTIONS IS THE NORM (Evan's ruling, 2026-08-10; hosted = CANONICAL PRODUCER)
 
 The hosted "render (demos)" workflow (#323/#324, wedge root-caused

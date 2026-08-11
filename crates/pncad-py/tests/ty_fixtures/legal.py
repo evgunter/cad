@@ -9,13 +9,23 @@ the guide's own executed blocks.
 from pncad import (
     ArcSweep,
     BooleanOp,
+    CapEnd,
+    Cmp,
+    CurveKind,
     Doc,
+    EntityKind,
+    GeomPred,
     Length,
+    NamePat,
     Node,
     NodeId,
     Open,
+    SegPat,
+    SegTag,
+    Selector,
     SketchPlane,
     Start,
+    SurfaceKind,
     circle,
     deg,
     evaluate,
@@ -125,4 +135,41 @@ plane_origin: tuple[Length, Length, Length] = offset_frame.origin
 plane_normal: tuple[float, float, float] = offset_frame.normal
 same_plane: bool = offset_frame == SketchPlane.from_frame(
     offset_frame.origin, offset_frame.u, offset_frame.v
+)
+
+# LIB-PYSEL: the selector language, typed. The diecomposed filters —
+# the box edges by carrier kind, the pip rims by adjacent-surface
+# pair — feeding the fillet's selection with no name text read.
+edges: Selector = Selector.of(NamePat.of_kind(EntityKind.Edge))
+ev = evaluate(doc)
+straight: list[str] = ev.select_where(
+    lightened, edges, [GeomPred.curve_kind(CurveKind.Line)]
+)
+rims: list[str] = ev.select_where(
+    lightened,
+    edges,
+    [GeomPred.adjacent_kinds(SurfaceKind.Plane, [SurfaceKind.Sphere, SurfaceKind.Torus])],
+)
+narrowed_blend: NodeId = doc.insert(Node.fillet(lightened, 0.01 * m, straight))
+
+# The structural half: role-path shape, sides, sub-name prefixes, the
+# union — and `matches` on a materialized name, the binding reading
+# the text so your code never does.
+top_rim: Selector = Selector.of(
+    NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.RimEdge).side(CapEnd.Top))
+)
+from_a: NamePat = NamePat.any().seg(
+    SegPat.tag(SegTag.Seam).of([NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap))])
+)
+both: Selector = top_rim.or_(from_a)
+structural: list[str] = ev.select(lightened, both)
+hit: bool = both.matches(blend_edges[0])
+
+# The decided atom: a datum-relative position rule, its comparand a
+# Length, its comparison the sign trilean.
+near_cutter: GeomPred = GeomPred.datum_distance(cutter, Cmp.Approx, 0 * m)
+low_faces: list[str] = ev.select_where(
+    lightened,
+    Selector.of(NamePat.of_kind(EntityKind.Face)),
+    [GeomPred.surface_kind(SurfaceKind.Plane), near_cutter],
 )
