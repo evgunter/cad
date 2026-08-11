@@ -51,7 +51,12 @@ CONFIG="$HOME/.cargo/config.toml"
 MOLD_LIBEXEC="$PREFIX/libexec/mold"
 
 want_config() {
-  cat <<EOF
+  # QUOTED heredoc + a placeholder, deliberately: an unquoted one performs
+  # command substitution on backticks, and the prose below quotes shell
+  # commands. That is not hypothetical — the first draft of this script had
+  # a backticked `cargo build --workspace --all-targets` in a COMMENT and
+  # ran it (2026-08-11).
+  sed "s|@MOLD_LIBEXEC@|$MOLD_LIBEXEC|g" <<'EOF'
 # Machine-local build configuration — written by scripts/setup-build-env.sh
 # in the cad repo. See that script for the full rationale; the short of it:
 # this box serves ~10 agent lanes through one build mutex, and these are the
@@ -61,7 +66,22 @@ want_config() {
 [target.x86_64-unknown-linux-gnu]
 # mold via gcc's -B shim (this gcc is 9.4; -fuse-ld=mold needs 12.1+).
 # A link argument: cannot affect codegen or rounding (D9).
-rustflags = ["-C", "link-arg=-B$MOLD_LIBEXEC"]
+rustflags = ["-C", "link-arg=-B@MOLD_LIBEXEC@"]
+
+[build]
+# sccache is content-addressed and SHARED ACROSS LANES, which is the point:
+# new-lane.sh clones fresh, so a new lane's cold "cargo build --workspace
+# --all-targets" was measured at 4189 s (70 min) of the width-1 build mutex
+# on 2026-08-11 — before that agent can do anything. The ~225-package
+# dependency graph is byte-identical across lanes, so it is served from
+# cache after the first payer. Unlike a shared CARGO_TARGET_DIR this cannot
+# ping-pong: two lanes on different branches coexist in the cache instead of
+# invalidating each other.
+rustc-wrapper = "sccache"
+# REQUIRED by sccache — it cannot cache incremental compilation. Also
+# reclaims the per-lane target/debug/incremental tree, which was 3.6 GB of
+# one lane's 8.3 GB on a box with 10 GB of RAM to spare for page cache.
+incremental = false
 
 [profile.dev]
 # Full DWARF across the workspace's test binaries is the bulk of both build
@@ -120,5 +140,26 @@ if [ -e "$CONFIG" ] && ! grep -q 'written by scripts/setup-build-env.sh' "$CONFI
 fi
 want_config > "$CONFIG"
 echo "config: wrote $CONFIG"
+
+# --- sccache ---------------------------------------------------------
+if ! command -v sccache >/dev/null 2>&1; then
+  echo "ERROR: sccache not on PATH — install it before enabling rustc-wrapper" >&2
+  exit 1
+fi
+# Cache size is a SERVER-START setting, so it must be configured on disk and
+# the server bounced; setting the env var for one shell would not stick.
+# 15G against ~60G free: the per-lane incremental trees this replaces were
+# larger, so the net disk movement is downward.
+mkdir -p "$HOME/.config/sccache"
+cat > "$HOME/.config/sccache/config" <<'EOF'
+# Written by scripts/setup-build-env.sh (cad repo).
+[cache.disk]
+size = 16106127360  # 15 GiB
+EOF
+sccache --stop-server >/dev/null 2>&1 || true
+sccache --start-server >/dev/null 2>&1 || true
+echo "sccache: $(sccache --version), cache $(sccache --show-stats | awk '/Max cache size/{print $4, $5}')"
+
 echo
 echo "Every lane pays ONE cold rebuild on its next build, then stays warm."
+echo "The first lane to rebuild populates the shared sccache for the rest."
