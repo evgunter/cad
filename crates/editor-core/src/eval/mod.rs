@@ -708,6 +708,23 @@ impl CancelToken {
     }
 }
 
+/// What a scalar must satisfy to be evaluated: decided predicates, the
+/// memo's content bits, the certification brackets the props lane
+/// needs, and `Send + Sync` for the rayon schedule. ONE name for the
+/// set, stated at the evaluation-service seam that owns it — so the
+/// modules below this one (`parts`) name the requirement rather than
+/// restate it, and the compound `Bounds` bound stays inside the seam
+/// the 2026-07-29 Bounds scope rule ratified.
+pub trait EvalScalar:
+    Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane
+{
+}
+
+impl<T> EvalScalar for T where
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane
+{
+}
+
 /// Evaluation options (spec D5/D6).
 #[derive(Debug, Clone)]
 pub struct EvalOptions {

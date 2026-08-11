@@ -159,10 +159,7 @@ impl<'a, T: Decide> PartCache<'a, T> {
     }
 }
 
-impl<T> PartCache<'_, T>
-where
-    T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
-{
+impl<T: super::EvalScalar> PartCache<'_, T> {
     /// The part `doc_ref` denotes, evaluated at most once per key.
     ///
     /// The lock is held across the miss path on purpose: it is what
