@@ -1150,32 +1150,34 @@ impl<'a> Resolver<'a> {
         weights: Vec<f64>,
     ) -> Result<Curve3<f64>, StepImportError> {
         NurbsCurve3::new(knots, control, weights)
-            .map(|payload| match recognize_curve::recognize(&payload, self.eps_in) {
-                recognize_curve::CurveRecognition::Promoted {
-                    curve,
-                    residual,
-                    kind,
-                } => {
-                    self.curve_promotions.borrow_mut().insert(
-                        id,
-                        CurvePromotion {
-                            curve: id,
-                            kind,
-                            residual,
-                        },
-                    );
-                    curve
-                }
-                // Both non-promoting outcomes stay NURBS. The
-                // ill-conditioned one has no escalation site for
-                // curves (recognizer docs): no gate needs a curve
-                // promotion in order to import at all, so the honest
-                // answer is the same one a refuted carrier gets.
-                recognize_curve::CurveRecognition::StaysNurbs
-                | recognize_curve::CurveRecognition::IllConditioned { .. } => {
-                    Curve3::Nurbs(std::sync::Arc::new(payload))
-                }
-            })
+            .map(
+                |payload| match recognize_curve::recognize(&payload, self.eps_in) {
+                    recognize_curve::CurveRecognition::Promoted {
+                        curve,
+                        residual,
+                        kind,
+                    } => {
+                        self.curve_promotions.borrow_mut().insert(
+                            id,
+                            CurvePromotion {
+                                curve: id,
+                                kind,
+                                residual,
+                            },
+                        );
+                        curve
+                    }
+                    // Both non-promoting outcomes stay NURBS. The
+                    // ill-conditioned one has no escalation site for
+                    // curves (recognizer docs): no gate needs a curve
+                    // promotion in order to import at all, so the honest
+                    // answer is the same one a refuted carrier gets.
+                    recognize_curve::CurveRecognition::StaysNurbs
+                    | recognize_curve::CurveRecognition::IllConditioned { .. } => {
+                        Curve3::Nurbs(std::sync::Arc::new(payload))
+                    }
+                },
+            )
             .map_err(|_| StepImportError::MalformedRecord {
                 id,
                 expected: "a structurally valid B-spline (control/weight/knot counts \

@@ -428,7 +428,12 @@ fn nurbs_iso_derive<T: Decide>(
         Surface::Nurbs(payload) => {
             let (a, b) = payload.knots_u().domain();
             let (c, d) = payload.knots_v().domain();
-            (T::from_f64(a), T::from_f64(b), T::from_f64(c), T::from_f64(d))
+            (
+                T::from_f64(a),
+                T::from_f64(b),
+                T::from_f64(c),
+                T::from_f64(d),
+            )
         }
         _ => (T::zero(), T::one(), T::zero(), T::one()),
     };
