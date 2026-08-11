@@ -267,8 +267,13 @@ for `git config` when moving directories.
 
 ## Reproducing
 
-Experiment scripts are in `~/.local/share/cad-work/buildperf/`
-(`build-exp.sh`, `cold-c.sh`, `aprime.sh`, `incr-exp.sh`, `incr-exp-e.sh`)
-with their raw logs. They take the exclusive slot and block every other
-lane — a full cold build here is minutes at best and over an hour at worst,
-so scope deliberately and announce it.
+Scripts and their full logs are archived on the branch
+**`scratch/build-perf-experiments-2026-08-11`** under
+`experiments/build-perf-2026-08-11/` (116 KB). That branch is a scratch
+archive and is NOT for merge; its README maps each script to the numbers it
+produced, and records how to read them honestly — including which runs
+FAILED and why each failure was itself a finding.
+
+They take the exclusive build slot and block every other lane: a cold
+workspace build here is minutes at best and over an hour at worst, so scope
+deliberately and announce it before starting.
