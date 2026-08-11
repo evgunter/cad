@@ -275,20 +275,26 @@ const CORPUS: [(&str, Disposition); 53] = [
         Refused("no intensional description certifies"),
     ),
     (
-        // **M8 instancing retired the placement half of this refusal.**
-        // dm1's seven occurrences of three component representations
-        // now materialize as seven placed instances; what refuses is
-        // strictly downstream of that, in the D7 adoption ladder, on
-        // the rims of the file's seven RATIONAL cylinders — which
-        // M7-6 honestly declined to promote to `Cylinder`, so their
-        // circular rims arrive as rational NURBS carriers between a
-        // promoted cap Plane and a stay-NURBS wall, a pair the ladder
-        // has no certificate for. Same shared fragment as
-        // `TAIL_TURBINE`'s row, same reason it is the right one: the
-        // preamble pins the class, and a drift to a parse error,
-        // crash, or Pass goes red.
+        // **Two halves of this refusal are now retired.** M8
+        // instancing took the placement half (dm1's seven occurrences
+        // of three component representations materialize as seven
+        // placed instances); #327 took the D7 half — the rims of the
+        // file's seven RATIONAL cylinders arrive as rational-quadratic
+        // NURBS carriers, stage-1 CURVE recognition certifies them as
+        // circles against an exact ring-composite bound and promotes
+        // them, and every edge of every instance adopts with its
+        // pcurve minted and certified.
+        //
+        // What is left is the SHARED AT-REST GATE on those same
+        // rational walls: the exact-B-rep volume's quadrature
+        // enclosure stalls short of its target — the banked
+        // rational-patch-flux lane, the lane a NATIVELY built
+        // rational-walled loft refuses on too. The fragment names that
+        // stall specifically rather than the gate's preamble, because
+        // the preamble would also match a tier-1/2 verdict, which
+        // would be a regression and not this lane.
         "tests/fixtures/wild/stepcode/dm1-id-214.stp",
-        Refused("no intensional description certifies"),
+        Refused("the certified quadrature enclosure stalled at"),
     ),
     (
         "tests/fixtures/wild/stepcode/io1-cm-214.stp",

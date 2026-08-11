@@ -152,6 +152,17 @@ pub(crate) enum CurveRecognition {
     /// (the pre-#327 state, silent).
     StaysNurbs,
     /// An estimator could not answer at ε_in (its own margin trilean).
+    ///
+    /// **Its payload has no consumer yet, deliberately** (module docs:
+    /// conditioning): unlike the surface case there is no gate that
+    /// needs a curve promotion in order to import at all, so nothing
+    /// escalates this and the carrier stays NURBS exactly like a
+    /// refuted one. The payload is kept because the distinction is
+    /// real and the ESCALATION SITE is what is missing, not the class
+    /// — a refusal that could say "recognition declined this carrier
+    /// at margin m" is the follow-up. Read by this module's own pins;
+    /// the allow is that statement, not a shrug.
+    #[allow(dead_code)]
     IllConditioned {
         /// The kind whose estimator declined.
         kind: PromotedCurveKind,
@@ -338,4 +349,186 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
         u_ref: flush_zero(u_ref),
     };
     Ok((residual <= eps_in).then_some((circle, residual)))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::float_cmp, clippy::panic)]
+mod tests {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    const EPS_IN: f64 = 1e-9;
+
+    /// The 3×120° rational-quadratic full circle — dm1's edge #685
+    /// form, parameterized as the file states it (knots at multiples
+    /// of `√3`, weights `1, ½, …`, the tangent-intersection corners at
+    /// `r/cos(60°) = 2r`).
+    fn rational_circle(radius: f64, reversed: bool) -> NurbsCurve3<f64> {
+        let tau = core::f64::consts::TAU;
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for k in 0..7 {
+            let on = k % 2 == 0;
+            let theta = tau * (k as f64) / 6.0 * if reversed { -1.0 } else { 1.0 };
+            // On-circle points at 0°, 120°, 240°; corners between them
+            // at twice the radius (the tangent intersection).
+            let r = if on { radius } else { radius * 2.0 };
+            control.push(Point3::new(r * theta.cos(), r * theta.sin(), 0.25));
+            weights.push(if on { 1.0 } else { 0.5 });
+        }
+        let s = 3.0f64.sqrt();
+        let knots = KnotVector::clamped(
+            vec![
+                0.0,
+                0.0,
+                0.0,
+                s,
+                s,
+                2.0 * s,
+                2.0 * s,
+                3.0 * s,
+                3.0 * s,
+                3.0 * s,
+            ],
+            2,
+        )
+        .unwrap();
+        NurbsCurve3::new(knots, control, weights).unwrap()
+    }
+
+    /// C1: the unit — an exact rational-quadratic circle certifies, and
+    /// the promoted frame is the geometry (not the file's opinion).
+    #[test]
+    fn c1_the_rational_quadratic_circle_certifies_exactly() {
+        let curve = rational_circle(0.005, false);
+        let CurveRecognition::Promoted {
+            curve:
+                Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    u_ref,
+                },
+            residual,
+            kind,
+        } = recognize(&curve, EPS_IN)
+        else {
+            panic!("dm1's carrier class must certify");
+        };
+        assert_eq!(kind, PromotedCurveKind::Circle);
+        assert!(residual < 1e-15, "an exact circle's residual: {residual:e}");
+        assert!((radius - 0.005).abs() < 1e-15, "radius {radius:e}");
+        assert!(center.distance(Point3::new(0.0, 0.0, 0.25)) < 1e-15);
+        // Increasing parameter winds +z here, so the axis is +z and
+        // the seam sits at the carrier's own start point.
+        assert!((axis.z - 1.0).abs() < 1e-12, "axis {axis:?}");
+        assert!((u_ref.x - 1.0).abs() < 1e-12, "u_ref {u_ref:?}");
+    }
+
+    /// C2: ORIENTATION survives the promotion — the same locus wound
+    /// the other way promotes to the opposite axis, which is what
+    /// keeps a wall's two rims traversing its chart in opposite
+    /// directions after both are promoted.
+    #[test]
+    fn c2_winding_survives_the_promotion() {
+        let CurveRecognition::Promoted {
+            curve: Curve3::Circle { axis, .. },
+            ..
+        } = recognize(&rational_circle(0.005, true), EPS_IN)
+        else {
+            panic!("the reversed circle must certify too");
+        };
+        assert!((axis.z + 1.0).abs() < 1e-12, "reversed axis {axis:?}");
+    }
+
+    /// C3: the NEGATIVE control — a genuine freeform closed spline
+    /// (TAIL_TURBINE's class) stays NURBS. Recognition that promoted
+    /// this would be worse than recognition that does nothing.
+    #[test]
+    fn c3_a_freeform_closed_spline_stays_nurbs() {
+        let mut curve = rational_circle(0.005, false);
+        // One control point pushed a millimetre off — three decades
+        // past ε_in, and nowhere near any circle.
+        let mut control = curve.control().to_vec();
+        control[2] = control[2] + Vec3::new(0.001, 0.0, 0.0);
+        curve = NurbsCurve3::new(curve.knots().clone(), control, curve.weights().to_vec()).unwrap();
+        assert!(
+            matches!(recognize(&curve, EPS_IN), CurveRecognition::StaysNurbs),
+            "a dented circle is not a circle"
+        );
+    }
+
+    /// C4: the NAMED EXCLUSION, executable — an OPEN arc stays NURBS.
+    /// Stage-1 scope is the closed full-period class, because an open
+    /// arc's adopted interval needs an arc-COVERAGE certificate the
+    /// promotion does not have (module docs).
+    #[test]
+    fn c4_an_open_arc_stays_nurbs() {
+        let full = rational_circle(0.005, false);
+        // The first two spans only: a 240° arc, ends distinct.
+        let control = full.control()[..5].to_vec();
+        let weights = full.weights()[..5].to_vec();
+        let s = 3.0f64.sqrt();
+        let knots =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, s, s, 2.0 * s, 2.0 * s, 2.0 * s], 2).unwrap();
+        let arc = NurbsCurve3::new(knots, control, weights).unwrap();
+        assert!(matches!(
+            recognize(&arc, EPS_IN),
+            CurveRecognition::StaysNurbs
+        ));
+    }
+
+    /// C5: the CONDITIONING trilean is reachable — a closed carrier
+    /// whose three estimator samples are collinear at ε_in determines
+    /// no finite radius, and that is `IllConditioned`, not a silent
+    /// refutation. (Both outcomes stay NURBS; the distinction is the
+    /// one D7 asks recognition to be able to make.)
+    #[test]
+    fn c5_a_collinear_closed_carrier_is_ill_conditioned() {
+        // Out along +x and back: closed, non-degenerate net, and every
+        // sample on one line.
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.01, 0.0, 0.0),
+            Point3::new(0.02, 0.0, 0.0),
+            Point3::new(0.01, 0.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+        ];
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap();
+        let curve = NurbsCurve3::new(knots, control, vec![1.0; 5]).unwrap();
+        let CurveRecognition::IllConditioned { kind, margin } = recognize(&curve, EPS_IN) else {
+            panic!("collinear samples determine no radius");
+        };
+        assert_eq!(kind, PromotedCurveKind::Circle);
+        assert!(margin <= EPS_IN, "the margin fell inside the budget");
+    }
+
+    /// C6: the TURNING WITNESS refuses a closed carrier that lies on a
+    /// circle but does not cover it — the pathology a locus-only
+    /// certificate cannot see (module docs). Here: out along a 180°
+    /// arc and back along the same arc, so every point is exactly on
+    /// the circle and the promoted full-period carrier would be a
+    /// strictly larger locus.
+    #[test]
+    fn c6_a_doubled_back_arc_fails_the_turning_witness() {
+        let radius = 0.005f64;
+        let on = |t: f64| Point3::new(radius * t.cos(), radius * t.sin(), 0.0);
+        let corner = |t: f64| Point3::new(2.0 * radius * t.cos(), 2.0 * radius * t.sin(), 0.0);
+        let third = core::f64::consts::TAU / 6.0;
+        // 0° → 120° → 0°, in two rational-quadratic spans.
+        let control = vec![
+            on(0.0),
+            corner(third / 2.0),
+            on(third),
+            corner(third / 2.0),
+            on(0.0),
+        ];
+        let weights = vec![1.0, 0.5, 1.0, 0.5, 1.0];
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
+        let curve = NurbsCurve3::new(knots, control, weights).unwrap();
+        assert!(
+            !matches!(recognize(&curve, EPS_IN), CurveRecognition::Promoted { .. }),
+            "a carrier that covers a third of the circle must not become the circle"
+        );
+    }
 }

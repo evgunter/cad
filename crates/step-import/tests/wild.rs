@@ -482,6 +482,15 @@ fn wild_refusals_are_typed_and_name_their_class() {
             | StepImportError::Adoption { id, .. }
             | StepImportError::Structure { id, .. }
             | StepImportError::UnsupportedUnit { id, .. } => *id > 0,
+            // The shared at-rest gate's verdict names the
+            // `MANIFOLD_SOLID_BREP` it was asked about, and each
+            // verdict inside names the kernel entity it is about —
+            // the same "go and look at it" obligation, one layer in
+            // (dm1 since #327: its D7 half is retired and what refuses
+            // is the banked rational-patch-flux lane).
+            StepImportError::TierInvalid { solid, errors } => {
+                solid.is_some_and(|id| id > 0) && !errors.is_empty()
+            }
             other => panic!("{name}: unexpected refusal kind: {other:?}"),
         };
         assert!(names_something, "{name}: the refusal must name an entity");
