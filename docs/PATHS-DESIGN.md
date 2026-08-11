@@ -601,6 +601,35 @@ consequence reported for ratification, not an implementer's taste:
   at `.fillet(r)` (which puts `.fillet` itself behind `Bounds`) — and
   both are ratification calls.
 
+  **LB10 revisit (2026-08-11, issue #377 — RATIFIED, Evan 👍 on
+  #386: ROUTE 3).** The "concrete use case" the deferral asked for has
+  arrived twice: audit gap G12 (rocker unauthorable from Python)
+  and Evan's ruling that LoopBuilder retires as an authoring
+  surface. The 2026-08-11 investigation established the geometry
+  already exists (`arc_fillet::resolve` handles a
+  `SideCarrier::Ray` arrival; the replay driver already inherits
+  `ArcCarrierScalar`) — only the typestate door is missing. Routes
+  on the table:
+  1. *Allowlist the state machine* (the menu's first): no new
+     vocabulary, but `Decide + Bounds` lands on the generic
+     `.at`/`.angle`/`.to`/`.line` doors — a small diff whose bound
+     propagates to every PATHS caller, which is exactly what the
+     LB3 confinement discipline exists to prevent. NOT
+     recommended.
+  2. *Function-pointer erasure* (the menu's second): `.fillet`
+     itself moves behind `Bounds`; contained, moderate refactor,
+     no new verb.
+  3. *A distinctly-named straight-arrival binder* (NEW — not in
+     the ratified menu; proposed by the investigation and
+     RECOMMENDED): a sibling of `at_on`/`to_on` living in
+     `arc_fillet.rs`, mirroring their shape (~60–100 lines),
+     carrying the compound bound exactly where the §2b register
+     already confines it. One new verb, zero propagation —
+     the same pattern that closed G2's carrier anchors.
+  Route 3 is recommended for consistency with the §2b register's
+  own precedent; it requires ratification precisely because it
+  extends the recorded menu.
+
 ## 3. Surface vocabulary
 
 | Form | Lattice transition | Notes |

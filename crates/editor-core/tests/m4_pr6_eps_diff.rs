@@ -43,7 +43,7 @@ const EPS_NEW: &str = "1e-4";
 /// `segment_straightness` margin between the two audit ε values.
 fn thin_profile_doc() -> ProfileDoc {
     let (doc, _) = insert(
-        ProfileDoc::empty(),
+        ProfileDoc::empty_derived("m4_pr6_eps_diff"),
         Node::Profile({
             // v4: the thin bulge authors as an arc_to step with its
             // AUTHORED bulge (the program stores exactly the value the

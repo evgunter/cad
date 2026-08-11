@@ -16,7 +16,54 @@
 //! Full per-variant field projection (node ids, slots, operand roles)
 //! is deferred to the unit that binds the complete surface.
 
-use pncad::document::{DimensionError, EditError, NodeErrorKind, PersistError};
+use pncad::document::{
+    DimensionError, EditError, NodeErrorKind, PersistError, RecordedProgramError, RootFault,
+};
+use pncad::profile::PathError;
+
+/// The stable tag for a PATHS authoring refusal (LIB-PYG1).
+///
+/// `PathError` implements `Display`, so the human message is the
+/// kernel's own prose and the tag is the branchable discriminant —
+/// the [`persist_error_tag`] treatment, not the `Debug`-dump one.
+pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
+    match err {
+        PathError::JunctionTangent { .. } => "junction_tangent",
+        PathError::JunctionCusp { .. } => "junction_cusp",
+        PathError::TangentLineClose { .. } => "tangent_line_close",
+        PathError::SameCarrierJunction { .. } => "same_carrier_junction",
+        PathError::NoCornerForFillet { .. } => "no_corner_for_fillet",
+        PathError::AnchorOutsideTrimmedExtent { .. } => "anchor_outside_trimmed_extent",
+        PathError::ArcCarrierSpelling { .. } => "arc_carrier_spelling",
+        PathError::NonpositiveLeg { .. } => "nonpositive_leg",
+        PathError::NonpositiveFilletRadius { .. } => "nonpositive_fillet_radius",
+        PathError::NonpositiveCircleRadius { .. } => "nonpositive_circle_radius",
+        PathError::CircleSplitCount { .. } => "circle_split_count",
+        PathError::ArcContinueNeedsArcCarrier => "arc_continue_needs_arc_carrier",
+        PathError::ArcContinueOffCarrier { .. } => "arc_continue_off_carrier",
+        PathError::ZeroDirection { .. } => "zero_direction",
+        PathError::ArcViaCollinear { .. } => "arc_via_collinear",
+        PathError::DegenerateArcChord { .. } => "degenerate_arc_chord",
+        PathError::ArcCenterNotEquidistant { .. } => "arc_center_not_equidistant",
+        PathError::DegenerateArcCenter { .. } => "degenerate_arc_center",
+        PathError::FarEndAnchorWithoutFillet => "far_end_anchor_without_fillet",
+        PathError::Escalated { .. } => "escalated",
+        PathError::Band(_) => "band",
+        PathError::UnderdeterminedLeg { .. } => "underdetermined_leg",
+        PathError::OverdeterminedJunction { .. } => "overdetermined_junction",
+    }
+}
+
+/// The stable tag for a recorded-program lift refusal
+/// (`LoopProgram::from_recorded`, LIB-PYG1). The literal arm carries
+/// the expression layer's own tag through rather than flattening it.
+pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
+    match err {
+        RecordedProgramError::Literal(inner) => expr_dimension_error_tag(inner),
+        RecordedProgramError::SubdivisionCount(_) => "subdivision_count",
+        RecordedProgramError::CarrierInChain => "carrier_in_chain",
+    }
+}
 
 /// The stable tag for an edit refusal.
 pub fn edit_error_tag(err: &EditError) -> &'static str {
@@ -57,6 +104,21 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::MetaNonFinite { .. } => "meta_non_finite",
         EditError::MetaNotSet { .. } => "meta_not_set",
         EditError::RebindMetadataCollision { .. } => "rebind_metadata_collision",
+        // The product-root invariants (ASM-ROOTS D-2) tag per FAULT,
+        // not per wrapper: which invariant broke is what a caller
+        // branches on.
+        EditError::Roots(fault) => root_fault_tag(fault),
+    }
+}
+
+/// The stable tag for a product-root invariant refusal (ASM-ROOTS
+/// D-2) — shared by every door that carries a `RootFault`.
+pub fn root_fault_tag(fault: &RootFault) -> &'static str {
+    match fault {
+        RootFault::NotLive { .. } => "root_not_live",
+        RootFault::Duplicate { .. } => "root_duplicate",
+        RootFault::Ancestor { .. } => "root_ancestor",
+        RootFault::Uncovered { .. } => "root_uncovered",
     }
 }
 
@@ -108,6 +170,8 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
         PersistError::ProfileProgram { .. } => "profile_program",
         PersistError::Serialize { .. } => "serialize",
         PersistError::Header { .. } => "header",
+        PersistError::HeaderId { .. } => "header_id",
+        PersistError::IdMismatch { .. } => "id_mismatch",
         PersistError::UnknownSchema { .. } => "unknown_schema",
         PersistError::SchemaTooOld { .. } => "schema_too_old",
         PersistError::Migration(_) => "migration",
@@ -130,6 +194,23 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         E::NotABody { .. } => "not_a_body",
         E::EmptyBoolean { .. } => "empty_boolean",
         E::Step(_) => "step_refused",
+        E::Product(inner) => product_error_tag(inner),
+    }
+}
+
+/// The stable tag for a whole-document product refusal (ASM-ROOTS
+/// D-4: `editor_core::product`'s error).
+pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
+    use pncad::document::ProductError as E;
+    match err {
+        E::UnknownNode { .. } => "unknown_node",
+        E::RootFailed { .. } => "root_failed",
+        E::RootPoisoned { .. } => "root_poisoned",
+        E::NoBodyRoots => "no_body_roots",
+        E::MultiSolidRoot { .. } => "multi_solid_root",
+        E::Graft { .. } => "graft_refused",
+        E::SolidInvalid { .. } => "solid_invalid",
+        E::ProductInvalid { .. } => "product_invalid",
     }
 }
 

@@ -10,6 +10,7 @@ use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::EntityKind;
 use crate::node::{Node, RecipeNodeId, SlotId, StableName};
+use crate::roots::RootFault;
 use crate::witness::{BranchCertification, WitnessDatum};
 
 /// The v1 edit vocabulary (spec D6), extended by M4 PR 4 with the two
@@ -187,6 +188,16 @@ pub enum DocEdit<P> {
         name: StableName,
         /// The metadata key removed.
         key: String,
+    },
+    /// Set the document's ordered product roots outright (A10;
+    /// ASM-ROOTS D-3). THE designate/undesignate door: one TOTAL edit
+    /// rather than partial add/remove arms, so the product's solid
+    /// order is always stated rather than inferred from an edit
+    /// sequence. Validator-checked like any other apply, recorded like
+    /// any other edit, and undone by keeping the prior value.
+    SetRoots {
+        /// The new root list, in product order.
+        roots: Vec<RecipeNodeId>,
     },
 }
 
@@ -458,6 +469,12 @@ pub enum EditError {
         /// The colliding metadata key.
         key: String,
     },
+    /// The edit's result would violate a product-root invariant (A10;
+    /// ASM-ROOTS D-2). Reached from `SetRoots` in practice — the
+    /// automatic maintenance keeps every other arm's result legal —
+    /// but checked after EVERY apply, so no door can produce an
+    /// invariant-violating document.
+    Roots(RootFault),
 }
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
@@ -612,6 +629,7 @@ impl core::fmt::Display for EditError {
                 f,
                 "edit: the rebind would land two values under metadata {key:?} on {name:?} — clear one first"
             ),
+            Self::Roots(fault) => write!(f, "edit: {fault}"),
         }
     }
 }
@@ -792,6 +810,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             new.nodes.insert(id, node.clone());
             new.order.push(id);
             check_acyclic(&new)?;
+            crate::roots::on_insert(&mut new, id, &node.inputs());
             EditRecord {
                 minted: Some(id),
                 structural: true,
@@ -809,8 +828,10 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                     });
                 }
             }
+            let inputs = new.nodes.get(id).map(Node::inputs).unwrap_or_default();
             new.nodes.remove(id);
             new.order.retain(|&n| n != *id);
+            crate::roots::on_delete(&mut new, *id, &inputs);
             // The node's witness (if any) dies with it — ids are
             // never reused, so the entry could never be read again.
             new.witnesses.remove(id);
@@ -1135,7 +1156,21 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                 structural: false,
             }
         }
+        DocEdit::SetRoots { roots } => {
+            new.roots.clone_from(roots);
+            // Structural: the root list decides which nodes the
+            // document's product gathers, and in what order — the
+            // product's combinatorial shape, not a continuous value.
+            EditRecord {
+                minted: None,
+                structural: true,
+            }
+        }
     };
+    // The D-2 backstop, on EVERY arm: the maintenance rules make the
+    // invariant-violating states unreachable, and this is what says so
+    // rather than assuming it.
+    crate::roots::check(&new).map_err(EditError::Roots)?;
     Ok(Applied { doc: new, record })
 }
 
@@ -1203,11 +1238,13 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
         apply(self, edit)
     }
 
-    /// Replay an edit list from the EMPTY document (spec D7): the
-    /// result reproduces the edits' document BIT-IDENTICALLY (floats
-    /// are stored exactly; ids re-mint deterministically).
-    pub fn replay(edits: &[DocEdit<P>]) -> Result<Doc<P>, EditError> {
-        let mut doc = Doc::empty();
+    /// Replay an edit list from the EMPTY document under the given
+    /// identity (spec D7): the result reproduces the edits' document
+    /// BIT-IDENTICALLY (floats are stored exactly; ids re-mint
+    /// deterministically). The document id is supplied, not replayed:
+    /// identity is authored data the log never carries (ASM-1 D-1).
+    pub fn replay(id: crate::DocumentId, edits: &[DocEdit<P>]) -> Result<Doc<P>, EditError> {
+        let mut doc = Doc::empty(id);
         for edit in edits {
             doc = apply(&doc, edit)?.doc;
         }

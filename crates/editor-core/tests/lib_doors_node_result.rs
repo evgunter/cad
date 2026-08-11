@@ -36,7 +36,7 @@ fn square(s: f64) -> Node<ProfileProgram> {
 /// document plus the failing and poisoned ids.
 fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("lib_doors_node_result");
     let insert = |doc: &mut ProfileDoc, node| {
         let applied = doc.apply(&DocEdit::InsertNode { node }).unwrap();
         *doc = applied.doc;

@@ -19,7 +19,7 @@ use topo::{mass_properties, validate, validate_closed};
 fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     // Cube [0,2]³ minus one pip 0.25×0.25×0.125 embedded in the top
     // face (the die's +z pip, alone): volume exactly 8 − 1/128.
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("m4_pr2_eval_interval");
     let (doc, cube_p) = insert(
         doc,
         Node::Profile(desc(

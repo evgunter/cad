@@ -17,16 +17,42 @@ become a kernel dependency.
 
 ## Run
 
-**Renders are hosted.** One command does the whole thing — it checks
-your branch is pushed (the runner renders the *pushed* tree), triggers
-`.github/workflows/render.yml`, polls the run, and installs the
-artifacts back into the working tree at their committed paths, where you
-review and commit them the ordinary way:
+**Renders are hosted, and the hosted lane is the canonical producer**
+(ratified on #338; the full re-baseline landed with the #301 staleness
+refresh). Every committed frame in `renders/` and `renders-freecad/` is
+the hosted workflow's output — llvmpipe under Xvfb, FreeCAD 1.1.2
+AppImage — and byte-stability ("a clean re-render leaves `git status`
+clean") is defined against that producer. A locally-drawn frame carries
+this box's GL stack, **will** differ byte-wise, and must never be
+committed; the guard below and `check_render_provenance.py` enforce the
+commit side.
+
+**Usually you do not need to render at all — CI already did.** Every CI
+run on a pushed branch renders all four lanes and gates them (ci.yml's
+`renders` job calls `render.yml`), so the frames for your tree already
+exist as artifacts on that run. Take them:
 
 ```sh
-scripts/render-hosted.sh                        # all four lanes, this branch
-scripts/render-hosted.sh --lane uv              # one lane
-scripts/render-hosted.sh --run 31402416551      # pull an existing run's artifacts
+scripts/render-hosted.sh                        # install what CI rendered
+scripts/render-hosted.sh --lane uv              # one lane of it
+```
+
+That is the default: it resolves your branch's newest CI run, downloads
+each lane's artifact, and installs it at its committed path, where you
+review and commit it the ordinary way. It works on a **failed** CI run
+too — a stale committed lane is exactly what makes the gate fail, and
+that run's artifact is what makes it current. The failing row prints the
+exact command, pinned to its own run:
+`scripts/render-hosted.sh --run <id> --lane <lane>`.
+
+**Render on demand only when CI has not covered it** — an unpushed
+branch, no CI run yet, or a deliberate re-render at a different scene
+budget. Dispatching when CI has already rendered the same tree renders
+it twice, which is why it is the flag rather than the default:
+
+```sh
+scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
+scripts/render-hosted.sh --run 31402416551      # take a specific run's artifacts
 ```
 
 The local entry points below **refuse to run** without an explicit
@@ -149,10 +175,13 @@ Consequences worth stating:
 * **There is a CI drift gate**, and this is still the only lane that
   can have one — but the reason has moved. CI *can* run FreeCAD (both
   `step-import` and the hosted render lanes provision the same pinned
-  AppImage), so the obstacle is no longer availability: it is that the
-  PNG lanes' pixels come out of a GL stack, and a runner's llvmpipe is
-  not this host's, so "unchanged" is not a property a hosted PNG pass
-  can assert. This lane draws no 3-D, so its sheet is byte-reproducible
+  AppImage), so the obstacle is no longer availability. Since the
+  hosted re-baseline the committed PNG frames are the runner's own
+  output, so a hosted PNG pass can now assert "unchanged" on demand;
+  what remains is that the runner image's mesa/llvmpipe drifts month to
+  month, so a firing PNG diff could be an image update rather than a
+  geometry change — a standing CI gate for the PNG lanes still needs
+  the pinned-container work described in render.yml. This lane draws no 3-D, so its sheet is byte-reproducible
   anywhere. `uv sheet drift (demos)` regenerates it and diffs it (the
   tour is ~3s once built, and the sheet is text, so a firing diff is
   readable). A failure is either an uncommitted regeneration or a D9
@@ -474,7 +503,7 @@ verbatim.
 | `tiltedcut` | **RENDERING (M5 PR 11, the milestone's demo moment)**: a cylinder cut by a tilted plane — the section edges carry an **exact `Curve3::Ellipse`** (a = r/cos φ, b = r, residual ~1e-16, PR 5 shape (i)); the cut walls tessellate **watertight** through the pcurve-driven trimmed lane, and the volume is a **certified quadrature enclosure** (± ~1e-6 m³) asserted to bracket πr²H/2 per half; montage panel |
 | `bossplate` | **the first curved boolean, visible (M5 PR 11)**: a three-arc cylindrical boss unioned into a plate (PR 9 shape (ii)) — the seam is three exact `Circle` arcs, V = 16 + π·0.25·0.6 on the nose, and the shared-chord assertion pins that the curved wall and the ringed top face consume ONE chord set per seam edge; montage panel
 | `tube_along_arc` | **the tube door, with its intent parameters on screen** (M6-3 Leg F, the Evan-ratified rider on the #175 thread): a ring-torus tube built from spine centre / axis / reference direction / major radius 2 / window `[0.25, 1.75]` rad / minor radius 0.5 — `sweep/tests/m6_tube.rs`'s wedge, constant for constant. The sheave's groove and the lily's stem tubes already carry torus walls, but both arrive by `revolve`, which RECONSTRUCTS the tube radius from the profile's bulge arcs (the lily drifts 3.9e-16; the review donut drifted 56 ulps). This door stores what it was given: the scene asserts `minor_radius.to_bits() == 0.5f64.to_bits()` on **both** half-tube walls, on the scene body itself. Deliberately a WINDOWED tube, not the full donut, so all three parameters are visible — the ring's radius, the pipe's radius, and the window as the gap its two planar wedge caps close. No semantic fork: census (2 walls + 2 caps), sense derivation, the `R > r > 0` convention and the pcurve mint are the revolve's own code; volume by Pappus π·r²·R·(t₁ − t₀). **Standalone since the montage-v2 curation** (Evan, #218 follow-up): the cell's content — bit-exact stored intent parameters — is interesting for how it works, not visually; without that context it reads as one more partial revolve |
-| `loft_prism` | **the first NURBS-walled render** (the trimmed-NURBS tessellation lane, M7): R5 shape (iii) — squares at z = 0/2, a NON-AFFINE trapezoid at z = 1, skinned at v-degree 2, so the four walls are genuinely curved degree-1×2 NURBS patches. The corpus fixture VERBATIM (`step-export/tests/common/mod.rs::loft_prism`, `editor-core/tests/corpus/loft_prism.rs`, `sweep/tests/m6_loft_body.rs`); volume DERIVED exactly: V = 8 + 16d/3 = 9 m³ (d = 0.375); montage panel |
+| `loft_prism` | **the first NURBS-walled render** (the trimmed-NURBS tessellation lane, M7): R5 shape (iii) — squares at z = 0/2, a NON-AFFINE trapezoid at z = 1, skinned at v-degree 2, so the four walls are genuinely curved degree-1×2 NURBS patches. The corpus fixture VERBATIM (`step-export/tests/common/mod.rs::loft_prism`, `editor-core/tests/corpus/loft_prism.rs`, `sweep/tests/m6_loft_body.rs`); volume DERIVED exactly: V = 8 + 8d/3 = 9 m³ (d = 0.375); montage panel |
 | `nonuniform_loft` | `loft_prism`'s TRUE minimal pair since montage-v2: the SAME sections, the SAME 2 m height, ONLY the middle placement moved — z = 0, 0.15, 2 (the corpus fixture keeps z = 0/1/3, #210/#207 — measured on the #218 sheet, that spacing's bulge peaks at 48.8% of height with half-width 1.415 vs the prism's 50%/1.375, visually the same silhouette rescaled; the scene now LEADS the corpus, the s_duct/lily precedent). The chord-length parameterization (t = 3√29/(3√29 + √5701) ≈ 0.1763) makes the degree-2 skin OVERSHOOT: bulge half-width 1.646 — wider than any authored section — at 32.6% of height; derived V = 8 + 0.25/(t(1−t)) = 9.7219 m³ exactly (quadrature agrees at ~1e-13 pad). Shares `loft_prism`'s camera so the pair reads as a pair; montage panel |
 | `s_duct` | the first CURVED-path sweep body (#210/#207; #218 review): a 0.5 m square swept through an S — two OPPOSED quarter arcs of radius 2 (degree-3 interpolant through 17 exact points), 13 stations, v-degree 3, path-following frame (planar path ⇒ no roll). **Standalone since montage-v2** (Evan's follow-up was right): a single-axis revolve cannot make it, but TWO GLUED partial revolves can, shape for shape — each planar arc sweep is a partial revolve's orbit — so the honest not-a-revolve cell is `twisted_duct`. Still the one-op S construction and a fixture CANDIDATE for the next corpus fold (the corpus's sweep constant remains the quarter-arc `swept_elbow`). Volume expectation A·L = (2h)²·2R·π/2 (curvature moment cancels) |
 | `twisted_duct` | **the sweep cell since montage-v2: nowhere-zero TORSION — the class NO assembly of revolves reaches**: a 0.5 m square swept along the twisted cubic (At, Bt², Ct³), A/B/C = 2.2/1.3/1.5, degree-3 interpolant through 33 exact points, 17 stations, v-degree 3. τ = 12ABC/\|r′×r″\|² has a constant numerator, so the spine is planar in NO plane and its curvature varies continuously too (no arc anywhere); a revolve's spine is a planar circular arc, and gluing revolves only concatenates planar arcs. The square visibly rolls as the bend plane turns (the path-following frame carrying the torsion). Two shadow proofs ride standalone (`twisted_duct_shadow_{z,y}`): a parabola down z, a one-inflection cubic S down y — parallel projections of a planar curve are affine images of each other and cannot differ in inflection count. Volume expectation A·L (centered symmetric section: curvature moment cancels, roll drops out); fixture CANDIDATE beside the S; montage panel |
@@ -682,6 +711,17 @@ different scene each time, on an idle box as well as a loaded one — so
 it is the session that wedges, not any one scene, and no session is
 reused across scenes.
 
+By default the scenes go one at a time. `CAD_RENDER_JOBS=K` renders K
+of them concurrently — still one fresh session per scene, so it does
+not reopen the wedge above — and prints the pass's wall clock next to
+the summed per-scene times, which stop being the same number above
+K=1. What concurrency trades against is the budget: the same
+measurements that sized it put a scene at 3–19 s idle and 106 s under
+load, so K scenes on a K-core box push every scene toward the
+contended figure. Keep K at or under the core count, and treat
+sequential as the reference — it is what the committed cells were
+rendered under.
+
 Each attempt runs in its own session, so the budget covers the process
 *tree*: when it expires the whole group is killed and the scene is
 retried **once**, in a fresh process. A second expiry is a loud,
@@ -698,18 +738,32 @@ above), a wedge leaves the committed lane directory exactly as it was.
 ### Off-box: the hosted lanes
 
 **This is the default renderer**, not an alternative to a local pass.
-`.github/workflows/render.yml` runs the render lanes on GitHub runners,
-on demand (`workflow_dispatch` — no PR trigger, no schedule), and hands
-each one back as a run artifact.
+`.github/workflows/render.yml` runs the render lanes on GitHub runners
+and hands each one back as a run artifact. It has **two entry points
+over one pipeline**:
 
-`scripts/render-hosted.sh` is the front end, and the thing to use:
+* **as CI's render gate** (`workflow_call`) — ci.yml's `renders` job
+  calls it on every push that builds anything, renders all four lanes,
+  and **fails when a committed lane no longer matches**. This is where
+  your frames normally come from: the gate already rendered your tree.
+* **on demand** (`workflow_dispatch`) — for a tree CI has not seen, or a
+  re-render at a different scene budget.
+
+`scripts/render-hosted.sh` is the front end for both, and the thing to
+use:
 
 ```sh
-scripts/render-hosted.sh --lane all             # push check, dispatch, poll, install
+scripts/render-hosted.sh                        # install what CI already rendered
+scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
 scripts/render-hosted.sh --lane wild --verify   # + prove the pull is byte-exact
-scripts/render-hosted.sh --run <id>             # pull an existing run, no re-render
+scripts/render-hosted.sh --run <id>             # take a specific run, no re-render
 scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
 ```
+
+Taking is the default and rendering is the flag, because dispatching
+when CI has already rendered the same tree renders it twice. When it
+takes a CI run it waits only on the render lanes, not on the twenty
+test shards around them.
 
 It **refuses** if your local HEAD is not what `origin/<branch>` points
 at — the runner checks out the pushed tree and cannot see local commits,
@@ -736,8 +790,13 @@ The raw commands, if you want them:
 
 ```sh
 gh workflow run render.yml -f ref=my-branch -f lanes=all
-gh run download <run-id> -n renders-kernel   # renders-freecad / renders-uv / renders-wild
+gh run download <run-id> -n renders-kernel -D /tmp/cells   # then copy over
 ```
+
+Note the `-D`: `gh run download` **refuses to overwrite existing
+files**, so pointing it straight at `demos/renders/` fails on the first
+cell — which is why the script (and the gate's failure message) stage
+into a temp directory and install from there.
 
 `lanes` selects `all` (default) or one of `kernel` / `freecad` / `uv` /
 `wild`. The tour is built **once** and handed to the lanes that read it
@@ -762,16 +821,25 @@ FreeCAD — the frames sitting in the gitignored preview tree while the
 artifact holds the committed cells unchanged. It is a structural check
 on the #221 routing invariant above, not a new rule.
 
-**Artifact-only, by construction.** No job commits or pushes, and the
-PNG lanes' pixels are *not* expected to match the committed cells
-byte-for-byte: those were drawn against a developer host's GL stack,
-these by llvmpipe on a runner image that drifts. Each lane reports its
-diff against the committed tree in the run summary as a measurement,
-never a gate. Making a hosted PNG lane the canonical producer would mean
-pinning the whole GL stack in a container image and re-baselining the
-committed cells in one commit — a design call, not a config tweak. (The
-UV lane carries no such caveat: it is renderer-free and reproducible
-off-box, which is why it is the one lane CI actually *gates*.)
+**Artifact-only, but no longer ungated.** No job commits or pushes — a
+failing lane hands over an artifact and the command that installs it,
+and committing stays a human's call. What *has* changed is that the
+committed cells are now checked. Byte-identity against the committed
+tree used to be meaningless, because those cells were drawn against a
+developer host's GL stack and these by llvmpipe on a runner; since the
+#338 canonical-producer ruling and its re-baseline, both sides are the
+hosted producer's output, and a repeat hosted render of one commit is
+byte-identical (measured across all 55 cells of both PNG lanes). So each
+lane's diff is a real finding, and ci.yml's `renders` job fails on it.
+
+The one caveat that survives is the runner image: its mesa bumps roughly
+monthly and re-rasterises the two PNG lanes when it does. That is the
+gate working — the committed cells are *meant* to track the canonical
+producer — and it costs one mechanical commit, which the failing row
+spells out. Pinning the GL stack in a container image would remove even
+that; it remains a design call, not a config tweak. (The UV lane carries
+no such caveat: it is renderer-free, and stays gated by `k-lint`'s own
+row rather than being re-gated here — one gate per obligation.)
 
 The **wild** lane carries no such caveat either, and is the more
 interesting case: it is FreeCAD-free by scope, so its cells are drawn by

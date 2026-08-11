@@ -168,9 +168,13 @@ declare that contact, because inferring "these two planes are the
 same plane" from float equality is exactly the guess it will not
 make. Section 2.3 and the fail-loud tour return to this.
 
-This is the same model as `crates/pncad-py/examples/bracket.py`, so
-the two languages below are building one solid, and the numbers they
-print are the same numbers.
+`crates/pncad-py/examples/bracket.py` builds this model with one
+addition the table cannot hold: since the PATHS lattice crossed to
+Python, its base plate carries a 3 mm round at each of its four
+corners, authored as fillets rather than as a rounded outline. The
+extents, the web and the pocket are these ones, so the two languages
+below are building one solid, and the plate's own closed form is the
+only number that differs.
 
 ### 2.2 Author
 
@@ -237,6 +241,165 @@ Nowhere in this repo does a demo hand-write a tangency flag. Tangency
 arrives by construction, and the kernel *verifies* every declaration
 rather than trusting it — a contradicted one is
 `TangencyContradicted`, not a warning.
+
+**The same two loops, in Python.** One semantics, two host languages:
+the lattice binds state for state, so the chain reads verb for verb,
+and the states are distinct classes exposing only their legal
+continuations — a double director or a leading `.fillet` is an
+`AttributeError`, and under `ty` a static error, because the method
+is not there to call.
+
+```python
+from pncad import Open, Start, mm
+
+outline = (
+    Open.at((0 * mm, 0 * mm))
+    .line_to((80 * mm, 0 * mm))
+    .line_to((80 * mm, 40 * mm))
+    .line_to((0 * mm, 40 * mm))
+    .line_to(Start)
+)
+assert outline.vertex_count == 4
+
+rounded = (
+    Open.at((0 * mm, 0 * mm))
+    .line_to((40 * mm, 0 * mm))       # sharp corner here, arriving east
+    .toward(0.0, 1.0)                 # departure ray: north, the line x = 40
+    .fillet(6 * mm)                   # round where that ray meets the next
+    .toward(-1.0, 0.0)                # arrival ray: west, the line y = 30
+    .to((0 * mm, 30 * mm))            # anchored at the authored far vertex
+    .line_to(Start)
+)
+# The same five vertices the Rust block asserts.
+assert rounded.vertex_count == 5
+
+# The refusals are the kernel's own, raised where the verb was
+# written — nothing is pre-checked on the Python side.
+import pncad
+
+try:
+    Open.at((0 * mm, 0 * mm)).line_to((40 * mm, 0 * mm)).angle(0 * pncad.deg)
+except pncad.PathError as refused:
+    assert refused.variant == "junction_tangent"
+else:
+    raise AssertionError("an accidentally tangent corner must refuse")
+
+# The lattice is the type: a plain point has no incoming tangent to
+# inherit, so `.tangent()` is not a method it has.
+assert not hasattr(Open.at((0 * mm, 0 * mm)), "tangent")
+```
+
+A closed loop becomes a document node with `Node.profile`, which is
+built from the loop's RECORDED program — the same verbs, the same
+authored numbers — so what Python wrote and what the document replays
+are one program:
+
+```python
+import math
+
+from pncad import Doc, Node, Open, Start, evaluate, mm
+
+rounded = (
+    Open.at((0 * mm, 0 * mm))
+    .line_to((40 * mm, 0 * mm))
+    .toward(0.0, 1.0)
+    .fillet(6 * mm)
+    .toward(-1.0, 0.0)
+    .to((0 * mm, 30 * mm))
+    .line_to(Start)
+)
+
+doc = Doc()
+plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded)), 8 * mm))
+ev = evaluate(doc)
+assert ev.succeeded(plate)
+
+# 40 x 30 mm, one 6 mm corner rounded off, 8 mm thick. The rounded
+# corner removes r^2 - pi*r^2/4 of area.
+area = 0.040 * 0.030 - (0.006**2 - math.pi * 0.006**2 / 4)
+assert abs(ev.value(plate).body().mass_properties().volume - area * 0.008) < 1e-15
+```
+
+**The plane is an argument, not an assumption.** A profile lives on a
+`SketchPlane` — a rigid frame `origin, u, v`, where sketch (x, y) maps
+to `origin + x·u + y·v`. The plane's NORMAL is `u × v`, and that is
+the direction `extrude` runs, so choosing the plane is choosing the
+axis. Three named frames come cyclically (x→y→z→x): `xy` (normal +z),
+`yz` (u = ŷ, v = ẑ, normal +x), `zx` (u = ẑ, v = x̂, normal +y).
+`elevation=` remains what it always was — sugar for the xy-plane, that
+far up z — and naming the plane both ways at once is a `TypeError`
+rather than a silent preference.
+
+Rigidity (u, v unit and perpendicular) is **conventional data,
+unchecked**, in Python exactly as in Rust: a non-rigid frame yields a
+well-defined skewed sketch, not poison, and the kernel's geometric
+validation is what certifies a body at rest.
+
+```python
+from pncad import Doc, Node, SketchPlane, evaluate, m
+
+doc = Doc()
+# An upright wall: a 2 x 3 sketch on the world yz-plane, extruded
+# 0.25 along that plane's normal, which is +x.
+wall = doc.insert(
+    Node.extrude(
+        doc.insert(
+            Node.polygon(
+                [(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 3 * m), (0 * m, 3 * m)],
+                plane=SketchPlane.yz(),
+            )
+        ),
+        0.25 * m,
+    )
+)
+assert abs(evaluate(doc).value(wall).body().mass_properties().volume - 1.5) < 1e-12
+
+# Naming the plane twice is refused at the boundary.
+try:
+    Node.polygon([(0 * m, 0 * m)], elevation=1 * m, plane=SketchPlane.yz())
+except TypeError:
+    pass
+else:
+    raise AssertionError("plane= and elevation= must be mutually exclusive")
+```
+
+**Stacked sections make a loft.** `Node.loft(profiles, v_degree)`
+skins a solid through two or more section profiles in skin order — and
+takes no placement argument, because each section rides its own
+profile's sketch plane. The three sections below are the corpus's
+`loft_prism`: squares at z = 0 and z = 2 with a trapezoid between
+them, whose non-parallel pair means the middle section is *not* an
+affine image of the ends, so the four walls are genuinely curved
+rather than ruled.
+
+```python
+from pncad import Doc, Node, evaluate, m
+
+SQUARE = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
+TRAPEZOID = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]
+
+doc = Doc()
+sections = [
+    doc.insert(Node.polygon([(x * m, y * m) for x, y in pts], elevation=z * m))
+    for pts, z in [(SQUARE, 0.0), (TRAPEZOID, 1.0), (SQUARE, 2.0)]
+]
+prism = doc.insert(Node.loft(sections, 2))
+
+# The degree-2 skin through sections at (0, 1/2, 1) is the quadratic
+# Lagrange interpolant: corner paths S + 4v(1-v)*D, z = 2v exactly,
+# each slice a trapezoid of area 4 + 2*d*4v(1-v) with d = 0.375, so
+# V = 8 + 8d/3 = 9 m^3 exactly. Mass properties are an ENCLOSURE, so
+# the check is that 9 lies inside the certified pad.
+props = evaluate(doc).value(prism).body().mass_properties()
+assert abs(props.volume - 9.0) <= props.volume_pad + 1e-9
+assert props.volume_pad < 1e-6
+
+# The kernel's rule, not the binding's: 1 <= v_degree <= n - 1. Three
+# sections cannot carry degree 3, and nothing here pre-checks that —
+# it refuses at evaluation, where the kernel refuses.
+overdegree = doc.insert(Node.loft(sections, 3))
+assert not evaluate(doc).succeeded(overdegree)
+```
 
 A profile becomes usable by turning it into a body. `validated` is
 the one two-call wrapper the façade adds (`Profile::new` then
@@ -593,6 +756,118 @@ Bit-identity is a real guarantee, not a hope: the kernel uses pure
 libm and a fixed evaluation order (design decision D9), so the same
 document replays to the same bits.
 
+### A profile with holes
+
+A profile is a list of loops: the outer boundary first, then the
+holes. This is the same `ProfileProgram.loops` the Rust side fills,
+so the two languages say one thing — Rust hands `Profile::new` a
+`Vec<ProfileLoop>`, Python hands `Node.profile` a list.
+
+Nothing about the loop SET is checked at the boundary. Which loop is
+outer, whether the holes nest, whether two loops cross — that is
+`Profile::validate`'s work, and it reaches Python as a typed refusal
+at `insert`, not as a guess.
+
+```python
+import math
+
+from pncad import Doc, EditError, Node, Open, Start, circle, evaluate, m
+
+# The tour's `plate` stop: a 6 x 3 slab, 0.6 deep, with two holes.
+outer = (
+    Open.at((-3 * m, -1.5 * m))
+    .line_to((3 * m, -1.5 * m))
+    .line_to((3 * m, 1.5 * m))
+    .line_to((-3 * m, 1.5 * m))
+    .line_to(Start)
+)
+holes = [circle((-1.5 * m, 0 * m), 0.7 * m), circle((1.5 * m, 0 * m), 0.7 * m)]
+
+doc = Doc()
+sketch = doc.insert(Node.profile([outer, *holes]))
+plate = doc.insert(Node.extrude(sketch, 0.6 * m))
+
+body = evaluate(doc).value(plate).body()
+body.validate()
+area = 6.0 * 3.0 - 2.0 * math.pi * 0.7 * 0.7
+assert abs(body.mass_properties().volume - 0.6 * area) < 1e-12
+
+# Two disjoint circles are not an outline and its hole. The kernel
+# says so; the binding does not pre-empt it.
+try:
+    Doc().insert(
+        Node.profile([circle((0 * m, 0 * m), 1 * m), circle((5 * m, 0 * m), 1 * m)])
+    )
+    raise AssertionError("that profile should not have validated")
+except EditError as refusal:
+    assert refusal.variant == "profile_program_refused"
+```
+
+### Filleting edges you name
+
+A fillet blends a SELECTION of a body's edges, and the selection is
+stable names — not indices, not "all of them". There is no
+every-edge spelling on purpose: a selection is a COMMITMENT, and a
+live "all" would silently grow the day an upstream edit adds an edge.
+
+So you materialize the names you want off an evaluation, and store
+what you got. `Evaluation.all_edges(node)` is the whole-body
+materializer (with `all_faces`, `all_vertices` and `all_bodies`
+beside it), and the strings it answers with are carried to
+`Node.fillet` unread. Rust says the same thing with
+`editor_core::all_edges` and `Node::fillet`.
+
+**A name is an opaque identifier.** It is the name's own serde
+encoding — the same value a saved document carries, modulo the
+whitespace `save` pretty-prints with — but its internal structure is
+NOT API: it may change without notice, so the supported operations
+are equality, ordering, storage, and handing it back. Narrowing a
+materialized set is a SELECTOR's job. Rust has one
+(`select_where` with `GeomPred`); Python does not yet, and that is a
+named gap — see the north-star audit's G13.
+
+```python
+import math
+
+from pncad import Doc, EvaluationError, Node, evaluate, m
+
+L, R = 1.0, 0.12
+
+doc = Doc()
+square = doc.insert(
+    Node.polygon([(0 * m, 0 * m), (L * m, 0 * m), (L * m, L * m), (0 * m, L * m)])
+)
+cube = doc.insert(Node.extrude(square, L * m))
+
+# The twelve names, as of THIS evaluation. Stored into the recipe,
+# they are frozen: the repair path for a moved edge is a rebind, not
+# a re-query.
+edges = evaluate(doc).all_edges(cube)
+assert len(edges) == 12
+blank = doc.insert(Node.fillet(cube, R * m, edges))
+
+# The tour's `diefillet` blank: a shrunk core, six slab faces, twelve
+# quarter-cylinders and eight sphere octants.
+core = L - 2 * R
+want = (
+    core**3
+    + 6 * R * core**2
+    + 12 * (math.pi * R * R / 4) * core
+    + (4 / 3) * math.pi * R**3
+)
+body = evaluate(doc).value(blank).body()
+body.validate()
+assert abs(body.mass_properties().volume - want) < 1e-9 * want
+
+# An empty selection is refused by the node, not by the binding.
+empty = doc.insert(Node.fillet(cube, R * m, []))
+try:
+    evaluate(doc).value(empty)
+    raise AssertionError("an empty selection should not blend")
+except EvaluationError as refusal:
+    assert refusal.kind == "fillet_selection_empty"
+```
+
 ## 3. Parametric models
 
 Section 2's Rust walk built a solid by calling operations. That is a
@@ -626,7 +901,7 @@ let hole = LoopProgram::Circle {
     radius: len(0.25),
 };
 
-let mut doc = Doc::<ProfileProgram>::empty();
+let mut doc = Doc::<ProfileProgram>::empty_derived("guide");
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
@@ -670,7 +945,7 @@ use pncad::prelude::*;
 # let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
 # let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)]).expect("corners");
 # let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
-# let mut doc = Doc::<ProfileProgram>::empty();
+# let mut doc = Doc::<ProfileProgram>::empty_derived("guide");
 # let mut insert = |doc: &Doc<ProfileProgram>, node| {
 #     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
@@ -756,7 +1031,7 @@ let hole = |cx: f64, cy: f64| LoopProgram::Circle {
     radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
 };
 
-let mut doc = Doc::<ProfileProgram>::empty();
+let mut doc = Doc::<ProfileProgram>::empty_derived("guide");
 
 // Declare the parameter. An ordinary edit: recorded, replayable,
 // undoable like any other.
@@ -842,8 +1117,12 @@ belongs to replay.
 From Python the same edit is `DocEdit.set_doc_param(ParamName(…),
 DocParam.length(…))`, demonstrated against this exact document in
 `crates/pncad-py/tests/test_north_star.py`. Authoring the *profile*
-above from Python still awaits the audit's G1 (circles) and G9
-(multi-loop profiles) doors.
+above from Python now awaits exactly ONE door. Circles came with the
+audit's G1 and the three-loop profile with G9; what is left is a
+profile step whose argument is an EXPRESSION rather than a literal —
+the holes above are `LoopProgram::Circle { radius: Expr::param(…) }`,
+and `pncad.circle(centre, radius)` takes a `Length`, so the radius
+crosses as a number and the parameter link is lost.
 
 ## 4. The rest of the documentation
 

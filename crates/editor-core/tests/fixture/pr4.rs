@@ -81,7 +81,7 @@ where
     let mut out = Vec::new();
 
     // ---- Scenario A: sliding union (flip-vanish + cascade). ----
-    let doc = ProfileDoc::empty();
+    let doc = ProfileDoc::empty_derived("pr4");
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, tr) = insert(
@@ -185,7 +185,7 @@ where
     ));
 
     // ---- Scenario C: Declare stranded by DeleteNode (NodeGone). ----
-    let docd = ProfileDoc::empty();
+    let docd = ProfileDoc::empty_derived("pr4");
     let (docd, da) = block(docd, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (docd, db) = block(docd, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let cap_b = name1(EntityKind::Face, db, RoleSeg::Cap(CapEnd::Top));
@@ -212,7 +212,7 @@ where
     ));
 
     // ---- Scenario D: the symmetric U tie (Ambiguous). ----
-    let docu = ProfileDoc::empty();
+    let docu = ProfileDoc::empty_derived("pr4");
     let (docu, ua) = block(docu, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
     let (docu, up) = insert(
         docu,

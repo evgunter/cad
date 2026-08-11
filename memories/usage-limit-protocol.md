@@ -5,6 +5,15 @@ metadata:
   type: project
 ---
 
+**Account identifiers stay OFF GitHub (Evan, #355, 2026-08-10,
+anticipating the repo going public; restored after the #359/#360
+dedupe crossing deleted both copies):** never post account email
+addresses — or any personal identifier beyond the commit-signing
+identity (`evgunter`) — in issues, PRs, comments, commits, or
+committed files (this file included: name accounts by role, keep
+concrete addresses in local cad-work logs only). Existing comments
+naming addresses were edited on request — do not reintroduce them.
+
 **Why this exists (Evan, #348 comment, 2026-08-10):** hitting the
 subscription session limit opens Claude Code's usage-credits dialog,
 which KILLS that session for the rest of the day — it does not
@@ -39,8 +48,19 @@ YOUR OWN account.** Resolve it at session start from your own
 agent dir: `agent-<id>/plugin/claude/anthropic/.claude.json →
 oauthAccount.emailAddress` (the id is in your memory-directory
 path). Other accounts' alerts are informational — do not pause
-your lanes for them; at most relay to Evan if that account's
-orchestrator appears dead.
+your lanes for them — EXCEPT as peer-recovery input (Evan, #350):
+when another account's alert fires, note its RESET TIME; at/after
+that time, if that account's orchestrator looks dead (no lane
+activity, no away-channel traffic), find its tmux session
+(`tmux list-panes -a`, `capture-pane` to check for the
+usage-credits dialog) and `send-keys` the dialog's
+wait-until-reset/continue option to wake it. Two-reviver race
+(Evan's concern, M8 orchestrator's fix, #350): the reviver first
+takes `flock -n
+~/.local/share/cad-work/locks/revive-<account>.lock` — only the
+winner runs send-keys; the loser logs and walks away (flock
+releases on process death, the build-slot discipline). Relay to
+Evan only if the wake fails.
 
 **Orchestrator protocol on its events** (scoped to your account):
 - `USAGE WARN` (≥90%): wind down that account's lanes — finish the

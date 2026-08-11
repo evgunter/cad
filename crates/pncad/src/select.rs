@@ -56,7 +56,7 @@
 //! // v4 (LIB-SWITCH): the profile payload is its PROGRAM.
 //! let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
 //!     .expect("finite corners");
-//! let mut doc = Doc::<ProfileProgram>::empty();
+//! let mut doc = Doc::<ProfileProgram>::empty_derived("select-example");
 //! let mut insert = |doc: &Doc<ProfileProgram>, node| {
 //!     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
 //!     let id = applied.record.minted.expect("a minted id");
@@ -151,7 +151,7 @@
 //! // profile payload is its PROGRAM — a chain of Expr-bearing steps).
 //! let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
 //!     .expect("finite corners");
-//! let mut doc = Doc::<ProfileProgram>::empty();
+//! let mut doc = Doc::<ProfileProgram>::empty_derived("select-example");
 //! let mut insert = |doc: &Doc<ProfileProgram>, node| {
 //!     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
 //!     let id = applied.record.minted.expect("a minted id");
@@ -308,7 +308,7 @@
 //! // of Expr-bearing steps.
 //! let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
 //!     .expect("finite corners");
-//! let mut doc = Doc::<ProfileProgram>::empty();
+//! let mut doc = Doc::<ProfileProgram>::empty_derived("select-example");
 //! let mut insert = |doc: &Doc<ProfileProgram>, node| {
 //!     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
 //!     let id = applied.record.minted.expect("a minted id");
@@ -401,7 +401,7 @@
 //! };
 //!
 //! // A unit box, and a smaller box RESTING on its top cap.
-//! let doc = Doc::<ProfileProgram>::empty();
+//! let doc = Doc::<ProfileProgram>::empty_derived("select-example");
 //! let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0, 0.0)));
 //! let (doc, base) = insert(&doc, Node::Extrude { profile: pf1, distance: len(1.0) });
 //! let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, 1.0)));

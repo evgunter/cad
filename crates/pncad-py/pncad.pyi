@@ -14,18 +14,21 @@ two cannot drift.
 Refusals are typed: every exception below carries its payload as
 ATTRIBUTES, never as prose to be parsed.
 
+Profile authoring is the PATHS lattice (`Open`, `PathOpen`,
+`PathPoint`, `PathDirectedPoint`, `PathAngle`, `PathDirected`,
+`Start`, `circle`, `circle_split`) plus the straight-segment shortcut
+`Node.polygon`; one loop or a list of them, on any sketch plane.
+
 Deliberately ABSENT, and tracked as named gaps in
-`docs/guide/north-star-audit.md`: the PATHS authoring lattice
-(`PathOpen`/`PathPoint`/`PathAngle`/`PathDirected`, which ships only
-against the v2 program representation, LQ4), tessellation and STL,
-selectors and stable names, and contact declarations. Profile
-authoring here is `Node.polygon` only — one straight-segment loop on
-a plane parallel to the world xy-plane. Named document parameters
-crossed in R1-PARAMS (`ParamName`, `DocParam`,
-`DocEdit.set_doc_param` — guide §3.2).
+`docs/guide/north-star-audit.md`: sweep and tube, tessellation and
+STL, the pattern node with its structural-parameter edit, the
+SELECTOR language (a stable name can be materialized and carried,
+never composed or filtered by carrier kind), and the detect/declare
+protocol that would build the `Node.declare` `Node.boolean`'s
+`declare=` consumes.
 """
 
-from typing import Any, Final, Optional
+from typing import Any, Final, Optional, overload
 
 # --- errors -----------------------------------------------------------
 # Every subclass carries its refusal as ATTRIBUTES, never as parsed
@@ -92,6 +95,12 @@ class ExportError(PncadError):
 class StepImportError(PncadError):
     """A STEP text the importer refused (`refused`), or one that
     parsed to a non-solid (`wireframe`)."""
+
+    variant: str
+
+class PathError(PncadError):
+    """The PATHS authoring algebra refused the geometry, at the call
+    site of the verb that wrote it."""
 
     variant: str
 
@@ -171,11 +180,185 @@ inch: Final[LengthUnit]  # `in` is a Python keyword; `quantity` spells it IN
 deg: Final[AngleUnit]
 rad: Final[AngleUnit]
 
+# --- profile authoring: the PATHS lattice ------------------------------
+# PATHS-DESIGN §2. The tip's state is exactly which of {position,
+# angle} it has bound, and each state is its OWN class exposing only
+# its legal continuations — so a double director, `.tangent()` on a
+# plain point, or a leading `.fillet` is a static error here and an
+# AttributeError at runtime, exactly as it is an E0599 in Rust.
+#
+# Two spellings of one verb (an authored point, or `Start`) are
+# @overload pairs, because the RETURN follows the target: targeting
+# `Start` closes the loop.
+
+class StartToken:
+    """The type of `Start`, the bound entry as a value."""
+
+class ArcSweep:
+    """Travel sense about a centre — structural, never a value."""
+
+    Ccw: Final[ArcSweep]
+    Cw: Final[ArcSweep]
+
+class ClosedLoop:
+    """A closed loop and the program that produced it."""
+
+    @property
+    def vertex_count(self) -> int: ...
+    @property
+    def step_count(self) -> int: ...
+
+class Open:
+    """The entry: nothing bound. A token, not a value you construct."""
+
+    @staticmethod
+    def at(p: tuple[Length, Length]) -> PathPoint: ...
+    @staticmethod
+    def angle(theta: Angle) -> PathAngle: ...
+    @staticmethod
+    def toward(dx: float, dy: float) -> PathAngle: ...
+    @staticmethod
+    def at_on(
+        p: tuple[Length, Length],
+        centre: tuple[Length, Length],
+        winding: ArcSweep,
+    ) -> PathDirected: ...
+
+class PathOpen:
+    """A fillet's freshly opened arrival side: nothing bound, and
+    `Start` reachable because the entry is behind us."""
+
+    def at(self, p: tuple[Length, Length]) -> PathPoint: ...
+    def angle(self, theta: Angle) -> PathAngle: ...
+    def toward(self, dx: float, dy: float) -> PathAngle: ...
+    def to(self, target: StartToken) -> ClosedLoop: ...
+    def at_on(
+        self,
+        p: tuple[Length, Length],
+        centre: tuple[Length, Length],
+        winding: ArcSweep,
+    ) -> PathDirected: ...
+    def to_on(
+        self,
+        target: StartToken,
+        centre: tuple[Length, Length],
+        winding: ArcSweep,
+    ) -> ClosedLoop: ...
+
+class PathAngle:
+    """Direction bound, position pending."""
+
+    def at(self, p: tuple[Length, Length]) -> PathDirected: ...
+    def to(self, anchor: tuple[Length, Length]) -> PathDirectedPoint: ...
+
+class PathPoint:
+    """A plain point: position bound, no incoming carrier. There is
+    nothing to inherit here, so `tangent` and `turn` are absent."""
+
+    def angle(self, theta: Angle) -> PathDirected: ...
+    def toward(self, dx: float, dy: float) -> PathDirected: ...
+    @overload
+    def line_to(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
+    @overload
+    def line_to(self, target: StartToken) -> ClosedLoop: ...
+    @overload
+    def arc_to(
+        self, target: tuple[Length, Length], bulge: float
+    ) -> PathDirectedPoint: ...
+    @overload
+    def arc_to(self, target: StartToken, bulge: float) -> ClosedLoop: ...
+    @overload
+    def arc_via(
+        self, via: tuple[Length, Length], target: tuple[Length, Length]
+    ) -> PathDirectedPoint: ...
+    @overload
+    def arc_via(
+        self, via: tuple[Length, Length], target: StartToken
+    ) -> ClosedLoop: ...
+    @overload
+    def arc_center(
+        self,
+        centre: tuple[Length, Length],
+        target: tuple[Length, Length],
+        winding: ArcSweep,
+    ) -> PathDirectedPoint: ...
+    @overload
+    def arc_center(
+        self,
+        centre: tuple[Length, Length],
+        target: StartToken,
+        winding: ArcSweep,
+    ) -> ClosedLoop: ...
+
+class PathDirectedPoint:
+    """A leg end: position bound, and the leg's incoming end tangent
+    available as read-only intrinsic data."""
+
+    def angle(self, theta: Angle) -> PathDirected: ...
+    def toward(self, dx: float, dy: float) -> PathDirected: ...
+    def tangent(self) -> PathDirected: ...
+    def turn(self, delta: Angle) -> PathDirected: ...
+    def arc_continue(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
+    @overload
+    def line_to(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
+    @overload
+    def line_to(self, target: StartToken) -> ClosedLoop: ...
+    @overload
+    def arc_to(
+        self, target: tuple[Length, Length], bulge: float
+    ) -> PathDirectedPoint: ...
+    @overload
+    def arc_to(self, target: StartToken, bulge: float) -> ClosedLoop: ...
+    @overload
+    def arc_via(
+        self, via: tuple[Length, Length], target: tuple[Length, Length]
+    ) -> PathDirectedPoint: ...
+    @overload
+    def arc_via(
+        self, via: tuple[Length, Length], target: StartToken
+    ) -> ClosedLoop: ...
+    @overload
+    def arc_center(
+        self,
+        centre: tuple[Length, Length],
+        target: tuple[Length, Length],
+        winding: ArcSweep,
+    ) -> PathDirectedPoint: ...
+    @overload
+    def arc_center(
+        self,
+        centre: tuple[Length, Length],
+        target: StartToken,
+        winding: ArcSweep,
+    ) -> ClosedLoop: ...
+
+class PathDirected:
+    """Both bits bound — the only state legs and `fillet` consume.
+    The outgoing angle slot is full, so no second director exists."""
+
+    def line(self, len: Length) -> PathDirectedPoint: ...
+    def fillet(self, radius: Length) -> PathOpen: ...
+    @overload
+    def tangent_arc_to(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
+    @overload
+    def tangent_arc_to(self, target: StartToken) -> ClosedLoop: ...
+
+Start: Final[StartToken]
+
+def circle(centre: tuple[Length, Length], radius: Length) -> ClosedLoop: ...
+def circle_split(
+    centre: tuple[Length, Length],
+    radius: Length,
+    n: int,
+    phase: Angle,
+) -> ClosedLoop: ...
+
 # --- document ---------------------------------------------------------
 
 class NodeId:
     """A recipe node's identity. NOT an arena key (§L3)."""
 
+    def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
 class BooleanOp:
@@ -185,6 +368,49 @@ class BooleanOp:
     Intersect: Final[BooleanOp]
     Subtract: Final[BooleanOp]
 
+class SketchPlane:
+    """The rigid placement of a sketch plane in 3-space.
+
+    Sketch (x, y) maps to world `origin + x*u + y*v`, and the plane's
+    NORMAL is `u x v` — the direction `Node.extrude` runs, so the
+    plane is what chooses an extrusion's axis. The named frames are
+    cyclic (x->y->z->x): `xy` has normal +z, `yz` (u = y, v = z) has
+    normal +x, `zx` (u = z, v = x) has normal +y.
+
+    Rigidity — u, v unit and perpendicular — is CONVENTIONAL DATA,
+    UNCHECKED, exactly as in Rust: nothing here verifies it, and a
+    non-rigid frame yields a well-defined skewed sketch rather than
+    poison. Geometric certification is the kernel's tier-3 validation
+    at rest; the binding adds no orthogonality predicate of its own.
+    """
+
+    @staticmethod
+    def xy() -> SketchPlane: ...
+    @staticmethod
+    def yz() -> SketchPlane: ...
+    @staticmethod
+    def zx() -> SketchPlane: ...
+    @staticmethod
+    def from_frame(
+        origin: tuple[Length, Length, Length],
+        u: tuple[float, float, float],
+        v: tuple[float, float, float],
+    ) -> SketchPlane: ...
+    @property
+    def origin(self) -> tuple[Length, Length, Length]: ...
+    @property
+    def u(self) -> tuple[float, float, float]: ...
+    @property
+    def v(self) -> tuple[float, float, float]: ...
+    @property
+    def normal(self) -> tuple[float, float, float]: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+    # Equality is BIT-exact — Rust's `SketchPlane::bit_eq`, crossing
+    # unchanged. A sketch plane carries no epsilon, so `-0.0` keeps its
+    # own identity rather than being folded into `0.0`.
+
 class Node:
     """A recipe node, before insertion."""
 
@@ -192,18 +418,70 @@ class Node:
     def polygon(
         points: list[tuple[Length, Length]],
         elevation: Optional[Length] = None,
+        plane: Optional[SketchPlane] = None,
+    ) -> Node: ...
+    @overload
+    @staticmethod
+    def profile(
+        outline: ClosedLoop,
+        elevation: Optional[Length] = None,
+        plane: Optional[SketchPlane] = None,
+    ) -> Node: ...
+    @overload
+    @staticmethod
+    def profile(
+        outline: list[ClosedLoop],
+        elevation: Optional[Length] = None,
+        plane: Optional[SketchPlane] = None,
     ) -> Node: ...
     @staticmethod
     def extrude(profile: NodeId, distance: Length) -> Node: ...
     @staticmethod
     def revolve(profile: NodeId, axis: NodeId, angle: Angle) -> Node: ...
     @staticmethod
+    def loft(profiles: list[NodeId], v_degree: int) -> Node: ...
+    @staticmethod
     def datum_axis(
         origin: tuple[Length, Length, Length],
         direction: tuple[float, float, float],
     ) -> Node: ...
     @staticmethod
-    def boolean(op: BooleanOp, a: NodeId, b: NodeId) -> Node: ...
+    def datum_plane(
+        origin: tuple[Length, Length, Length],
+        normal: tuple[float, float, float],
+    ) -> Node: ...
+    @staticmethod
+    def fillet(target: NodeId, radius: Length, selection: list[str]) -> Node:
+        """Constant-radius blends on named edges of `target`.
+
+        `selection` is edge names as TEXT — the strings
+        `Evaluation.all_edges` answers with. The set FREEZES at
+        authoring time; an empty one, an unresolvable name, or an edge
+        the roller cannot enter refuses typed at `evaluate`.
+        """
+
+    @staticmethod
+    def split(target: NodeId, tool: NodeId) -> Node:
+        """Split `target` by `tool` (a `datum_plane`). The value is a
+        split — read it with `Value.split()`, not `Value.body()`."""
+
+    @staticmethod
+    def transform(
+        input: NodeId,
+        translation: tuple[Length, Length, Length],
+        rotation_axis: tuple[float, float, float],
+        rotation_angle: Angle,
+    ) -> Node:
+        """A rigid placement: rotate about `rotation_axis` through the
+        WORLD ORIGIN by `rotation_angle`, then translate. A pure
+        translation passes any non-degenerate axis and a zero angle;
+        a zero-length axis refuses rather than meaning "no rotation".
+        """
+
+    @staticmethod
+    def boolean(
+        op: BooleanOp, a: NodeId, b: NodeId, declare: Optional[NodeId] = None
+    ) -> Node: ...
 
 class ParamName:
     """A document-level parameter name (guide §3.2). NOT an arena
@@ -212,6 +490,7 @@ class ParamName:
     def __init__(self, name: str) -> None: ...
     @property
     def name(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
 class DocParam:
@@ -229,6 +508,12 @@ class DocParam:
     def scalar(value: float) -> DocParam: ...
     @staticmethod
     def count(value: int) -> DocParam: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+    # Equality mirrors Rust's `PartialEq` — the IEEE comparison of the
+    # stored value, NOT `DocParam::bit_eq`'s. So the two spellings of
+    # zero are the same parameter, and the hash folds `-0.0` to match.
 
 class DocEdit:
     """A single edit — the G1 edit vocabulary (§L3)."""
@@ -319,6 +604,21 @@ class Evaluation:
     def value(self, node: NodeId) -> Value: ...
     def succeeded(self, node: NodeId) -> bool: ...
     def order(self) -> list[NodeId]: ...
+    def all_edges(self, node: NodeId) -> list[str]:
+        """Every edge name of `node`'s output, as of THIS evaluation —
+        the strings `Node.fillet` selects with. A MATERIALIZER: store
+        what it answers, because a recipe holds no live selection.
+
+        Each string is an OPAQUE identifier. Its internal structure is
+        not API — it may change without notice — so the supported
+        operations are equality, ordering, storage, and handing it back
+        to `Node.fillet`. Narrowing the set is a SELECTOR's job, and no
+        selector crosses yet (the audit's G13).
+        """
+
+    def all_faces(self, node: NodeId) -> list[str]: ...
+    def all_vertices(self, node: NodeId) -> list[str]: ...
+    def all_bodies(self, node: NodeId) -> list[str]: ...
     @property
     def recomputed(self) -> int: ...
     @property

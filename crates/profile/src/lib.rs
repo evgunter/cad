@@ -297,6 +297,27 @@ impl<T: Real> SketchPlane<T> {
         Self::new(Affine3::identity())
     }
 
+    /// The world yz-plane: u = ŷ, v = ẑ, normal = ŷ × ẑ = x̂, origin at
+    /// the world origin.
+    ///
+    /// The cyclic convention (x→y→z→x) is what the tour's letterforms
+    /// captions mean by "a yz sketch extruded +x": sketch (x, y) maps
+    /// to world (0, x, y), and the extrusion normal — the third
+    /// placement column — is +x̂.
+    pub fn yz() -> Self {
+        Self::from_frame(Point3::origin(), Vec3::unit_y(), Vec3::unit_z())
+    }
+
+    /// The world zx-plane: u = ẑ, v = x̂, normal = ẑ × x̂ = ŷ, origin at
+    /// the world origin.
+    ///
+    /// Same cyclic convention as [`Self::yz`] one step further round,
+    /// so the captions' "a zx sketch extruded +y" is literal: sketch
+    /// (x, y) maps to world (y, 0, x), and the extrusion normal is +ŷ.
+    pub fn zx() -> Self {
+        Self::from_frame(Point3::origin(), Vec3::unit_z(), Vec3::unit_x())
+    }
+
     /// The plane through `origin` spanned by `u` and `v`, with
     /// normal = u × v (computed, keeping the frame right-handed by
     /// construction when u ⊥ v are unit — which is the caller's
@@ -314,6 +335,65 @@ impl<T: Real> SketchPlane<T> {
     pub fn to_world(&self, p: Point2<T>) -> Point3<T> {
         self.placement
             .transform_point(Point3::new(p.x, p.y, T::zero()))
+    }
+
+    /// The plane's origin — sketch (0, 0) in world space.
+    ///
+    /// The four accessors below READ the frame [`from_frame`] wrote:
+    /// they are projections of `placement`, never a recomputation, so
+    /// `from_frame(o, u, v)` round-trips through them BITWISE. That is
+    /// why the translation is transcribed component by component
+    /// rather than added to the coordinate origin — `0 + (-0) = 0`
+    /// would quietly launder a signed zero the stored frame kept.
+    ///
+    /// [`from_frame`]: Self::from_frame
+    pub fn origin(&self) -> Point3<T> {
+        let t = self.placement.translation;
+        Point3::new(t.x, t.y, t.z)
+    }
+
+    /// The plane's u direction — the placement's first linear column,
+    /// the world direction sketch +x runs.
+    pub fn u(&self) -> Vec3<T> {
+        self.placement.linear.c0
+    }
+
+    /// The plane's v direction — the placement's second linear column,
+    /// the world direction sketch +y runs.
+    pub fn v(&self) -> Vec3<T> {
+        self.placement.linear.c1
+    }
+
+    /// The plane's normal — the placement's third linear column, which
+    /// [`from_frame`] filled with u × v. This is the direction an
+    /// extrusion of a profile on this plane runs.
+    ///
+    /// [`from_frame`]: Self::from_frame
+    pub fn normal(&self) -> Vec3<T> {
+        self.placement.linear.c2
+    }
+}
+
+impl SketchPlane<f64> {
+    /// Bit-exact frame equality (the `Doc::bit_eq` precedent, spec
+    /// D7): every one of the twelve stored components compared by
+    /// BITS, so `0.0` and `-0.0` are different planes here.
+    ///
+    /// Bit comparison, not tolerance comparison, is the only equality
+    /// this type can honestly offer: a sketch plane carries no ε, and
+    /// "the same plane" up to tolerance is a geometric question the
+    /// kernel answers about BODIES, at tier 3. Two planes equal here
+    /// place every sketch point identically, by construction.
+    pub fn bit_eq(&self, other: &Self) -> bool {
+        let bits = |p: &Self| {
+            let (o, l) = (p.origin(), p.placement.linear);
+            [
+                o.x, o.y, o.z, l.c0.x, l.c0.y, l.c0.z, l.c1.x, l.c1.y, l.c1.z, l.c2.x, l.c2.y,
+                l.c2.z,
+            ]
+            .map(f64::to_bits)
+        };
+        bits(self) == bits(other)
     }
 }
 

@@ -97,6 +97,10 @@ env:
   # 2-week dependency-age rule. A dev/CI tool only — it never enters any
   # shipped build graph (the wheel's compiled code is cargo's output).
   MATURIN_VERSION: "1.14.1"
+  # `ty`, the static stub checker (LIB-PYG1). 0.0.39 was published
+  # 2026-05-22, so it clears the >=2-week dependency age policy by
+  # weeks.
+  TY_VERSION: "0.0.39"
 
 # The toolchain (channel + rustfmt/clippy components) comes from
 # rust-toolchain.toml: the dtolnay step only bootstraps/updates rustup, and
@@ -166,11 +170,14 @@ jobs:
         env:
           RUSTUP_TOOLCHAIN: stable
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="${{ github.event.pull_request.base.sha }}"
-          else
-            BASE="$(git rev-parse HEAD^1 2>/dev/null || git rev-parse HEAD)"
-          fi
+          # Always diff against the checkout's own first parent. On
+          # pull_request the checkout is the test-merge commit, so HEAD^1
+          # is by construction the exact base state the merge was built
+          # against; the event payload's base.sha can be newer than that
+          # (base moved between payload snapshot and merge-ref
+          # construction), and the skew window's commits then appear as
+          # phantom changed files that defeat the docs/closure tiers.
+          BASE="$(git rev-parse HEAD^1 2>/dev/null || git rev-parse HEAD)"
           echo "base: $BASE"
           echo "changed files:"
           git diff --name-only "$BASE"...HEAD || true
@@ -309,6 +316,17 @@ jobs:
             echo "::error::found 'Real +' bound(s) above — evaluation-code discipline forbids extra bounds on scalar type parameters"
             exit 1
           fi
+      # Test-aggregation discipline: one [[test]] target per crate. Each
+      # extra one is a full codegen+link of the ~40-rlib graph — 96% of
+      # this workflow's build job, measured (bazel-verdict report). #179
+      # collapsed 249 targets to 12 on that evidence and MISSED
+      # step-import, which silently kept 26 (two thirds of every remaining
+      # test target in the workspace) until the 2026-08-10 build-contention
+      # investigation found it. The complementary per-crate
+      # `every_suite_file_is_aggregated` test cannot fire for a crate that
+      # never opted in — that is the hole this closes.
+      - name: test-aggregation discipline
+        run: scripts/check-test-aggregation.sh
       # Bit-identity coincidence checking is RETIRED from production
       # (M4 PR 5, NAMING-DESIGN N6; DESIGN.md roadmap; Evan, #53): the
       # declared rung is GeomSource lookup, and the production-consumer
@@ -855,6 +873,16 @@ jobs:
         run: |
           python -m venv --clear "$RUNNER_TEMP/py-ci-venv"
           "$RUNNER_TEMP/py-ci-venv/bin/python" -m pip install target/wheels/pncad-*.whl
+      # The STATIC half of the §L4 type story (LIB-PYG1): `ty` checks
+      # the .pyi lattice's SIGNATURES, which the name-for-name stub
+      # check deliberately does not look at. Pinned like maturin; this
+      # step is where the row is MEASURED, so a fetch failure reds the
+      # job rather than passing quietly. `tests/test_ty.py` skips —
+      # loudly, naming the missing binary — only where no checker
+      # exists at all (the degraded local box U9S recorded).
+      - name: install ty (pinned, the static stub checker)
+        run: |
+          "$RUNNER_TEMP/py-ci-venv/bin/python" -m pip install "ty==$TY_VERSION"
       # Discovery from the repo checkout: guide tests read the docs/
       # Markdown relative to their own file, and the stub check is
       # layout-invariant (validated on the wheel-venv layout, #308).
@@ -864,6 +892,8 @@ jobs:
             --start-directory crates/pncad-py/tests \
             --top-level-directory crates/pncad-py/tests \
             --verbose
+        env:
+          PNCAD_TY: ${{ runner.temp }}/py-ci-venv/bin/ty
 
   # (The former standalone `multi-eps` job is FOLDED into the `test`
   # matrix above: its 1e-6/1e-12 rows and the old unparameterized `test`
@@ -1040,3 +1070,33 @@ jobs:
             ../../target/k-fresh/k-eps-1e-6.csv \
             ../../target/k-fresh/k-eps-1e-9.csv \
             ../../target/k-fresh/k-eps-1e-12.csv
+
+  # THE RENDER GATE. The committed montages are build products of the
+  # kernel that nothing checked: `k-lint` above gates the UV sheet
+  # because it is the only lane a FreeCAD-less runner can reproduce, and
+  # the other three rotted silently between hand-run refreshes. They are
+  # gateable now — hosted is their canonical producer (#338) and a repeat
+  # hosted render is byte-identical — so this calls render.yml rather
+  # than restating how a lane renders: ONE definition, gated here and
+  # dispatched on demand there.
+  #
+  # It is free in wall clock. The lanes finish in ~150 s against this
+  # workflow's ~460 s critical path (the test shards), so they cost
+  # runner minutes and nothing else, and only on the same condition
+  # `k-lint` uses — a render depends on the whole kernel, so "whenever
+  # anything builds at all" is the right trigger for it too.
+  #
+  # A FAILING ROW HANDS OVER ITS OWN FIX: each lane uploads its render
+  # to THIS run and names the `gh run download` that installs it, so a
+  # stale lane costs a download and a commit, never a second render.
+  # `render_jobs: 2` matches the runner's core count — measured
+  # byte-identical to sequential, at ~20% less wall clock.
+  renders:
+    name: render lanes
+    needs: filter
+    if: needs.filter.outputs.run_k_lint == 'true'
+    uses: ./.github/workflows/render.yml
+    with:
+      gate: true
+      lanes: all
+      render_jobs: "2"

@@ -86,6 +86,36 @@ load 13–19** (61% CPU — CPU/cache contention, not I/O). A full pass is
 a render pass and a build battery on the same box is a bad trade in
 both directions.
 
+## GET RENDERS FROM CI, NOT BY DISPATCHING (2026-08-11)
+
+`ci.yml`'s `renders` job calls `render.yml` as a **gate** on every push
+that builds anything: it renders all four lanes over the PR's merge
+commit and FAILS when a committed lane no longer matches. So the frames
+for your tree normally already exist as artifacts on your branch's CI
+run, and the way to get them is
+
+    scripts/render-hosted.sh          # <- the DEFAULT is to take CI's
+
+which resolves that run and installs each lane at its committed path,
+waiting only on the render lanes rather than on the whole CI run. It
+works on a FAILED CI run too — a stale committed lane is exactly what
+makes the gate fail, and that run's artifact is the fix (lanes upload
+before the gate compares). The failing row prints that exact command.
+
+Note the failing row does NOT print a bare `gh run download`: that
+command refuses to overwrite existing files, so aimed at a populated
+lane directory — the only case it would ever be printed in — it fails
+on the first cell. `render-hosted.sh` stages into a temp dir first.
+
+**Dispatch (`--on-demand`, or `render.yml` directly) only when CI has
+not covered the tree**: unpushed branch, no CI run, or a deliberate
+re-render at a different scene budget. Dispatching otherwise renders
+the same tree twice.
+
+Expect the two PNG lanes to re-baseline when the runner image's mesa
+bumps (roughly monthly). That is the gate working, not failing; it
+costs one mechanical commit of the artifact.
+
 ## RENDER-IN-ACTIONS IS THE NORM (Evan's ruling, 2026-08-10; hosted = CANONICAL PRODUCER)
 
 The hosted "render (demos)" workflow (#323/#324, wedge root-caused
@@ -97,6 +127,28 @@ the explicit CAD_RENDER_LOCAL_OVERRIDE sentence). Measured
 2026-08-10 on a 2-core runner (llvmpipe under Xvfb): 19 scenes,
 median 3 s, max 6 s, 62 s total — faster than this host, and it
 does not compete with the build lanes.
+
+### Where a hosted run's time goes (measured 2026-08-11)
+
+Runner: **2 cores, 7 GB**, llvmpipe under Xvfb. A full 4-lane run is
+two waves — `tour` gates the three lanes that read it; `wild` and `uv`
+finish inside their shadow and gate nothing — so the run's wall clock
+is `tour` + `kernel montage` and nothing else.
+
+* **The tour step is a COMPILE, not geometry**: ~94-121 s of `cargo`
+  against ~8 s of actual work (the binary runs in 7.8 s locally).
+  `Swatinem/rust-cache` reports `full match: true` and all seventeen
+  workspace crates still rebuild — the action evicts workspace members
+  from what it restores, by design. Caching what the tour PRODUCES
+  (`demos/out`, keyed on an exact hash of its sources) skips both
+  halves: **152 s -> 16 s**, and a 4-lane run **333 s -> 184 s**.
+* **`CAD_RENDER_JOBS=2`** (render.sh's concurrency knob, default 1)
+  takes the kernel loop 110 s -> 85 s and the STEP loop 45 s -> 36 s.
+  Contention shows up exactly where the numbers above predict — median
+  scene 3 s -> 5 s, max 9 s — which is still 33x under the budget.
+  **Verified byte-identical** at K=1 vs K=2, both lanes (55 files), and
+  identical to the committed cells. Two hosted runs of one commit are
+  byte-identical, so that comparison is real signal.
 
 **Committed frames are the HOSTED producer's output** (Evan's
 canonical-producer ruling on #338; the wholesale re-baseline unit

@@ -49,9 +49,18 @@ require_hosted_render() {
         echo
         echo "REFUSING: renders are hosted now. $entry is not the default path."
         echo
+        echo "Your branch's CI run almost certainly rendered this already —"
+        echo "ci.yml renders and gates all four lanes on every push — so the"
+        echo "usual move is to install what it produced rather than render:"
+        echo
+        echo "  scripts/render-hosted.sh"
+        echo
+        echo "If the branch has no CI run yet (not pushed, no PR), render on"
+        echo "demand instead:"
+        echo
         echo "  scripts/render-hosted.sh --lane <kernel|freecad|uv|wild|all>"
         echo
-        echo "It triggers .github/workflows/render.yml on your PUSHED branch,"
+        echo "That triggers .github/workflows/render.yml on your PUSHED branch,"
         echo "polls the run, and installs the artifacts back into the working"
         echo "tree at their committed paths — the frames you then review and"
         echo "commit. See demos/README.md, \"Off-box: the hosted lanes\"."

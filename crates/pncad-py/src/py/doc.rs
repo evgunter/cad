@@ -68,6 +68,58 @@ pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult
     })
 }
 
+/// A stable name as Python holds it: the name's OWN serde text.
+///
+/// # The text is OPAQUE BY CONTRACT
+///
+/// It is a stable IDENTIFIER — carried from a materializer to a
+/// selection unread, exactly as the Rust surface carries the value —
+/// and its internal structure is **not API**. Parsing it is
+/// representation-dependence: the encoding may change without notice,
+/// and code that reads inside a name is code this crate will break.
+/// The supported operations are equality, ordering, storage, and
+/// handing it back to [`Node::fillet`]. Narrowing a set of names is a
+/// SELECTOR's job, and no selector crosses yet (the audit's G13).
+///
+/// # Why this encoding
+///
+/// `StableName` has exactly one serialization and the binding reuses
+/// it rather than minting a second spelling, so a name is one
+/// vocabulary across Rust, Python and the file format. The relation
+/// to a saved document is VALUE equality, not byte equality: `save`
+/// pretty-prints and this writes compact, so the two texts differ in
+/// whitespace and parse to the same JSON value — and a name taken
+/// from either round-trips through the other.
+pub(crate) fn name_text(py: Python<'_>, name: &pncad::prelude::StableName) -> PyResult<String> {
+    serde_json::to_string(name).map_err(|err| {
+        typed_err(
+            py,
+            ErrorClass::Edit,
+            format!("a stable name failed to serialize: {err}"),
+            &[(
+                "variant",
+                PyString::new(py, "name_serialize").unbind().into_any(),
+            )],
+        )
+    })
+}
+
+/// Read a stable name back from [`name_text`]'s output.
+///
+/// Text that is not a name at all is a boundary `ValueError` — the
+/// same class of refusal as a string where a `SketchPlane` belongs,
+/// with no kernel refusal to forward. A WELL-FORMED name that denotes
+/// nothing in this document refuses at the kernel's own door
+/// (`fillet_selection_resolve`), which is where that belongs.
+fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName> {
+    serde_json::from_str(text).map_err(|err| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "not a stable name: {text:?} ({err}) — names come from \
+             `Evaluation.all_edges` and its siblings"
+        ))
+    })
+}
+
 /// A recipe node's identity within a document.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
@@ -104,10 +156,16 @@ pub(crate) struct Doc {
 #[pymethods]
 impl Doc {
     /// An empty document.
+    ///
+    /// Identity note (ASM-1 D-7): the Python surface gains no
+    /// identity door in this unit — every `Doc()` carries the same
+    /// label-derived placeholder id (deterministic, so Python-driven
+    /// saves stay reproducible). The id/pin/workspace doors are a
+    /// recorded bindings-parity pickup.
     #[new]
     fn new() -> Self {
         Self {
-            inner: d::ProfileDoc::empty(),
+            inner: d::ProfileDoc::empty_derived("pncad-py:Doc"),
         }
     }
 
@@ -213,6 +271,182 @@ impl BooleanOp {
     }
 }
 
+/// The rigid placement of a sketch plane in 3-space — the kernel's
+/// `profile::SketchPlane`, crossing as a VALUE.
+///
+/// Sketch (x, y) maps to world `origin + x·u + y·v`, and the plane's
+/// NORMAL is `u × v` — which is the direction `Node.extrude` runs, so
+/// the plane is what chooses an extrusion's axis.
+///
+/// The three named planes are the cyclic frames x→y→z→x: `xy` (normal
+/// +z), `yz` (u = ŷ, v = ẑ, normal +x), `zx` (u = ẑ, v = x̂, normal
+/// +y) — the same convention the demo tour's letterform captions
+/// speak ("a yz sketch extruded +x").
+///
+/// RIGIDITY IS AN UNCHECKED CONVENTION, exactly as in Rust: nothing
+/// verifies that `u` and `v` are unit and perpendicular. A non-rigid
+/// frame yields a well-defined SKEWED sketch, not poison — the
+/// kernel's tier-3 geometric validation is what certifies a body at
+/// rest. The binding deliberately adds no orthogonality predicate of
+/// its own: one semantics, two host languages.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct SketchPlane(pub(crate) pncad::profile::SketchPlane<f64>);
+
+#[pymethods]
+impl SketchPlane {
+    /// The world xy-plane: u = x̂, v = ŷ, normal = +ẑ.
+    #[staticmethod]
+    fn xy() -> Self {
+        Self(pncad::profile::SketchPlane::xy())
+    }
+
+    /// The world yz-plane: u = ŷ, v = ẑ, normal = +x̂.
+    #[staticmethod]
+    fn yz() -> Self {
+        Self(pncad::profile::SketchPlane::yz())
+    }
+
+    /// The world zx-plane: u = ẑ, v = x̂, normal = +ŷ.
+    #[staticmethod]
+    fn zx() -> Self {
+        Self(pncad::profile::SketchPlane::zx())
+    }
+
+    /// The plane through `origin` spanned by `u` and `v`.
+    ///
+    /// `origin` is dimensioned (`Length`s, §L4); `u` and `v` are
+    /// dimensionless direction triples. Rigidity is the caller's
+    /// unchecked convention — see the class docs.
+    #[staticmethod]
+    fn from_frame(
+        origin: (
+            super::quantity::Length,
+            super::quantity::Length,
+            super::quantity::Length,
+        ),
+        u: (f64, f64, f64),
+        v: (f64, f64, f64),
+    ) -> Self {
+        Self(pncad::profile::SketchPlane::from_frame(
+            pncad::authoring::p3::<f64>(
+                origin.0.0.meters(),
+                origin.1.0.meters(),
+                origin.2.0.meters(),
+            ),
+            pncad::authoring::v3(u.0, u.1, u.2),
+            pncad::authoring::v3(v.0, v.1, v.2),
+        ))
+    }
+
+    /// The plane's origin — sketch (0, 0) in world space.
+    ///
+    /// The four accessors READ the frame back, they never recompute
+    /// it: `from_frame(o, u, v)` round-trips through them exactly, and
+    /// `normal` is the third placement column `from_frame` filled with
+    /// u × v. Same four doors as Rust's `SketchPlane` (one
+    /// vocabulary).
+    #[getter]
+    fn origin(
+        &self,
+    ) -> (
+        super::quantity::Length,
+        super::quantity::Length,
+        super::quantity::Length,
+    ) {
+        let o = self.0.origin();
+        let len = |v: f64| super::quantity::Length(pncad::quantity::Length::from_meters(v));
+        (len(o.x), len(o.y), len(o.z))
+    }
+
+    /// The world direction sketch +x runs — a dimensionless triple.
+    #[getter]
+    fn u(&self) -> (f64, f64, f64) {
+        let u = self.0.u();
+        (u.x, u.y, u.z)
+    }
+
+    /// The world direction sketch +y runs — a dimensionless triple.
+    #[getter]
+    fn v(&self) -> (f64, f64, f64) {
+        let v = self.0.v();
+        (v.x, v.y, v.z)
+    }
+
+    /// The plane's normal, u × v — the direction `Node.extrude` runs.
+    #[getter]
+    fn normal(&self) -> (f64, f64, f64) {
+        let n = self.0.normal();
+        (n.x, n.y, n.z)
+    }
+
+    /// BIT-exact frame equality — Rust's `SketchPlane::bit_eq`,
+    /// crossing unchanged (the `Doc.bit_eq` precedent, spec D7):
+    /// `0.0` and `-0.0` are different planes here.
+    ///
+    /// Bit equality is the only equality this value can honestly
+    /// offer: a sketch plane carries no ε, and "the same plane up to
+    /// tolerance" is a geometric question the kernel answers about
+    /// BODIES at tier 3. Two planes equal here place every sketch
+    /// point identically.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0.bit_eq(&other.0)
+    }
+
+    /// Consistent with [`Self::__eq__`] BY CONSTRUCTION: it hashes the
+    /// same twelve bit patterns the comparison reads, so bit-equal
+    /// planes hash equal and `-0.0` keeps its own bucket.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let o = self.0.origin();
+        let (u, v, n) = (self.0.u(), self.0.v(), self.0.normal());
+        let mut h = std::hash::DefaultHasher::new();
+        for c in [o.x, o.y, o.z, u.x, u.y, u.z, v.x, v.y, v.z, n.x, n.y, n.z] {
+            c.to_bits().hash(&mut h);
+        }
+        h.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        let o = self.0.placement.translation;
+        let (u, v) = (self.0.placement.linear.c0, self.0.placement.linear.c1);
+        format!(
+            "SketchPlane(origin=({}, {}, {}), u=({}, {}, {}), v=({}, {}, {}))",
+            o.x, o.y, o.z, u.x, u.y, u.z, v.x, v.y, v.z
+        )
+    }
+}
+
+/// The plane a sketch node sits on, from the mutually exclusive
+/// `plane=` / `elevation=` pair.
+///
+/// ONE lowering for both spellings: `elevation` is the xy sugar it has
+/// always been — the xy-plane translated up z — so there is a single
+/// place where a sketch plane is constructed, and no way for the two
+/// spellings to drift. Passing both is a boundary `TypeError`: the
+/// author asked for two different planes and the kernel is fail-loud,
+/// so nothing is silently preferred.
+fn sketch_plane(
+    plane: Option<SketchPlane>,
+    elevation: Option<super::quantity::Length>,
+) -> PyResult<pncad::profile::SketchPlane<f64>> {
+    match (plane, elevation) {
+        (Some(_), Some(_)) => Err(pyo3::exceptions::PyTypeError::new_err(
+            "plane= and elevation= name the sketch plane two different ways; \
+             pass exactly one (elevation is the xy-plane sugar)",
+        )),
+        (Some(p), None) => Ok(p.0),
+        (None, elevation) => {
+            let z = elevation.map_or(0.0, |e| e.0.meters());
+            Ok(pncad::profile::SketchPlane::from_frame(
+                pncad::authoring::p3::<f64>(0.0, 0.0, z),
+                pncad::authoring::v3(1.0, 0.0, 0.0),
+                pncad::authoring::v3(0.0, 1.0, 0.0),
+            ))
+        }
+    }
+}
+
 /// A recipe node, before it is inserted into a document.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
@@ -222,33 +456,32 @@ pub(crate) struct Node {
 
 #[pymethods]
 impl Node {
-    /// A closed polygonal sketch on a plane parallel to the world
-    /// xy-plane, `elevation` above it (default: the xy-plane itself).
+    /// A closed polygonal sketch on a sketch plane.
+    ///
+    /// The plane is named either way, never both: `plane=` is a
+    /// `SketchPlane` (any rigid frame, including the named `yz`/`zx`),
+    /// `elevation=` is the xy sugar — the world xy-plane, that far up
+    /// z. The default is the xy-plane itself.
     ///
     /// Coordinates arrive as typed `Length`s (§L4), so a bare number
-    /// is a boundary refusal rather than an ambiguous unit.
+    /// is a boundary refusal rather than an ambiguous unit; they are
+    /// the sketch's own (x, y), which `plane` maps into the world.
     ///
-    /// `elevation` exists because the kernel is fail-loud about
-    /// coincidence: it never INFERS that two faces are the same face,
-    /// so two solids merely touching on a shared plane are refused
-    /// (`UndeclaredCoincidence`) until the author declares the
+    /// `elevation` earns its keep because the kernel is fail-loud
+    /// about coincidence: it never INFERS that two faces are the same
+    /// face, so two solids merely touching on a shared plane are
+    /// refused (`UndeclaredCoincidence`) until the author declares the
     /// contact. Authoring a genuine Boolean therefore needs solids
-    /// that interpenetrate, which needs sketches at different
-    /// heights. Fully arbitrary sketch placement still needs an
-    /// `Affine3` binding, which is out of this unit's fence.
+    /// that interpenetrate, which needs sketches at different heights.
     #[staticmethod]
-    #[pyo3(signature = (points, elevation=None))]
+    #[pyo3(signature = (points, elevation=None, plane=None))]
     fn polygon(
         py: Python<'_>,
         points: Vec<(super::quantity::Length, super::quantity::Length)>,
         elevation: Option<super::quantity::Length>,
+        plane: Option<SketchPlane>,
     ) -> PyResult<Self> {
-        let z = elevation.map_or(0.0, |e| e.0.meters());
-        let plane = pncad::profile::SketchPlane::from_frame(
-            pncad::authoring::p3::<f64>(0.0, 0.0, z),
-            pncad::authoring::v3(1.0, 0.0, 0.0),
-            pncad::authoring::v3(0.0, 1.0, 0.0),
-        );
+        let plane = sketch_plane(plane, elevation)?;
         // The polygon as a loop PROGRAM (the post-switch v4 payload:
         // the program IS the profile's definition): anchor at the
         // first vertex, one `line_to` per remaining vertex, close by
@@ -278,6 +511,53 @@ impl Node {
                 plane,
                 loops: vec![d::LoopProgram::Chain(steps)],
             }),
+        })
+    }
+
+    /// The profile a PATHS loop authors, on a sketch plane.
+    ///
+    /// `plane=` / `elevation=` mean exactly what they mean on
+    /// [`Node::polygon`], through the same one lowering, and are
+    /// mutually exclusive for the same reason.
+    ///
+    /// The node is built from the loop's RECORDED program — the same
+    /// verbs, with the same authored arguments, that the chain wrote
+    /// — so what Python authored and what the document replays are
+    /// one program, not two spellings of one shape.
+    ///
+    /// `outline` is ONE loop or a LIST of them — a plate with holes is
+    /// `[outer, hole, hole]`, in that order (`ProfileProgram.loops` is
+    /// a `Vec`, and this is the whole of it).
+    ///
+    /// Nothing about the loop SET is pre-checked. Which loop is outer,
+    /// whether the holes nest, whether two loops cross — all of that
+    /// is `Profile::validate`'s work, and it fires as the kernel's own
+    /// typed refusal at `evaluate`. The binding's only job is that the
+    /// loops arrive in the order they were written.
+    #[staticmethod]
+    #[pyo3(signature = (outline, elevation=None, plane=None))]
+    fn profile(
+        py: Python<'_>,
+        outline: &Bound<'_, PyAny>,
+        elevation: Option<super::quantity::Length>,
+        plane: Option<SketchPlane>,
+    ) -> PyResult<Self> {
+        let plane = sketch_plane(plane, elevation)?;
+        // ONE loop or a sequence of them, and nothing else: a value
+        // that is neither is `extract`'s own `TypeError`, so a
+        // stringly-typed or numeric argument still refuses at the
+        // boundary rather than being iterated into nonsense.
+        let loops = match outline.cast::<super::path::ClosedLoop>() {
+            Ok(one) => vec![super::path::loop_program(py, &one.borrow())?],
+            Err(_) => {
+                let many: Vec<PyRef<'_, super::path::ClosedLoop>> = outline.extract()?;
+                many.iter()
+                    .map(|l| super::path::loop_program(py, l))
+                    .collect::<PyResult<Vec<_>>>()?
+            }
+        };
+        Ok(Self {
+            inner: d::Node::Profile(d::ProfileProgram { plane, loops }),
         })
     }
 
@@ -315,6 +595,35 @@ impl Node {
         })
     }
 
+    /// A skinned solid through two or more section profiles.
+    ///
+    /// `profiles` are upstream profile nodes IN SKIN ORDER — order is
+    /// data, and reversing it reverses the produced surface's
+    /// v-direction. `v_degree` is the v-direction interpolation
+    /// degree, a COUNT (structural material, D3), so it crosses as
+    /// `Expr::count` and not as a continuous literal.
+    ///
+    /// There is no placement argument, and that is the document
+    /// design rather than a missing one: each section rides its OWN
+    /// profile's sketch plane, so a stack is authored by giving the
+    /// sections different planes (`elevation=`, or `plane=` for
+    /// anything else).
+    ///
+    /// Nothing is pre-checked here. An empty or one-element list, a
+    /// degree outside `1 ≤ d ≤ len − 1`, a section that is not a
+    /// profile, sections whose loops do not correspond — every one of
+    /// those is the kernel's own typed refusal, arriving from `insert`
+    /// or from `evaluate` exactly where the Rust surface raises it.
+    #[staticmethod]
+    fn loft(profiles: Vec<NodeId>, v_degree: i64) -> Self {
+        Self {
+            inner: d::Node::Loft {
+                profiles: profiles.iter().map(|p| p.0).collect(),
+                v_degree: d::Expr::count(v_degree),
+            },
+        }
+    }
+
     /// A datum axis: a point and a direction.
     ///
     /// The origin is dimensioned (`Length`); the direction is a
@@ -344,15 +653,165 @@ impl Node {
         })
     }
 
-    /// A Boolean of two upstream solids.
+    /// A datum plane: a point and a normal.
+    ///
+    /// The origin is dimensioned (`Length`); the normal is a
+    /// dimensionless triple, matching `SlotId::Normal`'s `Scalar`, and
+    /// is UNNORMALIZED — the evaluator normalizes it, or refuses a
+    /// degenerate one loudly. This is the tool a `Node.split` cuts
+    /// with.
     #[staticmethod]
-    fn boolean(op: BooleanOp, a: &NodeId, b: &NodeId) -> Self {
+    fn datum_plane(
+        py: Python<'_>,
+        origin: (
+            super::quantity::Length,
+            super::quantity::Length,
+            super::quantity::Length,
+        ),
+        normal: (f64, f64, f64),
+    ) -> PyResult<Self> {
+        let origin = [
+            literal(py, origin.0.0.meters(), d::Dimension::Length)?,
+            literal(py, origin.1.0.meters(), d::Dimension::Length)?,
+            literal(py, origin.2.0.meters(), d::Dimension::Length)?,
+        ];
+        let normal = [
+            literal(py, normal.0, d::Dimension::Scalar)?,
+            literal(py, normal.1, d::Dimension::Scalar)?,
+            literal(py, normal.2, d::Dimension::Scalar)?,
+        ];
+        Ok(Self {
+            inner: d::Node::Datum(d::Datum::Plane { origin, normal }),
+        })
+    }
+
+    /// Constant-radius rolling-ball blends on a SELECTION of
+    /// `target`'s edges.
+    ///
+    /// `selection` is edge names as text — the strings
+    /// `Evaluation.all_edges` answers with. A name is CARRIED, not
+    /// composed and not read: the text is an opaque identifier whose
+    /// internal structure is not API (see [`name_text`]), so there is
+    /// no name-building vocabulary in Python and no supported way to
+    /// filter a materialized set. There is deliberately no "every
+    /// edge" spelling either.
+    ///
+    /// THE SELECTION FREEZES, exactly as in Rust: it is a commitment
+    /// as of the evaluation you read it from, and an upstream edit
+    /// that adds edges does NOT extend it. Materialize, store, and
+    /// the recipe means what it said.
+    ///
+    /// Nothing is pre-checked beyond the text being a name at all. An
+    /// EMPTY selection (`fillet_selection_empty`), a name that
+    /// resolves to nothing (`fillet_selection_resolve`), a name of the
+    /// wrong kind (`fillet_selection_kind`), a tangential edge the
+    /// roller cannot enter (`fillet`) — every one of those is the
+    /// kernel's own typed refusal at `evaluate`.
+    ///
+    /// The node is built through Rust's `Node::fillet`, the one
+    /// construction door, so the stored set is canonical (sorted,
+    /// deduplicated) and two recipes that select the same edges are
+    /// bit-identical whatever order Python listed them in.
+    #[staticmethod]
+    fn fillet(
+        py: Python<'_>,
+        target: &NodeId,
+        radius: &super::quantity::Length,
+        selection: Vec<String>,
+    ) -> PyResult<Self> {
+        let radius = literal(py, radius.0.meters(), d::Dimension::Length)?;
+        let selection = selection
+            .iter()
+            .map(|text| name_from_text(text))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(Self {
+            inner: d::Node::fillet(target.0, radius, selection),
+        })
+    }
+
+    /// Split a target body by a tool — today a `Node.datum_plane`.
+    ///
+    /// The value is a SPLIT, not a body: read it with `Value.split()`,
+    /// which answers `(above, below)` with `None` for an empty side.
+    /// A tool that is not a splitting surface, or a cut that produces
+    /// nothing, refuses typed at `evaluate`.
+    #[staticmethod]
+    fn split(target: &NodeId, tool: &NodeId) -> Self {
+        Self {
+            inner: d::Node::Split {
+                target: target.0,
+                tool: tool.0,
+            },
+        }
+    }
+
+    /// A rigid placement of an upstream body.
+    ///
+    /// The convention is the kernel's, unchanged: rotate about
+    /// `rotation_axis` THROUGH THE WORLD ORIGIN by `rotation_angle`,
+    /// THEN translate. A pure translation is therefore written with
+    /// any non-degenerate axis and a zero angle — the axis is
+    /// normalized by the evaluator, and a zero-length one refuses
+    /// (`degenerate_direction`) rather than being read as "no
+    /// rotation".
+    ///
+    /// `translation` is dimensioned (`Length`s); the axis is a
+    /// dimensionless triple, matching `SlotId::RotationAxis`'s
+    /// `Scalar`; the angle is an `Angle`.
+    #[staticmethod]
+    fn transform(
+        py: Python<'_>,
+        input: &NodeId,
+        translation: (
+            super::quantity::Length,
+            super::quantity::Length,
+            super::quantity::Length,
+        ),
+        rotation_axis: (f64, f64, f64),
+        rotation_angle: &super::quantity::Angle,
+    ) -> PyResult<Self> {
+        let translation = [
+            literal(py, translation.0.0.meters(), d::Dimension::Length)?,
+            literal(py, translation.1.0.meters(), d::Dimension::Length)?,
+            literal(py, translation.2.0.meters(), d::Dimension::Length)?,
+        ];
+        let rotation_axis = [
+            literal(py, rotation_axis.0, d::Dimension::Scalar)?,
+            literal(py, rotation_axis.1, d::Dimension::Scalar)?,
+            literal(py, rotation_axis.2, d::Dimension::Scalar)?,
+        ];
+        let rotation_angle = literal(py, rotation_angle.0.radians(), d::Dimension::Angle)?;
+        Ok(Self {
+            inner: d::Node::Transform {
+                input: input.0,
+                translation,
+                rotation_axis,
+                rotation_angle,
+            },
+        })
+    }
+
+    /// A Boolean of two upstream solids.
+    ///
+    /// `declare` names a `Declare` node whose coincidence pairs this
+    /// boolean consumes — the DATA door for F5's declared contact.
+    /// Without it the kernel never infers that two faces are the same
+    /// face, so operands that merely touch refuse
+    /// (`UndeclaredCoincidence`). The detect/declare PROTOCOL —
+    /// finding candidates, building the pairs — is a separate surface
+    /// and is not bound: `Node.declare` does not exist, so today the
+    /// only thing this argument can carry is a declaration built in
+    /// Rust and loaded, which is why the audit still counts declared
+    /// contact as a gap.
+    #[staticmethod]
+    #[pyo3(signature = (op, a, b, declare=None))]
+    fn boolean(op: BooleanOp, a: &NodeId, b: &NodeId, declare: Option<NodeId>) -> Self {
         Self {
             inner: d::Node::Boolean {
                 op: op.to_document(),
                 a: a.0,
                 b: b.0,
-                declare: None,
+                declare: declare.map(|d| d.0),
             },
         }
     }
@@ -439,6 +898,42 @@ impl DocParam {
     #[staticmethod]
     fn count(value: i64) -> Self {
         Self(d::DocParam::Count { value })
+    }
+
+    /// Rust's `PartialEq`, mirrored — which is IEEE comparison of the
+    /// stored value, NOT the bit comparison `DocParam::bit_eq` makes.
+    /// Two spellings of zero are therefore the same parameter here
+    /// and different parameters to `bit_eq`, exactly as in Rust; a
+    /// NaN value (which the edit door refuses, so it never reaches a
+    /// document) equals nothing, itself included.
+    ///
+    /// Dimension is part of the value: a Length 1 and a Scalar 1 are
+    /// different parameters.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    /// Consistent with [`Self::__eq__`]: `-0.0` is folded to `0.0`
+    /// before hashing, because the equality that fold mirrors says
+    /// they are the same parameter, and a hash that split them would
+    /// break the invariant Python dicts rely on. NaN hashes like any
+    /// other bit pattern and simply never compares equal.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        match &self.0 {
+            d::DocParam::Continuous { dim, value } => {
+                0u8.hash(&mut h);
+                format!("{dim:?}").hash(&mut h);
+                let normalized = if *value == 0.0 { 0.0 } else { *value };
+                normalized.to_bits().hash(&mut h);
+            }
+            d::DocParam::Count { value } => {
+                1u8.hash(&mut h);
+                value.hash(&mut h);
+            }
+        }
+        h.finish()
     }
 
     fn __repr__(&self) -> String {
@@ -577,6 +1072,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ParamName>()?;
     m.add_class::<DocParam>()?;
     m.add_class::<Node>()?;
+    m.add_class::<SketchPlane>()?;
     m.add_class::<BooleanOp>()?;
     m.add_class::<Loaded>()?;
     m.add_function(wrap_pyfunction!(load, m)?)?;

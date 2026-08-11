@@ -528,6 +528,27 @@ owed to users as a promise; not run at load, ever (clean break).
   fail-loud demo surface; under V4(c) it additionally becomes the
   raw vocabulary's recording surface (same record-as-you-lower shape
   as V1's third bullet).
+  **AMENDMENT RATIFIED (2026-08-11, issue #377, Evan 👍 on #386;
+  driven by his in-chat ruling "LoopBuilder should go away";
+  strengthened per his two follow-ups before sign-off):** this whole sentence ENDS
+  at the migration unit. LoopBuilder leaves the `profile` crate's
+  public surface ENTIRELY and moves to test-support (the
+  banished-to-the-test disposition): its one load-bearing role is
+  the differential twin — an independent second implementation
+  the PATHS lowering is verified against — and that value
+  survives intact living beside the tests that use it (no source
+  code outside sugar.rs calls it; every in-src mention is a doc
+  comment). The V4(c) recording-surface clause is STRUCK as
+  never-implemented-and-no-consumer: recording landed only on the
+  lattice (SWITCH-P's record-as-you-lower); raw loops are
+  kernel-direct and never persisted, so nothing ever needed raw
+  authoring to record (the corpus clean-break confirmed this —
+  its raw census went to circle_split/declared-subdivision or
+  stayed kernel-layer). Raw `ProfileLoop` DATA
+  (`polygon`/`new` — the bowtie) remains kernel vocabulary; it
+  never was LoopBuilder. The handful of cross-crate TEST
+  consumers (step-export fixtures, mesh, k-lint litmus) migrate
+  to lattice or raw-data spellings at the unit.
 - **Junction predicates and the k_stats funnel**: `path_junction_
   turn`, `path_corner_*` etc. classify at replay exactly as at typed
   authoring; no new predicate semantics, only a new call site.

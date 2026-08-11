@@ -29,8 +29,8 @@ use editor_core::{
 };
 use fixture::desc;
 
-const GOLDEN: &str = include_str!("golden/v4_golden.cad");
-const GOLDEN_PATH: &str = "tests/golden/v4_golden.cad";
+const GOLDEN: &str = include_str!("golden/v6_golden.cad");
+const GOLDEN_PATH: &str = "tests/golden/v6_golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
@@ -48,7 +48,7 @@ const GOLDEN_PATH: &str = "tests/golden/v4_golden.cad";
 /// unchanged — both byte generations parse under the same schema-1
 /// loader.
 fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
-    let mut doc = ProfileDoc::empty();
+    let mut doc = ProfileDoc::empty_derived("m4_pr6_golden");
     let push = |d: &ProfileDoc, e: &DocEdit<ProfileProgram>| apply(d, e).expect("golden edit").doc;
     let lpt = |x: f64, y: f64| {
         [
@@ -229,7 +229,7 @@ fn golden_bytes_are_frozen() {
     }
     assert_eq!(
         text, GOLDEN,
-        "schema-v4 wire bytes drifted from the committed golden — this is a FORMAT \
+        "schema-v6 wire bytes drifted from the committed golden — this is a FORMAT \
          CHANGE: it needs a ratified schema bump + migration step, never a re-bless in passing"
     );
 }

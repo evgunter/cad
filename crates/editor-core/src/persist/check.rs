@@ -256,6 +256,10 @@ pub enum SnapshotError {
         /// The recorded value.
         value: f64,
     },
+    /// The product-root list violates an A10 invariant (ASM-ROOTS
+    /// D-2): the same check `apply` runs, so a file can carry no root
+    /// state the edit doors could not have produced.
+    Roots(crate::roots::RootFault),
     /// An appearance metadata value violating the D7 producer
     /// convention (map with an integer `"v"`).
     MetadataUnversioned {
@@ -354,6 +358,10 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             return Err(SnapshotError::WitnessSite { node });
         }
     }
+    // The A10 root invariants (ASM-ROOTS D-2), run AFTER the node
+    // walk so a file with dangling inputs is diagnosed as such rather
+    // than as an incidental coverage failure.
+    crate::roots::check(doc).map_err(SnapshotError::Roots)?;
     for (name, rec) in &doc.appearance {
         for (key, value) in &rec.metadata {
             if let Err(error) = value.require_versioned() {
@@ -475,7 +483,7 @@ mod tests {
     fn structurally_invalid_documents_refuse_at_save() {
         // ε = 0.0 is finite (past the float walk) but invalid — the
         // load door's EpsilonInvalid, now at save too.
-        let mut doc = ProfileDoc::empty();
+        let mut doc = ProfileDoc::empty_derived("check");
         doc.epsilon = 0.0;
         match save(&doc, &[]) {
             Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value })) => {
@@ -484,7 +492,7 @@ mod tests {
             other => panic!("non-positive ε must refuse at save, got {other:?}"),
         }
         // order naming a node the map does not hold.
-        let mut doc = ProfileDoc::empty();
+        let mut doc = ProfileDoc::empty_derived("check");
         doc.order.push(RecipeNodeId(7));
         match save(&doc, &[]) {
             Err(PersistError::Snapshot(SnapshotError::OrderMismatch)) => {}
