@@ -917,4 +917,3 @@ fn at_toward_refuses_carriers_that_never_meet() {
         "a ray clear of the circle names no corner: {err:?}"
     );
 }
-
