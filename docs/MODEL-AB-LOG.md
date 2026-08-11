@@ -695,3 +695,8 @@ next third). Caveat recorded: the M8 checkpoint (#374) predates
 their #387–#392 PRs — if an unrecorded M8 review dispatch
 preceded this one by wall-clock, the tiebreak precedent
 re-allocates consecutively at their seam.
+LIB-8 slot 3 dispatch (2026-08-11): LBRET (the ratified #377/#386
+retirement package, docs/LIB-LBRET-SPEC.md) = OPUS (the block's
+last banked slot — LIB-8 consumed: PYBUNDLE opus / PYSEL fable /
+LBRET opus). Difficulty logged pre-dispatch: M (one confined
+kernel door + a one-scene migration + mechanical banishment).
