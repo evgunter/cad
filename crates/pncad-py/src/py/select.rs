@@ -665,12 +665,16 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
                 Err(failed) => return failed,
             };
             fields[1] = ("name", text(&name));
-            let (m, c) = match (matched.into_pyobject(py), candidates.into_pyobject(py)) {
-                (Ok(m), Ok(c)) => (m.unbind().into_any(), c.unbind().into_any()),
-                (Err(failed), _) | (_, Err(failed)) => return failed,
+            // `usize` → Python int is infallible: the error type is
+            // `Infallible`, discharged by matching the empty enum.
+            let int_obj = |v: usize| -> Py<PyAny> {
+                match v.into_pyobject(py) {
+                    Ok(bound) => bound.unbind().into_any(),
+                    Err(never) => match never {},
+                }
             };
-            fields[3] = ("matched", m);
-            fields[4] = ("candidates", c);
+            fields[3] = ("matched", int_obj(*matched));
+            fields[4] = ("candidates", int_obj(*candidates));
             format!(
                 "a tied name's candidates disagree under the filter \
                  ({matched} of {candidates} match) — a name cannot be \

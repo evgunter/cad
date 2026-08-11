@@ -1297,19 +1297,24 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(ev.select(pipped, edges), every_edge)
         self.assertEqual(ev.select_where(pipped, edges, []), every_edge)
 
-        # Structural narrowing: only the pocket's own edges came from
-        # operand B of the subtraction.
+        # Structural narrowing: the pocket's own edges came from
+        # operand B of the subtraction — its 4 walls and 4 floor
+        # edges. The 4 edges of the OPENING are `Seam` (minted where
+        # the cap crosses a pocket wall, belonging to neither operand
+        # alone), and the cube kept its 12: 8 + 4 + 12 = 24.
         from_b = Selector.of(
             NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.FromB))
         )
-        pocket_rim = ev.select(pipped, from_b)
-        self.assertEqual(len(pocket_rim), 12)
+        pocket = ev.select(pipped, from_b)
+        self.assertEqual(len(pocket), 8)
+        seam = Selector.of(
+            NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.Seam))
+        )
+        self.assertEqual(len(ev.select(pipped, seam)), 4)
         # ...and `matches` classifies the SAME materialized texts the
         # binding answered with, so the narrowing is checkable without
         # a second evaluation — or a single string read.
-        self.assertEqual(
-            [n for n in every_edge if from_b.matches(n)], pocket_rim
-        )
+        self.assertEqual([n for n in every_edge if from_b.matches(n)], pocket)
 
         # Geometric narrowing: every edge of a box-minus-box is a
         # line, so the exact atom keeps all 24 — total, no refusal —
