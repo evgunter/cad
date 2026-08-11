@@ -5,7 +5,7 @@ least one diagnostic. These are exactly the states PATHS-DESIGN §2
 declares unrepresentable, plus the typed-quantity boundary.
 """
 
-from pncad import Open, Start, deg, mm
+from pncad import Node, Open, SketchPlane, Start, deg, m, mm
 
 # A second director on a tip whose angle slot is already full.
 Open.at((0 * mm, 0 * mm)).angle(0 * deg).angle(90 * deg)  # ty: error
@@ -29,3 +29,15 @@ Open.at((0 * mm, 0 * mm)).line_to(Start).line_to(Start)  # ty: error
 # A bare number is not a Length, and radians are not a Length either.
 Open.at((0.0, 0.0))  # ty: error
 Open.at((0 * mm, 0 * mm)).angle(1 * mm)  # ty: error
+
+# The sketch plane is a VALUE, not a name: there is no string spelling
+# of "the yz plane" that the door would guess at.
+Node.profile(Open.at((0 * m, 0 * m)).line_to(Start), plane="yz")  # ty: error
+
+# A plane's frame is dimensionless directions and a dimensioned
+# origin — not the other way round.
+SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (0 * m, 1 * m, 0 * m), (0.0, 0.0, 1.0))  # ty: error
+
+# `v_degree` is a Count: a continuous quantity is not one, and neither
+# is a float.
+Node.loft([], 2.5)  # ty: error

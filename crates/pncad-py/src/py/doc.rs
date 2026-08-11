@@ -213,6 +213,114 @@ impl BooleanOp {
     }
 }
 
+/// The rigid placement of a sketch plane in 3-space — the kernel's
+/// `profile::SketchPlane`, crossing as a VALUE.
+///
+/// Sketch (x, y) maps to world `origin + x·u + y·v`, and the plane's
+/// NORMAL is `u × v` — which is the direction `Node.extrude` runs, so
+/// the plane is what chooses an extrusion's axis.
+///
+/// The three named planes are the cyclic frames x→y→z→x: `xy` (normal
+/// +z), `yz` (u = ŷ, v = ẑ, normal +x), `zx` (u = ẑ, v = x̂, normal
+/// +y) — the same convention the demo tour's letterform captions
+/// speak ("a yz sketch extruded +x").
+///
+/// RIGIDITY IS AN UNCHECKED CONVENTION, exactly as in Rust: nothing
+/// verifies that `u` and `v` are unit and perpendicular. A non-rigid
+/// frame yields a well-defined SKEWED sketch, not poison — the
+/// kernel's tier-3 geometric validation is what certifies a body at
+/// rest. The binding deliberately adds no orthogonality predicate of
+/// its own: one semantics, two host languages.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct SketchPlane(pub(crate) pncad::profile::SketchPlane<f64>);
+
+#[pymethods]
+impl SketchPlane {
+    /// The world xy-plane: u = x̂, v = ŷ, normal = +ẑ.
+    #[staticmethod]
+    fn xy() -> Self {
+        Self(pncad::profile::SketchPlane::xy())
+    }
+
+    /// The world yz-plane: u = ŷ, v = ẑ, normal = +x̂.
+    #[staticmethod]
+    fn yz() -> Self {
+        Self(pncad::profile::SketchPlane::yz())
+    }
+
+    /// The world zx-plane: u = ẑ, v = x̂, normal = +ŷ.
+    #[staticmethod]
+    fn zx() -> Self {
+        Self(pncad::profile::SketchPlane::zx())
+    }
+
+    /// The plane through `origin` spanned by `u` and `v`.
+    ///
+    /// `origin` is dimensioned (`Length`s, §L4); `u` and `v` are
+    /// dimensionless direction triples. Rigidity is the caller's
+    /// unchecked convention — see the class docs.
+    #[staticmethod]
+    fn from_frame(
+        origin: (
+            super::quantity::Length,
+            super::quantity::Length,
+            super::quantity::Length,
+        ),
+        u: (f64, f64, f64),
+        v: (f64, f64, f64),
+    ) -> Self {
+        Self(pncad::profile::SketchPlane::from_frame(
+            pncad::authoring::p3::<f64>(
+                origin.0.0.meters(),
+                origin.1.0.meters(),
+                origin.2.0.meters(),
+            ),
+            pncad::authoring::v3(u.0, u.1, u.2),
+            pncad::authoring::v3(v.0, v.1, v.2),
+        ))
+    }
+
+    fn __repr__(&self) -> String {
+        let o = self.0.placement.translation;
+        let (u, v) = (self.0.placement.linear.c0, self.0.placement.linear.c1);
+        format!(
+            "SketchPlane(origin=({}, {}, {}), u=({}, {}, {}), v=({}, {}, {}))",
+            o.x, o.y, o.z, u.x, u.y, u.z, v.x, v.y, v.z
+        )
+    }
+}
+
+/// The plane a sketch node sits on, from the mutually exclusive
+/// `plane=` / `elevation=` pair.
+///
+/// ONE lowering for both spellings: `elevation` is the xy sugar it has
+/// always been — the xy-plane translated up z — so there is a single
+/// place where a sketch plane is constructed, and no way for the two
+/// spellings to drift. Passing both is a boundary `TypeError`: the
+/// author asked for two different planes and the kernel is fail-loud,
+/// so nothing is silently preferred.
+fn sketch_plane(
+    plane: Option<SketchPlane>,
+    elevation: Option<super::quantity::Length>,
+) -> PyResult<pncad::profile::SketchPlane<f64>> {
+    match (plane, elevation) {
+        (Some(_), Some(_)) => Err(pyo3::exceptions::PyTypeError::new_err(
+            "plane= and elevation= name the sketch plane two different ways; \
+             pass exactly one (elevation is the xy-plane sugar)",
+        )),
+        (Some(p), None) => Ok(p.0),
+        (None, elevation) => {
+            let z = elevation.map_or(0.0, |e| e.0.meters());
+            Ok(pncad::profile::SketchPlane::from_frame(
+                pncad::authoring::p3::<f64>(0.0, 0.0, z),
+                pncad::authoring::v3(1.0, 0.0, 0.0),
+                pncad::authoring::v3(0.0, 1.0, 0.0),
+            ))
+        }
+    }
+}
+
 /// A recipe node, before it is inserted into a document.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
@@ -222,33 +330,32 @@ pub(crate) struct Node {
 
 #[pymethods]
 impl Node {
-    /// A closed polygonal sketch on a plane parallel to the world
-    /// xy-plane, `elevation` above it (default: the xy-plane itself).
+    /// A closed polygonal sketch on a sketch plane.
+    ///
+    /// The plane is named either way, never both: `plane=` is a
+    /// `SketchPlane` (any rigid frame, including the named `yz`/`zx`),
+    /// `elevation=` is the xy sugar — the world xy-plane, that far up
+    /// z. The default is the xy-plane itself.
     ///
     /// Coordinates arrive as typed `Length`s (§L4), so a bare number
-    /// is a boundary refusal rather than an ambiguous unit.
+    /// is a boundary refusal rather than an ambiguous unit; they are
+    /// the sketch's own (x, y), which `plane` maps into the world.
     ///
-    /// `elevation` exists because the kernel is fail-loud about
-    /// coincidence: it never INFERS that two faces are the same face,
-    /// so two solids merely touching on a shared plane are refused
-    /// (`UndeclaredCoincidence`) until the author declares the
+    /// `elevation` earns its keep because the kernel is fail-loud
+    /// about coincidence: it never INFERS that two faces are the same
+    /// face, so two solids merely touching on a shared plane are
+    /// refused (`UndeclaredCoincidence`) until the author declares the
     /// contact. Authoring a genuine Boolean therefore needs solids
-    /// that interpenetrate, which needs sketches at different
-    /// heights. Fully arbitrary sketch placement still needs an
-    /// `Affine3` binding, which is out of this unit's fence.
+    /// that interpenetrate, which needs sketches at different heights.
     #[staticmethod]
-    #[pyo3(signature = (points, elevation=None))]
+    #[pyo3(signature = (points, elevation=None, plane=None))]
     fn polygon(
         py: Python<'_>,
         points: Vec<(super::quantity::Length, super::quantity::Length)>,
         elevation: Option<super::quantity::Length>,
+        plane: Option<SketchPlane>,
     ) -> PyResult<Self> {
-        let z = elevation.map_or(0.0, |e| e.0.meters());
-        let plane = pncad::profile::SketchPlane::from_frame(
-            pncad::authoring::p3::<f64>(0.0, 0.0, z),
-            pncad::authoring::v3(1.0, 0.0, 0.0),
-            pncad::authoring::v3(0.0, 1.0, 0.0),
-        );
+        let plane = sketch_plane(plane, elevation)?;
         // The polygon as a loop PROGRAM (the post-switch v4 payload:
         // the program IS the profile's definition): anchor at the
         // first vertex, one `line_to` per remaining vertex, close by
@@ -281,29 +388,28 @@ impl Node {
         })
     }
 
-    /// The profile a PATHS loop authors, on a plane parallel to the
-    /// world xy-plane, `elevation` above it (default: the xy-plane).
+    /// The profile a PATHS loop authors, on a sketch plane.
+    ///
+    /// `plane=` / `elevation=` mean exactly what they mean on
+    /// [`Node::polygon`], through the same one lowering, and are
+    /// mutually exclusive for the same reason.
     ///
     /// The node is built from the loop's RECORDED program — the same
     /// verbs, with the same authored arguments, that the chain wrote
     /// — so what Python authored and what the document replays are
     /// one program, not two spellings of one shape.
     ///
-    /// Exactly ONE loop: multi-loop profiles (holes) and non-xy
-    /// planes are named gaps, not omissions.
+    /// Exactly ONE loop: multi-loop profiles (holes) are a named gap,
+    /// not an omission.
     #[staticmethod]
-    #[pyo3(signature = (outline, elevation=None))]
+    #[pyo3(signature = (outline, elevation=None, plane=None))]
     fn profile(
         py: Python<'_>,
         outline: &super::path::ClosedLoop,
         elevation: Option<super::quantity::Length>,
+        plane: Option<SketchPlane>,
     ) -> PyResult<Self> {
-        let z = elevation.map_or(0.0, |e| e.0.meters());
-        let plane = pncad::profile::SketchPlane::from_frame(
-            pncad::authoring::p3::<f64>(0.0, 0.0, z),
-            pncad::authoring::v3(1.0, 0.0, 0.0),
-            pncad::authoring::v3(0.0, 1.0, 0.0),
-        );
+        let plane = sketch_plane(plane, elevation)?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram {
                 plane,
@@ -344,6 +450,35 @@ impl Node {
                 angle,
             },
         })
+    }
+
+    /// A skinned solid through two or more section profiles.
+    ///
+    /// `profiles` are upstream profile nodes IN SKIN ORDER — order is
+    /// data, and reversing it reverses the produced surface's
+    /// v-direction. `v_degree` is the v-direction interpolation
+    /// degree, a COUNT (structural material, D3), so it crosses as
+    /// `Expr::count` and not as a continuous literal.
+    ///
+    /// There is no placement argument, and that is the document
+    /// design rather than a missing one: each section rides its OWN
+    /// profile's sketch plane, so a stack is authored by giving the
+    /// sections different planes (`elevation=`, or `plane=` for
+    /// anything else).
+    ///
+    /// Nothing is pre-checked here. An empty or one-element list, a
+    /// degree outside `1 ≤ d ≤ len − 1`, a section that is not a
+    /// profile, sections whose loops do not correspond — every one of
+    /// those is the kernel's own typed refusal, arriving from `insert`
+    /// or from `evaluate` exactly where the Rust surface raises it.
+    #[staticmethod]
+    fn loft(profiles: Vec<NodeId>, v_degree: i64) -> Self {
+        Self {
+            inner: d::Node::Loft {
+                profiles: profiles.iter().map(|p| p.0).collect(),
+                v_degree: d::Expr::count(v_degree),
+            },
+        }
     }
 
     /// A datum axis: a point and a direction.
@@ -608,6 +743,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ParamName>()?;
     m.add_class::<DocParam>()?;
     m.add_class::<Node>()?;
+    m.add_class::<SketchPlane>()?;
     m.add_class::<BooleanOp>()?;
     m.add_class::<Loaded>()?;
     m.add_function(wrap_pyfunction!(load, m)?)?;
