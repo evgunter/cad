@@ -95,10 +95,20 @@ pub(crate) fn empty() -> Arc<NameTable> {
 /// (A8/N1 `Instance(i)`): instance `i` holds the master's keys
 /// verbatim (`transform_rigid` key-stability), body index `i`.
 ///
-/// Hardening (review R7): masters with MULTIPLE output bodies refuse
-/// typed — the instance-index-as-body-index scheme would conflate
-/// their halves (latent today: `body_operand` refuses such inputs
-/// upstream) — and totality is checked against every instance body.
+/// **The wrapping is uniform** (ASM-2K D-2): `Instance(i)` wraps EVERY
+/// name of the master, whatever the master's body holds. A master with
+/// several SOLIDS is one such master and is admitted — its names are
+/// already distinct within it (derivation paths tell its solids apart),
+/// and one qualifier per instance carries that distinctness across the
+/// instances; no per-solid sub-index exists, because which solid a name
+/// denotes is read off the name's own derivation, never off the
+/// instance qualifier.
+///
+/// What stays refused is narrower than that (review R7): a master with
+/// MULTIPLE output BODIES. Body index here IS the instance index, so
+/// admitting one would need a ratified instance×body layout — and
+/// nothing can produce one, `body_operand` refusing multi-body inputs
+/// upstream. Totality is checked against every instance body.
 pub(crate) fn name_pattern<T: geom_core::Real>(
     node: RecipeNodeId,
     master: &NameTable,
@@ -123,7 +133,7 @@ pub(crate) fn name_pattern<T: geom_core::Real>(
                 super::table::Entry::Unique(e) => {
                     if e.body != 0 {
                         return Err(NamingError::Emission {
-                            what: "pattern of a multi-body master — deferred (typed, R7)",
+                            what: "pattern of a multi-OUTPUT-BODY master — deferred (typed, R7); multi-SOLID masters are admitted",
                         });
                     }
                     t.insert(wrapped, ent(iu, e.key))?;
@@ -131,7 +141,7 @@ pub(crate) fn name_pattern<T: geom_core::Real>(
                 super::table::Entry::Tied(es) => {
                     if es.iter().any(|e| e.body != 0) {
                         return Err(NamingError::Emission {
-                            what: "pattern of a multi-body master — deferred (typed, R7)",
+                            what: "pattern of a multi-OUTPUT-BODY master — deferred (typed, R7); multi-SOLID masters are admitted",
                         });
                     }
                     t.insert_tied(wrapped, es.iter().map(|e| ent(iu, e.key)).collect())?;
@@ -291,4 +301,242 @@ pub(crate) fn check_total<T: geom_core::Real>(
         }
     }
     Ok(())
+}
+
+/// **ASM-2K D-2 rows**: the uniform `Instance(i)` wrapping over a
+/// master whose body holds SEVERAL SOLIDS — the shape an assembly's
+/// instantiated part arrives in (`topo::graft_disjoint_all`). Kernel
+/// level on purpose: no document node produces a multi-solid body yet
+/// (solids are minted inside `topo` alone), so the master here is
+/// built at the door that will feed one.
+#[cfg(test)]
+mod pattern_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
+
+    use geom_core::{Affine3, Vec3};
+    use topo::Body;
+
+    use super::*;
+    use crate::names::emit_sweep::name_extrude;
+    use crate::names::role::RoleSeg;
+    use crate::names::table::Entry;
+    use crate::node::RecipeNodeId;
+
+    /// A unit cube at `dx`, with its extrude's own name table.
+    fn cube(node: RecipeNodeId, dx: f64) -> (Body<f64>, Arc<NameTable>) {
+        let plane = profile::SketchPlane::from_frame(
+            geom_core::Point3::new(dx, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        );
+        let square = profile::ProfileLoop::polygon(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                .into_iter()
+                .map(|(x, y)| geom_core::Point2::new(x, y)),
+        );
+        let prof = profile::Profile::new(plane, vec![square])
+            .validate(geom_core::Tolerance::get())
+            .unwrap();
+        let built = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64)).unwrap();
+        let table = name_extrude(node, &built).unwrap();
+        (built.body, table)
+    }
+
+    /// A master body holding TWO solids, and a table that covers it:
+    /// solid 0 wears its own extrude's names (node 1), solid 1 wears
+    /// node 2's, re-keyed kind-wise in arena order onto the grafted
+    /// copies. Two derivations, so the master's names are distinct
+    /// within the master — which is the premise the wrapping rests on.
+    /// WHICH grafted face wears which of node 2's names is immaterial
+    /// to these rows (they pin the wrapping); minting a faithful key
+    /// bridge across a graft is the consumer's job, not this door's.
+    fn two_solid_master() -> (Body<f64>, NameTable) {
+        let (mut body, a) = cube(RecipeNodeId(1), 0.0);
+        let (second, b) = cube(RecipeNodeId(2), 10.0);
+        let was: (BTreeSet<_>, BTreeSet<_>, BTreeSet<_>) = (
+            body.faces().map(|(k, _)| k).collect(),
+            body.edges().map(|(k, _)| k).collect(),
+            body.vertices().map(|(k, _)| k).collect(),
+        );
+        topo::graft_disjoint(&mut body, &second).expect("a two-solid master");
+        let fresh_f: Vec<_> = body
+            .faces()
+            .map(|(k, _)| k)
+            .filter(|k| !was.0.contains(k))
+            .collect();
+        let fresh_e: Vec<_> = body
+            .edges()
+            .map(|(k, _)| k)
+            .filter(|k| !was.1.contains(k))
+            .collect();
+        let fresh_v: Vec<_> = body
+            .vertices()
+            .map(|(k, _)| k)
+            .filter(|k| !was.2.contains(k))
+            .collect();
+
+        let mut t = NameTable::new();
+        for (name, entry) in a.iter() {
+            match entry {
+                Entry::Unique(e) => t.insert(name.clone(), *e).unwrap(),
+                Entry::Tied(es) => t.insert_tied(name.clone(), es.clone()).unwrap(),
+            }
+        }
+        let (mut fi, mut ei, mut vi) = (0, 0, 0);
+        for (name, entry) in b.iter() {
+            let Entry::Unique(e) = entry else {
+                panic!("the fixture's extrude ties nothing");
+            };
+            // The aggregate is ONE body: it keeps solid 0's body name.
+            let key = match e.key {
+                EntityKey::Body => continue,
+                EntityKey::Face(_) => {
+                    fi += 1;
+                    EntityKey::Face(fresh_f[fi - 1])
+                }
+                EntityKey::Edge(_) => {
+                    ei += 1;
+                    EntityKey::Edge(fresh_e[ei - 1])
+                }
+                EntityKey::Vertex(_) => {
+                    vi += 1;
+                    EntityKey::Vertex(fresh_v[vi - 1])
+                }
+            };
+            t.insert(name.clone(), ent(0, key)).unwrap();
+        }
+        assert_eq!(
+            (fi, ei, vi),
+            (fresh_f.len(), fresh_e.len(), fresh_v.len()),
+            "the second solid is covered exactly"
+        );
+        (body, t)
+    }
+
+    /// The pattern's instance bodies for a master and a z-step —
+    /// `wire_pattern`'s own shape: instance 0 verbatim, the rest
+    /// through the key-stable placement door.
+    fn instances(master: &Body<f64>, n: i64, step: f64) -> Vec<Arc<Body<f64>>> {
+        (0..n)
+            .map(|i| {
+                Arc::new(if i == 0 {
+                    master.clone()
+                } else {
+                    topo::transform_rigid(
+                        master,
+                        &Affine3::translation(Vec3::new(0.0, 0.0, step * i as f64)),
+                    )
+                    .unwrap()
+                })
+            })
+            .collect()
+    }
+
+    /// **Row 4.** A pattern of a two-solid master is admitted: N×2
+    /// solids, N × the master's census, and every stable name distinct
+    /// — one `Instance(i)` over the master's own name, no per-solid
+    /// sub-index anywhere in the path.
+    #[test]
+    fn a_multi_solid_master_patterns_with_uniform_instance_wrapping() {
+        let (master_body, master) = two_solid_master();
+        assert_eq!(master_body.solids().count(), 2, "a two-solid master");
+        let n = 3_i64;
+        let bodies = instances(&master_body, n, 5.0);
+        let node = RecipeNodeId(9);
+        let t = name_pattern(node, &master, n, &bodies).expect("a multi-solid master is admitted");
+
+        let times = usize::try_from(n).unwrap();
+        assert_eq!(t.len(), master.len() * times, "census: N × the master's");
+        assert_eq!(
+            bodies.iter().map(|b| b.solids().count()).sum::<usize>(),
+            2 * times,
+            "N × 2 solids"
+        );
+        assert_eq!(
+            bodies.iter().map(|b| b.faces().count()).sum::<usize>(),
+            master_body.faces().count() * times
+        );
+
+        let mut seen = BTreeSet::new();
+        for (name, entry) in t.iter() {
+            assert!(seen.insert(name.clone()), "a name repeated: {name:?}");
+            assert_eq!(name.node, node);
+            assert_eq!(name.path.len(), 1, "one qualifier, not one per solid");
+            let RoleSeg::Instance { i, of } = &name.path[0] else {
+                panic!("not wrapped: {name:?}");
+            };
+            assert!(master.lookup(of).is_some(), "wraps a master name");
+            if let Entry::Unique(e) = entry {
+                assert_eq!(e.body, *i, "the instance index IS the body index");
+            }
+        }
+        assert_eq!(seen.len(), master.len() * times, "all distinct");
+    }
+
+    /// **Row 5.** Names of instance `i` resolve to instance `i`'s
+    /// geometry: the wrapped name looks up to `(body i, the master's
+    /// key)`, the key is live in that instance (placement is
+    /// key-stable), and the entity it names sits where instance `i`
+    /// sits — for BOTH of the master's solids.
+    #[test]
+    fn instance_i_names_resolve_to_instance_i_geometry() {
+        let (master_body, master) = two_solid_master();
+        let (n, step) = (3_i64, 5.0);
+        let bodies = instances(&master_body, n, step);
+        let node = RecipeNodeId(9);
+        let t = name_pattern(node, &master, n, &bodies).expect("admitted");
+
+        let mut checked = 0;
+        for i in 0..n {
+            let iu = u32::try_from(i).unwrap();
+            for (name, entry) in master.iter() {
+                let Entry::Unique(e) = entry else { continue };
+                let wrapped = StableName {
+                    kind: name.kind,
+                    node,
+                    path: vec![RoleSeg::Instance {
+                        i: iu,
+                        of: Box::new(name.clone()),
+                    }],
+                };
+                assert_eq!(t.lookup(&wrapped), Some(&Entry::Unique(ent(iu, e.key))));
+                assert_eq!(t.name_of(&ent(iu, e.key)), Some(&wrapped));
+                let EntityKey::Vertex(v) = e.key else {
+                    continue;
+                };
+                let at = |b: &Body<f64>| {
+                    let p = b.get_vertex(v).expect("key-stable placement").point;
+                    *b.get_point(p).unwrap()
+                };
+                let (m, inst) = (at(&master_body), at(&bodies[usize::try_from(i).unwrap()]));
+                assert_eq!(inst.x, m.x, "unmoved across the pattern direction");
+                assert_eq!(inst.z, m.z + step * i as f64, "instance {i}'s geometry");
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, 16 * 3, "both solids' 8 vertices, every instance");
+    }
+
+    /// The refusal that STAYS (and is not the multi-solid one): a
+    /// master with several output BODIES has no ratified instance×body
+    /// layout, so it refuses typed rather than conflating halves.
+    #[test]
+    fn a_multi_output_body_master_still_refuses_typed() {
+        let (body, a) = cube(RecipeNodeId(1), 0.0);
+        let mut master = NameTable::new();
+        for (name, entry) in a.iter() {
+            if let Entry::Unique(e) = entry {
+                master.insert(name.clone(), ent(1, e.key)).unwrap();
+            }
+        }
+        let err = name_pattern(RecipeNodeId(9), &master, 2, &[Arc::new(body)])
+            .expect_err("a multi-output-body master must refuse");
+        assert!(
+            format!("{err:?}").contains("multi-OUTPUT-BODY"),
+            "typed, and about bodies: {err:?}"
+        );
+    }
 }
