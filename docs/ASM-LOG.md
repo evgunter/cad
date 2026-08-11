@@ -59,3 +59,17 @@ billing outage opened and RESOLVED inside this seam (Evan restored
 the Actions budget); row records at merge. A11 revision
 awaiting sign-off on #356; A/B draw + ordinal entries in
 MODEL-AB-LOG.
+
+## ASM-1 MERGED (#364, 2026-08-11)
+
+Identity and pins are live: documents carry authored DocumentIds
+(derive/random split keeps the kernel deterministic), pins are
+SHA-256 over include-by-default canonical bytes (exclusions
+exactly {id, log}), schema v5 with the id header line refuses
+v4 typed, and pncad::workspace resolves DocRefs with typed
+DuplicateId/PinMismatch refusals. The dual review converged on
+one test-strength gap, now closed with executing falsifiers; the
+next_id/undone-insert consequence is recorded in D-3 with its
+documenting test. Row in MODEL-AB-LOG. Seam swept (asm-1 + both
+review lanes). Next: ASM-ROOTS spec (A10) — block ASM-1 slot 2,
+opus; A11 conversation continues on #356.
