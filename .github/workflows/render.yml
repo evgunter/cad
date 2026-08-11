@@ -40,29 +40,40 @@
 # render.sh's own #221 routing invariant: on fallback it touches nothing
 # under the committed lane and everything under renders-preview/.
 #
-# NOT A GATE, AND NOT THE COMMITTED LANES' PRODUCER. No job commits or
-# pushes; each REPORTS its diff against the committed tree in the run
-# summary and none fails over it. What that report means differs per
-# lane, and the difference is why the two PNG lanes cannot be promoted
-# the way the UV lane already has been:
+# TWO ENTRY POINTS, ONE PIPELINE. `workflow_dispatch` renders on demand
+# and hands back artifacts. `workflow_call` is ci.yml's render gate: the
+# SAME lanes over a PR's merge commit, failing when a committed lane no
+# longer matches what this code renders. One definition of how a lane
+# renders, so the gate cannot drift from the thing it gates — and the
+# artifacts a failing gate points you at are the ones it just produced,
+# so fixing it is a download, never a re-render.
 #
-#   * UV — pure stdlib Python over the tour's own SVGs, no renderer at
-#     all, so it IS reproducible on a runner. ci.yml's `k-lint` job
-#     already gates it (`uv sheet drift (demos)`); this job exists to
-#     HAND YOU THE SHEET on demand, not to check it.
-#   * wild — matplotlib's Agg rasterizer over the kernel's own
-#     tessellation of committed STEP fixtures, with pinned numpy /
-#     matplotlib and no GL anywhere in the path. Byte-reproducible
-#     off-box like the UV lane, and unlike it, PNGs — which makes it the
-#     lane render-hosted.sh round-trips to prove the artifact path
-#     preserves the provenance stamp chunks byte for byte.
-#   * kernel / FreeCAD — the committed cells were drawn against a
-#     developer host's GL stack, these are drawn by llvmpipe under Xvfb,
-#     and the runner image's mesa drifts month to month. Byte-identity
-#     is not expected and is not asserted. Promoting either lane to the
-#     canonical producer means pinning the whole GL stack in a container
-#     image and re-baselining the committed cells in one commit — a
-#     design call for Evan, not a side effect of this file.
+# WHY A GATE IS POSSIBLE NOW. It was not, when the committed cells came
+# from a developer's GL stack and these came from llvmpipe. Hosted is
+# the canonical producer since Evan's #338 ruling, and a repeat hosted
+# render of one commit is byte-identical — measured across all 55 cells
+# of both PNG lanes — so a diff is a real finding, and an ungated
+# committed artifact rots silently. What a diff MEANS still differs by
+# lane:
+#
+#   * kernel / FreeCAD — llvmpipe under Xvfb. Byte-identity holds
+#     against a repeat HOSTED render, which is exactly what the gate
+#     compares; it does NOT hold across GL stacks, which is why a local
+#     render stays preview-only. The runner image's mesa bumps roughly
+#     monthly and re-baselines both lanes when it does: that is the gate
+#     WORKING — the committed cells are meant to track the canonical
+#     producer — so the failure message names that cause alongside the
+#     ordinary one and hands over the same one-command fix for both.
+#   * wild — matplotlib Agg over the kernel's own tessellation of
+#     committed STEP fixtures, pinned, no GL anywhere in the path.
+#     Byte-reproducible on any box, so its diff is unambiguous and it
+#     carries no mesa exposure at all.
+#   * UV — renderer-free, and already gated by ci.yml's `uv sheet drift
+#     (demos)` row. Reported here, never re-gated: one gate per
+#     obligation.
+#
+# NO JOB COMMITS OR PUSHES, in either mode. A failing gate hands over an
+# artifact and a command; committing it stays a human's call.
 name: render (demos)
 
 on:
@@ -93,9 +104,44 @@ on:
         required: false
         default: ""
 
+  # ci.yml's render gate. Same inputs, plus the one that turns the
+  # lanes' drift reports into failures.
+  workflow_call:
+    inputs:
+      lanes:
+        type: string
+        required: false
+        default: all
+      scene_timeout:
+        type: string
+        required: false
+        default: "300"
+      render_jobs:
+        type: string
+        required: false
+        default: "1"
+      tour_cache:
+        type: string
+        required: false
+        default: use
+      ref:
+        type: string
+        required: false
+        default: ""
+      gate:
+        description: "Fail the lane when its committed directory does not match this render"
+        type: boolean
+        required: false
+        default: false
+
 concurrency:
-  group: render-demos-${{ inputs.ref || github.ref }}
-  cancel-in-progress: false
+  # On demand, a render someone ASKED for is never cancelled — a second
+  # dispatch queues behind the first. As ci.yml's gate the opposite is
+  # right: a superseded push should take its render down with the rest
+  # of the CI run that owns it, which is why the two modes do not share
+  # a group.
+  group: render-demos-${{ inputs.gate && 'gate' || 'dispatch' }}-${{ inputs.ref || github.ref }}
+  cancel-in-progress: ${{ inputs.gate == true }}
 
 jobs:
   # Every lane reads demos/out (scenes.json + per-body STL/STEP + the UV
@@ -386,6 +432,54 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # THE GATE. Deliberately NOT `always()`: it must only be reached
+      # when the pass itself succeeded, so a wedge fails as a wedge and
+      # is never re-reported as drift (the lane directory a failed pass
+      # leaves behind is the COMMITTED one, untouched — it would read as
+      # "no drift" and quietly pass).
+      #
+      # The artifact named here is the one this job just uploaded, on
+      # this very run, so the fix costs a download rather than another
+      # render. `gh run download` unzips the lane directory's contents
+      # at the top level of the artifact, which is why -D is the lane
+      # directory itself.
+      - name: committed lane is current (gate)
+        if: ${{ inputs.gate }}
+        run: |
+          drift="$(git status --porcelain -- "demos/$LANE_DIR/")"
+          if [ -z "$drift" ]; then
+            echo "demos/$LANE_DIR/ matches this render."
+            exit 0
+          fi
+          fix="gh run download ${{ github.run_id }} -n renders-${{ matrix.lane }} -D demos/$LANE_DIR/"
+          # The annotation is one line by necessity (workflow commands
+          # cannot carry newlines); the log above it is where the
+          # explanation fits.
+          cat <<EOF
+
+          ================================================================
+           demos/$LANE_DIR/ IS STALE — it is not what this code renders.
+
+           $drift
+
+           Two things cause this, and both are fixed the same way:
+             * the geometry changed and these cells need re-baselining;
+             * the runner image's mesa bumped and re-rasterised them —
+               expect that roughly monthly. The committed cells are meant
+               to track the canonical (hosted) producer, so that is this
+               gate working, not failing.
+
+           Fix it from THIS run — the artifact below IS this render, so
+           nothing needs rendering again:
+
+             $fix
+             git add demos/$LANE_DIR/ && git commit
+
+          ================================================================
+          EOF
+          echo "::error title=demos/$LANE_DIR is stale::Committed ${{ matrix.lane }} cells do not match this render. Fix from this run: $fix — then commit. (Geometry change, or a monthly mesa re-baseline; see the log above.)"
+          exit 1
+
   # THE WILD-CORPUS LANE. FreeCAD-free by ratified scope (its cells are
   # third-party STEP imported by `step-import` and tessellated by the
   # kernel, drawn by render.py — matplotlib is the PRIMARY renderer
@@ -448,3 +542,36 @@ jobs:
             git status --porcelain -- demos/renders-wild/ || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Same gate as the PNG lanes, minus their one excuse: no GL is
+      # involved anywhere in this lane, so a diff here is never a mesa
+      # re-baseline — it is a real pixel change or a determinism finding.
+      - name: committed lane is current (gate)
+        if: ${{ inputs.gate }}
+        run: |
+          drift="$(git status --porcelain -- demos/renders-wild/)"
+          if [ -z "$drift" ]; then
+            echo "demos/renders-wild/ matches this render."
+            exit 0
+          fi
+          fix="gh run download ${{ github.run_id }} -n renders-wild -D demos/renders-wild/"
+          cat <<EOF
+
+          ================================================================
+           demos/renders-wild/ IS STALE — it is not what this code renders.
+
+           $drift
+
+           This lane is matplotlib Agg over the kernel's own tessellation,
+           pinned and GL-free, so it is byte-reproducible on any box: this
+           is a real pixel change or a determinism finding, never a
+           re-rasterisation. If the change is intended, take this run's
+           render — no re-render needed:
+
+             $fix
+             git add demos/renders-wild/ && git commit
+
+          ================================================================
+          EOF
+          echo "::error title=demos/renders-wild is stale::Committed wild cells do not match this render (GL-free lane — a real pixel or determinism change). Fix from this run: $fix — then commit."
+          exit 1

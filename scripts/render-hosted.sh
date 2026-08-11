@@ -1,9 +1,20 @@
 #!/usr/bin/env bash
-# ONE COMMAND FOR A RENDER: dispatch -> poll -> install.
+# ONE COMMAND FOR A RENDER: take CI's, or dispatch -> poll -> install.
 #
-#   scripts/render-hosted.sh                      # all lanes, this branch
+#   scripts/render-hosted.sh --from-ci            # THE USUAL ONE: take
+#                                                 # the render your PR's
+#                                                 # CI run already made
+#   scripts/render-hosted.sh                      # render on demand
 #   scripts/render-hosted.sh --lane uv            # one lane
-#   scripts/render-hosted.sh --run 12345678       # pull an existing run
+#   scripts/render-hosted.sh --run 12345678       # pull a specific run
+#
+# REACH FOR `--from-ci` FIRST. Since the render gate landed, every CI
+# run on a pushed branch renders all four lanes (ci.yml's `renders` job
+# calls render.yml with `gate: true`) and uploads them — so once your
+# branch has a CI run, the frames already exist and a fresh dispatch is
+# a second render of the same tree. Dispatching is for the case CI has
+# not covered: no PR yet, no CI run yet, or a deliberate re-render at a
+# different scene budget.
 #
 # Renders are hosted (`.github/workflows/render.yml`); the local entry
 # points refuse without an explicit override (demos/hosted-render-guard.sh).
@@ -37,8 +48,10 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 WORKFLOW=render.yml
+CI_WORKFLOW=ci.yml
 LANE=all
 RUN_ID=""
+FROM_CI=0
 REF=""
 SCENE_TIMEOUT=""
 INSTALL=1
@@ -52,6 +65,10 @@ usage() {
     cat <<'EOF'
 usage: scripts/render-hosted.sh [options]
 
+  --from-ci                             pull the render your branch's newest
+                                        CI run already made; no new render.
+                                        Try this before dispatching — CI
+                                        renders every lane on every push.
   --lane <kernel|freecad|uv|wild|all>   which lane(s) to render (default: all)
   --ref <branch|tag|sha>                what to render (default: current branch)
   --run <id>                            pull an existing run; no new render
@@ -76,6 +93,7 @@ while [ $# -gt 0 ]; do
         --lane) LANE="${2:?--lane needs a value}"; shift 2 ;;
         --ref) REF="${2:?--ref needs a value}"; shift 2 ;;
         --run) RUN_ID="${2:?--run needs a value}"; shift 2 ;;
+        --from-ci) FROM_CI=1; shift ;;
         --scene-timeout) SCENE_TIMEOUT="${2:?--scene-timeout needs a value}"; shift 2 ;;
         --budget-min) POLL_BUDGET_MIN="${2:?--budget-min needs a value}"; shift 2 ;;
         --no-install) INSTALL=0; shift ;;
@@ -113,6 +131,33 @@ dir_for() {
 lanes_of() {
     if [ "$1" = all ]; then echo "kernel freecad uv wild"; else echo "$1"; fi
 }
+
+# ------------------------------------------------------------- take CI's
+
+# THE RENDER USUALLY ALREADY EXISTS. ci.yml's `renders` job calls
+# render.yml as a gate on every push that builds anything, so a pushed
+# branch's newest CI run holds all four lanes' artifacts — the same
+# bytes a dispatch would produce, from the same pipeline. Resolving to
+# that run and falling through to the ordinary --run path is the whole
+# feature: nothing downstream needs to know where the id came from.
+#
+# The run is taken whatever its conclusion. A FAILED CI run is the
+# interesting case, not a disqualifying one: a render gate fails
+# precisely when the committed lane is stale, and its artifact is what
+# makes it current.
+if [ "$FROM_CI" = 1 ]; then
+    [ -z "$RUN_ID" ] || die "--from-ci and --run name the same thing; pass one"
+    if [ -z "$REF" ]; then
+        REF="$(git rev-parse --abbrev-ref HEAD)"
+        [ "$REF" != HEAD ] || die "detached HEAD — pass --ref explicitly"
+    fi
+    say "looking for the newest $CI_WORKFLOW run on $REF"
+    RUN_ID="$(gh run list --workflow "$CI_WORKFLOW" --branch "$REF" --limit 1 \
+        --json databaseId --jq '.[0].databaseId // empty')"
+    [ -n "$RUN_ID" ] || die "no $CI_WORKFLOW run on '$REF' yet. Push the branch (CI \
+renders on every push), or render on demand: scripts/render-hosted.sh --lane $LANE"
+    say "taking run $RUN_ID"
+fi
 
 # ---------------------------------------------------------------- dispatch
 

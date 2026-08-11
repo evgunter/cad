@@ -15,7 +15,7 @@ bit us.
 
 ```console
 $ cd demos/tour && cargo run --release -- ../out    # all 34 stops
-$ scripts/render-hosted.sh --lane kernel            # + montage images (hosted; see demos/README.md)
+$ scripts/render-hosted.sh --from-ci                # + montage images (CI already rendered them; see demos/README.md)
 ```
 
 ```console

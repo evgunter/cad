@@ -1059,3 +1059,33 @@ jobs:
             ../../target/k-fresh/k-eps-1e-6.csv \
             ../../target/k-fresh/k-eps-1e-9.csv \
             ../../target/k-fresh/k-eps-1e-12.csv
+
+  # THE RENDER GATE. The committed montages are build products of the
+  # kernel that nothing checked: `k-lint` above gates the UV sheet
+  # because it is the only lane a FreeCAD-less runner can reproduce, and
+  # the other three rotted silently between hand-run refreshes. They are
+  # gateable now — hosted is their canonical producer (#338) and a repeat
+  # hosted render is byte-identical — so this calls render.yml rather
+  # than restating how a lane renders: ONE definition, gated here and
+  # dispatched on demand there.
+  #
+  # It is free in wall clock. The lanes finish in ~150 s against this
+  # workflow's ~460 s critical path (the test shards), so they cost
+  # runner minutes and nothing else, and only on the same condition
+  # `k-lint` uses — a render depends on the whole kernel, so "whenever
+  # anything builds at all" is the right trigger for it too.
+  #
+  # A FAILING ROW HANDS OVER ITS OWN FIX: each lane uploads its render
+  # to THIS run and names the `gh run download` that installs it, so a
+  # stale lane costs a download and a commit, never a second render.
+  # `render_jobs: 2` matches the runner's core count — measured
+  # byte-identical to sequential, at ~20% less wall clock.
+  renders:
+    name: render lanes
+    needs: filter
+    if: needs.filter.outputs.run_k_lint == 'true'
+    uses: ./.github/workflows/render.yml
+    with:
+      gate: true
+      lanes: all
+      render_jobs: "2"
