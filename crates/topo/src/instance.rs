@@ -1,5 +1,8 @@
-//! **The disjoint-graft door** — bringing another body's single solid
-//! into this body as a SEPARATE solid.
+//! **The disjoint-graft door** — bringing another body's solids into
+//! this body as SEPARATE solids: one solid ([`graft_disjoint`]) or all
+//! N of them ([`graft_disjoint_all`], the same transplant run once per
+//! source solid — a multi-solid source is an assembly's instantiated
+//! part, not a caller mistake).
 //!
 //! The boolean pipeline's [`combine`](crate::boolean) door transplants
 //! a source body's solid into an EXISTING destination solid, so the two
@@ -49,8 +52,11 @@ use crate::entity::{Solid, SolidKey};
 /// Grafts `src`'s single solid into `dst` as a NEW solid, returning its
 /// key (module docs).
 ///
-/// `src` must be a single-solid body; its shells arrive whole, in
-/// source order, under the minted solid. The minted solid's provenance
+/// `src` must be a single-solid body — a source holding N solids is a
+/// caller error at THIS door, whose one returned key could only name
+/// one of them; [`graft_disjoint_all`] is the N-solid door. Its shells
+/// arrive whole, in source order, under the minted solid. The minted
+/// solid's provenance
 /// is `src`'s own solid provenance, transplanted verbatim like every
 /// other record the graft carries (a graft is not a re-birth).
 ///
@@ -64,23 +70,75 @@ pub fn graft_disjoint<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
 ) -> Result<SolidKey, BooleanError> {
-    let Some(provenance) = src
-        .solids()
-        .next()
-        .and_then(|(k, _)| src.solid_provenance.get(k).cloned())
-    else {
+    if src.solids().count() != 1 {
         return Err(BooleanError::JoinDesync {
             what: "graft source is not a well-formed single-solid body",
         });
+    }
+    let mut keys = graft_disjoint_all(dst, src)?;
+    keys.pop().ok_or(BooleanError::JoinDesync {
+        what: "graft source is not a well-formed single-solid body",
+    })
+}
+
+/// Grafts EVERY solid of `src` into `dst`, each as a new solid,
+/// returning their keys in the source's solid order (module docs).
+///
+/// The N-solid door. A source holding N solids arrives as N solids of
+/// `dst`, each carrying its own source solid's provenance and its own
+/// shells in source order — entity for entity, and key for key, what N
+/// sequential [`graft_disjoint`] calls over the source's solids in slot
+/// order (D9) would have built. Which source solid a grafted face came
+/// from stays derivable exactly as it was before the graft: from the
+/// solid it now sits under, and from the `GeomSource`/provenance
+/// records the transplant carries verbatim.
+///
+/// Sharing is impossible here for the same reason it is at the single
+/// door: every transplanted entity is re-created under a FRESH key, so
+/// two grafts of one source produce two disjoint key ranges. Validity
+/// remains the caller's to establish — this is a raw transplant, and a
+/// multi-solid source's solids are gated by the same at-rest validator
+/// as any other body's (the step-import loop's per-solid-then-aggregate
+/// shape).
+///
+/// # Errors
+///
+/// [`BooleanError`] — as [`graft_disjoint`]: `JoinDesync` when `src`
+/// holds no solid or is otherwise not well formed, `GraftRecertify`
+/// when a transplanted edge description does not re-certify. Parity
+/// with the single door extends to the failure state: a refusal RAISED
+/// MID-TRANSPLANT (`GraftRecertify`) leaves `dst` partially written, so
+/// a failed graft's destination is spent, never resumable.
+pub fn graft_disjoint_all<T: geom_core::Decide>(
+    dst: &mut Body<T>,
+    src: &Body<T>,
+) -> Result<Vec<SolidKey>, BooleanError> {
+    let desync = || BooleanError::JoinDesync {
+        what: "graft source is not a well-formed body: a solid without provenance",
     };
-    let target = dst.add_solid(Solid { shells: Vec::new() }, provenance);
-    crate::boolean::combine::graft_solid_with(
+    let provenances = src
+        .solids()
+        .map(|(k, _)| src.solid_provenance.get(k).cloned().ok_or_else(desync))
+        .collect::<Result<Vec<_>, _>>()?;
+    if provenances.is_empty() {
+        return Err(BooleanError::JoinDesync {
+            what: "graft source holds no solid to graft",
+        });
+    }
+    // Mint the destinations first, in source order, so the graft's
+    // per-solid attachment is positional (nothing is written before
+    // the source is known to be graftable at all).
+    let targets: Vec<SolidKey> = provenances
+        .into_iter()
+        .map(|p| dst.add_solid(Solid { shells: Vec::new() }, p))
+        .collect();
+    crate::boolean::combine::graft_solids_with(
         dst,
-        target,
+        &targets,
         src,
         crate::boolean::combine::Bridge::RemapKeys,
     )?;
-    Ok(target)
+    Ok(targets)
 }
 
 /// Direct rows for this door (R1 MINOR-2): the integration coverage

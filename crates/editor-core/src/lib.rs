@@ -28,8 +28,10 @@ pub mod names;
 pub mod node;
 pub mod parse;
 pub mod persist;
+pub mod product;
 pub mod program;
 pub mod resolve;
+pub mod roots;
 pub mod witness;
 
 pub use appearance::{
@@ -66,6 +68,7 @@ pub use persist::{
     content_pin, header_document_id, load, save,
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
+pub use product::{ProductError, product};
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramRefusal, ProgramStep,
     ProgramTarget, RecordedProgramError,
@@ -82,6 +85,7 @@ pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictSummary,
     diff_summaries, verdict_summary,
 };
+pub use roots::RootFault;
 pub use witness::{
     BifurcationKind, BranchCertification, BranchMarginEvidence, Implicated, WitnessAge,
     WitnessBifurcation, WitnessDatum,

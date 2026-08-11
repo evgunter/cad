@@ -32,6 +32,8 @@
 
 #[path = "asm1_identity_pins.rs"]
 mod asm1_identity_pins;
+#[path = "asm_roots.rs"]
+mod asm_roots;
 #[path = "lib_doors_node_result.rs"]
 mod lib_doors_node_result;
 #[path = "lib_sel1_geoselect.rs"]

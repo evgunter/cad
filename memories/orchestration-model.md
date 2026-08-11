@@ -75,7 +75,32 @@ git history and the M-logs):**
   from the INSTALLED copies (checkouts switch refs). The
   github-away-channel script bakes in both reaction endpoints
   (issues + pulls — inline-comment 👍s live under the pulls
-  endpoint). Sign-off watchlist path:
+  endpoint). **Comment filtering (Evan, 2026-08-11)**: the
+  away-channel REQUIRES routing env at arm time (fail-loud —
+  it exits 78 without it); per-comment events are scoped to your
+  own threads, new-issue/PR events stay repo-wide. Arm as:
+  `CAD_CHANNEL_SELF_TAG="(<ROLE> orchestrator)"
+  CAD_CHANNEL_BRANCH_PREFIXES=<prefixes> bash .../github-away-channel.sh`.
+  **Branch-prefix registry (the convention is now an explicit
+  rule — name unit branches under your program's prefix):**
+  LIB = `lib/,mngr/cad-lib-plus`; ASM = `asm/,mngr/cad-assemblies`;
+  M8/kernel = `kernel/,mesh/,import/,infra/,demos/,m7/,mngr/cad-implement`
+  (the kernel program's lanes span all its subsystem prefixes —
+  the #396 registry correction; a bare `kernel/` misses e.g.
+  `import/curve-recognition`); adjust here if a
+  program's orchestrator branch differs. **Canonical summons
+  keywords (Evan)**: `@ orchestrators` reaches everyone;
+  `@ lib` / `@ m8` / `@ asm` reach one (derived from the tag
+  automatically — no ADDRESSES env needed normally). Two
+  behavioral rules: (i) ALWAYS sign cross-thread comments with
+  your role tag — the tag IS the thread subscription; (ii) to
+  watch a thread your filter doesn't match, post
+  "(<ROLE> orchestrator) subscribing." on it — the tag in that
+  comment subscribes you from the next poll; (iii) SIGN ISSUE
+  BODIES with your tag when filing — the membership check reads
+  title+body+comments, so a signed filing auto-subscribes you to
+  its thread (and makes authorship visible across the shared
+  account). Sign-off watchlist path:
   `~/.local/share/cad-work/signoff-watchlist-m7.txt` (per the
   sole-orchestrator wind-down). No usage-limit monitor (dropped,
   Evan 2026-07-23) — the stopping rule covers it.

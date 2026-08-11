@@ -25,16 +25,34 @@ AppImage — and byte-stability ("a clean re-render leaves `git status`
 clean") is defined against that producer. A locally-drawn frame carries
 this box's GL stack, **will** differ byte-wise, and must never be
 committed; the guard below and `check_render_provenance.py` enforce the
-commit side. One command does the whole thing — it checks
-your branch is pushed (the runner renders the *pushed* tree), triggers
-`.github/workflows/render.yml`, polls the run, and installs the
-artifacts back into the working tree at their committed paths, where you
-review and commit them the ordinary way:
+commit side.
+
+**Usually you do not need to render at all — CI already did.** Every CI
+run on a pushed branch renders all four lanes and gates them (ci.yml's
+`renders` job calls `render.yml`), so the frames for your tree already
+exist as artifacts on that run. Take them:
 
 ```sh
-local-scripts/render-hosted.sh                        # all four lanes, this branch
-local-scripts/render-hosted.sh --lane uv              # one lane
-local-scripts/render-hosted.sh --run 31402416551      # pull an existing run's artifacts
+local-scripts/render-hosted.sh                        # install what CI rendered
+local-scripts/render-hosted.sh --lane uv              # one lane of it
+```
+
+That is the default: it resolves your branch's newest CI run, downloads
+each lane's artifact, and installs it at its committed path, where you
+review and commit it the ordinary way. It works on a **failed** CI run
+too — a stale committed lane is exactly what makes the gate fail, and
+that run's artifact is what makes it current. The failing row prints the
+exact command, pinned to its own run:
+`local-scripts/render-hosted.sh --run <id> --lane <lane>`.
+
+**Render on demand only when CI has not covered it** — an unpushed
+branch, no CI run yet, or a deliberate re-render at a different scene
+budget. Dispatching when CI has already rendered the same tree renders
+it twice, which is why it is the flag rather than the default:
+
+```sh
+local-scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
+local-scripts/render-hosted.sh --run 31402416551      # take a specific run's artifacts
 ```
 
 The local entry points below **refuse to run** without an explicit
@@ -720,18 +738,32 @@ above), a wedge leaves the committed lane directory exactly as it was.
 ### Off-box: the hosted lanes
 
 **This is the default renderer**, not an alternative to a local pass.
-`.github/workflows/render.yml` runs the render lanes on GitHub runners,
-on demand (`workflow_dispatch` — no PR trigger, no schedule), and hands
-each one back as a run artifact.
+`.github/workflows/render.yml` runs the render lanes on GitHub runners
+and hands each one back as a run artifact. It has **two entry points
+over one pipeline**:
 
-`local-scripts/render-hosted.sh` is the front end, and the thing to use:
+* **as CI's render gate** (`workflow_call`) — ci.yml's `renders` job
+  calls it on every push that builds anything, renders all four lanes,
+  and **fails when a committed lane no longer matches**. This is where
+  your frames normally come from: the gate already rendered your tree.
+* **on demand** (`workflow_dispatch`) — for a tree CI has not seen, or a
+  re-render at a different scene budget.
+
+`local-scripts/render-hosted.sh` is the front end for both, and the thing to
+use:
 
 ```sh
-local-scripts/render-hosted.sh --lane all             # push check, dispatch, poll, install
+local-scripts/render-hosted.sh                        # install what CI already rendered
+local-scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
 local-scripts/render-hosted.sh --lane wild --verify   # + prove the pull is byte-exact
-local-scripts/render-hosted.sh --run <id>             # pull an existing run, no re-render
+local-scripts/render-hosted.sh --run <id>             # take a specific run, no re-render
 local-scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
 ```
+
+Taking is the default and rendering is the flag, because dispatching
+when CI has already rendered the same tree renders it twice. When it
+takes a CI run it waits only on the render lanes, not on the twenty
+test shards around them.
 
 It **refuses** if your local HEAD is not what `origin/<branch>` points
 at — the runner checks out the pushed tree and cannot see local commits,
@@ -758,8 +790,13 @@ The raw commands, if you want them:
 
 ```sh
 gh workflow run render.yml -f ref=my-branch -f lanes=all
-gh run download <run-id> -n renders-kernel   # renders-freecad / renders-uv / renders-wild
+gh run download <run-id> -n renders-kernel -D /tmp/cells   # then copy over
 ```
+
+Note the `-D`: `gh run download` **refuses to overwrite existing
+files**, so pointing it straight at `demos/renders/` fails on the first
+cell — which is why the script (and the gate's failure message) stage
+into a temp directory and install from there.
 
 `lanes` selects `all` (default) or one of `kernel` / `freecad` / `uv` /
 `wild`. The tour is built **once** and handed to the lanes that read it
@@ -784,16 +821,25 @@ FreeCAD — the frames sitting in the gitignored preview tree while the
 artifact holds the committed cells unchanged. It is a structural check
 on the #221 routing invariant above, not a new rule.
 
-**Artifact-only, by construction.** No job commits or pushes, and the
-PNG lanes' pixels are *not* expected to match the committed cells
-byte-for-byte: those were drawn against a developer host's GL stack,
-these by llvmpipe on a runner image that drifts. Each lane reports its
-diff against the committed tree in the run summary as a measurement,
-never a gate. Making a hosted PNG lane the canonical producer would mean
-pinning the whole GL stack in a container image and re-baselining the
-committed cells in one commit — a design call, not a config tweak. (The
-UV lane carries no such caveat: it is renderer-free and reproducible
-off-box, which is why it is the one lane CI actually *gates*.)
+**Artifact-only, but no longer ungated.** No job commits or pushes — a
+failing lane hands over an artifact and the command that installs it,
+and committing stays a human's call. What *has* changed is that the
+committed cells are now checked. Byte-identity against the committed
+tree used to be meaningless, because those cells were drawn against a
+developer host's GL stack and these by llvmpipe on a runner; since the
+#338 canonical-producer ruling and its re-baseline, both sides are the
+hosted producer's output, and a repeat hosted render of one commit is
+byte-identical (measured across all 55 cells of both PNG lanes). So each
+lane's diff is a real finding, and ci.yml's `renders` job fails on it.
+
+The one caveat that survives is the runner image: its mesa bumps roughly
+monthly and re-rasterises the two PNG lanes when it does. That is the
+gate working — the committed cells are *meant* to track the canonical
+producer — and it costs one mechanical commit, which the failing row
+spells out. Pinning the GL stack in a container image would remove even
+that; it remains a design call, not a config tweak. (The UV lane carries
+no such caveat: it is renderer-free, and stays gated by `k-lint`'s own
+row rather than being re-gated here — one gate per obligation.)
 
 The **wild** lane carries no such caveat either, and is the more
 interesting case: it is FreeCAD-free by scope, so its cells are drawn by

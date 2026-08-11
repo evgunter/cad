@@ -98,6 +98,15 @@ pub struct Doc<P> {
     /// Insertion order of the live nodes (the recipe's presentation
     /// order; the DAG's edges are the nodes' input refs, spec D3).
     pub(crate) order: Vec<RecipeNodeId>,
+    /// The document's ordered product roots (ASSEMBLY-DESIGN A10,
+    /// ASM-ROOTS D-1): document data, never a DAG node. Two invariants
+    /// hold at rest and after every edit — *coverage* (every node is
+    /// an ancestor of, or is, some root) and *ancestor-freedom* (no
+    /// root is a strict ancestor of another) — which together say the
+    /// root SET is exactly the DAG's sink set; the list adds the
+    /// product's solid ORDER, which is therefore semantic. No
+    /// duplicates; every entry is live.
+    pub(crate) roots: Vec<RecipeNodeId>,
     /// Document-level named parameters.
     #[serde(with = "crate::persist::strict::params")]
     pub(crate) params: BTreeMap<ParamName, DocParam>,
@@ -141,6 +150,7 @@ impl<P> Doc<P> {
             next_id: 0,
             nodes: BTreeMap::new(),
             order: Vec::new(),
+            roots: Vec::new(),
             params: BTreeMap::new(),
             epsilon: Tolerance::get().eps,
             witnesses: BTreeMap::new(),
@@ -169,6 +179,12 @@ impl<P> Doc<P> {
     /// Live node ids in insertion order.
     pub fn order(&self) -> &[RecipeNodeId] {
         &self.order
+    }
+
+    /// The ordered product roots (A10): the gather order of the
+    /// document's product solids.
+    pub fn roots(&self) -> &[RecipeNodeId] {
+        &self.roots
     }
 
     /// Number of live nodes.
@@ -266,6 +282,7 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
         self.id == other.id
             && self.next_id == other.next_id
             && self.order == other.order
+            && self.roots == other.roots
             && self.epsilon.to_bits() == other.epsilon.to_bits()
             // Witness bytes are exact data (no float semantics to
             // conflate) — structural equality IS bit equality here.

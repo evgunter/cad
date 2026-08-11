@@ -142,3 +142,29 @@ memories/agent-lane-operations.md. Render: hosted-only
 
 **Evan-pending**: nothing except the eventual M8 walk. Q9
 DEFERRED (do not surface). The lily is Evan's canvas.
+
+## #222 MERGED (#369, 2026-08-11) — long-turn sweeps certify
+
+The join construction (old global-chord arm ∨ per-span scan)
+survived a concurrent same-head DUAL (sample #8) with both
+reviewers independently confirming soundness (worst margin one ulp
+SAFE) — and delivering the variance sample's sharpest calibration
+point yet: the identical coverage gap rated MINOR by inspection
+(R1) and MAJOR by demonstration (R2's two unsound mutants at +2.3
+overshoot). All four union mutants proven red-then-green at the fix
+pass. Helices to 2 turns certify with second-order Pappus
+convergence; ≥π planar spines advance to #368 (ReversedStacking).
+
+## M8-3 COMPLETE (#309 + #353 both merged, 2026-08-11)
+
+Rational walls are volume-computable end-to-end: the flux enclosure
+engine (PR-1, with the #313 soundness heal that fixed MAIN's own
+integral lane), and the pcurve mint that makes bodies reach it
+(PR-2, the IsoArc chart map). The arc prism and arc loft certify at
+default ε with honest Budget refusals at 1e-12; the arc loft
+round-trips STEP bit-identically — #276's honestly-refused class
+retired. The unit consumed four executors, survived the project's
+third NOT-MERGEABLE-AS-IS, and taught the ε-row lesson four more
+times. Remaining slate: #327 (dispatching now), M8-4 (scope
+tightened to the one collapsed gap), the #214 riders, #382 triage
+— then the M8 exit walk.

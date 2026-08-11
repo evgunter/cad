@@ -411,6 +411,13 @@ impl Value {
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Evaluation {
     inner: d::Evaluation<f64>,
+    /// The evaluated document's parameter bindings, captured at
+    /// `evaluate` — `select_where`'s decided atoms state their value
+    /// as an `Expr`, which cannot be evaluated without them. Captured
+    /// HERE because the answer must be as of the same document the
+    /// evaluation is of; threading the doc back in per query would
+    /// let the two drift.
+    params: d::ParamEnv<f64>,
 }
 
 #[pymethods]
@@ -464,8 +471,9 @@ impl Evaluation {
     ///
     /// The answer is the WHOLE kind, and each string is an OPAQUE
     /// identifier: its internal structure is not API (see
-    /// `doc::name_text`), so narrowing the set is a SELECTOR's job and
-    /// no selector crosses yet — the audit's G13.
+    /// `doc::name_text`), so narrowing the set is a SELECTOR's job —
+    /// [`Self::select`] and [`Self::select_where`] (LIB-PYSEL), which
+    /// answer in the same alphabet.
     ///
     /// Empty when the node has no value, no name table, or no edges.
     /// The fillet node is what refuses an EMPTY selection, so the
@@ -489,6 +497,59 @@ impl Evaluation {
     /// Usually one row; a split's two halves are the plural case.
     fn all_bodies(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
         names(py, pncad::select::all_bodies(&self.inner, node.0))
+    }
+
+    /// **Materialize a STRUCTURAL selection**: every name of `node`'s
+    /// output matching `selector`'s role-path shape, as of THIS
+    /// evaluation — Rust's `select`, same contract as `all_edges`
+    /// (canonical order, the caller stores it, frozen thereafter).
+    ///
+    /// The answer is the same opaque texts the whole-kind
+    /// materializers speak, ready for `Node.fillet` unread: narrowing
+    /// happens through this door, never by parsing a name (the
+    /// ordinal-28 ruling — name text is an identifier, not a value).
+    ///
+    /// Infallible like `select`: empty when `node` has no value, no
+    /// name table, or nothing matches.
+    fn select(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        selector: &super::select::Selector,
+    ) -> PyResult<Vec<String>> {
+        names(py, pncad::select::select(&self.inner, node.0, &selector.0))
+    }
+
+    /// **Materialize a selection narrowed by GEOMETRY**: `selector`
+    /// narrows by name shape, then each survivor is resolved to its
+    /// entity in THIS evaluation and tested against the CONJUNCTION
+    /// `geom` — Rust's `select_where`, verb for verb. An empty `geom`
+    /// makes this exactly [`Self::select`]; run it twice and
+    /// concatenate for a geometric union.
+    ///
+    /// Same materializer contract and same opaque-text alphabet as
+    /// [`Self::select`] (the ordinal-28 ruling: the binding narrows,
+    /// your code never reads inside a name).
+    ///
+    /// Raises `SelectRefusal`, typed, where the Rust door refuses:
+    /// exact atoms are total and cannot refuse, but a DECIDED atom's
+    /// in-band margin (`reason="in_band"`), a tied name whose
+    /// candidates disagree (`"tied_disagrees"`), an unreadable
+    /// candidate (`"unreadable"`), a non-datum reference
+    /// (`"not_a_datum"`) all refuse rather than silently including or
+    /// dropping a candidate.
+    fn select_where(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        selector: &super::select::Selector,
+        geom: Vec<super::select::GeomPred>,
+    ) -> PyResult<Vec<String>> {
+        let atoms: Vec<pncad::select::GeomPred> = geom.into_iter().map(|g| g.0).collect();
+        match pncad::select::select_where(&self.inner, node.0, &selector.0, &atoms, &self.params) {
+            Ok(found) => names(py, found),
+            Err(refusal) => Err(super::select::select_refusal(py, &refusal)),
+        }
     }
 
     /// How many nodes were recomputed rather than reused from the memo.
@@ -559,7 +620,15 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
         E::NotABody { kind, .. } => {
             fields[3] = ("kind", PyString::new(py, kind).unbind().into_any());
         }
-        E::UnknownNode { .. } | E::NodeFailed { .. } | E::EmptyBoolean { .. } | E::Step(_) => {}
+        // `Product` is the WHOLE-DOCUMENT door's refusal (ASM-ROOTS
+        // D-4): it names product roots, not this call's node, so it
+        // adds no field here. The arm is spelled out because the match
+        // is exhaustive on purpose — the tripwire, not a wildcard.
+        E::UnknownNode { .. }
+        | E::NodeFailed { .. }
+        | E::EmptyBoolean { .. }
+        | E::Step(_)
+        | E::Product(_) => {}
     }
     typed_err(py, ErrorClass::Export, err.to_string(), &fields)
 }
@@ -605,6 +674,7 @@ pub(crate) fn evaluate(doc: &super::doc::Doc) -> Evaluation {
             &d::CancelToken::new(),
             &d::EvalOptions::default(),
         ),
+        params: doc.inner.param_env::<f64>(),
     }
 }
 
