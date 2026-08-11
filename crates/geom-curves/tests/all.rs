@@ -40,14 +40,20 @@ mod fit_certify;
 mod fitting;
 #[path = "hull_circle_rehearsal.rs"]
 mod hull_circle_rehearsal;
+#[path = "lt_r1_probes.rs"]
+mod lt_r1_probes;
 #[path = "m5_pr7_speed_meter.rs"]
 mod m5_pr7_speed_meter;
+#[path = "m8_14_long_turn_meter.rs"]
+mod m8_14_long_turn_meter;
 #[path = "nurbs_differential.rs"]
 mod nurbs_differential;
 #[path = "nurbs_interval.rs"]
 mod nurbs_interval;
 #[path = "projection.rs"]
 mod projection;
+#[path = "r2_lt_probes.rs"]
+mod r2_lt_probes;
 #[path = "review_m5_pr2_e2e.rs"]
 mod review_m5_pr2_e2e;
 #[path = "review_m5_pr3_attack.rs"]

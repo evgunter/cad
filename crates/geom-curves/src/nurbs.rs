@@ -404,14 +404,55 @@ macro_rules! nurbs_curve {
             /// `Qᵢ = p·(Pᵢ₊₁ − Pᵢ)/(uᵢ₊ₚ₊₁ − uᵢ₊₁)`, so on every span
             /// `C′(t)` is a **convex combination** of the local `Qᵢ`.
             /// Fix any unit direction `d`: then
-            /// `‖C′‖ ≥ d·C′ ≥ minᵢ (d·Qᵢ)`. The direction taken is the
-            /// curve's own chord (first to last control point), which
-            /// is the one a monotone carrier advances along. The result
-            /// may be zero or negative — this arm's single global
-            /// direction bounds nothing when the curve turns away from
-            /// its own chord — and that is reported honestly, so the
-            /// margin collapses and the caller's trilean escalates
-            /// rather than guessing.
+            /// `‖C′‖ ≥ d·C′ ≥ minᵢ (d·Qᵢ)` over the `Qᵢ` active where
+            /// `d` is applied. Since M8-14 (#222) the arm runs **two
+            /// independent assemblies** of that inequality and states
+            /// their join:
+            ///
+            /// 1. the **global-chord** assembly — the retired original
+            ///    arm, verbatim: one direction (first→last control
+            ///    point, the chord a monotone carrier advances along),
+            ///    min over ALL `Qᵢ`;
+            /// 2. the **per-span** assembly — the M8-2 rational
+            ///    template carried over: each nonempty span projects
+            ///    its ACTIVE `Qᵢ` (`i ∈ span−p .. span`) on the span's
+            ///    own control chord `P_span − P_{span−p}`, and the
+            ///    whole domain is the ascending `Real::min` fold over
+            ///    spans. A per-span direction is legitimate because
+            ///    `‖C′(t)‖ ≥ d_s·C′(t)` holds for *every* unit `d_s`,
+            ///    so the min over spans of per-span bounds still
+            ///    bounds the whole domain (the M8-2 review's
+            ///    soundness argument, unchanged).
+            ///
+            /// **The join**: an assembly whose direction collapsed
+            /// (poison) abstains; if both abstain the answer is
+            /// poison; if both are real the answer is their `max` —
+            /// sound because each is independently a lower bound on
+            /// the same `inf‖C′‖`. Every cell of that lattice — both
+            /// abstentions, both-poison, and the poisoned-INPUT
+            /// no-laundering claim below — is EXERCISED on
+            /// bitwise-exact fixtures by the adopted review probes
+            /// (`tests/lt_r1_probes.rs::r1_join_abstention_logic`,
+            /// `tests/r2_lt_probes.rs::the_join_lattice_is_pinned_cell_by_cell`),
+            /// and the same suites' randomized fuzz kills the unsound
+            /// near-neighbors of the scan (active window shifted, last
+            /// span dropped, either arm deleted from the join) that
+            /// the smooth-interpolant corpus alone cannot detect. The
+            /// join is therefore **never
+            /// below the retired single-chord arm** on any carrier
+            /// that arm bounded (the M8-14 corpus pins exactly that,
+            /// green rows as floors), while a long-turn carrier (a
+            /// helix past half a revolution, a closed loop) whose
+            /// speed never drops no longer collapses the meter merely
+            /// because its tangent leaves the global chord's
+            /// half-space — that collapse was a MEASUREMENT artifact
+            /// of assembly 1, and assembly 2 retires it.
+            ///
+            /// The result may still be zero or negative — a genuine
+            /// stationary point (cusp, turn-around) defeats every
+            /// direction on its own span — and that is reported
+            /// honestly, so the margin collapses and the caller's
+            /// trilean escalates rather than guessing.
             ///
             /// **Rational carriers** take the second arm,
             /// [`Self::rational_speed_lower_bound`] — the derivative of
@@ -445,17 +486,65 @@ macro_rules! nurbs_curve {
             /// as if it did would be reading an arc-length rate as a
             /// chord-distance rate.
             ///
-            /// The two arms differ only in how conservative they are
-            /// about that: the integral arm projects on ONE global
-            /// direction and therefore also happens to collapse on a
-            /// curve that turns away from its chord, while the rational
-            /// arm projects per span and does not. Both are sound lower
-            /// bounds on `‖C′‖`; neither is a claim about the curve's
-            /// shape beyond its speed.
+            /// Both arms project per span (the integral arm since
+            /// M8-14 — before that its single global direction also
+            /// collapsed on any curve that turns away from its chord,
+            /// which is what refused every ≥ half-turn sweep path).
+            /// Both are sound lower bounds on `‖C′‖`; neither is a
+            /// claim about the curve's shape beyond its speed.
             ///
             /// The arm is chosen on **f64 structure** (`w_j == 1.0`
-            /// exactly), never on an evaluation scalar, so the integral
-            /// path is bit-for-bit what it always was.
+            /// exactly), never on an evaluation scalar.
+            ///
+            /// # Rounding posture
+            ///
+            /// The chord directions are `chord/‖chord‖` — unit only to
+            /// rounding at `f64`, so the plain-f64 reading is a bound
+            /// up to about a relative ulp (both review harnesses
+            /// measured the worst case one ulp on the SOUND side).
+            /// This is the kernel-wide posture shared with the
+            /// rational arm; the `Interval` instantiation is the
+            /// certified lane, and the bracket row in
+            /// `tests/m5_pr7_speed_meter.rs` pins containment.
+            ///
+            /// # Poison (total, D4 ¶2)
+            ///
+            /// A zero degree, fewer than two control points, a
+            /// non-positive difference of the knots framing any
+            /// derivative coefficient (`u_{i+p+1} ≤ u_{i+1}` — a
+            /// structural violation the old arm turned into ±∞/NaN
+            /// arithmetic instead of naming), a knot vector with no
+            /// nonempty span, or BOTH assemblies abstaining — every
+            /// one yields NaN. A bound is never fabricated. The
+            /// knot-difference clause is DEFENSIVE: it needs an
+            /// interior multiplicity of `p + 1`, which Clamped-v1
+            /// validation forbids (interior multiplicity ≤ `p`, end
+            /// multiplicity exactly `p + 1` with nonempty end spans),
+            /// so no validated constructor reaches it — it guards
+            /// future unvalidated paths, and is an untestable-by-
+            /// construction claim, stated as such rather than pinned.
+            ///
+            /// Structural misses INSIDE the per-span scan (an active
+            /// window past the control net, an index underflow) poison
+            /// the WHOLE meter rather than abstaining the one
+            /// assembly — deliberate asymmetry: chord collapse is a
+            /// fact about a well-formed curve, a range miss is a
+            /// construction-invariant break, and fail-loud beats
+            /// recovering around corrupted structure.
+            ///
+            /// The join's one-sided recovery is NOT poison
+            /// laundering: an assembly abstains only when its own
+            /// chord DIRECTION collapsed (`0/0`), a structural fact
+            /// about which projections exist, while a poisoned INPUT
+            /// (a non-finite control point) poisons the projections
+            /// of every assembly whose active set touches it — the
+            /// global assembly's min covers all `Qᵢ` and the span
+            /// containing the point poisons the per-span fold, so
+            /// corrupted data still reaches the caller as poison
+            /// through both arms at once. `Real::is_poison` here
+            /// discriminates assembly structure, never geometry: the
+            /// geometric decision (is the bound positive?) stays with
+            /// the caller's trilean.
             pub fn speed_lower_bound(&self) -> T {
                 let poison = T::from_f64(f64::NAN);
                 // Rational ⇒ the convexity argument does not hold
@@ -468,16 +557,12 @@ macro_rules! nurbs_curve {
                     return poison;
                 }
                 let knots = self.knots.knots();
-                // The chord direction (first to last control point);
-                // a clamped curve interpolates both, so this is the
-                // curve's own end-to-end direction.
-                let Some((first, last)) = self.control.first().zip(self.control.last()) else {
-                    return poison;
-                };
-                let chord = *last - *first;
-                let n = chord.norm();
-                let d = chord / n;
-                let mut acc: Option<T> = None;
+                // Derivative coefficients, once for the curve:
+                // `Qᵢ = p·(Pᵢ₊₁ − Pᵢ)/(uᵢ₊ₚ₊₁ − uᵢ₊₁)`. The knot
+                // difference is checked POSITIVE on f64 structure —
+                // the totality clause above — so every coefficient
+                // below is finite arithmetic on finite structure.
+                let mut coeffs = Vec::with_capacity(self.control.len() - 1);
                 for i in 0..(self.control.len() - 1) {
                     let (Some(a), Some(b)) = (self.control.get(i), self.control.get(i + 1)) else {
                         return poison;
@@ -485,18 +570,93 @@ macro_rules! nurbs_curve {
                     let (Some(&lo), Some(&hi)) = (knots.get(i + 1), knots.get(i + p + 1)) else {
                         return poison;
                     };
+                    let du = hi - lo;
+                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                    if !(du > 0.0) {
+                        return poison;
+                    }
                     #[allow(clippy::cast_precision_loss)]
-                    let scale = T::from_f64(p as f64) / T::from_f64(hi - lo);
-                    let q = (*b - *a) * scale;
-                    let v = d.dot(q);
-                    acc = Some(match acc {
-                        None => v,
-                        // `Real::min` is NaN-propagating (poison in,
-                        // poison out) and total — no comparison here.
-                        Some(m) => m.min(v),
-                    });
+                    let scale = T::from_f64(p as f64) / T::from_f64(du);
+                    coeffs.push((*b - *a) * scale);
                 }
-                acc.unwrap_or(poison)
+                // ---- Assembly 1: the global chord (the retired
+                // original arm, verbatim — same direction, same fold
+                // order, bit-identical where it was defined). ----
+                let (Some(first), Some(last)) = (self.control.first(), self.control.last()) else {
+                    return poison;
+                };
+                let global = {
+                    let chord = *last - *first;
+                    // A collapsed chord makes this 0/0 ⇒ poison ⇒ the
+                    // assembly abstains at the join (the rational
+                    // arm's chord treatment).
+                    let d = chord / chord.norm();
+                    let mut acc: Option<T> = None;
+                    for q in &coeffs {
+                        let v = d.dot(*q);
+                        acc = Some(match acc {
+                            None => v,
+                            // `Real::min`/`max` are NaN-propagating
+                            // (poison in, poison out) and total — no
+                            // comparison here or below.
+                            Some(m) => m.min(v),
+                        });
+                    }
+                    acc.unwrap_or(poison)
+                };
+                // ---- Assembly 2: per-span chords (the M8-2 rational
+                // template), fixed ascending span order (D9): the min
+                // of `d_span·Qᵢ` over the ACTIVE coefficients
+                // (`i ∈ span−p .. span`), folded over spans. ----
+                let perspan = {
+                    let mut acc: Option<T> = None;
+                    for span in self.knots.first_span()..=self.knots.last_span() {
+                        if !self.knots.span_is_nonempty(span) {
+                            continue;
+                        }
+                        // Range misses below poison the WHOLE meter
+                        // (early return), not just this assembly —
+                        // a construction-invariant break fails loud
+                        // (doc: "Poison", the stated asymmetry with
+                        // chord-collapse abstention).
+                        let Some(lo_i) = span.checked_sub(p) else {
+                            return poison;
+                        };
+                        if span >= self.control.len() {
+                            return poison;
+                        }
+                        let Some(active) = coeffs.get(lo_i..span) else {
+                            return poison;
+                        };
+                        // The span's own control chord, as unit
+                        // direction; collapse ⇒ 0/0 ⇒ this span
+                        // poisons THIS assembly (which then abstains
+                        // at the join — the other assembly still
+                        // covers the same span soundly).
+                        let (Some(a), Some(b)) =
+                            (self.control.get(lo_i), self.control.get(span))
+                        else {
+                            return poison;
+                        };
+                        let chord = *b - *a;
+                        let d = chord / chord.norm();
+                        for q in active {
+                            let v = d.dot(*q);
+                            acc = Some(match acc {
+                                None => v,
+                                Some(m) => m.min(v),
+                            });
+                        }
+                    }
+                    acc.unwrap_or(poison)
+                };
+                // ---- The join (doc: "The join"). ----
+                match (global.is_poison(), perspan.is_poison()) {
+                    (true, true) => poison,
+                    (true, false) => perspan,
+                    (false, true) => global,
+                    (false, false) => global.max(perspan),
+                }
             }
 
             /// The **rational arm** of [`Self::speed_lower_bound`]: a
@@ -571,8 +731,9 @@ macro_rules! nurbs_curve {
             /// per-span direction is legitimate because
             /// `‖C′(t)‖ ≥ d_s·C′(t)` holds for *every* unit `d_s`, so
             /// the min over spans of per-span bounds still bounds the
-            /// whole domain. The integral arm keeps its single global
-            /// chord, bit-identically.
+            /// whole domain. The integral arm adopted the same
+            /// per-span scan in M8-14 (#222), joined with its
+            /// original global chord — see [`Self::speed_lower_bound`].
             ///
             /// A per-span direction bounds SPEED and nothing else — see
             /// [`Self::speed_lower_bound`]'s "what the bound does and
