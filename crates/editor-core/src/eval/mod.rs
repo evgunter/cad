@@ -1261,6 +1261,16 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             f(h, centre.y);
             winding(h, *w);
         }
+        // Tag 28: APPENDED, never renumbered — these keys are
+        // process-internal but a renumber would collide two distinct
+        // steps' digests within one run.
+        Step::AtToward { p, dx, dy } => {
+            h.write_tag(28);
+            f(h, p.x);
+            f(h, p.y);
+            f(h, *dx);
+            f(h, *dy);
+        }
         Step::Angle(theta) => {
             h.write_tag(12);
             f(h, *theta);
