@@ -44,6 +44,8 @@ mod hull_circle_rehearsal;
 mod m5_pr7_speed_meter;
 #[path = "m8_14_long_turn_meter.rs"]
 mod m8_14_long_turn_meter;
+#[path = "lt_r1_probes.rs"]
+mod lt_r1_probes;
 #[path = "nurbs_differential.rs"]
 mod nurbs_differential;
 #[path = "nurbs_interval.rs"]
