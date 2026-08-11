@@ -62,12 +62,52 @@ fn native_arc_loft() -> topo::Body<f64> {
 /// Probe 1: the PR's round-trip claim, at full strength (bit identity),
 /// then again on a file whose DATA section is REVERSED — the reader's
 /// fixed-point discipline should not depend on entity order.
+///
+/// **ε posture** (added at the fix pass; the probe as pushed was
+/// ε-BLIND and went red on the hosted 1e-12 row). The schedule is
+/// fixed (D9) against a `1024·ε` target, so at a tight enough ε the
+/// arc loft's flux honestly cannot certify and there is no volume to
+/// compare — the bit-identity claim has no SUBJECT there. That is not
+/// a reason to widen anything: the row keeps the full-strength
+/// assertion wherever the subject exists, and where it does not it
+/// asserts the honest thing instead — that the reader refuses the SAME
+/// way the builder does, which is the writer/reader symmetry this
+/// probe is really about.
 #[test]
 fn probe_round_trip_bit_identity_and_reorder() {
     let native = native_arc_loft();
-    let want = topo::mass_properties(&native).expect("native certifies at default eps");
     let text =
         step_export::step_string(&native, &step_export::StepOptions::default()).expect("exports");
+    let Ok(want) = topo::mass_properties(&native) else {
+        // No subject for bit identity. Pin the symmetry that survives:
+        // the native body refuses at the quadrature budget, and so must
+        // the round trip — through the import gate, on the same fact.
+        let native_err = topo::mass_properties(&native).expect_err("just refused");
+        assert!(
+            matches!(
+                native_err,
+                topo::MassPropsError::Face {
+                    source: geom_brep::props::PropsError::QuadratureBudget { .. },
+                    ..
+                }
+            ),
+            "the only honest non-certifying posture is the fixed schedule's budget: \
+             {native_err:?}"
+        );
+        let refusal = step_import::import_step(&text, &step_import::ImportOptions::default())
+            .expect_err("the import gate refuses what the builder refuses");
+        let shown = format!("{refusal:?}");
+        assert!(
+            shown.contains("QuadratureBudget"),
+            "the reader must refuse on the SAME fact as the builder: {shown}"
+        );
+        println!(
+            "RW2 probe 1: quadrature budget at eps={:e} — symmetry pinned, \
+             bit identity has no subject",
+            geom_core::Tolerance::get().eps
+        );
+        return;
+    };
 
     let import = |t: &str, who: &str| -> topo::MassProperties<f64> {
         match step_import::import_step(t, &step_import::ImportOptions::default()) {
