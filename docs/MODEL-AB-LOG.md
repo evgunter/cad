@@ -20,11 +20,16 @@ amended:
   implementer's agent, so it inherits the arm.
 - **Protocol v3 (Evan, 2026-08-08, post-bayes-readout): TRIPLES.**
   Blocks are now the shuffled multiset {opus, opus, fable} —
-  rationale: the readout shows no quality separation, a consistent
-  lean toward opus on findings and cost, and modest power loss at
-  2:1 (~12% contrast-variance inflation), so allocation shifts
-  toward the cheaper arm while keeping a live fable stream for
-  drift detection. Draw: one /dev/urandom byte, REJECT values
+  rationale (RESTATED 2026-08-11 in non-leaking terms; the original
+  cited arm-directional results and moved off-file with the readouts):
+  **the fable usage limit binds before the total limit**, so fable
+  dispatches consume the scarce budget and opus dispatches are close to
+  free at the margin. Allocation therefore shifts per the block rule
+  above while keeping a live fable stream for drift detection, at a
+  modest power cost (~12% contrast-variance inflation at 2:1; ~33% at
+  v4's 3:1, both relative to balanced). Note for planning: because the
+  contrast's precision is governed by the SMALLER arm, fable rows are
+  the binding constraint on how fast any question here can be answered. Draw: one /dev/urandom byte, REJECT values
   ≥252 (redraw — avoids modulo bias), then byte mod 3 = fable's
   position (0/1/2). Difficulty still logged pre-draw per
   dispatch. Everything else unchanged (blinding, Fable for
@@ -271,141 +276,13 @@ worse than a table with two clearly-marked non-comparable rows.
 **So: 42 dispatches, n = 40 for the comparison.** Every statistic
 below is computed over rows 11-40.
 
-## M5-close readout (2026-08-03, PR 14)
+## M5-close readout (2026-08-03, PR 14) — MOVED OFF-FILE
 
-Scope: rows 11–40 are the M5 dispatches (rows 1–10 were M4; the
-reference rows in the footer are pre-experiment). Thirty M5 rows,
-plus the two unnumbered no-blinded-lane units above.
-
-**Arm balance.** M5 rows 11-40: **fable 15, opus 15.** The blocked
-randomization held — every block after M4's block 1 drew its order
-from `/dev/urandom`, and the pairing landed the milestone exactly
-even without any further override.
-
-**Stratified by pre-logged difficulty** (difficulty was logged before
-the flip or before assignment in every M5 row; the one ordering slip,
-row 29, is recorded in its own cell):
-
-| difficulty | fable rows | opus rows | fable MAJ | opus MAJ | fable silent | opus silent |
-|---|---|---|--:|--:|--:|--:|
-| **L** (9) | 12, 14, 19, 28, 32 | 25, 29, 31, 40 | 6 | 5 | 2 | 3 |
-| **M** (12) | 15, 20, 26, 34, 36 | 11, 13, 18, 21, 33, 35, 37 | 4 | 1 | 1 (+1 unrecorded, row 36) | 1 |
-| **S** (9) | 17, 23, 30, 38, 39 | 16, 22, 24, 27 | 1 | 0 | 0 (+1 unrecorded, row 38) | 0 |
-| **total** | 15 | 15 | **11** | **6** | **3 recorded, 2 unrecorded** | **4** |
-
-Both arms are within one row of each other at every difficulty level
-except M, where opus drew seven to fable's five.
-
-**MAJOR findings — read the classifications, not the counts.** The
-raw totals (fable 11, opus 6) are not a quality signal, because the
-review record classifies a large share of them as something other
-than implementation defects:
-
-- **Design forks ruled by Evan, not defects**: row 15's two MAJs.
-- **Ruled ACCEPT-AND-BANK** (the finding became a scheduled unit,
-  PR 7b): row 25's M2.
-- **Claim- or proof-text scope, not code**: row 31's MAJ; row 33's
-  was a premise refutation returned as a MAJOR against the *spec*.
-- **Real defects outside the unit's own acceptance target**: row
-  40's octant `e0` pick (tier-3 lost on non-square prisms; the die,
-  which the unit shipped, is unaffected).
-- **Real, consequential, on the unit's own geometry**: row 19's
-  MAJ-1 — an even-crossing silent one-sided split — the project's
-  only REJECT. Its fix pass exposed and fixed two further latent
-  defects and re-reviewed at APPROVE 5/5/5. Row 28's three (two
-  silent) and row 20's one (a silent corrupt STL via a hole-creating
-  merge role inversion) are the other members of this class.
-
-Counting only that last class, the milestone's genuinely
-consequential implementation MAJORs are rows 19, 20, 28 (fable) and
-row 40 (opus) — four across thirty dispatches, and present on both
-arms.
-
-**Silent deviations** — the metric the protocol weights worst, and
-the one where the arms are closest to indistinguishable. M5 total:
-**fable 3** (row 26's center-shift ring-fallacy; row 28's two),
-**opus 4** (row 11's stale-claims sweep leaving live rustdoc inari
-mentions; row 29's two node-layer sweeps; row 40's Band-4 scope
-gap). Two fable rows (36, 38) have no silent-deviation datum
-recorded at all, so fable's true count is 3-5. Every other M5 row
-recorded 0 silent alongside a nonzero count of *reported*
-deviations — the reporting discipline itself held well on both arms,
-which is the outcome the protocol most wanted.
-
-**Fix-pass size distribution.** Rows 36, 38 and 40 were described
-narratively and never classified; they are counted as unclassified
-rather than folded into a bucket.
-
-| size | fable | opus |
-|---|---|---|
-| none | 30, 39 | 22, 27 |
-| light / tiny | 23, 34 | 24, 33, 35, 37 |
-| moderate | 14, 17, 20, 26, 32 | 11, 13, 18, 21, 31 |
-| substantial / heavy | 15, 19, 28 | 25, 29 |
-| unclassified | 36, 38 | 40 |
-
-Several cells carry a qualified size in the row itself
-("moderate+", "light + one gate red", "moderate, in flight");
-collapsing those into buckets loses information the row cells keep,
-and the row cells are authoritative. Read directionally: the
-distributions overlap heavily, with the heavy tail populated by both
-arms and driven by unit scope rather than arm.
-
-**What the milestone shows, honestly.**
-
-1. **No arm-level quality difference is visible at this n.** Both
-   arms produced clean rows and both produced the milestone's
-   heaviest fix passes. Both arms carried silent deviations (fable 3
-   recorded plus 2 rows with no datum, opus 4) — the metric the
-   protocol weights worst, and it does not separate them. Both arms had a row where the review found a real,
-   consequential defect that shipping would have carried (row 19
-   fable, row 40 opus). The M4-close reading — "no evidence Opus
-   implementation is worse at this scale; suggestive that it's
-   comparable" — is unchanged by thirty more rows, and it is now
-   supported by a difficulty-stratified sample rather than a skewed
-   one.
-2. **The confounds have NOT gone away and are not small.** Reviewer
-   variance is still unmeasured — the same orchestrator-model
-   reviewed both arms, and review depth demonstrably varied across
-   the milestone (row 19's review found three MAJORs on geometry that
-   three earlier reviews of comparable units did not probe as hard).
-   Difficulty labels are one orchestrator's pre-flip guess, not a
-   calibrated scale. Unit scope varied by more than an order of
-   magnitude within the same difficulty letter. Fix passes were
-   sometimes run by the implementer's own agent and sometimes
-   orchestrator-applied.
-3. **No significance is claimed, and none is available.** n = 40 with
-   a binary arm, an unblinded orchestrator, a subjective outcome
-   scale, and multiple uncontrolled confounds does not support a
-   significance claim, and no test is reported here. The honest
-   summary is the same shape as M4's: *the experiment has produced no
-   evidence that either model is worse at this work, and the sample is
-   now large enough that a large effect would probably have shown.* A
-   small effect would not have, and this design cannot find one.
-   Arm balance (15/15) and difficulty balance are the two things this
-   milestone did materially improve over M4's 4-0 opening skew.
-
-**Data-quality findings this readout is obliged to state.**
-
-- **The table was five rows stale at milestone close** and rows
-  36–40 had to be reconstructed from prose. The reconstruction is
-  faithful but lossy — see the `—` cells.
-- **The rubric (idiom/tests/docs) is missing for rows 36, 38, and
-  40** and was never recorded. Row 40 is an L-difficulty row, so the
-  most informative single rubric of the milestone's end is absent.
-- **Tokens and wall-clock are absent for every row from 13 onward**
-  ("(in log)" was written in place of a figure and the figure was
-  never carried across). The protocol lists them as per-row objective
-  companions; in practice the experiment collected them for twelve
-  rows and then stopped. Any future cost comparison between arms is
-  therefore not available from this log.
-- **Two rows (36, 38) lack a silent-deviation count**, the
-  protocol's most heavily weighted metric.
-- Recommendation for the next milestone, if the experiment
-  continues: record the row AT MERGE rather than at next-touch, and
-  treat a missing rubric or silent-dev count as a merge blocker for
-  the row — the cheap discipline that would have prevented every gap
-  above.
+The readout's text stated arm-directional conclusions. Per the
+results-off-file rule below (Evan, 2026-08-11) it has been moved to
+branch `ev/ab-bayes-analysis`, `analysis/model-ab/readouts-archive.md`,
+and remains in this file's git history. Nothing in it binds orchestrator
+behaviour.
 
 ## Post-M5 rows (M6/M7, from 2026-08-04 — recorded at merge; NOT covered by the M5-close readout above)
 
@@ -801,3 +678,38 @@ last banked slot — LIB-8 consumed: PYBUNDLE opus / PYSEL fable /
 LBRET opus). Difficulty logged pre-dispatch: M (one confined
 kernel door + a one-scene migration + mechanical banishment).
 | PYSEL | 2026-08-11 | audit G13 close: the selector surface from Python — select/select_where, Selector/NamePat/SegPat + 10 mirrored enums, GeomPred exact/decided as typed structure, typed SelectRefusal; diecomposed YES*→YES on the scene's own two filters, zero name-text parsing | S-M (logged pre-dispatch) | fable (block LIB-8 slot 2) | single (ordinal 29, reviewed head b0517eec; reviewer fable — pre-v4 dual rules, single row) — APPROVE-WITH-FIXES 0/2/4, rubric 5/4/4 (all 8 claim groups executed on the reviewer's own build: oracle independently re-computed, 12/42 counts reconciled against lib_sel1's one-pip miniature (12+2 — both right), audit arithmetic re-derived, the interval-passthrough CI wall reproduced exactly on main's manifest, "23 NO rows" tally confirmed pre-existing (genuine drive-by fix); MINOR-1 = SegPat.matches dropped SILENTLY while the same class got numbered findings — the drop itself UPHELD (RoleSeg reachable only by name-text parsing, forbidden by ordinal-28); MINOR-2 = a report claim ("recorded beside G1's residue") not true in the tree; trilean parity probed end-to-end incl. an eps-sliver refusal construction the review authored) | 1 silent (MINOR-1; 11 reported, all verified genuine) | 5 | 4 | 4 | light (drop stated as finding 12; the Expr-comparand residue line added to the audit page making the claim true; the reviewer's in_band ε-sliver row ADOPTED — suite 127→128; §0 re-merge against #394/#399); executor: implementer-inherited (unit itself limit-fragmented: killed at the Fable window mid-implementation, resumed with uncommitted work intact — the push-per-chunk lesson re-taught) | MERGED #393 33/33; G13 CLOSED — audit 24→25 of 34 authorable (21 YES + 4 YES*), 9 NO (G2:6 G5:2 G12→#377 pending LBRET G14:1 — recount at LBRET); suite 118→128; the latent pncad-py interval-passthrough CI wall fixed en route | impl ~330k (limit-fragmented, annotated) / review ~148k / fix ~15k | impl ~29min active + resume / review ~55min / fix ~19min |
+
+## Results are off-file (Evan, 2026-08-11) — a standing rule
+
+**No arm-comparison result is recorded in this document, and none should
+be added.** Every orchestrator reads this file before dispatching; a
+directional arm result creates expectancy effects on the things
+orchestrators control — difficulty logging, finding adjudication,
+dispatch sequencing — which would contaminate the data still being
+collected. A null readout barely biases; a directional one does.
+
+- Readouts live on branch `ev/ab-bayes-analysis` under
+  `analysis/model-ab/`. **An orchestrator with a dispatch in flight
+  should not read them.**
+- Analysis methodology (which outcomes are modelled, how dual rows enter
+  the comparison, which subgroups are examined) is likewise not
+  orchestrator protocol and does not belong here.
+- Two passages that predated this rule — the M5-close readout and
+  protocol v3's rationale — were moved off-file on 2026-08-11 under it.
+
+## Task-class field (Evan, 2026-08-11, RATIFIED)
+
+Every dispatch logs a one-word **task class** alongside difficulty,
+**before the draw**, in the row's difficulty cell (e.g. `M / numeric`):
+
+- **`numeric`** — the unit introduces or changes a predicate, bound, or
+  decision that depends on floating-point comparison, tolerance, or
+  geometric measurement.
+- **`structural`** — topology, plumbing, API surface, data movement or
+  naming, with no new numeric decision. The log's existing vernacular
+  for this is row 20's "purely structural — no new numeric predicate".
+
+Mixed units take the class of the part that carries the risk; if that is
+genuinely ambiguous, record `numeric`. Logged pre-draw for the same
+reason difficulty is: assigning it after the fact, from the review
+narrative, would let the label absorb the outcome.
