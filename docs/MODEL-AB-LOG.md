@@ -808,143 +808,75 @@ kernel door + a one-scene migration + mechanical banishment).
 
 ## Second Bayesian readout (2026-08-11) — n = 76 blinded rows, 9 dual pairs
 
-Method and full output: branch `ev/ab-bayes-analysis`,
-`analysis/model-ab/` (report.html, plus `DECISIONS.md` recording every
-judgment call). Scope: rows under randomized allocation only — protocol
-v2 and v3, blinded-lane rows, **76** of them (fable 35 / opus 41).
-Protocol-v1 rows and no-blinded-lane rows (CI infra, demos,
-orchestrator-review classes) are excluded from every quality model, as
-before. Dual rows contribute **R1 only** to the arm comparison, so the
-arm series stays identically distributed across dual and single rows.
-34 models, all at split-R-hat < 1.01 and ESS > 400; the sampler is
-cross-checked against deterministic grid quadrature (max discrepancy
-0.013).
+Full analysis, all model output, and the judgment-call record live on
+branch `ev/ab-bayes-analysis` under `analysis/model-ab/` (`report.html`,
+`DECISIONS.md`). Only the conclusions that bind future behaviour are
+recorded here.
 
-**1. The MAJOR-finding rate now separates.** Rate ratio (opus ÷ fable)
-**0.51, 95% CrI 0.29–0.90** — the first quality interval in this
-experiment that excludes no-difference. The blinded severity recode
-agrees and points slightly stronger (0.44 strict / 0.41 broad, both
-excluding 1.0). Negative-binomial refit, which absorbs overdispersion,
-gives 0.52 (0.28–0.93) — the finding survives an overdispersed model.
-Nothing else separates: minors 1.03, notes 0.88, silent deviations 1.07,
-rubric mean +0.12 points.
+1. **The MAJOR-finding rate separates: 0.51 (95% CrI 0.29–0.90)** — the
+   first quality interval in this experiment to exclude no-difference.
+   The blinded severity recode agrees (0.44 / 0.41). It is not an
+   artifact of v3's allocation shift (arm × era interaction flat; both
+   eras point the same way, neither separating alone — the result rests
+   on pooling them), it survives an overdispersed refit (0.52,
+   0.28–0.93), and all three difficulty bands now agree in direction,
+   which retires the first readout's sign-flip objection. Nothing else
+   separates.
+2. **The first readout's COST finding is retired** — see the annotation
+   on the v3 entry above. Better recording roughly doubled the sample
+   and the lean did not survive it.
+3. **MAJOR counts are NOT reviewer-invariant.** Correcting this
+   readout's own earlier claim: on the first eight pairs agreement was
+   8/8 with zero estimated noise; sample #9 disagreed 0 vs 2 and moved
+   reviewer noise to σ = 0.42 on the log scale — now the largest of the
+   three count outcomes. The mechanism is recorded in the M8-14a row and
+   is review DEPTH, not disagreement about facts (the same gap was MINOR
+   to R1 by inspection, MAJOR to R2 by demonstration). Only three of the
+   nine pairs were informative (non-0–0), agreeing 2 of 3 — which is why
+   v4's "six duals with a MAJOR" stopping rule is the right shape.
 
-**2. It is not an artifact of the v3 allocation shift.** Fitted
-separately, v2 rows give 0.67 (0.35–1.23) and v3 rows 0.50 (0.19–1.34) —
-same direction, neither separating alone. In an arm × era model the era
-main effect is 0.89 (0.37–1.84) and the interaction 0.54 (0.17–1.67),
-both comfortably containing 1.0. **The headline rests on pooling the two
-eras**, which is legitimate (both randomized and blinded, interaction
-flat) but should be stated.
+   | outcome | exact agreement | reviewer noise σ (log) |
+   |---|---|---|
+   | MAJOR | 8 / 9 | 0.42 (0.27–0.78) |
+   | MINOR | 3 / 8 | 0.38 (0.23–0.75) |
+   | NOTE | 4 / 8 | 0.25 (0.16–0.52) |
 
-**3. The difficulty sign-flip resolved.** The first readout found the
-pooled lean dissolving into sign flips when stratified, and argued that
-was noise-shaped. At n=76 all three bands point the same way: S 0.57,
-M 0.40 (the only band separating alone, and the best-populated at 45
-rows), L 0.84. That objection is withdrawn.
-
-**4. The first readout's COST finding did not survive.** Standardized
-per-phase recording roughly doubled the usable sample (impl tokens
-24 → 59 rows, impl wall-clock 19 → 47). On that larger sample:
-implementation tokens 0.91 (0.76–1.09), total recorded tokens 0.84
-(0.65–1.09), and implementation wall-clock **reverses** to 1.08
-(0.70–1.66). Nothing separates. The earlier result was computed on the
-minority of rows that happened to record a number, and did not survive a
-fuller sample. **Consequence for the record: protocol v3's rationale
-cites "a consistent lean toward opus on findings and cost" — the COST
-half of that clause is retired. The findings half strengthened.**
-
-**5. Reviewer concordance (9 valid same-model pairs).** Corrected for
-the sample-#9 model mislabel; no cross-model dual has run yet.
-
-| outcome | exact agreement | reviewer noise σ (log scale) |
-|---|---|---|
-| MAJOR | 8 / 9 | **0.42 (0.27–0.78)** |
-| MINOR | 3 / 8 | 0.38 (0.23–0.75) |
-| NOTE | 4 / 8 | 0.25 (0.16–0.52) |
-| verdict label | 5 / 8 (pre-v4 vocabulary) | — |
-
-**MAJOR counts are NOT reviewer-invariant, and this readout corrects an
-earlier claim of mine that they were.** On the eight pairs available
-before sample #9 the MAJOR agreement was 8/8 and the estimated noise was
-zero; sample #9 disagreed 0 vs 2 and moved σ to 0.42, now the *largest*
-of the three count outcomes. The mechanism is recorded in the row and is
-the one the first readout warned about: the same gap was MINOR to R1 *by
-inspection* and MAJOR to R2 *by demonstration* (two genuinely unsound
-mutants surviving the 73-test battery). That is review depth, not
-disagreement about facts.
-
-**Prevalence caveat, unchanged and now more binding:** six of the nine
-pairs are 0–0, so only **three** pairs were informative, and those agree
-2 of 3 (0.61, 95% CrI 0.19–0.93). Almost no information. The v4 stopping
-rule — six duals in which at least one reviewer found a MAJOR — is the
-right shape precisely because 0–0 pairs are nearly free agreement.
-
-**6. Two rubric dimensions are not carrying information.** Across the
-scorable dual pairs **idiom was 5/5 from both reviewers in every single
-pair** — saturated at the ceiling, so it cannot discriminate anything.
-Test quality has reviewer noise of **0.64 rating points** against an arm
-difference of 0.26 points, i.e. noise ≈ 2.4× signal; docs 0.54 points
-against 0.02. This retires the first readout's flag that test-quality
-rubric was "the most suggestive quality signal" — it is not a signal at
-this precision. Note the honest framing: noise inflates the standard
-error, it does not forbid the comparison. Test quality is *underpowered*
-(roughly 6× the rows for the precision MAJOR counts already have), not
-unusable. Idiom is the one that is genuinely dead, and for a different
-reason.
-
-**7. What the concordance design cannot see.** It measures whether two
-draws from the *same reviewer model* agree — reproducibility, not
-accuracy. Two instances of one model can agree perfectly and be
-systematically wrong together. Only the v4 cross-model pilot can address
-that, and as of this readout it has zero data (sample #10 is the first).
+4. **Two rubric dimensions are not carrying information.** `idiom` was
+   5/5 from both reviewers in **every** scorable dual pair — saturated,
+   cannot discriminate. Test quality has reviewer noise of 0.64 rating
+   points against a 0.26-point arm difference, which makes it
+   underpowered (~6× the rows for MAJOR-count precision), not unusable.
+   This retires the first readout's flag that test quality was the most
+   suggestive quality signal.
+5. **Scope note.** Dual rows contribute R1 only to the arm comparison,
+   so the arm series stays identically distributed across dual and
+   single rows. The concordance design measures reproducibility within
+   one reviewer model, not accuracy; only the v4 cross-model pilot can
+   address shared bias, and it has no data yet.
 
 ### Proposed amendments — NOT ratified, for Evan's ruling
 
-Raised by this readout; recorded here as proposals so the log stays the
-single normative source. Nothing below is in force.
-
-**P1 — Rubric status.** Retire `idiom` or re-anchor its scale so 5 means
-something (it is currently a merge blocker enforcing collection of a
-field that has never varied between reviewers). Either way, add the
-same sentence the v4 verdict ladder got: *weight findings, not rubric
-scores*, so a future readout does not cite a rubric delta as evidence.
-
-**P2 — Pre-specify the subgroup splits, before more data.** The interest
-in task-type differences is real but subgroup contrasts need roughly 4×
-the rows of a main effect (~4.7× at 3:1). At the observed ~5 blinded
-rows/day that is reachable in about two months — but only if the split
-is named in advance; testing several and reporting the one that
-separates manufactures findings. Proposed, capped at two:
-- **Primary: large vs not-large (L/XL vs S/M).** Free — difficulty is
-  already logged pre-draw, L rows are already near-balanced (9 fable /
-  8 opus of 17), and MAJOR prevalence rises 21% → 40% → 59% across
-  S/M/L, so L rows carry the most signal per row.
-- **Secondary: numeric-predicate vs structural.** One new pre-logged
-  word. Domain-motivated: this project's expensive failures are silent
-  wrong geometry from ε/numeric reasoning, not from plumbing, and the
-  log already draws the distinction informally (row 20: "zip is purely
-  structural — no new numeric predicate"). Two-sided; no prior direction.
-- **Explicitly NOT build-new vs repair**, despite being the folk claim
-  the experiment started from. The blocker is the work mix, not the
-  statistics: 48 build_new rows against 5 diagnose_repair. No allocation
-  rule rescues a 5-row cell, and routing repair work into the experiment
-  to fix that would distort the project to serve the measurement.
-Mechanics: a dedicated one-word column logged at dispatch **before the
-draw**, same discipline as difficulty. Inferred-from-prose later is the
-researcher-degrees-of-freedom problem this clause exists to avoid.
-
-**P3 — Stratified allocation for the primary split.** Hold **1:1 within
-L/XL** while everything else runs the v4 3:1. L/XL is ~22% of dispatches
-(17 of 76), so overall fable share moves only ~25% → ~30%, while the
-subgroup you most want to resolve gets balanced arms. Legitimate under
-the protocol's own constraint because the probability depends only on
-difficulty, which is logged pre-draw and arm-independent.
-
-**P4 — Data note.** `SEL2` merged with `(in report)` in all three rubric
-columns. The datum exists in the review report, so this is a
-transcription gap rather than a collection failure — but it is the only
-such gap among the 25 v3 blinded rows, and the record-at-merge rule does
-not currently say whether "in the report but not the table" counts as
-missing. Worth one clarifying clause, given that a self-sufficient table
-is what makes re-running the analysis cheap.
+- **P1 — Rubric status.** Retire `idiom` or re-anchor its scale (it is
+  currently a merge blocker enforcing a field that has never varied
+  between reviewers), and add the same sentence the v4 verdict ladder
+  got: weight findings, not rubric scores.
+- **P2 — Pre-specify the subgroup splits before more data**, capped at
+  two, logged as a dedicated one-word column **before the draw** (same
+  discipline as difficulty; inferring it from prose later is the
+  degrees-of-freedom problem this clause exists to avoid). Proposed:
+  *primary* large vs not-large (free — already logged, and MAJOR
+  prevalence runs 21% / 40% / 59% across S/M/L so L rows carry the most
+  signal); *secondary* numeric-predicate vs structural, two-sided.
+  Explicitly NOT build-new vs repair: 48 rows against 5, and the blocker
+  is the work mix, not the statistics. Subgroup contrasts need ~4× the
+  rows of a main effect, so naming the split in advance is what makes
+  the answer meaningful when it arrives.
+- **P3 — Stratified allocation for the primary split**: 1:1 within
+  L/XL, v4's 3:1 elsewhere. L/XL is ~22% of dispatches, so overall fable
+  share moves only ~25% → ~30% while the subgroup gets balanced arms.
+  Legal under the arm-independence constraint because difficulty is
+  logged pre-draw.
+- **P4 — Data note.** `SEL2` merged with `(in report)` in all three
+  rubric columns — the datum exists in the review report, so this is a
+  transcription gap, but the record-at-merge rule does not say whether
+  that counts as missing. Worth one clarifying clause.
