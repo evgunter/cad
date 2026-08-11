@@ -248,7 +248,18 @@ Cheap to honor now, expensive to retrofit; each names its source:
   precedent for candidate generation). Sugar, never semantics:
   each expanded declaration is an ordinary A3 mate, so nothing in
   A11 changes; the bundle just authors the loop's declarations in
-  one gesture and names their shared provenance.
+  one gesture and names their shared provenance. The bundle is
+  also the intended home of the CROSS-CHAIN COUPLING (Evan, #356):
+  when two chains of parts determine the same quantity (bolt
+  shoulder vs gasket stack), by-construction agreement means the
+  definitions SHARE A PARAMETER — cross-document parameter
+  sharing, which v1 deliberately lacks (A4: parts are
+  self-contained; the seam carries pins + declarations only). So
+  in v1 the agreement is verified, not constructed — the declared
+  rung's trilean, consistent with the coincidence ladder — and
+  the fastener relation, when designed, carries the shared
+  dimension as template data rather than punching a parameter
+  hole through the document seam.
 - **Handbook fits** (I3): `Fit { g₀ }` with g₀ from a versioned
   data source — the declaration shape already fits; provenance of
   g₀ is the open half.
