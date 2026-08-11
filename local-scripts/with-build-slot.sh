@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # with-build-slot.sh — machine-wide build-slot semaphore for agent lanes.
 #
-#   scripts/with-build-slot.sh [-x | --express [SECS]] [-n] [-w SECS] -- <command> [args...]
+#   local-scripts/with-build-slot.sh [-x | --express [SECS]] [-n] [-w SECS] -- <command> [args...]
 #
 # Replaces the soft "two lanes" convention (and the retired
 # cargo-slots.txt registry) with real locks: slot lockfiles under
@@ -146,7 +146,7 @@ mkdir -p "$LOCK_DIR"
 # agent-lane-operations.md). sccache was briefly the machine rustc-wrapper
 # on 2026-08-11 and needed exactly that guard; it was reverted the same day
 # (it forces CARGO_INCREMENTAL=0, which measured 5-7x slower on the
-# edit-rebuild loop — see scripts/setup-build-env.sh), so the guard is gone
+# edit-rebuild loop — see local-scripts/setup-build-env.sh), so the guard is gone
 # with it rather than left running a daemon nothing uses.
 
 # Slot fds: express -> fd 7, slot 1 -> fd 8, slot 2 -> fd 9. Opened

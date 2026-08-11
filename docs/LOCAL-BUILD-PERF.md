@@ -211,6 +211,44 @@ Ranked by expected value:
 4. **Reduce build frequency**, not build cost: `cargo clippy`/`check` over
    the whole workspace is ~36 s against minutes for a full build.
 
+## 6. `scripts/` vs `local-scripts/` (2026-08-11)
+
+Tooling is split by **who runs it**, because a change to a purely local
+script was forcing the full hosted matrix (`ci-filter.py` is an allowlist
+that fails closed, and `scripts/**` was unrecognised ⇒ `TIER=all`).
+
+* `scripts/` — the six things **hosted CI runs**: `ci-filter.py`,
+  `check-test-aggregation.sh`, `check_admesh.sh`, `check_step.sh`,
+  `step_import_check.py`, `k_probe_sweep.sh`. Changes here still force
+  `TIER=all`; they can move a hosted result.
+* `local-scripts/` — everything else (`ci-local.sh`, `gate.sh`,
+  `with-build-slot.sh`, `test-fast.sh`, `new-lane.sh`, `clean-lanes.sh`,
+  `fmt-all.sh`, `render-hosted.sh`, `setup-build-env.sh`, `hooks/`,
+  `monitors/`, `review-lily/`). Classified non-triggering, like docs.
+
+**The split is enforced, not conventional**: every workflow job runs
+`rm -rf local-scripts` immediately after checkout. A workflow that grows a
+reference to a local script fails loudly on the next run rather than
+silently coupling the hosted gate to a developer's machine — which is what
+makes it safe for the filter to skip CI on those changes.
+
+`ci-local.sh` and `gate.sh` are local despite appearing in `ci.yml`: those
+are comment mentions only, verified by checking for non-comment references.
+
+### ACTION REQUIRED IN EXISTING LANES
+
+`new-lane.sh` sets `core.hooksPath`, and existing clones have the OLD path
+stored in their `.git/config`. After merging this, each existing lane must:
+
+```
+git config core.hooksPath local-scripts/hooks
+```
+
+Until it does, the pre-push `fmt-all --check` hook **silently does not
+run** — git finds no hooks directory and says nothing. The CI `rustfmt` row
+is the backstop, so this cannot reach main, but it will surprise you at the
+gate rather than at push time. Fresh lanes are unaffected.
+
 ## Reproducing
 
 Experiment scripts are in `~/.local/share/cad-work/buildperf/`

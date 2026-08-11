@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # ONE COMMAND FOR A RENDER: dispatch -> poll -> install.
 #
-#   scripts/render-hosted.sh                      # all lanes, this branch
-#   scripts/render-hosted.sh --lane uv            # one lane
-#   scripts/render-hosted.sh --run 12345678       # pull an existing run
+#   local-scripts/render-hosted.sh                      # all lanes, this branch
+#   local-scripts/render-hosted.sh --lane uv            # one lane
+#   local-scripts/render-hosted.sh --run 12345678       # pull an existing run
 #
 # Renders are hosted (`.github/workflows/render.yml`); the local entry
 # points refuse without an explicit override (demos/hosted-render-guard.sh).
@@ -50,7 +50,7 @@ POLL_INTERVAL=20
 
 usage() {
     cat <<'EOF'
-usage: scripts/render-hosted.sh [options]
+usage: local-scripts/render-hosted.sh [options]
 
   --lane <kernel|freecad|uv|wild|all>   which lane(s) to render (default: all)
   --ref <branch|tag|sha>                what to render (default: current branch)

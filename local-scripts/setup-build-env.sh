@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # setup-build-env.sh — apply this machine's local cargo build configuration.
 #
-#   scripts/setup-build-env.sh [--print]
+#   local-scripts/setup-build-env.sh [--print]
 #
 # WHAT IT SETS, AND WHAT IT DELIBERATELY DOES NOT
 #
@@ -55,7 +55,7 @@
 #     next wrapped build would invalidate it back. That thrash would cost
 #     far more than the knob saves, which is why this is machine-wide config
 #     rather than an export inside with-build-slot.sh.
-#   * `scripts/gate.sh` unsets RUSTFLAGS to protect its warm target dir.
+#   * `local-scripts/gate.sh` unsets RUSTFLAGS to protect its warm target dir.
 #     Config-file settings are not env, so the gate sees them CONSISTENTLY
 #     on every run — no re-fingerprinting, which is what that unset is for.
 #
@@ -77,7 +77,7 @@ want_config() {
   # backticked `cargo build --workspace --all-targets` in a COMMENT and ran
   # it (2026-08-11).
   cat <<'EOF'
-# Machine-local build configuration — written by scripts/setup-build-env.sh
+# Machine-local build configuration — written by local-scripts/setup-build-env.sh
 # in the cad repo. See that script for the full rationale, including the two
 # knobs (mold, sccache) that were measured and deliberately NOT adopted.
 # NOT repo-committed on purpose — CI runners must not see machine-local
@@ -109,7 +109,7 @@ if [ "${1:-}" = "--print" ]; then
 fi
 
 mkdir -p "$(dirname "$CONFIG")"
-if [ -e "$CONFIG" ] && ! grep -q 'written by scripts/setup-build-env.sh' "$CONFIG"; then
+if [ -e "$CONFIG" ] && ! grep -q 'written by local-scripts/setup-build-env.sh' "$CONFIG"; then
   echo "ERROR: $CONFIG exists and was not written by this script — refusing to" >&2
   echo "       clobber it. Merge the block from \`$0 --print\` by hand." >&2
   exit 1

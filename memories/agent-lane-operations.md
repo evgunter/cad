@@ -1,6 +1,6 @@
 ---
 name: agent-lane-operations
-description: Consolidated agent-lane rules (2026-08-05, replacing six overlapping memories; build-slot locks added 2026-08-06) — lane creation via scripts/new-lane.sh, machine-wide build concurrency via scripts/with-build-slot.sh flock slots, disk budgets and cleanup via scripts/clean-lanes.sh + monitors, death recovery and resume-vs-fresh policy
+description: Consolidated agent-lane rules (2026-08-05, replacing six overlapping memories; build-slot locks added 2026-08-06) — lane creation via local-scripts/new-lane.sh, machine-wide build concurrency via local-scripts/with-build-slot.sh flock slots, disk budgets and cleanup via local-scripts/clean-lanes.sh + monitors, death recovery and resume-vs-fresh policy
 metadata:
   type: project
 ---
@@ -11,11 +11,22 @@ and resume-vs-fresh-subagent memories (full incident narratives:
 git history of those files, removed 2026-08-05). The rules, which
 the committed scripts now largely enforce:
 
+**Tooling split (2026-08-11).** `scripts/` = the six things HOSTED CI
+runs; `local-scripts/` = everything local (with-build-slot, ci-local,
+gate, test-fast, new-lane, clean-lanes, fmt-all, setup-build-env,
+hooks/, monitors/). Every workflow job does `rm -rf local-scripts`
+after checkout, so CI CANNOT depend on them — which is what lets
+ci-filter.py treat local-scripts/ changes as non-triggering (they used
+to force the full matrix). EXISTING LANES: after merging, run
+`git config core.hooksPath local-scripts/hooks` — the old path is
+stored in .git/config and the pre-push fmt hook SILENTLY stops running
+otherwise (CI rustfmt is the backstop). See docs/LOCAL-BUILD-PERF.md §6.
+
 **Lane creation.** Working clones/worktrees NEVER go in the /tmp
 session scratchpad (session-derived, silently reaped) — use
 `~/.local/share/cad-work/<purpose>/` or the main checkout's
 `.claude/worktrees/` (isolation subagents). Create lanes with
-`scripts/new-lane.sh <lane> [branch]` — it sets `core.hooksPath`
+`local-scripts/new-lane.sh <lane> [branch]` — it sets `core.hooksPath`
 so the committed pre-push hook (fmt-all --check) is active; a
 hand-rolled `git clone` silently lacks it.
 
@@ -23,9 +34,9 @@ hand-rolled `git clone` silently lacks it.
 `CARGO_TARGET_DIR` across parallel builds (cargo's lock serializes
 them); `~/.cache/gmp-mpfr-sys` IS shared safely. Session start:
 arm `disk-watchdog.sh` (WARN <15G, CRITICAL <8G; install from repo
-`scripts/monitors/` to `~/.local/share/cad-work/monitors/`, run
+`local-scripts/monitors/` to `~/.local/share/cad-work/monitors/`, run
 the installed copies). Under pressure: remove finished lanes with
-`scripts/clean-lanes.sh [--dry-run]` (re-checks pushed/clean/
+`local-scripts/clean-lanes.sh [--dry-run]` (re-checks pushed/clean/
 no-stash before each rm and refuses loudly); NEVER touch a running
 gate's target; after a disk-full crash, purge torn binaries
 (ELF-magic scan) and treat pressure-window test results as
@@ -39,7 +50,7 @@ before cleaning its lane.
 soft two-lane convention and the cad-work/cargo-slots.txt
 registry).** 10 GB WSL2 ceiling (`.wslconfig`, confirmed
 2026-07-25). Heavy cargo operations are bounded machine-wide by
-`scripts/with-build-slot.sh` — flock slot files in
+`local-scripts/with-build-slot.sh` — flock slot files in
 `~/.local/share/cad-work/locks/`. flock releases on process death
 (even SIGKILL/OOM), so dead agents cannot leave stale locks.
 **Width is 1 (a mutex), measured not assumed** — the 2026-08-06

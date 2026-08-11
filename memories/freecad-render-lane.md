@@ -91,7 +91,7 @@ both directions.
 The hosted "render (demos)" workflow (#323/#324, wedge root-caused
 and fixed by #331 — a FreeCAD NotificationArea SELF-DEADLOCK, not
 this host's stall or budget calibration) runs all lanes on demand
-(`scripts/render-hosted.sh`, the #338 wrapper — trigger, poll,
+(`local-scripts/render-hosted.sh`, the #338 wrapper — trigger, poll,
 byte-exact artifact pull-back; local entry points refuse without
 the explicit CAD_RENDER_LOCAL_OVERRIDE sentence). Measured
 2026-08-10 on a 2-core runner (llvmpipe under Xvfb): 19 scenes,

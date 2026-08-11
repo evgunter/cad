@@ -32,9 +32,9 @@ artifacts back into the working tree at their committed paths, where you
 review and commit them the ordinary way:
 
 ```sh
-scripts/render-hosted.sh                        # all four lanes, this branch
-scripts/render-hosted.sh --lane uv              # one lane
-scripts/render-hosted.sh --run 31402416551      # pull an existing run's artifacts
+local-scripts/render-hosted.sh                        # all four lanes, this branch
+local-scripts/render-hosted.sh --lane uv              # one lane
+local-scripts/render-hosted.sh --run 31402416551      # pull an existing run's artifacts
 ```
 
 The local entry points below **refuse to run** without an explicit
@@ -60,7 +60,7 @@ cd ..
 CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift
 ```
 
-in the environment they print a pointer at `scripts/render-hosted.sh`
+in the environment they print a pointer at `local-scripts/render-hosted.sh`
 and **exit nonzero**.
 
 The value is a sentence on purpose. `1` / `yes` / `true` are what
@@ -264,7 +264,7 @@ the filesystem level, and one silently reached a committed montage cell
   file. Both `render.sh` lanes run it after the stamp strip and
   **before** composing the montage, so a sheet is never composed from an
   uncertified cell set; it is also an always-run row in
-  `scripts/ci-local.sh` and a step in ci.yml's `discipline` job (stdlib
+  `local-scripts/ci-local.sh` and a step in ci.yml's `discipline` job (stdlib
   only — no venv, no FreeCAD). The wild-corpus lane (`renders-wild/`)
   runs under the same guard with INVERTED per-lane rules — there
   matplotlib is the primary renderer, and cells must carry the wild
@@ -365,7 +365,7 @@ keeps the same shape (grid, captions, provenance banner via
 `compose_montage.py`) under its own title and banner.
 
 ```sh
-scripts/render-hosted.sh --lane wild   # the default path (hosted; installs renders-wild/)
+local-scripts/render-hosted.sh --lane wild   # the default path (hosted; installs renders-wild/)
 
 # preview only — see "Preview mode: the local override"
 cd demos/wild
@@ -724,13 +724,13 @@ above), a wedge leaves the committed lane directory exactly as it was.
 on demand (`workflow_dispatch` — no PR trigger, no schedule), and hands
 each one back as a run artifact.
 
-`scripts/render-hosted.sh` is the front end, and the thing to use:
+`local-scripts/render-hosted.sh` is the front end, and the thing to use:
 
 ```sh
-scripts/render-hosted.sh --lane all             # push check, dispatch, poll, install
-scripts/render-hosted.sh --lane wild --verify   # + prove the pull is byte-exact
-scripts/render-hosted.sh --run <id>             # pull an existing run, no re-render
-scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
+local-scripts/render-hosted.sh --lane all             # push check, dispatch, poll, install
+local-scripts/render-hosted.sh --lane wild --verify   # + prove the pull is byte-exact
+local-scripts/render-hosted.sh --run <id>             # pull an existing run, no re-render
+local-scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
 ```
 
 It **refuses** if your local HEAD is not what `origin/<branch>` points

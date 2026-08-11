@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Away-channel poller for the orchestrator (arm via the Monitor tool
-# with `bash scripts/monitors/github-away-channel.sh`; persistent).
+# with `bash local-scripts/monitors/github-away-channel.sh`; persistent).
 #
 # Emits one line per event:
 #   NEW ISSUE/PR #N: <title> [user]

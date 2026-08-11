@@ -132,7 +132,7 @@ suites green unchanged.
 
 OUTPUT DISCIPLINE per convention. Branch from origin/main
 (≥ `8aec775`). Push after every commit. Gate: ONE synchronous
-foreground `scripts/gate.sh <merged sha>` (600000ms; on cutoff READ
+foreground `local-scripts/gate.sh <merged sha>` (600000ms; on cutoff READ
 the output file, never relaunch); **derive any band-edge test
 probes from the ambient Tolerance — never hard-code ε values (the
 PR 2 lesson: the ε matrix WILL catch you)**. NEVER export RUSTFLAGS;

@@ -9,7 +9,7 @@ metadata:
 Three knobs were measured on 2026-08-11; two were reverted the same day.
 This memory is the index into that report, not a substitute for it.
 
-**What is set.** `scripts/setup-build-env.sh` writes
+**What is set.** `local-scripts/setup-build-env.sh` writes
 `~/.cargo/config.toml` with exactly one thing: `debug =
 "line-tables-only"` on dev+test. `target/` 4.7 GB -> 1.5 GB (-68%). It
 buys NO compile time — a size knob, kept because ~10 lanes each carrying a
