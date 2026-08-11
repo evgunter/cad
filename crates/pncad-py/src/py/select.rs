@@ -752,8 +752,8 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
 )]
 mod growth_tripwire {
     use super::{
-        CapEnd, Cmp, CurveKind, EntityKind, KSurfaceKind, MeridianEnd, OpGroup, RimSupport,
-        SegTag, SideArg, SplitHalf, SurfaceKind, s,
+        CapEnd, Cmp, CurveKind, EntityKind, KSurfaceKind, MeridianEnd, OpGroup, RimSupport, SegTag,
+        SideArg, SplitHalf, SurfaceKind, s,
     };
 
     fn entity_kind(k: s::EntityKind) -> EntityKind {
