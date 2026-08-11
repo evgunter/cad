@@ -33,27 +33,25 @@ run on a pushed branch renders all four lanes and gates them (ci.yml's
 exist as artifacts on that run. Take them:
 
 ```sh
-scripts/render-hosted.sh --from-ci              # install what CI rendered
+scripts/render-hosted.sh                        # install what CI rendered
+scripts/render-hosted.sh --lane uv              # one lane of it
 ```
 
-That resolves your branch's newest CI run, downloads each lane's
-artifact, and installs it at its committed path, where you review and
-commit it the ordinary way. It works on a **failed** CI run too — a
-stale committed lane is exactly what makes the gate fail, and that run's
-artifact is what makes it current. The failing row prints the same
-`gh run download` command itself.
+That is the default: it resolves your branch's newest CI run, downloads
+each lane's artifact, and installs it at its committed path, where you
+review and commit it the ordinary way. It works on a **failed** CI run
+too — a stale committed lane is exactly what makes the gate fail, and
+that run's artifact is what makes it current. The failing row prints the
+same `gh run download` command itself.
 
-**Render on demand only when CI has not covered it** — no PR yet, no CI
-run on the branch yet, or a deliberate re-render at a different scene
-budget. Then the same command dispatches instead: it checks your branch
-is pushed (the runner renders the *pushed* tree), triggers
-`.github/workflows/render.yml`, polls the run, and installs the
-artifacts the same way:
+**Render on demand only when CI has not covered it** — an unpushed
+branch, no CI run yet, or a deliberate re-render at a different scene
+budget. Dispatching when CI has already rendered the same tree renders
+it twice, which is why it is the flag rather than the default:
 
 ```sh
-scripts/render-hosted.sh                        # all four lanes, this branch
-scripts/render-hosted.sh --lane uv              # one lane
-scripts/render-hosted.sh --run 31402416551      # pull a specific run's artifacts
+scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
+scripts/render-hosted.sh --run 31402416551      # take a specific run's artifacts
 ```
 
 The local entry points below **refuse to run** without an explicit
@@ -754,15 +752,17 @@ over one pipeline**:
 use:
 
 ```sh
-scripts/render-hosted.sh --from-ci              # install what CI already rendered
-scripts/render-hosted.sh --lane all             # push check, dispatch, poll, install
+scripts/render-hosted.sh                        # install what CI already rendered
+scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
 scripts/render-hosted.sh --lane wild --verify   # + prove the pull is byte-exact
-scripts/render-hosted.sh --run <id>             # pull a specific run, no re-render
+scripts/render-hosted.sh --run <id>             # take a specific run, no re-render
 scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
 ```
 
-Reach for `--from-ci` first: dispatching when CI has already rendered
-the same tree renders it twice.
+Taking is the default and rendering is the flag, because dispatching
+when CI has already rendered the same tree renders it twice. When it
+takes a CI run it waits only on the render lanes, not on the twenty
+test shards around them.
 
 It **refuses** if your local HEAD is not what `origin/<branch>` points
 at — the runner checks out the pushed tree and cannot see local commits,

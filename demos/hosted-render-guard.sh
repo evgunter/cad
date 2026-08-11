@@ -53,7 +53,7 @@ require_hosted_render() {
         echo "ci.yml renders and gates all four lanes on every push — so the"
         echo "usual move is to install what it produced rather than render:"
         echo
-        echo "  scripts/render-hosted.sh --from-ci"
+        echo "  scripts/render-hosted.sh"
         echo
         echo "If the branch has no CI run yet (not pushed, no PR), render on"
         echo "demand instead:"

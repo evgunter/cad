@@ -94,17 +94,19 @@ commit and FAILS when a committed lane no longer matches. So the frames
 for your tree normally already exist as artifacts on your branch's CI
 run, and the way to get them is
 
-    scripts/render-hosted.sh --from-ci
+    scripts/render-hosted.sh          # <- the DEFAULT is to take CI's
 
-which resolves that run and installs each lane at its committed path.
-It works on a FAILED CI run too — a stale committed lane is exactly
-what makes the gate fail, and that run's artifact is the fix. The
-failing row prints the `gh run download` itself.
+which resolves that run and installs each lane at its committed path,
+waiting only on the render lanes rather than on the whole CI run. It
+works on a FAILED CI run too — a stale committed lane is exactly what
+makes the gate fail, and that run's artifact is the fix (lanes upload
+before the gate compares). The failing row prints the `gh run download`
+itself.
 
-**Dispatch (`render.yml` directly / `render-hosted.sh` with no
-`--from-ci`) only when CI has not covered the tree**: no PR yet, no CI
-run on the branch, or a deliberate re-render at a different scene
-budget. Dispatching otherwise renders the same tree twice.
+**Dispatch (`--on-demand`, or `render.yml` directly) only when CI has
+not covered the tree**: unpushed branch, no CI run, or a deliberate
+re-render at a different scene budget. Dispatching otherwise renders
+the same tree twice.
 
 Expect the two PNG lanes to re-baseline when the runner image's mesa
 bumps (roughly monthly). That is the gate working, not failing; it
