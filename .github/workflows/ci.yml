@@ -1013,6 +1013,39 @@ jobs:
     if: needs.filter.outputs.run_k_lint == 'true'
     steps:
       - uses: actions/checkout@v4
+
+      # THE TOUR'S OUTPUT, ON RENDER.YML'S KEY. `uv sheet drift` below
+      # is the only RELEASE build of demos/tour in this job — the
+      # k-probe sweep is a debug run, a different artifact set — and it
+      # exists solely to regenerate demos/out for the sheet. Measured at
+      # 107 s on run 31511197721, nearly all compile. render.yml's tour
+      # job caches exactly this directory on exactly this key, so the
+      # two share one entry.
+      #
+      # IT DOES NOT WEAKEN THE DRIFT GATE. The key hashes every source
+      # the tour reads, so a hit means the tour cannot have produced
+      # different bytes; a tour that CHANGED misses and rebuilds, which
+      # is the only case that row exists to catch.
+      #
+      # IT MUST RUN BEFORE ANY CARGO STEP, and that is not a style
+      # preference. `hashFiles` globs the WORKING TREE, so once
+      # `demos tour fmt + clippy` has run, `demos/tour/**` matches
+      # everything under `demos/tour/target/` too and the key stops
+      # describing the sources at all. Placed after clippy it computed a
+      # different hash than render.yml's tour job did for the same
+      # commit, in the same run — a permanent miss that still looked
+      # like a working cache. Keep it directly under the checkout.
+      #
+      # KEEP THE KEY IDENTICAL to render.yml's `tour output cache` —
+      # the `v1` is the handle for busting both at once. Divergence
+      # costs a miss, never a wrong hit.
+      - name: tour output cache
+        id: tour-cache
+        uses: actions/cache@v4
+        with:
+          path: demos/out
+          key: tour-out-v1-${{ hashFiles('crates/**', 'demos/tour/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
+
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -1064,18 +1097,6 @@ jobs:
       # different bytes than the cached ones; a tour that CHANGED misses
       # and rebuilds, which is the only case this row exists to catch.
       #
-      # KEEP THE KEY IDENTICAL to render.yml's `tour output cache` —
-      # including the `v1`, which is the handle for busting both at
-      # once. Divergence costs a miss, never a wrong hit: a different
-      # pattern list yields a different key, and a different key just
-      # rebuilds.
-      - name: tour output cache
-        id: tour-cache
-        uses: actions/cache@v4
-        with:
-          path: demos/out
-          key: tour-out-v1-${{ hashFiles('crates/**', 'demos/tour/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
-
       - name: uv sheet drift (demos)
         env:
           CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
