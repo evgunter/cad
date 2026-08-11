@@ -752,7 +752,7 @@ impl Plan {
 /// segment), and the spine may not turn past π — the loft's stacking
 /// trilean is an END-TO-END statement, `cos(curl/2)` for a planar arc
 /// spine, so past a half turn of total position stacking it refuses
-/// `ReversedStacking` (its own filed frontier). The OLD second wall —
+/// `ReversedStacking` (its own filed frontier, #368). The OLD second wall —
 /// "not much past 2.5 radians", PR #316's measured `nurbs_span_meter`
 /// collapse at curl 3.0 — RETIRED with M8-14 (#222): the integral
 /// speed meter scans per span now, and
@@ -2369,8 +2369,8 @@ mod review_probes {
     /// displacement against the first section's normal — for a planar
     /// arc spine that is `cos(curl/2)`, negative past π), not a
     /// per-slab one. That wall is GEOMETRY-INDEPENDENT of the meter
-    /// fix and is filed as its own frontier (the #222 close names
-    /// it); if either side of this pin moves, re-derive the
+    /// fix and is filed as its own frontier (#368); if either side
+    /// of this pin moves, re-derive the
     /// `lofted_blade` prose with it.
     #[test]
     fn the_spine_curl_wall_re_measured() {
