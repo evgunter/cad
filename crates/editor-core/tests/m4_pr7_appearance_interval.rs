@@ -14,7 +14,7 @@ use editor_core::{
     Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
 };
 use fixture::{declare_x_offset_flush, desc, insert, len, step};
-use geom_core::{Decide, Interval};
+use geom_core::Interval;
 
 /// A rectangular block: profile on the plane z = `z0`, extruded `dz`.
 fn block(

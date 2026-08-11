@@ -13,7 +13,7 @@ use editor_core::{
     evaluate,
 };
 use fixture::{declare_x_offset_flush, desc, fname, insert, len, scl, wall};
-use geom_core::{Decide, Interval};
+use geom_core::Interval;
 
 fn block(
     doc: ProfileDoc,
