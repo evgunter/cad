@@ -103,6 +103,13 @@ pub use editor_core::{
 // through the document layer (the memo currency's substrate).
 pub use editor_core::ContentBits;
 
+// Explicit product roots (ASM-ROOTS; ASSEMBLY-DESIGN A10): the
+// ordered root list is read through `Doc::roots` and set through
+// `DocEdit::SetRoots`; `product` is the whole-document gather those
+// roots name, and `RootFault` is the shared invariant refusal both
+// the edit and persistence doors carry.
+pub use editor_core::{ProductError, RootFault, product};
+
 // The profile description node type and its document alias.
 pub use editor_core::{
     LoopProgram, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecordedProgramError,

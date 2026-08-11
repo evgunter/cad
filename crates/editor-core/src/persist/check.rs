@@ -256,6 +256,10 @@ pub enum SnapshotError {
         /// The recorded value.
         value: f64,
     },
+    /// The product-root list violates an A10 invariant (ASM-ROOTS
+    /// D-2): the same check `apply` runs, so a file can carry no root
+    /// state the edit doors could not have produced.
+    Roots(crate::roots::RootFault),
     /// An appearance metadata value violating the D7 producer
     /// convention (map with an integer `"v"`).
     MetadataUnversioned {
@@ -354,6 +358,10 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             return Err(SnapshotError::WitnessSite { node });
         }
     }
+    // The A10 root invariants (ASM-ROOTS D-2), run AFTER the node
+    // walk so a file with dangling inputs is diagnosed as such rather
+    // than as an incidental coverage failure.
+    crate::roots::check(doc).map_err(SnapshotError::Roots)?;
     for (name, rec) in &doc.appearance {
         for (key, value) in &rec.metadata {
             if let Err(error) = value.require_versioned() {

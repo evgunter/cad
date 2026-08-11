@@ -1,4 +1,4 @@
-schema: 5
+schema: 6
 id: 5ef5ef0364b6939c4ca61f34b393f7b3
 {
   "snapshot": {
@@ -303,6 +303,9 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
       1,
       2,
       3,
+      4
+    ],
+    "roots": [
       4
     ],
     "params": {
