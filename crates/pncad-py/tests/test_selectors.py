@@ -95,6 +95,40 @@ class TestDatumDistance(unittest.TestCase):
         self.assertIsNone(refusal.name)
         self.assertIsNone(refusal.predicate)
 
+    def test_an_in_band_margin_refuses_rather_than_guessing(self):
+        """The decided trilean's REFUSAL arm, end to end: a candidate
+        whose margin lands strictly inside the ambiguity band
+        (ε, K·ε) is neither included nor dropped — the query raises
+        the typed refusal naming the funnel site (SELECT-DESIGN §2's
+        razor-thin-selection-cliff rule, crossing exactly as Rust's
+        `SelectRefusal::InBand`).
+
+        The sliver: state the top face's distance off by
+        ε·(1 + K)/2 — the band's midpoint (`DEFAULT_K` = 10; the ε is
+        the document's own, so the row survives CI's tolerance
+        sweep)."""
+        doc = Doc()
+        cube = unit_cube(doc)
+        ground = doc.insert(Node.datum_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+        ev = evaluate(doc)
+
+        sliver = doc.epsilon * (1.0 + 10.0) / 2.0
+        with self.assertRaises(SelectRefusal) as caught:
+            ev.select_where(
+                cube,
+                Selector.of(NamePat.of_kind(EntityKind.Face)),
+                [GeomPred.datum_distance(ground, Cmp.Approx, (1.0 + sliver) * m)],
+            )
+        refusal = caught.exception
+        self.assertEqual(refusal.reason, "in_band")
+        self.assertEqual(refusal.predicate, "sel_datum_distance")
+        # The candidate is NAMED — as opaque text, carried not read.
+        self.assertIsInstance(refusal.name, str)
+        self.assertIsNone(refusal.matched)
+        self.assertIsNone(refusal.candidates)
+        self.assertIsNone(refusal.datum)
+        self.assertIsNone(refusal.dim)
+
 
 class TestPatternBoundary(unittest.TestCase):
     """The pattern vocabulary's runtime boundary: the same shapes the
