@@ -1,0 +1,8 @@
+A' baseline control (full DWARF, incremental, no sccache, GNU ld)
+load at start: 8.57 12.96 11.60
+MemAvailable:  6.7 GB
+A' cold, baseline config   189s (rc=0; 124=hit 25min cap)
+    target/: 4.7G
+    load at end: 13.35 13.62 12.14
+    peak swap used: 1110 MB
+done

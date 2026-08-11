@@ -1,0 +1,17 @@
+config C cold build  (baseline to beat: A cold = 4189s)
+C1 cold, cache EMPTY                   186s  (rc=0)
+    Cache hits                           43
+    Cache misses                        158
+    Cache misses (Rust)                 158
+    Cache hits rate                   21.39 %
+    Cache hits rate (Rust)            21.39 %
+    target/: 1.5G
+C2 cold, cache WARM (= new lane)        96s  (rc=0)
+    Cache hits                           173
+    Cache misses                           1
+    Cache misses (Rust)                    1
+    Cache hits rate                    99.43 %
+    Cache hits rate (Rust)             99.43 %
+    target/: 1.5G
+    sccache dir: 2.8G
+done

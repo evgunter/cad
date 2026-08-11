@@ -1,0 +1,33 @@
+incremental tax experiment — is CARGO_INCREMENTAL=0 costing the edit loop?
+load at start: 3.99 6.38 7.34
+
+=== config C  (CARGO_INCREMENTAL=0, sccache on)
+  cold (cache warm from before)        210s  (rc=0)
+    sccache: 0 hits / 173 misses
+  edit geom-core, round 1               91s  (rc=0)
+    sccache: 1 hits / 13 misses
+  edit geom-core, round 2               89s  (rc=0)
+    sccache: 1 hits / 13 misses
+  edit topo, round 1                    74s  (rc=0)
+    sccache: 1 hits / 7 misses
+  edit topo, round 2                    88s  (rc=0)
+    sccache: 1 hits / 7 misses
+    incremental/: 4.0K
+    target/:      1.5G
+
+=== config D  (CARGO_INCREMENTAL=1, sccache on)
+  cold (cache warm from before)          0s  (rc=101)
+    sccache: 0 hits / 0 misses
+  edit geom-core, round 1                1s  (rc=101)
+    sccache: 0 hits / 0 misses
+  edit geom-core, round 2                0s  (rc=101)
+    sccache: 0 hits / 0 misses
+  edit topo, round 1                     0s  (rc=101)
+    sccache: 0 hits / 0 misses
+  edit topo, round 2                     0s  (rc=101)
+    sccache: 0 hits / 0 misses
+    incremental/: none
+    target/:      
+
+load at end: 19.68 19.22 13.97
+done

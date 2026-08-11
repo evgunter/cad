@@ -1,0 +1,19 @@
+config E: incremental ON, sccache OFF — the alternative to what shipped — is CARGO_INCREMENTAL=0 costing the edit loop?
+load at start: 12.32 17.14 14.09
+
+=== config E_incr_no_sccache  (CARGO_INCREMENTAL=1, sccache OFF)
+  cold (cache warm from before)        156s  (rc=0)
+    sccache: 0 hits / 0 misses
+  edit geom-core, round 1               18s  (rc=0)
+    sccache: 0 hits / 0 misses
+  edit geom-core, round 2               19s  (rc=0)
+    sccache: 0 hits / 0 misses
+  edit topo, round 1                    10s  (rc=0)
+    sccache: 0 hits / 0 misses
+  edit topo, round 2                    12s  (rc=0)
+    sccache: 0 hits / 0 misses
+    incremental/: 2.4G
+    target/:      3.8G
+
+load at end: 16.25 16.61 14.50
+done
