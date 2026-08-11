@@ -64,11 +64,10 @@ cad-work/asm-r1-substrate/report.md, 2026-08-10)
    extension (the kernel touch) + multi-body instance naming (the
    `emit.rs` refusal wall). Required before ASM-4 (a split-off
    subtree is generally multi-solid).
-5. **ASM-3 — `Pattern` (S, C1 RESOLVED by A10)**: the shipped
-   `Node::Pattern` keeps its `Instances` payload; the A10 root
-   gather materializes it into the product — the unit is the
-   gather wiring + evidence; provenance indices already ride
-   (`GeomSource::placed`).
+5. **ASM-3 — DISCHARGED (2026-08-11)** by ASM-ROOTS (#383: the
+   gather materializes Instances-at-root with provenance and
+   Instance(i) names preserved, evidenced) + ASM-2K (#381: the
+   multi-solid-master naming rows). No separate unit.
 6. **ASM-4 — split/inline (L, last; depends on ASM-1's store)**:
    new `DocEdit` arms; the codebase's first multi-document
    operation; the acceptance harness (structural +
