@@ -386,7 +386,7 @@ component-aware E–P form found and corrected in M1 PR 4).**
   M4 #109):** profiles refuse undeclared definite-Zero tangency at
   junctions (`UndeclaredTangency`, with a repair menu); declarations
   are verified, never trusted (`TangencyContradicted`); the
-  `LoopBuilder::fillet` constructor authors exact tangency by
+  PATHS `.fillet(r)` constructor authors exact tangency by
   construction and declares it, with fit gating
   (`TangentJointOutOfRange` when a tangent point falls outside its
   leg); **same-carrier is identity, not tangency** — declared

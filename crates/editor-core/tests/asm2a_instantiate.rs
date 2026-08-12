@@ -703,7 +703,11 @@ fn row6_placement_is_part_of_the_content_key() {
 /// two blesses of one document are byte-identical.
 #[test]
 fn row7_v7_round_trips_and_v6_refuses() {
-    assert_eq!(editor_core::SCHEMA_VERSION, 7);
+    // v7 was this unit's bump; LIB-LBRET's AtToward vocabulary took
+    // v8 on top of it (the two units double-claimed 7 — see the
+    // SCHEMA_VERSION ledger). The row's subject is the round trip and
+    // the v6 refusal, both unaffected; only the number moved.
+    assert_eq!(editor_core::SCHEMA_VERSION, 8);
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r7-part", 0.0, 1.0));
     let (doc, ids) = assembly("asm2a-r7-asm", &[doc_ref, doc_ref]);
@@ -716,9 +720,13 @@ fn row7_v7_round_trips_and_v6_refuses() {
     );
 
     let text = save(&doc, &[]).expect("saves");
-    assert_eq!(text.lines().next(), Some("schema: 7"));
+    assert_eq!(
+        text.lines().next(),
+        Some(&format!("schema: {}", editor_core::SCHEMA_VERSION)[..]),
+        "a fresh save carries the CURRENT version, whatever bumped it last"
+    );
     let loaded = load(&text).expect("loads").doc;
-    assert!(loaded.bit_eq(&doc), "v7 round-trips bit for bit");
+    assert!(loaded.bit_eq(&doc), "the placement round-trips bit for bit");
     assert_eq!(loaded.placements().len(), 1);
     assert!(
         loaded.placement(ids[1]).bit_eq(&doc.placement(ids[1])),
@@ -737,7 +745,7 @@ fn row7_v7_round_trips_and_v6_refuses() {
             missing,
         }) => {
             assert_eq!(found, 6);
-            assert_eq!(supported, 7);
+            assert_eq!(supported, editor_core::SCHEMA_VERSION);
             assert_eq!(missing, 6, "the 6 → 7 step is the one that does not exist");
         }
         other => panic!("v6 must refuse SchemaTooOld, got {other:?}"),

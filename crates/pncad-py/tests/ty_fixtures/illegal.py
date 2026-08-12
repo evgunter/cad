@@ -123,3 +123,7 @@ evaluate(doc).select(solid, NamePat.any())  # ty: error
 
 # Patterns are immutable values: the builder verbs return NEW ones.
 NamePat.any().kind = EntityKind.Edge  # ty: error
+
+# `at_toward` is the fillet ARRIVAL door: a plain point's angle slot is
+# bound by `.angle`/`.toward`, and there is no pending fillet to resolve.
+Open.at((0 * mm, 0 * mm)).at_toward((1 * mm, 0 * mm), 1.0, 0.0)  # ty: error

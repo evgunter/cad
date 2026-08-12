@@ -586,8 +586,9 @@ consequence reported for ratification, not an implementer's taste:
   that a `.to(Start)` seam retrim would eat and that §4 item 4/PQ4
   correctly refuse to reproduce as a mid-carrier junction. The EYE
   migrates: its sharp tip is the two-carrier junction `.to_on` keeps.
-- **A STRAIGHT arrival off an ARC departure is refused** (typed,
-  naming the carrier doors). This is a mechanism wall, not a geometric
+- **A STRAIGHT arrival off an ARC departure was refused** (typed,
+  naming the carrier doors) — **CLOSED by route 3, below:
+  `.at_toward(p, dx, dy)`**. It was a mechanism wall, not a geometric
   one: the lifted ladder reads the S8 diagnostic channel, so its
   `Bounds` bound propagates to every caller of any door that can
   resolve an arc-carrier fillet — and the ratified discipline confines
@@ -630,6 +631,19 @@ consequence reported for ratification, not an implementer's taste:
   own precedent; it requires ratification precisely because it
   extends the recorded menu.
 
+  **BUILT (LIB-LBRET): `.at_toward(p, dx, dy)`.** The name is the
+  compound its two slots name, exactly as `at_on` is: `.at(p)` +
+  `.toward(dx, dy)`, said in ONE act because splitting them would put
+  the resolution back in `path.rs` and propagate `Bounds` to every
+  PATHS caller. It lives in `arc_fillet.rs` beside `at_on`/`to_on`,
+  carries `ArcCarrierScalar`, and the generic doors gained nothing.
+  Consequences of the old wall, both now void: a loop may have as many
+  straight sides as it likes, and the rocker's arc→line corners
+  migrated (LB4/LB5). The door's own fence stands and is typed: a
+  STRAIGHT departure refuses `ArcCarrierSpelling` naming
+  `.at(p).toward(dx, dy)`, because a straight pair is `path.rs`'s
+  bracket-free business.
+
 ## 3. Surface vocabulary
 
 | Form | Lattice transition | Notes |
@@ -648,6 +662,7 @@ consequence reported for ratification, not an implementer's taste:
 | `circle(c, r)` | — → complete loop | **G1** — closed-carrier program form; a whole loop, not a chain step; authors no seam, so PQ4 is untouched |
 | `.at_on(p, c, w)` | Open → Directed | **G2** — the carrier-bound anchor: binds position AND the derived carrier tangent in one act; `w` structural |
 | `.to_on(Start, c, w)` | Open → complete loop | **G2** — closes on a DIFFERENT carrier through `Start`; keeps the entry vertex (contrast `.to(Start)`, which retrims it) |
+| `.at_toward(p, dx, dy)` | Open → Directed | **LB10 route 3** — the STRAIGHT arrival off an ARC departure: anchor + exact director in one act; refuses on a straight departure (that pair is the generic doors') |
 | **TIER 1 — SUGAR** (one call each; expands to core; adds no semantics) | | |
 | `line_to(p)` | Point → Point (also from arrivals) | `.angle(toward p).line(dist)` |
 | `arc_to(p, bulge)` | Point → Point | direction from chord + bulge (M2 convention) |

@@ -117,8 +117,8 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 /// The straight-segment case of profile authoring: every vertex has
 /// zero bulge and no declared tangency, which is exactly what a
 /// hand-typed coordinate table means. Curved and tangent-jointed
-/// loops go through [`profile::LoopBuilder`], which already speaks
-/// `Point2` — pair it with [`p2`].
+/// loops go through the PATHS lattice ([`profile::Open`] and its
+/// binders), which already speaks `Point2` — pair it with [`p2`].
 ///
 /// ```
 /// use pncad::prelude::*;

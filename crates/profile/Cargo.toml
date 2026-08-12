@@ -13,11 +13,19 @@ workspace = true
 # `Interval` — exercised by the feature-gated test modules in CI's
 # interval lane.
 interval = ["geom-core/interval"]
+# The BANISHED raw builder (PROFILES-V2 §V6 amendment): `LoopBuilder`
+# is test-support, not API. Enabled only by this crate's own
+# dev-dependency below, so the differential twins see it and no
+# downstream crate can.
+test-support = []
 
 [dependencies]
 geom-core = { path = "../geom-core" }
 
 [dev-dependencies]
+# Self dev-dependency: the ONE mechanism that lets `tests/` see the
+# `test-support` feature while the published surface never does.
+profile = { path = ".", features = ["test-support"] }
 proptest = { workspace = true }
 # The promoted M2 PR 2 reviewer consumer suite
 # (tests/review_m2_pr2_consumers.rs) is the PR 4/PR 3 composition

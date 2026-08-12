@@ -47,7 +47,7 @@
 //! (PATHS-DESIGN §5): each verb resolves its geometry from its own
 //! arguments plus already-bound state, in closed form (no iteration
 //! anywhere), and emits [`ProfileLoop`] vertices exactly as the
-//! equivalent [`crate::LoopBuilder`] calls would — the line×line
+//! equivalent raw vertex-and-bulge chain would — the line×line
 //! fillet trim geometry is literally shared code
 //! (`sugar::line_line_fillet_trims`), so the two doors emit
 //! bit-identical fillet geometry. The #101 verify layer
@@ -61,7 +61,7 @@
 //! contract): a fillet's trim geometry is computed against the two
 //! sides' **anchors** (the incoming ray's origin and the arrival
 //! side's anchor), so `line_line_fillet_trims(origin, corner, anchor,
-//! r)` — matching a hand author's `LoopBuilder::fillet(corner, anchor,
+//! r)` — matching a hand author's raw `fillet(corner, anchor,
 //! r)` bit-for-bit whenever the ray origin is the chain head, which is
 //! every case except a side squeezed between two fillets (where the
 //! head is the previous trim point, mathematically on the same
@@ -1029,7 +1029,7 @@ struct PendingFillet<T: Real> {
 }
 
 /// The accumulated lowering state: the vertex chain emitted so far
-/// (mirroring [`crate::LoopBuilder`]'s emission verb-for-verb), the
+/// (mirroring the raw chain builder's emission verb-for-verb), the
 /// declared joints, the entry pose (the [`Start`] value), and the
 /// pending fillet, if a side is open.
 #[derive(Clone, Debug)]
@@ -1078,7 +1078,7 @@ impl<T: Real> Core<T> {
     }
 
     /// Sets the bulge of the segment leaving the current last vertex —
-    /// exactly [`crate::LoopBuilder`]'s `set_leaving_bulge`, plus the
+    /// exactly the raw builder's `set_leaving_bulge`, plus the
     /// structural first-segment kind pin.
     fn set_leaving(&mut self, bulge: T, kind: FirstSeg) -> Result<(), PathError<T>> {
         if self.verts.len() == 1 && self.first_seg == FirstSeg::NotYet {
@@ -1095,7 +1095,7 @@ impl<T: Real> Core<T> {
         }
     }
 
-    /// Appends a straight segment to `p` (LoopBuilder `line_to`).
+    /// Appends a straight segment to `p` (the raw `line_to`).
     fn push_line(&mut self, p: Point2<T>) -> Result<(), PathError<T>> {
         self.set_leaving(T::zero(), FirstSeg::Line)?;
         self.verts.push(ProfileVertex {
@@ -1106,7 +1106,7 @@ impl<T: Real> Core<T> {
         Ok(())
     }
 
-    /// Appends an arc segment to `p` with `bulge` (LoopBuilder
+    /// Appends an arc segment to `p` with `bulge` (the raw
     /// `arc_to`), remembering the carrier for identity checks.
     fn push_arc(
         &mut self,
@@ -1134,7 +1134,7 @@ impl<T: Real> Core<T> {
     }
 
     /// Declares the joint at the current last vertex tangent
-    /// (LoopBuilder `declare_tangent`).
+    /// (the raw `declare_tangent`).
     fn declare_last(&mut self) {
         if let Some(last) = self.verts.len().checked_sub(1) {
             self.tangent.push(last);
@@ -1334,8 +1334,9 @@ impl<T: Decide> Core<T> {
         if pending.carrier.is_some() {
             return Err(PathError::ArcCarrierSpelling {
                 site: "a fillet departing on an arc carrier binds its arrival with \
-                       .at_on(p, centre, winding) or .to_on(Start, centre, winding) — a \
-                       straight-carrier arrival door cannot resolve it",
+                       .at_on(p, centre, winding), .at_toward(p, dx, dy) (a STRAIGHT \
+                       arrival — LB10 route 3) or .to_on(Start, centre, winding); the \
+                       generic straight-carrier arrival doors cannot resolve it",
             });
         }
         let band = linear_band()?;
@@ -1401,7 +1402,7 @@ impl<T: Decide> Core<T> {
             .map_err(map_fillet_err)?;
         let arc = fillet_arc_carrier(&trims, u2, pending.radius);
         // (5) incoming side emission: Positive fit emits the straight
-        // piece + declared joint (exactly LoopBuilder::fillet); Zero
+        // piece + declared joint (exactly the raw fillet's rule); Zero
         // fit springs the arc off the last vertex — if that joint
         // carries a declared flag (a `.tangent()` ray, or a previous
         // fillet's arc end), §4 item 4 refuses carrier identity there.
@@ -1419,7 +1420,7 @@ impl<T: Decide> Core<T> {
             }
         }
         // (6) the arc. Interior: emitted, its outgoing joint declared
-        // (Positive fit: as LoopBuilder::fillet; Zero fit: the
+        // (Positive fit: as the raw fillet; Zero fit: the
         // continuation extends the arrival carrier tangentially by
         // construction, so the algebra declares what a hand author
         // must declare manually). Seam: the arc IS the closing
@@ -2216,7 +2217,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     /// bulge's input. The bulge is derived at lowering by the existing
     /// closed form [`crate::bulge_from_via`] (inscribed angle,
     /// tan(Δ/2)), never re-typed by the author; a hand chain's
-    /// `LoopBuilder::arc_to_via` feeds that same function the same three
+    /// the raw `arc_to_via` feeds that same function the same three
     /// points, so the two doors emit the same bits.
     ///
     /// Refusals beyond `arc_to`'s: a through-point within ε_input of
@@ -2246,7 +2247,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     /// bug in the authoring, and the refusal says which two disagree.
     ///
     /// The bulge is derived at lowering by [`crate::bulge_from_center`],
-    /// bit-for-bit as `LoopBuilder::arc_to_center` derives it. Junction
+    /// bit-for-bit as the raw `arc_to_center` derives it. Junction
     /// semantics are `arc_to`'s; `arc_center(c, Start, w)` is the sharp
     /// arc seam. A centre within ε_input of an endpoint refuses
     /// [`PathError::DegenerateArcCenter`].
