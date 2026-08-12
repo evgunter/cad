@@ -32,15 +32,20 @@ The decomposition that matters:
 | L0 libm's ≤1/≤2 bit-distance accuracy | neither (external assumption) | stays an assumption |
 | L1 Rounding lemmas P1/P2 (real-arithmetic content) | neither — **Flocq/Gappa** territory | stays paper |
 | L1′ Lemma P3's *encoding* half (bit-distance = neighbor-step count) | **Kani** | ✅ verified |
-| L2 Enclosure of the exact product/quotient/sum by the pads | **Kani, one precision down** (f32 model) | ✅ verified |
+| L2 Enclosure of the exact SUM by the pads | **Kani, one precision down** (f32 model) | ✅ verified |
+| L2′ Enclosure of the exact PRODUCT/QUOTIENT by the pads | attempted the same way — **blocked by CBMC's float models** | not established |
 | L3 Representation invariant of `DInterval` (never emit an invalid interval) | **Kani** | ✅ verified |
 | L4 Case analysis: mul corners, div's zero-touching four-way split, powi parity, poison propagation, decoration cap | **Kani** | ✅ verified |
-| L4′ Anything involving `sqrt` | **neither** — CBMC has no usable `sqrt` model (below) | stays paper + oracle |
+| L4′ Anything involving `sqrt` or FMA | **neither** — CBMC's `sqrt` is not a function and its `fmaf` diverges from hardware (below) | stays paper + oracle |
 | L5 π-family constant enclosures, grid-test conservatism | neither (needs reals) | stays paper + oracle |
 
-L3/L4 is where implementation bugs actually live, and Kani covers it
-**exhaustively over every `f64` bit pattern** — strictly stronger than
-the existing seed-pinned differential harness, which samples.
+L3/L4 is where implementation bugs actually live, and for the paths that
+avoid `sqrt` and FMA, Kani covers it **exhaustively over every `f64` bit
+pattern** — strictly stronger than the existing seed-pinned differential
+harness, which samples. That qualifier is not decoration: three of
+CBMC's floating-point models turned out to be unusable, and separating
+the results that depend on them from the results that do not took most
+of this investigation.
 
 **(b) The project generally.** Kani is a poor fit for the kernel's
 geometry (it is a bounded model checker: every loop needs a trip bound,
@@ -57,10 +62,13 @@ curve). That is real-analysis content; no Rust verifier reaches it.
 ## Why the two tools split the way they do
 
 **Kani** compiles Rust to a GOTO program and hands it to CBMC, which is
-**bit-precise**: an `f64` is 64 symbolic bits and every IEEE operation is
-modelled exactly, including subnormals, signed zeros, NaN payloads, and
-— verified in this investigation — `f64::mul_add` as a true FMA. What
-CBMC does **not** have is any notion of a real number. So:
+**bit-precise in principle**: an `f64` is 64 symbolic bits and the core
+IEEE operations are modelled exactly, subnormals, signed zeros and NaN
+payloads included. (In practice several of the non-core operations are
+not — see "Kani's floating-point counterexamples are not actionable
+here"; that section is load-bearing and should be read before trusting
+anything here.) What CBMC does **not** have, in principle or practice,
+is any notion of a real number. So:
 
 - `next_down(x) <= x` — statable, and proved.
 - `next_down(RN(t)) <= t` (Lemma P1) — **not statable**, because `t` is a
@@ -182,47 +190,128 @@ bound is never negative for any input interval. `b10` proves
 `with_dec_capped` only ever lowers the decoration and leaves the bounds
 bit-identical — "poison is never laundered", as a theorem.
 
-### Tier C — pad soundness against exact arithmetic, one precision down
+### Tier C — pad soundness against exact arithmetic: ATTEMPTED, FAILED
 
-This is the tier that recovers part of what L1 loses.
-
-The exact product of two `f32` values is **always** representable in
-`f64` (24+24 = 48 mantissa bits, and the exponent range fits with room to
-spare even for subnormal factors). So `f64` is an exact oracle for `f32`
-arithmetic, and the enclosure property becomes statable:
+This tier was meant to recover part of what L1 loses, and the idea still
+looks right: the exact product of two `f32` values is **always**
+representable in `f64` (24+24 = 48 mantissa bits, exponent range fits
+with room to spare even for subnormal factors), so `f64` is an exact
+oracle for `f32` arithmetic and the enclosure property becomes statable:
 
 ```rust
 let exact = f64::from(a) * f64::from(b);   // EXACT
 assert!(f64::from(mul_lo32(a, b)) <= exact);
 ```
 
-`c1` verifies that for all 2^64 `f32` pairs. `c2` does the same for
-division by cross-multiplying (`lo * b` is again an exact `f64` product),
-which sidesteps the non-representability of the exact quotient. `c3`
-does addition, where the exact sum genuinely is not always
-`f64`-representable, under an explicit exponent-spread bound that covers
-every cancellation case — the regime where the TwoSum exactness test is
-load-bearing.
+`c3` (addition, whose `two_sum_err` is adds and subs only) **verified**,
+5/5, in 501 s. Everything touching multiplication or division did not,
+and chasing why is what produced the tool findings below. The status:
 
-**What transfers and what does not.** These verify the *same algorithm*
-at a different precision: the validity-floor gate, the zero conventions,
-which side pads, and the interaction between the exactness witness and
-the pad. They do **not** verify the `f64` instance, and in particular say
-nothing about the specific constant `2^-960`. Read them as an exhaustive
-mutation-resistant check on the algorithm's shape, not as a proof of
-`round.rs`.
+| Harness | Result |
+|---|---|
+| `c3` add pads enclose the exact sum (exponent-spread ≤ 28) | ✅ own 5/5 |
+| `c1` mul pads enclose the exact product | ❌ own 0/2, counterexample **not reproducible on hardware** |
+| `c2` div pads enclose the exact quotient | ❌ own 0/4, same |
+| `c6` mul padding logic, FMA replaced by an exact `f64` witness | ⏱ no result in 30 min |
+| `c7` div padding logic, FMA replaced by an exact `f64` witness | ❌ own 0/4, witness **not extractable** |
 
-They also earn their keep concretely: `round.rs`'s `TWO_PROD_VALID_MIN`
-comment records a live bug found by the differential harness — an
-`is_normal()` gate let a barely-normal product of a subnormal factor pass
-while its FMA residual underflowed, so the exactness witness *lied* and
-the pad was skipped. Harness `c1_mut_is_normal_gate_is_unsound`
-(behind `--cfg kani_mutation_is_normal`) restores that gate and is
-**expected to fail**; the counterexample Kani prints is that bug class.
-`c4_mut_unpadded_product_is_unsound` is the vacuity control: with the pad
-removed the property must fail, or Tier C proves nothing.
+`c6`/`c7` exist because `c1`/`c2` route through `f32::mul_add` and the
+first hypothesis was that CBMC's `fmaf` was at fault; they replace the
+FMA exactness witness with an exact `f64` comparison, removing `mul_add`
+from the harness entirely. `c7` still failed — so that hypothesis was
+incomplete, and the investigation moved to the tool itself.
 
----
+The Tier C claims are therefore **not established**. `c3` stands.
+
+## Kani's floating-point counterexamples are not actionable here
+
+Four separate diagnoses, each run rather than reasoned:
+
+**1. `sqrt` is not modelled as a function.** Two calls on the same value
+can return different results.
+
+| Property of `f64::sqrt` under Kani 0.67 / CBMC 6.8 | |
+|---|---|
+| `sqrt(4.0) == 2.0` | ✅ passes |
+| `x >= 0` ⟹ `sqrt(x) >= 0`, not NaN | ✅ passes |
+| `a <= b` ⟹ `sqrt(a) <= sqrt(b)` | ❌ **fails** |
+| `x.sqrt().to_bits() == x.sqrt().to_bits()` | ❌ **fails** |
+
+This is how a harness over `sqrt` "failed" on the singleton
+`[5.180654e-318, 5.180654e-318]`: the harness's own assertion passed;
+what failed was `DInterval::make`'s `debug_assert!("make() got invalid
+bounds")`, because `sqrt_lo` and `sqrt_hi` had been handed unrelated
+roots of the same number. Read cold, that is a subnormal bug in
+`ops.rs`, and someone would have "fixed" correct code.
+
+**2. `fmaf` diverges from hardware.** `c1`'s reported witness
+(`a = -6.604977e9`, `b = 7.398497e-39`), pinned back into CBMC as
+concrete constants, still fails there — while holding under native
+`rustc -O`. CBMC implements `fma`/`fmaf` as a builtin software library
+(`<builtin-library-fma>`), not a native operation. Note this is a
+*wrong* model, not merely a coarse one, so it can in principle make a
+false property pass, not only a true one fail.
+
+**3. Concrete playback reports values that are not the witness.** This
+is the one that breaks the debugging loop. Every `c7` witness Kani
+printed **passes when pinned back into CBMC** as a constant — three of
+them, including two from a search narrowed to a single pinned divisor.
+So a Kani `FAILED` here cannot be turned into a fact about the code:
+you cannot get the input that caused it.
+
+The rule this forces, and it is stronger than "replay natively":
+**pin a reported counterexample back inside the checker first.** If it
+passes there, playback lied and you have learned nothing. Only if it
+fails in the checker *and* holds natively do you have a real divergence
+(case 2). Replaying natively alone is not enough — it was not enough
+here, and it led this investigation to a wrong intermediate conclusion.
+
+**4. The systematic cross-checks do not terminate.** The obvious
+diagnostic — is `a * b` at `f32` equal to `(f64 * f64) as f32`, over all
+pairs — ran 40 minutes without a verdict. So the model cannot be
+characterised in bulk either.
+
+One thing was localised before the trail went cold: with the divisor
+pinned, `c7` **verifies for all normal numerators** and fails only for
+subnormal ones. Whether that region holds a genuine divergence or
+another phantom is **unresolved**, and it is recorded as unresolved.
+
+### What this means for the results that DID pass
+
+A wrong model can make a false property pass. So the passes are graded
+by whether their code path reaches an operation now known to be
+mismodelled:
+
+- **Independent of the broken models** — pure bit/order operations and
+  the exact endpoint ops, reaching no `sqrt` and no FMA: `a1`, `a2`,
+  `a3`, `a7`, `b2`, `b3`, `b7`, `b10`, `c3`. These are the results this
+  document stands behind.
+- **Passes that route through `mul_exact`'s FMA**: `b8` (the
+  interval-square-poison contract, own 3/3). Its `powi` path reaches
+  `f64::mul_add`. The result is reported, and it is conditional on
+  CBMC's double-precision `fma` model — which was not shown wrong, but
+  whose single-precision sibling was.
+
+## Read the per-check results, never the top-line verdict
+
+Needed to use any of this: Kani's `VERIFICATION:- FAILED` folds together
+*your* assertions and the automatic checks it enables by default (NaN
+production, FP exceptions, arithmetic overflow, unwinding). On this
+crate the automatic ones fire on perfectly correct code:
+
+- `b8` reports FAILED with **all three of its own assertions SUCCESS**.
+  The two failing checks are `feraiseexcept` ("floating-point
+  exception") and `fma.NaN.5` ("NaN on division") inside CBMC's
+  `<builtin-library-fma>`. They are reached legitimately: `mul_exact`
+  evaluates `mul_add(a, b, -r)` with `r = ±inf` for infinite bounds, and
+  `inf - inf = NaN` is the correct answer, which `mul_exact` then
+  correctly reads as "not exact".
+- The type itself encodes Empty and NaI as NaN bounds, so NaN-valued
+  operations are the crate's design, not a defect.
+
+There is no flag to turn these off. A harness is proved when **its own
+`verify::<harness>.assertion.*` checks are all SUCCESS**; everything
+else is triage. The results table reports the two columns separately.
 
 ## Part (b): the rest of the project
 
