@@ -27,7 +27,9 @@ pub mod meta;
 pub mod names;
 pub mod node;
 pub mod parse;
+pub mod part;
 pub mod persist;
+pub mod placement;
 pub mod product;
 pub mod program;
 pub mod resolve;
@@ -43,8 +45,8 @@ pub use doc::{Doc, DocParam, ParamName};
 pub use edit::{Applied, DocEdit, EditError, EditRecord, apply};
 pub use eval::{
     BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,
-    EvalOutcome, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeResult, NodeValue, SplitSide,
-    ValuePayload, evaluate,
+    EvalOutcome, EvalScalar, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeResult,
+    NodeValue, PartFault, SplitSide, ValuePayload, evaluate,
 };
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
@@ -63,12 +65,14 @@ pub use names::{
 };
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId, StepArg};
 pub use parse::{ParseError, parse_expr};
+pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
     Loaded, MigrationStep, PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, canonical_bytes,
     content_pin, header_document_id, load, save,
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
-pub use product::{ProductError, product};
+pub use placement::Frame;
+pub use product::{ProductError, product, product_named};
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramRefusal, ProgramStep,
     ProgramTarget, RecordedProgramError,

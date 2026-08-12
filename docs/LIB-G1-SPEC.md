@@ -14,7 +14,7 @@ that is a finding to report, not a silent fix.
 
 ≤~150 lines per tool call; chunked reads; skeleton-first writes;
 report ≤150 lines. Every heavy cargo row wrapped in
-`scripts/with-build-slot.sh -- cargo ...`, synchronous FOREGROUND,
+`local-scripts/with-build-slot.sh -- cargo ...`, synchronous FOREGROUND,
 long timeouts, one at a time; NEVER background or park on waits.
 Builds queue behind other lanes' — a wait is not a failure.
 

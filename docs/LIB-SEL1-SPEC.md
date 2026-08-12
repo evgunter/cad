@@ -10,7 +10,7 @@ finding-back, never a silent fix.
 ## 0. Discipline (absolute)
 
 ≤~150 lines per tool call; chunked reads; skeleton-first writes;
-report ≤150 lines. Slot rules: `scripts/with-build-slot.sh --
+report ≤150 lines. Slot rules: `local-scripts/with-build-slot.sh --
 cargo ...`; `--express SECS` for ≤10-min rows; long rows default
 mutex, BLOCKING foreground waits (timeout 590000, re-issue on
 timeout; setsid + foreground-poll past the harness cap); NEVER

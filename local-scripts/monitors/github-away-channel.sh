@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Away-channel poller for the orchestrator (arm via the Monitor tool
-# with `bash scripts/monitors/github-away-channel.sh`; persistent).
+# with `bash local-scripts/monitors/github-away-channel.sh`; persistent).
 #
 # Emits one line per event:
 #   NEW ISSUE/PR #N: <title> [user]
@@ -119,6 +119,14 @@ while true; do
   poll_n=$((poll_n + 1))
   while IFS=$'\t' read -r c_url c_user c_body; do
     [ -n "$c_url" ] || continue
+    # SELF-SUPPRESSION (Evan, 2026-08-12): a comment that LEADS
+    # with this session's own role tag is our own echo (shared
+    # account — authorship cannot distinguish orchestrators; the
+    # leading tag can: nobody else signs as us). Mid-body tag
+    # mentions (Evan summoning us) still pass. Convention: every
+    # comment we post LEADS with the tag.
+    c_head=$(printf '%s' "$c_body" | sed 's/^[[:space:]*_>#-]*//' | head -c 64)
+    case "$c_head" in "$SELF_TAG"*) continue;; esac
     # issue/PR number from .../issues/N#... or .../pull/N#...
     c_num=$(printf '%s' "$c_url" | sed -n 's#.*/\(issues\|pull\)/\([0-9]*\).*#\2#p')
     if comment_passes "${c_num:-0}" "$c_body"; then

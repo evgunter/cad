@@ -217,7 +217,7 @@ all clones deletable after verifying push-clean (clean-lanes.sh).
 
 **Immediate work order:**
 1. Verify the M6-1 surgery PR merged; clean its lanes
-   (m6-surgery, m6-surgery-review) via scripts/clean-lanes.sh.
+   (m6-surgery, m6-surgery-review) via local-scripts/clean-lanes.sh.
 2. Dispatch M6-2: the SSI generic-T lift (M6-PLAN unit 2;
    blocker map = PR 9c dev 2 + the S13 NURBS re-gate; its
    acceptance owns the non-vacuous fitted-cache row). Block-21
@@ -236,7 +236,7 @@ reviewer + one fix pass; binding specs/contracts BEFORE
 dispatch; OUTPUT DISCIPLINE headers; the foreground clause +
 "THAT NOTIFICATION WILL NEVER ARRIVE" + blocking-is-fine-
 parking-is-not; cwd-reset guard every prompt AND resume;
-scripts/new-lane.sh for clones (activates the pre-push
+local-scripts/new-lane.sh for clones (activates the pre-push
 fmt-all hook); iteration-speed local scope (memories/
 local-battery-scope.md — no CI mimicry; sweep-shaped units get
 the lighter scope); reviewer local runs = unique-signal only,
@@ -247,7 +247,7 @@ check runs — silent); mergeable never left UNKNOWN; A/B blocked
 pairs, difficulty logged pre-draw, blinded reviewers, fix pass
 inherits the arm (docs/MODEL-AB-LOG.md; block-20 consumed;
 block-21 next); state-sync PRs at seams; two cargo lanes max;
-monitors armed at session start (scripts/monitors/ — install
+monitors armed at session start (local-scripts/monitors/ — install
 then run from ~/.local/share/cad-work/monitors/; the watchlist
 parser fix is IN, entries are whitespace-separated); hourly
 sweeps check working-tree mtimes AND cargo/freecadcmd before

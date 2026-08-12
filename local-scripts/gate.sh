@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/gate.sh <sha-or-ref> — the serialized merge-gate runner.
+# local-scripts/gate.sh <sha-or-ref> — the serialized merge-gate runner.
 #
 # STATUS (2026-07-25): FALLBACK ONLY. Hosted Actions is the merge
 # gate (PR checks green = mergeable; same matrix, parallel, ~5-7 min
@@ -8,7 +8,7 @@
 # no longer kept warm — expect a cold rebuild on first fallback use.
 # History (how the gate ran while Actions was down, 2026-07-22..25):
 #
-#   ./scripts/gate.sh <sha-or-ref>     # e.g. origin/main, a branch, a sha
+#   ./local-scripts/gate.sh <sha-or-ref>     # e.g. origin/main, a branch, a sha
 #
 # runs the full ci-local.sh matrix (the ci.yml mirror, however many rows)
 # against the resolved commit in a persistent gate-runner checkout, and
@@ -105,7 +105,7 @@ unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS CARGO_BUILD_RUSTFLAGS \
       RUSTC_WRAPPER CARGO_TARGET_DIR CARGO_INCREMENTAL CAD_TOLERANCE_EPS
 
 rc=0
-./scripts/ci-local.sh || rc=$?
+./local-scripts/ci-local.sh || rc=$?
 echo
 echo "[gate] sha $SHA — total wall time $((SECONDS - T0))s — exit $rc"
 exit $rc

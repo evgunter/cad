@@ -30,7 +30,7 @@
 //!
 //! S2's seven `fillet_*` predicates are a **profile-plane**
 //! corner-fitting family: their margins are 2-D leg setbacks and
-//! offset-carrier intersections over a `LoopBuilder`, and
+//! offset-carrier intersections over a profile loop, and
 //! `ProfileError`'s escalated arm dispatches its recourse sentence by
 //! matching `Indeterminate::predicate` against those exact names.
 //! This unit's predicates measure different quantities (3-D normal

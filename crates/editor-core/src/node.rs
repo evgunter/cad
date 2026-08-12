@@ -443,6 +443,24 @@ pub enum Node<P> {
         /// The declared-coincident name pairs.
         pairs: Vec<(StableName, StableName)>,
     },
+    /// An instance of another document's product (ASSEMBLY-DESIGN
+    /// A2/A3, ASM-2A D-1): a LEAF — its material crosses the document
+    /// seam rather than arriving from an upstream node, so
+    /// [`Node::inputs`] is empty and the DAG has nothing to schedule
+    /// ahead of it.
+    ///
+    /// **No frame field.** A11 puts placement on the CLUSTER, and the
+    /// registry holding it is document data ([`crate::Doc::placement`])
+    /// — an instance carries no frame of its own, which is what makes
+    /// zero-anchor and multi-anchor states unrepresentable rather than
+    /// merely refused.
+    InstantiatePart {
+        /// Which document, at which version (A4: the id answers "which
+        /// part", the pin "which version of it"). Cargo.lock semantics
+        /// — an edit to the referenced document never retargets this
+        /// reference; moving the pin is its own recorded edit.
+        doc_ref: crate::ident::DocRef,
+    },
 }
 
 impl Axis3 {
@@ -471,7 +489,12 @@ impl<P> Node<P> {
     /// D3). Deterministic order (field order).
     pub fn inputs(&self) -> Vec<RecipeNodeId> {
         match self {
-            Node::Datum(_) | Node::Profile(_) | Node::Declare { .. } => Vec::new(),
+            // A leaf whose material crosses the document seam has no
+            // DAG edge to offer (A3).
+            Node::Datum(_)
+            | Node::Profile(_)
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. } => Vec::new(),
             Node::Extrude { profile, .. } => vec![*profile],
             Node::Revolve { profile, axis, .. } => vec![*profile, *axis],
             Node::Loft { profiles, .. } => profiles.clone(),
@@ -518,7 +541,12 @@ impl<P> Node<P> {
             }
             Node::Datum(Datum::Point { .. }) => vec3(SlotId::Origin).to_vec(),
             Node::Profile(p) => p.slots(),
-            Node::Split { .. } | Node::Boolean { .. } | Node::Declare { .. } => Vec::new(),
+            // AQ4: an instance takes no arguments in v1 — the
+            // referenced document evaluates at its OWN parameters.
+            Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. } => Vec::new(),
             Node::Extrude { .. } => vec![SlotId::Distance],
             Node::Fillet { .. } => vec![SlotId::Radius],
             Node::Revolve { .. } => vec![SlotId::RevolveAngle],

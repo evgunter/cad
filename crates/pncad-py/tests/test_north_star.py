@@ -219,7 +219,7 @@ class TestPlateParam(unittest.TestCase):
 
     FIXTURE = (
         Path(__file__).resolve().parents[3]
-        / "crates" / "pncad" / "tests" / "plate_param.v6.pncad"
+        / "crates" / "pncad" / "tests" / "plate_param.v8.pncad"
     )
 
     def plate(self):
@@ -1157,6 +1157,82 @@ class TestTiltedcut(unittest.TestCase):
             value.body()
 
 
+class TestRocker(unittest.TestCase):
+    """Tour scene `rocker` (row 6): a plate whose every corner is a
+    fillet — five between the hub circle, the boss circle and the three
+    straight sides, plus the eye slot's arc-by-arc tip.
+
+    G12's row, and the last one the PATHS surface owed. Two of the
+    outline's five corners are a STRAIGHT arrival off an ARC departure
+    (`at_toward`, §2b route 3); two are the carrier-bound arrival
+    (`at_on`); the keel knee is the line-by-line seam. Not one corner
+    is written down — every one is DERIVED from the two carriers.
+
+    Oracle, the scene's own and exact: the eye is a HOLE, so the
+    rocker's volume is the outline's prism less the eye's, and the
+    solid's census is the tour's (26 vertices, 39 edges, 15 faces —
+    genus 1). A far-pocket S8 pick or a lost seam vertex moves the
+    census; a corner off its carriers moves the volume identity."""
+
+    HUB_C, HUB_R = (0 * m, 0 * m), 2.5
+    BOSS_C, BOSS_R = (7 * m, 0 * m), 1.5
+    BLEND, KNEE, EYE = 0.5 * m, 0.5 * m, 0.25 * m
+    DEPTH = 0.5 * m
+
+    def outline(self):
+        return (
+            Open.at((5.05 * m, -1.6 * m))
+            .toward(2.1, 0.8)
+            .fillet(self.BLEND)
+            .at_on((8.5 * m, 0 * m), self.BOSS_C, ArcSweep.Ccw)
+            .fillet(self.BLEND)
+            .at_toward((4.05 * m, 1.35 * m), -4.1, 0.3)
+            .fillet(self.BLEND)
+            .at_on((-2.5 * m, 0 * m), self.HUB_C, ArcSweep.Ccw)
+            .fillet(self.BLEND)
+            .at_toward((3.0 * m, -1.75 * m), 2.0, -0.5)
+            .fillet(self.KNEE)
+            .to(Start)
+        )
+
+    def eye(self):
+        tip = math.sqrt(0.75)
+        return (
+            Open.at_on((0 * m, -tip * m), (-0.5 * m, 0 * m), ArcSweep.Ccw)
+            .fillet(self.EYE)
+            .to_on(Start, (0.5 * m, 0 * m), ArcSweep.Ccw)
+        )
+
+    def prism(self, doc, loops):
+        return doc.insert(Node.extrude(doc.insert(Node.profile(loops)), self.DEPTH))
+
+    def test_rocker_matches_the_scene_oracle(self):
+        doc = Doc()
+        rocker = self.prism(doc, [self.outline(), self.eye()])
+        plain = self.prism(doc, [self.outline()])
+        slot = self.prism(doc, [self.eye()])
+        self.assertAlmostEqual(
+            volume_of(doc, rocker),
+            volume_of(doc, plain) - volume_of(doc, slot),
+            delta=1e-12,
+        )
+        ev = evaluate(doc)
+        census = (
+            len(ev.all_vertices(rocker)),
+            len(ev.all_edges(rocker)),
+            len(ev.all_faces(rocker)),
+        )
+        self.assertEqual(census, (26, 39, 15))
+
+    def test_the_outline_is_ten_vertices_and_no_authored_corner(self):
+        """The LB5 topology, positively: the hub arc is ONE segment,
+        so the outline carries ten vertices — five fillet arcs, each
+        with a trim point ahead of it — and the seam sits on the keel,
+        where `.to(Start)` retrims the entry anchor away."""
+        self.assertEqual(self.outline().vertex_count, 10)
+        self.assertEqual(self.outline().step_count, 12)
+
+
 class TestCrosslapExploded(unittest.TestCase):
     """Tour scene `crosslap_exploded` (row 29): two notched beams, the
     second LIFTED clear so the joint reads. The lift was the whole
@@ -1359,20 +1435,24 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             ev.value(refused)
         self.assertEqual(caught.exception.kind, "naming")
 
-    def test_the_rocker_outline_still_has_no_paths_spelling(self):
-        """G12, the gap `rocker` now waits on. Its outline is five
-        arc-and-line corner fillets, and PATHS-DESIGN §2b's third
-        ratified wall says a STRAIGHT arrival off an ARC departure is
-        refused — so the outline cannot migrate to the lattice in Rust
-        either, and the raw `LoopBuilder::fillet_corner` surface it
-        does use is unbound. The EYE, which IS lattice-authored,
-        crosses fine (tests/test_paths.py)."""
+    def test_the_rocker_outline_is_authorable(self):
+        """G12, CLOSED (LIB-LBRET) — the flip of the absence this test
+        used to pin.
+
+        The wall was PATHS-DESIGN §2b's third: a STRAIGHT arrival off
+        an ARC departure was refused, so the rocker's arc-to-line
+        corners could not migrate to the lattice in Rust either. Route
+        3 (ratified on #386) gives that arrival its own door,
+        `at_toward`, and `TestRocker` is the scene-scale positive
+        form. What still refuses is the door's own fence: `at_toward`
+        on a STRAIGHT departure, which is the generic `.at().toward()`
+        pair's business."""
         with self.assertRaises(PathError) as caught:
             (
-                Open.at_on((-2.5 * m, 0 * m), (0 * m, 0 * m), ArcSweep.Ccw)
+                Open.at((0 * m, 0 * m))
+                .toward(1.0, 0.0)
                 .fillet(0.5 * m)
-                .toward(2.0, -0.5)
-                .at((4 * m, -2 * m))
+                .at_toward((3 * m, 3 * m), 0.0, 1.0)
             )
         self.assertEqual(caught.exception.variant, "arc_carrier_spelling")
 

@@ -33,8 +33,8 @@ run on a pushed branch renders all four lanes and gates them (ci.yml's
 exist as artifacts on that run. Take them:
 
 ```sh
-scripts/render-hosted.sh                        # install what CI rendered
-scripts/render-hosted.sh --lane uv              # one lane of it
+local-scripts/render-hosted.sh                        # install what CI rendered
+local-scripts/render-hosted.sh --lane uv              # one lane of it
 ```
 
 That is the default: it resolves your branch's newest CI run, downloads
@@ -43,7 +43,7 @@ review and commit it the ordinary way. It works on a **failed** CI run
 too — a stale committed lane is exactly what makes the gate fail, and
 that run's artifact is what makes it current. The failing row prints the
 exact command, pinned to its own run:
-`scripts/render-hosted.sh --run <id> --lane <lane>`.
+`local-scripts/render-hosted.sh --run <id> --lane <lane>`.
 
 **Render on demand only when CI has not covered it** — an unpushed
 branch, no CI run yet, or a deliberate re-render at a different scene
@@ -51,8 +51,8 @@ budget. Dispatching when CI has already rendered the same tree renders
 it twice, which is why it is the flag rather than the default:
 
 ```sh
-scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
-scripts/render-hosted.sh --run 31402416551      # take a specific run's artifacts
+local-scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
+local-scripts/render-hosted.sh --run 31402416551      # take a specific run's artifacts
 ```
 
 The local entry points below **refuse to run** without an explicit
@@ -78,7 +78,7 @@ cd ..
 CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift
 ```
 
-in the environment they print a pointer at `scripts/render-hosted.sh`
+in the environment they print a pointer at `local-scripts/render-hosted.sh`
 and **exit nonzero**.
 
 The value is a sentence on purpose. `1` / `yes` / `true` are what
@@ -282,7 +282,7 @@ the filesystem level, and one silently reached a committed montage cell
   file. Both `render.sh` lanes run it after the stamp strip and
   **before** composing the montage, so a sheet is never composed from an
   uncertified cell set; it is also an always-run row in
-  `scripts/ci-local.sh` and a step in ci.yml's `discipline` job (stdlib
+  `local-scripts/ci-local.sh` and a step in ci.yml's `discipline` job (stdlib
   only — no venv, no FreeCAD). The wild-corpus lane (`renders-wild/`)
   runs under the same guard with INVERTED per-lane rules — there
   matplotlib is the primary renderer, and cells must carry the wild
@@ -383,7 +383,7 @@ keeps the same shape (grid, captions, provenance banner via
 `compose_montage.py`) under its own title and banner.
 
 ```sh
-scripts/render-hosted.sh --lane wild   # the default path (hosted; installs renders-wild/)
+local-scripts/render-hosted.sh --lane wild   # the default path (hosted; installs renders-wild/)
 
 # preview only — see "Preview mode: the local override"
 cd demos/wild
@@ -494,12 +494,12 @@ verbatim.
 
 | scene | what it shows |
 | --- | --- |
-| `bracket` | extrude of a polyline + tangent-arc profile (`LoopBuilder`, inner fillet); standalone render since the M6 curation pass |
+| `bracket` | extrude of a polyline + tangent-arc profile (the PATHS lattice, inner fillet); standalone render since the M6 curation pass |
 | `plate` | extrude with two circular holes — genus 2, ring loops in both caps |
 | `vase` | full revolve, axis-touching profile: sphere-zone belly + cone lip |
 | `sheave` | rope-groove sheave — full revolve of a polyline+arc profile: hub, web, **tapered (cone) rim shoulders**, semicircular groove whose OFF-axis arc sweeps a **ring-torus zone**; all four analytic wall kinds (plane/cylinder/cone/torus) on one part; genus 1; volume checked against the closed-form Pappus value |
 | `chute` | quarter-turn chute — a C-channel profile swept through a **270° partial revolve**; wedge caps showing the profile, curved trough; Pappus-exact volume |
-| `rocker` | **the M5 fillet sugar**: a rocker plate whose SIX corners are all authored by `LoopBuilder::fillet_corner` — arc×line, line×line, line×arc, arc×line, line×arc around the outline, and **arc×arc** at the eye slot's rounded tip, where two tangent circles of the authored radius fit and the S8 rule **picks the one nearest the authored corner** (asserted, and narrated with both centres); genus 1; montage panel (the sheet's profile-fillet cell since the M6 curation pass) |
+| `rocker` | **the M5 fillet construction**: a rocker plate whose SIX corners are all authored through the PATHS fillet doors — arc×line, line×line, line×arc, arc×line, line×arc around the outline, and **arc×arc** at the eye slot's rounded tip, where two tangent circles of the authored radius fit and the S8 rule **picks the one nearest the authored corner** (asserted, and narrated with both centres); genus 1; montage panel (the sheet's profile-fillet cell since the M6 curation pass) |
 | `tiltedcut` | **RENDERING (M5 PR 11, the milestone's demo moment)**: a cylinder cut by a tilted plane — the section edges carry an **exact `Curve3::Ellipse`** (a = r/cos φ, b = r, residual ~1e-16, PR 5 shape (i)); the cut walls tessellate **watertight** through the pcurve-driven trimmed lane, and the volume is a **certified quadrature enclosure** (± ~1e-6 m³) asserted to bracket πr²H/2 per half; montage panel |
 | `bossplate` | **the first curved boolean, visible (M5 PR 11)**: a three-arc cylindrical boss unioned into a plate (PR 9 shape (ii)) — the seam is three exact `Circle` arcs, V = 16 + π·0.25·0.6 on the nose, and the shared-chord assertion pins that the curved wall and the ringed top face consume ONE chord set per seam edge; montage panel
 | `tube_along_arc` | **the tube door, with its intent parameters on screen** (M6-3 Leg F, the Evan-ratified rider on the #175 thread): a ring-torus tube built from spine centre / axis / reference direction / major radius 2 / window `[0.25, 1.75]` rad / minor radius 0.5 — `sweep/tests/m6_tube.rs`'s wedge, constant for constant. The sheave's groove and the lily's stem tubes already carry torus walls, but both arrive by `revolve`, which RECONSTRUCTS the tube radius from the profile's bulge arcs (the lily drifts 3.9e-16; the review donut drifted 56 ulps). This door stores what it was given: the scene asserts `minor_radius.to_bits() == 0.5f64.to_bits()` on **both** half-tube walls, on the scene body itself. Deliberately a WINDOWED tube, not the full donut, so all three parameters are visible — the ring's radius, the pipe's radius, and the window as the gap its two planar wedge caps close. No semantic fork: census (2 walls + 2 caps), sense derivation, the `R > r > 0` convention and the pcurve mint are the revolve's own code; volume by Pappus π·r²·R·(t₁ − t₀). **Standalone since the montage-v2 curation** (Evan, #218 follow-up): the cell's content — bit-exact stored intent parameters — is interesting for how it works, not visually; without that context it reads as one more partial revolve |
@@ -749,15 +749,15 @@ over one pipeline**:
 * **on demand** (`workflow_dispatch`) — for a tree CI has not seen, or a
   re-render at a different scene budget.
 
-`scripts/render-hosted.sh` is the front end for both, and the thing to
+`local-scripts/render-hosted.sh` is the front end for both, and the thing to
 use:
 
 ```sh
-scripts/render-hosted.sh                        # install what CI already rendered
-scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
-scripts/render-hosted.sh --lane wild --verify   # + prove the pull is byte-exact
-scripts/render-hosted.sh --run <id>             # take a specific run, no re-render
-scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
+local-scripts/render-hosted.sh                        # install what CI already rendered
+local-scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
+local-scripts/render-hosted.sh --lane wild --verify   # + prove the pull is byte-exact
+local-scripts/render-hosted.sh --run <id>             # take a specific run, no re-render
+local-scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
 ```
 
 Taking is the default and rendering is the flag, because dispatching

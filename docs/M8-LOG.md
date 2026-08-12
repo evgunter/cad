@@ -138,7 +138,7 @@ watchlist, usage-watch per-account); lanes long-turn + rw2-review
 branches are confirmed pushed); the fd-inheritance lock leak +
 orphan-waiter + takeover-courtesy rules are in
 memories/agent-lane-operations.md. Render: hosted-only
-(scripts/render-hosted.sh; local override sentence required).
+(local-scripts/render-hosted.sh; local override sentence required).
 
 **Evan-pending**: nothing except the eventual M8 walk. Q9
 DEFERRED (do not surface). The lily is Evan's canvas.

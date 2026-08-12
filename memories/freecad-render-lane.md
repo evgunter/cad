@@ -94,7 +94,7 @@ commit and FAILS when a committed lane no longer matches. So the frames
 for your tree normally already exist as artifacts on your branch's CI
 run, and the way to get them is
 
-    scripts/render-hosted.sh          # <- the DEFAULT is to take CI's
+    local-scripts/render-hosted.sh          # <- the DEFAULT is to take CI's
 
 which resolves that run and installs each lane at its committed path,
 waiting only on the render lanes rather than on the whole CI run. It
@@ -121,7 +121,7 @@ costs one mechanical commit of the artifact.
 The hosted "render (demos)" workflow (#323/#324, wedge root-caused
 and fixed by #331 — a FreeCAD NotificationArea SELF-DEADLOCK, not
 this host's stall or budget calibration) runs all lanes on demand
-(`scripts/render-hosted.sh`, the #338 wrapper — trigger, poll,
+(`local-scripts/render-hosted.sh`, the #338 wrapper — trigger, poll,
 byte-exact artifact pull-back; local entry points refuse without
 the explicit CAD_RENDER_LOCAL_OVERRIDE sentence). Measured
 2026-08-10 on a 2-core runner (llvmpipe under Xvfb): 19 scenes,

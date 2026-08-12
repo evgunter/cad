@@ -113,6 +113,62 @@ pub fn graft_disjoint_all<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
 ) -> Result<Vec<SolidKey>, BooleanError> {
+    Ok(graft_disjoint_all_keyed(dst, src)?.solids)
+}
+
+/// The source → destination key correspondence a graft established
+/// (ASM-2A D-4): which entity of `dst` each entity of `src` became.
+///
+/// A graft re-creates every transplanted entity under a FRESH key, so
+/// a caller holding per-entity data keyed by the SOURCE's arena — a
+/// name table above all — has no way to re-key it without this bridge.
+/// Solid keys ride in source solid order; the per-entity maps are total
+/// over the source's live faces, edges and vertices.
+///
+/// The fields stay private: the internal bridge is a slotmap
+/// `SecondaryMap`, and this door's contract is the LOOKUP, not the
+/// container.
+#[derive(Debug)]
+pub struct GraftKeys {
+    solids: Vec<SolidKey>,
+    map: crate::boolean::combine::GraftMap,
+}
+
+impl GraftKeys {
+    /// The grafted solids' destination keys, in the source's solid
+    /// order.
+    pub fn solids(&self) -> &[SolidKey] {
+        &self.solids
+    }
+
+    /// The destination face a source face became.
+    pub fn face(&self, src: crate::entity::FaceKey) -> Option<crate::entity::FaceKey> {
+        self.map.faces.get(src).copied()
+    }
+
+    /// The destination edge a source edge became.
+    pub fn edge(&self, src: crate::entity::EdgeKey) -> Option<crate::entity::EdgeKey> {
+        self.map.edges.get(src).copied()
+    }
+
+    /// The destination vertex a source vertex became.
+    pub fn vertex(&self, src: crate::entity::VertexKey) -> Option<crate::entity::VertexKey> {
+        self.map.vertices.get(src).copied()
+    }
+}
+
+/// [`graft_disjoint_all`] plus the source → destination key bridge
+/// (ASM-2A D-4): identical transplant, and the correspondence a caller
+/// needs to carry per-entity data (stable names) across the graft.
+///
+/// # Errors
+///
+/// Exactly [`graft_disjoint_all`]'s, including its spent-destination
+/// failure state.
+pub fn graft_disjoint_all_keyed<T: geom_core::Decide>(
+    dst: &mut Body<T>,
+    src: &Body<T>,
+) -> Result<GraftKeys, BooleanError> {
     let desync = || BooleanError::JoinDesync {
         what: "graft source is not a well-formed body: a solid without provenance",
     };
@@ -132,13 +188,16 @@ pub fn graft_disjoint_all<T: geom_core::Decide>(
         .into_iter()
         .map(|p| dst.add_solid(Solid { shells: Vec::new() }, p))
         .collect();
-    crate::boolean::combine::graft_solids_with(
+    let map = crate::boolean::combine::graft_solids_with(
         dst,
         &targets,
         src,
         crate::boolean::combine::Bridge::RemapKeys,
     )?;
-    Ok(targets)
+    Ok(GraftKeys {
+        solids: targets,
+        map,
+    })
 }
 
 /// Direct rows for this door (R1 MINOR-2): the integration coverage

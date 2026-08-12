@@ -189,24 +189,31 @@ pub fn donut() -> Body<f64> {
 /// `π[r²(a+b) − (a³+b³)/3] + π·h(R₂² + R₂ρ + ρ²)/3` with r = 0.44,
 /// a = 0.40, b = 0.36, R₂ = √(r²−b²), ρ = 0.09, h = 0.16.
 pub fn lily_lantern() -> Body<f64> {
-    use profile::{ArcSweep, LoopBuilder};
+    use profile::{ArcSweep, Open, Start};
     use sweep::{Revolution, revolve};
     let (globe, top, mouth, lip_r, lip_drop): (f64, f64, f64, f64, f64) =
         (0.44, 0.40, 0.36, 0.09, 0.16);
     let r_top = (globe.powi(2) - top.powi(2)).sqrt();
     let r_mouth = (globe.powi(2) - mouth.powi(2)).sqrt();
-    let lp = LoopBuilder::start(Point2::new(0.0, top))
+    let lp = Open
+        .at(Point2::new(0.0, top))
         .line_to(Point2::new(r_top, top))
+        .unwrap()
         // The belly, on the globe's own carrier: past the equator, so
         // the sweep is the CLOCKWISE (descending-angle) one.
-        .arc_to_center(
-            Point2::new(r_mouth, -mouth),
+        .arc_center(
             Point2::new(0.0, 0.0),
+            Point2::new(r_mouth, -mouth),
             ArcSweep::Cw,
         )
+        .unwrap()
         .line_to(Point2::new(lip_r, -mouth - lip_drop))
+        .unwrap()
         .line_to(Point2::new(0.0, -mouth - lip_drop))
-        .close();
+        .unwrap()
+        .line_to(Start)
+        .unwrap()
+        .loop_;
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .unwrap();

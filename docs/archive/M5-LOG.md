@@ -11,7 +11,7 @@ is the resumption contract for any successor.
 Handoff from cad-implement-m3-6plus received at the drained M4→M5
 seam (M4 CLOSED: exit walk 12/12, #119/#121 merged, final snapshot
 at M4-LOG tail). Worktree fast-forwarded to main `2f2b3b3`;
-monitors installed from `scripts/monitors/` and armed (away-channel,
+monitors installed from `local-scripts/monitors/` and armed (away-channel,
 disk watchdog, hourly check-in); sign-off watchlist empty;
 predecessor stopped via `mngr stop` after orientation confirmed.
 
@@ -1474,7 +1474,7 @@ memories/local-battery-scope.md); resume-vs-fresh rule
 (memories/resume-vs-fresh-subagent.md); push-per-unit; clones
 under ~/.local/share/cad-work/; two cargo lanes max; tier-aware
 merge watchers (no-fail + no-pending via gh pr checks loops);
-monitors re-armed at session start (scripts/monitors/); A/B
+monitors re-armed at session start (local-scripts/monitors/); A/B
 blocked pairs with blinded reviewers (fix pass inherits arm;
 design/specs/reviews stay Fable); state-sync PRs at seams;
 disk watch (~30G per active lane); new error arms follow the
@@ -1497,7 +1497,7 @@ anytime).
 **NEW ORCHESTRATOR PICKUP (2026-07-31).** Monitors armed
 (away-channel/disk/hourly, re-installed from checkout); 14
 merged-lane clones deleted (~89G freed, disk 124G free) via NEW
-scripts/clean-lanes.sh (Evan's suggestion: per-directory
+local-scripts/clean-lanes.sh (Evan's suggestion: per-directory
 check-then-delete adjacency — no stale global audit; 19-case
 fixture matrix + shellcheck clean; committed with a
 worktree-disk-hygiene memory pointer). A/B rows 21-25 backfilled
@@ -1507,7 +1507,7 @@ contradicted PR 7's dispatch entry — the block-11 FABLE remainder
 was never consumed (only fix passes followed, and they inherit
 arms); the protocol wins, the remainder goes to the next unit.
 Ops note: clean-lanes.sh and session ops scripting sit OUTSIDE the
-A/B experiment (no blinded lane — the scripts/monitors/ precedent).
+A/B experiment (no blinded lane — the local-scripts/monitors/ precedent).
 
 **SPECS DRAFTED + BOTH LANES DISPATCHING (2026-07-31).**
 docs/M5-PR9-SPEC.md: zip with per-arm CurvedBooleanUnsupported
@@ -2876,7 +2876,7 @@ carries `Bounds` and which instantiates at `f64`/`Interval` only. A
 `PropsQuadLane`-style static split would therefore have had an EMPTY
 refusing side: a dual impl refusing a call no dual scalar can make. So
 the seam is RATIFIED rather than split — both allowlists (the hosted
-step and `scripts/ci-local.sh`) and the `real.rs` scope-rule paragraph
+step and `local-scripts/ci-local.sh`) and the `real.rs` scope-rule paragraph
 now carry it, with the grounds: the battery's margins are certified
 metric quantities (sup-κ curvature hulls, blend setback bounds)
 reported as `f64` payloads, i.e. enclosure consumers of exactly the
@@ -3999,18 +3999,18 @@ branches archived as tags per the merge-only convention
 archive/m5-pr7b-review-probes-v1) and deleted. Remote is now:
 main + ev/m5-pr12-fillets (live PR) + the orchestrator branch.
 
-**scripts/fmt-all.sh (2026-08-03, Evan's suggestion after the
+**local-scripts/fmt-all.sh (2026-08-03, Evan's suggestion after the
 sub-workspace fmt miss cost two gate round-trips):** rustfmt
 every workspace, DISCOVERED by Cargo.lock (root, demos/tour,
 interval-transcendentals, tools/k-lint); --check mode for
 pre-push, ~9s cold. Deployment: implementer/fix-pass briefs now
-say "scripts/fmt-all.sh --check before every push" (replacing
+say "local-scripts/fmt-all.sh --check before every push" (replacing
 the per-workspace fmt lines — subagents clone fresh, so the
 brief is the channel that reaches them; a core.hooksPath
 pre-push hook is available for human clones if wanted).
 
 **Lane-creation enforcement (Evan, 2026-08-03):**
-scripts/hooks/pre-push (fmt-all --check) + scripts/new-lane.sh
+local-scripts/hooks/pre-push (fmt-all --check) + local-scripts/new-lane.sh
 (clone + core.hooksPath activation + branch) — the hook now
 travels with the standard lane path instead of relying on brief
 compliance. clone-placement memory updated; future briefs use

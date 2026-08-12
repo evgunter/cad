@@ -921,7 +921,7 @@ corpus has now grown fine enough to prove it.
 
 **`k-lint (gate)` fails on a finding** (ruled by the project owner, PR
 #243). The CI row — hosted `.github/workflows/ci.yml`, local
-`scripts/ci-local.sh` — is red whenever any margin in a fresh sweep
+`local-scripts/ci-local.sh` — is red whenever any margin in a fresh sweep
 crowds a decision boundary; harness breakage still fails it in its own
 distinct voice, and the two exit codes differ (2 vs 1) so they can
 never be confused for one another.

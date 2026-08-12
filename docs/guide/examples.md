@@ -15,7 +15,7 @@ bit us.
 
 ```console
 $ cd demos/tour && cargo run --release -- ../out    # all 34 stops
-$ scripts/render-hosted.sh                           # + montage images (installs CI's render; see demos/README.md)
+$ local-scripts/render-hosted.sh                           # + montage images (installs CI's render; see demos/README.md)
 ```
 
 ```console
@@ -58,7 +58,7 @@ depends on `pncad` and **nothing else** — one line in its
 | scene(s) | module | demonstrates | pins |
 |---|---|---|---|
 | `bracket`, `plate`, `vase`, `sheave`, `chute` | `bodies.rs` | The four body ops on public API: polyline+fillet extrude, a genus-2 holed plate, full and partial revolves, plane+cylinder+cone+torus on one part | The bracket's inner corner is *constructive* (`fillet`), not a hand-rounded via point — the pre-#100 decimal sat inside the ε escalation band |
-| `rocker` | `rocker.rs` | The complete fillet-corner taxonomy: arc×line, line×line, line×arc, arc×arc, via `LoopBuilder::fillet_corner` | Nothing typed by hand; each declaration verified, `TangencyContradicted` on a lie. Branch choice read back with `readback::blend_arcs` |
+| `rocker` | `rocker.rs` | The complete fillet-corner taxonomy: arc×line, line×line, line×arc, arc×arc, through the PATHS fillet doors (`at_on`, `at_toward`, the line×line seam) | Not a corner typed by hand — every one is DERIVED from its two carriers; each declaration verified, `TangencyContradicted` on a lie. Branch choice read back with `readback::blend_arcs` |
 | `diefillet`, `diepips`, `diecomposed` | `diefillet.rs` | Rolling-ball `fillet_edges`; a 21-ball closed-group cut; M6 in-place composition surgery | Sequential pip cuts would present a trimmed sphere as an operand — refused typed. A tilted ball pole makes plane×sphere non-polar — refused typed |
 | `lily` (8 bodies) | `lily.rs` | `tube_along_arc` turtle chains, revolved sphere-zone lanterns, swept kite-section leaves | `wall_probes()` is a live record of kernel refusals (coincident-planar glue). Findings 9 and 13 named in place |
 | `tiltedcut` | `curvedcut.rs` | An exact `Curve3::Ellipse` section produced by `topo::split` | Three retire-on-closure frontier panics fired and were retired |

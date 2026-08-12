@@ -8,10 +8,10 @@
 # per-push rebuild of changed core crates at opt 2 costs more than the
 # test-time it saves (#52/#53 timings).
 #
-# Usage: scripts/test-fast.sh [cargo test args...]
-#   e.g. scripts/test-fast.sh --workspace
-#        scripts/test-fast.sh --workspace --features interval
-#        CAD_TOLERANCE_EPS=1e-9 scripts/test-fast.sh --workspace
+# Usage: local-scripts/test-fast.sh [cargo test args...]
+#   e.g. local-scripts/test-fast.sh --workspace
+#        local-scripts/test-fast.sh --workspace --features interval
+#        CAD_TOLERANCE_EPS=1e-9 local-scripts/test-fast.sh --workspace
 set -euo pipefail
 # Queue through the machine-wide build-slot semaphore (width-1 mutex
 # by default — measured faster than concurrent; see with-build-slot.sh).

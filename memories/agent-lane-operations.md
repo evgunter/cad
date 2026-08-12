@@ -1,6 +1,6 @@
 ---
 name: agent-lane-operations
-description: Consolidated agent-lane rules (2026-08-05, replacing six overlapping memories; build-slot locks added 2026-08-06) — lane creation via scripts/new-lane.sh, machine-wide build concurrency via scripts/with-build-slot.sh flock slots, disk budgets and cleanup via scripts/clean-lanes.sh + monitors, death recovery and resume-vs-fresh policy
+description: Consolidated agent-lane rules (2026-08-05, replacing six overlapping memories; build-slot locks added 2026-08-06) — lane creation via local-scripts/new-lane.sh, machine-wide build concurrency via local-scripts/with-build-slot.sh flock slots, disk budgets and cleanup via local-scripts/clean-lanes.sh + monitors, death recovery and resume-vs-fresh policy
 metadata:
   type: project
 ---
@@ -11,11 +11,27 @@ and resume-vs-fresh-subagent memories (full incident narratives:
 git history of those files, removed 2026-08-05). The rules, which
 the committed scripts now largely enforce:
 
+**Tooling split (2026-08-11).** `scripts/` = the six things HOSTED CI
+runs; `local-scripts/` = everything local (with-build-slot, ci-local,
+gate, test-fast, new-lane, clean-lanes, fmt-all, setup-build-env,
+hooks/, monitors/). Every workflow job does `rm -rf local-scripts`
+after checkout, so CI CANNOT depend on them — which is what lets
+ci-filter.py treat local-scripts/ changes as non-triggering (they used
+to force the full matrix). Existing lanes had the OLD hooks path
+cached in .git/config, so the rename silently disabled their pre-push
+fmt hook (git says NOTHING when core.hooksPath is missing) — it hit the
+build-perf lane itself. with-build-slot.sh now REPAIRS a dangling
+core.hooksPath on the next build and says so, so no manual step is
+needed — a MIGRATION SHIM, **RETIRE 2026-08-13** (grep
+`RETIRE 2026-08-13`; it nags on every acquisition past that date). General lesson: a repo-relative path cached in per-clone git
+config is invisible to a repo-side rename — grep for `git config` when
+moving directories. See docs/LOCAL-BUILD-PERF.md §6.
+
 **Lane creation.** Working clones/worktrees NEVER go in the /tmp
 session scratchpad (session-derived, silently reaped) — use
 `~/.local/share/cad-work/<purpose>/` or the main checkout's
 `.claude/worktrees/` (isolation subagents). Create lanes with
-`scripts/new-lane.sh <lane> [branch]` — it sets `core.hooksPath`
+`local-scripts/new-lane.sh <lane> [branch]` — it sets `core.hooksPath`
 so the committed pre-push hook (fmt-all --check) is active; a
 hand-rolled `git clone` silently lacks it.
 
@@ -23,9 +39,9 @@ hand-rolled `git clone` silently lacks it.
 `CARGO_TARGET_DIR` across parallel builds (cargo's lock serializes
 them); `~/.cache/gmp-mpfr-sys` IS shared safely. Session start:
 arm `disk-watchdog.sh` (WARN <15G, CRITICAL <8G; install from repo
-`scripts/monitors/` to `~/.local/share/cad-work/monitors/`, run
+`local-scripts/monitors/` to `~/.local/share/cad-work/monitors/`, run
 the installed copies). Under pressure: remove finished lanes with
-`scripts/clean-lanes.sh [--dry-run]` (re-checks pushed/clean/
+`local-scripts/clean-lanes.sh [--dry-run]` (re-checks pushed/clean/
 no-stash before each rm and refuses loudly); NEVER touch a running
 gate's target; after a disk-full crash, purge torn binaries
 (ELF-magic scan) and treat pressure-window test results as
@@ -39,7 +55,7 @@ before cleaning its lane.
 soft two-lane convention and the cad-work/cargo-slots.txt
 registry).** 10 GB WSL2 ceiling (`.wslconfig`, confirmed
 2026-07-25). Heavy cargo operations are bounded machine-wide by
-`scripts/with-build-slot.sh` — flock slot files in
+`local-scripts/with-build-slot.sh` — flock slot files in
 `~/.local/share/cad-work/locks/`. flock releases on process death
 (even SIGKILL/OOM), so dead agents cannot leave stale locks.
 **Width is 1 (a mutex), measured not assumed** — the 2026-08-06
@@ -71,7 +87,13 @@ timed-out call" then STACKS duplicate waiters that each burn a
 slot turn when the mutex frees (5 deep observed). Re-issue means:
 kill your own previous waiter first (or use `-n`/`--express`);
 orchestrator sweeps should scan for same-command duplicate
-waiters per lane and cull all but the newest. **fd-inheritance lock leak
+waiters per lane and cull all but the newest. **Kill targets are
+identified by YOUR OWN recorded PIDs/job ids — NEVER by pgrep
+pattern-matching a lane name** (2026-08-11: an agent
+pattern-killed two shell PIDs, tripped the harness security
+policy, and still MISSED its actual zombie holder, which the
+orchestrator had to reap; pattern-matching both over- and
+under-kills). Record the PID when you launch; kill that. **fd-inheritance lock leak
 (2026-08-11, observed live)**: flock-releases-on-death is only true
 if no CHILD inherited the lock fd — a daemon spawned under a slot
 (sccache observed; any long-lived child qualifies) keeps the flock
@@ -80,9 +102,11 @@ misleading dead-holder file. Diagnose with
 `fuser -v locks/<slot>.lock` (shows the true fd holders); the fix
 is killing the inheriting process, and slot-wrapped commands
 should avoid spawning daemons (sccache/watchers) or close the fd
-(`flock -o` where supported). `with-build-slot.sh` now pre-starts the
-sccache server before opening the lock fds, closing this for the one
-daemon every build can trigger (2026-08-11). **Express-lane cost model
+(`flock -o` where supported). sccache was briefly the machine
+rustc-wrapper on 2026-08-11 and needed exactly that guard; it was
+reverted the same day (docs/LOCAL-BUILD-PERF.md), so the guard went with
+it — if a cache/watcher daemon is ever added to the build path, pre-start
+it before with-build-slot.sh opens its fds. **Express-lane cost model
 is UNVERIFIED and suspect (2026-08-11)**: the same cold workspace build
 measured **69m23s** in one window and **3m08s** in another — same
 config, same tree, 182-197 crates both times, 22x apart. The slow

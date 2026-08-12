@@ -186,7 +186,7 @@ parallelizing surgery.
   `T: Real` hot code monomorphizes into the CALLING crate's binaries,
   which lib-level overrides can't reach — so overrides stay confined
   to rarely-edited packages, and the full whole-graph speedup lives in
-  `scripts/test-fast.sh` as an opt-in local recipe where warm caches
+  `local-scripts/test-fast.sh` as an opt-in local recipe where warm caches
   absorb the build cost. The same monomorphization fact will apply to
   any future "optimize the hot dep" plan: measure at the binary that
   instantiates the generics, not the crate that defines them.

@@ -1,4 +1,4 @@
-schema: 6
+schema: 8
 id: 5ef5ef0364b6939c4ca61f34b393f7b3
 {
   "snapshot": {
@@ -308,6 +308,7 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
     "roots": [
       4
     ],
+    "placements": {},
     "params": {
       "hole_r": {
         "Continuous": {

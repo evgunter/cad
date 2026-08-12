@@ -18,9 +18,9 @@ governs how the gaps get treated:
 > library — never quietly work around it, and never contort the demo
 > to hide it.
 
-**Result: 24 of the 34 tour stops are authorable through Python
-today** — 21 outright, and 3 more only if you re-author by hand what
-the scene says structurally. 10 are blocked by a missing door.
+**Result: 25 of the 34 tour stops are authorable through Python
+today** — 22 outright, and 3 more only if you re-author by hand what
+the scene says structurally. 9 are blocked by a missing door.
 
 The count moved from 7 to 11 when LIB-PYG1 bound the PATHS lattice
 and closed G1 (`bracket`, `vase`, `sheave`, `bossplate`), from 11 to
@@ -29,7 +29,9 @@ node — closing G3 outright (`silhouette`, `silhouette3` and its three
 shadow stops) and G2's loft half (`loft_prism`, `nonuniform_loft`) —
 and from 18 to 24 when LIB-PYBUNDLE bound the fillet, split,
 transform and datum-plane nodes and grew a profile past one loop,
-closing G4, G6, G7 and G9. Five stops flipped NO to YES (`plate`,
+closing G4, G6, G7 and G9, and from 24 to 25 when LIB-LBRET built
+PATHS-DESIGN §2b's route-3 door and migrated `rocker`'s outline to
+the lattice, closing G12. Five stops flipped NO to YES (`plate`,
 `diefillet`, `diepips`, `tiltedcut`, `az`), `crosslap_exploded`
 stopped being a YES\* — its lift is a `Node.transform` now, not a
 hand-authored copy — and `diecomposed` went NO to YES\*. LIB-PYSEL
@@ -39,8 +41,8 @@ the Rust scene runs, with no name text read.
 
 Three of LIB-PYBUNDLE's stops did NOT flip outright, and each named
 the door it was actually waiting on rather than inheriting the one
-that closed: `rocker` (G12), `diecomposed` (G13, since closed),
-`cutaway` (G14). G12 and G14 are measured, executed refusals in
+that closed: `rocker` (G12, since closed), `diecomposed` (G13, since
+closed), `cutaway` (G14). G14 is a measured, executed refusal in
 `test_north_star.py`. G13 never was a refusal and the page never
 claimed one: the wall was CONTRACTUAL — the name text is an opaque
 identifier, so narrowing a set by reading inside it was
@@ -76,7 +78,8 @@ Everything Python can say about geometry, in full:
   each exposing only its legal continuations. The full current verb
   vocabulary: `at`, `at_on`, `angle`, `toward`, `tangent`, `turn`,
   `to`, `to_on`, `line`, `line_to`, `arc_to`, `arc_via`,
-  `arc_center`, `arc_continue`, `tangent_arc_to`, `fillet`.
+  `arc_center`, `arc_continue`, `tangent_arc_to`, `at_toward`,
+  `fillet`.
 - `SketchPlane` — the sketch plane as a VALUE: the named cyclic
   frames `xy` / `yz` / `zx` (normals +z / +x / +y), and the general
   `from_frame(origin, u, v)`. Rigidity is the kernel's own unchecked
@@ -166,7 +169,7 @@ blockers stay named in the last column.
 | 3 | `vase` | **YES** | — | — |
 | 4 | `sheave` | **YES** | — | — |
 | 5 | `chute` | **YES** | — | — |
-| 6 | `rocker` | NO | G12 | the outline's five arc-and-line corner fillets: `LoopBuilder::fillet_corner` is unbound and PATHS cannot substitute (§2b's ratified wall). Its multi-loop profile and its lattice-authored EYE now say themselves |
+| 6 | `rocker` | **YES** | — | — |
 | 7 | `diefillet` | **YES** | — | — |
 | 8 | `diepips` | **YES** | — | — |
 | 9 | `diecomposed` | **YES** | — | — |
@@ -297,14 +300,13 @@ is named too.
 | G2 | **Sweep and tube** (loft closed) | 6 | register B ("the big three") | Loft left this gap when LIB-PYG23A bound `Node.loft`. What remains is not an unbound door but two BANKED ones. **Sweep**: `wire_sweep` refuses unconditionally (`SWEEP_FRONTIER`, `editor-core/src/eval/wire.rs`) — the path-composition lane banked past M6 by the PR 10 MAJ ruling, so binding it would flip no row and un-banking is kernel-side. **Tube**: there is no `Node::Tube` at all, and adding a node kind is a schema-version break (the v3 precedent was exactly Loft/Sweep landing) whose next bump ASM-1 owns (v5, `docs/ASM-1-SPEC.md` §D-6). The tube/sweep/3-D-path tail is a design conversation: U4's measured spec, and **LQ3, ratified 2026-08-10 (#362, LIBRARY-DESIGN §L7)** — which names the discharge site rather than building it. A `geom-curves` chain→curve composition door is what would narrow `wire_sweep`'s refusal from everything to genuinely-unjoinable chains, and that un-banking is kernel-side work needing the kernel program's concurrence. Ratified direction, landed door not yet: rows 15–18 stay NO until U4's units land, and `Node::Tube`'s schema bump stays a separate coordination item with ASM's version sequence |
 | G5 | **Declared flush contact** | 2 | register B; register A **R3** (the SEL2 `UndeclaredContact` refusal-menu wiring) | `Node.boolean` grew `declare=` in LIB-PYBUNDLE — the DATA door — but nothing in Python can BUILD a declaration: `Node.declare` does not exist and the detect protocol (`find_flush_candidates` → `declare_node`) is entirely unbound, so parts that *touch* still cannot be glued from Python |
 | G8 | **Pattern + structural params** | degrades 3 | register B | No pattern node and no `SetStructuralParam` edit, so `heatsink`'s actual subject — one recipe, a count edit, memoized recompute — cannot be said. MEASURED at LIB-PYBUNDLE and deliberately left unbound: binding `Node::Pattern` would flip no row, because the heatsink's shape is a pattern UNIONED into a base and a pattern evaluates to an `Instances` payload, which the boolean's operand door refuses (`wrong_operand`, `eval/wire.rs::body_operand`). The gap is the kernel payload, not the binding; `test_the_named_gaps_are_still_gaps` executes the refusal on the one plural payload Python can already produce |
-| G12 | **Corner-fillet loop building** | 1 | register B (new); issue **#377** (the `LoopBuilder` retirement conversation) | `rocker`'s outline is five corner fillets between ARC and LINE legs, authored with `profile::LoopBuilder::fillet_corner` — a second authoring surface beside the PATHS lattice, and unbound. PATHS cannot substitute: PATHS-DESIGN §2b's third ratified wall refuses a STRAIGHT arrival off an ARC departure (`arc_carrier_spelling`), and says in as many words that the rocker's arc→line corners could not migrate on that route. So this is not a bindings omission that a day's work closes — it is the raw loop-builder surface, and binding it is a design question about having two authoring vocabularies in Python. The rocker's EYE, which IS lattice-authored, already crosses |
 | G14 | **Split across boolean-minted faces** | 1 | register B (new); issue **#380** carries the `NamingError`-`Display` diagnostic gap this refusal hides behind | KERNEL-side, and measured from Python: `Node::Split` names a cut through PASS-THROUGH faces fine (`tiltedcut` flips on it), but a plane crossing a face the boolean itself minted refuses in the naming emitter (`NodeErrorKind::Naming`). `topo::split` does the geometry — the tour's `cutaway` runs it — so the missing thing is the split emitter's coverage of boolean provenance, not a document node. A cut through a MULTI-LOOP extrude's holes names fine, so the discriminator is provenance and not section-face topology |
 
-G2, G5, G12 and G14 partition the 10 NO rows: 6 + 2 + 1 + 1 = 10,
-counted off the table above (G2: rows 10, 15–19; G5: 21, 28; G12: 6;
-G14: 31). G8 degrades three, which is what makes three rows YES\*
-rather than YES (32, 33, 34). Authorable = 21 outright + 3 YES\* =
-24, and 24 + 10 = 34.
+G2, G5 and G14 partition the 9 NO rows: 6 + 2 + 1 = 9, counted off
+the table above (G2: rows 10, 15–19; G5: 21, 28; G14: 31). G8
+degrades three, which is what makes three rows YES\* rather than YES
+(32, 33, 34). Authorable = 22 outright + 3 YES\* = 25, and
+25 + 9 = 34.
 
 Two counts in this list were off by one before LIB-PYG1 recounted
 them: G1 read 7 stops against 6 table rows, and G6 read 1 against 2.
@@ -331,6 +333,7 @@ One further gap blocks no tour scene but matters to the library:
 | G9 | **Multi-loop profiles** | LIB-PYBUNDLE | register B; `editor-core/src/node.rs` (`ProfileProgram.loops`) | `Node.profile` takes one loop OR a list of them, stubbed as an `@overload` pair, lowering through the same one seam. Validation stays kernel-side and untouched: which loop is outer, whether the holes nest, whether two loops cross is `Profile::validate`'s work, reaching Python as a typed `profile_program_refused` at `insert` (the edit door's replay probe) — the binding's only job is that the loops arrive in the order they were written. `plate` flips against a derived closed form (a rectangle less two circles, times the depth) and `az` against the scene's own exact 880383/327680. `rocker` re-partitioned to G12: its holes were never the harder half — its OUTLINE is |
 | G10 | **Named document parameters** | R1-PARAMS | register A **R1** (was "the significant one" / "highest-value single residual") — **DISCHARGED**; guide §3.2's `compile_fail` pin is now that section's passing doctest | `ParamName` and `DocParam` are curated through `pncad::document` (and the prelude), and `DocEdit.set_doc_param` is bound with them — so the parametric flagship `plate_param` is authorable façade-only (guide §3.2's doctest authors it) and its one-edit-moves-both-holes claim is executed from Python in `test_north_star.py` against the Rust rows' analytic oracle. Residue, RE-STATED now that G9 has closed (LIB-PYBUNDLE §4.4): the three-loop profile is sayable and so are the circles, so exactly ONE door still blocks authoring `plate_param` from scratch in Python — a profile step whose argument is an EXPRESSION rather than a literal. Its holes are `LoopProgram::Circle { centre, radius: Expr::param("hole_r") }`, and `pncad.circle(centre, radius)` takes a `Length`, so the radius crosses as a number and the parameter link is lost. That is G1's recorded residue, unchanged in substance and now unaccompanied: nothing else is missing. The Python test therefore still loads the document through the persistence door, pinned line-for-line by `crates/pncad/tests/all.rs` (all but the snapshot's ε line, which CI's tolerance sweep varies by design) |
 
+| G12 | **Corner-fillet loop building** | LIB-LBRET | register B; issue **#377** (the `LoopBuilder` retirement conversation, ratified on #386); `docs/PATHS-DESIGN.md` §2b (the LB10 revisit) | The wall was never a bindings omission: PATHS-DESIGN §2b's third ratified wall refused a STRAIGHT arrival off an ARC departure, so `rocker`'s outline could not migrate to the lattice in RUST either, and the raw `LoopBuilder::fillet_corner` surface it used was a second authoring vocabulary nobody wanted to bind. Route 3 (ratified on #386) gives that arrival its own door — `.at_toward(p, dx, dy)`, a sibling of `at_on`/`to_on` living in the same boundary file, so the compound `Decide + Bounds` bound stayed confined and the generic doors gained nothing. The outline then migrated under the ratified LB4/LB5 dispositions (oracle equality, not byte-identity: derived corners land 0–4 ulps off the anchors a hand author would have transcribed; the mid-arc seam RE-ANCHORS onto the keel, so the hub arc is one segment and the solid carries one fewer lateral face), and `LoopBuilder` left the `profile` crate's public API entirely for test support. `rocker` flips against the scene's own oracle: the eye is a HOLE, so the volume is the outline's prism less the eye's, and the census is the tour's exact 26 vertices / 39 edges / 15 faces at genus 1 — a far-pocket S8 pick or a lost seam vertex moves it |
 | G13 | **Selectors** | LIB-PYSEL | register B; `docs/SELECT-DESIGN.md` §§1–2; LIB-U7 (structural) + LIB-SEL1 (geometric) | The narrowing surface crosses verb for verb: `Evaluation.select` (a `Selector` union of `NamePat` role-path shapes — `SegPat` tag/group/side/sub-name prefix) and `Evaluation.select_where` (a `GeomPred` conjunction over the survivors), answering in the SAME opaque-text alphabet the materializers speak and `Node.fillet` reads — so the ordinal-28 contract is kept, not softened: name text stays an identifier, and the binding is its one licensed reader (`Selector.matches` classifies a materialized text; nothing user-side parses one). The exact/decided split crosses as TYPED structure, no boolean flattening: the kind atoms (`curve_kind`, `surface_kind`, `adjacent_kinds`) are total tag reads that cannot refuse, while `datum_distance(datum, Cmp, Length)` is the funnel-decided atom whose in-band candidate, disagreeing tied name, or unreadable candidate raises the typed `SelectRefusal` (`reason` + payload attributes) exactly as Rust's `SelectRefusal` refuses — never a silent include or drop. `diecomposed` flips YES\*→YES on the scene's own statement: `test_north_star.py::TestDiecomposed` runs the SAME two filters `lib_sel1_geoselect.rs:507-560` runs — carrier kind `Line` for the twelve box edges, `Plane`/`Sphere` adjacency for the 42 pip-rim arcs — through two in-place fillets against the closed form the Rust scene meters (V = 0.952915 m³, Steiner blank − 21·(cap + rim-torus extra), at 1e-9 relative). Deliberately NOT bound, stated: `TagPat`/`Side` are Rust constructor plumbing (`SegPat.tag`/`group`/`any` and the side-vocabulary union cover them), the kind-SET types cross as `kind | list[kind]` arguments, and SEL2's detect/declare protocol stays G5's slice |
 
 ## How to read this page next quarter
