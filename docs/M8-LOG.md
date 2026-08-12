@@ -214,3 +214,28 @@ nine ε cells pinned; #388/#389 carry the named exclusions, #389
 now also the gate's tightness scope (measured 150° cutoff).
 Remaining slate: M8-4, #214 F6/F7 riders, #382 triage, #415
 carve-out (rides the next unit) — then the M8 exit walk.
+
+**RESTING STATE (2026-08-12, usage pause — Evan's ask).** M8-14b
+(#327/PR #391) MERGED and fully recorded (row + seam PR #423
+merged; dual sample #10 tally contribution 4-of-6 recorded by LIB
+in #424 — correct by my records, no action owed). NOTHING
+IN FLIGHT: all three #391 agents completed before the pause;
+lanes curve-rec / cr-r1 / cr-r2 are pushed-clean and sweepable.
+Next work, in order: (1) #382 half-1 doc-honesty fix — branch
+kernel/382-instance-doc-honesty exists at origin/main, NO edits
+yet; the fix is instance.rs lines ~43-44 ("two solids that
+OVERLAP are a false body and tier 3 says so" is FALSE — tier-3
+checks are per-edge/local, overlapping disjoint-keyed solids
+share no edge and pass; state what the gate proves, point
+half-2 at the tier-3′/A5/C6 design), orchestrator-direct class.
+(2) M8-4 iso-derive Intersection arm — block M8-14 slot 2 (OPUS)
+already drawn pre-v4, completes as drawn; task-class field
+(numeric) logs pre-dispatch; binding spec + substrate exploration
+first per standing process. (3) #214 F6/F7 riders. (4) #415
+carve-out rides the next unit. Then the M8 EXIT WALK (needs
+Evan's closure affordance). Monitors stopped at pause; re-arm all
+four from ~/.local/share/cad-work/monitors/ (installed from
+local-scripts/monitors/ at #422's head) with the away-channel env
+in handoff-prompt-m8b.md. Open Evan-side: #409 P1–P3 scope
+question (my comment on the thread); the #388 provenance fork
+(my #391 comment states the fork + lean, unit will present it).
