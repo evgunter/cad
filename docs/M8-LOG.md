@@ -239,3 +239,5 @@ local-scripts/monitors/ at #422's head) with the away-channel env
 in handoff-prompt-m8b.md. Open Evan-side: #409 P1–P3 scope
 question (my comment on the thread); the #388 provenance fork
 (my #391 comment states the fork + lean, unit will present it).
+
+**Addendum (2026-08-12):** the pcurve-unification design conversation is filed as #427 (Evan's lean: unification; MappedCurve → provenance record; M9 design item). #388 proceeds with option (a) independently. #409 scope clarified by Evan: only the merged text is in force; P1–P3 remain proposals.
