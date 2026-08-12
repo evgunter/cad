@@ -650,12 +650,18 @@ and trims its own geometry.
   point fully determines a line carrier, so no fusion is needed
   on either side.
 - `fillet_arc(r, spec)` — line incoming, arc arrival.
-- `arc_fillet(p, spec, r)` — the fused verb: authors the arc TO
-  `p` (mode per `spec`) and fillets off it, line arrival.
-- `arc_fillet_arc(p, spec, r, spec₂)` — fused arc incoming, arc
+- `arc_fillet(spec, r)` — the fused verb: authors the incoming
+  arc (mode per `spec`) and fillets off it, line arrival.
+- `arc_fillet_arc(spec, r, spec₂)` — fused arc incoming, arc
   arrival.
-- Plain `arc_to(p, spec)` remains for SHARP-cornered arcs;
+- Plain `arc_to(spec)` remains for SHARP-cornered arcs;
   converting sharp→filleted is an edit at the same call site.
+- **The endpoint lives INSIDE the endpoint-full variants**
+  (Evan's round-8 observation, vindicating his wrap-the-args
+  instinct): once the family admits endpoint-FREE modes, `p`
+  stops being a uniform argument — so `Bulge{p, b}`,
+  `Via{q, p}`, `Center{c, w, p}` carry their target, and the
+  endpoint-free variants derive theirs.
 - Fillet-after-fillet: the leg between two fillets is a line
   (verb₁'s arrival side), so bare `fillet(r)` chains it — the
   §2 both-ends-trimmed semantics carry over.
@@ -669,9 +675,15 @@ alone for arrivals — the centre is DERIVED, never authored (a
 tangent circle at a directed point has one free length + a side
 bit).
 
-**`ArcData` (rounds 5–6): spec modes as standalone value
-types** — `Radius{r, side}`, `Bulge{b}`, `Via{q}`,
-`Center{c, winding}` — with admissibility a TRAIT MATRIX
+**`ArcData` (rounds 5–6, extended round 8): spec modes as
+standalone value types** — `Radius{r, side}`, `Bulge{p, b}`,
+`Via{q, p}`, `Center{c, winding, p}`, plus the ENDPOINT-FREE
+pair `Sweep{r, side, angle}` / `ArcLen{r, side, len}` (the arc
+analogs of `line(len)`: tangent-departing, endpoint DERIVED —
+DOF-complete from a directed start; design-admitted,
+use-case-gated: no corpus scene authors an arc by sweep today,
+so they ship when a scene wants one) — with admissibility a
+TRAIT MATRIX
 (`ArcSpecFor<State>`, the ArcTarget dispatch precedent): an
 inadmissible (state, mode) pair is a missing impl —
 unrepresentable, not refused; new modes additive. The matrix is
