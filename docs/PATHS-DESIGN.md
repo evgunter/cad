@@ -636,29 +636,40 @@ consequence reported for ratification, not an implementer's taste:
 
 Driven by Evan's observation that the compound doors (`at_on`,
 `to_on`, `at_toward`) exist to compensate for the types not
-knowing the carrier, and his follow-ups refining the arrival
-specification. Four pieces, each earning its place:
+knowing the carrier, his follow-ups refining the arrival
+specification, and his closing argument that settled the shape:
+§2's own Legs table DEFINES the fillet as the binding mode
+{tangent-both + r} — the fillet is the operation that owns both
+carriers, so the resolution belongs entirely inside the fillet
+clause. Four pieces:
 
-1. **Carrier-typed directed tips.** The directed-point states
-   gain a carrier parameter, MINTED BY THE LEG CONSTRUCTORS —
-   `line(len)`/`line_to(..)` yield a line-directed tip, the arc
-   legs an arc-directed tip. This is honesty, not surgery for
-   its own sake: the tip's DATA has always carried the carrier
-   (the fillet's trim consumes it); only the type failed to
-   admit it. Plain points are carrier-free and unchanged; the
-   lattice's four states stand — one state gains a parameter.
-2. **One `fillet(r)` verb, per-impl bounds.** `.fillet(r)` is
-   defined on each directed flavor separately; the arc-departure
-   impl carries `ArcCarrierScalar`, the line one does not.
-   Chains never touching an arc never see the bound; the LB3
-   confinement holds by construction; mis-stated carrier pairs
-   are UNREPRESENTABLE (no runtime carrier-mismatch refusal
-   exists to write).
+1. **`.fillet(r)` captures its resolver at call time.** The
+   directed tip's DATA has always carried the incoming carrier
+   (the trim consumes it — geometrically irreducible: a fillet
+   off an arc leg must touch the ARC, not its end-tangent ray).
+   `.fillet(r)` reads that data and captures the matching
+   resolver right there; the capability obligation
+   (`ArcCarrierScalar: Decide + Bounds`) sits on `.fillet`
+   ITSELF and nowhere else. No carrier parameter enters any
+   lattice type; every other operation keeps caring only about
+   the directed point before it. MEASURED (2026-08-12): the
+   bound is free in practice — every scalar that drives an
+   authoring chain (f64, Interval, Probe) implements Bounds;
+   Dual reaches profiles only by lifting lowered ProfileLoop
+   data, never through the algebra. Generic-over-T callers of
+   `.fillet` inherit the bound; that set is measured empty
+   beyond the boundary file itself.
+2. **The fillet arrival is the fillet's OWN builder type** —
+   §2 already treats it as distinct ("every fillet's freshly
+   opened arrival side"), and the Python lattice split it for
+   its own reasons. Its binders accumulate bits and fire the
+   captured resolver when complete: no bounds on them, no
+   resolution outside the fillet clause.
 3. **Uniform arrival binders.** `.at(p)` / `.angle(θ)` /
-   `.toward(dx, dy)` in either order, defined on the forked
-   arrival types in the boundary file. The §2b compound verbs
-   DISSOLVE — `at_on`, `to_on`, `at_toward` retire at the
-   re-spell (their resolve machinery is unchanged underneath).
+   `.toward(dx, dy)` in either order on the arrival builder.
+   The §2b compound verbs DISSOLVE — `at_on`, `to_on`,
+   `at_toward` retire at the re-spell (the resolve machinery
+   is unchanged underneath).
 4. **Arrival carrier = the minimal residual specification
    (RULED: radius-only for now).** Nothing further = line
    arrival (the bound directed point IS the carrier). An arc
@@ -679,6 +690,12 @@ specification. Four pieces, each earning its place:
    that record-as-you-lower and the VQ contracts rely on. Stage
    2 touches ratified §2a text and the corpus; it proceeds only
    on its own corpus-measured spec, not as a rider.
+
+(An earlier draft of this section proposed carrier-typed
+directed tips; DROPPED per Evan's round-2 challenge — the
+capture-at-fillet mechanism achieves the same confinement with
+zero type surgery, and the measurement above shows the one cost
+that typing would have avoided is empty.)
 
 Sequencing: #413 (route 3 as landed) MERGES FIRST — its door is
 review-verified and closes G12; this redesign re-spells the
