@@ -198,3 +198,19 @@ two lost-wake nudges; R2 one WRONG orchestrator TaskStop
 (mid-battery, my stale-mtime misread — interrupted row re-run
 untrusted per instruction), lesson recorded in
 memories/agent-lane-operations.md.
+
+**#327 MERGED (2026-08-12, PR #391 at 05d0a7f1, 32/32) — M8-14
+slot 1 complete; unit row M8-14b at merge (sample #10, the first
+cross-model dual).** The delta loop earned its keep twice: the
+union fix pass replaced the unsound sampling witness with a
+structural coverage certificate, and R2's delta then caught THAT
+being right in ℝ and wrong in f64 (162/2160 exact-half-circle
+promotions through a strict >0 half-plane test) — closed with a
+salient-cone margin (δ=π/6, derivation in-doc, its removal
+itself a 3-RED mutation). Circles now promote with an exact
+certificate AND a gate that measurably refuses every constructed
+non-covering form; dm1 rests on #390 (rational flux) with its
+nine ε cells pinned; #388/#389 carry the named exclusions, #389
+now also the gate's tightness scope (measured 150° cutoff).
+Remaining slate: M8-4, #214 F6/F7 riders, #382 triage, #415
+carve-out (rides the next unit) — then the M8 exit walk.
