@@ -25,8 +25,8 @@ ladder (structural / declared / typed sliver — value equality never
 glues). The declared-intent precedents: `plane_eq`'s declared rung
 (M4 F5 — *intent plus non-contradiction, never value-inferred
 coincidence*), #101 profile tangency (verified never trusted;
-constructors declare the tangency they author — `LoopBuilder::
-fillet`), and M5 S1/#140's planar declared-REST zip (conformal
+constructors declare the tangency they author — the PATHS
+`.fillet(r)` door), and M5 S1/#140's planar declared-REST zip (conformal
 patches removed as interior, seam minted once, exact volume
 additivity — the shipped precedent generalized here). The M6
 evidence: #175 findings 1–2 ("a branching G1 tube system is nothing
@@ -533,7 +533,7 @@ tubes, equal minor radius ρ, spines meeting G1 at a shared point;
 end discs exactly coincident; walls tangent along the shared
 cross-section rim (normals are the rim's radial directions — exact).
 Declarations, authored by the turtle constructor itself (the
-`LoopBuilder::fillet` precedent — the constructor knows the tangency
+PATHS `.fillet(r)` precedent — the constructor knows the tangency
 it built): planar `Rest` on the disc pair + `Tangent` on the wall
 pair along the rim. Verification: disc conformality structural;
 wall tangency definite at first order everywhere; κ_rel =

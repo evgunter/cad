@@ -723,3 +723,28 @@ Frozen head 4544922c. P2 fields: L / structural (classified
 post-draw from spec, pre-ruling dispatch — noted per my #409
 adoption).
 | ASM-2A | 2026-08-12 | InstantiatePart single-solid: leaf node + A11 cluster placements (Doc.placements, SetPlacement, improper refusal), PartResolver seam w/ kernel-owned ResolveFault, (DocRef,ε) part memo, RoleSeg::InPart via GraftKeys name bridge, walk_names doc-seam stop, schema v7 | L / structural (class post-draw, pre-#409-ruling dispatch — noted) | OPUS (block ASM-2 slot 1) | single (ordinal 31, frozen 4544922c, v4 ladder) — APPROVE-WITH-FIXES 1/4/3 rubric 4/5/4; MAJOR-1 = seam diagnosis truncation (typed cause dropped, DepthExceeded hidden); all 7 deviations survived attack incl. hard nesting runs on InPart-sans-node and the walk_names stop (traced load-bearing into persist check_id) | 0 silent (7 devs reported; pre-existing main red filed #415; walk_names seam rule = unanticipated-by-spec design finding) | 4 | 5 | 4 | substantial (typed cause chained across seams; ReferenceCycle{cycle} via DocRef descent chain + MAX_DEPTH→1024 pure insurance (Evan's #414 review); nested-counter fold; boolean_sweep inheritance w/ honest-boundary row; EvalScalar discipline-gate extension proven by planted violation; Frame axis normalization w/ 12-entry bitwise row); executor: implementer-inherited; process incident: pattern-matched kills → recorded-PID rule now standing | MERGED #414 33/0 (v7 kept — LBRET's bump had not landed at final re-merge); INSTANTIATION EXISTS: assemblies reference pinned parts, materialize through the shipped doors, refuse typed at every seam | impl ~390k + fix ~400k / review ~232k | impl ~7.6h / review ~4h / fix ~0.5h |
+LBRET review ordinal fixed at dispatch (2026-08-11, PR #413 open):
+originally claimed as 31 — DOUBLE-CLAIMED with ASM-2A, whose row
+reached MAIN first (this side's claim sat unmerged on the
+orchestrator branch: a row-sync-discipline miss, the exact
+failure the handoff's "prompt row-sync at record time" line
+warns about). RESOLVED: **LBRET = ordinal 32 → SINGLE** (both
+contested numbers are singles — duals sit at 30/33 — so the
+sampling is unaffected). Tiebreak rule REFINED by this incident:
+the ledger ON MAIN is the allocation authority; wall-clock order
+breaks ties only among claims not yet on main. Corollary
+discipline: push the claim to main (seam PR) at dispatch time,
+not at the next convenient seam. (The parallel schema-v7
+double-claim from the same window resolved LBRET→v8; see the
+unit row.)
+Reviewer: fable (v4 — singles stay fable). LBRET's row will note
+task-class was not pre-logged (dispatched before the #409
+amendment); post-hoc it is a MIXED unit (numeric door + 
+structural banishment) which under the amendment's rule records
+as numeric — noted for the analysis as classified-post-hoc.
+| LBRET | 2026-08-12 | the ratified #377/#386 retirement: route-3 door .at_toward (Step::AtToward + wire + replay + tags + Python), rocker migrated (LB4 ≤5e-16 / LB5 seam re-anchor, census 26/39/15 genus 1), LoopBuilder banished to dev-only test_support, audit G12 closed, schema v8 (the double-claim resolution) | M / task-class NOT pre-logged (dispatched pre-#409; post-hoc MIXED → records numeric per the rule, classified-post-hoc) | OPUS (block LIB-8 slot 3 — LIB-8 consumed) | single (ordinal 32 — the 31 double-claim resolved per the refined main-is-authority rule; reviewer fable; v4 ladder) — **NOT-MERGEABLE-AS-IS 1/2/2 → re-verified APPROVE** (the ladder's first LIB exercise worked as designed: MAJOR-1 = Step::AtToward's memo content-key tag 28 COLLIDED with ArcContinue's existing 28 — latent memo collision, a hit would serve wrong geometry; fix to 29 re-verified with all feed_step tags unique; the declined synthetic-collision test adjudicated SOUND — disjoint replay states + the float-prefix argument; Bounds confinement proven by running CI's allowlist gate verbatim (zero hits — the entry change is a move, reach shrank); rocker re-measured 4.484e-16 worst divergence; renders verified byte-identical to the hosted producer; MINOR-1 = schema disposition unrecorded → RULED bump, landed as v8 after the v7 double-claim with ASM-2A) | 2 reported forks (both adjudicated: the ~15-caller shim census undercount → deletion horizon; the document-layer crossing = parity, verified additive+append-only), 0 silent | 4 | 5 | 4 | the v4 re-review round: tag 29, v7→v8 re-bump (goldens/fixture header-only, SchemaTooOld + UnknownSchema rows both directions), typo; executor: implementer-inherited | MERGED #413 33/33 at the v8 head; G12 CLOSED — audit 25/34 (22+3 YES*), 9 NO (G2:6 G5:2 G14:1); LoopBuilder gone from every public surface; the retirement #377 opened is COMPLETE except the RETIRE-TAIL housekeeping | impl ~378k / review ~218k + reverify ~26k / fix ~403k + v8 ~60k | impl ~5.9h / review ~5.8h wall (one parked gap nudged) / fix+v8 fragmented across the double-claim window |
+Block LIB-9 draw (2026-08-12) — FIRST LIB v4 BLOCK (size 4):
+byte 205 (<252, accepted) mod 4 = 1 = fable's position.
+Slot 1 = RETTAIL (docs/LIB-RETTAIL-SPEC.md); pre-draw fields:
+difficulty S-M, task-class STRUCTURAL (migration/curation/
+deletion; no new numeric decision).

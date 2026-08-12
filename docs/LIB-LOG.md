@@ -526,6 +526,37 @@ oracles (finding 5), the DocParam __eq__ rider (from ordinal
 19), straight-run authoring noise (finding 7 — vocabulary
 evidence for a future design conversation, not a unit).
 
+**LBRET MERGED — G12 CLOSED, #377's retirement COMPLETE except
+RETIRE-TAIL (2026-08-12, #413 at the v8 head, ordinal-32:
+NOT-MERGEABLE-AS-IS → re-verified APPROVE — the v4 ladder's
+first LIB re-review round, and it caught a real latent defect:
+the memo content-key tag collision).** Audit 25/34; 9 NO rows
+remain (G2:6, G5:2, G14:1). Schema is v8 (the v7 double-claim
+with ASM-2A resolved; the dispatch-time-seam discipline is the
+standing fix). The #413 thread also produced the §2c
+fillet-family design conversation (PR #419, two rounds folded,
+awaiting Evan's 👍): capture-at-fillet, uniform arrival binders,
+radius-only arrival spec, ArcSpec staging — the §2b compound
+register dissolves at its re-spell unit.
+
+**Register addition (2026-08-12, Evan on #413): the LoopBuilder
+test-support shim carries a DELETION HORIZON** — the ~15 legacy
+test callers migrate to lattice/raw spellings and the shim
+deletes entirely (the twins' verification target becomes recorded
+fixtures at that point). Folded into the next housekeeping unit;
+this line is the register entry so it cannot silently persist.
+
+**RULED (Evan, #413, 2026-08-12): raw ProfileLoop construction
+DEMOTES from the presented surface** ("yes we should demote
+ProfileLoop"; his framing: kernel vocabulary should be private,
+and the broken-on-purpose bowtie cannot justify a public
+authoring tier). One housekeeping unit (LIB-RETIRE-TAIL)
+combines: the demotion (construction out of prelude/curated
+surface; TYPES stay nameable for read-back/error payloads),
+bowtie re-homed to a validation-suite fixture, shim stragglers
+migrated, shim DELETED, SWITCH-fence sentence amended citing the
+ruling. Dispatches after #413 closes.
+
 **PYSEL MERGED — G13 CLOSED (2026-08-11, #393, ordinal-29
 APPROVE-WITH-FIXES 0/2/4).** The selector surface crosses to
 Python (trilean discipline intact, zero name-text parsing);

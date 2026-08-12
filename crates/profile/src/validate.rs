@@ -64,7 +64,7 @@
 //! | `ray_advance` | ray parameter | direct |
 //! | `loop_orientation` | 2·area/perimeter (sliver width) | half-perimeter (area → meters) |
 //! | `canonical_order_x` / `_y` | coordinate difference | exact-order band (see below) |
-//! | `fillet_leg_fit` | leg length − tangent setback | exact-order band; fired in [`crate::LoopBuilder::fillet`], not here |
+//! | `fillet_leg_fit` | leg length − tangent setback | exact-order band; fired in the fillet CONSTRUCTORS, not here |
 //! | `fillet_leg_reach` | tangent setback from the corner | exact-order band; the constructor's corner-side extent test (M5 S2) |
 //! | `fillet_corner_arm` | min leg lever arm | linear band; the collapsed-arm gate (M5 S2) |
 //! | `fillet_corner_turn` | sin φ · arm | linear band; φ the corner's turn, arm = min(leg extents, leg carrier radii) |
@@ -73,7 +73,7 @@
 //! | `fillet_offset_circles_internal` | d − \|\|ρ₁\|−\|ρ₂\|\| | linear band; offset-carrier intersection (M5 S2) |
 //!
 //! The six `fillet_*` rows above the line fire in
-//! [`crate::LoopBuilder::fillet_corner`] (construction sugar's one
+//! the arc-carrier fillet construction (construction sugar's one
 //! documented decision site), never in validation; the two exact-order
 //! rows are order/extent decisions on the same footing as
 //! `canonical_order_*` and are excluded from the K lint's ratio rules
@@ -163,8 +163,8 @@ pub enum EscalationSite {
         /// Index of the loop in [`Profile::loops`].
         loop_index: usize,
     },
-    /// While constructing a fillet corner ([`crate::LoopBuilder::fillet`]
-    /// / [`crate::LoopBuilder::fillet_corner`] — the only decisions
+    /// While constructing a fillet corner (the `sugar` trim helpers
+    /// behind the PATHS `.fillet(r)` door — the only decisions
     /// construction sugar takes: the leg-fit and corner-side extent
     /// gates against the exact-order band, and, on the arc-leg path, the
     /// lever-arm, corner-turn and offset-carrier gates against the run's
@@ -283,7 +283,7 @@ impl fmt::Display for NoCornerReason {
 /// in-band, and the margin rides the payload as data.
 const FILLET_TANGENT_CORNER_RECOURSE: &str = "there is no corner to round — the legs already run into each other tangentially at any \
      precision you could care about; keep the legs and declare the tangency \
-     (LoopBuilder::declare_tangent), or move the geometry so a corner exists (or lower the \
+     (the joint's index in the loop's tangent_joints), or move the geometry so a corner exists (or lower the \
      tolerance)";
 
 /// The recourse for a **reverse**-tangent corner: the legs double back
@@ -312,7 +312,7 @@ const FILLET_CUSP_CORNER_RECOURSE: &str = "there is no corner to round and no ta
 /// the escalation declined to decide.
 const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any precision you could care about, and which kind is below \
      the tolerance: if the legs run smoothly into each other, keep them and declare the \
-     tangency (LoopBuilder::declare_tangent); if they double back, that is a cusp and the \
+     tangency (the joint's index in the loop's tangent_joints); if they double back, that is a cusp and the \
      kernel refuses it (#131); otherwise move the geometry so a real corner exists (or lower \
      the tolerance)";
 
@@ -388,8 +388,7 @@ pub enum ProfileError {
     /// straight leg, the arc length `R·Δθ` back from the corner on a
     /// circular one), so the arc would never approach the corner the
     /// caller asked to round — refused at construction
-    /// ([`crate::LoopBuilder::fillet`] /
-    /// [`crate::LoopBuilder::fillet_corner`]; the constructor-door
+    /// (the fillet constructors behind `.fillet(r)`; the constructor-door
     /// sibling of `TangentJointOutOfRange`: the tangent joint the
     /// radius determines is out of the leg's range).
     FilletDoesNotFit {
@@ -662,7 +661,7 @@ impl fmt::Display for ProfileError {
                         "joint {joint} between {first} and {second} is declared tangent, \
                          but the carriers definitely meet transversally — remove the \
                          declaration or make the tangency exact \
-                         (LoopBuilder::fillet computes it); declared tangency is \
+                         (the PATHS .fillet(r) door computes it); declared tangency is \
                          verified, never trusted"
                     )
                 }
@@ -707,8 +706,8 @@ impl fmt::Display for ProfileError {
                     );
                 if near_tangency {
                     f.write_str(
-                        " — near-tangency: LoopBuilder::fillet computes and declares \
-                         an exact tangency (declared tangency is verified)",
+                        " — near-tangency: the PATHS .fillet(r) door computes and \
+                         declares an exact tangency (declared tangency is verified)",
                     )?;
                 }
                 // The fillet constructor's riders (M5 S2): each in-band
@@ -1207,9 +1206,8 @@ fn judge_joints<T: Decide>(
                     joint,
                     suggestion: format!(
                         "{COINCIDENCE_RECOURSE} (declare: add {joint} to loop \
-                         {loop_index}'s tangent_joints — LoopBuilder::declare_tangent — \
-                         or author the arc with LoopBuilder::fillet, which declares by \
-                         construction)"
+                         {loop_index}'s tangent_joints, or author the corner with the \
+                         PATHS .fillet(r) door, which declares by construction)"
                     ),
                 });
             }

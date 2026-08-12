@@ -13,7 +13,7 @@
 //! 1. **Numbers and frames** — points, vectors, transforms,
 //!    tolerance, the decision `Band`, and the f64-first constructors
 //!    from [`crate::authoring`] so no literal needs `from_f64`.
-//! 2. **Author a profile** — loops, sketch planes, `LoopBuilder`.
+//! 2. **Author a profile** — the PATHS lattice, loops, sketch planes.
 //! 3. **Build a body** — extrude, revolve, loft/sweep, fillet.
 //! 4. **Combine** — the Boolean operations and their declarations.
 //! 5. **Validate** — tiers 1→2→3, the ladder as the journey.
@@ -54,8 +54,8 @@ pub use quantity::{
 
 // --- 2. Profile authoring -------------------------------------
 pub use profile::{
-    ArcSweep, FilletLegShape, LoopBuilder, Profile, ProfileError, ProfileLoop, ProfileVertex,
-    SegmentKind, SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
+    ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
+    SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
 // The PATHS authoring algebra (LIB-U2), with the LIB-G1 vocabulary
 // growth: `circle` (the one-step closed-carrier program form) and the

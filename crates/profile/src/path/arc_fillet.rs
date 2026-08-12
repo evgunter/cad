@@ -62,7 +62,7 @@ use super::program::{ClosedLoop, Step};
 use super::{
     ArcData, Core, Dir, FirstSeg, HasAng, HasPos, Incoming, NoAng, NoPos, Open, PartialPath,
     PathError, PathNoCornerReason, PendingFillet, Plain, PosData, Start, Tip, in_state,
-    junction_check, linear_band,
+    junction_check, linear_band, unit_from_components,
 };
 use crate::fillet_select::nearest_joint;
 use crate::k_stats::decide;
@@ -689,6 +689,91 @@ impl<T: Decide + Bounds> PartialPath<T, NoPos, NoAng> {
                     at: p,
                     incoming: None,
                     on: Some((centre, winding)),
+                }),
+                ang: Some(dir),
+                ang_by_tangent: false,
+            },
+        ))
+    }
+}
+
+impl<T: Decide + Bounds> PartialPath<T, NoPos, NoAng> {
+    /// **LB10 route 3** — the STRAIGHT fillet arrival off a departure
+    /// bound on an ARC carrier: binds the arrival side's anchor `p` AND
+    /// its direction from exact components, then resolves the fillet
+    /// eagerly, as every arrival binder does.
+    ///
+    /// This is `.at(p).toward(dx, dy)`'s arc-departure sibling, and it
+    /// is ONE act for a mechanism reason rather than a geometric one:
+    /// resolving against a circular departure runs the lifted S8 ladder,
+    /// which reads the diagnostic channel, so the door carries
+    /// [`ArcCarrierScalar`]'s compound bound — and the §2b register
+    /// confines that bound to this file, which the generic
+    /// `.at`/`.toward` doors are not part of. Splitting the act would
+    /// put the resolution back in `path.rs` and propagate `Bounds` to
+    /// every PATHS caller; binding both slots here keeps that
+    /// propagation at zero, exactly as `.at_on` does for the
+    /// carrier-bound arrival.
+    ///
+    /// Only the components' RATIO is read: the unit ray is stored
+    /// verbatim, so the arrival carrier never makes a trig round-trip
+    /// (the §2a exact-director rule, unchanged). The tip returned is
+    /// Directed at `p` with NO carrier, so the side runs straight from
+    /// the fillet's tangent point, past `p`, into whatever trims it
+    /// next — emitted by that next leg, exactly as a straight arrival's
+    /// run always is.
+    ///
+    /// # Errors
+    ///
+    /// [`PathError::ArcCarrierSpelling`] when the departure is straight
+    /// (a straight pair is `path.rs`'s bracket-free business: write
+    /// `.at(p).toward(dx, dy)`), [`PathError::ZeroDirection`] for
+    /// components naming no direction, and otherwise the arrival
+    /// refusals: no derived corner, an anchor the trim would eat, an
+    /// escalation.
+    pub fn at_toward(
+        mut self,
+        p: Point2<T>,
+        dx: T,
+        dy: T,
+    ) -> Result<PartialPath<T, HasPos<Plain>, HasAng>, PathError<T>> {
+        self.core.record(Step::AtToward { p, dx, dy });
+        let dir = unit_from_components(dx, dy)?;
+        let pending = self
+            .core
+            .pending
+            .take()
+            .ok_or(PathError::OverdeterminedJunction {
+                site: "straight fillet arrival without an opened fillet",
+            })?;
+        if pending.carrier.is_none() {
+            return Err(PathError::ArcCarrierSpelling {
+                site: "a fillet departing on a STRAIGHT side binds a straight arrival with \
+                       .at(p).toward(dx, dy) (or .at(p).angle(θ)) — .at_toward is the \
+                       arc-departure door",
+            });
+        }
+        let trims = resolve(
+            departure_side(&pending),
+            FilletSide {
+                anchor: p,
+                carrier: SideCarrier::Ray(dir.unit),
+            },
+            pending.radius,
+            Tolerance::get(),
+        )?;
+        self.core.emit_fillet_in(&trims)?;
+        // The continuation rides the arrival RAY from `t2` by
+        // construction, so that joint IS a constructed tangency —
+        // `ArrivalKind::Continues`' rule, unchanged.
+        self.core.emit_fillet_arc(&trims, true)?;
+        Ok(in_state(
+            self.core,
+            Tip {
+                pos: Some(PosData {
+                    at: p,
+                    incoming: None,
+                    on: None,
                 }),
                 ang: Some(dir),
                 ang_by_tangent: false,

@@ -173,3 +173,14 @@ low_faces: list[str] = ev.select_where(
     Selector.of(NamePat.of_kind(EntityKind.Face)),
     [GeomPred.surface_kind(SurfaceKind.Plane), near_cutter],
 )
+
+# §2b route 3: a STRAIGHT arrival off a departure bound on an arc
+# carrier — anchor and exact director in one act.
+carrier_corner = (
+    Open.at_on((5 * m, 0 * m), (0 * m, 0 * m), ArcSweep.Ccw)
+    .fillet(0.5 * m)
+    .at_toward((0 * m, 3 * m), -1.0, 0.0)
+    .line(3 * m)
+    .line_to(Start)
+)
+carrier_corner_vertices: int = carrier_corner.vertex_count
