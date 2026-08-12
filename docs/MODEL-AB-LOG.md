@@ -713,10 +713,20 @@ Mixed units take the class of the part that carries the risk; if that is
 genuinely ambiguous, record `numeric`. Logged pre-draw for the same
 reason difficulty is: assigning it after the fact, from the review
 narrative, would let the label absorb the outcome.
-LBRET review ordinal fixed at dispatch (2026-08-11, PR #413 open,
-reviewed head = the 33/33-green fix head): claimed through 30
-(M8's #327 cross-model dual, #405) + 1 = **31 → SINGLE** (33 is
-the next third, taking the banked same-model twin per #405).
+LBRET review ordinal fixed at dispatch (2026-08-11, PR #413 open):
+originally claimed as 31 — DOUBLE-CLAIMED with ASM-2A, whose row
+reached MAIN first (this side's claim sat unmerged on the
+orchestrator branch: a row-sync-discipline miss, the exact
+failure the handoff's "prompt row-sync at record time" line
+warns about). RESOLVED: **LBRET = ordinal 32 → SINGLE** (both
+contested numbers are singles — duals sit at 30/33 — so the
+sampling is unaffected). Tiebreak rule REFINED by this incident:
+the ledger ON MAIN is the allocation authority; wall-clock order
+breaks ties only among claims not yet on main. Corollary
+discipline: push the claim to main (seam PR) at dispatch time,
+not at the next convenient seam. (The parallel schema-v7
+double-claim from the same window resolved LBRET→v8; see the
+unit row.)
 Reviewer: fable (v4 — singles stay fable). LBRET's row will note
 task-class was not pre-logged (dispatched before the #409
 amendment); post-hoc it is a MIXED unit (numeric door + 
