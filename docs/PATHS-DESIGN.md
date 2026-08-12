@@ -726,10 +726,8 @@ RECEIVED tip of unknown leg kind cannot be written — the caller
 names the verb (explicitness, arguably a feature; the jet
 design of rounds 3–4 would have allowed it and was DROPPED with
 the fusion reframe); (b) the verb inventory is four fillet
-forms + two plain legs, kept tidy by ArcData; (c) the
-NURBS-adjacent fillet refusal (`FilletCarrierUnsupported`)
-stands unchanged — no fused NURBS verb exists because the trim
-has no closed form (solver-free algebra).
+forms + two plain legs, kept tidy by ArcData; (c) SUPERSEDED by
+round 10, below.
 
 **Superseded en route (the record of the conversation):**
 carrier-typed tips (round 2 — capture-at-fillet made them
@@ -739,6 +737,22 @@ with the arc authored inside the verb there is nothing to
 capture and nothing second-order to carry). `at_on`, `to_on`,
 `at_toward` all dissolve at the re-spell; the §2b register and
 the §2/§3 fillet text rewrite at that unit.
+
+**Round 10 (Evan): `FilletCarrierUnsupported` RETIRES.** The
+incoming contact of bare `fillet(r)` lies on the tangent ray
+AHEAD of the directed point, as new path (latent in §2's own
+anchoring: the corner is the carrier INTERSECTION; behind-the-
+ray-start refuses) — so after a NURBS leg the surviving ray
+piece is a GENUINE LINE LEG extending from the curve's end,
+lowered and recorded as such; no refusal, no special case. The
+same semantics after a sharp `arc_to`: ray extension off the
+arc's end. The system's whole shape: **contact ON the carrier ⇔
+the fused verb** (`arc_fillet`; a `nurbs_fillet` has no closed
+form and is an ABSENT VERB — unrepresentable, strictly better
+doctrine than the old typed wall); **bare `fillet` ⇔ tangent-ray
+extension**, uniform across line/arc/NURBS incomings. The one
+surviving refusal is `NoCornerForFillet` (parallel carriers /
+intersection behind the ray start) — geometry, not mechanism.
 
 Sequencing: #413 (route 3 as landed) is MERGED; this redesign
 re-spells the surface on top of the same resolution machinery
