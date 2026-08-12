@@ -53,46 +53,38 @@ const WILD_IMPORTS: [&str; 9] = [
 /// contract being pinned. Each entry is the fixture and the substring
 /// its message must carry — the class, not the prose.
 const WILD_REFUSALS: [(&str, &str); 4] = [
-    // **The instancing refusal is gone (M8); this row now pins what
-    // was BEHIND it.** dm1 is a seven-instance assembly (l-bracket +
-    // 3 bolts + 3 nuts: 3 breps named by 7 `NEXT_ASSEMBLY_USAGE_
-    // OCCURRENCE`s through 7 per-component
-    // `ITEM_DEFINED_TRANSFORMATION`s), and the M7-4 Leg D refusal at
-    // the second differing map (#186, bolt_4) was the file's LAST
-    // structural obstacle — every one of the seven now materializes
-    // under its own frame. The refusal that surfaced behind it is a
-    // GEOMETRY one, and it is not a regression: the placement layer
-    // used to run BEFORE assembly, so no edge of this file had ever
-    // reached the D7 adoption ladder.
+    // **Two refusals retired under this row, and it is still a
+    // refusal.** The M7-4 Leg D instancing gate went in M8 (all seven
+    // occurrences materialize under their own frames); the D7 ladder's
+    // edge #685 went in #327 — its carrier is a rational quadratic
+    // that IS a circle (deg 2, 7 points, weights `1, ½, …`, the 3×120°
+    // form, r = 5 mm), stage-1 curve recognition certifies it against
+    // an EXACT ring-composite bound and promotes it to `Curve3::Circle`,
+    // and the existing arc-rim rungs (`arc_rim_on_wall_boundary` +
+    // `RevolvedPoint` at the full period) carry it. Every edge of
+    // every instance now adopts and every pcurve mints and certifies.
     //
-    // What the ladder finds, measured on this branch: M7-6 promoted
-    // dm1's 17 plane-class patches to certified Planes (residual 0.0)
-    // and honestly DECLINED its 7 rational cylinders (the whole-patch
-    // envelope does not certify them, and no promotion happens without
-    // a whole-patch certificate). A stay-NURBS cylinder's own
-    // parameterization seam is now describable — the `IsoCurve` rung,
-    // widened in M8 to the one-wall case, certifies it as the patch's
-    // `u = 0` column, which is what carried the ladder past edge #668
-    // — but its circular RIM is not: the file states that rim as a
-    // rational quadratic B-spline between a promoted cap Plane and the
-    // stay-NURBS wall, and no rung certifies a NURBS carrier there
-    // (`Intersection` fails transversality on the tangency;
-    // `TangentIntersection` reports NURBS × NURBS has no certificate;
-    // the conventional rung has no mapped self-description for a NURBS
-    // carrier). The first such edge is #685. Retiring THAT distance is
-    // stage-1 CURVE recognition (a rational quadratic that is exactly
-    // a circle), which is its own unit and its own certificate — not
-    // something to guess here.
+    // What refuses now is the SHARED AT-REST GATE, on the file's
+    // rational cylinder walls: `VolumeUncomputable` /
+    // `QuadratureBudget` — the exact-B-rep volume enclosure stalls at
+    // a mean boundary displacement of ~2.7·10⁻⁴ m against a 1.024·10⁻⁶
+    // m target. That is the **banked rational-patch-flux lane** this
+    // crate's own docs name ("Arc-bearing profiles export and read,
+    // but their rational walls have no volume quadrature yet"), it is
+    // the same lane a NATIVELY built rational-walled loft refuses on,
+    // and import refuses it for exactly the reason the crate promises
+    // to: an imported body is held to the same tiers, by the same
+    // function, as a native one. Retiring THAT is its own unit.
     //
-    // **The fragment carries the ladder's first NAMED candidate**, not
-    // just its preamble (R1 NOTE-1): the preamble alone also matches a
-    // ladder that reported ZERO attempts — the gap shape edge #668 had
-    // before the one-wall `IsoCurve` rung — so pinning it would leave
-    // this row green on a regression that turned a refusal back into a
-    // gap. "certifies — intersection:" cannot: it says the ladder had
-    // a candidate, tried it, and named it. Still the class and not the
-    // prose — no residual, no entity id, no sub-reason.
-    ("stepcode/dm1-id-214.stp", "certifies — intersection:"),
+    // **The fragment carries the stalled quadrature by name**, not the
+    // gate's preamble: the preamble alone would also match a tier-1/2
+    // structural verdict, which would be a regression rather than the
+    // banked lane. Still the class and not the prose — no widths, no
+    // face key.
+    (
+        "stepcode/dm1-id-214.stp",
+        "the certified quadrature enclosure stalled at",
+    ),
     // A spline-carried edge between analytic surfaces: the file's
     // geometry is inside the subset entity by entity, and the D7
     // ladder still cannot certify any intensional description for the
@@ -477,6 +469,22 @@ fn wild_refusals_are_typed_and_name_their_class() {
             .err()
             .unwrap_or_else(|| panic!("{name}: this fixture must refuse"));
         let message = err.to_string();
+        // **dm1 is ε-SENSITIVE since #327** (`tier_gate.rs` pins all
+        // nine cells; this row states the same two-cell fact). At the
+        // fine ambient bands the frontier is the rational-flux stall
+        // the row records; at ambient 1e-6 the ladder stops earlier,
+        // on edge `#389` — a two-point `QUASI_UNIFORM_CURVE` polyline
+        // that stays NURBS and is offered zero candidates. That edge
+        // was masked behind #685 at every band until #327 retired
+        // #685, so the coarse cell is a pre-existing gap newly
+        // exposed. Both fragments are the SUB-REASON, never the
+        // shared preamble, so neither cell can go green on the other
+        // one's regression.
+        let class = if name.contains("dm1-id-214") && geom_core::Tolerance::get().eps > 1e-9 {
+            "edge #389: no intensional description certifies"
+        } else {
+            class
+        };
         assert!(
             message.contains(class),
             "{name}: refusal must name {class:?}, got: {message}"
@@ -490,6 +498,15 @@ fn wild_refusals_are_typed_and_name_their_class() {
             | StepImportError::Adoption { id, .. }
             | StepImportError::Structure { id, .. }
             | StepImportError::UnsupportedUnit { id, .. } => *id > 0,
+            // The shared at-rest gate's verdict names the
+            // `MANIFOLD_SOLID_BREP` it was asked about, and each
+            // verdict inside names the kernel entity it is about —
+            // the same "go and look at it" obligation, one layer in
+            // (dm1 since #327: its D7 half is retired and what refuses
+            // is the banked rational-patch-flux lane).
+            StepImportError::TierInvalid { solid, errors } => {
+                solid.is_some_and(|id| id > 0) && !errors.is_empty()
+            }
             other => panic!("{name}: unexpected refusal kind: {other:?}"),
         };
         assert!(names_something, "{name}: the refusal must name an entity");

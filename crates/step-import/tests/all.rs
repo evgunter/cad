@@ -33,6 +33,8 @@
 
 #[path = "corpus_fold.rs"]
 mod corpus_fold;
+#[path = "curve_promotion_report.rs"]
+mod curve_promotion_report;
 #[path = "freecad.rs"]
 mod freecad;
 #[path = "inst_review_probes.rs"]

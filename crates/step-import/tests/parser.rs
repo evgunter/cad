@@ -19,7 +19,7 @@ use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 fn nurbs_wireframe_disposition() {
     let text = fixture("nurbs_wireframe", "step");
     let import = import_step(&text, &ImportOptions::default()).expect("the wireframe imports");
-    let StepImport::Wireframe { curves, eps_in } = import else {
+    let StepImport::Wireframe { curves, eps_in, .. } = import else {
         panic!("a curve-only file must take the wireframe disposition, not claim a body");
     };
     assert_eq!(eps_in, 1e-9, "the file's declared uncertainty");
