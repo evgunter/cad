@@ -777,3 +777,12 @@ U4B review ordinal fixed at dispatch (2026-08-12, PR #440 open):
 claimed through 34 (ASM-2B) + 1 = **35 → SINGLE** (36 is the
 next third — the NEXT dual block of two {same, cross} draws at
 its claim). Reviewer fable.
+U4A-DOOR review ordinal fixed at dispatch (2026-08-12, PR #442
+open, frozen head 5f774e29): claimed through 35 + 1 = **36 → a
+third → DUAL (sample #12)**. SECOND v4 dual block drawn: byte 75,
+parity 1 → CROSS-MODEL first (the #405 parity mapping) — R1
+fable + R2 OPUS concurrent same-head; the same-model twin banks
+for ordinal 39. Process note banked from the unit: a
+workspace-wide test held the width-1 mutex ~4h10m (the killed
+U4B orphan) — max-hold enforcement for the slot mutex is an
+unowned infra pickup, recorded here.
