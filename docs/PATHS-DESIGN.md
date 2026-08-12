@@ -694,7 +694,20 @@ the delegation alternative (typed methods calling through the
 driver) was considered and rejected: it needs an unreachable!()
 where the statically-known state meets the enum return, a
 runtime assertion standing where the types should speak.
-Mechanism details (table syntax, emission vocabulary, module
+Spelling freedom (round 14, Evan's trait suggestion): the
+REQUIREMENT is the invariant — every transition declared exactly
+once, all projections (typed method, driver arm, Step variant,
+tag) mechanically derived, drift unwritable. TWO spellings
+satisfy it: (a) the table-macro generating all four artifacts;
+(b) rows as ordinary trait impls (`impl Apply<Verb> for State`,
+one per row, calling the kernel fn — rustdoc-visible, consistent
+with the ArcSpecFor admissibility impls) plus a SLIM macro for
+only the enum-side projections, which Rust cannot derive from
+impls (no reflection — without that step the enum match is
+hand-written and the drift point quietly returns). The re-spell
+unit's spec chooses with the code in front of it; lean (b) if
+the generic impls stay clean across the flavored states.
+Mechanism details (row/table syntax, emission vocabulary, module
 seam) to the re-spell unit's spec.
 
 **The family (line is the unmarked middle-position default):**
