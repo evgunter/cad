@@ -168,3 +168,49 @@ third NOT-MERGEABLE-AS-IS, and taught the ε-row lesson four more
 times. Remaining slate: #327 (dispatching now), M8-4 (scope
 tightened to the one collapsed gap), the #214 riders, #382 triage
 — then the M8 exit walk.
+
+**#327 dual reviews returned (2026-08-12, sample #10 — the FIRST
+cross-model dual: R1 fable, R2 opus, concurrent on frozen
+a8995926).** Both NOT-MERGEABLE-AS-IS (the project's fourth and
+fifth): R1 2/3/4, R2 3/3/4. STRONG CONVERGENCE on the round's
+substance, found by execution from two independent constructions:
+the CIRCLE promotion's turning witness does not gate — R1's
+one-third closed carrier (0→120°→0) and R2's doubled-back form
+(0→300°→0) both sit exactly on-locus and silently PROMOTE to the
+full-period circle with ~1e-17 certified residuals (R1's mechanism
+read: the wrap loop forces every increment positive, so only
+exactly-equal azimuths refuse). Converged too: C6 (the witness's
+one pin) is vacuous — off-locus carrier, dies at the certificate,
+green for the WRONG REASON (the recurring class, now on a
+coverage pin); deleting the witness outright survives the whole
+suite; `curve_promotions` has zero readers. Diverged tails: R1
+executed INV-C1-inverted surviving; R2 measured the dm1
+ambient-1e-12 import cost cliff (5.3 s → >540 s/import) and
+re-derived both INVs by hand as sound. Everything else held:
+certificate locus half sound (~3× conservative), five pcurve
+fixes reduce exactly to the old expressions on built walls, dm1
+census honest. UNION FIX PASS dispatched to the implementer
+(2026-08-12); both probe suites to be adopted red-then-green;
+delta re-verify of the MAJOR fixes before merge. Row at merge.
+Executor annotations for the row: R1 usage-limit kill + resume,
+one background-suite-row brief deviation (results checkable),
+two lost-wake nudges; R2 one WRONG orchestrator TaskStop
+(mid-battery, my stale-mtime misread — interrupted row re-run
+untrusted per instruction), lesson recorded in
+memories/agent-lane-operations.md.
+
+**#327 MERGED (2026-08-12, PR #391 at 05d0a7f1, 32/32) — M8-14
+slot 1 complete; unit row M8-14b at merge (sample #10, the first
+cross-model dual).** The delta loop earned its keep twice: the
+union fix pass replaced the unsound sampling witness with a
+structural coverage certificate, and R2's delta then caught THAT
+being right in ℝ and wrong in f64 (162/2160 exact-half-circle
+promotions through a strict >0 half-plane test) — closed with a
+salient-cone margin (δ=π/6, derivation in-doc, its removal
+itself a 3-RED mutation). Circles now promote with an exact
+certificate AND a gate that measurably refuses every constructed
+non-covering form; dm1 rests on #390 (rational flux) with its
+nine ε cells pinned; #388/#389 carry the named exclusions, #389
+now also the gate's tightness scope (measured 150° cutoff).
+Remaining slate: M8-4, #214 F6/F7 riders, #382 triage, #415
+carve-out (rides the next unit) — then the M8 exit walk.
