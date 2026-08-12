@@ -544,7 +544,11 @@ owed to users as a promise; not run at load, ever (clean break).
   kernel-direct and never persisted, so nothing ever needed raw
   authoring to record (the corpus clean-break confirmed this —
   its raw census went to circle_split/declared-subdivision or
-  stayed kernel-layer). Raw `ProfileLoop` DATA
+  stayed kernel-layer). **EXECUTED (LIB-LBRET):** `LoopBuilder` and
+  its `close_*` family now live in `crates/profile/src/test_support.rs`
+  behind a `test-support` feature that only dev-dependencies enable —
+  no `src/` in the workspace names it, and the differential twins go on
+  verifying the lattice against it unchanged. Raw `ProfileLoop` DATA
   (`polygon`/`new` — the bowtie) remains kernel vocabulary; it
   never was LoopBuilder. The handful of cross-crate TEST
   consumers (step-export fixtures, mesh, k-lint litmus) migrate

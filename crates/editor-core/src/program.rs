@@ -73,6 +73,17 @@ pub enum ProgramStep {
         /// Travel sense (structural).
         winding: ArcSweep,
     },
+    /// **LB10 route 3** `.at_toward(p, dx, dy)` — a STRAIGHT fillet
+    /// arrival off an arc-carrier departure: anchor and exact director
+    /// in one act.
+    AtToward {
+        /// The arrival side's anchor.
+        p: [Expr; 2],
+        /// x component (Scalar, ratio-only).
+        dx: Expr,
+        /// y component (Scalar, ratio-only).
+        dy: Expr,
+    },
     /// `.angle(θ)` (radians).
     Angle(Expr),
     /// **G1** `.toward(dx, dy)` — exact components, ratio-only.
@@ -313,6 +324,7 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
     match step {
         P::At(_) | P::FarEndTo(_) => out.extend([A::PointX, A::PointY]),
         P::AtOn { .. } => out.extend([A::PointX, A::PointY, A::CenterX, A::CenterY]),
+        P::AtToward { .. } => out.extend([A::PointX, A::PointY, A::DirX, A::DirY]),
         P::Angle(_) => out.push(A::AngleVal),
         P::Toward { .. } => out.extend([A::DirX, A::DirY]),
         P::Tangent | P::CloseTo => {}
@@ -348,8 +360,12 @@ macro_rules! step_arg_access {
             (P::At(p), A::PointY) | (P::FarEndTo(p), A::PointY) => Some($($ref_kw)* p[1]),
             (P::ArcContinue(p), A::TargetX) => Some($($ref_kw)* p[0]),
             (P::ArcContinue(p), A::TargetY) => Some($($ref_kw)* p[1]),
-            (P::AtOn { p, .. }, A::PointX) => Some($($ref_kw)* p[0]),
-            (P::AtOn { p, .. }, A::PointY) => Some($($ref_kw)* p[1]),
+            (P::AtOn { p, .. }, A::PointX) | (P::AtToward { p, .. }, A::PointX) => {
+                Some($($ref_kw)* p[0])
+            }
+            (P::AtOn { p, .. }, A::PointY) | (P::AtToward { p, .. }, A::PointY) => {
+                Some($($ref_kw)* p[1])
+            }
             (P::AtOn { centre, .. }, A::CenterX)
             | (P::ArcCenter { centre, .. }, A::CenterX)
             | (P::CloseToOn { centre, .. }, A::CenterX) => Some($($ref_kw)* centre[0]),
@@ -357,8 +373,8 @@ macro_rules! step_arg_access {
             | (P::ArcCenter { centre, .. }, A::CenterY)
             | (P::CloseToOn { centre, .. }, A::CenterY) => Some($($ref_kw)* centre[1]),
             (P::Angle(e), A::AngleVal) => Some(e),
-            (P::Toward { dx, .. }, A::DirX) => Some(dx),
-            (P::Toward { dy, .. }, A::DirY) => Some(dy),
+            (P::Toward { dx, .. }, A::DirX) | (P::AtToward { dx, .. }, A::DirX) => Some(dx),
+            (P::Toward { dy, .. }, A::DirY) | (P::AtToward { dy, .. }, A::DirY) => Some(dy),
             (P::Turn(e), A::TurnVal) => Some(e),
             (P::Line(e), A::Length) => Some(e),
             (P::LineTo(ProgramTarget::Point(p)), A::TargetX)
@@ -531,6 +547,11 @@ fn res_step(
             p: pt(p, A::PointX, A::PointY)?,
             centre: pt(centre, A::CenterX, A::CenterY)?,
             winding: *winding,
+        },
+        ProgramStep::AtToward { p, dx, dy } => Step::AtToward {
+            p: pt(p, A::PointX, A::PointY)?,
+            dx: res(dx, env, loop_, i, A::DirX)?,
+            dy: res(dy, env, loop_, i, A::DirY)?,
         },
         ProgramStep::Angle(e) => Step::Angle(res(e, env, loop_, i, A::AngleVal)?),
         ProgramStep::Toward { dx, dy } => Step::Toward {
@@ -775,6 +796,18 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
         (P::Toward { dx: xa, dy: ya }, P::Toward { dx: xb, dy: yb }) => {
             xa.bit_eq(xb) && ya.bit_eq(yb)
         }
+        (
+            P::AtToward {
+                p: pa,
+                dx: xa,
+                dy: ya,
+            },
+            P::AtToward {
+                p: pb,
+                dx: xb,
+                dy: yb,
+            },
+        ) => pair_bit_eq(pa, pb) && xa.bit_eq(xb) && ya.bit_eq(yb),
         (P::Tangent, P::Tangent) | (P::CloseTo, P::CloseTo) => true,
         (P::LineTo(x), P::LineTo(y)) | (P::TangentArcTo(x), P::TangentArcTo(y)) => {
             target_bit_eq(x, y)
@@ -1019,6 +1052,11 @@ impl LoopProgram {
                     p: pt_lit(p)?,
                     centre: pt_lit(centre)?,
                     winding: *winding,
+                },
+                Step::AtToward { p, dx, dy } => ProgramStep::AtToward {
+                    p: pt_lit(p)?,
+                    dx: scalar_lit(*dx)?,
+                    dy: scalar_lit(*dy)?,
                 },
                 Step::Angle(theta) => ProgramStep::Angle(ang_lit(*theta)?),
                 Step::Toward { dx, dy } => ProgramStep::Toward {

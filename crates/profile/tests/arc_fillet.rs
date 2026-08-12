@@ -588,7 +588,7 @@ fn an_already_tangent_corner_asks_for_the_declaration_instead() {
         other => panic!("expected FilletCornerAlreadyTangent, got {other:?}"),
     }
     assert!(
-        err.to_string().contains("declare_tangent"),
+        err.to_string().contains("tangent_joints"),
         "recourse: {err}"
     );
 }
@@ -613,12 +613,12 @@ fn a_reverse_tangent_corner_is_named_as_a_cusp() {
     }
     // Review MINOR-2: a doubled-back corner has NO declaration door —
     // the material-wedge invariant refuses cusp wedges downstream, so
-    // advising `declare_tangent` here would only move the failure. The
+    // advising a tangency declaration here would only move the failure. The
     // reversed arm names the cusp class and #131 instead (PATHS-DESIGN
     // §4 item 1), and must not offer the smooth-tangent recourse.
     let text = err.to_string();
     assert!(
-        !text.contains("declare_tangent"),
+        !text.contains("declare the tangency"),
         "the cusp arm must not advise declaring tangency: {text}"
     );
     assert!(text.contains("cusp") && text.contains("#131"), "{text}");
@@ -787,7 +787,7 @@ fn fillet_corner_turn_trio() {
     // The escalation renders the SAME recourse as the definite refusal
     // (the two-tolerance discipline: one situation, one message).
     assert!(
-        err.to_string().contains("declare_tangent"),
+        err.to_string().contains("tangent_joints"),
         "recourse: {err}"
     );
 }

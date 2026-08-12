@@ -97,8 +97,11 @@ git history and the M-logs):**
   keywords (Evan)**: `@ orchestrators` reaches everyone;
   `@ lib` / `@ m8` / `@ asm` reach one (derived from the tag
   automatically — no ADDRESSES env needed normally). Two
-  behavioral rules: (i) ALWAYS sign cross-thread comments with
-  your role tag — the tag IS the thread subscription; (ii) to
+  behavioral rules: (i) LEAD EVERY comment you post with your
+  role tag — the leading tag is BOTH the thread subscription
+  AND the self-suppression key (the away-channel drops comments
+  that lead with your own tag: your echoes, since nobody else
+  signs as you; mid-body mentions still summon); (ii) to
   watch a thread your filter doesn't match, post
   "(<ROLE> orchestrator) subscribing." on it — the tag in that
   comment subscribes you from the next poll; (iii) SIGN ISSUE

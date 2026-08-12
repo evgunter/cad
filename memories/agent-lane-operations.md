@@ -136,7 +136,19 @@ before diagnosing a code bug.
 **Liveness.** Standing (Evan, 2026-07-24): check every running
 lane at least hourly — arm `hourly-checkin.sh`; lost
 wake-on-completion events are endemic, so nudge any lane idle
-without a final report.
+without a final report. **Transcript-mtime is NOT a liveness
+signal for long batteries (2026-08-11, observed live)**: an
+agent inside a blocking slot wait / long battery writes nothing
+for an hour while progressing normally, and a queued nudge only
+drains at its next tool round — "nudge queued, not delivered"
+therefore does NOT prove a wedge. Escalation order: nudge, then
+WAIT for at least one full battery-length window (60+ min) after
+the nudge before TaskStop; check the LANE (process table, lock
+holders via fuser, target/ mtimes) for signs of real progress
+first. A wrong TaskStop costs an interrupted battery whose rows
+must be re-run untrusted (one R2 review stopped mid-battery this
+way — the reply "mid-battery, progressing normally" surfaced
+with the kill).
 
 **Death recovery.** A dead subagent's transcript AND its isolation
 worktree (with uncommitted work) survive — `git worktree list`

@@ -14,7 +14,7 @@
 mod common;
 use common::tol;
 use geom_core::Point2;
-use profile::{ArcSweep, FilletLegShape, ProfileLoop};
+use profile::{ArcSweep, FilletLegShape};
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
@@ -32,7 +32,7 @@ fn check(
     win: (f64, f64),
     lose: (f64, f64),
 ) {
-    let lp = ProfileLoop::builder(p2(far1.0, far1.1))
+    let lp = profile::test_support::LoopBuilder::start(p2(far1.0, far1.1))
         .fillet_corner(
             FilletLegShape::Arc {
                 center: p2(o1.0, o1.1),
