@@ -723,3 +723,22 @@ Frozen head 4544922c. P2 fields: L / structural (classified
 post-draw from spec, pre-ruling dispatch — noted per my #409
 adoption).
 | ASM-2A | 2026-08-12 | InstantiatePart single-solid: leaf node + A11 cluster placements (Doc.placements, SetPlacement, improper refusal), PartResolver seam w/ kernel-owned ResolveFault, (DocRef,ε) part memo, RoleSeg::InPart via GraftKeys name bridge, walk_names doc-seam stop, schema v7 | L / structural (class post-draw, pre-#409-ruling dispatch — noted) | OPUS (block ASM-2 slot 1) | single (ordinal 31, frozen 4544922c, v4 ladder) — APPROVE-WITH-FIXES 1/4/3 rubric 4/5/4; MAJOR-1 = seam diagnosis truncation (typed cause dropped, DepthExceeded hidden); all 7 deviations survived attack incl. hard nesting runs on InPart-sans-node and the walk_names stop (traced load-bearing into persist check_id) | 0 silent (7 devs reported; pre-existing main red filed #415; walk_names seam rule = unanticipated-by-spec design finding) | 4 | 5 | 4 | substantial (typed cause chained across seams; ReferenceCycle{cycle} via DocRef descent chain + MAX_DEPTH→1024 pure insurance (Evan's #414 review); nested-counter fold; boolean_sweep inheritance w/ honest-boundary row; EvalScalar discipline-gate extension proven by planted violation; Frame axis normalization w/ 12-entry bitwise row); executor: implementer-inherited; process incident: pattern-matched kills → recorded-PID rule now standing | MERGED #414 33/0 (v7 kept — LBRET's bump had not landed at final re-merge); INSTANTIATION EXISTS: assemblies reference pinned parts, materialize through the shipped doors, refuse typed at every seam | impl ~390k + fix ~400k / review ~232k | impl ~7.6h / review ~4h / fix ~0.5h |
+LBRET review ordinal fixed at dispatch (2026-08-11, PR #413 open):
+originally claimed as 31 — DOUBLE-CLAIMED with ASM-2A, whose row
+reached MAIN first (this side's claim sat unmerged on the
+orchestrator branch: a row-sync-discipline miss, the exact
+failure the handoff's "prompt row-sync at record time" line
+warns about). RESOLVED: **LBRET = ordinal 32 → SINGLE** (both
+contested numbers are singles — duals sit at 30/33 — so the
+sampling is unaffected). Tiebreak rule REFINED by this incident:
+the ledger ON MAIN is the allocation authority; wall-clock order
+breaks ties only among claims not yet on main. Corollary
+discipline: push the claim to main (seam PR) at dispatch time,
+not at the next convenient seam. (The parallel schema-v7
+double-claim from the same window resolved LBRET→v8; see the
+unit row.)
+Reviewer: fable (v4 — singles stay fable). LBRET's row will note
+task-class was not pre-logged (dispatched before the #409
+amendment); post-hoc it is a MIXED unit (numeric door + 
+structural banishment) which under the amendment's rule records
+as numeric — noted for the analysis as classified-post-hoc.
