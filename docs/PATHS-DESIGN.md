@@ -704,9 +704,13 @@ one per row, calling the kernel fn — rustdoc-visible, consistent
 with the ArcSpecFor admissibility impls) plus a SLIM macro for
 only the enum-side projections, which Rust cannot derive from
 impls (no reflection — without that step the enum match is
-hand-written and the drift point quietly returns). The re-spell
-unit's spec chooses with the code in front of it; lean (b) if
-the generic impls stay clean across the flavored states.
+hand-written and the drift point quietly returns). RULED (Evan, round 15): **lean (a), the
+table-macro** — a macro exists in both spellings, so the trait
+layer buys little, and (b)'s generic impls (flavored states ×
+verb types × associated Out types) add trait-resolution surface
+that taxes compile time where (a) expands to flat concrete
+methods. The re-spell unit may still adopt (b) only if it
+measures no compile-time cost and reads cleaner in situ.
 Mechanism details (row/table syntax, emission vocabulary, module
 seam) to the re-spell unit's spec.
 
