@@ -31,6 +31,7 @@ mod common;
 use common::{ball, cone, cube, cut_cylinder, die_pips, donut, lily_lantern, notched, washer};
 use geom_core::Point2;
 use geom_surfaces::Surface;
+use profile::RawLoop;
 use topo::{Body, FaceKey, ValidationError, validate_geometric};
 
 /// The faces of `body` whose surface matches `pred`, with their S10

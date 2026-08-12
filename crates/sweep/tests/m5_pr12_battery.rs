@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Band, Point2, Tolerance, Vec2, Vec3};
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::battery::{ChainClosure, Convexity, FilletRequest, run_battery};
 use sweep::fillet::blend::BlendArm;

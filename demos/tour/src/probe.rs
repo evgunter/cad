@@ -11,8 +11,11 @@
 //! (tiers 1 + 2, then 3′ with declared contacts for boolean results
 //! or plain tier 3 otherwise, then exact mass properties) — minus the
 //! mesh/STL/STEP export lanes, which decide nothing at kernel level.
-//! The finale's bowtie refusal runs too: the M2 report noted
-//! refusal-path predicates never sample on all-valid corpora.
+//! The lily's wall probes carry the refusal-path samples the M2 report
+//! asked for (refusal-path predicates never sample on all-valid
+//! corpora). The bowtie row that used to ride beside them left with the
+//! finale scene (LIB-RETTAIL); its refusal is pinned in the profile
+//! crate's own validation suite now, outside the K sweep.
 //!
 //! One process per ε (`Tolerance` is a OnceLock):
 //!
@@ -200,12 +203,6 @@ pub fn run(out: Option<String>) {
     // lily's seven walls all refuse, and their margins record here.
     sweep(s, t, u, "lily_walls", || {
         lily::wall_probes::<Probe>();
-        Vec::new()
-    });
-    sweep(s, t, u, "finale_bowtie", || {
-        // Refusal-path samples: the bowtie profile is REFUSED typed —
-        // no body comes back, but its validation margins record.
-        bodies::finale_fail_loud::<Probe>();
         Vec::new()
     });
 

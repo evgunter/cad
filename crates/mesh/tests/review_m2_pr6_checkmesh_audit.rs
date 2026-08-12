@@ -12,6 +12,7 @@ use geom_core::Point3;
 use mesh::validate::{MeshError, check_mesh};
 use mesh::{FacePatch, Mesh, tessellate};
 use profile::ProfileLoop;
+use profile::RawLoop;
 use sweep::{Revolution, revolve};
 
 /// A hand-built mesh from raw positions and one patch of triangles

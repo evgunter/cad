@@ -15,8 +15,10 @@ workspace = true
 interval = ["geom-core/interval"]
 # The BANISHED raw builder (PROFILES-V2 §V6 amendment): `LoopBuilder`
 # is test-support, not API. Enabled only by this crate's own
-# dev-dependency below, so the differential twins see it and no
-# downstream crate can.
+# dev-dependency below, so no downstream crate can see it. ON A
+# DELETION HORIZON — see src/test_support.rs's header for the one role
+# it still fills and what the deletion waits on (the §2c fillet
+# re-spell, PR #419).
 test-support = []
 
 [dependencies]
@@ -24,7 +26,9 @@ geom-core = { path = "../geom-core" }
 
 [dev-dependencies]
 # Self dev-dependency: the ONE mechanism that lets `tests/` see the
-# `test-support` feature while the published surface never does.
+# `test-support` feature while the published surface never does. The
+# differential twins no longer need it (LIB-RETTAIL: their target is a
+# recorded fixture); the arc-leg fillet suites still do.
 profile = { path = ".", features = ["test-support"] }
 proptest = { workspace = true }
 # The promoted M2 PR 2 reviewer consumer suite

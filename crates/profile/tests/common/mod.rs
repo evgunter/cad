@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Real, Tolerance};
+use profile::RawLoop;
 use profile::{ClosedLoop, Profile, ProfileLoop, ProfileVertex, SketchPlane};
 
 /// The run's tolerance (env-driven; the multi-ε matrix parameterizes

@@ -73,15 +73,20 @@ depends on `pncad` and **nothing else** — one line in its
 | `cutaway` | `cutaway.rs` | The first `topo::split`, on a boolean result, then `transform_rigid` | Split output carries no contacts, so it takes plain tier 3 — the 3/3′ rule in action |
 | `heatsink5/7/9` | `heatsink.rs` | The recipe layer via `pncad::document`: one document, structural-param edits, downstream-only recompute, stable `Instance(i)` names | **Named gap F4**: a Boolean node cannot consume a Pattern node's `Instances` payload, so the union step honestly lives outside the document |
 | — | `booleans.rs` | The declare door: `flush_declarations` building `BooleanDeclarations` for `union_with`/`intersect_with` | There is no `detect_*` in use anywhere: value equality never classifies |
-| — | `paths.rs` | The shared `path_polygon` helper — the tour's polygons said through the PATHS algebra | The lowering is byte-identical to the raw constructor; what it adds is authoring-time junction classification |
+| — | `paths.rs` | The shared `path_polygon` helper — the tour's polygons said through the PATHS algebra | Since LIB-RETTAIL it is the ONLY way the tour says a polygon: raw `ProfileLoop` construction is off the presented surface, and the tour's one dependency is `pncad` |
 | — | `probe.rs` | The K-telemetry sweep (`cargo run -- k-probe out.csv`) | One process per ε row |
 
-Two deliberate exceptions worth knowing. `bodies::finale_fail_loud`
-builds a bowtie loop and is refused by `Profile::validate` — it stays
-**permanently raw**, because the PATHS algebra's junction checks are
-local and would pass it, so only the profile-level validator catches
-it. And the `bracket` scene is retired from the montage in favour of
-`rocker`, which shows strictly more.
+One deliberate exception worth knowing: the `bracket` scene is retired
+from the montage in favour of `rocker`, which shows strictly more.
+
+A second exception used to be listed here — `bodies::finale_fail_loud`,
+a bowtie loop refused by `Profile::validate`. It left the tour at
+LIB-RETTAIL (Evan's ruling on #413: a broken-on-purpose scene is not a
+use case, and it was the last thing justifying a public raw authoring
+tier). Its contract is asserted rather than narrated now, in
+`crates/profile/tests/rejections.rs`: the chain AUTHORS through the
+lattice — the junction checks are local and all four corners are sharp
+— and `validate` refuses it with the exact typed error.
 
 ## The document corpus — `crates/editor-core/tests/corpus/`
 

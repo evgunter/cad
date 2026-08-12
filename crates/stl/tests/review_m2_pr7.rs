@@ -12,6 +12,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 

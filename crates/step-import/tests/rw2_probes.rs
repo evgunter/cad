@@ -28,6 +28,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Vec3};
+use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use sweep::{Section, loft_body};
 

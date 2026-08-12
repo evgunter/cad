@@ -5,6 +5,7 @@ mod common;
 use common::fixture_corpus;
 use geom_core::{Point2, Point3, Tolerance, Vec3};
 use geom_surfaces::Surface;
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ValidationError, validate_geometric};

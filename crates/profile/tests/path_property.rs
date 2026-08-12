@@ -22,7 +22,6 @@ mod common;
 use common::pinned;
 use geom_core::{Point2, Tolerance};
 use profile::path::{HasAng, HasPos, WithIncoming};
-use profile::test_support::LoopBuilder;
 use profile::{Open, PartialPath, PathError, Profile, ProfileLoop, SketchPlane, Start};
 use proptest::prelude::*;
 
@@ -77,10 +76,11 @@ fn convex_polygon() -> impl Strategy<Value = Vec<Point2<f64>>> {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
-    /// P1 — sharp polygons: the algebra's line_to chain is bit-
-    /// identical to the LoopBuilder chain (every coordinate is
-    /// authored), every authored point is a vertex, and the lowered
-    /// loop validates — the junction verifier never fires on it.
+    /// P1 — sharp polygons: the algebra's `line_to` chain lowers to
+    /// the authored table verbatim (every coordinate is authored, so
+    /// identity is exact everywhere), every authored point is a vertex
+    /// in order, and the lowered loop validates — the junction verifier
+    /// never fires on it.
     #[test]
     fn sharp_polygons_differential_and_verified(pts in convex_polygon()) {
         let mut path = Open.at(pts[0]).line_to(pts[1]).unwrap();
@@ -89,21 +89,21 @@ proptest! {
         }
         let algebra = path.line_to(Start).unwrap();
         let algebra = pinned(algebra);
-        let mut hand = LoopBuilder::start(pts[0]);
-        for q in &pts[1..] {
-            hand = hand.line_to(*q);
-        }
-        let hand = hand.close();
-        prop_assert_eq!(algebra.vertices.len(), hand.vertices.len());
-        for (a, h) in algebra.vertices.iter().zip(&hand.vertices) {
-            prop_assert_eq!(a.pos.x.to_bits(), h.pos.x.to_bits());
-            prop_assert_eq!(a.pos.y.to_bits(), h.pos.y.to_bits());
-            prop_assert_eq!(a.bulge.to_bits(), h.bulge.to_bits());
-        }
+        // The property SAID DIRECTLY (LIB-RETTAIL): a sharp chain's
+        // lowering is the authored table verbatim — one vertex per
+        // authored point, in order, bit-for-bit, every bulge +0.0, no
+        // declared joints. This used to be stated as "identical to the
+        // LoopBuilder chain"; against a random input a recorded fixture
+        // is impossible, and the twin was only ever a second way of
+        // saying this. Said against the INPUT it is strictly stronger:
+        // a lowering that dropped, duplicated or reordered a point now
+        // fails even if a twin would have made the same mistake.
+        prop_assert_eq!(algebra.vertices.len(), pts.len());
         prop_assert!(algebra.tangent_joints.is_empty());
         for (k, q) in pts.iter().enumerate() {
             prop_assert_eq!(algebra.vertices[k].pos.x.to_bits(), q.x.to_bits());
             prop_assert_eq!(algebra.vertices[k].pos.y.to_bits(), q.y.to_bits());
+            prop_assert_eq!(algebra.vertices[k].bulge.to_bits(), 0.0f64.to_bits());
         }
         validate_ok(&algebra);
     }

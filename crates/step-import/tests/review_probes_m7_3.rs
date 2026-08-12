@@ -11,6 +11,7 @@ mod common;
 
 use common::{census, fixture};
 use geom_core::{Affine3, Point2, Vec3};
+use profile::RawLoop;
 use step_import::{ImportOptions, StepImport, import_step};
 
 fn import(text: &str) -> Result<StepImport, step_import::StepImportError> {

@@ -12,6 +12,7 @@
 use geom_core::{Point2, Point3, Tolerance, Vec3};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, triangle_count};
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult};

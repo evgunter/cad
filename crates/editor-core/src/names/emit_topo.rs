@@ -1384,6 +1384,7 @@ mod tests {
     use super::*;
     use crate::names::emit_sweep::name_extrude;
     use crate::node::RecipeNodeId;
+    use profile::RawLoop;
 
     #[test]
     fn merged_lane_names_kept_face_with_sorted_deduped_constituents() {

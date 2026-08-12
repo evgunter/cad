@@ -14,6 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_8, PI};
+use profile::RawLoop;
 
 use geom_brep::{EdgeGeometry, newell_plane};
 use geom_core::{Band, Point2, Point3, Real, Tolerance, Vec3};

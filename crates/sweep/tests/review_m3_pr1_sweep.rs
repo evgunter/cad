@@ -7,6 +7,7 @@
 
 use geom_brep::EdgeGeometry;
 use geom_core::{Point2, Tolerance};
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::{Body, ValidationError, validate_closed, validate_geometric};

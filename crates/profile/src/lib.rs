@@ -204,21 +204,50 @@ pub struct ProfileLoop<T: Real> {
     pub tangent_joints: Vec<usize>,
 }
 
-impl<T: Real> ProfileLoop<T> {
+/// The raw loop-minting doors — **kernel vocabulary, off the presented
+/// surface** (Evan's ruling on #413, executed by LIB-RETTAIL).
+///
+/// The invariant this trait exists to hold: a caller who can NAME
+/// [`ProfileLoop`] cannot thereby MINT one from a vertex table. Inherent
+/// methods travel with their type, so as long as `new`/`polygon` were
+/// inherent, every surface that made the type nameable — and the type
+/// must stay nameable, since read-back, error payloads and
+/// [`ValidatedLoop`] all hand one back — re-exported the authoring tier
+/// with it. Trait methods travel with the TRAIT instead: the façade's
+/// curated `pncad::profile` module omits `RawLoop`, and a downstream
+/// caller who never imports it has no `ProfileLoop::polygon` in scope.
+///
+/// Authoring goes through [`path`] (the PATHS lattice), which classifies
+/// junctions at authoring time and declares tangency by construction.
+/// This trait is what the kernel's own crates and their fixtures use to
+/// spell a vertex table directly.
+///
+/// RESIDUE, stated so it is not mistaken for a seal: `ProfileLoop` is
+/// plain data with public fields, so `ProfileLoop { vertices,
+/// tangent_joints }` remains constructible wherever the type is
+/// nameable. Closing that would mean private fields and accessors — a
+/// change to the plain-data convention, not a housekeeping edit.
+pub trait RawLoop<T: Real>: Sized {
     /// Builds a loop from a vertex chain (no declared-tangent joints;
     /// set [`ProfileLoop::tangent_joints`] for those, or author the loop
     /// through [`path`], which declares by construction).
-    pub fn new(vertices: Vec<ProfileVertex<T>>) -> Self {
+    fn new(vertices: Vec<ProfileVertex<T>>) -> Self;
+
+    /// Builds a loop of straight segments through the given points (all
+    /// bulges zero) — polygon sugar.
+    fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self;
+}
+
+impl<T: Real> RawLoop<T> for ProfileLoop<T> {
+    fn new(vertices: Vec<ProfileVertex<T>>) -> Self {
         Self {
             vertices,
             tangent_joints: Vec::new(),
         }
     }
 
-    /// Builds a loop of straight segments through the given points (all
-    /// bulges zero) — polygon sugar.
-    pub fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self {
-        Self::new(
+    fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self {
+        <Self as RawLoop<T>>::new(
             points
                 .into_iter()
                 .map(|pos| ProfileVertex {
@@ -228,7 +257,9 @@ impl<T: Real> ProfileLoop<T> {
                 .collect(),
         )
     }
+}
 
+impl<T: Real> ProfileLoop<T> {
     /// The reversed chain: the same locus traversed the other way.
     ///
     /// Reindexing: the reversed chain visits `v0, v(n−1), v(n−2), …,

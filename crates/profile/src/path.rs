@@ -288,6 +288,7 @@
 //! let again = path.line_to(Start);
 //! ```
 
+use crate::RawLoop;
 use core::marker::PhantomData;
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tolerance, Vec2};

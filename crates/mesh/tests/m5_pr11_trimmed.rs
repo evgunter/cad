@@ -6,6 +6,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use profile::RawLoop;
 use std::collections::HashMap;
 
 use geom_core::{Point2, Point3, Tolerance, Vec3};

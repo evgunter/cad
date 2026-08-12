@@ -504,8 +504,6 @@ fn main() {
         run(&stop);
     }
 
-    bodies::finale_fail_loud::<f64>();
-
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");
     std::fs::write(format!("{outdir}/uv.json"), uvdump::manifest_json(&dumps))

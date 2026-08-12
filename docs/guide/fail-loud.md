@@ -106,19 +106,28 @@ caught by `Profile::validate` — the door `validated` runs for you:
 use pncad::prelude::*;
 use pncad::profile::ProfileError;
 
-// A bowtie: the two diagonals cross. Every corner is locally fine.
-let bowtie = ProfileLoop::polygon([
-    p2(0.0, 0.0), p2(1.0, 1.0), p2(1.0, 0.0), p2(0.0, 1.0),
-]);
-let refused = validated(SketchPlane::<f64>::xy(), vec![bowtie]);
+// A bowtie: the two diagonals cross. Every corner is locally fine —
+// which is exactly why the lattice AUTHORS it without complaint.
+let bowtie: ClosedLoop<f64> = Open
+    .at(p2(0.0, 0.0))
+    .line_to(p2(1.0, 1.0))?
+    .line_to(p2(1.0, 0.0))?
+    .line_to(p2(0.0, 1.0))?
+    .line_to(Start)?;
+let refused = validated(SketchPlane::<f64>::xy(), vec![bowtie.into()]);
 
 assert!(matches!(refused, Err(ProfileError::NonSimple { .. })));
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-This is why `demos/tour/src/bodies.rs` keeps its `finale_fail_loud`
-bowtie authored through the **raw** constructor permanently: the
-algebra's checks are local and would pass it, so the scene exists to
-prove the profile-level validator catches what they cannot.
+Read the two steps: the chain **authors** — the algebra's junction
+checks are local, and all four corners are sharp — and then
+`validated` refuses it typed. A local check cannot see a global
+self-intersection; that is what the profile-level validator is for.
+The contract is pinned in the kernel's own suite
+(`crates/profile/tests/rejections.rs`), where it moved from the demo
+tour: a broken-on-purpose scene is not a use case (Evan's ruling on
+#413).
 
 ## 3. Contact: the refusal that defines this kernel
 
@@ -130,9 +139,11 @@ use pncad::prelude::*;
 use pncad::topo::BooleanError;
 # type E = Box<dyn std::error::Error>;
 # fn slab(z: (f64, f64)) -> Result<Body<f64>, E> {
-#     let rect = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+#     let rect: ClosedLoop<f64> = Open
+#         .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0))?
+#         .line_to(p2(1.0, 1.0))?.line_to(p2(0.0, 1.0))?.line_to(Start)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
 # }
 let lower = slab((0.0, 1.0))?;   // z from 0 to 1
 let upper = slab((1.0, 2.0))?;   // z from 1 to 2 — they meet exactly at z = 1
@@ -293,8 +304,10 @@ symptom.
 ```
 use pncad::prelude::*;
 # type E = Box<dyn std::error::Error>;
-# let rect = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
-# let body = extrude(&validated(SketchPlane::<f64>::xy(), vec![rect])?, Extrusion::Distance(real(1.0)))?.body;
+# let rect: ClosedLoop<f64> = Open
+#     .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0))?
+#     .line_to(p2(1.0, 1.0))?.line_to(p2(0.0, 1.0))?.line_to(Start)?;
+# let body = extrude(&validated(SketchPlane::<f64>::xy(), vec![rect.into()])?, Extrusion::Distance(real(1.0)))?.body;
 match validate_geometric(&body) {
     Ok(()) => { /* the body is sound at tier 3 */ }
     Err(failures) => {

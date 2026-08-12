@@ -546,6 +546,55 @@ deletes entirely (the twins' verification target becomes recorded
 fixtures at that point). Folded into the next housekeeping unit;
 this line is the register entry so it cannot silently persist.
 
+**RETTAIL IN FLIGHT (2026-08-12): the demotion + the bowtie
+re-home landed; the shim's deletion did NOT, and the reason is
+sequencing, not difficulty.** (1) `ProfileLoop::new`/`polygon`
+moved off the inherent impl onto `profile::RawLoop`, and
+`pncad`'s `pub use profile;` narrowed to a curated `pub mod
+profile` that omits the trait (LB13 precedent) — the measurement
+that forced it: inherent methods travel with a TYPE, and the
+ruling keeps the type nameable, so no amount of module narrowing
+alone excludes construction. `pncad::authoring::polygon` deleted;
+guide, crate docs, façade tests and every tour scene author
+through the lattice; an absence guard in `pncad/tests/all.rs`
+holds it. Residue flagged, not glossed: public fields mean a
+struct literal still constructs a loop wherever the type is
+nameable (private fields + accessors is a plain-data convention
+change, out of a housekeeping unit's fence). (2) The bowtie left
+the tour for `profile/tests/rejections.rs`, authoring through the
+lattice and refusing typed at validate — the K-probe's
+`finale_bowtie` refusal-sample row went with it (lily's wall
+probes remain that lane's refusal source). (3) The twins now
+verify against blessed recorded fixtures and no longer touch the
+shim; mutation-sensitivity proven (one ulp into
+`sugar::bulge_from_via` reddened two rows, reverted). (4) The
+NAMED GAP found BY the demotion (lily's lofted blade,
+`demos/tour/src/lily.rs::Section::outline`): at `shoulder = 0`
+three consecutive vertices are EXACTLY collinear by design (the
+4-tip and 8-corner sections must share one vertex budget for the
+loft's segment-to-segment matching), and the PATHS lattice
+REFUSES that junction at authoring — `JunctionTangent { margin:
+0.0 }` — while `Profile::validate` ACCEPTS it, since collinear
+line/line is carrier IDENTITY, legal undeclared. The two junction
+rules disagree on same-carrier continuation and the lattice is
+the stricter one. With raw construction off the presented
+surface, the only spelling left to the tour is the plain-data
+struct literal, which is what the scene now uses with the gap
+named in place. A same-carrier continuation verb is the fix and
+is vocabulary — a design item, not this unit's fence. Worth
+noting the demotion is what SURFACED it: the raw constructor had
+been swallowing the disagreement. (5) The
+shim SURVIVES: its remaining ~42 callers are all arc-leg fillet
+chains whose only lattice target is the §2b `at_on`/`to_on`
+family — the exact surface PATHS-DESIGN §2c redesigns (RATIFIED
+on #419, merged 2026-08-11; the re-spell UNIT has not run).
+Migrating them now buys a second migration at that unit, so the
+DELETION HORIZON re-points at the §2c unit and is recorded in
+`test_support.rs`'s header. Finding worth keeping: the shim's
+`fillet_corner` and the lattice's arc fillet both run the one
+ratified `sugar::arc_fillet_trims`, so on the fillet family it
+was never a second implementation — only a second door.
+
 **RULED (Evan, #413, 2026-08-12): raw ProfileLoop construction
 DEMOTES from the presented surface** ("yes we should demote
 ProfileLoop"; his framing: kernel vocabulary should be private,

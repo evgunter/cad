@@ -15,6 +15,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use profile::RawLoop;
 use std::sync::Arc;
 
 use geom_brep::ssi::{self, SsiDomain, SsiError};
