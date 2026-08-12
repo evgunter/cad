@@ -752,3 +752,11 @@ byte 205 (<252, accepted) mod 4 = 1 = fable's position.
 Slot 1 = RETTAIL (docs/LIB-RETTAIL-SPEC.md); pre-draw fields:
 difficulty S-M, task-class STRUCTURAL (migration/curation/
 deletion; no new numeric decision).
+RETTAIL review ordinal fixed at dispatch (2026-08-12, PR #431
+open, frozen head 79391413): claimed through 32 + 1 = **33 → a
+third → DUAL (sample #11), SAME-MODEL (fable+fable) per the
+first v4 dual block's banked twin (#405)**. R1+R2 concurrent
+same-head per the amendment. Parallel-track note (Evan's ask):
+U4b (geom-core constructors-only) and the U4a geom-curves
+composition door dispatch in PARALLEL on LIB-9 slots 3/4 (both
+opus) — crate-disjoint from RETTAIL/RESPELL; specs follow.
