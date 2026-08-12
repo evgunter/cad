@@ -168,3 +168,33 @@ third NOT-MERGEABLE-AS-IS, and taught the ε-row lesson four more
 times. Remaining slate: #327 (dispatching now), M8-4 (scope
 tightened to the one collapsed gap), the #214 riders, #382 triage
 — then the M8 exit walk.
+
+**#327 dual reviews returned (2026-08-12, sample #10 — the FIRST
+cross-model dual: R1 fable, R2 opus, concurrent on frozen
+a8995926).** Both NOT-MERGEABLE-AS-IS (the project's fourth and
+fifth): R1 2/3/4, R2 3/3/4. STRONG CONVERGENCE on the round's
+substance, found by execution from two independent constructions:
+the CIRCLE promotion's turning witness does not gate — R1's
+one-third closed carrier (0→120°→0) and R2's doubled-back form
+(0→300°→0) both sit exactly on-locus and silently PROMOTE to the
+full-period circle with ~1e-17 certified residuals (R1's mechanism
+read: the wrap loop forces every increment positive, so only
+exactly-equal azimuths refuse). Converged too: C6 (the witness's
+one pin) is vacuous — off-locus carrier, dies at the certificate,
+green for the WRONG REASON (the recurring class, now on a
+coverage pin); deleting the witness outright survives the whole
+suite; `curve_promotions` has zero readers. Diverged tails: R1
+executed INV-C1-inverted surviving; R2 measured the dm1
+ambient-1e-12 import cost cliff (5.3 s → >540 s/import) and
+re-derived both INVs by hand as sound. Everything else held:
+certificate locus half sound (~3× conservative), five pcurve
+fixes reduce exactly to the old expressions on built walls, dm1
+census honest. UNION FIX PASS dispatched to the implementer
+(2026-08-12); both probe suites to be adopted red-then-green;
+delta re-verify of the MAJOR fixes before merge. Row at merge.
+Executor annotations for the row: R1 usage-limit kill + resume,
+one background-suite-row brief deviation (results checkable),
+two lost-wake nudges; R2 one WRONG orchestrator TaskStop
+(mid-battery, my stale-mtime misread — interrupted row re-run
+untrusted per instruction), lesson recorded in
+memories/agent-lane-operations.md.
