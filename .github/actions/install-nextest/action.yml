@@ -1,0 +1,89 @@
+# Install the PINNED cargo-nextest prebuilt, cached and retried.
+#
+# Every test-carrying job in ci.yml needs this binary (2 build jobs + 8
+# matrix legs across `test` / `test-interval`), so before this action each
+# CI run made ~10 independent fetches of get.nexte.st on the critical path
+# with no retry: one bad minute on that host red-lined the whole gate.
+# Two layers now stand between the gate and that host:
+#
+#   1. CACHE — same pattern as the FreeCAD AppImage in ci.yml (`step
+#      import (freecad)`). The key is the pinned version, so it is a
+#      content key: a hit is exactly the binary the pin names, and
+#      bumping NEXTEST_VERSION invalidates it by construction. On a hit
+#      the download step does not run at all, which takes get.nexte.st
+#      off the hot path entirely. GitHub's cache scoping means a PR
+#      branch restores from main's entry, so main's first run after a
+#      version bump is the only cold one.
+#   2. RETRY — `--retry-all-errors` covers connection resets and 5xx, not
+#      just curl's default "transient" set (it needs the `-f` in `-sSfL`
+#      to see an HTTP status as an error at all). No `--retry-delay`, so
+#      curl keeps its exponential backoff; `--retry-max-time 120` is the
+#      window, sized to outlast the reported failure mode — a bad minute
+#      on the host. Kept even with the cache: the cold path (version
+#      bump, evicted entry, cache-service outage, first run on a fork)
+#      still has to reach the network, and that is precisely when a
+#      whole run's worth of jobs fetch at once.
+#
+# On a cold key the concurrent jobs all miss and all try to save it; the
+# losers log "Unable to reserve cache with key ..., another job may be
+# creating this cache" and carry on. That warning is expected and not a
+# failure — the winner's entry is what every later run restores.
+#
+# The download writes to a FILE and extracts as a separate step rather
+# than piping curl into tar. This is load-bearing, not style: a retried
+# `curl | tar` has already fed tar the bytes of the failed attempt, so
+# the retry appends a second stream onto a corrupt one. Retry is only
+# sound when the sink is a file curl can truncate and rewrite.
+#
+# Install goes to ~/.nextest-bin, NOT ~/.cargo/bin, so this cache and
+# Swatinem/rust-cache's `${CARGO_HOME}/bin` handling stay disjoint (the
+# build jobs otherwise re-saved a copy of this binary inside their much
+# larger, much more frequently invalidated Rust caches).
+#
+# Still no third-party action for the install itself (ci.yml's pin
+# comment): this is a first-party composite in-repo, and the fetch is
+# the same official get.nexte.st URL at the same pinned version. And as
+# with the mold/linker knobs, this is a hosted-runner install detail,
+# not gate semantics — nothing here is mirrored into scripts/ci-local.sh,
+# which checks for a locally-installed cargo-nextest at the same pin.
+name: install cargo-nextest
+description: Install a pinned cargo-nextest prebuilt, from cache when available.
+
+inputs:
+  version:
+    description: cargo-nextest version to install (ci.yml's NEXTEST_VERSION pin).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: cache cargo-nextest
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.nextest-bin
+        key: nextest-${{ inputs.version }}-${{ runner.os }}-${{ runner.arch }}
+
+    - name: download cargo-nextest (pinned, official prebuilt)
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "$HOME/.nextest-bin"
+        curl -sSfL \
+          --retry 5 --retry-all-errors --retry-max-time 120 \
+          --connect-timeout 15 --max-time 300 \
+          -o "$RUNNER_TEMP/cargo-nextest.tar.gz" \
+          "https://get.nexte.st/${{ inputs.version }}/linux"
+        tar zxf "$RUNNER_TEMP/cargo-nextest.tar.gz" -C "$HOME/.nextest-bin" cargo-nextest
+        rm "$RUNNER_TEMP/cargo-nextest.tar.gz"
+
+    # Fail here, loudly, rather than in whatever step first says
+    # "no such subcommand: nextest": a restored-but-empty cache entry is
+    # the one failure mode this action can plausibly introduce.
+    - name: put cargo-nextest on PATH
+      shell: bash
+      run: |
+        set -euo pipefail
+        test -x "$HOME/.nextest-bin/cargo-nextest"
+        echo "$HOME/.nextest-bin" >> "$GITHUB_PATH"

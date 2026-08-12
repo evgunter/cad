@@ -23,7 +23,12 @@ concurrency:
 # truth for the version): 0.9.140, published 2026-07-05 — ~4 weeks old at
 # adoption (2026-08-03), past the 2-week dependency-age rule; a dev/CI
 # tool only, never in any shipped build graph. Install is the official
-# get.nexte.st prebuilt at the pinned URL — no third-party action.
+# get.nexte.st prebuilt at the pinned URL — no third-party action — via
+# the in-repo composite `.github/actions/install-nextest`, which caches
+# the binary by version and retries the cold-path fetch. Read that
+# action's header for why: ~10 jobs per run need this binary, and an
+# unretried per-job fetch made one host's bad minute a whole-gate
+# failure.
 # Nextest semantics vs `cargo test`, audited at adoption:
 #   * process-per-test — strictly safer for the tolerance OnceLock
 #     (every test gets a fresh global; nothing relied on shared init);
@@ -470,7 +475,9 @@ jobs:
       - name: runner + linker provenance (for perf attribution)
         run: nproc && free -g | head -2 && mold --version
       - name: install cargo-nextest (pinned, official prebuilt)
-        run: curl -LsSf "https://get.nexte.st/$NEXTEST_VERSION/linux" | tar zxf - -C "$HOME/.cargo/bin"
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ env.NEXTEST_VERSION }}
       # Scoped by the filter (`--workspace` or `-p <closure>`), same as the
       # per-row `cargo test` this replaces: the archive CONTAINS exactly
       # the closure's test binaries, so the run rows need no re-scoping.
@@ -542,7 +549,9 @@ jobs:
       # env!("CARGO_MANIFEST_DIR") paths resolve here too.
       - uses: actions/checkout@v4
       - name: install cargo-nextest (pinned, official prebuilt)
-        run: curl -LsSf "https://get.nexte.st/$NEXTEST_VERSION/linux" | tar zxf - -C "$HOME/.cargo/bin"
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ env.NEXTEST_VERSION }}
       - uses: actions/download-artifact@v4
         with:
           name: nextest-default
@@ -599,7 +608,9 @@ jobs:
       - name: runner + linker provenance (for perf attribution)
         run: nproc && free -g | head -2 && mold --version
       - name: install cargo-nextest (pinned, official prebuilt)
-        run: curl -LsSf "https://get.nexte.st/$NEXTEST_VERSION/linux" | tar zxf - -C "$HOME/.cargo/bin"
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ env.NEXTEST_VERSION }}
       # Archive first, upload immediately (the legs still wait on the
       # whole job via `needs`; the early upload means a clippy/doc-test
       # failure leaves the archive available for investigation). This job
@@ -639,7 +650,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: install cargo-nextest (pinned, official prebuilt)
-        run: curl -LsSf "https://get.nexte.st/$NEXTEST_VERSION/linux" | tar zxf - -C "$HOME/.cargo/bin"
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ env.NEXTEST_VERSION }}
       - uses: actions/download-artifact@v4
         with:
           name: nextest-interval
