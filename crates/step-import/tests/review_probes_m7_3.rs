@@ -530,20 +530,26 @@ fn probe_reexport_promotion_divergence() {
     assert_eq!(out, out2, "fixed point from the first re-export on");
 }
 
-/// V6, re-anchored at M8: dm1-id-214's first refusal site has moved
-/// three times, always FORWARD, and each move retired a distance.
-/// From `#667 QUASI_UNIFORM_CURVE` (parse vocabulary, retired by M7-6's
-/// knots-implied synthesis) past the whole geometry pass — the 24
-/// NURBS surfaces recognize, the trim rings ride the promoted planes —
-/// to the ASSEMBLY layer at `#186`, the second differing per-component
-/// transform (M7-4 Leg D's instancing refusal). M8 retires THAT: the
-/// file's 3 breps and 7 occurrences materialize as 7 placed instances,
-/// so the site moves past the assembly layer entirely and into the D7
-/// adoption ladder, which is reached only after every face of every
-/// brep resolved AND every instance's frame was read and applied.
+/// V6, re-anchored at M8-14 (#327): dm1-id-214's first refusal site
+/// has moved four times, always FORWARD, and each move retired a
+/// distance. From `#667 QUASI_UNIFORM_CURVE` (parse vocabulary,
+/// retired by M7-6's knots-implied synthesis) past the whole geometry
+/// pass — the 24 NURBS surfaces recognize, the trim rings ride the
+/// promoted planes — to the ASSEMBLY layer at `#186` (M7-4 Leg D), to
+/// the D7 adoption ladder at edge `#685` (M8 instancing put the
+/// placement layer behind the geometry).
 ///
-/// The site is now an EDGE, and pinning that it is one is the point:
-/// `Structure` here again would mean a structural refusal came back.
+/// #327 retires THAT: `#685`'s carrier is a rational quadratic that
+/// IS a circle, stage-1 curve recognition certifies it and promotes
+/// it, the existing arc-rim rungs take over, and every edge of every
+/// instance adopts with its pcurve minted and certified. The site is
+/// now the SHARED AT-REST GATE — the exact-B-rep volume of the
+/// rational cylinder wall, whose quadrature enclosure stalls short of
+/// the target: the banked rational-patch-flux lane, named in this
+/// crate's own docs, and a different unit from anything D7 does.
+///
+/// Pinning that the site is the GATE is the point: an `Adoption` here
+/// again would mean the ladder came back.
 #[test]
 fn probe_dm1_first_refusal_site() {
     let path: std::path::PathBuf = [
@@ -557,26 +563,31 @@ fn probe_dm1_first_refusal_site() {
     .iter()
     .collect();
     let text = std::fs::read_to_string(&path).unwrap();
+    // Two cells, because the ambient band selects which frontier is
+    // first: at a COARSE ε the ladder now reaches `#389` — a
+    // two-point polyline carrier that stays NURBS and is offered zero
+    // candidates, a PRE-EXISTING gap that was masked behind #685 at
+    // every band until #327 retired it. Named, not averaged.
+    let coarse = geom_core::Tolerance::get().eps > 1e-9;
     match import(&text) {
-        Err(step_import::StepImportError::Adoption { id, attempts }) => {
-            eprintln!(
-                "PROBE dm1 refusal: edge #{id}, {} candidate(s) tried",
-                attempts.len()
-            );
-            assert_eq!(
-                id, 685,
-                "the first rational-NURBS rim the ladder cannot certify"
-            );
-            // A ladder that reports NO attempt is a GAP, not a
-            // refusal — the shape edge #668 had before the `IsoCurve`
-            // rung was widened to the one-wall seam case. Every
-            // refusal this suite pins must name what it tried.
+        Err(e @ step_import::StepImportError::TierInvalid { .. }) => {
+            let shown = e.to_string();
+            eprintln!("PROBE dm1 refusal: {shown}");
+            assert!(!coarse, "the coarse cell is the #389 ladder gap: {shown}");
             assert!(
-                !attempts.is_empty(),
-                "a refusal names the candidates it tried"
+                shown.contains("the certified quadrature enclosure stalled at"),
+                "the site is the rational-patch-flux lane: {shown}"
             );
         }
-        other => panic!("dm1-id-214 must refuse at the adoption ladder, got {other:?}"),
+        Err(step_import::StepImportError::Adoption { id, attempts }) => {
+            eprintln!(
+                "PROBE dm1 refusal: edge #{id}, {} candidate(s)",
+                attempts.len()
+            );
+            assert!(coarse, "the fine cells are past the ladder entirely");
+            assert_eq!(id, 389, "the coarse-band cell's edge");
+        }
+        other => panic!("dm1-id-214 must refuse at the at-rest gate, got {other:?}"),
     }
 }
 

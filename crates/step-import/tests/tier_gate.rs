@@ -121,7 +121,7 @@ const EPS_IN_ROWS: [(&str, Option<f64>); 3] =
 ///   the NIST inch translator prints ~12 significant digits, so the
 ///   file does not state itself to 1e-12 m, and the adoption ladder
 ///   says so by name instead of certifying a carrier it cannot.
-const EPS_ROWS: [(&str, f64, &str, Disposition); 18] = [
+const EPS_ROWS: [(&str, f64, &str, Disposition); 27] = [
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
     (FTC11, 1e-9, "file", Refused(SEAM_HALFPLANE_DEFINITE)),
     (FTC11, 1e-9, "1e-6", Refused(TANGENT_PLANES_COINCIDE)),
@@ -142,9 +142,34 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 18] = [
     (NIST09, 1e-12, "file", Refused(ENDPOINT_START_MAPPED_CURVE)),
     (NIST09, 1e-12, "1e-6", Refused(ENDPOINT_START_MAPPED_CURVE)),
     (NIST09, 1e-12, "1e-12", Refused(ENDPOINT_START_MAPPED_CURVE)),
+    // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
+    // Six cells at the rational-flux stall, three at the ladder's
+    // `#389` gap; ε_in moves nothing, which is itself the measurement
+    // (recognition certifies this file's carriers with ~14 decades of
+    // margin, so no interpretation budget in this sweep changes what
+    // is promoted).
+    (DM1, 1e-9, "file", Refused(RATIONAL_FLUX_STALL)),
+    (DM1, 1e-9, "1e-6", Refused(RATIONAL_FLUX_STALL)),
+    (DM1, 1e-9, "1e-12", Refused(RATIONAL_FLUX_STALL)),
+    (DM1, 1e-6, "file", Refused(LADDER_NO_DESCRIPTION)),
+    (DM1, 1e-6, "1e-6", Refused(LADDER_NO_DESCRIPTION)),
+    (DM1, 1e-6, "1e-12", Refused(LADDER_NO_DESCRIPTION)),
+    (DM1, 1e-12, "file", Refused(RATIONAL_FLUX_STALL)),
+    (DM1, 1e-12, "1e-6", Refused(RATIONAL_FLUX_STALL)),
+    (DM1, 1e-12, "1e-12", Refused(RATIONAL_FLUX_STALL)),
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
+const DM1: &str = "tests/fixtures/wild/stepcode/dm1-id-214.stp";
+/// dm1's fine-band sub-reason: the shared at-rest gate cannot compute
+/// the exact-B-rep volume of a RATIONAL cylinder wall — the banked
+/// rational-patch-flux lane, named specifically so the gate's preamble
+/// (which a tier-1/2 regression would also match) cannot stand in.
+const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure stalled at";
+/// dm1's coarse-band sub-reason: the ladder's own refusal on edge
+/// `#389`, a two-point `QUASI_UNIFORM_CURVE` polyline that stays NURBS
+/// and is offered zero candidates.
+const LADDER_NO_DESCRIPTION: &str = "edge #389: no intensional description certifies";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 
 /// The seam carrier's residual is DECIDEDLY outside the band.
@@ -169,7 +194,7 @@ const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gat
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 53] = [
+const CORPUS: [(&str, Disposition); 54] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
@@ -275,20 +300,35 @@ const CORPUS: [(&str, Disposition); 53] = [
         Refused("no intensional description certifies"),
     ),
     (
-        // **M8 instancing retired the placement half of this refusal.**
-        // dm1's seven occurrences of three component representations
-        // now materialize as seven placed instances; what refuses is
-        // strictly downstream of that, in the D7 adoption ladder, on
-        // the rims of the file's seven RATIONAL cylinders — which
-        // M7-6 honestly declined to promote to `Cylinder`, so their
-        // circular rims arrive as rational NURBS carriers between a
-        // promoted cap Plane and a stay-NURBS wall, a pair the ladder
-        // has no certificate for. Same shared fragment as
-        // `TAIL_TURBINE`'s row, same reason it is the right one: the
-        // preamble pins the class, and a drift to a parse error,
-        // crash, or Pass goes red.
-        "tests/fixtures/wild/stepcode/dm1-id-214.stp",
-        Refused("no intensional description certifies"),
+        // **Two halves of this refusal are now retired.** M8
+        // instancing took the placement half (dm1's seven occurrences
+        // of three component representations materialize as seven
+        // placed instances); #327 took the D7 half — the rims of the
+        // file's seven RATIONAL cylinders arrive as rational-quadratic
+        // NURBS carriers, stage-1 CURVE recognition certifies them as
+        // circles against an exact ring-composite bound and promotes
+        // them, and every edge of every instance adopts with its
+        // pcurve minted and certified.
+        //
+        // What is left is the SHARED AT-REST GATE on those same
+        // rational walls: the exact-B-rep volume's quadrature
+        // enclosure stalls short of its target — the banked
+        // rational-patch-flux lane, the lane a NATIVELY built
+        // rational-walled loft refuses on too. The fragment names that
+        // stall specifically rather than the gate's preamble, because
+        // the preamble would also match a tier-1/2 verdict, which
+        // would be a regression and not this lane.
+        //
+        // **ε-SENSITIVE since #327**, and the sweep is the reason to
+        // know it: at the two FINE ambient bands the frontier is the
+        // rational-flux stall above, but at ambient 1e-6 the ladder
+        // stops earlier, on edge `#389`. Retiring #685 is what made
+        // #389 reachable at all — it had been masked behind #685 at
+        // every band — so the coarse cell is a PRE-EXISTING gap newly
+        // exposed, not a movement of anything #327 built. Nine cells
+        // in `EPS_ROWS`; ε_in moves none of them.
+        DM1,
+        EpsSensitive,
     ),
     (
         "tests/fixtures/wild/stepcode/io1-cm-214.stp",
@@ -360,6 +400,19 @@ const CORPUS: [(&str, Disposition); 53] = [
     ),
     (
         "../step-export/tests/fixtures/nurbs_wireframe.step",
+        Wireframe,
+    ),
+    (
+        // The #327 reporting witness: a `GEOMETRIC_CURVE_SET` stating
+        // dm1's carrier form verbatim (degree 2, 7 points, weights
+        // `1, ½, …`, knots at multiples of √3, the 3×120°
+        // construction, r = 5 mm). It is here because the corpus table
+        // is the WHOLE corpus by construction — and its disposition is
+        // the same `Wireframe` every curve-set file gets: promotion
+        // changes the carrier's DESCRIPTION, never the file's
+        // disposition. `curve_promotion_report.rs` is what asserts the
+        // promotion itself.
+        "tests/fixtures/curveset_rational_circle.step",
         Wireframe,
     ),
     (

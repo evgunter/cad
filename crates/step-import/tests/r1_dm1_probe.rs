@@ -19,11 +19,18 @@
 //!    walks (3 component representations, 7 relationships, each naming
 //!    one of them);
 //! 3. **the placement layer is now BEHIND the geometry** — dm1's
-//!    remaining refusal is an adoption-ladder one on an edge, which is
-//!    reachable only once every instance's frame was read and applied.
-//!    Retiring that distance is stage-1 CURVE recognition, a separate
-//!    unit; this probe pins where the frontier actually is, so a claim
-//!    that it moved has to be executable too.
+//!    remaining refusal is reachable only once every instance's frame
+//!    was read and applied. Since #327 (stage-1 CURVE recognition)
+//!    that refusal has moved AGAIN, and past the whole D7 ladder: the
+//!    file's rational-quadratic rim carriers are recognized as circles
+//!    and promoted, every edge of every instance adopts, every pcurve
+//!    mints and certifies, and the first thing that refuses is the
+//!    SHARED AT-REST GATE — `VolumeUncomputable` /
+//!    `QuadratureBudget` on the rational cylinder wall, i.e. the
+//!    banked rational-patch-flux lane this crate's own docs name
+//!    ("their rational walls have no volume quadrature yet"). This
+//!    probe pins where the frontier actually is, so a claim that it
+//!    moved has to be executable too.
 //!
 //! Per-instance placement CORRECTNESS (each frame on its own component
 //! and no other) is pinned where a file that IMPORTS can carry it:
@@ -62,21 +69,50 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
     assert_eq!(transforms, 7, "one per occurrence");
     assert_eq!(breps, 3, "three component representations, seven instances");
 
-    // (1) and (3): the disposition.
+    // (1) and (3): the disposition — a two-cell claim, because the
+    // ambient band selects which frontier is first (see the coarse
+    // arm below).
+    let coarse = geom_core::Tolerance::get().eps > 1e-9;
     match import_step(&text, &ImportOptions::default()) {
         Err(StepImportError::Structure { id, what }) => {
             panic!("the assembly layer must not refuse dm1 any more: #{id} {what}")
         }
+        // **The coarse-band cell** (#327's ε sweep, third outcome).
+        // Retiring #685 let the ladder reach edges it had never
+        // reached at any band, and at a COARSE ambient ε the first of
+        // them — `#389`, a two-point `QUASI_UNIFORM_CURVE` polyline
+        // that stays NURBS — is offered ZERO candidates. That is a
+        // GAP, not a refusal, and it is PRE-EXISTING: nothing #327
+        // touches can reach a degree-1 open carrier (the circle
+        // estimator refuses an open curve before it estimates
+        // anything), and the edge was simply masked behind #685 at
+        // every band until now. Named, pinned, and filed rather than
+        // averaged away — the cell says which outcome belongs to
+        // which band, which is the whole point of sweeping.
         Err(StepImportError::Adoption { id, attempts }) => {
-            assert_eq!(
-                id, 685,
-                "the frontier is now a rational-NURBS rim, not a placement"
-            );
             assert!(
-                !attempts.is_empty(),
-                "and it is a refusal (candidates tried), not a gap"
+                coarse,
+                "at a fine ambient band the D7 ladder must not refuse dm1 at all \
+                 (#327 retired edge #685): #{id}, {} candidate(s)",
+                attempts.len()
+            );
+            assert_eq!(id, 389, "the coarse-band cell's edge");
+            assert!(
+                attempts.is_empty(),
+                "and it is the polyline GAP, not a refusal with candidates"
             );
         }
-        other => panic!("dm1's refusal has moved into the adoption ladder; got {other:?}"),
+        Err(e @ StepImportError::TierInvalid { .. }) => {
+            let shown = e.to_string();
+            assert!(
+                !coarse,
+                "the coarse band's cell is the #389 ladder gap, not the gate: {shown}"
+            );
+            assert!(
+                shown.contains("the certified quadrature enclosure stalled at"),
+                "the frontier is now the rational-patch-flux lane, not the ladder: {shown}"
+            );
+        }
+        other => panic!("dm1's refusal has moved out of the at-rest gate; got {other:?}"),
     }
 }
