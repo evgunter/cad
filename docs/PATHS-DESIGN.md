@@ -674,14 +674,28 @@ verb consulting the previous leg is thereby UNWRITABLE (its
 one parameter has two fields; the module cannot name the
 accumulator) — re-introducing carrier-awareness would require
 changing a signature, the loud reviewable act such a change
-should be. CONSEQUENCE (the drift-proofing dividend): the
-replay driver already wants verbs as pure (state, args)→state
-functions, so the typed surface and the replay driver become
-TWO THIN WRAPPERS OVER THE SAME PURE KERNEL — the V2
-drift-proofing construction (DynTip mirroring + differential
-pins) collapses from "two surfaces proven equivalent" to "one
-implementation, shared." Mechanism details (emission vocabulary,
-module seam) to the re-spell unit's spec.
+should be. CONSEQUENCE (the drift-proofing dividend, completed by
+Evan's round-13 push toward full unification): the surface and
+the replay driver become TWO MECHANICAL PROJECTIONS OF ONE
+DECLARATION — a single TRANSITION TABLE, one row per
+(state, verb, kernel fn, next state), macro-expanded (the
+point_state precedent) into all four artifacts: the typed
+method, the driver match arm, the Step variant, and the tag
+entry. Nothing is written twice, so nothing can drift: a
+missing row is missing EVERYWHERE consistently and loudly; an
+inconsistent pair is unwritable because there is no second
+place to write it. The round-9 exhaustiveness pressure rides
+the same table for free (wire enum, replay arms, tags enumerate
+its rows by construction). The V2 drift-proofing differential
+census RETIRES to one smoke row (it becomes a tautology). The
+entry signatures genuinely differ (typed method vs step data),
+which is why the unification lives at the DECLARATION level —
+the delegation alternative (typed methods calling through the
+driver) was considered and rejected: it needs an unreachable!()
+where the statically-known state meets the enum return, a
+runtime assertion standing where the types should speak.
+Mechanism details (table syntax, emission vocabulary, module
+seam) to the re-spell unit's spec.
 
 **The family (line is the unmarked middle-position default):**
 
