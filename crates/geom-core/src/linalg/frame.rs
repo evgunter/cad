@@ -114,6 +114,17 @@ pub enum FrameInput {
     /// the aim line was not definitely nonzero: it is parallel or
     /// antiparallel to the aim, too short to state a direction, or
     /// poisoned.
+    ///
+    /// **The name reports the decision that refused, not always the
+    /// input that caused it.** One aggregated case: an *aim* beyond
+    /// [`Vec3::normalize`]'s ~1e154 overflow band passes the aim
+    /// decision on an infinite norm and then normalizes to the ZERO
+    /// vector, so every reference's offset from it is zero and the
+    /// refusal surfaces here rather than as [`FrameInput::Aim`]. This
+    /// is [`FrameInput::ReferenceLadder`]'s class arriving through
+    /// `point_at`'s single-reference door, which has no separate
+    /// variant for it; the situation is unreachable inside the session
+    /// box (D4 ¶4), and the refusal is loud either way.
     RollReference,
     /// [`path_start_frame`]'s reference ladder ran out: neither world
     /// +Z nor world +X was definitely off the tangent line. The two
@@ -258,7 +269,11 @@ fn frame_from_unit_aim<T: Real>(
 ///   rather than substituting a reference** — the caller stated the
 ///   roll, and a silent substitution would answer a different
 ///   question. Callers wanting a conventional roll want
-///   [`path_start_frame`], whose ladder is the stated policy.
+///   [`path_start_frame`], whose ladder is the stated policy. This
+///   variant also absorbs an *aim* past the ~1e154 overflow band,
+///   which normalizes to zero after passing its own decision — see
+///   [`FrameInput::RollReference`]'s docs for that aggregation, stated
+///   there rather than hidden.
 /// - [`FrameError::Band`] from [`Band::linear`].
 pub fn point_at<T: Decide>(
     eye: Point3<T>,
@@ -574,6 +589,22 @@ mod tests {
                 }
             );
         }
+        // The documented aggregation: an aim past the ~1e154 overflow
+        // band clears its own decision on an infinite norm, then
+        // normalizes to zero, so the refusal arrives under
+        // RollReference. Pinned because the docs promise it.
+        assert_eq!(
+            point_at(
+                Point3::origin(),
+                Point3::new(1e200, 1e200, 1e200),
+                Vec3::unit_z()
+            )
+            .unwrap_err(),
+            FrameError::Degenerate {
+                input: FrameInput::RollReference,
+                indeterminate: None
+            }
+        );
         // Poison refuses too — as an in-band (invalid-margin) outcome,
         // never as a silently NaN frame.
         let p = point_at(e, Point3::new(f64::NAN, 0.0, 0.0), Vec3::unit_z());
