@@ -722,8 +722,10 @@ mod tests {
         // isometry that a rigid-motion check refuses, by design.
         assert_eq!(m.linear.determinant(), -1.0);
         assert_eq!(rigidity_residuals(&m)[6], -2.0);
-        // A reflection is its own inverse.
-        assert_eq!(bits12(&(m * m)), bits12(&Affine3::identity()));
+        // A reflection is its own inverse — composed with an
+        // independently built copy of itself, exactly the identity.
+        let again = mirror_across_plane(Point3::origin(), Vec3::unit_z()).unwrap();
+        assert_eq!(bits12(&(m * again)), bits12(&Affine3::identity()));
     }
 
     #[test]
