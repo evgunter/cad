@@ -69,6 +69,13 @@ state the INVARIANT).
    + ty fixtures — the PYG1 house pattern; suite delta stated);
    audit absence rows updated; the chat examples from the #419
    conversation land as doctests.
+8. **The test-support shim DELETES here** (re-sequenced from
+   RETTAIL by ruling on #431: its ~42 surviving callers are
+   at_on/to_on chains this unit re-spells — migrate them to the
+   new family and delete profile/src/test_support.rs; the
+   deletion-horizon register entry closes). Also adjudicate
+   #433 (lattice/validate collinearity) in PR-1's §4 rewrite —
+   propose a disposition in the PR body for Evan.
 
 ## 2. Fence
 
