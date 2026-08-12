@@ -661,6 +661,28 @@ Everything below DERIVES from the axiom:
   refusal (`NoCornerForFillet`) consumes only the verb's own
   inputs.
 
+**The axiom is ENFORCED BY CONSTRUCTION (Evan, round 12 — not
+discipline, structure):** every verb is a PURE FUNCTION over
+bare state VALUES — e.g. `fillet(dp: DirectedPoint<T>, r: T) ->
+FilletArrival<T>`, where the state types hold NOTHING but their
+binding bits — living in a SEALED VERBS MODULE with no
+visibility into the chain's accumulator. The chain type merely
+threads state values through the verb functions and applies
+their EMISSIONS (append-leg / insert-arc / extend-ray) to the
+accumulating loop on the far side of the module boundary. A
+verb consulting the previous leg is thereby UNWRITABLE (its
+one parameter has two fields; the module cannot name the
+accumulator) — re-introducing carrier-awareness would require
+changing a signature, the loud reviewable act such a change
+should be. CONSEQUENCE (the drift-proofing dividend): the
+replay driver already wants verbs as pure (state, args)→state
+functions, so the typed surface and the replay driver become
+TWO THIN WRAPPERS OVER THE SAME PURE KERNEL — the V2
+drift-proofing construction (DynTip mirroring + differential
+pins) collapses from "two surfaces proven equivalent" to "one
+implementation, shared." Mechanism details (emission vocabulary,
+module seam) to the re-spell unit's spec.
+
 **The family (line is the unmarked middle-position default):**
 
 - `fillet(r)` — line incoming, line arrival. The plain directed
