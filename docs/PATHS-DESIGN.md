@@ -644,6 +644,206 @@ consequence reported for ratification, not an implementer's taste:
   `.at(p).toward(dx, dy)`, because a straight pair is `path.rs`'s
   bracket-free business.
 
+## 2c. The fillet-family redesign (2026-08-12 conversation with
+## Evan, seven rounds — PROPOSED, awaiting sign-off; supersedes
+## the §2b compound-verb register when ratified and implemented)
+
+**THE AXIOM (leads by design — Evan, round 11): every verb can
+depend ONLY on its incoming lattice state — Open / Point /
+Angle / Directed, carrying nothing but its binding bits
+(position and/or tangent) — plus the verb's own authored
+arguments. Nothing else about the chain is knowable.** "What
+leg produced this point" is not a fact any verb can consult:
+being NURBS-adjacent, arc-adjacent, or line-adjacent is
+UNREPRESENTABLE knowledge, so no verb can branch on it, refuse
+on it, or silently depend on it. (The retired
+`FilletCarrierUnsupported` wall was possible exactly because
+this axiom was not load-bearing in the ratified text — a
+carrier-aware refusal is unwritable under it.)
+
+Everything below DERIVES from the axiom:
+
+- A fillet that needs an arc carrier cannot LEARN it — so it
+  must AUTHOR it: the fused verbs (round 7's reframe — an arc
+  and the fillet that trims it are ONE authoring act).
+- A bare `fillet(r)` knows only the tangent ray its directed
+  point defines — so its incoming side IS that ray, uniformly
+  (round 10's ray-extension semantics), whatever leg came
+  before.
+- No jet, no carrier data riding the tip, no reach into
+  neighbors, no carrier-keyed refusals; the one surviving
+  refusal (`NoCornerForFillet`) consumes only the verb's own
+  inputs.
+
+**The axiom is ENFORCED BY CONSTRUCTION (Evan, round 12 — not
+discipline, structure):** every verb is a PURE FUNCTION over
+bare state VALUES — e.g. `fillet(dp: DirectedPoint<T>, r: T) ->
+FilletArrival<T>`, where the state types hold NOTHING but their
+binding bits — living in a SEALED VERBS MODULE with no
+visibility into the chain's accumulator. The chain type merely
+threads state values through the verb functions and applies
+their EMISSIONS (append-leg / insert-arc / extend-ray) to the
+accumulating loop on the far side of the module boundary. A
+verb consulting the previous leg is thereby UNWRITABLE (its
+one parameter has two fields; the module cannot name the
+accumulator) — re-introducing carrier-awareness would require
+changing a signature, the loud reviewable act such a change
+should be. CONSEQUENCE (the drift-proofing dividend, completed by
+Evan's round-13 push toward full unification): the surface and
+the replay driver become TWO MECHANICAL PROJECTIONS OF ONE
+DECLARATION — a single TRANSITION TABLE, one row per
+(state, verb, kernel fn, next state), macro-expanded (the
+point_state precedent) into all four artifacts: the typed
+method, the driver match arm, the Step variant, and the tag
+entry. Nothing is written twice, so nothing can drift: a
+missing row is missing EVERYWHERE consistently and loudly; an
+inconsistent pair is unwritable because there is no second
+place to write it. The round-9 exhaustiveness pressure rides
+the same table for free (wire enum, replay arms, tags enumerate
+its rows by construction). The V2 drift-proofing differential
+census RETIRES to one smoke row (it becomes a tautology). The
+entry signatures genuinely differ (typed method vs step data),
+which is why the unification lives at the DECLARATION level —
+the delegation alternative (typed methods calling through the
+driver) was considered and rejected: it needs an unreachable!()
+where the statically-known state meets the enum return, a
+runtime assertion standing where the types should speak.
+Spelling freedom (round 14, Evan's trait suggestion): the
+REQUIREMENT is the invariant — every transition declared exactly
+once, all projections (typed method, driver arm, Step variant,
+tag) mechanically derived, drift unwritable. TWO spellings
+satisfy it: (a) the table-macro generating all four artifacts;
+(b) rows as ordinary trait impls (`impl Apply<Verb> for State`,
+one per row, calling the kernel fn — rustdoc-visible, consistent
+with the ArcSpecFor admissibility impls) plus a SLIM macro for
+only the enum-side projections, which Rust cannot derive from
+impls (no reflection — without that step the enum match is
+hand-written and the drift point quietly returns). RULED (Evan, round 15): **lean (a), the
+table-macro** — a macro exists in both spellings, so the trait
+layer buys little, and (b)'s generic impls (flavored states ×
+verb types × associated Out types) add trait-resolution surface
+that taxes compile time where (a) expands to flat concrete
+methods. The re-spell unit may still adopt (b) only if it
+measures no compile-time cost and reads cleaner in situ.
+Mechanism details (row/table syntax, emission vocabulary, module
+seam) to the re-spell unit's spec.
+
+**The family (line is the unmarked middle-position default):**
+
+- `fillet(r)` — line incoming, line arrival. The plain directed
+  point fully determines a line carrier, so no fusion is needed
+  on either side.
+- `fillet_arc(r, spec)` — line incoming, arc arrival.
+- `arc_fillet(spec, r)` — the fused verb: authors the incoming
+  arc (mode per `spec`) and fillets off it, line arrival.
+- `arc_fillet_arc(spec, r, spec₂)` — fused arc incoming, arc
+  arrival.
+- Plain `arc_to(spec)` remains for SHARP-cornered arcs;
+  converting sharp→filleted is an edit at the same call site.
+- **The endpoint lives INSIDE the endpoint-full variants**
+  (Evan's round-8 observation, vindicating his wrap-the-args
+  instinct): once the family admits endpoint-FREE modes, `p`
+  stops being a uniform argument — so `Bulge{p, b}`,
+  `Via{q, p}`, `Center{c, w, p}` carry their target, and the
+  endpoint-free variants derive theirs.
+- Fillet-after-fillet: the leg between two fillets is a line
+  (verb₁'s arrival side), so bare `fillet(r)` chains it — the
+  §2 both-ends-trimmed semantics carry over.
+
+**Arrival halves** (unchanged from rounds 4–6, now living
+inside the verbs): uniform binders `.at(p)` / `.angle(θ)` /
+`.toward(dx, dy)` in either order on the fillet's own arrival
+builder; the arrival carrier's residual spec per the ArcData
+matrix below; The arrival's `Radius{r, side}` derives its
+centre — never authored (a tangent circle at a directed point
+has one free length + a side bit; `side` = which half of the
+normal the centre sits on, the same single bit every mode
+carries in its own dress — winding, bulge sign). The round-4
+"arrivals ship Radius-only" staging is SUPERSEDED by round 9,
+below.
+
+**`ArcData` (rounds 5–6, extended round 8): spec modes as
+standalone value types** — `Radius{r, side}`, `Bulge{p, b}`,
+`Via{q, p}`, `Center{c, winding, p}`, plus the ENDPOINT-FREE
+pair `Sweep{r, side, angle}` / `ArcLen{r, side, len}` (the arc
+analogs of `line(len)`: tangent-departing, endpoint DERIVED —
+DOF-complete from a directed start) — with admissibility a
+TRAIT MATRIX
+(`ArcSpecFor<State>`, the ArcTarget dispatch precedent): an
+inadmissible (state, mode) pair is a missing impl —
+unrepresentable, not refused; new modes additive. The matrix is
+DOF-derived and STATE-KEYED: `Center@Point` supplies the
+direction (retroactively, exactly what `at_on` was);
+`Center@Directed` is EXCLUDED because the bound direction would
+have to value-match the derived tangent (authored-once decides,
+not taste); `Via` completes a directed anchor, underdetermines
+a bare one; `Bulge` is chord-relative — admissible where the
+chord exists: leg targets AND the fused verbs' incoming specs
+(the target `p` is in the args), never arrivals. Full matrix at
+the re-spell unit's spec. The wire/program layer records ONE
+unified `ArcData` enum (record-as-you-lower keeps the authored
+mode; the VQ contracts rely on that distinctness).
+**RULED (Evan, round 9): the ENTIRE family ships in stage 1 —
+every admissible (site, mode) pair, tested.** The forcing
+argument is exhaustiveness one layer down: the wire enum is
+matched exhaustively by the replay driver, persist wire, and
+tag map, so a declared-but-unshipped variant would need a
+refuse-stub arm (forbidden — fail-loud has no stubs) and an
+undeclared one makes every later mode enum-growth churn
+(tags, replay arms, schema conversation). The family is closed
+and DOF-complete; Bulge/Via/Center lowering already exists;
+Sweep/ArcLen are closed-form; Radius is the fillet-arrival
+resolution needed regardless. Use-case-gating applies to no
+variant; inadmissible pairs remain unrepresentable (free).
+
+**Bounds:** the capability obligation (`ArcCarrierScalar:
+Decide + Bounds`) sits per-method on the arc-involving verbs
+(`fillet_arc`, `arc_fillet`, `arc_fillet_arc`) — the generic
+lattice doors and plain `fillet(r)` never carry it. MEASURED
+(2026-08-12): every scalar that drives an authoring chain (f64,
+Interval, Probe) implements Bounds; Dual reaches profiles only
+by lifting lowered ProfileLoop data. The bound is free in
+practice either way.
+
+**Honest residuals:** (a) a generic motif that fillets off a
+RECEIVED tip of unknown leg kind cannot be written — the caller
+names the verb (explicitness, arguably a feature; the jet
+design of rounds 3–4 would have allowed it and was DROPPED with
+the fusion reframe); (b) the verb inventory is four fillet
+forms + two plain legs, kept tidy by ArcData; (c) SUPERSEDED by
+round 10, below.
+
+**Superseded en route (the record of the conversation):**
+carrier-typed tips (round 2 — capture-at-fillet made them
+unnecessary); capture-at-fillet itself and the 2-jet directed
+point (rounds 3–4 — the fusion reframe made BOTH unnecessary:
+with the arc authored inside the verb there is nothing to
+capture and nothing second-order to carry). `at_on`, `to_on`,
+`at_toward` all dissolve at the re-spell; the §2b register and
+the §2/§3 fillet text rewrite at that unit.
+
+**Round 10 (Evan): `FilletCarrierUnsupported` RETIRES.** The
+incoming contact of bare `fillet(r)` lies on the tangent ray
+AHEAD of the directed point, as new path (latent in §2's own
+anchoring: the corner is the carrier INTERSECTION; behind-the-
+ray-start refuses) — so after a NURBS leg the surviving ray
+piece is a GENUINE LINE LEG extending from the curve's end,
+lowered and recorded as such; no refusal, no special case. The
+same semantics after a sharp `arc_to`: ray extension off the
+arc's end. The system's whole shape: **contact ON the carrier ⇔
+the fused verb** (`arc_fillet`; a `nurbs_fillet` has no closed
+form and is an ABSENT VERB — unrepresentable, strictly better
+doctrine than the old typed wall); **bare `fillet` ⇔ tangent-ray
+extension**, uniform across line/arc/NURBS incomings. The one
+surviving refusal is `NoCornerForFillet` (parallel carriers /
+intersection behind the ray start) — geometry, not mechanism.
+
+Sequencing: #413 (route 3 as landed) is MERGED; this redesign
+re-spells the surface on top of the same resolution machinery
+in a follow-up unit, which also re-spells the program Step
+vocabulary (pre-release clean break; the v8 step set is not a
+compatibility surface).
+
 ## 3. Surface vocabulary
 
 | Form | Lattice transition | Notes |
