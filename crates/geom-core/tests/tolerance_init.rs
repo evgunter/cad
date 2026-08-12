@@ -7,6 +7,17 @@
 //! contain exactly ONE `#[test]` (a second would race it for first touch
 //! of the global).
 //!
+//! That premise is load-bearing and was once quietly broken: `tests/all.rs`
+//! aggregated every suite into ONE binary to save CI link time, which put
+//! this test in the same process as six other suites that touch
+//! `Tolerance`. `cargo test -p geom-core` then failed on a clean tree —
+//! invisibly, because running it FILTERED still passes (nothing else runs
+//! to claim the lock first), and because CI stayed green: nextest forks
+//! per test, which `ci.yml` calls out as "strictly safer for the tolerance
+//! OnceLock". It now has its own `[[test]]` target again, and
+//! `all.rs`'s aggregation guard exempts it BY NAME so re-adding it is a
+//! deliberate act rather than an accident.
+//!
 //! Note this binary passes even under a malformed `CAD_TOLERANCE_EPS`, by
 //! design: an explicit `init` never consults the environment. The loud
 //! failure for a bogus env value lives in the lib test binary's
