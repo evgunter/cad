@@ -690,24 +690,32 @@ clause. Four pieces:
    free length and one bit). `at_on`'s authored-centre spelling
    is retired by this; a centre-held-datum mode returns only if
    a use case earns it, via item 5.
-5. **`ArcData` (Evan, round 5 — ADOPTED as the unifier):** one
-   value family for "ways to author an arc" — `Radius{r, side}`,
-   `Bulge{b}`, `Via{q}`, `Center{c, winding}` — with PER-SITE
-   ADMISSIBLE SUBSETS ENFORCED STATICALLY (the target-trait
-   dispatch precedent: an inadmissible mode at a site is
-   unrepresentable, not refused). Admissibility is DOF-honest,
-   set by what each mode is relative to: `Bulge` is
-   chord-relative, so it fits LEGS (`arc_to(target, spec)` —
-   the chord exists) and never fillet arrivals (no far endpoint
-   yet); `Radius` fits arrivals exactly (the round-4 ruling —
-   stage 1 ships arrivals as Radius-only); `Via`/`Center` are
-   well-formed at both as held-datum alternatives and unlock by
-   use case. The §2a leg-verb collapse onto `arc_to(target,
-   spec)` is now IN the re-spell conversation's scope — the
-   variant preserves the authored-set distinctness that
-   record-as-you-lower and the VQ contracts rely on — but its
-   corpus migration is still measured at the re-spell unit's
-   spec, not assumed.
+5. **`ArcData` (Evan, rounds 5–6 — ADOPTED, with STATE-KEYED
+   admissibility):** the arc-authoring modes are STANDALONE
+   VALUE TYPES — `Radius{r, side}`, `Bulge{b}`, `Via{q}`,
+   `Center{c, winding}` — and admissibility is a TRAIT MATRIX
+   (`ArcSpecFor<State>`, the ArcTarget/LineTarget dispatch
+   precedent): one generic `.arc(spec)` / `arc_to(target,
+   spec)` door per site, an inadmissible (state, mode) pair is
+   a MISSING IMPL — unrepresentable, no per-state enums, new
+   modes additive. The matrix is DOF-derived, keyed by the
+   ARRIVAL'S BINDING STATE, not just the site (Evan's round-6
+   observation), with two anchor rows that fall out of
+   doctrine: `Center@Point` is well-formed and SUPPLIES the
+   direction (retroactively, this is exactly what `at_on` was);
+   `Center@Directed` is INADMISSIBLE because the bound
+   direction would have to value-match the centre's derived
+   tangent — the forbidden coincidence check, so authored-once
+   decides the matrix, not taste. `Radius@Directed` is the
+   round-4 ruling (stage 1 ships it alone); `Via` completes a
+   directed anchor, underdetermines a bare one; `Bulge` is
+   chord-relative — legs only. The full matrix is worked at the
+   re-spell unit's spec. The wire/program layer records ONE
+   unified `ArcData` enum (serialization needs no static
+   split; record-as-you-lower keeps the authored mode). The
+   §2a leg-verb collapse onto `arc_to(target, spec)` is IN
+   this conversation's scope; its corpus migration is still
+   measured at the re-spell unit's spec, not assumed.
 
 (An earlier draft of this section proposed carrier-typed
 directed tips; DROPPED per Evan's round-2 challenge — the
