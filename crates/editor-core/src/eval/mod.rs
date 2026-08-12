@@ -17,6 +17,9 @@
 
 mod anchor;
 mod memo;
+pub(crate) mod parts;
+
+pub use parts::PartFault;
 mod schedule;
 mod slots;
 mod wire;
@@ -66,6 +69,14 @@ pub struct Evaluation<T: Decide> {
     /// How many nodes were reused from the prior evaluation by
     /// content-key match.
     pub reused: usize,
+    /// How many REFERENCED documents this evaluation actually
+    /// evaluated across the document seam (ASM-2A D-3's sharing
+    /// evidence). N instances of one part contribute 1; a memo-hit
+    /// instance contributes 0, because it never asks; and a nested
+    /// crossing — a part that instantiates a part — contributes to
+    /// THIS count too, so the number is the whole run's seam traffic
+    /// rather than one level's.
+    pub part_evaluations: usize,
     /// The document's appearance store resolved against THIS
     /// evaluation's name tables (M4 PR 7): per node, entity →
     /// attributes, so a renderer/exporter consumes appearance without
@@ -527,6 +538,17 @@ pub enum NodeErrorKind {
     /// the M6 solver: the arm exists so the solver lands as logic,
     /// not a schema change.
     WitnessBifurcation(crate::witness::WitnessBifurcation),
+    /// An `InstantiatePart` node could not produce its part's placed
+    /// body (ASM-2A D-3). The reference names WHICH document was being
+    /// crossed to; the fault says what stopped it — including A4's pin
+    /// gate and A2's ε seam, observed here at evaluation rather than
+    /// assumed at authoring.
+    Part {
+        /// The reference that was being resolved.
+        doc_ref: crate::ident::DocRef,
+        /// Why it did not yield a part body.
+        fault: parts::PartFault,
+    },
 }
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
@@ -635,6 +657,9 @@ impl core::fmt::Display for NodeErrorKind {
                 "the fillet selection is empty — an unfinished recipe, not the identity",
             ),
             Self::WitnessBifurcation(_) => f.write_str("the sketch's branch selection refused"),
+            Self::Part { doc_ref, fault } => {
+                write!(f, "instantiating {doc_ref}: {fault}")
+            }
         }
     }
 }
@@ -686,6 +711,23 @@ impl CancelToken {
     }
 }
 
+/// What a scalar must satisfy to be evaluated: decided predicates, the
+/// memo's content bits, the certification brackets the props lane
+/// needs, and `Send + Sync` for the rayon schedule. ONE name for the
+/// set, stated at the evaluation-service seam that owns it — so the
+/// modules below this one (`parts`) name the requirement rather than
+/// restate it, and the compound `Bounds` bound stays inside the seam
+/// the 2026-07-29 Bounds scope rule ratified.
+pub trait EvalScalar:
+    Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane
+{
+}
+
+impl<T> EvalScalar for T where
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane
+{
+}
+
 /// Evaluation options (spec D5/D6).
 #[derive(Debug, Clone)]
 pub struct EvalOptions {
@@ -709,6 +751,11 @@ pub struct EvalOptions {
     /// strategy (the diff engine always compares production runs).
     /// Production default: `Realized`.
     pub boolean_sweep: topo::SweepStrategy,
+    /// The document seam (ASM-2A D-3): how an `InstantiatePart` node
+    /// reaches the document it pins. `None` — the default — is a
+    /// kernel-only evaluation, in which every instantiate node refuses
+    /// typed rather than pretending a part is empty.
+    pub resolver: Option<Arc<dyn crate::part::PartResolver>>,
 }
 
 impl Default for EvalOptions {
@@ -717,6 +764,7 @@ impl Default for EvalOptions {
             epoch: Epoch::mint(),
             parallel: false,
             boolean_sweep: topo::SweepStrategy::Realized,
+            resolver: None,
         }
     }
 }
@@ -740,7 +788,38 @@ pub fn evaluate<T>(
     opts: &EvalOptions,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+{
+    evaluate_at_descent(doc, prior, cancel, opts, &[])
+}
+
+/// An instantiated document's own evaluation (ASM-2A D-3), one level
+/// deeper than its instantiator's. `chain` is the descent — every
+/// reference this run was reached through — which is what makes a
+/// cycle decidable at the seam. No prior: a referenced document is
+/// resolved fresh, and the memo that keeps THAT from costing anything
+/// is the part cache, one layer up.
+pub(crate) fn evaluate_nested<T>(
+    doc: &Doc<ProfileProgram>,
+    cancel: &CancelToken,
+    opts: &EvalOptions,
+    chain: &[crate::ident::DocRef],
+) -> Evaluation<T>
+where
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+{
+    evaluate_at_descent(doc, None, cancel, opts, chain)
+}
+
+fn evaluate_at_descent<T>(
+    doc: &Doc<ProfileProgram>,
+    prior: Option<&Evaluation<T>>,
+    cancel: &CancelToken,
+    opts: &EvalOptions,
+    chain: &[crate::ident::DocRef],
+) -> Evaluation<T>
+where
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
 {
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
@@ -751,6 +830,11 @@ where
         return refuse_tolerance_conflict(doc, sched, opts, process_eps);
     }
     let env = doc.param_env::<T>();
+    let parts = parts::PartCache::<T>::new(opts.resolver.as_ref(), chain, opts.boolean_sweep);
+    let op_env = wire::OpEnv {
+        boolean_sweep: opts.boolean_sweep,
+        parts: &parts,
+    };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
     let mut recomputed = 0usize;
     let mut reused = 0usize;
@@ -769,12 +853,7 @@ where
             use rayon::prelude::*;
             let results: Vec<(RecipeNodeId, NodeStep<T>)> = level
                 .par_iter()
-                .map(|&id| {
-                    (
-                        id,
-                        eval_node(doc, &env, id, &nodes, prior, opts.boolean_sweep),
-                    )
-                })
+                .map(|&id| (id, eval_node(doc, &env, id, &nodes, prior, &op_env)))
                 .collect();
             for (id, step) in results {
                 bookkeep(&step, &mut recomputed, &mut reused);
@@ -787,7 +866,7 @@ where
                 outcome = EvalOutcome::Canceled;
                 break;
             }
-            let step = eval_node(doc, &env, id, &nodes, prior, opts.boolean_sweep);
+            let step = eval_node(doc, &env, id, &nodes, prior, &op_env);
             bookkeep(&step, &mut recomputed, &mut reused);
             nodes.insert(id, step.result);
         }
@@ -837,6 +916,7 @@ where
         outcome,
         recomputed,
         reused,
+        part_evaluations: parts.evaluations(),
         appearance: resolved_appearance,
     }
 }
@@ -885,6 +965,7 @@ where
         outcome: EvalOutcome::Completed,
         recomputed: 0,
         reused: 0,
+        part_evaluations: 0,
         appearance: resolved_appearance,
     }
 }
@@ -918,10 +999,10 @@ fn eval_node<T>(
     id: RecipeNodeId,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&Evaluation<T>>,
-    boolean_sweep: topo::SweepStrategy,
+    op_env: &wire::OpEnv<'_, T>,
 ) -> NodeStep<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
 {
     let fail = |kind: NodeErrorKind| NodeStep {
         result: NodeResult::Failed(NodeError { node: id, kind }),
@@ -1001,6 +1082,7 @@ where
         resolved_program.as_deref(),
         &upstream_keys,
         doc.witness(id),
+        doc.placement(id),
     );
     let naming_key = naming_key(content_key, &upstream_naming);
 
@@ -1036,7 +1118,7 @@ where
         results,
         &slot_values,
         profile_pre.as_ref(),
-        boolean_sweep,
+        op_env,
     );
     let verdicts = geom_core::k_stats::take_verdict_log();
     match op {
@@ -1071,6 +1153,7 @@ fn content_key<T>(
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     upstream_keys: &[ContentKey],
     witness: Option<&crate::witness::WitnessDatum>,
+    placement: crate::placement::Frame,
 ) -> ContentKey
 where
     T: Decide + ContentBits,
@@ -1114,6 +1197,8 @@ where
         Node::Sweep { .. } => 16,
         // M5 PR 12.
         Node::Fillet { .. } => 17,
+        // ASM-2A.
+        Node::InstantiatePart { .. } => 18,
     };
     h.write_tag(tag);
     // Structural payloads beyond the tag: profile floats and Declare
@@ -1148,6 +1233,29 @@ where
                     }
                 }
                 None => h.write_tag(0),
+            }
+        }
+        // ASM-2A D-1/D-2: WHICH document (id + pin — the pin IS the
+        // referenced content, so nothing about the part needs hashing
+        // here) and WHERE its cluster sits. The placement is document
+        // data, not node data, which is exactly why it must feed the
+        // key: a `SetPlacement` moves this node's value and nothing
+        // else about the node changes.
+        Node::InstantiatePart { doc_ref } => {
+            h.write_u64((doc_ref.id.0 >> 64) as u64);
+            h.write_u64(doc_ref.id.0 as u64);
+            for chunk in doc_ref.pin.0.chunks(8) {
+                let mut byte8 = [0u8; 8];
+                byte8[..chunk.len()].copy_from_slice(chunk);
+                h.write_u64(u64::from_be_bytes(byte8));
+            }
+            for x in placement
+                .columns
+                .iter()
+                .flatten()
+                .chain(placement.translation.iter())
+            {
+                h.write_f64_bits(*x);
             }
         }
         Node::Declare { pairs } => {
@@ -1548,6 +1656,10 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         RoleSeg::OnToolVertex { side, of } => {
             h.write_tag(27);
             h.write_u64(half(*side));
+            feed_stable_name(h, of);
+        }
+        RoleSeg::InPart { of } => {
+            h.write_tag(40);
             feed_stable_name(h, of);
         }
         RoleSeg::Instance { i, of } => {

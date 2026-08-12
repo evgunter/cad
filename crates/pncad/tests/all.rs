@@ -1115,7 +1115,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 
 /// R1-PARAMS: `plate_param` authors façade-only, evaluates to the
 /// corpus scene's analytic oracle, and its saved text is pinned as
-/// `tests/plate_param.v7.pncad` — the fixture the Python audit loads
+/// `tests/plate_param.v8.pncad` — the fixture the Python audit loads
 /// (`crates/pncad-py/tests/test_north_star.py`) to author the
 /// `set_doc_param` edit from Python. Python cannot yet author this
 /// profile from scratch (audit gaps G1/G9: circles, multi-loop), so
@@ -1157,7 +1157,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
 
     let text = pncad::document::save(&doc, &[]).expect("the document saves");
     if std::env::var_os("PNCAD_BLESS").is_some() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v7.pncad");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v8.pncad");
         std::fs::write(path, &text).expect("the fixture writes");
         return; // freshly written; the next compile pins it
     }
@@ -1180,7 +1180,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     };
     assert_eq!(
         sans_epsilon(&text),
-        sans_epsilon(include_str!("plate_param.v7.pncad")),
+        sans_epsilon(include_str!("plate_param.v8.pncad")),
         "the saved plate_param text moved — regenerate the fixture with \
          `PNCAD_BLESS=1 cargo test -p pncad plate_param` (default env) and re-run"
     );
@@ -1411,4 +1411,213 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
         }
         other => panic!("the raw snapshot's pin must refuse PinMismatch, got {other:?}"),
     }
+}
+
+// ---- ASM-2A: instantiate-part, end to end through a real workspace ----
+
+/// A part document on disk, plus the true reference to it.
+fn asm2a_part(dir: &WsDir, file: &str, label: &str) -> pncad::document::DocRef {
+    let (doc, text) = ws_doc(label);
+    dir.write(file, &text);
+    pncad::document::DocRef {
+        id: doc.id(),
+        pin: pncad::document::content_pin(&doc).expect("the pin computes"),
+    }
+}
+
+/// An assembly document holding `n` instances of one reference, the
+/// second onward displaced along +x so the solids stay disjoint.
+fn asm2a_assembly(
+    label: &str,
+    doc_ref: pncad::document::DocRef,
+    n: usize,
+) -> (
+    pncad::document::ProfileDoc,
+    Vec<pncad::document::RecipeNodeId>,
+) {
+    let mut doc = pncad::document::ProfileDoc::empty(pncad::document::DocumentId::derive(label));
+    let mut ids = Vec::new();
+    for i in 0..n {
+        let (next, id) = doors_insert(doc, pncad::document::Node::InstantiatePart { doc_ref });
+        doc = next;
+        if i > 0 {
+            #[allow(clippy::cast_precision_loss)]
+            let dx = 10.0 * i as f64;
+            doc = pncad::document::apply(
+                &doc,
+                &pncad::document::DocEdit::SetPlacement {
+                    node: id,
+                    frame: pncad::document::Frame::translation([dx, 0.0, 0.0]),
+                },
+            )
+            .expect("the placement is accepted")
+            .doc;
+        }
+        ids.push(id);
+    }
+    (doc, ids)
+}
+
+fn asm2a_eval(
+    doc: &pncad::document::ProfileDoc,
+    ws: &pncad::workspace::Workspace,
+) -> pncad::document::Evaluation<f64> {
+    let opts = pncad::document::EvalOptions {
+        resolver: Some(std::sync::Arc::new(ws.clone())),
+        ..pncad::document::EvalOptions::default()
+    };
+    pncad::document::evaluate::<f64>(doc, None, &pncad::document::CancelToken::new(), &opts)
+}
+
+/// Row 1 (E2E) — author a part, save it into a workspace, and let an
+/// assembly of TWO instances at different frames evaluate through the
+/// real store: a 2-solid product, volume bit-exactly 2× the part's,
+/// solid order = root order.
+#[test]
+fn asm2a_row1_two_instances_through_a_real_workspace() {
+    let dir = WsDir::new("asm2a-e2e");
+    let doc_ref = asm2a_part(&dir, "bracket.pncad", "asm2a-e2e-bracket");
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+
+    let (doc, ids) = asm2a_assembly("asm2a-e2e-asm", doc_ref, 2);
+    let ev = asm2a_eval(&doc, &ws);
+    let body = pncad::document::product(&doc, &ev).expect("the product gathers");
+    assert_eq!(body.solids().count(), 2);
+    assert_eq!(ev.part_evaluations, 1, "one part, one evaluation");
+
+    // The part's own product, through the same doors.
+    let part_doc = ws.resolve(&doc_ref).expect("resolves");
+    let part_ev = asm2a_eval(&part_doc, &ws);
+    let part_body = pncad::document::product(&part_doc, &part_ev).expect("the part's product");
+    let vol = |b: &pncad::topo::Body<f64>| {
+        pncad::topo::mass_properties(b)
+            .expect("mass properties")
+            .volume
+    };
+    assert_eq!(
+        vol(&body).to_bits(),
+        (2.0 * vol(&part_body)).to_bits(),
+        "the assembly's volume is bit-exactly twice the part's"
+    );
+
+    // Solid order = root order: instance 0 is at the origin, instance 1
+    // ten units along +x.
+    let x_of = |node| match ev.value(node).map(|v| &v.payload) {
+        Some(pncad::document::ValuePayload::Body(b)) => b
+            .vertices()
+            .filter_map(|(_, v)| b.get_point(v.point))
+            .map(|p| p.x)
+            .fold(f64::INFINITY, f64::min),
+        other => panic!("an instance's value is a body, got {other:?}"),
+    };
+    assert!((x_of(ids[0]) - 0.0).abs() < 1e-12);
+    assert!((x_of(ids[1]) - 10.0).abs() < 1e-12);
+    assert_eq!(doc.roots(), &ids[..], "both instances are roots, in order");
+
+    // The whole-document export door consumes the assembly with no new
+    // arms — A2's uniformity, executed.
+    let step = pncad::export::export_document_step(&ev, &doc, &StepOptions::default())
+        .expect("the assembly exports");
+    assert!(step.contains("MANIFOLD_SOLID_BREP"));
+}
+
+/// Row 5b (E2E) — A4's pin gate observed end to end: the part document
+/// is edited on disk after the reference was pinned, so evaluation
+/// refuses, naming the pin.
+#[test]
+fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
+    let dir = WsDir::new("asm2a-pin");
+    let doc_ref = asm2a_part(&dir, "part.pncad", "asm2a-pin-part");
+    // Re-author the SAME id with different content — the "part edited
+    // after the assembly pinned it" state.
+    let edited = {
+        let doc = pncad::document::ProfileDoc::empty(doc_ref.id);
+        let (doc, profile) = doors_insert(doc, doors_square(3.0));
+        let (doc, _) = doors_insert(
+            doc,
+            pncad::document::Node::Extrude {
+                profile,
+                distance: pncad::document::Expr::literal(1.5, pncad::document::Dimension::Length)
+                    .unwrap(),
+            },
+        );
+        pncad::document::save(&doc, &[]).expect("saves")
+    };
+    dir.write("part.pncad", &edited);
+
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let (doc, ids) = asm2a_assembly("asm2a-pin-asm", doc_ref, 1);
+    let ev = asm2a_eval(&doc, &ws);
+    match ev.result(ids[0]) {
+        Some(pncad::document::NodeResult::Failed(e)) => match &e.kind {
+            pncad::document::NodeErrorKind::Part { doc_ref: r, fault } => {
+                assert_eq!(*r, doc_ref, "the refusal names WHICH reference");
+                assert!(
+                    matches!(
+                        fault,
+                        pncad::document::PartFault::Unresolved {
+                            fault: pncad::document::ResolveFault::PinMismatch,
+                            ..
+                        }
+                    ),
+                    "the stale pin is its own classified fault: {fault}"
+                );
+                let rendered = fault.to_string();
+                assert!(
+                    rendered.contains("pin") && rendered.contains("accept updated version"),
+                    "the message names the pin and the recourse: {rendered}"
+                );
+            }
+            other => panic!("expected a Part refusal, got {other:?}"),
+        },
+        other => panic!("a stale pin must refuse at evaluation, got {other:?}"),
+    }
+}
+
+/// Row 1 (D9 across two fresh processes) — the assembly's product
+/// volume bits are a function of the recipe alone, not of the process.
+#[test]
+fn asm2a_row1_product_bits_agree_across_two_fresh_processes() {
+    let a = asm2a_spawn_probe("a");
+    let b = asm2a_spawn_probe("b");
+    assert_eq!(a, b, "two fresh processes agree bit for bit (D9)");
+}
+
+const ASM2A_PROBE_OUT: &str = "ASM2A_PROBE_OUT";
+
+/// The child half of the two-process row: build the same assembly and
+/// write its product's volume bits.
+#[test]
+fn asm2a_child_product_probe() {
+    let Ok(out) = std::env::var(ASM2A_PROBE_OUT) else {
+        return; // not the child — nothing to do
+    };
+    let dir = WsDir::new("asm2a-probe");
+    let doc_ref = asm2a_part(&dir, "part.pncad", "asm2a-probe-part");
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let (doc, _) = asm2a_assembly("asm2a-probe-asm", doc_ref, 2);
+    let ev = asm2a_eval(&doc, &ws);
+    let body = pncad::document::product(&doc, &ev).expect("gathers");
+    let v = pncad::topo::mass_properties(&body)
+        .expect("mass properties")
+        .volume;
+    std::fs::write(&out, format!("{}", v.to_bits())).expect("probe output writable");
+}
+
+fn asm2a_spawn_probe(tag: &str) -> String {
+    let exe = std::env::current_exe().expect("test exe path");
+    let out = std::env::temp_dir().join(format!("asm2a-probe-{tag}-{}", std::process::id()));
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::asm2a_child_product_probe"),
+        None => "asm2a_child_product_probe".to_string(),
+    };
+    let status = std::process::Command::new(exe)
+        .args([probe.as_str(), "--exact", "--nocapture"])
+        .env(ASM2A_PROBE_OUT, &out)
+        .status()
+        .expect("probe spawns");
+    assert!(status.success(), "probe {tag} failed");
+    let bits = std::fs::read_to_string(&out).expect("probe wrote");
+    let _ = std::fs::remove_file(&out);
+    bits
 }

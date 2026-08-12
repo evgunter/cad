@@ -150,21 +150,40 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// default; v5 refuses TYPED with the regenerate recourse, exactly as
 /// v1–v4 do, and the migration table stays empty.
 ///
-/// Version 7 is **vocabulary growth** on the standing terms (LIB-LBRET;
+/// Version 7 is the **instantiate-part clean break** (ASM-2A spec
+/// D-6, ASSEMBLY-DESIGN A2/A3/A11): [`crate::Node`] gained the
+/// `InstantiatePart` variant and [`crate::Doc`] the A11 `placements`
+/// registry. A v6 file carries neither, and neither has an honest
+/// invented default — an absent registry is exactly the all-identity
+/// state a v6 document already means, but the NODE variant is the
+/// break: a v6 reader and a v7 reader disagree about what a document
+/// can contain at all. v6 refuses TYPED with the regenerate recourse,
+/// exactly as v1–v5 do, and the migration table stays empty.
+///
+/// Version 8 is **vocabulary growth** on the standing terms (LIB-LBRET;
 /// PATHS-DESIGN §2b's LB10 route 3, ratified on #386): the chain step
 /// vocabulary gained [`crate::ProgramStep::AtToward`], the straight
 /// fillet arrival off an arc-carrier departure. The addition is
-/// forward-additive — a v6 file contains no `AtToward` and would load
-/// — but the reverse is what the version gate is FOR: a v7 file handed
-/// to a v6 reader must refuse at the gate, typed, instead of reaching
+/// forward-additive — a v7 file contains no `AtToward` and would load
+/// — but the reverse is what the version gate is FOR: a v8 file handed
+/// to a v7 reader must refuse at the gate, typed, instead of reaching
 /// serde and dying on an unknown variant. That is the same call v2 and
 /// v3 made for exactly this shape (new node vocabulary, new required
-/// field), so a v6 file refuses TYPED with the regenerate recourse and
+/// field), so a v7 file refuses TYPED with the regenerate recourse and
 /// the migration table stays empty.
 ///
+/// **7 and 8 were claimed twice, and this is the resolution.** ASM-2A
+/// (#414) and LIB-LBRET (#413) each concluded 7 was theirs, because
+/// each re-merged main before the other's bump landed. ASM-2A merged
+/// first, so v7 is InstantiatePart and LBRET takes the later number —
+/// two vocabulary changes never share one version, which is the whole
+/// point of the gate. The reason it needed a human eye: the constant
+/// is ONE LINE, so the second merge resolves it CLEANLY to the same
+/// text while the two meanings silently collapse.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these six.
-pub const SCHEMA_VERSION: u32 = 7;
+/// [`migration_step`] entry, or a ratified break like these seven.
+pub const SCHEMA_VERSION: u32 = 8;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -417,7 +436,8 @@ pub type MigrationStep = fn(serde_json::Value) -> Result<serde_json::Value, Migr
 /// **The table is empty, on purpose**: 1 → 2 (M5 PR 10 §4), 2 → 3
 /// (M6-5, ruled #217), 3 → 4 (LIB-SWITCH §4h — profiles as programs,
 /// ratified LQ7a clean break), 4 → 5 (ASM-1 D-6 — document identity)
-/// and 5 → 6 (ASM-ROOTS D-1 — product roots) were all ratified clean
+/// 5 → 6 (ASM-ROOTS D-1 — product roots) and 6 → 7 (ASM-2A D-6 —
+/// the instantiate node + A11 placements) were all ratified clean
 /// breaks. The mechanism stays because it costs nothing and D6.3's
 /// forward-only rule is unchanged; a future format change that is NOT
 /// a break adds its `n => Some(step_n)` arm here.

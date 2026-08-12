@@ -181,7 +181,7 @@ pub fn cone(doc: &ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
 }
 
 /// Evaluates a document at scalar `T` with default options.
-pub fn eval<T: Decide + ContentBits + geom_core::Bounds + Send + Sync>(
+pub fn eval<T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane>(
     doc: &ProfileDoc,
 ) -> Evaluation<T> {
     evaluate::<T>(doc, None, &CancelToken::new(), &EvalOptions::default())
@@ -305,7 +305,8 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         | Node::Transform { .. }
         | Node::Loft { .. }
         | Node::Sweep { .. }
-        | Node::Declare { .. } => Vec::new(),
+        | Node::Declare { .. }
+        | Node::InstantiatePart { .. } => Vec::new(),
     }
 }
 
@@ -324,6 +325,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
         Node::Declare { .. } => "Declare",
+        Node::InstantiatePart { .. } => "InstantiatePart",
     }
 }
 
@@ -345,6 +347,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetAppearanceMeta { .. } => "SetAppearanceMeta",
         DocEdit::ClearAppearanceMeta { .. } => "ClearAppearanceMeta",
         DocEdit::SetRoots { .. } => "SetRoots",
+        DocEdit::SetPlacement { .. } => "SetPlacement",
     }
 }
 

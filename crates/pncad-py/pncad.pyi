@@ -649,6 +649,7 @@ class SegTag:
     BandCut: Final[SegTag]
     BandSlit: Final[SegTag]
     Instance: Final[SegTag]
+    InPart: Final[SegTag]
 
 class OpGroup:
     """The op group a role segment belongs to (`SegPat.group`)."""
@@ -660,6 +661,7 @@ class OpGroup:
     Split: Final[OpGroup]
     Fillet: Final[OpGroup]
     Pattern: Final[OpGroup]
+    InstantiatePart: Final[OpGroup]
 
 class CapEnd:
     """An extrude/revolve cap end (`SegPat.side`)."""

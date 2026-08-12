@@ -110,6 +110,19 @@ pub use editor_core::ContentBits;
 // the edit and persistence doors carry.
 pub use editor_core::{ProductError, RootFault, product};
 
+// Instantiated parts (ASM-2A; ASSEMBLY-DESIGN A2/A3/A11). `Frame` is
+// the A11 cluster placement a document records per instantiate node
+// (read through `Doc::placement`, written by `DocEdit::SetPlacement`);
+// `PartResolver` is the document seam evaluation crosses to reach a
+// referenced document, `ResolveFailure`/`ResolveFault` its classified
+// refusal, and `PartFault` the evaluation-side cause an
+// `InstantiatePart` node reports. `product_named` is the gather that
+// carries the product's stable names — what an instance's own names
+// are minted from.
+pub use editor_core::{
+    Frame, PartFault, PartResolver, ResolveFailure, ResolveFault, product_named,
+};
+
 // The profile description node type and its document alias.
 pub use editor_core::{
     LoopProgram, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecordedProgramError,
