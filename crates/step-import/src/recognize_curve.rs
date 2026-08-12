@@ -79,9 +79,17 @@
 //!   `|q| ≥ sqrt((r−δ_s)² − δ_p²)` below, so
 //!   `| |q| − r | ≤ m := max(δ_s, r − sqrt(max(0, (r−δ_s)² − δ_p²)))`.
 //!   The distance from `P` to the circle `plane ∩ sphere` is exactly
-//!   `hypot(|q| − r, h)`, so `residual ≤ hypot(m, δ_p)`. Every step is
-//!   an inequality between certified quantities; no small-angle or
-//!   first-order step appears.
+//!   `hypot(|q| − r, h)`, and `hypot` is monotone in both arguments,
+//!   so `residual ≤ hypot(m, δ_p)`. Every step is an inequality
+//!   between certified quantities; no small-angle or first-order step
+//!   appears.
+//!
+//!   **Hypothesis, stated rather than assumed**: the lower bound needs
+//!   `r − δ_s ≥ 0`. Where it fails the expression under the root is
+//!   negative, the code takes `lower = 0`, and `m ≥ r > ε_in` makes
+//!   the promotion refuse — so the corner is safe, but it is safe
+//!   BECAUSE of that arm and not by the derivation, and the code says
+//!   so at the site.
 //!
 //! # Estimators (D9-clean: closed form, fixed evaluation order)
 //!
@@ -106,24 +114,37 @@
 //! The tri-state is kept because the distinction is real and the
 //! escalation site is the thing that is missing, not the class.
 //!
-//! # The full-period coverage witness (stated as what it is)
+//! # Coverage — the OTHER half of the promotion, certified
 //!
 //! A locus certificate says the carrier lies ON the circle; it does
 //! not say the carrier COVERS it. For the closed class the adopted
 //! edge is the full period ([`crate::geometry::endpoint_params`]'s
 //! self-loop arm), so a carrier that doubled back over a sub-arc would
-//! adopt as a strictly larger locus. The gate against that is a
-//! **turning witness**: five samples at the fixed fractions 0, ¼, ½,
-//! ¾, 1, their azimuths in the estimated frame, and the four wrapped
-//! increments required STRICTLY POSITIVE. Since the carrier is closed,
-//! the increments sum to a multiple of 2π; all-positive then forces
-//! that multiple to be at least one full turn. This is a fixed-
-//! schedule NECESSARY condition on the traversal, not a proof of
-//! monotone azimuth — the proof wants a derivative composite
-//! (`(Q × Q′)·â` in ring coefficients), which `compose` does not
-//! expose for curves today and which is a named follow-up. It is
-//! recorded here as the one non-certified limb of the promotion, and
-//! it is conservative: failing it refuses, never promotes.
+//! adopt as a strictly LARGER locus — a silent false promotion, the
+//! exact class #256's posture exists to prevent.
+//!
+//! [`covers_one_full_turn`] is that gate, and it is a CERTIFICATE, not
+//! a witness. The distinction matters and was learned the hard way: an
+//! earlier draft sampled five fixed domain fractions and required the
+//! wrapped azimuth increments positive. Wrapping a difference into a
+//! positive interval MANUFACTURES the positivity, so that check
+//! refused only exactly-equal consecutive azimuths — near-vacuous, and
+//! two independently constructed on-locus carriers (a 120° and a 300°
+//! out-and-back, both exactly on the circle) promoted through it. Both
+//! are pinned red here now.
+//!
+//! No amount of sampling could have fixed it: any three points of a
+//! circle lie in a common arc shorter than 2π, so a finite sample set
+//! can never prove coverage. What works is a STRUCTURAL bound that
+//! makes each wrapped increment equal the true one — the per-knot-span
+//! half-plane containment of [`covers_one_full_turn`], whose derivation
+//! is on that function. The schedule is the carrier's own span
+//! structure (knots, not data), so it is D9-clean.
+//!
+//! The gate refuses whenever it cannot tell, so it can make promotion
+//! incomplete but never incorrect. What remains banked in the
+//! surjectivity follow-up is the *tightness*: a carrier whose spans
+//! individually turn by π or more is refused rather than analysed.
 
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
 use geom_core::{Point3, Vec3};
@@ -143,7 +164,7 @@ pub(crate) enum CurveRecognition {
         /// the derived parameter interval keeps its orientation
         /// through the promotion.
         curve: Curve3<f64>,
-        /// The certified residual sup (METERS — module docs INV-C1..4).
+        /// The certified residual sup (METRES — module docs INV-C1/C2).
         residual: f64,
         /// Which kind certified.
         kind: PromotedCurveKind,
@@ -286,36 +307,7 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     }
     let u_ref = radial / radius;
     let v_ref = axis.cross(u_ref);
-    // **The turning witness** (module docs): five fixed samples, four
-    // wrapped azimuth increments, all required strictly positive.
-    let azimuth = |p: Point3<f64>| -> f64 {
-        let w = p - center;
-        w.dot(v_ref).atan2(w.dot(u_ref))
-    };
-    let tau = core::f64::consts::TAU;
-    let mut previous = azimuth(s0);
-    for k in 1..=4 {
-        let theta = azimuth(sample(f64::from(k) / 4.0));
-        if !theta.is_finite() {
-            return Ok(None);
-        }
-        let mut step = theta - previous;
-        while step <= 0.0 {
-            step += tau;
-        }
-        while step > tau {
-            step -= tau;
-        }
-        // Each increment must be a strictly positive advance of less
-        // than a full turn; a sample that does not advance (or that
-        // advances by a whole period between two consecutive fixed
-        // fractions) is not a witness of one clean turn.
-        if !(step > 0.0 && step < tau) {
-            return Ok(None);
-        }
-        previous = theta;
-    }
-    // The certificate. INV-C1 + INV-C3, both in meters at the end.
+    // The certificate. INV-C1 + INV-C2, both in metres at the end.
     let plane_sup = composite_sup(
         curve,
         &ImplicitSurface::Plane {
@@ -334,12 +326,26 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     // INV-C1: meters² → meters, divided by the radius (the smallest
     // the divisor `|P−c| + r` can be).
     let delta_s = sphere_sup.abs() / radius;
-    // INV-C2: the two into one distance-to-the-circle bound.
+    // INV-C2: the two into one distance-to-the-circle bound. The
+    // lower-bound branch is valid only for `r − δ_s ≥ 0` (invariant
+    // docs); outside it `inner` is not a bound and `lower = 0` makes
+    // `m ≥ r`, which is `> eps_in` for every radius this estimator
+    // admits — refusal, not a silent wrong number.
     let inner = (radius - delta_s).powi(2) - delta_p.powi(2);
     let lower = if inner > 0.0 { inner.sqrt() } else { 0.0 };
     let m = delta_s.max(radius - lower);
     let residual = m.hypot(delta_p);
     if !residual.is_finite() {
+        return Ok(None);
+    }
+    if residual > eps_in {
+        return Ok(None);
+    }
+    // **The COVERAGE certificate** (module docs). The locus half is
+    // now established; this is the other half, and it is a
+    // certificate rather than a witness. A carrier that lies on the
+    // circle but does not COVER it must not become the circle.
+    if !covers_one_full_turn(curve, center, axis, u_ref) {
         return Ok(None);
     }
     let circle = Curve3::Circle {
@@ -348,7 +354,138 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
         radius,
         u_ref: flush_zero(u_ref),
     };
-    Ok((residual <= eps_in).then_some((circle, residual)))
+    Ok(Some((circle, residual)))
+}
+
+/// **The coverage certificate**: does `curve` wind exactly once around
+/// the estimated circle? (module docs, "Coverage"). `true` only when
+/// that is PROVEN; every path that cannot tell answers `false`, so the
+/// gate can make promotion incomplete but never incorrect.
+///
+/// # Why the schedule is the carrier's own spans
+///
+/// The obstruction to reading a turning number off samples is that a
+/// sampled azimuth increment is only known modulo 2π: wrapping it into
+/// any interval MANUFACTURES a value, and summing manufactured values
+/// proves nothing. The fix is not more samples — no finite sample set
+/// can prove coverage, since any three points of a circle lie in a
+/// common arc shorter than 2π — but a structural bound that makes the
+/// wrapped increment EQUAL the true one.
+///
+/// That bound is per KNOT SPAN, and it is exact:
+///
+/// 1. On one knot span the curve is a convex combination of that
+///    span's `degree + 1` local control points (rational, strictly
+///    positive weights — the hull property `compose` also relies on).
+///    Project those into the circle's plane. If they all lie strictly
+///    on ONE side of some line through the centre — tested against
+///    their own normalized sum, so the direction is data-derived but
+///    the test is a fixed-order scan — then the whole span's image
+///    lies in that open half-plane.
+/// 2. Every point of an open half-plane bounded by a line through the
+///    centre has azimuth within an open interval of length π. A
+///    CONTINUOUS azimuth lift over the span therefore cannot leave one
+///    such interval, so the span's true azimuth increment is strictly
+///    between −π and π. (It also proves the curve never meets the
+///    centre, which is what makes the lift exist at all.)
+/// 3. An increment known to lie in `(−π, π)` is recovered EXACTLY by
+///    wrapping the sampled difference into `(−π, π]`: the two are
+///    congruent mod 2π and both in that interval, hence equal. No
+///    value is manufactured.
+/// 4. Summing the recovered increments over the spans in ascending
+///    order gives the carrier's TRUE total turning, `θ(b) − θ(a)`.
+///
+/// # What the total is allowed to be
+///
+/// The carrier is closed at ε_in (checked before the estimator runs),
+/// so the total is `2π·w` up to that closure gap, `w` the winding
+/// number. Exactly ONE positive turn is required — the total in
+/// `(π, 3π)`. Then `θ` is continuous with total change ≥ 2π minus the
+/// closure gap, so by the intermediate value theorem its image is an
+/// interval of that length: the carrier covers the circle except
+/// possibly a gap of at most `ε_in / r` in angle, which is precisely
+/// the ε_in-closure the file's own self-loop vertex already asserts.
+///
+/// `w = 0` (any doubling-back) and `|w| ≥ 2` (a multiply-wound
+/// carrier, whose locus is equal but whose traversal the adopted
+/// single period does not describe) both refuse. `w = −1` refuses too:
+/// the estimator's axis fixes the positive sense, and a carrier that
+/// disagrees with it is one the estimator read wrongly.
+fn covers_one_full_turn(
+    curve: &NurbsCurve3<f64>,
+    center: Point3<f64>,
+    axis: Vec3<f64>,
+    u_ref: Vec3<f64>,
+) -> bool {
+    let v_ref = axis.cross(u_ref);
+    let control = curve.control();
+    let kv = curve.knots();
+    let flat = kv.knots();
+    let degree = kv.degree();
+    let count = control.len();
+    // The clamped-B-spline structure this reasoning assumes, checked
+    // rather than trusted (a degree-0 carrier has no hull argument).
+    if degree == 0 || flat.len() != count + degree + 1 {
+        return false;
+    }
+    // A point's coordinates in the estimated circle's own plane.
+    let plane = |p: Point3<f64>| -> (f64, f64) {
+        let w = p - center;
+        (w.dot(u_ref), w.dot(v_ref))
+    };
+    let pi = core::f64::consts::PI;
+    let tau = core::f64::consts::TAU;
+    let mut total = 0.0f64;
+    let mut previous: Option<f64> = None;
+    for j in degree..count {
+        // Empty spans carry no turning and no obligation.
+        if !(flat[j] < flat[j + 1]) {
+            continue;
+        }
+        // Step 1: the span's local control points, all strictly on one
+        // side of a line through the centre.
+        let (mut sx, mut sy) = (0.0f64, 0.0f64);
+        for p in &control[j - degree..=j] {
+            let (x, y) = plane(*p);
+            sx += x;
+            sy += y;
+        }
+        let norm = sx.hypot(sy);
+        if !(norm.is_finite() && norm > 0.0) {
+            return false;
+        }
+        let (dx, dy) = (sx / norm, sy / norm);
+        for p in &control[j - degree..=j] {
+            let (x, y) = plane(*p);
+            // `!(… > 0.0)` is deliberate: a NaN must refuse.
+            if !(x * dx + y * dy > 0.0) {
+                return false;
+            }
+        }
+        // Steps 2-4: the span's TRUE increment, by exact recovery.
+        let at = |t: f64| -> f64 {
+            let (x, y) = plane(curve.eval(t));
+            y.atan2(x)
+        };
+        let start = match previous {
+            Some(a) => a,
+            None => at(flat[j]),
+        };
+        let end = at(flat[j + 1]);
+        let mut step = end - start;
+        while step > pi {
+            step -= tau;
+        }
+        while step <= -pi {
+            step += tau;
+        }
+        if !step.is_finite() {
+            return false;
+        }
+        total += step;
+        previous = Some(end);
+    }
+    total > pi && total < 3.0 * pi
 }
 
 #[cfg(test)]
@@ -503,38 +640,212 @@ mod tests {
         assert!(margin <= EPS_IN, "the margin fell inside the budget");
     }
 
-    /// C6: the TURNING WITNESS refuses a closed carrier that lies on a
-    /// circle but does not cover it — the pathology a locus-only
-    /// certificate cannot see (module docs). Here: out along a 180°
-    /// arc and back along the same arc, so every point is exactly on
-    /// the circle and the promoted full-period carrier would be a
-    /// strictly larger locus.
-    #[test]
-    fn c6_a_doubled_back_arc_fails_the_turning_witness() {
-        let radius = 0.005f64;
+    /// An exact rational-quadratic arc chain on the circle of `radius`
+    /// centred at the origin in `z = 0`, through the given azimuths —
+    /// every span a TRUE arc of that circle (corner at the tangent
+    /// intersection `r/cos(h/2)`, weight `cos(h/2)`), so the chain
+    /// lies on the circle to the bit. Uniform integer knots.
+    fn arc_chain(radius: f64, angles: &[f64]) -> NurbsCurve3<f64> {
+        let spans = angles.len() - 1;
         let on = |t: f64| Point3::new(radius * t.cos(), radius * t.sin(), 0.0);
-        let corner = |t: f64| Point3::new(2.0 * radius * t.cos(), 2.0 * radius * t.sin(), 0.0);
-        let third = core::f64::consts::TAU / 6.0;
-        // 0° → 120° → 0°, in two rational-quadratic spans.
-        let control = vec![
-            on(0.0),
-            corner(third / 2.0),
-            on(third),
-            corner(third / 2.0),
-            on(0.0),
-        ];
-        let weights = vec![1.0, 0.5, 1.0, 0.5, 1.0];
-        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
-        let curve = NurbsCurve3::new(knots, control, weights).unwrap();
+        let mut control = vec![on(angles[0])];
+        let mut weights = vec![1.0];
+        for k in 0..spans {
+            let (a, b) = (angles[k], angles[k + 1]);
+            let c = ((b - a) / 2.0).cos();
+            let mid = (a + b) / 2.0;
+            control.push(Point3::new(
+                radius / c * mid.cos(),
+                radius / c * mid.sin(),
+                0.0,
+            ));
+            weights.push(c);
+            control.push(on(b));
+            weights.push(1.0);
+        }
+        let mut kn = vec![0.0, 0.0, 0.0];
+        for k in 1..spans {
+            kn.push(k as f64);
+            kn.push(k as f64);
+        }
+        kn.extend([spans as f64; 3]);
+        NurbsCurve3::new(KnotVector::clamped(kn, 2).unwrap(), control, weights).unwrap()
+    }
+
+    /// C6: the COVERAGE CERTIFICATE, tested AT THE MECHANISM.
+    ///
+    /// **This pin used to be green for the wrong reason**, and both
+    /// reviews found it independently: its carrier placed a 120°
+    /// corner (`2r`, weight ½) over a 60° chord, so the span sat
+    /// 1.22 mm off a 5 mm circle and the pin died at the LOCUS
+    /// certificate, never reaching the gate it is named for. It now
+    /// builds its carrier with [`arc_chain`] — exactly on the circle,
+    /// asserted densely here so the locus arm cannot silently take
+    /// over again — and asserts the gate DIRECTLY as well as through
+    /// `recognize`.
+    #[test]
+    fn c6_the_coverage_certificate_refuses_a_doubled_back_carrier() {
+        let radius = 0.005f64;
+        let center = Point3::new(0.0, 0.0, 0.0);
+        let axis = Vec3::new(0.0, 0.0, 1.0);
+        let u_ref = Vec3::new(1.0, 0.0, 0.0);
+        let d = f64::to_radians;
+        // Out to 90° and back: on the circle, covering a quarter.
+        let back = arc_chain(radius, &[d(0.0), d(45.0), d(90.0), d(45.0), d(0.0)]);
+        let (a, b) = back.domain();
+        for k in 0..=400 {
+            let p = back.eval(a + (b - a) * f64::from(k) / 400.0);
+            let off = (p.x.hypot(p.y) - radius).abs().max(p.z.abs());
+            assert!(off < 1e-14, "the carrier must lie ON the circle: {off:e}");
+        }
         assert!(
-            !matches!(recognize(&curve, EPS_IN), CurveRecognition::Promoted { .. }),
-            "a carrier that covers a third of the circle must not become the circle"
+            !covers_one_full_turn(&back, center, axis, u_ref),
+            "a quarter-circle out-and-back does not wind once"
+        );
+        // And the gate is not vacuously false — the genuine full
+        // circle, same construction, passes it.
+        let full = arc_chain(radius, &[d(0.0), d(120.0), d(240.0), d(360.0)]);
+        assert!(
+            covers_one_full_turn(&full, center, axis, u_ref),
+            "the full circle must wind once"
+        );
+        assert!(
+            !matches!(recognize(&back, EPS_IN), CurveRecognition::Promoted { .. }),
+            "a carrier covering a quarter of the circle must not become the circle"
+        );
+    }
+
+    /// C7: a MULTIPLY-WOUND carrier refuses. Its locus IS the circle,
+    /// so the locus certificate has nothing to object to; what refuses
+    /// is the coverage certificate's "exactly one turn" arm, because
+    /// the adopted single period does not describe a traversal that
+    /// goes round twice.
+    #[test]
+    fn c7_a_double_wound_carrier_refuses() {
+        let d = f64::to_radians;
+        let angles: Vec<f64> = (0..=6).map(|k| d(120.0 * f64::from(k))).collect();
+        let twice = arc_chain(0.005, &angles);
+        assert!(
+            !covers_one_full_turn(
+                &twice,
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0)
+            ),
+            "two turns is not one turn"
+        );
+        assert!(!matches!(
+            recognize(&twice, EPS_IN),
+            CurveRecognition::Promoted { .. }
+        ));
+    }
+
+    /// C8: **the certificate's SCALE, pinned from both sides.** The
+    /// residual must be a true upper bound on the densely measured
+    /// deviation (soundness) AND within a stated factor of it
+    /// (tightness). Together these pin the metres² → metres
+    /// conversions: inverting INV-C1 (`·r` for `/r`) or weakening it
+    /// by any factor makes the residual smaller than the truth and
+    /// breaks soundness; inflating it 4× breaks tightness. Before this
+    /// pin both mutations left every test green — which is exactly
+    /// what both reviews measured.
+    #[test]
+    fn c8_the_certified_residual_brackets_the_true_deviation() {
+        let radius = 0.005f64;
+        let mut tight_checks = 0;
+        for delta in [0.0f64, 1e-12, 1e-11, 5e-11, 1e-10] {
+            let base = rational_circle(radius, false);
+            let mut control = base.control().to_vec();
+            for (k, p) in control.iter_mut().enumerate() {
+                p.y *= 1.0 + delta / radius;
+                if k % 2 == 1 {
+                    p.z += delta;
+                }
+            }
+            let curve =
+                NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
+            let CurveRecognition::Promoted {
+                curve:
+                    Curve3::Circle {
+                        center,
+                        axis,
+                        radius: r,
+                        ..
+                    },
+                residual,
+                ..
+            } = recognize(&curve, EPS_IN)
+            else {
+                panic!("delta {delta:e} is inside the budget and must certify");
+            };
+            let (a, b) = curve.domain();
+            let mut worst = 0.0f64;
+            for k in 0..=8192 {
+                let p = curve.eval(a + (b - a) * f64::from(k) / 8192.0);
+                let w = p - center;
+                let h = w.dot(axis);
+                worst = worst.max(((w - axis * h).norm() - r).hypot(h));
+            }
+            assert!(
+                worst <= residual,
+                "UNSOUND at delta {delta:e}: certified {residual:e} < true {worst:e}"
+            );
+            // TIGHTNESS: a bound, not a shrug. The measured ratio on
+            // this family is a stable 3.27; 10x leaves real headroom
+            // for legitimate arithmetic drift and still catches the 4x
+            // inflation of INV-C1 that a review mutated in.
+            if delta > 0.0 {
+                assert!(
+                    residual <= worst * 10.0,
+                    "LOOSE at delta {delta:e}: certified {residual:e} vs true {worst:e}"
+                );
+                tight_checks += 1;
+            }
+        }
+        assert!(tight_checks >= 3, "the tightness arm must actually run");
+    }
+
+    /// C9: **the budget decides AT the residual**, pinned either side
+    /// — a carrier certifying at `residual·1.5` must stay NURBS at
+    /// `residual/1.5`, so no arm may quietly widen or narrow the
+    /// `residual <= eps_in` decision.
+    #[test]
+    fn c9_the_budget_decides_at_the_residual() {
+        let radius = 0.005f64;
+        let base = rational_circle(radius, false);
+        let mut control = base.control().to_vec();
+        for p in &mut control {
+            p.y *= 1.0 + 1e-10 / radius;
+        }
+        let curve =
+            NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
+        let CurveRecognition::Promoted { residual, .. } = recognize(&curve, EPS_IN) else {
+            panic!("must certify at the module budget");
+        };
+        assert!(
+            matches!(
+                recognize(&curve, residual * 1.5),
+                CurveRecognition::Promoted { .. }
+            ),
+            "must certify just above its own residual"
+        );
+        assert!(
+            !matches!(
+                recognize(&curve, residual / 1.5),
+                CurveRecognition::Promoted { .. }
+            ),
+            "must NOT certify just below its own residual"
         );
     }
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::float_cmp, clippy::panic, clippy::print_stdout)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::float_cmp,
+    clippy::panic,
+    clippy::print_stdout
+)]
 mod r2_probes {
     use super::*;
     use geom_core::spline::KnotVector;
@@ -600,7 +911,15 @@ mod r2_probes {
         // over [.75, 1].
         let curve = arc_chain(
             0.005,
-            &[d(0.0), d(100.0), d(200.0), d(300.0), d(200.0), d(100.0), d(0.0)],
+            &[
+                d(0.0),
+                d(100.0),
+                d(200.0),
+                d(300.0),
+                d(200.0),
+                d(100.0),
+                d(0.0),
+            ],
             &[0.25, 0.5, 0.75, 0.75 + 1.0 / 12.0, 0.75 + 2.0 / 12.0],
         );
         println!("R2-A azimuths: {:?}", azimuths(&curve));
@@ -624,13 +943,22 @@ mod r2_probes {
         let corner = |t: f64| Point3::new(2.0 * radius * t.cos(), 2.0 * radius * t.sin(), 0.0);
         let third = core::f64::consts::TAU / 6.0;
         println!("C6 `third` = {} deg", third.to_degrees());
-        let control = vec![on(0.0), corner(third / 2.0), on(third), corner(third / 2.0), on(0.0)];
+        let control = vec![
+            on(0.0),
+            corner(third / 2.0),
+            on(third),
+            corner(third / 2.0),
+            on(0.0),
+        ];
         let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
         let curve = NurbsCurve3::new(knots, control, vec![1.0, 0.5, 1.0, 0.5, 1.0]).unwrap();
         println!("C6 azimuths: {:?}", azimuths(&curve));
         // How far off the origin-centred circle the midpoint sits.
         let m = curve.eval(0.5);
-        println!("C6 mid |P| = {} vs r = {radius}", (m.x * m.x + m.y * m.y).sqrt());
+        println!(
+            "C6 mid |P| = {} vs r = {radius}",
+            (m.x * m.x + m.y * m.y).sqrt()
+        );
         println!("C6 outcome: {:?}", recognize(&curve, EPS_IN));
     }
 
@@ -667,7 +995,13 @@ mod r2_probes {
                 NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
             let outcome = recognize(&curve, EPS_IN);
             let CurveRecognition::Promoted {
-                curve: Curve3::Circle { center, axis, radius: r, .. },
+                curve:
+                    Curve3::Circle {
+                        center,
+                        axis,
+                        radius: r,
+                        ..
+                    },
                 residual,
                 ..
             } = outcome
@@ -715,7 +1049,18 @@ pub(crate) mod tests_support {
         }
         let s = 3.0f64.sqrt();
         let knots = KnotVector::clamped(
-            vec![0.0, 0.0, 0.0, s, s, 2.0 * s, 2.0 * s, 3.0 * s, 3.0 * s, 3.0 * s],
+            vec![
+                0.0,
+                0.0,
+                0.0,
+                s,
+                s,
+                2.0 * s,
+                2.0 * s,
+                3.0 * s,
+                3.0 * s,
+                3.0 * s,
+            ],
             2,
         )
         .unwrap();

@@ -179,6 +179,8 @@
 mod adopt;
 mod assemble;
 mod chart;
+#[cfg(test)]
+mod cr_r1_probes;
 mod entities;
 mod error;
 mod geometry;
@@ -186,8 +188,6 @@ mod normalize;
 mod parse;
 mod recognize;
 mod recognize_curve;
-#[cfg(test)]
-mod cr_r1_probes;
 mod units;
 
 pub use error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
@@ -509,11 +509,21 @@ pub enum StepImport {
     /// adopt, so there is nothing a `Body` could honestly represent; a
     /// disposition, not a skip.
     Wireframe {
-        /// The curve-set's carriers in file order, exact
-        /// (control points / knots / weights bitwise).
+        /// The curve-set's carriers in file order. Exact (control
+        /// points / knots / weights bitwise) for every carrier that
+        /// stays as stated — and D7 stage-1 CURVE recognition runs on
+        /// this lane too, so a carrier that CERTIFIES is handed back
+        /// as its analytic kind, with the promotion recorded in
+        /// `curve_promotions` below. Recognition is a property of the
+        /// carrier, not of what a body later does with it; a wireframe
+        /// whose promotions were silent would be the one place in this
+        /// crate where a description changed without being reported.
         curves: Vec<geom_curves::Curve3<f64>>,
         /// As [`StepImport::Solid::eps_in`].
         eps_in: f64,
+        /// The curve promotions applied to `curves` (#327), by
+        /// ascending curve entity id.
+        curve_promotions: Vec<CurvePromotion>,
     },
 }
 
@@ -535,15 +545,18 @@ impl StepImport {
         }
     }
 
-    /// The curve promotions this import applied (#327) — empty for a
-    /// wireframe, whose carriers are handed back exactly as stated (no
-    /// edge adopts, so no carrier is promoted).
+    /// The curve promotions this import applied (#327). Both lanes
+    /// report: recognition fires at the sole `NurbsCurve3`
+    /// construction site, which the `GEOMETRIC_CURVE_SET` lane reaches
+    /// as well as the solid lane.
     pub fn curve_promotions(&self) -> &[CurvePromotion] {
         match self {
             Self::Solid {
                 curve_promotions, ..
+            }
+            | Self::Wireframe {
+                curve_promotions, ..
             } => curve_promotions,
-            Self::Wireframe { .. } => &[],
         }
     }
 
@@ -715,6 +728,7 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
         entities::Shape::Wireframe(ref curves) => Ok(StepImport::Wireframe {
             curves: curves.clone(),
             eps_in,
+            curve_promotions: model.curve_promotions.clone(),
         }),
     }
 }
