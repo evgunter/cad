@@ -14,7 +14,12 @@
 //! `1, ½, …`, knots at multiples of √3, the 3×120° construction,
 //! r = 5 mm — as a curve set, so the report has an executable witness
 //! that does not wait on #390.
-#![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::float_cmp
+)]
 
 use step_import::{ImportOptions, PromotedCurveKind, StepImport, import_step};
 

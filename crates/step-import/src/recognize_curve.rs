@@ -306,7 +306,6 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
         return Ok(None);
     }
     let u_ref = radial / radius;
-    let v_ref = axis.cross(u_ref);
     // The certificate. INV-C1 + INV-C2, both in metres at the end.
     let plane_sup = composite_sup(
         curve,
@@ -411,6 +410,11 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
 /// single period does not describe) both refuse. `w = −1` refuses too:
 /// the estimator's axis fixes the positive sense, and a carrier that
 /// disagrees with it is one the estimator read wrongly.
+// `!(a < b)` and `!(x > 0.0)` are deliberate, NaN-catching negations:
+// a poisoned coordinate must REFUSE, and the positive form would
+// silently accept it. Same convention, same reason, as
+// `geom_core::spline::compose`'s weight checks.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn covers_one_full_turn(
     curve: &NurbsCurve3<f64>,
     center: Point3<f64>,
@@ -1032,6 +1036,7 @@ mod r2_probes {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 pub(crate) mod tests_support {
     use super::*;
     use geom_core::spline::KnotVector;

@@ -194,7 +194,7 @@ const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gat
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 53] = [
+const CORPUS: [(&str, Disposition); 54] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
@@ -400,6 +400,19 @@ const CORPUS: [(&str, Disposition); 53] = [
     ),
     (
         "../step-export/tests/fixtures/nurbs_wireframe.step",
+        Wireframe,
+    ),
+    (
+        // The #327 reporting witness: a `GEOMETRIC_CURVE_SET` stating
+        // dm1's carrier form verbatim (degree 2, 7 points, weights
+        // `1, ½, …`, knots at multiples of √3, the 3×120°
+        // construction, r = 5 mm). It is here because the corpus table
+        // is the WHOLE corpus by construction — and its disposition is
+        // the same `Wireframe` every curve-set file gets: promotion
+        // changes the carrier's DESCRIPTION, never the file's
+        // disposition. `curve_promotion_report.rs` is what asserts the
+        // promotion itself.
+        "tests/fixtures/curveset_rational_circle.step",
         Wireframe,
     ),
     (

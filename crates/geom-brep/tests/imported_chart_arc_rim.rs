@@ -11,7 +11,7 @@
 //! chart shaped exactly like dm1's cylinder wall — `u ∈ [0, 3√3]`,
 //! interior knots at `√3` and `2√3` each rounded on its own, so they
 //! miss exact thirds of the domain by ~2·10⁻¹⁴.
-#![allow(clippy::unwrap_used, clippy::panic)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::{ChartWindow, Pcurve, PcurveCache};
 use geom_core::spline::KnotVector;

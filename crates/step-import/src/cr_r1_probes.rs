@@ -1,6 +1,14 @@
 //! R1 review probes for #327 (local to the review lane; not part of
 //! the PR). Attacks on stage-1 curve recognition's certifying path.
-#![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
+// Lint allows widened (not rewritten) when this reviewer-authored
+// probe module was adopted into the PR branch: the probes' substance is
+// kept verbatim.
+#![allow(
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::float_cmp,
+    clippy::single_match
+)]
 
 use crate::recognize_curve::{CurveRecognition, recognize};
 use geom_core::spline::KnotVector;
