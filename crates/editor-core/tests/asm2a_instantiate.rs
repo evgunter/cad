@@ -113,6 +113,57 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     doc
 }
 
+/// A part whose product root is a BOOLEAN: a 3x3x0.8 plate with a
+/// square boss sketched at z = 0.3 and extruded 1.0, poking out of the
+/// top (the `corpus::boss` shape, squared). Strictly interior in x/y,
+/// so no face of the boss is coincident with one of the plate's — the
+/// union is a genuine one-solid result with nothing declared.
+fn boolean_part(label: &str) -> ProfileDoc {
+    let doc = ProfileDoc::empty(DocumentId::derive(label));
+    let (doc, plate_p) = insert(
+        doc,
+        Node::Profile(desc(
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]],
+        )),
+    );
+    let (doc, plate) = insert(
+        doc,
+        Node::Extrude {
+            profile: plate_p,
+            distance: len(0.8),
+        },
+    );
+    let (doc, boss_p) = insert(
+        doc,
+        Node::Profile(desc(
+            [0.0, 0.0, 0.3],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![square(1.2, 1.7, 0.35)],
+        )),
+    );
+    let (doc, boss) = insert(
+        doc,
+        Node::Extrude {
+            profile: boss_p,
+            distance: len(1.0),
+        },
+    );
+    let (doc, _) = insert(
+        doc,
+        Node::Boolean {
+            op: editor_core::BooleanOp::Union,
+            a: plate,
+            b: boss,
+            declare: None,
+        },
+    );
+    doc
+}
+
 /// Two disjoint blocks in one document — a TWO-solid product, the
 /// ASM-2b flip condition's fixture.
 fn two_solid_part(label: &str) -> ProfileDoc {
@@ -757,4 +808,250 @@ fn the_named_gather_agrees_with_the_plain_one() {
         entities,
         "every product entity but the body itself is named"
     );
+}
+
+// ---- Review fixes (R1): the seam's diagnosis, and its guards ----
+
+/// The innermost cause of a chained seam fault — what the author has
+/// to be told, however many documents down it lies.
+fn root_cause(fault: &PartFault) -> &PartFault {
+    match fault {
+        PartFault::PartRootFailed {
+            cause: Some(inner), ..
+        } => root_cause(inner),
+        other => other,
+    }
+}
+
+/// A deliberately MISBEHAVING resolver: it answers each of a pair of
+/// references with a document instantiating the OTHER, pins ignored.
+///
+/// A4 makes this unconstructible through an honest store — a document
+/// would have to contain its own hash — so a resolver is the only thing
+/// that can produce it, and this is that resolver. The reviewer's
+/// cyclic probe, in-suite.
+#[derive(Debug)]
+struct CyclicStore {
+    a: DocRef,
+    b: DocRef,
+}
+
+impl PartResolver for CyclicStore {
+    fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, ResolveFailure> {
+        // Whichever is asked for, hand back a document that instantiates
+        // the other one.
+        let (here, there) = if *doc_ref == self.a {
+            (self.a, self.b)
+        } else {
+            (self.b, self.a)
+        };
+        let doc = ProfileDoc::empty(here.id);
+        let (doc, _) = insert(doc, Node::InstantiatePart { doc_ref: there });
+        Ok(doc)
+    }
+}
+
+/// MAJOR-1 + item 6 — a reference CYCLE refuses typed, NAMES the loop,
+/// and the naming survives the whole chain of documents back to the
+/// caller (who can reach no evaluation but this fault).
+#[test]
+fn r1_a_reference_cycle_refuses_naming_the_loop() {
+    let a = DocRef {
+        id: DocumentId::derive("asm2a-cycle-a"),
+        pin: ContentPin([1u8; 32]),
+    };
+    let b = DocRef {
+        id: DocumentId::derive("asm2a-cycle-b"),
+        pin: ContentPin([2u8; 32]),
+    };
+    let opts = EvalOptions {
+        resolver: Some(Arc::new(CyclicStore { a, b })),
+        ..EvalOptions::default()
+    };
+    let (doc, ids) = assembly("asm2a-cycle-asm", &[a]);
+
+    // Terminates at the FIRST revisit — the guard is structural, not a
+    // depth counter waiting 1024 levels out.
+    let fault = part_fault(&run(&doc, &opts), ids[0]);
+    match root_cause(&fault) {
+        PartFault::ReferenceCycle { cycle } => {
+            assert_eq!(
+                cycle,
+                &vec![a, b, a],
+                "the loop is carried first repeated reference through last"
+            );
+        }
+        other => panic!("expected a named cycle, got {other:?}"),
+    }
+    // The DIAGNOSIS reaches the top: the rendering names the loop, not
+    // an evaluation the caller cannot reach.
+    let rendered = fault.to_string();
+    assert!(
+        rendered.contains("returns to a document it already entered"),
+        "the top-level message names the cycle: {rendered}"
+    );
+    assert!(
+        rendered.contains(&format!("{a}")) && rendered.contains(&format!("{b}")),
+        "both documents of the loop are named: {rendered}"
+    );
+}
+
+/// MAJOR-1 — the ORDINARY broken-part path: a part whose product root
+/// failed reports WHICH root and WHY, instead of pointing the caller at
+/// an `Evaluation` that died with the resolution.
+#[test]
+fn r1_a_broken_part_names_its_failing_root_and_cause() {
+    // The part's own root instantiates a reference its store cannot
+    // resolve: a typed cause, one document down.
+    let missing = DocRef {
+        id: DocumentId::derive("asm2a-broken-missing"),
+        pin: ContentPin([7u8; 32]),
+    };
+    let mut store = StubStore::default();
+    let broken = {
+        let doc = ProfileDoc::empty(DocumentId::derive("asm2a-broken-part"));
+        let (doc, _) = insert(doc, Node::InstantiatePart { doc_ref: missing });
+        doc
+    };
+    let inner_root = broken.order()[0];
+    let doc_ref = store.insert(broken);
+    let opts = with_resolver(store);
+
+    let (doc, ids) = assembly("asm2a-broken-asm", &[doc_ref]);
+    let fault = part_fault(&run(&doc, &opts), ids[0]);
+    match &fault {
+        PartFault::PartRootFailed { node, cause, .. } => {
+            assert_eq!(*node, inner_root, "the failing ROOT is named");
+            assert!(
+                matches!(
+                    cause.as_deref(),
+                    Some(PartFault::Unresolved {
+                        fault: ResolveFault::Unresolved,
+                        ..
+                    })
+                ),
+                "the cause travels typed, not as prose: {cause:?}"
+            );
+        }
+        other => panic!("expected PartRootFailed, got {other:?}"),
+    }
+    let rendered = fault.to_string();
+    assert!(
+        !rendered.contains("Evaluation::node_error"),
+        "the message never points at an object the caller cannot reach: {rendered}"
+    );
+    assert!(
+        rendered.contains("product root") && rendered.contains("did not resolve"),
+        "it names the root AND the reason: {rendered}"
+    );
+}
+
+/// MINOR-2 — `part_evaluations` counts the whole run's seam traffic:
+/// A → B → P is TWO crossings, seen from the top.
+#[test]
+fn r1_part_evaluations_aggregates_through_nesting() {
+    let mut store = StubStore::default();
+    let p = store.insert(part("asm2a-nest-p", 0.0, 1.0));
+    let sub = {
+        let doc = ProfileDoc::empty(DocumentId::derive("asm2a-nest-b"));
+        let (doc, _) = insert(doc, Node::InstantiatePart { doc_ref: p });
+        doc
+    };
+    let b = store.insert(sub);
+    let opts = with_resolver(store);
+
+    let (doc, ids) = assembly("asm2a-nest-a", &[b]);
+    let ev = run(&doc, &opts);
+    assert_eq!(
+        ev.part_evaluations, 2,
+        "one crossing per document entered, nested crossings included"
+    );
+    // And the nesting really produced geometry: a doubly-wrapped name.
+    let names = instance_names(&ev, ids[0]);
+    assert!(
+        names.iter().any(|n| matches!(
+            &n.path[..],
+            [RoleSeg::InPart { of }] if matches!(&of.path[..], [RoleSeg::InPart { .. }])
+        )),
+        "a nested instance's names wrap twice"
+    );
+}
+
+/// MINOR-3 — the caller's candidate-generation strategy crosses the
+/// seam, so a differential run exercises the PARTS' booleans too.
+///
+/// Honest boundary: the strategy's only observable is the verdict LOG
+/// (`EvalOptions::boolean_sweep`), and a nested run's logs die with its
+/// evaluation — so what is checkable from outside is the invariant the
+/// inheritance exists to protect: both strategies agree, bit for bit,
+/// on an assembly whose PART carries the boolean.
+#[test]
+fn r1_both_sweep_strategies_agree_on_a_part_carrying_a_boolean() {
+    let mut store = StubStore::default();
+    let doc_ref = store.insert(boolean_part("asm2a-sweep-part"));
+    let resolver = with_resolver(store).resolver;
+
+    let strategies = [
+        topo::SweepStrategy::Realized,
+        topo::SweepStrategy::Idealized,
+    ];
+    let volumes: Vec<u64> = strategies
+        .into_iter()
+        .map(|boolean_sweep| {
+            let opts = EvalOptions {
+                boolean_sweep,
+                resolver: resolver.clone(),
+                ..EvalOptions::default()
+            };
+            let (doc, _) = assembly("asm2a-sweep-asm", &[doc_ref]);
+            let ev = run(&doc, &opts);
+            let body = product(&doc, &ev).expect("the product gathers");
+            volume(&body).to_bits()
+        })
+        .collect();
+    assert_eq!(
+        volumes[0], volumes[1],
+        "the tree prunes and the predicates decide — same bits either way"
+    );
+}
+
+/// MINOR-5 — `Frame::rotate_then_translate` really does agree with the
+/// `Transform` node, BIT FOR BIT, including for a NON-UNIT axis (the
+/// case the claim used to get wrong).
+#[test]
+fn r1_the_placement_frame_matches_the_transform_node_bit_for_bit() {
+    let angle = 0.37;
+    let translation = [2.0, -3.5, 0.25];
+    for axis in [
+        [0.0, 0.0, 1.0],      // unit
+        [0.0, 0.0, 5.0],      // non-unit, axis-aligned
+        [1.0, 2.0, 3.0],      // non-unit, oblique
+        [-0.5, 0.25, -0.125], // non-unit, short
+    ] {
+        let frame = Frame::rotate_then_translate(axis, angle, translation);
+        // `eval::wire::wire_transform`'s own expression, verbatim: the
+        // axis normalized (its `unit`), then `Mat3::rotation_about`,
+        // then `Affine3::from_parts` with the translation.
+        let unit = geom_core::Vec3::new(axis[0], axis[1], axis[2]).normalize();
+        let expected = geom_core::Affine3::from_parts(
+            geom_core::Mat3::rotation_about(unit, angle),
+            geom_core::Vec3::new(translation[0], translation[1], translation[2]),
+        );
+        let got = frame.affine::<f64>();
+        let cols = [
+            (got.linear.c0, expected.linear.c0),
+            (got.linear.c1, expected.linear.c1),
+            (got.linear.c2, expected.linear.c2),
+            (got.translation, expected.translation),
+        ];
+        for (g, e) in cols {
+            for (g, e) in [(g.x, e.x), (g.y, e.y), (g.z, e.z)] {
+                assert_eq!(
+                    g.to_bits(),
+                    e.to_bits(),
+                    "axis {axis:?}: the frame and the transform node must agree by BITS"
+                );
+            }
+        }
+    }
 }

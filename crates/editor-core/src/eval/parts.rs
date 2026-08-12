@@ -19,6 +19,15 @@
 //! The cache is LAZY: a memo-hit instantiate node never asks, so a
 //! re-evaluation that changed nothing across the seam does no
 //! cross-document work at all.
+//!
+//! # Cycles are decided, not waited out
+//!
+//! The cache also carries the DESCENT CHAIN — the references this
+//! evaluation was reached through. A reference already in the chain is
+//! a cycle by A4's own rule (same id, same pin ⇒ same content), so it
+//! refuses immediately, NAMING the loop. `MAX_DEPTH` is what is left
+//! over once that is handled: runaway insurance for acyclic descent,
+//! diagnosing nothing.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -30,14 +39,20 @@ use topo::Body;
 
 use crate::ident::DocRef;
 use crate::names::NameTable;
+use crate::node::RecipeNodeId;
 use crate::part::{PartResolver, ResolveFault};
 
-/// How deep instantiation may nest before evaluation refuses. Content
-/// pins make a reference cycle unconstructible (a document would have
-/// to contain its own hash), so this bound is not a cycle detector —
-/// it is the guard that keeps a MISBEHAVING resolver, which may hand
-/// back any document it likes, from recursing without end.
-pub(crate) const MAX_DEPTH: u32 = 32;
+/// Pure runaway insurance: the depth at which instantiation gives up,
+/// having ruled out the reason it would ordinarily run away.
+///
+/// CYCLES are caught structurally, one level up, by the descent chain
+/// (see [`PartCache`]) — a revisited reference refuses NAMING the
+/// cycle, which is the diagnosis an author can act on. This constant
+/// is what remains after that: a bound on genuinely deep, genuinely
+/// acyclic nesting, high enough that no real assembly meets it and
+/// finite so that nothing recurses without end. It diagnoses nothing;
+/// reaching it means the descent chain was long, not that it looped.
+pub(crate) const MAX_DEPTH: usize = 1024;
 
 /// A resolved part: the referenced document's product, and the product
 /// entities' part-local stable names.
@@ -71,8 +86,27 @@ pub enum PartFault {
         /// The resolver's diagnosis.
         message: String,
     },
-    /// The referenced document evaluated, but its own product refused
-    /// (a failed root, an invalid gather).
+    /// The referenced document evaluated, but one of its PRODUCT ROOTS
+    /// failed — the ordinary "my part is broken, why?" path.
+    ///
+    /// The nested [`super::Evaluation`] dies with the resolution that
+    /// produced it, so a caller can never be sent to look at it. The
+    /// cause therefore travels: `cause` when the failing root was
+    /// itself an instantiate node (the fault CHAINS, typed, however
+    /// many documents deep the real reason lies — a nesting-depth
+    /// refusal at the bottom of a cycle arrives here intact), and
+    /// `message` otherwise, carrying that node error's own rendering.
+    PartRootFailed {
+        /// The failing root, in the REFERENCED document's id space.
+        node: RecipeNodeId,
+        /// The seam fault that root reported, when it had one.
+        cause: Option<Box<PartFault>>,
+        /// Otherwise the failing node error's rendering, kind included.
+        message: String,
+    },
+    /// The referenced document has no product for a reason that is not
+    /// a failing root (no body-denoting root, an invalid gather, a
+    /// name collision).
     PartProduct {
         /// The product door's diagnosis.
         message: String,
@@ -86,7 +120,21 @@ pub enum PartFault {
         /// How many solids the product holds.
         solids: usize,
     },
-    /// Instantiation nested past [`MAX_DEPTH`].
+    /// The reference CHAIN returned to a document it had already
+    /// entered — the same (id, pin), so the same content: descending
+    /// further would repeat forever.
+    ///
+    /// A4 makes this unconstructible through an honest store (a
+    /// document would have to contain its own hash), so the fault names
+    /// a broken RESOLVER or a hand-built cycle. It carries the loop
+    /// itself, first repeated reference through last, because the loop
+    /// is the diagnosis.
+    ReferenceCycle {
+        /// The cycle, starting and ending at the repeated reference.
+        cycle: Vec<DocRef>,
+    },
+    /// Instantiation nested past [`MAX_DEPTH`] without repeating a
+    /// reference — runaway insurance, not a cycle diagnosis.
     DepthExceeded,
 }
 
@@ -109,6 +157,21 @@ impl core::fmt::Display for PartFault {
                 ),
                 ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
             },
+            Self::PartRootFailed {
+                node,
+                cause,
+                message,
+            } => {
+                write!(
+                    f,
+                    "the referenced document's product root {} failed: ",
+                    node.0
+                )?;
+                match cause {
+                    Some(cause) => write!(f, "{cause}"),
+                    None => write!(f, "{message}"),
+                }
+            }
             Self::PartProduct { message } => {
                 write!(f, "the referenced document has no product: {message}")
             }
@@ -117,9 +180,24 @@ impl core::fmt::Display for PartFault {
                 "the referenced document's product holds {solids} solids; single-solid parts are \
                  this door's scope and multi-solid instantiation is ASM-2b's"
             ),
-            Self::DepthExceeded => {
-                write!(f, "instantiation nested deeper than {MAX_DEPTH} documents")
+            Self::ReferenceCycle { cycle } => {
+                write!(
+                    f,
+                    "the reference chain returns to a document it already entered: "
+                )?;
+                for (i, r) in cycle.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " -> ")?;
+                    }
+                    write!(f, "{r}")?;
+                }
+                Ok(())
             }
+            Self::DepthExceeded => write!(
+                f,
+                "instantiation nested deeper than {MAX_DEPTH} documents without repeating a \
+                 reference"
+            ),
         }
     }
 }
@@ -131,29 +209,49 @@ type Rows<T> = BTreeMap<(DocRef, u64), Result<PartValue<T>, PartFault>>;
 /// The cache. One per `evaluate` call; shared across its nodes.
 pub(crate) struct PartCache<'a, T: Decide> {
     resolver: Option<&'a Arc<dyn PartResolver>>,
-    /// This evaluation's nesting depth (0 at the outermost call).
-    depth: u32,
+    /// The DESCENT CHAIN: every reference this evaluation was reached
+    /// through, outermost first — empty at the top-level call.
+    ///
+    /// A4 makes `(id, pin)` say WHICH CONTENT, so a reference already
+    /// in the chain would re-enter a document whose evaluation is the
+    /// one currently in progress: the loop is structural, and it is
+    /// decided here rather than waited out by a depth counter. The
+    /// chain doubles as the nesting depth (its length).
+    chain: &'a [DocRef],
     /// The ambient ε these entries were produced at, by bits — half
     /// the key, hoisted because it is constant within one evaluation.
     eps_bits: u64,
+    /// The candidate-generation strategy the CALLER chose. Inherited
+    /// across the seam so a differential run exercises the parts'
+    /// booleans too — the strategy is a property of the run, not of
+    /// the document, and results are bit-identical either way.
+    boolean_sweep: topo::SweepStrategy,
     entries: Mutex<Rows<T>>,
-    /// How many times a referenced document was actually evaluated —
-    /// the D-3 sharing evidence. A counter, not a timing claim.
+    /// How many referenced-document evaluations happened at or BELOW
+    /// this level — the D-3 sharing evidence. A counter, not a timing
+    /// claim. Nested crossings fold in (see `resolve_and_evaluate`), so
+    /// the outermost evaluation reports every crossing the run made.
     evaluations: AtomicUsize,
 }
 
 impl<'a, T: Decide> PartCache<'a, T> {
-    pub(crate) fn new(resolver: Option<&'a Arc<dyn PartResolver>>, depth: u32) -> Self {
+    pub(crate) fn new(
+        resolver: Option<&'a Arc<dyn PartResolver>>,
+        chain: &'a [DocRef],
+        boolean_sweep: topo::SweepStrategy,
+    ) -> Self {
         Self {
             resolver,
-            depth,
+            chain,
             eps_bits: geom_core::Tolerance::get().eps.to_bits(),
+            boolean_sweep,
             entries: Mutex::new(BTreeMap::new()),
             evaluations: AtomicUsize::new(0),
         }
     }
 
-    /// How many referenced-document evaluations this cache ran.
+    /// How many referenced-document evaluations ran at or below this
+    /// level.
     pub(crate) fn evaluations(&self) -> usize {
         self.evaluations.load(Ordering::Relaxed)
     }
@@ -185,7 +283,14 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
 
     fn resolve_and_evaluate(&self, doc_ref: &DocRef) -> Result<PartValue<T>, PartFault> {
         let resolver = self.resolver.ok_or(PartFault::NoResolver)?;
-        if self.depth >= MAX_DEPTH {
+        // The cycle, decided structurally and named: the loop runs from
+        // the reference's earlier appearance to this repeat of it.
+        if let Some(at) = self.chain.iter().position(|r| r == doc_ref) {
+            let mut cycle = self.chain[at..].to_vec();
+            cycle.push(*doc_ref);
+            return Err(PartFault::ReferenceCycle { cycle });
+        }
+        if self.chain.len() >= MAX_DEPTH {
             return Err(PartFault::DepthExceeded);
         }
         let doc = resolver
@@ -202,19 +307,25 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         let opts = super::EvalOptions {
             epoch: super::Epoch::mint(),
             parallel: false,
-            boolean_sweep: topo::SweepStrategy::Realized,
+            boolean_sweep: self.boolean_sweep,
             resolver: self.resolver.map(Arc::clone),
         };
+        let mut chain = self.chain.to_vec();
+        chain.push(*doc_ref);
         let evaluation =
-            super::evaluate_nested::<T>(&doc, &super::CancelToken::new(), &opts, self.depth + 1);
+            super::evaluate_nested::<T>(&doc, &super::CancelToken::new(), &opts, &chain);
+        // The nested run's own crossings are crossings of THIS run:
+        // fold them in, so the outermost counter is the whole run's
+        // evidence rather than one level's.
+        self.evaluations
+            .fetch_add(evaluation.part_evaluations, Ordering::Relaxed);
         // A2's uniformity: what a document MEANS is its product, one
         // rule everywhere. A failed node inside the part surfaces
-        // through the product door's own typed refusal.
-        let (body, names) = crate::product::product_named(&doc, &evaluation).map_err(|e| {
-            PartFault::PartProduct {
-                message: e.to_string(),
-            }
-        })?;
+        // through the product door's own typed refusal — and its cause
+        // travels with it, because the evaluation holding that cause
+        // does not outlive this call.
+        let (body, names) = crate::product::product_named(&doc, &evaluation)
+            .map_err(|e| product_fault(&e, &evaluation))?;
         let solids = body.solids().count();
         if solids != 1 {
             return Err(PartFault::MultiSolid { solids });
@@ -223,5 +334,43 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             body: Arc::new(body),
             names: Arc::new(names),
         })
+    }
+}
+
+/// Turns the referenced document's product refusal into a fault that
+/// still NAMES its cause (review MAJOR-1).
+///
+/// A `RootFailed` refusal's own text points at
+/// `Evaluation::node_error` — an object the caller cannot reach, since
+/// the nested evaluation is local to the resolution. So the cause is
+/// read here, while it still exists: typed and chained when the
+/// failing root was itself an instantiate node, rendered otherwise.
+fn product_fault<T: Decide>(
+    error: &crate::product::ProductError,
+    evaluation: &super::Evaluation<T>,
+) -> PartFault {
+    let crate::product::ProductError::RootFailed { node } = error else {
+        return PartFault::PartProduct {
+            message: error.to_string(),
+        };
+    };
+    let Some(failure) = evaluation.node_error(*node) else {
+        return PartFault::PartRootFailed {
+            node: *node,
+            cause: None,
+            message: "the evaluation records no cause for it".to_string(),
+        };
+    };
+    // A nested seam fault chains VERBATIM: a depth refusal, a pin
+    // mismatch or an ε disagreement any number of documents down
+    // arrives at the top typed, not as prose about prose.
+    let cause = match &failure.kind {
+        super::NodeErrorKind::Part { fault, .. } => Some(Box::new(fault.clone())),
+        _ => None,
+    };
+    PartFault::PartRootFailed {
+        node: *node,
+        cause,
+        message: failure.kind.to_string(),
     }
 }

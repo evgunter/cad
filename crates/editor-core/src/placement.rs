@@ -57,9 +57,23 @@ impl Frame {
     /// The rotation by `angle` radians (right-hand rule) about the axis
     /// through the origin with direction `axis`, then translation by
     /// `v` — the `Transform` node's own composition order (D9), so a
-    /// placement and a modeled transform agree bit for bit.
+    /// placement and a modeled transform of the same part agree BIT FOR
+    /// BIT.
+    ///
+    /// The agreement is what makes the claim testable, and it is why
+    /// the axis is normalized HERE: the transform node normalizes its
+    /// axis before building the rotation (`eval::wire`'s `unit`), and
+    /// `Mat3::rotation_about` normalizes again internally, so an
+    /// un-normalized axis would take one fewer rounding step through
+    /// this door than through that one. Same input, same expression,
+    /// same bits — for any axis, not just unit ones.
+    ///
+    /// A zero (or non-finite) axis normalizes to NaN and yields a
+    /// non-finite frame, which `SetPlacement` refuses typed
+    /// ([`Frame::is_finite`]) — the transform node's own
+    /// `DegenerateDirection` refusal, arriving at this layer's door.
     pub fn rotate_then_translate(axis: [f64; 3], angle: f64, v: [f64; 3]) -> Self {
-        let m = Mat3::rotation_about(Vec3::new(axis[0], axis[1], axis[2]), angle);
+        let m = Mat3::rotation_about(Vec3::new(axis[0], axis[1], axis[2]).normalize(), angle);
         Self {
             columns: [
                 [m.c0.x, m.c0.y, m.c0.z],

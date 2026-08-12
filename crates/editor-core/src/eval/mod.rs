@@ -72,7 +72,10 @@ pub struct Evaluation<T: Decide> {
     /// How many REFERENCED documents this evaluation actually
     /// evaluated across the document seam (ASM-2A D-3's sharing
     /// evidence). N instances of one part contribute 1; a memo-hit
-    /// instance contributes 0, because it never asks.
+    /// instance contributes 0, because it never asks; and a nested
+    /// crossing — a part that instantiates a part — contributes to
+    /// THIS count too, so the number is the whole run's seam traffic
+    /// rather than one level's.
     pub part_evaluations: usize,
     /// The document's appearance store resolved against THIS
     /// evaluation's name tables (M4 PR 7): per node, entity →
@@ -787,31 +790,33 @@ pub fn evaluate<T>(
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
 {
-    evaluate_at_depth(doc, prior, cancel, opts, 0)
+    evaluate_at_descent(doc, prior, cancel, opts, &[])
 }
 
 /// An instantiated document's own evaluation (ASM-2A D-3), one level
-/// deeper than its instantiator's. No prior: a referenced document is
+/// deeper than its instantiator's. `chain` is the descent — every
+/// reference this run was reached through — which is what makes a
+/// cycle decidable at the seam. No prior: a referenced document is
 /// resolved fresh, and the memo that keeps THAT from costing anything
 /// is the part cache, one layer up.
 pub(crate) fn evaluate_nested<T>(
     doc: &Doc<ProfileProgram>,
     cancel: &CancelToken,
     opts: &EvalOptions,
-    depth: u32,
+    chain: &[crate::ident::DocRef],
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
 {
-    evaluate_at_depth(doc, None, cancel, opts, depth)
+    evaluate_at_descent(doc, None, cancel, opts, chain)
 }
 
-fn evaluate_at_depth<T>(
+fn evaluate_at_descent<T>(
     doc: &Doc<ProfileProgram>,
     prior: Option<&Evaluation<T>>,
     cancel: &CancelToken,
     opts: &EvalOptions,
-    depth: u32,
+    chain: &[crate::ident::DocRef],
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
@@ -825,7 +830,7 @@ where
         return refuse_tolerance_conflict(doc, sched, opts, process_eps);
     }
     let env = doc.param_env::<T>();
-    let parts = parts::PartCache::<T>::new(opts.resolver.as_ref(), depth);
+    let parts = parts::PartCache::<T>::new(opts.resolver.as_ref(), chain, opts.boolean_sweep);
     let op_env = wire::OpEnv {
         boolean_sweep: opts.boolean_sweep,
         parts: &parts,
