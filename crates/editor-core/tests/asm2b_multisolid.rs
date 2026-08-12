@@ -397,9 +397,16 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// same code, allocates the same arena keys, and yields the same
 /// product bits (D9, D-3's bit-identity row). A drift here is a
 /// regression in the shipped path, never a re-pin.
+///
+/// Both quantities are ε-INVARIANT, which is what makes them pinnable
+/// under CI's eps sweep. The saved BYTES are not: an assembly's text
+/// embeds its references' content pins, a part's pin covers that
+/// document's own recorded ε, and CI's eps rows sweep the ambient ε by
+/// design — so the bytes legitimately move per run. Persistence is
+/// pinned byte-wise where it is ε-free (`pncad`'s `plate_param`
+/// fixture) and observed here as a round-trip.
 const SINGLE_SOLID_NAMES_DIGEST: u64 = 18_302_139_915_801_724_049;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
-const SINGLE_SOLID_SAVE_DIGEST: u64 = 18_219_081_344_695_695_351;
 
 #[test]
 fn row5_the_single_solid_path_is_bit_identical_across_the_lift() {
@@ -411,25 +418,55 @@ fn row5_the_single_solid_path_is_bit_identical_across_the_lift() {
     let ev = run(&doc, &opts);
     let body = product(&doc, &ev).expect("gathers");
     let text = save(&doc, &[]).expect("saves");
-    let mut save_digest: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in text.bytes() {
-        save_digest ^= u64::from(byte);
-        save_digest = save_digest.wrapping_mul(0x1000_0000_01b3);
-    }
+    let loaded = load(&text).expect("loads").doc;
+    assert!(loaded.bit_eq(&doc), "the assembly round-trips");
 
     assert_eq!(
-        (
-            digest(&ev),
-            volume(&body).to_bits(),
-            save_digest,
-            body.solids().count()
-        ),
-        (
-            SINGLE_SOLID_NAMES_DIGEST,
-            SINGLE_SOLID_VOLUME_BITS,
-            SINGLE_SOLID_SAVE_DIGEST,
-            2
-        ),
+        (digest(&ev), volume(&body).to_bits(), body.solids().count()),
+        (SINGLE_SOLID_NAMES_DIGEST, SINGLE_SOLID_VOLUME_BITS, 2),
         "the single-solid path is bit-identical across the lift"
+    );
+}
+
+// ---- The at-rest gate over instances: what it does and does not see ----
+
+/// A PRE-EXISTING gap, probed here so the lift is not blamed for it:
+/// two instances placed so their solids INTERPENETRATE gather into a
+/// product without complaint — `topo::validate_geometric` does not do
+/// solid-solid interference detection, so the gather's module docs
+/// ("solids that overlap are a false body and tier 3 says so") describe
+/// more than the gate enforces today.
+///
+/// The row is written both ways on purpose: the SINGLE-solid case is
+/// ASM-2A behaviour, untouched by this unit, and the MULTI-solid case
+/// is the same code reaching the same decision — the lift widened what
+/// may be grafted, not what counts as valid. Should the gate ever learn
+/// interference, both assertions flip together, here.
+#[test]
+fn the_at_rest_gate_does_not_see_instance_interference_single_or_multi() {
+    let mut store = StubStore::default();
+    let p = store.insert(part("asm2b-ov-p", 0.0));
+    // ASM-2A's shape: two copies of a one-solid part, 0.25 apart.
+    let (single, _) = assembly("asm2b-ov-single", &[p, p], 0.25);
+    // 2B's shape: two copies of a two-solid sub-assembly, placed so a
+    // solid of each lands inside a solid of the other.
+    let (b_doc, _) = assembly("asm2b-ov-b", &[p, p], 3.0);
+    let b = store.insert(b_doc);
+    let (multi, _) = assembly("asm2b-ov-multi", &[b, b], 3.25);
+    let opts = with_resolver(store);
+
+    let single_ev = run(&single, &opts);
+    let multi_ev = run(&multi, &opts);
+    assert_eq!(
+        product(&single, &single_ev)
+            .map(|b| b.solids().count())
+            .ok(),
+        Some(2),
+        "ASM-2A's own shape: interference is not caught at rest"
+    );
+    assert_eq!(
+        product(&multi, &multi_ev).map(|b| b.solids().count()).ok(),
+        Some(4),
+        "and a multi-solid instance reaches exactly the same decision"
     );
 }

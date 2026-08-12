@@ -164,8 +164,8 @@ fn boolean_part(label: &str) -> ProfileDoc {
     doc
 }
 
-/// Two disjoint blocks in one document — a TWO-solid product, the
-/// ASM-2b flip condition's fixture.
+/// Two disjoint blocks in one document — a TWO-solid product: what
+/// row 5d refused before ASM-2B lifted that door, and instantiates now.
 fn two_solid_part(label: &str) -> ProfileDoc {
     let doc = part(label, 0.0, 1.0);
     let (doc, profile) = insert(

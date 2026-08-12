@@ -310,8 +310,8 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // through the product door's own typed refusal — and its cause
         // travels with it, because the evaluation holding that cause
         // does not outlive this call.
-        // ASM-2B: a part is its PRODUCT, however many solids that
-        // product holds. The count is not consulted here at all — the
+        // A part is its PRODUCT, however many solids that product
+        // holds. The count is not consulted here at all — the
         // placing path maps all N as one body and the gather grafts
         // them as N, so a narrower rule at this door would be a second
         // truth about what instantiating a document means.

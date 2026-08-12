@@ -85,14 +85,14 @@ where
 /// PRODUCT — what a document MEANS is its product, one rule everywhere
 /// — place it with the kernel's own `transform_rigid`, and hand back a
 /// body-denoting value. Nothing here is assembly-specific machinery:
-/// the placed body is an ordinary `Body` — one solid or N (ASM-2B: a
+/// the placed body is an ordinary `Body` — one solid or N (a
 /// sub-assembly's product is multi-solid, and ONE rigid map carries all
 /// of its solids, because a rigid map of a body is a rigid map of every
 /// solid in it) — so the root gather and the export door consume it
-/// with no new arms, and the
-/// graft into the evaluating document's materialization is the gather's
-/// own (D-3's "graft into the evaluating document" IS `product`,
-/// because an instantiate node is a root of the assembly).
+/// with no new arms, and the graft into the evaluating document's
+/// materialization is the gather's own (D-3's "graft into the
+/// evaluating document" IS `product`, because an instantiate node is a
+/// root of the assembly).
 fn wire_instantiate_part<T>(
     id: RecipeNodeId,
     doc_ref: &crate::ident::DocRef,

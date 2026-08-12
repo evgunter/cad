@@ -30,18 +30,18 @@
 //! disjoint half of the boolean pipeline's combine door — one call per
 //! source BODY, exactly as `step-import` materializes a STEP
 //! assembly's instances. A source body carrying several solids (an
-//! instantiated sub-assembly, since ASM-2B) arrives as several solids
-//! of the product in its own solid order: that door is the N-solid one.
-//! Nothing is fused and no seam is implied; provenance rides through
+//! instantiated sub-assembly) arrives as several solids of the product
+//! in its own solid order: that door is the N-solid one. Nothing is
+//! fused and no seam is implied; provenance rides through
 //! verbatim, so a pattern instance's `GeomSource::placed(node, i)`
 //! survives into the product, and the `Instance(i)` names the pattern
 //! minted keep addressing it through the evaluation's own name tables
 //! (the gather touches no table).
 //!
 //! Validation is the same F8/D7 shape as the import loop: each source
-//! body is gated on its own when the product has more than one solid (with
-//! one, the per-solid and aggregate subjects are the same body and the
-//! call is skipped as an identity, never as an exemption), then the
+//! body is gated on its own when the product holds more than one solid
+//! (with one, the per-solid and aggregate subjects are the same body
+//! and the call is skipped as an identity, never as an exemption), then the
 //! aggregate is gated. Disjoint multi-solid bodies are tier-3 legal;
 //! solids that overlap are a false body and tier 3 says so.
 
@@ -97,8 +97,9 @@ pub enum ProductError {
         /// The kernel's own refusal.
         source: Box<topo::BooleanError>,
     },
-    /// A source solid failed the at-rest validity gate on its own
-    /// (only asked when the product has more than one solid).
+    /// A source body failed the at-rest validity gate on its own — a
+    /// multi-solid source is gated whole, as one body (only asked when
+    /// the product holds more than one solid).
     SolidInvalid {
         /// The root that contributed it.
         node: RecipeNodeId,
@@ -270,9 +271,9 @@ pub fn product_named<P, T: Decide + PropsQuadLane>(
 
     // Pass 2: the per-source gate, asked only when the product holds
     // more than one solid (the import loop's rule, verbatim). The count
-    // is over SOLIDS, not sources: since ASM-2B one source may itself
-    // carry several (an instantiated sub-assembly), and it is the
-    // product's solid count the rule speaks about.
+    // is over SOLIDS, not sources: one source may itself carry several
+    // (an instantiated sub-assembly), and it is the product's solid
+    // count the rule speaks about.
     let total_solids: usize = sources.iter().map(|(_, _, b, _)| b.solids().count()).sum();
     if total_solids > 1 {
         for (node, _, body, _) in &sources {
