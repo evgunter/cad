@@ -80,6 +80,14 @@ model defect (no `sqrt`, no FMA on their paths), <10 min total. `b8`
 harnesses gave NO VERDICT at 900 s, including `b4`/`b5`, the flagship
 mul/div containment proofs — that case analysis stays fuzz-only.
 
+**Controls (all expected-to-fail).** `c4_mut` (pad removed) FAILED in
+0.06 s, so `c3` is not vacuous; `x1_ctl` (sqrt not a function) and
+`x2_ctl` (pinned fmaf pair) FAILED = the two tripwires are armed for a
+future Kani. `c1_mut` — restore the historical `is_normal()` gate and
+show the subnormal-residual bug reappears — **NEVER TERMINATED**, even
+narrowed. So there is NO evidence Kani would have caught that bug; do
+not repeat that claim.
+
 **Frictions.** (1) `rust-version = "1.97.0"` in the crate blocks Kani
 outright (bundled nightly-2025-11-21 = rustc 1.93); true MSRV is 1.87.
 Flux is in the same boat (pins nightly-2026-02-05). (2) Symbolic loop

@@ -205,6 +205,27 @@ this list is the single biggest gap in the result. The case analysis
 they target remains covered only by `tests/review_fuzz_div.rs`.
 
 
+### Negative controls
+
+Every claim above is worth exactly as much as the controls next to it,
+so those were run too (all behind `--cfg` flags; all are *expected* to
+fail, and a pass means something is wrong):
+
+| Control | Expected | Result |
+|---|---|---|
+| `c4_mut` pad removed ⇒ the enclosure property must break | FAIL | ✅ FAILED, 0.06 s — Tier C's `c3` is not vacuous |
+| `x1_ctl` `sqrt` is not modelled as a function | FAIL | ✅ FAILED — tripwire for a future Kani that fixes it |
+| `x2_ctl` the pinned `fmaf` pair still mismodels | FAIL | ✅ FAILED — the divergence, captured as a standing check |
+| `c5_ctl` `mul_add` is genuinely fused (asserting it is not must yield a counterexample) | FAIL | ⏱ no verdict in 40 min |
+| `c1_mut` restore the historical `is_normal()` gate ⇒ the bug class reappears | FAIL | ⏱ **no verdict**, even narrowed to the region the bug lives in |
+
+`c1_mut` was the intended showpiece — proving Kani would have caught the
+subnormal-residual bug that `round.rs`'s `TWO_PROD_VALID_MIN` comment
+records the differential harness catching. It does not terminate, and
+even if it did, its counterexample would come from the `fmaf` model now
+known to be wrong. Claim withdrawn: **there is no evidence here that
+Kani would have caught that bug.**
+
 ### Tier A — the discrete lemmas (fully rigorous, no model gap)
 
 `a2` is the interesting one. Lemma P3 in `docs/derivations.md` §1 is what
