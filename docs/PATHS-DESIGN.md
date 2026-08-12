@@ -644,19 +644,22 @@ carriers, so the resolution belongs entirely inside the fillet
 clause. Four pieces:
 
 1. **The dependency invariant, stated on the directed point
-   (Evan's round-3 wording): a directed point at a leg's end
-   carries the leg's local germ — position, tangent, AND the
-   carrier it rides — as read-only intrinsic data; EVERY
-   operation depends only on the directed point before it plus
-   its own authored arguments.** This is uniform — fillet
-   included: its carrier dependence is part of its INPUT VALUE,
-   not a reach into the chain (geometrically irreducible: a
-   fillet off an arc leg must touch the ARC, not its end-tangent
-   ray — the second-order germ is what tangency-with-trim
-   consumes; legs need only the first-order germ). §2's
-   directed-point definition amends at the re-spell to name the
-   carrier germ it always carried. Mechanically, `.fillet(r)`
-   constructs the matching resolver from its input's germ; the
+   (Evan's rounds 3-4): a directed point is a 2-JET — position,
+   tangent, signed curvature κ — carried as read-only intrinsic
+   data; EVERY operation depends only on the directed point
+   before it plus its own authored arguments.** Uniform, fillet
+   included: the carrier is DERIVED from the jet (κ = 0 is a
+   line; κ ≠ 0 gives the osculating circle, centre = p + n̂/κ —
+   for the v1 line/arc carriers the osculating data IS the
+   carrier), so the fillet's tangency-with-trim consumes only
+   its input value. Legs need the 1-jet; fillet needs the
+   2-jet. The formulation also makes the NURBS refusal
+   principled: on a NURBS leg the osculating circle is NOT the
+   carrier, so the 2-jet genuinely underdetermines the trim —
+   `FilletCarrierUnsupported` marks exactly the boundary where
+   jet-derived and actual carrier part ways. §2's directed-point
+   definition amends at the re-spell to carry κ. Mechanically,
+   `.fillet(r)` constructs its resolver from the input jet; the
    capability obligation (`ArcCarrierScalar: Decide + Bounds`)
    sits on `.fillet` ITSELF and nowhere else. No carrier
    parameter enters any lattice type. MEASURED (2026-08-12): the
