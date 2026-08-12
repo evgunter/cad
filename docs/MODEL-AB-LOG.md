@@ -752,3 +752,7 @@ byte 205 (<252, accepted) mod 4 = 1 = fable's position.
 Slot 1 = RETTAIL (docs/LIB-RETTAIL-SPEC.md); pre-draw fields:
 difficulty S-M, task-class STRUCTURAL (migration/curation/
 deletion; no new numeric decision).
+ASM-2B review dispatch (2026-08-12, post-wind-down resume on
+Evan's run-to-merge instruction): next unfixed ordinal = 34
+(peers through 33) → SINGLE, fable, v4 ladder. Frozen head
+07999509. Pre-logged M / structural.
