@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Bounds, Interval, Point2, Point3, Real, Tolerance, Vec3};
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{validate, validate_closed, validate_geometric};

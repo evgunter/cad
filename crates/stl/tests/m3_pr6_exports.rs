@@ -19,6 +19,7 @@
 
 use geom_core::{Point2, Point3, Tolerance, Vec3};
 use mesh::validate::{check_mesh, signed_volume};
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult, mass_properties, union, validate_pseudomanifold};

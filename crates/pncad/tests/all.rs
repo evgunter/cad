@@ -309,8 +309,15 @@ fn ladder(body: &pncad::topo::Body<f64>, contacts: Option<&ContactRecords>) {
 /// second crate, this would not compile.
 #[test]
 fn the_authoring_ladder_runs_on_one_dependency() {
-    let square = ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 3.0), p2(0.0, 3.0)]);
-    let profile = validated(SketchPlane::<f64>::xy(), vec![square]).expect("profile validates");
+    let square: ClosedLoop<f64> = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0))
+        .and_then(|t| t.line_to(p2(2.0, 3.0)))
+        .and_then(|t| t.line_to(p2(0.0, 3.0)))
+        .and_then(|t| t.line_to(Start))
+        .expect("the rectangle authors");
+    let profile =
+        validated(SketchPlane::<f64>::xy(), vec![square.into()]).expect("profile validates");
     let built = extrude(&profile, Extrusion::Distance(real(0.5))).expect("extrude");
 
     // A primitive body: no declared contacts, so the tier-3 arm.
@@ -341,13 +348,19 @@ fn the_authoring_ladder_runs_on_one_dependency() {
 fn a_boolean_result_validates_at_tier_3_prime() {
     // An axis-aligned box [x0,x1]x[y0,y1]x[z0,z1].
     let slab = |x: (f64, f64), y: (f64, f64), z: (f64, f64)| {
-        let rect = polygon(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]);
+        let rect: ClosedLoop<f64> = Open
+            .at(p2(x.0, y.0))
+            .line_to(p2(x.1, y.0))
+            .and_then(|t| t.line_to(p2(x.1, y.1)))
+            .and_then(|t| t.line_to(p2(x.0, y.1)))
+            .and_then(|t| t.line_to(Start))
+            .expect("the slab rectangle authors");
         let plane = SketchPlane::from_frame(
             p3::<f64>(0.0, 0.0, z.0),
             v3(1.0, 0.0, 0.0),
             v3(0.0, 1.0, 0.0),
         );
-        let profile = validated(plane, vec![rect]).expect("slab profile");
+        let profile = validated(plane, vec![rect.into()]).expect("slab profile");
         extrude(&profile, Extrusion::Distance(real(z.1 - z.0)))
             .expect("slab extrude")
             .body

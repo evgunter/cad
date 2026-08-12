@@ -10,6 +10,7 @@
 mod revolve_common;
 
 use core::f64::consts::{FRAC_PI_8, PI};
+use profile::RawLoop;
 
 use geom_core::Vec2;
 use profile::{ProfileLoop, ProfileVertex};

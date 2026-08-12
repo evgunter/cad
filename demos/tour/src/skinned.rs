@@ -54,7 +54,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::geom_core::{Affine3, Point2, Point3, Tolerance, Vec3};
-use pncad::profile::{ProfileLoop, ProfileVertex, SketchPlane};
+use pncad::prelude::{Open, Start};
+use pncad::profile::SketchPlane;
 use pncad::sweep::skin::{Section, loft_geometry, sweep_geometry};
 use pncad::sweep::{SketchSegment, segment_curve};
 
@@ -63,16 +64,24 @@ use crate::{SceneBody, Stop, View};
 /// A square-with-an-arc section, scaled by `s` (LIB-U3 profile
 /// vocabulary: one loop, the arc as vertex 1's bulge).
 fn chain(s: f64) -> Section {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex {
-        pos: Point2::new(x * s, y * s),
-        bulge,
-    };
-    vec![ProfileLoop::new(vec![
-        v(0.0, 0.0, 0.0),
-        v(2.0, 0.0, 0.25),
-        v(2.0, 1.0, 0.0),
-        v(0.0, 1.0, 0.0),
-    ])]
+    // Lattice-authored since LIB-RETTAIL (raw `ProfileLoop` construction
+    // is no longer presented surface, Evan's ruling on #413). The one
+    // curved leg was a bulge of 0.25 on the vertex at (2, 0); the same
+    // arc, said through the lattice, is `arc_via` through the apex the
+    // bulge implies. INVARIANT (why the through-point is exactly this):
+    // for chord A->B of length L, apex = midpoint - n_hat * (L*b/2) with
+    // n_hat the left normal, so b = 0.25 on the chord (2,0)->(2,1) puts
+    // the apex at x = 2 + 0.125, y = 0.5 — and bulge_from_via returns
+    // 0.25 back from it.
+    let p = |x: f64, y: f64| Point2::new(x * s, y * s);
+    let loop_ = Open
+        .at(p(0.0, 0.0))
+        .line_to(p(2.0, 0.0))
+        .and_then(|t| t.arc_via(p(2.125, 0.5), p(2.0, 1.0)))
+        .and_then(|t| t.line_to(p(0.0, 1.0)))
+        .and_then(|t| t.line_to(Start))
+        .expect("the arc-and-lines section authors");
+    vec![loop_.into()]
 }
 
 /// The tour's loft + sweep stop.
@@ -185,9 +194,7 @@ pub fn narration() {
 /// INTEGRAL profile: unit weights, no arc anywhere.
 /// `common/mod.rs::quad`, verbatim (LIB-U3 profile vocabulary).
 fn quad(pts: [(f64, f64); 4]) -> Section {
-    vec![ProfileLoop::polygon(
-        pts.iter().map(|&(x, y)| Point2::new(x, y)),
-    )]
+    vec![crate::paths::path_polygon(&pts)]
 }
 
 /// The prism's end sections (`common/mod.rs::PRISM_SQUARE`).

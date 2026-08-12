@@ -5,6 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{COINCIDENCE_RECOURSE, Point2, Tolerance, Vec3};
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{ExtrudeError, Extrusion, extrude};
 

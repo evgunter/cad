@@ -26,6 +26,7 @@ mod common;
 
 use common::{chain, lift, profile, quarter_bulge, rect, tol};
 use geom_core::{Point2, Sign};
+use profile::RawLoop;
 use profile::k_stats::{self, Probe};
 use profile::{
     ArcSweep, ContactKind, LoopRole, ProfileError, ProfileLoop, SegmentKind, SegmentRef,

@@ -18,6 +18,7 @@
 mod common;
 
 use core::f64::consts::{FRAC_PI_8, PI};
+use profile::RawLoop;
 
 use common::*;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};

@@ -12,6 +12,7 @@ mod common;
 use common::{axis_y, ball, cone, donut, p2, validated, washer};
 use mesh::{TessellateError, tessellate};
 use profile::ProfileLoop;
+use profile::RawLoop;
 use sweep::{Revolution, revolve};
 
 #[test]

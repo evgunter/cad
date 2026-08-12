@@ -13,6 +13,7 @@ use common::{
 };
 use mesh::tessellate;
 use profile::ProfileLoop;
+use profile::RawLoop;
 use sweep::{Revolution, revolve};
 
 /// FNV-1a over a string (independent tiny hash, no deps).

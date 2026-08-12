@@ -384,6 +384,7 @@ mod pattern_tests {
     use crate::names::role::RoleSeg;
     use crate::names::table::Entry;
     use crate::node::RecipeNodeId;
+    use profile::RawLoop;
 
     /// A unit cube at `dx`, with its extrude's own name table.
     fn cube(node: RecipeNodeId, dx: f64) -> (Body<f64>, Arc<NameTable>) {

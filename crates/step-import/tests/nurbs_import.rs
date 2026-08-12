@@ -46,6 +46,7 @@ mod common;
 
 use common::import_body;
 use geom_core::{Affine3, Point2, Vec3};
+use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use step_import::{ImportOptions, import_step};
 use sweep::{Section, loft_body};

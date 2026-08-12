@@ -11,6 +11,7 @@ use common::{
     annulus, arc_kisses_line, bowtie, lift, near_tangent_hole, profile, tangent_hole, tol,
 };
 use geom_core::{Dual, Dual64, Sign};
+use profile::RawLoop;
 use profile::k_stats::{self, Probe, SampleOutcome};
 use profile::{LoopRole, SegmentKind, ValidatedProfile};
 

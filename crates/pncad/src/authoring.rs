@@ -9,7 +9,7 @@
 //! This module is that seam and nothing more. Every function here
 //! takes plain `f64` literals and embeds them with [`Real::from_f64`]
 //! — an *exact* embedding for every implementor, so nothing here can
-//! change a number. Six of the seven are one kernel constructor call;
+//! change a number. Five of the six are one kernel constructor call;
 //! [`validated`] is the two-call `Profile::new` + `Profile::validate`
 //! pair. There is no arithmetic, no defaulting, and no panicking:
 //! `validated` returns the kernel's own `Result` with the kernel's own
@@ -18,6 +18,8 @@
 //! Before this seam existed, the demo corpus carried six
 //! near-identical `p2` helpers and four `validated` wrappers, one per
 //! scene. Those are now gone — deleted in favor of the forms below.
+//! A seventh function, `polygon`, lived here until LIB-RETTAIL; the
+//! comment where it stood records why it went.
 //!
 //! # What this seam does *not* yet do
 //!
@@ -36,8 +38,8 @@
 //! same source still instantiates at `f64` for a normal build and at a
 //! telemetry or interval scalar for a certified one.
 
+use ::profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
 use geom_core::{Decide, Point2, Point3, Real, Tolerance, Vec2, Vec3};
-use profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
 
 /// Embeds an `f64` literal as the working scalar.
 ///
@@ -112,24 +114,20 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
     Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
 }
 
-/// A closed polygonal loop from plain coordinate pairs.
-///
-/// The straight-segment case of profile authoring: every vertex has
-/// zero bulge and no declared tangency, which is exactly what a
-/// hand-typed coordinate table means. Curved and tangent-jointed
-/// loops go through the PATHS lattice ([`profile::Open`] and its
-/// binders), which already speaks `Point2` — pair it with [`p2`].
-///
-/// ```
-/// use pncad::prelude::*;
-///
-/// let unit_square = polygon::<f64>(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);
-/// assert_eq!(unit_square.vertices.len(), 4);
-/// ```
-#[inline]
-pub fn polygon<T: Real>(points: &[(f64, f64)]) -> ProfileLoop<T> {
-    ProfileLoop::polygon(points.iter().map(|&(x, y)| p2(x, y)).collect::<Vec<_>>())
-}
+// REMOVED (LIB-RETTAIL, Evan's ruling on #413): the f64-first
+// `polygon(&[(f64, f64)]) -> ProfileLoop` door. It minted a raw vertex
+// table — zero bulges, no declared joints, no junction classification —
+// which is exactly the public authoring tier the ruling demotes. The
+// straight-segment table is said through the PATHS lattice instead
+// (`Open.at(p0)`, a `line_to` per vertex, `line_to(Start)` as the
+// seam), which refuses a within-band-tangent or cusped corner AT
+// AUTHORING rather than at validate. The tour's `paths::path_polygon`
+// is that spelling, fail-loud for demo code.
+//
+// A façade-level lattice-backed `polygon` is a reasonable future door,
+// but it must be fallible, and the sub-two-vertex case has no honest
+// `PathError` today; minting a lattice refusal variant is vocabulary
+// change, fenced out of this unit.
 
 /// Validates a profile at the ambient tolerance — the authoring
 /// ladder's first rung.
@@ -151,15 +149,20 @@ pub fn polygon<T: Real>(points: &[(f64, f64)]) -> ProfileLoop<T> {
 /// ```
 /// use pncad::prelude::*;
 ///
-/// let square = polygon(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);
-/// let profile = validated(SketchPlane::<f64>::xy(), vec![square])?;
+/// let square: ClosedLoop<f64> = Open
+///     .at(p2(0.0, 0.0))
+///     .line_to(p2(1.0, 0.0))?
+///     .line_to(p2(1.0, 1.0))?
+///     .line_to(p2(0.0, 1.0))?
+///     .line_to(Start)?;
+/// let profile = validated(SketchPlane::<f64>::xy(), vec![square.into()])?;
 /// assert_eq!(profile.loops().len(), 1);
 ///
 /// // Fail-loud: a degenerate profile refuses with a typed error
 /// // rather than panicking or silently repairing itself.
 /// let empty = validated(SketchPlane::<f64>::xy(), vec![]);
 /// assert!(empty.is_err());
-/// # Ok::<(), pncad::profile::ProfileError>(())
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn validated<T: Decide>(
     plane: SketchPlane<T>,

@@ -23,7 +23,7 @@
 use std::collections::HashMap;
 
 use pncad::geom_core::{Affine3, Point2, Tolerance, Vec3};
-use pncad::profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use pncad::profile::{Profile, SketchPlane, circle_split};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{Body, BooleanBody, BooleanResult, Curve3};
 
@@ -46,39 +46,25 @@ fn plate<S: Scalar>() -> Body<S> {
 /// z = 0.4 (strictly inside the plate), extruded 1.2 → pokes out to
 /// z = 1.6.
 fn boss<S: Scalar>() -> Body<S> {
-    // Stays raw after LIB-G1 — MEASURED deviation 1, not assumed. The
-    // circle primitive would author this circle happily, but its
-    // private lowering is the conventional TWO-semicircle split, and
+    // The DECLARED-SUBDIVISION carrier (`circle_split`), not `circle`:
     // this boss is deliberately split into THREE 120-degree arcs of one
-    // carrier: the stop's whole point is a transverse curved boolean
-    // crossing a three-face rim seam, and the assertion below pins the
-    // count. Migrating would change the topology the demo exists to
-    // show — a geometry diff, which this rework's contract refuses. The
-    // primitive offers no seam-count argument BY DESIGN (it authors no
-    // seam at all), so the raw chain stays the way to say "this
-    // particular split".
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        Point2::new(
-            S::from_f64(2.0 + 0.5 * th.cos()),
-            S::from_f64(2.0 + 0.5 * th.sin()),
-        )
-    };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(0.0),
-            bulge: S::from_f64(b120),
-        },
-        ProfileVertex {
-            pos: at(120.0),
-            bulge: S::from_f64(b120),
-        },
-        ProfileVertex {
-            pos: at(240.0),
-            bulge: S::from_f64(b120),
-        },
-    ]);
+    // carrier, because the stop's whole point is a transverse curved
+    // boolean crossing a three-face rim seam and the assertion below
+    // pins the count. `circle` authors no seam at all (its private
+    // lowering is the conventional two-semicircle split), so the split
+    // count has to be said out loud; `circle_split` is the door that
+    // says it. Before LIB-RETTAIL this was a raw three-vertex
+    // `ProfileLoop` with hand-computed tan(pi/6) bulges — the same
+    // geometry, said in kernel vocabulary that is no longer presented
+    // surface (Evan's ruling on #413).
+    let rim = circle_split(
+        Point2::new(S::from_f64(2.0), S::from_f64(2.0)),
+        S::from_f64(0.5),
+        3,
+        S::from_f64(0.0),
+    )
+    .expect("the three-arc rim authors");
+    let lp = rim.into();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(
         S::from_f64(0.0),
         S::from_f64(0.0),

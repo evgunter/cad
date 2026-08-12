@@ -594,7 +594,7 @@ fn leaf<S: Scalar>(
     .placement;
     // The kite, wound counterclockwise in the sketch (s, t) frame:
     // margin, keel, margin, ridge.
-    let loops: Vec<ProfileLoop<f64>> = vec![pncad::authoring::polygon(&[
+    let loops: Vec<ProfileLoop<f64>> = vec![crate::paths::path_polygon(&[
         (-0.5 * section.width, 0.0),
         (0.0, -section.keel),
         (0.5 * section.width, 0.0),
@@ -655,7 +655,7 @@ impl Section {
         let ridge = (0.0, self.ridge);
         let left = (-0.5 * self.width, 0.0);
         let keel = (0.0, -self.keel);
-        vec![pncad::authoring::polygon(&[
+        vec![crate::paths::path_polygon(&[
             right,
             shoulder(right, ridge),
             ridge,

@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use profile::RawLoop;
 
 use geom_core::{Point2, Point3, Tolerance, Vec2, Vec3};
 use geom_surfaces::Surface;

@@ -13,6 +13,7 @@
 
 mod revolve_common;
 
+use profile::RawLoop;
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI, TAU};
 
 use geom_brep::EdgeGeometry;

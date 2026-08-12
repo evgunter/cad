@@ -22,6 +22,7 @@ use common::{
     bracket, chain, circle_h, circle_v, l_profile, lens, quarter_bulge, rect, rounded_rect,
 };
 use geom_core::Point2;
+use profile::RawLoop;
 use profile::lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 use profile::{ProfileLoop, ProfileVertex, circle, circle_split};
 

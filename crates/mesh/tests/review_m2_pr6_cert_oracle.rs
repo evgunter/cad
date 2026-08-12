@@ -17,6 +17,7 @@ use geom_core::{Point3, Vec3};
 use geom_surfaces::Surface;
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
+use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::Body;
