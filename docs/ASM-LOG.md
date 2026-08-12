@@ -138,3 +138,14 @@ Operational: monitors died with the session — successor re-arms
 ALL of local-scripts/monitors/* (glob convention; away-channel
 needs CAD_CHANNEL_SELF_TAG="(ASM orchestrator)" and
 CAD_CHANNEL_BRANCH_PREFIXES="asm/,mngr/cad-assemblies-implement").
+
+## ASM-2B MERGED (#425, 2026-08-12) — materialization complete
+
+Sub-assemblies instantiate: the unit proved itself a deletion of
+two guards (the kernel was already N-solid-ready — 2K and 2A had
+discharged everything the plan feared), reviewed 0-MAJOR with the
+deletion adjudicated and ratified into the spec. The one MINOR
+was main-owned (ci-local discipline allowlist drift at #421 —
+LIB notified on their thread). R1 remaining: ASM-4 ONLY
+(docs/ASM-4-SPEC.md, binding, ready to dispatch on block ASM-2
+slot 3 = fable). Handoff: issue #430. Seam swept.

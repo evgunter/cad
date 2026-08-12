@@ -75,7 +75,10 @@ git history and the M-logs):**
   from the INSTALLED copies (checkouts switch refs). The
   github-away-channel script bakes in both reaction endpoints
   (issues + pulls — inline-comment 👍s live under the pulls
-  endpoint). **Comment filtering (Evan, 2026-08-11)**: the
+  endpoint) and, since 2026-08-12, polls both COMMENT feeds too
+  (issues/comments + pulls/comments): inline review comments used
+  to pass every filter and still never arrive, because only the
+  issues feed was fetched. **Comment filtering (Evan, 2026-08-11)**: the
   away-channel REQUIRES routing env at arm time (fail-loud —
   it exits 78 without it); per-comment events are scoped to your
   own threads, new-issue/PR events stay repo-wide. Arm as:

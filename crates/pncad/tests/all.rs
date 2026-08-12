@@ -1621,3 +1621,172 @@ fn asm2a_spawn_probe(tag: &str) -> String {
     let _ = std::fs::remove_file(&out);
     bits
 }
+
+// ---- ASM-2B: multi-solid referenced products, end to end ----
+
+/// The 2B workspace: part P (one solid) on disk, sub-assembly B (two
+/// instances of P, the second displaced) saved BESIDE it, and the
+/// reference to B an outer assembly can pin. B is a document like any
+/// other — that it holds instantiate nodes is not a kind of file.
+fn asm2b_workspace(dir: &WsDir) -> (pncad::document::DocRef, pncad::document::DocRef) {
+    let p = asm2a_part(dir, "part.pncad", "asm2b-part");
+    let (b_doc, _) = asm2a_assembly("asm2b-sub", p, 2);
+    let text = pncad::document::save(&b_doc, &[]).expect("the sub-assembly saves");
+    dir.write("sub.pncad", &text);
+    let b = pncad::document::DocRef {
+        id: b_doc.id(),
+        pin: pncad::document::content_pin(&b_doc).expect("the pin computes"),
+    };
+    (p, b)
+}
+
+/// Two instances of the sub-assembly, the second displaced 100 along
+/// +x. Its own spacing, not 2A's: B already spans x in [0, 12], so the
+/// copies must clear each other or the product is a false body (two
+/// overlapping solids, refused at the at-rest gate — correctly).
+fn asm2b_outer(
+    label: &str,
+    doc_ref: pncad::document::DocRef,
+) -> (
+    pncad::document::ProfileDoc,
+    Vec<pncad::document::RecipeNodeId>,
+) {
+    let mut doc = pncad::document::ProfileDoc::empty(pncad::document::DocumentId::derive(label));
+    let mut ids = Vec::new();
+    for i in 0..2 {
+        let (next, id) = doors_insert(doc, pncad::document::Node::InstantiatePart { doc_ref });
+        doc = next;
+        if i > 0 {
+            doc = pncad::document::apply(
+                &doc,
+                &pncad::document::DocEdit::SetPlacement {
+                    node: id,
+                    frame: pncad::document::Frame::translation([100.0, 0.0, 0.0]),
+                },
+            )
+            .expect("the placement is accepted")
+            .doc;
+        }
+        ids.push(id);
+    }
+    (doc, ids)
+}
+
+/// The product's vertex x's in ARENA order — the graft's own order, so
+/// this pins WHICH SOLID CAME FIRST, not merely the aggregate volume.
+fn asm2b_signature(body: &pncad::topo::Body<f64>) -> String {
+    let mut s = String::new();
+    for (_, v) in body.vertices() {
+        if let Some(p) = body.get_point(v.point) {
+            s.push_str(&format!("{};", p.x.to_bits()));
+        }
+    }
+    s
+}
+
+/// Row 2 (E2E) — an assembly of two instances of a two-solid
+/// SUB-ASSEMBLY evaluates through the real store: four solids, volume
+/// bit-exactly 4× the part's, solid order = root order, and the
+/// whole-document export door takes it with no new arms.
+#[test]
+fn asm2b_row2_sub_assembly_through_a_real_workspace() {
+    let dir = WsDir::new("asm2b-e2e");
+    let (p, b) = asm2b_workspace(&dir);
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+
+    let (doc, ids) = asm2b_outer("asm2b-e2e-asm", b);
+    let ev = asm2a_eval(&doc, &ws);
+    let body = pncad::document::product(&doc, &ev).expect("the product gathers");
+    assert_eq!(body.solids().count(), 4, "two sub-assemblies of two parts");
+    // Two seams crossed, each once: B for both instances, P inside B.
+    assert_eq!(ev.part_evaluations, 2);
+
+    let vol = |b: &pncad::topo::Body<f64>| {
+        pncad::topo::mass_properties(b)
+            .expect("mass properties")
+            .volume
+    };
+    let part_doc = ws.resolve(&p).expect("resolves");
+    let part_ev = asm2a_eval(&part_doc, &ws);
+    let part_body = pncad::document::product(&part_doc, &part_ev).expect("the part's product");
+    assert_eq!(
+        vol(&body).to_bits(),
+        (4.0 * vol(&part_body)).to_bits(),
+        "four copies of the part, bit-exactly"
+    );
+
+    // Solid order = root order: instance 0's two solids sit at x = 0
+    // and x = 10 (B's own spacing), instance 1's ten further along.
+    let xs = |node| match ev.value(node).map(|v| &v.payload) {
+        Some(pncad::document::ValuePayload::Body(b)) => {
+            assert_eq!(b.solids().count(), 2, "an instance carries both solids");
+            let mut v: Vec<f64> = b
+                .vertices()
+                .filter_map(|(_, e)| b.get_point(e.point))
+                .map(|p| p.x)
+                .collect();
+            v.sort_by(f64::total_cmp);
+            (v[0], v[v.len() - 1])
+        }
+        other => panic!("an instance's value is a body, got {other:?}"),
+    };
+    let (lo0, hi0) = xs(ids[0]);
+    let (lo1, hi1) = xs(ids[1]);
+    assert!((lo0 - 0.0).abs() < 1e-12 && (hi0 - 12.0).abs() < 1e-12);
+    assert!((lo1 - 100.0).abs() < 1e-12 && (hi1 - 112.0).abs() < 1e-12);
+
+    let step = pncad::export::export_document_step(&ev, &doc, &StepOptions::default())
+        .expect("the assembly exports");
+    assert!(step.contains("MANIFOLD_SOLID_BREP"));
+}
+
+/// Row 2 (D9 across two fresh processes) — the nested assembly's
+/// product bits AND its solid order are a function of the recipe
+/// alone, not of the process.
+#[test]
+fn asm2b_row2_nested_product_bits_and_order_agree_across_two_processes() {
+    let a = asm2b_spawn_probe("a");
+    let b = asm2b_spawn_probe("b");
+    assert_eq!(a, b, "two fresh processes agree bit for bit (D9)");
+    assert!(a.contains(';'), "the probe really wrote a signature");
+}
+
+const ASM2B_PROBE_OUT: &str = "ASM2B_PROBE_OUT";
+
+/// The child half of the two-process row: build the same nested
+/// assembly and write its product's volume bits and solid signature.
+#[test]
+fn asm2b_child_product_probe() {
+    let Ok(out) = std::env::var(ASM2B_PROBE_OUT) else {
+        return; // not the child — nothing to do
+    };
+    let dir = WsDir::new("asm2b-probe");
+    let (_, b) = asm2b_workspace(&dir);
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let (doc, _) = asm2b_outer("asm2b-probe-asm", b);
+    let ev = asm2a_eval(&doc, &ws);
+    let body = pncad::document::product(&doc, &ev).expect("gathers");
+    let v = pncad::topo::mass_properties(&body)
+        .expect("mass properties")
+        .volume;
+    let text = format!("{}|{}", v.to_bits(), asm2b_signature(&body));
+    std::fs::write(&out, text).expect("probe output writable");
+}
+
+fn asm2b_spawn_probe(tag: &str) -> String {
+    let exe = std::env::current_exe().expect("test exe path");
+    let out = std::env::temp_dir().join(format!("asm2b-probe-{tag}-{}", std::process::id()));
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::asm2b_child_product_probe"),
+        None => "asm2b_child_product_probe".to_string(),
+    };
+    let status = std::process::Command::new(exe)
+        .args([probe.as_str(), "--exact", "--nocapture"])
+        .env(ASM2B_PROBE_OUT, &out)
+        .status()
+        .expect("probe spawns");
+    assert!(status.success(), "probe {tag} failed");
+    let bits = std::fs::read_to_string(&out).expect("probe wrote");
+    let _ = std::fs::remove_file(&out);
+    bits
+}
