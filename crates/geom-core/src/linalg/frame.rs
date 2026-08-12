@@ -117,9 +117,12 @@ pub enum FrameInput {
     RollReference,
     /// [`path_start_frame`]'s reference ladder ran out: neither world
     /// +Z nor world +X was definitely off the tangent line. The two
-    /// are orthogonal, so no unit tangent can do this — the input was
-    /// not a direction (poisoned, or a magnitude outside the range
-    /// where normalization is meaningful).
+    /// are orthogonal, so no unit tangent can do this: the reachable
+    /// class is a tangent whose components exceed
+    /// [`Vec3::normalize`]'s ~1e154 overflow band, where the length
+    /// decision sees an infinite norm and normalization then collapses
+    /// the direction to zero. Refused rather than returned as an
+    /// all-zero frame.
     ReferenceLadder,
     /// [`mirror_across_plane`]'s plane normal, whose length was not
     /// definitely nonzero.
@@ -399,4 +402,405 @@ pub fn mirror_across_plane<T: Real + Decide>(
     );
     let q = point - Point3::origin();
     Ok(Affine3::from_parts(linear, q - linear * q))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// The frame's twelve entries, in column order then translation —
+    /// the whole map, bit for bit. Orientation pins compare these, so a
+    /// changed column ORDER, a flipped sign, or a re-associated product
+    /// all fail loudly rather than passing a loose tolerance.
+    fn bits12(a: &Affine3<f64>) -> [u64; 12] {
+        let l = a.linear;
+        [
+            l.c0.x,
+            l.c0.y,
+            l.c0.z,
+            l.c1.x,
+            l.c1.y,
+            l.c1.z,
+            l.c2.x,
+            l.c2.y,
+            l.c2.z,
+            a.translation.x,
+            a.translation.y,
+            a.translation.z,
+        ]
+        .map(f64::to_bits)
+    }
+
+    /// The seven rigidity residuals `transform_rigid` decides on
+    /// (columns unit, columns mutually orthogonal, `det = +1`), as raw
+    /// numbers: a frame constructor that returns a non-rigid map is a
+    /// bug here, not downstream.
+    fn rigidity_residuals(a: &Affine3<f64>) -> [f64; 7] {
+        let l = a.linear;
+        [
+            l.c0.dot(l.c0) - 1.0,
+            l.c1.dot(l.c1) - 1.0,
+            l.c2.dot(l.c2) - 1.0,
+            l.c0.dot(l.c1),
+            l.c1.dot(l.c2),
+            l.c0.dot(l.c2),
+            l.determinant() - 1.0,
+        ]
+    }
+
+    /// Aiming cases with generic (inexact) arithmetic: eye, target,
+    /// roll reference.
+    fn aim_cases() -> Vec<(Point3<f64>, Point3<f64>, Vec3<f64>)> {
+        vec![
+            (Point3::origin(), Point3::new(1.0, 2.0, 3.0), Vec3::unit_z()),
+            (
+                Point3::new(-4.0, 0.5, 2.0),
+                Point3::new(1.0, -2.0, 0.25),
+                Vec3::new(0.3, 0.7, -0.2),
+            ),
+            (
+                Point3::new(1e-2, 1e-2, 1e-2),
+                Point3::new(1e3, -1e3, 5.0),
+                Vec3::unit_x(),
+            ),
+            (
+                Point3::new(7.0, 7.0, 7.0),
+                Point3::new(7.0, 7.0, 8.0),
+                Vec3::new(1.0, 1.0, 0.0),
+            ),
+        ]
+    }
+
+    #[test]
+    fn point_at_orientation_pin() {
+        // Row A — aim along +Z with the +Y reference: the frame IS the
+        // identity rotation (local +Z is the aim, local +Y holds the
+        // reference), translated to the eye. Every entry exact.
+        let a = point_at(
+            Point3::new(1.0, 2.0, 3.0),
+            Point3::new(1.0, 2.0, 7.0),
+            Vec3::unit_y(),
+        )
+        .unwrap();
+        assert_eq!(
+            bits12(&a),
+            [
+                1.0, 0.0, 0.0, // local +X
+                0.0, 1.0, 0.0, // local +Y (holds the reference)
+                0.0, 0.0, 1.0, // local +Z (the aim)
+                1.0, 2.0, 3.0, // the eye
+            ]
+            .map(f64::to_bits)
+        );
+        // Row B — aim along +X with the +Z reference: the cyclic frame.
+        let b = point_at(Point3::origin(), Point3::new(4.0, 0.0, 0.0), Vec3::unit_z()).unwrap();
+        assert_eq!(
+            bits12(&b),
+            [
+                0.0, 1.0, 0.0, //
+                0.0, 0.0, 1.0, //
+                1.0, 0.0, 0.0, //
+                0.0, 0.0, 0.0,
+            ]
+            .map(f64::to_bits)
+        );
+    }
+
+    #[test]
+    fn point_at_roll_convention_and_rigidity() {
+        // The pinned convention: local +Z is the aim; the reference has
+        // no local +X component and a POSITIVE local +Y one.
+        for (eye, target, r) in aim_cases() {
+            let f = point_at(eye, target, r).unwrap();
+            let aim = (target - eye).normalize();
+            let (x, y, z) = (f.linear.c0, f.linear.c1, f.linear.c2);
+            assert!((z.x - aim.x).abs() <= 1e-15);
+            assert!((z.y - aim.y).abs() <= 1e-15);
+            assert!((z.z - aim.z).abs() <= 1e-15);
+            assert!(r.dot(x).abs() <= 1e-13 * r.norm(), "reference off local X");
+            assert!(r.dot(y) > 0.0, "reference on the +Y side");
+            for res in rigidity_residuals(&f) {
+                assert!(res.abs() <= 1e-14, "rigid: {res}");
+            }
+            // The frame's own origin is the eye, and local +Z walks
+            // toward the target.
+            let o = f.transform_point(Point3::origin());
+            assert!((o - eye).norm() <= 1e-15);
+            let walked = f.transform_point(Point3::new(0.0, 0.0, (target - eye).norm()));
+            assert!((walked - target).norm() <= 1e-12);
+        }
+    }
+
+    #[test]
+    fn point_at_round_trips_through_affine3() {
+        for (eye, target, r) in aim_cases() {
+            let f = point_at(eye, target, r).unwrap();
+            let back = f.inverse() * f;
+            for res in rigidity_residuals(&back) {
+                assert!(res.abs() <= 1e-13, "round-trip rigid: {res}");
+            }
+            let p = Point3::new(0.5, -1.5, 2.5);
+            let q = f.inverse().transform_point(f.transform_point(p));
+            assert!((q - p).norm() <= 1e-12);
+        }
+    }
+
+    #[test]
+    fn point_at_refuses_degenerate_inputs() {
+        let e = Point3::new(1.0, 1.0, 1.0);
+        // No aim: the two points coincide.
+        assert_eq!(
+            point_at(e, e, Vec3::unit_z()).unwrap_err(),
+            FrameError::Degenerate {
+                input: FrameInput::Aim,
+                indeterminate: None
+            }
+        );
+        let t = Point3::new(1.0, 1.0, 4.0);
+        // Reference ON the aim line — parallel, antiparallel, and zero
+        // are one refusal: no roll is stated.
+        for r in [
+            Vec3::unit_z(),
+            -Vec3::unit_z(),
+            Vec3::new(0.0, 0.0, 12.0),
+            Vec3::zero(),
+        ] {
+            assert_eq!(
+                point_at(e, t, r).unwrap_err(),
+                FrameError::Degenerate {
+                    input: FrameInput::RollReference,
+                    indeterminate: None
+                }
+            );
+        }
+        // Poison refuses too — as an in-band (invalid-margin) outcome,
+        // never as a silently NaN frame.
+        let p = point_at(e, Point3::new(f64::NAN, 0.0, 0.0), Vec3::unit_z());
+        assert!(matches!(
+            p,
+            Err(FrameError::Degenerate {
+                input: FrameInput::Aim,
+                indeterminate: Some(_)
+            })
+        ));
+    }
+    #[test]
+    fn path_start_frame_pole_fallback_pin() {
+        // The exact case the hand-rolled dodge exists for: a tangent
+        // ALONG the primary reference. Rung one (world +Z) decides
+        // coincident and the ladder advances to world +X — no magic
+        // cone, and the resulting frame is pinned entry for entry.
+        // (The signed zeros are the cross product's exact
+        // cancellations; the pin is the bits, so they are pinned too.)
+        let up = path_start_frame(Point3::origin(), Vec3::new(0.0, 0.0, 5.0)).unwrap();
+        assert_eq!(
+            bits12(&up),
+            [
+                0.0, -1.0, 0.0, // local +X
+                1.0, 0.0, -0.0, // local +Y
+                0.0, 0.0, 1.0, // local +Z = the tangent
+                0.0, 0.0, 0.0,
+            ]
+            .map(f64::to_bits)
+        );
+        let down = path_start_frame(Point3::origin(), Vec3::new(0.0, 0.0, -2.0)).unwrap();
+        assert_eq!(
+            bits12(&down),
+            [
+                -0.0, 1.0, 0.0, //
+                1.0, 0.0, 0.0, //
+                0.0, 0.0, -1.0, //
+                0.0, 0.0, 0.0,
+            ]
+            .map(f64::to_bits)
+        );
+        // Both poles still produce right-handed orthonormal frames —
+        // the property the dodge was protecting.
+        for f in [up, down] {
+            for res in rigidity_residuals(&f) {
+                assert!(res.abs() <= 1e-15, "rigid at the pole: {res}");
+            }
+        }
+    }
+
+    #[test]
+    fn path_start_frame_is_point_at_with_the_ladder_reference() {
+        // The recipe is written ONCE: away from the pole the ladder
+        // picks world +Z, and the frame is then bit-for-bit the
+        // `point_at` frame with that reference (same origin, aim taken
+        // from the same bits).
+        for t in [
+            Vec3::new(4.0, 0.0, 0.0),
+            Vec3::new(1.0, 2.0, 3.0),
+            Vec3::new(-0.25, 7.5, 0.125),
+        ] {
+            let a = path_start_frame(Point3::origin(), t).unwrap();
+            let b = point_at(Point3::origin(), Point3::origin() + t, Vec3::unit_z()).unwrap();
+            assert_eq!(bits12(&a), bits12(&b));
+        }
+    }
+
+    #[test]
+    fn path_start_frame_refuses_true_degeneracy() {
+        // A stationary point of the path: no tangent, no frame.
+        for t in [
+            Vec3::zero(),
+            Vec3::new(0.0, 0.0, 1e-200),
+            Vec3::new(1e-12, 0.0, 0.0),
+        ] {
+            assert_eq!(
+                path_start_frame(Point3::origin(), t).unwrap_err(),
+                FrameError::Degenerate {
+                    input: FrameInput::Tangent,
+                    indeterminate: None
+                }
+            );
+        }
+        // Poison refuses as an invalid-margin outcome, carrying the
+        // classifier payload.
+        assert!(matches!(
+            path_start_frame(Point3::origin(), Vec3::new(f64::NAN, 1.0, 0.0)),
+            Err(FrameError::Degenerate {
+                input: FrameInput::Tangent,
+                indeterminate: Some(_)
+            })
+        ));
+        // A tangent whose components exceed the normalization range
+        // (`Vec3::normalize`'s ~1e154 overflow note) passes the length
+        // decision on an infinite norm and then normalizes to ZERO —
+        // no direction survives, both rungs decide coincident, and the
+        // ladder refuses. This is the one reachable `ReferenceLadder`
+        // class, and the alternative is a silently all-zero frame.
+        assert_eq!(
+            path_start_frame(Point3::origin(), Vec3::new(1e200, 1e200, 1e200)).unwrap_err(),
+            FrameError::Degenerate {
+                input: FrameInput::ReferenceLadder,
+                indeterminate: None
+            }
+        );
+        // For every input that IS a direction, the ladder always finds
+        // a rung — the pole, the equator, and the near-pole included.
+        for t in [
+            Vec3::unit_z(),
+            -Vec3::unit_z(),
+            Vec3::unit_x(),
+            Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(1e-9, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, 1e150),
+        ] {
+            assert!(
+                !matches!(
+                    path_start_frame(Point3::origin(), t),
+                    Err(FrameError::Degenerate {
+                        input: FrameInput::ReferenceLadder,
+                        ..
+                    })
+                ),
+                "ladder exhausted for {t:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn mirror_orientation_pin_and_involution() {
+        // Reflection across the xy-plane: diag(1, 1, −1), no
+        // translation. Exact, so the whole map pins bitwise.
+        let m = mirror_across_plane(Point3::origin(), Vec3::unit_z()).unwrap();
+        assert_eq!(
+            bits12(&m),
+            [
+                1.0, 0.0, 0.0, //
+                0.0, 1.0, 0.0, //
+                0.0, 0.0, -1.0, //
+                0.0, 0.0, 0.0,
+            ]
+            .map(f64::to_bits)
+        );
+        // The stated orientation consequence: det = −1 exactly, so the
+        // rigidity door's determinant residual is −2 — a mirror is an
+        // isometry that a rigid-motion check refuses, by design.
+        assert_eq!(m.linear.determinant(), -1.0);
+        assert_eq!(rigidity_residuals(&m)[6], -2.0);
+        // A reflection is its own inverse.
+        assert_eq!(bits12(&(m * m)), bits12(&Affine3::identity()));
+    }
+
+    #[test]
+    fn mirror_fixes_its_plane_and_flips_handedness() {
+        let p = Point3::new(1.0, -2.0, 3.0);
+        let n = Vec3::new(0.5, 1.5, -0.25);
+        let m = mirror_across_plane(p, n).unwrap();
+        // det = −1 and the columns stay orthonormal: an isometry, not a
+        // rigid motion.
+        assert!((m.linear.determinant() + 1.0).abs() <= 1e-15);
+        for res in [
+            m.linear.c0.dot(m.linear.c0) - 1.0,
+            m.linear.c1.dot(m.linear.c1) - 1.0,
+            m.linear.c2.dot(m.linear.c2) - 1.0,
+            m.linear.c0.dot(m.linear.c1),
+            m.linear.c1.dot(m.linear.c2),
+            m.linear.c0.dot(m.linear.c2),
+        ] {
+            assert!(res.abs() <= 1e-15, "isometry: {res}");
+        }
+        // Points of the plane are fixed; the normal reverses; the map
+        // is an involution.
+        let u = n.cross(Vec3::unit_x()).normalize();
+        for s in [-3.0, 0.0, 2.5] {
+            let q = p + u * s;
+            assert!((m.transform_point(q) - q).norm() <= 1e-14);
+        }
+        let nn = m.transform_vec(n.normalize());
+        assert!((nn + n.normalize()).norm() <= 1e-15);
+        let x = Point3::new(-4.0, 0.0, 6.0);
+        assert!((m.transform_point(m.transform_point(x)) - x).norm() <= 1e-14);
+        // Composed with a frame, the mirror is what flips its
+        // handedness — the consequence a consumer must reverse.
+        let f = point_at(Point3::origin(), Point3::new(1.0, 2.0, 3.0), Vec3::unit_z()).unwrap();
+        assert!(((m * f).linear.determinant() + 1.0).abs() <= 1e-14);
+    }
+
+    #[test]
+    fn mirror_refuses_a_plane_with_no_normal() {
+        assert_eq!(
+            mirror_across_plane(Point3::origin(), Vec3::<f64>::zero()).unwrap_err(),
+            FrameError::Degenerate {
+                input: FrameInput::MirrorNormal,
+                indeterminate: None
+            }
+        );
+        assert!(matches!(
+            mirror_across_plane(Point3::origin(), Vec3::new(f64::NAN, 0.0, 1.0)),
+            Err(FrameError::Degenerate {
+                input: FrameInput::MirrorNormal,
+                indeterminate: Some(_)
+            })
+        ));
+    }
+
+    #[test]
+    fn refusals_name_the_input_and_carry_the_recourse() {
+        // The two-tolerance message shape: what was degenerate, plus
+        // the shared recourse sentence (pinned by `contains`, never a
+        // full-string pin).
+        for (e, needle) in [
+            (
+                point_at(Point3::origin(), Point3::origin(), Vec3::<f64>::unit_z()).unwrap_err(),
+                "aim",
+            ),
+            (
+                path_start_frame(Point3::origin(), Vec3::<f64>::zero()).unwrap_err(),
+                "path tangent",
+            ),
+            (
+                mirror_across_plane(Point3::origin(), Vec3::<f64>::zero()).unwrap_err(),
+                "mirror plane normal",
+            ),
+        ] {
+            let s = e.to_string();
+            assert!(s.contains(needle), "{s}");
+            assert!(s.contains(COINCIDENCE_RECOURSE), "{s}");
+        }
+    }
 }
