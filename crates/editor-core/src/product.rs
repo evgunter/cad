@@ -26,19 +26,22 @@
 //!
 //! # The posture the gather copies
 //!
-//! Bodies arrive through [`topo::graft_disjoint`] — the disjoint half
-//! of the boolean pipeline's combine door — one call per source solid,
-//! exactly as `step-import` materializes a STEP assembly's instances.
-//! Nothing is fused and no seam is implied; provenance rides through
+//! Bodies arrive through [`topo::graft_disjoint_all_keyed`] — the
+//! disjoint half of the boolean pipeline's combine door — one call per
+//! source BODY, exactly as `step-import` materializes a STEP
+//! assembly's instances. A source body carrying several solids (an
+//! instantiated sub-assembly) arrives as several solids of the product
+//! in its own solid order: that door is the N-solid one. Nothing is
+//! fused and no seam is implied; provenance rides through
 //! verbatim, so a pattern instance's `GeomSource::placed(node, i)`
 //! survives into the product, and the `Instance(i)` names the pattern
 //! minted keep addressing it through the evaluation's own name tables
 //! (the gather touches no table).
 //!
 //! Validation is the same F8/D7 shape as the import loop: each source
-//! solid is gated on its own when the product has more than one (with
-//! one, the per-solid and aggregate subjects are the same body and the
-//! call is skipped as an identity, never as an exemption), then the
+//! body is gated on its own when the product holds more than one solid
+//! (with one, the per-solid and aggregate subjects are the same body
+//! and the call is skipped as an identity, never as an exemption), then the
 //! aggregate is gated. Disjoint multi-solid bodies are tier-3 legal;
 //! solids that overlap are a false body and tier 3 says so.
 
@@ -87,18 +90,6 @@ pub enum ProductError {
     /// No root denotes a body — a profile-only or datum-only document
     /// has no product for a door that needs one.
     NoBodyRoots,
-    /// A body-denoting root's value is a MULTI-SOLID body, which the
-    /// kernel's graft door cannot take apart today
-    /// ([`topo::graft_disjoint`] admits single-solid sources only).
-    /// The flip condition is **ASM-2b**, which owns the multi-solid
-    /// graft: when that door lands, this arm becomes unreachable and
-    /// the loop grafts solid by solid.
-    MultiSolidRoot {
-        /// The root whose value carries several solids.
-        node: RecipeNodeId,
-        /// How many.
-        solids: usize,
-    },
     /// The kernel's disjoint-graft door refused a source body.
     Graft {
         /// The root whose body was being grafted.
@@ -106,8 +97,9 @@ pub enum ProductError {
         /// The kernel's own refusal.
         source: Box<topo::BooleanError>,
     },
-    /// A source solid failed the at-rest validity gate on its own
-    /// (only asked when the product has more than one solid).
+    /// A source body failed the at-rest validity gate on its own — a
+    /// multi-solid source is gated whole, as one body (only asked when
+    /// the product holds more than one solid).
     SolidInvalid {
         /// The root that contributed it.
         node: RecipeNodeId,
@@ -146,12 +138,6 @@ impl core::fmt::Display for ProductError {
                 f,
                 "product: root {}'s name {name:?} collides in the product's name table",
                 node.0
-            ),
-            Self::MultiSolidRoot { node, solids } => write!(
-                f,
-                "product: root {node:?} denotes a {solids}-solid body; \
-                 grafting a multi-solid source is ASM-2b's door, not \
-                 this one"
             ),
             Self::Graft { node, source } => {
                 write!(f, "product: grafting root {node:?} refused: {source:?}")
@@ -283,9 +269,13 @@ pub fn product_named<P, T: Decide + PropsQuadLane>(
         return Err(ProductError::NoBodyRoots);
     }
 
-    // Pass 2: the per-solid gate, asked only when the product holds
-    // more than one solid (the import loop's rule, verbatim).
-    if sources.len() > 1 {
+    // Pass 2: the per-source gate, asked only when the product holds
+    // more than one solid (the import loop's rule, verbatim). The count
+    // is over SOLIDS, not sources: one source may itself carry several
+    // (an instantiated sub-assembly), and it is the product's solid
+    // count the rule speaks about.
+    let total_solids: usize = sources.iter().map(|(_, _, b, _)| b.solids().count()).sum();
+    if total_solids > 1 {
         for (node, _, body, _) in &sources {
             topo::validate_geometric(body.as_ref()).map_err(|errors| {
                 ProductError::SolidInvalid {
@@ -296,19 +286,18 @@ pub fn product_named<P, T: Decide + PropsQuadLane>(
         }
     }
 
-    // Pass 3: the graft, one call per source solid, in list order, each
-    // carrying its source's name rows across on the key bridge.
+    // Pass 3: the graft, one call per SOURCE BODY, in list order, each
+    // carrying its source's name rows across on the key bridge. A
+    // source holding N solids goes through as one call: the keyed graft
+    // is the N-solid door (#381), and its per-entity bridge is total
+    // over the source however many solids it spans, so the name carry
+    // is the same code for N as for 1.
     let mut aggregate = Body::new();
     let mut names = NameTable::new();
     for (node, ix, body, table) in &sources {
-        let solids = body.solids().count();
-        if solids > 1 {
-            return Err(ProductError::MultiSolidRoot {
-                node: *node,
-                solids,
-            });
-        }
-        if solids == 0 {
+        // An empty source contributes nothing; the graft door refuses a
+        // solidless body, so the skip is here rather than there.
+        if body.solids().next().is_none() {
             continue;
         }
         let keys =

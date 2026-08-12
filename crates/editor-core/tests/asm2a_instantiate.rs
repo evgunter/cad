@@ -164,8 +164,8 @@ fn boolean_part(label: &str) -> ProfileDoc {
     doc
 }
 
-/// Two disjoint blocks in one document — a TWO-solid product, the
-/// ASM-2b flip condition's fixture.
+/// Two disjoint blocks in one document — a TWO-solid product: what
+/// row 5d refused before ASM-2B lifted that door, and instantiates now.
 fn two_solid_part(label: &str) -> ProfileDoc {
     let doc = part(label, 0.0, 1.0);
     let (doc, profile) = insert(
@@ -605,25 +605,42 @@ fn row5c_epsilon_seam_refuses_typed() {
     ));
 }
 
-/// Row 5d — a multi-solid referenced product refuses, naming ASM-2b.
-/// No partial support: the door is single-solid or it is nothing.
+/// Row 5d, FLIPPED at **ASM-2B** (acceptance row 1) — a multi-solid
+/// referenced product used to refuse here, naming ASM-2b as its flip
+/// condition. That door is open: the same fixture now SUCCEEDS, its two
+/// solids arriving as two solids of the instance's placed body and of
+/// the assembly's product. The row is kept rather than deleted because
+/// it is the one that pins WHICH direction this door faces; reverting
+/// the lift reds it.
 #[test]
-fn row5d_multi_solid_part_refuses_naming_asm_2b() {
+fn row5d_multi_solid_part_instantiates_since_asm_2b() {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(two_solid_part("asm2a-r5d-part"));
+    let part_doc = two_solid_part("asm2a-r5d-part");
+    let doc_ref = store.insert(part_doc.clone());
     let opts = with_resolver(store);
     let (doc, ids) = assembly("asm2a-r5d-asm", &[doc_ref]);
     let ev = run(&doc, &opts);
-    match part_fault(&ev, ids[0]) {
-        f @ PartFault::MultiSolid { solids } => {
-            assert_eq!(solids, 2);
-            assert!(
-                f.to_string().contains("ASM-2b"),
-                "the refusal names the flip condition: {f}"
-            );
-        }
-        other => panic!("expected MultiSolid, got {other:?}"),
+    match ev.result(ids[0]) {
+        Some(NodeResult::Ok(value)) => match &value.payload {
+            editor_core::ValuePayload::Body(b) => {
+                assert_eq!(b.solids().count(), 2, "both of the part's solids arrive");
+            }
+            other => panic!("an instance's value is a body, got {other:?}"),
+        },
+        other => panic!("a multi-solid part instantiates since ASM-2B, got {other:?}"),
     }
+    let body = product(&doc, &ev).expect("the product gathers");
+    assert_eq!(body.solids().count(), 2);
+
+    // The part's own product, for the volume comparison: one instance
+    // at identity is the part, bit for bit.
+    let part_ev = run(&part_doc, &EvalOptions::default());
+    let part_body = product(&part_doc, &part_ev).expect("the part's product");
+    assert_eq!(
+        volume(&body).to_bits(),
+        volume(&part_body).to_bits(),
+        "one instance at identity has the part's volume, bit for bit"
+    );
 }
 
 // ---- Row 6: pin semantics ----
