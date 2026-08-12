@@ -150,9 +150,21 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// default; v5 refuses TYPED with the regenerate recourse, exactly as
 /// v1–v4 do, and the migration table stays empty.
 ///
+/// Version 7 is **vocabulary growth** on the standing terms (LIB-LBRET;
+/// PATHS-DESIGN §2b's LB10 route 3, ratified on #386): the chain step
+/// vocabulary gained [`crate::ProgramStep::AtToward`], the straight
+/// fillet arrival off an arc-carrier departure. The addition is
+/// forward-additive — a v6 file contains no `AtToward` and would load
+/// — but the reverse is what the version gate is FOR: a v7 file handed
+/// to a v6 reader must refuse at the gate, typed, instead of reaching
+/// serde and dying on an unknown variant. That is the same call v2 and
+/// v3 made for exactly this shape (new node vocabulary, new required
+/// field), so a v6 file refuses TYPED with the regenerate recourse and
+/// the migration table stays empty.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these five.
-pub const SCHEMA_VERSION: u32 = 6;
+/// [`migration_step`] entry, or a ratified break like these six.
+pub const SCHEMA_VERSION: u32 = 7;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]

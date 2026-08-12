@@ -130,6 +130,8 @@ mod m5_pr8_bvh_diff;
 mod m5_s1_rest_declare;
 #[path = "m6_5_downstream.rs"]
 mod m6_5_downstream;
+#[path = "lbret_schema_v7.rs"]
+mod lbret_schema_v7;
 #[path = "m6_5_schema_v3.rs"]
 mod m6_5_schema_v3;
 #[path = "m6_5_selection_refusals.rs"]

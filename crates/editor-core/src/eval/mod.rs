@@ -1261,11 +1261,15 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             f(h, centre.y);
             winding(h, *w);
         }
-        // Tag 28: APPENDED, never renumbered — these keys are
-        // process-internal but a renumber would collide two distinct
-        // steps' digests within one run.
+        // Tag 29: the next FREE tag in this function's sequence (10-28
+        // were taken, 28 by `ArcContinue` below). Verb identity is
+        // structure — two verbs sharing a tag could collide their
+        // digests within one run, which `switch_program_key`'s
+        // `verb_tags_are_structure` exists to forbid. Keys are
+        // process-internal, so a tag is chosen once and then left
+        // alone; new verbs append.
         Step::AtToward { p, dx, dy } => {
-            h.write_tag(28);
+            h.write_tag(29);
             f(h, p.x);
             f(h, p.y);
             f(h, *dx);
