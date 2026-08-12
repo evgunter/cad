@@ -608,3 +608,125 @@ fn x1_ctl_sqrt_is_not_modelled_as_a_function() {
          harnesses can come back"
     );
 }
+
+// ---------------------------------------------------------------------
+// Tier C′ — the same padding logic with the FMA exactness witness
+// replaced by an EXACT f64 oracle.
+//
+// Why this tier exists: CBMC's `fmaf` is not a usable model (see
+// `x2_ctl_fmaf_counterexamples_do_not_reproduce`), so `c1`/`c2` produce
+// counterexamples that are false on real hardware. Routing the exactness
+// test through f64 — where the product of two f32s is exact — removes
+// `mul_add` from the harness entirely and leaves a question CBMC can
+// answer: GIVEN a correct exactness test, is the padding logic sound?
+//
+// What this does NOT check, and cannot while `fmaf` is broken: that the
+// FMA witness in `round.rs` is itself correct, and therefore that the
+// `TWO_PROD_VALID_MIN` floor is placed where it needs to be. That is the
+// half the differential oracle earns its keep on.
+// ---------------------------------------------------------------------
+
+/// Exact exactness test: no FMA, no floor — `f64` decides.
+fn mul_exact32_oracle(a: f32, b: f32, r: f32) -> bool {
+    f64::from(a) * f64::from(b) == f64::from(r)
+}
+
+fn mul_lo32_oracle(a: f32, b: f32) -> f32 {
+    if a == 0.0 || b == 0.0 {
+        return 0.0;
+    }
+    let r = a * b;
+    if mul_exact32_oracle(a, b, r) { r } else { r.next_down() }
+}
+
+fn mul_hi32_oracle(a: f32, b: f32) -> f32 {
+    if a == 0.0 || b == 0.0 {
+        return 0.0;
+    }
+    let r = a * b;
+    if mul_exact32_oracle(a, b, r) { r } else { r.next_up() }
+}
+
+/// The padding logic for products encloses the exact product, for all
+/// 2^64 `f32` pairs, given a correct exactness test.
+#[kani::proof]
+fn c6_mul_padding_logic_encloses_the_exact_product() {
+    let a: f32 = kani::any();
+    let b: f32 = kani::any();
+    kani::assume(a.is_finite() && b.is_finite());
+    let exact = f64::from(a) * f64::from(b); // EXACT and always finite
+    assert!(
+        f64::from(mul_lo32_oracle(a, b)) <= exact,
+        "lower pad crossed the true product"
+    );
+    assert!(
+        f64::from(mul_hi32_oracle(a, b)) >= exact,
+        "upper pad crossed the true product"
+    );
+}
+
+fn div_exact32_oracle(a: f32, b: f32, q: f32) -> bool {
+    // q*b is an exact f64 product of two f32s, so this is exact.
+    q.is_finite() && f64::from(q) * f64::from(b) == f64::from(a)
+}
+
+fn div_lo32_oracle(a: f32, b: f32) -> f32 {
+    if a == 0.0 {
+        return 0.0;
+    }
+    let q = a / b;
+    if div_exact32_oracle(a, b, q) { q } else { q.next_down() }
+}
+
+fn div_hi32_oracle(a: f32, b: f32) -> f32 {
+    if a == 0.0 {
+        return 0.0;
+    }
+    let q = a / b;
+    if div_exact32_oracle(a, b, q) { q } else { q.next_up() }
+}
+
+/// Mirror of `c6` for quotients, stated by cross-multiplication (`lo * b`
+/// is again an exact `f64` product), so the non-representable exact
+/// quotient never has to be named.
+#[kani::proof]
+fn c7_div_padding_logic_encloses_the_exact_quotient() {
+    let a: f32 = kani::any();
+    let b: f32 = kani::any();
+    kani::assume(a.is_finite() && b.is_finite() && b != 0.0);
+    let (ad, bd) = (f64::from(a), f64::from(b));
+    let lo = f64::from(div_lo32_oracle(a, b));
+    let hi = f64::from(div_hi32_oracle(a, b));
+    if b > 0.0 {
+        assert!(lo * bd <= ad, "lower pad crossed the true quotient");
+        assert!(hi * bd >= ad, "upper pad crossed the true quotient");
+    } else {
+        assert!(lo * bd >= ad, "lower pad crossed the true quotient");
+        assert!(hi * bd <= ad, "upper pad crossed the true quotient");
+    }
+}
+
+/// TOOL LIMITATION (expected to FAIL, behind `--cfg kani_tool_control`).
+///
+/// The two counterexamples CBMC produced for `c1` — `a = -6.604977e9,
+/// b = 7.398497e-39` (lower pad) and `a = -3.196874e-14,
+/// b = 1.473013e18` (upper pad) — were replayed natively with `rustc -O`
+/// and BOTH hold: `lo <= exact <= hi` on real hardware. Same for `c2`'s.
+/// The common factor is `f32::mul_add`: CBMC implements it as a builtin
+/// software library (`<builtin-library-fma>`), not as a native
+/// floating-point operation, and under the default unwinding that model
+/// is only partially constrained — the same failure mode as `sqrt`.
+///
+/// This harness pins the concrete pair so that a Kani which fixes `fmaf`
+/// stops "finding" it.
+#[cfg(kani_tool_control)]
+#[kani::proof]
+fn x2_ctl_fmaf_counterexamples_do_not_reproduce() {
+    let a = f32::from_bits(0xcfc4_d7f9); // -6.604977e9
+    let b = f32::from_bits(0x0050_9000); //  7.398497e-39 (subnormal)
+    let exact = f64::from(a) * f64::from(b);
+    assert!(
+        f64::from(mul_lo32(a, b)) <= exact,
+        "CBMC still mismodels fmaf on this pair (native rustc: holds)"
+    );
+}
