@@ -61,7 +61,7 @@
 # on purpose to keep its warm target/ from re-fingerprinting. See the
 # LINK/DEBUGINFO note at the top of ci.yml for the measurement.
 #
-# Merge-gate runs go through scripts/gate.sh (serialized, warm runner —
+# Merge-gate runs go through local-scripts/gate.sh (serialized, warm runner —
 # see its header for the caching guidance and RUSTFLAGS hazard).
 set -u
 cd "$(dirname "$0")/.."
@@ -126,7 +126,7 @@ fi
 # docs early-exit so docs-only runs never wait on locks; the re-exec'd
 # script re-runs the (cheap) filter, then passes this guard.
 if [ -z "${BUILD_SLOT_HELD:-}" ]; then
-  exec scripts/with-build-slot.sh -x -- scripts/ci-local.sh "${ORIG_ARGS[@]}"
+  exec local-scripts/with-build-slot.sh -x -- local-scripts/ci-local.sh "${ORIG_ARGS[@]}"
 fi
 
 declare -a NAMES RESULTS
@@ -149,11 +149,18 @@ run_row_if() {
   fi
 }
 
-# --- discipline (evaluation-code): the three tripwire greps, verbatim ---
+# --- discipline (evaluation-code): the tripwire greps, verbatim ---
 discipline() {
   local rc=0
   if grep -rnE '\bReal\s*\+' crates/*/src; then
     echo "ERROR: found 'Real +' bound(s) above — evaluation-code discipline forbids extra bounds on scalar type parameters"
+    rc=1
+  fi
+  # Test-aggregation discipline: one [[test]] target per crate. Mirrors
+  # ci.yml's step of the same name, calling the SAME script — see its
+  # header for why this is a gate (per-test-binary codegen+link was 96%
+  # of the build job, measured) and how #179 missed step-import.
+  if ! scripts/check-test-aggregation.sh; then
     rc=1
   fi
   # Compound Bounds allowlist (ratified 2026-07-29; geom-core real.rs

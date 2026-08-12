@@ -1,9 +1,24 @@
 #!/usr/bin/env bash
-# ONE COMMAND FOR A RENDER: dispatch -> poll -> install.
+# ONE COMMAND FOR A RENDER: install the one CI already made — or, on
+# request, dispatch -> poll -> install.
 #
-#   scripts/render-hosted.sh                      # all lanes, this branch
-#   scripts/render-hosted.sh --lane uv            # one lane
-#   scripts/render-hosted.sh --run 12345678       # pull an existing run
+#   local-scripts/render-hosted.sh                      # take your branch's
+#                                                 # newest CI render
+#   local-scripts/render-hosted.sh --lane uv            # one lane of it
+#   local-scripts/render-hosted.sh --on-demand          # render fresh instead
+#   local-scripts/render-hosted.sh --run 12345678       # pull a specific run
+#
+# TAKING IS THE DEFAULT; RENDERING IS THE FLAG. Every CI run on a pushed
+# branch renders all four lanes and gates them (ci.yml's `renders` job
+# calls render.yml with `gate: true`), so once your branch has a CI run
+# the frames already exist — a dispatch would render the same tree a
+# second time, for ~5 more runner-minutes and no new information.
+# `--on-demand` is for what CI has not covered: an unpushed branch, no
+# CI run yet, or a deliberate re-render at a different scene budget.
+#
+# It takes the CI run WHATEVER ITS CONCLUSION. A stale committed lane is
+# what makes the render gate fail, so the failing run is precisely the
+# one whose artifact you want; lanes upload before the gate compares.
 #
 # Renders are hosted (`.github/workflows/render.yml`); the local entry
 # points refuse without an explicit override (demos/hosted-render-guard.sh).
@@ -37,8 +52,16 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 WORKFLOW=render.yml
+CI_WORKFLOW=ci.yml
 LANE=all
 RUN_ID=""
+ON_DEMAND=0
+# The lane jobs, by the name each ends with. A dispatched render.yml run
+# names them exactly; called from ci.yml they arrive prefixed ("render
+# lanes / kernel montage"), so the match is on the SUFFIX and one list
+# serves both. This is what lets the poll wait for the render rather
+# than for a whole CI run — the lanes settle in ~3 minutes, CI in ~12.
+RENDER_JOBS_RE='(demo tour \(scene inputs\)|uv trim-loop sheet|kernel montage|freecad montage|wild-corpus montage)$'
 REF=""
 SCENE_TIMEOUT=""
 INSTALL=1
@@ -50,11 +73,14 @@ POLL_INTERVAL=20
 
 usage() {
     cat <<'EOF'
-usage: scripts/render-hosted.sh [options]
+usage: local-scripts/render-hosted.sh [options]
 
-  --lane <kernel|freecad|uv|wild|all>   which lane(s) to render (default: all)
-  --ref <branch|tag|sha>                what to render (default: current branch)
-  --run <id>                            pull an existing run; no new render
+  (default)                             install the render your branch's
+                                        newest CI run already made
+  --on-demand                           render fresh instead of taking CI's
+  --lane <kernel|freecad|uv|wild|all>   which lane(s) (default: all)
+  --ref <branch|tag|sha>                which branch (default: current)
+  --run <id>                            take a specific run; no new render
   --scene-timeout <seconds>             FreeCAD per-scene budget (default: 300)
   --no-install                          download to a temp dir, do not touch the tree
   --verify                              round-trip proof: assert the pulled bytes
@@ -76,6 +102,7 @@ while [ $# -gt 0 ]; do
         --lane) LANE="${2:?--lane needs a value}"; shift 2 ;;
         --ref) REF="${2:?--ref needs a value}"; shift 2 ;;
         --run) RUN_ID="${2:?--run needs a value}"; shift 2 ;;
+        --on-demand) ON_DEMAND=1; shift ;;
         --scene-timeout) SCENE_TIMEOUT="${2:?--scene-timeout needs a value}"; shift 2 ;;
         --budget-min) POLL_BUDGET_MIN="${2:?--budget-min needs a value}"; shift 2 ;;
         --no-install) INSTALL=0; shift ;;
@@ -113,6 +140,37 @@ dir_for() {
 lanes_of() {
     if [ "$1" = all ]; then echo "kernel freecad uv wild"; else echo "$1"; fi
 }
+
+# ------------------------------------------------------- take CI's render
+
+# THE DEFAULT IS TO TAKE, NOT TO RENDER. ci.yml's `renders` job calls
+# render.yml as a gate on every push that builds anything, so a pushed
+# branch's newest CI run already holds all four lanes' artifacts — the
+# same bytes a dispatch would produce, from the same pipeline, at no
+# extra runner cost. Rendering again would render the same tree twice,
+# so that is the flag (`--on-demand`) and this is the default.
+#
+# The run is taken WHATEVER ITS CONCLUSION, which is the point rather
+# than a leniency: a render gate fails precisely when the committed lane
+# is stale, and that run's artifact is what makes it current. The
+# artifacts are uploaded before the gate step runs, so a failed gate
+# still has them.
+if [ "$ON_DEMAND" = 0 ] && [ -z "$RUN_ID" ]; then
+    if [ -z "$REF" ]; then
+        REF="$(git rev-parse --abbrev-ref HEAD)"
+        [ "$REF" != HEAD ] || die "detached HEAD — pass --ref explicitly"
+    fi
+    say "looking for the newest $CI_WORKFLOW run on $REF"
+    RUN_ID="$(gh run list --workflow "$CI_WORKFLOW" --branch "$REF" --limit 1 \
+        --json databaseId --jq '.[0].databaseId // empty')"
+    # No fallback to dispatching. Rendering costs ~5 runner-minutes and
+    # the caller asked for the cheap path; silently taking the expensive
+    # one is the kind of helpfulness that surprises.
+    [ -n "$RUN_ID" ] || die "no $CI_WORKFLOW run on '$REF' yet — CI renders every lane \
+on every push, so this usually means the branch is unpushed. Push it, or render on \
+demand: local-scripts/render-hosted.sh --on-demand --lane $LANE"
+    say "taking $CI_WORKFLOW run $RUN_ID (no new render)"
+fi
 
 # ---------------------------------------------------------------- dispatch
 
@@ -193,32 +251,60 @@ while :; do
 
     view="$(gh run view "$RUN_ID" --json status,conclusion,jobs)"
     status="$(jq -r .status <<<"$view")"
-    signature="$(jq -r '[.jobs[] | "\(.name)=\(.status)/\(.conclusion // "-")"] | join(",")' <<<"$view")"
+    # Only the render lanes are reported and waited on. On a dispatched
+    # run that is every job; on a CI run it is the handful that matter,
+    # and the twenty test shards around them are neither this script's
+    # business nor worth eleven minutes of its patience.
+    lanes_view="$(jq --arg re "$RENDER_JOBS_RE" \
+        '{jobs: [.jobs[] | select(.name | test($re))]}' <<<"$view")"
+    signature="$(jq -r '[.jobs[] | "\(.name)=\(.status)/\(.conclusion // "-")"] | join(",")' <<<"$lanes_view")"
 
     if [ "$signature" != "$last_signature" ] || [ $(( now - last_print )) -ge 300 ]; then
         printf '    [%s]\n' "$(date +%H:%M:%S)"
-        jq -r '.jobs[] | "      \(.conclusion // .status | ascii_upcase)  \(.name)"' <<<"$view"
+        # `gh` reports an unfinished job's conclusion as "", not null,
+        # and jq's `//` only falls through on null/false — so the state
+        # has to be chosen explicitly or every in-flight lane prints
+        # blank where its status belongs.
+        jq -r '.jobs[] | "      \(if (.conclusion // "") == "" then .status else .conclusion end | ascii_upcase)  \(.name)"' <<<"$lanes_view"
         last_signature="$signature"
         last_print="$now"
     fi
 
+    # Done when the LANES are done — or when the run ends without them
+    # ever appearing (a CI run whose change filter skipped the render
+    # job, say), which the artifact check below then reports.
+    lanes_pending="$(jq '[.jobs[] | select(.status != "completed")] | length' <<<"$lanes_view")"
+    lanes_seen="$(jq '.jobs | length' <<<"$lanes_view")"
     [ "$status" != completed ] || break
+    # An `A && B && break` list would take `set -e` down with it the
+    # moment A is false, which is every poll but the last.
+    if [ "$lanes_seen" -gt 0 ] && [ "$lanes_pending" -eq 0 ]; then break; fi
     sleep "$POLL_INTERVAL"
 done
 
-conclusion="$(jq -r .conclusion <<<"$view")"
-if [ "$conclusion" != success ]; then
+# A FAILED LANE IS NOT AUTOMATICALLY A MISSING RENDER, and this is the
+# distinction the whole take-CI's-render path rests on: every lane
+# uploads its artifact BEFORE the gate step compares it, so the gate
+# failing — the one case you most want the frames — leaves them intact.
+# So failures are reported and the download decides: no artifact for a
+# requested lane is the real error, and it is raised there.
+failed="$(jq -r '.jobs[] | select((.conclusion // "") != "" and .conclusion != "success" and .conclusion != "skipped")
+                 | "      \(.conclusion | ascii_upcase)  \(.name)"' <<<"$lanes_view")"
+if [ -n "$failed" ]; then
     echo >&2
-    echo "render-hosted: run $RUN_ID concluded '$conclusion'. Failing jobs:" >&2
-    jq -r '.jobs[] | select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != null)
-           | "      \(.conclusion | ascii_upcase)  \(.name)"' <<<"$view" >&2
+    echo "render-hosted: render lanes that did not succeed on run $RUN_ID:" >&2
+    echo "$failed" >&2
     echo >&2
-    echo "render-hosted: --- last 60 lines of failing-step logs ---" >&2
-    gh run view "$RUN_ID" --log-failed 2>/dev/null | tail -n 60 >&2 || true
-    echo "render-hosted: --- full log: gh run view $RUN_ID --log ---" >&2
-    die "hosted render failed"
+    echo "render-hosted:   A STALE-LANE GATE FAILURE IS EXPECTED HERE when you are" >&2
+    echo "render-hosted:   refreshing frames: the artifacts are still this run's" >&2
+    echo "render-hosted:   render, and installing them is the fix. A wedged or" >&2
+    echo "render-hosted:   crashed lane publishes NOTHING, and shows up below as a" >&2
+    echo "render-hosted:   missing artifact." >&2
+    echo "render-hosted:   Full log: gh run view $RUN_ID --log-failed" >&2
+    echo >&2
+else
+    say "render lanes on run $RUN_ID succeeded"
 fi
-say "run $RUN_ID succeeded"
 
 # ---------------------------------------------------------------- download
 

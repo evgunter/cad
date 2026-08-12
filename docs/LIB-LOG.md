@@ -31,7 +31,7 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
    lands on main, the 10 GB / two-parallel-cargo-lanes ceiling is
    enforced by this log's slot line.
    **SUPERSEDED same night: PR #230 MERGED (2026-08-07 ~00:00)**
-   — `scripts/with-build-slot.sh`, machine-wide flock semaphore,
+   — `local-scripts/with-build-slot.sh`, machine-wide flock semaphore,
    WIDTH 1 (serial builds measured ~40% faster than 2-wide;
    PR #230 has the numbers). Both running implementers were
    messaged to wrap every cargo call in it; all future dispatch
@@ -525,6 +525,37 @@ Python), Count still unconsumed, tour scenes without closed-form
 oracles (finding 5), the DocParam __eq__ rider (from ordinal
 19), straight-run authoring noise (finding 7 — vocabulary
 evidence for a future design conversation, not a unit).
+
+**PYSEL MERGED — G13 CLOSED (2026-08-11, #393, ordinal-29
+APPROVE-WITH-FIXES 0/2/4).** The selector surface crosses to
+Python (trilean discipline intact, zero name-text parsing);
+diecomposed YES*→YES; audit 24→25 of 34; suite 118→128. Riders:
+the SegPat.matches drop upheld-and-stated (RoleSeg is name-text
+territory); the reviewer's ε-sliver in_band refusal row adopted;
+the pncad-py interval-passthrough CI wall fixed en route (the
+first pncad-py-only closure would have gone red without it).
+Remaining NO rows: G2 sweep/tube ×6 (U4), G5 ×2 (detect/declare
++ R3), G12 (LBRET in flight), G14 (kernel).
+
+**The #377 design conversation — RATIFIED (2026-08-11, Evan 👍
+on #386, after two follow-up rounds that strengthened the §V6
+disposition to full test-support banishment + struck V4(c)).** LoopBuilder
+retirement per Evan's in-chat ruling requires three dispositions
+beyond the §2b route (the lb-diecomposed investigation's
+findings): (a) PROFILES-V2 §V6's ratified fail-loud-demo-surface
+role — amendment drafted in place; (b) **LB4 disposition
+PROPOSED**: rocker migrates under the #289 oracle-equality
+contract (derived corners 0–4 ulps off authored anchors are the
+natural-authoring outcome; the no-anchor-fitting DOCTRINE is
+untouched — nothing fits anchors, the demo simply stops
+transcribing them); (c) **LB5 disposition PROPOSED**: the
+outline's mid-arc seam vertex re-anchors on migration — the
+scene's point is the rocker's shape, not its seam placement, so
+authored-topology preservation yields to the demo-purpose rule;
+the topology change is stated at the site. The bowtie stays
+permanently raw (ProfileLoop data, not LoopBuilder). Sequencing:
+ruling first, then ONE S-M unit (the §2b door + rocker migration
++ prelude/guide removal + G12 flip).
 
 **PYBUNDLE MERGED — G4/G6/G7/G9 CLOSED (2026-08-11, #376,
 ordinal-28 APPROVE-WITH-FIXES 1/2/3).** Audit 18→24 of 34

@@ -146,7 +146,7 @@ stringly errors.
 OUTPUT DISCIPLINE per M3 conventions (≤~150 lines/tool call,
 skeleton first, chunked reads, report ≤120 lines). Branch
 `ev/m4-1-editor-core` from origin/main; push after EVERY commit.
-Gate: `scripts/gate.sh <merged sha>` — note the workspace gains a
+Gate: `local-scripts/gate.sh <merged sha>` — note the workspace gains a
 crate, so clippy/fmt rows cover it automatically; verify
 `cargo test -p editor-core` joins the workspace default. NEVER
 export RUSTFLAGS. Open the PR (title "M4 PR 1: editor-core — recipe

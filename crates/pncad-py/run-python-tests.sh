@@ -19,7 +19,7 @@ stage=${PNCAD_STAGE:-$root/target/python-stage}
 
 # The heavy row goes through the machine-wide build slot like every
 # other cargo invocation in this repo.
-"$root/scripts/with-build-slot.sh" -- \
+"$root/local-scripts/with-build-slot.sh" -- \
     cargo build -p pncad-py --features extension-module
 
 lib=$root/target/debug/libpncad_py.so

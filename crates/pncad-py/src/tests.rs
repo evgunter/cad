@@ -54,6 +54,57 @@ fn error_classes_name_the_python_hierarchy() {
     assert_eq!(ErrorClass::Export.class_name(), "ExportError");
     assert_eq!(ErrorClass::StepImport.class_name(), "StepImportError");
     assert_eq!(ErrorClass::Path.class_name(), "PathError");
+    assert_eq!(ErrorClass::Select.class_name(), "SelectRefusal");
+}
+
+/// LIB-PYSEL: `SelectRefusal` is `#[non_exhaustive]`, so the tag
+/// match cannot be the compile-time drift alarm the other tag
+/// functions are — this pin is the replacement. It constructs every
+/// arm whose payload the curated surface can build and asserts its
+/// tag, so a kernel arm arriving untagged surfaces as `unclassified`
+/// HERE rather than silently in Python. (`InBand`/`PairInBand`/
+/// `BadValue` carry funnel/expression internals with no public
+/// constructor; their tags are covered by the match itself.)
+#[test]
+fn select_refusal_tags_are_stable() {
+    use crate::tags::select_refusal_tag;
+    use pncad::document::{Dimension, RecipeNodeId};
+    use pncad::select::{EntityKind, InterrogateError, SelectRefusal};
+
+    let name = Box::new(pncad::prelude::StableName {
+        kind: EntityKind::Edge,
+        node: RecipeNodeId(0),
+        path: Vec::new(),
+    });
+    assert_eq!(
+        select_refusal_tag(&SelectRefusal::TiedDisagrees {
+            name: name.clone(),
+            matched: 1,
+            candidates: 2,
+        }),
+        "tied_disagrees"
+    );
+    assert_eq!(
+        select_refusal_tag(&SelectRefusal::Unreadable {
+            name,
+            error: InterrogateError::NoSuchName,
+        }),
+        "unreadable"
+    );
+    assert_eq!(
+        select_refusal_tag(&SelectRefusal::NotADatum {
+            datum: RecipeNodeId(0),
+            found: "body",
+        }),
+        "not_a_datum"
+    );
+    assert_eq!(
+        select_refusal_tag(&SelectRefusal::NotALength {
+            dim: Dimension::Angle,
+        }),
+        "not_a_length"
+    );
+    assert_eq!(select_refusal_tag(&SelectRefusal::Band), "band");
 }
 
 /// LIB-DOORS F5: the binding matches `Expr::literal`'s OWN refusals
