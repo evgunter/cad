@@ -30,6 +30,15 @@ type OpResult<T> = Result<(ValuePayload<T>, Arc<NameTable>), NodeErrorKind>;
 /// A bare payload (datum/profile lanes — empty tables).
 type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 
+/// The evaluation-wide context an op may need beyond its own inputs:
+/// the boolean candidate-generation switch, and the document seam.
+/// Bundled rather than passed one by one — an op's ARGUMENTS are its
+/// inputs and slots, and everything here is ambient to the run.
+pub(crate) struct OpEnv<'a, T: Decide> {
+    pub boolean_sweep: topo::SweepStrategy,
+    pub parts: &'a super::parts::PartCache<'a, T>,
+}
+
 /// Runs one node's op against its (already Ok) inputs and evaluated
 /// slots, emitting the node's name table alongside the payload.
 /// `profile_pre` is the profile node's f64 precompute (present exactly
@@ -42,10 +51,10 @@ pub(crate) fn run_op<T>(
     results: &Results<T>,
     vals: &SlotValues<T>,
     profile_pre: Option<&ProfilePre>,
-    boolean_sweep: topo::SweepStrategy,
+    env: &OpEnv<'_, T>,
 ) -> OpResult<T>
 where
-    T: Decide + super::ContentBits + geom_core::Bounds,
+    T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
 {
     match node {
         Node::Datum(d) => Ok((wire_datum(d, vals)?, names::empty())),
@@ -59,12 +68,59 @@ where
         } => wire_fillet(id, *target, selection, doc, results, vals),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results),
         Node::Boolean { op, a, b, declare } => {
-            wire_boolean(id, *op, *a, *b, *declare, doc, results, boolean_sweep)
+            wire_boolean(id, *op, *a, *b, *declare, doc, results, env.boolean_sweep)
         }
         Node::Transform { input, .. } => wire_transform(id, *input, results, vals),
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals),
         Node::Declare { pairs } => Ok((ValuePayload::Declarations(pairs.clone()), names::empty())),
+        Node::InstantiatePart { doc_ref } => {
+            wire_instantiate_part(id, doc_ref, doc.placement(id), env)
+        }
     }
+}
+
+/// ASM-2A D-3: materialize an instance through the shipped doors.
+///
+/// Resolve (memoized per reference), take the referenced document's A10
+/// PRODUCT — what a document MEANS is its product, one rule everywhere
+/// — place it with the kernel's own `transform_rigid`, and hand back a
+/// body-denoting value. Nothing here is assembly-specific machinery:
+/// the placed body is an ordinary single-solid `Body`, so the root
+/// gather and the export door consume it with no new arms, and the
+/// graft into the evaluating document's materialization is the gather's
+/// own (D-3's "graft into the evaluating document" IS `product`,
+/// because an instantiate node is a root of the assembly).
+fn wire_instantiate_part<T>(
+    id: RecipeNodeId,
+    doc_ref: &crate::ident::DocRef,
+    placement: crate::placement::Frame,
+    env: &OpEnv<'_, T>,
+) -> OpResult<T>
+where
+    T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+{
+    let part = env
+        .parts
+        .get(doc_ref)
+        .map_err(|fault| NodeErrorKind::Part {
+            doc_ref: *doc_ref,
+            fault,
+        })?;
+    // The identity fast-path is admitted only for a BIT-exact identity
+    // frame: any other value could round, and `transform_rigid` is what
+    // decides whether it stayed rigid.
+    let mut placed = if placement.is_identity_bits() {
+        (*part.body).clone()
+    } else {
+        transform_rigid(&part.body, &placement.affine::<T>()).map_err(NodeErrorKind::Transform)?
+    };
+    // N6 composition, the Transform precedent: `transform_rigid`
+    // cleared the source records, so each description is re-stamped
+    // with the part's own source wrapped by THIS placing node. Keys are
+    // stable across the op, and the identity path never cleared them.
+    compose_placed(&part.body, &mut placed, id, 0);
+    let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
+    Ok((ValuePayload::Body(Arc::new(placed)), table))
 }
 
 /// Stamps every UNSOURCED description of `body` with this node's

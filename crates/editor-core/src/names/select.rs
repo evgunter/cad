@@ -74,6 +74,8 @@ pub enum OpGroup {
     Fillet,
     /// Pattern.
     Pattern,
+    /// Instantiate-part (ASM-2A's cross-document wrapper).
+    InstantiatePart,
 }
 
 /// Which [`RoleSeg`] variant a segment is: the fieldless mirror of
@@ -135,6 +137,8 @@ pub enum SegTag {
     BandSlit,
     // Pattern
     Instance,
+    // Instantiate part
+    InPart,
 }
 
 /// The end/side discriminator a role segment can carry — the closed,
@@ -219,6 +223,7 @@ impl SegTag {
             RoleSeg::BandCut(..) => Self::BandCut,
             RoleSeg::BandSlit(..) => Self::BandSlit,
             RoleSeg::Instance { .. } => Self::Instance,
+            RoleSeg::InPart { .. } => Self::InPart,
         }
     }
 
@@ -260,6 +265,7 @@ impl SegTag {
             | Self::BandCut
             | Self::BandSlit => OpGroup::Fillet,
             Self::Instance => OpGroup::Pattern,
+            Self::InPart => OpGroup::InstantiatePart,
         }
     }
 }
@@ -303,7 +309,8 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::CrossingVertex { edge: n, .. }
         | RoleSeg::OnToolVertex { of: n, .. }
         | RoleSeg::BandTrim { edge: n, .. }
-        | RoleSeg::Instance { of: n, .. } => vec![n],
+        | RoleSeg::Instance { of: n, .. }
+        | RoleSeg::InPart { of: n } => vec![n],
         RoleSeg::Seam { a, b } => vec![a, b],
         RoleSeg::TrimEdge { edge, support } => vec![edge, support],
         RoleSeg::FootVertex { vertex, support } => vec![vertex, support],

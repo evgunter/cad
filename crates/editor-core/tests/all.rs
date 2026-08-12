@@ -32,6 +32,8 @@
 
 #[path = "asm1_identity_pins.rs"]
 mod asm1_identity_pins;
+#[path = "asm2a_instantiate.rs"]
+mod asm2a_instantiate;
 #[path = "asm_roots.rs"]
 mod asm_roots;
 #[path = "lib_doors_node_result.rs"]

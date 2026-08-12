@@ -367,3 +367,47 @@ fn each_grafted_solid_carries_its_own_source_provenance() {
         .collect();
     assert_eq!(got, want, "per-solid provenance, in source order");
 }
+
+/// ASM-2A D-4: the key bridge is total over the source's live entities
+/// and lands inside the destination — the property a name table needs
+/// to survive a graft (a source key is meaningless in `dst`'s arena;
+/// only this correspondence carries per-entity data across).
+#[test]
+fn the_keyed_door_bridges_every_source_entity_into_the_destination() {
+    let src = two_solid_source(10.0);
+    let mut dst = geometric_cube::<f64>().body;
+    describe_as_intersections(&mut dst);
+
+    let keys = topo::graft_disjoint_all_keyed(&mut dst, &src).expect("the keyed N-solid graft");
+    assert_eq!(keys.solids().len(), 2, "one key per source solid");
+
+    for (k, _) in src.faces() {
+        let mapped = keys.face(k).expect("every source face bridges");
+        assert!(
+            dst.get_face(mapped).is_some(),
+            "the image is a live dst face"
+        );
+    }
+    for (k, _) in src.edges() {
+        let mapped = keys.edge(k).expect("every source edge bridges");
+        assert!(
+            dst.get_edge(mapped).is_some(),
+            "the image is a live dst edge"
+        );
+    }
+    for (k, _) in src.vertices() {
+        let mapped = keys.vertex(k).expect("every source vertex bridges");
+        assert!(
+            dst.get_vertex(mapped).is_some(),
+            "the image is a live dst vertex"
+        );
+    }
+
+    // The bridge is injective: two source entities never share an image
+    // (each transplanted entity is minted fresh).
+    let mut images: Vec<_> = src.faces().filter_map(|(k, _)| keys.face(k)).collect();
+    let before = images.len();
+    images.sort_unstable();
+    images.dedup();
+    assert_eq!(images.len(), before, "face images are distinct");
+}

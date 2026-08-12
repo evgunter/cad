@@ -489,7 +489,7 @@ fn minting_nodes(body: &topo::Body<f64>, solid: topo::SolidKey) -> Vec<u64> {
 /// the migration table stays empty.
 #[test]
 fn row6a_v5_refuses_too_old_with_the_regenerate_recourse() {
-    assert_eq!(SCHEMA_VERSION, 6);
+    assert_eq!(SCHEMA_VERSION, 7);
     assert_eq!(V5.lines().next(), Some("schema: 5"));
     match load(V5) {
         Err(PersistError::SchemaTooOld {
@@ -498,7 +498,7 @@ fn row6a_v5_refuses_too_old_with_the_regenerate_recourse() {
             missing,
         }) => {
             assert_eq!(found, 5);
-            assert_eq!(supported, 6);
+            assert_eq!(supported, 7);
             assert_eq!(missing, 5, "the 5 → 6 step is the one that does not exist");
         }
         other => panic!("v5 must refuse SchemaTooOld, got {other:?}"),
