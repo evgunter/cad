@@ -91,3 +91,20 @@ for ASM-2a/2b: the GraftMap name-table bridge (no emitter mints
 a table for a grafted body — instance-qualified naming needs
 it). Remaining R1: ASM-2a (spec next), ASM-2b, ASM-4. Seam
 swept.
+
+## ASM-2A MERGED (#414, 2026-08-12) — R1 nearly closed
+
+InstantiatePart is live: assemblies reference pinned part
+documents, cluster-level placements per A11, materialization
+through resolve→evaluate→product→transform→graft, the name
+bridge (RoleSeg::InPart via GraftKeys), typed refusals at every
+seam incl. ReferenceCycle naming the loop (Evan review ruling),
+and the walk_names document-seam stop (the unit design finding).
+Evan reviewed the PR directly — six design questions answered on
+thread; resolver Option-shape defended, awaiting his preference;
+cycle ruling + discipline-gate extension folded into the fix
+pass. First reviewer-found MAJOR of the program (single review,
+not a dual — stopping tally unaffected). Remaining R1: ASM-2b
+(name-fidelity + sub-assembly), ASM-4 (split/inline). ASM-2b
+dispatch still holds on the #409 P3 block-transition answer.
+Seam swept.
