@@ -670,19 +670,20 @@ and trims its own geometry.
 inside the verbs): uniform binders `.at(p)` / `.angle(θ)` /
 `.toward(dx, dy)` in either order on the fillet's own arrival
 builder; the arrival carrier's residual spec per the ArcData
-matrix below; RULED (round 4): stage 1 ships `Radius{r, side}`
-alone for arrivals — the centre is DERIVED, never authored (a
-tangent circle at a directed point has one free length + a side
-bit).
+matrix below; The arrival's `Radius{r, side}` derives its
+centre — never authored (a tangent circle at a directed point
+has one free length + a side bit; `side` = which half of the
+normal the centre sits on, the same single bit every mode
+carries in its own dress — winding, bulge sign). The round-4
+"arrivals ship Radius-only" staging is SUPERSEDED by round 9,
+below.
 
 **`ArcData` (rounds 5–6, extended round 8): spec modes as
 standalone value types** — `Radius{r, side}`, `Bulge{p, b}`,
 `Via{q, p}`, `Center{c, winding, p}`, plus the ENDPOINT-FREE
 pair `Sweep{r, side, angle}` / `ArcLen{r, side, len}` (the arc
 analogs of `line(len)`: tangent-departing, endpoint DERIVED —
-DOF-complete from a directed start; design-admitted,
-use-case-gated: no corpus scene authors an arc by sweep today,
-so they ship when a scene wants one) — with admissibility a
+DOF-complete from a directed start) — with admissibility a
 TRAIT MATRIX
 (`ArcSpecFor<State>`, the ArcTarget dispatch precedent): an
 inadmissible (state, mode) pair is a missing impl —
@@ -698,6 +699,18 @@ chord exists: leg targets AND the fused verbs' incoming specs
 the re-spell unit's spec. The wire/program layer records ONE
 unified `ArcData` enum (record-as-you-lower keeps the authored
 mode; the VQ contracts rely on that distinctness).
+**RULED (Evan, round 9): the ENTIRE family ships in stage 1 —
+every admissible (site, mode) pair, tested.** The forcing
+argument is exhaustiveness one layer down: the wire enum is
+matched exhaustively by the replay driver, persist wire, and
+tag map, so a declared-but-unshipped variant would need a
+refuse-stub arm (forbidden — fail-loud has no stubs) and an
+undeclared one makes every later mode enum-growth churn
+(tags, replay arms, schema conversation). The family is closed
+and DOF-complete; Bulge/Via/Center lowering already exists;
+Sweep/ArcLen are closed-form; Radius is the fillet-arrival
+resolution needed regardless. Use-case-gating applies to no
+variant; inadmissible pairs remain unrepresentable (free).
 
 **Bounds:** the capability obligation (`ArcCarrierScalar:
 Decide + Bounds`) sits per-method on the arc-involving verbs
