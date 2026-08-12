@@ -9,6 +9,7 @@
 mod revolve_common;
 
 use core::f64::consts::{FRAC_PI_2, PI};
+use profile::RawLoop;
 
 use geom_brep::EdgeGeometry;
 use profile::ProfileLoop;

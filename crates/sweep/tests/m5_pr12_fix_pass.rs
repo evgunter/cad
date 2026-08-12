@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use profile::RawLoop;
 
 use geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};

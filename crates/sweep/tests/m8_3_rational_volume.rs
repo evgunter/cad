@@ -27,6 +27,7 @@
 
 use geom_brep::PropsError;
 use geom_core::{Affine3, Point2, Tolerance, Vec3};
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Section, loft_body};
 use topo::{MassProperties, MassPropsError};

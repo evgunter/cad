@@ -61,13 +61,13 @@ A first solid — an 80 × 40 × 8 mm plate, validated, measured:
 use pncad::prelude::*;
 
 let mm = |v: f64| (v * MM).meters();
-let rect = ProfileLoop::polygon([
-    p2(mm(0.0), mm(0.0)),
-    p2(mm(80.0), mm(0.0)),
-    p2(mm(80.0), mm(40.0)),
-    p2(mm(0.0), mm(40.0)),
-]);
-let profile = validated(SketchPlane::<f64>::xy(), vec![rect])?;
+let rect: ClosedLoop<f64> = Open
+    .at(p2(mm(0.0), mm(0.0)))
+    .line_to(p2(mm(80.0), mm(0.0)))?
+    .line_to(p2(mm(80.0), mm(40.0)))?
+    .line_to(p2(mm(0.0), mm(40.0)))?
+    .line_to(Start)?;
+let profile = validated(SketchPlane::<f64>::xy(), vec![rect.into()])?;
 let plate = extrude(&profile, Extrusion::Distance(real(mm(8.0))))?.body;
 validate_closed(&plate).expect("a closed solid");
 let props = mass_properties(&plate)?;
@@ -178,10 +178,14 @@ only number that differs.
 
 ### 2.2 Author
 
-Profiles are closed loops on a sketch plane. The direct way to say a
-rectangle is `ProfileLoop::polygon`; the expressive way is the PATHS
-algebra, where you walk the outline and the type system tracks what
-the tip has bound:
+Profiles are closed loops on a sketch plane, and there is one way to
+say one: the PATHS algebra, where you walk the outline and the type
+system tracks what the tip has bound. (Raw `ProfileLoop` vertex tables
+are kernel vocabulary and not part of this surface — Evan's ruling on
+#413. The lattice is not merely the nicer spelling; it is the one that
+classifies each junction as you author it, so a corner that is
+accidentally tangent or reversed refuses here rather than at
+`validate`.)
 
 ```
 use pncad::prelude::*;
@@ -456,13 +460,16 @@ use pncad::prelude::*;
 
 # type E = Box<dyn std::error::Error>;
 fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
-    let rect = ProfileLoop::polygon([
-        p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1),
-    ]);
+    let rect: ClosedLoop<f64> = Open
+        .at(p2(x.0, y.0))
+        .line_to(p2(x.1, y.0))?
+        .line_to(p2(x.1, y.1))?
+        .line_to(p2(x.0, y.1))?
+        .line_to(Start)?;
     let plane = SketchPlane::from_frame(
         p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0),
     );
-    let profile = validated(plane, vec![rect])?;
+    let profile = validated(plane, vec![rect.into()])?;
     Ok(extrude(&profile, Extrusion::Distance(real(z.1 - z.0)))?.body)
 }
 
@@ -497,9 +504,14 @@ first one wastes your time.
 use pncad::prelude::*;
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
-#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let rect: ClosedLoop<f64> = Open
+#         .at(p2(x.0, y.0))
+#         .line_to(p2(x.1, y.0))?
+#         .line_to(p2(x.1, y.1))?
+#         .line_to(p2(x.0, y.1))?
+#         .line_to(Start)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -536,9 +548,14 @@ body from `split` carries no contacts, so it takes plain tier 3.
 use pncad::prelude::*;
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
-#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let rect: ClosedLoop<f64> = Open
+#         .at(p2(x.0, y.0))
+#         .line_to(p2(x.1, y.0))?
+#         .line_to(p2(x.1, y.1))?
+#         .line_to(p2(x.0, y.1))?
+#         .line_to(Start)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -558,9 +575,14 @@ theorem on the real surfaces, not on a mesh:
 use pncad::prelude::*;
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
-#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let rect: ClosedLoop<f64> = Open
+#         .at(p2(x.0, y.0))
+#         .line_to(p2(x.1, y.0))?
+#         .line_to(p2(x.1, y.1))?
+#         .line_to(p2(x.0, y.1))?
+#         .line_to(Start)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -602,9 +624,14 @@ decision.
 use pncad::prelude::*;
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
-#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let rect: ClosedLoop<f64> = Open
+#         .at(p2(x.0, y.0))
+#         .line_to(p2(x.1, y.0))?
+#         .line_to(p2(x.1, y.1))?
+#         .line_to(p2(x.0, y.1))?
+#         .line_to(Start)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -635,9 +662,14 @@ use pncad::prelude::*;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
-#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let rect: ClosedLoop<f64> = Open
+#         .at(p2(x.0, y.0))
+#         .line_to(p2(x.1, y.0))?
+#         .line_to(p2(x.1, y.1))?
+#         .line_to(p2(x.0, y.1))?
+#         .line_to(Start)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -673,9 +705,14 @@ use pncad::prelude::*;
 use pncad::step_import::StepImport;
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
-#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let rect: ClosedLoop<f64> = Open
+#         .at(p2(x.0, y.0))
+#         .line_to(p2(x.1, y.0))?
+#         .line_to(p2(x.1, y.1))?
+#         .line_to(p2(x.0, y.1))?
+#         .line_to(Start)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;

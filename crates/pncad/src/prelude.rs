@@ -30,7 +30,7 @@
 //! surface exists to prevent.
 
 // --- 1. Numbers and frames ------------------------------------
-pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
+pub use crate::authoring::{p2, p3, real, v2, v3, validated};
 // `Band` is here because `fillet_edges` (group 3) takes one: a prelude
 // operation whose arguments are not prelude-constructible is a rung the
 // user cannot start from. The recipe is `Band::linear()` — the run's
@@ -53,7 +53,15 @@ pub use quantity::{
 };
 
 // --- 2. Profile authoring -------------------------------------
-pub use profile::{
+// NAMEABLE, NOT MINTABLE (LIB-RETTAIL, Evan's ruling on #413):
+// `ProfileLoop` and `ProfileVertex` stay here because read-back hands
+// them back, `ProfileError` payloads point into them, and `validated`
+// takes a `Vec<ProfileLoop>` — a prelude user must be able to name what
+// the ladder passes around. What left is the raw MINTING tier:
+// `ProfileLoop::new`/`polygon` now live on `profile::RawLoop`, which is
+// kernel vocabulary and is re-exported by neither this prelude nor
+// `crate::profile`. Loops are authored through the lattice below.
+pub use ::profile::{
     ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
     SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
@@ -66,7 +74,7 @@ pub use profile::{
 // declared-subdivision carrier the boss corpus authors with (the
 // `bossplate` scene's three-arc rim IS one), so `circle` alone left
 // half of the closed-carrier vocabulary a crate away.
-pub use profile::{
+pub use ::profile::{
     ArcCenterTarget, ArcTarget, ArcViaTarget, ClosedLoop, LineTarget, Open, PartialPath, PathError,
     Start, TangentArcTarget, circle, circle_split,
 };

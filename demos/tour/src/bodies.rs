@@ -10,9 +10,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::{Tolerance, Vec2};
+use pncad::geom_core::Vec2;
 use pncad::prelude::{Open, Start};
-use pncad::profile::{Profile, ProfileLoop, SketchPlane};
+use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
 use crate::scalar::Scalar;
@@ -400,24 +400,12 @@ pub fn stops() -> Vec<Stop> {
     ]
 }
 
-/// The tour's coda: the kernel is fail-loud — a self-intersecting
-/// (bowtie) profile is refused with a typed error, not a crash or a
-/// silently broken solid. Generic so the Probe sweep also samples this
-/// REFUSAL path's margins (the M2 K report noted refusal-path
-/// predicates never fire on all-valid corpora).
-pub fn finale_fail_loud<S: Scalar>() {
-    println!("\n== finale: fail-loud ==");
-    println!("   a bowtie (self-intersecting) profile is refused before any sweep runs:");
-    // PERMANENTLY raw (LIB-U2 PR-2, reaffirmed at LIB-G1): this is the
-    // RAW layer's fail-loud demo — validate refusing a
-    // self-intersecting chain — not a sweep profile. The algebra's
-    // junction checks are LOCAL and would pass this loop (all four
-    // corners are sharp), so raw authoring is the whole point; no
-    // amount of vocabulary growth changes that.
-    let bowtie: ProfileLoop<S> =
-        ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 2.0), p2(2.0, 0.0), p2(0.0, 2.0)]);
-    match Profile::new(SketchPlane::xy(), vec![bowtie]).validate(Tolerance::get()) {
-        Ok(_) => panic!("bowtie profile unexpectedly validated"),
-        Err(e) => println!("   typed rejection: {e:?}"),
-    }
-}
+// RE-HOMED (LIB-RETTAIL, Evan's ruling on #413): `finale_fail_loud` —
+// the bowtie coda — left the tour. A broken-on-purpose scene is not a
+// use case, and it was the last thing keeping a raw public authoring
+// tier alive. Its fail-loud contract did not evaporate: it is
+// `crates/profile/tests/rejections.rs::the_bowtie_authors_cleanly_and_
+// refuses_at_validation`, which keeps the exact oracle (the chain
+// AUTHORS — the lattice's junction checks are local and all four
+// corners are sharp — and `Profile::validate` refuses it typed, never
+// Ok) and pins the error variant the demo only printed.

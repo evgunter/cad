@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, PI};
+use profile::RawLoop;
 
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use step_export::{StepOptions, step_string};

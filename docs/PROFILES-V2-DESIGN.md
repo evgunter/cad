@@ -553,6 +553,31 @@ owed to users as a promise; not run at load, ever (clean break).
   never was LoopBuilder. The handful of cross-crate TEST
   consumers (step-export fixtures, mesh, k-lint litmus) migrate
   to lattice or raw-data spellings at the unit.
+  **AMENDED (LIB-RETTAIL, Evan's ruling on #413, 2026-08-12 —
+  "yes we should demote ProfileLoop"; his framing: kernel
+  vocabulary should be private, and the broken-on-purpose bowtie
+  cannot justify a public authoring tier):** the clause "raw
+  `ProfileLoop` DATA (`polygon`/`new` — the bowtie) remains
+  kernel vocabulary" survives as to KERNEL vocabulary and ENDS as
+  to the presented surface. `new`/`polygon` moved off
+  `ProfileLoop`'s inherent impl onto the `profile::RawLoop`
+  trait, so the minting doors travel with the TRAIT rather than
+  with the (still nameable) type; `pncad` replaced `pub use
+  profile;` with a curated `pub mod profile` that omits `RawLoop`
+  (the LB13 precedent), and `pncad::authoring::polygon` was
+  deleted. The bowtie is no longer the justification for any of
+  it: it left the tour for `profile`'s rejection suite. Residue
+  stated rather than glossed: `ProfileLoop` is plain data with
+  public fields, so a struct literal still constructs one
+  wherever the type is nameable — sealing that means private
+  fields plus accessors, a change to the plain-data convention
+  and not a housekeeping edit. And the twins named above no
+  longer verify against `LoopBuilder`: their target is a blessed
+  recorded fixture (LIB-RETTAIL), which pins bit-identity exactly
+  as hard and gives up only the twin's INDEPENDENCE — a
+  property the shim had already lost in substance, since its
+  `fillet_corner` and the lattice's arc fillet both run the one
+  ratified `sugar::arc_fillet_trims`.
 - **Junction predicates and the k_stats funnel**: `path_junction_
   turn`, `path_corner_*` etc. classify at replay exactly as at typed
   authoring; no new predicate semantics, only a new call site.
@@ -596,7 +621,12 @@ restated here only where a reviewer might want to reopen them.
   before sizing — the closed forms may largely exist); (2) the
   switch lands chain-only when the persisted corpus authors fully
   (kernel-layer validate-refusal demos like the bowtie never
-  persist and stay LoopBuilder-direct, §V6); (3) U9 queues behind
+  persist and stay LoopBuilder-direct, §V6 — **amended at
+  LIB-RETTAIL: the bowtie is neither LoopBuilder-direct nor a demo
+  any more. It authors through the LATTICE, since its four corners
+  are sharp and the local junction checks pass it, and it lives in
+  `profile`'s rejection suite. Nothing about the chain-only switch
+  changes: it still never persists**); (3) U9 queues behind
   the switch per LQ4, accepted under no-hurry; (4) the V4 §
   option analysis is retained as the record of why.
 - **VQ2 — do derived-segment caches persist? (OPEN, lean firm NO.)**

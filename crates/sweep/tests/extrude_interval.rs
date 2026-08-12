@@ -9,6 +9,7 @@
 use geom_brep::EdgeGeometry;
 use geom_core::{Bounds, Interval, Point2, Real, Tolerance};
 use geom_surfaces::Surface;
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{validate, validate_closed, validate_geometric};

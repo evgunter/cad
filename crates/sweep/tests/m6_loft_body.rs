@@ -19,6 +19,7 @@ mod common;
 
 use common::quad;
 use geom_core::{Affine3, Vec3};
+use profile::RawLoop;
 use sweep::{Section, loft_body};
 
 /// The shape (iii) acceptance sections: squares at z = 0 and z = 2,

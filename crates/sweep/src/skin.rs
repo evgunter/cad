@@ -991,6 +991,7 @@ pub fn loft_geometry(
 ///
 /// ```
 /// use geom_core::{Affine3, Point2, Vec3};
+/// use profile::RawLoop;
 /// use sweep::{ProfileLoop, Section, loft_parameters};
 ///
 /// let quad = |pts: [(f64, f64); 4]| -> Section {

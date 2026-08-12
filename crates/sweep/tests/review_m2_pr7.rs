@@ -11,6 +11,7 @@
 mod revolve_common;
 
 use core::f64::consts::{FRAC_PI_2, PI};
+use profile::RawLoop;
 
 use profile::{ProfileLoop, ProfileVertex};
 use sweep::{Extrusion, Revolution, extrude, revolve};

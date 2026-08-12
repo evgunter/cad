@@ -1,6 +1,7 @@
 //! ADVERSARIAL REVIEW PROBES for M6-6 (PR #223). Review-branch only.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use profile::RawLoop;
 use step_import::{ImportOptions, StepImport, import_step};
 
 fn fixture(name: &str, _ext: &str) -> String {

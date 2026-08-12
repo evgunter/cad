@@ -8,6 +8,7 @@
 #![allow(dead_code)]
 
 use geom_core::Point2;
+use profile::RawLoop;
 use sweep::{ProfileLoop, ProfileVertex, Section};
 
 /// A closed four-line quad section (one loop, four vertices) — the

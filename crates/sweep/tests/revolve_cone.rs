@@ -14,6 +14,7 @@
 mod revolve_common;
 
 use core::f64::consts::FRAC_PI_4;
+use profile::RawLoop;
 
 use geom_brep::EdgeGeometry;
 use geom_surfaces::Surface;

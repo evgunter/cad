@@ -6,6 +6,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
+use profile::RawLoop;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
