@@ -631,105 +631,95 @@ consequence reported for ratification, not an implementer's taste:
   extends the recorded menu.
 
 ## 2c. The fillet-family redesign (2026-08-12 conversation with
-## Evan — PROPOSED, awaiting sign-off; supersedes the §2b
-## compound-verb register when ratified and implemented)
+## Evan, seven rounds — PROPOSED, awaiting sign-off; supersedes
+## the §2b compound-verb register when ratified and implemented)
 
-Driven by Evan's observation that the compound doors (`at_on`,
-`to_on`, `at_toward`) exist to compensate for the types not
-knowing the carrier, his follow-ups refining the arrival
-specification, and his closing argument that settled the shape:
-§2's own Legs table DEFINES the fillet as the binding mode
-{tangent-both + r} — the fillet is the operation that owns both
-carriers, so the resolution belongs entirely inside the fillet
-clause. Four pieces:
+The conversation's converged core (round 7, Evan's fusion
+reframe): **the fillet is never an independent chain element —
+an arc and the fillet that trims it are ONE authoring act.**
+With fusion, the dependency principle holds in its simplest
+form: **every verb depends only on the plain directed point
+before it (position + tangent) plus its own authored
+arguments.** No jet, no carrier data riding the tip, no reach
+into neighbors: a fused verb constructs its own incoming arc
+and trims its own geometry.
 
-1. **The dependency invariant, stated on the directed point
-   (Evan's rounds 3-4): a directed point is a 2-JET — position,
-   tangent, signed curvature κ — carried as read-only intrinsic
-   data; EVERY operation depends only on the directed point
-   before it plus its own authored arguments.** Uniform, fillet
-   included: the carrier is DERIVED from the jet (κ = 0 is a
-   line; κ ≠ 0 gives the osculating circle, centre = p + n̂/κ —
-   for the v1 line/arc carriers the osculating data IS the
-   carrier), so the fillet's tangency-with-trim consumes only
-   its input value. Legs need the 1-jet; fillet needs the
-   2-jet. The formulation also makes the NURBS refusal
-   principled: on a NURBS leg the osculating circle is NOT the
-   carrier, so the 2-jet genuinely underdetermines the trim —
-   `FilletCarrierUnsupported` marks exactly the boundary where
-   jet-derived and actual carrier part ways. §2's directed-point
-   definition amends at the re-spell to carry κ. Mechanically,
-   `.fillet(r)` constructs its resolver from the input jet; the
-   capability obligation (`ArcCarrierScalar: Decide + Bounds`)
-   sits on `.fillet` ITSELF and nowhere else. No carrier
-   parameter enters any lattice type. MEASURED (2026-08-12): the
-   bound is free in practice — every scalar that drives an
-   authoring chain (f64, Interval, Probe) implements Bounds;
-   Dual reaches profiles only by lifting lowered ProfileLoop
-   data, never through the algebra. Generic-over-T callers of
-   `.fillet` inherit the bound; that set is measured empty
-   beyond the boundary file itself.
-2. **The fillet arrival is the fillet's OWN builder type** —
-   §2 already treats it as distinct ("every fillet's freshly
-   opened arrival side"), and the Python lattice split it for
-   its own reasons. Its binders accumulate bits and fire the
-   captured resolver when complete: no bounds on them, no
-   resolution outside the fillet clause.
-3. **Uniform arrival binders.** `.at(p)` / `.angle(θ)` /
-   `.toward(dx, dy)` in either order on the arrival builder.
-   The §2b compound verbs DISSOLVE — `at_on`, `to_on`,
-   `at_toward` retire at the re-spell (the resolve machinery
-   is unchanged underneath).
-4. **Arrival carrier = the minimal residual specification
-   (RULED: radius-only for now).** Nothing further = line
-   arrival (the bound directed point IS the carrier). An arc
-   arrival adds exactly what the bound directed point does not
-   determine: `.arc(R, side)` — signed radius or radius + side
-   bit; the CENTRE IS DERIVED, never authored (Evan's DOF
-   observation: a tangent circle at a directed point has one
-   free length and one bit). `at_on`'s authored-centre spelling
-   is retired by this; a centre-held-datum mode returns only if
-   a use case earns it, via item 5.
-5. **`ArcData` (Evan, rounds 5–6 — ADOPTED, with STATE-KEYED
-   admissibility):** the arc-authoring modes are STANDALONE
-   VALUE TYPES — `Radius{r, side}`, `Bulge{b}`, `Via{q}`,
-   `Center{c, winding}` — and admissibility is a TRAIT MATRIX
-   (`ArcSpecFor<State>`, the ArcTarget/LineTarget dispatch
-   precedent): one generic `.arc(spec)` / `arc_to(target,
-   spec)` door per site, an inadmissible (state, mode) pair is
-   a MISSING IMPL — unrepresentable, no per-state enums, new
-   modes additive. The matrix is DOF-derived, keyed by the
-   ARRIVAL'S BINDING STATE, not just the site (Evan's round-6
-   observation), with two anchor rows that fall out of
-   doctrine: `Center@Point` is well-formed and SUPPLIES the
-   direction (retroactively, this is exactly what `at_on` was);
-   `Center@Directed` is INADMISSIBLE because the bound
-   direction would have to value-match the centre's derived
-   tangent — the forbidden coincidence check, so authored-once
-   decides the matrix, not taste. `Radius@Directed` is the
-   round-4 ruling (stage 1 ships it alone); `Via` completes a
-   directed anchor, underdetermines a bare one; `Bulge` is
-   chord-relative — legs only. The full matrix is worked at the
-   re-spell unit's spec. The wire/program layer records ONE
-   unified `ArcData` enum (serialization needs no static
-   split; record-as-you-lower keeps the authored mode). The
-   §2a leg-verb collapse onto `arc_to(target, spec)` is IN
-   this conversation's scope; its corpus migration is still
-   measured at the re-spell unit's spec, not assumed.
+**The family (line is the unmarked middle-position default):**
 
-(An earlier draft of this section proposed carrier-typed
-directed tips; DROPPED per Evan's round-2 challenge — the
-capture-at-fillet mechanism achieves the same confinement with
-zero type surgery, and the measurement above shows the one cost
-that typing would have avoided is empty.)
+- `fillet(r)` — line incoming, line arrival. The plain directed
+  point fully determines a line carrier, so no fusion is needed
+  on either side.
+- `fillet_arc(r, spec)` — line incoming, arc arrival.
+- `arc_fillet(p, spec, r)` — the fused verb: authors the arc TO
+  `p` (mode per `spec`) and fillets off it, line arrival.
+- `arc_fillet_arc(p, spec, r, spec₂)` — fused arc incoming, arc
+  arrival.
+- Plain `arc_to(p, spec)` remains for SHARP-cornered arcs;
+  converting sharp→filleted is an edit at the same call site.
+- Fillet-after-fillet: the leg between two fillets is a line
+  (verb₁'s arrival side), so bare `fillet(r)` chains it — the
+  §2 both-ends-trimmed semantics carry over.
 
-Sequencing: #413 (route 3 as landed) MERGES FIRST — its door is
-review-verified and closes G12; this redesign re-spells the
-surface on top of the same resolution machinery in a follow-up
-unit, which also re-spells the program Step vocabulary
-(pre-release clean break; the v8 step set is not a compatibility
-surface). The §2b register text and §3 table rewrite at that
-unit; until then the register remains the live surface.
+**Arrival halves** (unchanged from rounds 4–6, now living
+inside the verbs): uniform binders `.at(p)` / `.angle(θ)` /
+`.toward(dx, dy)` in either order on the fillet's own arrival
+builder; the arrival carrier's residual spec per the ArcData
+matrix below; RULED (round 4): stage 1 ships `Radius{r, side}`
+alone for arrivals — the centre is DERIVED, never authored (a
+tangent circle at a directed point has one free length + a side
+bit).
+
+**`ArcData` (rounds 5–6): spec modes as standalone value
+types** — `Radius{r, side}`, `Bulge{b}`, `Via{q}`,
+`Center{c, winding}` — with admissibility a TRAIT MATRIX
+(`ArcSpecFor<State>`, the ArcTarget dispatch precedent): an
+inadmissible (state, mode) pair is a missing impl —
+unrepresentable, not refused; new modes additive. The matrix is
+DOF-derived and STATE-KEYED: `Center@Point` supplies the
+direction (retroactively, exactly what `at_on` was);
+`Center@Directed` is EXCLUDED because the bound direction would
+have to value-match the derived tangent (authored-once decides,
+not taste); `Via` completes a directed anchor, underdetermines
+a bare one; `Bulge` is chord-relative — admissible where the
+chord exists: leg targets AND the fused verbs' incoming specs
+(the target `p` is in the args), never arrivals. Full matrix at
+the re-spell unit's spec. The wire/program layer records ONE
+unified `ArcData` enum (record-as-you-lower keeps the authored
+mode; the VQ contracts rely on that distinctness).
+
+**Bounds:** the capability obligation (`ArcCarrierScalar:
+Decide + Bounds`) sits per-method on the arc-involving verbs
+(`fillet_arc`, `arc_fillet`, `arc_fillet_arc`) — the generic
+lattice doors and plain `fillet(r)` never carry it. MEASURED
+(2026-08-12): every scalar that drives an authoring chain (f64,
+Interval, Probe) implements Bounds; Dual reaches profiles only
+by lifting lowered ProfileLoop data. The bound is free in
+practice either way.
+
+**Honest residuals:** (a) a generic motif that fillets off a
+RECEIVED tip of unknown leg kind cannot be written — the caller
+names the verb (explicitness, arguably a feature; the jet
+design of rounds 3–4 would have allowed it and was DROPPED with
+the fusion reframe); (b) the verb inventory is four fillet
+forms + two plain legs, kept tidy by ArcData; (c) the
+NURBS-adjacent fillet refusal (`FilletCarrierUnsupported`)
+stands unchanged — no fused NURBS verb exists because the trim
+has no closed form (solver-free algebra).
+
+**Superseded en route (the record of the conversation):**
+carrier-typed tips (round 2 — capture-at-fillet made them
+unnecessary); capture-at-fillet itself and the 2-jet directed
+point (rounds 3–4 — the fusion reframe made BOTH unnecessary:
+with the arc authored inside the verb there is nothing to
+capture and nothing second-order to carry). `at_on`, `to_on`,
+`at_toward` all dissolve at the re-spell; the §2b register and
+the §2/§3 fillet text rewrite at that unit.
+
+Sequencing: #413 (route 3 as landed) is MERGED; this redesign
+re-spells the surface on top of the same resolution machinery
+in a follow-up unit, which also re-spells the program Step
+vocabulary (pre-release clean break; the v8 step set is not a
+compatibility surface).
 
 ## 3. Surface vocabulary
 
