@@ -634,15 +634,32 @@ consequence reported for ratification, not an implementer's taste:
 ## Evan, seven rounds — PROPOSED, awaiting sign-off; supersedes
 ## the §2b compound-verb register when ratified and implemented)
 
-The conversation's converged core (round 7, Evan's fusion
-reframe): **the fillet is never an independent chain element —
-an arc and the fillet that trims it are ONE authoring act.**
-With fusion, the dependency principle holds in its simplest
-form: **every verb depends only on the plain directed point
-before it (position + tangent) plus its own authored
-arguments.** No jet, no carrier data riding the tip, no reach
-into neighbors: a fused verb constructs its own incoming arc
-and trims its own geometry.
+**THE AXIOM (leads by design — Evan, round 11): every verb can
+depend ONLY on its incoming lattice state — Open / Point /
+Angle / Directed, carrying nothing but its binding bits
+(position and/or tangent) — plus the verb's own authored
+arguments. Nothing else about the chain is knowable.** "What
+leg produced this point" is not a fact any verb can consult:
+being NURBS-adjacent, arc-adjacent, or line-adjacent is
+UNREPRESENTABLE knowledge, so no verb can branch on it, refuse
+on it, or silently depend on it. (The retired
+`FilletCarrierUnsupported` wall was possible exactly because
+this axiom was not load-bearing in the ratified text — a
+carrier-aware refusal is unwritable under it.)
+
+Everything below DERIVES from the axiom:
+
+- A fillet that needs an arc carrier cannot LEARN it — so it
+  must AUTHOR it: the fused verbs (round 7's reframe — an arc
+  and the fillet that trims it are ONE authoring act).
+- A bare `fillet(r)` knows only the tangent ray its directed
+  point defines — so its incoming side IS that ray, uniformly
+  (round 10's ray-extension semantics), whatever leg came
+  before.
+- No jet, no carrier data riding the tip, no reach into
+  neighbors, no carrier-keyed refusals; the one surviving
+  refusal (`NoCornerForFillet`) consumes only the verb's own
+  inputs.
 
 **The family (line is the unmarked middle-position default):**
 
