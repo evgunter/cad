@@ -200,7 +200,10 @@ discipline() {
   # two carriers and the S8 choice is over (corner, candidate) pairs —
   # it therefore DECIDES (the carrier-meet and angular advance/reach
   # gates) and reads the selection channel in one function, which is
-  # `Decide + Bounds` honestly. It carries sugar.rs's ratified
+  # `Decide + Bounds` honestly. It carries the ratified entry that
+  # MOVED from sugar.rs to test_support.rs (§V6 as amended, #377 —
+  # same ratified code, new file, reach shrunk to dev-only tests);
+  # it carries that file's ratified
   # justification verbatim: the pick is a plain deterministic selection
   # rule on the f64 diagnostic channel, a representation-level choice
   # between already-classified constructions, never a re-decision of
@@ -215,7 +218,7 @@ discipline() {
     | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
     | grep -vE '^crates/topo/src/props\.rs$' \
     | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
-    | grep -vE '^crates/profile/src/sugar\.rs$' \
+    | grep -vE '^crates/profile/src/test_support\.rs$' \
     | grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
     | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' \
     | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' || true)
