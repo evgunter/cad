@@ -32,6 +32,8 @@
 
 #[path = "boxes.rs"]
 mod boxes;
+#[path = "compose.rs"]
+mod compose;
 #[path = "curvo_oracle.rs"]
 mod curvo_oracle;
 #[path = "fit_certify.rs"]
