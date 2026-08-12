@@ -760,3 +760,11 @@ same-head per the amendment. Parallel-track note (Evan's ask):
 U4b (geom-core constructors-only) and the U4a geom-curves
 composition door dispatch in PARALLEL on LIB-9 slots 3/4 (both
 opus) — crate-disjoint from RETTAIL/RESPELL; specs follow.
+LIB-9 slots 3+4 dispatch (2026-08-12, the parallel tracks):
+slot 3 = U4B (geom-core frame constructors,
+docs/LIB-U4B-SPEC.md) = OPUS; pre-draw fields M / NUMERIC.
+slot 4 = U4A-DOOR (geom-curves chain→curve composition,
+docs/LIB-U4A-DOOR-SPEC.md) = OPUS; pre-draw fields M-L /
+NUMERIC. Both crate-disjoint from the in-flight RETTAIL dual
+and the queued RESPELL; LIB-9 fully consumed
+(RETTAIL opus / RESPELL fable / U4B opus / U4A-DOOR opus).
