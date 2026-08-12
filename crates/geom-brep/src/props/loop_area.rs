@@ -151,12 +151,11 @@ fn nurbs_vector_area<T: SpanLocate>(
     let last = lo_spans.last.max(hi_spans.last);
     let half = T::from_f64(0.5);
     let mut acc = Vec3::zero();
-    for span in first..=last {
-        if !kv.span_is_nonempty(span) {
-            continue;
-        }
-        let lo = t0.max(T::from_f64(kv.knots()[span]));
-        let hi = t1.min(T::from_f64(kv.knots()[span + 1]));
+    for index in first..=last {
+        // Emptiness check and span validation are one step.
+        let Some(span) = kv.span(index) else { continue };
+        let lo = t0.max(T::from_f64(kv.knots()[index]));
+        let hi = t1.min(T::from_f64(kv.knots()[index + 1]));
         let half_len = ((hi - lo) * half).max(T::zero());
         let mid = (lo + hi) * half;
         for (x, w) in nodes.iter().zip(weights) {

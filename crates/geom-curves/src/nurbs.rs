@@ -40,7 +40,7 @@
 //! Knot-algebra point combinations are `lerp(x, y, λ) = x + (y − x)·λ`
 //! with `λ` lifted once per combination.
 
-use geom_core::spline::{self, KnotAlgebraError, KnotVector, SpanLocate, SplineError};
+use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
 use geom_core::{Bounds, Point2, Point3, Real, RingInterval, Vec2, Vec3};
 
 /// Shared constructor validation: counts and weight positivity/
@@ -140,40 +140,33 @@ macro_rules! nurbs_curve {
             }
 
             /// The all-poison point (every coordinate the scalar's
-            /// poison) — the total outcome for invalid span indices.
+            /// poison). No longer reachable from the `*_in_span`
+            /// evaluators — a `Span` cannot be invalid — and kept only
+            /// for the knot-algebra plans' degenerate-combination case.
             fn poison_point() -> $Point<T> {
                 let nan = T::from_f64(f64::NAN);
                 $Point::new($({ let _ = stringify!($c); nan }),+)
             }
 
-            /// The all-poison vector.
-            fn poison_vector() -> $Vector<T> {
-                let nan = T::from_f64(f64::NAN);
-                $Vector::new($({ let _ = stringify!($c); nan }),+)
-            }
-
             /// The point at `t`, evaluated **in the given span** — the
             /// generic core (module docs: the span contract; the fixed
-            /// single-ascending-pass association). Total: an invalid
-            /// span index yields the all-poison point; `t` outside the
-            /// span's interval yields the span's polynomial extension.
-            pub fn eval_in_span(&self, span: usize, t: T) -> $Point<T> {
-                if span < self.knots.first_span()
-                    || span > self.knots.last_span()
-                    || !self.knots.span_is_nonempty(span)
-                {
-                    return Self::poison_point();
-                }
-                let p = self.knots.degree();
-                let basis = spline::basis::basis_funs(&self.knots, span, t);
+            /// single-ascending-pass association).
+            ///
+            /// A [`Span`] is valid by construction, so there is no
+            /// invalid-index case and no poison-on-bad-span path; `t`
+            /// outside the span's interval still yields the span's
+            /// polynomial extension (documented garbage-out).
+            pub fn eval_in_span(&self, span: Span, t: T) -> $Point<T> {
                 $(let mut $c = T::zero();)+
                 let mut w_acc = T::zero();
-                for (j, nj) in basis.iter().enumerate() {
-                    // Indexing justified: span valid ⇒ i = span − p + j
-                    // ∈ [span − p, span] ⊆ [0, control_count).
-                    let i = span - p + j;
-                    let cw = *nj * T::from_f64(self.weights[i]);
-                    let pt = self.control[i];
+                // Basis values arrive already paired with the control
+                // points they multiply, so there is no index arithmetic
+                // and no length to get wrong.
+                for term in spline::basis::span_terms(
+                    &self.knots, span, t, &self.control, &self.weights,
+                ) {
+                    let cw = term.basis * T::from_f64(term.weight);
+                    let pt = *term.control;
                     $($c = $c + cw * pt.$c;)+
                     w_acc = w_acc + cw;
                 }
@@ -186,23 +179,24 @@ macro_rules! nurbs_curve {
             /// `C = N⁰/w⁰`, `C′ = (N¹ − C·w¹)/w⁰`,
             /// `C″ = (N² − C·w² − C′·w¹·2)/w⁰`.
             /// Same totality contract as [`Self::eval_in_span`].
-            pub fn ders_in_span(&self, span: usize, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
-                if span < self.knots.first_span()
-                    || span > self.knots.last_span()
-                    || !self.knots.span_is_nonempty(span)
-                {
-                    return (Self::poison_point(), Self::poison_vector(), Self::poison_vector());
-                }
-                let p = self.knots.degree();
-                let ders = spline::basis::ders_basis_funs(&self.knots, span, t, 2);
+            pub fn ders_in_span(&self, span: Span, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
+                // NOTE: the derivative rows still come from
+                // `ders_basis_funs`, which returns a `Vec<Vec<T>>` sized
+                // from the degree — so this path keeps the window
+                // indexing for now. Giving it the `SpanTerm` treatment
+                // (one term per control point, carrying `[T; 3]` of
+                // derivative orders) is the follow-up; the `Span` alone
+                // already removes the invalid-index case.
+                let ders = spline::basis::ders_basis_funs(&self.knots, span.index(), t, 2);
+                let window = span.window();
+                let (control, weights) =
+                    (&self.control[window.clone()], &self.weights[window]);
                 $(let mut $c = [T::zero(), T::zero(), T::zero()];)+
                 let mut w_hom = [T::zero(), T::zero(), T::zero()];
                 for (k, row) in ders.iter().enumerate() {
-                    for (j, nkj) in row.iter().enumerate() {
-                        // Indexing justified as in `eval_in_span`.
-                        let i = span - p + j;
-                        let cw = *nkj * T::from_f64(self.weights[i]);
-                        let pt = self.control[i];
+                    for ((nkj, &weight), pt) in row.iter().zip(weights).zip(control) {
+                        let cw = *nkj * T::from_f64(weight);
+                        let pt = *pt;
                         $($c[k] = $c[k] + cw * pt.$c;)+
                         w_hom[k] = w_hom[k] + cw;
                     }
@@ -224,13 +218,13 @@ macro_rules! nurbs_curve {
 
             /// First derivative in the given span (the middle component
             /// of [`Self::ders_in_span`]).
-            pub fn deriv_in_span(&self, span: usize, t: T) -> $Vector<T> {
+            pub fn deriv_in_span(&self, span: Span, t: T) -> $Vector<T> {
                 self.ders_in_span(span, t).1
             }
 
             /// Second derivative in the given span (the last component
             /// of [`Self::ders_in_span`]).
-            pub fn deriv2_in_span(&self, span: usize, t: T) -> $Vector<T> {
+            pub fn deriv2_in_span(&self, span: Span, t: T) -> $Vector<T> {
                 self.ders_in_span(span, t).2
             }
 
@@ -1064,7 +1058,11 @@ macro_rules! nurbs_curve {
             /// for interval-natured scalars.
             pub fn eval(&self, t: T) -> $Point<T> {
                 let spans = t.locate_spans(&self.knots);
-                let mut acc = self.eval_in_span(spans.first, t);
+                let first = self
+                    .knots
+                    .span(spans.first)
+                    .expect("locate_spans returns a nonempty first span");
+                let mut acc = self.eval_in_span(first, t);
                 for s in (spans.first + 1)..=spans.last {
                     // Skip empty spans (interior multiplicity):
                     // find_span assigns every parameter — a repeated
@@ -1073,10 +1071,10 @@ macro_rules! nurbs_curve {
                     // covers, so nothing is discarded (containment
                     // preserved); an empty span itself would only
                     // contribute poison (zero basis denominators).
-                    if !self.knots.span_is_nonempty(s) {
-                        continue;
-                    }
-                    let q = self.eval_in_span(s, t);
+                    // The emptiness check and the span's validation are
+                    // now the same operation.
+                    let Some(span) = self.knots.span(s) else { continue };
+                    let q = self.eval_in_span(span, t);
                     acc = $Point::new($(acc.$c.enclosure_hull(q.$c)),+);
                 }
                 acc
@@ -1087,13 +1085,17 @@ macro_rules! nurbs_curve {
             /// the seam's — the derivative of the program as evaluated).
             pub fn deriv(&self, t: T) -> $Vector<T> {
                 let spans = t.locate_spans(&self.knots);
-                let mut acc = self.deriv_in_span(spans.first, t);
+                let first = self
+                    .knots
+                    .span(spans.first)
+                    .expect("locate_spans returns a nonempty first span");
+                let mut acc = self.deriv_in_span(first, t);
                 for s in (spans.first + 1)..=spans.last {
                     // Empty-span skip: see `eval`'s note.
-                    if !self.knots.span_is_nonempty(s) {
-                        continue;
-                    }
-                    let q = self.deriv_in_span(s, t);
+                    // The emptiness check and the span's validation are
+                    // now the same operation.
+                    let Some(span) = self.knots.span(s) else { continue };
+                    let q = self.deriv_in_span(span, t);
                     acc = $Vector::new($(acc.$c.enclosure_hull(q.$c)),+);
                 }
                 acc
@@ -1103,13 +1105,17 @@ macro_rules! nurbs_curve {
             /// [`Self::deriv`]).
             pub fn deriv2(&self, t: T) -> $Vector<T> {
                 let spans = t.locate_spans(&self.knots);
-                let mut acc = self.deriv2_in_span(spans.first, t);
+                let first = self
+                    .knots
+                    .span(spans.first)
+                    .expect("locate_spans returns a nonempty first span");
+                let mut acc = self.deriv2_in_span(first, t);
                 for s in (spans.first + 1)..=spans.last {
                     // Empty-span skip: see `eval`'s note.
-                    if !self.knots.span_is_nonempty(s) {
-                        continue;
-                    }
-                    let q = self.deriv2_in_span(s, t);
+                    // The emptiness check and the span's validation are
+                    // now the same operation.
+                    let Some(span) = self.knots.span(s) else { continue };
+                    let q = self.deriv2_in_span(span, t);
                     acc = $Vector::new($(acc.$c.enclosure_hull(q.$c)),+);
                 }
                 acc

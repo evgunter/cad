@@ -153,6 +153,46 @@ pub struct KnotVector {
     degree: usize,
 }
 
+/// A span index **proven** in range and nonempty for the knot vector it
+/// was drawn from, carrying the control-point window it selects.
+///
+/// Its fields are private and its only constructors are
+/// [`KnotVector::span`] (checked) and [`KnotVector::span_at`] (total),
+/// so "invalid span index" is not a representable state: evaluation
+/// needs no guard and has no poison-on-bad-index path. The window is
+/// computed once, at construction, so `span − degree` never appears at
+/// a use site and cannot underflow there.
+///
+/// **Not branded to its knot vector.** A `Span` from one `KnotVector`
+/// used with another of the same degree yields an in-range but wrong
+/// window. Every consumer today draws the span from the same vector it
+/// evaluates; making that a type-level fact needs an invariant-lifetime
+/// brand, which is deliberately not paid for yet.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Span {
+    index: usize,
+    first_control: usize,
+    degree: usize,
+}
+
+impl Span {
+    /// The span index itself (the `i` of `knots[i] ≤ t < knots[i+1]`).
+    pub fn index(self) -> usize {
+        self.index
+    }
+
+    /// The degree this span was validated against.
+    pub fn degree(self) -> usize {
+        self.degree
+    }
+
+    /// The inclusive control-point window the span selects:
+    /// `[index − degree, index]`, always `degree + 1` entries.
+    pub fn window(self) -> core::ops::RangeInclusive<usize> {
+        self.first_control..=self.first_control + self.degree
+    }
+}
+
 impl KnotVector {
     /// Validates and wraps a clamped knot vector. See the type docs for
     /// the exact invariants.
@@ -309,6 +349,36 @@ impl KnotVector {
     /// discarding any parameter's span.
     pub fn span_is_nonempty(&self, span: usize) -> bool {
         span + 1 < self.knots.len() && self.knots[span] < self.knots[span + 1]
+    }
+
+    /// The validated [`Span`] at `index`, or `None` when the index is
+    /// out of range or names an **empty** span (interior knot
+    /// multiplicity). This and [`KnotVector::span_at`] are the only
+    /// ways to obtain a `Span`.
+    pub fn span(&self, index: usize) -> Option<Span> {
+        if index < self.first_span() || index > self.last_span() || !self.span_is_nonempty(index) {
+            return None;
+        }
+        // Justified once, here: `index >= first_span() == degree`, so
+        // the subtraction cannot underflow, and `index <= last_span()`
+        // puts `index + 1` inside the knot array. Every consumer of the
+        // resulting `Span` inherits both facts.
+        Some(Span {
+            index,
+            first_control: index - self.degree,
+            degree: self.degree,
+        })
+    }
+
+    /// [`KnotVector::find_span`] as a validated [`Span`] — total on all
+    /// of `f64` for exactly the reasons `find_span` is (see its docs:
+    /// out-of-domain clamps to an end span, NaN lands on the first).
+    pub fn span_at(&self, t: f64) -> Span {
+        let index = self.find_span(t);
+        // `find_span` returns only in-range nonempty spans; a `None`
+        // here would mean that contract had been broken.
+        self.span(index)
+            .expect("find_span returns an in-range nonempty span")
     }
 
     /// The multiplicity of the exact value `u` among the knots (exact

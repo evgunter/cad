@@ -28,8 +28,120 @@
 //! would widen enclosures at the interval scalar (and could put 0 in a
 //! denominator enclosure that is structurally positive).
 
-use super::knots::KnotVector;
+use super::knots::{KnotVector, Span};
 use crate::real::Real;
+
+/// One term of a span evaluation: a basis value together with the
+/// weighted control point it multiplies.
+///
+/// Only ever produced in a batch by [`span_terms`], whose length comes
+/// from the control window — so "a basis value with no control point"
+/// (or the reverse) is not representable, and the evaluation loop needs
+/// no `zip` of independently-sized sequences.
+#[derive(Clone, Copy, Debug)]
+pub struct SpanTerm<'a, T, P> {
+    /// `N_{i−p+r,p}(t)` for this term's control point.
+    pub basis: T,
+    /// The control point's weight (strictly positive `f64` structure).
+    pub weight: f64,
+    /// The control point itself.
+    pub control: &'a P,
+}
+
+/// The `p + 1` nonvanishing basis functions on `span`, **already paired
+/// with the control points and weights they multiply**.
+///
+/// Same recursion, same operand forms, and the same fixed association
+/// as [`basis_funs`] (module docs, D9) — in particular denominators
+/// stay pure knot differences, never the `(U − t) + (t − U′)` form.
+/// What differs is only where the length comes from: the accumulator is
+/// built *from the control window*, and one control point is consumed
+/// per level, so the level count and the final length are both the
+/// window's and cannot disagree with it.
+///
+/// Level `j` of the recursion holds `N_{i−j+r,j}`, i.e. exactly the
+/// **last `j + 1`** control points of the window — which is why the
+/// pairing can be carried through the fold rather than zipped on at the
+/// end.
+///
+/// Total: a [`Span`] is valid by construction, so unlike [`basis_funs`]
+/// there is no poison-on-bad-index path. A poisoned `t` still
+/// propagates through the arithmetic as a value.
+pub fn span_terms<'a, T: Real, P>(
+    kv: &KnotVector,
+    span: Span,
+    t: T,
+    control: &'a [P],
+    weights: &'a [f64],
+) -> Vec<SpanTerm<'a, T, P>> {
+    use core::iter::once;
+
+    // Both windows are the same range of two arrays whose equal length
+    // is a construction invariant of every curve/surface type here.
+    let (ctl, w) = (&control[span.window()], &weights[span.window()]);
+    debug_assert_eq!(ctl.len(), w.len(), "control/weight windows disagree");
+
+    // Base case: N_{i,0} = 1, paired with the window's LAST control
+    // point (level 0 is the last 1 of the window).
+    let mut back = w.iter().copied().zip(ctl).rev();
+    let (weight, control) = back
+        .next()
+        .expect("a Span's window has degree + 1 >= 1 entries");
+    let base = vec![SpanTerm {
+        basis: T::one(),
+        weight,
+        control,
+    }];
+
+    let (u, i) = (kv.knots(), span.index());
+    // One level per remaining control point: no `p` appears, so the
+    // number of levels and the final length are the window's.
+    back.fold(base, |prev, (weight, control)| {
+        let j = prev.len();
+        // The recursion's two knot operands, as slices rather than
+        // subscripts: `u[i+1+r]` and `u[i+1+r-j]` for r in 0..j. Both
+        // bounds are discharged by the `Span` invariant, and both panic
+        // loudly rather than truncating if that were ever violated.
+        let (hi, lo) = (&u[i + 1..=i + j], &u[i + 1 - j..=i]);
+        // Carry each level's knot operands alongside its quotient, so
+        // the two contribution passes below map rather than re-zip:
+        // one zip chain in the whole function.
+        let temps: Vec<(T, f64, f64)> = prev
+            .iter()
+            .zip(hi)
+            .zip(lo)
+            .map(|((s, &a), &b)| (s.basis / T::from_f64(a - b), a, b))
+            .collect();
+        let ups = temps.iter().map(|&(tm, a, _)| (T::from_f64(a) - t) * tm);
+        let dns = temps.iter().map(|&(tm, _, b)| (t - T::from_f64(b)) * tm);
+        // Shift-and-add. The `Option` ends are not decoration: they keep
+        // the arithmetic bit-identical to `basis_funs`, which writes
+        // `n[0] = saved + …` with `saved = zero` at the low end and
+        // `n[j] = saved` — with no addition — at the high end.
+        let values = ups
+            .map(Some)
+            .chain(once(None))
+            .zip(once(None).chain(dns.map(Some)))
+            .map(|(up, dn)| match (up, dn) {
+                (Some(up), None) => T::zero() + up,
+                (Some(up), Some(dn)) => dn + up,
+                (None, Some(dn)) => dn,
+                (None, None) => unreachable!("exactly one end is open"),
+            });
+        // The new level's controls: this level's newly admitted one,
+        // then the previous level's. Both sides of this zip are
+        // `1 + prev.len()` long, from the one source.
+        once((weight, control))
+            .chain(prev.iter().map(|s| (s.weight, s.control)))
+            .zip(values)
+            .map(|((weight, control), basis)| SpanTerm {
+                basis,
+                weight,
+                control,
+            })
+            .collect()
+    })
+}
 
 /// All-poison row, the total outcome for an invalid span index.
 fn poison_row<T: Real>(len: usize) -> Vec<T> {
