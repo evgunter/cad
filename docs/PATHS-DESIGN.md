@@ -643,16 +643,23 @@ specification, and his closing argument that settled the shape:
 carriers, so the resolution belongs entirely inside the fillet
 clause. Four pieces:
 
-1. **`.fillet(r)` captures its resolver at call time.** The
-   directed tip's DATA has always carried the incoming carrier
-   (the trim consumes it — geometrically irreducible: a fillet
-   off an arc leg must touch the ARC, not its end-tangent ray).
-   `.fillet(r)` reads that data and captures the matching
-   resolver right there; the capability obligation
-   (`ArcCarrierScalar: Decide + Bounds`) sits on `.fillet`
-   ITSELF and nowhere else. No carrier parameter enters any
-   lattice type; every other operation keeps caring only about
-   the directed point before it. MEASURED (2026-08-12): the
+1. **The dependency invariant, stated on the directed point
+   (Evan's round-3 wording): a directed point at a leg's end
+   carries the leg's local germ — position, tangent, AND the
+   carrier it rides — as read-only intrinsic data; EVERY
+   operation depends only on the directed point before it plus
+   its own authored arguments.** This is uniform — fillet
+   included: its carrier dependence is part of its INPUT VALUE,
+   not a reach into the chain (geometrically irreducible: a
+   fillet off an arc leg must touch the ARC, not its end-tangent
+   ray — the second-order germ is what tangency-with-trim
+   consumes; legs need only the first-order germ). §2's
+   directed-point definition amends at the re-spell to name the
+   carrier germ it always carried. Mechanically, `.fillet(r)`
+   constructs the matching resolver from its input's germ; the
+   capability obligation (`ArcCarrierScalar: Decide + Bounds`)
+   sits on `.fillet` ITSELF and nowhere else. No carrier
+   parameter enters any lattice type. MEASURED (2026-08-12): the
    bound is free in practice — every scalar that drives an
    authoring chain (f64, Interval, Probe) implements Bounds;
    Dual reaches profiles only by lifting lowered ProfileLoop
