@@ -713,6 +713,16 @@ Mixed units take the class of the part that carries the risk; if that is
 genuinely ambiguous, record `numeric`. Logged pre-draw for the same
 reason difficulty is: assigning it after the fact, from the review
 narrative, would let the label absorb the outcome.
+Block ASM-2 (2026-08-11): byte 92 (<252) → fable position 2.
+Difficulty logged pre-draw: ASM-2A (InstantiatePart single-solid)
+= L → slot 1. Slot 1 arm per the draw; remainders bank (ASM-2b,
+ASM-4 the natural takers).
+ASM-2A review dispatch (2026-08-12): next unfixed ordinal per the
+ledger = 31 (peers fixed through 30) → SINGLE, fable, v4 ladder.
+Frozen head 4544922c. P2 fields: L / structural (classified
+post-draw from spec, pre-ruling dispatch — noted per my #409
+adoption).
+| ASM-2A | 2026-08-12 | InstantiatePart single-solid: leaf node + A11 cluster placements (Doc.placements, SetPlacement, improper refusal), PartResolver seam w/ kernel-owned ResolveFault, (DocRef,ε) part memo, RoleSeg::InPart via GraftKeys name bridge, walk_names doc-seam stop, schema v7 | L / structural (class post-draw, pre-#409-ruling dispatch — noted) | OPUS (block ASM-2 slot 1) | single (ordinal 31, frozen 4544922c, v4 ladder) — APPROVE-WITH-FIXES 1/4/3 rubric 4/5/4; MAJOR-1 = seam diagnosis truncation (typed cause dropped, DepthExceeded hidden); all 7 deviations survived attack incl. hard nesting runs on InPart-sans-node and the walk_names stop (traced load-bearing into persist check_id) | 0 silent (7 devs reported; pre-existing main red filed #415; walk_names seam rule = unanticipated-by-spec design finding) | 4 | 5 | 4 | substantial (typed cause chained across seams; ReferenceCycle{cycle} via DocRef descent chain + MAX_DEPTH→1024 pure insurance (Evan's #414 review); nested-counter fold; boolean_sweep inheritance w/ honest-boundary row; EvalScalar discipline-gate extension proven by planted violation; Frame axis normalization w/ 12-entry bitwise row); executor: implementer-inherited; process incident: pattern-matched kills → recorded-PID rule now standing | MERGED #414 33/0 (v7 kept — LBRET's bump had not landed at final re-merge); INSTANTIATION EXISTS: assemblies reference pinned parts, materialize through the shipped doors, refuse typed at every seam | impl ~390k + fix ~400k / review ~232k | impl ~7.6h / review ~4h / fix ~0.5h |
 LBRET review ordinal fixed at dispatch (2026-08-11, PR #413 open):
 originally claimed as 31 — DOUBLE-CLAIMED with ASM-2A, whose row
 reached MAIN first (this side's claim sat unmerged on the
