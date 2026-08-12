@@ -533,6 +533,17 @@ deletes entirely (the twins' verification target becomes recorded
 fixtures at that point). Folded into the next housekeeping unit;
 this line is the register entry so it cannot silently persist.
 
+**RULED (Evan, #413, 2026-08-12): raw ProfileLoop construction
+DEMOTES from the presented surface** ("yes we should demote
+ProfileLoop"; his framing: kernel vocabulary should be private,
+and the broken-on-purpose bowtie cannot justify a public
+authoring tier). One housekeeping unit (LIB-RETIRE-TAIL)
+combines: the demotion (construction out of prelude/curated
+surface; TYPES stay nameable for read-back/error payloads),
+bowtie re-homed to a validation-suite fixture, shim stragglers
+migrated, shim DELETED, SWITCH-fence sentence amended citing the
+ruling. Dispatches after #413 closes.
+
 **PYSEL MERGED — G13 CLOSED (2026-08-11, #393, ordinal-29
 APPROVE-WITH-FIXES 0/2/4).** The selector surface crosses to
 Python (trilean discipline intact, zero name-text parsing);
