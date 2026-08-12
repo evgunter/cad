@@ -266,6 +266,12 @@ class PathOpen:
         centre: tuple[Length, Length],
         winding: ArcSweep,
     ) -> PathDirected: ...
+    def at_toward(
+        self,
+        p: tuple[Length, Length],
+        dx: float,
+        dy: float,
+    ) -> PathDirected: ...
     def to_on(
         self,
         target: StartToken,

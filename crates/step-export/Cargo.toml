@@ -30,8 +30,9 @@ topo = { path = "../topo" }
 [dev-dependencies]
 # Building acceptance bodies end-to-end (cube, the M3 pocketed die,
 # boolean-result assemblies) through the public profile/sweep/boolean
-# APIs.
-profile = { path = "../profile" }
+# APIs. The `test-support` feature is `profile`'s banished raw builder
+# (PROFILES-V2 §V6, #377): dev-only, invisible to every `src/`.
+profile = { path = "../profile", features = ["test-support"] }
 sweep = { path = "../sweep" }
 # Float-printer round-trip property tests.
 proptest = { workspace = true }

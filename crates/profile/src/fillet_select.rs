@@ -5,7 +5,7 @@
 //!
 //! Selection is the one step in the fillet story that reads a bracket
 //! (`Bounds`), and it is shared by two doors that otherwise have no
-//! business knowing about each other: `LoopBuilder::fillet_corner`
+//! business knowing about each other: the arc-carrier construction
 //! (candidates at an AUTHORED corner) and the PATHS lowering's
 //! arc-carrier resolution (candidates across DERIVED corners). Giving
 //! the rule one home means the ladder is stated once, and the CI

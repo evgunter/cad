@@ -160,9 +160,30 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// can contain at all. v6 refuses TYPED with the regenerate recourse,
 /// exactly as v1–v5 do, and the migration table stays empty.
 ///
+/// Version 8 is **vocabulary growth** on the standing terms (LIB-LBRET;
+/// PATHS-DESIGN §2b's LB10 route 3, ratified on #386): the chain step
+/// vocabulary gained [`crate::ProgramStep::AtToward`], the straight
+/// fillet arrival off an arc-carrier departure. The addition is
+/// forward-additive — a v7 file contains no `AtToward` and would load
+/// — but the reverse is what the version gate is FOR: a v8 file handed
+/// to a v7 reader must refuse at the gate, typed, instead of reaching
+/// serde and dying on an unknown variant. That is the same call v2 and
+/// v3 made for exactly this shape (new node vocabulary, new required
+/// field), so a v7 file refuses TYPED with the regenerate recourse and
+/// the migration table stays empty.
+///
+/// **7 and 8 were claimed twice, and this is the resolution.** ASM-2A
+/// (#414) and LIB-LBRET (#413) each concluded 7 was theirs, because
+/// each re-merged main before the other's bump landed. ASM-2A merged
+/// first, so v7 is InstantiatePart and LBRET takes the later number —
+/// two vocabulary changes never share one version, which is the whole
+/// point of the gate. The reason it needed a human eye: the constant
+/// is ONE LINE, so the second merge resolves it CLEANLY to the same
+/// text while the two meanings silently collapse.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these six.
-pub const SCHEMA_VERSION: u32 = 7;
+/// [`migration_step`] entry, or a ratified break like these seven.
+pub const SCHEMA_VERSION: u32 = 8;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]

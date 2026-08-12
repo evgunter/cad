@@ -269,6 +269,12 @@ jobs:
       # already-classified constructions, never a re-decision of geometry.
       # Confined to this one file so path.rs itself stays bracket-free;
       # fillet_select.rs is NOT listed (sole-bound `T: Bounds`).
+      # profile/src/sugar.rs's entry MOVED to
+      # profile/src/test_support.rs (PROFILES-V2 §V6 as amended, #377):
+      # the ratified justification is the raw builder's fillet doors,
+      # and those doors are now test support behind a dev-only feature.
+      # Nothing was newly allowlisted — the same ratified code changed
+      # file, and its reach shrank from the published API to the tests.
       - name: Bounds compound-bound allowlist (ratified 2026-07-29)
         run: |
           hits=$(grep -rnE '\+\s*(geom_core::)?Bounds\b' crates/*/src \
@@ -277,7 +283,7 @@ jobs:
             | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
             | grep -vE '^crates/topo/src/props\.rs$' \
             | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
-            | grep -vE '^crates/profile/src/sugar\.rs$' \
+            | grep -vE '^crates/profile/src/test_support\.rs$' \
             | grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
             | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
             | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' || true)

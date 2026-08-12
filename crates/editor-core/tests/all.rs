@@ -36,6 +36,8 @@ mod asm1_identity_pins;
 mod asm2a_instantiate;
 #[path = "asm_roots.rs"]
 mod asm_roots;
+#[path = "lbret_schema_v8.rs"]
+mod lbret_schema_v8;
 #[path = "lib_doors_node_result.rs"]
 mod lib_doors_node_result;
 #[path = "lib_sel1_geoselect.rs"]

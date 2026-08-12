@@ -898,3 +898,45 @@ proptest! {
         assert_bit_identical(&closed.loop_, &replayed);
     }
 }
+
+/// **LB10 route 3 in the step vocabulary**: `.at_toward(p, dx, dy)`
+/// records the anchor and the DIRECTOR'S COMPONENTS — never the unit ray
+/// it normalizes to, and never the corner it derives. The replay
+/// re-derives both by calling the same binder, so the loop comes back
+/// bit-identical (asserted by `pinned`).
+#[test]
+fn at_toward_records_its_anchor_and_authored_components() {
+    let closed = Open
+        .at_on(p2(5.0, 0.0), p2(0.0, 0.0), ArcSweep::Ccw)
+        .unwrap()
+        .fillet(0.5)
+        .unwrap()
+        .at_toward(p2(0.0, 3.0), -2.0, 0.0)
+        .unwrap()
+        .line(3.0)
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    assert_eq!(
+        verbs(&program_of(&closed)),
+        vec![
+            Verb::AtOn,
+            Verb::Fillet,
+            Verb::AtToward,
+            Verb::Line,
+            Verb::LineTo
+        ]
+    );
+    match closed.program[2] {
+        Step::AtToward { p, dx, dy } => {
+            assert_eq!(p.x.to_bits(), 0.0_f64.to_bits());
+            assert_eq!(p.y.to_bits(), 3.0_f64.to_bits());
+            // The MAGNITUDE survives: only the ratio is read, and the
+            // step stores what the author wrote, not a normalization.
+            assert_eq!(dx.to_bits(), (-2.0_f64).to_bits());
+            assert_eq!(dy.to_bits(), 0.0_f64.to_bits());
+        }
+        ref other => panic!("expected AtToward, got {other:?}"),
+    }
+    validate_ok(&pinned(closed));
+}

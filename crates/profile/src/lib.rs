@@ -69,10 +69,10 @@
 //!   identity, not tangency: legal undeclared. Free arcs whose joints
 //!   are definitely transversal (secant carriers) remain legal
 //!   undeclared — declaration marks *tangency*, not arc-ness. The
-//!   primary authoring path is [`LoopBuilder::fillet`], which computes
-//!   tangent geometry exactly and declares by construction;
-//!   [`LoopBuilder::declare_tangent`] is the explicit flag for
-//!   hand-authored chains.
+//!   authoring path is the PATHS lattice's `.fillet(r)` ([`path`]),
+//!   which computes tangent geometry exactly and declares by
+//!   construction; [`ProfileLoop::tangent_joints`] is the explicit flag
+//!   for raw hand-authored chains.
 //! - **The sketch plane is conventional data.** [`SketchPlane`] is a
 //!   rigid placement: profile (x, y) ↦ plane origin + x·u + y·v, with
 //!   u/v/normal the columns of the placement's linear part. Rigidity
@@ -121,6 +121,11 @@ pub mod lift;
 pub mod path;
 mod seg;
 mod sugar;
+// PROFILES-V2 §V6 (amended, #377): the raw builder is test support, not
+// API. The feature is enabled ONLY by this crate's own dev-dependency,
+// so `tests/` sees it and no downstream crate can.
+#[cfg(feature = "test-support")]
+pub mod test_support;
 mod validate;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Real, Vec3};
@@ -133,7 +138,7 @@ pub use path::{
     ArcCarrierScalar, ArcCenterTarget, ArcTarget, ArcViaTarget, LineTarget, Open, PartialPath,
     PathError, Start, TangentArcTarget, circle, circle_split,
 };
-pub use sugar::{ArcSweep, FilletLegShape, LoopBuilder, bulge_from_center, bulge_from_via};
+pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 pub use validate::{
     ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
     ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
@@ -189,10 +194,10 @@ pub struct ProfileLoop<T: Real> {
     ///   out-of-range index is a typed validation error. Order is not
     ///   significant.
     ///
-    /// [`LoopBuilder::fillet`] is the primary authoring path (it
-    /// computes tangent geometry exactly and declares by construction);
-    /// [`LoopBuilder::declare_tangent`] and this field are the
-    /// explicit hand-authoring/persistence form.
+    /// The PATHS lattice's `.fillet(r)` ([`path`]) is the authoring
+    /// path (it computes tangent geometry exactly and declares by
+    /// construction); this field is the explicit
+    /// hand-authoring/persistence form.
     ///
     /// [`ProfileError::TangencyContradicted`]: validate::ProfileError::TangencyContradicted
     /// [`ProfileError::UndeclaredTangency`]: validate::ProfileError::UndeclaredTangency
@@ -201,8 +206,8 @@ pub struct ProfileLoop<T: Real> {
 
 impl<T: Real> ProfileLoop<T> {
     /// Builds a loop from a vertex chain (no declared-tangent joints;
-    /// set [`ProfileLoop::tangent_joints`] or use the builder's
-    /// declaration paths for those).
+    /// set [`ProfileLoop::tangent_joints`] for those, or author the loop
+    /// through [`path`], which declares by construction).
     pub fn new(vertices: Vec<ProfileVertex<T>>) -> Self {
         Self {
             vertices,
@@ -222,12 +227,6 @@ impl<T: Real> ProfileLoop<T> {
                 })
                 .collect(),
         )
-    }
-
-    /// Starts a [`LoopBuilder`] at `start` — the human-friendly
-    /// constructor for mixed line/arc chains (see [`LoopBuilder`]).
-    pub fn builder(start: Point2<T>) -> LoopBuilder<T> {
-        LoopBuilder::start(start)
     }
 
     /// The reversed chain: the same locus traversed the other way.

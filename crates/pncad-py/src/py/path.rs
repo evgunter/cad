@@ -420,6 +420,22 @@ impl PathOpen {
             .map_err(|err| path_err(py, &err))
     }
 
+    /// Bind a STRAIGHT arrival's anchor AND its exact director in one
+    /// act, off a departure bound on an arc carrier (LB10 route 3).
+    fn at_toward(
+        &self,
+        py: Python<'_>,
+        p: (Length, Length),
+        dx: f64,
+        dy: f64,
+    ) -> PyResult<PathDirected> {
+        self.0
+            .clone()
+            .at_toward(pt(p), dx, dy)
+            .map(|d| PathDirected(Directed::Plain(d)))
+            .map_err(|err| path_err(py, &err))
+    }
+
     /// Close with the arrival running on a carrier that differs from
     /// side 1's, so the entry vertex is KEPT as a genuine two-carrier
     /// junction (G2).

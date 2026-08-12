@@ -104,6 +104,17 @@ pub enum Step<T: Real> {
         /// Travel sense about the centre (structural).
         winding: ArcSweep,
     },
+    /// **LB10 route 3** `.at_toward(p, dx, dy)` — bind a STRAIGHT
+    /// arrival side's anchor AND its exact director, in one act, on a
+    /// fillet whose departure runs on an arc carrier.
+    AtToward {
+        /// The arrival side's anchor.
+        p: Point2<T>,
+        /// The director's x component (only the RATIO carries meaning).
+        dx: T,
+        /// The director's y component.
+        dy: T,
+    },
     /// `.angle(θ)` — bind the outgoing direction as an angle (radians).
     Angle(T),
     /// **G1** `.toward(dx, dy)` — bind it as exact components. Only the
@@ -266,6 +277,8 @@ pub enum Verb {
     At,
     /// [`Step::AtOn`].
     AtOn,
+    /// [`Step::AtToward`].
+    AtToward,
     /// [`Step::Angle`].
     Angle,
     /// [`Step::Toward`].
@@ -308,6 +321,7 @@ impl<T: Real> Step<T> {
         match self {
             Step::At(_) => Verb::At,
             Step::AtOn { .. } => Verb::AtOn,
+            Step::AtToward { .. } => Verb::AtToward,
             Step::Angle(_) => Verb::Angle,
             Step::Toward { .. } => Verb::Toward,
             Step::Tangent => Verb::Tangent,
@@ -564,6 +578,9 @@ fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
         }
         (DynTip::Open(p0), Step::AtOn { p, centre, winding }) => Ok(Applied::Tip(
             DynTip::DirectedPlain(p0.at_on(p, centre, winding)?),
+        )),
+        (DynTip::Open(p0), Step::AtToward { p, dx, dy }) => Ok(Applied::Tip(
+            DynTip::DirectedPlain(p0.at_toward(p, dx, dy)?),
         )),
         (DynTip::Open(p0), Step::CloseTo) => Ok(Applied::Closed(p0.to(Start)?.loop_)),
         (DynTip::Open(p0), Step::CloseToOn { centre, winding }) => {

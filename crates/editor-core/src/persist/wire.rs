@@ -239,6 +239,15 @@ enum WireStep {
         /// Travel sense.
         winding: WireWinding,
     },
+    /// `.at_toward(p, dx, dy)` — the route-3 straight arrival.
+    AtToward {
+        /// The arrival anchor.
+        p: [Expr; 2],
+        /// x component.
+        dx: Expr,
+        /// y component.
+        dy: Expr,
+    },
     /// `.angle(θ)`.
     Angle(Expr),
     /// `.toward(dx, dy)`.
@@ -308,6 +317,11 @@ impl WireStep {
                 centre: centre.clone(),
                 winding: WireWinding::from_sweep(*winding),
             },
+            P::AtToward { p, dx, dy } => WireStep::AtToward {
+                p: p.clone(),
+                dx: dx.clone(),
+                dy: dy.clone(),
+            },
             P::Angle(e) => WireStep::Angle(e.clone()),
             P::Toward { dx, dy } => WireStep::Toward {
                 dx: dx.clone(),
@@ -355,6 +369,7 @@ impl WireStep {
                 centre,
                 winding: winding.into_sweep(),
             },
+            WireStep::AtToward { p, dx, dy } => P::AtToward { p, dx, dy },
             WireStep::Angle(e) => P::Angle(e),
             WireStep::Toward { dx, dy } => P::Toward { dx, dy },
             WireStep::Tangent => P::Tangent,
