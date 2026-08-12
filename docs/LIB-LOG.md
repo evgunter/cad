@@ -526,6 +526,13 @@ oracles (finding 5), the DocParam __eq__ rider (from ordinal
 19), straight-run authoring noise (finding 7 — vocabulary
 evidence for a future design conversation, not a unit).
 
+**Register addition (2026-08-12, Evan on #413): the LoopBuilder
+test-support shim carries a DELETION HORIZON** — the ~15 legacy
+test callers migrate to lattice/raw spellings and the shim
+deletes entirely (the twins' verification target becomes recorded
+fixtures at that point). Folded into the next housekeeping unit;
+this line is the register entry so it cannot silently persist.
+
 **PYSEL MERGED — G13 CLOSED (2026-08-11, #393, ordinal-29
 APPROVE-WITH-FIXES 0/2/4).** The selector surface crosses to
 Python (trilean discipline intact, zero name-text parsing);
