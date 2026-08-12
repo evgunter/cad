@@ -126,6 +126,8 @@ pub(crate) enum SegTag {
     BandSlit,
     // Pattern
     Instance,
+    // Instantiate part
+    InPart,
 }
 
 impl SegTag {
@@ -170,6 +172,7 @@ impl SegTag {
             Self::BandCut => s::SegTag::BandCut,
             Self::BandSlit => s::SegTag::BandSlit,
             Self::Instance => s::SegTag::Instance,
+            Self::InPart => s::SegTag::InPart,
         }
     }
 }
@@ -189,6 +192,7 @@ pub(crate) enum OpGroup {
     Split,
     Fillet,
     Pattern,
+    InstantiatePart,
 }
 
 impl OpGroup {
@@ -201,6 +205,7 @@ impl OpGroup {
             Self::Split => s::OpGroup::Split,
             Self::Fillet => s::OpGroup::Fillet,
             Self::Pattern => s::OpGroup::Pattern,
+            Self::InstantiatePart => s::OpGroup::InstantiatePart,
         }
     }
 }
@@ -806,6 +811,7 @@ mod growth_tripwire {
             s::SegTag::BandCut => SegTag::BandCut,
             s::SegTag::BandSlit => SegTag::BandSlit,
             s::SegTag::Instance => SegTag::Instance,
+            s::SegTag::InPart => SegTag::InPart,
         }
     }
 
@@ -818,6 +824,7 @@ mod growth_tripwire {
             s::OpGroup::Split => OpGroup::Split,
             s::OpGroup::Fillet => OpGroup::Fillet,
             s::OpGroup::Pattern => OpGroup::Pattern,
+            s::OpGroup::InstantiatePart => OpGroup::InstantiatePart,
         }
     }
 

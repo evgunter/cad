@@ -199,6 +199,17 @@ pub enum DocEdit<P> {
         /// The new root list, in product order.
         roots: Vec<RecipeNodeId>,
     },
+    /// Place an instance's cluster (A11; ASM-2A D-2). The target is
+    /// the instantiate node whose singleton cluster moves; the frame
+    /// replaces whatever was recorded (the identity, if nothing was).
+    /// Recorded and undoable like any other edit — undo restores the
+    /// prior registry state, including its ABSENCE.
+    SetPlacement {
+        /// The instantiate node whose cluster this frame places.
+        node: RecipeNodeId,
+        /// The cluster's new frame.
+        frame: crate::placement::Frame,
+    },
 }
 
 /// Typed, specific edit refusal (spec D6: no stringly errors).
@@ -475,6 +486,29 @@ pub enum EditError {
     /// but checked after EVERY apply, so no door can produce an
     /// invariant-violating document.
     Roots(RootFault),
+    /// A placement aimed at a node that does not instantiate a part
+    /// (A11: a placement frame places a CLUSTER of instances, and
+    /// nothing else has one).
+    PlacementOnNonInstance {
+        /// The offending target.
+        node: RecipeNodeId,
+    },
+    /// An IMPROPER placement frame — determinant ≤ 0, i.e. a mirror
+    /// (A6). Admitting one is gated on the equivariance audit R4 owns:
+    /// until that lands, a mirrored placement is refused rather than
+    /// silently trusted to leave every orientation-sensitive predicate
+    /// and every outward normal intact.
+    ImproperPlacement {
+        /// The offending target.
+        node: RecipeNodeId,
+        /// The linear part's determinant.
+        determinant: f64,
+    },
+    /// A placement frame carrying a non-finite coordinate.
+    NonFinitePlacement {
+        /// The offending target.
+        node: RecipeNodeId,
+    },
 }
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
@@ -630,6 +664,24 @@ impl core::fmt::Display for EditError {
                 "edit: the rebind would land two values under metadata {key:?} on {name:?} — clear one first"
             ),
             Self::Roots(fault) => write!(f, "edit: {fault}"),
+            Self::PlacementOnNonInstance { node } => write!(
+                f,
+                "edit: node {} does not instantiate a part, so it has no placement cluster to \
+                 place",
+                node.0
+            ),
+            Self::ImproperPlacement { node, determinant } => write!(
+                f,
+                "edit: the placement frame for node {} is improper (determinant {determinant}); \
+                 mirrored placements are admitted only behind the equivariance audit, which is \
+                 R4's named prerequisite",
+                node.0
+            ),
+            Self::NonFinitePlacement { node } => write!(
+                f,
+                "edit: the placement frame for node {} carries a non-finite coordinate",
+                node.0
+            ),
         }
     }
 }
@@ -835,6 +887,10 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // The node's witness (if any) dies with it — ids are
             // never reused, so the entry could never be read again.
             new.witnesses.remove(id);
+            // Same for its cluster's placement: the registry's keys
+            // name live instantiate nodes, an invariant the save
+            // validator re-checks.
+            new.placements.remove(id);
             // next_id is NOT decremented: ids are never reused (D3).
             EditRecord {
                 minted: None,
@@ -1161,6 +1217,29 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // Structural: the root list decides which nodes the
             // document's product gathers, and in what order — the
             // product's combinatorial shape, not a continuous value.
+            EditRecord {
+                minted: None,
+                structural: true,
+            }
+        }
+        DocEdit::SetPlacement { node, frame } => {
+            if !matches!(new.nodes.get(node), Some(Node::InstantiatePart { .. })) {
+                return Err(EditError::PlacementOnNonInstance { node: *node });
+            }
+            if !frame.is_finite() {
+                return Err(EditError::NonFinitePlacement { node: *node });
+            }
+            let determinant = frame.determinant();
+            if determinant <= 0.0 {
+                return Err(EditError::ImproperPlacement {
+                    node: *node,
+                    determinant,
+                });
+            }
+            new.placements.insert(*node, *frame);
+            // Structural: a placement decides where the instance's
+            // material lands, so it is recipe shape, not a continuous
+            // slot value — and it moves the document's content pin.
             EditRecord {
                 minted: None,
                 structural: true,
