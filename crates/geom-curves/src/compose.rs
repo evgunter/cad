@@ -2,10 +2,23 @@
 //! an ordered chain of exact NURBS pieces — the rational forms of
 //! lines, circular arcs, and authored NURBS legs — joined into ONE
 //! [`NurbsCurve3`], which is the single curve `§10.4`'s sweep consumer
-//! takes. This is the anti-interpolate: nothing here samples, fits, or
-//! approximates. The legs' control points and weights enter the result
-//! verbatim (up to the one positive weight rescale each seam needs);
-//! only the KNOT VECTOR is rebuilt.
+//! takes. This is the anti-interpolate: **the LOCUS is never sampled,
+//! fitted, or approximated**. The legs' control points and weights
+//! enter the result verbatim (up to the one positive weight rescale
+//! each seam needs); only the KNOT VECTOR is rebuilt.
+//!
+//! Precisely (R2's catch — the older wording overclaimed): the G¹
+//! predicate and the whole control net are pure structure, but the C¹
+//! step *does* evaluate — [`endpoint_speed`] reads `deriv` at both ends
+//! of every leg to size its parameter interval. That evaluation feeds
+//! the KNOT VECTOR only. No control point, no weight, and therefore no
+//! point of the locus depends on it, so the exactness contract below is
+//! untouched by it.
+//!
+//! Name note: `geom_core::spline::compose` is unrelated work (ring
+//! coefficient composites `f ∘ C`) that happens to share the word and
+//! an error name. `ComposeError` here is the spec's bound name for this
+//! door's refusal; the two never meet in one scope.
 //!
 //! # What the door guarantees
 //!
@@ -25,8 +38,10 @@
 //!   control difference (positive scalar factors only), so the seam
 //!   predicate is exact structure, not an evaluation: the two control
 //!   differences must be parallel ([`ComposeError::SeamNotTangent`])
-//!   and co-oriented ([`ComposeError::SeamTangentReversed`]). This is
-//!   the reparameterization-INVARIANT half of C¹ — the half no
+//!   and co-oriented ([`ComposeError::SeamTangentReversed`], or
+//!   [`ComposeError::SeamTangentUncertifiable`] when the shorter
+//!   difference is itself sub-band). This is the
+//!   reparameterization-INVARIANT half of C¹ — the half no
 //!   parameterization can repair, hence the refusal.
 //! - **C¹ arranged, exactly.** The remaining half — matching tangent
 //!   *magnitudes* — is a parameterization choice, so the door makes
@@ -133,10 +148,22 @@ pub enum ComposeError {
         deviation: f64,
     },
     /// The seam is tangent but **reversed**: the two directions are
-    /// anti-parallel (a cusp), so the chain doubles back.
+    /// anti-parallel (a cusp), so the chain doubles back. Reached only
+    /// on a DEFINITE negative advance — an uncertifiable one is
+    /// [`ComposeError::SeamTangentUncertifiable`].
     SeamTangentReversed {
         /// Index of the seam.
         seam: usize,
+    },
+    /// The seam's direction cannot be certified either way: the named
+    /// side's control difference is itself sub-band, so neither
+    /// "forward" nor "reversed" is established. Refusing is right —
+    /// asserting a cusp would not be.
+    SeamTangentUncertifiable {
+        /// Index of the seam.
+        seam: usize,
+        /// The side whose control difference is the shorter one.
+        side: SeamSide,
     },
     /// A seam predicate could not be certified (the margin lies in the
     /// ambiguity band, or is invalid).
@@ -201,6 +228,11 @@ impl core::fmt::Display for ComposeError {
             Self::SeamTangentReversed { seam } => {
                 write!(f, "seam {seam}: tangents are anti-parallel (a cusp)")
             }
+            Self::SeamTangentUncertifiable { seam, side } => write!(
+                f,
+                "seam {seam}: the {side:?} control difference is sub-band, so the seam's \
+                 direction cannot be certified"
+            ),
             Self::SeamEscalated { seam, diag } => {
                 write!(f, "seam {seam}: predicate could not be certified: {diag}")
             }
@@ -271,24 +303,23 @@ pub fn compose_chain(
     // 2. Per-seam G¹ verification, on control data (exact structure,
     //    no evaluation): the clamped end tangent's DIRECTION is the
     //    direction of the last control difference.
+    //
+    //    INVARIANT: the predicates read the ELEVATED legs' nets, not
+    //    the authored ones. Sound because Bézier degree elevation fixes
+    //    the clamped END control points and preserves the end tangent
+    //    direction exactly; only interior points move, and none of
+    //    those is read here.
     for seam in 0..raised.len().saturating_sub(1) {
-        let incoming = end_difference(&raised[seam]).ok_or(ComposeError::SeamTangentUndefined {
+        let arrive = end_difference(&raised[seam]).ok_or(ComposeError::SeamTangentUndefined {
             seam,
             side: SeamSide::Incoming,
         })?;
-        let outgoing =
+        let depart =
             start_difference(&raised[seam + 1]).ok_or(ComposeError::SeamTangentUndefined {
                 seam,
                 side: SeamSide::Outgoing,
             })?;
-        verify_seam(
-            seam,
-            &raised[seam],
-            &raised[seam + 1],
-            incoming,
-            outgoing,
-            band,
-        )?;
+        verify_seam(seam, arrive, depart, band)?;
     }
 
     // 3. The C¹ parameter scaling and the seam weight rescales.
@@ -298,49 +329,58 @@ pub fn compose_chain(
     assemble(&raised, degree, &scales, &weight_scales)
 }
 
-/// The last control difference `P_n − P_{n−1}`, or `None` when it is
-/// exactly zero (a repeated end control point: no direction).
-fn end_difference(curve: &NurbsCurve3<f64>) -> Option<Vec3<f64>> {
-    let control = curve.control();
-    let n = control.len();
-    let d = *control.get(n - 1)? - *control.get(n - 2)?;
-    (d.norm() > 0.0).then_some(d)
+/// One side of a seam, read off the control net: the junction point the
+/// leg contributes, and the control difference whose DIRECTION is the
+/// leg's end tangent there.
+///
+/// Carrying the two together is what lets [`verify_seam`] be total —
+/// the point is known to exist exactly when the difference does, so
+/// there is no second fallible lookup to mislabel.
+#[derive(Clone, Copy)]
+struct SeamEnd {
+    /// The leg's endpoint at this seam (`P_n` arriving, `P_0` leaving).
+    point: Point3<f64>,
+    /// `P_n − P_{n−1}` arriving, `P_1 − P_0` leaving. Never zero.
+    difference: Vec3<f64>,
 }
 
-/// The first control difference `P_1 − P_0`, or `None` when it is
-/// exactly zero.
-fn start_difference(curve: &NurbsCurve3<f64>) -> Option<Vec3<f64>> {
+/// The arriving side: `P_n` with `P_n − P_{n−1}`, or `None` when the
+/// difference is exactly zero (a repeated end control point: no
+/// direction to verify).
+fn end_difference(curve: &NurbsCurve3<f64>) -> Option<SeamEnd> {
     let control = curve.control();
-    let d = *control.get(1)? - *control.first()?;
-    (d.norm() > 0.0).then_some(d)
+    let n = control.len();
+    let point = *control.get(n - 1)?;
+    let difference = point - *control.get(n - 2)?;
+    (difference.norm() > 0.0).then_some(SeamEnd { point, difference })
+}
+
+/// The leaving side: `P_0` with `P_1 − P_0`, or `None` when the
+/// difference is exactly zero.
+fn start_difference(curve: &NurbsCurve3<f64>) -> Option<SeamEnd> {
+    let control = curve.control();
+    let point = *control.first()?;
+    let difference = *control.get(1)? - point;
+    (difference.norm() > 0.0).then_some(SeamEnd { point, difference })
 }
 
 /// The three per-seam decisions: the definite-separation backstop, the
 /// parallelism gate, and the co-orientation gate.
 fn verify_seam(
     seam: usize,
-    incoming_leg: &NurbsCurve3<f64>,
-    outgoing_leg: &NurbsCurve3<f64>,
-    incoming: Vec3<f64>,
-    outgoing: Vec3<f64>,
+    arrive: SeamEnd,
+    depart: SeamEnd,
     band: Band,
 ) -> Result<(), ComposeError> {
+    let (incoming, outgoing) = (arrive.difference, depart.difference);
+
     // The backstop. `Margin::norm3`: the componentwise metre gap
     // between the two descriptions of the junction. Only a DEFINITE
     // separation refuses — `Zero` and an in-band margin both pass,
     // because C⁰ is established by construction (one control point at
     // the junction) and this decision is not allowed to claim
     // otherwise.
-    let (Some(arrive), Some(depart)) = (
-        incoming_leg.control().last(),
-        outgoing_leg.control().first(),
-    ) else {
-        return Err(ComposeError::SeamTangentUndefined {
-            seam,
-            side: SeamSide::Incoming,
-        });
-    };
-    let gap = *depart - *arrive;
+    let gap = depart.point - arrive.point;
     if let Ok(Sign::Positive) = k_stats::decide("compose_seam_gap", Margin::norm3(gap), band) {
         return Err(ComposeError::SeamGap {
             seam,
@@ -373,13 +413,29 @@ fn verify_seam(
     // Co-orientation. Same door, same lever: the dot product is an
     // area, and over the lever it is the signed advance of the
     // shorter difference along the longer one's direction.
+    //
+    // INVARIANT on the `Zero` arm: reaching it means BOTH seam margins
+    // classified `Zero`, i.e. `min·|sin θ| ≤ z` and `min·|cos θ| ≤ z`
+    // for the shorter difference `min`. Since `|sin| + |cos| ≥ 1` that
+    // forces `min ≤ 2z` — the short side is itself sub-band, so the
+    // seam's direction is UNCERTIFIABLE, not reversed. Naming it a cusp
+    // would assert an anti-parallelism the margin never established
+    // (the fix R1 caught); the refusal stands, the property is honest.
     match k_stats::decide(
         "compose_seam_forward",
         Margin::over_lever(incoming.dot(outgoing), lever),
         band,
     ) {
         Ok(Sign::Positive) => Ok(()),
-        Ok(Sign::Zero | Sign::Negative) => Err(ComposeError::SeamTangentReversed { seam }),
+        Ok(Sign::Negative) => Err(ComposeError::SeamTangentReversed { seam }),
+        Ok(Sign::Zero) => Err(ComposeError::SeamTangentUncertifiable {
+            seam,
+            side: if incoming.norm() <= outgoing.norm() {
+                SeamSide::Incoming
+            } else {
+                SeamSide::Outgoing
+            },
+        }),
         Err(diag) => Err(ComposeError::SeamEscalated { seam, diag }),
     }
 }

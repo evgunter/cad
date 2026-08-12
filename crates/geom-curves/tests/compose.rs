@@ -99,6 +99,36 @@ fn xz_circle_frame() -> (Vec3<f64>, Vec3<f64>) {
     (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0))
 }
 
+/// The composed curve's distinct interior knot values — its seams.
+fn interior_seams(curve: &NurbsCurve3<f64>) -> Vec<f64> {
+    let mut seams: Vec<f64> = curve
+        .knots()
+        .knots()
+        .iter()
+        .copied()
+        .filter(|k| *k > 0.0 && *k < 1.0)
+        .collect();
+    seams.dedup();
+    seams
+}
+
+/// The two one-sided derivatives at an interior knot, EXACTLY: pick the
+/// span on each side and evaluate its own polynomial piece at the knot.
+/// No finite differences (R2's review construction).
+fn one_sided(curve: &NurbsCurve3<f64>, seam: f64) -> (Vec3<f64>, Vec3<f64>) {
+    let ks = curve.knots().knots().to_vec();
+    let left = (0..ks.len() - 1)
+        .rfind(|&i| ks[i] < seam && ks[i + 1] == seam)
+        .expect("a span ends at the seam");
+    let right = (0..ks.len() - 1)
+        .find(|&i| ks[i] == seam && ks[i + 1] > seam)
+        .expect("a span starts at the seam");
+    (
+        curve.deriv_in_span(left, seam),
+        curve.deriv_in_span(right, seam),
+    )
+}
+
 // ---------------------------------------------------------------
 // 1. The exactness differential rows
 // ---------------------------------------------------------------
@@ -148,6 +178,83 @@ fn compose_two_quarter_arcs_is_the_exact_half_arc() {
             "control point {index} is not bit-identical: {got:?} vs {want:?}"
         );
     }
+}
+
+/// **The stronger pin** (R2's review construction): the same exactness
+/// claim where the legs THEMSELVES already carry interior seam knots —
+/// two half arcs composing to the full circle's own four-segment chain.
+/// This exercises the interior-knot remap path that the quarter-arc row
+/// (whose legs are single Bézier spans) leaves untouched.
+#[test]
+fn compose_two_half_arcs_is_the_exact_full_circle_chain() {
+    let (axis, u_ref) = xz_circle_frame();
+    let c = Point3::new(0.0, 0.0, 0.0);
+    let pi = core::f64::consts::PI;
+    let h1 = exact_arc(c, axis, 1.0, u_ref, 0.0, pi);
+    let h2 = exact_arc(c, axis, 1.0, u_ref, pi, 2.0 * pi);
+    let full = exact_arc(c, axis, 1.0, u_ref, 0.0, 2.0 * pi);
+    assert!(
+        h1.knots().knots().len() > 2 * (h1.degree() + 1),
+        "the legs really do carry interior knots"
+    );
+
+    let composed = compose_chain(&[h1, h2], band()).expect("the two half arcs compose");
+    assert_eq!(
+        composed.knots().knots(),
+        on_unit_interval(&full).as_slice(),
+        "knots agree bit for bit with the full circle's own chain on [0, 1]"
+    );
+    assert_eq!(composed.weights(), full.weights(), "weights verbatim");
+    for (index, (got, want)) in composed.control().iter().zip(full.control()).enumerate() {
+        assert!(
+            got.x.to_bits() == want.x.to_bits()
+                && got.y.to_bits() == want.y.to_bits()
+                && got.z.to_bits() == want.z.to_bits(),
+            "control point {index} is not bit-identical: {got:?} vs {want:?}"
+        );
+    }
+}
+
+/// The pin **bites**: a one-ulp mutation of either channel of a leg
+/// breaks the bitwise agreement, so the row above is a real constraint
+/// and not a vacuous comparison (R2's review construction).
+#[test]
+fn the_exactness_pin_bites_on_a_one_ulp_mutation() {
+    let (axis, u_ref) = xz_circle_frame();
+    let c = Point3::new(0.0, 0.0, 0.0);
+    let q1 = exact_arc(c, axis, 1.0, u_ref, 0.0, core::f64::consts::FRAC_PI_2);
+    let q2 = exact_arc(
+        c,
+        axis,
+        1.0,
+        u_ref,
+        core::f64::consts::FRAC_PI_2,
+        core::f64::consts::PI,
+    );
+    let half = exact_arc(c, axis, 1.0, u_ref, 0.0, core::f64::consts::PI);
+
+    let mut weights = q2.weights().to_vec();
+    weights[1] = f64::from_bits(weights[1].to_bits() + 1);
+    let mutated = NurbsCurve3::new(q2.knots().clone(), q2.control().to_vec(), weights).unwrap();
+    let composed = compose_chain(&[q1.clone(), mutated], band()).unwrap();
+    assert_ne!(
+        composed.weights(),
+        half.weights(),
+        "a one-ulp weight mutation must break the bitwise weight pin"
+    );
+
+    let mut control = q2.control().to_vec();
+    control[1].x = f64::from_bits(control[1].x.to_bits() + 1);
+    let mutated = NurbsCurve3::new(q2.knots().clone(), control, q2.weights().to_vec()).unwrap();
+    let composed = compose_chain(&[q1, mutated], band()).unwrap();
+    assert!(
+        composed
+            .control()
+            .iter()
+            .zip(half.control())
+            .any(|(got, want)| got.x.to_bits() != want.x.to_bits()),
+        "a one-ulp control mutation must break the bitwise control pin"
+    );
 }
 
 /// The seam knot keeps multiplicity `p` — exactly what the canonical
@@ -243,28 +350,52 @@ fn the_join_is_c1_not_merely_g1() {
     let arc = exact_arc(c, axis, 1.0, u_ref, 0.0, core::f64::consts::FRAC_PI_2);
     let composed = compose_chain(&[line, arc], band()).unwrap();
 
-    let seam = composed
-        .knots()
-        .knots()
-        .iter()
-        .copied()
-        .find(|k| *k > 0.0 && *k < 1.0)
-        .expect("there is an interior seam knot");
-    let h = 1e-7;
-    let left = composed.deriv(seam - h);
-    let right = composed.deriv(seam + h);
+    let seam = interior_seams(&composed)[0];
+    // Read BOTH one-sided derivatives exactly — each span's own
+    // polynomial piece evaluated at the knot — rather than bracketing
+    // the seam with a finite difference (R2's review construction: the
+    // finite difference measured 1e-6 where the true jump is 1e-16, so
+    // it could not have caught a real C¹ defect).
+    let (left, right) = one_sided(&composed, seam);
     let jump = (right - left).norm() / left.norm();
     assert!(
-        jump < 1e-5,
-        "the derivative is continuous across the seam (relative jump {jump:e})"
+        jump < 1e-15,
+        "the one-sided derivatives agree to rounding (relative jump {jump:e})"
     );
 
-    // And the C⁰ side, exactly: one control point carries the
-    // junction, so the two one-sided limits are the same point.
+    // And the C⁰ side: one control point carries the junction, so the
+    // two one-sided limits are the same point.
+    let h = 1e-7;
     let gap = (composed.eval(seam + h) - composed.eval(seam - h)).norm();
     assert!(
         gap < 1e-6,
         "the position is continuous across the seam ({gap:e})"
+    );
+}
+
+/// C¹ across a longer, deliberately lopsided chain — three legs whose
+/// natural speeds differ by an order of magnitude each (R2's review
+/// construction).
+#[test]
+fn the_join_is_c1_across_three_unequal_legs() {
+    let (axis, u_ref) = xz_circle_frame();
+    let c = Point3::new(0.0, 0.0, 0.0);
+    let legs = [
+        exact_line(Point3::new(1.0, -7.0, 0.0), Point3::new(1.0, 0.0, 0.0)),
+        exact_arc(c, axis, 1.0, u_ref, 0.0, core::f64::consts::FRAC_PI_2),
+        exact_line(Point3::new(0.0, 1.0, 0.0), Point3::new(-11.0, 1.0, 0.0)),
+    ];
+    let composed = compose_chain(&legs, band()).expect("the lopsided chain composes");
+    let seams = interior_seams(&composed);
+    assert!(seams.len() >= 2, "both seams are present: {seams:?}");
+    let mut worst = 0.0_f64;
+    for s in &seams {
+        let (left, right) = one_sided(&composed, *s);
+        worst = worst.max((right - left).norm() / left.norm());
+    }
+    assert!(
+        worst < 1e-14,
+        "worst one-sided jump across the chain {worst:e}"
     );
 }
 
@@ -297,6 +428,28 @@ fn a_definite_gap_refuses_naming_the_seam() {
         }
         other => panic!("expected SeamGap, got {other:?}"),
     }
+}
+
+/// The other side of the backstop, pinned honestly (R2's review
+/// construction; FINDING 6): a SUB-BAND gap is accepted, and because
+/// the composed net keeps leg 1's endpoint, leg 2's authored start
+/// value is simply gone. "C⁰ by construction" here means leg 2 is
+/// moved — by at most the accepted gap. This is the doctrine working,
+/// and it is exactly why callers must author from the previous leg's
+/// end rather than retype the junction.
+#[test]
+fn a_sub_band_gap_is_absorbed_by_moving_the_second_leg() {
+    let a = exact_line(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
+    let b = exact_line(
+        Point3::new(1.0 + 5e-10, 0.0, 0.0),
+        Point3::new(3.0, 0.0, 0.0),
+    );
+    let composed = compose_chain(&[a, b], band()).expect("a sub-band gap composes");
+    assert_eq!(
+        composed.control()[1].x,
+        1.0,
+        "the junction is leg 1's endpoint; leg 2's authored 1.0000000005 is dropped"
+    );
 }
 
 /// A corner refuses as a non-tangent seam, naming the seam index and
@@ -361,6 +514,93 @@ fn a_repeated_end_control_point_refuses_by_side() {
         ComposeError::SeamTangentUndefined {
             seam: 0,
             side: SeamSide::Incoming
+        }
+    );
+}
+
+/// **The escalation lane** (R1-F2; R2's review construction): a seam
+/// whose tangent margin lands INSIDE the band is neither accepted nor
+/// mislabelled — it escalates. Definite-or-refuse, never silent, across
+/// all three regimes.
+#[test]
+fn a_near_tangent_seam_is_definite_or_escalates_never_silent() {
+    let a = exact_line(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
+
+    // ~5e-9 m of tilt: inside the band (1e-9, 1e-8) -> escalates.
+    let inside = exact_line(Point3::new(1.0, 0.0, 0.0), Point3::new(2.0, 5e-9, 0.0));
+    match compose_chain(&[a.clone(), inside], band()).unwrap_err() {
+        ComposeError::SeamEscalated { seam, .. } => assert_eq!(seam, 0),
+        other => panic!("an in-band seam must escalate, got {other:?}"),
+    }
+
+    // ~5e-8 m: definitely non-tangent.
+    let outside = exact_line(Point3::new(1.0, 0.0, 0.0), Point3::new(2.0, 5e-8, 0.0));
+    match compose_chain(&[a.clone(), outside], band()).unwrap_err() {
+        ComposeError::SeamNotTangent { seam, .. } => assert_eq!(seam, 0),
+        other => panic!("expected SeamNotTangent, got {other:?}"),
+    }
+
+    // ~5e-11 m: definitely tangent, composes.
+    let below = exact_line(Point3::new(1.0, 0.0, 0.0), Point3::new(2.0, 5e-11, 0.0));
+    compose_chain(&[a, below], band()).expect("a sub-band deviation composes");
+}
+
+/// **The λ ≠ 1 weight-rescale lane** (R1-F2; R2's review construction).
+/// A rational curve is invariant under a positive scale of all its
+/// weights, so leg 2 is rescaled to meet the running junction weight —
+/// and the weight the composed net carries at the junction is leg 1's
+/// KEPT one, not leg 2's dropped twin.
+#[test]
+fn the_weight_rescale_lane_keeps_the_junction_weight() {
+    let unit_knots = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let a = NurbsCurve3::new(
+        unit_knots(),
+        vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+        vec![1.0, 3.0],
+    )
+    .unwrap();
+    let b = NurbsCurve3::new(
+        unit_knots(),
+        vec![Point3::new(1.0, 0.0, 0.0), Point3::new(2.0, 0.0, 0.0)],
+        vec![7.0, 1.0],
+    )
+    .unwrap();
+
+    let composed = compose_chain(&[a, b], band()).expect("a non-unit-weight chain composes");
+    assert_eq!(
+        composed.weights(),
+        &[1.0, 3.0, 3.0 / 7.0],
+        "leg 2 is scaled by w_end/w_start = 3/7; the junction keeps leg 1's weight"
+    );
+    // The rescale is a reparameterization of the homogeneous data, so
+    // the LOCUS is untouched: the chain is still the straight run.
+    for i in 0..=100 {
+        let p = composed.eval(f64::from(i) / 100.0);
+        assert!(
+            p.y.abs() < 1e-15 && p.z.abs() < 1e-15,
+            "the rescaled chain stays on the x axis at {p:?}"
+        );
+    }
+}
+
+/// **R1-F1 regression.** When the shorter control difference is itself
+/// sub-band, BOTH seam margins classify `Zero`. The old code called
+/// that a cusp; it is not — anti-parallelism was never established.
+/// The seam is refused (fail-loud is preserved) under an honest name
+/// that points at the side responsible.
+#[test]
+fn a_sub_band_forward_leg_is_uncertifiable_not_a_cusp() {
+    let a = exact_line(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
+    // Collinear and strictly FORWARD, but only 5e-10 m long.
+    let stub = exact_line(
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(1.0 + 5e-10, 0.0, 0.0),
+    );
+    assert_eq!(
+        compose_chain(&[a, stub], band()).unwrap_err(),
+        ComposeError::SeamTangentUncertifiable {
+            seam: 0,
+            side: SeamSide::Outgoing
         }
     );
 }
