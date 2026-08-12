@@ -690,16 +690,24 @@ clause. Four pieces:
    free length and one bit). `at_on`'s authored-centre spelling
    is retired by this; a centre-held-datum mode returns only if
    a use case earns it, via item 5.
-5. **`ArcSpec` (Evan's extension, PROPOSED with staging):** a
-   single value family for "ways to author an arc" —
-   `radius(R, side)` now; potentially `bulge(b)` / `via(q)` /
-   `center(c, w)` later — so future arrival modes are VARIANTS,
-   not verbs. Stage 2 (measured, separate): §2a's three arc LEG
-   verbs could collapse to `arc_to(target, spec)` over the same
-   family — the variant preserves the authored-set distinctness
-   that record-as-you-lower and the VQ contracts rely on. Stage
-   2 touches ratified §2a text and the corpus; it proceeds only
-   on its own corpus-measured spec, not as a rider.
+5. **`ArcData` (Evan, round 5 — ADOPTED as the unifier):** one
+   value family for "ways to author an arc" — `Radius{r, side}`,
+   `Bulge{b}`, `Via{q}`, `Center{c, winding}` — with PER-SITE
+   ADMISSIBLE SUBSETS ENFORCED STATICALLY (the target-trait
+   dispatch precedent: an inadmissible mode at a site is
+   unrepresentable, not refused). Admissibility is DOF-honest,
+   set by what each mode is relative to: `Bulge` is
+   chord-relative, so it fits LEGS (`arc_to(target, spec)` —
+   the chord exists) and never fillet arrivals (no far endpoint
+   yet); `Radius` fits arrivals exactly (the round-4 ruling —
+   stage 1 ships arrivals as Radius-only); `Via`/`Center` are
+   well-formed at both as held-datum alternatives and unlock by
+   use case. The §2a leg-verb collapse onto `arc_to(target,
+   spec)` is now IN the re-spell conversation's scope — the
+   variant preserves the authored-set distinctness that
+   record-as-you-lower and the VQ contracts rely on — but its
+   corpus migration is still measured at the re-spell unit's
+   spec, not assumed.
 
 (An earlier draft of this section proposed carrier-typed
 directed tips; DROPPED per Evan's round-2 challenge — the
