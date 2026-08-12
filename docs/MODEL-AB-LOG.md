@@ -752,7 +752,24 @@ byte 205 (<252, accepted) mod 4 = 1 = fable's position.
 Slot 1 = RETTAIL (docs/LIB-RETTAIL-SPEC.md); pre-draw fields:
 difficulty S-M, task-class STRUCTURAL (migration/curation/
 deletion; no new numeric decision).
+RETTAIL review ordinal fixed at dispatch (2026-08-12, PR #431
+open, frozen head 79391413): claimed through 32 + 1 = **33 → a
+third → DUAL (sample #11), SAME-MODEL (fable+fable) per the
+first v4 dual block's banked twin (#405)**. R1+R2 concurrent
+same-head per the amendment. Parallel-track note (Evan's ask):
+U4b (geom-core constructors-only) and the U4a geom-curves
+composition door dispatch in PARALLEL on LIB-9 slots 3/4 (both
+opus) — crate-disjoint from RETTAIL/RESPELL; specs follow.
+LIB-9 slots 3+4 dispatch (2026-08-12, the parallel tracks):
+slot 3 = U4B (geom-core frame constructors,
+docs/LIB-U4B-SPEC.md) = OPUS; pre-draw fields M / NUMERIC.
+slot 4 = U4A-DOOR (geom-curves chain→curve composition,
+docs/LIB-U4A-DOOR-SPEC.md) = OPUS; pre-draw fields M-L /
+NUMERIC. Both crate-disjoint from the in-flight RETTAIL dual
+and the queued RESPELL; LIB-9 fully consumed
+(RETTAIL opus / RESPELL fable / U4B opus / U4A-DOOR opus).
 ASM-2B review dispatch (2026-08-12, post-wind-down resume on
 Evan's run-to-merge instruction): next unfixed ordinal = 34
 (peers through 33) → SINGLE, fable, v4 ladder. Frozen head
 07999509. Pre-logged M / structural.
+| ASM-2B | 2026-08-12 | multi-solid referenced products: the lift was a two-guard deletion (transform_rigid already body-wide, graft_disjoint_all_keyed already total) — sub-assemblies instantiate; doubly-InPart naming; single-solid bit-identity pinned pre-lift | M / structural (pre-logged) | OPUS (block ASM-2 slot 2) | single (ordinal 34, frozen 07999509, v4) — APPROVE-WITH-FIXES 0/1/3 rubric (in report); the 1 MINOR is MAIN-owned (ci-local.sh discipline allowlist drifted at #421 — hosted ci.yml already ratified; LIB notified); D-1 deletion-vs-flip adjudicated ACCEPT-DELETION on the review's zero-dangling-surface evidence, ratified as a spec amendment; reviewer re-proved the pre-lift digests by grafting the suite onto pre-lift main | 0 silent (3 deviations reported, 2 verified honest + 1 adjudicated; interference-gather probe states the #382 boundary) | (in report) | (in report) | (in report) | none on the branch (spec amendment only); executor: n/a | MERGED #425 30/0; SUB-ASSEMBLIES EXIST — the R1 materialization story is complete | impl ~222k / review ~112k | impl ~2.1h / review ~0.3h |

@@ -15,9 +15,13 @@ The instantiate evaluation path takes the referenced product's N
 solids through `transform_rigid` + `graft_disjoint_all_keyed` as a
 unit: one rigid map, N solids, N entries of graft keys, per-solid
 + aggregate validation exactly as the (already-shipped) loop shape.
-The `MultiSolidRoot`-class refusal FLIPS (not deleted): its row
-becomes the success assertion, and the refusal text's flip
-condition is discharged in the same commit.
+The `MultiSolidRoot`-class refusal FLIPS: its row becomes the
+success assertion, and the refusal text's flip condition is
+discharged in the same commit. **(Amended at adjudication,
+2026-08-12, on the review's evidence: "not deleted" binds the
+ROW, not the enum variants — with zero dangling surface, keeping
+unconstructable variants in a public enum is a false promise;
+the implementer's deletion is ratified.)**
 
 ## D-2: name fidelity across all N solids
 
