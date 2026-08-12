@@ -212,7 +212,6 @@ pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
         F::PartRootFailed { .. } => "part_root_failed",
         F::PartProduct { .. } => "part_product",
         F::ReferenceCycle { .. } => "part_reference_cycle",
-        F::MultiSolid { .. } => "part_multi_solid",
         F::DepthExceeded => "part_depth_exceeded",
     }
 }
@@ -264,7 +263,6 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         E::RootFailed { .. } => "root_failed",
         E::RootPoisoned { .. } => "root_poisoned",
         E::NoBodyRoots => "no_body_roots",
-        E::MultiSolidRoot { .. } => "multi_solid_root",
         E::Graft { .. } => "graft_refused",
         E::SolidInvalid { .. } => "solid_invalid",
         E::ProductInvalid { .. } => "product_invalid",

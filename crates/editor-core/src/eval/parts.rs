@@ -111,15 +111,6 @@ pub enum PartFault {
         /// The product door's diagnosis.
         message: String,
     },
-    /// The referenced document's product holds N ≠ 1 solids.
-    /// **ASM-2b** is the flip condition: it owns multi-solid
-    /// instantiation, including the name bridge for it. Partial
-    /// support here would be a second, narrower truth about what
-    /// instantiating a document means.
-    MultiSolid {
-        /// How many solids the product holds.
-        solids: usize,
-    },
     /// The reference CHAIN returned to a document it had already
     /// entered — the same (id, pin), so the same content: descending
     /// further would repeat forever.
@@ -175,11 +166,6 @@ impl core::fmt::Display for PartFault {
             Self::PartProduct { message } => {
                 write!(f, "the referenced document has no product: {message}")
             }
-            Self::MultiSolid { solids } => write!(
-                f,
-                "the referenced document's product holds {solids} solids; single-solid parts are \
-                 this door's scope and multi-solid instantiation is ASM-2b's"
-            ),
             Self::ReferenceCycle { cycle } => {
                 write!(
                     f,
@@ -324,12 +310,13 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // through the product door's own typed refusal — and its cause
         // travels with it, because the evaluation holding that cause
         // does not outlive this call.
+        // ASM-2B: a part is its PRODUCT, however many solids that
+        // product holds. The count is not consulted here at all — the
+        // placing path maps all N as one body and the gather grafts
+        // them as N, so a narrower rule at this door would be a second
+        // truth about what instantiating a document means.
         let (body, names) = crate::product::product_named(&doc, &evaluation)
             .map_err(|e| product_fault(&e, &evaluation))?;
-        let solids = body.solids().count();
-        if solids != 1 {
-            return Err(PartFault::MultiSolid { solids });
-        }
         Ok(PartValue {
             body: Arc::new(body),
             names: Arc::new(names),
