@@ -61,5 +61,10 @@ mod ops;
 mod round;
 mod trig;
 
+// Kani proof harnesses (docs/verification.md). `cfg(kani)` is set only by
+// the Kani driver, so this module does not exist in any cargo build.
+#[cfg(kani)]
+mod verify;
+
 pub use consts::{frac_pi_2, pi, tau};
 pub use interval::{DInterval, Decoration};

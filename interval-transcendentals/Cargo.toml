@@ -14,7 +14,7 @@
 name = "interval-transcendentals"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.97.0"
+rust-version = "1.87.0"
 license = "MIT OR Apache-2.0"
 description = "Rigorous interval transcendentals over libm with proven error pads (C-free, MIT/Apache)"
 publish = false
@@ -56,3 +56,14 @@ oracle-inari = ["dep:inari"]
 [[example]]
 name = "bench"
 required-features = ["oracle-inari"]
+
+# `cfg(kani)` and the two mutation cfgs are set only by the Kani driver
+# (src/verify.rs, docs/verification.md); teach cargo about them so ordinary
+# builds do not warn about an unexpected cfg.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(kani)',
+    'cfg(kani_mutation_is_normal)',
+    'cfg(kani_mutation_no_pad)',
+    'cfg(kani_tool_control)',
+] }
