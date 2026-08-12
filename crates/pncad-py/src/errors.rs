@@ -119,6 +119,11 @@ pub enum ErrorClass {
     /// (junction checks, `NoCornerForFillet`, the tangent-line close,
     /// ...) — LIB-PYG1.
     Path,
+    /// A selection query refused (an in-band decided margin, a tied
+    /// name whose candidates disagree, a non-datum reference, ...) —
+    /// LIB-PYSEL. The Python class keeps the Rust type's own name:
+    /// the refusal IS `SelectRefusal`, crossing.
+    Select,
 }
 
 impl ErrorClass {
@@ -134,6 +139,7 @@ impl ErrorClass {
             Self::Export => "ExportError",
             Self::StepImport => "StepImportError",
             Self::Path => "PathError",
+            Self::Select => "SelectRefusal",
         }
     }
 }

@@ -32,6 +32,7 @@ mod select;
 mod table;
 
 pub use emit::NamingError;
+pub(crate) use emit::name_in_part;
 pub(crate) use emit::{empty, name_pattern};
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};

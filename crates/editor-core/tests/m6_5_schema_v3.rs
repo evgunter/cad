@@ -21,10 +21,10 @@ const V2: &str = include_str!("golden/v2_golden.cad");
 const V3: &str = include_str!("golden/v3_golden.cad");
 
 #[test]
-fn schema_version_is_six() {
-    // Bumped by the ASM-ROOTS product-roots clean break (v6); this
+fn schema_version_is_seven() {
+    // Bumped by the ASM-2A instantiate-part clean break (v7); this
     // file keeps pinning the v3 refusal fixture below.
-    assert_eq!(SCHEMA_VERSION, 6);
+    assert_eq!(SCHEMA_VERSION, 7);
 }
 
 #[test]

@@ -65,6 +65,30 @@ pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
     }
 }
 
+/// The stable tag for a selection refusal (LIB-PYSEL: the
+/// `Evaluation.select_where` door).
+///
+/// `SelectRefusal` is `#[non_exhaustive]`, so unlike this module's
+/// other matches the wildcard arm is FORCED on this crate and the
+/// compile-time drift alarm is unavailable. Its replacement lives in
+/// `src/tests.rs`: a pin constructs the current arms and asserts each
+/// tag, so a kernel arm arriving without a tag here surfaces as
+/// `unclassified` in a red test rather than silently in Python.
+pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
+    use pncad::select::SelectRefusal as R;
+    match err {
+        R::InBand { .. } => "in_band",
+        R::TiedDisagrees { .. } => "tied_disagrees",
+        R::Unreadable { .. } => "unreadable",
+        R::NotADatum { .. } => "not_a_datum",
+        R::NotALength { .. } => "not_a_length",
+        R::PairInBand { .. } => "pair_in_band",
+        R::BadValue(_) => "bad_value",
+        R::Band => "band",
+        _ => "unclassified",
+    }
+}
+
 /// The stable tag for an edit refusal.
 pub fn edit_error_tag(err: &EditError) -> &'static str {
     match err {
@@ -108,6 +132,9 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // not per wrapper: which invariant broke is what a caller
         // branches on.
         EditError::Roots(fault) => root_fault_tag(fault),
+        EditError::PlacementOnNonInstance { .. } => "placement_on_non_instance",
+        EditError::ImproperPlacement { .. } => "improper_placement",
+        EditError::NonFinitePlacement { .. } => "non_finite_placement",
     }
 }
 
@@ -157,6 +184,36 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::FilletSelectionKind { .. } => "fillet_selection_kind",
         NodeErrorKind::FilletSelectionEmpty => "fillet_selection_empty",
         NodeErrorKind::WitnessBifurcation { .. } => "witness_bifurcation",
+        // ASM-2A: the seam faults stay separable at the tag level —
+        // "the pin does not hold" and "the tolerances disagree" are
+        // different recourses, so they are different tags.
+        NodeErrorKind::Part { fault, .. } => part_fault_tag(fault),
+    }
+}
+
+/// The stable tag for an instantiation refusal (ASM-2A D-3).
+pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
+    use pncad::document::PartFault as F;
+    use pncad::document::ResolveFault as R;
+    match fault {
+        F::NoResolver => "part_no_resolver",
+        F::Unresolved {
+            fault: R::PinMismatch,
+            ..
+        } => "part_pin_mismatch",
+        F::Unresolved {
+            fault: R::EpsilonSeam,
+            ..
+        } => "part_epsilon_seam",
+        F::Unresolved {
+            fault: R::Unresolved,
+            ..
+        } => "part_unresolved",
+        F::PartRootFailed { .. } => "part_root_failed",
+        F::PartProduct { .. } => "part_product",
+        F::ReferenceCycle { .. } => "part_reference_cycle",
+        F::MultiSolid { .. } => "part_multi_solid",
+        F::DepthExceeded => "part_depth_exceeded",
     }
 }
 
@@ -211,6 +268,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         E::Graft { .. } => "graft_refused",
         E::SolidInvalid { .. } => "solid_invalid",
         E::ProductInvalid { .. } => "product_invalid",
+        E::Naming { .. } => "product_naming",
     }
 }
 

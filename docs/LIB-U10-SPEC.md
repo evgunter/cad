@@ -13,7 +13,7 @@ rename is NOT this unit (placeholder-until-last-minute stands;
 ## 0. Discipline (absolute)
 
 ≤~150 lines per tool call; chunked reads; skeleton-first. Slot
-rules: `scripts/with-build-slot.sh -- cargo ...`; `--express
+rules: `local-scripts/with-build-slot.sh -- cargo ...`; `--express
 SECS` ≤10-min rows; long rows default mutex, BLOCKING foreground
 waits (timeout 590000, re-issue; setsid+poll past the cap);
 NEVER park. Cold clippy both lanes + greps BEFORE opening.

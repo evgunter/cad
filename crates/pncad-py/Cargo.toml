@@ -57,6 +57,16 @@ python = ["dep:pyo3"]
 # `extension-module`, which drops the libpython link so the abi3 wheel
 # loads into any CPython >= 3.8.
 extension-module = ["python", "pyo3/extension-module"]
+# Forwards the certified interval scalar exactly as `pncad` does ("so
+# CI's interval lane builds the façade uniformly" — its manifest's own
+# words). MEASURED necessity (LIB-PYSEL): CI's build-interval job runs
+# `cargo ... ${cargo_scope} --features interval`, and a diff whose
+# ci-filter closure is pncad-py ALONE — this crate has no dependents —
+# scoped that command to a package without the feature, which cargo
+# refuses. Every earlier bindings unit happened to touch a second
+# crate, so this unit is the first pncad-py-only closure to hit the
+# wall.
+interval = ["pncad/interval"]
 
 [dependencies]
 pncad = { path = "../pncad" }

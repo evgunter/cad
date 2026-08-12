@@ -155,6 +155,66 @@ pub(crate) fn name_pattern<T: geom_core::Real>(
     Ok(Arc::new(t))
 }
 
+/// Wraps an instantiated part's product table under the instance
+/// (ASM-2A D-4: the GQ4 wrapper composed with N1–N7).
+///
+/// Every stable name of the referenced part's product body is re-minted
+/// as `InPart(part-local name)` at the INSTANTIATE node, so two
+/// instances of one part have wholly distinct names (their nodes
+/// differ) while a part-document edit that breaks a local name surfaces
+/// through the unchanged N1–N7 diagnosis ladder — the wrapped name is
+/// still in there, structurally.
+///
+/// Keys hold verbatim: `product_named` keyed the part table onto the
+/// product body, and `transform_rigid` is key-stable, so the placed
+/// copy's arena answers to exactly those keys.
+///
+/// The BODY name is minted here rather than wrapped: the part's product
+/// is not a body any part-local name denotes (see
+/// [`crate::product::product_named`]), and an instance's placed body is
+/// this node's own output, named like every other body-producing op's.
+pub(crate) fn name_in_part<T: geom_core::Real>(
+    node: RecipeNodeId,
+    part: &NameTable,
+    placed: &Body<T>,
+) -> Result<Arc<NameTable>, NamingError> {
+    let mut t = NameTable::new();
+    t.insert(
+        name1(EntityKind::Body, node, super::role::RoleSeg::OutputBody),
+        ent(0, EntityKey::Body),
+    )?;
+    for (name, entry) in part.iter() {
+        let wrapped = StableName {
+            kind: name.kind,
+            node,
+            path: vec![super::role::RoleSeg::InPart {
+                of: Box::new(name.clone()),
+            }],
+        };
+        // The part's table is the PRODUCT's: one body, index 0. A row
+        // anywhere else is a gather bug, surfaced rather than dropped.
+        let misplaced = || NamingError::Emission {
+            what: "an instantiated part's product table names a body other than the product",
+        };
+        match entry {
+            super::table::Entry::Unique(e) => {
+                if e.body != 0 {
+                    return Err(misplaced());
+                }
+                t.insert(wrapped, ent(0, e.key))?;
+            }
+            super::table::Entry::Tied(es) => {
+                if es.iter().any(|e| e.body != 0) {
+                    return Err(misplaced());
+                }
+                t.insert_tied(wrapped, es.iter().map(|e| ent(0, e.key)).collect())?;
+            }
+        }
+    }
+    check_total(&t, placed, 0)?;
+    Ok(Arc::new(t))
+}
+
 /// Per-body topology walk products the emitters share: half-edge
 /// incidence (vertex → edges, edge → faces) built in ONE deterministic
 /// arena-order pass — combinatorial wiring facts, not inspection.

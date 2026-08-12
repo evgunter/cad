@@ -111,7 +111,7 @@ merge `origin/main` first, then rework.
 1. `cargo build -p profile`, clippy, then `cargo test -p profile`.
 2. Differential + property + compile-fail suites.
 3. (PR-2) tour battery: all scenes, pins, ε rows — unchanged.
-4. `scripts/test-fast.sh` locally for iteration; **hosted CI is
+4. `local-scripts/test-fast.sh` locally for iteration; **hosted CI is
    the only gate**.
 
 ## 5. PR discipline

@@ -13,7 +13,7 @@ use editor_core::{
     evaluate,
 };
 use fixture::{declare_x_offset_flush, desc, fname, insert, len, scl, wall};
-use geom_core::{Decide, Interval};
+use geom_core::Interval;
 
 fn block(
     doc: ProfileDoc,
@@ -96,9 +96,7 @@ fn corpus() -> ProfileDoc {
     doc
 }
 
-fn run<T: Decide + editor_core::ContentBits + geom_core::Bounds + Send + Sync>(
-    doc: &ProfileDoc,
-) -> Evaluation<T> {
+fn run<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
     evaluate::<T>(doc, None, &CancelToken::new(), &EvalOptions::default())
 }
 
