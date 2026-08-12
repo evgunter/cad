@@ -152,7 +152,58 @@ RUSTFLAGS="--cfg kani_mutation_is_normal --cfg kani_mutation_no_pad" \
 Versions used: Kani 0.67.0 / CBMC 6.8.0 / CaDiCaL 2.0.0, bundled
 toolchain nightly-2025-11-21. Machine: 4 cores, 15 GB.
 
-<!-- RESULTS-TABLE -->
+### Results
+
+Clean sequential run, nothing else on the box. "own" counts the
+harness's own `assertion.*` checks; "auto" is Kani's automatic checks
+(see the section on reading them). Times are CBMC's own reported
+verification time (symex + solver), excluding cargo and codegen.
+
+**Proved, and independent of every model defect found below** — these
+reach no `sqrt` and no FMA:
+
+| Harness | own | auto | time |
+|---|---|---|---|
+| `a2` neighbor step = one `bitdist` step (Lemma P3's encoding half) | 2/2 | 3 | 0.2 s |
+| `a3` `step_up(x, k)` is exactly k neighbor steps | 9/9 | 31 | 1.2 s |
+| `a7` Kahan corner convention `0 · anything = 0`, inf included | 3/3 | 13 | 0.04 s |
+| `b10` `with_dec_capped` only lowers; bounds bit-identical | 3/3 | 127 | 0.7 s |
+| `b3` poison propagation across the arithmetic surface | 7/7 | 280 | 2.5 s |
+| `a1` `step_down`/`step_up` move outward, k ≤ 4 | 4/4 | 113 | 8.8 s |
+| `b2` exact + set ops preserve the representation invariant | 6/6 | 135 | 24.8 s |
+| `b7` abs/min/max/floor/hull are exactly correct at symbolic points | 5/5 | 159 | 37.7 s |
+| `c3` add pads enclose the exact sum (exponent spread ≤ 28, f32) | 5/5 | 13 | 501.1 s |
+
+**Proved, but the path reaches CBMC's FMA model** — reported with that
+caveat attached:
+
+| Harness | own | auto | time |
+|---|---|---|---|
+| `b8` even `powi` of a straddling interval floors at exactly `+0.0` | 3/3 | 296 (2 fail: `feraiseexcept`, `fma`) | 845.0 s |
+
+**Failed, not actionable** (see the counterexample section):
+
+| Harness | own | time |
+|---|---|---|
+| `c1` mul pads enclose the exact product (f32) | 0/2 | 0.6 s |
+| `c2` div pads enclose the exact quotient (f32) | 0/4 | 2.0 s |
+| `c7` div padding logic with an exact `f64` witness | 0/4 | ~3 s |
+
+**No verdict** — killed at the 900 s per-harness budget (`c6` at 1800 s).
+Every one of these puts two unconstrained symbolic `f64` intervals
+through multiplication or division:
+
+`a5` (additive primitives ordered) · `a6` (multiplicative primitives
+ordered) · `b1` (arithmetic preserves the invariant) · `b4` (mul
+encloses every point product) · `b5` (div encloses every point
+quotient) · `b6` (add/sub enclose every point) · `c6` (mul padding
+logic with an exact witness)
+
+That `b4`/`b5` — the two flagship containment harnesses, the ones that
+would have covered `div_touching_zero`'s four-way sign match — are in
+this list is the single biggest gap in the result. The case analysis
+they target remains covered only by `tests/review_fuzz_div.rs`.
+
 
 ### Tier A — the discrete lemmas (fully rigorous, no model gap)
 
@@ -510,20 +561,50 @@ those two columns separately for exactly this reason.
 
 ## Recommendation
 
-1. **Adopt the Kani harnesses in this crate.** They are written, they
-   pass, they cost one `rust-version` line to run, and they cover a
-   region the differential oracle only samples. Run them *by hand* when
-   the rounding layer, the case analysis or the invariant changes —
-   the same trigger as the `oracle-inari` tier.
-2. **Do not gate CI on them yet.** The tool-vs-repo toolchain skew is
-   real and will recur every time this repo bumps its pin ahead of
-   Kani's nightly. A hosted job that breaks on an unrelated toolchain
-   bump is worse than a documented manual tier.
-3. **Do not adopt Flux for the interval crate.** It cannot express the
-   properties.
-4. **Consider a Flux pilot on `geom-curves`' knot algebra** as a separate
-   piece of work, scoped to turning the existing prose index-safety
-   comments into checked specs. Decide it on its own merits; this
-   investigation only establishes that the tool works on the pattern.
-5. **Leave L0/L1/L5 to the paper proofs.** Named the Coq route so nobody
-   has to re-derive that Kani "should" be able to do it.
+The honest summary is that Kani earns a **narrow, manual** place here,
+much narrower than it looked three hours in, and Flux earns none in this
+crate.
+
+1. **Keep the nine clean harnesses, run them by hand.** `a1 a2 a3 a7 b2
+   b3 b7 b10 c3` prove real obligations — the representation invariant,
+   poison propagation, the decoration cap, exact-op correctness at
+   symbolic points, P3's encoding half, and pad soundness for addition —
+   exhaustively over every `f64` bit pattern, which is strictly more
+   than the seed-pinned differential harness gets. Total runtime is
+   under 10 minutes. Trigger: the same one as the `oracle-inari` tier,
+   i.e. when the rounding layer, the case analysis or the invariant
+   changes.
+2. **Do not gate CI on them.** Two independent reasons now, not one: the
+   toolchain skew (friction 1), and the fact that a FAILED verdict here
+   is frequently not about the code. A red CI job nobody can action is
+   worse than a documented manual tier.
+3. **Treat every FAILED verdict as unproven, not as a bug**, until the
+   reported witness has been pinned back inside CBMC *and* replayed
+   natively. Three of the four failures this investigation chased were
+   the tool; the fourth is still unattributed.
+4. **Do not adopt Flux for the interval crate** — it cannot express the
+   properties, and it will say green while not expressing them.
+5. **A Flux pilot on `geom-curves`' knot algebra is worth considering**
+   on its own merits, scoped to turning existing prose index-safety
+   comments into checked specs. This investigation establishes only that
+   the tool handles the pattern (50 ms, negative control caught).
+6. **Leave L0/L1/L5 to the paper proofs**, with Flocq/Gappa named as the
+   tool class that would actually fit, so nobody re-derives that Kani
+   "should" have been able to do it.
+7. **One cheap open lever**: build bitwuzla on a machine with
+   unrestricted egress and re-run `b4`/`b5`. CBMC engages its SMT
+   floating-point theory only under `--solver bitwuzla` (z3 still
+   bit-blasts), and those two harnesses — the div/mul containment
+   proofs, the most valuable ones in the set — timed out under CaDiCaL.
+   If the FP theory also fixes the `sqrt` and `fmaf` models, most of
+   what is withdrawn above comes back, and this document should be
+   re-run rather than believed.
+
+## What this cost
+
+Roughly six hours of wall clock, most of it solver time, on a 4-core
+box. The tool findings — not the proofs — were the bulk of it: three
+CBMC floating-point defects and one Flux soundness footgun, each of
+which first presented as a plausible bug in correct code. That ratio is
+the most useful single number in this document for deciding whether to
+go further.
