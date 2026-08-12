@@ -68,6 +68,13 @@
 //! marcher is a candidate generator and the certificate, not the
 //! stepper, is what runs at every `T`.
 //!
+//! The [`frame`] submodule (LIB-U4b) is the placement vocabulary:
+//! point-at, mirror, and the path-start frame, as plain [`Affine3`]
+//! values rather than a new type. It is the one deciding module here —
+//! its degeneracy policy is stated in its own docs and routed through
+//! the predicate funnel, so the totality contract above is unchanged
+//! for everything else in this layer.
+//!
 //! The [`lsq`] submodule (M5 PR 4) is the one variable-size resident:
 //! `f64`-only structure machinery for the fitting systems (C6's f64
 //! lane), `Vec`-based with shapes validated at entry so every internal
@@ -75,6 +82,7 @@
 //! refusals in place of the fixed-dimension types' totality.
 
 mod affine;
+pub mod frame;
 pub mod lsq;
 mod mat;
 mod point;
@@ -82,6 +90,7 @@ pub mod svd;
 mod vec;
 
 pub use affine::{Affine2, Affine3};
+pub use frame::{FrameError, FrameInput};
 pub use mat::{Mat2, Mat3};
 pub use point::{Point2, Point3};
 pub use svd::{Svd, Svd2x3, Svd3x4};
