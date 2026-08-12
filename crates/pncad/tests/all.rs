@@ -555,9 +555,10 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
 fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     // Every file of the façade's own source. A new module added here
     // without being listed is caught by the companion test below.
-    const SOURCES: [(&str, &str); 9] = [
+    const SOURCES: [(&str, &str); 10] = [
         ("lib.rs", include_str!("../src/lib.rs")),
         ("prelude.rs", include_str!("../src/prelude.rs")),
+        ("profile.rs", include_str!("../src/profile.rs")),
         ("select.rs", include_str!("../src/select.rs")),
         ("document.rs", include_str!("../src/document.rs")),
         ("authoring.rs", include_str!("../src/authoring.rs")),
@@ -619,6 +620,88 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     );
 }
 
+/// **No raw loop-minting door is nameable through the façade** — Evan's
+/// ruling on #413 (LIB-RETTAIL), enforced rather than asserted in a
+/// report.
+///
+/// Same fallback shape as the LB13 guard above (rustdoc JSON is
+/// nightly-gated on this toolchain), aimed at the exact regression the
+/// ruling forbids:
+///
+/// 1. `pub use profile;` — the whole-crate re-export whose removal IS
+///    the demotion. Re-adding it makes `pncad::profile::RawLoop`
+///    importable, and with it `ProfileLoop::polygon`, one hop from the
+///    prelude.
+/// 2. Any `pub use` in `pncad`'s own source that names `RawLoop`.
+/// 3. Any construction call — `ProfileLoop::new` / `ProfileLoop::polygon`
+///    — written in façade source (comments excluded), which would mean
+///    the façade itself still authors through the retired tier.
+///
+/// What this CANNOT see, stated so it is not over-trusted: the struct
+/// literal. `ProfileLoop` is plain data with public fields, so
+/// `ProfileLoop { vertices, tangent_joints }` type-checks wherever the
+/// type is nameable, and the type must stay nameable. This guard is
+/// about the AUTHORING TIER — the named, documented, prelude-carried
+/// way to mint a loop from a coordinate table — not about a seal.
+#[test]
+fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
+    const SOURCES: [(&str, &str); 10] = [
+        ("lib.rs", include_str!("../src/lib.rs")),
+        ("prelude.rs", include_str!("../src/prelude.rs")),
+        ("profile.rs", include_str!("../src/profile.rs")),
+        ("select.rs", include_str!("../src/select.rs")),
+        ("document.rs", include_str!("../src/document.rs")),
+        ("authoring.rs", include_str!("../src/authoring.rs")),
+        ("closure.rs", include_str!("../src/closure.rs")),
+        ("export.rs", include_str!("../src/export.rs")),
+        ("guide.rs", include_str!("../src/guide.rs")),
+        ("workspace.rs", include_str!("../src/workspace.rs")),
+    ];
+    // Assembled at runtime for the same reason as the LB13 guard's: this
+    // file is scanned by the U1 guard, and a contiguous literal would be
+    // its own first match.
+    let module_reexport = ["pub use ", "profile;"].concat();
+    let minting = [
+        ["ProfileLoop::", "new("].concat(),
+        ["ProfileLoop::", "polygon("].concat(),
+    ];
+
+    let mut violations: Vec<String> = Vec::new();
+    for (name, src) in SOURCES {
+        let code = code_without_comments(src);
+        for (n, line) in code.lines().enumerate() {
+            let t = line.trim();
+            if t.contains(&module_reexport) {
+                violations.push(format!(
+                    "{name}:{}: the whole-crate `profile` re-export is back — it makes \
+                     the RawLoop minting doors nameable again (#413)",
+                    n + 1
+                ));
+            }
+            if t.contains("pub use") && t.contains("RawLoop") {
+                violations.push(format!(
+                    "{name}:{}: `pub use` names the raw minting trait `RawLoop` (#413)",
+                    n + 1
+                ));
+            }
+            for m in &minting {
+                if t.contains(m.as_str()) {
+                    violations.push(format!(
+                        "{name}:{}: the façade authors through `{m}` — the retired raw tier",
+                        n + 1
+                    ));
+                }
+            }
+        }
+    }
+    assert!(
+        violations.is_empty(),
+        "raw loop construction must not be presented surface — found {} violation(s):\n  {}",
+        violations.len(),
+        violations.join("\n  ")
+    );
+}
+
 /// The guard above scans a FIXED file list; a new façade module that
 /// is not listed would be unguarded. This pins the list against the
 /// directory.
@@ -638,6 +721,7 @@ fn the_boundary_guard_scans_every_facade_source_file() {
     let mut listed = vec![
         "lib.rs".to_string(),
         "prelude.rs".to_string(),
+        "profile.rs".to_string(),
         "select.rs".to_string(),
         "document.rs".to_string(),
         "authoring.rs".to_string(),

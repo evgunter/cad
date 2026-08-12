@@ -1,29 +1,46 @@
-//! **Test support, not API** — the banished raw loop builder.
+//! **Test support, not API** — the banished raw loop builder, on a
+//! DELETION HORIZON.
 //!
 //! [`LoopBuilder`] is the vertex-and-bulge chain builder the kernel
 //! shipped before the PATHS lattice existed. PROFILES-V2 §V6's ratified
-//! amendment (issue #377) retires it as an authoring surface: it leaves
+//! amendment (issue #377) retired it as an authoring surface: it left
 //! the crate's published API entirely and survives here, behind the
 //! `test-support` feature that only this crate's own dev-dependency
-//! enables, for the ONE role that still earns its keep — being the
-//! **differential twin**.
+//! enables.
 //!
-//! That role is worth stating precisely, because it is the reason this
-//! file is not simply deleted: the twin is an INDEPENDENT SECOND
-//! IMPLEMENTATION of the same geometry, written before the algebra and
-//! never refactored to share its internals. `tests/path_differential.rs`
-//! and `tests/path_property.rs` pin the lattice's lowering against it
-//! bit for bit, so an error introduced into the algebra's emission would
-//! have to be introduced into an unrelated builder identically to hide.
-//! A twin that shared the lattice's code would prove nothing; this one
-//! does not.
+//! # What it is still here for, exactly (LIB-RETTAIL, 2026-08-12)
+//!
+//! NOT the differential twins any more. `tests/path_differential.rs`
+//! and `tests/path_property.rs` used to pin the lattice's lowering
+//! against this builder bit for bit, and that was the stated reason
+//! this file was not simply deleted. It no longer is: the twins verify
+//! against BLESSED RECORDED FIXTURES, which pin bit-identity exactly as
+//! hard. (The independence argument had also weakened on inspection —
+//! `fillet_corner` here and `path::arc_fillet` in the lattice both call
+//! the one ratified `sugar::arc_fillet_trims`, so on the fillet family
+//! this was never a second implementation of the geometry, only a
+//! second door onto it with a different error vocabulary.)
+//!
+//! What remains is ONE role, and it is a sequencing problem rather than
+//! a design one: the arc-leg fillet suites (`tests/arc_fillet.rs`,
+//! `tests/review_s2.rs`, `tests/declared_tangency.rs`,
+//! `tests/interval_lane.rs`, `tests/scalar_channels.rs`,
+//! `tests/review_s8_probe.rs`, `tests/common/mod.rs::bracket`, and the
+//! cross-crate fixtures in `sweep`/`step-export`) author their corners
+//! through `fillet`/`fillet_corner` here. Their only lattice target is
+//! the §2b arc-carrier fillet family (`at_on`/`to_on`) — which is
+//! precisely the surface PR #419's §2c re-spell redesigns. Migrating
+//! them now means migrating them again at that unit, so the deletion
+//! rides the §2c re-spell. The plain (non-fillet) chains in those files
+//! carry no such constraint and are raw-data spellings away.
 //!
 //! What is NOT here, deliberately: raw [`ProfileLoop`](crate::ProfileLoop)
-//! DATA (`new`/`polygon`) and the bulge constructors
-//! ([`bulge_from_via`](crate::bulge_from_via) /
-//! [`bulge_from_center`](crate::bulge_from_center)) stay public kernel
-//! vocabulary — they never were `LoopBuilder`, and the validate-refusal
-//! demos (the bowtie) are built from them.
+//! DATA (`new`/`polygon`, now on the [`RawLoop`](crate::RawLoop) trait)
+//! and the bulge constructors ([`bulge_from_via`](crate::bulge_from_via)
+//! / [`bulge_from_center`](crate::bulge_from_center)) stay kernel
+//! vocabulary — they never were `LoopBuilder`. The validate-refusal
+//! demo they used to justify (the bowtie) is gone from the tour and
+//! lives in `tests/rejections.rs`, authored through the lattice.
 
 use geom_core::{Bounds, Decide, Point2, Real, Sign, Tolerance};
 
