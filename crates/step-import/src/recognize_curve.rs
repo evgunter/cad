@@ -1072,3 +1072,480 @@ pub(crate) mod tests_support {
         NurbsCurve3::new(knots, control, weights).unwrap()
     }
 }
+
+/// R2 DELTA re-verify probes for the coverage certificate (head e5fd98eb).
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::float_cmp,
+    clippy::panic,
+    clippy::print_stdout
+)]
+mod r2_delta {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    const EPS_IN: f64 = 1e-9;
+    const R: f64 = 0.005;
+
+    /// A closed on-circle carrier of rational-quadratic spans through
+    /// `angles`, each span's corner at `r/cos(half)` with weight
+    /// `cos(half)` — valid (strictly positive weight) for any span
+    /// strictly under a half turn, INCLUDING one a hair under π.
+    fn chain(angles: &[f64]) -> NurbsCurve3<f64> {
+        let n = angles.len() - 1;
+        let on = |t: f64| Point3::new(R * t.cos(), R * t.sin(), 0.0);
+        let mut control = vec![on(angles[0])];
+        let mut weights = vec![1.0];
+        for k in 0..n {
+            let (a, b) = (angles[k], angles[k + 1]);
+            let half = (b - a) / 2.0;
+            let c = half.cos();
+            let mid = (a + b) / 2.0;
+            control.push(Point3::new(R / c * mid.cos(), R / c * mid.sin(), 0.0));
+            weights.push(c);
+            control.push(on(b));
+            weights.push(1.0);
+        }
+        let mut kn = vec![0.0, 0.0, 0.0];
+        for k in 1..n {
+            kn.push(k as f64);
+            kn.push(k as f64);
+        }
+        kn.extend([n as f64; 3]);
+        NurbsCurve3::new(KnotVector::clamped(kn, 2).unwrap(), control, weights).unwrap()
+    }
+
+    fn frame() -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
+        (
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        )
+    }
+
+    /// **D1 — the ulp-scale attack on step 3.** The recovery
+    /// "wrapped == true" is a REAL-arithmetic identity applied to f64.
+    /// A span turning by `π − η` passes the half-plane test for every
+    /// `η > 0` (its three control points span exactly `π − η`, and the
+    /// corner weight `cos((π−η)/2) = sin(η/2)` stays positive), so as
+    /// `η` falls below the f64 spacing at π (~4.4e-16) the computed
+    /// difference can cross ±π and wrap by a whole 2π. Out-and-back
+    /// over such an arc has TRUE turning 0 and covers half the circle;
+    /// a single mis-wrap would put the total at ±2π and PROMOTE it.
+    #[test]
+    fn d1_near_pi_spans_out_and_back_must_all_refuse() {
+        let (c, ax, u) = frame();
+        let pi = core::f64::consts::PI;
+        let mut promoted = Vec::new();
+        for k in 0..64 {
+            let eta = 1e-3 * 0.5f64.powi(k / 2) * if k % 2 == 0 { 1.0 } else { 0.37 };
+            let top = pi - eta;
+            if !(top.cos().is_finite() && (top / 2.0).cos() > 0.0) {
+                continue;
+            }
+            let out_back = chain(&[0.0, top, 0.0]);
+            let gate = covers_one_full_turn(&out_back, c, ax, u);
+            let rec = matches!(
+                recognize(&out_back, EPS_IN),
+                CurveRecognition::Promoted { .. }
+            );
+            if gate || rec {
+                promoted.push((eta, gate, rec));
+            }
+        }
+        assert!(
+            promoted.is_empty(),
+            "an out-and-back over a near-half turn must never wind once: {promoted:?}"
+        );
+    }
+
+    /// **D2 — the same ulp attack, asymmetric.** Forward `π − η`, back
+    /// `−(π − η')` with a DIFFERENT `η'`, so the two spans round
+    /// independently and a single mis-wrap is not cancelled by its
+    /// twin. Still closed, still true turning ~0.
+    #[test]
+    fn d2_asymmetric_near_pi_out_and_back_must_refuse() {
+        let (c, ax, u) = frame();
+        let pi = core::f64::consts::PI;
+        let mut bad = Vec::new();
+        for a in 0..40 {
+            for b in 0..8 {
+                let eta = 4.0e-16 * 0.5f64.powi(a / 2) * (1.0 + 0.11 * f64::from(b));
+                let top = pi - eta;
+                // Down to a point a hair off the antipode, then back.
+                let mid = top - 2.0e-16 * (1.0 + f64::from(b));
+                if !((top / 2.0).cos() > 0.0 && (mid / 2.0).cos() > 0.0) {
+                    continue;
+                }
+                let carrier = chain(&[0.0, top, top - mid]);
+                if covers_one_full_turn(&carrier, c, ax, u) {
+                    bad.push((eta, mid));
+                }
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "asymmetric near-π out-and-back wound once: {bad:?}"
+        );
+    }
+
+    /// **D2b — is D2 EXPLOITABLE end to end?** For each carrier whose
+    /// gate mis-recovers, measure the locus arm too: the true max
+    /// deviation from the circle, the certified residual, and what
+    /// `recognize` actually answers.
+    #[test]
+    fn d2b_is_the_mis_recovery_exploitable() {
+        let (c, ax, u) = frame();
+        let pi = core::f64::consts::PI;
+        let mut fired = 0;
+        for a in 0..40 {
+            for b in 0..8 {
+                let eta = 4.0e-16 * 0.5f64.powi(a / 2) * (1.0 + 0.11 * f64::from(b));
+                let top = pi - eta;
+                let mid = top - 2.0e-16 * (1.0 + f64::from(b));
+                if !((top / 2.0).cos() > 0.0 && (mid / 2.0).cos() > 0.0) {
+                    continue;
+                }
+                let carrier = chain(&[0.0, top, top - mid]);
+                if !covers_one_full_turn(&carrier, c, ax, u) {
+                    continue;
+                }
+                fired += 1;
+                if fired > 3 {
+                    continue;
+                }
+                let (d0, d1) = carrier.domain();
+                let mut worst = 0.0f64;
+                for k in 0..=4000 {
+                    let p = carrier.eval(d0 + (d1 - d0) * f64::from(k) / 4000.0);
+                    worst = worst.max((p.x.hypot(p.y) - R).abs().max(p.z.abs()));
+                }
+                let corner_w = (mid / 2.0).cos();
+                println!(
+                    "GATE-TRUE eta={eta:e} corner_weight={corner_w:e} true_dev={worst:e} rec={:?}",
+                    recognize(&carrier, EPS_IN)
+                );
+            }
+        }
+        println!("D2b: {fired} carriers mis-recovered by the gate");
+    }
+
+    /// A **cubic** rational Bezier arc `a -> b` on the circle, as the
+    /// degree-elevation of the rational quadratic. Its middle weights
+    /// are `(1 + 2cos((b-a)/2))/3`, which stay near 1/3 even as the
+    /// span approaches a HALF TURN — unlike the quadratic form, whose
+    /// weight collapses to 0 there and blows the locus bound up.
+    /// Returns the four (point, weight) pairs.
+    fn cubic_arc(a: f64, b: f64) -> Vec<(Point3<f64>, f64)> {
+        let al = (b - a) / 2.0;
+        let mid = (a + b) / 2.0;
+        let c = al.cos();
+        // Homogeneous quadratic control in the arc's own frame.
+        let h = [
+            (R * al.cos(), -R * al.sin(), 1.0),
+            (R, 0.0, c),
+            (R * al.cos(), R * al.sin(), 1.0),
+        ];
+        let lerp = |p: (f64, f64, f64), q: (f64, f64, f64), t: f64| {
+            (
+                p.0 * (1.0 - t) + q.0 * t,
+                p.1 * (1.0 - t) + q.1 * t,
+                p.2 * (1.0 - t) + q.2 * t,
+            )
+        };
+        let g = [
+            h[0],
+            lerp(h[0], h[1], 2.0 / 3.0),
+            lerp(h[1], h[2], 1.0 / 3.0),
+            h[2],
+        ];
+        g.iter()
+            .map(|(x, y, w)| {
+                let (cx, sx) = (mid.cos(), mid.sin());
+                let (rx, ry) = (x * cx - y * sx, x * sx + y * cx);
+                (Point3::new(rx / w, ry / w, 0.0), *w)
+            })
+            .collect()
+    }
+
+    /// A degree-3 clamped B-spline chaining cubic Bezier arcs.
+    fn cubic_chain(angles: &[f64]) -> NurbsCurve3<f64> {
+        let n = angles.len() - 1;
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for k in 0..n {
+            let seg = cubic_arc(angles[k], angles[k + 1]);
+            let skip = usize::from(k > 0);
+            for (p, w) in seg.into_iter().skip(skip) {
+                control.push(p);
+                weights.push(w);
+            }
+        }
+        let mut kn = vec![0.0; 4];
+        for k in 1..n {
+            kn.extend([k as f64; 3]);
+        }
+        kn.extend([n as f64; 4]);
+        NurbsCurve3::new(KnotVector::clamped(kn, 3).unwrap(), control, weights).unwrap()
+    }
+
+    /// **D6 — the ulp mis-recovery, made EXPLOITABLE.** One span runs
+    /// BACKWARD by `pi - eta` (its computed azimuth difference reaches
+    /// exactly `-pi` and wraps UP by a whole turn, contributing `+pi`
+    /// where the truth is `-pi`); the return leg is split into two
+    /// safe half-spans contributing `+pi - eta` honestly. Total
+    /// recovered `~2pi`, so the gate certifies "one turn" — while the
+    /// TRUE turning is 0 and the carrier covers HALF the circle. The
+    /// cubic form keeps every weight near 1/3, so the locus arm has
+    /// nothing to object to.
+    #[test]
+    fn d6_cubic_near_pi_span_forges_a_full_turn() {
+        let (c, ax, u) = frame();
+        let pi = core::f64::consts::PI;
+        let mut hits = Vec::new();
+        for k in 0..70 {
+            let eta = 1e-14 * 0.5f64.powi(k);
+            let top = pi - eta;
+            let carrier = cubic_chain(&[0.0, -top, -top / 2.0, 0.0]);
+            let gate = covers_one_full_turn(&carrier, c, ax, u);
+            let rec = recognize(&carrier, EPS_IN);
+            let (d0, d1) = carrier.domain();
+            let mut worst = 0.0f64;
+            let mut span = (f64::MAX, f64::MIN);
+            for i in 0..=4000 {
+                let p = carrier.eval(d0 + (d1 - d0) * f64::from(i) / 4000.0);
+                worst = worst.max((p.x.hypot(p.y) - R).abs().max(p.z.abs()));
+                let az = p.y.atan2(p.x);
+                span = (span.0.min(az), span.1.max(az));
+            }
+            if gate {
+                hits.push((eta, worst, span, format!("{rec:?}")));
+            }
+        }
+        for (eta, worst, span, rec) in hits.iter().take(4) {
+            println!(
+                "FORGED eta={eta:e} on_circle_dev={worst:e} azimuth_span=[{:.4},{:.4}] rad ({:.1} deg) -> {rec}",
+                span.0,
+                span.1,
+                (span.1 - span.0).to_degrees()
+            );
+        }
+        println!("D6: {} forged full turns", hits.len());
+        assert!(
+            hits.is_empty(),
+            "a carrier covering half the circle certified as a full turn"
+        );
+    }
+
+    /// **D6b — D6 with the near-pi span placed LAST**, so the
+    /// estimator's own three samples (fractions 0, 1/4, 1/2) all fall
+    /// on the forward legs and it derives the SAME +z frame the gate
+    /// is then asked about. Prints every stage.
+    #[test]
+    fn d6b_forged_turn_in_the_estimators_own_frame() {
+        let pi = core::f64::consts::PI;
+        for k in [40, 44, 48, 52] {
+            let eta = 1e-14 * 0.5f64.powi(k);
+            let top = pi - eta;
+            // forward top/2, forward top/2, then BACKWARD top.
+            let carrier = cubic_chain(&[0.0, top / 2.0, top, 0.0]);
+            let (a, b) = carrier.domain();
+            let sample = |f: f64| carrier.eval(a + (b - a) * f);
+            let (s0, s1, s2) = (sample(0.0), sample(0.25), sample(0.5));
+            let normal = (s1 - s0).cross(s2 - s0);
+            let axis = normal / normal.norm();
+            let mut worst = 0.0f64;
+            let (mut lo, mut hi) = (f64::MAX, f64::MIN);
+            for i in 0..=4000 {
+                let p = carrier.eval(a + (b - a) * f64::from(i) / 4000.0);
+                worst = worst.max((p.x.hypot(p.y) - R).abs().max(p.z.abs()));
+                let az = p.y.atan2(p.x);
+                lo = lo.min(az);
+                hi = hi.max(az);
+            }
+            let u = Vec3::new(1.0, 0.0, 0.0);
+            let gate_est = covers_one_full_turn(&carrier, Point3::new(0.0, 0.0, 0.0), axis, u);
+            println!(
+                "eta={eta:e} est_axis=({:.2},{:.2},{:.2}) dev={worst:e} covers={:.1}deg gate={gate_est} rec={:?}",
+                axis.x,
+                axis.y,
+                axis.z,
+                (hi - lo).to_degrees(),
+                recognize(&carrier, EPS_IN)
+            );
+        }
+    }
+
+    /// **D6c — which arm actually refuses D6b?**
+    #[test]
+    fn d6c_which_arm_refuses() {
+        let pi = core::f64::consts::PI;
+        let eta = 1e-14 * 0.5f64.powi(48);
+        for (tag, angles) in [
+            ("forged-half", vec![0.0, (pi - eta) / 2.0, pi - eta, 0.0]),
+            (
+                "honest-full",
+                vec![0.0, pi / 2.0, pi, 3.0 * pi / 2.0, 2.0 * pi],
+            ),
+        ] {
+            let carrier = cubic_chain(&angles);
+            let (a, b) = carrier.domain();
+            let sample = |f: f64| carrier.eval(a + (b - a) * f);
+            let (s0, s1, s2) = (sample(0.0), sample(0.25), sample(0.5));
+            let normal = (s1 - s0).cross(s2 - s0);
+            let axis = normal / normal.norm();
+            let uu = s1 - s0;
+            let vv = s2 - s0;
+            let uxv = uu.cross(vv);
+            let center = s0
+                + (uxv.cross(uu) * vv.norm_squared() + vv.cross(uxv) * uu.norm_squared())
+                    / (2.0 * uxv.norm_squared());
+            let radius = (s0 - center).norm();
+            let u_ref = (s0 - center) / radius;
+            let ps = composite_sup(
+                &carrier,
+                &ImplicitSurface::Plane {
+                    point: [center.x, center.y, center.z],
+                    normal: [axis.x, axis.y, axis.z],
+                },
+            );
+            let ss = composite_sup(
+                &carrier,
+                &ImplicitSurface::Sphere {
+                    center: [center.x, center.y, center.z],
+                    radius,
+                },
+            );
+            let dp = ps.abs();
+            let ds = ss.abs() / radius;
+            let inner = (radius - ds).powi(2) - dp.powi(2);
+            let lower = if inner > 0.0 { inner.sqrt() } else { 0.0 };
+            let residual = ds.max(radius - lower).hypot(dp);
+            println!(
+                "{tag}: r={radius:e} plane_sup={ps:e} sphere_sup={ss:e} residual={residual:e} \
+                 locus_ok={} gate={}",
+                residual <= EPS_IN,
+                covers_one_full_turn(&carrier, center, axis, u_ref)
+            );
+        }
+    }
+
+    /// **D7 — the decisive sweep.** The forged construction, rotated
+    /// and re-scaled over thousands of cases, run through the WHOLE
+    /// pipeline. Any `Promoted` here is a half-covering carrier that
+    /// became a full circle.
+    #[test]
+    fn d7_forged_half_turn_sweep_through_recognize() {
+        let pi = core::f64::consts::PI;
+        let mut promoted = 0usize;
+        let mut gate_true = 0usize;
+        let mut cases = 0usize;
+        for ki in 0..90 {
+            let eta = 1e-13 * 0.5f64.powi(ki);
+            let top = pi - eta;
+            for ri in 0..24 {
+                let phi = core::f64::consts::TAU * f64::from(ri) / 24.0 + 1e-3 * f64::from(ri);
+                let angles = [phi, phi + top / 2.0, phi + top, phi];
+                let carrier = cubic_chain(&angles);
+                cases += 1;
+                let (a, b) = carrier.domain();
+                let sample = |f: f64| carrier.eval(a + (b - a) * f);
+                let (s0, s1, s2) = (sample(0.0), sample(0.25), sample(0.5));
+                let normal = (s1 - s0).cross(s2 - s0);
+                if normal.norm() == 0.0 {
+                    continue;
+                }
+                let axis = normal / normal.norm();
+                let uu = s1 - s0;
+                let vv = s2 - s0;
+                let uxv = uu.cross(vv);
+                let center = s0
+                    + (uxv.cross(uu) * vv.norm_squared() + vv.cross(uxv) * uu.norm_squared())
+                        / (2.0 * uxv.norm_squared());
+                let radius = (s0 - center).norm();
+                if covers_one_full_turn(&carrier, center, axis, (s0 - center) / radius) {
+                    gate_true += 1;
+                }
+                if let CurveRecognition::Promoted { residual, .. } = recognize(&carrier, EPS_IN) {
+                    promoted += 1;
+                    if promoted <= 3 {
+                        println!("FALSE PROMOTION eta={eta:e} phi={phi:.4} residual={residual:e}");
+                    }
+                }
+            }
+        }
+        println!(
+            "D7: {cases} half-covering carriers; gate said one-turn on {gate_true}; \
+             recognize promoted {promoted}"
+        );
+        assert_eq!(
+            promoted, 0,
+            "a half-covering carrier promoted to a full circle"
+        );
+    }
+
+    /// **D3 — the hull straddling the centre must refuse**, and the
+    /// refusal must be the half-plane arm rather than an accident:
+    /// the exact circle read against a centre displaced INTO the
+    /// carrier's own annulus makes span hulls contain the origin.
+    #[test]
+    fn d3_a_span_hull_straddling_the_centre_refuses() {
+        let (_, ax, u) = frame();
+        let d = f64::to_radians;
+        let full = chain(&[d(0.0), d(120.0), d(240.0), d(360.0)]);
+        assert!(covers_one_full_turn(
+            &full,
+            Point3::new(0.0, 0.0, 0.0),
+            ax,
+            u
+        ));
+        for shift in [R * 0.5, R, R * 1.5, R * 2.0, R * 4.0] {
+            let off = Point3::new(shift, 0.0, 0.0);
+            assert!(
+                !covers_one_full_turn(&full, off, ax, u),
+                "a centre displaced by {shift:e} leaves span hulls straddling it"
+            );
+        }
+    }
+
+    /// **D4 — triple winding**, the k ≥ 2 arm beyond C7's k = 2, plus
+    /// the reversed single turn (w = −1) read against a +z axis.
+    #[test]
+    fn d4_triple_wound_and_reversed_refuse() {
+        let (c, ax, u) = frame();
+        let d = f64::to_radians;
+        let thrice: Vec<f64> = (0..=9).map(|k| d(120.0 * f64::from(k))).collect();
+        assert!(
+            !covers_one_full_turn(&chain(&thrice), c, ax, u),
+            "three turns"
+        );
+        let back: Vec<f64> = (0..=3).map(|k| d(-120.0 * f64::from(k))).collect();
+        assert!(
+            !covers_one_full_turn(&chain(&back), c, ax, u),
+            "a carrier winding against the read axis"
+        );
+    }
+
+    /// **D5 — the gate is not merely restrictive**: the shipped class
+    /// (the 3×120° form, and finer uniform subdivisions of one turn)
+    /// still certifies, so "refuses everything" is not how D1–D4 pass.
+    #[test]
+    fn d5_genuine_full_turns_still_certify() {
+        let (c, ax, u) = frame();
+        for spans in [3usize, 4, 5, 6, 8, 12, 30] {
+            let angles: Vec<f64> = (0..=spans)
+                .map(|k| core::f64::consts::TAU * (k as f64) / (spans as f64))
+                .collect();
+            let full = chain(&angles);
+            assert!(
+                covers_one_full_turn(&full, c, ax, u),
+                "{spans} uniform spans is one turn"
+            );
+            assert!(
+                matches!(recognize(&full, EPS_IN), CurveRecognition::Promoted { .. }),
+                "{spans}-span circle must promote"
+            );
+        }
+    }
+}
