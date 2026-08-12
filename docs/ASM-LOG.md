@@ -108,3 +108,33 @@ not a dual — stopping tally unaffected). Remaining R1: ASM-2b
 (name-fidelity + sub-assembly), ASM-4 (split/inline). ASM-2b
 dispatch still holds on the #409 P3 block-transition answer.
 Seam swept.
+
+## Seam: wind-down at ASM-2B delivered (2026-08-12)
+
+Session wind-down on Evan's instruction (wrap in-progress work,
+write context, draft upcoming design). RESTING STATE:
+- **PR #425 (ASM-2B) delivered, 30/30 green, NOT merged, review
+  NOT dispatched** — the resume step is: fix the ordinal from the
+  MODEL-AB-LOG tail (31=ASM-2A, 32=LBRET, M8 dual @30 = sample
+  #10; count forward from whatever the tail then holds), single
+  unless it lands on a multiple of 3 (then the dual block-of-two
+  state applies — #405 banked SAME-MODEL for the next dual),
+  fable reviewer, v4 verdict ladder, frozen head from the PR.
+  Claims: the seven ASM-2B-SPEC rows + falsify its three
+  reported deviations (guard DELETION vs keep-unreachable is the
+  one needing an adjudication call; the implementer offered
+  restoration in the PR body).
+- ASM-4 spec WRITTEN (docs/ASM-4-SPEC.md, binding) — dispatches
+  on block ASM-2 slot 3 = fable after 2B merges.
+- R2 spec DRAFTED (docs/ASM-R2-SPEC-DRAFT.md) — finalize after
+  ASM-4; R2-b is the program's first numeric-predicate unit.
+- Pending with Evan: the #414 resolver Option-shape (defended on
+  thread; fold into a later pass only if he rules); AQ1/AQ2/
+  AQ5/AQ6 open by design.
+- Findings filed: #382 (overlap validation), #415 (tolerance_init
+  env red). Protocol state: v4 + #409 amendments adopted; dual
+  tally 4-of-6 (per LIB's #424); results-off-file in force.
+Operational: monitors died with the session — successor re-arms
+ALL of local-scripts/monitors/* (glob convention; away-channel
+needs CAD_CHANNEL_SELF_TAG="(ASM orchestrator)" and
+CAD_CHANNEL_BRANCH_PREFIXES="asm/,mngr/cad-assemblies-implement").
