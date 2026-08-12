@@ -376,11 +376,25 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
 /// 1. On one knot span the curve is a convex combination of that
 ///    span's `degree + 1` local control points (rational, strictly
 ///    positive weights — the hull property `compose` also relies on).
-///    Project those into the circle's plane. If they all lie strictly
-///    on ONE side of some line through the centre — tested against
-///    their own normalized sum, so the direction is data-derived but
-///    the test is a fixed-order scan — then the whole span's image
-///    lies in that open half-plane.
+///    Project those into the circle's plane and test them against one
+///    direction, their own normalized sum.
+///
+///    **Why a data-derived direction is not a data-dependent schedule
+///    (D9).** The direction is only ever a WITNESS: whatever it is,
+///    the scan proves membership of the one region it names, and a
+///    wrong guess cannot prove a false membership — it can only fail
+///    to find a true one. Nothing downstream reads it. What D9
+///    forbids is letting data choose how much work is done or which
+///    obligations are checked, and both are fixed here: one scan per
+///    knot span, every local control point, ascending.
+///
+///    **The incompleteness this buys, recorded.** A span hull
+///    dominated by one far control point is refused even where some
+///    other separating direction would have worked. Harmless on arc
+///    control nets, which are near-symmetric — but it is a reason a
+///    legitimate carrier can stay NURBS, and it belongs with the
+///    `|Δ| ≥ π − δ` limb in the surjectivity follow-up's tightness
+///    scope.
 /// 2. Every point of an open half-plane bounded by a line through the
 ///    centre has azimuth within an open interval of length π. A
 ///    CONTINUOUS azimuth lift over the span therefore cannot leave one
@@ -391,6 +405,25 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
 ///    wrapping the sampled difference into `(−π, π]`: the two are
 ///    congruent mod 2π and both in that interval, hence equal. No
 ///    value is manufactured.
+///
+///    **In ℝ. The f64 clause** (a review executed the gap): that
+///    identity has NO margin at the branch cut, and step 1 with a
+///    bare open half-plane hands it none — two nearly antipodal
+///    control points clear any bisector by `sin(η/2) > 0`, so a span
+///    turning within an ulp of π is admitted, its computed difference
+///    can land on `±π`, and the wrap moves it by a whole turn. A
+///    carrier with true turning 0 then totals ~2π. The rational
+///    quadratic self-limits (such a span needs corner weight
+///    `sin(η/2) → 0`, which the locus certificate catches) but the
+///    CUBIC form does not: degree-elevating keeps the middle weights
+///    near 1/3, so a span a hair under π is perfectly conditioned. A
+///    2160-case sweep forged 162 full turns out of carriers covering
+///    exactly 180°.
+///
+///    Step 1 therefore admits a CONE of half-angle `(π − δ)/2` rather
+///    than a half-plane, which bounds the true increment by `π − δ`
+///    and puts the recovery a whole [`TURN_MARGIN`] away from the cut.
+///    The sweep is pinned (`r2_delta::d7_…`) and goes to zero.
 /// 4. Summing the recovered increments over the spans in ascending
 ///    order gives the carrier's TRUE total turning, `θ(b) − θ(a)`.
 ///
@@ -410,6 +443,25 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
 /// single period does not describe) both refuse. `w = −1` refuses too:
 /// the estimator's axis fixes the positive sense, and a carrier that
 /// disagrees with it is one the estimator read wrongly.
+/// **The recovery margin `δ`** (radians) that makes
+/// [`covers_one_full_turn`]'s step 3 true in `f64` and not only in ℝ.
+///
+/// A span is admitted only once its TRUE turning is bounded by
+/// `π − δ`, so the sampled azimuth difference sits a whole `δ` away
+/// from the `±π` branch cut where wrapping would move it by 2π.
+///
+/// `δ = π/6` (30°). The margin has to clear the rounding of an `atan2`
+/// pair and one subtraction near `π`, which is a few ulps — the f64
+/// spacing at `π` is 4.4·10⁻¹⁶ rad — so 0.52 rad is roughly fifteen
+/// orders of magnitude of room. It is bounded ABOVE by the carriers
+/// that must still certify: a span's admitted half-width is
+/// `(π − δ)/2 = 75°`, and the widest genuine form in the corpus or in
+/// these pins is the 3×120° rational quadratic, whose control azimuths
+/// spread ±60° about the span bisector. So the interval of workable
+/// margins is wide, `δ` sits near its middle, and nothing about the
+/// choice is delicate.
+const TURN_MARGIN: f64 = core::f64::consts::FRAC_PI_6;
+
 // `!(a < b)` and `!(x > 0.0)` are deliberate, NaN-catching negations:
 // a poisoned coordinate must REFUSE, and the positive form would
 // silently accept it. Same convention, same reason, as
@@ -446,8 +498,16 @@ fn covers_one_full_turn(
         if !(flat[j] < flat[j + 1]) {
             continue;
         }
-        // Step 1: the span's local control points, all strictly on one
-        // side of a line through the centre.
+        // Step 1: the span's local control points, all inside a CONE
+        // of half-angle `(π − δ)/2` about one direction through the
+        // centre. Membership of the open half-plane alone (half-angle
+        // exactly π/2) is what the exact-arithmetic argument needs and
+        // what f64 cannot cash: it admits a span turning within an ulp
+        // of π, whose azimuth difference lands on the branch cut. The
+        // cone is the same test with `δ` of clearance, and it is still
+        // a convex set containing no direction and its opposite, so
+        // every step below reads the same.
+        let clearance = (TURN_MARGIN / 2.0).sin();
         let (mut sx, mut sy) = (0.0f64, 0.0f64);
         for p in &control[j - degree..=j] {
             let (x, y) = plane(*p);
@@ -461,8 +521,16 @@ fn covers_one_full_turn(
         let (dx, dy) = (sx / norm, sy / norm);
         for p in &control[j - degree..=j] {
             let (x, y) = plane(*p);
-            // `!(… > 0.0)` is deliberate: a NaN must refuse.
-            if !(x * dx + y * dy > 0.0) {
+            let radial = x.hypot(y);
+            // A control point AT the centre has no azimuth and would
+            // put the centre in the hull; `!(… > 0.0)` also refuses a
+            // NaN, here and below.
+            if !(radial > 0.0) {
+                return false;
+            }
+            // `cos((π − δ)/2) = sin(δ/2)`: the cone, in the form that
+            // needs no inverse trigonometry.
+            if !(x * dx + y * dy >= radial * clearance) {
                 return false;
             }
         }
@@ -484,6 +552,15 @@ fn covers_one_full_turn(
             step += tau;
         }
         if !step.is_finite() {
+            return false;
+        }
+        // Step 1 PROVES `|step| ≤ π − δ`; this asserts it. The bound is
+        // relaxed by `δ/2` so legitimate rounding cannot trip it, which
+        // still leaves the recovered value 15° clear of the branch cut.
+        // Redundant by the derivation — and the derivation is exactly
+        // the thing a review found stated in ℝ and executed in f64, so
+        // it is checked rather than trusted.
+        if !(step.abs() <= pi - TURN_MARGIN / 2.0) {
             return false;
         }
         total += step;
