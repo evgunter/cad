@@ -58,8 +58,9 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 ///   sole reason a retired authoring surface stayed compiled.
 ///
 /// To re-bless after a DELIBERATE lowering change, run
-/// `CAD_BLESS_TWINS=1 cargo test -p profile --test path_differential
-/// -- --nocapture` and paste what it prints. Blessing is a decision:
+/// `CAD_BLESS_TWINS=1 cargo test -p profile --test all
+/// path_differential -- --nocapture` (this file rides the
+/// aggregated `all` target) and paste what it prints. Blessing is a decision:
 /// the printed numbers are the new contract.
 fn recorded(name: &str, algebra: &ProfileLoop<f64>) -> ProfileLoop<f64> {
     if std::env::var_os("CAD_BLESS_TWINS").is_some() {
