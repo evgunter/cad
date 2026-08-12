@@ -630,6 +630,64 @@ consequence reported for ratification, not an implementer's taste:
   own precedent; it requires ratification precisely because it
   extends the recorded menu.
 
+## 2c. The fillet-family redesign (2026-08-12 conversation with
+## Evan — PROPOSED, awaiting sign-off; supersedes the §2b
+## compound-verb register when ratified and implemented)
+
+Driven by Evan's observation that the compound doors (`at_on`,
+`to_on`, `at_toward`) exist to compensate for the types not
+knowing the carrier, and his follow-ups refining the arrival
+specification. Four pieces, each earning its place:
+
+1. **Carrier-typed directed tips.** The directed-point states
+   gain a carrier parameter, MINTED BY THE LEG CONSTRUCTORS —
+   `line(len)`/`line_to(..)` yield a line-directed tip, the arc
+   legs an arc-directed tip. This is honesty, not surgery for
+   its own sake: the tip's DATA has always carried the carrier
+   (the fillet's trim consumes it); only the type failed to
+   admit it. Plain points are carrier-free and unchanged; the
+   lattice's four states stand — one state gains a parameter.
+2. **One `fillet(r)` verb, per-impl bounds.** `.fillet(r)` is
+   defined on each directed flavor separately; the arc-departure
+   impl carries `ArcCarrierScalar`, the line one does not.
+   Chains never touching an arc never see the bound; the LB3
+   confinement holds by construction; mis-stated carrier pairs
+   are UNREPRESENTABLE (no runtime carrier-mismatch refusal
+   exists to write).
+3. **Uniform arrival binders.** `.at(p)` / `.angle(θ)` /
+   `.toward(dx, dy)` in either order, defined on the forked
+   arrival types in the boundary file. The §2b compound verbs
+   DISSOLVE — `at_on`, `to_on`, `at_toward` retire at the
+   re-spell (their resolve machinery is unchanged underneath).
+4. **Arrival carrier = the minimal residual specification
+   (RULED: radius-only for now).** Nothing further = line
+   arrival (the bound directed point IS the carrier). An arc
+   arrival adds exactly what the bound directed point does not
+   determine: `.arc(R, side)` — signed radius or radius + side
+   bit; the CENTRE IS DERIVED, never authored (Evan's DOF
+   observation: a tangent circle at a directed point has one
+   free length and one bit). `at_on`'s authored-centre spelling
+   is retired by this; a centre-held-datum mode returns only if
+   a use case earns it, via item 5.
+5. **`ArcSpec` (Evan's extension, PROPOSED with staging):** a
+   single value family for "ways to author an arc" —
+   `radius(R, side)` now; potentially `bulge(b)` / `via(q)` /
+   `center(c, w)` later — so future arrival modes are VARIANTS,
+   not verbs. Stage 2 (measured, separate): §2a's three arc LEG
+   verbs could collapse to `arc_to(target, spec)` over the same
+   family — the variant preserves the authored-set distinctness
+   that record-as-you-lower and the VQ contracts rely on. Stage
+   2 touches ratified §2a text and the corpus; it proceeds only
+   on its own corpus-measured spec, not as a rider.
+
+Sequencing: #413 (route 3 as landed) MERGES FIRST — its door is
+review-verified and closes G12; this redesign re-spells the
+surface on top of the same resolution machinery in a follow-up
+unit, which also re-spells the program Step vocabulary
+(pre-release clean break; the v8 step set is not a compatibility
+surface). The §2b register text and §3 table rewrite at that
+unit; until then the register remains the live surface.
+
 ## 3. Surface vocabulary
 
 | Form | Lattice transition | Notes |
