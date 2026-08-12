@@ -34,7 +34,8 @@ The decomposition that matters:
 | L1′ Lemma P3's *encoding* half (bit-distance = neighbor-step count) | **Kani** | ✅ verified |
 | L2 Enclosure of the exact product/quotient/sum by the pads | **Kani, one precision down** (f32 model) | ✅ verified |
 | L3 Representation invariant of `DInterval` (never emit an invalid interval) | **Kani** | ✅ verified |
-| L4 Case analysis: mul corners, div's zero-touching four-way split, powi parity, sqrt clamp, poison propagation, decoration cap | **Kani** | ✅ verified |
+| L4 Case analysis: mul corners, div's zero-touching four-way split, powi parity, poison propagation, decoration cap | **Kani** | ✅ verified |
+| L4′ Anything involving `sqrt` | **neither** — CBMC has no usable `sqrt` model (below) | stays paper + oracle |
 | L5 π-family constant enclosures, grid-test conservatism | neither (needs reals) | stays paper + oracle |
 
 L3/L4 is where implementation bugs actually live, and Kani covers it
@@ -302,6 +303,84 @@ frontier is named rather than blurred: the paper proofs in
 harnesses do not pretend otherwise.
 
 ---
+
+## The one that bites: CBMC has no usable `f64::sqrt`
+
+This was found the hard way and it is the most important caveat in the
+document.
+
+A harness over `sqrt` came back **FAILED** on the singleton interval
+`[5.180654e-318, 5.180654e-318]`. Precisely: the harness's own assertion
+(`sqrt`'s lower bound is never negative) *passed*; what failed was
+`DInterval::make`'s own `debug_assert!("make() got invalid bounds")`,
+reached through `sqrt` — i.e. `sqrt` had produced `lo > hi`. That reads
+as a live subnormal bug in `ops.rs`. It is not. Probing the tool
+directly:
+
+| Property of `f64::sqrt` under Kani 0.67 / CBMC 6.8 | Result |
+|---|---|
+| `sqrt(4.0) == 2.0` | ✅ passes |
+| `x >= 0` ⟹ `sqrt(x) >= 0`, not NaN | ✅ passes |
+| `a <= b` ⟹ `sqrt(a) <= sqrt(b)` (monotone) | ❌ **fails** |
+| `x.sqrt().to_bits() == x.sqrt().to_bits()` (same call, same input) | ❌ **fails** |
+
+**`sqrt` is not modelled as a function.** Two calls on the same value can
+return different results, which is exactly how `sqrt_lo` and `sqrt_hi`
+came to be handed unrelated roots of the same number and produce
+`lo > hi`. The generated checks (`sqrt.NaN.1` … `sqrt.NaN.8`, "NaN on
+division/multiplication/subtraction") show CBMC running a software
+Newton-style routine that the default unwinding truncates into something
+partially unconstrained.
+
+Partially is the worst case: it is constrained enough that the obvious
+smoke tests pass, and unconstrained enough that real properties fail
+with plausible-looking subnormal counterexamples. Without the
+determinism probe, the natural reading of that failure is "Kani found a
+bug in the crate", and someone would have gone and "fixed" correct code.
+
+So: **no result in this document covers `sqrt`.** Its enclosure contract
+(`docs/derivations.md` §3, the FMA exactness witness) stays on the paper
+proof plus the inari oracle, and the `sqrt` assertions were removed from
+`b2` and `b8`. The defect is preserved as
+`x1_ctl_sqrt_is_not_modelled_as_a_function` (behind
+`--cfg kani_tool_control`, expected to fail) so that a future Kani which
+fixes this announces itself.
+
+The same question is moot for the `libm` transcendentals, and for a
+second reason: probing `libm::sin` under `#[kani::unwind(64)]` produces
+a wall of
+
+```
+Not unwinding loop ...rem_pio2_large... iteration 64
+  libm-0.2.16/src/math/rem_pio2_large.rs:268
+```
+
+— Payne–Hanek reduction is a loop CBMC cannot finish, so `sin` is
+truncated into something partly unconstrained exactly as `sqrt` is.
+L0/L5 were already out of reach for the real-arithmetic reason; this is
+the independent second reason.
+
+## Read the per-check results, never the top-line verdict
+
+Related, and needed to use any of this: Kani's `VERIFICATION:- FAILED`
+folds together *your* assertions and the automatic checks it enables by
+default (NaN production, FP exceptions, arithmetic overflow, unwinding).
+On this crate the automatic ones fire on perfectly correct code:
+
+- `b8` (the interval-square-poison contract) reports FAILED with **all
+  three of its own assertions SUCCESS**. The two failing checks are
+  `feraiseexcept` ("floating-point exception") and `fma.NaN.5` ("NaN on
+  division") inside CBMC's `<builtin-library-fma>`. They are reached
+  legitimately: `mul_exact` evaluates `mul_add(a, b, -r)` with `r = ±inf`
+  for infinite bounds, and `inf - inf = NaN` is the correct answer, which
+  `mul_exact` then correctly reads as "not exact".
+- The type itself encodes Empty and NaI as NaN bounds, so NaN-valued
+  operations are the crate's design, not a defect.
+
+There is no flag to turn these off. The practical rule: a harness is
+proved when **its own `verify::<harness>.assertion.*` checks are all
+SUCCESS**; everything else is triage. The results table below reports
+those two columns separately for exactly this reason.
 
 ## Frictions found (all real, all hit during this investigation)
 

@@ -180,7 +180,9 @@ fn b2_exact_ops_preserve_the_representation_invariant() {
     assert!(rep_invariant(&x.floor()), "floor");
     assert!(rep_invariant(&x.hull(y)), "hull");
     assert!(rep_invariant(&x.intersection(y)), "intersection");
-    assert!(rep_invariant(&x.sqrt()), "sqrt");
+    // NO `sqrt` here: CBMC does not model `f64::sqrt` as a function (see
+    // `x1_ctl_sqrt_is_not_modelled_as_a_function`), so any result about
+    // it would be noise in both directions.
 }
 
 /// Poison never launders: a NaI operand forces NaI out, and an empty
@@ -294,20 +296,8 @@ fn b8_even_powi_of_a_straddling_interval_has_lo_exactly_zero() {
     kani::assume(!r.is_nai());
     assert!(r.lo == 0.0, "even power of a straddling interval must floor at 0");
     assert!(r.lo.is_sign_positive(), "and at +0.0, not -0.0");
-    // The sqrt of that can therefore never be poisoned.
-    assert!(!r.sqrt().is_nai());
-}
-
-/// `sqrt` never emits a negative lower bound, for any input interval —
-/// the other half of the poison contract, and the one the pad could
-/// break (a downward pad of a tiny positive root must clamp at 0).
-#[kani::proof]
-fn b9_sqrt_lower_bound_is_never_negative() {
-    let x = any_interval();
-    kani::assume(rep_invariant(&x) && !x.is_nai() && !x.is_empty());
-    let r = x.sqrt();
-    kani::assume(!r.is_empty() && !r.is_nai());
-    assert!(r.lo >= 0.0, "sqrt lower bound went negative");
+    // The intended corollary — "so the sqrt of that is never poisoned" —
+    // is NOT assertable here; see the sqrt tool-control harness.
 }
 
 /// `with_dec_capped` only ever LOWERS the decoration and never touches
@@ -586,5 +576,35 @@ fn c5_ctl_fma_is_really_fused() {
     assert!(
         f32::mul_add(a, b, -r) == 0.0,
         "if this assertion holds for ALL inputs, mul_add is not fused"
+    );
+}
+
+/// TOOL LIMITATION (expected to FAIL, behind `--cfg kani_tool_control`).
+///
+/// `f64::sqrt` is NOT modelled by CBMC as a function: two calls on the
+/// same value can return different results. Consequences, found the hard
+/// way — a harness asserting `sqrt`'s lower bound is never negative
+/// "failed" on the singleton `[5.180654e-318, 5.180654e-318]`, with the
+/// reported violation inside `DInterval::make`'s `debug_assert`, because
+/// `sqrt_lo` and `sqrt_hi` were handed unrelated roots of the same
+/// number. That counterexample is an artifact of the tool, not a bug in
+/// `ops.rs`.
+///
+/// So: **nothing about `sqrt` is machine-checked here.** Its enclosure
+/// contract stays on the paper proof (docs/derivations.md §3) plus the
+/// differential oracle. Related probes, run at
+/// `interval-transcendentals`-external scratch: `sqrt(4) == 2` and
+/// "sqrt of a nonnegative is nonnegative" both PASS, and monotonicity
+/// FAILS — the model is partially constrained, which is the worst case,
+/// because it looks like it works.
+#[cfg(kani_tool_control)]
+#[kani::proof]
+fn x1_ctl_sqrt_is_not_modelled_as_a_function() {
+    let x: f64 = kani::any();
+    kani::assume(x.is_finite() && x >= 0.0);
+    assert!(
+        x.sqrt().to_bits() == x.sqrt().to_bits(),
+        "if this holds, CBMC gained a real sqrt model and the sqrt \
+         harnesses can come back"
     );
 }
