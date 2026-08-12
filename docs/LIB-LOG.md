@@ -586,7 +586,8 @@ noting the demotion is what SURFACED it: the raw constructor had
 been swallowing the disagreement. (5) The
 shim SURVIVES: its remaining ~42 callers are all arc-leg fillet
 chains whose only lattice target is the §2b `at_on`/`to_on`
-family — the exact surface PR #419's §2c re-spell redesigns.
+family — the exact surface PATHS-DESIGN §2c redesigns (RATIFIED
+on #419, merged 2026-08-11; the re-spell UNIT has not run).
 Migrating them now buys a second migration at that unit, so the
 DELETION HORIZON re-points at the §2c unit and is recorded in
 `test_support.rs`'s header. Finding worth keeping: the shim's

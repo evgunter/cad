@@ -29,8 +29,10 @@
 //! cross-crate fixtures in `sweep`/`step-export`) author their corners
 //! through `fillet`/`fillet_corner` here. Their only lattice target is
 //! the §2b arc-carrier fillet family (`at_on`/`to_on`) — which is
-//! precisely the surface PR #419's §2c re-spell redesigns. Migrating
-//! them now means migrating them again at that unit, so the deletion
+//! precisely the surface PATHS-DESIGN §2c redesigns (RATIFIED on #419,
+//! 2026-08-11; carrier-typed tips, uniform arrival binders, the compound
+//! register dissolved). The re-spell UNIT has not run yet, so migrating
+//! these callers now means migrating them again at it: the deletion
 //! rides the §2c re-spell. The plain (non-fillet) chains in those files
 //! carry no such constraint and are raw-data spellings away.
 //!
