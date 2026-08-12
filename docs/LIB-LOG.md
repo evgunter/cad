@@ -568,6 +568,22 @@ probes remain that lane's refusal source). (3) The twins now
 verify against blessed recorded fixtures and no longer touch the
 shim; mutation-sensitivity proven (one ulp into
 `sugar::bulge_from_via` reddened two rows, reverted). (4) The
+NAMED GAP found BY the demotion (lily's lofted blade,
+`demos/tour/src/lily.rs::Section::outline`): at `shoulder = 0`
+three consecutive vertices are EXACTLY collinear by design (the
+4-tip and 8-corner sections must share one vertex budget for the
+loft's segment-to-segment matching), and the PATHS lattice
+REFUSES that junction at authoring — `JunctionTangent { margin:
+0.0 }` — while `Profile::validate` ACCEPTS it, since collinear
+line/line is carrier IDENTITY, legal undeclared. The two junction
+rules disagree on same-carrier continuation and the lattice is
+the stricter one. With raw construction off the presented
+surface, the only spelling left to the tour is the plain-data
+struct literal, which is what the scene now uses with the gap
+named in place. A same-carrier continuation verb is the fix and
+is vocabulary — a design item, not this unit's fence. Worth
+noting the demotion is what SURFACED it: the raw constructor had
+been swallowing the disagreement. (5) The
 shim SURVIVES: its remaining ~42 callers are all arc-leg fillet
 chains whose only lattice target is the §2b `at_on`/`to_on`
 family — the exact surface PR #419's §2c re-spell redesigns.

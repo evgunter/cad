@@ -114,9 +114,9 @@
 use core::f64::consts::PI;
 
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, Mat3, Point3, Vec2, Vec3};
+use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ArcSweep, ProfileLoop, SketchPlane};
+use pncad::profile::{ArcSweep, ProfileLoop, ProfileVertex, SketchPlane};
 use pncad::sweep::fillet::FilletError;
 use pncad::sweep::readback::{WedgeFrames, revolved_caps};
 use pncad::sweep::{
@@ -655,16 +655,43 @@ impl Section {
         let ridge = (0.0, self.ridge);
         let left = (-0.5 * self.width, 0.0);
         let keel = (0.0, -self.keel);
-        vec![crate::paths::path_polygon(&[
-            right,
-            shoulder(right, ridge),
-            ridge,
-            shoulder(ridge, left),
-            left,
-            shoulder(left, keel),
-            keel,
-            shoulder(keel, right),
-        ])]
+        // NAMED GAP (LIB-RETTAIL, 2026-08-12) — the one place in the tour
+        // the presented surface cannot say what the demo means, recorded
+        // rather than worked around (main.rs's purpose block).
+        //
+        // At `shoulder = 0` the shoulder IS the midpoint of two tips, so
+        // three consecutive vertices are EXACTLY collinear — deliberately,
+        // because a loft matches segment j to segment j and the 4-tip and
+        // 8-corner sections must be spelled on one vertex budget. The PATHS
+        // lattice refuses that junction at authoring
+        // (`JunctionTangent { margin: 0.0 }`), while `Profile::validate`
+        // ACCEPTS it: collinear line/line is carrier IDENTITY, legal
+        // undeclared (`ProfileLoop::tangent_joints`' normative semantics).
+        // So the two junction rules disagree on same-carrier continuation,
+        // and the lattice is the stricter one — a library finding, not a
+        // demo defect. Until the lattice gains a same-carrier continuation
+        // verb (vocabulary, out of this unit's fence), the only spelling
+        // left on the presented surface is the plain-data one: `ProfileLoop`
+        // is public-field data, so a struct literal still constructs one.
+        // That residue is exactly what LIB-RETTAIL's demotion could not
+        // close, and this is it being used in anger.
+        let v = |(x, y): (f64, f64)| ProfileVertex {
+            pos: Point2::new(x, y),
+            bulge: 0.0,
+        };
+        vec![ProfileLoop {
+            vertices: vec![
+                v(right),
+                v(shoulder(right, ridge)),
+                v(ridge),
+                v(shoulder(ridge, left)),
+                v(left),
+                v(shoulder(left, keel)),
+                v(keel),
+                v(shoulder(keel, right)),
+            ],
+            tangent_joints: Vec::new(),
+        }]
     }
 
     /// Linear blend, field by field.
