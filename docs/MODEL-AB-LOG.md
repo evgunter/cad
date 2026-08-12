@@ -125,10 +125,13 @@ amended:
      comment requesting acknowledgment — not just a log line). Running
      tally, maintained here at each qualifying row: sample #1
      (G1, converged MAJOR), sample #4 (SWITCH-E, both-R
-     MAJORs), and the M8 long-turn dual @27 (VERIFIED by its
-     orchestrator on #398: R1 fable 0 MAJ, R2 2 MAJ,
-     reviewer-found at review time) qualify → **3 of 6** as of
-     2026-08-11. (CORRECTION 2026-08-11, replacing the earlier
+     MAJORs), the long-turn dual @27 (sample #9: R1 0 MAJ, R2
+     2 MAJ), and sample #10 (M8-14b @30, the first cross-model:
+     R1 fable 2 MAJ, R2 opus 3 MAJ) qualify → **4 of 6** as of
+     2026-08-12. M7-6's pair does NOT count (struck from the
+     variance sample — sequential reviews of different heads;
+     the rule counts valid duals). TWO qualifying duals remain;
+     the recorder of the sixth notifies Evan explicitly. (CORRECTION 2026-08-11, replacing the earlier
      seam note: that dual's R2 was NOT opus — both R1 and R2
      resolved to fable, verified from the dispatch records
      (`resolvedModel: claude-fable-5`, no model override in
