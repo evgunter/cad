@@ -7,6 +7,9 @@
 #   COMMENT <url> [user]: <first 400 chars>
 #   REACTION 👍 on watched comment <id> (<label>)
 #
+# COMMENT covers BOTH top-level issue/PR comments and INLINE review
+# comments — two endpoints, both polled (see poll_comments).
+#
 # Sign-off watchlist: $CAD_SIGNOFF_WATCHLIST or the default below —
 # one entry per line, "<comment-id>\t<label>". When posting a comment
 # that requests a 👍 sign-off, append its id+label; the poller removes
@@ -107,16 +110,18 @@ comment_passes() {
   fi
   return 1
 }
-last=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-seen=$(gh api "repos/$REPO/issues?state=all&per_page=30" --jq '.[].number' 2>/dev/null | sort -n | tail -1); seen=${seen:-0}
-while true; do
-  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  top=$(gh api "repos/$REPO/issues?state=all&per_page=30" --jq '.[].number' 2>/dev/null | sort -n | tail -1)
-  if [ -n "$top" ] && [ "$top" -gt "$seen" ]; then
-    gh api "repos/$REPO/issues?state=all&per_page=30" --jq ".[] | select(.number > $seen) | \"NEW ISSUE/PR #\(.number): \(.title) [\(.user.login)]\"" 2>/dev/null
-    seen=$top
-  fi
-  poll_n=$((poll_n + 1))
+
+# Emit the passing comments of ONE comment feed. $1 = API path.
+# Called for BOTH feeds each poll: top-level issue/PR comments
+# (issues/comments) and INLINE review comments (pulls/comments).
+# The two live under different endpoints — the same split the
+# reaction lookup below has always had to respect. Polling only
+# issues/comments silently dropped every inline comment, so a
+# review left on a PR your BRANCH PREFIX owns passed every test in
+# comment_passes() and still never arrived: it was never fetched
+# (found 2026-08-12). Do not "simplify" this back to one feed.
+poll_comments() {
+  local path="$1" c_url c_user c_body c_head c_num
   while IFS=$'\t' read -r c_url c_user c_body; do
     [ -n "$c_url" ] || continue
     # SELF-SUPPRESSION (Evan, 2026-08-12): a comment that LEADS
@@ -128,11 +133,25 @@ while true; do
     c_head=$(printf '%s' "$c_body" | sed 's/^[[:space:]*_>#-]*//' | head -c 64)
     case "$c_head" in "$SELF_TAG"*) continue;; esac
     # issue/PR number from .../issues/N#... or .../pull/N#...
+    # (inline comments are .../pull/N#discussion_rNNN — same shape).
     c_num=$(printf '%s' "$c_url" | sed -n 's#.*/\(issues\|pull\)/\([0-9]*\).*#\2#p')
     if comment_passes "${c_num:-0}" "$c_body"; then
       printf 'COMMENT %s [%s]: %s\n' "$c_url" "$c_user" "$(printf '%s' "$c_body" | head -c 400 | tr '\n' ' ')"
     fi
-  done < <(gh api "repos/$REPO/issues/comments?sort=created&direction=desc&since=$last&per_page=20" --jq '.[] | [.html_url, .user.login, .body] | @tsv' 2>/dev/null)
+  done < <(gh api "$path" --jq '.[] | [.html_url, .user.login, .body] | @tsv' 2>/dev/null)
+}
+last=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+seen=$(gh api "repos/$REPO/issues?state=all&per_page=30" --jq '.[].number' 2>/dev/null | sort -n | tail -1); seen=${seen:-0}
+while true; do
+  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  top=$(gh api "repos/$REPO/issues?state=all&per_page=30" --jq '.[].number' 2>/dev/null | sort -n | tail -1)
+  if [ -n "$top" ] && [ "$top" -gt "$seen" ]; then
+    gh api "repos/$REPO/issues?state=all&per_page=30" --jq ".[] | select(.number > $seen) | \"NEW ISSUE/PR #\(.number): \(.title) [\(.user.login)]\"" 2>/dev/null
+    seen=$top
+  fi
+  poll_n=$((poll_n + 1))
+  poll_comments "repos/$REPO/issues/comments?sort=created&direction=desc&since=$last&per_page=20"
+  poll_comments "repos/$REPO/pulls/comments?sort=created&direction=desc&since=$last&per_page=20"
   if [ -s "$WATCHLIST" ]; then
     # whitespace-separated (id label) — tab OR space; a space-written
     # entry once silently broke reaction detection (2026-07-29)
