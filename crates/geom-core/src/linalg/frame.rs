@@ -190,7 +190,7 @@ impl core::error::Error for FrameError {}
 /// the perpendicular distance from the vector's tip to the unit
 /// vector's line) — so [`Margin::of`] is the honest door and the
 /// metre band applies without a lever.
-fn definitely_positive<T: Real + Decide>(
+fn definitely_positive<T: Decide>(
     name: &'static str,
     length: T,
     band: Band,
@@ -260,7 +260,7 @@ fn frame_from_unit_aim<T: Real>(
 ///   question. Callers wanting a conventional roll want
 ///   [`path_start_frame`], whose ladder is the stated policy.
 /// - [`FrameError::Band`] from [`Band::linear`].
-pub fn point_at<T: Real + Decide>(
+pub fn point_at<T: Decide>(
     eye: Point3<T>,
     target: Point3<T>,
     roll_reference: Vec3<T>,
@@ -304,7 +304,7 @@ pub fn point_at<T: Real + Decide>(
 ///   off the tangent line — unreachable for an actual direction; see
 ///   the variant's docs.
 /// - [`FrameError::Band`] from [`Band::linear`].
-pub fn path_start_frame<T: Real + Decide>(
+pub fn path_start_frame<T: Decide>(
     origin: Point3<T>,
     tangent: Vec3<T>,
 ) -> Result<Affine3<T>, FrameError> {
@@ -382,7 +382,7 @@ pub fn path_start_frame<T: Real + Decide>(
 /// [`FrameInput::MirrorNormal`] when the normal's length is not
 /// definitely nonzero (no plane is named), or [`FrameError::Band`]
 /// from [`Band::linear`].
-pub fn mirror_across_plane<T: Real + Decide>(
+pub fn mirror_across_plane<T: Decide>(
     point: Point3<T>,
     normal: Vec3<T>,
 ) -> Result<Affine3<T>, FrameError> {
