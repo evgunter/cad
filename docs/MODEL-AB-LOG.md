@@ -773,3 +773,7 @@ Evan's run-to-merge instruction): next unfixed ordinal = 34
 (peers through 33) → SINGLE, fable, v4 ladder. Frozen head
 07999509. Pre-logged M / structural.
 | ASM-2B | 2026-08-12 | multi-solid referenced products: the lift was a two-guard deletion (transform_rigid already body-wide, graft_disjoint_all_keyed already total) — sub-assemblies instantiate; doubly-InPart naming; single-solid bit-identity pinned pre-lift | M / structural (pre-logged) | OPUS (block ASM-2 slot 2) | single (ordinal 34, frozen 07999509, v4) — APPROVE-WITH-FIXES 0/1/3 rubric (in report); the 1 MINOR is MAIN-owned (ci-local.sh discipline allowlist drifted at #421 — hosted ci.yml already ratified; LIB notified); D-1 deletion-vs-flip adjudicated ACCEPT-DELETION on the review's zero-dangling-surface evidence, ratified as a spec amendment; reviewer re-proved the pre-lift digests by grafting the suite onto pre-lift main | 0 silent (3 deviations reported, 2 verified honest + 1 adjudicated; interference-gather probe states the #382 boundary) | (in report) | (in report) | (in report) | none on the branch (spec amendment only); executor: n/a | MERGED #425 30/0; SUB-ASSEMBLIES EXIST — the R1 materialization story is complete | impl ~222k / review ~112k | impl ~2.1h / review ~0.3h |
+U4B review ordinal fixed at dispatch (2026-08-12, PR #440 open):
+claimed through 34 (ASM-2B) + 1 = **35 → SINGLE** (36 is the
+next third — the NEXT dual block of two {same, cross} draws at
+its claim). Reviewer fable.
