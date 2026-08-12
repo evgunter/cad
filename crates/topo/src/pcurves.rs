@@ -646,12 +646,30 @@ fn azimuth_arm<T: Real>(surface: &Surface<T>, v: T) -> T {
 /// apply to land a half-edge's entry on its predecessor's exit
 /// (`walk_loop`), and the wrap [`loop_closes`] allows.
 ///
-/// `τ` on every analytic chart whose `u` is an azimuth. On a NURBS
-/// chart it is the payload's own u knot-domain length, and ONLY when
-/// the chart is CLOSED in `u` — its first and last control columns are
-/// the same locus at the band. `None` is "this chart does not wrap":
-/// no shift is offered and no wrapped closure is accepted, which is
-/// the honest answer for a plane and for an open NURBS patch.
+/// **What each chart kind gets, exactly** (stated precisely because a
+/// review found the earlier wording claiming more than the code does):
+///
+/// * every NON-NURBS chart answers `τ`, the hardcoded value this
+///   function replaced — cylinder, cone, sphere, torus AND plane
+///   behave bit-identically to before. A plane's `u` is not an azimuth
+///   and no gap on one is ever a multiple of `τ`, so the branch is
+///   unreachable there rather than suppressed; the honest word is
+///   "unchanged", not "stricter";
+/// * a NURBS chart CLOSED in `u` — first and last control columns the
+///   same locus at the band — answers the payload's own u knot-domain
+///   length;
+/// * a NURBS chart NOT closed in `u` answers `None`: no shift offered,
+///   no wrapped closure accepted. That is a tightening, and the only
+///   one.
+///
+/// **The behaviour change on BUILT charts, called out.** A kernel-built
+/// chart is normalized to `[0, 1]²`, so a closed-in-u one now answers
+/// `Some(1.0)` where the old code used `τ`. `azimuth_arm` falls back to
+/// `1` for NURBS charts, so the pole-joint arm is reachable there, and
+/// a gap that used to floor to `ku = 0` against `τ` can now shift by a
+/// whole chart period. It is reachable only where the old path could
+/// not close the loop at all, and the joint's own `decide` still
+/// certifies the shifted entry — but it is a change, not an identity.
 ///
 /// **Why a NURBS chart needs this (#327).** A full-period cylinder
 /// wall stated as ONE B-spline patch with a seam generator used twice

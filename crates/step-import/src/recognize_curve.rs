@@ -242,8 +242,8 @@ fn composite_sup(curve: &NurbsCurve3<f64>, surface: &ImplicitSurface) -> f64 {
     }
 }
 
-/// The circle candidate (module docs; certificate INV-C1 + INV-C3,
-/// plus the full-period turning witness). `Err(margin)` is the
+/// The circle candidate (module docs; the locus certificate INV-C1 +
+/// INV-C2, then the coverage certificate). `Err(margin)` is the
 /// estimator's conditioning refusal; `Ok(None)` a refuted certificate
 /// or an out-of-scope (open-arc) carrier.
 fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f64>, f64)>, f64> {

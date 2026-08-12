@@ -340,6 +340,15 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
     // already saturates at the end spans, so no value outside `[0, 1]`
     // was ever a different POINT, only a different rounding of the
     // same one.
+    //
+    // **Scope, honestly**: that argument is ON-DOMAIN. For `t` outside
+    // `[t0, t0 + angle]` the map is a genuine extrapolation and `g` is
+    // legitimately outside `[0, 1]`; the clamp saturates it. Every
+    // caller evaluates on the trimmed interval (the schedule, the loop
+    // walk's entry/exit, `trim_containment`), and `locate_spans`
+    // already saturated the span choice off-domain, so no caller sees
+    // a changed answer — but a future off-domain one would, and that
+    // is a property of this function, not an accident of its callers.
     acc.map(|g| g.max(T::zero()).min(T::one()))
         .unwrap_or_else(|| T::from_f64(f64::NAN))
 }
@@ -2575,6 +2584,15 @@ fn run_iso_arc_checks<T: Decide>(
     // by `Δ` moves the chart point by at most `Δ` in `u`, hence by at
     // most `Δ·stretch_u` in metres. That quantity is DECIDED here and
     // then PAID into the envelope below — never assumed away.
+    //
+    // **A posture change, called out** (the first draft did not): this
+    // check used to be an exact `f64` comparison, whose only outcomes
+    // were "structure holds" and a definite typed refusal. Routing it
+    // through `decide` adds a third — a knot deviation inside the
+    // ambiguity band ESCALATES rather than refusing definitely. That
+    // is the correct posture for a quantity metered into metres, and
+    // the one every other margin in this class already has, but it is
+    // a new outcome on this path.
     let mut knot_dev = T::zero();
     for (a, b) in kn.iter().zip(&expected) {
         knot_dev = knot_dev.max(T::from_f64(a - b).abs());
