@@ -66,6 +66,9 @@ fn vectors() -> Vec<(&'static str, KnotVector)> {
 /// per vector, per **nonempty** span, per `t` in
 /// `[u_s, midpoint, u_{s+1}]`, the `basis_funs` row followed by
 /// `ders_basis_funs(.., 2)`'s first-derivative row.
+// Kept one row per line: rustfmt would otherwise explode each row to one
+// hex literal per line, turning a 100-line table into a 600-line one.
+#[rustfmt::skip]
 const GOLDEN: &[&[u64]] = &[
     // uniform cubic: degree 3
     &[0x3ff0000000000000, 0x0000000000000000, 0x0000000000000000, 0x0000000000000000],

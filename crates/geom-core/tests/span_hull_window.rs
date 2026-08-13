@@ -113,7 +113,8 @@ fn the_hull_window_is_the_spans_window_and_the_basis_reads_the_same_one() {
                         h.lo() == outlier
                     };
                     assert_eq!(
-                        reached, in_window,
+                        reached,
+                        in_window,
                         "{name}: span {index} window {:?}, coefficient {moved} \
                          set to {outlier:e}: hull [{:e}, {:e}] vs base [{:e}, {:e}]",
                         span.window(),
@@ -195,7 +196,8 @@ fn the_derivative_window_is_the_window_minus_its_top() {
                 let moved_bound =
                     d.lo().to_bits() != d0.lo().to_bits() || d.hi().to_bits() != d0.hi().to_bits();
                 assert_eq!(
-                    moved_bound, touches,
+                    moved_bound,
+                    touches,
                     "{name}: span {index} derivative, coefficient {moved} vs window {:?}",
                     span.window(),
                 );

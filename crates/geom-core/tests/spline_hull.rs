@@ -396,7 +396,9 @@ fn structural_errors_poison_rather_than_panic() {
     let kv = KnotVector::unit_segment(3);
     let n = kv.control_count();
     let coeffs: Vec<f64> = (0..n).map(|i| i as f64).collect();
-    let first = kv.span(kv.first_span()).expect("the first span is nonempty");
+    let first = kv
+        .span(kv.first_span())
+        .expect("the first span is nonempty");
     // Wrong coefficient count — the ONE structural refusal a `Span`
     // cannot make on the caller's behalf, and so the only one left on
     // the span-restricted entry points.
