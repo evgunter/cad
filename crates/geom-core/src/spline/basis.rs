@@ -78,20 +78,25 @@ pub fn span_terms<'a, T: Real, P>(
 
     // Both windows are the same range of two arrays whose equal length
     // is a construction invariant of every curve/surface type here.
-    let (ctl, w) = (&control[span.window()], &weights[span.window()]);
-    debug_assert_eq!(ctl.len(), w.len(), "control/weight windows disagree");
+    debug_assert_eq!(
+        control.len(),
+        weights.len(),
+        "control/weight arrays disagree"
+    );
 
     // Base case: N_{i,0} = 1, paired with the window's LAST control
-    // point (level 0 is the last 1 of the window).
-    let mut back = w.iter().copied().zip(ctl).rev();
-    let (weight, control) = back
-        .next()
-        .expect("a Span's window has degree + 1 >= 1 entries");
+    // point (level 0 is the last 1 of the window). `top_control` is an
+    // index the window's `degree + 1` length makes total, so there is
+    // no "empty window" case to discharge.
+    let top = span.top_control();
     let base = vec![SpanTerm {
         basis: T::one(),
-        weight,
-        control,
+        weight: weights[top],
+        control: &control[top],
     }];
+
+    let (lower, back) = (span.lower_window(), span.lower_window());
+    let back = weights[lower].iter().copied().zip(&control[back]).rev();
 
     let (u, i) = (kv.knots(), span.index());
     // One level per remaining control point: no `p` appears, so the
@@ -103,31 +108,23 @@ pub fn span_terms<'a, T: Real, P>(
         // bounds are discharged by the `Span` invariant, and both panic
         // loudly rather than truncating if that were ever violated.
         let (hi, lo) = (&u[i + 1..=i + j], &u[i + 1 - j..=i]);
-        // Carry each level's knot operands alongside its quotient, so
-        // the two contribution passes below map rather than re-zip:
-        // one zip chain in the whole function.
-        let temps: Vec<(T, f64, f64)> = prev
-            .iter()
-            .zip(hi)
-            .zip(lo)
-            .map(|((s, &a), &b)| (s.basis / T::from_f64(a - b), a, b))
-            .collect();
-        let ups = temps.iter().map(|&(tm, a, _)| (T::from_f64(a) - t) * tm);
-        let dns = temps.iter().map(|&(tm, _, b)| (t - T::from_f64(b)) * tm);
-        // Shift-and-add. The `Option` ends are not decoration: they keep
-        // the arithmetic bit-identical to `basis_funs`, which writes
-        // `n[0] = saved + …` with `saved = zero` at the low end and
-        // `n[j] = saved` — with no addition — at the high end.
-        let values = ups
-            .map(Some)
-            .chain(once(None))
-            .zip(once(None).chain(dns.map(Some)))
-            .map(|(up, dn)| match (up, dn) {
-                (Some(up), None) => T::zero() + up,
-                (Some(up), Some(dn)) => dn + up,
-                (None, Some(dn)) => dn,
-                (None, None) => unreachable!("exactly one end is open"),
-            });
+        // Shift-and-add, carrying `saved` exactly as `basis_funs` does:
+        // each entry writes `saved + up`, then `saved` becomes that
+        // entry's down term, and the high end writes `saved` with **no
+        // addition** (`n[j] = saved`) — which is what preserves `-0.0`.
+        // Carrying the accumulator instead of zipping two `Option`-
+        // padded sequences means the "neither end" combination has no
+        // representation to rule out, and the level's length is one
+        // push per input plus the final `saved`.
+        let (mut values, saved) = prev.iter().zip(hi).zip(lo).fold(
+            (Vec::with_capacity(j + 1), T::zero()),
+            |(mut values, saved), ((s, &a), &b)| {
+                let term = s.basis / T::from_f64(a - b);
+                values.push(saved + (T::from_f64(a) - t) * term);
+                (values, (t - T::from_f64(b)) * term)
+            },
+        );
+        values.push(saved);
         // The new level's controls: this level's newly admitted one,
         // then the previous level's. Both sides of this zip are
         // `1 + prev.len()` long, from the one source.
