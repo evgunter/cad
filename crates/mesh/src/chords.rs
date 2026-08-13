@@ -1072,7 +1072,10 @@ mod tests {
             "the multiplicity-2 fixture must still present an empty span after \
              refinement — otherwise this row stops covering the skip"
         );
-        r1_check("rational_mult_2_carrier", &n);
+        // The full δ schedule, as the other cheap carriers take: this
+        // fixture is `rational_mult_p1_carrier`'s sibling in cost, not
+        // `extreme_weight`'s, so there is nothing here to trim.
+        r1_check("rational_mult_2_carrier", &n, &R1_DELTAS);
 
         // p = 3: refused, typed, and NOT by either deleted message.
         let n = mult_cubic(3);
