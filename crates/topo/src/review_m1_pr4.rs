@@ -1292,29 +1292,77 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
 #[test]
 fn seqgen_generates_every_op_kind_and_every_site_shape() {
     use crate::seqgen::{OpChoice, apply, choose_op};
+    use geom_core::fuzz;
     use std::collections::BTreeSet;
+    let expected: BTreeSet<&'static str> = [
+        "mvfs",
+        "mev_lone",
+        "mev_fan",
+        "mev_fan_strut",
+        "mef_chords",
+        "mef_chords_self",
+        "mef_lone",
+        "kemr",
+        "mekr_cycles",
+        "mekr_empty_ring",
+        "mekr_empty_target",
+        "mekr_both_empty",
+        "kfmrh",
+        "mfkrh",
+        "ring_move",
+        "kev",
+        "kef",
+        "kvfs",
+    ]
+    .into_iter()
+    .collect();
     let mut seen: BTreeSet<&'static str> = BTreeSet::new();
-    // A deterministic pseudo-random sweep, long enough to hit the rare
-    // candidates (kfmrh needs two same-shell faces, kvfs a skeletal
-    // solid, mekr a ring...).
-    for seed in [
-        0x243F_6A88_85A3_08D3u64,
-        0x1234_5678_9ABC_DEF0,
-        0xDEAD_BEEF_CAFE_F00D,
-    ] {
+    // COVERAGE ROW, not a sweep: the claim is that every op kind and site
+    // shape IS generated, and the rarest label (`kvfs`, ~0.1% of steps)
+    // sets the floor. So the walk ACCUMULATES until coverage is complete
+    // and the counts below are a CAP, not a target — a run that reaches
+    // the cap without full coverage fails loudly, and a run that covers
+    // early stops there (the usual cost is a small fraction of the cap).
+    // The cap rides `CAD_FUZZ_EFFORT` like every other count, upward.
+    //
+    // The budget is split into MANY SHORT walks rather than three long
+    // ones. AUDIT FINDING (2026-08-13): the rarest label, `kvfs`, needs a
+    // SKELETAL solid to exist, and that is trajectory-dependent — once a
+    // body has grown, skeletal solids stop appearing (this file's sibling
+    // row records ~3% of steps, "0 on some seeds"). A fresh `Body` starts
+    // empty, so each RESTART manufactures the window that long walks stop
+    // offering.
+    //
+    // THE SEED IS PINNED, and that is correct here rather than an
+    // exception to the no-fixed-seeds rule. This row is shape 3 in
+    // `geom_core::fuzz`'s taxonomy: the claim IS coverage, and "a walk
+    // that reaches every op kind and every site shape" is not something
+    // you can write down as a fixture. A coverage claim on a VARYING
+    // seed is a witness search that flakes — measured at ~1 run in 150
+    // before this pin — and the honest fix is determinism, not
+    // over-provisioning the budget to survive bad luck. It clears the
+    // accident bar comfortably: every op kind AND every site shape must
+    // land at once, so a seed that satisfies this is a good seed rather
+    // than a lucky one. `CAD_FUZZ_SEED` still overrides, which is how
+    // you check the claim is not specific to this draw.
+    let restarts = fuzz::scaled(12);
+    let steps = fuzz::scaled(1_500);
+    let mut rng = fuzz::pinned(
+        "review_m1_pr4::seqgen_op_kind_coverage",
+        0x243F_6A88_85A3_08D3,
+    );
+    let mut walked = 0usize;
+    'walk: for _restart in 0..restarts {
         let mut body = Body::<f64>::new();
         let mut counter = 0u32;
-        let mut x: u64 = seed;
-        let mut step = || {
-            x = x.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-            (x >> 33) as u32
-        };
-        for _ in 0..6000 {
-            let d1 = step();
-            let d2 = step();
+        let step = |r: &mut fuzz::Rng| (r.next_u64() >> 33) as u32;
+        for _ in 0..steps {
+            let d1 = step(&mut rng);
+            let d2 = step(&mut rng);
             let Some(choice) = choose_op(&body, d1, d2) else {
-                panic!("no applicable op");
+                panic!("no applicable op — {}", fuzz::replay());
             };
+            walked += 1;
             seen.insert(match choice {
                 OpChoice::Mvfs => "mvfs",
                 OpChoice::MevLone(_) => "mev_lone",
@@ -1348,52 +1396,51 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
                 OpChoice::RingMove(..) => "ring_move",
             });
             apply(&mut body, choice, &mut counter);
-            assert_eq!(validate(&body), Ok(()));
+            assert_eq!(
+                validate(&body),
+                Ok(()),
+                "seqgen produced an invalid body — {}",
+                fuzz::replay()
+            );
+            if expected.is_subset(&seen) {
+                break 'walk;
+            }
         }
     }
-    let expected: BTreeSet<&'static str> = [
-        "mvfs",
-        "mev_lone",
-        "mev_fan",
-        "mev_fan_strut",
-        "mef_chords",
-        "mef_chords_self",
-        "mef_lone",
-        "kemr",
-        "mekr_cycles",
-        "mekr_empty_ring",
-        "mekr_empty_target",
-        "mekr_both_empty",
-        "kfmrh",
-        "mfkrh",
-        "ring_move",
-        "kev",
-        "kef",
-        "kvfs",
-    ]
-    .into_iter()
-    .collect();
+    println!("[seqgen coverage] complete after {walked} steps (cap {restarts}x{steps})");
     let missing: Vec<_> = expected.difference(&seen).collect();
     assert!(
         missing.is_empty(),
-        "op kinds/sites never generated: {missing:?} (seen: {seen:?})"
+        "op kinds/sites never generated within the {restarts}x{steps} cap: \
+         {missing:?} (seen: {seen:?}) — {}",
+        fuzz::replay()
     );
 }
 
 #[test]
 fn seqgen_kvfs_availability_instrumented() {
     use crate::seqgen::{OpChoice, apply, choose_op};
+    use geom_core::fuzz;
     let mut body = Body::<f64>::new();
     let mut counter = 0u32;
-    let mut x: u64 = 0x1234_5678_9ABC_DEF0;
-    let mut step = || {
-        x = x.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        (x >> 33) as u32
-    };
+    // Pinned for the same reason as the coverage row above: this is an
+    // EXISTENCE claim (shape 3), so a varying seed would make it a
+    // witness search that can flake, and the trajectory that produces a
+    // skeletal solid is not something you can write down as a fixture.
+    let mut rng = fuzz::pinned(
+        "review_m1_pr4::seqgen_kvfs_availability",
+        0x1234_5678_9ABC_DEF0,
+    );
+    let step = |r: &mut fuzz::Rng| (r.next_u64() >> 33) as u32;
     let mut available = 0usize;
     let mut chosen = 0usize;
     let mut skeletal_present = 0usize;
-    for _ in 0..6000 {
+    // EXISTENCE claim: the count below is the CAP on the walk, not the
+    // work done (the loop breaks the moment a skeletal solid appears, in
+    // ~30 steps at the recorded ~3% density). Cutting the cap would only
+    // make a thin trajectory fail, so it stays at the recorded bound and
+    // rides EFFORT upward.
+    for _ in 0..fuzz::scaled(6_000) {
         let skeletal = body
             .solids()
             .filter(|&(s, _)| {
@@ -1415,8 +1462,8 @@ fn seqgen_kvfs_availability_instrumented() {
         if skeletal > 0 {
             skeletal_present += 1;
         }
-        let d1 = step();
-        let d2 = step();
+        let d1 = step(&mut rng);
+        let d2 = step(&mut rng);
         let choice = choose_op(&body, d1, d2).unwrap();
         if matches!(choice, OpChoice::Kvfs(_)) {
             chosen += 1;
@@ -1438,7 +1485,11 @@ fn seqgen_kvfs_availability_instrumented() {
     // solid; kvfs itself is chosen in ~0.1% of steps, 0 on some
     // seeds). Coverage exists but is thin; teardown() exercises kvfs
     // deterministically every proptest case.
-    assert!(skeletal_present > 0, "skeletal solids never appear");
+    assert!(
+        skeletal_present > 0,
+        "skeletal solids never appear — {}",
+        fuzz::replay()
+    );
     let _ = chosen;
 }
 

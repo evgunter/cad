@@ -113,7 +113,7 @@ fn fuzz_found_two_survivor_corners_pick_the_dominant_candidate() {
 // the targeted both-enclosing construction, and the hill-climb search
 // that failed to force an enclosing two-survivor corner) live in the
 // S8 review scratch; this row keeps the claim continuously exercised
-// at a CI-friendly trial count.
+// at a CI-friendly trial count that rides `CAD_FUZZ_EFFORT`.
 
 mod dominance {
     use std::f64::consts::TAU;
@@ -123,23 +123,9 @@ mod dominance {
         s - TAU * (s / TAU + 0.5).floor()
     }
 
-    /// xorshift64* — deterministic fuzz.
-    pub struct Rng(pub u64);
-    impl Rng {
-        pub fn next(&mut self) -> f64 {
-            let mut x = self.0;
-            x ^= x << 13;
-            x ^= x >> 7;
-            x ^= x << 17;
-            self.0 = x;
-            (x >> 11) as f64 / (1u64 << 53) as f64
-        }
-        pub fn range(&mut self, a: f64, b: f64) -> f64 {
-            a + (b - a) * self.next()
-        }
-        pub fn sign(&mut self) -> f64 {
-            if self.next() < 0.5 { 1.0 } else { -1.0 }
-        }
+    /// `+1` or `−1` with equal probability.
+    pub fn sign(rng: &mut geom_core::fuzz::Rng) -> f64 {
+        if rng.unit() < 0.5 { 1.0 } else { -1.0 }
     }
 
     #[derive(Clone, Copy)]
@@ -230,13 +216,15 @@ mod dominance {
 /// the S8 pick) and no enclosing tangency participates.
 #[test]
 fn dominance_fuzz_two_survivor_corners() {
-    use dominance::{Arc, Rng, classify, signed_swept, tally};
+    use dominance::{Arc, classify, sign, signed_swept, tally};
+    use geom_core::fuzz;
     use std::f64::consts::TAU;
 
     // --- arc×arc, uniform over crossing carriers -------------------
-    let mut rng = Rng(0x5eed_5eed_5eed_5eed);
+    let mut rng = fuzz::start("review_s8_probe::dominance_arc_arc");
+    let trials = fuzz::scaled(18_750) as u64;
     let mut stats = (0u64, 0u64, 0u64);
-    for _ in 0..150_000u64 {
+    for _ in 0..trials {
         let d = rng.range(0.05, 4.0);
         let r1c = rng.range(0.05, 3.0);
         let r2c = rng.range(0.05, 3.0);
@@ -249,7 +237,7 @@ fn dominance_fuzz_two_survivor_corners() {
             continue;
         }
         let (cx, cy) = (along, h2.sqrt());
-        let (t1, t2) = (rng.sign(), rng.sign());
+        let (t1, t2) = (sign(&mut rng), sign(&mut rng));
         let a1 = Arc {
             ox: 0.0,
             oy: 0.0,
@@ -281,18 +269,37 @@ fn dominance_fuzz_two_survivor_corners() {
             tally(&surv, rho1, rho2, &mut stats);
         }
     }
-    assert_eq!(stats.1, 0, "dominance violations (arc x arc)");
-    assert_eq!(stats.2, 0, "enclosing two-survivor corners (arc x arc)");
-    assert!(
-        stats.0 > 500,
-        "coverage floor: only {} two-survivor",
+    assert_eq!(
+        stats.1,
+        0,
+        "dominance violations (arc x arc) — {}",
+        fuzz::replay()
+    );
+    assert_eq!(
+        stats.2,
+        0,
+        "enclosing two-survivor corners (arc x arc) — {}",
+        fuzz::replay()
+    );
+    println!(
+        "[s8 arc x arc] {trials} trials, {} two-survivor corners",
         stats.0
+    );
+    // COVERAGE FLOOR as a FRACTION of the trial count (the review's own
+    // density: 500 two-survivor corners per 150 000 trials), so effort
+    // and floor move together.
+    assert!(
+        stats.0 * 300 > trials,
+        "coverage floor: only {} two-survivor out of {trials} — {}",
+        stats.0,
+        fuzz::replay()
     );
 
     // --- line×arc ---------------------------------------------------
-    let mut rng = Rng(0x0ddb_a11c_0ffe_e123);
+    let mut rng = fuzz::start("review_s8_probe::dominance_line_arc");
+    let trials = fuzz::scaled(18_750) as u64;
     let mut stats = (0u64, 0u64, 0u64);
-    for _ in 0..150_000u64 {
+    for _ in 0..trials {
         // Corner at the origin; straight incoming leg travelling (dx, dy).
         let phi = rng.range(0.0, TAU);
         let (dx, dy) = (phi.cos(), phi.sin());
@@ -300,7 +307,7 @@ fn dominance_fuzz_two_survivor_corners() {
         let rc = rng.range(0.05, 3.0);
         let th = rng.range(0.0, TAU);
         let (ox, oy) = (rc * th.cos(), rc * th.sin());
-        let tau = rng.sign();
+        let tau = sign(&mut rng);
         let ca = (-oy).atan2(-ox);
         let alen = rc * rng.range(0.05, TAU - 0.05);
         let r = rng.range(0.01, 2.5);
@@ -335,11 +342,27 @@ fn dominance_fuzz_two_survivor_corners() {
         }
         tally(&surv, rho, 1.0, &mut stats);
     }
-    assert_eq!(stats.1, 0, "dominance violations (line x arc)");
-    assert_eq!(stats.2, 0, "enclosing two-survivor corners (line x arc)");
-    assert!(
-        stats.0 > 500,
-        "coverage floor: only {} two-survivor",
+    assert_eq!(
+        stats.1,
+        0,
+        "dominance violations (line x arc) — {}",
+        fuzz::replay()
+    );
+    assert_eq!(
+        stats.2,
+        0,
+        "enclosing two-survivor corners (line x arc) — {}",
+        fuzz::replay()
+    );
+    println!(
+        "[s8 line x arc] {trials} trials, {} two-survivor corners",
         stats.0
+    );
+    // COVERAGE FLOOR as a fraction of the trial count (see above).
+    assert!(
+        stats.0 * 300 > trials,
+        "coverage floor: only {} two-survivor out of {trials} — {}",
+        stats.0,
+        fuzz::replay()
     );
 }

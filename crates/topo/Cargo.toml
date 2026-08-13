@@ -39,6 +39,12 @@ geom-surfaces = { path = "../geom-surfaces" }
 slotmap = { workspace = true }
 
 [dev-dependencies]
+# Shared fuzz harness for this crate's randomized sweeps (one RNG, the
+# per-run seed, the CAD_FUZZ_EFFORT dial). DEV-ONLY: `fuzz-support` is
+# requested here and nowhere else, so nothing on a shipped build path can
+# reach it — the same posture geom-core documents for its own self
+# dev-dependency.
+geom-core = { path = "../geom-core", features = ["fuzz-support"] }
 proptest = { workspace = true }
 # Self dev-dependency: turns `sweep-testing` on for THIS crate's own
 # integration tests without exposing it to production dependents.

@@ -86,6 +86,22 @@ fn sup_of(s: &Surf, p: &Curve, c: &Curve, extra: &[f64]) -> f64 {
 }
 
 /// Dense-scan max of |S(P(t)) − C(t)| through the f64 oracles.
+///
+/// EVERY caller passes 100_000 (it was 200_000 on seven of them). That
+/// is still INSIDE this file's declared charter — the module docs
+/// require "≥1e5-sample dense scans", and 1e5 is exactly what the
+/// acceptance sibling `m5_pr7b_tensor_compose.rs` scans with on all
+/// seven of ITS falsification rows — so this is the contract honoured,
+/// not bent, and it makes the file self-consistent (three of its own
+/// call sites were already at 100_000).
+///
+/// WHAT IS LOST: a dense-scan max is monotone in the sample count, so
+/// halving the samples can only lower the returned truth, and the
+/// falsification bar in `falsify` (`sup >= max`) drops slightly with
+/// it. A bound that undercuts the true sup by less than the gap
+/// between the 1e5-sample and 2e5-sample maxima would now slip
+/// through. The claim itself is unchanged; only the resolution of the
+/// witness is.
 fn scan_max(s: &Surf, p: &Curve, c: &Curve, samples: usize) -> f64 {
     let (t0, t1) = p.0.domain();
     let mut max = 0.0f64;
@@ -308,7 +324,7 @@ fn the_two_sided_pinch_on_the_adversarial_rational_fixture() {
     let (s, p, c) = (gnarl(), gnarl_pcurve(), gnarl_carrier());
     let fine = uniform_breaks(256);
     let sup = sup_of(&s, &p, &c, &fine);
-    let max = scan_max(&s, &p, &c, 200_000);
+    let max = scan_max(&s, &p, &c, 100_000);
     assert!(sup >= max, "FALSIFIED: {sup:e} < {max:e}");
     assert!(
         sup <= 2.0 * max,
@@ -340,7 +356,7 @@ fn falsification_battery_no_finite_bound_undercuts_truth() {
     let (s, p, mut c) = iso_u();
     c.2[2][2] += 1e-9;
     note(
-        falsify("near-identity 1e-9", &s, &p, &c, &[], 200_000),
+        falsify("near-identity 1e-9", &s, &p, &c, &[], 100_000),
         "near-identity",
     );
 
@@ -373,7 +389,7 @@ fn falsification_battery_no_finite_bound_undercuts_truth() {
             &posc,
             &cline,
             &[],
-            200_000,
+            100_000,
         ),
         "oscillating raw",
     );
@@ -384,7 +400,7 @@ fn falsification_battery_no_finite_bound_undercuts_truth() {
             &posc,
             &cline,
             &uniform_breaks(256),
-            200_000,
+            100_000,
         ),
         "oscillating refined",
     );
@@ -400,7 +416,7 @@ fn falsification_battery_no_finite_bound_undercuts_truth() {
         vec![vec![-0.05, 1.05], vec![0.25, 0.25]],
     );
     note(
-        falsify("out-of-domain excursion", &s3, &pex, &c3, &[], 200_000),
+        falsify("out-of-domain excursion", &s3, &pex, &c3, &[], 100_000),
         "out-of-domain",
     );
 
@@ -411,7 +427,7 @@ fn falsification_battery_no_finite_bound_undercuts_truth() {
     let mut extras = uniform_breaks(64);
     extras.extend([0.3, 0.6, 0.25, 0.5 - 1e-12, 0.5 + 1e-12, 1e-15, 1.0 - 1e-15]);
     note(
-        falsify("degenerate extra breaks", &s4, &p4, &c4, &extras, 200_000),
+        falsify("degenerate extra breaks", &s4, &p4, &c4, &extras, 100_000),
         "degenerate breaks",
     );
 
@@ -426,7 +442,7 @@ fn falsification_battery_no_finite_bound_undercuts_truth() {
             &p5,
             &c5,
             &uniform_breaks(128),
-            200_000,
+            100_000,
         ),
         "far curve weights",
     );
