@@ -43,9 +43,9 @@ exact-vs-decided reframing signed off.
 
 ## 1. The predicate vocabulary
 
-**The demand evidence is the P10 alphabet** — the two demo filters
+**The demand evidence is the fillet-selection alphabet** — the two demo filters
 that stayed hand-written against the kernel body because U7 was
-structural-only (`demos/tour/src/diefillet.rs:203-244`), plus the P9
+structural-only (`demos/tour/src/diefillet.rs:203-244`), plus the
 flush helper's decision triple (`demos/tour/src/booleans.rs:60-118`):
 
 1. *carrier kind of an edge's curve* ("the straight edges of the
@@ -53,8 +53,8 @@ flush helper's decision triple (`demos/tour/src/booleans.rs:60-118`):
 2. *adjacent-surface-kind pair across an edge* ("the plane/sphere
    rims" — face kind on `he_plus`/`he_minus`);
 3. *flush-plane face pairing* (parallel + co/anti-oriented + zero
-   offset — the P9 triple, §3's detector);
-4. *convexity* — NOT actually used: P10's comment says the kind-pair
+   offset — the flush helper's triple, §3's detector);
+4. *convexity* — NOT actually used: the demo's comment says the kind-pair
    test "stands in for concave rim". Demand is inferred, not
    measured.
 5. *position* — no corpus site uses it; it is GQ7's "filter" language
@@ -80,8 +80,8 @@ DECIDED, and only the DECIDED half is a margins-discipline site.**
   detection (§3's three margins), position comparisons, and — if it
   ships — convexity. Each is a `k_stats::decide` site with a
   `Margin` comparand where the dimension is honest, a static name
-  (`sel_*` prefix proposed, mirroring the funnel's naming
-  convention), and a ledger row if any comparand cannot honestly be
+  (the `sel_*` prefix, mirroring the funnel's naming convention),
+  and a ledger row if any comparand cannot honestly be
   a length (the #214 standing rule applies to selector sites exactly
   as to kernel sites — public API is not a discount lane).
 
@@ -106,10 +106,10 @@ decided predicate: comparand design (the honest margin is not
 obviously a length — likely a flagged-lane ledger conversation),
 sample-point choice along the edge, behavior on smooth (tangent)
 edges, and an equivariance check. Demand evidence is the weakest of
-the alphabet (P10 got "concave rim" via kind-pairs). Recommend:
-ship kind, adjacent-kind-pair, and datum-relative position in v1;
-bank convexity with a named design note so the vocabulary slot is
-reserved (`GeomPred::Convex`/`Reflex` naming reserved, unbuilt).
+the alphabet (the demo got "concave rim" via kind-pairs). So v1
+ships kind, adjacent-kind-pair and datum-relative position, and
+convexity keeps only its vocabulary slot — `GeomPred::Convex` /
+`Reflex` named and unbuilt.
 
 **Verdict recording** — deferred to ledger GS-Q1 (§7); short form:
 selector decisions go through the same funnel, so K-census
@@ -191,7 +191,7 @@ is designed, not improvised.
 
 ## 3. The detect / declare / menu protocol
 
-**The census finding this section retires (LB11)**: the P9 demo
+**The census finding this section retires (LB11)**: the demo
 helper `flush_declarations` infers declarations from values —
 C4's forbidden pattern, legal only as fixture code, and its three
 decision sites (`demo_flush_parallel` bare sine, `demo_flush_orient`
@@ -243,8 +243,8 @@ takes explicitly-passed pairs and appends/creates a Declare node
 wired into the consuming Boolean. Thin by design. The arity
 question is GS-Q3, RULED: the boundary is FUSION, not arity. Both `declare(finding)` and
 `declare_all(findings: Vec<FlushFinding>)` ship; what stays
-forbidden permanently is a fused detect-and-declare door (P9's
-original shape), because the enforceable intent-recording property
+forbidden permanently is a fused detect-and-declare door (the demo
+helper's original shape), because the enforceable intent-recording property
 is that findings pass through user-visible hands AS VALUES — an
 arity restriction is defeated by a two-line for-loop, while the
 no-fusion rule is structural. C4's verify-at-use backstops lies
@@ -261,7 +261,8 @@ renders the finding; the GUI renders the same finding as its
 declare-affordance dialog (§4's one-type rule at work).
 
 **What ships first**: flush/`Rest` planes is the whole v1 detector —
-it is the only demand-evidenced case (P9, the boolean test suites,
+it is the only demand-evidenced case (the flush helper, the boolean
+test suites,
 the M4 declarer), and `Rest`'s verify ladder is the most mature.
 `Tangent` and `Fit` findings reuse the same `FlushFinding`/
 `ContactClass` shape when their demand arrives; the type is built
@@ -328,18 +329,19 @@ free, but a plain `Expr` is correct either way — soft, not a gate.
 **Sizing** (house scale): the whole design is **L, staged as two
 PRs / one A/B unit**:
 - PR-1 (**M**): `GeomPred` + `select_where` + Tied/in-band refusals
-  + pncad doors + tour demo rework (P10's hand-written filters
+  + pncad doors + tour demo rework (the hand-written filters
   become the acceptance evidence — diefillet's two filters rewrite
   to one `select_where` call each).
 - PR-2 (**M**): `find_flush_candidates` on the C4 verify ladder +
   declare sugar + the `UndeclaredContact` menu carrying
-  `FlushFinding` + P9 demo rework. (If the verifier needs
+  `FlushFinding` + flush-helper demo rework. (If the verifier needs
   refactoring to expose candidate-generation mode, PR-2 leans L —
   the named spec risk.)
 
 ## 6. Out of scope, recorded
 
-- **P5's declared-offset** (derived table = base + stated deltas):
+- **The declared-offset relation** (derived table = base + stated
+  deltas, LIBRARY-DESIGN U6):
   expression-layer / Expr-shared-subtree territory, re-homed to
   post-SWITCH-E per LB11(c). Noted so this doc is the pointer trail.
 - **"Nearest/first entity" ordering selectors**: §2's recorded
@@ -369,7 +371,7 @@ built.** Ground: no kernel predicate exists (only the 2D
 vertex-sector convex/reflex classifier), comparand design is
 genuinely open (dihedral sign at a sample — likely flagged-lane),
 and the demand evidence is a comment rather than a call site, since
-P10's kind-pairs covered the real case. A wrong margin design
+the demo's kind-pairs covered the real case. A wrong margin design
 shipped into public API costs far more than a follow-up unit.
 
 **GS-Q3 — The detect/declare boundary is FUSION, not arity.** The
