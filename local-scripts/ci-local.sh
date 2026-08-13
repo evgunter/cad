@@ -61,6 +61,18 @@
 # on purpose to keep its warm target/ from re-fingerprinting. See the
 # LINK/DEBUGINFO note at the top of ci.yml for the measurement.
 #
+# ALSO NOT MIRRORED (2026-08-12): those jobs now set
+# CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL=2. This one deserves a sharper note
+# than the knobs above, because opt-level is the one setting here that
+# COULD in principle change a test outcome rather than just its cost.
+# Measured both ways on the same tree the day it landed — opt-0 2791/2791
+# and 3001/3001 (interval) green, opt-2 identical counts, all green — so
+# the two configurations agree today, and this gate keeps proving the
+# cheap-to-compile one. debug-assertions and overflow-checks are ON at
+# both levels (cargo defaults them for dev/test), so nothing about
+# fail-loud changes. To reproduce the hosted configuration locally, use
+# local-scripts/test-fast.sh, which sets exactly these two variables.
+#
 # Merge-gate runs go through local-scripts/gate.sh (serialized, warm runner —
 # see its header for the caching guidance and RUSTFLAGS hazard).
 set -u

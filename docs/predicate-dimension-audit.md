@@ -46,7 +46,8 @@ seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F2 ×4, F6 ×3 — the fitted/iso
 lane meters and the fitted lane's whole-chart azimuth arm, F7 ×1,
-F10 ×7 rigidity residuals through one loop, F13 ×1, F14 ×1, F15 ×1 —
+F10 ×1 — one loop over seven rigidity residuals — F13 ×1, F14 ×1,
+F15 ×1 —
 12 shipped sites, tracked as issue #214 and pinned by the census count
 assertion `geom-core/tests/flagged_census.rs`: no new site ships
 without a row here, and the count only moves together with this

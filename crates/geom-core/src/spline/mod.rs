@@ -39,5 +39,5 @@ pub mod locate;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep};
 pub use compose::{BernsteinSpans, ComposeError, CompositeForm, CurveRingData, ImplicitSurface};
-pub use knots::{KnotVector, KnotVectorIssue, SplineError};
+pub use knots::{KnotVector, KnotVectorIssue, Span, SplineError};
 pub use locate::{SpanLocate, SpanSet};
