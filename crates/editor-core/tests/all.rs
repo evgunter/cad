@@ -128,6 +128,8 @@ mod m5_pr11_corpus_curved;
 mod m5_pr12_fillet_node;
 #[path = "m5_pr5_corpus.rs"]
 mod m5_pr5_corpus;
+#[path = "m5_pr5_corpus_probe.rs"]
+mod m5_pr5_corpus_probe;
 #[path = "m5_pr6_pcurve_persistence.rs"]
 mod m5_pr6_pcurve_persistence;
 #[path = "m5_pr8_bvh_diff.rs"]

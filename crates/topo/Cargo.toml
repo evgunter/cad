@@ -20,6 +20,13 @@ sweep-testing = []
 # instantiable — exercised by `tests/interval_body.rs` in CI's interval
 # lane (Q1's pure-replay model: same topology keys, interval geometry).
 interval = ["geom-core/interval", "geom-brep/interval"]
+# Forwards geom-core's K-telemetry recording scalar so the
+# workspace-wide `--features probe` lane builds uniformly. Same shape
+# and same reason as the `interval` row above; see geom-core's manifest
+# for why Probe is opt-in (it is a `Real` instantiation, so it
+# monomorphizes every generic-over-`Real` body, and only the K
+# experiment consumes it).
+probe = ["geom-core/probe", "geom-brep/probe"]
 
 [dependencies]
 # The boolean sweep's candidate generation (M5 PR 8): the tree prunes,

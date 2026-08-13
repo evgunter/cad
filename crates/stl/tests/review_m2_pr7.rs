@@ -114,28 +114,78 @@ fn soup_volume(facets: &[Facet]) -> f64 {
 }
 
 // ---------------------------------------------------------------------
-// Byte layout, header, narrowing fidelity, ASCII↔binary agreement.
+// Byte layout, header, narrowing fidelity, ASCII↔binary agreement, and
+// determinism under repetition and interleaving — one build, one test.
 // ---------------------------------------------------------------------
 
+/// **The independent-parser laws, on ONE tessellation of the
+/// acceptance set.** Three rows until the test-cost audit:
+///
+/// - `binary_layout_header_and_f32_fidelity` → the `HEADER`, `CAST`,
+///   `NORMAL`, `WINDING` and `VOLUME` blocks;
+/// - `ascii_and_binary_agree_bitwise_via_independent_parsers` → the
+///   `AGREE` block;
+/// - `interleaved_and_repeated_exports_are_byte_identical` → the
+///   `INTERLEAVE` block.
+///
+/// # One eleven-body tessellation, every law on it
+///
+/// The first two each rebuilt and retessellated the whole acceptance
+/// set — the donut's quadratic CDT included — for parsing work measured
+/// in milliseconds, and nextest's process-per-test isolation means
+/// nothing was shared between them. The third had already been narrowed
+/// to build `ball` and `washer` directly for exactly that reason; both
+/// are acceptance rows (2 and 4, δ = 1e-2), so with the set in hand it
+/// takes them out of it instead.
+///
+/// The `INTERLEAVE` block still retessellates `ball` twice on purpose —
+/// once at δ and once at 2δ — because "the bytes do not drift across
+/// interleaving" is a claim about repeating the pipeline, and the
+/// repetition IS the content. Merging must never remove it. It also
+/// gets MORE interleaving than before (every other body's exports now
+/// run between the first `ball` export and the repeat), which only
+/// sharpens the claim.
+///
+/// What the split bought and a merged row cannot is failure ISOLATION,
+/// so every assertion NAMES its law and the message alone says which
+/// one broke.
 #[test]
-fn binary_layout_header_and_f32_fidelity() {
-    for (name, body, delta) in common::acceptance_bodies() {
-        let mesh = mesh::tessellate(&body, delta).unwrap();
-        let bytes = binary_of(&mesh);
+fn the_acceptance_exports_parse_back_honestly_and_never_drift() {
+    // THE one build. INVARIANT: nothing below calls
+    // `acceptance_bodies()` again; the only re-tessellations are the
+    // INTERLEAVE block's, which are the content of its claim.
+    let acceptance: Vec<(&'static str, topo::Body<f64>, f64, mesh::Mesh)> =
+        common::acceptance_bodies()
+            .into_iter()
+            .map(|(name, body, delta)| {
+                let m = mesh::tessellate(&body, delta).unwrap();
+                (name, body, delta, m)
+            })
+            .collect();
+
+    for (name, body, delta, mesh) in &acceptance {
+        let (name, delta) = (*name, *delta);
+        let bytes = binary_of(mesh);
         let (header, facets) = parse_binary_strict(&bytes);
-        // Header: constant expected bytes, zero-padded, never "solid".
+        // ---- HEADER: constant expected bytes, zero-padded, never
+        // "solid".
         let expected = b"binary STL; CAD kernel M2 tessellation export";
-        assert_eq!(&header[..expected.len()], expected, "{name}: header text");
+        assert_eq!(
+            &header[..expected.len()],
+            expected,
+            "HEADER: {name}: header text"
+        );
         assert!(
             header[expected.len()..].iter().all(|&b| b == 0),
-            "{name}: header padding must be zeros"
+            "HEADER: {name}: header padding must be zeros"
         );
         assert_ne!(
             &header[..5],
             b"solid",
-            "{name}: header must not sniff as ascii"
+            "HEADER: {name}: header must not sniff as ascii"
         );
-        // Triangle stream == mesh order through the documented cast.
+        // ---- CAST: triangle stream == mesh order through the
+        // documented narrowing cast.
         let mut k = 0;
         for patch in &mesh.patches {
             for tri in &patch.triangles {
@@ -146,20 +196,23 @@ fn binary_layout_header_and_f32_fidelity() {
                     assert_eq!(
                         got.map(f32::to_bits),
                         want.map(f32::to_bits),
-                        "{name}: facet {k} vertex {j} must be the f32 cast of the mesh position"
+                        "CAST: {name}: facet {k} vertex {j} must be the f32 cast of the \
+                         mesh position"
                     );
                 }
                 k += 1;
             }
         }
-        assert_eq!(k, facets.len(), "{name}: exact facet count");
-        // Normals: unit length (f32-rounded), aligned with the f64
-        // winding normal, and globally outward (positive soup volume
-        // matching the mesh signed volume).
+        assert_eq!(k, facets.len(), "CAST: {name}: exact facet count");
+        // ---- NORMAL / WINDING: unit length (f32-rounded), aligned with
+        // the f64 winding normal.
         for (k, f) in facets.iter().enumerate() {
             let n = f.normal.map(f64::from);
             let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
-            assert!((len - 1.0).abs() < 1e-6, "facet {k} normal not unit: {len}");
+            assert!(
+                (len - 1.0).abs() < 1e-6,
+                "NORMAL: {name}: facet {k} normal not unit: {len}"
+            );
             let p = |v: [f32; 3]| [f64::from(v[0]), f64::from(v[1]), f64::from(v[2])];
             let (a, b, c) = (p(f.verts[0]), p(f.verts[1]), p(f.verts[2]));
             let u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
@@ -177,43 +230,80 @@ fn binary_layout_header_and_f32_fidelity() {
             if wlen > 0.0 {
                 assert!(
                     dot > 0.0,
-                    "facet {k}: stored normal disagrees with winding ({name})"
+                    "WINDING: facet {k}: stored normal disagrees with winding ({name})"
                 );
             }
         }
+        // ---- VOLUME: globally outward, and within 3δA of the exact
+        // body volume.
         let vol = soup_volume(&facets);
-        let exact = topo::mass_properties(&body).unwrap();
+        let exact = topo::mass_properties(body).unwrap();
         assert!(
             (vol - exact.volume).abs() <= 3.0 * delta * exact.surface_area,
-            "{name}: parsed-back volume {vol} vs exact {} beyond 3δA",
+            "VOLUME: {name}: parsed-back volume {vol} vs exact {} beyond 3δA",
             exact.volume
         );
-        assert!(vol > 0.0, "{name}: shell must be outward");
-    }
-}
+        assert!(vol > 0.0, "VOLUME: {name}: shell must be outward");
 
-#[test]
-fn ascii_and_binary_agree_bitwise_via_independent_parsers() {
-    for (name, body, delta) in common::acceptance_bodies() {
-        let mesh = mesh::tessellate(&body, delta).unwrap();
-        let (_, bin) = parse_binary_strict(&binary_of(&mesh));
-        let asc = parse_ascii_strict(&ascii_of(&mesh));
-        assert_eq!(bin.len(), asc.len(), "{name}: facet counts");
+        // ---- AGREE: the two formats agree bit for bit, read by the two
+        // INDEPENDENT parsers above.
+        let bin = facets;
+        let asc = parse_ascii_strict(&ascii_of(mesh));
+        assert_eq!(bin.len(), asc.len(), "AGREE: {name}: facet counts");
         for (k, (b, a)) in bin.iter().zip(&asc).enumerate() {
             assert_eq!(
                 b.normal.map(f32::to_bits),
                 a.normal.map(f32::to_bits),
-                "{name}: facet {k} normal bits"
+                "AGREE: {name}: facet {k} normal bits"
             );
             for j in 0..3 {
                 assert_eq!(
                     b.verts[j].map(f32::to_bits),
                     a.verts[j].map(f32::to_bits),
-                    "{name}: facet {k} vertex {j} bits"
+                    "AGREE: {name}: facet {k} vertex {j} bits"
                 );
             }
         }
     }
+
+    // ---- INTERLEAVE: the writer's output does not drift across
+    // repetition or interleaving. `ball` and `washer` are acceptance
+    // rows 2 and 4 (both δ = 1e-2), taken out of the set above; the
+    // RE-tessellations below are deliberate.
+    let row = |want: &str| -> &(&'static str, topo::Body<f64>, f64, mesh::Mesh) {
+        acceptance
+            .iter()
+            .find(|(n, _, _, _)| *n == want)
+            .unwrap_or_else(|| panic!("the acceptance set carries {want}"))
+    };
+    let (_, ball, delta, m1) = row("ball");
+    let (_, _, _, w1) = row("washer");
+    let delta = *delta;
+    let b_first = binary_of(m1);
+    let a_first = ascii_of(m1);
+    // Interleave other exports, different δ, then repeat.
+    let m_coarse = mesh::tessellate(ball, delta * 2.0).unwrap();
+    let _ = binary_of(&m_coarse);
+    let _ = binary_of(w1);
+    let _ = ascii_of(w1);
+    let m2 = mesh::tessellate(ball, delta).unwrap();
+    assert_eq!(
+        binary_of(&m2),
+        b_first,
+        "INTERLEAVE: binary bytes drift across interleaving"
+    );
+    assert_eq!(
+        ascii_of(&m2),
+        a_first,
+        "INTERLEAVE: ascii bytes drift across interleaving"
+    );
+    // δ change actually changed the output (the determinism assertion
+    // above is not vacuous).
+    assert_ne!(
+        binary_of(&m_coarse),
+        b_first,
+        "INTERLEAVE: a δ change must change the bytes"
+    );
 }
 
 /// Rust `Display` for f32 is shortest-round-trip: spot-check the
@@ -238,43 +328,6 @@ fn f32_display_round_trip_spot_checks() {
         let back: f32 = s.parse().unwrap();
         assert_eq!(back.to_bits(), v.to_bits(), "{v} formatted as {s}");
     }
-}
-
-// ---------------------------------------------------------------------
-// Determinism under repetition and interleaving.
-// ---------------------------------------------------------------------
-
-#[test]
-fn interleaved_and_repeated_exports_are_byte_identical() {
-    // The "ball" and "washer" rows of `common::acceptance_bodies`
-    // (rows 2 and 4, both at δ = 1e-2), built directly: this row only
-    // ever exported those two, and the full list also builds a boolean
-    // intersect, a union and a plane split it never touches.
-    let (ball, delta) = (common::ball(), 1e-2);
-    let (washer, wdelta) = (common::washer(), 1e-2);
-    let m1 = mesh::tessellate(&ball, delta).unwrap();
-    let w1 = mesh::tessellate(&washer, wdelta).unwrap();
-    let b_first = binary_of(&m1);
-    let a_first = ascii_of(&m1);
-    // Interleave other exports, different δ, then repeat.
-    let m_coarse = mesh::tessellate(&ball, delta * 2.0).unwrap();
-    let _ = binary_of(&m_coarse);
-    let _ = binary_of(&w1);
-    let _ = ascii_of(&w1);
-    let m2 = mesh::tessellate(&ball, delta).unwrap();
-    assert_eq!(
-        binary_of(&m2),
-        b_first,
-        "binary bytes drift across interleaving"
-    );
-    assert_eq!(
-        ascii_of(&m2),
-        a_first,
-        "ascii bytes drift across interleaving"
-    );
-    // δ change actually changed the output (the determinism assertion
-    // above is not vacuous).
-    assert_ne!(binary_of(&m_coarse), b_first);
 }
 
 // ---------------------------------------------------------------------

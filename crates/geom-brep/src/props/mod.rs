@@ -174,6 +174,15 @@ pub enum PropsError {
     NappeSpanning,
     /// The face's parameter extent is coincident with zero — a
     /// degenerate (zero-area) face, refused rather than integrated.
+    ///
+    /// Read precisely, this is "the AREA ENCLOSURE does not certify a
+    /// positive extent", which is what `props_face_extent` /
+    /// `props_quad_face_extent` decide and what the quadrature's
+    /// convergence meter needs a lever from. A face whose true area is
+    /// positive but whose enclosure straddles zero — an area pad that
+    /// dwarfs the area, e.g. the extreme-weight rational patches in
+    /// [`quad`]'s envelope table — lands here too: a false negative
+    /// (a capability gap, recorded as such), never a wrong answer.
     DegenerateFace,
     /// A structural classification landed in the ambiguity band or was
     /// poisoned (D4 ¶3: escalate, never guess).

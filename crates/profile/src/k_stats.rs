@@ -10,6 +10,11 @@
 //! review suites among them); new code should reach for
 //! `geom_core::k_stats` directly.
 
-pub use geom_core::k_stats::{
-    MarginSample, Probe, SampleOutcome, decide, start_recording, take_samples,
-};
+pub use geom_core::k_stats::decide;
+// The recording half rides the `probe` feature (see geom-core's manifest):
+// `Probe` is a `Real` instantiation, so it monomorphizes every
+// generic-over-`Real` body, and only the K experiment consumes it. The
+// `decide` funnel above stays unconditional — it is the path every shipped
+// decision takes.
+#[cfg(feature = "probe")]
+pub use geom_core::k_stats::{MarginSample, Probe, SampleOutcome, start_recording, take_samples};

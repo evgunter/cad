@@ -20,6 +20,20 @@ interval = [
     "sweep/interval",
     "topo/interval",
 ]
+# Forwards geom-core's K-telemetry recording scalar so the
+# workspace-wide `--features probe` lane builds uniformly. Same shape
+# and same reason as the `interval` row above; see geom-core's manifest
+# for why Probe is opt-in (it is a `Real` instantiation, so it
+# monomorphizes every generic-over-`Real` body, and only the K
+# experiment consumes it).
+probe = [
+    "geom-core/probe",
+    "geom-brep/probe",
+    "geom-surfaces/probe",
+    "profile/probe",
+    "sweep/probe",
+    "topo/probe",
+]
 
 [dependencies]
 # M4 PR 2 D1: editor-core sits ABOVE the kernel (G1 layering) — the

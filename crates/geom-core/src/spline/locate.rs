@@ -50,6 +50,7 @@ pub(crate) mod sealed {
     /// The sealing supertrait (pub-in-private: unnameable downstream).
     pub trait Sealed {}
     impl Sealed for f64 {}
+    #[cfg(feature = "probe")]
     impl Sealed for crate::k_stats::Probe {}
     impl<T: Sealed> Sealed for crate::dual::Dual<T> {}
     #[cfg(feature = "interval")]
@@ -142,11 +143,18 @@ mod tests {
         assert!(0.5f64.enclosure_hull(0.6).is_nan());
     }
 
+    /// The `Probe` half is behind the `probe` feature (the recording
+    /// scalar is opt-in); the `Dual` half is not, so this test keeps
+    /// asserting the dual value-channel in a default build rather than
+    /// disappearing with the feature.
     #[test]
     fn probe_and_dual_follow_their_value_channels() {
         let k = kv();
-        let p = crate::k_stats::Probe(1.5);
-        assert_eq!(indices(p.locate_spans(&k)), (3, 3));
+        #[cfg(feature = "probe")]
+        {
+            let p = crate::k_stats::Probe(1.5);
+            assert_eq!(indices(p.locate_spans(&k)), (3, 3));
+        }
         let d = Dual64::variable(1.0);
         assert_eq!(indices(d.locate_spans(&k)), (3, 3));
         // Dual hulls channel-wise: over f64 channels that is poison.

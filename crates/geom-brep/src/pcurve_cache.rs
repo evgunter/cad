@@ -1161,6 +1161,7 @@ impl PcurveFittedLane for f64 {
     }
 }
 
+#[cfg(feature = "probe")]
 impl PcurveFittedLane for geom_core::Probe {
     fn fitted_certificate(
         carrier: &Curve3<Self>,

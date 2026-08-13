@@ -311,14 +311,17 @@ moment. The warm rerun showed the real −21%.
 
 ## 7. Ranked recommendations, and what was deliberately not done
 
-**Landed:** #449 (opt-2), #450 (lint split).
+**Landed:** #449 (opt-2), #450 (lint split), #451 (retire mold).
 
-**In flight:** retiring mold (#451). #174 adopted it on a −24%/−20%
-result across **261** static links; there are now **14**, and
-`LOCAL-BUILD-PERF.md` already measured it as noise locally (189 s vs
-186 s) and said "revisit only if the test-target count grows back toward
-triple digits." The `apt-get install` costs 9–21 s per build job, on the
-critical path.
+#451's basis: #174 adopted mold on a −24%/−20% result across **261**
+static links; there are now **14**, and `LOCAL-BUILD-PERF.md` had already
+measured it as noise locally (189 s vs 186 s) and said "revisit only if
+the test-target count grows back toward triple digits." Measured on its
+own warm CI runs: **archive step 620 s → 625 s (+0.8%, within noise)**,
+`install mold` **17 s → 0 s**. So the link penalty is nil and the install
+is genuinely removed — but a single sample put the job totals only 4 s
+apart, so the defensible claim is "no measurable link penalty, one fewer
+system dependency on the critical path", not the full 17 s.
 
 **Deferred deliberately — resharding.** 2 → 4 shards modelled at −8.2 min
 wall for +7% billed, and the current 2-way split is structurally
@@ -330,19 +333,76 @@ and cost more. Re-measure before acting. Floor for any scheme:
 `step-import::all rw2_probes::probe_round_trip_bit_identity_and_reorder`
 at 296 s pre-opt-2.
 
-**Gating `Probe`** — 20.0% of geom-brep's IR and 15.6% of topo's, but
-3.6% of the workspace, because editor-core's serde swamps it. It is wired
-into production `src` through sealed lane traits in six crates
-(`Sealed`, `EdgeNurbsLane`, `PcurveFittedLane`, `PropsQuadLane`,
-`ContentBits`, plus `bit_identity.rs`'s downcast), so it is a cargo
-feature like `interval`, not a `cfg(test)`. Note `docs/DESIGN.md` Q1
-ratifies the instantiation set as "`f64`, `Interval`, `Dual<f64>`,
-`Dual<Interval>`" — **`Probe` is not in it**, so gating it reopens no
-settled decision. The consumer that must keep working is `k-lint`, a live
-gate running `scripts/k_probe_sweep.sh` against the committed baselines in
-`docs/k-report-data/`; that job opts in. The risk is D9: `k_stats::decide`
-is the funnel every shipped decision passes through and must stay ungated
-and bit-identical.
+**Gating `Probe` — DONE**, behind a `probe` cargo feature. Measured
+before: 20.0% of geom-brep's IR, 15.6% of topo's, 3.6% of the workspace
+(editor-core's serde swamps it), and **5.0% of the workspace's
+test-binary symbols**, which is the share that predicts a CI saving
+because the archive step compiles test binaries.
+
+Measured after (release `--lib`, default features):
+
+| crate | before | after | delta | with `--features probe` |
+|---|---|---|---|---|
+| geom-brep | 106,897 | **85,360** | **−20.1%** | 106,527 |
+| topo | 95,033 | **80,176** | **−15.6%** | 94,830 |
+| geom-core | 50,655 | 49,786 | −1.7% | — |
+
+Residual `Probe` symbols with the feature off: **0**. With it on, totals
+return to within 0.3% of the originals — the code is opt-in, not lost.
+
+**The wall-clock win did NOT survive measurement, and that is the
+honest result.** On the gating PR's own CI run the interval archive step
+read 625 s → 444 s and the default 432 s → 519 s — *opposite directions*.
+Removing ~5% of test-binary symbols should move both lanes by about the
+same small amount; a −29%/+20% split is run-to-run variance. CI's
+archive-step noise band at single-sample resolution is wider than the
+~25 s the census predicts, and more samples cannot resolve a 25 s effect
+inside a ±100 s band. Per this investigation's own rule — *a change that
+reduces IR but not wall-clock has not accomplished anything* — the
+build-time case for gating Probe is **unproven**.
+
+It was landed anyway, on the justification that does not depend on
+timing: `Probe` is a diagnostics scalar, and before the gate the python
+wheel, both demos and every release render compiled it in. `render.yml`
+builds `demos/tour` at `--release` twice per run and never invokes
+`k-probe`. That is an argument about what ships, not about build speed,
+and it is the one that carries the change.
+The symbol-attribution method predicted 85,555 and 80,254, so it was
+accurate to 0.2%; that is worth knowing, because it means the census in
+§4d can be trusted to size this kind of change *before* doing it.
+
+Shape of the change, for anyone doing something similar:
+
+* It is a cargo feature like `interval`, **not** a `cfg(test)` — `Probe`
+  is wired into production `src` through sealed lane traits in six crates
+  (`Sealed`, `EdgeNurbsLane`, `PcurveFittedLane`, `PropsQuadLane`,
+  `ContentBits`, plus `bit_identity.rs`'s downcast).
+* **`k_stats::decide` and the `CURRENT` thread-local stay ungated.** That
+  funnel is the path every shipped decision takes, and it must be
+  byte-identical with the feature on and off (D9). A `cfg` there would
+  have made the production decision path differ between build
+  configurations — the one change this gate must not make.
+* `docs/DESIGN.md` Q1 ratifies the instantiation set as "`f64`,
+  `Interval`, `Dual<f64>`, `Dual<Interval>`" — **`Probe` is not in it**,
+  so the gate reopened no ratified decision.
+* The consumer is `scripts/k_probe_sweep.sh` (feeding the live `k-lint`
+  gate against the committed baselines in `docs/k-report-data/`); it opts
+  in. `demos/tour` gained the feature too, gating its `k-probe` mode —
+  that is where a real share of the win is, since `render.yml` builds the
+  tour at `--release` twice per run and never invokes it.
+
+**Two traps this hit, both worth repeating.** Selecting files by name or
+by grep count is wrong twice over: `step-import/tests/rw2_probes.rs` says
+"Probe" only in prose, and gating it would have removed the suite's
+single slowest test (296 s) from the default lane; and of the 13 test
+files that genuinely use the scalar, only 6 were Probe-dedicated — the
+other 7 were mixed (`review_m2_pr2.rs` is 21 tests of which 2 touch
+Probe). Gating a mixed file whole **silently deletes default-lane
+coverage**. They were split instead, with counts conserved on both sides.
+One test resisted even that: `topo`'s
+`r5_crossing_vertex_on_is_declared_not_measured` has a Probe block inside
+a test whose other parts are f64 claims, so the *block* carries the
+`cfg` — precedent at `geom-core/tests/spline_hull.rs:440`.
 
 **Not recommended — merging the default and `interval` lanes.** Tempting
 (one feature resolution, one archive, one build job) and the *original*
