@@ -150,6 +150,8 @@
 //! poisoned/non-finite hulls. The placeholder refuses
 //! [`TessellateError::UnsupportedSurface`] upstream in `trimmed`.
 
+use core::ops::RangeInclusive;
+
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
 use geom_core::spline::hull::derivative_coeffs;
@@ -360,19 +362,19 @@ fn net_d_v(kv_v: &KnotVector, net: &Net) -> Net {
 }
 
 /// The signed hull of `a[i][j] − c·w[i][j]` over the window
-/// `[i0, i1] × [j0, j1]` — the recentred homogeneous net `Ã = A − c·w`
+/// `wu × wv` — the recentred homogeneous net `Ã = A − c·w`
 /// read through the linearity of knot differencing (`d(A − c·w) =
 /// dA − c·dw`, entrywise, same knots). Out-of-range indices poison.
 fn window_tilde_hull(
     a: &Net,
     w: &Net,
     c: RingInterval,
-    (i0, i1): (usize, usize),
-    (j0, j1): (usize, usize),
+    wu: &RangeInclusive<usize>,
+    wv: &RangeInclusive<usize>,
 ) -> RingInterval {
     let mut acc: Option<RingInterval> = None;
-    for i in i0..=i1 {
-        for j in j0..=j1 {
+    for i in wu.clone() {
+        for j in wv.clone() {
             let (av, wv) = match (
                 a.get(i).and_then(|r| r.get(j)),
                 w.get(i).and_then(|r| r.get(j)),
@@ -520,31 +522,40 @@ fn rational_face_bound(
     };
     let two = RingInterval::point(2.0);
     for su in kv_u.first_span()..=kv_u.last_span() {
-        if !kv_u.span_is_nonempty(su) {
+        // Emptiness skip and window validation in one operation. The
+        // `checked_sub` pair this replaces — and its
+        // `MissingEntity { what: "NURBS span below its degree" }`
+        // return — are unrepresentable now: `iu0`/`jv0` ARE
+        // `first_control()`, subtracted once inside `Span`'s invariant.
+        let Some(span_u) = kv_u.span(su) else {
             continue;
-        }
+        };
         for sv in kv_v.first_span()..=kv_v.last_span() {
-            if !kv_v.span_is_nonempty(sv) {
+            let Some(span_v) = kv_v.span(sv) else {
                 continue;
-            }
-            let (Some(iu0), Some(jv0)) = (su.checked_sub(pu), sv.checked_sub(pv)) else {
-                return Err(TessellateError::MissingEntity {
-                    what: "NURBS span below its degree",
-                });
             };
             // Active windows on span (su, sv): value indices
-            // [su−p, su]; each u/v differencing drops the top index.
-            let wu_val = (iu0, su);
-            let wv_val = (jv0, sv);
-            let wu_d1 = (iu0, su - 1);
-            let wv_d1 = (jv0, sv - 1);
+            // [su−p, su]; each u/v differencing drops the top index —
+            // which is `derived_window`, so `su − 1` and `su − 2` are
+            // no longer subtractions at the use site either. The
+            // order-2 windows are `None` exactly when their derived
+            // NETS are (degree < 2), so the two `Option`s are zipped
+            // rather than independently discharged.
+            let win = r.window_of(span_u, span_v);
+            let wu_val = span_u.window();
+            let wv_val = span_v.window();
+            let wu_d1 = span_u.first_derived_window();
+            let wv_d1 = span_v.first_derived_window();
+            let wu_d2 = span_u.derived_window(2);
+            let wv_d2 = span_v.derived_window(2);
             // The cell centroid — a translation CHOICE (any finite c
             // is sound), computed on f64 structure, fixed order.
             let mut csum = [0.0f64; 3];
             let mut count = 0.0f64;
-            for i in iu0..=su {
-                for j in jv0..=sv {
-                    let p = r.control()[i * nv + j];
+            for i in 0..=span_u.degree() {
+                let row = win.row(i);
+                for j in 0..=span_v.degree() {
+                    let p = r.control()[row + j];
                     csum[0] += p.x;
                     csum[1] += p.y;
                     csum[2] += p.z;
@@ -558,8 +569,8 @@ fn rational_face_bound(
             // nonnegative numerators below, outward-rounded, and
             // poisons if positivity was never proven).
             let mut w_cell: Option<RingInterval> = None;
-            for row in w_grid.iter().take(su + 1).skip(iu0) {
-                for wv in row.iter().take(sv + 1).skip(jv0) {
+            for row in &w_grid[wu_val.clone()] {
+                for wv in &row[wv_val.clone()] {
                     w_cell = Some(match w_cell {
                         None => *wv,
                         Some(h) => RingInterval::hull(h, *wv),
@@ -573,29 +584,37 @@ fn rational_face_bound(
                 &w_nets.d10,
                 &w_nets.d10,
                 zero,
-                wu_d1,
-                wv_val,
+                &wu_d1,
+                &wv_val,
             ));
             let w01 = mag_iv(window_tilde_hull(
                 &w_nets.d01,
                 &w_nets.d01,
                 zero,
-                wu_val,
-                wv_d1,
+                &wu_val,
+                &wv_d1,
             ));
             let w11 = mag_iv(window_tilde_hull(
                 &w_nets.d11,
                 &w_nets.d11,
                 zero,
-                wu_d1,
-                wv_d1,
+                &wu_d1,
+                &wv_d1,
             ));
-            let w20 = w_nets.d20.as_ref().map_or_else(RingInterval::zero, |d| {
-                mag_iv(window_tilde_hull(d, d, zero, (iu0, su - 2), wv_val))
-            });
-            let w02 = w_nets.d02.as_ref().map_or_else(RingInterval::zero, |d| {
-                mag_iv(window_tilde_hull(d, d, zero, wu_val, (jv0, sv - 2)))
-            });
+            let w20 = w_nets
+                .d20
+                .as_ref()
+                .zip(wu_d2.as_ref())
+                .map_or_else(RingInterval::zero, |(d, wu2)| {
+                    mag_iv(window_tilde_hull(d, d, zero, wu2, &wv_val))
+                });
+            let w02 = w_nets
+                .d02
+                .as_ref()
+                .zip(wv_d2.as_ref())
+                .map_or_else(RingInterval::zero, |(d, wv2)| {
+                    mag_iv(window_tilde_hull(d, d, zero, &wu_val, wv2))
+                });
             let (mut cuu, mut cuv, mut cvv) = (
                 RingInterval::zero(),
                 RingInterval::zero(),
@@ -607,9 +626,10 @@ fn rational_face_bound(
                 // (positive weights ⇒ nonnegative partition of unity
                 // over the ACTIVE control points).
                 let mut v0h: Option<RingInterval> = None;
-                for i in iu0..=su {
-                    for j in jv0..=sv {
-                        let p = r.control()[i * nv + j];
+                for i in 0..=span_u.degree() {
+                    let row = win.row(i);
+                    for j in 0..=span_v.degree() {
+                        let p = r.control()[row + j];
                         let e = RingInterval::point(match comp {
                             0 => p.x,
                             1 => p.y,
@@ -624,18 +644,18 @@ fn rational_face_bound(
                 let v0 = mag_iv(v0h.unwrap_or_else(RingInterval::poison));
                 // Recentred homogeneous derivative sups Ã_kl = A_kl −
                 // c·w_kl on the cell.
-                let a10 = mag_iv(window_tilde_hull(&a.d10, &w_nets.d10, cc, wu_d1, wv_val));
-                let a01 = mag_iv(window_tilde_hull(&a.d01, &w_nets.d01, cc, wu_val, wv_d1));
-                let a11 = mag_iv(window_tilde_hull(&a.d11, &w_nets.d11, cc, wu_d1, wv_d1));
-                let a20 = match (a.d20.as_ref(), w_nets.d20.as_ref()) {
-                    (Some(ad), Some(wd)) => {
-                        mag_iv(window_tilde_hull(ad, wd, cc, (iu0, su - 2), wv_val))
+                let a10 = mag_iv(window_tilde_hull(&a.d10, &w_nets.d10, cc, &wu_d1, &wv_val));
+                let a01 = mag_iv(window_tilde_hull(&a.d01, &w_nets.d01, cc, &wu_val, &wv_d1));
+                let a11 = mag_iv(window_tilde_hull(&a.d11, &w_nets.d11, cc, &wu_d1, &wv_d1));
+                let a20 = match (a.d20.as_ref(), w_nets.d20.as_ref(), wu_d2.as_ref()) {
+                    (Some(ad), Some(wd), Some(wu2)) => {
+                        mag_iv(window_tilde_hull(ad, wd, cc, wu2, &wv_val))
                     }
                     _ => RingInterval::zero(),
                 };
-                let a02 = match (a.d02.as_ref(), w_nets.d02.as_ref()) {
-                    (Some(ad), Some(wd)) => {
-                        mag_iv(window_tilde_hull(ad, wd, cc, wu_val, (jv0, sv - 2)))
+                let a02 = match (a.d02.as_ref(), w_nets.d02.as_ref(), wv_d2.as_ref()) {
+                    (Some(ad), Some(wd), Some(wv2)) => {
+                        mag_iv(window_tilde_hull(ad, wd, cc, &wu_val, wv2))
                     }
                     _ => RingInterval::zero(),
                 };

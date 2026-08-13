@@ -62,7 +62,7 @@
 //! ring's outward rounding of the pad itself.
 
 use geom_core::{Bounds, Point3, RingInterval, Vec3};
-use geom_surfaces::{NurbsSurface, Surface};
+use geom_surfaces::{NurbsSurface, Surface, SurfaceWindow};
 
 /// An axis-aligned ring box in ℝ³.
 #[derive(Clone, Copy, Debug)]
@@ -364,30 +364,33 @@ impl<'a, T: Bounds> NurbsBoxes<'a, T> {
         let (ud, vd) = (ku.domain(), kv.domain());
         let cu = (u0.clamp(ud.0, ud.1), u1.clamp(ud.0, ud.1));
         let cv = (v0.clamp(vd.0, vd.1), v1.clamp(vd.0, vd.1));
-        // `span_range` answers in validated spans; the cell grid is
-        // still addressed by index (`cell_point_box` walks the control
-        // net directly), so the pair is read back out here.
+        // `span_range` answers in validated spans, but a cell RANGE is
+        // what this returns: the interior of the rectangle is neither
+        // end, so the two ends' proofs do not cover it. The callers
+        // re-derive each cell's window with `NurbsSurface::window`,
+        // which is also what skips the empty spans in between — hence
+        // indices here, and the pair read back out.
         let (u_lo, u_hi) = ku.span_range(cu.0, cu.1);
         let (v_lo, v_hi) = kv.span_range(cv.0, cv.1);
         ((u_lo.index(), u_hi.index()), (v_lo.index(), v_hi.index()))
     }
 
     /// The hull of the Cartesian control block of one span cell.
-    fn cell_point_box(&self, su: usize, sv: usize) -> Box3 {
-        let (pu, pv) = (
-            self.surface.knots_u().degree(),
-            self.surface.knots_v().degree(),
-        );
-        let nv = self.surface.knots_v().control_count();
+    ///
+    /// The cell is a [`SurfaceWindow`], so the `su < pu || sv < pv`
+    /// refusal this used to open with is gone: the window's two `Span`s
+    /// carry `index ≥ degree` from their construction. What remains is
+    /// the length check the window cannot make — `ctl.get`, below,
+    /// against the caller's control array.
+    fn cell_point_box(&self, win: SurfaceWindow) -> Box3 {
         let ctl = self.surface.control();
-        if su < pu || sv < pv {
-            return poison_box();
-        }
         let mut out: Option<Box3> = None;
-        for iu in (su - pu)..=su {
-            for iv in (sv - pv)..=sv {
-                let idx = iu * nv + iv;
-                let Some(p) = ctl.get(idx) else {
+        // Same ascending walk as the open-coded `(su − pu)..=su` pair
+        // (D9): `row(i) + j` IS `iu·nv + iv` over the same indices.
+        for i in 0..=win.span_u().degree() {
+            let row = win.row(i);
+            for j in 0..=win.span_v().degree() {
+                let Some(p) = ctl.get(row + j) else {
                     return poison_box();
                 };
                 let b = Box3::between(*p, *p);
@@ -403,20 +406,24 @@ impl<'a, T: Bounds> NurbsBoxes<'a, T> {
     /// The homogeneous derivative-net hull in one direction, plus the
     /// weight and weight-derivative hulls, over one span cell:
     /// `(A_d hull, w_d hull, w hull)`.
+    ///
+    /// Both the range refusal (`su < pu`) and the degree-0 one this
+    /// used to open with are gone with the [`SurfaceWindow`]: the
+    /// former is the `Span` invariant, and `KnotVector::clamped`
+    /// refuses degree 0 outright, so `pu == 0 || pv == 0` named a state
+    /// no constructible window can reach. The remaining `.get`
+    /// refusals — against `ctl`, `wts` and the raw knot slices — are
+    /// the ones a window cannot make.
     fn cell_homogeneous_deriv(
         &self,
-        su: usize,
-        sv: usize,
+        win: SurfaceWindow,
         along_u: bool,
     ) -> (Box3, RingInterval, RingInterval) {
         let s = self.surface;
-        let (pu, pv) = (s.knots_u().degree(), s.knots_v().degree());
-        let nv = s.knots_v().control_count();
+        let (pu, pv) = (win.span_u().degree(), win.span_v().degree());
+        let nv = win.stride();
         let ctl = s.control();
         let wts = s.weights();
-        if su < pu || sv < pv || pu == 0 || pv == 0 {
-            return (poison_box(), RingInterval::poison(), RingInterval::poison());
-        }
         let (ku, kv) = (s.knots_u().knots(), s.knots_v().knots());
         let mut abox: Option<Box3> = None;
         let mut wd: Option<RingInterval> = None;
@@ -424,18 +431,18 @@ impl<'a, T: Bounds> NurbsBoxes<'a, T> {
         // The derivative spline in direction d has degree p−1 and its
         // local block on this cell is the divided differences over the
         // Cartesian block shifted by one index in d.
-        let (iu_lo, iu_hi) = if along_u {
-            (su - pu, su - 1)
+        // Differencing drops the window's top index in the direction it
+        // acts on, which is exactly `Span::first_derived_window` — so
+        // the `su − pu` / `su − 1` pairs are not subtractions here any
+        // more, and the pair that is NOT differenced keeps the full
+        // window.
+        let (uw, vw) = if along_u {
+            (win.span_u().first_derived_window(), win.span_v().window())
         } else {
-            (su - pu, su)
+            (win.span_u().window(), win.span_v().first_derived_window())
         };
-        let (iv_lo, iv_hi) = if along_u {
-            (sv - pv, sv)
-        } else {
-            (sv - pv, sv - 1)
-        };
-        for iu in iu_lo..=iu_hi {
-            for iv in iv_lo..=iv_hi {
+        for iu in uw {
+            for iv in vw.clone() {
                 let idx0 = iu * nv + iv;
                 let idx1 = if along_u {
                     (iu + 1) * nv + iv
@@ -503,7 +510,16 @@ impl<'a, T: Bounds> NurbsBoxes<'a, T> {
         let mut out: Option<Box3> = None;
         for su in su0..=su1 {
             for sv in sv0..=sv1 {
-                let b = self.cell_point_box(su, sv);
+                // An EMPTY span cell covers no parameters, so its
+                // control block is not part of what this box must
+                // contain — skipping it is sound and strictly tighter.
+                // The corner cell is always nonempty (`cells` locates
+                // its ends with `span_at`), so the hull is never left
+                // unseeded by this skip.
+                let Some(win) = self.surface.window(su, sv) else {
+                    continue;
+                };
+                let b = self.cell_point_box(win);
                 out = Some(match out {
                     None => b,
                     Some(acc) => acc.hull(b),
@@ -523,7 +539,12 @@ impl<'a, T: Bounds> NurbsBoxes<'a, T> {
         let mut out: Option<Box3> = None;
         for su in su0..=su1 {
             for sv in sv0..=sv1 {
-                let (ad, wd, w) = self.cell_homogeneous_deriv(su, sv, along_u);
+                // Empty cells contribute nothing here either — see
+                // [`NurbsBoxes::point_box`]'s note.
+                let Some(win) = self.surface.window(su, sv) else {
+                    continue;
+                };
+                let (ad, wd, w) = self.cell_homogeneous_deriv(win, along_u);
                 let d = Box3 {
                     x: (ad.x - sbox.x * wd) / w,
                     y: (ad.y - sbox.y * wd) / w,
@@ -567,8 +588,7 @@ impl<'a, T: Bounds> NurbsBoxes<'a, T> {
         // the parameter is a thin `f64` structure value, so its span is
         // unique and no `SpanLocate` hull is needed.
         let c = self.surface.eval_in_span(
-            self.surface.knots_u().find_span(um),
-            self.surface.knots_v().find_span(vm),
+            self.surface.window_at(um, vm),
             T::from_f64(um),
             T::from_f64(vm),
         );
@@ -613,6 +633,113 @@ mod tests {
             axis: Vec3::new(0.0, 0.0, 1.0),
             radius: 0.6,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// A rational surface whose u direction carries an interior knot of
+    /// **multiplicity 2**, so `[0.5, 0.5]` is an empty span sitting
+    /// between two nonempty ones — the cell the box loops now skip.
+    fn multiplicity_2_patch() -> NurbsSurface<f64> {
+        let ku =
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2)
+                .expect("clamped quadratic");
+        let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1)
+            .expect("clamped linear");
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        let mut control = Vec::with_capacity(nu * nv);
+        let mut weights = Vec::with_capacity(nu * nv);
+        for iu in 0..nu {
+            for iv in 0..nv {
+                let (a, b) = (iu as f64, iv as f64);
+                control.push(Point3::new(a * 0.4, b * 1.1, 0.3 * a * b - 0.2 * a.powi(2)));
+                weights.push(0.6 + 0.35 * ((iu * 3 + iv) % 5) as f64);
+            }
+        }
+        NurbsSurface::new(ku, kv, control, weights).expect("valid patch")
+    }
+
+    /// The box loops now SKIP an empty span cell instead of hulling its
+    /// control block. This pins that the skip loses nothing: the box is
+    /// exactly the hull of the control points the surviving (nonempty)
+    /// cells name — computed here from the two `Span` windows directly,
+    /// never from the loop under test.
+    ///
+    /// Exact equality is available because a hull is min/max over `f64`
+    /// points: order-independent, no rounding. That is deliberately a
+    /// stronger and cheaper claim than sampling would give — sampled
+    /// containment against this box is NOT exact, because `ders`' f64
+    /// evaluation can land an ulp outside the true control hull at a
+    /// domain edge (measured on this fixture: `S(0.55, 1).y` exceeds the
+    /// largest control `y` by 3e-16). The box bounds the real surface;
+    /// consumers pad by the certified tube radius before comparing an
+    /// evaluated point to it, and this row tests the window, not that
+    /// pad.
+    #[test]
+    fn a_skipped_empty_span_cell_removes_nothing_from_the_box() {
+        let s = multiplicity_2_patch();
+        let (ku, kv) = (s.knots_u(), s.knots_v());
+        // Anti-slack: the fixture must really present an empty cell, or
+        // this row covers nothing.
+        let empty: Vec<usize> = (ku.first_span()..=ku.last_span())
+            .filter(|i| ku.span(*i).is_none())
+            .collect();
+        assert_eq!(
+            empty,
+            vec![3],
+            "the fixture must carry exactly one empty span"
+        );
+        let boxes = NurbsBoxes::new(&s);
+        let (u0, u1, v0, v1) = (0.2, 0.8, 0.0, 1.0);
+        let ((su0, su1), (sv0, sv1)) = boxes.cells(u0, u1, v0, v1);
+        assert!(
+            (su0..=su1).contains(&3),
+            "the rectangle must straddle the empty cell, got {su0}..={su1}"
+        );
+        // The expected hull, taken off the `Span` windows themselves.
+        let nv = kv.control_count();
+        let mut expect: Option<Box3> = None;
+        for su in su0..=su1 {
+            for sv in sv0..=sv1 {
+                let (Some(a), Some(b)) = (ku.span(su), kv.span(sv)) else {
+                    continue;
+                };
+                for iu in a.window() {
+                    for iv in b.window() {
+                        let p = s.control()[iu * nv + iv];
+                        let one = Box3::between(p, p);
+                        expect = Some(match expect {
+                            None => one,
+                            Some(acc) => acc.hull(one),
+                        });
+                    }
+                }
+            }
+        }
+        let expect = expect.expect("at least one nonempty cell");
+        let pb = boxes.point_box(u0, u1, v0, v1);
+        for (got, want, axis) in [
+            (pb.x, expect.x, "x"),
+            (pb.y, expect.y, "y"),
+            (pb.z, expect.z, "z"),
+        ] {
+            assert!(
+                got.lo().to_bits() == want.lo().to_bits()
+                    && got.hi().to_bits() == want.hi().to_bits(),
+                "{axis}: box [{}, {}] is not the surviving cells' hull [{}, {}]",
+                got.lo(),
+                got.hi(),
+                want.lo(),
+                want.hi()
+            );
+        }
+        // The derivative boxes survive the same skip — poison here would
+        // mean it left their hulls unseeded.
+        for along_u in [true, false] {
+            let d = boxes.deriv_box(u0, u1, v0, v1, along_u);
+            assert!(
+                !d.x.is_poison() && !d.y.is_poison() && !d.z.is_poison(),
+                "deriv box (along_u = {along_u}) poisoned across the empty cell"
+            );
         }
     }
 

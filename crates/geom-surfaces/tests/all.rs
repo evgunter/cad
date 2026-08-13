@@ -48,6 +48,8 @@ mod review_m2_pr1_interval;
 mod review_m5_pr3_attack;
 #[path = "review_m5_pr3_attack_interval.rs"]
 mod review_m5_pr3_attack_interval;
+#[path = "span_window_pairing.rs"]
+mod span_window_pairing;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.

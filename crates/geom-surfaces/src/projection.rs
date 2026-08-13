@@ -219,14 +219,15 @@ impl<T: Bounds> NurbsSurface<T> {
         let mut best_d2 = f64::INFINITY;
         for iu in ku.first_span()..=ku.last_span() {
             // Emptiness check and span validation are one step, in both
-            // directions. The surface cores still take span *indices*
-            // (the tensor window is a separate unit's follow-up), so the
-            // validated spans are read back out below.
+            // directions; the window is then built once per span CELL —
+            // it is the same window for all `SEEDS_PER_SPAN²`
+            // evaluations below.
             let Some(span_u) = ku.span(iu) else { continue };
             let (a0, a1) = (ku.knots()[iu], ku.knots()[iu + 1]);
             for iv in kv.first_span()..=kv.last_span() {
                 let Some(span_v) = kv.span(iv) else { continue };
                 let (b0, b1) = (kv.knots()[iv], kv.knots()[iv + 1]);
+                let win = self.window_of(span_u, span_v);
                 for i in 0..SURFACE_PROJECT_SEEDS_PER_SPAN {
                     #[allow(clippy::cast_precision_loss)]
                     let fu = i as f64 / (SURFACE_PROJECT_SEEDS_PER_SPAN - 1) as f64;
@@ -235,12 +236,7 @@ impl<T: Bounds> NurbsSurface<T> {
                         #[allow(clippy::cast_precision_loss)]
                         let fv = j as f64 / (SURFACE_PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let v = b0 + (b1 - b0) * fv;
-                        let d = self.eval_in_span(
-                            span_u.index(),
-                            span_v.index(),
-                            T::from_f64(u),
-                            T::from_f64(v),
-                        ) - p;
+                        let d = self.eval_in_span(win, T::from_f64(u), T::from_f64(v)) - p;
                         let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.
                         if d2 < best_d2 {
@@ -279,9 +275,7 @@ impl<T: Bounds> NurbsSurface<T> {
         let mut last_fv = f64::NAN;
         let mut last_dist = f64::NAN;
         while iterations < SURFACE_PROJECT_MAX_ITERS {
-            let su = self.knots_u().find_span(u);
-            let sv = self.knots_v().find_span(v);
-            let j = self.ders_in_span(su, sv, T::from_f64(u), T::from_f64(v));
+            let j = self.ders_in_span(self.window_at(u, v), T::from_f64(u), T::from_f64(v));
             let r = j.point - p;
             // The iteration reads structure through the brackets; the
             // T-valued jet above is what the accepted payload is built
@@ -326,9 +320,8 @@ impl<T: Bounds> NurbsSurface<T> {
             // through the chart (domain-edge feet land here).
             let moved = j.du * T::from_f64(un - u) + j.dv * T::from_f64(vn - v);
             if mid(moved.norm()) <= SURFACE_PROJECT_EPS_POINT {
-                let su = self.knots_u().find_span(un);
-                let sv = self.knots_v().find_span(vn);
-                let jn = self.ders_in_span(su, sv, T::from_f64(un), T::from_f64(vn));
+                let jn =
+                    self.ders_in_span(self.window_at(un, vn), T::from_f64(un), T::from_f64(vn));
                 let r = jn.point - p;
                 let dist = r.norm();
                 if !mid(dist).is_nan() {

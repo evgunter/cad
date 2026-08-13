@@ -85,8 +85,8 @@
 //! documented slack there, unchanged).
 
 use geom_core::ring_interval::RingInterval;
-use geom_core::spline::KnotVector;
 use geom_core::spline::hull::{derivative_coeffs, span_hull};
+use geom_core::spline::{KnotVector, Span};
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::PropsError;
@@ -580,11 +580,16 @@ fn bspline_eval_ring(kv: &KnotVector, coeffs: &[RingInterval], t: f64) -> RingIn
     }
     let p = kv.degree();
     let u = kv.knots();
-    let span = kv.find_span(t);
-    let mut d: Vec<RingInterval> = (0..=p).map(|j| coeffs[span - p + j]).collect();
+    // The window is validated once, by `span_at`, and carries its own
+    // first control point: the `span − p` this loop used to redo twice
+    // (once per pass) has no use site left and cannot underflow. Its
+    // in-range-ness is the `Span` invariant, so indexing `coeffs`
+    // needs only the length check above.
+    let first = kv.span_at(t).first_control();
+    let mut d: Vec<RingInterval> = (0..=p).map(|j| coeffs[first + j]).collect();
     for r in 1..=p {
         for j in (r..=p).rev() {
-            let i = span - p + j;
+            let i = first + j;
             let denom = pt(u[i + p + 1 - r]) - pt(u[i]);
             let alpha = (pt(t) - pt(u[i])) / denom;
             d[j] = (pt(1.0) - alpha) * d[j - 1] + alpha * d[j];
@@ -1006,7 +1011,7 @@ impl Dir {
 fn bspline_eval_ring_in_span(
     kv: &KnotVector,
     coeffs: &[RingInterval],
-    span: usize,
+    span: Span,
     t: RingInterval,
 ) -> RingInterval {
     if coeffs.len() != kv.control_count() {
@@ -1014,10 +1019,14 @@ fn bspline_eval_ring_in_span(
     }
     let p = kv.degree();
     let u = kv.knots();
-    let mut d: Vec<RingInterval> = (0..=p).map(|j| coeffs[span - p + j]).collect();
+    // The window's base, off the `Span` — as in [`bspline_eval_ring`],
+    // whose recurrence this is. The length check above is the only
+    // structure left to verify: in-range-ness came with the `Span`.
+    let first = span.first_control();
+    let mut d: Vec<RingInterval> = (0..=p).map(|j| coeffs[first + j]).collect();
     for r in 1..=p {
         for j in (r..=p).rev() {
-            let i = span - p + j;
+            let i = first + j;
             let denom = pt(u[i + p + 1 - r]) - pt(u[i]);
             let alpha = (t - pt(u[i])) / denom;
             d[j] = (pt(1.0) - alpha) * d[j - 1] + alpha * d[j];
@@ -1189,7 +1198,7 @@ impl PatchGrid {
         match (dir, op) {
             (Dir::Kv(kv), Collapse::At(t)) => bspline_eval_ring(kv, coeffs, t),
             (Dir::Kv(kv), Collapse::AtSpan { mid, t }) => {
-                bspline_eval_ring_in_span(kv, coeffs, kv.find_span(mid), *t)
+                bspline_eval_ring_in_span(kv, coeffs, kv.span_at(mid), *t)
             }
             (Dir::Kv(kv), Collapse::Over(lo, hi)) => bspline_range_hull(kv, coeffs, lo, hi),
             (Dir::Raw { knots, degree }, Collapse::At(t)) => raw_eval(knots, *degree, coeffs, t),
@@ -3136,6 +3145,10 @@ mod tests {
                     let (su, sv) = (kv_u.span_at(u), kv_v.span_at(v));
                     let bu = ders_basis_funs::<f64>(&kv_u, su, u, 1);
                     let bv = ders_basis_funs::<f64>(&kv_v, sv, v, 1);
+                    // The `iu * nv + iv` stride stays written out on
+                    // purpose: this oracle shares NO derivation with
+                    // the code under test, so it does not borrow the
+                    // surface window type.
                     let (mut a, mut w) = ([[0.0f64; 3]; 3], [0.0f64; 3]);
                     for (r, (nu0, nu1)) in bu[0].iter().zip(&bu[1]).enumerate() {
                         for (s, (nv0, nv1)) in bv[0].iter().zip(&bv[1]).enumerate() {
