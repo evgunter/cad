@@ -5,6 +5,16 @@
 //! form exists, against that too. The contract under test: the true
 //! flux/area lie INSIDE the returned brackets, or the call refuses
 //! typed. A returned bracket that EXCLUDES the truth is the failure.
+//!
+//! **The refusals are held to a contract too** — they are not merely
+//! printed. Each one must be a typed outcome this lane is allowed to
+//! produce, must carry a FINITE width that really missed the run's own
+//! `1024·ε` target, and must land on the carrier's PINNED floor (the
+//! refinement schedule is fixed by D9, so only the target moves with
+//! ε). A probe that only prints its `Err` asserts nothing: that is how
+//! a convergence meter dividing by a cancelled lever reported an `inf`
+//! displacement — for a flux enclosure that was still narrowing —
+//! through eight rounds and two ε rows of a green suite.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -16,10 +26,127 @@
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, RingInterval, Tolerance};
+use geom_core::{Band, MarginDiag, RingInterval, Tolerance};
 
 fn band() -> Band {
     Band::linear().unwrap()
+}
+
+/// The engine's convergence target as a multiple of ε
+/// (`QUAD_TARGET_LEN_FACTOR`, crate-private — mirrored here so a
+/// refusal's carried target can be checked against the run's ε).
+const TARGET_LEN_FACTOR: f64 = 1024.0;
+
+/// The corpus's declared ambient uncertainty — the ε the fixed
+/// quadrature schedule (D9) is dimensioned for, and the boundary the
+/// ε-keyed anti-vacuity claim below is pinned against (`quad.rs`'s own
+/// unit tests use the same constant for the same reason).
+const CORPUS_EPS: f64 = 1e-9;
+
+// ---------------------------------------------------------------
+// The measured refusal floors, one per carrier.
+//
+// Each is the mean boundary displacement (m) the fixed schedule (D9)
+// bottoms out at for that carrier — the number a
+// `PropsError::QuadratureBudget` carries when the run's `1024·ε`
+// target sits below it. The SCHEDULE is fixed and only the target
+// moves with ε, so these are ε-independent: measured identical on the
+// 1e-9 and 1e-12 rows. A carrier whose floor is under the run's
+// target certifies instead, and the pin stands down (see `pin_floor`).
+//
+// They are pinned because "it refused, typed" is a contract a broken
+// engine also satisfies: without a number, a refusal that got 10×
+// worse still reads as green.
+// ---------------------------------------------------------------
+
+/// Möbius-reparameterized quarter cylinder (weight ratio 100).
+const MOEBIUS_FLOOR: f64 = 5.165e-2;
+/// Warped bilinear with 1e-1/1e1 weights.
+const HYPAR_FLOOR: f64 = 1.916e-2;
+/// Quarter torus, R = 2 m, r = 0.5 m.
+const QUARTER_TORUS_FLOOR: f64 = 1.146e-6;
+/// Two-span half cylinder, r = 1 m, h = 2 m — the row that misses the
+/// DEFAULT ε (1.024e-6) by 27%.
+const HALF_CYLINDER_FLOOR: f64 = 1.304e-6;
+/// C0-kink extruded wall (5 m profile).
+const C0_KINK_FLOOR: f64 = 4.785e-4;
+/// Unit sphere octant (degenerate pole row).
+const SPHERE_OCTANT_FLOOR: f64 = 9.683e-7;
+/// Quarter cylinder at r = 1 km: the floor is a LENGTH, so it scales
+/// with the part (1e3 × the metre-scale quarter cylinder's).
+const HUGE_CYLINDER_FLOOR: f64 = 1.535e-4;
+/// The determinism carrier: single-span quarter cylinder, r = 1 m,
+/// h = 2 m, driven at a millionfold-tighter target.
+const QUARTER_CYLINDER_FLOOR: f64 = 1.535_131_804_305_385e-7;
+
+/// The outcomes a probe is allowed to have on the run's ε — three
+/// honest postures plus the degenerate-face refusal, which is sound
+/// but is a capability gap and so is pinned per carrier.
+///
+/// This is `quad.rs`'s own `eps_posture` contract, ported: the target
+/// is `1024·ε` while the refinement schedule is FIXED (D9), so the
+/// same patch that certifies at ε = 1e-6 genuinely cannot at
+/// ε = 1e-12. A probe that merely PRINTS its refusal asserts nothing
+/// about it — that is how an `inf` width and a mis-typed escalation
+/// rode along under this suite for two ε rows.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Posture {
+    /// The enclosure certified — and contains every truth in hand
+    /// (checked in the `Ok` arm of [`probe`]).
+    Certified,
+    /// [`PropsError::QuadratureBudget`]: the fixed schedule's floor is
+    /// DEFINITELY above the run's target. Carries the measured floor.
+    Budget(f64),
+    /// The same shortfall, in-band for the run's `Band{ε, Kε}` — so
+    /// `props_quad_converged` escalates through the funnel before the
+    /// budget can run out.
+    Escalated,
+    /// [`PropsError::DegenerateFace`]: the area enclosure does not
+    /// certify positive extent, so the convergence meter has no lever
+    /// and the face-extent gate would refuse the same way one step
+    /// later. On a carrier whose true area IS positive this is a
+    /// FALSE NEGATIVE — a capability gap, never an unsound answer —
+    /// and it is pinned per carrier below so it cannot spread quietly.
+    Degenerate,
+}
+
+/// Pin one carrier's measured refusal floor.
+///
+/// The refinement schedule is fixed by D9 and only the target moves
+/// with ε, so a carrier that refuses at the budget refuses with the
+/// SAME width on every ε row; the pinned number is that width, as
+/// measured by this suite. A carrier whose floor sits under the run's
+/// target certifies instead (the ε row working as designed), so only
+/// the budget arm is pinned — the anti-vacuity test below is what
+/// keeps "everything refuses" from being green.
+#[track_caller]
+fn pin_floor(name: &str, posture: Posture, floor: f64) {
+    match posture {
+        Posture::Budget(width_len) => assert!(
+            (width_len - floor).abs() <= 1e-3 * floor,
+            "{name}: the refusal floor MOVED: {width_len:e} against the pinned \
+             {floor:e}. The schedule is fixed (D9), so a moved floor is a changed \
+             enclosure — re-measure and re-pin deliberately, never widen this bound"
+        ),
+        Posture::Certified | Posture::Escalated => {}
+        Posture::Degenerate => panic!(
+            "{name}: the engine now refuses this carrier as DEGENERATE — its area \
+             enclosure stopped certifying positive extent. That is a capability \
+             regression, not an ε row"
+        ),
+    }
+}
+
+/// Pin a carrier the engine refuses as degenerate, with the reason it
+/// does so — the outcome must not drift to a *different* refusal (or,
+/// worse, to an answer) without someone re-reading why.
+#[track_caller]
+fn pin_degenerate(name: &str, posture: Posture, why: &str) {
+    assert_eq!(
+        posture,
+        Posture::Degenerate,
+        "{name}: expected the degenerate-face refusal ({why}) and got {posture:?}"
+    );
 }
 
 fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
@@ -244,8 +371,9 @@ fn patch(
 }
 
 /// One probe: run the engine; if it answers, the dense oracle (and
-/// any closed forms) must lie inside both brackets. Returns the
-/// engine output for extra checks.
+/// any closed forms) must lie inside both brackets; if it refuses, the
+/// refusal must satisfy the [`Posture`] contract. Returns the posture
+/// so the caller can pin the carrier's floor.
 #[allow(clippy::too_many_arguments)]
 fn probe(
     name: &str,
@@ -256,7 +384,7 @@ fn probe(
     perimeter: f64,
     closed_flux: Option<f64>,
     closed_area: Option<f64>,
-) -> Option<geom_brep::props::quad::FaceCutBounds> {
+) -> Posture {
     let pa = patch(ku, kv, control, weights);
     let (of1, oa1) = pa.dense(24);
     let (of2, oa2) = pa.dense(48);
@@ -344,11 +472,59 @@ fn probe(
                     fb.area.hi()
                 );
             }
-            Some(fb)
+            Posture::Certified
         }
+        // The refusal arm asserts the SAME contract as the crate's own
+        // `eps_posture` (quad.rs): a budget refusal carries a finite
+        // width that really missed the run's own `1024·ε` target, an
+        // escalation is the convergence predicate with a finite in-band
+        // margin, and anything else is an unsound outcome.
         Err(e) => {
             println!("{name}: typed refusal (sound): {e}");
-            None
+            let target = TARGET_LEN_FACTOR * Tolerance::get().eps;
+            match e {
+                PropsError::QuadratureBudget {
+                    width_len,
+                    target_len,
+                } => {
+                    assert!(
+                        width_len.is_finite() && width_len > target_len,
+                        "{name}: a budget refusal must carry a width that really \
+                         missed: {width_len:e} vs {target_len:e}"
+                    );
+                    assert!(
+                        (target_len - target).abs() <= target * 1e-12,
+                        "{name}: the refused target must BE 1024·ε for this run: \
+                         {target_len:e} vs {target:e}"
+                    );
+                    println!("FLOOR {name} {width_len:.12e} target {target_len:.6e}");
+                    Posture::Budget(width_len)
+                }
+                PropsError::Escalated { cause } => {
+                    assert_eq!(
+                        cause.predicate,
+                        Some("props_quad_converged"),
+                        "{name}: only the convergence predicate may escalate here: \
+                         {cause:?}"
+                    );
+                    assert!(
+                        matches!(cause.margin, MarginDiag::Value(m) if m.is_finite()),
+                        "{name}: the escalation must carry a finite in-band margin: \
+                         {cause:?}"
+                    );
+                    Posture::Escalated
+                }
+                // A face whose AREA enclosure does not certify positive
+                // extent: the convergence meter has no lever, and the
+                // face-extent gate would read the same `area.lo()` the
+                // same way. Sound (it answers nothing), but on a
+                // carrier with a positive true area it is a false
+                // negative, so no probe gets it by default — the only
+                // carrier allowed to reach it says so with
+                // `pin_degenerate`, and `pin_floor` panics on it.
+                PropsError::DegenerateFace => Posture::Degenerate,
+                other => panic!("{name}: unsound outcome {other:?}"),
+            }
         }
     }
 }
@@ -373,7 +549,7 @@ fn probe_sphere_octant() {
         p(0.0, 1.0, 0.0),
     ];
     let weights = [1.0, W2, 1.0, W2, 0.5, W2, 1.0, W2, 1.0];
-    probe(
+    let posture = probe(
         "sphere-octant",
         &kv2,
         &kv2,
@@ -383,6 +559,7 @@ fn probe_sphere_octant() {
         None,
         Some(PI / 2.0),
     );
+    pin_floor("sphere-octant", posture, SPHERE_OCTANT_FLOOR);
 }
 
 /// Quarter torus patch (R=2, r=0.5): dense oracle only.
@@ -403,7 +580,7 @@ fn probe_quarter_torus() {
             weights.push(pw[k] * wj);
         }
     }
-    probe(
+    let posture = probe(
         "quarter-torus",
         &kv2,
         &kv2,
@@ -413,6 +590,7 @@ fn probe_quarter_torus() {
         None,
         None,
     );
+    pin_floor("quarter-torus", posture, QUARTER_TORUS_FLOOR);
 }
 
 /// Moebius-reparameterized quarter cylinder (weights scaled by
@@ -432,7 +610,7 @@ fn probe_moebius_quarter_cylinder() {
     ];
     let l = 10.0;
     let weights = [1.0, 1.0, W2 * l, W2 * l, l * l, l * l];
-    probe(
+    let posture = probe(
         "moebius-quarter-cylinder",
         &ku,
         &kv,
@@ -442,6 +620,7 @@ fn probe_moebius_quarter_cylinder() {
         Some(PI),
         Some(PI),
     );
+    pin_floor("moebius-quarter-cylinder", posture, MOEBIUS_FLOOR);
 }
 
 /// Bilinear rational reparameterized unit square at z=1 with EXTREME
@@ -456,7 +635,7 @@ fn probe_extreme_weight_square() {
         p(1.0, 1.0, 1.0),
     ];
     let weights = [1e-3, 1e3, 1e3, 1e-3];
-    probe(
+    let posture = probe(
         "extreme-weight-square",
         &kv1,
         &kv1,
@@ -465,6 +644,18 @@ fn probe_extreme_weight_square() {
         4.0,
         Some(1.0),
         Some(1.0),
+    );
+    // The 1e-3/1e3 weight spread makes the area rule's Lipschitz pad
+    // (~1.7e20) dwarf the true area of 1 m², and the pad is SYMMETRIC:
+    // the area enclosure straddles zero, so no lever exists and the
+    // engine refuses the face as degenerate. A false negative on a
+    // patch that is plainly a unit square — the capability gap this
+    // carrier exists to hold still — but never a wrong answer.
+    pin_degenerate(
+        "extreme-weight-square",
+        posture,
+        "the symmetric area pad dwarfs the area, so the enclosure does not \
+         certify positive extent",
     );
 }
 
@@ -480,7 +671,7 @@ fn probe_extreme_weight_hypar() {
         p(1.0, 1.0, 0.0),
     ];
     let weights = [1e-1, 1.0, 1.0, 1e1];
-    probe(
+    let posture = probe(
         "extreme-weight-hypar",
         &kv1,
         &kv1,
@@ -490,33 +681,131 @@ fn probe_extreme_weight_hypar() {
         None,
         None,
     );
+    pin_floor("extreme-weight-hypar", posture, HYPAR_FLOOR);
 }
 
-/// Scale extremes: quarter cylinders at r = 1e-6 and r = 1e3.
+/// The quarter-cylinder carrier at radius `r`, height `h` (the scale
+/// row's shape; shared with the anti-vacuity test below).
 /// Closed forms: flux = (pi/2) r^2 h, area = (pi/2) r h.
-#[test]
-fn probe_scale_extremes() {
+fn quarter_cylinder_probe(name: &str, r: f64, h: f64) -> Posture {
     let ku = KnotVector::unit_segment(2);
     let kv = KnotVector::unit_segment(1);
-    for (r, h, name) in [(1e-6, 2e-6, "tiny-cylinder"), (1e3, 2e3, "huge-cylinder")] {
-        let net = [
-            p(r, 0.0, 0.0),
-            p(r, 0.0, h),
-            p(r, r, 0.0),
-            p(r, r, h),
-            p(0.0, r, 0.0),
-            p(0.0, r, h),
-        ];
-        let weights = [1.0, 1.0, W2, W2, 1.0, 1.0];
+    let net = [
+        p(r, 0.0, 0.0),
+        p(r, 0.0, h),
+        p(r, r, 0.0),
+        p(r, r, h),
+        p(0.0, r, 0.0),
+        p(0.0, r, h),
+    ];
+    let weights = [1.0, 1.0, W2, W2, 1.0, 1.0];
+    probe(
+        name,
+        &ku,
+        &kv,
+        &net,
+        &weights,
+        2.0 * h + PI * r,
+        Some(PI / 2.0 * r * r * h),
+        Some(PI / 2.0 * r * h),
+    )
+}
+
+/// Scale extremes: quarter cylinders at r = 1e-6 and r = 1e3 — the two
+/// ends of the LENGTH meter.
+///
+/// The 1 µm carrier's convergence floor scales with the part (1e-9× the
+/// metre-scale quarter cylinder's), so convergence is never its
+/// problem. What it runs into instead is the FACE-EXTENT gate, whose
+/// lever is also a length: the face's mean width is `area/perimeter` ≈
+/// 0.22 µm, which is above ε = 1e-9 but BELOW ε = 1e-6 — so at the
+/// coarse row the run's own tolerance says this face is degenerate,
+/// and the engine refuses it as such. That is the gate working, it is
+/// ε-keyed rather than waived here, and it predates the meter guard
+/// (verified: the pre-guard engine refuses the same row identically).
+///
+/// The 1 km carrier's floor is 1e3× the metre-scale one and refuses on
+/// every row of the matrix.
+#[test]
+fn probe_scale_extremes() {
+    let tiny = quarter_cylinder_probe("tiny-cylinder", 1e-6, 2e-6);
+    let expected = if Tolerance::get().eps <= CORPUS_EPS {
+        Posture::Certified
+    } else {
+        Posture::Degenerate
+    };
+    assert_eq!(
+        tiny,
+        expected,
+        "the 1 µm quarter cylinder's posture is ε-keyed: certified at the corpus ε \
+         and below, degenerate above it (its 0.22 µm mean width is under the run's \
+         own tolerance there) — got {tiny:?} at ε = {:e}",
+        Tolerance::get().eps
+    );
+    pin_floor(
+        "huge-cylinder",
+        quarter_cylinder_probe("huge-cylinder", 1e3, 2e3),
+        HUGE_CYLINDER_FLOOR,
+    );
+}
+
+/// ANTI-VACUITY: a probe in this suite must still CERTIFY on the run's
+/// ε — and at the corpus ε, a RATIONAL one must.
+///
+/// Every other assertion here is conditional on the outcome class — a
+/// refusal discharges its contract by being typed, finite and honest —
+/// so a change that made the engine refuse everything would leave the
+/// whole file green. This is the floor under that, in two parts,
+/// because one claim alone is either vacuous or false:
+///
+/// - **Every ε row**: the weight-1 unit square rides the exact
+///   per-span Newton–Cotes lane, whose enclosure width is ring
+///   rounding only. That is ε-INDEPENDENT, so it must certify at every
+///   ε in the matrix; if it ever refuses, the engine has stopped being
+///   able to answer at all.
+/// - **At the corpus ε and coarser**: the rational quarter cylinder
+///   must certify, so the rational lane is covered too. Below the
+///   corpus ε this is not available and pretending otherwise would be
+///   the ε-blindness the [`Posture`] docs describe: the rational
+///   target is ε-coupled against a FIXED schedule (D9), so at
+///   ε = 1e-12 every rational carrier here honestly refuses.
+///
+/// (Containment is checked inside [`probe`]: certifying with a bracket
+/// that excluded the truth fails there, not here.)
+#[test]
+fn probe_suite_still_certifies_something() {
+    let kv1 = KnotVector::unit_segment(1);
+    let flat = [
+        p(0.0, 0.0, 1.0),
+        p(0.0, 1.0, 1.0),
+        p(1.0, 0.0, 1.0),
+        p(1.0, 1.0, 1.0),
+    ];
+    assert_eq!(
         probe(
-            name,
-            &ku,
-            &kv,
-            &net,
-            &weights,
-            2.0 * h + PI * r,
-            Some(PI / 2.0 * r * r * h),
-            Some(PI / 2.0 * r * h),
+            "anti-vacuity-unit-square",
+            &kv1,
+            &kv1,
+            &flat,
+            &[1.0; 4],
+            4.0,
+            Some(1.0),
+            Some(1.0),
+        ),
+        Posture::Certified,
+        "ANTI-VACUITY: the exact-lane unit square no longer certifies at ε = {:e}. \
+         Nothing in this file certifies any more, so every refusal assertion in it \
+         is vacuously satisfiable",
+        Tolerance::get().eps
+    );
+    if Tolerance::get().eps >= CORPUS_EPS {
+        assert_eq!(
+            quarter_cylinder_probe("anti-vacuity-quarter-cylinder", 1.0, 2.0),
+            Posture::Certified,
+            "ANTI-VACUITY: no RATIONAL carrier certifies at ε = {:e}, which is the \
+             corpus ε or coarser — the lane has stopped answering, not just stopped \
+             reaching a tighter target",
+            Tolerance::get().eps
         );
     }
 }
@@ -541,7 +830,7 @@ fn probe_half_cylinder_interior_knot() {
         p(-1.0, 0.0, h),
     ];
     let weights = [1.0, 1.0, W2, W2, 1.0, 1.0, W2, W2, 1.0, 1.0];
-    probe(
+    let posture = probe(
         "half-cylinder-2span",
         &ku,
         &kv,
@@ -551,6 +840,7 @@ fn probe_half_cylinder_interior_knot() {
         Some(2.0 * PI),
         Some(2.0 * PI),
     );
+    pin_floor("half-cylinder-2span", posture, HALF_CYLINDER_FLOOR);
 }
 
 /// A C0 CORNER inside the domain (double knot, degree 2, kink not on
@@ -572,7 +862,7 @@ fn probe_c0_kink_area() {
         net.push(p(x, y, 1.0));
     }
     let weights = [0.9; 10];
-    probe(
+    let posture = probe(
         "c0-kink-wall",
         &ku,
         &kv,
@@ -582,6 +872,7 @@ fn probe_c0_kink_area() {
         None,
         Some(5.0),
     );
+    pin_floor("c0-kink-wall", posture, C0_KINK_FLOOR);
 }
 
 /// D9 determinism: the same rational flux computed twice must be
@@ -682,8 +973,15 @@ fn probe_determinism_bits() {
             width_len,
             target_len,
         }) => {
-            println!("BUDGET width_len {width_len:.6e} target {target_len:.6e}");
+            println!("BUDGET width_len {width_len:.15e} target {target_len:.6e}");
             assert!(width_len.is_finite() && width_len > target_len);
+            // The schedule is fixed (D9), so this carrier bottoms out
+            // at the same displacement whatever the target is.
+            assert!(
+                (width_len - QUARTER_CYLINDER_FLOOR).abs() <= 1e-3 * QUARTER_CYLINDER_FLOOR,
+                "the quarter cylinder's refusal floor MOVED: {width_len:e} against \
+                 the pinned {QUARTER_CYLINDER_FLOOR:e}"
+            );
         }
         Err(PropsError::Escalated { cause }) => {
             println!("ESCALATED {cause:?}");
