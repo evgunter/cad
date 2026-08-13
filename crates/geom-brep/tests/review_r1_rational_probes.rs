@@ -35,6 +35,17 @@ fn band() -> Band {
 /// The engine's convergence target as a multiple of ε
 /// (`QUAD_TARGET_LEN_FACTOR`, crate-private — mirrored here so a
 /// refusal's carried target can be checked against the run's ε).
+/// Relative-ulp overshoot of `v` outside `[lo, hi]`; `0.0` when inside.
+///
+/// A DIAGNOSTIC, printed on every probe row so that a carrier drifting
+/// toward its enclosure's edge is visible before it becomes a failure.
+/// The containment assertions themselves stay EXACT — see the note at
+/// their call site for why a tolerance would have been the wrong fix.
+fn overshoot_ulps(lo: f64, hi: f64, v: f64) -> f64 {
+    let mag = lo.abs().max(hi.abs()).max(v.abs()).max(f64::MIN_POSITIVE);
+    ((lo - v).max(v - hi).max(0.0)) / (mag * f64::EPSILON)
+}
+
 const TARGET_LEN_FACTOR: f64 = 1024.0;
 
 /// The corpus's declared ambient uncertainty — the ε the fixed
@@ -440,17 +451,43 @@ fn probe(
                 fb.area.hi(),
                 oa2
             );
-            if oracle_ok {
+            // Always reported, so drift is visible before it is fatal.
+            let (fo, ao) = (
+                overshoot_ulps(fb.flux.lo(), fb.flux.hi(), of2),
+                overshoot_ulps(fb.area.lo(), fb.area.hi(), oa2),
+            );
+            println!("{name}: sampled-oracle overshoot flux {fo:.2} ulps, area {ao:.2} ulps");
+            // The SAMPLED oracle is authoritative only where there is no
+            // exact value to compare against.
+            //
+            // `oracle_ok` above establishes that the coarse and fine
+            // grids AGREE — convergence, not accuracy. Both share the
+            // same O(n) summation drift, so a bias common to both is
+            // invisible to that test. That is harmless while the
+            // enclosure is orders wider than the drift, which holds for
+            // every hard carrier here. It inverts for an exactly
+            // integrable one: the weight-1 unit square encloses
+            // [0.9999999999999908, 1.000000000000012] (width ~2e-14,
+            // containing the true 1.0) against a *converged* oracle of
+            // 1.0000000000002953 — wrong by 1276 relative ulps, an order
+            // wider than the enclosure judging it. Asserting containment
+            // of the approximation would report the oracle's own drift as
+            // a kernel exclusion.
+            //
+            // So where a closed form is supplied it carries the claim,
+            // and it is the STRONGER check: it is the true value, not an
+            // estimate of it, and it is asserted exactly just below.
+            if oracle_ok && (closed_flux.is_none() || closed_area.is_none()) {
                 assert!(
-                    fb.flux.lo() <= of2 && of2 <= fb.flux.hi(),
-                    "{name}: FLUX EXCLUSION — enclosure [{}, {}] excludes oracle {}",
+                    fo == 0.0,
+                    "{name}: FLUX EXCLUSION — enclosure [{}, {}] excludes oracle {} by {fo:.2} relative ulps",
                     fb.flux.lo(),
                     fb.flux.hi(),
                     of2
                 );
                 assert!(
-                    fb.area.lo() <= oa2 && oa2 <= fb.area.hi(),
-                    "{name}: AREA EXCLUSION — enclosure [{}, {}] excludes oracle {}",
+                    ao == 0.0,
+                    "{name}: AREA EXCLUSION — enclosure [{}, {}] excludes oracle {} by {ao:.2} relative ulps",
                     fb.area.lo(),
                     fb.area.hi(),
                     oa2
