@@ -908,8 +908,15 @@ mod tests {
         worst
     }
 
-    fn r1_check(name: &str, n: &NurbsCurve3<f64>) {
-        // (a) m-bound vs dense-sampled true sup|C''|.
+    /// The δ schedule the R1 carriers sweep. Per-fixture, because the
+    /// count scales as δ^(−½) and one fixture's bound is conservative
+    /// enough to make the finest row dominate the crate — see
+    /// [`r1_extreme_weight_carrier`].
+    const R1_DELTAS: [f64; 3] = [1e-2, 1e-3, 1e-4];
+
+    fn r1_check(name: &str, n: &NurbsCurve3<f64>, deltas: &[f64]) {
+        // (a) m-bound vs dense-sampled true sup|C''|. δ-free: every
+        // carrier gets this arm in full.
         let m = rational_carrier_m_bound(n, EdgeKey::default()).expect("in inventory");
         let (d0, d1) = n.knots().domain();
         let mut truth = 0.0f64;
@@ -923,7 +930,7 @@ mod tests {
         );
         println!("{name}: truth/bound = {:.4}", truth / m);
         // (b) chord counts keep the secant inside delta_s.
-        for delta_s in [1e-2, 1e-3, 1e-4] {
+        for &delta_s in deltas {
             let count =
                 nurbs_chord_count(n, d1 - d0, delta_s, EdgeKey::default()).expect("in inventory");
             let worst = r1_secant_worst(n, count);
@@ -935,6 +942,34 @@ mod tests {
     }
 
     /// Extreme weights (1e-2 .. 1e2) on a multi-span cubic.
+    ///
+    /// SHORT δ SCHEDULE (no 1e-4), and the reasoning is the one this
+    /// tree has already ratified twice on the sibling SURFACE arm:
+    /// `nurbs_cert.rs:1106-1111` ("the lattice's falsification power is
+    /// PER TRIANGLE, not δ-dependent, so it takes coarser deltas") and
+    /// `nurbs_cert.rs:1513-1516` ("the per-triangle claim d ≤ cert(uv)
+    /// is grid-independent, so a coarser grid still falsifies"). The
+    /// claim asserted in `r1_check`'s arm (b) is likewise PER SEGMENT —
+    /// `worst <= delta_s` on every one of `count` segments — so a finer
+    /// δ only multiplies how many segments are checked; it adds no
+    /// falsification power per segment. What it does add is cost: the
+    /// count scales as δ^(−½), and THIS fixture's bound is the extreme
+    /// case (measured `truth/bound = 0.0023`, i.e. ~435x conservative,
+    /// exactly the conservatism `nurbs_cert` capped its grid for), so
+    /// its 1e-4 row alone was ~70% of a test that was in turn 98% of
+    /// the whole `chords` module (12.55 s of 12.77 s, measured).
+    ///
+    /// WHAT IS LOST: the δ = 1e-4 schedule on THIS fixture only. The
+    /// finest row stays exercised, on every other carrier in the
+    /// module: `r1_near_zero_weight_carrier` and
+    /// `r1_rational_mult_p_minus_one_carrier` (both still pass the full
+    /// `R1_DELTAS` through this same helper, and cost 0.05 s / 0.08 s
+    /// doing it), plus `rational_carrier_chords_bound_the_secant_
+    /// deviation`'s two rational fixtures and the polynomial
+    /// `nurbs_chords_bound_the_secant_deviation` /
+    /// `adversarial_spike_stays_inside_but_near_the_budget`. Arm (a),
+    /// the bound-honesty claim that is this fixture's actual point, is
+    /// δ-free and untouched.
     #[test]
     fn r1_extreme_weight_carrier() {
         let base = wiggle();
@@ -942,7 +977,7 @@ mod tests {
             .map(|i| [1e-2, 1.0, 1e2, 0.3, 7.0][i % 5])
             .collect();
         let n = NurbsCurve3::new(base.knots().clone(), base.control().to_vec(), w).unwrap();
-        r1_check("extreme_weight_carrier", &n);
+        r1_check("extreme_weight_carrier", &n, &R1_DELTAS[..2]);
     }
 
     /// Near-zero-touching legal weight (1e-5) amid O(1).
@@ -952,7 +987,7 @@ mod tests {
         let mut w = vec![1.0; base.control().len()];
         w[3] = 1e-5;
         let n = NurbsCurve3::new(base.knots().clone(), base.control().to_vec(), w).unwrap();
-        r1_check("near_zero_weight_carrier", &n);
+        r1_check("near_zero_weight_carrier", &n, &R1_DELTAS);
     }
 
     /// Interior multiplicity EXACTLY p−1 (the C¹ edge) on a RATIONAL
@@ -969,6 +1004,6 @@ mod tests {
             .collect();
         let w: Vec<f64> = (0..pts.len()).map(|i| [0.3, 2.0, 0.9][i % 3]).collect();
         let n = NurbsCurve3::new(kv, pts, w).unwrap();
-        r1_check("rational_mult_p1_carrier", &n);
+        r1_check("rational_mult_p1_carrier", &n, &R1_DELTAS);
     }
 }
