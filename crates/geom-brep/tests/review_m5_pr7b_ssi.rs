@@ -20,9 +20,13 @@ fn band() -> Band {
     Band::linear().unwrap()
 }
 
-fn at_default_eps() -> bool {
-    (eps() - 1e-9).abs() < f64::EPSILON
-}
+// `at_default_eps()` lived here and gated two rows into silence. Both
+// guards are gone (2026-08-13 audit): `deviation2b` handles its budget
+// refusal where it happens, and `deviation2a` turned out never to need
+// a guard at all — its march ε is explicit, and it measures the same
+// 3.805e-9 m on every ambient band. With the last caller removed the
+// helper is dead, so it goes too rather than sitting unused waiting to
+// be reached for again.
 
 /// PR 7's inflected wall, verbatim from the acceptance suite.
 fn nurbs_wall() -> NurbsSurface<f64> {
