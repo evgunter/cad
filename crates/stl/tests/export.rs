@@ -17,19 +17,22 @@ fn fnv(bytes: &[u8]) -> u64 {
     h
 }
 
-/// The acceptance meshes, tessellated once per process (the donut pays
-/// the documented quadratic CDT cost — see `common::acceptance_bodies`
-/// for the per-body δ) — the writers under test are pure functions of
-/// the mesh, so sharing it is sound.
-fn meshes() -> &'static [(&'static str, mesh::Mesh)] {
-    static MESHES: std::sync::OnceLock<Vec<(&'static str, mesh::Mesh)>> =
-        std::sync::OnceLock::new();
-    MESHES.get_or_init(|| {
-        common::acceptance_bodies()
-            .into_iter()
-            .map(|(name, body, delta)| (name, tessellate(&body, delta).unwrap()))
-            .collect()
-    })
+/// The acceptance meshes — the donut pays the documented quadratic CDT
+/// cost, see `common::acceptance_bodies` for the per-body δ. The
+/// writers under test are pure functions of the mesh, so one build
+/// serves every claim made about them.
+///
+/// **No memo, and that is the point.** This used to be a `OnceLock`
+/// "tessellated once per process". nextest is process-per-test, so the
+/// memo shared nothing across tests and each row that touched it paid
+/// the whole eleven-body tessellation. The rows that share it are now
+/// ONE test, which binds this list once; the only other caller is the
+/// `#[ignore]`d hash printer, which runs in its own process anyway.
+fn meshes() -> Vec<(&'static str, mesh::Mesh)> {
+    common::acceptance_bodies()
+        .into_iter()
+        .map(|(name, body, delta)| (name, tessellate(&body, delta).unwrap()))
+        .collect()
 }
 
 fn binary_of(mesh: &mesh::Mesh) -> Vec<u8> {
@@ -44,31 +47,7 @@ fn ascii_of(mesh: &mesh::Mesh) -> Vec<u8> {
     out
 }
 
-// ---- byte identity ----------------------------------------------------
-
-#[test]
-fn repeated_export_is_byte_identical() {
-    // Repeat-call identity through the FULL pipeline: rebuild the
-    // body, retessellate, rewrite — bytes must match the cached
-    // pipeline's output exactly.
-    for (name, body, delta) in common::acceptance_bodies() {
-        // INVARIANT: both arms compare the CACHED pipeline's mesh
-        // against this freshly rebuilt one — the single retessellation
-        // here serves both writers, and comparing a writer's output to
-        // itself would assert nothing.
-        let rebuilt_mesh = tessellate(&body, delta).unwrap();
-        let rebuilt = binary_of(&rebuilt_mesh);
-        let cached = meshes().iter().find(|(n, _)| *n == name).unwrap();
-        let a = binary_of(&cached.1);
-        assert_eq!(fnv(&a), fnv(&rebuilt));
-        assert_eq!(a, rebuilt, "{name}: binary export not byte-identical");
-        assert_eq!(
-            ascii_of(&cached.1),
-            ascii_of(&rebuilt_mesh),
-            "{name}: ascii export not byte-identical"
-        );
-    }
-}
+// ---- the ε-row / cross-profile byte oracle ----------------------------
 
 /// Shell-driven cross-profile / cross-ε oracle: prints one FNV line
 /// per body. Run under debug and release (and any ε row) and diff —
@@ -79,8 +58,8 @@ fn print_stl_hashes() {
     for (name, mesh) in meshes() {
         println!(
             "STLHASH {name} bin={:016x} ascii={:016x}",
-            fnv(&binary_of(mesh)),
-            fnv(&ascii_of(mesh))
+            fnv(&binary_of(&mesh)),
+            fnv(&ascii_of(&mesh))
         );
     }
 }
@@ -117,7 +96,8 @@ fn eps_rows_export_identical_bytes() {
     assert_eq!(rows[1], rows[2], "stl bytes differ between eps rows");
 }
 
-// ---- ascii ↔ binary equivalence --------------------------------------
+// ---- the shared-mesh laws: ascii↔binary equivalence, normal honesty,
+//      header discipline, byte identity ---------------------------------
 
 /// Parse the binary payload into (normal, vertices) f32 tuples.
 fn parse_binary(bytes: &[u8]) -> Vec<[f32; 12]> {
@@ -160,58 +140,71 @@ fn parse_ascii(text: &str) -> Vec<[f32; 12]> {
     out
 }
 
+/// **The writer laws that share one tessellation of the acceptance
+/// set.** Four rows until the test-cost audit:
+///
+/// - `ascii_and_binary_triangle_sets_identical` → the `AGREE` block;
+/// - `normals_are_unit_and_outward_consistent` → the `NORMAL` / `FLUX`
+///   blocks;
+/// - `binary_header_is_constant_and_not_solid` → the `HEADER` block;
+/// - `repeated_export_is_byte_identical` → the `BYTE-IDENTITY` block.
+///
+/// # One tessellation of eleven bodies, every law on it
+///
+/// All four read the same acceptance meshes, and the `OnceLock` that
+/// was supposed to share them shares nothing under nextest, which runs
+/// one process per test — so the eleven-body tessellation (the donut's
+/// quadratic CDT included) ran four times per ε row. It runs once here.
+/// The header row had already been narrowed to build `l_prism` and
+/// `ball` DIRECTLY to dodge that cost; with the corpus in hand it takes
+/// those two rows straight out of it, which is the same two meshes
+/// (`common::acceptance_bodies` rows 0 and 2, both δ = 1e-2) with no
+/// build at all.
+///
+/// The `BYTE-IDENTITY` block still rebuilds every body from its recipe
+/// and retessellates — that second build is the CONTENT of the claim,
+/// not duplicated setup, and merging must never remove it.
+///
+/// What the split bought and a merged row cannot is failure ISOLATION,
+/// so every assertion NAMES its law — `AGREE`, `NORMAL`, `FLUX`,
+/// `HEADER`, `BYTE-IDENTITY` — and the message alone says which one
+/// broke.
 #[test]
-fn ascii_and_binary_triangle_sets_identical() {
-    for (name, mesh) in meshes() {
-        let bin = parse_binary(&binary_of(mesh));
+fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
+    // THE one tessellation. INVARIANT: nothing below may call
+    // `meshes()` or `acceptance_bodies()` again except the
+    // BYTE-IDENTITY block, whose whole point is the independent
+    // rebuild.
+    let meshes = meshes();
+
+    for (name, mesh) in &meshes {
+        let bin_bytes = binary_of(mesh);
+        let bin = parse_binary(&bin_bytes);
+
+        // ---- AGREE: the two formats carry the same triangle set, bit
+        // for bit.
         let asc = parse_ascii(std::str::from_utf8(&ascii_of(mesh)).unwrap());
-        assert_eq!(bin.len(), asc.len(), "{name}: facet counts differ");
+        assert_eq!(bin.len(), asc.len(), "AGREE: {name}: facet counts differ");
         for (i, (b, a)) in bin.iter().zip(&asc).enumerate() {
             for k in 0..12 {
                 assert_eq!(
                     b[k].to_bits(),
                     a[k].to_bits(),
-                    "{name}: facet {i} field {k}: binary {} vs ascii {}",
+                    "AGREE: {name}: facet {i} field {k}: binary {} vs ascii {}",
                     b[k],
                     a[k]
                 );
             }
         }
-    }
-}
 
-// ---- format sanity ----------------------------------------------------
-
-#[test]
-fn binary_header_is_constant_and_not_solid() {
-    // Two DIFFERENT bodies: the "l_prism" and "ball" rows of
-    // `common::acceptance_bodies` (rows 0 and 2, both at δ = 1e-2),
-    // built directly. `meshes()` is a per-PROCESS cache and nextest
-    // gives each test its own process, so reading two entries out of it
-    // here built all eleven acceptance bodies for this row alone.
-    let a = binary_of(&tessellate(&common::l_prism(), 1e-2).unwrap());
-    let b = binary_of(&tessellate(&common::ball(), 1e-2).unwrap());
-    assert_eq!(&a[..80], &b[..80], "header must be input-independent");
-    assert!(
-        !a.starts_with(b"solid"),
-        "binary header must not sniff as ascii"
-    );
-    let count = u32::from_le_bytes(a[80..84].try_into().unwrap()) as usize;
-    assert_eq!(a.len(), 84 + count * 50, "binary facet record size");
-}
-
-#[test]
-fn normals_are_unit_and_outward_consistent() {
-    // Winding-derived normals must be unit (f32 tolerance) and agree
-    // with the mesh's positive signed volume via 13.7's flux form:
-    // Σ (centroid · n̂) · area > 0.
-    for (name, mesh) in meshes() {
-        let facets = parse_binary(&binary_of(mesh));
+        // ---- NORMAL / FLUX: winding-derived normals must be unit (f32
+        // tolerance) and agree with the mesh's positive signed volume
+        // via 13.7's flux form: Σ (centroid · n̂) · area > 0.
         let mut flux = 0.0f64;
-        for f in &facets {
+        for f in &bin {
             let n = [f64::from(f[0]), f64::from(f[1]), f64::from(f[2])];
             let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
-            assert!((len - 1.0).abs() < 1e-5, "{name}: non-unit normal");
+            assert!((len - 1.0).abs() < 1e-5, "NORMAL: {name}: non-unit normal");
             let c = |k: usize| f64::from(f[3 + k]) + f64::from(f[6 + k]) + f64::from(f[9 + k]);
             // Cross product magnitude for the (double) triangle area:
             let u = [
@@ -232,9 +225,61 @@ fn normals_are_unit_and_outward_consistent() {
             let area2 = (cx[0] * cx[0] + cx[1] * cx[1] + cx[2] * cx[2]).sqrt();
             flux += (c(0) / 3.0 * n[0] + c(1) / 3.0 * n[1] + c(2) / 3.0 * n[2]) * area2 / 2.0;
         }
-        assert!(flux > 0.0, "{name}: outward flux must be positive");
+        assert!(flux > 0.0, "FLUX: {name}: outward flux must be positive");
+    }
+
+    // ---- HEADER: two DIFFERENT bodies must produce the same 80-byte
+    // header, it must not sniff as ascii, and the record size must be
+    // exactly 84 + 50·n. The two are the "l_prism" and "ball" rows of
+    // `common::acceptance_bodies` (rows 0 and 2, both at δ = 1e-2) —
+    // taken out of the list above rather than rebuilt.
+    let by_name = |want: &str| -> &mesh::Mesh {
+        meshes
+            .iter()
+            .find(|(n, _)| *n == want)
+            .map(|(_, m)| m)
+            .unwrap_or_else(|| panic!("the acceptance set carries {want}"))
+    };
+    let a = binary_of(by_name("l_prism"));
+    let b = binary_of(by_name("ball"));
+    assert_eq!(
+        &a[..80],
+        &b[..80],
+        "HEADER: header must be input-independent"
+    );
+    assert!(
+        !a.starts_with(b"solid"),
+        "HEADER: binary header must not sniff as ascii"
+    );
+    let count = u32::from_le_bytes(a[80..84].try_into().unwrap()) as usize;
+    assert_eq!(a.len(), 84 + count * 50, "HEADER: binary facet record size");
+
+    // ---- BYTE-IDENTITY: repeat-call identity through the FULL
+    // pipeline — rebuild the body, retessellate, rewrite; bytes must
+    // match the first pipeline's output exactly.
+    for (name, body, delta) in common::acceptance_bodies() {
+        // INVARIANT: both arms compare the FIRST pipeline's mesh
+        // against this freshly rebuilt one — the single retessellation
+        // here serves both writers, and comparing a writer's output to
+        // itself would assert nothing.
+        let rebuilt_mesh = tessellate(&body, delta).unwrap();
+        let rebuilt = binary_of(&rebuilt_mesh);
+        let first = by_name(name);
+        let a = binary_of(first);
+        assert_eq!(fnv(&a), fnv(&rebuilt), "BYTE-IDENTITY: {name}: fnv");
+        assert_eq!(
+            a, rebuilt,
+            "BYTE-IDENTITY: {name}: binary export not byte-identical"
+        );
+        assert_eq!(
+            ascii_of(first),
+            ascii_of(&rebuilt_mesh),
+            "BYTE-IDENTITY: {name}: ascii export not byte-identical"
+        );
     }
 }
+
+// ---- typed refusals ---------------------------------------------------
 
 /// Finding (M2 PR 7): at coarse δ the cone's apex fan emits triangles
 /// whose three points are exactly collinear on a generator (apex +

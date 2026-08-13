@@ -106,18 +106,20 @@ fn sphere<T: Real>() -> Surface<T> {
 /// fixture is "built once, at any scalar": every caller here restricts
 /// the SAME traced locus, so a second trace re-derives a bit-identical
 /// branch (D9) and buys nothing. INVARIANT: no row asserts that two
-/// INDEPENDENT traces agree — the cross-scalar row
-/// (`the_interval_bounds_dominate_the_f64_ones`) compares an interval
-/// LIFT against the f64 one, which is a claim about the lift and is
-/// unaffected by (indeed sharpened by) sharing one f64 structure.
-/// Sharing must therefore never become an assertion this file relies
-/// on: if a row ever wants two independent traces, it must call
-/// `trace_branch` directly and say why.
+/// INDEPENDENT traces agree — the cross-scalar dominance claim (the
+/// `DOMINANCE` half of
+/// `certified::the_fitted_certificate_is_derived_at_the_interval_scalar_and_dominates_f64`)
+/// compares an interval LIFT against the f64 one, which is a claim
+/// about the lift and is unaffected by (indeed sharpened by) sharing
+/// one f64 structure. Sharing must therefore never become an assertion
+/// this file relies on: if a row ever wants two independent traces, it
+/// must call `trace_branch` directly and say why.
 ///
 /// nextest is process-per-test, so this only helps WITHIN one test —
 /// which is exactly where the duplication is (`build` + `foreign_cache`
-/// in one row, and the two `build`s of the dominance row). The same
-/// idiom, with the same caveat, is in `mesh/tests/fitted_refusals.rs`.
+/// in one row, and the interval + f64 `build`s of the dominance half of
+/// the row above; the test-cost audit merged that row INTO the interval
+/// row precisely so the memo has something to share).
 fn branch_or_budget() -> Option<&'static ssi::SsiBranch> {
     static BRANCH: std::sync::OnceLock<Option<ssi::SsiBranch>> = std::sync::OnceLock::new();
     BRANCH.get_or_init(trace_branch).as_ref()
