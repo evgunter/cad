@@ -539,11 +539,10 @@ fn box_chain<T: Decide + Bounds>(carrier: &NurbsCurve3<T>) -> Vec<(Box3, Vec3<T>
     let coords = fine.ring_coords();
     let kv = fine.knots();
     let mut out = Vec::new();
-    for span in kv.first_span()..=kv.last_span() {
-        if !kv.span_is_nonempty(span) {
-            continue;
-        }
-        let (a, b) = (kv.knots()[span], kv.knots()[span + 1]);
+    for index in kv.first_span()..=kv.last_span() {
+        // Emptiness check and span validation are one step.
+        let Some(span) = kv.span(index) else { continue };
+        let (a, b) = (kv.knots()[index], kv.knots()[index + 1]);
         let hx = hull::span_hull(kv, &coords[0], span);
         let hy = hull::span_hull(kv, &coords[1], span);
         let hz = hull::span_hull(kv, &coords[2], span);
@@ -630,11 +629,10 @@ fn probe_tube_chart<T: Decide + Bounds>(
     let coords = pcurve.ring_coords();
     let mut worst = f64::INFINITY;
     let mut count = 0u32;
-    for span in kv.first_span()..=kv.last_span() {
-        if !kv.span_is_nonempty(span) {
-            continue;
-        }
-        let (a, b) = (kv.knots()[span], kv.knots()[span + 1]);
+    for index in kv.first_span()..=kv.last_span() {
+        // Emptiness check and span validation are one step.
+        let Some(span) = kv.span(index) else { continue };
+        let (a, b) = (kv.knots()[index], kv.knots()[index + 1]);
         let m = 0.5 * (a + b);
         let hu = hull::span_hull(kv, &coords[0], span);
         let hv = hull::span_hull(kv, &coords[1], span);

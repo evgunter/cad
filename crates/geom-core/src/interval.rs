@@ -468,13 +468,10 @@ impl Bounds for Interval {
 /// then propagates through the evaluation arithmetic as a value.
 impl crate::spline::SpanLocate for Interval {
     fn locate_spans(self, knots: &crate::spline::KnotVector) -> crate::spline::SpanSet {
-        // `span_range`'s two ends, as the validated spans the locator
-        // is contracted to produce — `span_at` is `find_span` plus the
-        // proof, so the located indices are unchanged.
-        let (first, last) = (
-            knots.span_at(Bounds::lo(self)),
-            knots.span_at(Bounds::hi(self)),
-        );
+        // `span_range` now answers in validated spans, which is exactly
+        // what a `SpanSet` carries — so the locator is the range query
+        // again, with no unpacking in between.
+        let (first, last) = knots.span_range(Bounds::lo(self), Bounds::hi(self));
         crate::spline::SpanSet { first, last }
     }
 

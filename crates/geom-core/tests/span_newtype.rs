@@ -126,7 +126,7 @@ fn basis_funs_keeps_the_negative_zero_at_the_high_end() {
         vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0],
         3,
     );
-    let row = basis_funs::<f64>(&k, 3, -0.0);
+    let row = basis_funs::<f64>(&k, k.span(3).expect("span 3 is nonempty"), -0.0);
     let last = row.last().expect("degree + 1 entries");
     assert!(
         *last == 0.0 && last.is_sign_negative(),

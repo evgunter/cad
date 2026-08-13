@@ -30,13 +30,12 @@ type Curve = (KnotVector, Vec<f64>, Vec<Vec<f64>>);
 // ---- independent f64 oracles (kernel basis functions only) ----------
 
 fn curve_eval(kv: &KnotVector, w: &[f64], coords: &[Vec<f64>], t: f64) -> Vec<f64> {
-    let span = kv.find_span(t);
-    let p = kv.degree();
+    let span = kv.span_at(t);
     let n = basis::basis_funs(kv, span, t);
     let mut den = 0.0;
     let mut num = vec![0.0; coords.len()];
     for (j, nj) in n.iter().enumerate() {
-        let i = span - p + j;
+        let i = span.first_control() + j;
         let cw = nj * w[i];
         den += cw;
         for (d, ch) in coords.iter().enumerate() {
@@ -49,16 +48,15 @@ fn curve_eval(kv: &KnotVector, w: &[f64], coords: &[Vec<f64>], t: f64) -> Vec<f6
 fn surf_eval(s: &Surf, u: f64, v: f64) -> [f64; 3] {
     let (ku, kv, w, coords) = s;
     let nv = kv.control_count();
-    let (su, sv) = (ku.find_span(u), kv.find_span(v));
-    let (pu, pv) = (ku.degree(), kv.degree());
+    let (su, sv) = (ku.span_at(u), kv.span_at(v));
     let nu_b = basis::basis_funs(ku, su, u);
     let nv_b = basis::basis_funs(kv, sv, v);
     let mut den = 0.0;
     let mut num = [0.0f64; 3];
     for (a, na) in nu_b.iter().enumerate() {
-        let iu = su - pu + a;
+        let iu = su.first_control() + a;
         for (b, nb) in nv_b.iter().enumerate() {
-            let iv = sv - pv + b;
+            let iv = sv.first_control() + b;
             let idx = iu * nv + iv;
             let cw = na * nb * w[idx];
             den += cw;

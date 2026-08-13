@@ -360,11 +360,17 @@ impl KnotVector {
     }
 
     /// The inclusive span range overlapped by `[lo, hi]`, each end
-    /// located by [`KnotVector::find_span`]'s tie-break. `lo ≤ hi` is
+    /// located by [`KnotVector::span_at`]'s tie-break. `lo ≤ hi` is
     /// the caller's contract ([`crate::Bounds`] brackets satisfy it);
-    /// NaN ends land on the first span per `find_span`.
-    pub fn span_range(&self, lo: f64, hi: f64) -> (usize, usize) {
-        (self.find_span(lo), self.find_span(hi))
+    /// NaN ends land on the first span per `span_at`.
+    ///
+    /// Both ends are [`Span`]s: locating is where span validity
+    /// originates, and `span_at` is total, so there is nothing for a
+    /// caller to re-check. Iterate the interior with
+    /// `first.index() + 1 ..= last.index()` and [`KnotVector::span`],
+    /// which refuses the empty spans in between.
+    pub fn span_range(&self, lo: f64, hi: f64) -> (Span, Span) {
+        (self.span_at(lo), self.span_at(hi))
     }
 
     /// Whether `span` is a **nonempty** span (`knots[span] <
@@ -557,9 +563,13 @@ mod tests {
         assert_eq!(k.find_span(-1.0), 2);
         // NaN routes to the first span, deterministically.
         assert_eq!(k.find_span(f64::NAN), 2);
-        // Range form.
-        assert_eq!(k.span_range(0.5, 2.5), (2, 5));
-        assert_eq!(k.span_range(1.25, 1.75), (4, 4));
+        // Range form — validated ends, compared as the indices they name.
+        let range = |lo, hi| {
+            let (a, b): (Span, Span) = k.span_range(lo, hi);
+            (a.index(), b.index())
+        };
+        assert_eq!(range(0.5, 2.5), (2, 5));
+        assert_eq!(range(1.25, 1.75), (4, 4));
     }
 
     #[test]
