@@ -8,6 +8,9 @@
 //! The standard corpus rows (every ε row, `interval`, persistence
 //! D6.1 round-trip, latency reporting) come from the REGISTRY — this
 //! file adds only the shape-specific pins.
+//!
+//! The Probe replay pin lives in `m5_pr5_corpus_probe.rs`, gated on the
+//! `probe` feature; the pins here are f64 and run in the default build.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -69,17 +72,6 @@ fn cut_cylinder_sides_carry_exact_ellipses() {
             assert!(c.certificate().max_residual < 1e-12);
         }
     }
-}
-
-/// The Probe lane (K-funnel registration): the document replays at the
-/// recording scalar with bit-identical decisions — the probe sweep's
-/// precondition, so the new predicates' margins join the telemetry
-/// without any registration step.
-#[test]
-fn cut_cylinder_replays_at_probe() {
-    let doc = corpus::cut_cylinder::document();
-    let ev = corpus::eval::<geom_core::k_stats::Probe>(&doc.doc);
-    assert_eq!(corpus::failures(&ev), Vec::<String>::new());
 }
 
 /// The bump edit's cone is a proper subset (the D2 incremental row's

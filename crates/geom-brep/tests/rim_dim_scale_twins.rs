@@ -28,6 +28,7 @@
 //!   twin, ratio exactly 1000): the scale-quadratic area comparand
 //!   would answer 1e6 here.
 
+#![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::props::{LoopEdge, curved_face};
