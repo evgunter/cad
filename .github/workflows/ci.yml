@@ -49,15 +49,9 @@ concurrency:
 # binaries; 6 of the last 16 crate-touching merges did exactly that)
 # means the cache would miss anyway. So: attack the per-binary cost.
 #
-#   RUSTFLAGS=-C link-arg=-fuse-ld=mold   261 static links of a ~40-rlib
-#     graph were running on GNU ld. CI-ONLY: it rides the build jobs'
-#     `env:`, NOT .cargo/config.toml, so local builds keep the default
-#     linker. `-fuse-ld=` is a LINK argument, not a codegen flag: it
-#     cannot move rounding or instruction selection, so D9 determinism
-#     and the interval backend are untouched. (local-scripts/gate.sh's RUSTFLAGS
-#     hazard note is about codegen flags and about a warm local target/
-#     re-fingerprinting; it already unsets RUSTFLAGS, so this cannot leak
-#     into the local gate.)
+#   RUSTFLAGS=-C link-arg=-fuse-ld=mold   RETIRED 2026-08-12 — see the
+#     LINKER note directly below. It was correct for 261 links and is not
+#     correct for 14.
 #   CARGO_PROFILE_{DEV,TEST}_DEBUG=line-tables-only   CI was emitting
 #     full DWARF across 261 binaries and then throwing it away at link
 #     (CARGO_PROFILE_TEST_STRIP=debuginfo, kept below for the 500 MB
@@ -75,6 +69,30 @@ concurrency:
 #   was wrong). That is why 261 independent link/codegen units are so
 #   expensive here, and why item 1 (collapsing 249 test crates into ~12)
 #   is still the big one.
+#
+# LINKER — mold RETIRED 2026-08-12. #174 adopted it on a -24%/-20% result
+# measured across 261 static links; that is the whole basis for it, and
+# the basis is gone. #179 and #387 took this workspace to 14 test targets
+# (`scripts/check-test-aggregation.sh` asserts the count), so the
+# per-binary link constant mold attacks now multiplies 14, not 261. Two
+# independent readings say it no longer pays:
+#   * LOCAL, measured 2026-08-11 at today's target count:
+#     189 s baseline vs 186 s with mold — noise. That measurement is
+#     written up in docs/LOCAL-BUILD-PERF.md, which reverted mold locally
+#     and said in as many words: "Revisit only if the test-target count
+#     grows back toward triple digits."
+#   * The install is not free and sits ON the critical path: `apt-get
+#     install mold` measured 9-21 s per build job over 11 runs, against a
+#     link cost it can now only shave a fraction of.
+# Opt-level 2 (see the OPT LEVEL note on the build job) pushes this
+# further the same way: it makes compile the dominant term and shrinks
+# link's share again.
+# HOW TO PUT IT BACK, if the archive step regresses: restore
+# `RUSTFLAGS: "-C link-arg=-fuse-ld=mold"` to both build jobs' env plus
+# their `install mold` step. Do it on a measurement, not a hunch — and
+# note that a single run cannot settle it, because any env change here
+# rotates the rust-cache key and buys one cold rebuild.
+#
 #   BUILD_RUNNER   repo variable, unset today ⇒ `ubuntu-latest`. Item 4
 #     of the ranked list (8-vCPU runner) is NOT LANDABLE on this repo:
 #     GitHub-hosted larger runners require an ORGANIZATION on Team or
@@ -592,7 +610,6 @@ jobs:
     # rust-cache would never re-save. Job-level means exactly one cold
     # rebuild per knob change, then warm forever.
     env:
-      RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_STRIP: debuginfo
@@ -608,17 +625,12 @@ jobs:
       # changes as non-triggering (its _is_docs).
       - name: prune local-scripts (hosted CI may not depend on them)
         run: rm -rf local-scripts
-      # mold: this job's cost is 261 static links of a ~40-rlib graph
-      # (measured: 494 of the build step's 514 s is the 261 test
-      # binaries). CI-ONLY — the flag rides RUSTFLAGS in this job's env,
-      # never .cargo/config.toml, so local builds and local-scripts/ci-local.sh
-      # keep the default linker and need no mirrored row.
-      - name: install mold
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq mold
+      # NO mold here — see the LINKER note at the top of this file. It was
+      # right for 261 test binaries and is not right for 14.
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: runner + linker provenance (for perf attribution)
-        run: nproc && free -g | head -2 && mold --version
+        run: nproc && free -g | head -2 && ld --version | head -1
       - name: install cargo-nextest (pinned, official prebuilt)
         uses: ./.github/actions/install-nextest
         with:
@@ -730,7 +742,6 @@ jobs:
     # that most wants them: the interval lane's slowest leg was 828 s of
     # pure execution, and opt-2 is aimed squarely at that.
     env:
-      RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_STRIP: debuginfo
@@ -748,10 +759,8 @@ jobs:
         run: rm -rf local-scripts
       # The `interval` feature's backend is the in-repo
       # `interval-transcendentals` crate — pure Rust over libm — so this
-      # job needs no C toolchain. mold is the one system package, and it
-      # is a linker for the 261 links, not a dependency of the graph.
-      - name: install mold
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq mold
+      # job needs no system packages at all now that mold is gone (see the
+      # LINKER note at the top of this file).
       - uses: dtolnay/rust-toolchain@stable
       # CACHE SEPARATION (verified against the action's source,
       # 2026-07-30): this job builds a DIFFERENT feature set from the
@@ -771,7 +780,7 @@ jobs:
         with:
           key: interval
       - name: runner + linker provenance (for perf attribution)
-        run: nproc && free -g | head -2 && mold --version
+        run: nproc && free -g | head -2 && ld --version | head -1
       - name: install cargo-nextest (pinned, official prebuilt)
         uses: ./.github/actions/install-nextest
         with:
