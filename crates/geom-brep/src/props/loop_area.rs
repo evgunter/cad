@@ -147,8 +147,8 @@ fn nurbs_vector_area<T: SpanLocate>(
     let kv = curve.knots();
     let lo_spans = t0.locate_spans(kv);
     let hi_spans = t1.locate_spans(kv);
-    let first = lo_spans.first.min(hi_spans.first);
-    let last = lo_spans.last.max(hi_spans.last);
+    let first = lo_spans.first.index().min(hi_spans.first.index());
+    let last = lo_spans.last.index().max(hi_spans.last.index());
     let half = T::from_f64(0.5);
     let mut acc = Vec3::zero();
     for index in first..=last {

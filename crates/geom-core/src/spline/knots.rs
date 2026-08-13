@@ -186,24 +186,18 @@ impl Span {
         self.degree
     }
 
+    /// The **first** control point of the window — `index − degree`,
+    /// subtracted once at construction. This is what evaluation adds
+    /// its basis-row offset to, so no use site performs the
+    /// subtraction and none can underflow.
+    pub fn first_control(self) -> usize {
+        self.first_control
+    }
+
     /// The inclusive control-point window the span selects:
     /// `[index − degree, index]`, always `degree + 1` entries.
     pub fn window(self) -> core::ops::RangeInclusive<usize> {
-        self.first_control..=self.top_control()
-    }
-
-    /// The window's **last** control point. The window is `degree + 1`
-    /// entries, so this is an index, not a lookup that could come up
-    /// empty: "the window might have no last entry" has no
-    /// representation to rule out.
-    pub fn top_control(self) -> usize {
-        self.first_control + self.degree
-    }
-
-    /// The window below [`Span::top_control`] — the `degree` control
-    /// points the recursion admits one per level.
-    pub fn lower_window(self) -> core::ops::Range<usize> {
-        self.first_control..self.top_control()
+        self.first_control..=self.first_control + self.degree
     }
 }
 

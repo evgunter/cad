@@ -18,11 +18,14 @@
 //! # Evaluation contract
 //!
 //! - **Core, generic** (`*_in_span`): rational evaluation restricted to
-//!   a caller-supplied span — ring ops + `from_f64` only, total for
+//!   a caller-supplied [`Span`] — ring ops + `from_f64` only, total for
 //!   every scalar. For `t` outside the span's knot interval the result
 //!   is the span's **polynomial extension** (documented garbage-out —
 //!   detecting it would need the comparison [`Real`] deliberately
-//!   lacks); an invalid span *index* (checkable structure) is poison.
+//!   lacks). There is no invalid-span case: a [`Span`] is validated at
+//!   construction, and it carries the control window, so the window
+//!   base is an addition rather than the `span − degree` these
+//!   evaluators used to spell (and guard) at each use site.
 //! - **Full evaluators** (`eval`/`deriv`/`deriv2`): span selection via
 //!   the sealed [`SpanLocate`] seam (per-instantiation semantics
 //!   documented in `geom_core::spline::locate`), then the core per
@@ -157,16 +160,21 @@ macro_rules! nurbs_curve {
             /// outside the span's interval still yields the span's
             /// polynomial extension (documented garbage-out).
             pub fn eval_in_span(&self, span: Span, t: T) -> $Point<T> {
+                let basis = spline::basis::basis_funs(&self.knots, span.index(), t);
+                // The window's base, subtracted once inside `Span` — so
+                // the underflow-prone `span − p` is gone from here, and
+                // what remains is an addition. Indexing (not `zip`)
+                // deliberately: `basis` is `degree + 1` long for the
+                // same `KnotVector` this `Span` was drawn from, and if
+                // that ever ceased to hold this must PANIC rather than
+                // silently drop control points.
+                let base = span.first_control();
                 $(let mut $c = T::zero();)+
                 let mut w_acc = T::zero();
-                // Basis values arrive already paired with the control
-                // points they multiply, so there is no index arithmetic
-                // and no length to get wrong.
-                for term in spline::basis::span_terms(
-                    &self.knots, span, t, &self.control, &self.weights,
-                ) {
-                    let cw = term.basis * T::from_f64(term.weight);
-                    let pt = *term.control;
+                for (j, nj) in basis.iter().enumerate() {
+                    let i = base + j;
+                    let cw = *nj * T::from_f64(self.weights[i]);
+                    let pt = self.control[i];
                     $($c = $c + cw * pt.$c;)+
                     w_acc = w_acc + cw;
                 }
@@ -180,23 +188,22 @@ macro_rules! nurbs_curve {
             /// `C″ = (N² − C·w² − C′·w¹·2)/w⁰`.
             /// Same totality contract as [`Self::eval_in_span`].
             pub fn ders_in_span(&self, span: Span, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
-                // NOTE: the derivative rows still come from
-                // `ders_basis_funs`, which returns a `Vec<Vec<T>>` sized
-                // from the degree — so this path keeps the window
-                // indexing for now. Giving it the `SpanTerm` treatment
-                // (one term per control point, carrying `[T; 3]` of
-                // derivative orders) is the follow-up; the `Span` alone
-                // already removes the invalid-index case.
                 let ders = spline::basis::ders_basis_funs(&self.knots, span.index(), t, 2);
-                let window = span.window();
-                let (control, weights) =
-                    (&self.control[window.clone()], &self.weights[window]);
+                // Indexed off the window base, exactly as
+                // [`Self::eval_in_span`]. A `zip` against a window slice
+                // would be the wrong shape here: `ders`' row length and
+                // the window's length are two derivations of the same
+                // `degree`, and a `zip` would answer a disagreement by
+                // silently dropping control points where indexing
+                // panics.
+                let base = span.first_control();
                 $(let mut $c = [T::zero(), T::zero(), T::zero()];)+
                 let mut w_hom = [T::zero(), T::zero(), T::zero()];
                 for (k, row) in ders.iter().enumerate() {
-                    for ((nkj, &weight), pt) in row.iter().zip(weights).zip(control) {
-                        let cw = *nkj * T::from_f64(weight);
-                        let pt = *pt;
+                    for (j, nkj) in row.iter().enumerate() {
+                        let i = base + j;
+                        let cw = *nkj * T::from_f64(self.weights[i]);
+                        let pt = self.control[i];
                         $($c[k] = $c[k] + cw * pt.$c;)+
                         w_hom[k] = w_hom[k] + cw;
                     }
@@ -1058,12 +1065,11 @@ macro_rules! nurbs_curve {
             /// for interval-natured scalars.
             pub fn eval(&self, t: T) -> $Point<T> {
                 let spans = t.locate_spans(&self.knots);
-                let first = self
-                    .knots
-                    .span(spans.first)
-                    .expect("locate_spans returns a nonempty first span");
-                let mut acc = self.eval_in_span(first, t);
-                for s in (spans.first + 1)..=spans.last {
+                // `spans.first` arrives already validated — the locator
+                // is where span validity originates, so there is
+                // nothing to re-check and no `expect` here.
+                let mut acc = self.eval_in_span(spans.first, t);
+                for s in (spans.first.index() + 1)..=spans.last.index() {
                     // Skip empty spans (interior multiplicity):
                     // find_span assigns every parameter — a repeated
                     // knot value included — to the nonempty span
@@ -1085,12 +1091,11 @@ macro_rules! nurbs_curve {
             /// the seam's — the derivative of the program as evaluated).
             pub fn deriv(&self, t: T) -> $Vector<T> {
                 let spans = t.locate_spans(&self.knots);
-                let first = self
-                    .knots
-                    .span(spans.first)
-                    .expect("locate_spans returns a nonempty first span");
-                let mut acc = self.deriv_in_span(first, t);
-                for s in (spans.first + 1)..=spans.last {
+                // `spans.first` arrives already validated — the locator
+                // is where span validity originates, so there is
+                // nothing to re-check and no `expect` here.
+                let mut acc = self.deriv_in_span(spans.first, t);
+                for s in (spans.first.index() + 1)..=spans.last.index() {
                     // Empty-span skip: see `eval`'s note.
                     // The emptiness check and the span's validation are
                     // now the same operation.
@@ -1105,12 +1110,11 @@ macro_rules! nurbs_curve {
             /// [`Self::deriv`]).
             pub fn deriv2(&self, t: T) -> $Vector<T> {
                 let spans = t.locate_spans(&self.knots);
-                let first = self
-                    .knots
-                    .span(spans.first)
-                    .expect("locate_spans returns a nonempty first span");
-                let mut acc = self.deriv2_in_span(first, t);
-                for s in (spans.first + 1)..=spans.last {
+                // `spans.first` arrives already validated — the locator
+                // is where span validity originates, so there is
+                // nothing to re-check and no `expect` here.
+                let mut acc = self.deriv2_in_span(spans.first, t);
+                for s in (spans.first.index() + 1)..=spans.last.index() {
                     // Empty-span skip: see `eval`'s note.
                     // The emptiness check and the span's validation are
                     // now the same operation.
