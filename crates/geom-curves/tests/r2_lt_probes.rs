@@ -28,6 +28,7 @@
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
 
 use geom_core::Point3;
+use geom_core::fuzz;
 use geom_core::spline::KnotVector;
 use geom_curves::NurbsCurve3;
 
@@ -45,32 +46,22 @@ fn dense_min_speed(c: &NurbsCurve3<f64>, n: usize) -> f64 {
     smin
 }
 
-/// Deterministic LCG (Knuth MMIX constants) so the fuzz is a fixed
-/// schedule, not a decision — reruns bit-identically.
-struct Lcg(u64);
-impl Lcg {
-    fn next(&mut self) -> f64 {
-        self.0 = self
-            .0
-            .wrapping_mul(6_364_136_223_846_793_005)
-            .wrapping_add(1_442_695_040_888_963_407);
-        #[allow(clippy::cast_precision_loss)]
-        let v = ((self.0 >> 11) as f64) / ((1_u64 << 53) as f64);
-        v
-    }
-}
-
 /// A random integral net on a random clamped knot vector, with ~30%
-/// of interior knots raised to multiplicity ≤ p (C0 kinks included —
-/// the window-edge geometry the smooth corpus never produces).
-fn random_curve(seed: u64, deg: usize, npts: usize) -> Option<NurbsCurve3<f64>> {
-    let mut r = Lcg(seed);
+/// of interior knots raised to multiplicity ≤ p on `raise_mult` cases
+/// (C0 kinks included — the window-edge geometry the smooth corpus never
+/// produces).
+fn random_curve(
+    r: &mut fuzz::Rng,
+    raise_mult: bool,
+    deg: usize,
+    npts: usize,
+) -> Option<NurbsCurve3<f64>> {
     let control: Vec<Point3<f64>> = (0..npts)
         .map(|_| {
             Point3::new(
-                r.next().mul_add(4.0, -2.0),
-                r.next().mul_add(4.0, -2.0),
-                r.next().mul_add(4.0, -2.0),
+                r.unit().mul_add(4.0, -2.0),
+                r.unit().mul_add(4.0, -2.0),
+                r.unit().mul_add(4.0, -2.0),
             )
         })
         .collect();
@@ -79,10 +70,10 @@ fn random_curve(seed: u64, deg: usize, npts: usize) -> Option<NurbsCurve3<f64>> 
     let mut v = 0.0;
     let mut i = 0;
     while i < interior {
-        v += 0.2 + r.next();
+        v += 0.2 + r.unit();
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let mult = if seed.is_multiple_of(2) && r.next() < 0.3 {
-            (1 + (r.next() * (deg as f64)) as usize)
+        let mult = if raise_mult && r.unit() < 0.3 {
+            (1 + (r.unit() * (deg as f64)) as usize)
                 .min(deg)
                 .min(interior - i)
         } else {
@@ -93,7 +84,7 @@ fn random_curve(seed: u64, deg: usize, npts: usize) -> Option<NurbsCurve3<f64>> 
         }
         i += mult;
     }
-    v += 0.2 + r.next();
+    v += 0.2 + r.unit();
     for _ in 0..=deg {
         knots.push(v);
     }
@@ -101,20 +92,22 @@ fn random_curve(seed: u64, deg: usize, npts: usize) -> Option<NurbsCurve3<f64>> 
     NurbsCurve3::<f64>::new(kv, control, vec![1.0; npts]).ok()
 }
 
-/// **Soundness fuzz**: on 400 seeded random integral nets (degree
-/// 2–5, 4–15 control points, interior multiplicities included), the
-/// meter never exceeds the densely sampled true minimum speed. The
-/// two surviving unsound mutants (active window off by one; last
-/// span dropped) each fail this within the first hundred seeds.
+/// **Soundness fuzz**: on random integral nets (degree 2–5, 4–15 control
+/// points, interior multiplicities included), the meter never exceeds the
+/// densely sampled true minimum speed. The two surviving unsound mutants
+/// (active window off by one; last span dropped) each fail this within
+/// the first hundred cases.
 #[test]
 fn the_meter_is_sound_on_random_integral_nets() {
+    let mut rng = fuzz::start("r2_lt_probes::sound_on_random_nets");
+    let cases = fuzz::scaled(50);
     let mut built = 0_usize;
-    for seed in 0..400_u64 {
-        #[allow(clippy::cast_possible_truncation)]
-        let deg = 2 + (seed % 4) as usize;
-        #[allow(clippy::cast_possible_truncation)]
-        let npts = deg + 2 + (seed % 9) as usize;
-        let Some(c) = random_curve(seed * 7919 + 13, deg, npts) else {
+    for case in 0..cases {
+        let deg = 2 + case % 4;
+        let npts = deg + 2 + case % 9;
+        // Half the cases raise interior multiplicities, as the seeded
+        // even/odd split used to.
+        let Some(c) = random_curve(&mut rng, case % 2 == 0, deg, npts) else {
             continue;
         };
         built += 1;
@@ -123,14 +116,23 @@ fn the_meter_is_sound_on_random_integral_nets() {
             // Poison is an honest abstention, never an unsound number.
             continue;
         }
-        let smin = dense_min_speed(&c, 4000);
+        let smin = dense_min_speed(&c, fuzz::scaled(500));
         assert!(
             m <= smin + 1e-9,
-            "seed {seed} (deg {deg}, {npts} pts): meter {m} exceeds the \
-             densely sampled true min speed {smin} — the bound is UNSOUND"
+            "case {case} (deg {deg}, {npts} pts): meter {m} exceeds the \
+             densely sampled true min speed {smin} — the bound is UNSOUND \
+             — {}",
+            fuzz::replay()
         );
     }
-    assert!(built >= 300, "fuzz rot: only {built}/400 nets constructed");
+    // COVERAGE FLOOR, proportional to the case count: three quarters of
+    // the draws used to yield a constructible net (300/400), and a run
+    // that constructs far fewer is generating garbage, not nets.
+    assert!(
+        built * 4 >= cases * 3,
+        "fuzz rot: only {built}/{cases} nets constructed — {}",
+        fuzz::replay()
+    );
 }
 
 /// **The join lattice, all four cells** (doc: "The join" on

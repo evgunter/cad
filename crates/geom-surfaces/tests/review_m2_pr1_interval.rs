@@ -24,6 +24,7 @@
 
 use core::f64::consts::{FRAC_PI_6, TAU};
 
+use geom_core::fuzz;
 use geom_core::{Bounds, Dual, DualInterval, Interval, Point3, Real, Vec3};
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
@@ -50,25 +51,18 @@ fn contains(e: Interval, x: f64) -> bool {
 /// through the public Dual<Interval> surface (tangent seeded [1, 1]).
 #[test]
 fn floor_mean_value_enclosure_empirical() {
-    // Deterministic pseudo-random sweep (no rand dep): LCG.
-    let mut state: u64 = 0x9E3779B97F4A7C15;
-    let mut next = move || {
-        state = state
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407);
-        (state >> 11) as f64 / (1u64 << 53) as f64 // in [0, 1)
-    };
-    for _ in 0..20_000 {
-        let lo = (next() - 0.5) * 40.0;
-        let wid = next() * 3.0;
+    let mut rng = fuzz::start("review_m2_pr1_interval::floor_mean_value");
+    for _ in 0..fuzz::scaled(2_500) {
+        let lo = (rng.unit() - 0.5) * 40.0;
+        let wid = rng.unit() * 3.0;
         let hi = lo + wid;
         let bx = iv(lo, hi);
         let d = Dual::new(bx, Interval::from_f64(1.0)).floor();
         let j = d.deriv;
         // Sample point pairs inside the box.
-        for _ in 0..8 {
-            let a = lo + next() * wid;
-            let b = lo + next() * wid;
+        for _ in 0..fuzz::scaled(1) {
+            let a = lo + rng.unit() * wid;
+            let b = lo + rng.unit() * wid;
             let fa = <f64 as Real>::floor(a);
             let fb = <f64 as Real>::floor(b);
             // f(b) − f(a) must lie in J·(b − a), evaluated exactly:
@@ -77,22 +71,39 @@ fn floor_mean_value_enclosure_empirical() {
             // signs (quotient ≥ 0).
             if j.hi() == 0.0 {
                 assert_eq!(
-                    fa, fb,
-                    "J = [0,0] on [{lo}, {hi}] but floor moves: {a} → {b}"
+                    fa,
+                    fb,
+                    "J = [0,0] on [{lo}, {hi}] but floor moves: {a} → {b} — {}",
+                    fuzz::replay()
                 );
             } else {
                 assert!(
                     j.lo() == 0.0 && j.hi() == f64::INFINITY,
-                    "unexpected J = [{}, {}]",
+                    "unexpected J = [{}, {}] — {}",
                     j.lo(),
-                    j.hi()
+                    j.hi(),
+                    fuzz::replay()
                 );
-                assert!((fb - fa) * (b - a) >= 0.0, "quotient sign violates J ≥ 0");
+                assert!(
+                    (fb - fa) * (b - a) >= 0.0,
+                    "quotient sign violates J ≥ 0 — {}",
+                    fuzz::replay()
+                );
             }
         }
         // The value channel must equal the endpoint-floor hull.
-        assert_eq!(d.value.lo(), <f64 as Real>::floor(lo));
-        assert_eq!(d.value.hi(), <f64 as Real>::floor(hi));
+        assert_eq!(
+            d.value.lo(),
+            <f64 as Real>::floor(lo),
+            "value channel lo != floor(lo) — {}",
+            fuzz::replay()
+        );
+        assert_eq!(
+            d.value.hi(),
+            <f64 as Real>::floor(hi),
+            "value channel hi != floor(hi) — {}",
+            fuzz::replay()
+        );
     }
 }
 

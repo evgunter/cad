@@ -6,9 +6,9 @@
 //! surfaces plus a hand-derived degree-1 sphere check and the
 //! `binom_row` exactness pin (F4), worked-example and loose-tolerance
 //! probes (F6), and the F9 end-to-end: cylinder fit -> project ->
-//! compose -> Decide accept/refuse. Nothing was trimmed from the
-//! reviewer's file (13 tests, ~30 s); the LCG keeps it rand-free and
-//! deterministic.
+//! compose -> Decide accept/refuse. The randomized rows draw from
+//! `geom_core::fuzz`: a fresh seed per run, logged unconditionally, with
+//! every count a multiple of `CAD_FUZZ_EFFORT`.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -20,30 +20,15 @@
     dead_code
 )]
 
+use geom_core::fuzz;
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
 use geom_core::{Point2, Point3, RingInterval};
 use geom_curves::{NurbsCurve2, NurbsCurve3};
 
-/// Deterministic LCG (no rand dep).
-struct Rng(u64);
-impl Rng {
-    fn next(&mut self) -> u64 {
-        self.0 = self
-            .0
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407);
-        self.0
-    }
-    fn f(&mut self) -> f64 {
-        (self.next() >> 11) as f64 / (1u64 << 53) as f64
-    }
-    fn range(&mut self, lo: f64, hi: f64) -> f64 {
-        lo + (hi - lo) * self.f()
-    }
-    fn usize(&mut self, lo: usize, hi: usize) -> usize {
-        lo + (self.next() as usize) % (hi - lo + 1)
-    }
+/// An inclusive integer draw in `lo..=hi`.
+fn usize_in(rng: &mut fuzz::Rng, lo: usize, hi: usize) -> usize {
+    lo + rng.below(hi - lo + 1)
 }
 
 // =====================================================================
@@ -52,12 +37,16 @@ impl Rng {
 // =====================================================================
 #[test]
 fn f1_fit_bound_dominates_dense_sampling_randomized() {
-    let mut rng = Rng(0x5eed_0001);
+    let mut rng = fuzz::start("review_m5_pr4::f1_fit_bound");
+    // The CASE count is the only lever here: this row's cost is
+    // dominated by `NurbsCurve3::approximate` on up to 70 points, not by
+    // the dense sampling, so trimming the sample grid would buy nothing.
+    let cases = fuzz::scaled(5);
     let mut fits = 0usize;
     let mut worst_ratio = 0.0f64;
-    for case in 0..120 {
-        let n = rng.usize(6, 70);
-        let degree = rng.usize(2, 5);
+    for case in 0..cases {
+        let n = usize_in(&mut rng, 6, 70);
+        let degree = usize_in(&mut rng, 2, 5);
         let scale = match case % 4 {
             0 => 1.0,
             1 => 1e-3,
@@ -86,7 +75,7 @@ fn f1_fit_bound_dominates_dense_sampling_randomized() {
             .collect();
         // Adversarial clustering: squeeze some chords to near-coincidence.
         if case % 5 == 0 && n > 8 {
-            let j = rng.usize(2, n - 3);
+            let j = usize_in(&mut rng, 2, n - 3);
             let base = pts[j];
             pts[j + 1] = base + (pts[j + 1] - base) * 1e-9;
         }
@@ -98,11 +87,12 @@ fn f1_fit_bound_dominates_dense_sampling_randomized() {
         fits += 1;
         assert!(
             fit.bound <= tol,
-            "case {case}: bound {:e} > tol {tol:e}",
-            fit.bound
+            "case {case}: bound {:e} > tol {tol:e} — {}",
+            fit.bound,
+            fuzz::replay()
         );
         let reference = NurbsCurve3::interpolate(&pts, 1).unwrap();
-        let m = 8192u32;
+        let m = fuzz::scaled(1_024) as u32;
         let mut dense = 0.0f64;
         for k in 0..=m {
             let t = f64::from(k) / f64::from(m);
@@ -115,27 +105,32 @@ fn f1_fit_bound_dominates_dense_sampling_randomized() {
         assert!(
             dense <= fit.bound + slack,
             "case {case} (n={n}, deg={degree}, scale={scale:e}, tol={tol:e}): \
-             dense {dense:e} EXCEEDS bound {:e} by {:e}",
+             dense {dense:e} EXCEEDS bound {:e} by {:e} — {}",
             fit.bound,
-            dense - fit.bound
+            dense - fit.bound,
+            fuzz::replay()
         );
         if fit.bound > 0.0 {
             worst_ratio = worst_ratio.max(dense / fit.bound);
         }
     }
     println!("[F1a] {fits} randomized fits; worst dense/bound ratio {worst_ratio:.4}");
+    // COVERAGE FLOOR, proportional to the case count: half the draws used
+    // to produce a fit (60/120), and a run where almost nothing fits is
+    // asserting almost nothing.
     assert!(
-        fits > 60,
-        "too few successful fits to mean anything: {fits}"
+        fits * 2 > cases,
+        "too few successful fits to mean anything: {fits}/{cases} — {}",
+        fuzz::replay()
     );
 }
 
 /// F1(d): the bound also bounds every data deviation |C(u_k) − Q_k|.
 #[test]
 fn f1_bound_covers_data_deviation_randomized() {
-    let mut rng = Rng(0x5eed_0002);
-    for case in 0..40 {
-        let n = rng.usize(8, 50);
+    let mut rng = fuzz::start("review_m5_pr4::f1_data_deviation");
+    for case in 0..fuzz::scaled(5) {
+        let n = usize_in(&mut rng, 8, 50);
         let mut pts: Vec<Point3<f64>> = (0..n)
             .map(|k| {
                 let t = k as f64 / (n - 1) as f64;
@@ -169,8 +164,9 @@ fn f1_bound_covers_data_deviation_randomized() {
             let d = fit.curve.eval(*u).distance(*q);
             assert!(
                 d <= fit.bound + 1e-11,
-                "case {case}: data deviation {d:e} > bound {:e}",
-                fit.bound
+                "case {case}: data deviation {d:e} > bound {:e} — {}",
+                fit.bound,
+                fuzz::replay()
             );
         }
     }
@@ -182,14 +178,14 @@ fn f1_bound_covers_data_deviation_randomized() {
 // =====================================================================
 #[test]
 fn f2_projection_fuzz_no_silent_wrong_answers() {
-    let mut rng = Rng(0x5eed_0003);
+    let mut rng = fuzz::start("review_m5_pr4::f2_projection");
     let mut accepted = 0usize;
     let mut refused = 0usize;
     let mut local_min_wrong_branch = 0usize;
     let mut silent_bad = Vec::new();
-    for case in 0..400 {
-        let degree = rng.usize(2, 4);
-        let nctrl = rng.usize(degree + 1, 9);
+    for case in 0..fuzz::scaled(50) {
+        let degree = usize_in(&mut rng, 2, 4);
+        let nctrl = usize_in(&mut rng, degree + 1, 9);
         // Clamped uniform-ish interior knots.
         let mut knots = vec![0.0; degree + 1];
         let ninterior = nctrl - degree - 1;
@@ -218,33 +214,52 @@ fn f2_projection_fuzz_no_silent_wrong_answers() {
             Err(_) => refused += 1,
             Ok(proj) => {
                 accepted += 1;
-                // Dense global min.
-                let m = 20000u32;
+                // Dense global min, plus the longest chord between
+                // consecutive samples. The sampled min is only an UPPER
+                // bound on the true min, and by the triangle inequality it
+                // overestimates by at most one chord — so the slack below
+                // is DERIVED from the grid instead of being the old fixed
+                // 1e-4, which silently assumed a particular density.
+                //
+                // AUDIT NOTE (2026-08-13): the fixed 1e-4 was tied to the
+                // original h = 5e-5 spacing. Scaling the oracle down
+                // without scaling the slack made this row fail on ~7% of
+                // seeds — a tolerance coupled to a count is exactly the
+                // thing an EFFORT dial has to break.
+                let m = fuzz::scaled(2_500) as u32;
                 let mut dmin = f64::INFINITY;
+                let mut chord_max = 0.0f64;
+                let mut prev = curve.eval(0.0);
                 for k in 0..=m {
                     let t = f64::from(k) / f64::from(m);
-                    dmin = dmin.min(curve.eval(t).distance(p));
+                    let q = curve.eval(t);
+                    dmin = dmin.min(q.distance(p));
+                    chord_max = chord_max.max(q.distance(prev));
+                    prev = q;
                 }
                 // Honesty of the carried values: recompute at t*.
                 let re = curve.eval(proj.t).distance(p);
                 assert!(
                     (re - proj.distance).abs() < 1e-12 * re.max(1.0),
-                    "case {case}: carried distance {:e} is not |C(t*)−P| = {re:e}",
-                    proj.distance
+                    "case {case}: carried distance {:e} is not |C(t*)−P| = {re:e} — {}",
+                    proj.distance,
+                    fuzz::replay()
                 );
-                // Sampled min is only an UPPER bound on the true min
-                // (h = 5e-5); the projection may dip below it by the
-                // sampling sagitta, never by more.
+                // The projection may dip below the sampled min by at most
+                // one inter-sample chord, never by more.
+                let sample_slack = chord_max + 1e-9;
                 assert!(
-                    proj.distance >= dmin - 1e-4,
-                    "case {case}: carried distance {:e} FAR below dense min {dmin:e}",
-                    proj.distance
+                    proj.distance >= dmin - sample_slack,
+                    "case {case}: carried distance {:e} FAR below dense min \
+                     {dmin:e} (grid slack {sample_slack:e}) — {}",
+                    proj.distance,
+                    fuzz::replay()
                 );
                 let (lo, hi) = curve.domain();
                 let at_end = proj.t == lo || proj.t == hi;
                 let speed = curve.deriv(proj.t).norm();
                 let cosine = proj.orthogonality / (speed * proj.distance).max(1e-300);
-                let near_global = proj.distance <= dmin + 1e-6 * dmin.max(1.0);
+                let near_global = proj.distance <= dmin + sample_slack + 1e-6 * dmin.max(1.0);
                 if !near_global {
                     // A non-global foot: stationary-point contract says
                     // this can happen; count how it presents.
@@ -401,11 +416,12 @@ fn qr_lsq(a: &[Vec<f64>], b: &[Vec<f64>]) -> Vec<Vec<f64>> {
 #[test]
 fn f3_solve_normal_matches_householder_qr() {
     use geom_core::linalg::lsq;
-    let mut rng = Rng(0x5eed_0004);
+    let mut rng = fuzz::start("review_m5_pr4::f3_qr_differential");
+    let systems = fuzz::scaled(38);
     let mut worst = 0.0f64;
-    for _case in 0..300 {
-        let m = rng.usize(4, 14);
-        let n = rng.usize(2, 6.min(m));
+    for _case in 0..systems {
+        let m = usize_in(&mut rng, 4, 14);
+        let n = usize_in(&mut rng, 2, 6.min(m));
         let a: Vec<Vec<f64>> = (0..m)
             .map(|_| (0..n).map(|_| rng.range(-2.0, 2.0)).collect())
             .collect();
@@ -419,21 +435,25 @@ fn f3_solve_normal_matches_householder_qr() {
                     worst = worst.max(d / s);
                     assert!(
                         d / s < 1e-6,
-                        "solve_normal vs QR mismatch: {} vs {} (rel {:e})",
+                        "solve_normal vs QR mismatch: {} vs {} (rel {:e}) — {}",
                         x[i][0],
                         xr[i][0],
-                        d / s
+                        d / s,
+                        fuzz::replay()
                     );
                 }
             }
             Err(e) => {
                 // Random continuous matrices are a.s. full rank; a refusal
                 // here would be suspicious. Record loudly.
-                panic!("well-conditioned random system refused: {e:?}");
+                panic!(
+                    "well-conditioned random system refused: {e:?} — {}",
+                    fuzz::replay()
+                );
             }
         }
     }
-    println!("[F3] 300 random systems vs Householder QR; worst rel diff {worst:.3e}");
+    println!("[F3] {systems} random systems vs Householder QR; worst rel diff {worst:.3e}");
 }
 
 #[test]
@@ -461,10 +481,10 @@ fn f3_rank_deficient_and_near_singular() {
         Err(e) => panic!("unexpected refusal {e:?}"),
     }
     // Near-singular: col1 = col0·(1 + 1e-13 jitter).
-    let mut rng = Rng(0x5eed_0005);
+    let mut rng = fuzz::start("review_m5_pr4::f3_near_singular");
     let mut refused = 0;
     let mut answered = 0;
-    for _ in 0..100 {
+    for _ in 0..fuzz::scaled(13) {
         let a: Vec<Vec<f64>> = (0..8)
             .map(|_| {
                 let v = rng.range(0.5, 2.0);
@@ -561,11 +581,12 @@ fn implicit_value(surface: &ImplicitSurface, p: &[f64]) -> f64 {
 
 #[test]
 fn f4_compose_exactness_and_containment_all_surfaces() {
-    let mut rng = Rng(0x5eed_0006);
+    let mut rng = fuzz::start("review_m5_pr4::f4_compose");
+    let curves = fuzz::scaled(8);
     let mut worst_rel = 0.0f64;
-    for case in 0..60 {
-        let degree = rng.usize(2, 4);
-        let nctrl = rng.usize(degree + 1, 8);
+    for case in 0..curves {
+        let degree = usize_in(&mut rng, 2, 4);
+        let nctrl = usize_in(&mut rng, degree + 1, 8);
         let mut knots = vec![0.0; degree + 1];
         let ninterior = nctrl - degree - 1;
         for j in 1..=ninterior {
@@ -617,11 +638,13 @@ fn f4_compose_exactness_and_containment_all_surfaces() {
             let bound = form.sup_bound();
             assert!(
                 bound.is_finite(),
-                "case {case}: poisoned bound for {surface:?}"
+                "case {case}: poisoned bound for {surface:?} — {}",
+                fuzz::replay()
             );
             // Exactness: num/den midpoint evaluation == f(C(t)).
-            for k in 0..=64 {
-                let t = f64::from(k) / 64.0;
+            let grid = fuzz::scaled(8);
+            for k in 0..=grid {
+                let t = k as f64 / grid as f64;
                 let p = curve.eval(t);
                 let direct = implicit_value(surface, &[p.x, p.y, p.z]);
                 let composed = eval_form(&form, t.min(1.0 - 1e-12));
@@ -630,18 +653,22 @@ fn f4_compose_exactness_and_containment_all_surfaces() {
                 worst_rel = worst_rel.max(rel);
                 assert!(
                     rel < 1e-6,
-                    "case {case} {surface:?}: composite {composed:e} vs direct {direct:e}"
+                    "case {case} {surface:?}: composite {composed:e} vs direct {direct:e} — {}",
+                    fuzz::replay()
                 );
                 // Containment.
                 assert!(
                     direct.abs() <= bound * (1.0 + 1e-12) + 1e-12,
-                    "case {case} {surface:?}: sample {:e} ESCAPES bound {bound:e}",
-                    direct.abs()
+                    "case {case} {surface:?}: sample {:e} ESCAPES bound {bound:e} — {}",
+                    direct.abs(),
+                    fuzz::replay()
                 );
             }
         }
     }
-    println!("[F4] 60 curves × 5 surfaces exactness+containment; worst rel gap {worst_rel:.3e}");
+    println!(
+        "[F4] {curves} curves × 5 surfaces exactness+containment; worst rel gap {worst_rel:.3e}"
+    );
 }
 
 /// F4: hand-checkable sphere composite on a degree-1 segment.

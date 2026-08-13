@@ -32,6 +32,12 @@ test-support = []
 geom-core = { path = "../geom-core" }
 
 [dev-dependencies]
+# Shared fuzz harness for this crate's randomized sweeps (one RNG, the
+# per-run seed, the CAD_FUZZ_EFFORT dial). DEV-ONLY: `fuzz-support` is
+# requested here and nowhere else, so nothing on a shipped build path can
+# reach it — the same posture geom-core documents for its own self
+# dev-dependency.
+geom-core = { path = "../geom-core", features = ["fuzz-support"] }
 # Self dev-dependency: the ONE mechanism that lets `tests/` see the
 # `test-support` feature while the published surface never does. The
 # differential twins no longer need it (LIB-RETTAIL: their target is a

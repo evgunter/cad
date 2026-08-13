@@ -28,39 +28,13 @@
 
 #![allow(clippy::expect_used)]
 
+use geom_core::fuzz;
 use geom_core::spline::{KnotVector, basis, hull};
 use geom_core::{Enclosure, RingInterval};
 
-/// `xorshift64*`; one seed, no threads, bit-reproducible.
-struct Rng(u64);
-
-impl Rng {
-    fn next(&mut self) -> u64 {
-        let mut x = self.0;
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
-        self.0 = x;
-        x.wrapping_mul(0x2545_f491_4f6c_dd1d)
-    }
-
-    /// Uniform in `[0, 1)` from the top 53 bits.
-    fn unit(&mut self) -> f64 {
-        (self.next() >> 11) as f64 * (1.0 / 9_007_199_254_740_992.0)
-    }
-
-    fn range(&mut self, lo: f64, hi: f64) -> f64 {
-        lo + (hi - lo) * self.unit()
-    }
-
-    fn below(&mut self, n: usize) -> usize {
-        (self.next() % n as u64) as usize
-    }
-}
-
 /// A random clamped knot vector of the given degree with `interior`
 /// distinct interior knots (multiplicity 1), on `[0, 1]`.
-fn random_kv(rng: &mut Rng, degree: usize, interior: usize) -> KnotVector {
+fn random_kv(rng: &mut fuzz::Rng, degree: usize, interior: usize) -> KnotVector {
     let mut inner: Vec<f64> = (0..interior).map(|_| rng.range(0.05, 0.95)).collect();
     inner.sort_by(f64::total_cmp);
     let mut knots = vec![0.0; degree + 1];
@@ -133,13 +107,13 @@ fn naive_hull(cs: &[f64]) -> (f64, f64) {
 
 #[test]
 fn span_and_domain_bounds_contain_every_sample() {
-    let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+    let mut rng = fuzz::start("spline_hull::span_and_domain");
     let mut samples = 0u64;
     let mut spans = 0u64;
     let mut worst = 0.0f64;
     for degree in 1..=5usize {
         for interior in 0..=4usize {
-            for _ in 0..200 {
+            for _ in 0..fuzz::scaled(25) {
                 let kv = random_kv(&mut rng, degree, interior);
                 let n = kv.control_count();
                 let coeffs: Vec<f64> = (0..n).map(|_| rng.range(-1e3, 1e3)).collect();
@@ -155,16 +129,22 @@ fn span_and_domain_bounds_contain_every_sample() {
                     let (lo, hi) = naive_hull(&coeffs[span - degree..=span]);
                     assert!(
                         b.lo() == lo && b.hi() == hi,
-                        "bound [{:e},{:e}] is not the coefficient hull [{lo:e},{hi:e}]",
+                        "bound [{:e},{:e}] is not the coefficient hull [{lo:e},{hi:e}] — {}",
                         b.lo(),
-                        b.hi()
+                        b.hi(),
+                        fuzz::replay()
                     );
                     let (u0, u1) = (kv.knots()[span], kv.knots()[span + 1]);
-                    for k in 0..=32 {
-                        let t = u0 + (u1 - u0) * (f64::from(k) / 32.0);
+                    let grid = fuzz::scaled(4);
+                    for k in 0..=grid {
+                        let t = u0 + (u1 - u0) * (k as f64 / grid as f64);
                         let v = eval_poly(&kv, &coeffs, t.min(u1));
                         let o = overshoot_ulps(b, v).max(overshoot_ulps(domain, v));
-                        assert!(o <= SAMPLE_ULPS, "sample {v:e} outside bound by {o} ulps");
+                        assert!(
+                            o <= SAMPLE_ULPS,
+                            "sample {v:e} outside bound by {o} ulps — {}",
+                            fuzz::replay()
+                        );
                         worst = worst.max(o);
                         samples += 1;
                     }
@@ -181,12 +161,12 @@ fn span_and_domain_bounds_contain_every_sample() {
 
 #[test]
 fn rational_bounds_contain_every_sample_under_adversarial_weights() {
-    let mut rng = Rng(0x243f_6a88_85a3_08d3);
+    let mut rng = fuzz::start("spline_hull::rational_adversarial_weights");
     let mut samples = 0u64;
     let mut worst = 0.0f64;
     for degree in 1..=5usize {
         for interior in 0..=3usize {
-            for _ in 0..200 {
+            for _ in 0..fuzz::scaled(25) {
                 let kv = random_kv(&mut rng, degree, interior);
                 let n = kv.control_count();
                 let coeffs: Vec<f64> = (0..n).map(|_| rng.range(-1e3, 1e3)).collect();
@@ -201,13 +181,15 @@ fn rational_bounds_contain_every_sample_under_adversarial_weights() {
                     }
                     let b = hull::span_hull_rational(&kv, &coeffs, &weights, span);
                     let (u0, u1) = (kv.knots()[span], kv.knots()[span + 1]);
-                    for k in 0..=32 {
-                        let t = u0 + (u1 - u0) * (f64::from(k) / 32.0);
+                    let grid = fuzz::scaled(4);
+                    for k in 0..=grid {
+                        let t = u0 + (u1 - u0) * (k as f64 / grid as f64);
                         let v = eval_rational(&kv, &coeffs, &weights, t.min(u1));
                         let o = overshoot_ulps(b, v).max(overshoot_ulps(domain, v));
                         assert!(
                             o <= SAMPLE_ULPS,
-                            "rational sample {v:e} outside by {o} ulps"
+                            "rational sample {v:e} outside by {o} ulps — {}",
+                            fuzz::replay()
                         );
                         worst = worst.max(o);
                         samples += 1;
@@ -237,10 +219,10 @@ fn planted_corruption_is_caught_by_recomputation() {
     // of a hull bound is that it notices even when the fitting
     // schedule's samples do not.
     const BAND: f64 = 0.9;
-    let mut rng = Rng(0xb504_f333_f9de_6484);
+    let mut rng = fuzz::start("spline_hull::planted_corruption");
     let (mut caught, mut invisible, mut visible) = (0u64, 0u64, 0u64);
     for degree in 2..=5usize {
-        for _ in 0..3000 {
+        for _ in 0..fuzz::scaled(375) {
             let interior = rng.below(4);
             let kv = random_kv(&mut rng, degree, interior);
             let n = kv.control_count();
@@ -251,10 +233,14 @@ fn planted_corruption_is_caught_by_recomputation() {
             // function peaks below 1 away from the clamps, so a coarse
             // sample schedule can miss it entirely.
             let victim = rng.below(n);
-            coeffs[victim] = 1.2 * if rng.next() & 1 == 0 { 1.0 } else { -1.0 };
+            coeffs[victim] = 1.2 * if rng.next_u64() & 1 == 0 { 1.0 } else { -1.0 };
             // The recomputed certificate refuses.
             let fresh_sup = hull::sup_norm_bound(&kv, &coeffs);
-            assert!(fresh_sup > BAND, "corruption not caught: sup {fresh_sup:e}");
+            assert!(
+                fresh_sup > BAND,
+                "corruption not caught: sup {fresh_sup:e} — {}",
+                fuzz::replay()
+            );
             caught += 1;
             // Would a fitting-style sample schedule have noticed?
             let mut sampled_max = 0.0f64;
@@ -273,10 +259,15 @@ fn planted_corruption_is_caught_by_recomputation() {
         "[hull/corruption] {caught} plants, all refused by the recomputed bound; \
          {invisible} invisible to a 9-point sample schedule, {visible} visible"
     );
+    // COVERAGE FLOOR: the row's whole point is that a sample schedule can
+    // MISS a planted excursion the hull bound catches, so at least one
+    // plant must land invisibly. If a low-effort run ever trips this,
+    // raise the case count rather than deleting the assertion.
     assert!(
         invisible > 0,
         "the schedule-max-only certificate would have passed no corruption — \
-         the test lost its point"
+         the test lost its point ({caught} plants) — {}",
+        fuzz::replay()
     );
 }
 
@@ -285,9 +276,9 @@ fn refinement_tightens_the_bound() {
     // Knot insertion is a convex recombination of control coefficients,
     // so the refined hull can only shrink — the property that makes the
     // bound useful for subdivision (C3) rather than merely sound.
-    let mut rng = Rng(0x1357_9bdf_0246_8ace);
+    let mut rng = fuzz::start("spline_hull::refinement");
     for degree in 2..=4usize {
-        for _ in 0..400 {
+        for _ in 0..fuzz::scaled(50) {
             let kv = random_kv(&mut rng, degree, 0);
             let n = kv.control_count();
             let coeffs: Vec<f64> = (0..n).map(|_| rng.range(-10.0, 10.0)).collect();
@@ -303,7 +294,8 @@ fn refinement_tightens_the_bound() {
             }
             assert!(
                 tightest <= coarse.width(),
-                "a span bound is wider than the domain"
+                "a span bound is wider than the domain — {}",
+                fuzz::replay()
             );
         }
     }
@@ -311,10 +303,10 @@ fn refinement_tightens_the_bound() {
 
 #[test]
 fn derivative_coefficient_bounds_contain_the_slope() {
-    let mut rng = Rng(0x0f0f_0f0f_0f0f_0f0f);
+    let mut rng = fuzz::start("spline_hull::derivative_coefficients");
     let mut probes = 0u64;
     for degree in 1..=4usize {
-        for _ in 0..600 {
+        for _ in 0..fuzz::scaled(75) {
             let interior = rng.below(3);
             let kv = random_kv(&mut rng, degree, interior);
             let n = kv.control_count();
@@ -337,8 +329,9 @@ fn derivative_coefficient_bounds_contain_the_slope() {
                 if h <= 0.0 {
                     continue;
                 }
-                for k in 1..8 {
-                    let t = u0 + (u1 - u0) * (f64::from(k) / 8.0);
+                let probes_per_span = fuzz::scaled(1);
+                for k in 1..=probes_per_span {
+                    let t = u0 + (u1 - u0) * (k as f64 / (probes_per_span + 1) as f64);
                     // Central difference: second-order accurate, so its
                     // own error is O(h²·f''') — far inside the allowance
                     // below for these amplitudes.
@@ -347,11 +340,16 @@ fn derivative_coefficient_bounds_contain_the_slope() {
                     let tol = 1e-3 * b.mag().max(1.0);
                     assert!(
                         slope >= b.lo() - tol && slope <= b.hi() + tol,
-                        "slope {slope:e} outside derivative bound [{:e}, {:e}]",
+                        "slope {slope:e} outside derivative bound [{:e}, {:e}] — {}",
                         b.lo(),
-                        b.hi()
+                        b.hi(),
+                        fuzz::replay()
                     );
-                    assert!(slope >= dom.lo() - tol && slope <= dom.hi() + tol);
+                    assert!(
+                        slope >= dom.lo() - tol && slope <= dom.hi() + tol,
+                        "slope {slope:e} outside the derivative domain bound — {}",
+                        fuzz::replay()
+                    );
                     probes += 1;
                 }
             }
@@ -366,9 +364,9 @@ fn bounds_are_bit_identical_across_repeats_and_coefficient_types() {
     // *which* Enclosure type carried the coefficients — an f64
     // coefficient is a degenerate bracket and must give bit-identical
     // endpoints to the same value wrapped in the ring.
-    let mut rng = Rng(0xcafe_f00d_dead_beef);
+    let mut rng = fuzz::start("spline_hull::bit_identity");
     for degree in 1..=5usize {
-        for _ in 0..500 {
+        for _ in 0..fuzz::scaled(63) {
             let interior = rng.below(4);
             let kv = random_kv(&mut rng, degree, interior);
             let n = kv.control_count();

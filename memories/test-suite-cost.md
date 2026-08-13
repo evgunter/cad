@@ -27,9 +27,38 @@ audit, *every* seed in the workspace was a hardcoded literal across 44
 RNG-driven tests, which is why the whole family was re-deriving known
 answers at full price on every PR.
 
+**FIRST, ask which SHAPE the test is** — because "a fuzzer must not fix
+its seed" read as "everything needs a random seed" is how a coverage
+test becomes flaky. Three shapes, and only one wants a varying seed:
+
+- **Counterexample search** (*for all sampled x, P(x)*) — vary the seed.
+  Monotone in the safe direction: cutting the count loses detection
+  power, never correctness.
+- **A witness you can WRITE DOWN** (*at least K of class C*, C concisely
+  constructible) — do not search at all. Build it as a static fixture
+  and assert it every run. Hunting for something you could construct
+  buys it on ~99% of runs instead of 100%.
+- **A witness you CANNOT write down** (same, but C is not concisely
+  specifiable — "a walk that reaches every op kind") — FIX THE SEED. It
+  is a fixture identifier, not a sampling strategy, and it cannot flake.
+
+**The trap is mixing the first and third in one test.** A property test
+with an anti-vacuity floor bolted on is both at once, and its sample
+count then feeds two obligations of which only one is safe to cut. Make
+the floor's witness static, or split the test.
+
 **When a fixed seed IS right** — narrower than it sounds, and each case
 must say in-file which one it is. An unexplained literal seed is the
 failure mode; these are the only excuses:
+
+- **A coverage/witness claim of the third shape above.** Condition
+  (Evan, 2026-08-13): K must be large enough — or the simultaneous
+  conditions numerous enough — that the row is VERY UNLIKELY TO PASS BY
+  ACCIDENT on a lucky seed. K = 1 against a 1-in-1000 class is the shape
+  to avoid: the single seed that happens to work then carries the whole
+  claim. `topo`'s `seqgen` coverage rows clear it comfortably:
+  they must reach every op kind AND every site shape at once, so a seed
+  that satisfies them is a good seed rather than a lucky one.
 
 - **A pinned counterexample.** A fuzzer found a real defect and that
   exact case is now a permanent regression row. Prefer writing the
