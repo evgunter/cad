@@ -238,9 +238,10 @@ fn arc_loft_natively_computes_its_rational_volume() {
     // Computed ONCE: a rational quadrature is the expensive thing in
     // this row, and the round trip below reuses this enclosure. Tier 3
     // consumes exactly this number through its +V invariant, and the
-    // sweep suite's `tier3_admits_the_rational_wall_body` pins the
-    // verdict itself — paying for it twice here would only buy the
-    // same quadrature at the same ε.
+    // sweep suite's
+    // `tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion`
+    // pins the verdict itself — paying for it twice here would only buy
+    // the same quadrature at the same ε.
     let native_props = rational_props_posture(&native, "native");
     let certified = native_props.is_some();
     if let Some(want) = &native_props {
