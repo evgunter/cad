@@ -14,10 +14,6 @@
 //! (see the LINK/DEBUGINFO note in .github/workflows/ci.yml). The suites
 //! are small; the per-binary constant was the bill.
 //!
-//! EXEMPT: `tolerance_init.rs` is deliberately NOT aggregated — it needs
-//! its own process for the tolerance `OnceLock` and has its own
-//! `[[test]]` target. The guard below knows about it by name.
-//!
 //! ADDING A SUITE: drop the file in `tests/` AND add a `#[path]` line
 //! below. `autotests = false` in Cargo.toml means a file that is not
 //! listed here does not compile and does not run — `every_suite_file_is_
@@ -76,6 +72,8 @@ mod ring_interval_differential;
 mod ring_interval_fuzz;
 #[path = "spline_hull.rs"]
 mod spline_hull;
+#[path = "tolerance_init.rs"]
+mod tolerance_init;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.
@@ -98,26 +96,6 @@ fn every_suite_file_is_aggregated() {
             .to_string_lossy()
             .to_string();
         if name == "all.rs" {
-            continue;
-        }
-        // DELIBERATE EXEMPTION, not an oversight: `tolerance_init.rs`
-        // needs its own PROCESS (the global tolerance commits once per
-        // process), so it has its own `[[test]]` target in Cargo.toml.
-        // Aggregating it here made `cargo test -p geom-core` fail
-        // whichever suite happened to touch the global first; CI only
-        // stayed green because nextest forks per test.
-        //
-        // Enforced in BOTH directions: skipping it silently would let a
-        // future edit re-aggregate it and reintroduce the race, so its
-        // absence is asserted rather than assumed.
-        if name == "tolerance_init.rs" {
-            assert!(
-                !src.contains(&format!("#[path = \"{name}\"]")),
-                "tolerance_init.rs must NOT be aggregated: it needs its own \
-                 process for the tolerance OnceLock and has its own [[test]] \
-                 target. Re-adding it here makes `cargo test -p geom-core` \
-                 fail on a clean tree, invisibly under nextest."
-            );
             continue;
         }
         if !src.contains(&format!("#[path = \"{name}\"]")) {
