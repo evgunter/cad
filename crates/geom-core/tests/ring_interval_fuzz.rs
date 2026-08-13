@@ -426,8 +426,17 @@ fn sweep(rng: &mut fuzz::Rng) {
     let mut n = 0u64;
 
     // Lane 1: raw random bit patterns — full exponent sweep, subnormals,
-    // signed zeros, everything.
-    for _ in 0..fuzz::scaled(93_750) {
+    // signed zeros, everything. THE COST CENTRE of this file, and the
+    // one constant to turn if it becomes the suite's most expensive
+    // test: it dominates the other three lanes combined.
+    //
+    // Sized for BREADTH OVER RUNS rather than depth per run. While the
+    // seed was pinned this was a replay corpus, so a single run's case
+    // count was the whole coverage there would ever be and it had to be
+    // large. With a varying seed, successive runs explore different
+    // patterns, and `CAD_FUZZ_EFFORT` buys depth deliberately when a
+    // change to `ring_interval.rs` actually wants it.
+    for _ in 0..fuzz::scaled(23_437) {
         let (a, b) = (f64_raw(rng), f64_raw(rng));
         if !a.is_finite() || !b.is_finite() {
             continue;

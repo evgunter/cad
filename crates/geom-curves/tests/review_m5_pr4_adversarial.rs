@@ -38,7 +38,10 @@ fn usize_in(rng: &mut fuzz::Rng, lo: usize, hi: usize) -> usize {
 #[test]
 fn f1_fit_bound_dominates_dense_sampling_randomized() {
     let mut rng = fuzz::start("review_m5_pr4::f1_fit_bound");
-    let cases = fuzz::scaled(15);
+    // The CASE count is the only lever here: this row's cost is
+    // dominated by `NurbsCurve3::approximate` on up to 70 points, not by
+    // the dense sampling, so trimming the sample grid would buy nothing.
+    let cases = fuzz::scaled(5);
     let mut fits = 0usize;
     let mut worst_ratio = 0.0f64;
     for case in 0..cases {

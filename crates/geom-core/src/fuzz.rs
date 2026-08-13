@@ -4,6 +4,50 @@
 //! xorshift64\* generator, the per-run **seed**, and the **effort** dial
 //! every iteration count is a multiple of.
 //!
+//! # Which shape is your test? Read this before choosing a seed
+//!
+//! Three shapes. **Only one of them wants a varying seed**, and reading
+//! "a fuzzer must not fix its seed" as "everything needs a random seed"
+//! is how a coverage test becomes flaky.
+//!
+//! **1. Counterexample search** — *for all sampled `x`, `P(x)`*. The
+//! default, and what this harness is for. **Vary the seed.** It is
+//! monotone in the safe direction: cutting the count loses detection
+//! power but can never make the test fail, so `EFFORT` is safe to turn
+//! down and successive runs explore new ground.
+//!
+//! **2. A witness you can WRITE DOWN** — *at least `K` sampled `x` are
+//! of class `C`*, where `C` is concisely constructible. **Do not search
+//! at all.** Build the case as a static fixture and assert on it every
+//! run. Hunting for something you could construct buys it on ~99% of
+//! runs instead of 100%, and makes the sample count carry an obligation
+//! that is anti-monotone. `profile`'s enclosing-tangency case was this:
+//! it inflated a row 8x to stumble onto something the geometry names
+//! directly (rho = R - sigma*tau*r < 0).
+//!
+//! **3. A witness you CANNOT write down** — same shape, but `C` is not
+//! concisely specifiable: "a walk that reaches every op kind and every
+//! site shape" is not something you can spell out. **Fix the seed.**
+//! Here the seed is a FIXTURE IDENTIFIER — compression for an input too
+//! big to write down — not a sampling strategy. It is deterministic, so
+//! it cannot flake, and it is cheaper because nothing has to be
+//! over-provisioned against bad luck.
+//!
+//! The condition on 3 (Evan, 2026-08-13): `K` must be large enough — or
+//! the simultaneous conditions numerous enough — that the row is **very
+//! unlikely to pass by accident on a lucky seed**. `K = 1` against a
+//! 1-in-1000 class is the shape to avoid: the one seed that happens to
+//! work then carries the whole claim, and nobody can tell a real pass
+//! from a fortunate draw. `topo`'s `seqgen` coverage rows clear it
+//! comfortably: they must hit every op kind AND every site shape at
+//! once, so a seed that satisfies them is a good seed rather than a
+//! lucky one.
+//!
+//! **The trap is mixing 1 and 3 in one test.** A property test with an
+//! anti-vacuity floor bolted on is both shapes at once, and its sample
+//! count then feeds two obligations of which only one is safe to cut.
+//! Either make the floor's witness static (shape 2) or split the test.
+//!
 //! # Why the seed is not hardcoded
 //!
 //! Every sweep in this workspace used to open with a literal seed
@@ -185,6 +229,37 @@ pub fn start(label: &str) -> Rng {
         h = h.wrapping_mul(0x100_0000_01b3);
     }
     Rng::from_seed(s ^ h)
+}
+
+/// Open a PINNED stream for a shape-3 coverage claim — a witness you
+/// cannot write down (see the taxonomy at the top of this module).
+///
+/// Deterministic by default, which is the entire point: a coverage
+/// claim on a varying seed is a witness search that can flake, and
+/// over-provisioning the budget to survive bad luck is paying to keep a
+/// fragile design alive. The seed is a FIXTURE IDENTIFIER here.
+///
+/// Still logged, exactly like [`start`] — a pinned seed nobody can see
+/// is the shape this harness exists to remove.
+///
+/// `CAD_FUZZ_SEED` DOES override it, deliberately: that is how you check
+/// the claim is not specific to its pinned seed (a coverage row that
+/// only holds for one draw is a row fitted to its seed). The log line
+/// says which seed was used and whether it was the pinned one, so a run
+/// that explored elsewhere cannot be mistaken for the gate.
+pub fn pinned(label: &str, seed: u64) -> Rng {
+    let overridden = std::env::var_os("CAD_FUZZ_SEED").is_some();
+    let s = if overridden { self::seed() } else { seed };
+    println!(
+        "[fuzz] {label}: seed=0x{s:016x} effort={} ({})",
+        effort(),
+        if overridden {
+            "OVERRIDDEN by CAD_FUZZ_SEED — exploring, not the pinned gate"
+        } else {
+            "pinned coverage seed"
+        }
+    );
+    Rng::from_seed(s)
 }
 
 /// The exact environment that reproduces this process's draws — put it

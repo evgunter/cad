@@ -1601,7 +1601,12 @@ mod tests {
             KnotVector::clamped(k, p).unwrap()
         }
         let mut worst = 0.0f64;
-        for trial in 0..fuzz::scaled(180) {
+        // TRIALS are breadth; the 61x61 `sample_worst` grid below is the
+        // per-trial falsification power and is deliberately NOT reduced —
+        // it IS the domination check. With a varying seed, breadth is
+        // what successive runs supply for free, so the trial count is the
+        // honest lever here and the grid is not.
+        for trial in 0..fuzz::scaled(60) {
             let pu = 1 + rng.below(3);
             let pv = 1 + rng.below(3);
             let kv_u = mk(&mut rng, pu);
