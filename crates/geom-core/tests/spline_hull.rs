@@ -427,19 +427,36 @@ fn structural_errors_poison_rather_than_panic() {
     assert!(hull::sup_norm_bound_rational(&kv, &coeffs, &ones[..n - 1]).is_nan());
 }
 
+/// A certification helper written against `Enclosure` only — the seam
+/// under test. Shared by the two rows below so each carrier is measured
+/// by the identical generic code.
+fn widest<E: Enclosure>(cs: &[E]) -> f64 {
+    cs.iter().map(|c| c.hi() - c.lo()).fold(0.0, f64::max)
+}
+
 /// The seam itself: a certification helper written against `Enclosure`
-/// accepts `f64`, `RingInterval`, and (behind the feature) the interval
-/// scalar, without any of them implementing the others' traits.
+/// accepts `f64` and `RingInterval` without either implementing the
+/// other's traits.
+///
+/// The interval carrier is a SEPARATE row rather than a
+/// `#[cfg(feature = "interval")]` block inside this one. That is load-
+/// bearing, not cosmetic: the interval CI legs run exactly the tests the
+/// feature ADDS (see the `test-interval` job), which is sound only while
+/// a test present in both builds runs identical code. An inner cfg block
+/// would make this row mean two different things under one name, and its
+/// interval half would go unrun. scripts/check-interval-cfg-additive.py
+/// gates the rule.
 #[test]
 fn enclosure_seam_accepts_every_bracket_carrier() {
-    fn widest<E: Enclosure>(cs: &[E]) -> f64 {
-        cs.iter().map(|c| c.hi() - c.lo()).fold(0.0, f64::max)
-    }
     assert_eq!(widest(&[1.0f64, 2.0, 3.0]), 0.0);
     assert_eq!(widest(&[RingInterval::from_bounds(1.0, 3.0)]), 2.0);
-    #[cfg(feature = "interval")]
-    {
-        use geom_core::Interval;
-        assert!(widest(&[Interval::from_bounds(1.0, 3.0)]) >= 2.0);
-    }
+}
+
+/// The same seam at the certified interval scalar — the third carrier,
+/// as its own row (see the note above).
+#[cfg(feature = "interval")]
+#[test]
+fn enclosure_seam_accepts_the_interval_carrier() {
+    use geom_core::Interval;
+    assert!(widest(&[Interval::from_bounds(1.0, 3.0)]) >= 2.0);
 }
