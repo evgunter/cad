@@ -19,9 +19,8 @@
 //! the old bits. If the answers are fine, regenerate: run the walk in
 //! `basis_rows_match_the_pinned_baseline` and paste the new rows.
 //!
-//! Wholesale drift across every row usually means an operand form,
-//! association order, or the shift-and-add's `n[j] = saved` (where the
-//! sign of a zero lives) changed — worth understanding before accepting,
+//! Wholesale drift across every row usually means an operand form or an
+//! association order changed — worth understanding before accepting,
 //! since D9 asks for deliberate arithmetic, not for these exact numbers.
 //!
 //! # Why an absolute pin at all
