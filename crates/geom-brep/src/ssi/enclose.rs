@@ -651,7 +651,7 @@ mod tests {
         for iu in 0..nu {
             for iv in 0..nv {
                 let (a, b) = (iu as f64, iv as f64);
-                control.push(Point3::new(a * 0.4, b * 1.1, 0.3 * a * b - 0.2 * a * a));
+                control.push(Point3::new(a * 0.4, b * 1.1, 0.3 * a * b - 0.2 * a.powi(2)));
                 weights.push(0.6 + 0.35 * ((iu * 3 + iv) % 5) as f64);
             }
         }
