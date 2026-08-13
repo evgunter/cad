@@ -35,9 +35,20 @@ conditional on green." Re-running CI-covered suites in a review
 clone is duplication (3 of the session's 4 waiter-parks happened
 grinding exactly such runs).
 
+**Reviewer suites get promoted into CI.** A review charter has the
+reviewer write their OWN consumer test suite — an independent
+derivation of what the PR claims, not a re-reading of its diff. After
+that PR's fix pass, **that suite is committed into the repo** as a
+normal test file (the original example: `crates/topo/tests/
+review_m1_prN*.rs`), where the aggregation guard picks it up and it
+becomes a permanent gate like any other test (Evan, PR #17 thread).
+That commit is what "promotion" means below. The suites are
+independent derivations and that independence is their regression
+value.
+
 **Promotion stays cheap; RETIREMENT IS ALWAYS PERMITTED (Evan,
-2026-08-13 — amends the PR #17 reading).** Two changes, and note what
-is deliberately NOT being added:
+2026-08-13 — amends how the PR #17 clause has been read).** Three
+parts, and note what is deliberately NOT being added:
 
 1. **The conventions bind the reviewer WRITING the suite**, not the
    person promoting it. A reviewer authoring a consumer suite follows
@@ -46,18 +57,17 @@ is deliberately NOT being added:
    truth-table dump or a latency table cannot fail and therefore
    cannot gate — those are evidence for the review, and should be
    marked as such rather than left to become permanent rows.
-2. **Take the suite as-is.** Promotion is not an audit. There is NO
+2. **Promotion takes the suite AS-IS.** It is not an audit. There is NO
    obligation to comb a suite row by row at the fix pass, and adding
    one would be a recurring tax on every review to pay for a problem
    that is cheap to fix later.
 3. **Full license to fix them afterwards.** If a promoted suite becomes
    a problem — slow, redundant, asserting nothing — trim or retire it
-   then, freely, without ceremony. The kept rows are independent
-   derivations and that independence is their regression value, so do
-   not "simplify" a row that is pulling its weight to match shipped
-   fixtures; but that protection was NEVER a prohibition on retiring
-   ones that are not, and reading it as one is what let the suites
-   accumulate.
+   then, freely, without ceremony. Do not "simplify" a row that is
+   pulling its weight to match shipped fixtures (that is the
+   independence above, and it is worth keeping); but that protection
+   was NEVER a prohibition on retiring ones that are not, and reading
+   it as one is what let the suites accumulate.
 
 When retiring, name the gate that now owns the claim (a stronger
 permanent row, or a new one written for it). "It is not an exact
