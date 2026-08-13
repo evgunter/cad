@@ -386,7 +386,11 @@ corpus_interval() { nextest_check && cargo nextest run -p editor-core --features
 # per-document table and diffs the committed baseline. NOT A GATE on any
 # timing number (the only assertions are the counted-reuse ones).
 # Refresh the baseline with CAD_LATENCY_BASELINE_REFRESH=1.
-rebuild_latency() { cargo test -p editor-core --test all -- --nocapture m4_pr8_latency::; }
+# `--ignored`: the test is #[ignore]d so the eps matrix stops paying for
+# it 5x (its two assertions are a strict subset of the corpus row's —
+# see the rustdoc on rebuild_latency_table). THIS row is the one that
+# runs it. Mirrors ci.yml's `rebuild latency (reporting)` job.
+rebuild_latency() { cargo test -p editor-core --test all -- --ignored --nocapture m4_pr8_latency::; }
 
 # M5 PR 1 (review NOTE-1): the interval backend crate's OWN tripwire, in
 # its own workspace, on its DEFAULT feature set — which reaches neither

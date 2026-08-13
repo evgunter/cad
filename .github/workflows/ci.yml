@@ -1113,8 +1113,14 @@ jobs:
         run: rm -rf local-scripts
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      # `--ignored`: the test is `#[ignore]`d so the ε matrix stops
+      # paying for it 5× (it is reporting, and its two assertions are a
+      # strict subset of the corpus row's — see the rustdoc on
+      # `rebuild_latency_table`). THIS job is the one that runs it, so
+      # the flag is what keeps the table alive. Same idiom as
+      # scripts/k_probe_sweep.sh.
       - name: per-document full-rebuild + incremental-recompute table
-        run: "cargo test -p editor-core --test all -- --nocapture m4_pr8_latency::"
+        run: "cargo test -p editor-core --test all -- --ignored --nocapture m4_pr8_latency::"
 
   # M4 PR 8a spec D1: the Band 4 corpus as a NAMED row (it also runs
   # inside the workspace rows; naming it keeps the milestone's

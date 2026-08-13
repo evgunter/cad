@@ -82,6 +82,51 @@ fn native_arc_loft() -> topo::Body<f64> {
         .body
 }
 
+/// RW2 probe 1's reorder (adopted verbatim): reverse every
+/// `#k = ...;` statement inside DATA, gluing a multi-line statement's
+/// continuation lines to their opener first so a record is moved whole.
+fn reverse_data_section(text: &str) -> String {
+    let mut head = Vec::new();
+    let mut data: Vec<String> = Vec::new();
+    let mut tail = Vec::new();
+    let mut in_data = false;
+    let mut done = false;
+    for line in text.lines() {
+        if line.trim() == "DATA;" {
+            in_data = true;
+            head.push(line.to_owned());
+            continue;
+        }
+        if in_data && line.trim() == "ENDSEC;" {
+            in_data = false;
+            done = true;
+            tail.push(line.to_owned());
+            continue;
+        }
+        if in_data {
+            if line.trim_start().starts_with('#') || data.is_empty() {
+                data.push(line.to_owned());
+            } else {
+                let last = data.last_mut().unwrap();
+                last.push('\n');
+                last.push_str(line);
+            }
+        } else if done {
+            tail.push(line.to_owned());
+        } else {
+            head.push(line.to_owned());
+        }
+    }
+    assert!(!data.is_empty(), "no DATA section parsed");
+    data.reverse();
+    format!(
+        "{}\n{}\n{}",
+        head.join("\n"),
+        data.join("\n"),
+        tail.join("\n")
+    )
+}
+
 /// The honest posture of a rational-wall body's mass properties at the
 /// run's ε (M8-3). The schedule is FIXED (D9) and the target is
 /// `1024·ε`, so `Ok` at one ε and a typed budget refusal at a tighter
@@ -154,6 +199,36 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::Mas
 /// target, so at a tight enough ε the honest outcome is a typed
 /// budget refusal on both sides. All three outcomes are pinned; none
 /// is widened.
+///
+/// # Adopted arms
+///
+/// This row is the single home for the rational arc-loft body's
+/// disposition. Two rows that built a CHARACTER-IDENTICAL
+/// `native_arc_loft` and quadratured it again were merged in here;
+/// each rational quadrature is the expensive thing in this class, and
+/// the three rows paid for ten between them where five state the same
+/// facts. Authorship is kept, which is this project's convention for
+/// adopted review probes (`docs/M7-LOG.md`, M7-1's "adopted BY MERGE
+/// with authorship kept"):
+///
+/// * **the reversed-DATA arm is RW2 probe 1's** — the blinded review
+///   of PR #353 (`rw2_probes.rs`), which re-imported the same export
+///   from a file whose every DATA statement is REVERSED. The reader's
+///   fixed-point discipline must not depend on entity order, and the
+///   reordered body's volume must land on the SAME BITS. It reuses
+///   the export and the native enclosure computed above rather than
+///   recomputing either;
+/// * **the refusal arm's structural match is review F1's positive
+///   control's** (`review_probes_m7_3::probe_arm_b_true_arc_rim_
+///   positive_control`, M7-3 review, adopted by merge). It is
+///   STRICTER than the string check beside it: the verdict list must
+///   be exactly one `VolumeUncomputable` whose source is a per-face
+///   `QuadratureBudget` — no other verdict, no second verdict, and no
+///   escalation standing in for a budget. Because the import gate is
+///   the SAME `topo::validate_geometric` the native side runs, this
+///   also pins the native posture RW2 asserted directly: a native
+///   escalation would arrive here as an escalation and fail this
+///   match.
 #[test]
 fn arc_loft_natively_computes_its_rational_volume() {
     let native = native_arc_loft();
@@ -234,15 +309,66 @@ fn arc_loft_natively_computes_its_rational_volume() {
                 "M8-3 arc loft round trip @ eps={eps:e}: FIRST-CLASS, {} ± {}",
                 got.volume, got.volume_pad
             );
+
+            // ---- RW2 probe 1's reversed-DATA arm (adopted). ----
+            // INVARIANT: entity ORDER is not information. The reader
+            // resolves references, so a file whose DATA statements are
+            // reversed states the same body and must import to the
+            // same bits. Reuses `text` and `got` — the same export,
+            // the same already-paid quadrature.
+            let reordered = reverse_data_section(&text);
+            assert_ne!(reordered, text, "the DATA section really was reordered");
+            let again = match import_step(&reordered, &ImportOptions::default()) {
+                Ok(step_import::StepImport::Solid { body: again, .. }) => again,
+                other => panic!(
+                    "reversed-DATA: the reader's fixed point must not depend on entity \
+                     order — the as-written file imported first-class, got {other:?}"
+                ),
+            };
+            let back = topo::mass_properties(&again).expect("reversed-DATA mass properties");
+            assert_eq!(
+                back.volume.to_bits(),
+                got.volume.to_bits(),
+                "a reordered file must import to the same volume bits: {} vs {}",
+                back.volume,
+                got.volume,
+            );
+            assert_eq!(
+                back.volume_pad.to_bits(),
+                got.volume_pad.to_bits(),
+                "and the same certified pad: {} vs {}",
+                back.volume_pad,
+                got.volume_pad,
+            );
+            println!(
+                "RW2 probe 1 (adopted): reversed-DATA reimport bit-identical, volume {}",
+                back.volume
+            );
         }
         // The fixed schedule's honest frontier, reached through the
         // import gate instead of the native one.
-        Err(refusal @ step_import::StepImportError::TierInvalid { .. }) => {
+        Err(step_import::StepImportError::TierInvalid { solid, errors }) => {
             assert!(
                 !certified,
                 "the import gate may only refuse where the native body's flux also \
-                 ran out of schedule: {refusal:?}"
+                 ran out of schedule: {errors:?}"
             );
+            // Review F1's positive control, adopted: the VERDICT LIST
+            // itself, not a substring of its prose. Exactly one
+            // verdict, and it is the per-face quadrature budget.
+            assert!(
+                matches!(
+                    errors.as_slice(),
+                    [topo::ValidationError::VolumeUncomputable {
+                        source: topo::MassPropsError::Face {
+                            source: geom_brep::props::PropsError::QuadratureBudget { .. },
+                            ..
+                        },
+                    }]
+                ),
+                "the only surviving verdict is the fixed schedule's budget: {errors:?}"
+            );
+            let refusal = step_import::StepImportError::TierInvalid { solid, errors };
             let msg = refusal.to_string();
             assert!(
                 !msg.contains("RATIONAL patch flux"),

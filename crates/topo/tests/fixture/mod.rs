@@ -100,7 +100,32 @@ fn sphere<T: Real>() -> Surface<T> {
 /// One certified rung-3 branch of the planted fixture, or `None` when
 /// this ε's sample demand exceeds the SSI door's named fit budget — the
 /// typed stand-down, never an ε literal.
-fn branch_or_budget() -> Option<ssi::SsiBranch> {
+///
+/// **Memoized per process.** The trace is the expensive part of the
+/// fixture (~4 s), and the module's own opening line already says the
+/// fixture is "built once, at any scalar": every caller here restricts
+/// the SAME traced locus, so a second trace re-derives a bit-identical
+/// branch (D9) and buys nothing. INVARIANT: no row asserts that two
+/// INDEPENDENT traces agree — the cross-scalar row
+/// (`the_interval_bounds_dominate_the_f64_ones`) compares an interval
+/// LIFT against the f64 one, which is a claim about the lift and is
+/// unaffected by (indeed sharpened by) sharing one f64 structure.
+/// Sharing must therefore never become an assertion this file relies
+/// on: if a row ever wants two independent traces, it must call
+/// `trace_branch` directly and say why.
+///
+/// nextest is process-per-test, so this only helps WITHIN one test —
+/// which is exactly where the duplication is (`build` + `foreign_cache`
+/// in one row, and the two `build`s of the dominance row). The same
+/// idiom, with the same caveat, is in `mesh/tests/fitted_refusals.rs`.
+fn branch_or_budget() -> Option<&'static ssi::SsiBranch> {
+    static BRANCH: std::sync::OnceLock<Option<ssi::SsiBranch>> = std::sync::OnceLock::new();
+    BRANCH.get_or_init(trace_branch).as_ref()
+}
+
+/// The trace itself — the full `cylinder_sphere_ssi` exhaustiveness run
+/// the memo above wraps.
+fn trace_branch() -> Option<ssi::SsiBranch> {
     let slab = SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
         half_extent: 1.5,
@@ -242,7 +267,7 @@ where
     T: geom_brep::PcurveFittedLane + geom_core::Bounds,
 {
     let branch = branch_or_budget()?;
-    let s = restrict(&branch, (0.0, 0.25))?;
+    let s = restrict(branch, (0.0, 0.25))?;
     Some(assemble(&s))
 }
 
@@ -254,7 +279,7 @@ where
 /// about the wrong carrier.
 pub fn foreign_cache(built: &Built<f64>) -> PcurveCache<f64> {
     let branch = branch_or_budget().expect("the fixture already built once");
-    let s = restrict(&branch, (0.5, 0.75)).expect("the third quarter restricts");
+    let s = restrict(branch, (0.5, 0.75)).expect("the third quarter restricts");
     let other = assemble::<f64>(&s);
     let _ = built;
     other
