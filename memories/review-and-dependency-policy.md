@@ -61,11 +61,27 @@ their own file header said "Not in the `all` aggregator".
 **Why this needs saying explicitly:** each crate's
 `every_suite_file_is_aggregated` guard plus `autotests = false` means
 any file dropped into `tests/` is forced into the `all` binary and runs
-on every ε row forever. So "review artifact" and "permanent gate" are
-the SAME THING by default, and deletion is the only retirement lever.
+on every ε row. So "review artifact" and "permanent gate" are the SAME
+THING *by default* — the default is the problem, not the mechanism.
 The selection has to happen at the fix pass, deliberately, or it never
 happens. Measured 2026-08-13: 55% of all workspace test time sat in
 modules named after a specific past review or PR.
+
+Three levers, not one — reach for the right one:
+
+- **Delete** it, when a stronger permanent row already owns the claim.
+  Name that row.
+- **`#[ignore]` it**, when the row is reporting rather than gating, and
+  give it a dedicated CI job with `--ignored` if the report is still
+  wanted (`m4_pr8_latency::rebuild_latency_table` is the worked
+  example — its own header says "there is no threshold gate").
+- **Gate it on the change filter**, when it is a randomized sweep — see
+  [[test-suite-cost]]. Runs only when the code it tests moved.
+
+What is NOT available is an automatic check: a probe that only prints
+still `unwrap`s, so "has no assertions" is not reliably greppable. That
+makes it a review-time judgement, which is exactly why it is written
+down here rather than left to a lint.
 
 Suites hit by later API changes (e.g. PR 5's raw-builder demotion)
 migrate or get pruned at that PR like any other test.
