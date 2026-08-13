@@ -386,6 +386,7 @@ impl PropsQuadLane for f64 {
     }
 }
 
+#[cfg(feature = "probe")]
 impl PropsQuadLane for geom_core::Probe {
     fn quad_cut_face(
         body: &Body<Self>,

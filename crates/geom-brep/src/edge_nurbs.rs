@@ -520,6 +520,7 @@ impl EdgeNurbsLane for f64 {
     }
 }
 
+#[cfg(feature = "probe")]
 impl EdgeNurbsLane for geom_core::Probe {
     fn plane_nurbs_limbs(
         carrier: &NurbsCurve3<Self>,

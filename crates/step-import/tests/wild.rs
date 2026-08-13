@@ -81,6 +81,15 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // structural verdict, which would be a regression rather than the
     // banked lane. Still the class and not the prose — no widths, no
     // face key.
+    //
+    // **This fragment is checked elsewhere.** dm1 stays in the table —
+    // the obligation sweep and the dialect pin read the whole corpus —
+    // but `wild_refusals_are_typed_and_name_their_class` skips it (see
+    // that row's `continue`): importing dm1 costs ~30× the other three
+    // refusal fixtures together, and the same fragment is already
+    // asserted by `tier_gate.rs`'s `RATIONAL_FLUX_STALL` at three ε_in
+    // values per run, with the coarse band's `#389` cell beside it, and
+    // structurally by `r1_dm1_probe`.
     (
         "stepcode/dm1-id-214.stp",
         "the certified quadrature enclosure stalled at",
@@ -203,23 +212,29 @@ fn solid(name: &str) -> (topo::Body<f64>, f64) {
 /// exercises — that re-widening is a recorded pickup, not done here;
 /// the pinned ceiling stays 1e-8.
 ///
-/// Outside the window the certifying rows skip LOUDLY and assert
-/// [`assert_sub_tolerance_obligation`] instead — never nothing.
+/// Outside the window the certifying rows skip LOUDLY, and
+/// [`no_wild_file_panics`] carries [`assert_sub_tolerance_obligation`]
+/// over the whole corpus in their place — never nothing.
 const WILD_EPS_FLOOR: f64 = 1e-9;
 const WILD_EPS_CEILING: f64 = 1e-8;
 
-/// Whether the ambient ε is inside the window this corpus certifies
-/// in; prints a loud skip naming the numbers when it is not, and
-/// asserts the obligation that holds at every ε in its place.
+/// Whether the ambient ε is inside the window this corpus certifies in.
+///
+/// INVARIANT: the obligation that replaces a skipped certifying row is
+/// a property of the CORPUS, not of the row — it sweeps all 13
+/// fixtures and asserts the same thing whichever row asked. So it is
+/// asserted ONCE per run, by [`no_wild_file_panics`], and this gate
+/// only says which side of the window we are on and prints the loud
+/// skip. Three rows call it; running the sweep here ran the whole
+/// corpus three extra times for one claim.
 fn wild_scale_gate(row: &str) -> bool {
     let eps = geom_core::Tolerance::get().eps;
     if (WILD_EPS_FLOOR..=WILD_EPS_CEILING).contains(&eps) {
         return true;
     }
     println!(
-        "{row}: outside the wild corpus's certifying window — ambient ε {eps:e} m is not in          [{WILD_EPS_FLOOR:e}, {WILD_EPS_CEILING:e}]. Asserting the every-ε obligation          instead of this row's certifying one."
+        "{row}: outside the wild corpus's certifying window — ambient ε {eps:e} m is not in          [{WILD_EPS_FLOOR:e}, {WILD_EPS_CEILING:e}]. The every-ε obligation is asserted          over the whole corpus by `no_wild_file_panics` instead of this row's certifying one."
     );
-    assert_sub_tolerance_obligation(row);
     false
 }
 
@@ -462,29 +477,30 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
 /// message carries the class it was committed for. A refusal that
 /// drifted to a different class would be a silent change in what this
 /// importer claims to understand.
+///
+/// `dm1-id-214` is in [`WILD_REFUSALS`] — the obligation sweep and the
+/// dialect pin read the whole table — but its disposition is pinned by
+/// `r1_dm1_probe::dm1_no_longer_refuses_at_the_instancing_gate`, not
+/// here; see the `continue` below.
 #[test]
 fn wild_refusals_are_typed_and_name_their_class() {
     for (name, class) in WILD_REFUSALS {
+        // **dm1's row lives in `r1_dm1_probe`.** Its two ε cells (the
+        // fine bands' rational-flux stall, ambient 1e-6's `#389`
+        // ladder gap) are pinned there STRUCTURALLY — the typed
+        // variant, `id == 389`, `attempts.is_empty()`, and the
+        // stalled-quadrature fragment — which is strictly more than
+        // the substring this loop checks, plus the entity-naming
+        // check moved there with it. dm1 alone costs ~30× the other
+        // three fixtures put together to import, so it is imported
+        // once per run, where the sharper assertions are.
+        if name.contains("dm1-id-214") {
+            continue;
+        }
         let err = import_step(&wild(name), &ImportOptions::default())
             .err()
             .unwrap_or_else(|| panic!("{name}: this fixture must refuse"));
         let message = err.to_string();
-        // **dm1 is ε-SENSITIVE since #327** (`tier_gate.rs` pins all
-        // nine cells; this row states the same two-cell fact). At the
-        // fine ambient bands the frontier is the rational-flux stall
-        // the row records; at ambient 1e-6 the ladder stops earlier,
-        // on edge `#389` — a two-point `QUASI_UNIFORM_CURVE` polyline
-        // that stays NURBS and is offered zero candidates. That edge
-        // was masked behind #685 at every band until #327 retired
-        // #685, so the coarse cell is a pre-existing gap newly
-        // exposed. Both fragments are the SUB-REASON, never the
-        // shared preamble, so neither cell can go green on the other
-        // one's regression.
-        let class = if name.contains("dm1-id-214") && geom_core::Tolerance::get().eps > 1e-9 {
-            "edge #389: no intensional description certifies"
-        } else {
-            class
-        };
         assert!(
             message.contains(class),
             "{name}: refusal must name {class:?}, got: {message}"
@@ -600,6 +616,26 @@ fn the_band_re_mint_reports_its_normalizations() {
 /// files with zero panics; that outcome is the fail-loud contract
 /// meeting data nobody here wrote, and it is worth an assertion that
 /// can never be quietly dropped as the subset widens.
+/// **Two cells, because in-window the corpus is already swept.**
+///
+/// INVARIANT: every one of the 13 committed fixtures goes through
+/// `import_step` on every run, and a panic in any of them is red.
+///
+/// * INSIDE the window, this row does nothing but pin the corpus
+///   count. All 13 are imported with an EXACT disposition by the two
+///   rows above — [`wild_files_import_and_agree_with_the_oracle`]
+///   walks all 9 `WILD_IMPORTS` (census, three tiers, oracle volume)
+///   and [`wild_refusals_are_typed_and_name_their_class`] walks 3 of
+///   the 4 `WILD_REFUSALS`, with `dm1-id-214`'s disposition pinned by
+///   `r1_dm1_probe::dm1_no_longer_refuses_at_the_instancing_gate`.
+///   A panic anywhere in those 13 imports fails a row that asserts
+///   strictly more than "did not panic", so a fourth sweep of the same
+///   corpus would buy nothing.
+/// * OUTSIDE it, those rows skip (their certifying claims do not hold
+///   there), so this row is the corpus's only sweep — and it runs
+///   [`assert_sub_tolerance_obligation`] ONCE, under the `catch_unwind`
+///   that makes "never a panic" a distinct verdict from "refused
+///   typed".
 #[test]
 fn no_wild_file_panics() {
     let names: Vec<&str> = WILD_IMPORTS
@@ -608,16 +644,23 @@ fn no_wild_file_panics() {
         .copied()
         .collect();
     assert_eq!(names.len(), 13, "the whole committed wild corpus");
-    for name in names {
-        let text = wild(name);
-        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            import_step(&text, &ImportOptions::default()).map(|i| i.eps_in())
-        }));
-        assert!(
-            outcome.is_ok(),
-            "{name}: import_step panicked — the wild contract is a RESULT, always"
+    let eps = geom_core::Tolerance::get().eps;
+    if (WILD_EPS_FLOOR..=WILD_EPS_CEILING).contains(&eps) {
+        println!(
+            "no_wild_file_panics: ambient ε {eps:e} m is inside [{WILD_EPS_FLOOR:e}, \
+             {WILD_EPS_CEILING:e}] — all 13 fixtures are imported with an exact \
+             disposition by the certifying rows, which a panic would fail first."
         );
+        return;
     }
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        assert_sub_tolerance_obligation("no_wild_file_panics");
+    }));
+    assert!(
+        outcome.is_ok(),
+        "the wild corpus unwound at ε {eps:e} — the wild contract is a RESULT, always \
+         (the panic's own message and location are on stderr above)"
+    );
 }
 
 // ---- Row 6: ε_in through a conversion factor ------------------------

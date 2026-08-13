@@ -44,6 +44,7 @@ mod heatsink;
 mod letterforms;
 mod lily;
 mod paths;
+#[cfg(feature = "probe")]
 mod probe;
 mod projectbox;
 mod rocker;
@@ -410,9 +411,27 @@ fn main() {
         .expect("usage: demo-tour <outdir> | demo-tour k-probe [out.csv]");
     // The K-telemetry mode (M4 PR 8b): rebuild every scene at the
     // recording scalar and dump the margin CSV — see `probe`.
+    //
+    // Behind the `probe` feature since the Probe gate: the recording
+    // scalar is a `Real` instantiation, so carrying it here made every
+    // release render of this tour monomorphize the whole geometry stack a
+    // second time for a mode the render lanes never invoke.
+    // `scripts/k_probe_sweep.sh` passes `--features probe`; without it,
+    // this mode says so instead of silently rendering to a directory
+    // literally named "k-probe".
+    #[cfg(feature = "probe")]
     if outdir == "k-probe" {
         probe::run(std::env::args().nth(2));
         return;
+    }
+    #[cfg(not(feature = "probe"))]
+    if outdir == "k-probe" {
+        eprintln!(
+            "demo-tour: `k-probe` needs the `probe` feature \
+             (cargo run --features probe -- k-probe [out.csv]); \
+             scripts/k_probe_sweep.sh passes it."
+        );
+        std::process::exit(2);
     }
     std::fs::create_dir_all(&outdir).expect("create outdir");
     let mut manifest = String::new();

@@ -36,6 +36,17 @@
 //! and no other) is pinned where a file that IMPORTS can carry it:
 //! `freecad.rs::refusals_survive_the_dialect_relaxations` (d), on
 //! planted mutations of `twobody_importexport`'s real transforms.
+//!
+//! **This row is dm1's only unconditional import in the suite.**
+//! Importing dm1 costs ~30× the rest of the wild refusal corpus put
+//! together, so the rows that used to re-import it for a WEAKER
+//! statement now point here instead:
+//! `wild::wild_refusals_are_typed_and_name_their_class` skips it (its
+//! entity-naming check moved into the `TierInvalid` arm below), and
+//! `review_probes_m7_3`'s V6 first-refusal-site probe is retired — it
+//! asserted a strict subset of this row. `tier_gate.rs` still sweeps
+//! the file at three ε_in values and pins BOTH ε cells' message
+//! fragments there.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::path::PathBuf;
@@ -102,12 +113,22 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
                 "and it is the polyline GAP, not a refusal with candidates"
             );
         }
-        Err(e @ StepImportError::TierInvalid { .. }) => {
-            let shown = e.to_string();
+        Err(StepImportError::TierInvalid { solid, errors }) => {
             assert!(
                 !coarse,
-                "the coarse band's cell is the #389 ladder gap, not the gate: {shown}"
+                "the coarse band's cell is the #389 ladder gap, not the gate: {errors:?}"
             );
+            // Adopted from `wild::wild_refusals_are_typed_and_name_their_class`,
+            // which no longer imports this file. INVARIANT: every
+            // typed refusal points at something in the file a reader
+            // can go and look at — the gate's verdict names the
+            // `MANIFOLD_SOLID_BREP` it was asked about, and carries at
+            // least one kernel verdict inside naming what it is about.
+            assert!(
+                solid.is_some_and(|id| id > 0) && !errors.is_empty(),
+                "the refusal must name an entity: solid {solid:?}, verdicts {errors:?}"
+            );
+            let shown = StepImportError::TierInvalid { solid, errors }.to_string();
             assert!(
                 shown.contains("the certified quadrature enclosure stalled at"),
                 "the frontier is now the rational-patch-flux lane, not the ladder: {shown}"

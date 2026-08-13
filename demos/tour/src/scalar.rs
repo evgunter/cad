@@ -12,7 +12,11 @@
 //! so every oracle asserted at f64 holds bit-identically at Probe.
 
 use pncad::document::ContentBits;
-use pncad::geom_core::{Bounds, Decide, Probe};
+use pncad::geom_core::{Bounds, Decide};
+// Only the `Scalar for Probe` impl below names it; the recording scalar
+// rides the `probe` feature (see this crate's manifest).
+#[cfg(feature = "probe")]
+use pncad::geom_core::Probe;
 
 /// A scalar the tour can build scenes at: kernel-decidable, document-
 /// evaluable (the heat-sink recipe), and exactly f64-extractable for
@@ -30,6 +34,7 @@ impl Scalar for f64 {
     }
 }
 
+#[cfg(feature = "probe")]
 impl Scalar for Probe {
     fn f(self) -> f64 {
         self.0
