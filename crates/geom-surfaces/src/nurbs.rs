@@ -708,10 +708,16 @@ impl<T: SpanLocate> NurbsSurface<T> {
     pub fn ders(&self, u: T, v: T) -> SurfaceJet<T> {
         let su = u.locate_spans(&self.knots_u);
         let sv = v.locate_spans(&self.knots_v);
-        let mut acc = self.ders_in_span(su.first, sv.first, u, v);
-        for cu in su.first..=su.last {
-            for cv in sv.first..=sv.last {
-                if cu == su.first && cv == sv.first {
+        // Surfaces still evaluate by span index — the tensor-product
+        // window is a separate construction from the curve path's, and
+        // giving it the `Span` treatment is the 2D follow-up. Take the
+        // located spans' indices here.
+        let (su_first, su_last) = (su.first.index(), su.last.index());
+        let (sv_first, sv_last) = (sv.first.index(), sv.last.index());
+        let mut acc = self.ders_in_span(su_first, sv_first, u, v);
+        for cu in su_first..=su_last {
+            for cv in sv_first..=sv_last {
+                if cu == su_first && cv == sv_first {
                     continue;
                 }
                 // Skip empty spans (interior multiplicity):
@@ -743,10 +749,16 @@ impl<T: SpanLocate> NurbsSurface<T> {
     pub fn ders3(&self, u: T, v: T) -> SurfaceJet3<T> {
         let su = u.locate_spans(&self.knots_u);
         let sv = v.locate_spans(&self.knots_v);
-        let mut acc = self.ders3_in_span(su.first, sv.first, u, v);
-        for cu in su.first..=su.last {
-            for cv in sv.first..=sv.last {
-                if cu == su.first && cv == sv.first {
+        // Surfaces still evaluate by span index — the tensor-product
+        // window is a separate construction from the curve path's, and
+        // giving it the `Span` treatment is the 2D follow-up. Take the
+        // located spans' indices here.
+        let (su_first, su_last) = (su.first.index(), su.last.index());
+        let (sv_first, sv_last) = (sv.first.index(), sv.last.index());
+        let mut acc = self.ders3_in_span(su_first, sv_first, u, v);
+        for cu in su_first..=su_last {
+            for cv in sv_first..=sv_last {
+                if cu == su_first && cv == sv_first {
                     continue;
                 }
                 if !self.knots_u.span_is_nonempty(cu) || !self.knots_v.span_is_nonempty(cv) {
@@ -777,10 +789,16 @@ impl<T: SpanLocate> NurbsSurface<T> {
     pub fn eval(&self, u: T, v: T) -> Point3<T> {
         let su = u.locate_spans(&self.knots_u);
         let sv = v.locate_spans(&self.knots_v);
-        let mut acc = self.eval_in_span(su.first, sv.first, u, v);
-        for cu in su.first..=su.last {
-            for cv in sv.first..=sv.last {
-                if cu == su.first && cv == sv.first {
+        // Surfaces still evaluate by span index — the tensor-product
+        // window is a separate construction from the curve path's, and
+        // giving it the `Span` treatment is the 2D follow-up. Take the
+        // located spans' indices here.
+        let (su_first, su_last) = (su.first.index(), su.last.index());
+        let (sv_first, sv_last) = (sv.first.index(), sv.last.index());
+        let mut acc = self.eval_in_span(su_first, sv_first, u, v);
+        for cu in su_first..=su_last {
+            for cv in sv_first..=sv_last {
+                if cu == su_first && cv == sv_first {
                     continue;
                 }
                 // Empty-span skip: see `ders`'s note.

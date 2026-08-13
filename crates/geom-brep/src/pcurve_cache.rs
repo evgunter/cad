@@ -315,7 +315,7 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
     let set = ((t - t0) / angle).locate_spans(breaks);
     let degree = breaks.degree();
     let mut acc: Option<T> = None;
-    for span in set.first..=set.last {
+    for span in set.first.index()..=set.last.index() {
         #[allow(clippy::cast_precision_loss)]
         let kf = T::from_f64(span.saturating_sub(degree) as f64);
         let phi = (t - t0) - (kf + T::from_f64(0.5)) * h;

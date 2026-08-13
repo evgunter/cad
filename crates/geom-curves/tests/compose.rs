@@ -123,9 +123,10 @@ fn one_sided(curve: &NurbsCurve3<f64>, seam: f64) -> (Vec3<f64>, Vec3<f64>) {
     let right = (0..ks.len() - 1)
         .find(|&i| ks[i] == seam && ks[i + 1] > seam)
         .expect("a span starts at the seam");
+    let kv = curve.knots();
     (
-        curve.deriv_in_span(left, seam),
-        curve.deriv_in_span(right, seam),
+        curve.deriv_in_span(kv.span(left).expect("left span is nonempty"), seam),
+        curve.deriv_in_span(kv.span(right).expect("right span is nonempty"), seam),
     )
 }
 
