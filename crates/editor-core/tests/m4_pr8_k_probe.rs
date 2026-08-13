@@ -23,7 +23,12 @@
 //! `scripts/k_probe_sweep.sh` runs both and merges; the committed
 //! baseline lives in `docs/k-report-data/m7-eps-<ε>.csv.gz`
 //! (the m4-/m5- rows stay committed as the historical record).
+//!
+//! Both tests here are Probe-lane by construction (the dump run and the
+//! standing bit-identity pin), so the whole file is gated on the `probe`
+//! feature — nothing non-Probe is lost from the default build.
 
+#![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod corpus;

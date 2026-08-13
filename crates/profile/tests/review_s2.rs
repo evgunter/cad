@@ -17,9 +17,15 @@
 //!   setback. It is inverted here into the regression pin for the fix.
 //! - the corner fuzz draws from `geom_core::fuzz`: a fresh seed per run
 //!   (logged unconditionally) and a corner count that is a multiple of
-//!   `CAD_FUZZ_EFFORT`. `CAD_FUZZ_EFFORT=8` restores the review's 20k
-//!   corners. Its coverage floors are expressed as FRACTIONS of the
-//!   corner count, so depth and floor move together.
+//!   `CAD_FUZZ_EFFORT`. It no longer keeps the review's fixed 20k
+//!   corners — a pinned seed made this a replay corpus rather than a
+//!   fuzzer. `CAD_FUZZ_EFFORT` restores that depth and more. Its
+//!   coverage floors are expressed as FRACTIONS of the corner count, so
+//!   depth and floor move together; the enclosing-tangency floor is the
+//!   exception and is absolute, because those occur ~1 per 1000 corners.
+//! - F3's gate-sequence invariance probe records at `Probe`, so it lives
+//!   in `review_s2_probe.rs` behind the `probe` feature; the rest of the
+//!   suite is f64 and runs in the default build.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -399,84 +405,6 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
     // arcs should not fail here, it should make the branch live.
     eprintln!(
         "fuzz: ok {n_ok}, arc legs {n_arc_leg}, arc-by-arc {n_arc_arc}, enclosing {n_enclosing}, major {n_major}"
-    );
-}
-
-/// F3: the recorded predicate-name sequence must be data-independent
-/// within a corner class (fixed classification order, all four
-/// per-candidate gates always fired).
-#[test]
-fn gate_sequence_is_data_independent_within_a_class() {
-    use geom_core::Real;
-    use profile::k_stats::{self, Probe};
-
-    let pp = |x: f64, y: f64| Point2::new(Probe::from_f64(x), Probe::from_f64(y));
-    let seq_line_arc = |cx: f64, r: f64| {
-        k_stats::start_recording();
-        ProfileLoop::builder(pp(0.0, 0.0))
-            .fillet_corner(
-                FilletLegShape::Line,
-                pp(2.0, 0.0),
-                FilletLegShape::Arc {
-                    center: pp(cx, 0.0),
-                    sweep: ArcSweep::Ccw,
-                },
-                pp(cx, -(cx - 2.0).abs()),
-                Probe::from_f64(r),
-                tol(),
-            )
-            .expect("constructs");
-        k_stats::take_samples()
-            .iter()
-            .map(|s| s.predicate)
-            .collect::<Vec<_>>()
-    };
-    let a = seq_line_arc(3.0, 0.5);
-    let b = seq_line_arc(3.5, 0.25);
-    assert_eq!(a, b, "line-by-arc gate sequence varies with data");
-    let s3 = 3.0f64.sqrt();
-    let seq_arc_arc = |r: f64| {
-        k_stats::start_recording();
-        ProfileLoop::builder(pp(1.0, 0.0))
-            .fillet_corner(
-                FilletLegShape::Arc {
-                    center: pp(-1.0, 0.0),
-                    sweep: ArcSweep::Ccw,
-                },
-                pp(0.0, s3),
-                FilletLegShape::Arc {
-                    center: pp(1.0, 0.0),
-                    sweep: ArcSweep::Ccw,
-                },
-                pp(-1.0, 0.0),
-                Probe::from_f64(r),
-                tol(),
-            )
-            .expect("constructs");
-        k_stats::take_samples()
-            .iter()
-            .map(|s| s.predicate)
-            .collect::<Vec<_>>()
-    };
-    let c = seq_arc_arc(0.5);
-    let d = seq_arc_arc(0.3);
-    assert_eq!(c, d, "arc-by-arc gate sequence varies with data");
-    // Per-candidate block: reach, reach, fit, fit — all four, both
-    // candidates, no short-circuit.
-    let tail: Vec<_> = c.iter().rev().take(8).rev().copied().collect();
-    assert_eq!(
-        tail,
-        [
-            "fillet_leg_reach",
-            "fillet_leg_reach",
-            "fillet_leg_fit",
-            "fillet_leg_fit",
-            "fillet_leg_reach",
-            "fillet_leg_reach",
-            "fillet_leg_fit",
-            "fillet_leg_fit"
-        ],
-        "full sequence: {c:?}"
     );
 }
 

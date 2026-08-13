@@ -11,6 +11,16 @@ publish = false
 
 [workspace]
 
+# The `k-probe` mode only (src/probe.rs + its dispatch in main.rs), which
+# rebuilds every scene at `geom_core::k_stats::Probe` to dump the margin
+# CSV for the K sweep. Opt-in because Probe is a `Real` instantiation:
+# carrying it unconditionally made every RELEASE RENDER of this tour
+# monomorphize the whole geometry stack a second time for a mode the
+# render lanes never invoke. `scripts/k_probe_sweep.sh` passes
+# `--features probe`; render.yml's tour job deliberately does not.
+[features]
+probe = ["pncad/probe"]
+
 # ONE kernel dependency. The tour is the façade's acceptance corpus
 # (LIB-U1): eighteen scenes, every kernel type they touch reached
 # through `pncad::`, including the error payloads. It used to name

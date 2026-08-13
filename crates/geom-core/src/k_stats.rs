@@ -28,13 +28,24 @@
 use core::cell::{Cell, RefCell};
 
 use crate::predicate::{Band, Decide, Indeterminate, Margin, Sign};
+// Only `Probe`'s impls name these.
+#[cfg(feature = "probe")]
 use crate::real::{Bounds, Real};
 
 thread_local! {
     /// The name of the predicate currently being decided (set by the
     /// funnel just before classification; read by [`Probe`]).
+    ///
+    /// **Deliberately NOT behind the `probe` feature**, even though only
+    /// `Probe` reads it. `decide` writes it unconditionally, and the
+    /// whole point of the gate is that the funnel's code path is
+    /// byte-identical with the feature on and off — a `cfg` here would
+    /// make the production decision path differ between build
+    /// configurations, which D9 does not permit. The cost is the one
+    /// `Cell` write this module has always documented.
     static CURRENT: Cell<&'static str> = const { Cell::new("<unnamed>") };
     /// The installed sample sink, if any.
+    #[cfg(feature = "probe")]
     static SINK: RefCell<Option<Vec<MarginSample>>> = const { RefCell::new(None) };
     /// The installed verdict-log sink, if any (NAMING-DESIGN N5 /
     /// M4 PR 4: evaluations record their verdict vectors so the
@@ -216,6 +227,7 @@ pub fn take_verdict_log() -> Vec<Verdict> {
 
 /// How a recorded classification came out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg(feature = "probe")]
 pub enum SampleOutcome {
     /// A definite sign.
     Definite(Sign),
@@ -228,6 +240,7 @@ pub enum SampleOutcome {
 /// One recorded classification: the raw material of a margin
 /// distribution.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg(feature = "probe")]
 pub struct MarginSample {
     /// The predicate that classified the margin (the funnel's name).
     pub predicate: &'static str,
@@ -246,6 +259,7 @@ pub struct MarginSample {
 
 /// Installs a fresh, empty sample sink for the current thread (dropping
 /// any samples already recorded).
+#[cfg(feature = "probe")]
 pub fn start_recording() {
     SINK.with(|s| *s.borrow_mut() = Some(Vec::new()));
 }
@@ -253,11 +267,13 @@ pub fn start_recording() {
 /// Removes the sink and returns everything recorded since
 /// [`start_recording`]. Returns an empty vector if recording was never
 /// started on this thread.
+#[cfg(feature = "probe")]
 pub fn take_samples() -> Vec<MarginSample> {
     SINK.with(|s| s.borrow_mut().take()).unwrap_or_default()
 }
 
 /// Records one sample if a sink is installed (called by [`Probe`]).
+#[cfg(feature = "probe")]
 fn record(margin: f64, band: Band, outcome: SampleOutcome) {
     SINK.with(|s| {
         if let Some(sink) = s.borrow_mut().as_mut() {
@@ -280,8 +296,10 @@ fn record(margin: f64, band: Band, outcome: SampleOutcome) {
 /// inherited verbatim); `Decide` delegates and records. Decisions are
 /// therefore bit-identical to a plain `f64` run by construction.
 #[derive(Clone, Copy, Debug)]
+#[cfg(feature = "probe")]
 pub struct Probe(pub f64);
 
+#[cfg(feature = "probe")]
 impl core::ops::Add for Probe {
     type Output = Self;
 
@@ -290,6 +308,7 @@ impl core::ops::Add for Probe {
     }
 }
 
+#[cfg(feature = "probe")]
 impl core::ops::Sub for Probe {
     type Output = Self;
 
@@ -298,6 +317,7 @@ impl core::ops::Sub for Probe {
     }
 }
 
+#[cfg(feature = "probe")]
 impl core::ops::Mul for Probe {
     type Output = Self;
 
@@ -306,6 +326,7 @@ impl core::ops::Mul for Probe {
     }
 }
 
+#[cfg(feature = "probe")]
 impl core::ops::Div for Probe {
     type Output = Self;
 
@@ -314,6 +335,7 @@ impl core::ops::Div for Probe {
     }
 }
 
+#[cfg(feature = "probe")]
 impl core::ops::Neg for Probe {
     type Output = Self;
 
@@ -322,6 +344,7 @@ impl core::ops::Neg for Probe {
     }
 }
 
+#[cfg(feature = "probe")]
 impl Real for Probe {
     fn from_f64(x: f64) -> Self {
         Self(x)
@@ -405,6 +428,7 @@ impl Real for Probe {
 /// recorder attached; delegation is exact, so the bracket is the
 /// value). Needed so `Bounds`-bounded construction sugar (e.g. the
 /// profile fillet constructor) runs at the recording scalar.
+#[cfg(feature = "probe")]
 impl Bounds for Probe {
     fn lo(self) -> f64 {
         self.0
@@ -419,6 +443,7 @@ impl Bounds for Probe {
 /// [`crate::spline::locate`]): it IS an `f64` with a recorder, and span
 /// selection is structure selection, not a recorded decision — no
 /// margin sample is emitted (span choice never drives topology).
+#[cfg(feature = "probe")]
 impl crate::spline::SpanLocate for Probe {
     fn locate_spans(self, knots: &crate::spline::KnotVector) -> crate::spline::SpanSet {
         crate::spline::SpanLocate::locate_spans(self.0, knots)
@@ -431,6 +456,7 @@ impl crate::spline::SpanLocate for Probe {
     }
 }
 
+#[cfg(feature = "probe")]
 impl Decide for Probe {
     fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
         let outcome = self.0.sign_within(band);
