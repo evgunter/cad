@@ -519,11 +519,70 @@ jobs:
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
     if: needs.filter.outputs.run_build == 'true'
-    # Test-speed handling lives in Cargo.toml as per-package opt-level
-    # overrides for the measured hot spot (spade + mesh) — blanket opt 2
-    # via profile env here was measured net-slower on core-crate PRs
-    # (#52/#53 timings) because every push recompiles the changed crate
-    # graph at opt 2.
+    # OPT LEVEL — reverses the #52/#53 verdict, because both of its
+    # premises expired. That decision ("blanket opt 2 is net-slower on
+    # core-crate PRs") was measured when this workspace had 261 test
+    # binaries and compile dominated the run. #179/#387 took that to 14,
+    # and test EXECUTION is now ~79% of run wall (measured 2026-08-12:
+    # compile jobs ~220 s of a ~1060 s critical path). Re-measured on the
+    # same box, whole workspace, `--all-targets`:
+    #
+    #   clean compile   opt-0 130.6 s -> opt-2 422.9 s   (3.24x WORSE)
+    #   clean compile   opt-0 136.5 s -> opt-2 442.4 s   (interval, 3.24x)
+    #   nextest run     opt-0 558.7 s -> opt-2 130.0 s   (4.30x BETTER,
+    #                                   2791 tests, all green both ways)
+    #   nextest run     opt-0 691.7 s -> opt-2 301.6 s   (interval, 2.29x,
+    #                                   3001 tests, all green both ways)
+    #
+    # Break-even needed only 1.5x on execution. MEASURED HOSTED, warm
+    # cache, run 31668174443 (these supersede the local projections above
+    # — trust these):
+    #
+    #   archive step, default    127 s ->  432 s   (3.40x worse)
+    #   archive step, interval   132 s ->  605 s   (4.58x worse)
+    #   test (interval, default, 2/2)         <- the critical-path leg
+    #                            828 s ->  117 s   (7.1x better)
+    #   ten test legs, summed   5620 s ->  895 s
+    #   critical path           1065 s ->  840 s   (-21%)
+    #   billed                  ~137m  ->  ~72m    (-65 min)
+    #
+    # The compile penalty is WORSE hosted than locally (4.58x vs 3.24x) —
+    # 2 vCPU parallelises opt-2 codegen badly — and the execution win is
+    # much BETTER (7.1x vs the 2.29x measured locally, which was taken on
+    # a box with an express-lane job running alongside it and is therefore
+    # pessimistic). Both errors happened to point the same way; the trade
+    # is still strongly positive.
+    #
+    # Note rust-cache does not cache workspace crates, only deps, so 605 s
+    # IS the steady state: run 1 (cold deps) was 920 s, run 2 onward 704 s
+    # for the whole job. Do not read a first run on a knob change as the
+    # verdict.
+    #
+    # The gap between those two is itself a finding: at opt-0 the interval
+    # lane looks only 1.24x slower than default (691.7 vs 558.7), but at
+    # opt-2 it is 2.32x slower (301.6 vs 130.0). opt-0's own overhead was
+    # masking the enclosure cost regime that geom-core's manifest has
+    # always claimed. Anyone reading interval-vs-f64 runtime off an opt-0
+    # CI leg is reading a flattered number.
+    #
+    # NOTE these supersede local-scripts/test-fast.sh's "75 s -> 4.9 s"
+    # (15x, 2026-07-21, 807 tests) — the suite has since grown to 2791
+    # tests and the ones added are less compute-bound, so that header is
+    # stale.
+    #
+    # Scoped to the two ARCHIVE jobs on purpose: they feed all ten test
+    # legs, which compile nothing, so one opt-2 compile here buys the
+    # speedup ten times over. `k-lint` deliberately does NOT get this — it
+    # regenerates the K sweep CSVs that are diffed against the committed
+    # baselines in docs/k-report-data/, and that lane stays on the exact
+    # configuration those baselines were produced under.
+    # debug-assertions and overflow-checks are unaffected by opt-level
+    # (cargo defaults them ON for dev/test), so fail-loud postconditions
+    # keep their teeth — this is the same configuration
+    # local-scripts/test-fast.sh has used locally since M6.
+    #
+    # Cargo.toml's per-package opt-2 overrides (spade + mesh) stay: they
+    # cover the `cargo test`-driven jobs that do NOT set this env.
     #
     # JOB-LEVEL, not step-level, on purpose: Swatinem/rust-cache hashes
     # env vars prefixed CARGO_/RUST* into its cache key, and it runs
@@ -537,6 +596,8 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on the local half of the
@@ -662,15 +723,19 @@ jobs:
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
     if: needs.filter.outputs.run_build == 'true'
-    # Same link/debuginfo knobs, same job-level-not-step-level reasoning,
-    # as the default build job — see the LINK/DEBUGINFO note at the top.
-    # This job is the run's critical path (11.9 of the 17.6 min wall on
-    # run 30884593286), so it is the one that most wants them.
+    # Same link/debuginfo/opt knobs, same job-level-not-step-level
+    # reasoning, as the default build job — see the LINK/DEBUGINFO and
+    # OPT LEVEL notes there. This job is the run's critical path (its
+    # archive feeds the longest test leg in the run), so it is the one
+    # that most wants them: the interval lane's slowest leg was 828 s of
+    # pure execution, and opt-2 is aimed squarely at that.
     env:
       RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on the local half of the
