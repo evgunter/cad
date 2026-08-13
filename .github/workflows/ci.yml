@@ -378,6 +378,19 @@ jobs:
       # never opted in — that is the hole this closes.
       - name: test-aggregation discipline
         run: scripts/check-test-aggregation.sh
+      # The `interval` feature must stay PURELY ADDITIVE. This is not a
+      # style rule: the `test-interval` legs run only the tests that
+      # feature ADDS (see that job's header), which is sound only while
+      # enabling it cannot change the default build. A gated item that
+      # is not an impl/mod/use/type or test-only code, or any
+      # `cfg(not(feature = "interval"))`, fails here — and the correct
+      # response is to reconsider the run-leg selection, NOT to
+      # allowlist. Stdlib-only python3, so it rides this cheap-tripwire
+      # job. The --selftest pass shows the guard actually fires.
+      - name: interval-feature additivity (gates the interval run legs)
+        run: |
+          python3 scripts/check-interval-cfg-additive.py --selftest
+          python3 scripts/check-interval-cfg-additive.py
       # Bit-identity coincidence checking is RETIRED from production
       # (M4 PR 5, NAMING-DESIGN N6; DESIGN.md roadmap; Evan, #53): the
       # declared rung is GeomSource lookup, and the production-consumer
@@ -576,6 +589,20 @@ jobs:
           name: nextest-default
           path: nextest-default.tar.zst
           retention-days: 1
+      # The default build's TEST NAME LIST — the left operand of the
+      # interval run legs' set difference (scripts/interval-only-
+      # selection.py; see the `test-interval` job). Listed from the same
+      # already-compiled targets the archive was built from, with the
+      # same scope, so it IS the archive's contents; listing is a
+      # metadata pass, not a build. A few KB, so it costs nothing
+      # against the artifact quota the cleanup job exists to protect.
+      - name: list archived tests (default features)
+        run: cargo nextest list ${{ needs.filter.outputs.cargo_scope }} --message-format json > nextest-list-default.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nextest-list-default
+          path: nextest-list-default.json
+          retention-days: 1
       # Doc-tests DO NOT run under nextest (upstream design): this step
       # keeps them gated. The workspace has real doctests, including
       # compile_fail blocks that only the doctest runner exercises.
@@ -722,16 +749,62 @@ jobs:
           name: nextest-interval
           path: nextest-interval.tar.zst
           retention-days: 1
+      # The right operand of the run legs' set difference — see the
+      # matching step in the default build job.
+      - name: list archived tests (interval)
+        run: cargo nextest list ${{ needs.filter.outputs.cargo_scope }} --features interval --message-format json > nextest-list-interval.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nextest-list-interval
+          path: nextest-list-interval.json
+          retention-days: 1
       # This job owns the interval feature's clippy pass (the default
       # clippy job deliberately skips --all-features).
       - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets --features interval -- -D warnings
       - name: doc-tests (interval)
         run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }} --features interval
 
+  # THESE LEGS RUN ONLY THE TESTS THE `interval` FEATURE ADDS (2026-08-13).
+  # Measured on run 31665082966: of the 2995 tests these legs executed,
+  # 214 are `#[cfg(feature = "interval")]`-gated — 168.7 cpu-s of coverage
+  # the default legs cannot have — and the other 2781 cost 4406.7 cpu-s,
+  # 42.0% of the run's whole 10482 cpu-s of test execution, re-running
+  # code the default legs had already run. Seven test binaries
+  # (step-import::all at 1919 cpu-s, step-export::all, mesh, mesh::all,
+  # stl::all, topo, geom-brep) contain ZERO interval-gated tests and were
+  # re-running in full.
+  #
+  # Why that is sound: the feature is purely ADDITIVE. Every
+  # `#[cfg(feature = "interval")]` item in crates/*/src is an
+  # `impl ... for Interval`, a mod/use/type for `Interval`, or test-only
+  # code; there is no `cfg(not(feature = "interval"))` in the tree; and
+  # Rust has no specialization, so extra impls cannot move how the f64
+  # paths monomorphize. A test present in both builds therefore executes
+  # the same machine code in both. That premise is not left to prose —
+  # scripts/check-interval-cfg-additive.py GATES it in the `discipline`
+  # job and fails loudly the moment it stops holding. The two changes
+  # stand or fall together: if that gate ever fires, these legs go back
+  # to running the full suite.
+  #
+  # The set is DERIVED, never declared: scripts/interval-only-selection.py
+  # diffs the two builds' `cargo nextest list` outputs, so no test can
+  # opt itself out, a test that stops being gated returns to the default
+  # legs automatically, and a newly gated one is picked up with no edit
+  # here. It fails closed — an empty difference, an unrecognised list
+  # shape, or any test present in the default build but NOT the interval
+  # one is an error, never a silently empty filter.
+  #
+  # NOT reduced: the interval BUILD job still compiles the whole graph
+  # with the feature on and runs clippy and the doc-tests over it, so
+  # compile-side interval coverage is untouched. Only the re-execution
+  # of already-executed tests is dropped.
   test-interval:
     name: test (interval, eps = ${{ matrix.eps }}, ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
-    needs: [filter, build-interval]
+    # `build` joins `needs` for its test list only (a few KB). It
+    # finishes well before build-interval, which is the run's critical
+    # path, so this adds no wall-clock.
+    needs: [filter, build, build-interval]
     if: needs.filter.outputs.run_build == 'true'
     strategy:
       fail-fast: false
@@ -764,8 +837,22 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: nextest-interval
-      - name: run archived tests (interval)
-        run: ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2
+      - uses: actions/download-artifact@v4
+        with:
+          name: nextest-list-default
+      - uses: actions/download-artifact@v4
+        with:
+          name: nextest-list-interval
+      # The set difference, computed here rather than in a job of its
+      # own: both lists are a few KB, so this costs a download and a
+      # millisecond. The script prints the counts it derived (and fails
+      # closed — see its header), so the log always records how many
+      # tests this leg selected and how many it skipped as already
+      # covered by the default legs.
+      - name: derive the interval-only test selection
+        run: scripts/interval-only-selection.py nextest-list-default.json nextest-list-interval.json > interval-selection.txt
+      - name: run archived tests (interval-only)
+        run: ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 -E "$(cat interval-selection.txt)"
       # M4 PR 6 D6.1, Interval member: the save/load/replay-identity row
       # at the certified interval scalar (already inside the full archive
       # run above; named here so the obligation is visible). One leg only
