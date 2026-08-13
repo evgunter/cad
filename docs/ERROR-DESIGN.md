@@ -1,35 +1,27 @@
-# Error-propagation MVP: distributions, sensitivities, certified checks over the parameter box (pre-M6 design doc)
-
-**MILESTONE STATUS (2026-08-03 renumbering, Evan on PR #169 comment
-5171303851): this document targets M8.** Error propagation moved
-behind STEP adoption, so the old M6 was renamed M8 and M6 became the
-main-path curved completions. **Every "M6" in this document's body
-below is HISTORICAL and means "the error-propagation milestone" —
-read it as M8.** Nothing about the design changed; only the number
-did. The title's "pre-M6" is kept as written for the same reason.
+# Error-propagation MVP: distributions, sensitivities, certified checks over the parameter box (pre-implementation design doc)
 
 Status: **RATIFIED (Evan, PR #110, merged 2026-07-27 — 👍 on the
-round-2 sign-off comment).** E1–E11 as revised are the M6
-error-propagation contract seed. Design history: Round 2
-(#110): E1 restated as the *completion* of the Real-trait vision;
-E2 truncation → **tail-mass accounting** (Evan). Round 3 (Evan's
-careful pass, "broadly looks good"): E3 collapsed to one dimension-
-generic Measure sink; E6 adopts **no-flips v1** (Evan's proposal);
-E11 MC softened to a labeled advisory lane; E11.6 histogram note.
-Post-ratification amendment on record (#110 thread, Evan's
-one-branch-tails observation, 2026-07-27): chamber containment
-added to E2 — long since on main (landed via the state-sync PR
-after 10cdaff).
+round-2 sign-off comment).** E1–E11 are the error-propagation
+contract seed; the milestone that builds them is **M10**. Design
+history: Round 2 (#110): E1 restated as the *completion* of the
+Real-trait vision; E2 truncation → **tail-mass accounting** (Evan).
+Round 3 (Evan's careful pass, "broadly looks good"): E3 collapsed to
+one dimension-generic Measure sink; E6 adopts **no-flips v1** (Evan's
+proposal); E11 MC softened to a labeled advisory lane; E11.6
+histogram note. Post-ratification amendment on record (#110 thread,
+Evan's one-branch-tails observation, 2026-07-27): chamber containment
+added to E2.
 
-Third of the pre-M6 docs (NAMING-DESIGN #74, SOLVER-DESIGN #79 are
-the pattern). Grounding: DESIGN.md's M6 roadmap entry and central
-commitment; the ratified Q1 subdivision-driver posture ("outcome
-probabilities are the distribution's measure on the sub-boxes");
-SOLVER-DESIGN W1–W9; M4's F1/F3/F4; PR 6's recorded-ε discipline;
-K-REPORT's scope honesty. NOT reopened: the `Real` surface,
-decoration-as-poison, the Dual kink conventions and value-part
-delegation, W1–W9, the F1 lattice, recorded-ε/SetTolerance. This
-doc pins what the MVP *is*, so M6 planning starts decided.
+Written alongside NAMING-DESIGN (#74) and SOLVER-DESIGN (#79) as the
+third pre-M4 design doc. Grounding: DESIGN.md's central commitment
+and M10 roadmap entry; the ratified Q1 subdivision-driver posture
+("outcome probabilities are the distribution's measure on the
+sub-boxes"); SOLVER-DESIGN W1–W9; M4's F1/F3/F4; PR 6's recorded-ε
+discipline; K-REPORT's scope honesty. NOT reopened: the `Real`
+surface, decoration-as-poison, the Dual kink conventions and
+value-part delegation, W1–W9, the F1 lattice,
+recorded-ε/SetTolerance. This doc pins what the MVP *is*, so M10
+planning starts decided.
 
 ## 0. Term hygiene (read first)
 
@@ -48,7 +40,7 @@ doc pins what the MVP *is*, so M6 planning starts decided.
   Dual<Interval>) containment-true; advisory = first-order f64
   (RSS, linearized contributions), always labeled, never gating.
 
-## E1 — Distributions are document-layer parameter metadata; the Real channel is the per-leaf engine (proposed; restated round 2)
+## E1 — Distributions are document-layer parameter metadata; the Real channel is the per-leaf engine
 
 **Decision**: a continuous `ParamDef` at the document layer gains an
 optional `Distribution` (E2). The kernel and geometry lanes never
@@ -91,7 +83,7 @@ scalar channel does all propagation; only pricing lives above it.
 - Forecloses: distribution-valued expressions; per-node distribution
   overrides; probability inside evaluation code.
 
-## E2 — v1 vocabulary: unbounded support welcome; the analysis box is an analysis-time knob; tail mass is accounted, never dropped (amended round 2)
+## E2 — v1 vocabulary: unbounded support welcome; the analysis box is an analysis-time knob; tail mass is accounted, never dropped
 
 ```
 Distribution = Band            { lo, hi }             // worst-case only, NO measure
@@ -141,7 +133,7 @@ is a typed document error).
   parameter; joint distributions are v1-foreclosed (E11.2; a `Joint`
   form is an additive schema variant later).
 
-## E3 — A measurement is ONE dimension-generic recipe sink node (amended round 3)
+## E3 — A measurement is ONE dimension-generic recipe sink node
 
 **Decision**: F4's vocabulary grows exactly one `Measure { expr }`
 sink node — typed F1 quantity out, no body output. The quantity
@@ -234,10 +226,10 @@ Stackup {
   is labeling and ordering, not omission — omit RSS and users
   compute it outside, unlabeled.
 
-## E6 — The subdivision driver and `ParamBoxVerdict` (the M6 build)
+## E6 — The subdivision driver and `ParamBoxVerdict`
 
-M6 builds the Q1-promised driver as an analysis-lane service on
-the `Real`-generic editor-core evaluation service (no parallel path).
+The Q1-promised driver, built as an analysis-lane service on the
+`Real`-generic editor-core evaluation service (no parallel path).
 
 ```
 drive(doc, box) -> ParamBoxVerdict {
@@ -287,12 +279,13 @@ certificate content.
 **K telemetry (T6/K-REPORT obligation)**: every driver-path
 predicate sample lands in the k_stats funnel — margins *driven
 toward* zero by refinement are the first genuinely ill-conditioned
-population K sees; the M6 exit reads the funnel before reaffirming
+population K sees; M10's exit reads the funnel before reaffirming
 K = 10.
 
 ## E7 — Clearance & self-intersection: a trichotomy over box × domain; duals accelerate, never decide
 
-For a **certified leaf** (fixed topology), M6 answers two questions:
+For a **certified leaf** (fixed topology), the analysis answers two
+questions:
 global self-intersection-freedom, and `min-clearance ≥ c` for a
 named selection (a `min_clearance` Measure + E10 assertion).
 
@@ -351,7 +344,7 @@ accelerator only: correctness never depends on it (E9).
   - `Bifurcation(WitnessBifurcation)` — the box reaches across a
     fold/branch wall: refused with the W3 payload. **Distributions
     do not cross witness walls** — the model is undefined there
-    without a recorded ReWitness, so M6 prices the mass and
+    without a recorded ReWitness, so the driver prices the mass and
     refuses; the remedy is user intent, never machinery guessing a
     branch. (E6's no-flips rule generalizes this to every predicate
     flip in v1; solver walls are its sharpest case.) (`solver_branch_margin` samples from driver runs feed
@@ -361,7 +354,7 @@ accelerator only: correctness never depends on it (E9).
 
 Ratified base: decoration-as-poison lives in the value lane;
 `Decide` classifies the value channel only — tangent data does not
-decide base-space topology. **M6 addendum**: in `Dual<Interval>`
+decide base-space topology. **Addendum**: in `Dual<Interval>`
 work, derivative-channel degradation (Clarke straddle hulls
 widening to the whole line, kink-jump enclosures like floor's
 `[0, +∞]`) NEVER contributes to leaf refusal — refusal is decided
@@ -400,7 +393,7 @@ gains one explicit version-to-version step.
 content-key cached on the bit-content of (recipe slice, box, ε, K;
 D9 makes the key the proof), serializable for CI goldening.
 
-**CI rows M6 adds**: (1) assertion gating — corpus assertions must
+**CI rows this MVP adds**: (1) assertion gating — corpus assertions must
 certify (`Holds`) with refused + tail mass within the recorded
 unresolved-mass budget (E2); `Violated`/`Refused`/budget overrun
 fail loudly; (2) goldened refusal- and tail-mass accounting on a
@@ -411,7 +404,7 @@ tested); (3) k_stats funnel rows for driver + solver predicates
 **Open sub-question**: should a failing Assertion gate `build()`?
 v1 says no — assertions report; a gating mode is additive policy.
 
-## E11 — What M6 does NOT do (loud)
+## E11 — What the MVP does NOT do (loud)
 
 1. **Monte Carlo never gates** *(softened round 3, per Evan:
    "probably fine" is fair once probabilities are on the table)*.
@@ -429,7 +422,7 @@ v1 says no — assertions report; a gating mode is additive policy.
    performance additions, not semantic ones.
 5. **No GD&T semantics.** Stackups are parameter-space facts; ASME
    Y14.5 is a language layer that could later *compile to* Measure
-   nodes + assertions — M6 declines to speak it approximately.
+   nodes + assertions — the MVP declines to speak it approximately.
 6. **Output densities deferred post-v1** — true pushforward is v2.
    Near-free v1 note: leaf-mass × output-enclosure histograms are
    an ADVISORY visualization (each certified leaf spreads its mass
@@ -437,7 +430,7 @@ v1 says no — assertions report; a gating mode is additive policy.
 7. **Imported bodies carry no parameters** (D7): nothing to vary;
    they participate in clearance checks as constants.
 8. **No optimization/inverse loops** ("resize until clearance
-   holds") — consumers of M6's reports, post-M6.
+   holds") — consumers of the MVP's reports, not part of it.
 
 ## Worked example: the two-hole plate
 
@@ -484,6 +477,6 @@ d's — tail mass 1 − 0.9973² ≈ 0.54%, carried additively throughout.
   own tolerance? v1 says exact; revisit with GD&T-adjacent cases.
 - **SetTolerance × distributions**: sliver-refusal mass depends on
   ε, so ε edits move coverage numbers; the SetTolerance diff should
-  surface coverage deltas. Wiring is M6 PR-spec.
+  surface coverage deltas. Wiring is PR-spec.
 - **Naming-pillar composition**: Measure verdict vectors should
   join the N-machinery diff reports; confirm at implementation.

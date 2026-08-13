@@ -3,7 +3,7 @@
 **Status: reference register (Evan's ask, 2026-08-09).** The
 modeling operations the kernel does NOT yet have, each with its
 prerequisites as the ratified records state them. These are
-feature-breadth work, mostly NOT part of M8 (error propagation);
+feature-breadth work, and none of it is scheduled by this register;
 this register is their home so they stop living in scattered walk
 rows and banked notes. DESIGN.md's Band 3 "feature breadth"
 paragraph names the GUI-era shape of several; this register is the
@@ -36,7 +36,7 @@ export, STEP import (adoption incl. recognition + tier gate).
 | **datum planes / axes** | reference geometry | recipe-layer entities with stable names (N-doc machinery exists) | GUI-era consumer |
 | **curved boolean breadth** | cyl×sphere, sphere×sphere, cone/torus operands | the banked germ-chord lanes (DESIGN frontier (d)); the SSI lift removed the storage half | each lane is its own unit; the teapot's spout∪body would ride revolve-surface × NURBS classes — far |
 | **point-section loft ("generalized cone")** | loft whose end section degenerates to a point (apex) | three tiers (Evan's mark-down, 2026-08-10, PR #300-era chat): (1) circle profile + straight axis = the ANALYTIC CONE — mint exact CONICAL_SURFACE (the tube_along_arc exact-intent pattern; #256 always-promote applies), mostly sugar + recognition; (2) polygon profile = pyramid, plain planar walls, possibly already expressible; (3) general curved profile = a NURBS wall with a collapsed boundary row — needs apex-degenerate certification (span meter is honestly zero at the apex, normals undefined, quadrature hulls loose) with the apex as a vertex-loop (the sphere-pole precedent) | no design conversation yet by ruling ("mark it down for the future"); tier 1 is a cheap early pick when a consumer appears |
-| **declared conformal / REST joins (curved)** | ball-and-socket, interference fits | **this one IS M9** — C7 (CONTACT-DESIGN, ratified #178; renumbered from M8 at PR #300's closure ruling) | listed for completeness; the register's one M9 row |
+| **declared conformal / REST joins (curved)** | ball-and-socket, interference fits | **this one IS M9** — C7 (CONTACT-DESIGN, ratified #178) | listed for completeness; the register's one M9 row |
 
 Consumers waiting on rows above: the Utah teapot (shell), the full
 calochortus rebuild (C7 — in M9), helical parts (#222), the
