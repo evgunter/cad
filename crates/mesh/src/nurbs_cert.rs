@@ -791,6 +791,7 @@ fn derived_knots(kv: &KnotVector, fk: FaceKey) -> Result<KnotVector, TessellateE
 mod tests {
     use super::*;
     use geom_core::Point3;
+    use geom_core::fuzz;
     use profile::RawLoop;
 
     /// A wavy degree-2×3 integral net on [0,1]² (nothing symmetric, so
@@ -1576,55 +1577,50 @@ mod tests {
         }
     }
 
-    /// R1 randomized soundness sweep (seeded, deterministic): 1500
-    /// random rational patches (degrees 1-3, 1-3 spans, log-uniform
-    /// weights 1e-2..1e2), dense-sampled true second partials vs the
-    /// certified sups. This sweep is the row that KILLS the one
-    /// mutation the rest of the suite missed (dropping the `v0*w11`
-    /// term from `suv` — the recentred-value x mixed-weight-derivative
-    /// cross term): under that mutation trial 323 violates at ratio
-    /// 1.024.
+    /// R1 randomized soundness sweep: random rational patches (degrees
+    /// 1-3, 1-3 spans, log-uniform weights 1e-2..1e2), dense-sampled true
+    /// second partials vs the certified sups. This sweep is the row that
+    /// KILLS the one mutation the rest of the suite missed (dropping the
+    /// `v0*w11` term from `suv` — the recentred-value x
+    /// mixed-weight-derivative cross term).
+    ///
+    /// The trial count rides `CAD_FUZZ_EFFORT` and the seed varies per
+    /// run. The 61x61 `sample_worst` grid does NOT: it is the domination
+    /// check itself, not a sweep dimension.
     #[test]
     fn r1_random_rational_soundness_sweep() {
-        let mut seed = 0x9e3779b97f4a7c15u64;
-        let mut rng = move || {
-            seed ^= seed << 13;
-            seed ^= seed >> 7;
-            seed ^= seed << 17;
-            #[allow(clippy::cast_precision_loss)]
-            {
-                (seed >> 11) as f64 / (1u64 << 53) as f64
+        let mut rng = fuzz::start("nurbs_cert::r1_random_rational_soundness");
+        fn mk(r: &mut fuzz::Rng, p: usize) -> KnotVector {
+            let spans = 1 + r.below(2);
+            let mut k = vec![0.0; p + 1];
+            for i in 1..spans {
+                #[allow(clippy::cast_precision_loss)]
+                k.push(i as f64 / spans as f64);
             }
-        };
+            k.extend(vec![1.0; p + 1]);
+            KnotVector::clamped(k, p).unwrap()
+        }
         let mut worst = 0.0f64;
-        for trial in 0..1500 {
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let pu = 1 + (rng() * 3.0) as usize;
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let pv = 1 + (rng() * 3.0) as usize;
-            let mk = |p: usize, r: &mut dyn FnMut() -> f64| {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                let spans = 1 + (r() * 2.0) as usize;
-                let mut k = vec![0.0; p + 1];
-                for i in 1..spans {
-                    #[allow(clippy::cast_precision_loss)]
-                    k.push(i as f64 / spans as f64);
-                }
-                k.extend(vec![1.0; p + 1]);
-                KnotVector::clamped(k, p).unwrap()
-            };
-            let kv_u = mk(pu, &mut rng);
-            let kv_v = mk(pv, &mut rng);
+        // TRIALS are breadth; the 61x61 `sample_worst` grid below is the
+        // per-trial falsification power and is deliberately NOT reduced —
+        // it IS the domination check. With a varying seed, breadth is
+        // what successive runs supply for free, so the trial count is the
+        // honest lever here and the grid is not.
+        for trial in 0..fuzz::scaled(60) {
+            let pu = 1 + rng.below(3);
+            let pv = 1 + rng.below(3);
+            let kv_u = mk(&mut rng, pu);
+            let kv_v = mk(&mut rng, pv);
             let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
             let mut control = Vec::new();
             let mut weights = Vec::new();
             for _ in 0..nu * nv {
                 control.push(Point3::new(
-                    (rng() - 0.5) * 4.0,
-                    (rng() - 0.5) * 4.0,
-                    (rng() - 0.5) * 4.0,
+                    rng.range(-2.0, 2.0),
+                    rng.range(-2.0, 2.0),
+                    rng.range(-2.0, 2.0),
                 ));
-                weights.push(10f64.powf((rng() - 0.5) * 4.0));
+                weights.push(10f64.powf(rng.range(-2.0, 2.0)));
             }
             let s = NurbsSurface::new(kv_u, kv_v, control, weights).unwrap();
             let Ok(b) = nurbs_face_bound(&s, FaceKey::default()) else {
@@ -1636,16 +1632,24 @@ mod tests {
             assert!(
                 wuv <= b.muv && wuu <= b.muu && wvv <= b.mvv,
                 "UNSOUND at trial {trial}: ({wuu:.3e},{wuv:.3e},{wvv:.3e}) vs \
-                 ({:.3e},{:.3e},{:.3e})",
+                 ({:.3e},{:.3e},{:.3e}) — {}",
                 b.muu,
                 b.muv,
-                b.mvv
+                b.mvv,
+                fuzz::replay()
             );
         }
         println!("random sweep: worst truth/bound {worst:.6}");
+        // COVERAGE FLOOR: the sweep must keep producing cases where the
+        // bound is genuinely tight, otherwise a slack bound would pass by
+        // never being challenged. Verified to hold at the shipped trial
+        // count; if a run ever trips it, RAISE the count rather than
+        // lowering the threshold.
         assert!(
             worst > 0.5,
-            "the sweep must stay adversarial (tight cases exist)"
+            "the sweep must stay adversarial (tight cases exist): worst \
+             {worst:.6} — {}",
+            fuzz::replay()
         );
     }
 }

@@ -536,6 +536,7 @@ dependencies = [
 name = "geom-core"
 version = "0.0.0"
 dependencies = [
+ "geom-core",
  "interval-transcendentals",
  "libm",
  "num-dual",
