@@ -1340,7 +1340,8 @@ precursor of the error-propagation feature.
   surgery, the SSI generic-`T` lift, and loft/sweep body assembly,
   and curved REST contact is M9. Still banked: the canal-surface
   blend, cyl×sphere germ chords, the NURBS extent lift, and arc-leg
-  fillet sugar (#104). Acceptance shape (v) was recorded met piecewise at M5 and
+  fillet sugar (#104). Acceptance shape (v) was recorded met
+  piecewise at M5 and
   CLOSED at M6 unit 1 (the composed die is one tier-3 body; the M5
   pin flipped with its history). The #89 K-revisit was TAKEN at the
   M5 exit and the outcome is **#89 CLOSED, K = 10 permanent** (Evan,
@@ -1721,7 +1722,7 @@ preceding the usability program above.
 
 ## Open questions
 
-### Q1: Scalar genericity (direction settled 2026-07-15)
+### Q1: Scalar genericity
 
 Settled direction — **reified trilean predicates + a subdivision driver; no
 persisted decision log**:
@@ -1916,7 +1917,8 @@ Reference-only (read, don't depend): **truck** (only living Rust B-rep
 kernel; active on git but crates.io releases stale; booleans demo-grade),
 **curvo** (active pure-Rust NURBS evaluation/fitting-interpolation;
 audited at M5 — NO SSI (empty placeholder module) and demo-grade 2-D
-clipping only; oracle scope per Q5/docs/CURVO-AUDIT.md), **vcad** (new Apache-2.0 half-edge B-rep kernel with
+clipping only; oracle scope per Q5/docs/CURVO-AUDIT.md), **vcad**
+(new Apache-2.0 half-edge B-rep kernel with
 booleans/fillets, too young to depend on but the most interesting recent
 effort), **Fornjot** (archived June 2026 — see below), **opencascade-rs**
 (the only production-grade-boolean route in Rust today; LGPL + C++ build

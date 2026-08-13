@@ -653,7 +653,8 @@ is the ruling plus the argument that decided it.
 - **VQ5 — sugar stores CORE STEPS ONLY.** PATHS Tier-1 sugar "adds
   no semantics", so sugar (and builder functions like
   `path_polygon`, and the wanted `rect`/`polygon` verbs — PR-2: 12
-  of 26 sites are polygons) expands AT AUTHORING to core steps. Crucially this loses NO parametric value: expansion
+  of 26 sites are polygons) expands AT AUTHORING to core steps.
+  Crucially this loses NO parametric value: expansion
   happens at the Expr level, so `rect(x0,x1,y0,y1)` corners are
   Expr pairs SHARING the extent subtrees — the slab evidence's
   "re-flattening" disease was about literals, and Exprs don't

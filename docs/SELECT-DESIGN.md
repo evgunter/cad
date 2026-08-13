@@ -43,7 +43,8 @@ exact-vs-decided reframing signed off.
 
 ## 1. The predicate vocabulary
 
-**The demand evidence is the fillet-selection alphabet** — the two demo filters
+**The demand evidence is the fillet-selection alphabet** — the two
+demo filters
 that stayed hand-written against the kernel body because U7 was
 structural-only (`demos/tour/src/diefillet.rs:203-244`), plus the
 flush helper's decision triple (`demos/tour/src/booleans.rs:60-118`):
@@ -85,7 +86,8 @@ DECIDED, and only the DECIDED half is a margins-discipline site.**
   a length (the #214 standing rule applies to selector sites exactly
   as to kernel sites — public API is not a discount lane).
 
-**Position predicates (the equivariance-shaped part).** Raw world-coordinate filters ("z ≈ 1") violate the
+**Position predicates (the equivariance-shaped part).** Raw
+world-coordinate filters ("z ≈ 1") violate the
 intrinsic-quantities preference: they bake an absolute frame into a
 selection rule. The house-consistent form: position predicates are
 **relative to a referenced datum** — signed distance to a datum
@@ -241,10 +243,12 @@ minted for detection — the interpretation-discipline contract is
 { pairs }` exists; the sugar is a document-layer convenience that
 takes explicitly-passed pairs and appends/creates a Declare node
 wired into the consuming Boolean. Thin by design. The arity
-question is GS-Q3, RULED: the boundary is FUSION, not arity. Both `declare(finding)` and
+question is GS-Q3, RULED: the boundary is FUSION, not arity. Both
+`declare(finding)` and
 `declare_all(findings: Vec<FlushFinding>)` ship; what stays
 forbidden permanently is a fused detect-and-declare door (the demo
-helper's original shape), because the enforceable intent-recording property
+helper's original shape), because the enforceable intent-recording
+property
 is that findings pass through user-visible hands AS VALUES — an
 arity restriction is defeated by a two-line for-loop, while the
 no-fusion rule is structural. C4's verify-at-use backstops lies
