@@ -6,7 +6,9 @@
 //! `geom_curves::nurbs` and `docs/M5-PR3-SPEC.md`; the conventions are
 //! stated once there and once here — clamped-v1 per direction, f64
 //! structure, positive weights, span contract with documented
-//! polynomial-extension garbage-out, poison on invalid span indices).
+//! polynomial-extension garbage-out). There is no poison-on-invalid-
+//! span path: the `*_in_span` cores take a [`SurfaceWindow`], so an
+//! invalid span pair is not a representable argument.
 //!
 //! # Grid layout (binding)
 //!
@@ -14,7 +16,9 @@
 //! `index = iu · nv + iv` with `nu = knots_u.control_count()`,
 //! `nv = knots_v.control_count()`. Combination is a double ascending
 //! pass — outer `iu`, inner `iv`, exactly as written in the evaluator
-//! bodies.
+//! bodies. Inside a span window that layout is [`SurfaceWindow`]'s
+//! `base`/`stride` rather than prose: the evaluators walk
+//! `row(i) + j`.
 //!
 //! # Direction-mapped knot algebra
 //!
