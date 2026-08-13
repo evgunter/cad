@@ -534,8 +534,29 @@ jobs:
     #   nextest run     opt-0 691.7 s -> opt-2 301.6 s   (interval, 2.29x,
     #                                   3001 tests, all green both ways)
     #
-    # Break-even needed only 1.5x on execution; the CRITICAL PATH runs the
-    # interval lane, so 2.29x is the number that governs, not 4.30x.
+    # Break-even needed only 1.5x on execution. MEASURED HOSTED, warm
+    # cache, run 31668174443 (these supersede the local projections above
+    # — trust these):
+    #
+    #   archive step, default    127 s ->  432 s   (3.40x worse)
+    #   archive step, interval   132 s ->  605 s   (4.58x worse)
+    #   test (interval, default, 2/2)         <- the critical-path leg
+    #                            828 s ->  117 s   (7.1x better)
+    #   ten test legs, summed   5620 s ->  895 s
+    #   critical path           1065 s ->  840 s   (-21%)
+    #   billed                  ~137m  ->  ~72m    (-65 min)
+    #
+    # The compile penalty is WORSE hosted than locally (4.58x vs 3.24x) —
+    # 2 vCPU parallelises opt-2 codegen badly — and the execution win is
+    # much BETTER (7.1x vs the 2.29x measured locally, which was taken on
+    # a box with an express-lane job running alongside it and is therefore
+    # pessimistic). Both errors happened to point the same way; the trade
+    # is still strongly positive.
+    #
+    # Note rust-cache does not cache workspace crates, only deps, so 605 s
+    # IS the steady state: run 1 (cold deps) was 920 s, run 2 onward 704 s
+    # for the whole job. Do not read a first run on a knob change as the
+    # verdict.
     #
     # The gap between those two is itself a finding: at opt-0 the interval
     # lane looks only 1.24x slower than default (691.7 vs 558.7), but at
