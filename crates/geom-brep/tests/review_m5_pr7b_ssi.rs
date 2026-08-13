@@ -139,23 +139,36 @@ fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
     // were an artifact of the composite or the certificate, this scan
     // could not see it.
     //
-    // The `[3.0e-9, 4.5e-9]` window below is the magnitude MEASURED at
-    // the default band, so this row keeps its ambient guard — but a
-    // bare `return` reported green having asserted nothing, so the
-    // stand-down is now named (2026-08-13 audit). Whether this row can
-    // be made ε-independent the way `deviation2b` was is unexamined.
-    if !at_default_eps() {
+    // This row is about the MARCH ε, which it hands to `trace_deviation`
+    // explicitly (1e-9 below) — the ambient band is not an input to it.
+    // It used to carry an `at_default_eps()` guard on the theory that
+    // the `[3.0e-9, 4.5e-9]` window was a default-band magnitude, and
+    // that guard suppressed the whole measurement on two of three rows.
+    //
+    // MEASURED (2026-08-13 audit) rather than assumed: the deviation is
+    // 3.805e-9 m at u = 0.4873 on ALL THREE ambient bands, bit for bit,
+    // in under a second each — and 3.805e-9 is also what `deviation2b`
+    // reports for the same wall at the same march ε. The ambient band
+    // never reached this march at all, so the guard was pure loss. It is
+    // gone; the row now asserts on every ε row.
+    //
+    // The budget refusal is handled where it can actually happen rather
+    // than pre-empted by a guard: if a future ambient band ever does
+    // starve this fit, the row says so BY NAME instead of returning
+    // green in silence.
+    let w = nurbs_wall();
+    let Some((max, u_at_max)) = trace_deviation(&w, 1e-9, 200_000) else {
         println!(
             "SKIPPED (inflected-wall deviation reproduction, ambient eps = {:e}): the \
-             ~3.8e-9 m window is the magnitude measured at the default band. THIS RUN \
-             ASSERTS NEITHER that the reported deviation reproduces NOR that it sits at \
-             the section's curvature zero.",
+             1e-9 march exceeded the fit budget on this band, so THIS RUN ASSERTS \
+             NEITHER that the reported deviation reproduces NOR that it sits at the \
+             section's curvature zero. Measured 2026-08-13: this does not happen at \
+             1e-6, 1e-9 or 1e-12 — if you are reading this line, the fit budget's \
+             ambient coupling has changed and that is the finding.",
             eps()
         );
         return;
-    }
-    let w = nurbs_wall();
-    let (max, u_at_max) = trace_deviation(&w, 1e-9, 200_000).expect("in budget at 1e-9");
+    };
     eprintln!("[review] inflected-wall fit deviation: {max:.3e} m at u = {u_at_max:.4}");
     assert!(
         (3.0e-9..=4.5e-9).contains(&max),
