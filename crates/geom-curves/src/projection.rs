@@ -151,11 +151,10 @@ macro_rules! nurbs_project {
                 let kv = self.knots();
                 let mut best_t = kv.domain().0;
                 let mut best_d2 = f64::INFINITY;
-                for span in kv.first_span()..=kv.last_span() {
-                    if !kv.span_is_nonempty(span) {
-                        continue;
-                    }
-                    let (u0, u1) = (kv.knots()[span], kv.knots()[span + 1]);
+                for index in kv.first_span()..=kv.last_span() {
+                    // Emptiness check and span validation are one step.
+                    let Some(span) = kv.span(index) else { continue };
+                    let (u0, u1) = (kv.knots()[index], kv.knots()[index + 1]);
                     for j in 0..PROJECT_SEEDS_PER_SPAN {
                         #[allow(clippy::cast_precision_loss)]
                         let frac = j as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
@@ -194,7 +193,7 @@ macro_rules! nurbs_project {
                 let mut last_g = f64::NAN;
                 let mut last_dist = f64::NAN;
                 while iterations < PROJECT_MAX_ITERS {
-                    let span = self.knots().find_span(t);
+                    let span = self.knots().span_at(t);
                     let (c, c1, c2) = self.ders_in_span(span, t);
                     let d = c - p;
                     let dist = d.norm();
@@ -222,7 +221,7 @@ macro_rules! nurbs_project {
                     // Acceptance: parameter stagnation (domain-end
                     // feet land here — module docs).
                     if ((tn - t) * speed).abs() <= PROJECT_EPS_POINT {
-                        let span = self.knots().find_span(tn);
+                        let span = self.knots().span_at(tn);
                         let (c, c1, _) = self.ders_in_span(span, tn);
                         let d = c - p;
                         let dist = d.norm();

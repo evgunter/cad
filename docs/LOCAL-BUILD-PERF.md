@@ -10,6 +10,13 @@ Companion to `~/.local/share/cad-work/bazel-verdict-report.md` (hosted-CI
 compile cost) and PR #174 (which landed mold + line-tables-only on CI).
 This document is about the LOCAL box.
 
+**See also `docs/GENERICS-BUILD-COST.md` (2026-08-12)** — the other half
+of the picture. This document is about *machine conditions*; that one is
+about *what the compiler is actually spending time on* (answer: not the
+`Real` generics; 62% of workspace LLVM IR is serde in one crate). It also
+supersedes two numbers used here: the mold verdict below became the basis
+for retiring mold from CI, and `test-fast.sh`'s 15× speedup is now 4.30×.
+
 ## 0. The machine
 
 | | |

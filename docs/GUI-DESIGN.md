@@ -19,8 +19,9 @@ the M4 8c note):* the middle layer this doc banks on is REAL —
 `apply`, #81), the GQ2 per-node result DAG with descendants-only
 poisoning plus memoized incremental evaluation and cooperative
 cancelation (#83), one stable-name type with resolution/diagnosis/
-`Rebind` (#87/#96/#102), GQ3 persist-all-edits — now schema v3
-(v1 #112; clean breaks v2 at M5 PR 10, v3 at M6-5) — StableName-
+`Rebind` (#87/#96/#102), GQ3 persist-all-edits (schema v1 at #112,
+carried forward through a series of pre-release clean breaks; the
+live number is `persist::SCHEMA_VERSION`) — StableName-
 keyed appearance with the N3/N5 loss semantics (#92), the
 dimension-checked total expression AST (GQ5's restrictive
 dimension answer), and arena-key→stable-name hit inversion. Still
@@ -40,7 +41,7 @@ of the library product. D8 did the philosophical work already — *the
 recipe is data*; the extension is: **changes to the recipe are data
 too.**
 
-1. **Kernel** (M0–M8): `build(params) → solid`. Unchanged.
+1. **Kernel**: `build(params) → solid`. Unchanged.
 2. **`editor-core`** (headless, no rendering dependency; slotted into
    DESIGN.md's crate table between `model` and `viewer`):
    - **The document is a value**: recipe DAG (D8) + document metadata
@@ -193,7 +194,7 @@ solver output demoted to witness; kernel certifies; interval replay
 runs interval-Newton **contraction seeded from the f64 witness**
 (existence/uniqueness in a box) instead of interval-solving from
 scratch. Mechanism details (contraction specifics, the margin
-predicate's exact form) are M4/M8 design work under this committed
+predicate's exact form) are M4/M10 design work under this committed
 direction. Concrete audit item: ezpz (Q3) must satisfy bit-identity
 (libm-only math, no hash-order effects) if its f64 path runs inside
 `build`. Mechanism note carried up from M2 PR 3's adversarial
@@ -209,7 +210,7 @@ W1–W9 — including the witness-aliasing answer this note demanded).
 `editor-core` carries the contract types (`WitnessDatum`,
 `BranchCertification`, `WitnessBifurcation`) and the
 `ReWitness`/`ReWitnessBulk` edits; the solver itself remains
-unbuilt as sequenced (M8).*
+unbuilt as sequenced (M10).*
 
 ### GQ2 (RATIFIED 2026-07-19 round 3): Partial-build semantics — per-node result DAG
 
@@ -243,8 +244,9 @@ discipline from the first persisted file; storage shape is
 *Shipped: snapshot + edit log is the on-disk format (`schema: n`
 header + JSON body); save verifies the log replays through `apply`
 before writing, and load replays it after. Schema v1 landed at M4
-PR 6, and the versioning discipline has since carried two ratified
-clean breaks (v2 at M5 PR 10, v3 at M6-5).*
+PR 6, and the versioning discipline has since carried a series of
+ratified pre-release clean breaks (LQ7a — no migration machinery
+before release).*
 
 ### GQ4 (RATIFIED 2026-07-19 round 5): Document scope — local refs + wrapper, assemblies in the same formalism
 

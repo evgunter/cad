@@ -49,15 +49,9 @@ concurrency:
 # binaries; 6 of the last 16 crate-touching merges did exactly that)
 # means the cache would miss anyway. So: attack the per-binary cost.
 #
-#   RUSTFLAGS=-C link-arg=-fuse-ld=mold   261 static links of a ~40-rlib
-#     graph were running on GNU ld. CI-ONLY: it rides the build jobs'
-#     `env:`, NOT .cargo/config.toml, so local builds keep the default
-#     linker. `-fuse-ld=` is a LINK argument, not a codegen flag: it
-#     cannot move rounding or instruction selection, so D9 determinism
-#     and the interval backend are untouched. (local-scripts/gate.sh's RUSTFLAGS
-#     hazard note is about codegen flags and about a warm local target/
-#     re-fingerprinting; it already unsets RUSTFLAGS, so this cannot leak
-#     into the local gate.)
+#   RUSTFLAGS=-C link-arg=-fuse-ld=mold   RETIRED 2026-08-12 — see the
+#     LINKER note directly below. It was correct for 261 links and is not
+#     correct for 14.
 #   CARGO_PROFILE_{DEV,TEST}_DEBUG=line-tables-only   CI was emitting
 #     full DWARF across 261 binaries and then throwing it away at link
 #     (CARGO_PROFILE_TEST_STRIP=debuginfo, kept below for the 500 MB
@@ -75,6 +69,30 @@ concurrency:
 #   was wrong). That is why 261 independent link/codegen units are so
 #   expensive here, and why item 1 (collapsing 249 test crates into ~12)
 #   is still the big one.
+#
+# LINKER — mold RETIRED 2026-08-12. #174 adopted it on a -24%/-20% result
+# measured across 261 static links; that is the whole basis for it, and
+# the basis is gone. #179 and #387 took this workspace to 14 test targets
+# (`scripts/check-test-aggregation.sh` asserts the count), so the
+# per-binary link constant mold attacks now multiplies 14, not 261. Two
+# independent readings say it no longer pays:
+#   * LOCAL, measured 2026-08-11 at today's target count:
+#     189 s baseline vs 186 s with mold — noise. That measurement is
+#     written up in docs/LOCAL-BUILD-PERF.md, which reverted mold locally
+#     and said in as many words: "Revisit only if the test-target count
+#     grows back toward triple digits."
+#   * The install is not free and sits ON the critical path: `apt-get
+#     install mold` measured 9-21 s per build job over 11 runs, against a
+#     link cost it can now only shave a fraction of.
+# Opt-level 2 (see the OPT LEVEL note on the build job) pushes this
+# further the same way: it makes compile the dominant term and shrinks
+# link's share again.
+# HOW TO PUT IT BACK, if the archive step regresses: restore
+# `RUSTFLAGS: "-C link-arg=-fuse-ld=mold"` to both build jobs' env plus
+# their `install mold` step. Do it on a measurement, not a hunch — and
+# note that a single run cannot settle it, because any env change here
+# rotates the rust-cache key and buys one cold rebuild.
+#
 #   BUILD_RUNNER   repo variable, unset today ⇒ `ubuntu-latest`. Item 4
 #     of the ranked list (8-vCPU runner) is NOT LANDABLE on this repo:
 #     GitHub-hosted larger runners require an ORGANIZATION on Team or
@@ -519,11 +537,70 @@ jobs:
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
     if: needs.filter.outputs.run_build == 'true'
-    # Test-speed handling lives in Cargo.toml as per-package opt-level
-    # overrides for the measured hot spot (spade + mesh) — blanket opt 2
-    # via profile env here was measured net-slower on core-crate PRs
-    # (#52/#53 timings) because every push recompiles the changed crate
-    # graph at opt 2.
+    # OPT LEVEL — reverses the #52/#53 verdict, because both of its
+    # premises expired. That decision ("blanket opt 2 is net-slower on
+    # core-crate PRs") was measured when this workspace had 261 test
+    # binaries and compile dominated the run. #179/#387 took that to 14,
+    # and test EXECUTION is now ~79% of run wall (measured 2026-08-12:
+    # compile jobs ~220 s of a ~1060 s critical path). Re-measured on the
+    # same box, whole workspace, `--all-targets`:
+    #
+    #   clean compile   opt-0 130.6 s -> opt-2 422.9 s   (3.24x WORSE)
+    #   clean compile   opt-0 136.5 s -> opt-2 442.4 s   (interval, 3.24x)
+    #   nextest run     opt-0 558.7 s -> opt-2 130.0 s   (4.30x BETTER,
+    #                                   2791 tests, all green both ways)
+    #   nextest run     opt-0 691.7 s -> opt-2 301.6 s   (interval, 2.29x,
+    #                                   3001 tests, all green both ways)
+    #
+    # Break-even needed only 1.5x on execution. MEASURED HOSTED, warm
+    # cache, run 31668174443 (these supersede the local projections above
+    # — trust these):
+    #
+    #   archive step, default    127 s ->  432 s   (3.40x worse)
+    #   archive step, interval   132 s ->  605 s   (4.58x worse)
+    #   test (interval, default, 2/2)         <- the critical-path leg
+    #                            828 s ->  117 s   (7.1x better)
+    #   ten test legs, summed   5620 s ->  895 s
+    #   critical path           1065 s ->  840 s   (-21%)
+    #   billed                  ~137m  ->  ~72m    (-65 min)
+    #
+    # The compile penalty is WORSE hosted than locally (4.58x vs 3.24x) —
+    # 2 vCPU parallelises opt-2 codegen badly — and the execution win is
+    # much BETTER (7.1x vs the 2.29x measured locally, which was taken on
+    # a box with an express-lane job running alongside it and is therefore
+    # pessimistic). Both errors happened to point the same way; the trade
+    # is still strongly positive.
+    #
+    # Note rust-cache does not cache workspace crates, only deps, so 605 s
+    # IS the steady state: run 1 (cold deps) was 920 s, run 2 onward 704 s
+    # for the whole job. Do not read a first run on a knob change as the
+    # verdict.
+    #
+    # The gap between those two is itself a finding: at opt-0 the interval
+    # lane looks only 1.24x slower than default (691.7 vs 558.7), but at
+    # opt-2 it is 2.32x slower (301.6 vs 130.0). opt-0's own overhead was
+    # masking the enclosure cost regime that geom-core's manifest has
+    # always claimed. Anyone reading interval-vs-f64 runtime off an opt-0
+    # CI leg is reading a flattered number.
+    #
+    # NOTE these supersede local-scripts/test-fast.sh's "75 s -> 4.9 s"
+    # (15x, 2026-07-21, 807 tests) — the suite has since grown to 2791
+    # tests and the ones added are less compute-bound, so that header is
+    # stale.
+    #
+    # Scoped to the two ARCHIVE jobs on purpose: they feed all ten test
+    # legs, which compile nothing, so one opt-2 compile here buys the
+    # speedup ten times over. `k-lint` deliberately does NOT get this — it
+    # regenerates the K sweep CSVs that are diffed against the committed
+    # baselines in docs/k-report-data/, and that lane stays on the exact
+    # configuration those baselines were produced under.
+    # debug-assertions and overflow-checks are unaffected by opt-level
+    # (cargo defaults them ON for dev/test), so fail-loud postconditions
+    # keep their teeth — this is the same configuration
+    # local-scripts/test-fast.sh has used locally since M6.
+    #
+    # Cargo.toml's per-package opt-2 overrides (spade + mesh) stay: they
+    # cover the `cargo test`-driven jobs that do NOT set this env.
     #
     # JOB-LEVEL, not step-level, on purpose: Swatinem/rust-cache hashes
     # env vars prefixed CARGO_/RUST* into its cache key, and it runs
@@ -533,10 +610,11 @@ jobs:
     # rust-cache would never re-save. Job-level means exactly one cold
     # rebuild per knob change, then warm forever.
     env:
-      RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on the local half of the
@@ -547,17 +625,12 @@ jobs:
       # changes as non-triggering (its _is_docs).
       - name: prune local-scripts (hosted CI may not depend on them)
         run: rm -rf local-scripts
-      # mold: this job's cost is 261 static links of a ~40-rlib graph
-      # (measured: 494 of the build step's 514 s is the 261 test
-      # binaries). CI-ONLY — the flag rides RUSTFLAGS in this job's env,
-      # never .cargo/config.toml, so local builds and local-scripts/ci-local.sh
-      # keep the default linker and need no mirrored row.
-      - name: install mold
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq mold
+      # NO mold here — see the LINKER note at the top of this file. It was
+      # right for 261 test binaries and is not right for 14.
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: runner + linker provenance (for perf attribution)
-        run: nproc && free -g | head -2 && mold --version
+        run: nproc && free -g | head -2 && ld --version | head -1
       - name: install cargo-nextest (pinned, official prebuilt)
         uses: ./.github/actions/install-nextest
         with:
@@ -662,15 +735,18 @@ jobs:
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
     if: needs.filter.outputs.run_build == 'true'
-    # Same link/debuginfo knobs, same job-level-not-step-level reasoning,
-    # as the default build job — see the LINK/DEBUGINFO note at the top.
-    # This job is the run's critical path (11.9 of the 17.6 min wall on
-    # run 30884593286), so it is the one that most wants them.
+    # Same link/debuginfo/opt knobs, same job-level-not-step-level
+    # reasoning, as the default build job — see the LINK/DEBUGINFO and
+    # OPT LEVEL notes there. This job is the run's critical path (its
+    # archive feeds the longest test leg in the run), so it is the one
+    # that most wants them: the interval lane's slowest leg was 828 s of
+    # pure execution, and opt-2 is aimed squarely at that.
     env:
-      RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on the local half of the
@@ -683,10 +759,8 @@ jobs:
         run: rm -rf local-scripts
       # The `interval` feature's backend is the in-repo
       # `interval-transcendentals` crate — pure Rust over libm — so this
-      # job needs no C toolchain. mold is the one system package, and it
-      # is a linker for the 261 links, not a dependency of the graph.
-      - name: install mold
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq mold
+      # job needs no system packages at all now that mold is gone (see the
+      # LINKER note at the top of this file).
       - uses: dtolnay/rust-toolchain@stable
       # CACHE SEPARATION (verified against the action's source,
       # 2026-07-30): this job builds a DIFFERENT feature set from the
@@ -706,7 +780,7 @@ jobs:
         with:
           key: interval
       - name: runner + linker provenance (for perf attribution)
-        run: nproc && free -g | head -2 && mold --version
+        run: nproc && free -g | head -2 && ld --version | head -1
       - name: install cargo-nextest (pinned, official prebuilt)
         uses: ./.github/actions/install-nextest
         with:
@@ -722,8 +796,41 @@ jobs:
           name: nextest-interval
           path: nextest-interval.tar.zst
           retention-days: 1
-      # This job owns the interval feature's clippy pass (the default
-      # clippy job deliberately skips --all-features).
+
+  # The interval feature's clippy pass (the default clippy job
+  # deliberately skips --all-features) and its doc-tests.
+  #
+  # WHY A SEPARATE JOB (2026-08-12): these two steps used to live at the
+  # end of `build-interval`, after the archive upload. That put them on
+  # the RUN'S CRITICAL PATH for no reason — `test-interval` declares
+  # `needs: build-interval`, and `needs` waits for the whole JOB, not for
+  # the artifact it actually consumes. So the longest test leg in the run
+  # sat behind a clippy pass it has no dependency on. Measured over 11
+  # runs: clippy 37 s + doc-tests 7 s, i.e. ~44 s of pure critical-path
+  # latency. Split out, they run concurrently with the archive instead.
+  #
+  # Deliberately NOT inheriting build-interval's env: this job links no
+  # test binaries, so mold buys nothing and its ~12 s apt install would
+  # cost more than it saves, and opt-level 2 would slow the compile with
+  # nothing executing at scale to pay it back. It keeps only the
+  # debuginfo knobs, which are pure win. Its own rust-cache key follows
+  # from the no-shared-key rule documented on build-interval.
+  lint-interval:
+    name: clippy + doc-tests (interval)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_build == 'true'
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+    steps:
+      - uses: actions/checkout@v4
+      - name: prune local-scripts (hosted CI may not depend on them)
+        run: rm -rf local-scripts
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: interval-lint
       - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets --features interval -- -D warnings
       - name: doc-tests (interval)
         run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }} --features interval

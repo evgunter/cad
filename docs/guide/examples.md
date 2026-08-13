@@ -79,12 +79,9 @@ depends on `pncad` and **nothing else** — one line in its
 One deliberate exception worth knowing: the `bracket` scene is retired
 from the montage in favour of `rocker`, which shows strictly more.
 
-A second exception used to be listed here — `bodies::finale_fail_loud`,
-a bowtie loop refused by `Profile::validate`. It left the tour at
-LIB-RETTAIL (Evan's ruling on #413: a broken-on-purpose scene is not a
-use case, and it was the last thing justifying a public raw authoring
-tier). Its contract is asserted rather than narrated now, in
-`crates/profile/tests/rejections.rs`: the chain AUTHORS through the
+Note also where the bowtie lives: not in the tour (a broken-on-purpose
+scene is not a use case — Evan's ruling on #413) but asserted in
+`crates/profile/tests/rejections.rs`. The chain AUTHORS through the
 lattice — the junction checks are local and all four corners are sharp
 — and `validate` refuses it with the exact typed error.
 
