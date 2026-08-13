@@ -44,8 +44,8 @@ use crate::real::Real;
 /// Total: a poisoned `t` propagates through the arithmetic, and there
 /// is no invalid-span case to totalize (module docs: the contract is
 /// structural). Division safety: every denominator is
-/// `knots[span+1+r] − knots[span+1+r−j] ≥ knots[span+1] − knots[span]
-/// > 0`, which is exactly the nonemptiness [`Span`] carries.
+/// `knots[span+1+r] − knots[span+1+r−j] ≥ knots[span+1] − knots[span] > 0`,
+/// which is exactly the nonemptiness [`Span`] carries.
 pub fn basis_funs<T: Real>(kv: &KnotVector, span: Span, t: T) -> Vec<T> {
     let p = kv.degree();
     // The index, once — the recursion below reads knots around it. Its
