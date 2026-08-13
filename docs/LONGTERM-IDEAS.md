@@ -23,8 +23,8 @@ mixed). Named instances Evan wants eventually:
   Probe/verdict telemetry), so this is a threshold sweep over
   existing data plus a warn channel — and it is the PROTOTYPE of
   this whole lane's shape (per-part, advisory, honest about being
-  a heuristic threshold). #89's kernel half (the K value itself)
-  stays with the exit-walk K-snapshot decision, separately.
+  a heuristic threshold). #89's kernel half — the K value itself —
+  is CLOSED separately: K = 10 permanent (docs/K-REPORT.md).
 - **(0b) The connectedness lint (Evan, 2026-08-10, #328 — born from
   the assembly-design conversation).** Warn when a body at rest has
   more disconnected components than expected — a stray solid usually
@@ -38,8 +38,9 @@ mixed). Named instances Evan wants eventually:
   Evan's framing, #328; the split-as-signal half is a natural
   default, not a requirement). Warn, never refuse, per the lane's
   charter. Prerequisite: the assembly design's multi-solid evaluation
-  (docs/ASSEMBLY-DESIGN.md), which is what makes "disconnected on
-  purpose" a common, expressible state.
+  (docs/ASSEMBLY-DESIGN.md A2), which is what makes "disconnected on
+  purpose" a common, expressible state — the ASM program has since
+  shipped it, so the prerequisite is met.
 - **(a) Injection-molding / draft**: the shape is 1-1 along the
   pull direction (a function), with derivative everywhere below a
   max — equivalently minimum draft angle everywhere. This is a
@@ -50,7 +51,7 @@ mixed). Named instances Evan wants eventually:
 - **(b) Thermal expansion**: materials in metadata; at target
   temperatures, scale each part by its CTE and re-run the
   constraint/clearance checks — do all mates/fits still hold?
-  Prerequisite: M8 signed clearance + material metadata vocabulary
+  Prerequisite: M10 signed clearance + material metadata vocabulary
   (and the interference-fit declarations, which are temperature-
   dependent by nature — see #161's declared-contact doc).
 - **(c) Tool access**: can a hand holding a screwdriver reach each
@@ -65,7 +66,7 @@ mixed). Named instances Evan wants eventually:
 ## I2 — Design-for-measurement
 
 Make it natural for designs to favor easy measurement:
-- **(a)** once interval tolerancing exists (M8), make "the required
+- **(a)** once interval tolerancing exists (M10), make "the required
   tolerance at the places that will actually be MEASURED" a
   first-class query — the designer sees measurable-point tolerances,
   not just whole-feature ones.
@@ -85,8 +86,8 @@ fits) by lookup against machinist's-handbook norms keyed on
 materials/sizes in question, rather than hand-entered numbers —
 i.e. `fit: H7/p6-per-handbook(steel, 12mm)` as a declared,
 versioned data source. Prerequisite: the declared-contact/
-interference vocabulary (#161, rides the M6-era census/contact
-design doc) + a data-provenance story (the handbook table is an
+interference vocabulary (CONTACT-DESIGN C4/C6, ratified) + a
+data-provenance story (the handbook table is an
 input with a version, like a tolerance). Pairs naturally with
 I1(b) and I2.
 

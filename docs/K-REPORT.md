@@ -1,4 +1,4 @@
-# K report — the ambiguity constant K = 10 (M2 telemetry, with the M3/M4/M5 snapshots, the #89 close, and the M7 addendum)
+# K report — the ambiguity constant K = 10 (M2 telemetry, with the M3/M4/M5 snapshots, the #89 close, and the two M7 addenda)
 
 **Status: FINAL** (M2 PR 7 deliverable; orchestrator-finalized
 2026-07-21 after the adversarial review byte-reproduced the CSVs at all

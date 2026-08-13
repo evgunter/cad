@@ -10,13 +10,16 @@ time). LQ3 was ratified 2026-08-10 (#362) — see its entry in §L7. This doc tu
 before any GUI work begins* — from a scoping paragraph into a
 designed program.
 
-Evidence base: a code survey of the demo corpus (`demos/tour/`,
-~5.5k lines, 18 scene modules), the step-export/editor-core test
-corpora, and `editor-core`'s verified public surface, executed
-2026-08-06. The pain table in §L2 cites file:line; the claims are
-from reading the code, not the docs.
+Evidence base: a code survey of the demo corpus, the
+step-export/editor-core test corpora, and `editor-core`'s verified
+public surface, executed 2026-08-06 (§L2) — the claims are from
+reading the code, not the docs.
 
-## L1. What "usable as a library" means (proposed firm)
+**The §L5 unit ladder is COMPLETE**: every unit merged, and the
+live residuals are the register at the tail of `docs/LIB-LOG.md`.
+What follows is the program's design, not its status.
+
+## L1. What "usable as a library" means
 
 Deliverable: a person who is not us can `cargo add` / `pip install`
 the kernel and author, evaluate, measure, and export parametric
@@ -28,76 +31,43 @@ Four legs:
 2. **Python bindings** — the CadQuery/build123d audience named in
    DESIGN.md's sequencing stance.
 3. **The authoring-ergonomics units the evidence demands** — PATHS
-   implementation first among them (its status line now records
-   this program as its natural slot).
+   implementation first among them.
 4. **Docs, tutorials, and the corpus-as-examples.**
 
 Non-goals of this program: the GUI (sequenced after, per DESIGN.md);
 assemblies (Band 3, own design era); new feature breadth (Band 3's
 list — this program makes what exists usable; the two interact only
 where a missing affordance makes existing features unusable, e.g.
-the mirror gap in §L2/P6).
+the missing mirror affordance).
 
-## L2. The evidence: what authoring costs today
+## L2. The evidence
 
-Structural facts first:
+The program was scoped from a code survey of the demo corpus, the
+step-export/editor-core test corpora, and `editor-core`'s public
+surface (2026-08-06), which measured four structural costs: no
+façade (the tour depended by path on eleven kernel crates, with a
+leaked error payload forcing a twelfth); two incompatible 2-D
+vocabularies (`ProfileLoop` for extrude/revolve/fillet against
+`SectionSegments` for loft/sweep, the latter double-typing every
+interior vertex and checking closure by float `==`); a document
+layer bypassed by all but one scene, because profiles were opaque to
+it; and bodies authored in triplicate across tour, fixture and
+corpus. Ten specific authoring pains were tabulated with file:line
+sites, each mapped to the unit below that would kill it.
 
-- **No façade exists.** `demos/tour` depends by path on ELEVEN
-  kernel crates; its Cargo.toml documents a leak (`SurfaceKind` is
-  a `topo` error payload that `topo` does not re-export, so
-  matching on a refusal means depending on `geom-brep` directly).
-  The de-facto authoring surface is `profile` + `sweep` + `topo` +
-  `geom-core`/`geom-curves` raw.
-- **Two incompatible 2-D vocabularies.** Extrude/revolve/fillet
-  take `ProfileLoop<T>` (vertices + bulge + declared tangent
-  joints, with `LoopBuilder` sugar — and, positively, NO demo ever
-  sets a tangency flag by hand; all tangency arrives constructively
-  through `fillet`/`fillet_corner`). Loft/sweep instead take
-  `SectionSegments` = `Vec<Vec<SketchSegment<f64>>>`: every segment
-  carries BOTH endpoints, so each interior vertex is typed twice
-  and closure is checked by exact float `==` (`skin.rs:832`) —
-  re-typed coordinates that must value-match, the exact disease the
-  authored-once principle exists to prevent. It is also hardcoded
-  `f64`, and has no builder, so the tour and the step-export corpus
-  hand-roll byte-identical `quad()` helpers.
-- **The document layer is bypassed.** One of 18 tour scenes authors
-  through `editor-core` (heatsink); every other scene goes straight
-  at the kernel. Three executed reasons: (i) profiles are OPAQUE to
-  the document (`ProfileDesc(pub Profile<f64>)`; the
-  expression/dimension layer reaches distances, angles, counts —
-  never a sketch coordinate); (ii) vocabulary gaps (a Boolean node
-  cannot consume a Pattern node's `Instances` payload — heatsink's
-  union honestly lives outside the document); (iii) per-node insert
-  verbosity (apply → doc → record.minted, hand-threaded).
-- **Bodies exist in triplicate.** Several models live three times —
-  tour scene, step-export fixture, editor-core corpus doc — with
-  the constants re-typed each time, and the fixtures say so
-  ("constant for constant", "VERBATIM"). This is an acceptance
-  signal for the program: once U2/U3 land, the triplicates can
-  collapse to one authored source per body; staying triplicated
-  after that is a smell to act on, not a fact of life.
+*The table itself is retired.* Every §L5 unit merged, so it tracked
+nothing live; the surveyed line numbers no longer resolve, and what
+is genuinely still open is the residual register at the tail of
+`docs/LIB-LOG.md` — the one place that tracks it. The survey is in
+this file's git history if the original sites are ever wanted.
 
-The pain table (file:line into the surveyed tree):
-
-| # | Pain | Site (representative) | Remedy (§L5) |
-|---|---|---|---|
-| P1 | Path-start frame (Gram–Schmidt + degenerate-axis dodge) hand-rolled at every `sweep_body` call; wrong cross order = silently skewed sweep | `skinned.rs:476-488`, `:162-171`, corpus twin | U4 |
-| P2 | No exact 3-D arc path primitive: an S of two exact quarter-circles authored as 17 hand-indexed interpolation samples; exactness degraded to "approached" | `skinned.rs:297-308` | U4 |
-| P3 | Hand-computed constants with offline derivations living in comments; nothing can ask the model what the parameterization chose | `skinned.rs:376-388`, `az.rs:47-51`, `letterforms.rs:174-187` | U5 |
-| P4 | 16-digit coordinates transcribed as literals that must value-match (lily joint pins re-derived outside the codebase) | `lily.rs:758-768`, `:810-811` | U2/U5 |
-| P5 | The 1/16 "decoupling" rule forces near-duplicate coordinate tables per letterform; nothing checks they differ only where intended | `letterforms.rs:121-171`, `az.rs:85-130`, `projectbox.rs` | U6 |
-| P6 | Manual axis-angle placement with antiparallel special-casing; no point-at affordance; NO MIRROR anywhere (lily's three leaves placed by hand) | `diefillet.rs:98-122`, `lily.rs:248-276`, `:617-636` | U4 |
-| P7 | World placement expressible only as a sketch-frame choice; sign/handedness errors yield a valid solid in the WRONG PLACE (lily finding 11; the 60-line user-space `Turtle` exists to compensate) | `lily.rs:147-195`, `:68-124` | U4 |
-| P8 | Per-scene boilerplate: six near-identical `p2` helpers, five `validated` wrappers; `S::from_f64` tax on every literal | `bodies.rs:20-35` et al. | U1 |
-| P9 | `flush_declarations` — 50 lines of demo code enumerating plane pairs to declare flush contact, duplicated from the kernel's own test support; every user gluing flush parts must reproduce it | `booleans.rs:67-117` | U6 |
-| P10 | Fillet target selection = writing a topology query (filter edges by carrier kind × adjacent surface kinds); order-dependent, re-run against post-boolean topology | `diefillet.rs:198-233` | U7 |
-
-The corpus also shows what already WORKS and must not regress: the
-constructive fillet/tangency discipline (nobody hand-writes flags),
-the tiered validation ladder as the user journey, and the
+What the corpus showed already WORKS, and must not regress, is a
+standing constraint rather than a finding: the constructive
+fillet/tangency discipline (nobody hand-writes flags), the tiered
+validation ladder as the user journey, and the
 mass-properties/mesh/STEP cross-check ribbon (§L6).
 
-## L3. The layer decision (proposed firm): bindings wrap the document layer; Python is a generator language
+## L3. The layer decision: bindings wrap the document layer; Python is a generator language
 
 G1 (GUI-DESIGN, ratified) names the edit vocabulary as **the single
 API surface** shared by the GUI, language bindings, macro
@@ -108,9 +78,9 @@ literally:
   arena key — the same boundary rule as G1's layer 3. Evaluation
   returns the GQ2 per-node result DAG as typed values; failures are
   typed payloads (Python exceptions carrying the structured error,
-  never strings); documents persist as the same schema-v3 files the
-  future GUI will read, so undo, macros, and session-spanning
-  history are free for Python users the day the bindings exist.
+  never strings); documents persist as the same files the future GUI
+  will read, so undo, macros, and session-spanning history are free
+  for Python users the day the bindings exist.
 - **Python authoring sugar emits recipe data.** D8's stance is that
   the host language generates recipes; Python becomes a host
   language. The builder vocabulary (the PATHS algebra above all)
@@ -149,7 +119,7 @@ side): the Boolean×Pattern payload gap; insert ergonomics (a
 builder over `apply` that threads minted node ids). Both are
 already-known shapes, not research.
 
-## L4. The Python type story (proposed firm)
+## L4. The Python type story
 
 Two-layer checking, per Evan's directive (in-chat, 2026-08-06):
 **static checking via `ty`, runtime checking at the user-input
@@ -180,19 +150,22 @@ boundary only.**
   the `.pyi` lattice and the compiled module is a red build, not a
   documentation bug.
 
-## L5. The unit ladder (proposed; ordering constraints only where real)
+## L5. The unit ladder (ordering constraints noted only where real)
 
 - **U1 — façade crate + prelude.** One dependency, re-exports, the
   error-payload types reachable (closes the `SurfaceKind` leak),
   f64-first authoring signatures (the `S::from_f64` tax is paid
   once inside the seam; generic instantiation remains the kernel's
-  interior). Kills P8.
+  interior). Kills the per-scene boilerplate class — the repeated
+  `p2`/`validated` helpers and the `S::from_f64` tax on every
+  literal.
 - **U2 — PATHS implementation, v2-fronted per LQ4.** The ratified
   algebra as spec'd, lowering to the v1 form, with the
   profiles-as-programs representation switch following immediately
   (§L3's front-loaded arc); `LoopBuilder` remains the raw layer the
   lowering verifies against. Kills the profile-level re-typing
-  class (P4's profile half); makes corner/anchor work structural.
+  class at the profile level — transcribed 16-digit coordinates
+  that must value-match; makes corner/anchor work structural.
 - **U3 — profile-vocabulary unification.** RULED (Evan, LQ2):
   retiring `SectionSegments` as an authoring surface IS the goal —
   one profile vocabulary, so U2's algebra serves all four body ops;
@@ -203,33 +176,39 @@ boundary only.**
   its `==` closure check leave the public surface either way.
 - **U4 — path & placement vocabulary.** Exact 3-D path legs (line,
   arc; the long-turn arc is #222's banked frontier and lands
-  there), so P2's sampled quarter-circles become exact values; a
-  kernel door for the path-start frame (P1's Gram–Schmidt recipe,
-  written once, with the degenerate-axis policy stated); pose
-  values with point-at and MIRROR placement doors (P6/P7 — the
-  lily findings are the acceptance evidence); loft placements as
-  checked (section, place) pairs, not parallel arrays.
+  there), so sampled quarter-circles become exact values; a kernel
+  door for the path-start frame (the Gram–Schmidt recipe written
+  once, with the degenerate-axis policy stated); pose values with
+  point-at and MIRROR placement doors, since manual axis-angle
+  placement with antiparallel special-casing puts a valid solid in
+  the wrong place (the lily findings are the acceptance evidence);
+  loft placements as checked (section, place) pairs, not parallel
+  arrays.
 - **U5 — read-back/interrogation doors.** The model answers what
   the parameterization chose: skin parameters, joint frames,
   named-entity poses via stable names. Kills the
-  transcribed-decimal pin class (P3/P4) — a pin becomes a query
-  plus an assertion, inside the system.
+  transcribed-decimal pin class — a pin becomes a query plus an
+  assertion, inside the system, instead of a hand-computed constant
+  whose derivation lives in a comment.
 - **U6 — declared-relation ergonomics.** The flush-declaration
-  helper promoted from its demo/test-common twins (P9) into the
-  library surface, per the coincidence ladder (Banked principles)
-  and CONTACT-DESIGN's vocabulary; a declared-offset relation
-  ("these tables differ by exactly 1/16 where stated") to replace
-  P5's hand-maintained duplicate tables.
+  helper promoted from its demo/test-common twins into the library
+  surface, per the coincidence ladder (Banked principles) and
+  CONTACT-DESIGN's vocabulary — every user gluing flush parts
+  otherwise reproduces 50 lines of plane-pair enumeration; and a
+  declared-offset relation ("these tables differ by exactly 1/16
+  where stated") to replace hand-maintained duplicate coordinate
+  tables.
 - **U7 — selection ergonomics.** Name/selector-based feature
   targeting over editor-core's StableName + enumerate-all machinery
-  (the M6-5 vocabulary), replacing P10's raw topology queries in
-  user code.
+  (the M6-5 vocabulary), replacing raw topology queries in user
+  code — filtering edges by carrier kind against adjacent surface
+  kinds, order-dependent and re-run against post-boolean topology.
 - **U8 — GQ5 completion.** Units/display layer + the expression
   text parser (none exists — the AST is construction-only today);
   round-tripping `25 mm` lands here because bindings need it before
   any GUI does.
 - **U9 — bindings proper.** PyO3/maturin, abi3 wheels, f64 lane
-  first (interval/dual lanes are the M8 payoff and join later
+  first (interval/dual lanes are the M10 payoff and join later
   behind an extra; the evaluation service is already generic over
   `Real` by banked principle, so the door is structural). D9's
   pure-libm determinism means wheels replay BIT-IDENTICALLY across
@@ -243,8 +222,8 @@ Real ordering constraints: U1 before U9 (the façade is what gets
 bound); U3 before U2 covers loft/sweep (U2 can land for
 extrude/revolve first — the algebra targets `ProfileLoop`, which
 they already speak); U8 before U9's quantity surface. Everything
-else is schedulable freely, including in parallel with M8 kernel
-work — footprints are disjoint (survey: no demo touches Euler ops;
+else is schedulable freely, including in parallel with the kernel
+milestones — footprints are disjoint (survey: no demo touches Euler ops;
 the units here touch authoring crates, editor-core, and a new
 bindings crate).
 
@@ -286,7 +265,7 @@ bindings crate).
   `sweep_body` consumes ONE `NurbsCurve3<f64>`; every scene
   hand-samples its path (17-point S-curve, interpolate degree 3)
   and hand-rolls the start frame (Gram–Schmidt with a
-  `n.z.abs()<0.9` dodge — P1); `Node::Sweep` already spells the
+  `n.z.abs()<0.9` dodge); `Node::Sweep` already spells the
   path as a PROFILE NODE whose first loop's chain is the
   trajectory; and `wire_sweep` refuses everything via
   `SWEEP_FRONTIER` because a profile chain is many segments and
@@ -312,8 +291,8 @@ bindings crate).
 
   (c) **Where does the pose/point-at/mirror family live?**
   PROPOSED: frame CONSTRUCTORS in `geom-core` (point-at, mirror,
-  path-start frame with the degenerate-axis policy stated — the
-  P1 recipe written once), consumed by `SketchPlane::from_frame`
+  path-start frame with the degenerate-axis policy stated, written
+  once), consumed by `SketchPlane::from_frame`
   and loft/sweep placements as plain `Affine3` values;
   document-level Expr-ized placement stays deferred (VQ8's pose
   conversation), so no schema change rides this unit.
@@ -343,12 +322,10 @@ bindings crate).
 - **LQ4 — v2 profiles-as-programs timing: RULED — pulled to the
   front.** See §L3's front-loaded arc and U2. Python never ships
   the opaque-profile intermediate state.
-- **LQ5 — sequencing: RULED.** The design conversation concludes
-  now; implementation units may start IN PARALLEL WITH M7 where
-  footprints are independent (not merely after the M7 exit walk),
-  at Evan's per-unit discretion. DESIGN.md's post-M8 placement of
-  the usability program is superseded for this program by this
-  ruling (fold into DESIGN.md at ratification).
+- **LQ5 — sequencing: RULED.** Implementation units run IN PARALLEL
+  with the kernel milestones where footprints are independent, at
+  Evan's per-unit discretion — this program is not sequenced behind
+  them. (DESIGN.md's roadmap carries the ruling.)
 - **LQ6 — Python surface breadth at v1: RULED —
   documents-from-day-one.** The L3 prerequisite completions are
   accepted as program scope.
