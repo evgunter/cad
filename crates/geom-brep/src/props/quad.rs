@@ -3154,7 +3154,43 @@ mod tests {
                     };
                     (core::array::from_fn(|c| a[0][c] / w[0]), quot(1), quot(2))
                 };
-                let (nu_s, nv_s) = (2048usize, 64usize);
+                // WHY THE V-GRID IS 4 AND THE U-GRID IS 2048. Not a
+                // budget judgement: on THIS net both integrands below
+                // are EXACTLY independent of v, so the v-sum adds N
+                // copies of one value and divides by N. Two premises,
+                // both visible in the construction above — check them
+                // before touching the net:
+                //   (i)  `kv_v` is `unit_segment(1)`: degree 1, two
+                //        control points, no interior knot;
+                //   (ii) the weight pushed for BOTH v-rows of profile
+                //        point `i` is the same `ws[i]` — the weight is
+                //        indexed by the PROFILE index only, so the two
+                //        v-rows carry EQUAL weights.
+                // Through `at()` those give
+                //   W = Σ_r N_r(u)·w_r·Σ_s N_s(v) = Σ_r N_r(u)·w_r
+                //       (the v basis is a partition of unity), so `w[0]`
+                //       is v-free and `w[2] = Σ_r N_r w_r · Σ_s N'_s`
+                //       = 0 — the denominator has NO v-derivative;
+                //   S   = (X(u), Y(u), height·v) — x,y repeat down each
+                //       v-row, and in z the shared W cancels against
+                //       Σ_s N_s(v)·z_s = height·v;
+                //   S_u = (X_u, Y_u, 0) — the z component is
+                //       (w[1]·h·v·w[0] − w[0]·h·v·w[1])/w[0]² ≡ 0;
+                //   S_v = (0, 0, height) — w[2] = 0 leaves a[2]/w[0],
+                //       and a[2] vanishes in x,y.
+                // So cross = S_u × S_v = (Y_u·h, −X_u·h, 0), and
+                //   S·cross = h·(X·Y_u − Y·X_u)  — S's v-dependent z
+                //             multiplies cross_z = 0 and drops out;
+                //   |cross| = h·√(X_u² + Y_u²).
+                // Both are functions of u alone. MEASURED: 64 → 4 moves
+                // the oracle by at most 2.3e-13 absolute on these O(3.5)
+                // values (pure summation-order rounding) against the
+                // 1e-5 slack below — 4e7x of headroom — while cutting
+                // this row's runtime from 78 s to 53 s.
+                //
+                // The 2048 u-samples are the real content and STAY: u is
+                // the O(h²) direction the slack is actually sized for.
+                let (nu_s, nv_s) = (2048usize, 4usize);
                 #[allow(clippy::cast_precision_loss)]
                 let (hu, hv) = (1.0 / nu_s as f64, 1.0 / nv_s as f64);
                 let (mut o_flux, mut o_area) = (0.0f64, 0.0f64);
