@@ -227,6 +227,12 @@ impl<T: Bounds> NurbsSurface<T> {
                     continue;
                 }
                 let (b0, b1) = (kv.knots()[span_v], kv.knots()[span_v + 1]);
+                // One window per span CELL, not per seed: it is the
+                // same window for all `SEEDS_PER_SPAN²` evaluations
+                // below.
+                let Some(win) = self.window(span_u, span_v) else {
+                    continue;
+                };
                 for i in 0..SURFACE_PROJECT_SEEDS_PER_SPAN {
                     #[allow(clippy::cast_precision_loss)]
                     let fu = i as f64 / (SURFACE_PROJECT_SEEDS_PER_SPAN - 1) as f64;
@@ -235,8 +241,7 @@ impl<T: Bounds> NurbsSurface<T> {
                         #[allow(clippy::cast_precision_loss)]
                         let fv = j as f64 / (SURFACE_PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let v = b0 + (b1 - b0) * fv;
-                        let d =
-                            self.eval_in_span(span_u, span_v, T::from_f64(u), T::from_f64(v)) - p;
+                        let d = self.eval_in_span(win, T::from_f64(u), T::from_f64(v)) - p;
                         let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.
                         if d2 < best_d2 {
@@ -275,9 +280,7 @@ impl<T: Bounds> NurbsSurface<T> {
         let mut last_fv = f64::NAN;
         let mut last_dist = f64::NAN;
         while iterations < SURFACE_PROJECT_MAX_ITERS {
-            let su = self.knots_u().find_span(u);
-            let sv = self.knots_v().find_span(v);
-            let j = self.ders_in_span(su, sv, T::from_f64(u), T::from_f64(v));
+            let j = self.ders_in_span(self.window_at(u, v), T::from_f64(u), T::from_f64(v));
             let r = j.point - p;
             // The iteration reads structure through the brackets; the
             // T-valued jet above is what the accepted payload is built
@@ -322,9 +325,8 @@ impl<T: Bounds> NurbsSurface<T> {
             // through the chart (domain-edge feet land here).
             let moved = j.du * T::from_f64(un - u) + j.dv * T::from_f64(vn - v);
             if mid(moved.norm()) <= SURFACE_PROJECT_EPS_POINT {
-                let su = self.knots_u().find_span(un);
-                let sv = self.knots_v().find_span(vn);
-                let jn = self.ders_in_span(su, sv, T::from_f64(un), T::from_f64(vn));
+                let jn =
+                    self.ders_in_span(self.window_at(un, vn), T::from_f64(un), T::from_f64(vn));
                 let r = jn.point - p;
                 let dist = r.norm();
                 if !mid(dist).is_nan() {

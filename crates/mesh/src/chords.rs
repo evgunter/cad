@@ -431,11 +431,10 @@ fn rational_carrier_m_bound(
     let window = |net: &[RingInterval],
                   wnet: &[RingInterval],
                   c: RingInterval,
-                  i0: usize,
-                  i1: usize|
+                  active: core::ops::RangeInclusive<usize>|
      -> RingInterval {
         let mut acc: Option<RingInterval> = None;
-        for i in i0..=i1 {
+        for i in active {
             let e = match (net.get(i), wnet.get(i)) {
                 (Some(&a), Some(&w)) => a - c * w,
                 _ => RingInterval::poison(),
@@ -460,12 +459,11 @@ fn rational_carrier_m_bound(
         // and `last_span = knots.len() − p − 2 = control_count − 1`,
         // which `validate_counts` pins to `refined.control().len()`.
         let Some(span) = kv.span(s) else { continue };
-        let first = span.first_control();
         // The span centroid — a translation CHOICE (any finite c is
         // sound), f64 structure, fixed order.
         let mut csum = [0.0f64; 3];
         let mut count = 0.0f64;
-        for pt in &refined.control()[first..=s] {
+        for pt in &refined.control()[span.window()] {
             csum[0] += pt.x;
             csum[1] += pt.y;
             csum[2] += pt.z;
@@ -474,7 +472,7 @@ fn rational_carrier_m_bound(
         let cen = [csum[0] / count, csum[1] / count, csum[2] / count];
         // The span's weight range — the divisor (doc comment).
         let mut w_span: Option<RingInterval> = None;
-        for w in &w_pts[first..=s] {
+        for w in &w_pts[span.window()] {
             w_span = Some(match w_span {
                 None => *w,
                 Some(h) => RingInterval::hull(h, *w),
@@ -482,15 +480,22 @@ fn rational_carrier_m_bound(
         }
         let w_span = w_span.unwrap_or_else(RingInterval::poison);
         let zero = RingInterval::zero();
-        let w1 = mag(window(&dw, &dw, zero, first, s - 1));
         // Active windows: value [s−p, s]; each differencing drops the
-        // top index. p ≥ 2 makes both windows nonempty.
-        let w2 = mag(window(&ddw, &ddw, zero, first, s - 2));
+        // top index, which is what `derived_window` names — so `s − 1`
+        // and `s − 2` are not subtractions at the use site either. The
+        // caller's degree gate makes p ≥ 2, so the order-2 window is
+        // always `Some`; if that ever stopped holding the bound
+        // POISONS (and the caller's finite check refuses) rather than
+        // underflowing.
+        let w1 = mag(window(&dw, &dw, zero, span.first_derived_window()));
+        let w2 = mag(span
+            .derived_window(2)
+            .map_or_else(RingInterval::poison, |a| window(&ddw, &ddw, zero, a)));
         let mut sq = RingInterval::zero();
         for (c, (da, dda)) in a_nets.iter().enumerate() {
             let cc = RingInterval::point(cen[c]);
             let mut v0h: Option<RingInterval> = None;
-            for pt in &refined.control()[first..=s] {
+            for pt in &refined.control()[span.window()] {
                 let e = RingInterval::point(match c {
                     0 => pt.x,
                     1 => pt.y,
@@ -502,8 +507,10 @@ fn rational_carrier_m_bound(
                 });
             }
             let v0 = mag(v0h.unwrap_or_else(RingInterval::poison));
-            let a1 = mag(window(da, &dw, cc, first, s - 1));
-            let a2 = mag(window(dda, &ddw, cc, first, s - 2));
+            let a1 = mag(window(da, &dw, cc, span.first_derived_window()));
+            let a2 = mag(span
+                .derived_window(2)
+                .map_or_else(RingInterval::poison, |a| window(dda, &ddw, cc, a)));
             let s1 = (a1 + v0 * w1) / w_span;
             let s2 = (a2 + two * s1 * w1 + v0 * w2) / w_span;
             sq = sq + s2.sqr();

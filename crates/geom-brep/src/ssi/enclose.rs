@@ -562,8 +562,7 @@ impl<'a, T: Bounds> NurbsBoxes<'a, T> {
         // the parameter is a thin `f64` structure value, so its span is
         // unique and no `SpanLocate` hull is needed.
         let c = self.surface.eval_in_span(
-            self.surface.knots_u().find_span(um),
-            self.surface.knots_v().find_span(vm),
+            self.surface.window_at(um, vm),
             T::from_f64(um),
             T::from_f64(vm),
         );

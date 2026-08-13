@@ -25,7 +25,7 @@
 //! conjugated by [`NurbsSurface::transposed`] — one implementation,
 //! both directions, deterministic.
 
-use geom_core::spline::{self, KnotAlgebraError, KnotVector, SpanLocate, SplineError};
+use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
 use geom_core::{Point3, Real, Vec3};
 
 /// The point and first/second partials of one evaluation — everything
@@ -76,6 +76,92 @@ pub struct SurfaceJet3<T: Real> {
     pub duvv: Vec3<T>,
     /// `∂³S/∂v³`.
     pub dvvv: Vec3<T>,
+}
+
+/// The tensor-product control window a span PAIR selects, together
+/// with the row-major layout that flattens it — `geom_core`'s
+/// [`Span`] one dimension up.
+///
+/// A `Span` is a proof about one knot vector: in range, nonempty,
+/// carrying `index − degree`. What a surface evaluator additionally
+/// needs is the *layout*: the `(iu, iv) ↦ iu·nv + iv` stride that
+/// turns the two windows into flat indices of `control`/`weights`.
+/// That stride was prose at seven separate sites; here it is a field,
+/// derived once from `knots_v.control_count()` and never passed in by
+/// a caller.
+///
+/// So the window carries three facts that used to be re-derived per
+/// evaluation, per basis term:
+///
+/// - `span_u − pu` and `span_v − pv`, subtracted once at construction
+///   (the `Span` invariant — no use site can underflow them);
+/// - `base = (span_u − pu)·nv + (span_v − pv)`, the flat index of the
+///   window's corner;
+/// - `stride = nv`, so a row step is one addition.
+///
+/// Evaluation then reads `base + i·stride + j` for
+/// `(i, j) ∈ [0, pu] × [0, pv]`, which is exactly `[0, nu) × [0, nv)`
+/// flattened — the `spans_valid` guard and the four poison-on-bad-span
+/// returns have no use site left.
+///
+/// `Copy`, four `usize`s wide, allocation-free, built once per
+/// evaluation. That is deliberate: PR #447 measured a 2.4–2.8×
+/// regression from a window abstraction that allocated per basis
+/// term, and this one is shaped so it cannot.
+///
+/// **Not branded to its surface**, exactly as [`Span`] is not branded
+/// to its knot vector. A window built from surface A and used to
+/// evaluate surface B is in-range-but-wrong if B's control counts are
+/// at least A's, and panics (loudly, correctly) otherwise. Every
+/// consumer today builds the window from the surface it evaluates,
+/// through one of [`NurbsSurface::window`], [`NurbsSurface::window_at`]
+/// or [`NurbsSurface::window_of`]; making that a type-level fact needs
+/// an invariant-lifetime brand, the same one `Span` deliberately does
+/// not pay for yet.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SurfaceWindow {
+    span_u: Span,
+    span_v: Span,
+    base: usize,
+    stride: usize,
+}
+
+impl SurfaceWindow {
+    /// The u-direction span.
+    pub fn span_u(self) -> Span {
+        self.span_u
+    }
+
+    /// The v-direction span.
+    pub fn span_v(self) -> Span {
+        self.span_v
+    }
+
+    /// The row-major stride — the v control count of the surface this
+    /// window was built from.
+    pub fn stride(self) -> usize {
+        self.stride
+    }
+
+    /// The flat index of the window's corner control point,
+    /// `(span_u − pu)·stride + (span_v − pv)`.
+    pub fn base(self) -> usize {
+        self.base
+    }
+
+    /// The flat index at which window row `i` starts —
+    /// `base + i·stride`. Evaluation hoists this out of its inner
+    /// loop, so the inner loop is `row(i) + j`: one addition, no
+    /// multiply, and no subtraction anywhere.
+    pub fn row(self, i: usize) -> usize {
+        self.base + i * self.stride
+    }
+
+    /// Whether control point `(iu, iv)` (grid coordinates) is one of
+    /// the `(pu + 1)·(pv + 1)` the window names.
+    pub fn contains(self, iu: usize, iv: usize) -> bool {
+        self.span_u.window().contains(&iu) && self.span_v.window().contains(&iv)
+    }
 }
 
 /// A validated tensor-product NURBS surface (module docs; immutable
@@ -204,44 +290,63 @@ impl<T: Real> NurbsSurface<T> {
         Point3::new(nan, nan, nan)
     }
 
-    /// The all-poison vector.
-    fn poison_vec() -> Vec3<T> {
-        let nan = T::from_f64(f64::NAN);
-        Vec3::new(nan, nan, nan)
-    }
-
-    /// The all-poison jet.
-    fn poison_jet() -> SurfaceJet<T> {
-        SurfaceJet {
-            point: Self::poison_point(),
-            du: Self::poison_vec(),
-            dv: Self::poison_vec(),
-            duu: Self::poison_vec(),
-            duv: Self::poison_vec(),
-            dvv: Self::poison_vec(),
+    /// The [`SurfaceWindow`] for an ALREADY-VALIDATED span pair — the
+    /// one primitive constructor; [`Self::window`] and
+    /// [`Self::window_at`] are the two ways of producing the `Span`s.
+    ///
+    /// The stride is taken from THIS surface, never from the caller,
+    /// so a window can never disagree with the net it indexes (see the
+    /// non-branding note on [`SurfaceWindow`] for the residual hazard:
+    /// spans drawn from a DIFFERENT surface's knot vectors).
+    pub fn window_of(&self, span_u: Span, span_v: Span) -> SurfaceWindow {
+        let stride = self.knots_v.control_count();
+        SurfaceWindow {
+            span_u,
+            span_v,
+            base: span_u.first_control() * stride + span_v.first_control(),
+            stride,
         }
     }
 
-    /// The point at `(u, v)` in the given span pair — the generic core
-    /// (span contract and garbage-out as the curve core; invalid span
-    /// indices poison). Double ascending pass (outer `iu`, inner `iv`),
-    /// then one division per coordinate.
-    pub fn eval_in_span(&self, span_u: usize, span_v: usize, u: T, v: T) -> Point3<T> {
-        if !self.spans_valid(span_u, span_v) {
-            return Self::poison_point();
-        }
-        let (pu, pv) = (self.knots_u.degree(), self.knots_v.degree());
-        let nv = self.knots_v.control_count();
-        let bu = spline::basis::basis_funs(&self.knots_u, span_u, u);
-        let bv = spline::basis::basis_funs(&self.knots_v, span_v, v);
+    /// The window at span indices `(span_u, span_v)`, or `None` when
+    /// either index is out of range or names an EMPTY span (interior
+    /// knot multiplicity). This is the direct replacement for the
+    /// `span_is_nonempty` guard followed by an unvalidated index: the
+    /// emptiness check and the window construction are one operation.
+    pub fn window(&self, span_u: usize, span_v: usize) -> Option<SurfaceWindow> {
+        Some(self.window_of(self.knots_u.span(span_u)?, self.knots_v.span(span_v)?))
+    }
+
+    /// The window containing parameters `(u, v)` — total on all of
+    /// `f64`² for exactly the reasons [`KnotVector::span_at`] is
+    /// (out-of-domain clamps to an end span, NaN lands on the first).
+    pub fn window_at(&self, u: f64, v: f64) -> SurfaceWindow {
+        self.window_of(self.knots_u.span_at(u), self.knots_v.span_at(v))
+    }
+
+    /// The point at `(u, v)` in the given control window — the generic
+    /// core (span contract and garbage-out as the curve core). Double
+    /// ascending pass (outer `iu`, inner `iv`), then one division per
+    /// coordinate.
+    ///
+    /// There is no invalid-input branch: the window is a proof, so the
+    /// former `spans_valid` guard and its all-poison return have no
+    /// use site. Garbage-in on the PARAMETERS still gives garbage-out
+    /// (the polynomial extension of the window's patch), unchanged.
+    pub fn eval_in_span(&self, win: SurfaceWindow, u: T, v: T) -> Point3<T> {
+        let bu = spline::basis::basis_funs(&self.knots_u, win.span_u().index(), u);
+        let bv = spline::basis::basis_funs(&self.knots_v, win.span_v().index(), v);
         let (mut x, mut y, mut z, mut w) = (T::zero(), T::zero(), T::zero(), T::zero());
         for (i, bui) in bu.iter().enumerate() {
-            let iu = span_u - pu + i;
+            // Indexed off the window base, deliberately: the basis row
+            // length and the window length are two derivations of the
+            // same degree, and if they ever disagree indexing PANICS
+            // where a `zip` would silently drop control points and
+            // return a plausible wrong point (D4; PR #447's reverted
+            // revision).
+            let row = win.row(i);
             for (j, bvj) in bv.iter().enumerate() {
-                // Indexing justified: valid spans ⇒ iu < nu, iv < nv
-                // (the curve-core argument per direction).
-                let iv = span_v - pv + j;
-                let idx = iu * nv + iv;
+                let idx = row + j;
                 let cw = (*bui * *bvj) * T::from_f64(self.weights[idx]);
                 let pt = self.control[idx];
                 x = x + cw * pt.x;
@@ -254,19 +359,14 @@ impl<T: Real> NurbsSurface<T> {
     }
 
     /// Point plus first and second partials at `(u, v)` in the given
-    /// span pair — one homogeneous tensor pass (basis orders 0..=2 in
-    /// each direction), then the rational corrections exactly as
+    /// control window — one homogeneous tensor pass (basis orders 0..=2
+    /// in each direction), then the rational corrections exactly as
     /// written: `S = A₀₀/w₀₀`, `S_u = (A₁₀ − S·w₁₀)/w₀₀` (v symmetric),
     /// `S_uu = (A₂₀ − S·w₂₀ − S_u·w₁₀·2)/w₀₀` (v symmetric),
     /// `S_uv = (A₁₁ − S·w₁₁ − S_u·w₀₁ − S_v·w₁₀)/w₀₀`.
-    pub fn ders_in_span(&self, span_u: usize, span_v: usize, u: T, v: T) -> SurfaceJet<T> {
-        if !self.spans_valid(span_u, span_v) {
-            return Self::poison_jet();
-        }
-        let (pu, pv) = (self.knots_u.degree(), self.knots_v.degree());
-        let nv = self.knots_v.control_count();
-        let du = spline::basis::ders_basis_funs(&self.knots_u, span_u, u, 2);
-        let dv = spline::basis::ders_basis_funs(&self.knots_v, span_v, v, 2);
+    pub fn ders_in_span(&self, win: SurfaceWindow, u: T, v: T) -> SurfaceJet<T> {
+        let du = spline::basis::ders_basis_funs(&self.knots_u, win.span_u().index(), u, 2);
+        let dv = spline::basis::ders_basis_funs(&self.knots_v, win.span_v().index(), v, 2);
         // Homogeneous partials A_kl for the six (k, l) with k + l ≤ 2,
         // indexed [k][l]; each lane accumulated in the double
         // ascending pass.
@@ -275,10 +375,11 @@ impl<T: Real> NurbsSurface<T> {
         let mut az = [[T::zero(); 3]; 3];
         let mut aw = [[T::zero(); 3]; 3];
         for (i, _) in du[0].iter().enumerate() {
-            let iu = span_u - pu + i;
+            // Indexed off the window base — see `eval_in_span`'s note
+            // on why this loop is not a `zip`.
+            let row = win.row(i);
             for (j, _) in dv[0].iter().enumerate() {
-                let iv = span_v - pv + j;
-                let idx = iu * nv + iv;
+                let idx = row + j;
                 let wf = T::from_f64(self.weights[idx]);
                 let pt = self.control[idx];
                 for k in 0..3usize {
@@ -322,19 +423,8 @@ impl<T: Real> NurbsSurface<T> {
         }
     }
 
-    /// The all-poison third-order jet.
-    fn poison_jet3() -> SurfaceJet3<T> {
-        SurfaceJet3 {
-            jet: Self::poison_jet(),
-            duuu: Self::poison_vec(),
-            duuv: Self::poison_vec(),
-            duvv: Self::poison_vec(),
-            dvvv: Self::poison_vec(),
-        }
-    }
-
     /// Point plus **all partials with `k + l ≤ 3`** at `(u, v)` in the
-    /// given span pair — one homogeneous tensor pass (basis orders
+    /// given control window — one homogeneous tensor pass (basis orders
     /// `0..=3` in each direction), then the rational corrections.
     ///
     /// The `k + l ≤ 2` block is written **character for character** as
@@ -350,14 +440,9 @@ impl<T: Real> NurbsSurface<T> {
     /// S12 = (A12 − 2·w01·S11 −   w02·S10 −   w10·S02 − 2·w11·S01 − w12·S00) / w00
     /// S03 = (A03 − 3·w01·S02 − 3·w02·S01 −   w03·S00) / w00
     /// ```
-    pub fn ders3_in_span(&self, span_u: usize, span_v: usize, u: T, v: T) -> SurfaceJet3<T> {
-        if !self.spans_valid(span_u, span_v) {
-            return Self::poison_jet3();
-        }
-        let (pu, pv) = (self.knots_u.degree(), self.knots_v.degree());
-        let nv = self.knots_v.control_count();
-        let du = spline::basis::ders_basis_funs(&self.knots_u, span_u, u, 3);
-        let dv = spline::basis::ders_basis_funs(&self.knots_v, span_v, v, 3);
+    pub fn ders3_in_span(&self, win: SurfaceWindow, u: T, v: T) -> SurfaceJet3<T> {
+        let du = spline::basis::ders_basis_funs(&self.knots_u, win.span_u().index(), u, 3);
+        let dv = spline::basis::ders_basis_funs(&self.knots_v, win.span_v().index(), v, 3);
         // Homogeneous partials A_kl for the ten (k, l) with k + l ≤ 3,
         // indexed [k][l]; each lane accumulated in the double
         // ascending pass (the second-order pass's shape, one order up).
@@ -366,10 +451,11 @@ impl<T: Real> NurbsSurface<T> {
         let mut az = [[T::zero(); 4]; 4];
         let mut aw = [[T::zero(); 4]; 4];
         for (i, _) in du[0].iter().enumerate() {
-            let iu = span_u - pu + i;
+            // Indexed off the window base — see `eval_in_span`'s note
+            // on why this loop is not a `zip`.
+            let row = win.row(i);
             for (j, _) in dv[0].iter().enumerate() {
-                let iv = span_v - pv + j;
-                let idx = iu * nv + iv;
+                let idx = row + j;
                 let wf = T::from_f64(self.weights[idx]);
                 let pt = self.control[idx];
                 for k in 0..4usize {
@@ -444,17 +530,6 @@ impl<T: Real> NurbsSurface<T> {
             duvv: s_uvv,
             dvvv: s_vvv,
         }
-    }
-
-    /// Span-pair validity (structure check backing the poison
-    /// totalization of the cores).
-    fn spans_valid(&self, span_u: usize, span_v: usize) -> bool {
-        span_u >= self.knots_u.first_span()
-            && span_u <= self.knots_u.last_span()
-            && self.knots_u.span_is_nonempty(span_u)
-            && span_v >= self.knots_v.first_span()
-            && span_v <= self.knots_v.last_span()
-            && self.knots_v.span_is_nonempty(span_v)
     }
 
     /// The transposed surface: `u` and `v` swapped (knot vectors
@@ -708,28 +783,27 @@ impl<T: SpanLocate> NurbsSurface<T> {
     pub fn ders(&self, u: T, v: T) -> SurfaceJet<T> {
         let su = u.locate_spans(&self.knots_u);
         let sv = v.locate_spans(&self.knots_v);
-        // Surfaces still evaluate by span index — the tensor-product
-        // window is a separate construction from the curve path's, and
-        // giving it the `Span` treatment is the 2D follow-up. Take the
-        // located spans' indices here.
+        // The seed cell's window comes straight from the located
+        // spans, which ARE proofs — no re-validation.
         let (su_first, su_last) = (su.first.index(), su.last.index());
         let (sv_first, sv_last) = (sv.first.index(), sv.last.index());
-        let mut acc = self.ders_in_span(su_first, sv_first, u, v);
+        let mut acc = self.ders_in_span(self.window_of(su.first, sv.first), u, v);
         for cu in su_first..=su_last {
             for cv in sv_first..=sv_last {
                 if cu == su_first && cv == sv_first {
                     continue;
                 }
-                // Skip empty spans (interior multiplicity):
+                // Empty spans (interior multiplicity) have no window,
+                // so the skip and the validation are one operation:
                 // find_span assigns every parameter — a repeated knot
                 // value included — to the nonempty span starting at
                 // it, which the rectangle always covers, so nothing
                 // is discarded (containment preserved); an empty span
                 // would only contribute poison (zero denominators).
-                if !self.knots_u.span_is_nonempty(cu) || !self.knots_v.span_is_nonempty(cv) {
+                let Some(win) = self.window(cu, cv) else {
                     continue;
-                }
-                let jet = self.ders_in_span(cu, cv, u, v);
+                };
+                let jet = self.ders_in_span(win, u, v);
                 acc = SurfaceJet {
                     point: hull_point(acc.point, jet.point),
                     du: hull_vec(acc.du, jet.du),
@@ -749,22 +823,19 @@ impl<T: SpanLocate> NurbsSurface<T> {
     pub fn ders3(&self, u: T, v: T) -> SurfaceJet3<T> {
         let su = u.locate_spans(&self.knots_u);
         let sv = v.locate_spans(&self.knots_v);
-        // Surfaces still evaluate by span index — the tensor-product
-        // window is a separate construction from the curve path's, and
-        // giving it the `Span` treatment is the 2D follow-up. Take the
-        // located spans' indices here.
+        // Seed window and empty-span skip: see [`NurbsSurface::ders`].
         let (su_first, su_last) = (su.first.index(), su.last.index());
         let (sv_first, sv_last) = (sv.first.index(), sv.last.index());
-        let mut acc = self.ders3_in_span(su_first, sv_first, u, v);
+        let mut acc = self.ders3_in_span(self.window_of(su.first, sv.first), u, v);
         for cu in su_first..=su_last {
             for cv in sv_first..=sv_last {
                 if cu == su_first && cv == sv_first {
                     continue;
                 }
-                if !self.knots_u.span_is_nonempty(cu) || !self.knots_v.span_is_nonempty(cv) {
+                let Some(win) = self.window(cu, cv) else {
                     continue;
-                }
-                let j = self.ders3_in_span(cu, cv, u, v);
+                };
+                let j = self.ders3_in_span(win, u, v);
                 acc = SurfaceJet3 {
                     jet: SurfaceJet {
                         point: hull_point(acc.jet.point, j.jet.point),
@@ -789,23 +860,19 @@ impl<T: SpanLocate> NurbsSurface<T> {
     pub fn eval(&self, u: T, v: T) -> Point3<T> {
         let su = u.locate_spans(&self.knots_u);
         let sv = v.locate_spans(&self.knots_v);
-        // Surfaces still evaluate by span index — the tensor-product
-        // window is a separate construction from the curve path's, and
-        // giving it the `Span` treatment is the 2D follow-up. Take the
-        // located spans' indices here.
+        // Seed window and empty-span skip: see [`NurbsSurface::ders`].
         let (su_first, su_last) = (su.first.index(), su.last.index());
         let (sv_first, sv_last) = (sv.first.index(), sv.last.index());
-        let mut acc = self.eval_in_span(su_first, sv_first, u, v);
+        let mut acc = self.eval_in_span(self.window_of(su.first, sv.first), u, v);
         for cu in su_first..=su_last {
             for cv in sv_first..=sv_last {
                 if cu == su_first && cv == sv_first {
                     continue;
                 }
-                // Empty-span skip: see `ders`'s note.
-                if !self.knots_u.span_is_nonempty(cu) || !self.knots_v.span_is_nonempty(cv) {
+                let Some(win) = self.window(cu, cv) else {
                     continue;
-                }
-                acc = hull_point(acc, self.eval_in_span(cu, cv, u, v));
+                };
+                acc = hull_point(acc, self.eval_in_span(win, u, v));
             }
         }
         acc

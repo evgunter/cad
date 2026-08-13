@@ -15,8 +15,10 @@
 //!    jet, on a genuinely **rational** patch — non-unit weights, so the
 //!    Eq. 4.20 correction terms are all live. FD is the reference here
 //!    precisely because it shares no code with the formula under test.
-//! 3. **Poison totality.** An invalid span pair yields an all-poison
-//!    jet, never a panic.
+//! 3. **Totality.** There is no invalid input left to poison for:
+//!    `ders3_in_span` takes a validated [`geom_surfaces::SurfaceWindow`],
+//!    so "invalid span pair" is not a representable argument. What
+//!    survives is the totality of the two constructors — checked below.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -145,11 +147,64 @@ fn third_partials_of_a_bilinear_patch_vanish_exactly() {
     }
 }
 
+/// The row `invalid_span_pair_poisons_rather_than_panicking` became:
+/// the poison return it pinned is gone because its input is gone.
+/// `window` REFUSES what used to poison, and `window_at` is total, so
+/// every `SurfaceWindow` that reaches an evaluator is in range.
 #[test]
-fn invalid_span_pair_poisons_rather_than_panicking() {
+fn an_invalid_span_pair_has_no_window_at_all() {
     let s = rational_patch();
-    let j = s.ders3_in_span(999, 999, 0.5, 0.5);
-    assert!(j.jet.point.x.is_nan());
-    assert!(j.duuu.x.is_nan());
-    assert!(j.dvvv.z.is_nan());
+    // Out of range in either direction, and both.
+    assert!(s.window(999, 999).is_none());
+    assert!(s.window(999, 2).is_none());
+    assert!(s.window(3, 999).is_none());
+    // Below the first span — the case that used to underflow `span − p`.
+    assert!(s.window(0, 0).is_none());
+    assert!(s.window(2, 1).is_none());
+    // The legal corner of the same patch is a window, and it names the
+    // `(pu + 1)·(pv + 1)` control points its two spans do.
+    let w = s
+        .window(3, 2)
+        .expect("span (3, 2) is nonempty and in range");
+    assert_eq!(w.stride(), 4);
+    assert_eq!(w.base(), 0);
+    assert_eq!(w.row(1), 4);
+    assert!(w.contains(0, 0) && w.contains(3, 2));
+    assert!(!w.contains(4, 0) && !w.contains(0, 3));
+}
+
+/// `window_at` is total on all of `f64`², so an evaluator has no
+/// parameter to refuse either: out-of-domain and NaN land on an end
+/// span and evaluate that span's polynomial extension (the documented
+/// garbage-out contract), never panic.
+#[test]
+fn window_at_is_total_and_evaluation_stays_finite_in_domain() {
+    let s = rational_patch();
+    for u in [
+        -1.0,
+        0.0,
+        0.4,
+        1.0,
+        2.0,
+        f64::NAN,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        -0.0,
+    ] {
+        for v in [-1.0, 0.0, 0.5, 1.0, 2.0, f64::NAN, f64::INFINITY] {
+            let w = s.window_at(u, v);
+            // In range for THIS surface: the last flat index the
+            // window names must be inside the control net.
+            let (nu, nv) = s.control_counts();
+            assert!(
+                w.row(w.span_u().degree()) + w.span_v().degree() < nu * nv,
+                "window at ({u}, {v}) escapes the control net"
+            );
+            let _ = s.ders3_in_span(w, u, v);
+        }
+    }
+    // In the domain the answer is genuinely finite — the totality above
+    // is not being bought with universal poison.
+    let j = s.ders3_in_span(s.window_at(0.3, 0.6), 0.3, 0.6);
+    assert!(j.jet.point.x.is_finite() && j.duuu.z.is_finite());
 }

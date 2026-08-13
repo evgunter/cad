@@ -199,6 +199,30 @@ impl Span {
     pub fn window(self) -> core::ops::RangeInclusive<usize> {
         self.first_control..=self.first_control + self.degree
     }
+
+    /// The window active on the net obtained by **differencing `order`
+    /// times**: `[index − degree, index − order]`, `degree + 1 − order`
+    /// entries. Each differencing drops the top index, so this is
+    /// [`Span::window`] shortened from the high end — the shape every
+    /// derivative-coefficient hull needs.
+    ///
+    /// `None` when `order > degree`: a degree-`p` span has no active
+    /// window on a net differenced more than `p` times, and that is a
+    /// case the caller must answer — typically with the same
+    /// `Option`/zero it already carries for the derived NET — rather
+    /// than index into. The subtraction is inside the invariant
+    /// (`order ≤ degree ≤ index`), so it cannot underflow here either.
+    pub fn derived_window(self, order: usize) -> Option<core::ops::RangeInclusive<usize>> {
+        (order <= self.degree).then(|| self.first_control..=self.index - order)
+    }
+
+    /// [`Span::derived_window`] at `order = 1`, **total**: a
+    /// [`KnotVector`] refuses degree 0 at construction, so every span
+    /// has `degree ≥ 1`, `index ≥ first_control + 1`, and the
+    /// once-differenced window is nonempty.
+    pub fn first_derived_window(self) -> core::ops::RangeInclusive<usize> {
+        self.first_control..=self.index - 1
+    }
 }
 
 impl KnotVector {
