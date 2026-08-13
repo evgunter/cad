@@ -15,14 +15,18 @@
 //! - `overrun_attribution_names_the_authored_corners_candidate` was the
 //!   review's MAJOR-1 *repro* — it asserted the buggy wrap-around
 //!   setback. It is inverted here into the regression pin for the fix.
-//! - the fuzz keeps the review's 20k corners; it runs in well under a
-//!   second at `f64`, so no iteration trim was needed.
+//! - the corner fuzz draws from `geom_core::fuzz`: a fresh seed per run
+//!   (logged unconditionally) and a corner count that is a multiple of
+//!   `CAD_FUZZ_EFFORT`. `CAD_FUZZ_EFFORT=8` restores the review's 20k
+//!   corners. Its coverage floors are expressed as FRACTIONS of the
+//!   corner count, so depth and floor move together.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
 
 use common::tol;
 use geom_core::Point2;
+use geom_core::fuzz;
 use profile::{ArcSweep, FilletLegShape, ProfileError, ProfileLoop};
 
 const TAU: f64 = core::f64::consts::TAU;
@@ -31,21 +35,8 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-/// xorshift64* — deterministic fuzz.
-struct Rng(u64);
-impl Rng {
-    fn next_f64(&mut self) -> f64 {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 7;
-        self.0 ^= self.0 << 17;
-        (self.0.wrapping_mul(0x2545F4914F6CDD1D) >> 11) as f64 / (1u64 << 53) as f64
-    }
-    fn range(&mut self, lo: f64, hi: f64) -> f64 {
-        lo + (hi - lo) * self.next_f64()
-    }
-    fn flip(&mut self) -> bool {
-        self.next_f64() < 0.5
-    }
+fn flip(rng: &mut fuzz::Rng) -> bool {
+    rng.unit() < 0.5
 }
 
 /// One resolved leg for the oracle side (re-derived, not from src).
@@ -199,8 +190,13 @@ fn circle_from_bulge(t1: Point2<f64>, t2: Point2<f64>, b: f64) -> (Point2<f64>, 
     (Point2::new(mx - uy * k, my + ux * k), radius)
 }
 
-fn rand_leg(rng: &mut Rng, corner: Point2<f64>, incoming: bool, enclosing_bias: bool) -> OracleLeg {
-    if !enclosing_bias && rng.flip() {
+fn rand_leg(
+    rng: &mut fuzz::Rng,
+    corner: Point2<f64>,
+    incoming: bool,
+    enclosing_bias: bool,
+) -> OracleLeg {
+    if !enclosing_bias && flip(rng) {
         let a = rng.range(0.0, TAU);
         let len = rng.range(0.5, 3.0);
         OracleLeg::Line {
@@ -214,7 +210,7 @@ fn rand_leg(rng: &mut Rng, corner: Point2<f64>, incoming: bool, enclosing_bias: 
         };
         let a = rng.range(0.0, TAU);
         let center = Point2::new(corner.x - radius * a.cos(), corner.y - radius * a.sin());
-        let tau = if rng.flip() { 1.0 } else { -1.0 };
+        let tau = if flip(rng) { 1.0 } else { -1.0 };
         let delta = rng.range(0.4, 2.8);
         let far_angle = if incoming {
             a - tau * delta
@@ -232,9 +228,18 @@ fn rand_leg(rng: &mut Rng, corner: Point2<f64>, incoming: bool, enclosing_bias: 
 
 #[test]
 fn fuzz_offset_carrier_construction_tangency_and_bulge() {
-    let mut rng = Rng(0x5EED_CAFE_F00D_0001);
-    let (mut n_ok, mut n_arc_leg, mut n_arc_arc, mut n_enclosing, mut n_major) = (0, 0, 0, 0, 0);
-    for i in 0..20_000 {
+    let mut rng = fuzz::start("review_s2::offset_carrier_tangency_and_bulge");
+    // A COVERAGE FLOOR drives this count, not the usual /8. The rarest
+    // tracked class is the enclosing (rho < 0) tangency: MEASURED at
+    // ~1 per 1 000 corners (58/60 000, 60/60 000, 56/60 000 over three
+    // runs). 12 500 corners therefore expect ~12 of them, so a run that
+    // sees none — the floor below — is a 1-in-180 000 event. Cutting to
+    // the /8 level (2 500) would expect ~2.4 and turn the floor into a
+    // coin flip.
+    let corners = fuzz::scaled(12_500);
+    let (mut n_ok, mut n_arc_leg, mut n_arc_arc, mut n_enclosing, mut n_major) =
+        (0u64, 0u64, 0u64, 0u64, 0u64);
+    for i in 0..corners {
         let enclosing_bias = i % 5 == 0;
         let corner = p2(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
         let leg_in = rand_leg(&mut rng, corner, true, enclosing_bias);
@@ -258,13 +263,18 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
         let lp = chain.close();
         n_ok += 1;
         let nv = lp.vertices.len();
-        assert!(nv == 2 || nv == 3, "chain shape: {nv} vertices");
+        assert!(
+            nv == 2 || nv == 3,
+            "chain shape: {nv} vertices — {}",
+            fuzz::replay()
+        );
         let t2 = lp.vertices[nv - 1].pos;
         let t1 = lp.vertices[nv - 2].pos;
         let b = lp.vertices[nv - 2].bulge;
         assert!(
             b.is_finite() && b != 0.0,
-            "degenerate fillet bulge {b} at iter {i}"
+            "degenerate fillet bulge {b} at iter {i} — {}",
+            fuzz::replay()
         );
 
         // sigma re-derived from travel directions.
@@ -276,17 +286,20 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
         let (pf, rf) = circle_from_bulge(t1, t2, b);
         assert!(
             (rf - r).abs() < 1e-9,
-            "iter {i}: recovered radius {rf} vs {r}"
+            "iter {i}: recovered radius {rf} vs {r} — {}",
+            fuzz::replay()
         );
 
         // (b) tangent points on their carriers.
         assert!(
             leg_in.carrier_residual(corner, t1) < 1e-9,
-            "iter {i}: t1 off carrier"
+            "iter {i}: t1 off carrier — {}",
+            fuzz::replay()
         );
         assert!(
             leg_out.carrier_residual(corner, t2) < 1e-9,
-            "iter {i}: t2 off carrier"
+            "iter {i}: t2 off carrier — {}",
+            fuzz::replay()
         );
 
         // (c) fillet circle tangent to both carriers, with the SIGNED
@@ -297,13 +310,18 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
                     let d = leg.carrier_residual(corner, pf);
                     assert!(
                         (d - r).abs() < 1e-9,
-                        "iter {i}: line-carrier clearance {d} vs r {r}"
+                        "iter {i}: line-carrier clearance {d} vs r {r} — {}",
+                        fuzz::replay()
                     );
                 }
                 OracleLeg::Arc { .. } => {
                     n_arc_leg += 1;
                     let res = leg.center_distance_residual(pf, sigma, r);
-                    assert!(res < 1e-9, "iter {i}: |P-O| vs |rho| residual {res}");
+                    assert!(
+                        res < 1e-9,
+                        "iter {i}: |P-O| vs |rho| residual {res} — {}",
+                        fuzz::replay()
+                    );
                     if leg.is_enclosing(sigma, r) {
                         // ρ < 0: the fillet swallows this leg's carrier.
                         // One case mined from here is pinned exactly by
@@ -315,12 +333,17 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
             // (d) tangent points at distance r from the fillet center.
             let t = if inc { t1 } else { t2 };
             let dt = ((t.x - pf.x).hypot(t.y - pf.y) - r).abs();
-            assert!(dt < 1e-9, "iter {i}: |t-P| residual {dt}");
+            assert!(
+                dt < 1e-9,
+                "iter {i}: |t-P| residual {dt} — {}",
+                fuzz::replay()
+            );
             // (e) corner-side extents.
             let (sb, ext) = leg.setback_extent(corner, t, inc);
             assert!(
                 sb > -1e-9 && sb < ext + 1e-9,
-                "iter {i}: setback {sb} outside [0, {ext}]"
+                "iter {i}: setback {sb} outside [0, {ext}] — {}",
+                fuzz::replay()
             );
         }
         if matches!(leg_in, OracleLeg::Arc { .. }) && matches!(leg_out, OracleLeg::Arc { .. }) {
@@ -333,18 +356,39 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
         let b_ref = sigma * (theta / 4.0).tan();
         assert!(
             (b - b_ref).abs() <= 1e-9 * b_ref.abs().max(1.0),
-            "iter {i}: bulge {b} vs atan2 oracle {b_ref} (theta {theta})"
+            "iter {i}: bulge {b} vs atan2 oracle {b_ref} (theta {theta}) — {}",
+            fuzz::replay()
         );
         if b.abs() > 1.0 {
             n_major += 1;
         }
     }
-    // Coverage floor: the fuzz must actually exercise the claims.
-    assert!(n_ok > 500, "only {n_ok} accepted corners");
-    assert!(n_arc_arc > 50, "only {n_arc_arc} arc-by-arc corners");
+    // COVERAGE FLOORS, as fractions of the corner count so they scale
+    // with `CAD_FUZZ_EFFORT` instead of turning red at low effort. The
+    // fractions are the review's own (500, 50 and 10 out of 20 000).
+    let corners = corners as u64;
     assert!(
-        n_enclosing >= 10,
-        "only {n_enclosing} enclosing (rho < 0) tangencies"
+        n_ok * 40 > corners,
+        "only {n_ok} accepted corners out of {corners} — {}",
+        fuzz::replay()
+    );
+    assert!(
+        n_arc_arc * 400 > corners,
+        "only {n_arc_arc} arc-by-arc corners out of {corners} — {}",
+        fuzz::replay()
+    );
+    // ABSOLUTE, not proportional: this is a "we reached it at all" claim
+    // about a ~0.1%-density branch, and a proportional floor at this
+    // density is noise. See the count's note above for the arithmetic.
+    // NOTE (2026-08-13 audit): the review's original floor — 10 out of
+    // 20 000 — held only because the seed was pinned; at the measured
+    // density a fresh seed expects ~19 with a ~1% chance of falling
+    // below 10. The claim is kept, the threshold made honest.
+    assert!(
+        n_enclosing >= 1,
+        "no enclosing (rho < 0) tangency in {corners} corners — the \
+         enclosing branch went unexercised — {}",
+        fuzz::replay()
     );
     // `n_major` is a COVERAGE REPORT, not a gate: it comes out 0, which
     // is the fuzz corroborating the bound `fillet_bulge`'s docs argue

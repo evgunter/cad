@@ -62,7 +62,11 @@ impl Rng {
     /// is absorbing at zero, so a zero seed would yield a constant
     /// stream and silently turn a sweep into one repeated case.
     pub fn from_seed(seed: u64) -> Self {
-        Self(if seed == 0 { 0x9e37_79b9_7f4a_7c15 } else { seed })
+        Self(if seed == 0 {
+            0x9e37_79b9_7f4a_7c15
+        } else {
+            seed
+        })
     }
 
     /// The next raw draw. All the other generators are shaped from this.
@@ -116,8 +120,9 @@ pub fn seed() -> u64 {
                 .or_else(|| t.strip_prefix("0X"))
                 .map(|h| u64::from_str_radix(&h.replace('_', ""), 16))
                 .unwrap_or_else(|| t.replace('_', "").parse());
-            return parsed
-                .unwrap_or_else(|_| panic!("CAD_FUZZ_SEED is set to {raw:?}, which does not parse"));
+            return parsed.unwrap_or_else(|_| {
+                panic!("CAD_FUZZ_SEED is set to {raw:?}, which does not parse")
+            });
         }
         // No entropy dependency in the kernel's graph for a test dial:
         // process id and the wall clock, mixed with splitmix64. Nextest
@@ -198,10 +203,16 @@ mod tests {
 
     #[test]
     fn a_pinned_seed_is_reproducible_and_a_zero_seed_is_not_absorbing() {
-        let a: Vec<u64> = (0..8).scan(Rng::from_seed(12345), |r, _| Some(r.next_u64())).collect();
-        let b: Vec<u64> = (0..8).scan(Rng::from_seed(12345), |r, _| Some(r.next_u64())).collect();
+        let a: Vec<u64> = (0..8)
+            .scan(Rng::from_seed(12345), |r, _| Some(r.next_u64()))
+            .collect();
+        let b: Vec<u64> = (0..8)
+            .scan(Rng::from_seed(12345), |r, _| Some(r.next_u64()))
+            .collect();
         assert_eq!(a, b, "the same seed must give the same stream");
-        let z: Vec<u64> = (0..8).scan(Rng::from_seed(0), |r, _| Some(r.next_u64())).collect();
+        let z: Vec<u64> = (0..8)
+            .scan(Rng::from_seed(0), |r, _| Some(r.next_u64()))
+            .collect();
         assert!(
             z.windows(2).any(|w| w[0] != w[1]),
             "a zero seed must not collapse to a constant stream"

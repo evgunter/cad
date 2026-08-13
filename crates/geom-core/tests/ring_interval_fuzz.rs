@@ -36,16 +36,20 @@
 //! - **Poison paths**: NaN/inverted construction, and division by a
 //!   divisor that straddles or touches zero.
 //!
-//! The default run is a seeded reduced sweep (`REDUCED_DIVISOR`); the
-//! full sweep is behind `#[ignore]`:
+//! # Depth
+//!
+//! Counts are multiples of `geom_core::fuzz`'s EFFORT dial and the seed
+//! varies per run (both logged by `fuzz::start`). The shipped level is a
+//! smoke sweep; `CAD_FUZZ_EFFORT=64` restores roughly the full sweep this
+//! file used to keep behind an `#[ignore]`d twin, and the dial replaces
+//! that twin entirely:
 //!
 //! ```text
-//! cargo test -p geom-core --test ring_interval_fuzz -- --ignored --nocapture
+//! CAD_FUZZ_EFFORT=64 cargo test -p geom-core --test all -- ring_interval_fuzz --nocapture
 //! ```
-//!
-//! Both modes are bit-reproducible: one seed, `xorshift64*`, no threads.
 
 use geom_core::RingInterval;
+use geom_core::fuzz;
 use std::cmp::Ordering;
 
 // ---------------------------------------------------------------- Big
@@ -234,16 +238,22 @@ fn cmp_f64_vs_quot(x: f64, a: f64, b: f64) -> Ordering {
 
 /// Asserts `[r.lo(), r.hi()]` brackets the exact value `v`.
 fn assert_brackets(r: RingInterval, v: &Big, what: &str) {
-    assert!(!r.is_poison(), "{what}: unexpected poison");
+    assert!(
+        !r.is_poison(),
+        "{what}: unexpected poison — {}",
+        fuzz::replay()
+    );
     assert!(
         cmp_f64_vs_big(r.lo(), v) != Ordering::Greater,
-        "{what}: LO ABOVE TRUTH ({:e})",
-        r.lo()
+        "{what}: LO ABOVE TRUTH ({:e}) — {}",
+        r.lo(),
+        fuzz::replay()
     );
     assert!(
         cmp_f64_vs_big(r.hi(), v) != Ordering::Less,
-        "{what}: HI BELOW TRUTH ({:e})",
-        r.hi()
+        "{what}: HI BELOW TRUTH ({:e}) — {}",
+        r.hi(),
+        fuzz::replay()
     );
 }
 
@@ -268,29 +278,47 @@ fn check_point_ops(a: f64, b: f64) {
         (pro, a * b, "mul"),
     ] {
         if rn.is_finite() {
-            assert!(r.contains(rn), "{what}: RN result {rn:e} not contained");
+            assert!(
+                r.contains(rn),
+                "{what}: RN result {rn:e} not contained — {}",
+                fuzz::replay()
+            );
         }
     }
 
     let quo = pa / pb;
     if b == 0.0 {
-        assert!(quo.is_poison(), "division by zero must poison");
+        assert!(
+            quo.is_poison(),
+            "division by zero must poison — {}",
+            fuzz::replay()
+        );
         return;
     }
-    assert!(!quo.is_poison(), "{a:e} / {b:e}: unexpected poison");
+    assert!(
+        !quo.is_poison(),
+        "{a:e} / {b:e}: unexpected poison — {}",
+        fuzz::replay()
+    );
     assert!(
         cmp_f64_vs_quot(quo.lo(), a, b) != Ordering::Greater,
-        "div: LO ABOVE TRUTH a={a:e} b={b:e} lo={:e}",
-        quo.lo()
+        "div: LO ABOVE TRUTH a={a:e} b={b:e} lo={:e} — {}",
+        quo.lo(),
+        fuzz::replay()
     );
     assert!(
         cmp_f64_vs_quot(quo.hi(), a, b) != Ordering::Less,
-        "div: HI BELOW TRUTH a={a:e} b={b:e} hi={:e}",
-        quo.hi()
+        "div: HI BELOW TRUTH a={a:e} b={b:e} hi={:e} — {}",
+        quo.hi(),
+        fuzz::replay()
     );
     let rn = a / b;
     if rn.is_finite() {
-        assert!(quo.contains(rn), "div: RN result {rn:e} not contained");
+        assert!(
+            quo.contains(rn),
+            "div: RN result {rn:e} not contained — {}",
+            fuzz::replay()
+        );
     }
 }
 
@@ -319,11 +347,27 @@ fn check_interval_ops(a0: f64, a1: f64, b0: f64, b1: f64) {
             assert_brackets(dif, &bx.add(&by.negated()), "interval sub");
             assert_brackets(pro, &big_prod(x, y), "interval mul");
             if blo > 0.0 || bhi < 0.0 {
-                assert!(!quo.is_poison(), "interval div: unexpected poison");
-                assert!(cmp_f64_vs_quot(quo.lo(), x, y) != Ordering::Greater);
-                assert!(cmp_f64_vs_quot(quo.hi(), x, y) != Ordering::Less);
+                assert!(
+                    !quo.is_poison(),
+                    "interval div: unexpected poison — {}",
+                    fuzz::replay()
+                );
+                assert!(
+                    cmp_f64_vs_quot(quo.lo(), x, y) != Ordering::Greater,
+                    "interval div: LO ABOVE TRUTH — {}",
+                    fuzz::replay()
+                );
+                assert!(
+                    cmp_f64_vs_quot(quo.hi(), x, y) != Ordering::Less,
+                    "interval div: HI BELOW TRUTH — {}",
+                    fuzz::replay()
+                );
             } else {
-                assert!(quo.is_poison(), "zero-straddling divisor must poison");
+                assert!(
+                    quo.is_poison(),
+                    "zero-straddling divisor must poison — {}",
+                    fuzz::replay()
+                );
             }
         }
     }
@@ -331,48 +375,35 @@ fn check_interval_ops(a0: f64, a1: f64, b0: f64, b1: f64) {
 
 // -------------------------------------------------------------- lanes
 
-/// `xorshift64*`, the PR 1 harness's generator: one seed, no threads,
-/// bit-reproducible.
-struct Rng(u64);
+/// A raw bit pattern reinterpreted as `f64` — every exponent, subnormals,
+/// signed zeros, NaNs and infinities included (the callers filter).
+fn f64_raw(rng: &mut fuzz::Rng) -> f64 {
+    f64::from_bits(rng.next_u64())
+}
 
-impl Rng {
-    fn next(&mut self) -> u64 {
-        let mut x = self.0;
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
-        self.0 = x;
-        x.wrapping_mul(0x2545_f491_4f6c_dd1d)
-    }
+/// Finite `f64` with the exponent forced near `center` (± 32 binades).
+fn f64_near_exp(rng: &mut fuzz::Rng, center: i32) -> f64 {
+    let m = rng.next_u64() & 0xf_ffff_ffff_ffff;
+    let e = (center + 1023 + (rng.next_u64() % 65) as i32 - 32).clamp(0, 2046) as u64;
+    let s = rng.next_u64() & (1 << 63);
+    f64::from_bits(s | (e << 52) | m)
+}
 
-    fn f64_raw(&mut self) -> f64 {
-        f64::from_bits(self.next())
-    }
+fn subnormal(rng: &mut fuzz::Rng) -> f64 {
+    let m = (rng.next_u64() & 0xf_ffff_ffff_ffff) | 1;
+    let s = rng.next_u64() & (1 << 63);
+    f64::from_bits(s | m)
+}
 
-    /// Finite `f64` with the exponent forced near `center` (± 32 binades).
-    fn f64_near_exp(&mut self, center: i32) -> f64 {
-        let m = self.next() & 0xf_ffff_ffff_ffff;
-        let e = (center + 1023 + (self.next() % 65) as i32 - 32).clamp(0, 2046) as u64;
-        let s = self.next() & (1 << 63);
-        f64::from_bits(s | (e << 52) | m)
-    }
-
-    fn subnormal(&mut self) -> f64 {
-        let m = (self.next() & 0xf_ffff_ffff_ffff) | 1;
-        let s = self.next() & (1 << 63);
-        f64::from_bits(s | m)
-    }
-
-    /// A short-mantissa dyadic `±m·2^e` with `m` odd and `< 2^10` — small
-    /// enough that `m^12` still fits `u128`, which is what makes the
-    /// `powi` lane's exact oracle possible.
-    fn short_dyadic(&mut self, exp_span: i32) -> (f64, bool, u128, i32) {
-        let m = ((self.next() & 0x3ff) | 1) as u128;
-        let e = (self.next() % (2 * exp_span as u64 + 1)) as i32 - exp_span;
-        let neg = self.next() & 1 == 1;
-        let v = (m as f64) * pow2(e) * if neg { -1.0 } else { 1.0 };
-        (v, neg, m, e)
-    }
+/// A short-mantissa dyadic `±m·2^e` with `m` odd and `< 2^10` — small
+/// enough that `m^12` still fits `u128`, which is what makes the
+/// `powi` lane's exact oracle possible.
+fn short_dyadic(rng: &mut fuzz::Rng, exp_span: i32) -> (f64, bool, u128, i32) {
+    let m = ((rng.next_u64() & 0x3ff) | 1) as u128;
+    let e = (rng.next_u64() % (2 * exp_span as u64 + 1)) as i32 - exp_span;
+    let neg = rng.next_u64() & 1 == 1;
+    let v = (m as f64) * pow2(e) * if neg { -1.0 } else { 1.0 };
+    (v, neg, m, e)
 }
 
 /// Exact power of two (no `powi`, which would round).
@@ -391,20 +422,13 @@ fn pow2(e: i32) -> f64 {
     }
 }
 
-/// Divisor applied to every lane's case count in the default run; `1` is
-/// the full sweep. Chosen so the default lands near 1.1M cases while
-/// keeping ALL lanes (a cheaper sweep that dropped a lane would lose the
-/// subnormal and near-MAX coverage lanes 2–4 exist for).
-const REDUCED_DIVISOR: u64 = 8;
-
-fn fuzz(divisor: u64, label: &str) {
-    let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+fn sweep(rng: &mut fuzz::Rng) {
     let mut n = 0u64;
 
     // Lane 1: raw random bit patterns — full exponent sweep, subnormals,
     // signed zeros, everything.
-    for _ in 0..(6_000_000u64 / divisor) {
-        let (a, b) = (rng.f64_raw(), rng.f64_raw());
+    for _ in 0..fuzz::scaled(93_750) {
+        let (a, b) = (f64_raw(rng), f64_raw(rng));
         if !a.is_finite() || !b.is_finite() {
             continue;
         }
@@ -415,21 +439,23 @@ fn fuzz(divisor: u64, label: &str) {
     // Lane 2: magnitude windows, including the subnormal boundary and
     // near-MAX (where widening meets overflow).
     for center in [-1074i32, -1022, -600, -60, 0, 60, 600, 1020] {
-        for _ in 0..(120_000u64 / divisor) {
-            let a = rng.f64_near_exp(center);
-            let bc = (rng.next() % 41) as i32 - 20;
-            let b = rng.f64_near_exp(bc);
+        for _ in 0..fuzz::scaled(1_875) {
+            let a = f64_near_exp(rng, center);
+            let bc = (rng.next_u64() % 41) as i32 - 20;
+            let b = f64_near_exp(rng, bc);
             check_point_ops(a, b);
-            check_point_ops(a, rng.subnormal());
-            check_point_ops(rng.subnormal(), b);
+            let s1 = subnormal(rng);
+            check_point_ops(a, s1);
+            let s2 = subnormal(rng);
+            check_point_ops(s2, b);
             n += 3;
         }
     }
 
     // Lane 3: non-degenerate brackets (the four-corner logic).
-    for _ in 0..(400_000u64 / divisor) {
-        let (a0, a1) = (rng.f64_raw(), rng.f64_raw());
-        let (b0, b1) = (rng.f64_raw(), rng.f64_raw());
+    for _ in 0..fuzz::scaled(6_250) {
+        let (a0, a1) = (f64_raw(rng), f64_raw(rng));
+        let (b0, b1) = (f64_raw(rng), f64_raw(rng));
         if !(a0.is_finite() && a1.is_finite() && b0.is_finite() && b1.is_finite()) {
             continue;
         }
@@ -456,8 +482,8 @@ fn fuzz(divisor: u64, label: &str) {
             check_point_ops(a, b);
             n += 1;
         }
-        for _ in 0..(20_000u64 / divisor) {
-            let b = rng.f64_raw();
+        for _ in 0..fuzz::scaled(313) {
+            let b = f64_raw(rng);
             if b.is_finite() {
                 check_point_ops(a, b);
                 check_point_ops(b, a);
@@ -467,7 +493,7 @@ fn fuzz(divisor: u64, label: &str) {
     }
 
     println!(
-        "[{label}] {n} exact-comparator cases (~{} endpoint comparisons), \
+        "[ring-fuzz] {n} exact-comparator cases (~{} endpoint comparisons), \
          0 containment violations",
         n * 8
     );
@@ -491,7 +517,11 @@ fn check_powi(v: f64, neg: bool, m: u128, e: i32, n: i32) {
     }
     // n < 0: truth is 1 / (±mp·2^(e·k)). Compare a bound x against it by
     // cross-multiplication with the (nonzero, sign-known) denominator.
-    assert!(!r.is_poison(), "{v:e}^{n}: unexpected poison");
+    assert!(
+        !r.is_poison(),
+        "{v:e}^{n}: unexpected poison — {}",
+        fuzz::replay()
+    );
     let one = Big::term(false, 1, 0);
     let cmp = |x: f64| -> Ordering {
         if x == f64::INFINITY {
@@ -505,29 +535,30 @@ fn check_powi(v: f64, neg: bool, m: u128, e: i32, n: i32) {
         let s = prod.add(&one.negated()).sign();
         if sneg { s.reverse() } else { s }
     };
-    assert!(cmp(r.lo()) != Ordering::Greater, "powi LO above truth");
-    assert!(cmp(r.hi()) != Ordering::Less, "powi HI below truth");
+    assert!(
+        cmp(r.lo()) != Ordering::Greater,
+        "powi LO above truth — {}",
+        fuzz::replay()
+    );
+    assert!(
+        cmp(r.hi()) != Ordering::Less,
+        "powi HI below truth — {}",
+        fuzz::replay()
+    );
 }
 
 #[test]
 fn ring_ops_are_sound_against_exact_arithmetic() {
-    fuzz(REDUCED_DIVISOR, "reduced");
-}
-
-/// The full sweep the reduced default is a subset of (~9.7M cases,
-/// measured — ~78M exact endpoint comparisons).
-#[test]
-#[ignore = "full sweep: run explicitly with --ignored"]
-fn ring_ops_are_sound_against_exact_arithmetic_full() {
-    fuzz(1, "full");
+    let mut rng = fuzz::start("ring_interval_fuzz::ring_ops");
+    sweep(&mut rng);
 }
 
 #[test]
 fn powi_is_sound_against_exact_arithmetic() {
-    let mut rng = Rng(0x243f_6a88_85a3_08d3);
+    let mut rng = fuzz::start("ring_interval_fuzz::powi");
     let mut n_cases = 0u64;
-    for _ in 0..40_000 {
-        let (v, neg, m, e) = rng.short_dyadic(60);
+    for _ in 0..fuzz::scaled(5_000) {
+        let (v, neg, m, e) = short_dyadic(&mut rng, 60);
         for n in -6i32..=12 {
             check_powi(v, neg, m, e, n);
             n_cases += 1;
@@ -535,8 +566,8 @@ fn powi_is_sound_against_exact_arithmetic() {
     }
     // The even-power rule on zero-straddling brackets, at scale: the
     // lower bound is exactly 0 and the upper bound dominates both ends.
-    for _ in 0..200_000 {
-        let (lo, hi) = (rng.f64_raw(), rng.f64_raw());
+    for _ in 0..fuzz::scaled(25_000) {
+        let (lo, hi) = (f64_raw(&mut rng), f64_raw(&mut rng));
         if !(lo.is_finite() && hi.is_finite()) || !(lo < 0.0 && hi > 0.0) {
             continue;
         }
@@ -546,7 +577,12 @@ fn powi_is_sound_against_exact_arithmetic() {
             if p.is_poison() {
                 continue; // overflow to an indeterminate corner: honest
             }
-            assert!(p.lo() == 0.0, "even power lower bound {} != 0", p.lo());
+            assert!(
+                p.lo() == 0.0,
+                "even power lower bound {} != 0 — {}",
+                p.lo(),
+                fuzz::replay()
+            );
             n_cases += 1;
         }
     }
@@ -555,27 +591,35 @@ fn powi_is_sound_against_exact_arithmetic() {
 
 #[test]
 fn poison_paths_are_total() {
-    let mut rng = Rng(0xb504_f333_f9de_6484);
+    let mut rng = fuzz::start("ring_interval_fuzz::poison");
     let mut n = 0u64;
-    for _ in 0..200_000 {
-        let a = rng.f64_raw();
-        let b = rng.f64_raw();
+    for _ in 0..fuzz::scaled(25_000) {
+        let a = f64_raw(&mut rng);
+        let b = f64_raw(&mut rng);
         // Non-finite points are poison, and poison flows.
         if !a.is_finite() {
             let p = RingInterval::point(a);
-            assert!(p.is_poison());
+            assert!(p.is_poison(), "{}", fuzz::replay());
             let q = RingInterval::point(if b.is_finite() { b } else { 1.0 });
             for r in [p + q, q + p, p - q, p * q, p / q, q / p, -p, p.sqr()] {
-                assert!(r.is_poison(), "poison must flow");
+                assert!(r.is_poison(), "poison must flow — {}", fuzz::replay());
             }
             n += 1;
         }
         // Inverted or NaN brackets are poison.
         if a.is_finite() && b.is_finite() && a > b {
-            assert!(RingInterval::from_bounds(a, b).is_poison());
+            assert!(
+                RingInterval::from_bounds(a, b).is_poison(),
+                "inverted bracket must poison — {}",
+                fuzz::replay()
+            );
             n += 1;
         }
-        assert!(RingInterval::from_bounds(f64::NAN, b).is_poison());
+        assert!(
+            RingInterval::from_bounds(f64::NAN, b).is_poison(),
+            "NaN bracket must poison — {}",
+            fuzz::replay()
+        );
         // Any divisor whose bracket touches zero is refused.
         if a.is_finite() && b.is_finite() {
             let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
@@ -583,7 +627,8 @@ fn poison_paths_are_total() {
                 let d = RingInterval::from_bounds(lo, hi);
                 assert!(
                     (RingInterval::point(1.0) / d).is_poison(),
-                    "divisor [{lo:e}, {hi:e}] touches zero and must poison"
+                    "divisor [{lo:e}, {hi:e}] touches zero and must poison — {}",
+                    fuzz::replay()
                 );
                 n += 1;
             }
