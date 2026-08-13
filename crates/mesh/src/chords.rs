@@ -451,19 +451,16 @@ fn rational_carrier_m_bound(
     let two = RingInterval::point(2.0);
     let mut sq_acc: Option<RingInterval> = None;
     for s in kv.first_span()..=kv.last_span() {
-        if !kv.span_is_nonempty(s) {
-            continue;
-        }
-        let Some(first) = s.checked_sub(p) else {
-            return Err(TessellateError::MissingEntity {
-                what: "NURBS span below its degree",
-            });
-        };
-        if s >= refined.control().len() {
-            return Err(TessellateError::MissingEntity {
-                what: "NURBS span beyond its control net",
-            });
-        }
+        // Emptiness check and window validation in one step: `span`
+        // yields `None` exactly for the empty spans this loop skipped,
+        // and its `first_control` is `s − p` computed once, in range.
+        // The two runtime refusals this replaces ("span below its
+        // degree", "span beyond its control net") are now
+        // unrepresentable: `Span` exists only for `p ≤ s ≤ last_span`,
+        // and `last_span = knots.len() − p − 2 = control_count − 1`,
+        // which `validate_counts` pins to `refined.control().len()`.
+        let Some(span) = kv.span(s) else { continue };
+        let first = span.first_control();
         // The span centroid — a translation CHOICE (any finite c is
         // sound), f64 structure, fixed order.
         let mut csum = [0.0f64; 3];
@@ -970,5 +967,68 @@ mod tests {
         let w: Vec<f64> = (0..pts.len()).map(|i| [0.3, 2.0, 0.9][i % 3]).collect();
         let n = NurbsCurve3::new(kv, pts, w).unwrap();
         r1_check("rational_mult_p1_carrier", &n);
+    }
+
+    /// Builds a rational cubic whose single interior knot has the given
+    /// multiplicity.
+    fn mult_cubic(multiplicity: usize) -> NurbsCurve3<f64> {
+        let mut knots = vec![0.0; 4];
+        knots.extend(core::iter::repeat_n(0.5, multiplicity));
+        knots.extend(core::iter::repeat_n(1.0, 4));
+        let kv = KnotVector::clamped(knots, 3).expect("clamped cubic");
+        #[allow(clippy::cast_precision_loss)]
+        let pts: Vec<Point3<f64>> = (0..kv.control_count())
+            .map(|i| {
+                let t = i as f64 / 6.0;
+                Point3::new(t, (3.0 * t).cos(), 0.7 * t)
+            })
+            .collect();
+        let w: Vec<f64> = (0..pts.len()).map(|i| [1.4, 0.5, 2.2][i % 3]).collect();
+        NurbsCurve3::new(kv, pts, w).expect("legal rational cubic")
+    }
+
+    /// The row that pins the deletion of the two runtime refusals
+    /// [`rational_carrier_m_bound`]'s span loop used to carry ("NURBS
+    /// span below its degree", "NURBS span beyond its control net").
+    /// Drawing the window from a `Span` makes both unrepresentable, so
+    /// the loop head's ONLY remaining exit is the empty-span skip —
+    /// and an interior knot of multiplicity ≥ 2 is exactly what
+    /// produces one (`knots[s] == knots[s+1]` for an `s` inside
+    /// `[first_span, last_span]`).
+    ///
+    /// The `any(span(s).is_none())` assertion is the anti-slack guard:
+    /// it fails loudly if refinement ever stops presenting an empty
+    /// span, which would silently make this row cover nothing.
+    ///
+    /// Multiplicity `p` itself is checked too, and it is a REFUSAL, not
+    /// a bound: a C⁰ kink leaves the certified inventory at the
+    /// degree/kink gate, well before the span loop. That exit is
+    /// `UnsupportedCurve` and always was — the deleted `MissingEntity`
+    /// refusals never guarded it.
+    #[test]
+    fn empty_spans_survive_the_deleted_window_guards() {
+        // p − 1 = 2: inside the inventory, and it presents an empty span.
+        let n = mult_cubic(2);
+        let refined = n
+            .refine_knots(&crate::nurbs_cert::rational_split_points(n.knots()))
+            .expect("refinement materialises");
+        let rkv = refined.knots();
+        assert!(
+            (rkv.first_span()..=rkv.last_span()).any(|s| rkv.span(s).is_none()),
+            "the multiplicity-2 fixture must still present an empty span after \
+             refinement — otherwise this row stops covering the skip"
+        );
+        r1_check("rational_mult_2_carrier", &n);
+
+        // p = 3: refused, typed, and NOT by either deleted message.
+        let n = mult_cubic(3);
+        let (d0, d1) = n.knots().domain();
+        match nurbs_chord_count(&n, d1 - d0, 1e-3, EdgeKey::default()) {
+            Err(TessellateError::UnsupportedCurve { note, .. }) => assert!(
+                note.contains("C⁰ kink"),
+                "multiplicity-p refusal should name the C⁰ kink, got {note:?}"
+            ),
+            other => panic!("multiplicity p must leave the inventory, got {other:?}"),
+        }
     }
 }

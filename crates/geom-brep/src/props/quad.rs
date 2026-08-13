@@ -496,11 +496,16 @@ fn bspline_eval_ring(kv: &KnotVector, coeffs: &[RingInterval], t: f64) -> RingIn
     }
     let p = kv.degree();
     let u = kv.knots();
-    let span = kv.find_span(t);
-    let mut d: Vec<RingInterval> = (0..=p).map(|j| coeffs[span - p + j]).collect();
+    // The window is validated once, by `span_at`, and carries its own
+    // first control point: the `span − p` this loop used to redo twice
+    // (once per pass) has no use site left and cannot underflow. Its
+    // in-range-ness is the `Span` invariant, so indexing `coeffs`
+    // needs only the length check above.
+    let first = kv.span_at(t).first_control();
+    let mut d: Vec<RingInterval> = (0..=p).map(|j| coeffs[first + j]).collect();
     for r in 1..=p {
         for j in (r..=p).rev() {
-            let i = span - p + j;
+            let i = first + j;
             let denom = pt(u[i + p + 1 - r]) - pt(u[i]);
             let alpha = (pt(t) - pt(u[i])) / denom;
             d[j] = (pt(1.0) - alpha) * d[j - 1] + alpha * d[j];
