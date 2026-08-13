@@ -18,6 +18,7 @@
 //!   δ·r = 500ε >> Kε decisively SPLIT them (spurious refusal);
 //!   post-fix must compute.
 
+#![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::props::{LoopEdge, curved_face};
