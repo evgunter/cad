@@ -415,6 +415,85 @@ fn classify_len<T: Decide>(
         .map_err(|cause| PropsError::Escalated { cause })
 }
 
+/// The convergence meter: the flux enclosure's width expressed as the
+/// **mean boundary displacement** it corresponds to,
+/// `width(flux)/(3·area)` (module docs), with the area enclosure's
+/// midpoint as the lever arm. Every convergence decision and every
+/// [`PropsError::QuadratureBudget`] payload in this file comes from
+/// here.
+///
+/// INVARIANT: the returned length is FINITE and non-negative — so a
+/// budget refusal carries a number the caller can act on *by
+/// construction*, never the `+inf` a cancelled lever used to produce
+/// and never a `NaN`.
+///
+/// **Why the lever needs a guard.** `area` is accumulated as
+/// `widen(g_mid, pad)` per cell — a SYMMETRIC pad — so once the
+/// Lipschitz pad dwarfs the true area (measured: pad ≈ 1.7e20 against
+/// a true area of 1 m² on the extreme-weight bilinear square),
+/// `g_mid ± pad` rounds to exactly `∓pad` and `area.lo() + area.hi()`
+/// cancels to EXACTLY 0.0. The unguarded division then yielded `+inf`,
+/// and the refusal reported the enclosure as "stalled" at that width
+/// — while the flux enclosure it was measuring went on narrowing round
+/// by round, as an O(h²) rule must. The payload lied, and the
+/// convergence predicate was decided by a division artifact instead of
+/// by the enclosure. When the flux width is also
+/// zero — [`cylinder_cut_face`]'s `area = [0, 0]` for a zero-UV-area
+/// trim loop — the same division is `0/0 = NaN`, which the funnel
+/// turns into `Indeterminate{margin: Invalid}`: a MIS-TYPED refusal,
+/// since [`PropsError::Escalated`] means an *in-band* margin, not a
+/// degenerate face.
+///
+/// **Why [`PropsError::DegenerateFace`] is the honest variant** for a
+/// non-positive lever rather than a budget stall: `lever ≤ 0` forces
+/// `area.lo() ≤ 0`, i.e. the enclosure does not certify that the face
+/// has positive extent — exactly the verdict the
+/// `props_quad_face_extent` gate reaches from the same `area.lo()` one
+/// step later, reading the same number: definitely so when the
+/// cancellation is large (an `area.lo()` of −1e20 is nowhere near any
+/// band), and where `area` is exactly `[0, 0]` — the zero-UV-area trim
+/// loop — the extent is not a tolerance question at all, it is zero.
+/// The meter invents no refusal of its own; it reaches the extent
+/// verdict one step earlier, on the same evidence.
+///
+/// **Why the midpoint stays the lever** — not `area.hi()`, not a
+/// certified-positive lower lever like `area.lo()`: every face that
+/// certifies today must keep certifying with BIT-IDENTICAL numbers
+/// (D9), and both alternatives move the meter. `area.hi()` shrinks the
+/// metered displacement, so faces the reviewed inventory refuses would
+/// start certifying; `area.lo()` inflates it, de-certifying real
+/// bodies. Which point of the area enclosure the meter divides by is a
+/// metering decision (module docs) and would have to be re-measured
+/// and re-ratified as one — the defect fixed here is the *unguarded
+/// division*, and only that.
+fn mean_boundary_displacement(flux: RingInterval, area: RingInterval) -> Result<f64, PropsError> {
+    let width = flux.width();
+    // Bit-for-bit the pre-guard expression: `(lo + hi)·0.5`, times 3.
+    let denom = 3.0 * ((area.lo() + area.hi()) * 0.5);
+    // A poisoned enclosure reads as NaN at both endpoints, so it lands
+    // here rather than in the degeneracy branch: it is not a statement
+    // about the face's extent at all.
+    if !width.is_finite() || !denom.is_finite() {
+        return Err(PropsError::QuadratureUnsupported {
+            what: "a quadrature enclosure with a non-finite width or area (a poisoned \
+                   bracket) — the convergence meter has no honest length to report, \
+                   and a refusal carrying a non-finite width would misstate the \
+                   enclosure",
+        });
+    }
+    if denom <= 0.0 {
+        return Err(PropsError::DegenerateFace);
+    }
+    let len = width / denom;
+    if !len.is_finite() {
+        // Finite/finite still overflows on a subnormal lever against a
+        // wide flux: the area is zero AT THE FLUX'S SCALE — the same
+        // degeneracy the branch above names, reached by rounding.
+        return Err(PropsError::DegenerateFace);
+    }
+    Ok(len)
+}
+
 /// The flux and area enclosures of a **cylinder** face with a curved
 /// trim loop (module docs: the Green form, the composite rule, the
 /// refinement funnel, the honesty pads).
@@ -436,6 +515,10 @@ pub fn cylinder_cut_face<T: Decide>(
 ) -> Result<FaceCutBounds, PropsError> {
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
     let mut pieces = QUAD_INIT_PIECES;
+    // INVARIANT: every round assigns this from
+    // `mean_boundary_displacement`, which returns only finite
+    // lengths — so the budget refusal below carries a finite width
+    // by construction (the `eps_posture` contract the suites pin).
     let mut last_width_len = f64::NAN;
     for round in 0..=QUAD_MAX_ROUNDS {
         // Signed UV area at this resolution: A_s = ∮ u dv.
@@ -446,9 +529,10 @@ pub fn cylinder_cut_face<T: Decide>(
         let area = (radius * a_s).abs_enclosure();
         let flux = radius.sqr() * a_s + o_dot_va;
         // Convergence: mean-boundary-displacement metering (module
-        // docs); the area midpoint is the lever arm.
-        let lever = (area.lo() + area.hi()) * 0.5;
-        let width_len = flux.width() / (3.0 * lever);
+        // docs); the area midpoint is the lever arm, guarded — a
+        // zero-UV-area trim loop makes `area` exactly `[0, 0]` here,
+        // which is a degenerate face and not a tolerance question.
+        let width_len = mean_boundary_displacement(flux, area)?;
         last_width_len = width_len;
         if classify_len::<T>(
             "props_quad_converged",
@@ -1943,22 +2027,67 @@ fn quotient_second(
 /// [`PropsError::QuadratureBudget`] carrying the measured width; a
 /// wide answer is never returned silently.
 ///
-/// # The practical envelope (measured, R1's n2)
+/// # The practical envelope (measured; every row re-measured)
 ///
 /// The rule is O(h²) and the meter is a **LENGTH**, so the achievable
 /// width scales roughly linearly with part size while the target does
-/// not. At ε = 1e-9 and 1–2 m parts the flagship rows converge at
-/// round 6 with ~1.6× headroom; measured refusals just outside it are
-/// a quarter torus (R = 2, r = 0.5) at width 1.146e-6 against a
-/// 1.024e-6 target, a weight-ratio-100 Möbius reparameterization at
-/// 5.2e-2, and a 1e3-m cylinder. Every one of those is a typed
-/// [`PropsError::QuadratureBudget`] carrying its measured width —
-/// the frontier is honest, but it is close, and callers on large or
-/// extreme-weight parts should expect refusals rather than answers.
-/// The next levers, in order, are a higher-order rule (Simpson needs
-/// `A` to fifth derivatives) and a `w`-uniform-in-v fast path (loft
-/// walls satisfy it: weights come from the profile direction only, so
-/// the v integral is exactly polynomial).
+/// not: the frontier is a part-SIZE frontier, and metre-scale parts sit
+/// ON it rather than comfortably inside. The refinement schedule is
+/// fixed (D9), so each carrier bottoms out at the same displacement on
+/// every ε row and only the `1024·ε` target moves. Measured floors
+/// (`crates/geom-brep/tests/review_r1_rational_probes.rs`, which pins
+/// each one), against the DEFAULT target of 1.024e-6 m:
+///
+/// ```text
+/// carrier                                      floor (m)   @ ε = 1e-9
+/// 1 µm quarter cylinder                          <1e-9     certifies*
+/// 1 m × 2 m quarter cylinder, single span       1.535e-7   certifies (6.7×)
+/// unit sphere octant (degenerate pole row)      9.683e-7   certifies (1.06×)
+/// quarter torus, R = 2 m, r = 0.5 m             1.146e-6   REFUSES (1.12× over)
+/// 1 m × 2 m half cylinder, TWO spans            1.304e-6   REFUSES (1.27× over)
+/// 5 m C0-kink extruded wall                     4.785e-4   REFUSES
+/// 1 km quarter cylinder                         1.535e-4   REFUSES
+/// warped bilinear, weights 1e-1/1e1             1.916e-2   REFUSES
+/// Möbius quarter cylinder, weight ratio 100     5.165e-2   REFUSES
+/// bilinear square, weights 1e-3/1e3                  —     DEGENERATE
+/// ```
+///
+/// \* Convergence is never the small end's problem — its floor scales
+/// with the part. The FACE-EXTENT gate is: at ε = 1e-6 the 1 µm
+/// cylinder's 0.22 µm mean width is under the run's own tolerance and
+/// the same face is refused [`PropsError::DegenerateFace`]. That gate
+/// is older than the meter guard and behaves identically with and
+/// without it.
+///
+/// Read that honestly: a plain 1 m × 2 m half cylinder written as the
+/// standard TWO-span quadratic — an ordinary part, not an adversarial
+/// one — misses the default ε by 27%, and the sphere octant clears it
+/// by 6%. The single-span twin of the same cylinder passes with 6.7×,
+/// so "metre-scale parts converge" holds only for the simplest
+/// spanning; splitting the same locus into two spans is enough to
+/// cross the line. Callers on large, multi-span, or extreme-weight
+/// parts should expect refusals rather than answers.
+///
+/// The last row is a different failure and is named separately: with a
+/// 1e-3/1e3 weight spread the area rule's Lipschitz pad reaches ~1.7e20
+/// against a true area of 1 m², and the pad is SYMMETRIC, so the area
+/// enclosure straddles zero. There is then no lever to meter against
+/// and no positive extent to certify, and the face is refused
+/// [`PropsError::DegenerateFace`] — a false negative on a patch that is
+/// plainly a unit square, and the one refusal here that carries no
+/// width. (Before the meter was guarded, this case divided by a lever
+/// that had cancelled to exactly 0.0 and refused at the budget quoting
+/// an `inf` displacement — a refusal that misdescribed a flux
+/// enclosure which was still narrowing round by round.)
+///
+/// Every other refusal is a typed [`PropsError::QuadratureBudget`]
+/// carrying its measured width. The next levers, in order, are a
+/// higher-order rule (Simpson needs `A` to fifth derivatives), a
+/// tighter area pad (the symmetric Lipschitz pad is what puts the
+/// extreme-weight rows out of reach — it is the AREA, not the flux,
+/// that fails there), and a `w`-uniform-in-v fast path (loft walls
+/// satisfy it: weights come from the profile direction only, so the v
+/// integral is exactly polynomial).
 ///
 /// # Errors
 ///
@@ -2127,6 +2256,10 @@ fn rational_patch_face<T: Decide>(
 
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
     let mut pieces = QUAD2_INIT_PIECES;
+    // INVARIANT: every round assigns this from
+    // `mean_boundary_displacement`, which returns only finite
+    // lengths — so the budget refusal below carries a finite width
+    // by construction (the `eps_posture` contract the suites pin).
     let mut last_width_len = f64::NAN;
     for round in 0..=QUAD2_RATIONAL_MAX_ROUNDS {
         let mut flux = RingInterval::zero();
@@ -2165,8 +2298,7 @@ fn rational_patch_face<T: Decide>(
                        zero, or a non-finite net) — refusing rather than answering wide",
             });
         }
-        let lever = (area.lo() + area.hi()) * 0.5;
-        let width_len = flux.width() / (3.0 * lever);
+        let width_len = mean_boundary_displacement(flux, area)?;
         last_width_len = width_len;
         if classify_len::<T>(
             "props_quad_converged",
@@ -2299,6 +2431,10 @@ pub fn nurbs_patch_face<T: Decide>(
 
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
     let mut pieces = QUAD2_INIT_PIECES;
+    // INVARIANT: every round assigns this from
+    // `mean_boundary_displacement`, which returns only finite
+    // lengths — so the budget refusal below carries a finite width
+    // by construction (the `eps_posture` contract the suites pin).
     let mut last_width_len = f64::NAN;
     // GLOBAL second-derivative hulls, computed ONCE (the whole-rect
     // hull contains every knot-free cell's, so the per-cell remainder
@@ -2386,8 +2522,7 @@ pub fn nurbs_patch_face<T: Decide>(
         patch_flux_exact(&s, su.as_ref(), sv.as_ref(), kv_u, kv_v, (u0, u1, v0, v1))
     {
         let flux = widen(exact, boundary_defect * p_bound);
-        let lever = (area.lo() + area.hi()) * 0.5;
-        let width_len = flux.width() / (3.0 * lever);
+        let width_len = mean_boundary_displacement(flux, area)?;
         if classify_len::<T>(
             "props_quad_converged",
             Margin::of(target_len - width_len),
@@ -2458,8 +2593,7 @@ pub fn nurbs_patch_face<T: Decide>(
         }
         let flux = widen(flux, boundary_defect * p_bound);
         // Convergence: the shared mean-boundary-displacement meter.
-        let lever = (area.lo() + area.hi()) * 0.5;
-        let width_len = flux.width() / (3.0 * lever);
+        let width_len = mean_boundary_displacement(flux, area)?;
         last_width_len = width_len;
         if classify_len::<T>(
             "props_quad_converged",
