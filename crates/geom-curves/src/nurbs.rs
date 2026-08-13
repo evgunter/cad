@@ -160,7 +160,7 @@ macro_rules! nurbs_curve {
             /// outside the span's interval still yields the span's
             /// polynomial extension (documented garbage-out).
             pub fn eval_in_span(&self, span: Span, t: T) -> $Point<T> {
-                let basis = spline::basis::basis_funs(&self.knots, span.index(), t);
+                let basis = spline::basis::basis_funs(&self.knots, span, t);
                 // The window's base, subtracted once inside `Span` — so
                 // the underflow-prone `span − p` is gone from here, and
                 // what remains is an addition. Indexing (not `zip`)
@@ -188,7 +188,7 @@ macro_rules! nurbs_curve {
             /// `C″ = (N² − C·w² − C′·w¹·2)/w⁰`.
             /// Same totality contract as [`Self::eval_in_span`].
             pub fn ders_in_span(&self, span: Span, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
-                let ders = spline::basis::ders_basis_funs(&self.knots, span.index(), t, 2);
+                let ders = spline::basis::ders_basis_funs(&self.knots, span, t, 2);
                 // Indexed off the window base, exactly as
                 // [`Self::eval_in_span`]. A `zip` against a window slice
                 // would be the wrong shape here: `ders`' row length and
@@ -611,18 +611,23 @@ macro_rules! nurbs_curve {
                 // (`i ∈ span−p .. span`), folded over spans. ----
                 let perspan = {
                     let mut acc: Option<T> = None;
-                    for span in self.knots.first_span()..=self.knots.last_span() {
-                        if !self.knots.span_is_nonempty(span) {
+                    for index in self.knots.first_span()..=self.knots.last_span() {
+                        // Emptiness check and span validation are one step.
+                        let Some(span) = self.knots.span(index) else {
                             continue;
-                        }
-                        // Range misses below poison the WHOLE meter
-                        // (early return), not just this assembly —
-                        // a construction-invariant break fails loud
+                        };
+                        // The window's base, subtracted once inside
+                        // `Span` — the `span − p` that used to need a
+                        // `checked_sub` here.
+                        let (lo_i, span) = (span.first_control(), span.index());
+                        // The remaining range miss is the one a `Span`
+                        // cannot speak to: it bounds its window by the
+                        // KNOT vector's control count, not by this
+                        // curve's array. A mismatch poisons the WHOLE
+                        // meter (early return), not just this assembly
+                        // — a construction-invariant break fails loud
                         // (doc: "Poison", the stated asymmetry with
                         // chord-collapse abstention).
-                        let Some(lo_i) = span.checked_sub(p) else {
-                            return poison;
-                        };
                         if span >= self.control.len() {
                             return poison;
                         }
@@ -799,6 +804,10 @@ macro_rules! nurbs_curve {
                 // one-span assembly is dominated by `sup‖C − c‖·sup|w′|`.
                 let mut add = Vec::new();
                 for span in self.knots.first_span()..=self.knots.last_span() {
+                    // A plain emptiness filter: this loop builds knot
+                    // VALUES and constructs no window, so there is no
+                    // span validation here to fuse with (the shape
+                    // `mesh`'s `rational_split_points` shares).
                     if !self.knots.span_is_nonempty(span) {
                         continue;
                     }
@@ -846,13 +855,18 @@ macro_rules! nurbs_curve {
                 let origin = $Point::new($({ let _ = stringify!($c); T::zero() }),+);
                 let mut acc: Option<T> = None;
                 // Fixed ascending span order (D9).
-                for span in self.knots.first_span()..=self.knots.last_span() {
-                    if !self.knots.span_is_nonempty(span) {
+                for index in self.knots.first_span()..=self.knots.last_span() {
+                    // Emptiness check and span validation are one step.
+                    let Some(span) = self.knots.span(index) else {
                         continue;
-                    }
-                    let (Some(first), last) = (span.checked_sub(p), span) else {
-                        return poison;
                     };
+                    // The active window, computed once at the `Span`'s
+                    // construction — the `checked_sub(p)` that used to
+                    // stand here is not a reachable refusal any more.
+                    let (first, last) = (span.first_control(), span.index());
+                    // The one refusal a `Span` cannot make on the
+                    // caller's behalf: its window is bounded by the KNOT
+                    // vector's control count, not by this curve's array.
                     if last >= self.control.len() {
                         return poison;
                     }

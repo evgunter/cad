@@ -49,13 +49,13 @@ fn dyadic_coeffs(rng: &mut fuzz::Rng, n: usize) -> (Vec<f64>, Vec<i64>) {
 /// Rational spline value at `t` — the sampling oracle, independent of
 /// the hull machinery.
 fn eval_rational(kv: &KnotVector, coeffs: &[f64], weights: &[f64], t: f64) -> f64 {
-    let span = kv.find_span(t);
+    let span = kv.span_at(t);
     let nvals = basis::basis_funs(kv, span, t);
-    let p = kv.degree();
+    let first = span.first_control();
     let (mut num, mut den) = (0.0, 0.0);
     for (j, nj) in nvals.iter().enumerate() {
-        let w = nj * weights[span - p + j];
-        num += w * coeffs[span - p + j];
+        let w = nj * weights[first + j];
+        num += w * coeffs[first + j];
         den += w;
     }
     num / den
@@ -92,12 +92,10 @@ fn near_collapse_weights_never_escape_the_hull() {
                 "positive weights must not poison — {}",
                 fuzz::replay()
             );
-            for span in kv.first_span()..=kv.last_span() {
-                if !kv.span_is_nonempty(span) {
-                    continue;
-                }
+            for index in kv.first_span()..=kv.last_span() {
+                let Some(span) = kv.span(index) else { continue };
                 let b = hull::span_hull_rational(&kv, &coeffs, &weights, span);
-                let (u0, u1) = (kv.knots()[span], kv.knots()[span + 1]);
+                let (u0, u1) = (kv.knots()[index], kv.knots()[index + 1]);
                 // Falsification grid across the span; its density is a
                 // sweep count like any other, so it rides the EFFORT dial.
                 let grid = fuzz::scaled(8);

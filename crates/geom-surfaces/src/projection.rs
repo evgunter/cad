@@ -217,16 +217,16 @@ impl<T: Bounds> NurbsSurface<T> {
         let (ku, kv) = (self.knots_u(), self.knots_v());
         let mut best = (ku.domain().0, kv.domain().0);
         let mut best_d2 = f64::INFINITY;
-        for span_u in ku.first_span()..=ku.last_span() {
-            if !ku.span_is_nonempty(span_u) {
-                continue;
-            }
-            let (a0, a1) = (ku.knots()[span_u], ku.knots()[span_u + 1]);
-            for span_v in kv.first_span()..=kv.last_span() {
-                if !kv.span_is_nonempty(span_v) {
-                    continue;
-                }
-                let (b0, b1) = (kv.knots()[span_v], kv.knots()[span_v + 1]);
+        for iu in ku.first_span()..=ku.last_span() {
+            // Emptiness check and span validation are one step, in both
+            // directions. The surface cores still take span *indices*
+            // (the tensor window is a separate unit's follow-up), so the
+            // validated spans are read back out below.
+            let Some(span_u) = ku.span(iu) else { continue };
+            let (a0, a1) = (ku.knots()[iu], ku.knots()[iu + 1]);
+            for iv in kv.first_span()..=kv.last_span() {
+                let Some(span_v) = kv.span(iv) else { continue };
+                let (b0, b1) = (kv.knots()[iv], kv.knots()[iv + 1]);
                 for i in 0..SURFACE_PROJECT_SEEDS_PER_SPAN {
                     #[allow(clippy::cast_precision_loss)]
                     let fu = i as f64 / (SURFACE_PROJECT_SEEDS_PER_SPAN - 1) as f64;
@@ -235,8 +235,12 @@ impl<T: Bounds> NurbsSurface<T> {
                         #[allow(clippy::cast_precision_loss)]
                         let fv = j as f64 / (SURFACE_PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let v = b0 + (b1 - b0) * fv;
-                        let d =
-                            self.eval_in_span(span_u, span_v, T::from_f64(u), T::from_f64(v)) - p;
+                        let d = self.eval_in_span(
+                            span_u.index(),
+                            span_v.index(),
+                            T::from_f64(u),
+                            T::from_f64(v),
+                        ) - p;
                         let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.
                         if d2 < best_d2 {

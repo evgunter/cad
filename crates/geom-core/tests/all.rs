@@ -70,6 +70,10 @@ mod review_margin_probe;
 mod ring_interval_differential;
 #[path = "ring_interval_fuzz.rs"]
 mod ring_interval_fuzz;
+#[path = "span_basis_identity.rs"]
+mod span_basis_identity;
+#[path = "span_hull_window.rs"]
+mod span_hull_window;
 #[path = "span_newtype.rs"]
 mod span_newtype;
 #[path = "spline_hull.rs"]

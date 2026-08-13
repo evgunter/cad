@@ -364,7 +364,12 @@ impl<'a, T: Bounds> NurbsBoxes<'a, T> {
         let (ud, vd) = (ku.domain(), kv.domain());
         let cu = (u0.clamp(ud.0, ud.1), u1.clamp(ud.0, ud.1));
         let cv = (v0.clamp(vd.0, vd.1), v1.clamp(vd.0, vd.1));
-        (ku.span_range(cu.0, cu.1), kv.span_range(cv.0, cv.1))
+        // `span_range` answers in validated spans; the cell grid is
+        // still addressed by index (`cell_point_box` walks the control
+        // net directly), so the pair is read back out here.
+        let (u_lo, u_hi) = ku.span_range(cu.0, cu.1);
+        let (v_lo, v_hi) = kv.span_range(cv.0, cv.1);
+        ((u_lo.index(), u_hi.index()), (v_lo.index(), v_hi.index()))
     }
 
     /// The hull of the Cartesian control block of one span cell.

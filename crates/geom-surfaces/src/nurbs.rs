@@ -232,8 +232,15 @@ impl<T: Real> NurbsSurface<T> {
         }
         let (pu, pv) = (self.knots_u.degree(), self.knots_v.degree());
         let nv = self.knots_v.control_count();
-        let bu = spline::basis::basis_funs(&self.knots_u, span_u, u);
-        let bv = spline::basis::basis_funs(&self.knots_v, span_v, v);
+        // `basis_funs` takes a validated `Span`. The tensor window is a
+        // separate construction from the curve path's, so the pair is
+        // still validated by `spans_valid` above and the `Span`s are
+        // drawn here, one per direction — the 2D form is the follow-up.
+        let (Some(su), Some(sv)) = (self.knots_u.span(span_u), self.knots_v.span(span_v)) else {
+            return Self::poison_point();
+        };
+        let bu = spline::basis::basis_funs(&self.knots_u, su, u);
+        let bv = spline::basis::basis_funs(&self.knots_v, sv, v);
         let (mut x, mut y, mut z, mut w) = (T::zero(), T::zero(), T::zero(), T::zero());
         for (i, bui) in bu.iter().enumerate() {
             let iu = span_u - pu + i;
@@ -265,8 +272,12 @@ impl<T: Real> NurbsSurface<T> {
         }
         let (pu, pv) = (self.knots_u.degree(), self.knots_v.degree());
         let nv = self.knots_v.control_count();
-        let du = spline::basis::ders_basis_funs(&self.knots_u, span_u, u, 2);
-        let dv = spline::basis::ders_basis_funs(&self.knots_v, span_v, v, 2);
+        // The `Span` pair, exactly as in [`NurbsSurface::eval_in_span`].
+        let (Some(su), Some(sv)) = (self.knots_u.span(span_u), self.knots_v.span(span_v)) else {
+            return Self::poison_jet();
+        };
+        let du = spline::basis::ders_basis_funs(&self.knots_u, su, u, 2);
+        let dv = spline::basis::ders_basis_funs(&self.knots_v, sv, v, 2);
         // Homogeneous partials A_kl for the six (k, l) with k + l ≤ 2,
         // indexed [k][l]; each lane accumulated in the double
         // ascending pass.
@@ -356,8 +367,12 @@ impl<T: Real> NurbsSurface<T> {
         }
         let (pu, pv) = (self.knots_u.degree(), self.knots_v.degree());
         let nv = self.knots_v.control_count();
-        let du = spline::basis::ders_basis_funs(&self.knots_u, span_u, u, 3);
-        let dv = spline::basis::ders_basis_funs(&self.knots_v, span_v, v, 3);
+        // The `Span` pair, exactly as in [`NurbsSurface::eval_in_span`].
+        let (Some(su), Some(sv)) = (self.knots_u.span(span_u), self.knots_v.span(span_v)) else {
+            return Self::poison_jet3();
+        };
+        let du = spline::basis::ders_basis_funs(&self.knots_u, su, u, 3);
+        let dv = spline::basis::ders_basis_funs(&self.knots_v, sv, v, 3);
         // Homogeneous partials A_kl for the ten (k, l) with k + l ≤ 3,
         // indexed [k][l]; each lane accumulated in the double
         // ascending pass (the second-order pass's shape, one order up).

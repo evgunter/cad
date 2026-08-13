@@ -1,5 +1,4 @@
-//! The `Span` newtype's invariants, and the one arithmetic property of
-//! `basis_funs` that a plausible-looking simplification would break.
+//! The `Span` newtype's invariants.
 //!
 //! `Span`'s whole value is that an invalid span index is not
 //! representable, so what needs testing is the two constructors: that
@@ -7,64 +6,38 @@
 //! produces one (its `debug_assert` is the fail-loud guard; this is the
 //! test that says it never has to fire), and that the window it carries
 //! really is `[index − degree, index]`.
+//!
+//! The knot-vector spread is [`span_fixtures::vectors()`], shared with
+//! the other two `Span` suites.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::spline::basis::basis_funs;
-use geom_core::spline::{KnotVector, Span};
+use geom_core::spline::Span;
 
-fn kv(knots: Vec<f64>, degree: usize) -> KnotVector {
-    KnotVector::clamped(knots, degree).expect("valid knot vector")
-}
-
-/// Uniform cubic, an interior-multiplicity-2 cubic (which has an empty
-/// span), a degree-1 vector, and a degree-5 vector.
-fn vectors() -> Vec<KnotVector> {
-    vec![
-        kv(
-            vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0],
-            3,
-        ),
-        kv(
-            vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.3, 1.7, 2.0, 2.0, 2.0, 2.0],
-            3,
-        ),
-        kv(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1),
-        kv(
-            vec![0.0; 6]
-                .into_iter()
-                .chain([0.4, 0.9])
-                .chain(vec![1.0; 6])
-                .collect(),
-            5,
-        ),
-    ]
-}
+mod span_fixtures;
+use span_fixtures::{multiplicity_2_cubic, vectors};
 
 #[test]
 fn the_window_is_the_control_window() {
-    for k in vectors() {
+    for (name, k) in vectors() {
         for index in k.first_span()..=k.last_span() {
             let Some(span) = k.span(index) else { continue };
-            assert_eq!(span.index(), index);
-            assert_eq!(span.degree(), k.degree());
-            assert_eq!(span.first_control(), index - k.degree());
-            assert_eq!(*span.window().start(), index - k.degree());
-            assert_eq!(*span.window().end(), index);
-            assert_eq!(span.window().count(), k.degree() + 1);
+            assert_eq!(span.index(), index, "{name}");
+            assert_eq!(span.degree(), k.degree(), "{name}");
+            assert_eq!(span.first_control(), index - k.degree(), "{name}");
+            assert_eq!(*span.window().start(), index - k.degree(), "{name}");
+            assert_eq!(*span.window().end(), index, "{name}");
+            assert_eq!(span.window().count(), k.degree() + 1, "{name}");
             // The window is inside the control array — the fact every
             // evaluator's indexing rests on.
-            assert!(*span.window().end() < k.control_count());
+            assert!(*span.window().end() < k.control_count(), "{name}");
         }
     }
 }
 
 #[test]
 fn the_checked_constructor_refuses_empty_and_out_of_range_indices() {
-    let m = kv(
-        vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.3, 1.7, 2.0, 2.0, 2.0, 2.0],
-        3,
-    );
+    let m = multiplicity_2_cubic();
     let empty = (m.first_span()..=m.last_span())
         .find(|i| !m.span_is_nonempty(*i))
         .expect("this vector has an empty span");
@@ -80,7 +53,7 @@ fn the_checked_constructor_refuses_empty_and_out_of_range_indices() {
 /// divide by a zero knot difference and poison silently. Pin it.
 #[test]
 fn span_at_is_total_and_never_lands_on_an_empty_span() {
-    for k in vectors() {
+    for (name, k) in vectors() {
         let (lo, hi) = k.domain();
         let mut params: Vec<f64> = k.knots().to_vec();
         params.extend([
@@ -103,34 +76,17 @@ fn span_at_is_total_and_never_lands_on_an_empty_span() {
             let span: Span = k.span_at(t);
             assert!(
                 k.span_is_nonempty(span.index()),
-                "span_at({t}) landed on empty span {}",
+                "{name}: span_at({t}) landed on empty span {}",
                 span.index()
             );
-            assert!(span.index() >= k.first_span() && span.index() <= k.last_span());
+            assert!(
+                span.index() >= k.first_span() && span.index() <= k.last_span(),
+                "{name}: span_at({t}) left the span range"
+            );
             // The total constructor and the checked one agree, and both
             // agree with `find_span` — one located index, three names.
             assert_eq!(span.index(), k.find_span(t));
             assert_eq!(k.span(span.index()), Some(span));
         }
     }
-}
-
-/// The high end of `basis_funs`' shift-and-add is `n[j] = saved`, with
-/// **no addition**. Writing `saved + 0` instead — which looks like a
-/// harmless uniformity — flips `-0.0` to `+0.0`, and D9 makes that a
-/// re-baseline rather than a refactor. The discriminating input is
-/// `t = -0.0`; verified red-then-green against that mutation.
-#[test]
-fn basis_funs_keeps_the_negative_zero_at_the_high_end() {
-    let k = kv(
-        vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0],
-        3,
-    );
-    let row = basis_funs::<f64>(&k, 3, -0.0);
-    let last = row.last().expect("degree + 1 entries");
-    assert!(
-        *last == 0.0 && last.is_sign_negative(),
-        "the high end must stay a NEGATIVE zero, got {last} ({:#x})",
-        last.to_bits()
-    );
 }

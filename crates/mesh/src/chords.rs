@@ -450,10 +450,15 @@ fn rational_carrier_m_bound(
     let mag = |h: RingInterval| RingInterval::from_bounds(0.0, h.mag());
     let two = RingInterval::point(2.0);
     let mut sq_acc: Option<RingInterval> = None;
-    for s in kv.first_span()..=kv.last_span() {
-        if !kv.span_is_nonempty(s) {
-            continue;
-        }
+    for index in kv.first_span()..=kv.last_span() {
+        // Emptiness check and span validation are one step.
+        let Some(span) = kv.span(index) else { continue };
+        let s = span.index();
+        // The two runtime refusals below are what `span.window()` makes
+        // impossible — `first` IS `span.first_control()` and the upper
+        // bound IS the window's end, both proven at construction. They
+        // are left standing here on purpose: the surface/window unit
+        // owns deleting them.
         let Some(first) = s.checked_sub(p) else {
             return Err(TessellateError::MissingEntity {
                 what: "NURBS span below its degree",
