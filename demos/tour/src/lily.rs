@@ -42,14 +42,17 @@
 //!   its axis in SKETCH coordinates, so a tilted axis is spelled by
 //!   tilting the sketch frame, and a `Partial` sweep of a meridian
 //!   whose ends sit on that axis closes fine.
-//! - the two short **leaves** are keeled blades: a thin four-line
-//!   KITE section — two sharp margins on a chord, an unequal ridge
-//!   and keel across it — carried along a gently arching circular
-//!   spine by the general-path SWEEP. The blade leaves the plane it
-//!   was drawn in, which the extruded crescent could not do. Two
-//!   things a sweep still cannot do: TAPER and ROLL. `sweep_body`
-//!   takes one profile and derives its own frame, so there is no
-//!   argument in which either could be asked for (findings entry 9).
+//! - the two short **leaves** are keeled blades: a thin CRESCENT
+//!   section — two circular arcs of different radii on one chord,
+//!   meeting at two sharp margins, an unequal ridge and keel across
+//!   it — carried along a gently arching circular spine by the
+//!   general-path SWEEP. The blade both leaves the plane it was drawn
+//!   in (which the old extruded crescent could not do) and keeps its
+//!   ARCS (which the interim kite could not, until three rational
+//!   banks fell — see [`leaf`], and the note below). Two things a
+//!   sweep still cannot do: TAPER and ROLL. `sweep_body` takes one
+//!   profile and derives its own frame, so there is no argument in
+//!   which either could be asked for (findings entry 9).
 //! - the long basal **leaf** and the three **sepals** are the same
 //!   blade said as a LOFT, and they do both. `loft_body` takes the
 //!   sections and the placements as two lists, so the section may
@@ -69,20 +72,27 @@
 //!   therefore small but real, and left visibly so rather than shrunk
 //!   until the blunt end stops showing.
 //!
-//! **Every blade section here is straight lines, and that is now
-//! OUTSTANDING WORK rather than a constraint.** Until #306 the skin
-//! lane carried integral sections only, so an arc — a rational NURBS —
-//! skinned to a rational wall whose carrier had no
-//! `speed_lower_bound`, and the body refused at assembly. #306 landed
-//! the span meter's rational arm and that refusal RETIRED (the pin
-//! that asserted it, `sweep`'s `m7_skin_integral` Pin 4, has flipped to
-//! the positive statement). The kite and the diamond are what the
-//! blades were given while the arcs were unavailable; they have not
-//! been revisited since the door opened. Giving the blades their
-//! lanceolate arcs back is a real follow-up, not a settled choice —
-//! and it wants checking against the QUADRATURE half of the rational
-//! bank, which #306 did not retire (`QuadratureUnsupported` keeps its
-//! own pins, and this stop prints an exact volume for every body).
+//! **The swept blades carry ARCS again, and they are the only bodies
+//! in the tour that do.** For two milestones every blade section here
+//! was straight lines, because an arc is a rational NURBS, a rational
+//! section skins to a rational wall, and the kernel refused such a
+//! wall at three separate rungs. Two have fallen — #306 (M8-2) for
+//! body assembly, #322 (M8-5) for tessellation — and the blades stand
+//! on both, which no other body in the tour does: the loft stop shows
+//! a rational skinned WALL, but as geometry it evaluates and discards,
+//! while this is the first rational skin to become a closed SOLID that
+//! gets meshed and exported (as `RATIONAL_B_SPLINE_SURFACE`, also a
+//! tour first). The THIRD rung still stands: these two bodies do not
+//! certify an exact volume, and the reason is a knot-structure floor
+//! in the rational quadrature lane rather than anything about the
+//! blade's shape. [`leaf`] carries the measurement and the flip
+//! condition.
+//!
+//! The four LOFTED blades — the long basal leaf and the three sepals —
+//! are still straight-line sections, and that is a scoped follow-up
+//! recorded on [`Section`] rather than a limit: mixing a rectangle
+//! base with arc-margined sections is a question about segment-KIND
+//! correspondence and the shoulder rule, not about the rational banks.
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
@@ -441,17 +451,28 @@ fn bud<S: Scalar>(
         .collect()
 }
 
-/// A leaf blade's cross-section: a KITE, i.e. the two sharp margins
-/// at `±width/2` on a chord with a `ridge` above it and a `keel`
-/// below. The two rises are DIFFERENT, so the blade is asymmetric
-/// about its own chord exactly as the extruded crescent was.
+/// A leaf blade's cross-section: a **CRESCENT**, i.e. two circular
+/// arcs of DIFFERENT radii on one chord — the two sharp margins at
+/// `±width/2`, a `ridge` sagitta above the chord and a `keel` sagitta
+/// below. The two rises differ, so the blade is asymmetric about its
+/// own chord, and the two margins are genuinely SHARP rather than
+/// cusps. An arc on chord `w` with sagitta `h` has bulge `2h/w` and so
+/// leaves its chord at `2·atan(2h/w)`; the two arcs leave on OPPOSITE
+/// sides, so the margin's interior wedge is their SUM,
+/// `2·atan(2·ridge/w) + 2·atan(2·keel/w)` — 29.4° on `lily_leaf_b`,
+/// 30.8° on `lily_leaf_c`. Both ends of that formula are the failure
+/// modes it stays clear of: it goes to 0° for a flat lens (a cusp) and
+/// to 180° when both sagittae reach the half-width and the two
+/// semicircles close a circle (tangent). At 29° the junction check
+/// decides these margins definitely-sharp on their merits, which is
+/// why the loops author through the lattice at all.
 #[derive(Clone, Copy, Debug)]
-struct Kite {
+struct Crescent {
     /// Chord length, margin to margin — the blade's width.
     width: f64,
-    /// Rise above the chord.
+    /// Sagitta above the chord.
     ridge: f64,
-    /// Drop below the chord.
+    /// Sagitta below the chord.
     keel: f64,
 }
 
@@ -524,33 +545,77 @@ const SEPAL_STATIONS: usize = 13;
 /// arching spine by [`sweep_body`] — the general-path sweep, not an
 /// extrusion, so the blade leaves the plane it was drawn in.
 ///
-/// The section is a [`Kite`] of four straight lines, and the spine
+/// The section is a [`Crescent`] of two circular arcs, and the spine
 /// runs through its chord's midpoint, i.e. through the midrib.
 ///
-/// **Why straight lines and not the crescent's arcs — a reason that
-/// has since EXPIRED.** The skin lane used to carry INTEGRAL sections
-/// only. An arc is a rational NURBS, a rational section skins to a
-/// rational wall, and a rational carrier had no `speed_lower_bound` —
-/// `nurbs_span_meter` came back `Invalid` and the body refused at
-/// assembly (`geom-brep`'s rung-3 span meter; the same poison #207
-/// removed for INTEGRAL inputs it never claimed to remove for
-/// rational ones). That is why this blade is a kite.
+/// **The arcs are back, and they are the point of this stop.** For two
+/// milestones this section was a four-line KITE, and the reason was a
+/// kernel gap rather than a botanical one: an arc is a rational NURBS,
+/// a rational section skins to a rational wall, and a rational carrier
+/// had no `speed_lower_bound` — `nurbs_span_meter` came back `Invalid`
+/// and the body refused at assembly (`geom-brep`'s rung-3 span meter;
+/// the same poison #207 removed for INTEGRAL inputs it never claimed
+/// to remove for rational ones).
 ///
-/// **#306 landed the meter's rational arm and the refusal retired.**
-/// A rational section skinned along a curved path now builds and its
-/// seam carriers meter positively — `sweep`'s `m7_skin_integral`
-/// Pin 4 was written to flip when this happened, and it has flipped.
-/// So the kite is no longer the honest limit of the vocabulary; it is
-/// simply what the blade was given before the door opened, and it has
-/// not been revisited since. **Restoring the lanceolate arcs is
-/// outstanding work on this stop**, with one thing to check first:
-/// #306 retired the span meter's half of the rational bank and not
-/// the QUADRATURE half, and every body in this stop prints an exact
-/// volume, so an arc-walled blade may meet `QuadratureUnsupported`
-/// where the kite does not.
+/// Two banks had to fall before this blade could exist, and a third is
+/// still standing:
 ///
-/// Nothing here approximates a curve with a chord, meanwhile: a kite
-/// is exactly a kite.
+/// - **#306** (M8-2) gave the span meter its rational arm, so the body
+///   ASSEMBLES. `sweep`'s `m7_skin_integral` Pin 4 was written to flip
+///   when this happened, and it has.
+/// - **#322** (M8-5) gave the mesh lane its rational deviation
+///   certificate — Hessian and sagitta gates over the homogeneous
+///   nets — so the blade TESSELLATES. Before it,
+///   `mesh/src/nurbs_cert.rs` refused rational NURBS faces outright,
+///   which is where the first restoration attempt parked.
+/// - **The exact VOLUME still refuses**, and this stop is where that
+///   was found. M8-3 landed rational patch flux, which retired the
+///   `QuadratureUnsupported` arm — the wall named here before the
+///   restoration — but these blades meet `QuadratureBudget` instead:
+///   `width_len` 4.09e-4 against a 1.024e-6 target on `lily_leaf_b`,
+///   4.99e-4 on `lily_leaf_c`.
+///
+/// **What that refusal is NOT**, because the shape of the guess
+/// matters: it is not the enclosure pad (measured `boundary_defect`
+/// here is ~1.8e-15, and forcing it to zero reproduces the miss
+/// bit-for-bit), and it is not the section's proportions. Measured on
+/// this construction, a FATTER section is worse (a 0.070 sagitta
+/// misses by 11x), a shorter spine does not help, and thinness cancels
+/// out entirely because the enclosure width and the face area scale
+/// together. The blades are free to be as thin as the plant is.
+///
+/// What it IS: the wall's knot structure in the SWEPT direction. A
+/// skin fitted through [`LEAF_STATIONS`] spine points carries five
+/// interior v knots at chord-length (non-dyadic) parameters, and the
+/// rational lane's smoothness-free rule across a knot
+/// (`geom-brep`'s `props/quad.rs`, the straddle arm) uses a
+/// span-granular hull that stops shrinking once cells are finer than a
+/// span — a floor the refinement schedule cannot pass. Each off-grid
+/// knot costs ~6.4e-5 of `width_len`; five of them are the whole miss.
+/// The integral kite never met it because a straight-segment wall is
+/// degree 1 x 3 with unit weights and takes the EXACT per-span
+/// Newton–Cotes lane, which the rational side has no analogue for yet.
+///
+/// The class is uncovered upstream, which is why it surfaced here:
+/// `sweep/tests/m8_3_rational_volume.rs` certifies rational walls only
+/// at three sections and `v_degree` 2 — zero interior knots, so the
+/// straddle arm never fires. FLIP-WHEN-FIXED: when the rational lane
+/// gains knot-aligned composite cells or the `w`-uniform-in-v exact
+/// arm its own docs already name, these two bodies certify and this
+/// paragraph retires.
+///
+/// The tour has shown a rational skinned WALL since the loft stop
+/// (`skinned.rs`'s arc-legged section, printed as "rational (the arc
+/// is exact)"), but that is `loft_geometry` — surfaces, evaluated and
+/// discarded. No closed SOLID in the tour carried a rational skin
+/// wall until this blade, and a solid is what puts the three banks
+/// above on the hook at once.
+///
+/// Nothing here approximates a curve with a chord: the margins are
+/// exact arc ends and the arcs are exact arcs. What the blade's walls
+/// still are is FITTED — a skin through sampled stations of the spine,
+/// not a closed form of the swept crescent. That is the price of
+/// leaving the plane, and it is unchanged by the section's kind.
 ///
 /// The spine leaves `base` along `dir` and turns through `curl`
 /// radians toward `up` (Gram–Schmidt'd against `dir`; negative `curl`
@@ -565,7 +630,7 @@ fn leaf<S: Scalar>(
     dir: (f64, f64, f64),
     up: (f64, f64, f64),
     len: f64,
-    section: Kite,
+    section: Crescent,
     curl: f64,
 ) -> Body<S> {
     let (d, v, u) = blade_frame(dir, up);
@@ -592,14 +657,20 @@ fn leaf<S: Scalar>(
         v3(v.0, v.1, v.2),
     )
     .placement;
-    // The kite, wound counterclockwise in the sketch (s, t) frame:
-    // margin, keel, margin, ridge.
-    let loops: Vec<ProfileLoop<f64>> = vec![crate::paths::path_polygon(&[
-        (-0.5 * section.width, 0.0),
-        (0.0, -section.keel),
-        (0.5 * section.width, 0.0),
-        (0.0, section.ridge),
-    ])];
+    // The crescent, wound counterclockwise in the sketch (s, t) frame:
+    // out along the KEEL arc to the far margin, back along the RIDGE
+    // arc. Both are `arc_via` through their own sagitta point, so each
+    // arc is authored by the three points it passes through and its
+    // radius is DERIVED, never hand-computed — the same through-point
+    // binding the lantern's mouth and the stem tubes use.
+    let loops: Vec<ProfileLoop<f64>> = vec![
+        Open.at(p2(-0.5 * section.width, 0.0))
+            .arc_via(p2(0.0, -section.keel), p2(0.5 * section.width, 0.0))
+            .expect("leaf keel arc")
+            .arc_via(p2(0.0, section.ridge), Start)
+            .expect("leaf ridge arc")
+            .into(),
+    ];
     sweep_body::<S>(&loops, place, &path, LEAF_STATIONS, LEAF_V_DEGREE)
         .expect("the leaf sweeps along its spine")
         .body
@@ -609,18 +680,19 @@ fn leaf<S: Scalar>(
 // The LOFTED blade: the two things a sweep cannot say
 // ---------------------------------------------------------------
 
-/// A lofted blade's cross-section: the [`Kite`] with two extra pairs
-/// of vertices — SHOULDERS — on the way from each margin to the ridge
-/// and the keel.
+/// A lofted blade's cross-section: the same four tips the swept
+/// [`Crescent`] has — two margins at `±width/2`, a `ridge` above the
+/// chord and a `keel` below — with two extra pairs of vertices,
+/// SHOULDERS, on the way from each margin to the ridge and the keel.
 ///
 /// The shoulder parameter is what lets one section list carry a
 /// rectangle and a diamond at once. At `shoulder = 0` each shoulder
 /// sits exactly on the straight line between its two neighbours, so
-/// the outline IS the kite, said with eight segments instead of four.
-/// At `shoulder = 1` it sits at the corner of the bounding rectangle,
-/// so the outline IS the rectangle. Everything between is the eased
-/// morph the leaf's base needs — a rectangle where it meets the stem,
-/// a diamond a fifth of the way out.
+/// the outline is the plain four-tip diamond, said with eight segments
+/// instead of four. At `shoulder = 1` it sits at the corner of the
+/// bounding rectangle, so the outline IS the rectangle. Everything
+/// between is the eased morph the leaf's base needs — a rectangle
+/// where it meets the stem, a diamond a fifth of the way out.
 ///
 /// Eight segments and not four because a loft matches segment `j` of
 /// every section to segment `j` of every other
@@ -629,6 +701,19 @@ fn leaf<S: Scalar>(
 /// so the two shapes must be spelled on a common vertex budget. The
 /// collinear vertices at `shoulder = 0` are exact, not approximate —
 /// a midpoint of two authored points.
+///
+/// **These segments are still STRAIGHT, and that is now a scoped
+/// follow-up rather than a limit.** The swept blades got their arcs
+/// back once the three rational banks fell (see [`leaf`]); this lane
+/// did not, because giving it arcs is a different question, not a
+/// bigger dose of the same one. A rectangle base and an arc-margined
+/// belly differ in segment KIND at the same index `j`, so the walls
+/// would come from `make_compatible` doing real §5.5 degree elevation
+/// and §5.3 knot union rather than the no-op it performs on every
+/// structurally-identical section list the tour feeds it today. The
+/// kernel supports it (`sweep/tests/m5_pr10_skin.rs` skins a line
+/// against an arc); what needs deciding is the shoulder rule, because
+/// the recorded gap below depends on where the shoulder sits.
 #[derive(Clone, Copy, Debug)]
 struct Section {
     /// Chord length, margin to margin.
@@ -637,7 +722,7 @@ struct Section {
     ridge: f64,
     /// Drop below the chord.
     keel: f64,
-    /// 0 = kite, 1 = the bounding rectangle.
+    /// 0 = the plain four-tip diamond, 1 = the bounding rectangle.
     shoulder: f64,
 }
 
@@ -1228,7 +1313,7 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                 (-0.68, -0.55, 0.44),
                 (0.0, 0.0, 1.0),
                 1.25,
-                Kite {
+                Crescent {
                     width: 0.170,
                     ridge: 0.015,
                     keel: 0.007,
@@ -1245,7 +1330,7 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                 (0.62, 0.10, 0.78),
                 (0.0, 0.0, 1.0),
                 0.95,
-                Kite {
+                Crescent {
                     width: 0.140,
                     ridge: 0.013,
                     keel: 0.006,
@@ -1294,8 +1379,11 @@ pub fn stops() -> Vec<Stop> {
          given), 1 sphere-zone lantern with a conical mouth, 3 \
          PARTIAL revolves of that same meridian forming the bud's \
          tripod of pre-tepals, 2 SWEPT \
-         keeled blades (one kite section carried along an arching \
-         NURBS spine), and 4 LOFTED ones — the long basal leaf and \
+         keeled blades (a two-arc CRESCENT section carried along an \
+         arching NURBS spine — the tour's only RATIONAL skinned walls \
+         on a closed solid, which take three separate rational banks \
+         to assemble, mesh and measure), and 4 LOFTED ones — the long \
+         basal leaf and \
          the three sepals — which taper AND roll, the two things a \
          sweep cannot be asked for. The long leaf runs rectangle at \
          the stem to wide diamond to small diamond, turning 160 \
@@ -1317,13 +1405,16 @@ pub fn stops() -> Vec<Stop> {
                 globular lantern with three spreading sepals tangent to the \
                 globe, a bud of three nested pre-tepals on a tripod of axes, \
                 one long tapering twisted basal leaf and two shorter \
-                untapered ones; torus/sphere/cone/plane exact to the stored \
-                parameter, blades skinned out of plane",
+                untapered ones with arc-margined lanceolate sections; \
+                torus/sphere/cone/plane exact to the stored \
+                parameter, blades skinned out of plane — the swept pair \
+                on RATIONAL walls",
         ops: "Turtle-walked G1 arc chain -> tube_along_arc(world centre/axis/ \
               u_ref/radii, windowed) tubes; revolve(Full) sphere-zone \
               lantern and revolve(Partial) x3 on a tilted tripod for the \
-              bud; sweep_body(kite section, arched NURBS spine) for the \
-              two short leaves; loft_body(rectangle -> diamond -> diamond \
+              bud; sweep_body(two-arc crescent section, arched NURBS \
+              spine) for the two short leaves; loft_body(rectangle -> \
+              diamond -> diamond \
               sections on rolled placements) for the long leaf and the sepals",
         // One chord budget for the whole scene is a poor fit here: at
         // 2e-3 the 0.44 m lantern is smooth and a 0.06 m stem tube
@@ -1875,10 +1966,19 @@ mod review_probes {
     /// revolve produced — the tube door changed which parameters are
     /// stored, not which torus they describe, so the tessellator sees
     /// the same surface and splits it the same way. The two SWEPT
-    /// blade rows are the other half of the finding: a swept skin over
-    /// a 4-vertex section costs three orders of magnitude less than a
-    /// torus tube at the same δ, because the torus lane spends its
-    /// budget on the RING and not on the tube.
+    /// blade rows are the other half of the finding: even now that
+    /// they are arc-walled, a swept skin still costs 20–45x FEWER
+    /// triangles than a torus tube at the same δ, because the torus
+    /// lane spends its budget on the RING and not on the tube.
+    ///
+    /// Those two rows moved with the crescent restoration, and by
+    /// roughly 4x each (976 -> 3776, 826 -> 2988). The kite's four
+    /// walls were ruled in u — straight across the section, curved
+    /// only along the spine — so the mesh only ever had to chase one
+    /// direction. Each crescent wall is a RATIONAL patch curved in
+    /// BOTH, so the certificate sizes a genuinely two-dimensional
+    /// grid. The blades stay the cheapest bodies in the table
+    /// regardless.
     ///
     /// The LOFTED bodies are deliberately absent from this table. A
     /// loft's wall count and knot structure follow the section list
@@ -1897,8 +1997,8 @@ mod review_probes {
             ("lily_arch", 2e-3, 136_076),
             ("lily_lantern", 5e-3, 988),
             ("lily_lantern", 2e-3, 2_348),
-            ("lily_leaf_b", 2e-3, 976),
-            ("lily_leaf_c", 2e-3, 826),
+            ("lily_leaf_b", 2e-3, 3_776),
+            ("lily_leaf_c", 2e-3, 2_988),
         ];
         for (name, delta, want) in table {
             let m = pncad::mesh::tessellate(body(&ps, name), delta).expect("tessellate");
@@ -1913,32 +2013,65 @@ mod review_probes {
         }
         // A swept blade has no analytic wall to compare against, but it
         // has PAPPUS. A rigid section carried in the path's normal
-        // frame sweeps A·(centroid arc length); the kite of chord `w`
-        // with rises `ridge`/`keel` has area w(ridge+keel)/2 and its
-        // centroid sits (ridge−keel)/3 above the chord, i.e. that far
-        // OUTSIDE the spine's centre of curvature, so its arc is
-        // len + |curl|·(ridge−keel)/3. Agreement to a few 1e-5 is the
-        // mesh's chord error at δ = 2e-3, and it is a two-sided band:
-        // exact agreement would mean the volume was not measured off a
-        // real tessellation, and a larger gap would mean the section
-        // rolled about the tangent on its way down the path.
+        // frame sweeps A·(centroid arc length).
         //
-        // `lily_leaf_a` is NOT in this list any more, and its absence
-        // is the point: it is the lofted blade, and it both tapers and
+        // The section is a CRESCENT — two circular SEGMENTS on the same
+        // chord of length `w`, sagittae `ridge` above it and `keel`
+        // below — so both ingredients come from the segment's own
+        // closed form rather than from a polygon's: radius
+        // R = ((w/2)² + h²)/(2h), half-angle φ = asin(w/(2R)), area
+        // R²(2φ − sin 2φ)/2, and a centroid 4R·sin³φ / (3(2φ − sin 2φ))
+        // from the circle CENTRE, i.e. that minus R·cos φ above the
+        // chord. The crescent's own centroid is the area-weighted
+        // difference of the two, the keel's sitting BELOW the chord,
+        // and it lands OUTSIDE the spine's centre of curvature, so the
+        // swept centroid arc is len + |curl|·ȳ.
+        //
+        // The band is two-sided for the same reason it always was:
+        // exact agreement would mean the volume was not measured off a
+        // real tessellation, and too large a gap would mean the section
+        // rolled about the tangent on its way down the path. It is a
+        // FULL ORDER OF MAGNITUDE wider than the kite's `< 5e-5`, and
+        // honestly so: the tessellated crescent walls are themselves
+        // chord approximations of arcs, which the kite's four flat
+        // walls were not, so the mesh under-fills the solid across each
+        // curved face as well as along the spine — and it under-fills
+        // in ONE direction, which is why both blades land on the same
+        // side. Measured at δ = 2e-3: leaf_b 1.365e-3, leaf_c 1.428e-3
+        // (mesh BELOW the continuum in both cases). The band brackets
+        // those, it is not inherited from the kite's.
+        //
+        // `lily_leaf_a` is NOT in this list, and its absence is the
+        // point: it is the lofted blade, and it both tapers and
         // rolls. Pappus wants a rigid section carried in the normal
         // frame, which is exactly what a loft stops being. What pins
         // the lofted blade instead is
         // `the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`.
+        //
+        // The circular segment of chord `w` and sagitta `h`: its area,
+        // and its centroid's height above the chord.
+        fn segment(w: f64, h: f64) -> (f64, f64) {
+            let a = 0.5 * w;
+            let r = a.mul_add(a, h * h) / (2.0 * h);
+            let phi = (a / r).asin();
+            let (s2, c) = ((2.0 * phi).sin(), phi.cos());
+            let area = 0.5 * r * r * (2.0 * phi - s2);
+            let from_centre = 4.0 * r * phi.sin().powi(3) / (3.0 * (2.0 * phi - s2));
+            (area, r.mul_add(-c, from_centre))
+        }
         let blades: [(&str, f64, f64, f64, f64, f64); 2] = [
             ("lily_leaf_b", 0.170, 0.015, 0.007, 1.25, 0.40),
             ("lily_leaf_c", 0.140, 0.013, 0.006, 0.95, 0.35),
         ];
         for (name, w, ridge, keel, len, curl) in blades {
-            let area = 0.5 * w * (ridge + keel);
-            let pappus = area * curl.mul_add((ridge - keel) / 3.0, len);
+            let (a_up, y_up) = segment(w, ridge);
+            let (a_dn, y_dn) = segment(w, keel);
+            let area = a_up + a_dn;
+            let y_bar = a_dn.mul_add(-y_dn, a_up * y_up) / area;
+            let pappus = area * curl.mul_add(y_bar, len);
             let m = pncad::mesh::tessellate(body(&ps, name), 2e-3).expect("tessellate");
             let rel = ((signed_volume(&m) - pappus) / pappus).abs();
-            assert!(rel > 1e-5 && rel < 5e-5, "{name}: rel {rel}");
+            assert!(rel > 5e-4 && rel < 3e-3, "{name}: rel {rel}");
         }
     }
 
