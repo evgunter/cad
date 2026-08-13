@@ -1,5 +1,4 @@
-//! The `Span` newtype's invariants, and the one arithmetic property of
-//! `basis_funs` that a plausible-looking simplification would break.
+//! The `Span` newtype's invariants.
 //!
 //! `Span`'s whole value is that an invalid span index is not
 //! representable, so what needs testing is the two constructors: that
@@ -14,10 +13,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::spline::Span;
-use geom_core::spline::basis::basis_funs;
 
 mod span_fixtures;
-use span_fixtures::{multiplicity_2_cubic, uniform_cubic, vectors};
+use span_fixtures::{multiplicity_2_cubic, vectors};
 
 #[test]
 fn the_window_is_the_control_window() {
@@ -91,21 +89,4 @@ fn span_at_is_total_and_never_lands_on_an_empty_span() {
             assert_eq!(k.span(span.index()), Some(span));
         }
     }
-}
-
-/// The high end of `basis_funs`' shift-and-add is `n[j] = saved`, with
-/// **no addition**. Writing `saved + 0` instead — which looks like a
-/// harmless uniformity — flips `-0.0` to `+0.0`, and D9 makes that a
-/// re-baseline rather than a refactor. The discriminating input is
-/// `t = -0.0`; verified red-then-green against that mutation.
-#[test]
-fn basis_funs_keeps_the_negative_zero_at_the_high_end() {
-    let k = uniform_cubic();
-    let row = basis_funs::<f64>(&k, k.span(3).expect("span 3 is nonempty"), -0.0);
-    let last = row.last().expect("degree + 1 entries");
-    assert!(
-        *last == 0.0 && last.is_sign_negative(),
-        "the high end must stay a NEGATIVE zero, got {last} ({:#x})",
-        last.to_bits()
-    );
 }

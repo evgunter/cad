@@ -46,6 +46,14 @@ use crate::real::Real;
 /// structural). Division safety: every denominator is
 /// `knots[span+1+r] − knots[span+1+r−j] ≥ knots[span+1] − knots[span] > 0`,
 /// which is exactly the nonemptiness [`Span`] carries.
+///
+/// That estimate is why the inner loop stops at `r = j − 1` and the
+/// level's high end is written after it as `n[j] = saved`. It needs
+/// `span + 1 + r − j ≤ span`, which fails at `r = j`: the denominator
+/// becomes `knots[span+1+j] − knots[span+1]`, no longer straddling the
+/// span's own gap, and at a clamped end (where those knots coincide) it
+/// is exactly zero — so folding the tail write into the loop for
+/// uniformity computes `0/0` and poisons the row.
 pub fn basis_funs<T: Real>(kv: &KnotVector, span: Span, t: T) -> Vec<T> {
     let p = kv.degree();
     // The index, once — the recursion below reads knots around it. Its
