@@ -349,6 +349,24 @@ Measured after (release `--lib`, default features):
 
 Residual `Probe` symbols with the feature off: **0**. With it on, totals
 return to within 0.3% of the originals — the code is opt-in, not lost.
+
+**The wall-clock win did NOT survive measurement, and that is the
+honest result.** On the gating PR's own CI run the interval archive step
+read 625 s → 444 s and the default 432 s → 519 s — *opposite directions*.
+Removing ~5% of test-binary symbols should move both lanes by about the
+same small amount; a −29%/+20% split is run-to-run variance. CI's
+archive-step noise band at single-sample resolution is wider than the
+~25 s the census predicts, and more samples cannot resolve a 25 s effect
+inside a ±100 s band. Per this investigation's own rule — *a change that
+reduces IR but not wall-clock has not accomplished anything* — the
+build-time case for gating Probe is **unproven**.
+
+It was landed anyway, on the justification that does not depend on
+timing: `Probe` is a diagnostics scalar, and before the gate the python
+wheel, both demos and every release render compiled it in. `render.yml`
+builds `demos/tour` at `--release` twice per run and never invokes
+`k-probe`. That is an argument about what ships, not about build speed,
+and it is the one that carries the change.
 The symbol-attribution method predicted 85,555 and 80,254, so it was
 accurate to 0.2%; that is worth knowing, because it means the census in
 §4d can be trusted to size this kind of change *before* doing it.
