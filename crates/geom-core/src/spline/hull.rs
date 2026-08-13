@@ -70,6 +70,23 @@
 //! selects, so the only structure a span-restricted bound still checks
 //! is that the coefficient array has the length its knot vector
 //! requires — the one fact a `Span` says nothing about.
+//!
+//! # The one caller obligation, and what it now costs to break
+//!
+//! A `Span` is **not branded** to its knot vector (the [`Span`] docs say
+//! so; #447 deferred the brand). Everything above therefore reads "the
+//! `kv` this `Span` was drawn from": a `Span` from a *different* vector
+//! passes the length check — which is about `coeffs` versus `kv`, not
+//! about the span — and then indexes with a window this `kv` never
+//! validated. Before the fold, the range guard caught that case and
+//! poisoned; now it can index out of bounds and **panic**, which is a
+//! worse failure than the poison D4 asks for.
+//!
+//! Structurally closing it means the `Span` carrying its vector — a
+//! borrow, or an invariant-lifetime brand — so that the pairing cannot
+//! be got wrong rather than merely being documented. Until then this is
+//! prose, and every call site in the tree draws its span from the vector
+//! it evaluates against, one statement apart.
 
 use super::knots::{KnotVector, Span};
 use crate::real::Enclosure;

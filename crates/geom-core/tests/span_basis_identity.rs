@@ -1,71 +1,57 @@
-//! `basis_funs` / `ders_basis_funs` over a [`Span`] are **bit-for-bit**
-//! what they were over a raw span index.
+//! The pinned bit-level baseline for the basis ladder: `basis_funs` and
+//! `ders_basis_funs`, as literal `f64` bit patterns.
 //!
-//! The fold that gave these functions a validated `Span` deleted their
-//! three-way range guard and their all-poison return. That is a typing
-//! change, and D9 makes "the numbers moved" a bug rather than a
-//! re-baseline — so the rows below are the literal `f64` bit patterns
-//! `main` produced, captured before the change and re-checked after.
+//! # A red row is a QUESTION, not a verdict
 //!
-//! Any drift in operand form, association order, or the shift-and-add's
-//! `n[j] = saved` (which is where the sign of a zero lives) shows up
-//! here as a bit mismatch, not as a tolerance question. The spread is
-//! five knot vectors — uniform cubic, a cubic and a quadratic with an
-//! **interior multiplicity 2** (each carrying an empty span the walk
-//! must skip), degree 1, and degree 5 — sampled at each nonempty span's
-//! low knot, midpoint, and high knot. The high knot is outside the
-//! half-open span, so a third of the rows exercise the documented
-//! polynomial extension too.
+//! **Being off by a few ulps here is NOT a reason to reject a change.**
+//! It is a sign to double-check the cause, then re-baseline. Always
+//! accept the re-baseline if the change is correct and improves code
+//! quality. What this table buys is that the drift is *noticed* and
+//! *explained* rather than sliding in unseen — nothing more. The rows
+//! are what the code produced, not what the mathematics requires; they
+//! carry no authority of their own.
+//!
+//! What a red row should make you check, in order: is the new value
+//! right (the derived suites — partition of unity, the Bernstein closed
+//! form, the dual/finite-difference rows in `basis.rs` — are the ones
+//! that can answer that); is the move an accident of a rewrite that
+//! meant to be value-preserving; and is anything downstream pinned to
+//! the old bits. If the answers are fine, regenerate: run the walk in
+//! `basis_rows_match_the_pinned_baseline` and paste the new rows.
+//!
+//! Wholesale drift across every row usually means an operand form,
+//! association order, or the shift-and-add's `n[j] = saved` (where the
+//! sign of a zero lives) changed — worth understanding before accepting,
+//! since D9 asks for deliberate arithmetic, not for these exact numbers.
+//!
+//! # Why an absolute pin at all
+//!
+//! Every other bit-level test in the workspace compares the code against
+//! ITSELF — rerun against rerun, `f64` lane against ring lane. Those go
+//! green on a ladder that has shifted uniformly. This is the only place
+//! that would notice, which is why it is worth its ~100 rows.
+//!
+//! The rows below were captured from `main` before the `Span` fold
+//! (#463) and re-checked after it — that migration is where they came
+//! from, but the table stands on its own now.
+//!
+//! The spread is [`span_fixtures::vectors()`] — five knot vectors, two
+//! of them carrying an empty span the walk must skip — sampled at each
+//! nonempty span's low knot, midpoint, and high knot. The high knot is
+//! outside the half-open span, so a third of the rows exercise the
+//! documented polynomial extension too.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::spline::KnotVector;
 use geom_core::spline::basis::{basis_funs, ders_basis_funs};
 
-fn kv(knots: Vec<f64>, degree: usize) -> KnotVector {
-    KnotVector::clamped(knots, degree).expect("valid knot vector")
-}
+mod span_fixtures;
+use span_fixtures::vectors;
 
-fn vectors() -> Vec<(&'static str, KnotVector)> {
-    vec![
-        (
-            "uniform cubic",
-            kv(
-                vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0],
-                3,
-            ),
-        ),
-        (
-            "cubic, interior multiplicity 2",
-            kv(
-                vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.3, 1.7, 2.0, 2.0, 2.0, 2.0],
-                3,
-            ),
-        ),
-        ("degree 1", kv(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1)),
-        (
-            "degree 5",
-            kv(
-                vec![0.0; 6]
-                    .into_iter()
-                    .chain([0.4, 0.9])
-                    .chain(vec![1.0; 6])
-                    .collect(),
-                5,
-            ),
-        ),
-        (
-            "quadratic, interior multiplicity 2, nonuniform",
-            kv(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.25, 3.0, 3.0, 3.0], 2),
-        ),
-    ]
-}
-
-/// Captured from `main` at this branch's point, before the fold, by the
-/// exact walk `golden_rows_match_the_pre_fold_capture` performs below:
-/// per vector, per **nonempty** span, per `t` in
-/// `[u_s, midpoint, u_{s+1}]`, the `basis_funs` row followed by
-/// `ders_basis_funs(.., 2)`'s first-derivative row.
+/// The walk `basis_rows_match_the_pinned_baseline` performs below: per
+/// vector, per **nonempty** span, per `t` in `[u_s, midpoint, u_{s+1}]`,
+/// the `basis_funs` row followed by `ders_basis_funs(.., 2)`'s
+/// first-derivative row.
 // Kept one row per line: rustfmt would otherwise explode each row to one
 // hex literal per line, turning a 100-line table into a 600-line one.
 #[rustfmt::skip]
@@ -174,7 +160,7 @@ const GOLDEN: &[&[u64]] = &[
 ];
 
 #[test]
-fn golden_rows_match_the_pre_fold_capture() {
+fn basis_rows_match_the_pinned_baseline() {
     let mut n = 0usize;
     let mut next = |row: &[f64], what: &str, name: &str, index: usize, t: f64| {
         let want = GOLDEN.get(n).unwrap_or_else(|| {
