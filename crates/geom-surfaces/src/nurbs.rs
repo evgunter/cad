@@ -338,8 +338,8 @@ impl<T: Real> NurbsSurface<T> {
     /// use site. Garbage-in on the PARAMETERS still gives garbage-out
     /// (the polynomial extension of the window's patch), unchanged.
     pub fn eval_in_span(&self, win: SurfaceWindow, u: T, v: T) -> Point3<T> {
-        let bu = spline::basis::basis_funs(&self.knots_u, win.span_u().index(), u);
-        let bv = spline::basis::basis_funs(&self.knots_v, win.span_v().index(), v);
+        let bu = spline::basis::basis_funs(&self.knots_u, win.span_u(), u);
+        let bv = spline::basis::basis_funs(&self.knots_v, win.span_v(), v);
         let (mut x, mut y, mut z, mut w) = (T::zero(), T::zero(), T::zero(), T::zero());
         for (i, bui) in bu.iter().enumerate() {
             // Indexed off the window base, deliberately: the basis row
@@ -369,8 +369,8 @@ impl<T: Real> NurbsSurface<T> {
     /// `S_uu = (A₂₀ − S·w₂₀ − S_u·w₁₀·2)/w₀₀` (v symmetric),
     /// `S_uv = (A₁₁ − S·w₁₁ − S_u·w₀₁ − S_v·w₁₀)/w₀₀`.
     pub fn ders_in_span(&self, win: SurfaceWindow, u: T, v: T) -> SurfaceJet<T> {
-        let du = spline::basis::ders_basis_funs(&self.knots_u, win.span_u().index(), u, 2);
-        let dv = spline::basis::ders_basis_funs(&self.knots_v, win.span_v().index(), v, 2);
+        let du = spline::basis::ders_basis_funs(&self.knots_u, win.span_u(), u, 2);
+        let dv = spline::basis::ders_basis_funs(&self.knots_v, win.span_v(), v, 2);
         // Homogeneous partials A_kl for the six (k, l) with k + l ≤ 2,
         // indexed [k][l]; each lane accumulated in the double
         // ascending pass.
@@ -445,8 +445,8 @@ impl<T: Real> NurbsSurface<T> {
     /// S03 = (A03 − 3·w01·S02 − 3·w02·S01 −   w03·S00) / w00
     /// ```
     pub fn ders3_in_span(&self, win: SurfaceWindow, u: T, v: T) -> SurfaceJet3<T> {
-        let du = spline::basis::ders_basis_funs(&self.knots_u, win.span_u().index(), u, 3);
-        let dv = spline::basis::ders_basis_funs(&self.knots_v, win.span_v().index(), v, 3);
+        let du = spline::basis::ders_basis_funs(&self.knots_u, win.span_u(), u, 3);
+        let dv = spline::basis::ders_basis_funs(&self.knots_v, win.span_v(), v, 3);
         // Homogeneous partials A_kl for the ten (k, l) with k + l ≤ 3,
         // indexed [k][l]; each lane accumulated in the double
         // ascending pass (the second-order pass's shape, one order up).

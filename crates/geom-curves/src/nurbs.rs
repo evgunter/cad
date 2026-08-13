@@ -160,7 +160,7 @@ macro_rules! nurbs_curve {
             /// outside the span's interval still yields the span's
             /// polynomial extension (documented garbage-out).
             pub fn eval_in_span(&self, span: Span, t: T) -> $Point<T> {
-                let basis = spline::basis::basis_funs(&self.knots, span.index(), t);
+                let basis = spline::basis::basis_funs(&self.knots, span, t);
                 // The window's base, subtracted once inside `Span` — so
                 // the underflow-prone `span − p` is gone from here, and
                 // what remains is an addition. Indexing (not `zip`)
@@ -188,7 +188,7 @@ macro_rules! nurbs_curve {
             /// `C″ = (N² − C·w² − C′·w¹·2)/w⁰`.
             /// Same totality contract as [`Self::eval_in_span`].
             pub fn ders_in_span(&self, span: Span, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
-                let ders = spline::basis::ders_basis_funs(&self.knots, span.index(), t, 2);
+                let ders = spline::basis::ders_basis_funs(&self.knots, span, t, 2);
                 // Indexed off the window base, exactly as
                 // [`Self::eval_in_span`]. A `zip` against a window slice
                 // would be the wrong shape here: `ders`' row length and

@@ -520,10 +520,9 @@ fn bspline_range_hull(kv: &KnotVector, coeffs: &[RingInterval], lo: f64, hi: f64
     let (s0, s1) = kv.span_range(lo, hi);
     let mut acc = RingInterval::poison();
     let mut seeded = false;
-    for span in s0..=s1 {
-        if !kv.span_is_nonempty(span) {
-            continue;
-        }
+    for index in s0.index()..=s1.index() {
+        // Emptiness check and span validation are one step.
+        let Some(span) = kv.span(index) else { continue };
         let h = span_hull(kv, coeffs, span);
         acc = if seeded {
             RingInterval::hull(acc, h)
@@ -2966,6 +2965,8 @@ mod tests {
         use geom_core::spline::basis::ders_basis_funs;
         let band = Band::linear().unwrap();
         let kv_v = KnotVector::unit_segment(1);
+        // `pv` is gone: the oracle's v-window base is the `Span`'s own
+        // `first_control()`, not a re-derived `span − degree`.
         let (pu, nv, height) = (3usize, 2usize, 2.0f64);
         let mut postures: Vec<(String, EpsPosture)> = Vec::new();
         for mult in 1..=pu {
@@ -3003,21 +3004,17 @@ mod tests {
                 // The INDEPENDENT oracle: S = A/W through geom-core's
                 // basis ladder, S_d by the quotient rule.
                 let at = |u: f64, v: f64| -> ([f64; 3], [f64; 3], [f64; 3]) {
-                    let bu = ders_basis_funs::<f64>(&kv_u, kv_u.find_span(u), u, 1);
-                    let bv = ders_basis_funs::<f64>(&kv_v, kv_v.find_span(v), v, 1);
-                    // The two windows' first control points, subtracted
-                    // once by `Span`. The `iu * nv + iv` stride stays
-                    // written out on purpose: this oracle is meant to
-                    // share NO derivation with the code under test, so
-                    // it does not borrow the surface window type.
-                    let (fu, fv) = (
-                        kv_u.span_at(u).first_control(),
-                        kv_v.span_at(v).first_control(),
-                    );
+                    let (su, sv) = (kv_u.span_at(u), kv_v.span_at(v));
+                    let bu = ders_basis_funs::<f64>(&kv_u, su, u, 1);
+                    let bv = ders_basis_funs::<f64>(&kv_v, sv, v, 1);
+                    // The `iu * nv + iv` stride stays written out on
+                    // purpose: this oracle shares NO derivation with
+                    // the code under test, so it does not borrow the
+                    // surface window type.
                     let (mut a, mut w) = ([[0.0f64; 3]; 3], [0.0f64; 3]);
                     for (r, (nu0, nu1)) in bu[0].iter().zip(&bu[1]).enumerate() {
                         for (s, (nv0, nv1)) in bv[0].iter().zip(&bv[1]).enumerate() {
-                            let idx = (fu + r) * nv + (fv + s);
+                            let idx = (su.first_control() + r) * nv + (sv.first_control() + s);
                             let (ww, q) = (ws[idx], net_f[idx]);
                             let b = [nu0 * nv0, nu1 * nv0, nu0 * nv1];
                             for k in 0..3 {

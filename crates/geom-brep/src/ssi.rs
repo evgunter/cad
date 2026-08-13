@@ -886,10 +886,9 @@ fn pcurve_windows(p: &NurbsCurve2<f64>, pad_u: f64, pad_v: f64) -> Vec<UvRect> {
     let coords = p.ring_coords();
     let kv = p.knots();
     let mut out = Vec::new();
-    for span in kv.first_span()..=kv.last_span() {
-        if !kv.span_is_nonempty(span) {
-            continue;
-        }
+    for index in kv.first_span()..=kv.last_span() {
+        // Emptiness check and span validation are one step.
+        let Some(span) = kv.span(index) else { continue };
         let hu = geom_core::spline::hull::span_hull(kv, &coords[0], span);
         let hv = geom_core::spline::hull::span_hull(kv, &coords[1], span);
         if hu.is_poison() || hv.is_poison() {

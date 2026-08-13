@@ -217,22 +217,17 @@ impl<T: Bounds> NurbsSurface<T> {
         let (ku, kv) = (self.knots_u(), self.knots_v());
         let mut best = (ku.domain().0, kv.domain().0);
         let mut best_d2 = f64::INFINITY;
-        for span_u in ku.first_span()..=ku.last_span() {
-            if !ku.span_is_nonempty(span_u) {
-                continue;
-            }
-            let (a0, a1) = (ku.knots()[span_u], ku.knots()[span_u + 1]);
-            for span_v in kv.first_span()..=kv.last_span() {
-                if !kv.span_is_nonempty(span_v) {
-                    continue;
-                }
-                let (b0, b1) = (kv.knots()[span_v], kv.knots()[span_v + 1]);
-                // One window per span CELL, not per seed: it is the
-                // same window for all `SEEDS_PER_SPAN²` evaluations
-                // below.
-                let Some(win) = self.window(span_u, span_v) else {
-                    continue;
-                };
+        for iu in ku.first_span()..=ku.last_span() {
+            // Emptiness check and span validation are one step, in both
+            // directions; the window is then built once per span CELL —
+            // it is the same window for all `SEEDS_PER_SPAN²`
+            // evaluations below.
+            let Some(span_u) = ku.span(iu) else { continue };
+            let (a0, a1) = (ku.knots()[iu], ku.knots()[iu + 1]);
+            for iv in kv.first_span()..=kv.last_span() {
+                let Some(span_v) = kv.span(iv) else { continue };
+                let (b0, b1) = (kv.knots()[iv], kv.knots()[iv + 1]);
+                let win = self.window_of(span_u, span_v);
                 for i in 0..SURFACE_PROJECT_SEEDS_PER_SPAN {
                     #[allow(clippy::cast_precision_loss)]
                     let fu = i as f64 / (SURFACE_PROJECT_SEEDS_PER_SPAN - 1) as f64;

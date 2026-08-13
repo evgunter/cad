@@ -672,12 +672,11 @@ mod tests {
     /// plan machinery is dimension-agnostic, so scalar control points
     /// are a complete test bed.
     fn eval1(kv: &KnotVector, w: &[f64], x: &[f64], t: f64) -> f64 {
-        let span = kv.find_span(t);
+        let span = kv.span_at(t);
         let n = basis_funs(kv, span, t);
-        let p = kv.degree();
         let (mut num, mut den) = (0.0, 0.0);
         for (j, nj) in n.iter().enumerate() {
-            let i = span - p + j;
+            let i = span.first_control() + j;
             num += nj * w[i] * x[i];
             den += nj * w[i];
         }
