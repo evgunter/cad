@@ -14,7 +14,10 @@
 //! `fillet_leg_reach` (the corner-side extent test, same exact-order
 //! band) and, against the run's linear band, `fillet_corner_arm`,
 //! `fillet_corner_turn` and the `fillet_offset_*` carrier-intersection
-//! family. They are the one place sugar decides, and they decide only
+//! family — the last of which, `fillet_offset_lever` (M8), decides not
+//! whether the offset carriers meet but whether the meeting point can be
+//! back-projected onto a leg's carrier within ε at all.
+//! They are the one place sugar decides, and they decide only
 //! *which construction the author asked for* — never a geometric
 //! verdict about the finished loop, which stays
 //! [`crate::Profile::validate`]'s. Everything else holds everywhere:
@@ -330,6 +333,27 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
         margin: T,
         /// The lever arm it was levered by.
         arm: T,
+    },
+    /// `fillet_offset_lever` not Positive: the leg's **offset radius**
+    /// ρ = R − σ·τ·r — the lever the tangent point is recovered over —
+    /// is shorter than the least lever the run's band can support, so
+    /// the fillet centre's back-projection onto that carrier cannot be
+    /// placed within ε. A corner and a tangent circle both exist; what
+    /// does not exist is a *certifiable* tangent point (D4 ¶2).
+    ///
+    /// See [`ArcCarrier::offset_circles`] for the gate's derivation and
+    /// for why only the outgoing leg can reach this arm.
+    OffsetLeverTooShort {
+        /// The leg whose offset lever is short.
+        leg: FilletLeg,
+        /// That leg's carrier radius R.
+        carrier_radius: T,
+        /// Its signed offset radius ρ = R − σ·τ·r — the lever itself.
+        offset_radius: T,
+        /// The least |ρ| the band supports at this corner's scale.
+        least_lever: T,
+        /// The gate's margin |ρ| − least_lever, meters.
+        margin: T,
     },
     /// A Negative `fillet_leg_fit` on a corner-side candidate: the
     /// radius pushes a tangent point off the far end of its leg.
@@ -784,9 +808,90 @@ impl<T: Real> Leg<T> {
     }
 }
 
+/// The back-projection error constant of [`ArcCarrier::offset_circles`],
+/// in units of `f64::EPSILON` — the ONE empirical number in the
+/// conditioning gate, and the only thing in it that is not algebra.
+///
+/// The derivation it multiplies is in the gate's docs; what is measured
+/// is the constant in front. Over a 2 000 000-corner sweep of the
+/// `review_s2` draw distribution (1 272 793 accepted corners, 371 604 of
+/// them arc×arc) the worst observed ratio of the actual off-carrier
+/// residual to the derived expression was 1.94e-15 = 8.7·`f64::EPSILON`.
+/// The shipped constant is 32 — **3.7x the measured worst**, chosen from
+/// the two sides it is squeezed between:
+///
+/// - it must not refuse corners the kernel constructs correctly today.
+///   At 32 the same sweep newly refuses **2 of 1 272 793** accepted
+///   corners (0.16 per 100 000); the six `review_s2` enclosing fixtures
+///   clear it by 135x–894x.
+/// - it must refuse before the residual can reach ε. Over an 804 418-corner
+///   sweep drawn ADVERSARIALLY (near-tangent turns, `R_out` within
+///   1e-7 relative of `r`), of which 15 968 produced a residual above ε,
+///   the gate refused **all 15 968**, the nearest of them 40x before its
+///   threshold, and the worst residual among the corners it KEPT was
+///   2.09e-11 — 48x inside ε.
+///
+/// It is a machine-precision count, not a tolerance: ε enters the gate
+/// through the band, so the affordable conditioning loosens at ε = 1e-6
+/// and tightens at ε = 1e-12 without this number moving.
+const BACK_PROJECTION_ULPS: f64 = 32.0;
+
 impl<T: Real> ArcCarrier<T> {
     /// The candidate centers where this carrier's offset circle meets
     /// `other`'s (0, 1 or 2, in fixed order).
+    ///
+    /// # The conditioning gate (`fillet_offset_lever`)
+    ///
+    /// A tangent point is recovered from the fillet centre P by
+    /// projecting it back onto the leg's carrier,
+    /// `t = O + R·(P − O)/|P − O|` with `|P − O| = |ρ|`
+    /// ([`Leg::tangent_point`]). So a **radial** error in P — a
+    /// deviation of `|P − O|` from `|ρ|` — lands at the tangent point
+    /// multiplied by `R/|ρ|`, and the offset radius ρ is the lever the
+    /// whole recovery hangs from. Nothing above gates that lever:
+    /// `fillet_corner_turn` gates whether a corner EXISTS, and the two
+    /// clearances below gate whether the offset carriers MEET. Whether
+    /// the meeting point can be placed accurately enough to certify the
+    /// tangent point at ε is this gate, and it is the one the M8
+    /// `review_s2` red (a 2.29e-9 residual against a 1e-9 assertion)
+    /// found missing.
+    ///
+    /// **Only `other`'s lever is gated, and the asymmetry is real.** Of
+    /// the two offset circles, THIS one's radius is honoured by
+    /// identity: `|P − self.center|² = along² + half²` and
+    /// `half = √(ρ₁² − along²)`, so the two cancel exactly and P sits at
+    /// `|ρ₁|` from `self.center` up to a relative ulp, whatever `along`
+    /// did. The other circle has no such identity —
+    /// `|P − other.center|² = d² − 2·d·along + ρ₁²`, whose derivative in
+    /// `along` is `−d/|ρ₂|` — so `along`'s rounding arrives at
+    /// `other`'s carrier amplified by `d/|ρ₂|`, and then again by
+    /// `R₂/|ρ₂|` at the back-projection. `offset_line_circle` has the
+    /// identity on BOTH sides (`h² + half² = ρ²`), which is why it
+    /// carries no such gate — and measurement agrees: over 900 000
+    /// line×arc corners the worst off-carrier residual was 1.3e-13,
+    /// against 2.6e-10 for arc×arc on the same sweep.
+    ///
+    /// **The derivation.** `along = (d² + ρ₁² − ρ₂²)/2d` is evaluated in
+    /// a scalar of unit roundoff `u`, so its absolute error is
+    /// `≲ u·(d² + ρ₁² + ρ₂²)/d`. Propagating it through the two
+    /// amplifications above:
+    ///
+    /// ```text
+    ///   residual  ≈  (R₂/|ρ₂|) · (d/|ρ₂|) · u·(d² + ρ₁² + ρ₂²)/d
+    ///             =  C · R₂ · scale² / ρ₂²,   scale² = d² + ρ₁² + ρ₂²
+    /// ```
+    ///
+    /// Requiring `residual ≤ ε` inverts to a **least lever**, which is
+    /// what the gate classifies (and which is why the margin is a
+    /// length, in the currency of ρ itself):
+    ///
+    /// ```text
+    ///   |ρ₂|  ≥  scale · √(C·R₂/ε)
+    /// ```
+    ///
+    /// ε is read from the band, never written down — see
+    /// [`BACK_PROJECTION_ULPS`] for C and for the measurements that fix
+    /// it.
     fn offset_circles(
         self,
         other: ArcCarrier<T>,
@@ -820,6 +925,34 @@ impl<T: Real> ArcCarrier<T> {
             return Err(ArcTrimRefusal::NoCorner {
                 reason: NoCornerReason::OffsetCarriersDisjoint,
                 radius,
+            });
+        }
+        // The conditioning gate, after the clearances on purpose: "the
+        // carriers do meet, and what I cannot do is place the tangent
+        // point there" is the precise story, and a pair that never met
+        // keeps its own (stronger) refusal unchanged.
+        //
+        // powi(2)-discipline squares: both ρ straddle zero in general
+        // (memories/interval-square-poison.md).
+        let scale = (dist_squared + rho1.powi(2) + rho2.powi(2)).sqrt();
+        let least_lever = scale
+            * (T::from_f64(BACK_PROJECTION_ULPS * f64::EPSILON) * other.radius
+                / T::from_f64(band.zero()))
+            .sqrt();
+        // `other` is the OUTGOING leg at the one call site that reaches
+        // here (`(Some(a), Some(b)) => a.offset_circles(b, ..)`, a being
+        // the incoming leg's carrier), and the docs above say why the
+        // exposed side is the second argument's rather than either.
+        if decide("fillet_offset_lever", Margin::of(r2 - least_lever), band)
+            .map_err(ArcTrimRefusal::Escalated)?
+            != Sign::Positive
+        {
+            return Err(ArcTrimRefusal::OffsetLeverTooShort {
+                leg: FilletLeg::Outgoing,
+                carrier_radius: other.radius,
+                offset_radius: rho2,
+                least_lever,
+                margin: r2 - least_lever,
             });
         }
         let along = (dist_squared + rho1.powi(2) - rho2.powi(2)) / (dist + dist);

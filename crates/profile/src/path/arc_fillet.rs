@@ -379,6 +379,24 @@ fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> PathError<T>
         ArcTrimRefusal::NoCorner { reason, radius } => {
             no_corner(PathNoCornerReason::NoTangentCircle(reason), radius)
         }
+        // M8's conditioning gate. Deliberately NOT laundered into
+        // `NoCornerForFillet`: a corner and a tangent circle both exist
+        // here, and saying "no corner" about a corner that is right
+        // there would send the author looking for the wrong thing. The
+        // lever the message names is the one they can move.
+        ArcTrimRefusal::OffsetLeverTooShort {
+            leg,
+            carrier_radius,
+            offset_radius,
+            least_lever,
+            margin,
+        } => PathError::FilletOffsetLeverTooShort {
+            side: leg,
+            carrier_radius,
+            offset_radius,
+            least_lever,
+            margin,
+        },
         // §3c: the anchor-fit refusal now carries the CARRIER KIND, so
         // an arc side gets its angular story (`FilletLegCarrier::Arc`'s
         // `angular_margin`) instead of a bare linear setback that means

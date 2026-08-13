@@ -313,15 +313,22 @@ fn check_corner(
         ctx()
     );
 
-    // (b) tangent points on their carriers.
+    // (b) tangent points on their carriers. The residual is REPORTED,
+    // not just thresholded: "off carrier" without a magnitude cannot
+    // distinguish a borderline tolerance from a gross geometric error,
+    // and that is precisely the question a failure here raises.
+    let (res_in, res_out) = (
+        leg_in.carrier_residual(corner, t1),
+        leg_out.carrier_residual(corner, t2),
+    );
     assert!(
-        leg_in.carrier_residual(corner, t1) < 1e-9,
-        "t1 off carrier — {}",
+        res_in < 1e-9,
+        "t1 off carrier by {res_in:e} (tol 1e-9) — {}",
         ctx()
     );
     assert!(
-        leg_out.carrier_residual(corner, t2) < 1e-9,
-        "t2 off carrier — {}",
+        res_out < 1e-9,
+        "t2 off carrier by {res_out:e} (tol 1e-9) — {}",
         ctx()
     );
 
@@ -828,6 +835,91 @@ fn overrun_attribution_names_the_authored_corners_candidate() {
             assert!(setback < core::f64::consts::PI * 2.0, "setback {setback}");
         }
         other => panic!("unexpected refusal {other:?}"),
+    }
+}
+
+/// **The conditioning gate's mined witness (M8).** The corner
+/// `CAD_FUZZ_SEED=0x814d97e9cec0d36e CAD_FUZZ_EFFORT=1` iteration 89
+/// drew, which is what turned this sweep red: `check_corner`'s (b)
+/// assertion measured `t2` sitting 2.29e-9 off its carrier against a
+/// 1e-9 tolerance.
+///
+/// The construction was not wrong — it was *unconditioned*, and nothing
+/// said so. The outgoing leg's carrier radius (0.567 322 99) sits
+/// 2.9e-4 from the authored fillet radius (0.567 033 69) on the side the
+/// corner turns toward, so its offset radius ρ = R − σ·τ·r collapses to
+/// that difference; the tangent point is recovered by projecting the
+/// fillet centre back over exactly that lever, and the corner's carriers
+/// are 2.27 m apart, so the centre's last-place rounding arrives at the
+/// carrier magnified past ε. `fillet_offset_lever` now says so:
+/// |ρ| = 2.89e-4 against a least supported lever of 6.44e-3, short by a
+/// factor of 22.
+///
+/// Pinned as a fixture rather than left to the seed (the harness's shape-2
+/// rule): the witness is written down, so it is checked on every run
+/// instead of once per lucky draw. The numbers below are the draw's, to
+/// the bit.
+#[test]
+fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
+    let corner = p2(-0.036_538_048_808_474_78, -0.639_153_338_141_905_2);
+    let r = 0.567_033_689_456_740_4;
+    let leg_in = OracleLeg::Arc {
+        center: p2(-1.716_849_619_579_590_6, -0.386_316_949_082_364_86),
+        radius: 1.699_227_240_394_869,
+        tau: -1.0,
+        far_angle: 6.965_749_569_640_534_5,
+    };
+    let leg_out = OracleLeg::Arc {
+        center: p2(0.526_054_394_925_831_4, -0.712_263_623_663_518_8),
+        radius: 0.567_322_987_015_324_7,
+        tau: 1.0,
+        far_angle: 5.717_696_914_354_667,
+    };
+    // The row only says anything if this really is the near-collapse it
+    // was mined for: same-sense, r within 3e-4 of the outgoing carrier.
+    let sigma = turn_sign(corner, leg_in, leg_out);
+    let OracleLeg::Arc {
+        radius: r_out, tau, ..
+    } = leg_out
+    else {
+        panic!("the outgoing leg is an arc by construction")
+    };
+    let rho = r_out - sigma * tau * r;
+    assert!(
+        rho.abs() < 3e-4,
+        "the pin's outgoing offset lever is {rho}, not the near-collapse it was mined for"
+    );
+    match build_corner(corner, leg_in, leg_out, r) {
+        Err(ProfileError::FilletOffsetLeverTooShort {
+            leg,
+            offset_radius,
+            least_lever,
+            margin,
+            ..
+        }) => {
+            assert_eq!(leg, profile::FilletLeg::Outgoing);
+            assert!(
+                (offset_radius - rho).abs() < 1e-15,
+                "the refusal reports offset lever {offset_radius}, not the corner's {rho}"
+            );
+            // Short by more than a decade: the gate is not deciding a
+            // hairline here, it is refusing a corner that misses the
+            // supported conditioning by 22x.
+            assert!(
+                least_lever > 10.0 * offset_radius.abs(),
+                "least lever {least_lever} against |rho| {}: the pin no longer sits well \
+                 inside the refused region",
+                offset_radius.abs()
+            );
+            assert!(
+                margin < 0.0,
+                "margin {margin} must be the negative shortfall"
+            );
+        }
+        other => panic!(
+            "a tangent point this unconditioned must refuse typed rather than be returned \
+             2.29e-9 off its carrier; got {other:?}"
+        ),
     }
 }
 

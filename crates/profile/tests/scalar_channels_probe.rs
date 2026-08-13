@@ -148,6 +148,7 @@ fn probe_records_every_arc_fillet_gate() {
         "fillet_offset_line_circle",
         "fillet_offset_circles_external",
         "fillet_offset_circles_internal",
+        "fillet_offset_lever",
         "fillet_leg_reach",
         "fillet_leg_fit",
     ] {

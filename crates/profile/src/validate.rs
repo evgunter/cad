@@ -71,8 +71,9 @@
 //! | `fillet_offset_line_circle` | \|ρ\| − \|h\| clearance | linear band; offset-carrier intersection (M5 S2) |
 //! | `fillet_offset_circles_external` | \|ρ₁\|+\|ρ₂\| − d | linear band; offset-carrier intersection (M5 S2) |
 //! | `fillet_offset_circles_internal` | d − \|\|ρ₁\|−\|ρ₂\|\| | linear band; offset-carrier intersection (M5 S2) |
+//! | `fillet_offset_lever` | \|ρ₂\| − scale·√(C·R₂/ε) | linear band; the arc×arc back-projection's conditioning (M8) |
 //!
-//! The six `fillet_*` rows above the line fire in
+//! Every `fillet_*` row above fires in
 //! the arc-carrier fillet construction (construction sugar's one
 //! documented decision site), never in validation; the two exact-order
 //! rows are order/extent decisions on the same footing as
@@ -325,6 +326,22 @@ const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any prec
 const FILLET_NO_CORNER_RECOURSE: &str =
     "use a smaller radius, or move the legs so a circle of that radius can sit in the corner";
 
+/// The recourse for a corner whose offset lever is too short to place a
+/// tangent point within ε — one sentence for the definite refusal
+/// ([`ProfileError::FilletOffsetLeverTooShort`]) and for the in-band
+/// escalation of `fillet_offset_lever` alike (D4 ¶1's clause (iv): a new
+/// definite arm inherits its in-band sibling's one story).
+///
+/// It names the lever the user can actually move. ρ = R − σ·τ·r collapses
+/// when the fillet radius approaches the leg's own carrier radius on the
+/// side the corner turns toward, and everything else in the threshold is
+/// the corner's scale, which the author usually cannot trade.
+const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered by projecting the fillet's centre back onto that leg's \
+     carrier, and the projection divides by the offset radius rho = R - sigma*tau*r, so a \
+     fillet radius this close to the leg's carrier radius cannot place the tangent point \
+     within tolerance: move the fillet radius away from that leg's carrier radius, or bring \
+     the corner's carriers closer together (or lower the tolerance)";
+
 /// The recourse for a radius whose tangent points fall outside their
 /// legs — shared by the definite refusal and the in-band escalation.
 const FILLET_FIT_RECOURSE: &str =
@@ -450,6 +467,36 @@ pub enum ProfileError {
         reason: NoCornerReason,
         /// The requested radius, meters (`f64` diagnostic channel).
         radius: f64,
+    },
+    /// The fillet corner exists and a tangent circle of the requested
+    /// radius exists, but its **tangent point cannot be certified**: the
+    /// leg's offset radius ρ = R − σ·τ·r — the lever the tangent point
+    /// is recovered over, by projecting the fillet centre back onto the
+    /// leg's carrier — is shorter than the least lever the run's band
+    /// supports at this corner's scale, so the recovered point would sit
+    /// further than ε off the carrier it claims to be on (D4 ¶2: every
+    /// derived item carries a residual bound, and a construction that
+    /// cannot meet it refuses rather than absorbing the error).
+    ///
+    /// The situation in one sentence: **the fillet radius is too close
+    /// to the leg's own carrier radius** (that is what collapses ρ),
+    /// at a corner whose carriers are far apart relative to it. The
+    /// derivation of the least lever is on
+    /// `sugar::ArcCarrier::offset_circles`; the constant it uses is
+    /// measured, not chosen (M8).
+    FilletOffsetLeverTooShort {
+        /// The leg whose offset lever is short.
+        leg: FilletLeg,
+        /// That leg's carrier radius R, meters (`f64` diagnostic
+        /// channel).
+        carrier_radius: f64,
+        /// Its signed offset radius ρ = R − σ·τ·r, meters — negative
+        /// when the fillet swallows the leg's carrier.
+        offset_radius: f64,
+        /// The least |ρ| the band supports here, meters.
+        least_lever: f64,
+        /// The classified margin |ρ| − `least_lever`, meters.
+        margin: f64,
     },
     /// A fillet leg has no extent to round against: a zero-length
     /// straight leg, a zero-radius arc carrier, or an arc leg whose
@@ -617,6 +664,20 @@ impl fmt::Display for ProfileError {
                 "no corner for a fillet of radius {radius} m: {reason} — \
                  {FILLET_NO_CORNER_RECOURSE}"
             ),
+            Self::FilletOffsetLeverTooShort {
+                leg,
+                carrier_radius,
+                offset_radius,
+                least_lever,
+                margin,
+            } => write!(
+                f,
+                "fillet corner: the {leg}'s offset lever rho {offset_radius} m (carrier \
+                 radius {carrier_radius} m) is shorter than the {least_lever} m this \
+                 corner's scale needs at the run's tolerance (margin {margin} m), so the \
+                 tangent point on that carrier cannot be certified — \
+                 {FILLET_OFFSET_LEVER_RECOURSE}"
+            ),
             Self::FilletLegDegenerate { leg, arm } => write!(
                 f,
                 "fillet {leg} has no extent (lever arm {arm} m) — {FILLET_LEG_EXTENT_RECOURSE}"
@@ -740,6 +801,12 @@ impl fmt::Display for ProfileError {
                         }
                         Some("fillet_leg_fit") => {
                             write!(f, " — {FILLET_FIT_RECOURSE}")?;
+                        }
+                        // The conditioning gate's in-band arm (M8): the
+                        // same one story as its definite sibling
+                        // `FilletOffsetLeverTooShort`, per D4 ¶1 (iv).
+                        Some("fillet_offset_lever") => {
+                            write!(f, " — {FILLET_OFFSET_LEVER_RECOURSE}")?;
                         }
                         _ => {}
                     }
