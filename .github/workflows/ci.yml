@@ -766,8 +766,41 @@ jobs:
           name: nextest-interval
           path: nextest-interval.tar.zst
           retention-days: 1
-      # This job owns the interval feature's clippy pass (the default
-      # clippy job deliberately skips --all-features).
+
+  # The interval feature's clippy pass (the default clippy job
+  # deliberately skips --all-features) and its doc-tests.
+  #
+  # WHY A SEPARATE JOB (2026-08-12): these two steps used to live at the
+  # end of `build-interval`, after the archive upload. That put them on
+  # the RUN'S CRITICAL PATH for no reason — `test-interval` declares
+  # `needs: build-interval`, and `needs` waits for the whole JOB, not for
+  # the artifact it actually consumes. So the longest test leg in the run
+  # sat behind a clippy pass it has no dependency on. Measured over 11
+  # runs: clippy 37 s + doc-tests 7 s, i.e. ~44 s of pure critical-path
+  # latency. Split out, they run concurrently with the archive instead.
+  #
+  # Deliberately NOT inheriting build-interval's env: this job links no
+  # test binaries, so mold buys nothing and its ~12 s apt install would
+  # cost more than it saves, and opt-level 2 would slow the compile with
+  # nothing executing at scale to pay it back. It keeps only the
+  # debuginfo knobs, which are pure win. Its own rust-cache key follows
+  # from the no-shared-key rule documented on build-interval.
+  lint-interval:
+    name: clippy + doc-tests (interval)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_build == 'true'
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+    steps:
+      - uses: actions/checkout@v4
+      - name: prune local-scripts (hosted CI may not depend on them)
+        run: rm -rf local-scripts
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: interval-lint
       - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets --features interval -- -D warnings
       - name: doc-tests (interval)
         run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }} --features interval
