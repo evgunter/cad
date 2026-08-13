@@ -789,3 +789,53 @@ unowned infra pickup, recorded here.
 | U4B | 2026-08-12 | LQ3(c) frame-constructor family in geom-core (constructors only): point_at (+Z aim, +Y roll-ref convention pinned bitwise), path_start_frame (P1 recipe once — bitwise-identical to point_at with the ladder reference), mirror_across_plane (det −1, transform_rigid refusal executed); degeneracy POLICY through decide/Margin/Band replacing the n.z<0.9 dodge (no ledger row); resonance table per Evan's amendment (unification NOT done and said) | M / NUMERIC (pre-draw logged) | OPUS (block LIB-9 slot 3, the parallel track) | single (ordinal 35, reviewed head 3a874c07) — APPROVE 0/2/3, rubric 5/5/4 (frame math re-derived by hand incl. both poles + a 3e-9 near-tie; sign and ladder mutations proved the pins bite; tie probes definite-or-refuse never silent; the 26° bit-preservation cone math verified vs skinned.rs; G3 reproduced pristine = #415's defect with a sharper mechanism; MINORs = overflow-class refusal naming + report length) | 0 silent load-bearing (10 findings genuine; gaps G1 rotation_taking / G2 orientation-reversing topo consumer / G3=#415 recorded) | 5 | 5 | 4 | tiny, text (overflow class named in docs + a pinning assertion; report 150; two NOTEs adopted); executor: implementer-inherited | MERGED #440 32/32 at fc6c257e; the pose/mirror/path-start family EXISTS as plain Affine3 values — U4b's constructors-only slice done, demo migration rides future consumers | impl ~192k / review ~145k / fix ~216k-cum | impl ~2.9h / review ~3.8h (~2.5h slot contention — the stale-holder incident) / fix ~0.8h |
 | U4A-DOOR | 2026-08-12 | LQ3(b) chain→curve composition door in geom-curves: compose_chain (C⁰ by shared provenance — twin dropped, never value-matched; G¹ from control data via decide/Margin::over_lever; C¹ arranged exactly by parameter-interval scaling); compose(quarter,quarter) bit-for-bit = the semicircle chain; s_duct quantified 3.79e-3 (interpolation) vs 8.88e-16 (composition) | M-L / NUMERIC (pre-draw logged) | OPUS (block LIB-9 slot 4, the parallel track) | **DUAL (sample #12, ordinal 36, FIRST LIB CROSS-MODEL — R1 fable, R2 opus, concurrent frozen 5f774e29)**: R1 APPROVE-WITH-FIXES 0/2/— ; R2 APPROVE-WITH-FIXES 0/3/4. CONVERGED including LABELS; both 0 MAJOR; both executed everything (R2 measured exact one-sided C¹ jumps ~2e-16 via deriv_in_span and authored a STRONGER bitwise pin than the PR's; R1 caught the one behavior defect — the co-orientation Sign::Zero arm asserting a cusp on sub-band forward tangents); disjoint tails complementary (R1: the mislabel + missing rows; R2: the unstated knot-merge deviation + prose overreach). Cross-model calibration point: comparable depth both arms | 2 silent prose-level (the spec's KnotAlgebra-merge wording unaddressed — measured: no such routine exists, hand-assembly forced; report length), rest reported | 5/5 | 4/5 | 4/4 | moderate (SeamTangentUncertifiable replaces the cusp assertion with a sub-band forcing argument; both reviewers' rows + R2's stronger pin ADOPTED credited; deviations stated in PR body; report 150) ; executor: implementer-inherited | MERGED #442 32/32 at 142ad4fc; THE COMPOSITION DOOR EXISTS — the SWEEP_FRONTIER discharge site is built, pending its own wiring unit; findings feed U4a-proper (notably: promote geom-brep's private rational_arc_chain) | impl ~218k / R1 ~119k / R2 ~121k / fix ~282k-cum | impl ~4.8h (92min starved by the stale holder) / R1 ~2.1h / R2 ~1.8h / fix ~0.8h |
 | RETTAIL | 2026-08-12 | the retirement's tail: ProfileLoop construction demoted (RawLoop trait + curated pub mod — the measured door; inherent methods travel with the type), bowtie re-homed to rejections.rs with its oracle ASSERTED, twins onto blessed fixtures (mutation-proven), shim deletion re-sequenced to RESPELL by ruling | S-M / STRUCTURAL (pre-draw logged) | OPUS (block LIB-9 slot 1) | **DUAL (sample #11, ordinal 33, same-model fable+fable, concurrent frozen 79391413)**: R1 APPROVE 0/0/3; R2 APPROVE 0/2/3. CONVERGED including labels, zero MAJORs both; both independently mutation-proved the twins (distinct mutations), both reproduced #433 and the pristine-main geom-core failure (=#415, deterministic — R1's sharper note: a main-side aggregation bug, not a flake); disjoint tails tiny (R2: stale re-bless command + a stale count; R1: the turbofish evasion NOTE) | 0 silent (4 reported; the mid-unit #419 ratification honestly surfaced as the shim-sequencing driver) | 5/5 | 5/5 | 4/4 | tiny, text, ORCHESTRATOR-applied (the re-bless command now names the aggregated all target; the 111→104 count corrected) | MERGED #431 33/33 (one post-run archive-cleanup housekeeping job red — not a test row); the #413 rulings are EXECUTED: raw construction off the presented surface, the broken-on-purpose demo out of the tour; struct-literal sealing = Evan's open question on the thread | impl ~264k-cum (session-restart annotated) / R1 ~157k / R2 ~143k / fix orchestrator-direct | impl fragmented across the restart / R1 ~9.5h wall (~6h the stale-holder + queue — the max-hold evidence) / R2 ~4.1h |
+
+SPAN-sweep dispatch (2026-08-12, the #447 follow-up sweep — two
+units dispatched concurrently, both kernel-series). Slot
+accounting: block **M8-14 is now fully consumed** — its second
+banked opus remainder goes to SPANCORE. SPANWINDOW opens block
+**M8-15**, drawn at dispatch (urandom byte 223, reject-≥252,
+mod 3 → fable at slot 1): arm order **(opus, fable, opus)**;
+SPANWINDOW takes slot 0 = OPUS, so one fable (slot 1) and one
+opus (slot 2) remain banked.
+
+- **SPANCORE** = OPUS (block M8-14 slot 2, the second banked
+  remainder). Lane span-core, branch claude/span-core-fold.
+  Pre-draw fields: difficulty **M**, task-class **STRUCTURAL**
+  (typing sweep; no new numeric decision — arithmetic pinned
+  bit-identical to main by the brief). Scope: `basis_funs`/
+  `ders_basis_funs` take `Span` (the guard #447 was written to
+  delete, still live at basis.rs:51/:87; `poison_row` dies with
+  it), `hull.rs`'s `span_indices` collapses into `Span::window`,
+  `span_range` → `(Span, Span)`, and the nine remaining
+  `span_is_nonempty`-then-index loop heads fuse.
+- **SPANWINDOW** = OPUS (block M8-15 slot 0). Lane span-window,
+  branch claude/span-window-grid. Pre-draw fields: difficulty
+  **M-L**, task-class **STRUCTURAL**. Scope: the surface
+  evaluators' validated tensor window (the follow-up #447 names
+  in its Scope section) + the unguarded `span − p` use sites in
+  props/quad.rs and mesh/chords.rs (where two runtime
+  `MissingEntity` returns become unrepresentable states).
+
+Cross-unit sequencing recorded because it is a review surface:
+SPANCORE owns the `basis_funs` signature and makes a MINIMAL
+compile-only adaptation at the three geom-surfaces call sites;
+SPANWINDOW owns those sites properly and merges SPANCORE's
+branch before its Move 1. Conflict in geom-surfaces/src/nurbs.rs
+is expected and by design, not drift.
+
+Review-hazard note carried into BOTH briefs (orchestrator, from
+the #447 writeup): (1) #447 measured and REVERTED a 2.4×/2.8×
+regression on `NurbsCurve3::<f64>::eval` from a design that
+allocated `2p + 1` Vecs per evaluation — before/after perf
+tables are REQUIRED in both PR bodies, and a regression is a
+finding to report, not to tune away; (2) `zip` over an
+evaluation window silently drops control points where indexing
+panics (D4 fail-loud) — #447's `ders_in_span` regressed exactly
+this way and was put back. Both briefs make indexing binding and
+require an explicit argument for any added `zip`.
+
+Also spun out of the same sweep, NOT an A/B unit: issue #457
+(unit-vector invariants carried as prose — a design question
+about value-level vs structural invariants, deliberately not
+dispatched as mechanical work).
