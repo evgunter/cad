@@ -59,12 +59,6 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_PNCAD_PY=true|false       python suite (wheel + unittest) row
   RUN_INTERVAL_BACKEND=true|false   interval-transcendentals' own workspace
   RUN_K_LINT=true|false         k-lint (gate) row
-  SWEEP_PKGS=a,b,c              members whose randomized sweeps should run.
-                                A SEPARATE, NARROWER signal than PKGS — see
-                                sweep_pkgs(): tier `all` fires on 75% of
-                                building merges, so gating sweeps on PKGS
-                                would be nearly a no-op. Empty means no
-                                sweep runs at all.
 """
 
 from __future__ import annotations
@@ -206,59 +200,6 @@ def classify(files: list[str], root: str) -> dict[str, str]:
     }
 
 
-# Paths that cannot change how any kernel crate COMPILES, so they cannot
-# move a randomized sweep's verdict. demos/ and tools/ are excluded cargo
-# projects that depend ON the kernel, never the reverse; the rest is CI
-# plumbing and prose.
-_SWEEP_IRRELEVANT = (
-    "demos/",
-    "tools/",
-    ".github/",
-    "scripts/",
-    "local-scripts/",
-    "memories/",
-    "docs/",
-)
-
-
-def sweep_pkgs(files: list[str], root: str) -> list[str]:
-    """Members whose randomized sweeps should run for this change set.
-
-    A SEPARATE signal from PKGS, and deliberately narrower. `classify`
-    sends the whole run to tier `all` when `.github/`, `scripts/`,
-    `demos/` or a member manifest moves — a fail-closed rule that is
-    right for "does anything need rebuilding" and far too broad for
-    "could this have changed a certified bound". MEASURED on the 80
-    first-parent commits to 2026-08-13: tier `all` fired on 75% of
-    building merges (demos/ 26 hits, .github/ 18, scripts/ 12), so
-    gating sweeps on PKGS would have run them on 84-94% of builds —
-    nearly a no-op. Keying on SOURCE changes instead puts them at
-    6-41%, against own-source churn rates of 3-16%.
-
-    Fails closed to every member, like the rest of this script: an
-    unrecognised path, a manifest edit, a lockfile or toolchain move —
-    anything that can change what the compiler emits — runs everything.
-    """
-    dir_of, deps = _members(root)
-    seeds: set[str] = set()
-    for f in files:
-        if _is_docs(f) or f.startswith(_SWEEP_IRRELEVANT):
-            continue
-        parts = f.split("/")
-        if len(parts) >= 3 and parts[0] == "crates" and parts[1] in dir_of:
-            # A member manifest still unifies features workspace-wide, so
-            # it can change what EVERY crate compiles to. Not scopable.
-            if len(parts) == 3 and parts[2] == "Cargo.toml":
-                return sorted(dir_of.values())
-            seeds.add(dir_of[parts[1]])
-            continue
-        # Cargo.lock, rust-toolchain.toml, root Cargo.toml, .cargo/**,
-        # interval-transcendentals/** (a path dependency of geom-core),
-        # or anything this script does not recognise.
-        return sorted(dir_of.values())
-    return _closure(seeds, deps) if seeds else []
-
-
 def _all_tier(root: str) -> dict[str, str]:
     try:
         dir_of, _ = _members(root)
@@ -342,16 +283,6 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001 — fail CLOSED on anything at all
         print(f"ci-filter: falling back to TIER=all: {exc}", file=sys.stderr)
         res = _all_tier(root)
-
-    # Computed SEPARATELY, and outside the try above on purpose: the
-    # sweep signal must not inherit `classify`'s bail, because the paths
-    # that bail it (.github/, scripts/, demos/) are exactly the ones a
-    # sweep gate has to ignore. It fails closed on its own terms.
-    try:
-        res["SWEEP_PKGS"] = ",".join(sweep_pkgs(files, root))
-    except Exception as exc:  # noqa: BLE001
-        print(f"ci-filter: sweeps falling back to every member: {exc}", file=sys.stderr)
-        res["SWEEP_PKGS"] = ",".join(sorted(_members(root)[0].values()))
 
     for key, val in decorate(res).items():
         print(f"{key}={val}")
