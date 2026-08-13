@@ -13,22 +13,61 @@
 //! distance: they compare emitted floats to the body's OWN stored
 //! floats, bit for bit.
 //!
-//! The rows fall in four groups:
+//! The claims fall in four groups. Groups 1–3 are all statements about
+//! the SAME fixture corpus, so since the test-cost audit they are all
+//! made by ONE test —
+//! [`the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws`]
+//! — which builds the corpus once and labels every assertion with the
+//! law it belongs to:
 //!
-//! 1. **The exactness table** — every `Surface`/`Curve3` variant that
-//!    a body at rest carries emits its native entity, with the
-//!    kernel's stored fields reproduced bit-exactly, and a body emits
-//!    `B_SPLINE_*` records exactly when its KERNEL geometry is NURBS
-//!    (since M6-3 `loft_prism` genuinely is; every analytic kind still
-//!    refuses the rational-quadratic road, never approximated).
-//! 2. **The `same_sense` composition** — the S10 review's rule (bound
-//!    orientation composes with `same_sense`; never double-compose)
-//!    now that `.F.` faces really reach the emitter, with two pins
-//!    aimed directly at the double-composition bug.
-//! 3. **The NURBS containment pin** — spline geometry appears exactly
-//!    where the kernel put it (loft_prism's 4 walls + 4 seams), and
-//!    nowhere else.
-//! 4. **Determinism and the refusal arms.**
+//! 1. **The exactness table** (`EXACTNESS` / `NO-B-SPLINE` /
+//!    `NO-POLY-LOOP` / `APEX` / `FRAME`) — every `Surface`/`Curve3`
+//!    variant that a body at rest carries emits its native entity, with
+//!    the kernel's stored fields reproduced bit-exactly, and a body
+//!    emits `B_SPLINE_*` records exactly when its KERNEL geometry is
+//!    NURBS (since M6-3 `loft_prism` genuinely is; every analytic kind
+//!    still refuses the rational-quadratic road, never approximated).
+//!    The `FRAME` half is the row behind the docs' word "identity": a
+//!    writer that merely produced a *geometrically equivalent*
+//!    placement — a renormalized axis, a rotated seam, a cone placement
+//!    offset down the axis — would pass every import check and fail
+//!    there. The conic CARRIER half is still its own row,
+//!    [`emitted_conic_carriers_equal_the_kernel_carriers_bitwise`].
+//! 2. **The `same_sense` composition** (`BOUND` / `CHART-AXIS`) — the
+//!    S10 review's rule (bound orientation composes with `same_sense`;
+//!    never double-compose) now that `.F.` faces really reach the
+//!    emitter, with two pins aimed directly at the double-composition
+//!    bug. The S12 revert row keeps its own test.
+//! 3. **The NURBS containment pin** (`CENSUS`) — spline geometry
+//!    appears exactly where the kernel put it (loft_prism's 4 walls +
+//!    4 seams, and the #210 fold's two skinned documents), and nowhere
+//!    else, plus the placeholder-surface refusal.
+//!
+//!    *Lineage, kept because the names are cited in `docs/M5-EXIT-WALK.md`.*
+//!    `CENSUS` is the successor of `no_body_at_rest_carries_a_nurbs_\
+//!    carrier_or_face` (flipped at M6-2) and then of
+//!    `no_export_corpus_body_carries_a_nurbs_carrier_or_face` (flipped
+//!    at M6-3), and most recently of
+//!    `nurbs_geometry_appears_exactly_where_the_kernel_put_it` (merged
+//!    at the test-cost audit). The retired rows pinned a VACUITY
+//!    positively — that nothing anywhere reached a rung-3 carrier at
+//!    rest, which is what made "every fitted pcurve cache carries the
+//!    full C2 certificate" a statement about the empty set. M6-2 lifted
+//!    the SSI enclosure/certification stack off `f64` and landed
+//!    `Pcurve::Fitted` (`topo/tests/m6_2_fitted_at_rest.rs` now pins the
+//!    POSITIVE law); M6-3's `loft_prism` then brought the corpus's first
+//!    NURBS faces (four skinned walls) AND its first NURBS carriers (the
+//!    four wall–wall seam edges, which store the walls' u-boundary
+//!    control rows — so the carrier half flipped WITH the face half, not
+//!    later). The record-level pins in `writer.rs` still own the
+//!    field-level facts (rational complex instance, knot run-length
+//!    encoding). What survives here is CONTAINMENT: a corpus document
+//!    that silently acquired a NURBS carrier (fitted lane, live since
+//!    M6-2) or a writer that manufactured a spline out of an analytic
+//!    carrier still fails.
+//! 4. **Determinism and the refusal arms** — their own rows, because
+//!    [`curved_exports_are_byte_deterministic`] builds the corpus TWICE
+//!    on purpose and that second build IS its content.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -164,18 +203,60 @@ fn placement(recs: &HashMap<u64, (String, String)>, id: u64) -> ([f64; 3], [f64;
 }
 
 // ==================================================================
-// 1. The exactness table
+// 1. The corpus laws: exactness, bitwise frames, same_sense, NURBS
+//    containment — all on ONE corpus build
 // ==================================================================
 
-/// **Every curved fixture emits native analytic entities, and NOTHING
-/// emits a B-spline.** The second half is the load-bearing one: a
-/// writer that quietly approximated an ellipse as a rational quadratic
-/// (or a torus as a NURBS patch) would still import, still measure the
-/// right volume, and still pass every count — and would have thrown
-/// away the exactness this crate exists for. There is exactly one way
-/// to catch that, which is to assert the approximation is absent.
+/// **The corpus's export laws, on ONE corpus build.**
+///
+/// Five rows that all walked the same fixture corpus, now one:
+///
+/// 1. **Exactness table** (was `the_curved_corpus_emits_native_\
+///    entities_and_no_b_splines`) — every curved fixture emits native
+///    analytic entities, and NOTHING emits a B-spline it has no kernel
+///    NURBS for. The second half is the load-bearing one: a writer that
+///    quietly approximated an ellipse as a rational quadratic (or a
+///    torus as a NURBS patch) would still import, still measure the
+///    right volume, and still pass every count — and would have thrown
+///    away the exactness this crate exists for. There is exactly one
+///    way to catch that, which is to assert the approximation is
+///    absent.
+/// 2. **Bitwise frames** (was `emitted_placements_equal_the_kernel_\
+///    frames_bitwise`) — see the `FRAME` block below.
+/// 3. **`same_sense` pin A** (was `every_bound_orientation_is_true_\
+///    even_on_reversed_faces`) — the `BOUND` assertions, run over the
+///    WHOLE corpus, planar fixtures included.
+/// 4. **`same_sense` pin B** (was `a_reversed_face_keeps_its_chart_\
+///    axis`) — the `CHART-AXIS` assertions.
+/// 5. **NURBS containment** (was `nurbs_geometry_appears_exactly_\
+///    where_the_kernel_put_it`) — the `CENSUS` assertions, whole
+///    corpus, plus the placeholder-surface refusal.
+/// 6. **Single-shell reachability** (was `single_shell_curved_solids_\
+///    never_reach_the_classifier`) — the `SINGLE-SHELL` assertions.
+///
+/// # One corpus build, every law on it
+///
+/// Each of those six rows called `common::fixture_corpus()` (directly
+/// or through `curved_corpus`, which is that list filtered) and paid
+/// the whole 17-document build — booleans, fillet surgeries, a
+/// 21-dimple die, three skinned lofts — for a few hundred milliseconds
+/// of parsing and comparison. Under nextest's process-per-test
+/// isolation nothing was shared between them, so the corpus was built
+/// six times per ε row. It is built ONCE here, and each body's STEP
+/// text is emitted once and read by every law that wants it.
+///
+/// What the split bought and a merged row cannot is failure ISOLATION:
+/// six independent properties now surface under one test id. So every
+/// assertion below NAMES its law — `EXACTNESS`, `NO-B-SPLINE`,
+/// `NO-POLY-LOOP`, `APEX`, `FRAME`, `BOUND`, `CHART-AXIS`, `CENSUS`,
+/// `SINGLE-SHELL` — and the message alone says which one broke. Keep
+/// that discipline when adding assertions here.
+///
+/// The byte-determinism row (`curved_exports_are_byte_deterministic`)
+/// stays separate ON PURPOSE: it builds the corpus TWICE, and the
+/// second build is its whole content.
 #[test]
-fn the_curved_corpus_emits_native_entities_and_no_b_splines() {
+fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     // (fixture, the entities it must contain)
     let expected: &[(&str, &[&str])] = &[
         (
@@ -276,17 +357,98 @@ fn the_curved_corpus_emits_native_entities_and_no_b_splines() {
             ],
         ),
     ];
-    for (name, body) in curved_corpus() {
-        let text = export(&body, name);
+
+    // THE one corpus build. INVARIANT: everything below reads THIS
+    // list — no row may call `fixture_corpus()` / `curved_corpus()`
+    // again, which is the whole point of the merge.
+    let corpus = common::fixture_corpus();
+    let corpus_names: Vec<&'static str> = corpus.iter().map(|(n, _)| *n).collect();
+    // Pin A and pin B count reversed faces over DIFFERENT sets (the
+    // whole corpus vs the curved half), and both must reach 91 — the
+    // planar fixtures contribute none. Two counters, deliberately.
+    let mut reversed_seen = 0usize;
+    let mut chart_axis_checked = 0usize;
+    // The corpus's cone text, kept for the apex-placement row: the
+    // corpus's `cone` entry IS `common::cone()` (common/mod.rs), and
+    // exporting the same body value twice is byte-identical by the
+    // determinism row, so re-building it here would be pure waste.
+    let mut cone_text: Option<String> = None;
+
+    for (name, body) in &corpus {
+        let name = *name;
+        let text = export(body, name);
+        if name == "cone" {
+            cone_text = Some(text.clone());
+        }
+
+        // ---- BOUND (pin A): every bound orientation stays `.T.`, on
+        // EVERY fixture including the planar ones, and the corpus
+        // really does contain `.F.` faces so the pin is not vacuous.
+        for line in text.lines() {
+            if line.contains("= FACE_OUTER_BOUND(") || line.contains("= FACE_BOUND(") {
+                assert!(
+                    line.ends_with(".T.);"),
+                    "BOUND: {name}: a bound orientation was flipped — double composition"
+                );
+            }
+            if line.contains("= ADVANCED_FACE(") && line.contains(".F.") {
+                reversed_seen += 1;
+            }
+        }
+
+        // ---- CENSUS: NURBS geometry appears exactly where the kernel
+        // put it, kernel-side and text-side, on EVERY fixture.
+        let nurbs_carriers = body
+            .edges()
+            .filter(|&(edge_key, _)| {
+                matches!(common::certified_carrier(body, edge_key), Curve3::Nurbs(_))
+            })
+            .count();
+        let nurbs_faces = body
+            .faces()
+            .filter(|(_, f)| {
+                matches!(
+                    body.get_surface(f.surface).expect("surface resolves"),
+                    Surface::Nurbs(_)
+                )
+            })
+            .count();
+        // The three NURBS-walled documents — loft_prism and the #210
+        // fold's two — each: 4 skinned walls, 4 seam carriers (the
+        // wall–wall edges; the 8 cap rims stay exact placed lines).
+        // Everyone else: none — a corpus document that acquired one
+        // moves this pin deliberately, with its export row.
+        let (want_faces, want_carriers) = match name {
+            "loft_prism" | "nonuniform_loft" | "swept_elbow" => (4usize, 4usize),
+            _ => (0, 0),
+        };
+        assert_eq!(
+            (nurbs_faces, nurbs_carriers),
+            (want_faces, want_carriers),
+            "CENSUS: {name}: kernel NURBS census"
+        );
+        assert_eq!(
+            text.contains("B_SPLINE"),
+            want_faces + want_carriers > 0,
+            "CENSUS: {name}: B_SPLINE text tracks the kernel census exactly"
+        );
+
+        // The planar third of the corpus is out of the curved rows'
+        // scope, exactly as `curved_corpus()` scoped them.
+        if matches!(name, "cube" | "die" | "kiss_assembly") {
+            continue;
+        }
+
+        // ---- EXACTNESS: the native entities this fixture must emit.
         let wanted = expected
             .iter()
             .find(|(n, _)| *n == name)
-            .unwrap_or_else(|| panic!("{name} is not in the exactness table"))
+            .unwrap_or_else(|| panic!("EXACTNESS: {name} is not in the exactness table"))
             .1;
         for entity in wanted {
             assert!(
                 text.contains(&format!("= {entity}(")),
-                "{name} must emit {entity}"
+                "EXACTNESS: {name} must emit {entity}"
             );
         }
         // The no-B_SPLINE law, scoped HONESTLY (M6-3 reshape, second
@@ -299,19 +461,11 @@ fn the_curved_corpus_emits_native_entities_and_no_b_splines() {
         // emit exactly as many surface records as it has NURBS faces
         // (a writer converting splines to fitted analytics would be the
         // dual smuggle).
-        let nurbs_faces = body
-            .faces()
-            .filter(|(_, f)| {
-                matches!(
-                    body.get_surface(f.surface).expect("surface resolves"),
-                    Surface::Nurbs(_)
-                )
-            })
-            .count();
         if nurbs_faces == 0 {
             assert!(
                 !text.contains("B_SPLINE"),
-                "{name} must not smuggle a spline approximation of analytic geometry"
+                "NO-B-SPLINE: {name} must not smuggle a spline approximation of analytic \
+                 geometry"
             );
         } else {
             let emitted = text
@@ -320,69 +474,38 @@ fn the_curved_corpus_emits_native_entities_and_no_b_splines() {
                 .count();
             assert_eq!(
                 emitted, nurbs_faces,
-                "{name}: every kernel NURBS face exports natively, none approximated away"
+                "NO-B-SPLINE: {name}: every kernel NURBS face exports natively, none \
+                 approximated away"
             );
         }
         // The refusal doors stay shut on the corpus, too: nothing here
         // is a POLY_LOOP / faceted stand-in either.
-        assert!(!text.contains("POLY_LOOP"), "{name}");
-    }
-    // And the fifth surface kind, CONICAL_SURFACE, uses the apex
-    // placement: `radius = 0.0` with the location AT the apex, which
-    // is the encoding that invents no offset constant.
-    let text = export(&common::cone(), "cone");
-    assert!(text.contains("CONICAL_SURFACE('', #"));
-    for line in text.lines().filter(|l| l.contains("= CONICAL_SURFACE(")) {
-        let args = top_args(line.split_once('(').unwrap().1.rsplit_once(')').unwrap().0);
-        assert_eq!(args[2], "0.0", "apex placement: radius 0");
-        // semi_angle in (0, π/2), the schema's WHERE rule on
-        // conical_surface — and the kernel's own convention.
-        let angle = real(&args[3]);
-        assert!(
-            angle > 0.0 && angle < core::f64::consts::FRAC_PI_2,
-            "{angle}"
-        );
-    }
-}
+        assert!(!text.contains("POLY_LOOP"), "NO-POLY-LOOP: {name}");
 
-/// **The emitted fields ARE the kernel's fields, bit for bit.** For
-/// every curved face and every conic carrier of every curved fixture,
-/// walk to the entity's `AXIS2_PLACEMENT_3D` and compare location,
-/// axis and ref_direction — and the radii/angles — with `==` against
-/// the body's stored geometry. Exact equality is the right assertion:
-/// the float printer round-trips to identical bits (`real.rs`), and
-/// the writer is forbidden to renormalize or reorder anything.
-///
-/// This is the row behind the docs' word "identity". A writer that
-/// merely produced a *geometrically equivalent* placement — a
-/// renormalized axis, a rotated seam, a cone placement offset down the
-/// axis — would pass every import check and fail here.
-#[test]
-fn emitted_placements_equal_the_kernel_frames_bitwise() {
-    for (name, body) in curved_corpus() {
-        let text = export(&body, name);
-        let recs = records(&text);
-
+        // ---- FRAME + CHART-AXIS: one face walk serves both.
+        //
         // Entity ids are allocated along the writer's fixed traversal,
         // so the k-th ADVANCED_FACE record belongs to the k-th face of
         // that walk (`common::walk_order` mirrors it — NOT arena
         // order, which diverges on boolean results).
+        let recs = records(&text);
         let mut faces: Vec<u64> = recs
             .iter()
             .filter(|(_, (kw, _))| kw == "ADVANCED_FACE")
             .map(|(&id, _)| id)
             .collect();
         faces.sort_unstable();
-        let (kernel_faces, _) = common::walk_order(&body);
+        let (kernel_faces, _) = common::walk_order(body);
         assert_eq!(
             faces.len(),
             kernel_faces.len(),
-            "{name}: one record per face"
+            "FRAME: {name}: one record per face"
         );
 
         for (face_id, face_key) in faces.iter().zip(&kernel_faces) {
             let face = body.get_face(*face_key).expect("face resolves");
-            let surface_id = *refs(&recs[face_id].1).last().expect("surface ref");
+            let face_args = &recs[face_id].1;
+            let surface_id = *refs(face_args).last().expect("surface ref");
             let (kw, args) = &recs[&surface_id];
             let surface = body.get_surface(face.surface).expect("surface");
             let a = top_args(args);
@@ -391,19 +514,27 @@ fn emitted_placements_equal_the_kernel_frames_bitwise() {
                 placement(recs, refs(&a[1]).first().copied().expect("placement ref"))
             };
             match *surface {
-                Surface::Plane { .. } => assert_eq!(kw, "PLANE", "{name}"),
+                Surface::Plane { .. } => assert_eq!(kw, "PLANE", "FRAME: {name}"),
                 Surface::Cylinder {
                     origin,
                     axis,
                     radius,
                     u_ref,
                 } => {
-                    assert_eq!(kw, "CYLINDRICAL_SURFACE", "{name}");
+                    assert_eq!(kw, "CYLINDRICAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(l, [origin.x, origin.y, origin.z], "{name} cylinder origin");
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "{name} cylinder axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "{name} cylinder u_ref");
-                    assert_eq!(real(&a[2]), radius, "{name} cylinder radius");
+                    assert_eq!(
+                        l,
+                        [origin.x, origin.y, origin.z],
+                        "FRAME: {name} cylinder origin"
+                    );
+                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} cylinder axis");
+                    assert_eq!(
+                        x,
+                        [u_ref.x, u_ref.y, u_ref.z],
+                        "FRAME: {name} cylinder u_ref"
+                    );
+                    assert_eq!(real(&a[2]), radius, "FRAME: {name} cylinder radius");
                 }
                 Surface::Cone {
                     apex,
@@ -411,13 +542,13 @@ fn emitted_placements_equal_the_kernel_frames_bitwise() {
                     half_angle,
                     u_ref,
                 } => {
-                    assert_eq!(kw, "CONICAL_SURFACE", "{name}");
+                    assert_eq!(kw, "CONICAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(l, [apex.x, apex.y, apex.z], "{name} cone apex");
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "{name} cone axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "{name} cone u_ref");
-                    assert_eq!(real(&a[2]), 0.0, "{name} cone radius at the apex");
-                    assert_eq!(real(&a[3]), half_angle, "{name} cone semi-angle");
+                    assert_eq!(l, [apex.x, apex.y, apex.z], "FRAME: {name} cone apex");
+                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} cone axis");
+                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "FRAME: {name} cone u_ref");
+                    assert_eq!(real(&a[2]), 0.0, "FRAME: {name} cone radius at the apex");
+                    assert_eq!(real(&a[3]), half_angle, "FRAME: {name} cone semi-angle");
                 }
                 Surface::Sphere {
                     center,
@@ -425,12 +556,16 @@ fn emitted_placements_equal_the_kernel_frames_bitwise() {
                     axis,
                     u_ref,
                 } => {
-                    assert_eq!(kw, "SPHERICAL_SURFACE", "{name}");
+                    assert_eq!(kw, "SPHERICAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(l, [center.x, center.y, center.z], "{name} sphere centre");
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "{name} sphere axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "{name} sphere u_ref");
-                    assert_eq!(real(&a[2]), radius, "{name} sphere radius");
+                    assert_eq!(
+                        l,
+                        [center.x, center.y, center.z],
+                        "FRAME: {name} sphere centre"
+                    );
+                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} sphere axis");
+                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "FRAME: {name} sphere u_ref");
+                    assert_eq!(real(&a[2]), radius, "FRAME: {name} sphere radius");
                 }
                 Surface::Torus {
                     center,
@@ -439,13 +574,25 @@ fn emitted_placements_equal_the_kernel_frames_bitwise() {
                     minor_radius,
                     u_ref,
                 } => {
-                    assert_eq!(kw, "TOROIDAL_SURFACE", "{name}");
+                    assert_eq!(kw, "TOROIDAL_SURFACE", "FRAME: {name}");
                     let (l, z, x) = place(&recs);
-                    assert_eq!(l, [center.x, center.y, center.z], "{name} torus centre");
-                    assert_eq!(z, [axis.x, axis.y, axis.z], "{name} torus axis");
-                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "{name} torus u_ref");
-                    assert_eq!(real(&a[2]), major_radius, "{name} torus major radius");
-                    assert_eq!(real(&a[3]), minor_radius, "{name} torus minor radius");
+                    assert_eq!(
+                        l,
+                        [center.x, center.y, center.z],
+                        "FRAME: {name} torus centre"
+                    );
+                    assert_eq!(z, [axis.x, axis.y, axis.z], "FRAME: {name} torus axis");
+                    assert_eq!(x, [u_ref.x, u_ref.y, u_ref.z], "FRAME: {name} torus u_ref");
+                    assert_eq!(
+                        real(&a[2]),
+                        major_radius,
+                        "FRAME: {name} torus major radius"
+                    );
+                    assert_eq!(
+                        real(&a[3]),
+                        minor_radius,
+                        "FRAME: {name} torus minor radius"
+                    );
                 }
                 // Since M6-3 the loft walls are NURBS at rest. A spline
                 // record has no AXIS2_PLACEMENT — the frame claim
@@ -453,22 +600,152 @@ fn emitted_placements_equal_the_kernel_frames_bitwise() {
                 // bit, in the writer's row-major (u-outer) order, and
                 // the degrees are the knot vectors' own.
                 Surface::Nurbs(ref ns) => {
-                    assert_eq!(kw, "B_SPLINE_SURFACE_WITH_KNOTS", "{name}: non-rational");
-                    assert_eq!(real(&a[1]), ns.knots_u().degree() as f64, "{name} u-degree");
-                    assert_eq!(real(&a[2]), ns.knots_v().degree() as f64, "{name} v-degree");
+                    assert_eq!(
+                        kw, "B_SPLINE_SURFACE_WITH_KNOTS",
+                        "FRAME: {name}: non-rational"
+                    );
+                    assert_eq!(
+                        real(&a[1]),
+                        ns.knots_u().degree() as f64,
+                        "FRAME: {name} u-degree"
+                    );
+                    assert_eq!(
+                        real(&a[2]),
+                        ns.knots_v().degree() as f64,
+                        "FRAME: {name} v-degree"
+                    );
                     let control_refs = refs(&a[3]);
-                    assert_eq!(control_refs.len(), ns.control().len(), "{name} net size");
+                    assert_eq!(
+                        control_refs.len(),
+                        ns.control().len(),
+                        "FRAME: {name} net size"
+                    );
                     for (r, p) in control_refs.iter().zip(ns.control()) {
                         assert_eq!(
                             triple(&recs[r]),
                             [p.x, p.y, p.z],
-                            "{name}: control point bitwise"
+                            "FRAME: {name}: control point bitwise"
                         );
                     }
                 }
             }
+
+            // ---- CHART-AXIS (pin B): `same_sense` IS `Face::sense`,
+            // and a `.F.` face keeps its CHART axis rather than
+            // negating it.
+            let same_sense = face_args.ends_with(".T.");
+            assert_eq!(
+                same_sense, face.sense,
+                "CHART-AXIS: {name}: same_sense IS Face::sense"
+            );
+            if face.sense {
+                continue;
+            }
+            chart_axis_checked += 1;
+            // The chart axis is read BEFORE the placement is walked: a
+            // NURBS record has no `AXIS2_PLACEMENT_3D` at all, so a
+            // reversed NURBS face must hit the panic that names the
+            // missing pin, not an index panic inside `placement`.
+            let chart = match *surface {
+                Surface::Plane { normal, .. } => normal,
+                Surface::Cylinder { axis, .. }
+                | Surface::Cone { axis, .. }
+                | Surface::Sphere { axis, .. }
+                | Surface::Torus { axis, .. } => axis,
+                // NURBS faces exist at rest since M6-3 (loft walls) but
+                // none reverses (pin A's derivation) — and a NURBS chart
+                // has no single axis to compare; if a reversed one ever
+                // appears, design its axis-negation pin then.
+                Surface::Nurbs(_) => {
+                    panic!("CHART-AXIS: a REVERSED NURBS face reached pin B — extend it")
+                }
+            };
+            let (_, z, _) = place(&recs);
+            assert_eq!(
+                z,
+                [chart.x, chart.y, chart.z],
+                "CHART-AXIS: {name}: a .F. face must keep the chart axis, not negate it"
+            );
         }
+
+        // ---- SINGLE-SHELL: the curved single-shell bodies never reach
+        // the multi-shell classifier, on the DEFAULT options (a second
+        // writer configuration, deliberately — this row is about the
+        // classifier door, not about the fixture uncertainty).
+        assert_eq!(
+            body.shells().count(),
+            1,
+            "SINGLE-SHELL: {name} is single-shell"
+        );
+        assert!(
+            step_string(body, &StepOptions::default()).is_ok(),
+            "SINGLE-SHELL: {name}"
+        );
     }
+
+    // The corpus really does contain reversed faces, so pin A above is
+    // not vacuous: 91 = notched 1 + washer 2 + cone 2 (the
+    // original five) + die_pips 21·2 (each pip's two sense:false
+    // half-band walls, S11 discipline) + the M6 composed die's 21·2
+    // (the same half-caps, carried through the surgery) + the globe
+    // lily's lantern 2 (its MOUTH disc's two half-bands: a revolve
+    // mints both cap planes on the profile plane's own +y normal, so
+    // the cap facing −y opposes the solid's outward normal and the
+    // one facing +y agrees — exactly one of the two caps reverses,
+    // and each cap is two half-bands). The M6-3 loft_prism adds ZERO:
+    // it mirrors extrude's minting (M5-LOG item 6(i)) — the bottom
+    // cap's LOOP is reversed at mint so its plane derives normal-down
+    // (outward), and every skinned wall chart's normal S_u × S_v
+    // follows the material-left traversal (loft.rs module docs,
+    // "Orientation") — so all six faces keep sense = true.
+    assert_eq!(reversed_seen, 91, "BOUND: the corpus's reversed faces");
+    assert_eq!(
+        chart_axis_checked, 91,
+        "CHART-AXIS: all 91 reversed faces checked (5 original + die_pips' 42 + the \
+         composed die's 42 + the lily lantern's 2; loft_prism contributes 0 — every \
+         face sense-true, see pin A's derivation). Every one is on a CURVED fixture, \
+         which is why this equals the whole-corpus count above."
+    );
+
+    // ---- APEX: the fifth surface kind, CONICAL_SURFACE, uses the apex
+    // placement: `radius = 0.0` with the location AT the apex, which
+    // is the encoding that invents no offset constant.
+    let text = cone_text.expect("APEX: the corpus carries the cone fixture");
+    assert!(text.contains("CONICAL_SURFACE('', #"), "APEX");
+    for line in text.lines().filter(|l| l.contains("= CONICAL_SURFACE(")) {
+        let args = top_args(line.split_once('(').unwrap().1.rsplit_once(')').unwrap().0);
+        assert_eq!(args[2], "0.0", "APEX: apex placement: radius 0");
+        // semi_angle in (0, π/2), the schema's WHERE rule on
+        // conical_surface — and the kernel's own convention.
+        let angle = real(&args[3]);
+        assert!(
+            angle > 0.0 && angle < core::f64::consts::FRAC_PI_2,
+            "APEX: {angle}"
+        );
+    }
+
+    // ---- CENSUS, the refusal half: the surface refusal is live and
+    // names the frontier.
+    let mut skeleton = topo::Body::<f64>::new();
+    skeleton
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+        .unwrap();
+    match step_string(&skeleton, &StepOptions::default()) {
+        Err(StepExportError::UnsupportedSurface { kind, .. }) => {
+            assert_eq!(kind, "nurbs placeholder", "CENSUS");
+        }
+        other => panic!("CENSUS: expected UnsupportedSurface, got {other:?}"),
+    }
+
+    // The wireframe splice fixture is NOT a corpus fixture: it holds no
+    // body, so the byte-golden row must not try to regenerate it. (The
+    // record-level half of that row lives in
+    // `the_wireframe_splice_carries_the_writers_own_rational_record`,
+    // which needs no corpus build at all.)
+    assert!(
+        !corpus_names.contains(&"nurbs_wireframe"),
+        "CENSUS: the wireframe splice is not a corpus document"
+    );
 }
 
 /// The conic CARRIER half of the same claim, on the two fixtures that
@@ -549,113 +826,9 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
 }
 
 // ==================================================================
-// 2. same_sense composition (the S10 review's rule)
+// 2. same_sense composition (the S10 review's rule) — the two
+//    anti-double-composition pins now live in the corpus row above
 // ==================================================================
-
-/// **Anti-double-composition pin A: every bound orientation stays
-/// `.T.`, on every fixture, including the ones with reversed faces.**
-///
-/// ISO 10303-42 COMPOSES a bound's orientation flag with the owning
-/// face's `same_sense`. Our loops are stored CCW about the face's
-/// OUTWARD normal, and `same_sense` already states how that normal
-/// relates to the chart normal — so the composition comes out right
-/// only if the bound flag is left alone. Flipping it as well (the
-/// obvious "be consistent" mistake) would compose the reversal twice
-/// and hand every reader an inside-out face. Before PR 13 this could
-/// not be tested on real output, because no `.F.` face could reach the
-/// emitter.
-#[test]
-fn every_bound_orientation_is_true_even_on_reversed_faces() {
-    let mut reversed_seen = 0usize;
-    for (name, body) in common::fixture_corpus() {
-        let text = export(&body, name);
-        for line in text.lines() {
-            if line.contains("= FACE_OUTER_BOUND(") || line.contains("= FACE_BOUND(") {
-                assert!(
-                    line.ends_with(".T.);"),
-                    "{name}: a bound orientation was flipped — double composition"
-                );
-            }
-            if line.contains("= ADVANCED_FACE(") && line.contains(".F.") {
-                reversed_seen += 1;
-            }
-        }
-    }
-    // The corpus really does contain reversed faces, so the row above
-    // is not vacuous: 91 = notched 1 + washer 2 + cone 2 (the
-    // original five) + die_pips 21·2 (each pip's two sense:false
-    // half-band walls, S11 discipline) + the M6 composed die's 21·2
-    // (the same half-caps, carried through the surgery) + the globe
-    // lily's lantern 2 (its MOUTH disc's two half-bands: a revolve
-    // mints both cap planes on the profile plane's own +y normal, so
-    // the cap facing −y opposes the solid's outward normal and the
-    // one facing +y agrees — exactly one of the two caps reverses,
-    // and each cap is two half-bands). The M6-3 loft_prism adds ZERO:
-    // it mirrors extrude's minting (M5-LOG item 6(i)) — the bottom
-    // cap's LOOP is reversed at mint so its plane derives normal-down
-    // (outward), and every skinned wall chart's normal S_u × S_v
-    // follows the material-left traversal (loft.rs module docs,
-    // "Orientation") — so all six faces keep sense = true.
-    assert_eq!(reversed_seen, 91, "the corpus's reversed faces");
-}
-
-/// **Anti-double-composition pin B: a reversed face exports its TRUE
-/// surface.** The other half of the same bug: instead of (or as well
-/// as) flipping the flag, a writer might negate the surface axis. That
-/// also "looks right" and is also a double count. Here the axis of
-/// every `.F.` face's surface is compared bitwise with the body's
-/// stored CHART normal — not the outward normal — so a negation fails.
-#[test]
-fn a_reversed_face_keeps_its_chart_axis() {
-    let mut checked = 0usize;
-    for (name, body) in curved_corpus() {
-        let text = export(&body, name);
-        let recs = records(&text);
-        let mut faces: Vec<u64> = recs
-            .iter()
-            .filter(|(_, (kw, _))| kw == "ADVANCED_FACE")
-            .map(|(&id, _)| id)
-            .collect();
-        faces.sort_unstable();
-        let (kernel_faces, _) = common::walk_order(&body);
-        for (face_id, face_key) in faces.iter().zip(&kernel_faces) {
-            let face = body.get_face(*face_key).expect("face resolves");
-            let args = &recs[face_id].1;
-            let same_sense = args.ends_with(".T.");
-            assert_eq!(same_sense, face.sense, "{name}: same_sense IS Face::sense");
-            if face.sense {
-                continue;
-            }
-            checked += 1;
-            let surface_id = *refs(args).last().expect("surface ref");
-            let a = top_args(&recs[&surface_id].1);
-            let (_, z, _) = placement(&recs, refs(&a[1])[0]);
-            let chart = match *body.get_surface(face.surface).expect("surface") {
-                Surface::Plane { normal, .. } => normal,
-                Surface::Cylinder { axis, .. }
-                | Surface::Cone { axis, .. }
-                | Surface::Sphere { axis, .. }
-                | Surface::Torus { axis, .. } => axis,
-                // NURBS faces exist at rest since M6-3 (loft walls) but
-                // none reverses (pin A's derivation) — and a NURBS chart
-                // has no single axis to compare; if a reversed one ever
-                // appears, design its axis-negation pin then.
-                Surface::Nurbs(_) => panic!("a REVERSED NURBS face reached pin B — extend it"),
-            };
-            assert_eq!(
-                z,
-                [chart.x, chart.y, chart.z],
-                "{name}: a .F. face must keep the chart axis, not negate it"
-            );
-        }
-    }
-    assert_eq!(
-        checked, 91,
-        "all 91 reversed faces checked (5 original + die_pips' 42 + the composed \
-         die's 42 + the lily lantern's 2; loft_prism contributes 0 — every face \
-         sense-true, see pin A's derivation)"
-    );
-}
 
 /// **The S12 revert row.** `Body::revert` reverses the loops AND flips
 /// `sense` on the curved arm; export both the ball and its revert and
@@ -719,98 +892,7 @@ fn reverting_a_sphere_moves_the_flag_and_nothing_about_the_surface() {
 }
 
 // ==================================================================
-// 3. The NURBS carrier arm
-// ==================================================================
-
-/// **The successor of `no_body_at_rest_carries_a_nurbs_carrier_or_face`
-/// (flipped at M6-2; the history is this name and this note).**
-///
-/// The retired row pinned a VACUITY positively: that nothing anywhere
-/// reached a rung-3 carrier at rest, which is what made "every fitted
-/// pcurve cache carries the full C2 certificate" a statement about the
-/// empty set. M6-2 lifted the SSI enclosure/certification stack off
-/// `f64` and landed `Pcurve::Fitted`, and
-/// `topo/tests/m6_2_fitted_at_rest.rs` now pins the POSITIVE law: a
-/// cylinder×sphere rung-3 edge reaches a body at rest carrying a fitted
-/// chart image whose hull sup-norm AND uniqueness tube are RE-DERIVED
-/// by the tier-3 pcurve pass, at `f64` and at the interval scalar.
-///
-/// **SECOND flip of this pin's lineage (M6-3; the retired name is
-/// `no_export_corpus_body_carries_a_nurbs_carrier_or_face`).** The
-/// first flip (M6-2, the paragraph above) narrowed the retired at-rest
-/// vacuity to the EXPORT CORPUS; this one retires the corpus absence
-/// itself, BOTH
-/// halves at once: `loft_prism` brought the first NURBS faces (its four
-/// skinned walls) AND the first NURBS carriers (its four wall–wall seam
-/// edges — the seams store the walls' u-boundary control rows, so the
-/// carrier half flipped WITH the face half, not later). The
-/// `B_SPLINE_SURFACE_WITH_KNOTS` and `B_SPLINE_CURVE_WITH_KNOTS` arms
-/// now have an end-to-end body behind them; the record-level pins in
-/// `writer.rs` still own the field-level facts (rational complex
-/// instance, knot run-length encoding).
-///
-/// What this row pins now is CONTAINMENT, kernel-side and text-side:
-/// NURBS geometry appears exactly where the kernel put it — on the
-/// three skinned documents (`loft_prism`, and the #210 fold's
-/// `nonuniform_loft` and `swept_elbow`), in known counts — and nowhere
-/// else. A corpus document
-/// that silently acquired a NURBS carrier (fitted lane, live since
-/// M6-2) or a writer that manufactured a spline out of an analytic
-/// carrier still fails here.
-#[test]
-fn nurbs_geometry_appears_exactly_where_the_kernel_put_it() {
-    for (name, body) in common::fixture_corpus() {
-        let nurbs_carriers = body
-            .edges()
-            .filter(|&(edge_key, _)| {
-                matches!(common::certified_carrier(&body, edge_key), Curve3::Nurbs(_))
-            })
-            .count();
-        let nurbs_faces = body
-            .faces()
-            .filter(|(_, f)| {
-                matches!(
-                    body.get_surface(f.surface).expect("surface resolves"),
-                    Surface::Nurbs(_)
-                )
-            })
-            .count();
-        // The three NURBS-walled documents — loft_prism and the #210
-        // fold's two — each: 4 skinned walls, 4 seam carriers (the
-        // wall–wall edges; the 8 cap rims stay exact placed lines).
-        // Everyone else: none — a corpus document that acquired one
-        // moves this pin deliberately, with its export row.
-        let (want_faces, want_carriers) = match name {
-            "loft_prism" | "nonuniform_loft" | "swept_elbow" => (4usize, 4usize),
-            _ => (0, 0),
-        };
-        assert_eq!(
-            (nurbs_faces, nurbs_carriers),
-            (want_faces, want_carriers),
-            "{name}: kernel NURBS census"
-        );
-        let text = export(&body, name);
-        assert_eq!(
-            text.contains("B_SPLINE"),
-            want_faces + want_carriers > 0,
-            "{name}: B_SPLINE text tracks the kernel census exactly"
-        );
-    }
-    // The surface refusal is live and names the frontier.
-    let mut skeleton = topo::Body::<f64>::new();
-    skeleton
-        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
-        .unwrap();
-    match step_string(&skeleton, &StepOptions::default()) {
-        Err(StepExportError::UnsupportedSurface { kind, .. }) => {
-            assert_eq!(kind, "nurbs placeholder");
-        }
-        other => panic!("expected UnsupportedSurface, got {other:?}"),
-    }
-}
-
-// ==================================================================
-// 4. Determinism, ε, and the refusal arms
+// 3. Determinism, ε, and the refusal arms
 // ==================================================================
 
 /// Byte-determinism over the whole curved corpus: same body value ⇒
@@ -892,6 +974,12 @@ fn epsilon_reaches_only_the_uncertainty_record() {
 /// crate reads) and, in CI, the ambient `CAD_EPS` lane that rebuilds
 /// the body itself. The body construction is pinned too: two shells at
 /// whatever ε the process was built under.
+///
+/// The COMPLEMENT — the single-shell curved solids never reaching the
+/// classifier, which is why this refusal is narrow rather than a
+/// curved-export blocker — is the `SINGLE-SHELL` block of the corpus
+/// row (retired name:
+/// `single_shell_curved_solids_never_reach_the_classifier`).
 #[test]
 fn curved_multi_shell_refuses_at_both_tolerances() {
     let stubs = common::two_stub_complement();
@@ -917,20 +1005,6 @@ fn curved_multi_shell_refuses_at_both_tolerances() {
             }
             other => panic!("expected CurvedShellClassification at {eps}, got {other:?}"),
         }
-    }
-}
-
-/// The single-shell curved bodies do NOT reach the classifier — the
-/// complement of the row above, and the reason the refusal is narrow
-/// rather than a curved-export blocker.
-#[test]
-fn single_shell_curved_solids_never_reach_the_classifier() {
-    for (name, body) in curved_corpus() {
-        assert_eq!(body.shells().count(), 1, "{name} is single-shell");
-        assert!(
-            step_string(&body, &StepOptions::default()).is_ok(),
-            "{name}"
-        );
     }
 }
 
@@ -989,6 +1063,12 @@ fn walk_order_diverges_from_arena_order_on_boolean_results() {
 /// B-spline carrying the identical weights, and every sampled point
 /// sits on the exact unit circle to ~3.4e-16 relative — the arm's only
 /// reader-level validation before the loft-assembly unit.
+///
+/// The half of this row that needed a corpus build — "and it is NOT a
+/// corpus fixture, so the byte-golden row must not try to regenerate
+/// it" — moved to the `CENSUS` tail of the corpus row, which already
+/// has the corpus in hand. This row now reads one file and nothing
+/// else, which is why it costs milliseconds.
 #[test]
 fn the_wireframe_splice_carries_the_writers_own_rational_record() {
     let path = format!(
@@ -1012,11 +1092,4 @@ fn the_wireframe_splice_carries_the_writers_own_rational_record() {
     ] {
         assert!(text.contains(point), "control net: {point}");
     }
-    // Not a corpus fixture: it holds no body, so the byte-golden row
-    // must not try to regenerate it.
-    assert!(
-        !common::fixture_corpus()
-            .iter()
-            .any(|(n, _)| *n == "nurbs_wireframe")
-    );
 }

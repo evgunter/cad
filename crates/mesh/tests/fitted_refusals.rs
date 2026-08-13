@@ -90,15 +90,14 @@ fn sub_arc2(c: &NurbsCurve2<f64>, frac: (f64, f64)) -> Option<NurbsCurve2<f64>> 
 }
 
 /// A genuinely certified `Pcurve::Fitted` cache (the first quarter of
-/// the traced loop), or `None` on the SSI fit-budget stand-down. The
-/// trace is expensive, so it runs once per process (both arms share
-/// it under the aggregated binary; a process-per-test runner pays it
-/// per arm, as topo's own fixture rows already do).
-fn fitted_cache() -> Option<PcurveCache<f64>> {
-    static CACHE: std::sync::OnceLock<Option<PcurveCache<f64>>> = std::sync::OnceLock::new();
-    CACHE.get_or_init(build_fitted_cache).clone()
-}
-
+/// the traced loop), or `None` on the SSI fit-budget stand-down.
+///
+/// **No memo, and that is the point.** This used to be wrapped in a
+/// `OnceLock` so "both arms share it" — a claim that was true only
+/// under a same-process runner. nextest is process-per-test, so the
+/// memo shared nothing and each arm paid the whole ~3 s trace. The
+/// two arms are now ONE test (below), so there is exactly one caller
+/// and a memo would be dead weight that reads as if it worked.
 fn build_fitted_cache() -> Option<PcurveCache<f64>> {
     let slab = SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
@@ -221,40 +220,62 @@ fn cached_half_edge_on(body: &Body<f64>, want: impl Fn(&Surface<f64>) -> bool) -
 
 // ---- The two arms, executed ---------------------------------------
 
-/// Arm 1 (`chords::nurbs_tighten`): a NURBS-face half-edge carrying a
-/// FITTED cache refuses typed at the CHORD pass — there is no
-/// certified UV speed bound for a fitted image's chord schedule.
+/// **Both `Pcurve::Fitted` refusal arms, on ONE traced cache.**
+///
+/// - **Arm 1 (`chords::nurbs_tighten`)**: a NURBS-face half-edge
+///   carrying a FITTED cache refuses typed at the CHORD pass — there is
+///   no certified UV speed bound for a fitted image's chord schedule.
+/// - **Arm 2 (`trimmed::trim_polygon`)**: a FITTED cache on an ANALYTIC
+///   (cylinder) trimmed face passes the chord pass — the NURBS
+///   tightening rightly skips analytic faces — and refuses typed in the
+///   trim walk instead.
+///
+/// # One trace, both arms
+///
+/// These were two tests until the test-cost audit, and the file's own
+/// note above already said what that cost: nextest runs one process per
+/// test, so the `OnceLock` shared nothing and EACH arm paid the whole
+/// cylinder×sphere trace (~3 s) for ~10 ms of tessellation work. The
+/// cache is a value, immutable, and each arm attaches its own clone to
+/// its OWN host body, so nothing crosses between them but the cache
+/// itself — which is exactly what the memo was trying to say.
+///
+/// What the split bought and a merged row cannot is failure ISOLATION:
+/// the chord pass and the trim walk are two independent failure modes
+/// under one test id now. So each assertion NAMES its arm — `CHORD` /
+/// `TRIM-WALK` — and the message alone says which door broke.
 #[test]
-fn fitted_cache_on_nurbs_face_refuses_at_the_chord_pass() {
-    let Some(cache) = fitted_cache() else {
-        return; // the SSI fit-budget stand-down (fixture docs)
+fn a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk() {
+    let Some(cache) = build_fitted_cache() else {
+        // The SSI fit-budget stand-down (fixture docs), said out loud:
+        // a bare `return` here reports coverage this run does not have.
+        println!(
+            "SKIPPED: the cylinder×sphere fixture stood down on the SSI door's typed \
+             FitSampleBudget refusal at this ε — THIS RUN EXECUTES NEITHER FITTED \
+             REFUSAL ARM (no chord-pass row, no trim-walk row); both are confirmed by \
+             reading only"
+        );
+        return;
     };
+
+    // ---- Arm 1: the CHORD pass, on a NURBS face --------------------
     let mut body = loft_prism();
     let hek = cached_half_edge_on(&body, |s| matches!(s, Surface::Nurbs(_)));
-    body.attach_pcurve(hek, cache);
+    body.attach_pcurve(hek, cache.clone());
     match mesh::tessellate(&body, 1e-2) {
         Err(TessellateError::UnsupportedCurve { note, .. }) => {
             assert!(
                 note.contains("FITTED") && note.contains("UV speed bound"),
-                "the CHORD arm's note names the real blocker: {note}"
+                "CHORD: the chord arm's note names the real blocker: {note}"
             );
         }
         other => panic!(
-            "expected the chord-pass fitted refusal, got {:?}",
+            "CHORD: expected the chord-pass fitted refusal, got {:?}",
             other.map(|_| ())
         ),
     }
-}
 
-/// Arm 2 (`trimmed::trim_polygon`): a FITTED cache on an ANALYTIC
-/// (cylinder) trimmed face passes the chord pass — the NURBS
-/// tightening rightly skips analytic faces — and refuses typed in the
-/// trim walk instead.
-#[test]
-fn fitted_cache_on_cylinder_trimmed_face_refuses_in_the_trim_walk() {
-    let Some(cache) = fitted_cache() else {
-        return; // the SSI fit-budget stand-down (fixture docs)
-    };
+    // ---- Arm 2: the TRIM WALK, on an analytic trimmed face ---------
     let mut body = split_cylinder_half();
     let hek = cached_half_edge_on(&body, |s| matches!(s, Surface::Cylinder { .. }));
     body.attach_pcurve(hek, cache);
@@ -262,11 +283,11 @@ fn fitted_cache_on_cylinder_trimmed_face_refuses_in_the_trim_walk() {
         Err(TessellateError::UnsupportedCurve { note, .. }) => {
             assert!(
                 note.contains("FITTED") && note.contains("boolean layer"),
-                "the TRIM-WALK arm's note names the real blocker: {note}"
+                "TRIM-WALK: the trim-walk arm's note names the real blocker: {note}"
             );
         }
         other => panic!(
-            "expected the trim-walk fitted refusal, got {:?}",
+            "TRIM-WALK: expected the trim-walk fitted refusal, got {:?}",
             other.map(|_| ())
         ),
     }
