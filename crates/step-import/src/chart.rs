@@ -487,9 +487,9 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod review_fuzz {
     use super::uv_of;
-    use geom_core::fuzz;
     use geom_core::{Point3, Vec3};
     use geom_surfaces::Surface;
+    use test_utils::fuzz;
 
     fn frame(s: &mut fuzz::Rng) -> (Vec3<f64>, Vec3<f64>) {
         let a = Vec3::new(s.unit() - 0.5, s.unit() - 0.5, s.unit() - 0.5).normalize();

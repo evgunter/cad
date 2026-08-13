@@ -19,8 +19,8 @@
 //!    **width at ≤ 16 relative ulps**: a sound-but-slack derivative
 //!    bound would pass containment and fail here.
 
-use geom_core::fuzz;
 use geom_core::spline::{KnotVector, basis, hull};
+use test_utils::fuzz;
 
 /// A clamped knot vector on `[0, 1]` whose interior knots are multiples
 /// of `1/64` — dyadic, so every knot difference is exact in `f64` and

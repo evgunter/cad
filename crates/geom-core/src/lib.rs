@@ -17,12 +17,6 @@
 
 pub mod bit_identity;
 pub mod dual;
-// DEV-ONLY (see the `fuzz-support` feature in this crate's Cargo.toml):
-// the shared harness for the workspace's randomized sweeps — one RNG,
-// the per-run seed, the EFFORT dial. Gated so that nothing on a shipped
-// build path can reach it.
-#[cfg(feature = "fuzz-support")]
-pub mod fuzz;
 #[cfg(feature = "interval")]
 pub mod interval;
 pub mod k_stats;

@@ -28,9 +28,9 @@
 
 #![allow(clippy::expect_used)]
 
-use geom_core::fuzz;
 use geom_core::spline::{KnotVector, basis, hull};
 use geom_core::{Enclosure, RingInterval};
+use test_utils::fuzz;
 
 /// A random clamped knot vector of the given degree with `interior`
 /// distinct interior knots (multiplicity 1), on `[0, 1]`.

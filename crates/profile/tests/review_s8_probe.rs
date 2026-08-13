@@ -124,7 +124,7 @@ mod dominance {
     }
 
     /// `+1` or `−1` with equal probability.
-    pub fn sign(rng: &mut geom_core::fuzz::Rng) -> f64 {
+    pub fn sign(rng: &mut test_utils::fuzz::Rng) -> f64 {
         if rng.unit() < 0.5 { 1.0 } else { -1.0 }
     }
 
@@ -217,8 +217,8 @@ mod dominance {
 #[test]
 fn dominance_fuzz_two_survivor_corners() {
     use dominance::{Arc, classify, sign, signed_swept, tally};
-    use geom_core::fuzz;
     use std::f64::consts::TAU;
+    use test_utils::fuzz;
 
     // --- arc×arc, uniform over crossing carriers -------------------
     let mut rng = fuzz::start("review_s8_probe::dominance_arc_arc");

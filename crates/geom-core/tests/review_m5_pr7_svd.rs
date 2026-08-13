@@ -16,8 +16,8 @@
     clippy::unnecessary_cast
 )]
 
-use geom_core::fuzz;
 use geom_core::linalg::svd::{Svd2x3, Svd3x4};
+use test_utils::fuzz;
 
 /// Uniform in `[-1, 1)`, the shape the reviewer's probe drew.
 fn signed_unit(rng: &mut fuzz::Rng) -> f64 {

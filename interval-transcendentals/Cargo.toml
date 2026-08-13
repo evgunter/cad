@@ -50,6 +50,21 @@ optional = true
 # Test-only: `src/` must never reference `inari` or this feature.
 oracle-inari = ["dep:inari"]
 
+[dev-dependencies]
+# Shared fuzz harness for tests/review_fuzz_div.rs (one RNG, the per-run
+# seed, the CAD_FUZZ_EFFORT dial) — the same one every sweep in the
+# kernel workspace draws from, so one dial and one seed cover the whole
+# tree including this separate root.
+#
+# A plain path dependency is all it takes, and that is the point of the
+# crate: `test-utils` has ZERO dependencies, so unlike an unconditional
+# dev-dependency on anything heavier it adds nothing to what `cargo
+# test` builds here (contrast the `[dependencies.inari]` note above),
+# and unlike a harness living in `geom-core` it does not invert the
+# layering — geom-core path-depends on THIS crate, so the harness had to
+# sit below both.
+test-utils = { path = "../crates/test-utils" }
+
 # The benchmark compares our timings against inari's, so it needs the
 # oracle too. `required-features` keeps it out of the default (oracle-less)
 # `cargo test` / `cargo build --examples` graph rather than failing them.

@@ -1292,8 +1292,8 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
 #[test]
 fn seqgen_generates_every_op_kind_and_every_site_shape() {
     use crate::seqgen::{OpChoice, apply, choose_op};
-    use geom_core::fuzz;
     use std::collections::BTreeSet;
+    use test_utils::fuzz;
     let expected: BTreeSet<&'static str> = [
         "mvfs",
         "mev_lone",
@@ -1335,7 +1335,7 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
     //
     // THE SEED IS PINNED, and that is correct here rather than an
     // exception to the no-fixed-seeds rule. This row is shape 3 in
-    // `geom_core::fuzz`'s taxonomy: the claim IS coverage, and "a walk
+    // `test_utils::fuzz`'s taxonomy: the claim IS coverage, and "a walk
     // that reaches every op kind and every site shape" is not something
     // you can write down as a fixture. A coverage claim on a VARYING
     // seed is a witness search that flakes — measured at ~1 run in 150
@@ -1420,7 +1420,7 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
 #[test]
 fn seqgen_kvfs_availability_instrumented() {
     use crate::seqgen::{OpChoice, apply, choose_op};
-    use geom_core::fuzz;
+    use test_utils::fuzz;
     let mut body = Body::<f64>::new();
     let mut counter = 0u32;
     // Pinned for the same reason as the coverage row above: this is an

@@ -24,10 +24,10 @@
 
 use core::f64::consts::{FRAC_PI_6, TAU};
 
-use geom_core::fuzz;
 use geom_core::{Bounds, Dual, DualInterval, Interval, Point3, Real, Vec3};
 use geom_curves::Curve3;
 use geom_surfaces::Surface;
+use test_utils::fuzz;
 
 fn iv(lo: f64, hi: f64) -> Interval {
     Interval::from_bounds(lo, hi)

@@ -15,7 +15,7 @@
 //! - `overrun_attribution_names_the_authored_corners_candidate` was the
 //!   review's MAJOR-1 *repro* — it asserted the buggy wrap-around
 //!   setback. It is inverted here into the regression pin for the fix.
-//! - the corner fuzz draws from `geom_core::fuzz`: a fresh seed per run
+//! - the corner fuzz draws from `test_utils::fuzz`: a fresh seed per run
 //!   (logged unconditionally) and a corner count that is a multiple of
 //!   `CAD_FUZZ_EFFORT`. It no longer keeps the review's fixed 20k
 //!   corners — a pinned seed made this a replay corpus rather than a
@@ -73,8 +73,8 @@ mod common;
 
 use common::tol;
 use geom_core::Point2;
-use geom_core::fuzz;
 use profile::{ArcSweep, FilletLegShape, ProfileError, ProfileLoop};
+use test_utils::fuzz;
 
 const TAU: f64 = core::f64::consts::TAU;
 const PI: f64 = core::f64::consts::PI;

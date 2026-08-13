@@ -17,14 +17,6 @@ workspace = true
 # (it did while the backend was `inari/gmp`), and no longer needs an
 # AVX+FMA floor of its own on x86-64.
 interval = ["dep:interval-transcendentals"]
-# Shared harness for the workspace's randomized falsification sweeps:
-# one RNG, the per-run seed, the EFFORT dial. DEV-ONLY BY CONSTRUCTION —
-# it is a feature rather than a plain module precisely so that nothing
-# on a shipped build path can reach it, and every consumer (including
-# this crate, via the self dev-dependency below) turns it on through
-# [dev-dependencies] only. Same mechanism `profile` documents for its
-# `test-support` feature.
-fuzz-support = []
 # K-telemetry recording scalar (`k_stats::Probe`), opt-in. Probe is a
 # `Real` instantiation like `Interval`, so every generic-over-`Real` body
 # monomorphizes at it — measured 2026-08-12 at 20.0% of geom-brep's LLVM
@@ -48,11 +40,12 @@ libm = { workspace = true }
 interval-transcendentals = { workspace = true, optional = true }
 
 [dev-dependencies]
-# Self dev-dependency: the ONE mechanism that lets this crate's own tests
-# see `fuzz-support` while the published surface never does. Documented
-# by `profile` for its `test-support` feature; same trick, same reason.
-geom-core = { path = ".", features = ["fuzz-support"] }
 proptest = { workspace = true }
+# Shared fuzz harness for this crate's randomized sweeps (one RNG, the
+# per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
+# named by [dev-dependencies] only, here and everywhere else — which is
+# what keeps it off every shipped build path.
+test-utils = { path = "../test-utils" }
 # DEV-ONLY differential oracle for the M5 PR 2 interval ring (M5-PR2-SPEC
 # family 2). Since M5 PR 1 this crate is ALSO the `interval` feature's
 # backend (the optional dependency above) — the dev-entry is what makes it

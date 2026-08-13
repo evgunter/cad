@@ -7,7 +7,7 @@
 //! `binom_row` exactness pin (F4), worked-example and loose-tolerance
 //! probes (F6), and the F9 end-to-end: cylinder fit -> project ->
 //! compose -> Decide accept/refuse. The randomized rows draw from
-//! `geom_core::fuzz`: a fresh seed per run, logged unconditionally, with
+//! `test_utils::fuzz`: a fresh seed per run, logged unconditionally, with
 //! every count a multiple of `CAD_FUZZ_EFFORT`.
 #![allow(
     clippy::unwrap_used,
@@ -20,11 +20,11 @@
     dead_code
 )]
 
-use geom_core::fuzz;
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
 use geom_core::{Point2, Point3, RingInterval};
 use geom_curves::{NurbsCurve2, NurbsCurve3};
+use test_utils::fuzz;
 
 /// An inclusive integer draw in `lo..=hi`.
 fn usize_in(rng: &mut fuzz::Rng, lo: usize, hi: usize) -> usize {

@@ -791,8 +791,8 @@ fn derived_knots(kv: &KnotVector, fk: FaceKey) -> Result<KnotVector, TessellateE
 mod tests {
     use super::*;
     use geom_core::Point3;
-    use geom_core::fuzz;
     use profile::RawLoop;
+    use test_utils::fuzz;
 
     /// A wavy degree-2×3 integral net on [0,1]² (nothing symmetric, so
     /// every second partial is genuinely nonzero).

@@ -38,7 +38,7 @@
 //!
 //! # Depth
 //!
-//! Counts are multiples of `geom_core::fuzz`'s EFFORT dial and the seed
+//! Counts are multiples of `test_utils::fuzz`'s EFFORT dial and the seed
 //! varies per run (both logged by `fuzz::start`). The shipped level is a
 //! smoke sweep; `CAD_FUZZ_EFFORT=64` restores roughly the full sweep this
 //! file used to keep behind an `#[ignore]`d twin, and the dial replaces
@@ -49,8 +49,8 @@
 //! ```
 
 use geom_core::RingInterval;
-use geom_core::fuzz;
 use std::cmp::Ordering;
+use test_utils::fuzz;
 
 // ---------------------------------------------------------------- Big
 

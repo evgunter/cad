@@ -1,0 +1,19 @@
+[package]
+name = "test-utils"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+# ZERO dependencies, deliberately. This crate is a LEAF: it sits below
+# every other crate in the tree, which is what lets ANY of them — and
+# `interval-transcendentals/`, a separate workspace root that geom-core
+# path-depends on — take it as a dev-dependency without inverting the
+# layering or creating a cycle.
+[dependencies]
+
+# Nothing here either: the harness is plain `std`, and its own unit tests
+# need no oracle.
+[dev-dependencies]
