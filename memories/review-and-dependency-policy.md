@@ -35,37 +35,46 @@ conditional on green." Re-running CI-covered suites in a review
 clone is duplication (3 of the session's 4 waiter-parks happened
 grinding exactly such runs).
 
-**Reviewer suites are a SEAM TO MINE, not cargo to carry (Evan,
-2026-08-13 — amends the PR #17 reading).** After each PR's fix pass the
-reviewer's consumer suite is a resource: go through it, take the rows
-worth keeping as permanent gates, and RETIRE THE REST. Promotion is a
-per-row act of selection, not the default fate of the file. The rows
-that are kept are independent derivations and that independence is
-their regression value — so do not "simplify" a KEPT row to match
-shipped fixtures. That protection covers rows deliberately promoted; it
-was never a prohibition on retiring the others, and reading it as one
-is what let the suites accumulate.
+**Promotion stays cheap; RETIREMENT IS ALWAYS PERMITTED (Evan,
+2026-08-13 — amends the PR #17 reading).** Two changes, and note what
+is deliberately NOT being added:
 
-A row that ASSERTS NOTHING is never promotable. A `println!` probe, a
-census, a truth-table dump, a latency table — these are evidence for a
-reviewer at the time, and they cannot fail, so they cannot gate. They
-are exactly the thing to mine and drop.
+1. **The conventions bind the reviewer WRITING the suite**, not the
+   person promoting it. A reviewer authoring a consumer suite follows
+   [[test-suite-cost]] as they write: no fixed seeds, counts on the
+   EFFORT dial, and be aware that a `println!` probe, a census, a
+   truth-table dump or a latency table cannot fail and therefore
+   cannot gate — those are evidence for the review, and should be
+   marked as such rather than left to become permanent rows.
+2. **Take the suite as-is.** Promotion is not an audit. There is NO
+   obligation to comb a suite row by row at the fix pass, and adding
+   one would be a recurring tax on every review to pay for a problem
+   that is cheap to fix later.
+3. **Full license to fix them afterwards.** If a promoted suite becomes
+   a problem — slow, redundant, asserting nothing — trim or retire it
+   then, freely, without ceremony. The kept rows are independent
+   derivations and that independence is their regression value, so do
+   not "simplify" a row that is pulling its weight to match shipped
+   fixtures; but that protection was NEVER a prohibition on retiring
+   ones that are not, and reading it as one is what let the suites
+   accumulate.
 
-Retiring a row means naming the gate that now owns its claim (a
-stronger permanent row, or a new one written for it). "It is not an
-exact duplicate" is not a reason to keep something — an assertion-free
-probe is never an exact duplicate of anything, which is precisely how
+When retiring, name the gate that now owns the claim (a stronger
+permanent row, or a new one written for it). "It is not an exact
+duplicate" is not a reason to keep something — an assertion-free probe
+is never an exact duplicate of anything, which is precisely how
 `step-export`'s `rev_probe` rows survived as five-ε-row gates while
 their own file header said "Not in the `all` aggregator".
 
-**Why this needs saying explicitly:** each crate's
+**Why the license needs stating:** each crate's
 `every_suite_file_is_aggregated` guard plus `autotests = false` means
 any file dropped into `tests/` is forced into the `all` binary and runs
 on every ε row. So "review artifact" and "permanent gate" are the SAME
-THING *by default* — the default is the problem, not the mechanism.
-The selection has to happen at the fix pass, deliberately, or it never
-happens. Measured 2026-08-13: 55% of all workspace test time sat in
-modules named after a specific past review or PR.
+THING by default. That default is fine — cheap promotion is worth it —
+*provided* clearing up afterwards is uncontroversial. Measured
+2026-08-13: 55% of all workspace test time sat in modules named after a
+specific past review or PR, and it got there because the clause above
+read as forbidding exactly that clear-up.
 
 Three levers, not one — reach for the right one:
 
@@ -79,9 +88,10 @@ Three levers, not one — reach for the right one:
   [[test-suite-cost]]. Runs only when the code it tests moved.
 
 What is NOT available is an automatic check: a probe that only prints
-still `unwrap`s, so "has no assertions" is not reliably greppable. That
-makes it a review-time judgement, which is exactly why it is written
-down here rather than left to a lint.
+still `unwrap`s, so "has no assertions" is not reliably greppable. So
+this cannot be enforced at promotion even if we wanted to — another
+reason to put the convention on the author and the license on whoever
+cleans up later.
 
 Suites hit by later API changes (e.g. PR 5's raw-builder demotion)
 migrate or get pruned at that PR like any other test.
