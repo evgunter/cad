@@ -570,14 +570,17 @@ sequencing — the C7 join lane plus the A5 at-rest census door is
 as ASSEMBLY-DESIGN A3 (C4 binds the declaration *shape*, A3 is its
 second home).
 
-**Refusal migration (text-level, rides any touching PR; behavior
-unchanged until the lane ships):** the `boolean/vtxfac.rs` C7/OQ5
-comment and the census `CensusUnsupported` boundary text update to
-cite this document's classes and name the recourse ("a declared
-Tangent/Rest contact — vocabulary CONTACT-DESIGN C4, implementation
-banked") instead of citing a deferral that no longer defers;
+**Refusal migration (text-level; behavior unchanged until the lane
+ships) — TRACKED AS #459:** the `boolean/vtxfac.rs` C7/OQ5 comment
+and the census `CensusUnsupported` boundary text update to cite this
+document's classes and name the recourse ("a declared Tangent/Rest
+contact — vocabulary CONTACT-DESIGN C4, implementation M9") instead
+of citing a deferral that no longer defers;
 `CurvedBooleanUnsupported` at tangent-contact sites keeps its type
-and gains the same pointer. When the C7 lane ships, each arm retires
+and gains the same pointer. *(Originally scoped to ride any touching
+PR. No PR touched those sites in the eight days after ratification,
+so it is issue-tracked instead — the rider mechanism did not work
+for a change nothing else needs.)* When the C7 lane ships, each arm retires
 per class through the CURVED-DESIGN C5 dispatch-table discipline —
 incrementally, never wholesale, exactly as
 `CurvedBooleanUnsupported` retired by table arm through M5.

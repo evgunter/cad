@@ -643,8 +643,10 @@ PR-plan line item, none re-ratifying anything):
    (unreachable-at-rest) gets revisited once curved booleans mint
    split curved edges at rest.
 4. **Census** (`topo::census`): stays planar-exact; the
-   `CensusUnsupported` boundary text updates to name the C7/OQ5
-   deferral explicitly.
+   `CensusUnsupported` boundary text names the frontier explicitly.
+   *(OQ5 has since CLOSED — the boundary text's target is now
+   CONTACT-DESIGN's classes and recourse, not a deferral; see that
+   doc's C8 refusal migration.)*
 5. **`merge_coplanar_faces`**: the structural/declared rungs are
    already kind-agnostic in principle; the op generalizes to
    same-surface (cosurface) merging for curved seams the boolean zip
