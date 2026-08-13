@@ -138,7 +138,20 @@ fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
     // pcurve∘surface) evaluated directly, 200k samples. If the number
     // were an artifact of the composite or the certificate, this scan
     // could not see it.
+    //
+    // The `[3.0e-9, 4.5e-9]` window below is the magnitude MEASURED at
+    // the default band, so this row keeps its ambient guard — but a
+    // bare `return` reported green having asserted nothing, so the
+    // stand-down is now named (2026-08-13 audit). Whether this row can
+    // be made ε-independent the way `deviation2b` was is unexamined.
     if !at_default_eps() {
+        println!(
+            "SKIPPED (inflected-wall deviation reproduction, ambient eps = {:e}): the \
+             ~3.8e-9 m window is the magnitude measured at the default band. THIS RUN \
+             ASSERTS NEITHER that the reported deviation reproduces NOR that it sits at \
+             the section's curvature zero.",
+            eps()
+        );
         return;
     }
     let w = nurbs_wall();
@@ -158,26 +171,59 @@ fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
     );
 }
 
+/// **This row is about the MARCH ε, not the ambient one.** The
+/// tolerance under test is the one handed to [`trace_deviation`]
+/// (`1e-9`, then `1e-9 / factor`), which lands in
+/// `SsiDomain::eps` and drives the stepper's spacing. The ambient
+/// `CAD_TOLERANCE_EPS` is not the subject; its only bearing is that a
+/// tight ambient band can push the march past the SSI fit budget, at
+/// which point there is no fitted pair to measure at all.
+///
+/// So the budget refusal is handled where it happens rather than
+/// pre-empted by an ambient-ε guard. Until the 2026-08-13 audit this
+/// row opened `if !at_default_eps() { return; }` — a SILENT skip that
+/// reported green on two of the three hosted ε rows having asserted
+/// nothing at all. Now every row that CAN measure does, and a row that
+/// cannot says so out loud, naming what it did not cover.
 #[test]
 fn deviation2b_march_eps_scaling_measured_not_assumed() {
     // The report: 64× tighter march-ε bought only 6.8× (at cubic fit
     // cost). Verify the sub-linearity at 16×: the deviation must
     // improve, but by materially less than 16×.
-    if !at_default_eps() {
-        return;
-    }
     let w = nurbs_wall();
-    let (base, _) = trace_deviation(&w, 1e-9, 100_000).expect("in budget");
+    let Some((base, _)) = trace_deviation(&w, 1e-9, 100_000) else {
+        println!(
+            "SKIPPED (march-ε scaling, ambient eps = {:e}): the 1e-9 march wants more \
+             samples than the SSI fit budget allows at this ambient band, so there is no \
+             baseline fit pair. THIS RUN ASSERTS NOTHING about how the fit deviation \
+             scales with the march ε.",
+            eps()
+        );
+        return;
+    };
     eprintln!("[review] march-ε 1e-9: deviation {base:.3e}");
+    let mut measured = 0;
     for factor in [4.0f64, 16.0, 64.0] {
         let Some((tight, _)) = trace_deviation(&w, 1e-9 / factor, 100_000) else {
-            eprintln!("[review] {factor}× tighter march-ε exceeds the fit budget");
+            println!(
+                "SKIPPED ({factor}x tighter march-ε, ambient eps = {:e}): exceeds the SSI \
+                 fit budget — this factor's scaling row did not execute",
+                eps()
+            );
             continue;
         };
+        measured += 1;
         let gain = base / tight;
         eprintln!("[review] march-ε {factor}× tighter: deviation {tight:.3e} ({gain:.2}× better)");
         assert!(gain > 0.5, "tighter march-ε badly worsens the fit pair");
     }
+    assert!(
+        measured > 0,
+        "a baseline fitted at ambient eps = {:e} but NO tighter march-ε did — the \
+         scaling claim has no comparison to stand on, which is a fixture/budget \
+         change, not a pass",
+        eps()
+    );
 }
 
 #[test]
