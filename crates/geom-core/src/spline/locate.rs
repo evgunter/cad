@@ -50,6 +50,7 @@ pub(crate) mod sealed {
     /// The sealing supertrait (pub-in-private: unnameable downstream).
     pub trait Sealed {}
     impl Sealed for f64 {}
+    #[cfg(feature = "probe")]
     impl Sealed for crate::k_stats::Probe {}
     impl<T: Sealed> Sealed for crate::dual::Dual<T> {}
     #[cfg(feature = "interval")]
