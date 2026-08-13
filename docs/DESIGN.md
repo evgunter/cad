@@ -15,17 +15,19 @@ a reader entering here should know all of them exist.
 | `docs/NAMING-DESIGN.md` | RATIFIED (#74) | Persistent naming N1–N7 (derivation-path names, split/merge policy, name table) |
 | `docs/SOLVER-DESIGN.md` | RATIFIED (#79) | GQ1 witness mechanism W1–W9 (solved assignments, certification, `WitnessBifurcation`) |
 | `docs/ERROR-DESIGN.md` | RATIFIED (#110) | Error-propagation program E1–E11 (duals, stackups, subdivision driver, trichotomy) |
-| `docs/CONTACT-DESIGN.md` | RATIFIED (#178) | Contact census & declared contact C1–C8 (closes CURVED OQ5); implementation banked |
-| `docs/PATHS-DESIGN.md` | RATIFIED (#124) | PartialPath authoring algebra (S5); implementation unscheduled by choice (no technical gate — natural slot: the usable-as-library program); the v2 representation switch is a separate later decision |
+| `docs/CONTACT-DESIGN.md` | RATIFIED (#178) | Contact census & declared contact C1–C8 (closes CURVED OQ5); the join lane is M9 |
+| `docs/PATHS-DESIGN.md` | RATIFIED (#124) | PartialPath authoring algebra (S5); implemented at LIB U2 |
+| `docs/PROFILES-V2-DESIGN.md` | RATIFIED (#242) | Profiles-as-programs V1–V7: the stored profile-program, Expr-bearing steps, the replay driver; implemented at the LIB SWITCH units |
+| `docs/SELECT-DESIGN.md` | RATIFIED (#286) | Geometric selectors, the detect/declare protocol, and the GQ7 re-homing |
 | `docs/GUI-DESIGN.md` | RATIFIED (G1–G5) | GUI/editor architecture: three-layer split, document-as-value, edit vocabulary |
-| `docs/ASSEMBLY-DESIGN.md` | RATIFIED (#333) | Band 3 assemblies A1–A8 + AQ1–AQ6: scope ladder, assembly-evaluates-to-a-body, mates-as-declarations, pins/split-inline, validity, mirror; implementation ladder R0–R4 (design-only — homes named, nothing scheduled) |
-| `docs/LIBRARY-DESIGN.md` | RATIFIED (#229) | Usable-as-a-library program L1–L7: façade, Python bindings via the document layer, v2-fronted PATHS, authoring-ergonomics unit ladder; units may run parallel with M7 (LQ5) |
+| `docs/ASSEMBLY-DESIGN.md` | RATIFIED (#333) | Band 3 assemblies A1–A11 + AQ1–AQ6: scope ladder, assembly-evaluates-to-a-body, mates-as-declarations, pins/split-inline, validity, mirror, relative freedom, product roots, the constructive-solve boundary; implementation ladder R0–R4 (R1 running — `docs/ASM-PLAN.md`) |
+| `docs/LIBRARY-DESIGN.md` | RATIFIED (#229) | Usable-as-a-library program L1–L7: façade, Python bindings via the document layer, v2-fronted PATHS, authoring-ergonomics unit ladder; the program is running (`docs/LIB-LOG.md`) |
 | `docs/K-REPORT.md` | Reference | K-constant evidence record (#89 CLOSED, K = 10 permanent) + milestone addenda |
 | `docs/PERF-PLAN.md` | Merged-and-advisory (D9 addendum) | Performance plan and Q-P answers |
 | `docs/CURVO-AUDIT.md` | Reference | curvo/truck vendor audit behind Q5's resolution |
 | `docs/LONGTERM-IDEAS.md` | Parked, non-binding | Idea bank with a graduation rule |
 | `docs/MODEL-AB-LOG.md` | Experiment log | Model A/B protocol + running data; process data, not design |
-| `docs/predicate-dimension-audit.md` | LIVE working audit | Dimensional-analysis sweep; open findings F2–F4, F7–F11 |
+| `docs/predicate-dimension-audit.md` | LIVE working audit | Dimensional-analysis sweep; open findings F2, F6's residue, F7–F15 |
 
 ## Vision
 
@@ -264,7 +266,7 @@ component-aware E–P form found and corrected in M1 PR 4).**
    structure, so a zero-volume lamina is a geometric defect, not a
    topological one. Global self-intersection / minimum clearance stays
    deferred (M3 partial via booleans — tier 3′ below discharges the
-   coincidence census on the planar inventory; M8 interval clearance).
+   coincidence census on the planar inventory; M10 interval clearance).
 4. **Tier 3′ "pseudomanifold" (`validate_pseudomanifold`; ratified at
    the M3 exit sweep per M3-PLAN F1/F2, resolved with Evan #42;
    implemented M3 PR 6a, #75)** — the honest at-rest tier for boolean
@@ -458,13 +460,10 @@ component-aware E–P form found and corrected in M1 PR 4).**
   M3 entries updated at the M4 8c exit sweep, 2026-07-27; M5's
   curved entries added at the PR 14 exit sweep, 2026-08-03):**
   (i) **RETIRED (M4 PR 5, #102)** — the operand-internal-declaration
-  gap: ops now consume declarations as recipe data threaded by name
-  through op composition (F5/N-decisions, exactly the recorded M4
-  fix direction); the closure corpus certifies that a reused 3′
-  body's declared coincidences re-certify downstream. *(Historical
-  entry: reusing a 3′ body as an operand 3′-refused
-  `UndeclaredContact` because ops did not consume their operands'
-  contact declarations.)* (ii) **the both-sided pinch split
+  gap: ops consume declarations as recipe data threaded by name
+  through op composition (F5/N-decisions), and the closure corpus
+  certifies that a reused 3′ body's declared coincidences re-certify
+  downstream. (ii) **the both-sided pinch split
   frontier** — split's below-copy completeness is delivered via the
   exact mirror identity `split(S, n) ≡ swap(split(S, −n))`
   (piece-assignment equivariance; ruled refinement-not-fork at PR
@@ -488,19 +487,14 @@ component-aware E–P form found and corrected in M1 PR 4).**
   rather than classify; CDT exterior classification itself is now
   structural (even-odd flood fill, watertight by construction,
   #116), so the mesh lane no longer contributes residue of its own.
-  (v) **RETIRED (M5 S1, #140)** — the REST-contact join gap named in
-  (iii): the crosslap mate's PLANAR rest contact now zips through a
-  declared-contact join lane, at exact volume, both doors pinned.
-  What it did NOT retire is CURVED rest contact (a declared
+  (v) **RETIRED (M5 S1, #140)** — the PLANAR half of the
+  REST-contact join gap named in (iii): the crosslap mate zips
+  through a declared-contact join lane, at exact volume, both doors
+  pinned. **CURVED rest contact still refuses** (a declared
   cylindrical or spherical conformal class — ball-and-socket,
-  peg-in-hole): that is a declared coincidence class verified
-  structurally. #161 first put its design doc in the M7 plan, on the
-  grounds that imported assemblies arrive carrying such contacts;
-  the 2026-08-03 ruling moved it to **M6** instead (Evan, PR #169
-  comment 5171303851: "we shouldn't fold any core work like ball and
-  socket into M7") — curved REST contact is core kernel work, so its
-  DESIGN lands with the main-path completions, design-only, and M7
-  stays pure adoption.
+  peg-in-hole): it is a declared coincidence class verified
+  structurally, designed at `docs/CONTACT-DESIGN.md` and implemented
+  at M9.
   (vi) **the M5 curved frontier, as built** — every one of these
   refuses TYPED with a message naming its own blocker, and each is a
   banked unit rather than an open question:
@@ -542,22 +536,20 @@ component-aware E–P form found and corrected in M1 PR 4).**
   implicit form, which is `f64` structure and therefore refuses a
   WIDENED analytic operand typed rather than picking a representative
   surface out of the family.
-  **(c) loft/sweep body assembly — CLOSED at M6-3.** `Loft`/`Sweep`
-  nodes run `sweep::loft_body`/`sweep_body` (extrude's topology,
-  skinned geometry; `EdgeGeometry::IsoCurve` seams with exact
-  line-in-UV pcurves); tier 3's +V check consumes the exact per-span
-  tensor Newton–Cotes NURBS-patch flux for non-rational walls, and
+  **(c) loft/sweep body assembly — CLOSED (M6-3, completed at
+  #207).** `Loft`/`Sweep` nodes run
+  `sweep::loft_body`/`sweep_body` (extrude's topology, skinned
+  geometry; `EdgeGeometry::IsoCurve` seams with exact line-in-UV
+  pcurves); tier 3's +V check consumes the exact per-span tensor
+  Newton–Cotes NURBS-patch flux for non-rational walls, and
   RATIONAL walls (any arc-bearing profile) refuse typed at the
   weights gate — the surviving frontier is the rational flux/area
-  lane, banked with recourse text. **Honest correction (#207,
-  M7):** "CLOSED at M6-3" overstated the sweep half. Until #207 the
-  skin fit synthesized a weight channel for integral sections, so
-  `sweep_body` with any CURVED path — and `loft_body` with any
-  non-uniform section spacing — produced bitwise-rational walls and
-  refused at `nurbs_span_meter`; the M6-3 closure in fact covered
-  only straight-path sweeps and uniformly spaced lofts. #207 made an
-  integral input skin to exactly-unit weights, and the curved-path
-  sweep gained its first successful caller then. The analytic-chart pcurve
+  lane, banked with recourse text. Curved-path sweeps and
+  non-uniformly-spaced lofts needed #207, which makes an integral
+  input skin exactly-unit-weight; before it the skin fit
+  synthesized a weight channel and those callers refused at
+  `nurbs_span_meter`, so M6-3 alone covered straight-path sweeps and
+  uniform lofts. The analytic-chart pcurve
   completion (walk row 4) landed in the same unit: cone, sphere and
   torus charts certify and MINT their closed-form classes (cone
   rims/rulings, sphere polar/meridian circles, torus
@@ -1044,7 +1036,7 @@ defining data. Pipeline sketch:
    Imports declare no contacts (F1 forbids scan-to-bless), so an
    imported assembly whose parts *touch* is checked less than its
    natively built twin, whose pipeline carries the declarations. Making
-   import-side contacts expressible belongs to the M8 contact program
+   import-side contacts expressible belongs to the M9 contact program
    (C7); until then this is a named residue, not an equivalence.
 
    Making un-gated bodies *unrepresentable* at every kernel door — a
@@ -1072,7 +1064,7 @@ radius-r rolling-ball fillet" (design-intent / feature recognition — a
 hard, heuristic research problem) is not required for first-class
 validity; it would add only *editability*, and is out of scope for M7.
 Consistently: imported bodies carry no parameters, so error propagation
-(M8) has nothing to vary over them.
+(M10) has nothing to vary over them.
 
 Adoption reuses the kernel's own certification machinery — "is this curve
 within ε of the described locus" is exactly the check the `topo` validator
@@ -1152,7 +1144,7 @@ re-deriving:*
    size a named constant, combine order documented). Same bits every
    run, any thread count.
 
-Targets in value order (advisory detail in PERF-PLAN): the M8
+Targets in value order (advisory detail in PERF-PLAN): the M10
 subdivision driver, per-face tessellation, certification sampling,
 mass properties (the canonical idiom-2 example), independent M4 DAG
 nodes. Euler-op sequences stay serial — shared arena mutation,
@@ -1279,13 +1271,15 @@ Each layer depends only on the layers below it.
 | `bvh` | *(added M5 PR 8, C10)* Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide (D9). Deliberately BELOW the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom-curves`/`geom-surfaces` |
 | `geom-curves` / `geom-surfaces` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection |
 | `geom-brep` | The B-rep geometry layer: D2's intensional edge descriptions, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches |
-| `profile` | 2-D sketch profiles as data: the bulge-chain `Profile` and its trilean validation |
+| `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records (PATHS-DESIGN, PROFILES-V2-DESIGN), lowering to the bulge-chain `Profile` and its trilean validation |
 | `topo` | Arenas, entities, Euler operators, validation (watertightness, orientation, Euler characteristic); the boolean engine and its splitting/census machinery (`topo::boolean`) |
 | `sweep` | Solids from validated profiles: extrude, revolve, loft/skin; fillets |
 | `mesh` / `stl` | Tessellation (watertight triangle meshes from B-rep bodies); STL export (binary + ASCII) |
 | `step-export` / `step-import` | STEP (AP214) analytic-subset export, and import of that subset — import is LIVE as of M7 (own-corpus byte-identical round-trip, FreeCAD foreign corpus, wild corpus) |
 | `editor-core` | Headless document/editor layer AND the parametric layer: document-as-value (recipe + metadata), typed edit vocabulary (`DocEdit` + pure `apply`), parameter expressions, feature DAG evaluation, persistent naming, stable-reference/selection model, incremental evaluation service (preview/commit, epochs, cancelation). No rendering dependency — most of "the GUI project" is library work that ships and tests before a pixel exists. See `docs/GUI-DESIGN.md` |
-| `viewer` | Not yet a crate (GUI last; sequenced after usable-as-library). Architecture: `docs/GUI-DESIGN.md` (G1 three-layer split). Until then: `rerun` for zero-effort demos |
+| `quantity` | Typed quantities at the API boundary (D6): `Length`, `Angle`, and the unit constants the façade re-exports |
+| `pncad` / `pncad-py` | The authoring façade (LIBRARY-DESIGN U1 — one crate to depend on, a prelude, f64-first signatures) and its PyO3 bindings, which speak the document layer (L3) |
+| `viewer` | Not yet a crate (GUI last; sequenced after usable-as-library). Architecture: `docs/GUI-DESIGN.md` (G1 three-layer split) |
 
 The API-first discipline falls out of this: every layer below `viewer` *is* the product,
 exercised entirely by tests and code-driven models (CadQuery/OpenSCAD-style
@@ -1343,75 +1337,63 @@ precursor of the error-propagation feature.
   narrative were relocated to that walk's appendix.)* Standing
   outcomes that still bind: **seven frontier units were BANKED by
   name with typed, pinned doors** — M6 then closed composition
-  surgery, the SSI generic-`T` lift, and loft/sweep body assembly;
-  still banked: the canal-surface blend, cyl×sphere germ chords, the
-  NURBS extent lift, curved REST contact, and arc-leg fillet sugar
-  (#104). Acceptance shape (v) was recorded met piecewise at M5 and
+  surgery, the SSI generic-`T` lift, and loft/sweep body assembly,
+  and curved REST contact is M9. Still banked: the canal-surface
+  blend, cyl×sphere germ chords, the NURBS extent lift, and arc-leg
+  fillet sugar (#104). Acceptance shape (v) was recorded met
+  piecewise at M5 and
   CLOSED at M6 unit 1 (the composed die is one tier-3 body; the M5
   pin flipped with its history). The #89 K-revisit was TAKEN at the
   M5 exit and the outcome is **#89 CLOSED, K = 10 permanent** (Evan,
   PR #169; K-REPORT M5 addendum — and see K-REPORT's M7 addendum for
   the fired-and-retired landing). The in-house
-  `interval-transcendentals` crate (adoption GREEN-LIT, see crate
-  table) exists as workspace-excluded tooling (#115); adopting it in
-  the kernel's interval lane is an M5-PLAN ratified decision, not a
-  default.
-- **M6** — **the main-path completions** *(new milestone, ratified
-  by the 2026-08-03 renumbering — Evan on PR #169, comment
-  5171303851: "perhaps the old M6 could be renamed to M8 since we're
-  moving it after M7, leaving M6 open for the main path work planned
-  here?")*. M5 shipped its curved kernel with seven frontiers banked
-  by name; M6 is where the main-path ones close, in the order #161
-  ratified: the **SSI generic-`T` lift** (it gates the rest), the
-  **loft/sweep body assembly** — which also owns **completing pcurve
-  certification on the analytic charts**, since only Plane and
-  Cylinder charts certify today — the **in-place edge-blend
-  composition surgery** (recommended at the head of the queue; it is
-  what makes acceptance shape (v) one body instead of two), and the
-  **cyl×sphere germ chords** / **NURBS extent lift** that the lift
-  unblocks. Design-only, alongside them: the **census /
-  declared-contact design doc**, moved here from the M7 plan by the
-  same ruling (Evan: "we shouldn't fold any core work like ball and
-  socket into M7") — curved REST contact is core kernel work, so its
-  design lands with the main path even though its implementation
-  does not. *(Status 2026-08-06 — ratified content DONE, exit walk
-  not yet run (docs/M6-LOG.md): units 1–6 all closed — surgery #171,
-  SSI lift #176, loft/sweep assembly #192, CONTACT-DESIGN #178,
-  fillet vocabulary #219/#220, curved sense-flip gate #223.
-  REMAINING: the k-lint baseline floor, then closure at Evan's
-  exit-walk ruling; C7's join-lane implementation opens M8 per the
-  #223-thread placement ruling.)*
+  `interval-transcendentals` crate was adopted as the kernel's
+  interval backend at M5 PR 1 (#127; see the crate table).
+- **M6** — the main-path completions: M5 shipped its curved kernel
+  with seven frontiers banked by name, and M6 closed the main-path
+  ones — the **SSI generic-`T` lift** (which gated the rest), the
+  **loft/sweep body assembly** (owning **pcurve certification on the
+  analytic charts**), and the **in-place edge-blend composition
+  surgery** that makes M5's acceptance shape (v) one body instead of
+  two — plus the fillet-selection vocabulary and the curved
+  sense-flip tier gate. Design-only alongside them: the **census /
+  declared-contact design doc** (`docs/CONTACT-DESIGN.md`), because
+  curved REST contact is core kernel work whose design belongs with
+  the main path even though its implementation does not. *(Complete
+  2026-08-08; the done-state of record is `docs/M6-EXIT-WALK.md`.)*
 - **M7** — STEP import as adoption (D7), **and nothing else**:
-  analytic surface recognition, edge adoption, healing. Scope
-  narrowed by the 2026-08-03 ruling (Evan: "M7 should stay as just
-  adopting STEP files") — core kernel work that import happens to
-  *want* belongs to M6, not here. It remains the inverse problem of
-  everything above it, and it is where the foreign-geometry corpus
-  finally arrives (see #89's re-open trigger in `docs/K-REPORT.md`).
-  *(Status 2026-08-06 (docs/M7-LOG.md): import is LIVE — own
-  round-trip #183, FreeCAD dialect #189, wild corpus #193, NURBS
-  faces #209; the round-trip corpus stands at 17 fixtures.
-  REMAINING: the band-seam re-mint, stage-1 recognition, exit
-  walk.)*
-- **M8** — Error-propagation MVP *(this was **M6** until the
-  2026-08-03 renumbering; the number moved, the content did not)*:
-  distributions over parameters; dual-number sensitivities of
-  measurements (tolerance stackups); interval-based
-  self-intersection / minimum-clearance checks over the parameter
-  box. Sketch solver when sketches should become constraint-driven
-  rather than programmatic. Design record: `docs/ERROR-DESIGN.md`
-  (whose body says "M6" throughout — historical, per its status
-  line).
-- **Post-M8** — the usability program: see
+  analytic surface recognition, edge adoption, healing. Core kernel
+  work that import happens to *want* belongs to M6, not here. It is
+  the inverse problem of everything above it, and where the
+  foreign-geometry corpus finally arrives (see #89's re-open trigger
+  in `docs/K-REPORT.md`). *(Complete 2026-08-09; the done-state of
+  record is `docs/M7-EXIT-WALK.md`. Import is LIVE — own-corpus
+  byte-identical round-trip, the FreeCAD dialect, the wild corpus,
+  NURBS faces.)*
+- **M8** — the kernel residuals the demos raised: the Newell
+  chart-frame re-anchor, the rational-carrier span meter, rational-
+  patch-flux quadrature, and the `nurbs_iso_derive` Intersection
+  arm. Plan and narrative: `docs/M8-PLAN.md` / `docs/M8-LOG.md`.
+  *(In progress.)*
+- **M9** — the declared-contact join lane: CONTACT-DESIGN C7 plus
+  the at-rest census door ASSEMBLY-DESIGN A5 binds to it.
+- **M10** — Error-propagation MVP: distributions over parameters;
+  dual-number sensitivities of measurements (tolerance stackups);
+  interval-based self-intersection / minimum-clearance checks over
+  the parameter box. Sketch solver when sketches should become
+  constraint-driven rather than programmatic. Design record:
+  `docs/ERROR-DESIGN.md`.
+- **The usability program** — see
   [Beyond the kernel](#beyond-the-kernel-the-usability-gap) below.
-  Licensing-hygiene work with no usability payoff is deliberately
-  *not* sequenced here — it lives in [Tabled](#tabled-far-future).
-  *(Update 2026-08-06: the library half of the program is designed
-  and RATIFIED as `docs/LIBRARY-DESIGN.md`, and per its LQ5 ruling
-  the "post-M8" label is superseded for that program — its units
-  may start in parallel with M7 where footprints are independent,
-  at Evan's per-unit discretion. GUI work remains sequenced after
-  usable-as-library, unchanged.)*
+  Its library half is designed and RATIFIED as
+  `docs/LIBRARY-DESIGN.md` and is RUNNING concurrently with the
+  kernel milestones (LQ5), at Evan's per-unit discretion; GUI work
+  is sequenced after usable-as-library. Licensing-hygiene work with
+  no usability payoff is deliberately *not* sequenced here — it
+  lives in [Tabled](#tabled-far-future).
+- **Assemblies** — Band 3, designed as `docs/ASSEMBLY-DESIGN.md`
+  and RUNNING as its own program (`docs/ASM-PLAN.md` /
+  `docs/ASM-LOG.md`), concurrently with the above.
 
 ### M4 fork outcomes (F1–F8)
 
@@ -1428,7 +1410,7 @@ crate table.
 
 *(Added 2026-07-19, from the usability-scoping conversation with Evan.
 This is a **scoping section, not a milestone plan** — it names the
-work between "the M0–M8 kernel exists" and "a person can actually use
+work between "the M0–M10 kernel exists" and "a person can actually use
 this," so that none of it gets invented ad hoc or discovered late.
 Items marked **(design-now)** are cheap at design time and expensive
 to retrofit; each gets folded into the existing plans rather than
@@ -1449,15 +1431,16 @@ G1 three-layer split (kernel / headless `editor-core` / interaction)
 and GQ1–GQ5 are ratified — GQ1's mechanism subsequently ratified in
 full as `docs/SOLVER-DESIGN.md` (#79), the selection-stability/
 naming doc as `docs/NAMING-DESIGN.md` (#74) — with GQ6/GQ7
-deliberately deferred to GUI time. The middle layer is no longer
-prospective: `editor-core` is real, and GUI-DESIGN's freshness note
-carries the verified shipped-vs-absent inventory. (GQ4's
+deliberately deferred to GUI time. The middle layer is real —
+`editor-core` ships, and GUI-DESIGN's freshness note carries the
+verified shipped-vs-absent inventory. (GQ4's
 assemblies-are-recipes-of-the-same-formalism commitment is restated
-at Band 3, where it binds.) **The library program itself is now
-designed and ratified: `docs/LIBRARY-DESIGN.md`** (L1–L7 — façade,
-document-layer Python bindings, v2-fronted PATHS, the
-authoring-ergonomics unit ladder; per its LQ5 ruling, units may
-start in parallel with M7 where footprints are independent).
+at Band 3, where it binds.) **The library program itself is
+designed, ratified, and running: `docs/LIBRARY-DESIGN.md`** (L1–L7
+— façade, document-layer Python bindings, v2-fronted PATHS, the
+authoring-ergonomics unit ladder; per its LQ5 ruling its units run
+in parallel with kernel milestones where footprints are
+independent).
 
 ### Band 1 — kernel-side services an interactive client requires
 
@@ -1536,32 +1519,34 @@ usable-as-library; architecture to be ratified separately.
   inverse problem on top of everything above; optional for v1 except
   dragged sketch dimensions, which users assume.
 
-### Band 3 — missing subsystems (in no current milestone)
+### Band 3 — the subsystems beyond the kernel proper
 
-- **Assemblies.** Multi-part documents, mates (a rigid-body-DOF
-  constraint problem, distinct from the 2-D sketch solver),
-  cross-document references, interference checks (the latter falls
-  out of M3 booleans / M8 clearance). Even hobbyist use wants this.
-  *Reference architecture ratified 2026-07-19 (GUI-DESIGN.md GQ4):
-  an assembly document is a recipe DAG of the same formalism —
-  instantiate-part (via the doc-identity × local-ref wrapper),
-  mates, and patterns are ordinary feature nodes, so the editor and
-  solver machinery (incl. mate witnesses per GQ1) transfers
-  unchanged; binding semantics ratified in direction —
-  pinned-with-explicit-update, the Cargo.lock model (details at
-  assembly design).*
+- **Assemblies — DESIGNED AND RUNNING.** Multi-part documents,
+  mates (a rigid-body-DOF constraint problem, distinct from the 2-D
+  sketch solver), cross-document references, interference checks
+  (the latter falls out of M3 booleans / M10 clearance). Even
+  hobbyist use wants this. Architecture ratified 2026-07-19 as
+  GUI-DESIGN GQ4 and designed in full as `docs/ASSEMBLY-DESIGN.md`
+  (A1–A11): an assembly document is a recipe DAG of the same
+  formalism — instantiate-part (via the doc-identity × local-ref
+  wrapper), mates, and patterns are ordinary feature nodes, so the
+  editor and solver machinery (incl. mate witnesses per GQ1)
+  transfers unchanged; binding is pinned-with-explicit-update, the
+  Cargo.lock model. Implementation is its own program
+  (`docs/ASM-PLAN.md`).
 - **Engineering drawings.** Dimensioned 2-D drawings require
   projection plus **hidden-line removal**; HLR on curved B-reps is
   SSI-grade (silhouette curves) and belongs on the difficulty
   ranking near fillets. Explicit near-term dodge: export STEP, make
   drawings elsewhere.
-- **Feature breadth.** Post-M8 the kernel has extrude/revolve/sweep/
-  loft, booleans, shell, constant-radius fillets. Daily use assumes:
+- **Feature breadth.** The kernel has extrude/revolve/sweep/loft,
+  booleans, constant-radius fillets. Daily use assumes: shell,
   chamfers, variable-radius fillets, draft, hole features
   (counterbore/countersink/tapped), linear/circular patterns and
   mirror (D8's structural parameters are the substrate), datum
   planes/axes, helixes, rib/text features. Individually small; the
-  long tail dominates "why can't I model my part."
+  long tail dominates "why can't I model my part." The kernel-side
+  view with dependencies is `docs/KERNEL-VERBS.md`.
 - **Interchange breadth**: 3MF (supersedes STL for printing), DXF
   in/out (profiles, drawings), OBJ. Each small; STEP remains the
   only hard one.
@@ -1618,7 +1603,7 @@ named.
   margined predicate verdicts, so predicate flips remain the *only*
   topology-change sites.
 - **The editor-core evaluation service is generic over `Real`** from
-  day one — M8's error-propagation UI rides the same memoization /
+  day one — M10's error-propagation UI rides the same memoization /
   cancelation / per-node-result machinery as f64 rebuilds; no
   parallel path, no retrofit.
 - **ε and persistence** *(rules for the first persisted document —
@@ -1646,7 +1631,7 @@ named.
   adjacent-face extent (face consumption), spine regularity, blend-
   corner configuration — stated in the feature definition. Payoffs:
   typed, diagnosable pre-construction errors; the predicates are Q1
-  predicates, so M8 can certify **fillet validity over a parameter
+  predicates, so M10 can certify **fillet validity over a parameter
   box** ("cannot break for r ∈ [2,5]") — a direct error-propagation
   payoff no commercial kernel offers; corner reconfigurations become
   enumerated predicate flips, extending the naming pillar to
@@ -1682,7 +1667,7 @@ named.
   dual replay trivial and schema versioning tractable; nearly
   impossible to claw back once one persisted model uses a loop.
 - **Sketch DOF diagnosis is two named layers, never conflated**
-  *(M8; bounds the ezpz boundary — numbers only)*. The **structural
+  *(M10; bounds the ezpz boundary — numbers only)*. The **structural
   layer** (DOF counting, graph decomposition — exact, combinatorial,
   float-free, deterministic) diagnoses over/under-constraint; the
   known residue — generically-well-constrained but configuration-
@@ -1726,30 +1711,26 @@ named.
 Deliberately unsequenced — kept off the roadmap so it never reads as
 preceding the usability program above.
 
-- **In-house rigorous interval transcendentals** *(moved from the
-  roadmap's post-M7 note, 2026-07-19)*: **RETIRED FROM THIS LIST —
-  DONE EARLY (M5 PR 1, #127, 2026-07-28).** The entry's whole program
-  completed years ahead of its own sequencing stance: the crate was
-  built as an M4 side-chain (#115), and the kernel switch landed as
-  M5 PR 1 — inari and its LGPL stack are gone from the tree, not
-  re-quarantined. Kept as a tombstone because the entry's original
-  text explicitly warned against scheduling it ahead of user-facing
-  work: what actually happened is that M5's curved certification
-  made interval arithmetic load-bearing on the default path
-  (CURVED-DESIGN C9/T2), which converted the licensing hygiene into
-  user-facing infrastructure — the sequencing stance was right and
-  the trigger it waited for arrived.
+- **In-house rigorous interval transcendentals** — **RETIRED FROM
+  THIS LIST, DONE EARLY** (M5 PR 1, #127, 2026-07-28; crate table
+  for what shipped). The tombstone is kept for its lesson: the entry
+  warned against scheduling licensing hygiene ahead of user-facing
+  work, and what actually pulled it forward was M5's curved
+  certification making interval arithmetic load-bearing on the
+  default path (CURVED-DESIGN C9) — the stance was right, and the
+  trigger it waited for arrived.
 
 ## Open questions
 
-### Q1: Scalar genericity (direction settled 2026-07-15)
+### Q1: Scalar genericity
 
 Settled direction — **reified trilean predicates + a subdivision driver; no
 persisted decision log**:
 
 - Evaluation code (evaluators, derivatives, transforms, measurements) is
   fully generic over a `Real` trait we define. Instantiations: `f64`,
-  `Interval` (in-house `interval-transcendentals` backend since M5 PR 1 — inari retired; behind the `interval` feature),
+  `Interval` (the in-house `interval-transcendentals` backend, behind
+  the `interval` feature),
   `Dual<f64>` and `Dual<Interval>` (one in-house generic `Dual<T>` —
   num-dual was demoted to a dev-only test oracle at M0 because its
   std-backed transcendentals cannot satisfy the value-channel
@@ -1795,7 +1776,8 @@ last-ulp accuracy; no order-implicit reductions (`Sum`/`Product`).
 through a test, never a panic. **Angular tolerance eliminated** (D4 ¶1
 revision).
 **All Q1 residue settled at M0 close (2026-07-16):**
-- **Interval scalar** (PR #7; backend swapped to interval-transcendentals at M5 PR 1, contract preserved): originally inari `DecInterval` with the *decoration
+- **Interval scalar** (PR #7; the M5 PR 1 backend swap preserved this
+  contract verbatim): the *decoration
   as the poison channel* (`decoration < Def ⇒ Indeterminate(Invalid)` —
   silent domain clamps never decide); `Bounds` certification trait with
   poison-visible NaN brackets for empty AND NaI (failing certification
@@ -1851,7 +1833,7 @@ Ecosystem survey (2026-07) narrowed this considerably:
   Rust at all; everything is iterative/numeric. Over/under-constrained
   diagnosis would be ours to build regardless of solver choice.
 
-Leading answer: adopt **ezpz** at M8, with "roll our own LM solver on
+Leading answer: adopt **ezpz** at M10, with "roll our own LM solver on
 `levenberg-marquardt`/`faer` using ISOtope's math as tutorial" as the
 fallback if ezpz's product-driven roadmap diverges from our needs.
 
@@ -1921,7 +1903,7 @@ not the modeling core. Candidates, all verified active unless noted:
 |---|---|---|---|
 | ID arenas | `slotmap` | Zlib | **Adopted** (M0+). typed keys per entity kind, `SecondaryMap` for attributes — exactly the B-rep store shape |
 | Persistent collections | `imbl` (or `rpds` for MIT-only) | MPL-2.0 / MIT | still a candidate — NOT yet a dependency (nothing has needed it through M4). `im` is unmaintained with an open soundness advisory — use the `imbl` fork if ever adopted |
-| Interval arithmetic | `interval-transcendentals` (in-house, in-repo) | MIT/Apache | **Adopted as the kernel `T = Interval` backend at M5 PR 1 (#127, 2026-07-28)** — proven per-function libm error pads (4-ulp transcendental, 1-ulp arithmetic with exactness witnesses for sqrt/mul/div), MPFR-differential-certified (~4M cases via the optional `oracle-inari` dev feature), libm-only, D9-clean; the crate keeps its own workspace, kernel crates path-depend on it; its fast suites run gmp-free in the hosted `interval-backend` CI row. **History**: `inari` was the M0-M4 backend (issue #4) with its gmp/MPFR LGPL-3.0+ transitive deps quarantined behind the `interval` cargo feature; the M5 PR 1 swap RETIRED inari from the tree entirely (Cargo.lock zero hits, dev-deps included), so **the kernel is copyleft-free in every build configuration and issue #4's exit condition is met by removal** — inari survives only as the optional differential oracle inside the excluded crate's own workspace. The historical AVX+FMA target-cpu floor was DROPPED post-swap (2026-07-29, Evan's #127 retroactive review — no correctness need remains; mul_add witnesses are correctly-rounded regardless) |
+| Interval arithmetic | `interval-transcendentals` (in-house, in-repo) | MIT/Apache | **Adopted as the kernel `T = Interval` backend at M5 PR 1 (#127, 2026-07-28)** — proven per-function libm error pads (4-ulp transcendental, 1-ulp arithmetic with exactness witnesses for sqrt/mul/div), MPFR-differential-certified (~4M cases via the optional `oracle-inari` dev feature), libm-only, D9-clean; the crate keeps its own workspace, kernel crates path-depend on it; its fast suites run gmp-free in the hosted `interval-backend` CI row. **The kernel is copyleft-free in every build configuration**: the M5 PR 1 swap removed `inari` and its gmp/MPFR LGPL-3.0+ stack from the tree entirely (Cargo.lock zero hits, dev-deps included), meeting issue #4's exit condition by removal; inari survives only as the optional differential oracle inside the excluded crate's own workspace. No target-cpu floor: mul_add witnesses are correctly-rounded regardless (Evan's #127 retroactive review, 2026-07-29) |
 | Robust predicates | `robust` (georust) | MIT/Apache | candidate only — not a dependency; Shewchuk adaptive predicates, battle-tested via `geo`/`spade` |
 | Dual numbers / forward AD | `num-dual` (dev-only) | MIT/Apache | **Demoted at M0** (PR #10): its transcendentals route through std, not libm, so it cannot satisfy the value-channel bit-identity contract — duals are one in-house generic `Dual<T>` (f64 and Interval from the same code); num-dual serves as a dev-dependency derivative oracle in tests |
 | CDT / mesh refinement | `spade` | MIT/Apache | **Adopted** (M2, `mesh` crate). Delaunay + constrained + Ruppert refinement; meshing happens in UV space (our code). Sequential point-location insertion is the measured tessellation bottleneck (PERF-PLAN §2); exterior classification is OURS since #116 (even-odd flood fill), spade supplies the CDT only |
@@ -1935,8 +1917,8 @@ Reference-only (read, don't depend): **truck** (only living Rust B-rep
 kernel; active on git but crates.io releases stale; booleans demo-grade),
 **curvo** (active pure-Rust NURBS evaluation/fitting-interpolation;
 audited at M5 — NO SSI (empty placeholder module) and demo-grade 2-D
-clipping only, an earlier "incl. SSI" claim here was wrong; oracle
-scope per Q5/docs/CURVO-AUDIT.md), **vcad** (new Apache-2.0 half-edge B-rep kernel with
+clipping only; oracle scope per Q5/docs/CURVO-AUDIT.md), **vcad**
+(new Apache-2.0 half-edge B-rep kernel with
 booleans/fillets, too young to depend on but the most interesting recent
 effort), **Fornjot** (archived June 2026 — see below), **opencascade-rs**
 (the only production-grade-boolean route in Rust today; LGPL + C++ build
@@ -1955,7 +1937,7 @@ primary source; supersedes the old ch. 4–6 partial scan),
 `grinspun-schroder-desbrun-GSD06-discrete-differential-geometry.pdf`
 (DDG course notes — Evan-suggested during PR #9's subgradient
 conversation; the discrete-exactness philosophy is the frame for how
-M8's stackup design should treat kinks/subdifferentials),
+M10's stackup design should treat kinks/subdifferentials),
 `vida-martin-varady-1994-survey-of-blending-methods-parametric-surfaces.pdf`
 (Computer-Aided Design 26(5) — the canonical blending survey, supplied
 by Evan 2026-07-16; primary source for M5's fillet scope-boxing:

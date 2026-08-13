@@ -22,27 +22,24 @@ governs how the gaps get treated:
 today** — 22 outright, and 3 more only if you re-author by hand what
 the scene says structurally. 9 are blocked by a missing door.
 
-The count moved from 7 to 11 when LIB-PYG1 bound the PATHS lattice
-and closed G1 (`bracket`, `vase`, `sheave`, `bossplate`), from 11 to
-18 when LIB-PYG23A bound the sketch-plane vocabulary and the loft
-node — closing G3 outright (`silhouette`, `silhouette3` and its three
-shadow stops) and G2's loft half (`loft_prism`, `nonuniform_loft`) —
-and from 18 to 24 when LIB-PYBUNDLE bound the fillet, split,
+The count climbed from 7 as each binding unit closed its gap:
+**LIB-PYG1** bound the PATHS lattice, closing G1 (`bracket`, `vase`,
+`sheave`, `bossplate`); **LIB-PYG23A** bound the sketch-plane
+vocabulary and the loft node, closing G3 (`silhouette`, `silhouette3`
+and its three shadow stops) and G2's loft half (`loft_prism`,
+`nonuniform_loft`); **LIB-PYBUNDLE** bound the fillet, split,
 transform and datum-plane nodes and grew a profile past one loop,
-closing G4, G6, G7 and G9, and from 24 to 25 when LIB-LBRET built
-PATHS-DESIGN §2b's route-3 door and migrated `rocker`'s outline to
-the lattice, closing G12. Five stops flipped NO to YES (`plate`,
-`diefillet`, `diepips`, `tiltedcut`, `az`), `crosslap_exploded`
-stopped being a YES\* — its lift is a `Node.transform` now, not a
-hand-authored copy — and `diecomposed` went NO to YES\*. LIB-PYSEL
-then bound the selector surface and closed G13: `diecomposed` is a
-plain YES, its two blends narrowed by the SAME two geometric filters
-the Rust scene runs, with no name text read.
+closing G4, G6, G7 and G9; **LIB-LBRET** built PATHS-DESIGN §2b's
+route-3 door and migrated `rocker`'s outline to the lattice, closing
+G12; **LIB-PYSEL** bound the selector surface, closing G13 — so
+`diecomposed`'s two blends are now narrowed by the SAME two geometric
+filters the Rust scene runs, with no name text read.
 
-Three of LIB-PYBUNDLE's stops did NOT flip outright, and each named
-the door it was actually waiting on rather than inheriting the one
-that closed: `rocker` (G12, since closed), `diecomposed` (G13, since
-closed), `cutaway` (G14). G14 is a measured, executed refusal in
+One instructive pattern from LIB-PYBUNDLE: three of its stops did NOT
+flip outright, and each named the door it was actually waiting on
+rather than inheriting the one that closed — `rocker` (G12, since
+closed), `diecomposed` (G13, since closed), `cutaway` (G14). G14 is a
+measured, executed refusal in
 `test_north_star.py`. G13 never was a refusal and the page never
 claimed one: the wall was CONTRACTUAL — the name text is an opaque
 identifier, so narrowing a set by reading inside it was
@@ -182,7 +179,7 @@ blockers stay named in the last column.
 | 16 | `twisted_duct` | NO | G2 | same `SWEEP_FRONTIER` bank; a non-planar spine also needs the 3-D-path tail (U4/LQ3) |
 | 17 | `twisted_duct_shadow_z` | NO | G2 | same body — the `SWEEP_FRONTIER` bank |
 | 18 | `twisted_duct_shadow_y` | NO | G2 | same body — the `SWEEP_FRONTIER` bank |
-| 19 | `tube_along_arc` | NO | G2 | no `Node::Tube` at all: a new node kind is a SCHEMA-VERSION break, and ASM-1 owns the next bump (v5) |
+| 19 | `tube_along_arc` | NO | G2 | no `Node::Tube` at all: a new node kind is a SCHEMA-VERSION break, so it has to be sequenced against whatever bump is in flight |
 | 20 | `die` | **YES** | — | — |
 | 21 | `table` | NO | G5 | declared flush contact |
 | 22 | `silhouette` | **YES** | — | — |
@@ -297,7 +294,7 @@ is named too.
 
 | # | gap | stops | register / pointer | note |
 |---|---|---|---|---|
-| G2 | **Sweep and tube** (loft closed) | 6 | register B ("the big three") | Loft left this gap when LIB-PYG23A bound `Node.loft`. What remains is not an unbound door but two BANKED ones. **Sweep**: `wire_sweep` refuses unconditionally (`SWEEP_FRONTIER`, `editor-core/src/eval/wire.rs`) — the path-composition lane banked past M6 by the PR 10 MAJ ruling, so binding it would flip no row and un-banking is kernel-side. **Tube**: there is no `Node::Tube` at all, and adding a node kind is a schema-version break (the v3 precedent was exactly Loft/Sweep landing) whose next bump ASM-1 owns (v5, `docs/ASM-1-SPEC.md` §D-6). The tube/sweep/3-D-path tail is a design conversation: U4's measured spec, and **LQ3, ratified 2026-08-10 (#362, LIBRARY-DESIGN §L7)** — which names the discharge site rather than building it. A `geom-curves` chain→curve composition door is what would narrow `wire_sweep`'s refusal from everything to genuinely-unjoinable chains, and that un-banking is kernel-side work needing the kernel program's concurrence. Ratified direction, landed door not yet: rows 15–18 stay NO until U4's units land, and `Node::Tube`'s schema bump stays a separate coordination item with ASM's version sequence |
+| G2 | **Sweep and tube** (loft closed) | 6 | register B ("the big three") | Loft left this gap when LIB-PYG23A bound `Node.loft`. What remains is not an unbound door but two BANKED ones. **Sweep**: `wire_sweep` refuses unconditionally (`SWEEP_FRONTIER`, `editor-core/src/eval/wire.rs`) — the path-composition lane banked past M6 by the PR 10 MAJ ruling, so binding it would flip no row and un-banking is kernel-side. **Tube**: there is no `Node::Tube` at all, and adding a node kind is a schema-version break (the precedent was exactly Loft/Sweep landing), so it has to be sequenced against whatever bump is in flight. The tube/sweep/3-D-path tail is a design conversation: U4's measured spec, and **LQ3, ratified 2026-08-10 (#362, LIBRARY-DESIGN §L7)** — which names the discharge site rather than building it. A `geom-curves` chain→curve composition door is what would narrow `wire_sweep`'s refusal from everything to genuinely-unjoinable chains, and that un-banking is kernel-side work needing the kernel program's concurrence. Ratified direction, landed door not yet: rows 15–18 stay NO until U4's units land, and `Node::Tube`'s schema bump stays a separate coordination item with ASM's version sequence |
 | G5 | **Declared flush contact** | 2 | register B; register A **R3** (the SEL2 `UndeclaredContact` refusal-menu wiring) | `Node.boolean` grew `declare=` in LIB-PYBUNDLE — the DATA door — but nothing in Python can BUILD a declaration: `Node.declare` does not exist and the detect protocol (`find_flush_candidates` → `declare_node`) is entirely unbound, so parts that *touch* still cannot be glued from Python |
 | G8 | **Pattern + structural params** | degrades 3 | register B | No pattern node and no `SetStructuralParam` edit, so `heatsink`'s actual subject — one recipe, a count edit, memoized recompute — cannot be said. MEASURED at LIB-PYBUNDLE and deliberately left unbound: binding `Node::Pattern` would flip no row, because the heatsink's shape is a pattern UNIONED into a base and a pattern evaluates to an `Instances` payload, which the boolean's operand door refuses (`wrong_operand`, `eval/wire.rs::body_operand`). The gap is the kernel payload, not the binding; `test_the_named_gaps_are_still_gaps` executes the refusal on the one plural payload Python can already produce |
 | G14 | **Split across boolean-minted faces** | 1 | register B (new); issue **#380** carries the `NamingError`-`Display` diagnostic gap this refusal hides behind | KERNEL-side, and measured from Python: `Node::Split` names a cut through PASS-THROUGH faces fine (`tiltedcut` flips on it), but a plane crossing a face the boolean itself minted refuses in the naming emitter (`NodeErrorKind::Naming`). `topo::split` does the geometry — the tour's `cutaway` runs it — so the missing thing is the split emitter's coverage of boolean provenance, not a document node. A cut through a MULTI-LOOP extrude's holes names fine, so the discriminator is provenance and not section-face topology |

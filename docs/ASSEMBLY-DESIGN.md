@@ -14,12 +14,11 @@ it:
 | DESIGN.md banked flags | SE(3) witnesses budgeted, not assumed from sketch machinery; ε-disagreement across referenced documents is a typed error at the seam; pattern indices ride provenance explicitly; free-move/hide are display-layer state, never persisted (G3) |
 
 Decisions are **A1–A11**; open questions **AQ1–AQ6** (AQ3
-discharged by A11). Design-only:
-no unit here is scheduled by this doc; the implementation ladder
-names natural homes (M8's #317, M9's C7, M10's clearance) without
-claiming them. Chat/issue rulings incorporated: the scope ladder,
-materialized evaluation, and the key-identity relaxation are Evan's
-calls of 2026-08-09/10 (#328).
+discharged by A11). This doc schedules nothing; the implementation
+ladder below names homes, and the program that works through it is
+`docs/ASM-PLAN.md` / `docs/ASM-LOG.md`. Chat/issue rulings
+incorporated: the scope ladder, materialized evaluation, and the
+key-identity relaxation are Evan's calls of 2026-08-09/10 (#328).
 
 ## A1 — The scope ladder
 
@@ -263,7 +262,7 @@ Cheap to honor now, expensive to retrofit; each names its source:
 - **Handbook fits** (I3): `Fit { g₀ }` with g₀ from a versioned
   data source — the declaration shape already fits; provenance of
   g₀ is the open half.
-- **#317's record shape**: the M8 import-flatten unit must record
+- **#317's record shape**: the import-flatten unit must record
   the NAUO instance structure (which product, which placement, per
   instance) in the import record, so a flattened import can later
   be re-adopted as an assembly document without re-parsing. This is
@@ -494,10 +493,13 @@ rung (c); loop CERTIFICATION beyond the C2 verification tables
   and the recourse text steering designed clearance to
   `Fit { g₀ }`. Belongs with the C7-era verification-table specs.
 
-## Implementation ladder (homes named, nothing scheduled)
+## Implementation ladder
 
-- **R0 (M8, already adopted)** — #317 import flattening, with the
-  A7 record shape as its one new obligation.
+Worked through by the ASM program (`docs/ASM-PLAN.md`); the live
+state is the ASM-LOG tail, never this list.
+
+- **R0 — DISCHARGED**: #317 import flattening, with the A7 record
+  shape as its one new obligation.
 - **R1 — the body graph**: `InstantiatePart` (pin + explicit
   frame) and `Pattern` nodes; materialized evaluation through
   `transform_rigid`; instance-qualified naming; pins and the
