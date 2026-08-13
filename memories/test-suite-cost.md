@@ -1,6 +1,6 @@
 ---
 name: test-suite-cost
-description: Standing rules for what a test may cost the CI suite — randomized sweeps must be seed-varying, EFFORT-scaled and gated to the code they test; failure isolation is worth less than per-run cost; assertion-free tests are never gates
+description: Standing rules for what a test may cost the CI suite — ALL fuzzing must vary its seed (never hardcode one), scale by an EFFORT dial, and be gated to the code it tests; failure isolation is worth less than per-run cost; assertion-free tests are never gates
 metadata:
   type: feedback
 ---
@@ -8,25 +8,49 @@ metadata:
 Rulings from the 2026-08-13 whole-suite test-time audit. The audit
 itself is history; these are the rules that outlast it.
 
-**A randomized sweep must be MARKED to run only on changes to the code
-it was written to test (Evan, 2026-08-13).** Not on every PR. The
-argument "the chance it turns up something new isn't technically zero"
-does not justify paying for it on every run — depth is bought
-deliberately by cranking its dial, not sprayed across unrelated
-changes. A new sweep that is not gated is a defect in the sweep.
+# Fuzzing
 
-Three properties every sweep needs, together:
+These apply to **ALL fuzzing in this repo** — every randomized sweep,
+property sweep, adversarial sweep and fuzz row, existing or new,
+wherever it lives (`tests/` or an inline `#[cfg(test)]` module). Not
+just the ones the 2026-08-13 audit happened to touch.
 
-- **The seed VARIES per run and is logged unconditionally.** A
-  hardcoded seed makes a sweep a replay corpus: it explores identical
-  points forever and after its first green run can only fail because
-  the code under test changed. That is a fine thing to be, but it must
-  not be described or budgeted as fuzzing. Log the seed always (not
-  only on failure) and repeat it in assertion messages, or a red run is
-  unreproducible.
-- **Counts are multiples of a shared EFFORT dial**, shipped at the
-  level a gated run should cost, so depth is one env var away.
-- **Gated** as above.
+**A fuzzer MUST NOT FIX ITS SEED (Evan, 2026-08-13).** No hardcoded
+literal, no `const SEED`, no seed derived from a loop counter. Draw it
+fresh per run.
+
+A hardcoded seed does not make a weak fuzzer — it makes something that
+is **not a fuzzer at all**. It explores exactly the same points on
+every run for the rest of the project's life, so after its first green
+run it can only ever fail because the code under test changed. At the
+audit, *every* seed in the workspace was a hardcoded literal across 44
+RNG-driven tests, which is why the whole family was re-deriving known
+answers at full price on every PR.
+
+A deliberate replay corpus is a legitimate thing to have. If that is
+what you want, say so in the test's own docs and name it accordingly —
+but it must not be called, described, or budgeted as fuzzing.
+
+Three properties every fuzzer needs, together:
+
+- **A varying seed, logged UNCONDITIONALLY.** Always, not only on
+  failure, and repeated in assertion messages — otherwise a red run is
+  unreproducible, which is the one failure mode that matters most.
+  Provide an env override so a failure can be replayed exactly, and
+  pin a genuine counterexample as an ordinary deterministic test
+  alongside its fix. Finding the case is the fuzzer's job; being the
+  regression gate for it afterwards is not.
+- **Counts as multiples of a shared EFFORT dial**, shipped at the level
+  a gated run should cost, so depth is one env var away.
+- **MARKED to run only on changes to the code it was written to test.**
+  Not on every PR. "The chance it turns up something new isn't
+  technically zero" does not justify paying for it on every run — this
+  is thoroughly adversarially reviewed code with good suites and no
+  safety-critical exposure, so depth is bought deliberately, not
+  sprayed across unrelated changes. A fuzzer that is not gated is a
+  defect in the fuzzer.
+
+# Everything else
 
 **Failure isolation is worth less than per-run cost (Evan,
 2026-08-13).** When several tests rebuild the same expensive fixture,
