@@ -246,19 +246,22 @@ fn f32_display_round_trip_spot_checks() {
 
 #[test]
 fn interleaved_and_repeated_exports_are_byte_identical() {
-    let bodies = common::acceptance_bodies();
-    let (_, ball, delta) = &bodies[2];
-    let (_, washer, wdelta) = &bodies[4];
-    let m1 = mesh::tessellate(ball, *delta).unwrap();
-    let w1 = mesh::tessellate(washer, *wdelta).unwrap();
+    // The "ball" and "washer" rows of `common::acceptance_bodies`
+    // (rows 2 and 4, both at δ = 1e-2), built directly: this row only
+    // ever exported those two, and the full list also builds a boolean
+    // intersect, a union and a plane split it never touches.
+    let (ball, delta) = (common::ball(), 1e-2);
+    let (washer, wdelta) = (common::washer(), 1e-2);
+    let m1 = mesh::tessellate(&ball, delta).unwrap();
+    let w1 = mesh::tessellate(&washer, wdelta).unwrap();
     let b_first = binary_of(&m1);
     let a_first = ascii_of(&m1);
     // Interleave other exports, different δ, then repeat.
-    let m_coarse = mesh::tessellate(ball, delta * 2.0).unwrap();
+    let m_coarse = mesh::tessellate(&ball, delta * 2.0).unwrap();
     let _ = binary_of(&m_coarse);
     let _ = binary_of(&w1);
     let _ = ascii_of(&w1);
-    let m2 = mesh::tessellate(ball, *delta).unwrap();
+    let m2 = mesh::tessellate(&ball, delta).unwrap();
     assert_eq!(
         binary_of(&m2),
         b_first,
