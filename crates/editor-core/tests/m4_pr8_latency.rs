@@ -206,7 +206,31 @@ fn mem_total_kb() -> u64 {
         .unwrap_or(0)
 }
 
+/// **`#[ignore]` BY DESIGN — this row is REPORTING, and the ε matrix
+/// paid for it 5× per run.** It is not a gate (see the module docs: no
+/// threshold, a slow row is a report), so the only thing the ε battery
+/// bought was ~18 s × 5 rows of wall clock printing a table nobody
+/// reads per-ε.
+///
+/// INVARIANT: nothing is uncovered by ignoring it here. Its two
+/// assertions are a strict subset of `m4_pr8_corpus.rs`, which the ε
+/// matrix DOES run: the green-document check (`failures(&eval(&d.doc))`
+/// empty, per corpus document) is the opening of
+/// `every_document_evaluates_green`, which asserts that and more
+/// (outcome, order length, cold recompute counts); and the
+/// counted-reuse check (`(recomputed, reused) == (cone.len(), len -
+/// cone.len())` after a `bumped()` edit against a prior evaluation) is
+/// verbatim `incremental_recompute_reuses_the_cone_complement`, which
+/// again asserts that and more (green after the bump, `reused > 0`).
+/// Both are per-document loops over the same `documents()`.
+///
+/// The table itself still runs: ci.yml's dedicated `rebuild latency
+/// (reporting)` job — and its mirror row in `local-scripts/ci-local.sh`
+/// — pass `--ignored` so this test executes exactly once per CI run,
+/// where the numbers are actually looked at. (In-tree idiom:
+/// `crates/stl/tests/export.rs`'s `print_stl_hashes`.)
 #[test]
+#[ignore]
 fn rebuild_latency_table() {
     let rows = measure();
     let base = baseline();

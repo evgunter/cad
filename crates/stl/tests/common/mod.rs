@@ -38,6 +38,11 @@ pub fn axis_y() -> RevolveAxis<f64> {
 /// a typed `DegenerateTriangle` (fail loud; see
 /// `degenerate_apex_fan_is_refused_typed` in the export suite).
 pub fn acceptance_bodies() -> Vec<(&'static str, Body<f64>, f64)> {
+    // ONE split, both halves kept: `tiltedcut` extrudes a cylinder and
+    // splits it, returning both sides of that single computation.
+    // Calling it once per half ran the whole extrude+split twice and
+    // discarded one half each time.
+    let (tiltedcut_above, tiltedcut_below) = tiltedcut();
     vec![
         ("l_prism", l_prism(), 1e-2),
         ("holed_prism", holed_prism(), 1e-2),
@@ -55,8 +60,8 @@ pub fn acceptance_bodies() -> Vec<(&'static str, Body<f64>, f64)> {
         // external admesh gate — the tiltedcut halves (conic-trimmed
         // cylinder walls) and boss∪plate (the first transverse curved
         // boolean; curved-planar shared seam arcs).
-        ("tiltedcut_above", tiltedcut().0, 1e-2),
-        ("tiltedcut_below", tiltedcut().1, 1e-2),
+        ("tiltedcut_above", tiltedcut_above, 1e-2),
+        ("tiltedcut_below", tiltedcut_below, 1e-2),
         ("boss_plate", boss_plate(), 1e-2),
     ]
 }

@@ -819,22 +819,27 @@ fn nurbs_geometry_appears_exactly_where_the_kernel_put_it() {
 /// order, or allocation history reaches the output).
 #[test]
 fn curved_exports_are_byte_deterministic() {
-    for (name, body) in curved_corpus() {
+    // Exactly TWO corpus builds: `first_build`, and `second_build`
+    // rebuilt from scratch from the same recipes. INVARIANT: the corpus
+    // is a fixed ordered list, so zipping pairs each document with its
+    // OWN rebuild — the name equality asserted on every step is what
+    // makes that pairing checkable rather than assumed.
+    let first_build = curved_corpus();
+    let second_build = curved_corpus();
+    assert!(!first_build.is_empty(), "the curved corpus is non-empty");
+    assert_eq!(
+        first_build.len(),
+        second_build.len(),
+        "corpus length must not depend on the build"
+    );
+    for ((name, body), (rebuilt_name, rebuilt)) in first_build.into_iter().zip(second_build) {
+        assert_eq!(name, rebuilt_name, "{name}: corpus order differs by build");
         let first = export(&body, name);
+        // Same VALUE ⇒ same bytes.
         assert_eq!(first, export(&body, name), "{name}: same value");
-    }
-    // Same recipe, rebuilt from scratch.
-    for (name, rebuilt) in curved_corpus() {
-        let again = curved_corpus()
-            .into_iter()
-            .find(|(n, _)| *n == name)
-            .expect("rebuilt")
-            .1;
-        assert_eq!(
-            export(&rebuilt, name),
-            export(&again, name),
-            "{name}: same recipe"
-        );
+        // Same RECIPE ⇒ same bytes: the stronger claim, and the reason
+        // the independent rebuild has to exist at all.
+        assert_eq!(first, export(&rebuilt, name), "{name}: same recipe");
     }
 }
 

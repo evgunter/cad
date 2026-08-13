@@ -1423,6 +1423,15 @@ fn seqgen_kvfs_availability_instrumented() {
         }
         let _ = &mut available;
         apply(&mut body, choice, &mut counter);
+        // The claim below is an EXISTENCE claim, so the walk stops the
+        // moment it is witnessed. INVARIANT: 6000 stays the UPPER
+        // bound, not the work done — a trajectory on which skeletal
+        // solids never appear still walks all 6000 steps and then fails
+        // loudly on the assertion. At the ~3% density recorded below,
+        // the witness lands in ~30 steps in expectation.
+        if skeletal_present > 0 {
+            break;
+        }
     }
     // Finding (recorded in the review report): kvfs availability is
     // trajectory-dependent and thin (~3% of steps see a skeletal

@@ -364,9 +364,29 @@ fn the_pipped_cube_fillets_in_place_with_rings_carried() {
 /// body — builds, certifies at tier 3, meters its certified volume
 /// against the closed form (Steiner blank − 21·(cap + rim-torus
 /// extra)) at zero enclosure pad, and tessellates watertight.
+///
+/// **K-funnel coverage rides along**: the surgery's one new predicate,
+/// `fillet3_ring_clearance`, must reach the funnel BY NAME during the
+/// composed-die construction (the ring carry-through is decided, not
+/// assumed). That was its own test until the test-cost audit — it
+/// only ever OBSERVED the build this row already performs, and
+/// `composed_die()` costs ~1.7 s that nextest's process-per-test
+/// isolation made the suite pay twice, on every ε row. The verdict
+/// log is a `Vec` push per definite outcome inside `decide`, so
+/// installing it changes nothing the certification battery measures.
 #[test]
 fn the_composed_die_certifies_and_tessellates_watertight() {
+    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    // The log must be installed BEFORE the build (it records through
+    // `decide` as the surgery runs) and taken straight after, so the
+    // certification battery below runs unlogged exactly as it did.
+    start_verdict_log();
     let die = composed_die();
+    let log = take_verdict_log();
+    assert!(
+        log.iter().any(|v| v.predicate == "fillet3_ring_clearance"),
+        "K-FUNNEL: fillet3_ring_clearance never reached the funnel"
+    );
     assert_eq!(topo::validate(&die), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&die), Ok(()), "tier 2");
     assert_eq!(topo::validate_geometric(&die), Ok(()), "tier 3");
@@ -423,21 +443,6 @@ fn the_composed_die_replays_bit_identically() {
     assert_eq!(
         (a.vertices().count(), a.edges().count(), a.faces().count()),
         (b.vertices().count(), b.edges().count(), b.faces().count()),
-    );
-}
-
-/// **K-funnel coverage**: the surgery's one new predicate reaches the
-/// funnel BY NAME during the composed-die construction (the ring
-/// carry-through is decided, not assumed).
-#[test]
-fn ring_clearance_reaches_the_k_funnel_by_name() {
-    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
-    start_verdict_log();
-    let _die = composed_die();
-    let log = take_verdict_log();
-    assert!(
-        log.iter().any(|v| v.predicate == "fillet3_ring_clearance"),
-        "fillet3_ring_clearance never reached the funnel"
     );
 }
 

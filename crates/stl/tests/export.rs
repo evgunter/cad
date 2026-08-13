@@ -52,14 +52,19 @@ fn repeated_export_is_byte_identical() {
     // body, retessellate, rewrite — bytes must match the cached
     // pipeline's output exactly.
     for (name, body, delta) in common::acceptance_bodies() {
-        let rebuilt = binary_of(&tessellate(&body, delta).unwrap());
+        // INVARIANT: both arms compare the CACHED pipeline's mesh
+        // against this freshly rebuilt one — the single retessellation
+        // here serves both writers, and comparing a writer's output to
+        // itself would assert nothing.
+        let rebuilt_mesh = tessellate(&body, delta).unwrap();
+        let rebuilt = binary_of(&rebuilt_mesh);
         let cached = meshes().iter().find(|(n, _)| *n == name).unwrap();
         let a = binary_of(&cached.1);
         assert_eq!(fnv(&a), fnv(&rebuilt));
         assert_eq!(a, rebuilt, "{name}: binary export not byte-identical");
         assert_eq!(
             ascii_of(&cached.1),
-            ascii_of(&cached.1),
+            ascii_of(&rebuilt_mesh),
             "{name}: ascii export not byte-identical"
         );
     }
@@ -179,8 +184,13 @@ fn ascii_and_binary_triangle_sets_identical() {
 
 #[test]
 fn binary_header_is_constant_and_not_solid() {
-    let a = binary_of(&meshes()[0].1);
-    let b = binary_of(&meshes()[2].1);
+    // Two DIFFERENT bodies: the "l_prism" and "ball" rows of
+    // `common::acceptance_bodies` (rows 0 and 2, both at δ = 1e-2),
+    // built directly. `meshes()` is a per-PROCESS cache and nextest
+    // gives each test its own process, so reading two entries out of it
+    // here built all eleven acceptance bodies for this row alone.
+    let a = binary_of(&tessellate(&common::l_prism(), 1e-2).unwrap());
+    let b = binary_of(&tessellate(&common::ball(), 1e-2).unwrap());
     assert_eq!(&a[..80], &b[..80], "header must be input-independent");
     assert!(
         !a.starts_with(b"solid"),

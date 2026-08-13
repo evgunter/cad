@@ -1,8 +1,17 @@
 //! **RW2 blinded-review probes for PR #353** (M8-3 half 1, the
-//! `Pcurve::IsoArc` mint). Three attacks the shipped rows do not run:
+//! `Pcurve::IsoArc` mint). Three attacks the shipped rows did not run:
 //!
 //! 1. round-trip volume BIT-identity (the PR table's claim is stronger
-//!    than the shipped overlap assertion) plus a REORDERED-file rerun;
+//!    than the shipped overlap assertion) plus a REORDERED-file rerun.
+//!    **This probe now lives in
+//!    `nurbs_import::arc_loft_natively_computes_its_rational_volume`**,
+//!    adopted by merge with its authorship kept: that row already
+//!    builds the character-identical `native_arc_loft`, already pays
+//!    the native rational quadrature, and already pins the
+//!    bit-identical as-written round trip, so keeping a second copy
+//!    here bought a duplicate of the most expensive quadrature in the
+//!    suite and no additional claim. The reversed-DATA arm and its ε
+//!    posture moved there verbatim;
 //! 2. dense residual sampling of every minted `IsoArc` against its own
 //!    carrier and chart, concentrated at the sub-arc JOINS, checked
 //!    against the cache's own certified numbers;
@@ -58,130 +67,6 @@ fn native_arc_loft() -> topo::Body<f64> {
     )
     .expect("the arc loft builds")
     .body
-}
-
-/// Probe 1: the PR's round-trip claim, at full strength (bit identity),
-/// then again on a file whose DATA section is REVERSED — the reader's
-/// fixed-point discipline should not depend on entity order.
-///
-/// **ε posture** (added at the fix pass; the probe as pushed was
-/// ε-BLIND and went red on the hosted 1e-12 row). The schedule is
-/// fixed (D9) against a `1024·ε` target, so at a tight enough ε the
-/// arc loft's flux honestly cannot certify and there is no volume to
-/// compare — the bit-identity claim has no SUBJECT there. That is not
-/// a reason to widen anything: the row keeps the full-strength
-/// assertion wherever the subject exists, and where it does not it
-/// asserts the honest thing instead — that the reader refuses the SAME
-/// way the builder does, which is the writer/reader symmetry this
-/// probe is really about.
-#[test]
-fn probe_round_trip_bit_identity_and_reorder() {
-    let native = native_arc_loft();
-    let text =
-        step_export::step_string(&native, &step_export::StepOptions::default()).expect("exports");
-    let Ok(want) = topo::mass_properties(&native) else {
-        // No subject for bit identity. Pin the symmetry that survives:
-        // the native body refuses at the quadrature budget, and so must
-        // the round trip — through the import gate, on the same fact.
-        let native_err = topo::mass_properties(&native).expect_err("just refused");
-        assert!(
-            matches!(
-                native_err,
-                topo::MassPropsError::Face {
-                    source: geom_brep::props::PropsError::QuadratureBudget { .. },
-                    ..
-                }
-            ),
-            "the only honest non-certifying posture is the fixed schedule's budget: \
-             {native_err:?}"
-        );
-        let refusal = step_import::import_step(&text, &step_import::ImportOptions::default())
-            .expect_err("the import gate refuses what the builder refuses");
-        let shown = format!("{refusal:?}");
-        assert!(
-            shown.contains("QuadratureBudget"),
-            "the reader must refuse on the SAME fact as the builder: {shown}"
-        );
-        println!(
-            "RW2 probe 1: quadrature budget at eps={:e} — symmetry pinned, \
-             bit identity has no subject",
-            geom_core::Tolerance::get().eps
-        );
-        return;
-    };
-
-    let import = |t: &str, who: &str| -> topo::MassProperties<f64> {
-        match step_import::import_step(t, &step_import::ImportOptions::default()) {
-            Ok(step_import::StepImport::Solid { body, .. }) => {
-                topo::mass_properties(&body).expect("imported body certifies")
-            }
-            other => panic!("{who}: expected a first-class Solid, got {other:?}"),
-        }
-    };
-
-    let got = import(&text, "as-written");
-    assert_eq!(
-        got.volume.to_bits(),
-        want.volume.to_bits(),
-        "round-trip volume must be BIT-identical (the PR table's claim): \
-         native {:?} vs imported {:?}",
-        want.volume,
-        got.volume,
-    );
-
-    // Reorder: reverse every `#k = ...;` statement in DATA. Multi-line
-    // statements are glued to their opener first.
-    let mut head = Vec::new();
-    let mut data = Vec::new();
-    let mut tail = Vec::new();
-    let mut in_data = false;
-    let mut done = false;
-    for line in text.lines() {
-        if line.trim() == "DATA;" {
-            in_data = true;
-            head.push(line.to_string());
-            continue;
-        }
-        if in_data && line.trim() == "ENDSEC;" {
-            in_data = false;
-            done = true;
-            tail.push(line.to_string());
-            continue;
-        }
-        if in_data {
-            if line.trim_start().starts_with('#') || data.is_empty() {
-                data.push(line.to_string());
-            } else {
-                let last = data.last_mut().unwrap();
-                last.push('\n');
-                last.push_str(line);
-            }
-        } else if done {
-            tail.push(line.to_string());
-        } else {
-            head.push(line.to_string());
-        }
-    }
-    assert!(!data.is_empty(), "no DATA section parsed");
-    data.reverse();
-    let reordered = format!(
-        "{}\n{}\n{}",
-        head.join("\n"),
-        data.join("\n"),
-        tail.join("\n")
-    );
-    let got2 = import(&reordered, "reversed-DATA");
-    assert_eq!(
-        got2.volume.to_bits(),
-        got.volume.to_bits(),
-        "a reordered file must import to the same volume bits: {:?} vs {:?}",
-        got2.volume,
-        got.volume,
-    );
-    println!(
-        "RW2 probe 1: bit-identical round trip AND reversed-DATA reimport, volume {}",
-        got.volume
-    );
 }
 
 /// Probe 2: every minted `IsoArc` on the arc prism and the arc loft,

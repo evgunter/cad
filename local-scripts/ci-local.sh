@@ -175,6 +175,14 @@ discipline() {
   if ! scripts/check-test-aggregation.sh; then
     rc=1
   fi
+  # The `interval` feature must stay purely additive — mirror of ci.yml's
+  # step of the same name, calling the SAME script. This is what makes it
+  # sound for the interval rows below to run only the tests that feature
+  # ADDS; read the script's header before touching either half.
+  if ! (python3 scripts/check-interval-cfg-additive.py --selftest \
+        && python3 scripts/check-interval-cfg-additive.py); then
+    rc=1
+  fi
   # Compound Bounds allowlist (ratified 2026-07-29; geom-core real.rs
   # Bounds scope rule) — mirror of the hosted step. topo/props.rs is
   # the M5 PR 11 certified-quadrature seam (Evan's lane-split ruling);
@@ -362,10 +370,35 @@ test_default() { nextest_check && cargo nextest run $SCOPE; }
 test_eps() { nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE; }
 # shellcheck disable=SC2086
 doc_tests() { cargo test --doc $SCOPE; }
+# The interval rows run ONLY the tests the feature adds, exactly as
+# hosted's `test-interval` legs do — same script, same set difference, so
+# the two gates cannot drift. See that job's header in .github/workflows/
+# ci.yml for the measurement (42% of hosted test time was re-execution)
+# and for why it is sound (the feature is additive, and
+# check-interval-cfg-additive.py above gates that it stays so).
+INTERVAL_SEL="target/ci-local/interval-selection.txt"
 # shellcheck disable=SC2086
-interval_tests() { nextest_check && cargo nextest run $SCOPE --features interval; }
+interval_selection() {
+  mkdir -p target/ci-local \
+    && cargo nextest list $SCOPE --message-format json \
+         > target/ci-local/nextest-list-default.json \
+    && cargo nextest list $SCOPE --features interval --message-format json \
+         > target/ci-local/nextest-list-interval.json \
+    && scripts/interval-only-selection.py \
+         target/ci-local/nextest-list-default.json \
+         target/ci-local/nextest-list-interval.json > "$INTERVAL_SEL"
+}
 # shellcheck disable=SC2086
-interval_eps() { nextest_check && CAD_TOLERANCE_EPS=1e-6 cargo nextest run $SCOPE --features interval; }
+interval_tests() {
+  nextest_check && interval_selection \
+    && cargo nextest run $SCOPE --features interval -E "$(cat "$INTERVAL_SEL")"
+}
+# shellcheck disable=SC2086
+interval_eps() {
+  nextest_check && interval_selection \
+    && CAD_TOLERANCE_EPS=1e-6 cargo nextest run $SCOPE --features interval \
+         -E "$(cat "$INTERVAL_SEL")"
+}
 # shellcheck disable=SC2086
 interval_doc_tests() { cargo test --doc $SCOPE --features interval; }
 
@@ -398,7 +431,11 @@ corpus_interval() { nextest_check && cargo nextest run -p editor-core --features
 # per-document table and diffs the committed baseline. NOT A GATE on any
 # timing number (the only assertions are the counted-reuse ones).
 # Refresh the baseline with CAD_LATENCY_BASELINE_REFRESH=1.
-rebuild_latency() { cargo test -p editor-core --test all -- --nocapture m4_pr8_latency::; }
+# `--ignored`: the test is #[ignore]d so the eps matrix stops paying for
+# it 5x (its two assertions are a strict subset of the corpus row's —
+# see the rustdoc on rebuild_latency_table). THIS row is the one that
+# runs it. Mirrors ci.yml's `rebuild latency (reporting)` job.
+rebuild_latency() { cargo test -p editor-core --test all -- --ignored --nocapture m4_pr8_latency::; }
 
 # M5 PR 1 (review NOTE-1): the interval backend crate's OWN tripwire, in
 # its own workspace, on its DEFAULT feature set — which reaches neither
