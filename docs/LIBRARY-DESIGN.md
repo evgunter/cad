@@ -38,7 +38,12 @@ list — this program makes what exists usable; the two interact only
 where a missing affordance makes existing features unusable, e.g.
 the mirror gap in §L2/P6).
 
-## L2. The evidence: what authoring costs today
+## L2. The evidence: what authoring cost at program start
+
+*This section is the 2026-08-06 survey that motivated the program,
+kept as its evidence base. Several of the gaps it names have since
+been closed by the units they justified — read it as the argument,
+not as a status report; `docs/LIB-LOG.md` is the status.*
 
 Structural facts first:
 
@@ -108,9 +113,9 @@ literally:
   arena key — the same boundary rule as G1's layer 3. Evaluation
   returns the GQ2 per-node result DAG as typed values; failures are
   typed payloads (Python exceptions carrying the structured error,
-  never strings); documents persist as the same schema-v3 files the
-  future GUI will read, so undo, macros, and session-spanning
-  history are free for Python users the day the bindings exist.
+  never strings); documents persist as the same files the future GUI
+  will read, so undo, macros, and session-spanning history are free
+  for Python users the day the bindings exist.
 - **Python authoring sugar emits recipe data.** D8's stance is that
   the host language generates recipes; Python becomes a host
   language. The builder vocabulary (the PATHS algebra above all)
@@ -229,7 +234,7 @@ boundary only.**
   round-tripping `25 mm` lands here because bindings need it before
   any GUI does.
 - **U9 — bindings proper.** PyO3/maturin, abi3 wheels, f64 lane
-  first (interval/dual lanes are the M8 payoff and join later
+  first (interval/dual lanes are the M10 payoff and join later
   behind an extra; the evaluation service is already generic over
   `Real` by banked principle, so the door is structural). D9's
   pure-libm determinism means wheels replay BIT-IDENTICALLY across
@@ -243,8 +248,8 @@ Real ordering constraints: U1 before U9 (the façade is what gets
 bound); U3 before U2 covers loft/sweep (U2 can land for
 extrude/revolve first — the algebra targets `ProfileLoop`, which
 they already speak); U8 before U9's quantity surface. Everything
-else is schedulable freely, including in parallel with M8 kernel
-work — footprints are disjoint (survey: no demo touches Euler ops;
+else is schedulable freely, including in parallel with the kernel
+milestones — footprints are disjoint (survey: no demo touches Euler ops;
 the units here touch authoring crates, editor-core, and a new
 bindings crate).
 
@@ -343,12 +348,10 @@ bindings crate).
 - **LQ4 — v2 profiles-as-programs timing: RULED — pulled to the
   front.** See §L3's front-loaded arc and U2. Python never ships
   the opaque-profile intermediate state.
-- **LQ5 — sequencing: RULED.** The design conversation concludes
-  now; implementation units may start IN PARALLEL WITH M7 where
-  footprints are independent (not merely after the M7 exit walk),
-  at Evan's per-unit discretion. DESIGN.md's post-M8 placement of
-  the usability program is superseded for this program by this
-  ruling (fold into DESIGN.md at ratification).
+- **LQ5 — sequencing: RULED.** Implementation units run IN PARALLEL
+  with the kernel milestones where footprints are independent, at
+  Evan's per-unit discretion — this program is not sequenced behind
+  them. (DESIGN.md's roadmap carries the ruling.)
 - **LQ6 — Python surface breadth at v1: RULED —
   documents-from-day-one.** The L3 prerequisite completions are
   accepted as program scope.
