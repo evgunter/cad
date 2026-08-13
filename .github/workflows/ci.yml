@@ -531,12 +531,23 @@ jobs:
     #   clean compile   opt-0 136.5 s -> opt-2 442.4 s   (interval, 3.24x)
     #   nextest run     opt-0 558.7 s -> opt-2 130.0 s   (4.30x BETTER,
     #                                   2791 tests, all green both ways)
-    #   nextest run     opt-0 691.7 s -> opt-2 ...       (interval, 3001)
+    #   nextest run     opt-0 691.7 s -> opt-2 301.6 s   (interval, 2.29x,
+    #                                   3001 tests, all green both ways)
     #
-    # Break-even needed only 1.5x on execution; we measure 4.30x. NOTE the
-    # 4.30x supersedes local-scripts/test-fast.sh's "75 s -> 4.9 s" (15x,
-    # 2026-07-21, 807 tests) — the suite has since grown to 2791 tests and
-    # the ones added are less compute-bound, so that header is stale.
+    # Break-even needed only 1.5x on execution; the CRITICAL PATH runs the
+    # interval lane, so 2.29x is the number that governs, not 4.30x.
+    #
+    # The gap between those two is itself a finding: at opt-0 the interval
+    # lane looks only 1.24x slower than default (691.7 vs 558.7), but at
+    # opt-2 it is 2.32x slower (301.6 vs 130.0). opt-0's own overhead was
+    # masking the enclosure cost regime that geom-core's manifest has
+    # always claimed. Anyone reading interval-vs-f64 runtime off an opt-0
+    # CI leg is reading a flattered number.
+    #
+    # NOTE these supersede local-scripts/test-fast.sh's "75 s -> 4.9 s"
+    # (15x, 2026-07-21, 807 tests) — the suite has since grown to 2791
+    # tests and the ones added are less compute-bound, so that header is
+    # stale.
     #
     # Scoped to the two ARCHIVE jobs on purpose: they feed all ten test
     # legs, which compile nothing, so one opt-2 compile here buys the
