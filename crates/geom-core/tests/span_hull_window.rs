@@ -24,50 +24,14 @@
 use geom_core::spline::basis::basis_funs;
 use geom_core::spline::{KnotVector, hull};
 
+mod span_fixtures;
+use span_fixtures::vectors;
+
 /// Far outside the base coefficients' `[0, 1)` range, in both
 /// directions, so the perturbed coefficient is the strict extremum of
 /// any window containing it.
 const HIGH: f64 = 1.0e6;
 const LOW: f64 = -1.0e6;
-
-fn kv(knots: Vec<f64>, degree: usize) -> KnotVector {
-    KnotVector::clamped(knots, degree).expect("valid knot vector")
-}
-
-fn vectors() -> Vec<(&'static str, KnotVector)> {
-    vec![
-        (
-            "uniform cubic",
-            kv(
-                vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0],
-                3,
-            ),
-        ),
-        (
-            "cubic, interior multiplicity 2",
-            kv(
-                vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.3, 1.7, 2.0, 2.0, 2.0, 2.0],
-                3,
-            ),
-        ),
-        ("degree 1", kv(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1)),
-        (
-            "degree 5",
-            kv(
-                vec![0.0; 6]
-                    .into_iter()
-                    .chain([0.4, 0.9])
-                    .chain(vec![1.0; 6])
-                    .collect(),
-                5,
-            ),
-        ),
-        (
-            "quadratic, interior multiplicity 2, nonuniform",
-            kv(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.25, 3.0, 3.0, 3.0], 2),
-        ),
-    ]
-}
 
 /// Distinct, bounded base coefficients — nothing near `HIGH`/`LOW`.
 fn base_coeffs(n: usize) -> Vec<f64> {

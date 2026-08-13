@@ -165,9 +165,19 @@ pub struct KnotVector {
 ///
 /// **Not branded to its knot vector.** A `Span` from one `KnotVector`
 /// used with another of the same degree yields an in-range but wrong
-/// window. Every consumer today draws the span from the same vector it
-/// evaluates; making that a type-level fact needs an invariant-lifetime
-/// brand, which is deliberately not paid for yet.
+/// window; from a **longer** one it can index past the shorter vector's
+/// arrays entirely, and since the consumers' range guards are gone that
+/// is now a panic rather than the poison D4 asks for. Every consumer
+/// today draws the span from the same vector it evaluates, one
+/// statement apart.
+///
+/// Making it a type-level fact wants one of two shapes, neither paid
+/// for yet: the `Span` **holding** its vector (`Span<'a>` with a
+/// `&'a KnotVector`), which lets the entry points drop their own `kv`
+/// parameter so the mismatch is unrepresentable — at the cost of a
+/// lifetime on `Span`, [`super::SpanSet`] and `SpanLocate` — or an
+/// invariant-lifetime **brand**, which keeps the values plain but needs
+/// a scoped constructor. Both are design changes, not refactors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Span {
     index: usize,
