@@ -90,10 +90,19 @@ Three levers, not one — reach for the right one:
 
 - **Delete** it, when a stronger permanent row already owns the claim.
   Name that row.
-- **`#[ignore]` it**, when the row is reporting rather than gating, and
-  give it a dedicated CI job with `--ignored` if the report is still
-  wanted (`m4_pr8_latency::rebuild_latency_table` is the worked
-  example — its own header says "there is no threshold gate").
+- **`#[ignore]` it**, when the row REPORTS rather than gates. That
+  takes it out of the ε matrix while leaving it runnable. If something
+  still wants the report, that runner needs `--ignored` added to it.
+  Worked example, `m4_pr8_latency::rebuild_latency_table` (#462): its
+  own header says "REPORTING (measured, never gated) … there is no
+  threshold gate", and a dedicated `rebuild latency (reporting)` job
+  had existed for it since 2026-07-26 — yet the aggregation guard was
+  ALSO running it in all five ε rows, where its two assertions are a
+  strict subset of `m4_pr8_corpus`'s. Six payments for one report. Note
+  the shape: the job already existed, so the fix was one attribute and
+  one flag. Reach for this lever when a reporting row is being paid for
+  by the matrix as well; it is not an instruction to stand up a new job
+  per retired test.
 - **Gate it on the change filter**, when it is a randomized sweep — see
   [[test-suite-cost]]. Runs only when the code it tests moved.
 

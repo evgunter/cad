@@ -27,9 +27,32 @@ audit, *every* seed in the workspace was a hardcoded literal across 44
 RNG-driven tests, which is why the whole family was re-deriving known
 answers at full price on every PR.
 
-A deliberate replay corpus is a legitimate thing to have. If that is
-what you want, say so in the test's own docs and name it accordingly —
-but it must not be called, described, or budgeted as fuzzing.
+**When a fixed seed IS right** — narrower than it sounds, and each case
+must say in-file which one it is. An unexplained literal seed is the
+failure mode; these are the only excuses:
+
+- **A pinned counterexample.** A fuzzer found a real defect and that
+  exact case is now a permanent regression row. Prefer writing the
+  input OUT as an explicit fixture — a seed is an obscure way to name
+  an input. A seed is acceptable only as compression when the input is
+  genuinely too big to write, and then the doc must say "this seed
+  reproduces #N": it is a fixture identifier, not a sampling strategy.
+- **Cross-PROCESS or cross-BUILD differential comparison**, where both
+  sides must see byte-identical inputs — merge-base vs tip, debug vs
+  release, machine vs machine. There the shared seed is the mechanism.
+  This does NOT cover the common in-process case: a test comparing an
+  f64 lane against an interval lane, or asserting bit-identical replay
+  across repeats, draws once and feeds both sides, so a varying seed
+  serves it perfectly. Almost every "differential" test in this repo is
+  the in-process kind.
+
+A third case masquerades as legitimate: a sweep whose real content is
+an edge-value table or a product of boundary cases, with the RNG only
+filling gaps. That is not a fuzzer with a fixed seed, it is an
+ENUMERATION — write it as one, and let any filler vary.
+
+Whichever applies, name it in the test's own docs. A deliberate replay
+corpus must never be called, described, or budgeted as fuzzing.
 
 Three properties every fuzzer needs, together:
 
