@@ -302,6 +302,13 @@ impl<T: Real> NurbsSurface<T> {
     /// so a window can never disagree with the net it indexes (see the
     /// non-branding note on [`SurfaceWindow`] for the residual hazard:
     /// spans drawn from a DIFFERENT surface's knot vectors).
+    ///
+    /// The **argument order is load-bearing** and nothing checks it: a
+    /// `Span` carries no direction, so `window_of(span_v, span_u)`
+    /// typechecks and builds a window that is wrong rather than
+    /// refused (in range whenever the two directions' counts allow it).
+    /// This is the same unbranded-pairing hazard one dimension up —
+    /// see issue #475 for the two shapes that would close it.
     pub fn window_of(&self, span_u: Span, span_v: Span) -> SurfaceWindow {
         let stride = self.knots_v.control_count();
         SurfaceWindow {

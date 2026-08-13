@@ -85,8 +85,8 @@
 //! documented slack there, unchanged).
 
 use geom_core::ring_interval::RingInterval;
-use geom_core::spline::KnotVector;
 use geom_core::spline::hull::{derivative_coeffs, span_hull};
+use geom_core::spline::{KnotVector, Span};
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::PropsError;
@@ -1011,7 +1011,7 @@ impl Dir {
 fn bspline_eval_ring_in_span(
     kv: &KnotVector,
     coeffs: &[RingInterval],
-    span: usize,
+    span: Span,
     t: RingInterval,
 ) -> RingInterval {
     if coeffs.len() != kv.control_count() {
@@ -1019,10 +1019,14 @@ fn bspline_eval_ring_in_span(
     }
     let p = kv.degree();
     let u = kv.knots();
-    let mut d: Vec<RingInterval> = (0..=p).map(|j| coeffs[span - p + j]).collect();
+    // The window's base, off the `Span` — as in [`bspline_eval_ring`],
+    // whose recurrence this is. The length check above is the only
+    // structure left to verify: in-range-ness came with the `Span`.
+    let first = span.first_control();
+    let mut d: Vec<RingInterval> = (0..=p).map(|j| coeffs[first + j]).collect();
     for r in 1..=p {
         for j in (r..=p).rev() {
-            let i = span - p + j;
+            let i = first + j;
             let denom = pt(u[i + p + 1 - r]) - pt(u[i]);
             let alpha = (t - pt(u[i])) / denom;
             d[j] = (pt(1.0) - alpha) * d[j - 1] + alpha * d[j];
@@ -1194,7 +1198,7 @@ impl PatchGrid {
         match (dir, op) {
             (Dir::Kv(kv), Collapse::At(t)) => bspline_eval_ring(kv, coeffs, t),
             (Dir::Kv(kv), Collapse::AtSpan { mid, t }) => {
-                bspline_eval_ring_in_span(kv, coeffs, kv.find_span(mid), *t)
+                bspline_eval_ring_in_span(kv, coeffs, kv.span_at(mid), *t)
             }
             (Dir::Kv(kv), Collapse::Over(lo, hi)) => bspline_range_hull(kv, coeffs, lo, hi),
             (Dir::Raw { knots, degree }, Collapse::At(t)) => raw_eval(knots, *degree, coeffs, t),

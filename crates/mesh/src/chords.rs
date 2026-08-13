@@ -487,9 +487,21 @@ fn rational_carrier_m_bound(
         // always `Some`; if that ever stopped holding the bound
         // POISONS (and the caller's finite check refuses) rather than
         // underflowing.
+        // `p ≥ 2` (the caller's degree gate), so the order-2 window is
+        // `Some` on every reachable path. It is asserted rather than
+        // merely commented: `debug_assert` is the tree's fail-loud form
+        // for a state that cannot occur — the panic family is denied in
+        // kernel code (workspace lints), so the release build still
+        // takes the total route below and POISONS, which refuses the
+        // bound instead of quietly under-reporting it.
+        let d2 = span.derived_window(2);
+        debug_assert!(
+            d2.is_some(),
+            "the degree gate promised p ≥ 2 for this carrier, got {p}"
+        );
         let w1 = mag(window(&dw, &dw, zero, span.first_derived_window()));
-        let w2 = mag(span
-            .derived_window(2)
+        let w2 = mag(d2
+            .clone()
             .map_or_else(RingInterval::poison, |a| window(&ddw, &ddw, zero, a)));
         let mut sq = RingInterval::zero();
         for (c, (da, dda)) in a_nets.iter().enumerate() {
@@ -508,8 +520,8 @@ fn rational_carrier_m_bound(
             }
             let v0 = mag(v0h.unwrap_or_else(RingInterval::poison));
             let a1 = mag(window(da, &dw, cc, span.first_derived_window()));
-            let a2 = mag(span
-                .derived_window(2)
+            let a2 = mag(d2
+                .clone()
                 .map_or_else(RingInterval::poison, |a| window(dda, &ddw, cc, a)));
             let s1 = (a1 + v0 * w1) / w_span;
             let s2 = (a2 + two * s1 * w1 + v0 * w2) / w_span;
