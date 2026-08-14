@@ -1010,3 +1010,87 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
         assert!(d + rl < r + 1e-11);
     }
 }
+
+/// **The regression pin for [`Leg::tangent_point`]'s measured spoke.**
+///
+/// A written-down witness, not a seed (the harness's shape 2): the fuzz
+/// above searches, this pins. The corner is the WORST the
+/// `fillet_offset_lever` gate accepts, found by sweeping 2.4M corners
+/// against the old scaling at the **tightest ε leg** — which is what makes
+/// this a fixture rather than an ε-keyed claim. Accepted at ε = 1e-12, it
+/// is accepted at every looser ε, so the assertion is one claim on all
+/// three legs.
+///
+/// # The bound, and where it comes from
+///
+/// Over those same 2.4M gate-accepted corners, worst off-carrier residual:
+///
+/// | scaling | worst | on this corner |
+/// |---|---|---|
+/// | nominal `R/ρ` (before) | **90.6 ulps** | 90.6 ulps (2.01e-14) |
+/// | measured spoke (now) | **1.5 ulps** | see below |
+///
+/// So 8 ulps sits 5.3x above everything the construction produced across
+/// the whole accepted region, and 11x below what the old one produced
+/// here. Wide enough that no rounding difference trips it; narrow enough
+/// that restoring `R/ρ` fails it immediately (verified by doing exactly
+/// that).
+///
+/// Ulps are of the **coordinate** magnitude, not of R. The residual floors
+/// at an ulp of the scene because `t − O` is a difference of O(1) points,
+/// however exact the arithmetic after it; a bound in ulps of R would be
+/// unreachable on a small carrier.
+#[test]
+fn an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier() {
+    // The scene's coordinate magnitude — see the docs above on units.
+    const SCENE: f64 = 1.0;
+    const ULPS: f64 = 8.0;
+
+    let corner = p2(-0.417_819_980_559_473_56, -0.034_224_129_413_008_564);
+    let leg_in = arc_leg(
+        corner,
+        1.785_843_803_375_859_5,
+        1.107_622_274_793_787_8,
+        1.0,
+        2.564_546_871_371_803,
+        true,
+    );
+    let leg_out = arc_leg(
+        corner,
+        4.638_961_400_716_957,
+        0.165_877_420_990_701_74,
+        -1.0,
+        1.869_369_386_166_155,
+        false,
+    );
+    let r = 0.102_474_035_114_155_93;
+
+    // It must BUILD, on every leg. If a future gate change refuses this
+    // corner that is a capability regression, and this is where it shows:
+    // the construction demonstrably places it to within ULPS.
+    let lp = build_corner(corner, leg_in, leg_out, r).unwrap_or_else(|e| {
+        panic!(
+            "the ill-conditioned pin must still build at eps = {:e}; got {e:?}",
+            tol().eps
+        )
+    });
+
+    // The full oracle battery first, so this fixture cannot assert less
+    // than the sweep does — then the tight residual claim the sweep's 1e-9
+    // threshold cannot make, which is the whole point of the row.
+    check_corner(corner, leg_in, leg_out, r, &lp, &|| {
+        "ill-conditioned tangent-point pin".to_string()
+    });
+
+    let nv = lp.vertices.len();
+    let t2 = lp.vertices[nv - 1].pos;
+    let res_out = leg_out.carrier_residual(corner, t2);
+    let bound = ULPS * f64::EPSILON * SCENE;
+    assert!(
+        res_out <= bound,
+        "t2 off its carrier by {res_out:e} ({:.1} ulps), bound {bound:e} \
+         ({ULPS} ulps). The nominal-rho scaling this replaced put THIS \
+         corner 2.01e-14 (90.6 ulps) out — see Leg::tangent_point.",
+        res_out / (f64::EPSILON * SCENE)
+    );
+}
