@@ -382,9 +382,17 @@ impl<T: Real> LoopBuilder<T> {
     ///    / **`fillet_offset_circles_internal`** (linear band) — the
     ///    offset carriers' clearances, which say whether there are two,
     ///    one, or no candidate centers.
-    /// 4. **`fillet_leg_reach`** (exact-order band) — each candidate's
+    /// 4. **`fillet_offset_lever`** (linear band, arc×arc only) — the
+    ///    outgoing leg's offset radius |ρ| against the least lever the
+    ///    band can support at this corner's scale. Not Positive ⇒
+    ///    [`ProfileError::FilletOffsetLeverTooShort`]: the carriers meet,
+    ///    but the tangent point recovered over that lever would sit
+    ///    further than ε off the carrier it claims to be on (M8; the
+    ///    derivation and its measured constant are on
+    ///    `sugar::ArcCarrier::offset_circles`).
+    /// 5. **`fillet_leg_reach`** (exact-order band) — each candidate's
     ///    setback from the corner: the corner end of the extent test.
-    /// 5. **`fillet_leg_fit`** (exact-order band) — leg extent − setback,
+    /// 6. **`fillet_leg_fit`** (exact-order band) — leg extent − setback,
     ///    exactly as [`LoopBuilder::fillet`] gates it, but with the arc
     ///    leg's setback and extent measured as **arc lengths** `R·Δθ`.
     ///    Negative ⇒ [`ProfileError::FilletDoesNotFit`], now naming the
@@ -534,6 +542,19 @@ fn map_arc_trim_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>) -> ProfileError {
             },
             setback: setback.lo(),
             leg_length: leg_length.lo(),
+        },
+        ArcTrimRefusal::OffsetLeverTooShort {
+            leg,
+            carrier_radius,
+            offset_radius,
+            least_lever,
+            margin,
+        } => ProfileError::FilletOffsetLeverTooShort {
+            leg,
+            carrier_radius: carrier_radius.lo(),
+            offset_radius: offset_radius.lo(),
+            least_lever: least_lever.lo(),
+            margin: margin.lo(),
         },
         ArcTrimRefusal::NoCorner { reason, radius } => ProfileError::NoCornerForFillet {
             reason,
