@@ -71,7 +71,7 @@
 //! | `fillet_offset_line_circle` | \|ρ\| − \|h\| clearance | linear band; offset-carrier intersection (M5 S2) |
 //! | `fillet_offset_circles_external` | \|ρ₁\|+\|ρ₂\| − d | linear band; offset-carrier intersection (M5 S2) |
 //! | `fillet_offset_circles_internal` | d − \|\|ρ₁\|−\|ρ₂\|\| | linear band; offset-carrier intersection (M5 S2) |
-//! | `fillet_offset_lever` | \|ρ₂\| − scale·√(C·R₂/ε) | linear band; the arc×arc back-projection's conditioning (M8) |
+//! | `fillet_offset_lever` | \|ρ₂\| − C·R₂·scale²/(d·ε) | linear band; the arc×arc offset intersection's conditioning (M8) |
 //!
 //! Every `fillet_*` row above fires in
 //! the arc-carrier fillet construction (construction sugar's one
