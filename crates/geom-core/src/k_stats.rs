@@ -12,8 +12,29 @@
 //! `sign_within` call site (the `geom-brep` funnel pattern); after the
 //! PR 7 unification a [`Probe`]-lane run tags every sample with its
 //! real predicate name — `<unnamed>` is unreachable from shipped decide
-//! paths. Production code pays one thread-local `Cell` write per
-//! decision and records nothing.
+//! paths.
+//!
+//! Cost on the production path: one thread-local `Cell` write per
+//! decision, plus — **whenever a verdict log is installed** — one
+//! `Vec` push per definite outcome (see [`start_verdict_log`] and
+//! `decide`'s own contract below, which has always said this). That
+//! caveat is not hypothetical: `editor_core`'s evaluator brackets
+//! **every node evaluation** in a verdict log (M4 PR 4 / NAMING-DESIGN
+//! N5, so the verdict-diff engine can attribute flips), and retains the
+//! result on the node. So production *does* record, on the one path
+//! that asks to. Two things this is NOT: it is not the `Probe` lane
+//! (that is `SINK`, feature-gated), and it is not something the `probe`
+//! feature can switch off — `VERDICTS` is deliberately outside the
+//! feature for the same D9 reason `CURRENT` is, so that the funnel's
+//! code path is byte-identical with the feature on and off. Paths that
+//! never install a log (STL export, step-import, the demos) still pay
+//! the `RefCell` borrow check per decision; gating that on a
+//! `Cell<bool>` is a live optimization, not a correctness question.
+//!
+//! (This paragraph used to read "Production code pays one thread-local
+//! `Cell` write per decision and records nothing." That stopped being
+//! true when M4 PR 4 added the verdict log, and it contradicted
+//! `decide`'s own doc sixty lines below.)
 //!
 //! Recording happens through the [`Probe`] scalar: a transparent `f64`
 //! wrapper whose `Decide` implementation logs `(predicate, margin,

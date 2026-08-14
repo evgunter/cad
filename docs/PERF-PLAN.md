@@ -90,9 +90,16 @@ latency-sensitivity), the preview lane's costs are:
    downstream of the edit re-runs it.
 
    **[SUPERSEDED 2026-08-14 — the sweep is no longer quadratic.]**
-   `topo/src/boolean/reduce.rs:432` queries the BVH; production always
-   passes `SweepStrategy::Realized`, and the brute-force scan survives
-   only as `Idealized` for the differential pin. What replaced it as
+   `topo/src/boolean/reduce.rs:432` queries the BVH. Precisely: the
+   brute-force scan is **shipped production code, not test code** — a
+   live runtime arm (`reduce.rs:422`) of the public `SweepStrategy`
+   enum, selectable through `boolean_op_with`. What is true is that no
+   production *caller* selects it: `union`/`intersect`/`subtract` and
+   every internal entry hard-code `SweepStrategy::Realized`, so only
+   the differential suite passes `Idealized`. That is §4.4's
+   idealized/realized pilot working exactly as designed — the O(n²)
+   reference stays compiled and executable so the pin can run both
+   paths and compare, which is the whole point. What replaced it as
    the boolean's dominant term is **whole-body pcurve re-certification**
    — `mint_pcurves` clears and re-mints every face on every boolean, so
    a chain of N booleans on a growing body is quadratic (PERF-SCAN
@@ -225,15 +232,20 @@ code and its trigger; the trigger is the license to start.
   only prune pairs the exact predicate would reject, so the result
   stays a function of exact tests only.
 
-  **[STATUS 2026-08-14 — delivered one consumer of three, and the
-  contract is currently violated.]** `Bvh::build` appears exactly once
-  workspace-wide (`boolean/reduce.rs:420`). SSI seeding/C3 still uses
-  hand-rolled recursive bisection with a linear scan over tubes
-  (`geom-brep/src/ssi/exhaust.rs:32-38` — "Brute force, deliberately,
-  for now"), and viewport picking has no consumer because there is no
-  GUI. `crates/bvh/src/lib.rs:3-5` still advertises all three duties
-  and is now aspirational. **The superset contract is broken for NURBS
-  faces**: `boolean/boxes.rs:152-178` has no `Surface::Nurbs` arm and
+  **[STATUS 2026-08-14 — one consumer extant, two still correctly
+  pending; the contract is currently violated.]** This bullet is a
+  *plan*, and it is on schedule: §5 sequences the BVH at M5 (done —
+  `Bvh::build` is live at `boolean/reduce.rs:420`, the workspace's only
+  call site) and picking at the GUI milestone (not started, because
+  there is no GUI). SSI seeding remains intended and unwired —
+  `geom-brep/src/ssi/exhaust.rs:32-38` still bisects with a linear scan
+  over tubes and says why ("Brute force, deliberately, for now ... PR
+  8's BVH swaps in ... when profiling asks for it"), which is this
+  doc's own trigger discipline working, not a missed delivery. What
+  *was* misleading is `crates/bvh/src/lib.rs:3-5`, which described all
+  three duties in the present tense; corrected 2026-08-14 to mark which
+  are live and which are intended. **The superset contract is broken
+  for NURBS faces**: `boolean/boxes.rs:152-178` has no `Surface::Nurbs` arm and
   falls through to a hull of the face's *boundary vertices*, which the
   patch interior bulges past — while the sibling `edge_box` correctly
   poisons its NURBS arm and `gate_planar` admits NURBS operands. The

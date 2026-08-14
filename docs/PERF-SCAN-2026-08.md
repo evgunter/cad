@@ -729,11 +729,22 @@ Individually small, collectively systematic, all D9-safe:
   cells). Compute once, pass in. Bit-identical. Effort S. (Cold today —
   see §5.)
 - `crates/geom-core/src/k_stats.rs:82-103` — every kernel decision pays
-  two thread-local accesses and a `RefCell::borrow_mut()` even when no
-  sink is installed. The module doc claims production "records nothing",
-  which is true of `CURRENT` but **not** of `VERDICTS`. Gate behind a
-  `Cell<bool>`. Effort S; low confidence on ms, over-weighted by the
-  dev-profile data.
+  two thread-local accesses and a `RefCell::borrow_mut()` even on paths
+  that never install a verdict log (STL export, step-import, the demos).
+  Gate the borrow behind a `Cell<bool>`. Effort S; low confidence on ms,
+  over-weighted by the dev-profile data.
+  **Explicitly not a feature-flag leak, and not a bug:** `VERDICTS` is
+  deliberately outside the `probe` feature for the same D9 reason
+  `CURRENT` is — a `cfg` there would make the funnel's code path differ
+  between build configurations. Turning `probe` off does not and should
+  not change it. The verdict log is a *production* feature (M4 PR 4 /
+  NAMING-DESIGN N5): `editor-core/src/eval/mod.rs:1113` brackets every
+  node evaluation in one and retains the result on the node, so
+  production genuinely records on the one path that asks to. What was
+  actually wrong is **documentation**: the module header claimed
+  production "records nothing", contradicting `decide`'s own contract
+  sixty lines below, which has always named the verdict-log push.
+  Header corrected 2026-08-14.
 - `crates/topo/src/props.rs:289` — `tag_of` does a linear
   `tags.iter().position` per half-edge, O(L²) per loop. Irrelevant for
   4-gons, quadratic on the long merged loops `merge_group` produces.
@@ -795,10 +806,16 @@ Recorded so they are not re-investigated, and so stale PERF-PLAN claims
 are not re-reported as findings.
 
 - **The boolean edge×face sweep is no longer quadratic.**
-  `crates/topo/src/boolean/reduce.rs:432` queries the BVH; production
-  always passes `SweepStrategy::Realized` (`mod.rs:1001`) and the
-  brute-force scan survives only as `Idealized` for the differential
-  pin. PERF-PLAN §1.3 rank 2 is **retired**, and `reduce.rs:1-30`
+  `crates/topo/src/boolean/reduce.rs:432` queries the BVH. To be precise
+  about where the brute-force scan lives: it is **shipped production
+  code, not test code** — a live runtime arm (`reduce.rs:422`) of the
+  public `SweepStrategy` enum, reachable through `boolean_op_with`. No
+  production *caller* selects it (`union`/`intersect`/`subtract` and
+  every internal entry hard-code `SweepStrategy::Realized`); only the
+  differential suite passes `Idealized`. That is PERF-PLAN §4.4's
+  idealized/realized pilot working as designed — the O(n²) reference
+  must stay compiled and executable for the pin to run both paths and
+  compare. PERF-PLAN §1.3 rank 2 is **retired**, and `reduce.rs:1-30`
   documents the retirement.
 - **The memo/content-key machinery is not a cost.** Keys never traverse
   geometry — a node's key is a Merkle chain of ~10 `write_u64` calls
@@ -1002,15 +1019,20 @@ passes" and told readers not to optimize. Tier 1 *is* linear — but with
    step-import paths (`boolean/ops.rs:1209`, `merge_faces.rs:371,489,515`,
    `editor-core/src/product.rs:280,313`, `step-import/src/lib.rs:745`).
 
-Also worth recording: PERF-PLAN §2.1 promised "one BVH crate, three
-consumers". It delivered **one**. `Bvh::build` appears exactly once
-workspace-wide (`boolean/reduce.rs:420`). SSI exhaustiveness still uses
-hand-rolled recursive bisection with a linear scan over tubes
-(`geom-brep/src/ssi/exhaust.rs:32-38,134,262`, whose module docs say
-"Brute force, deliberately, for now"), and viewport picking has no
-consumer because there is no GUI. The crate is 657 lines because it
-delivered the one thing needed; its lib docs (`crates/bvh/src/lib.rs:3-5`)
-still assert all three duties and are now aspirational.
+Also worth recording, though this one is **not** a staleness finding:
+PERF-PLAN §2.1's "one BVH crate, three consumers" is a *plan*, and it is
+on schedule. `Bvh::build` appears exactly once workspace-wide
+(`boolean/reduce.rs:420`) — the M5 entry §5 sequences, delivered. SSI
+seeding remains intended and unwired, with
+`geom-brep/src/ssi/exhaust.rs:32-38,134,262` bisecting by hand and
+saying why ("Brute force, deliberately, for now ... PR 8's BVH swaps in
+... when profiling asks for it") — that is the doc's trigger discipline
+working, not a missed delivery. Picking is blocked on there being a GUI.
+The crate is 657 lines because it delivered the one thing needed. What
+*was* misleading is the crate's own lib docs
+(`crates/bvh/src/lib.rs:3-5`), which described all three duties in the
+present tense so a reader could conclude SSI was already pruned by it;
+corrected 2026-08-14 to mark which are live and which are intended.
 
 And §2.2's parallelism vocabulary — ratified into DESIGN.md as the D9
 addendum specifically so the first rayon PR would be cheap — has **one**
