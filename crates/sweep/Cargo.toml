@@ -37,7 +37,11 @@ geom-core = { path = "../geom-core" }
 geom-curves = { path = "../geom-curves" }
 geom-surfaces = { path = "../geom-surfaces" }
 profile = { path = "../profile" }
-topo = { path = "../topo" }
+# `sweep-testing` for the same reason editor-core's dev-dependency
+# carries it: several suites here run the §4.4 differential pair and
+# name `SweepStrategy::Idealized`, which is reference surface gated out
+# of production builds. Dev-dependencies are the only place it is on.
+topo = { path = "../topo", features = ["sweep-testing"] }
 
 [dev-dependencies]
 # The banished raw builder (PROFILES-V2 §V6, #377): these suites'
