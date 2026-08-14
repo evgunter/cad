@@ -38,9 +38,11 @@ libm = "=0.2.16"
 # The `interval` feature of geom-core never enables `oracle-inari`, so no
 # kernel build in any configuration pulls inari, gmp-mpfr-sys or rug, and
 # their LGPL-3.0+ obligations reach neither this crate's consumers nor the
-# kernel's. inari itself requires AVX+FMA on x86-64, so the ORACLE lane
-# needs a machine that has them; the repo sets no target-cpu floor
-# (.cargo/config.toml) and this crate's own code needs none.
+# kernel's. inari itself requires AVX+FMA on x86-64 — not merely a machine
+# that HAS them, but a build that ENABLES them, or its `compile_error!`
+# fires. The repo sets no target-cpu floor (.cargo/config.toml), so the
+# ORACLE lane passes `RUSTFLAGS="-C target-cpu=x86-64-v3"` itself; this
+# crate's own code needs none. See README "Certification".
 version = "=2.0.0"
 features = ["gmp"]
 optional = true

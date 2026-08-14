@@ -44,9 +44,21 @@ per function (`--nocapture`). The oracle is optional precisely so that
 the default `cargo test` pulls no C toolchain; run this tier by hand
 whenever the rounding layer or the pads change.
 
-The oracle needs the repo's x86-64-v3 floor (inherited from the repo-root
-`.cargo/config.toml` via cargo's hierarchical config discovery); the
-crate itself does not.
+The oracle needs AVX+FMA — inari's rounding primitives are behind
+`cfg(all(target_feature = "avx", target_feature = "fma"))` and it raises a
+`compile_error!` without them. The command above therefore does not build
+as written; the oracle tier is
+
+```
+RUSTFLAGS="-C target-cpu=x86-64-v3" cargo test --release --features oracle-inari
+```
+
+This paragraph used to say the floor was inherited from the repo-root
+`.cargo/config.toml`. It was, until that floor was retired — the config
+now sets no target-cpu flags anywhere in the repo, and it is deliberate
+that a floor returns only as a benchmarked decision. So the flag is
+supplied per-invocation by whoever runs the oracle. Only the oracle needs
+it; this crate's own code, and the kernel, need none.
 
 ## Big-argument contract (honest refusal)
 
