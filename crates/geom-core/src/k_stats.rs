@@ -40,6 +40,20 @@
 //! a `Cell<bool>` is a live optimization and is orthogonal to any
 //! feature — it behaves identically in every build configuration.
 //!
+//! **OPEN OBLIGATION — this mechanism is on notice; see
+//! `docs/PERF-SCAN-2026-08.md` §2.** Delivering a production value by
+//! thread-local side effect makes the per-node bracket's correctness a
+//! comment rather than a type, and it has already failed once:
+//! [`start_verdict_log`] overwrites an installed log unconditionally,
+//! so a nested evaluation destroys its parent's — measured, an
+//! `InstantiatePart` node records **0** verdicts where the same
+//! geometry evaluated directly records 722. The obligation is that this
+//! is redone so verdicts are a returned value, or that the alternative
+//! is proven unaffordable in writing AND this mechanism is made
+//! structurally safe (RAII bracket, re-entry refused loudly, thread
+//! confinement enforced rather than asserted). Do not add call sites
+//! that deepen the dependency on the current shape.
+//!
 //! (This paragraph used to read "Production code pays one thread-local
 //! `Cell` write per decision and records nothing." That stopped being
 //! true when M4 PR 4 added the verdict log, and it contradicted

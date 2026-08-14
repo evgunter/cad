@@ -89,6 +89,12 @@ primary evidence base. Effort M. D9-safe (measurement only).
 Ranked by (expected payoff × confidence) ÷ effort, with correctness
 issues promoted above pure performance regardless of payoff.
 
+**Not in this table: §2, the verdict-log back channel.** It is a
+structural-safety obligation rather than a performance finding, and it
+carries an observed correctness defect (every `InstantiatePart` node's
+verdict log is empty). Read it alongside finding 6, which is the change
+most likely to break the invariant it depends on.
+
 | # | Finding | Class | Effort | Conf. |
 |---|---|---|---|---|
 | 1 | BVH `face_box` has no NURBS arm — conservative-superset violation | **correctness** | S | high |
@@ -416,7 +422,7 @@ exists for. The shape class is not exotic: washer, plate-with-hole,
 counterbore, boss∪plate, die pips — every planar face with a ring.
 
 **Scope, stated honestly:** tessellation is *not* on the rebuild path
-(§4), so this buys nothing on the latency corpus. Its consumers are the
+(§5), so this buys nothing on the latency corpus. Its consumers are the
 STL export acceptance path, the `watertight` CI row, and the demos —
 plus every future fine-δ export. It is a large win on a narrow lane.
 
@@ -757,7 +763,169 @@ Individually small, collectively systematic, all D9-safe:
 
 ---
 
-## 2. What this changes about `die`
+## 2. Open obligation: the verdict-log back channel
+
+**Not a performance finding.** Raised by Evan on reading this scan, and
+recorded here because it is a structural-safety debt that the scan
+surfaced and that needs a decision, not a benchmark. **The obligation is
+that this gets redone, or that a better design is thoroughly proven
+impossible AND the mechanism is then made structurally safe rather than
+comment-enforced. Leaving it as-is because it works today is not one of
+the outcomes.**
+
+### 2.1 What it is
+
+`wire::run_op` returns `(payload, name_table)`. Verdicts are not in that
+tuple. They arrive by side effect: `editor-core/src/eval/mod.rs:1113`
+calls `k_stats::start_verdict_log()`, runs the op, and `:1123` calls
+`take_verdict_log()` — harvesting whatever any kernel predicate anywhere
+beneath pushed into a thread-local in `geom-core`. The harvest becomes
+`NodeValue::verdicts`, and `resolve::vdiff` turns it into
+`NodeVerdictDelta`'s flips and divergences (`vdiff.rs:223,233,356`) —
+production naming output, not telemetry.
+
+So a production data path crosses a crate boundary invisibly. Nothing in
+any signature between `k_stats::decide` and `vdiff` mentions verdicts.
+
+### 2.2 Why "it holds today" is not good enough
+
+The correctness argument is a comment (`eval/mod.rs:1107-1112`): *"The
+bracket is per-node and thread-confined (kernel ops are single-threaded;
+idiom-1 parallelism runs whole nodes on one worker each), so logs never
+interleave across nodes."* That invariant is true today. Nothing
+enforces it, and the failure mode is a silently wrong
+`NodeVerdictDelta` rather than a compile error or a panic.
+
+Three concrete ways it breaks, in increasing order of how close they
+already are:
+
+1. **Intra-op parallelism.** The moment any kernel op spawns internally,
+   verdicts interleave across nodes. This is not remote: finding 6 is a
+   recommendation to turn on parallel evaluation, and PERF-PLAN §2.2
+   names per-face tessellation and certification sampling as rayon
+   targets. The comment's invariant is exactly what those changes would
+   invalidate, and nothing would fail to compile.
+2. **Bracket scope.** The bracket is around `run_op`, not around the op.
+   Anything running between `start` and `take` contributes to the log,
+   whether or not it belongs to that node.
+3. **Nesting is unmodelled and already reachable — see 2.3.**
+
+There is also direct evidence the invariant has been forgotten once
+already: the module header drifted to claiming production "records
+nothing", which stopped being true when M4 PR 4 landed and contradicted
+`decide`'s own contract sixty lines below. Two independent scanning
+agents in this survey read it as telemetry on the strength of that
+sentence. A comment that has already misled three readers is not load
+bearing.
+
+### 2.3 The nesting case is a live defect — observed, not predicted
+
+**Mechanism (certain, four lines of code).**
+`k_stats.rs:217-219` — `start_verdict_log()` assigns `Some(Vec::new())`
+*unconditionally*, discarding any log already installed.
+`k_stats.rs:224-226` — `take_verdict_log()` does `.take()`, leaving
+`None` behind. So an inner bracket destroys the outer's accumulated
+verdicts and then leaves no log at all.
+
+**Reachability (traced through named call sites).** An
+`InstantiatePart` node evaluates another document *inside* its own
+`run_op`:
+
+```
+eval_node(InstantiatePart)          eval/mod.rs:1113  start_verdict_log()
+  └ wire::run_op
+     └ parts::PartCache::part       eval/parts.rs:265
+        └ resolve_and_evaluate      eval/parts.rs:270
+           └ evaluate_nested        eval/parts.rs:302
+              └ evaluate_at_descent eval/mod.rs:869    eval_node(inner)
+                                    eval/mod.rs:1113   start_verdict_log()  ← discards outer
+                                    eval/mod.rs:1123   take_verdict_log()   ← leaves None
+eval_node(InstantiatePart)          eval/mod.rs:1123  take_verdict_log() → None → empty
+```
+
+**Consequence:** an `InstantiatePart` node's `verdicts` is always empty.
+Decisions the node made *before* the nested evaluation are discarded by
+the inner `start`; decisions made *after* it — including
+`topo::validate_geometric` at `parts.rs:318`, which is decision-dense —
+are pushed into a `None` log and dropped on the floor. Either way
+`vdiff` sees an empty verdict vector for every instantiate node and can
+attribute no flips through it.
+
+**Observed.** A temporary probe added to the existing
+`asm2a_instantiate` fixtures (a one-solid part, instantiated into a
+one-node assembly, evaluated through the ordinary `evaluate` entry) and
+then reverted:
+
+```
+INSTANTIATE verdicts len = 0
+FLAT node RecipeNodeId(0) verdicts len = 69      // the same part document,
+FLAT node RecipeNodeId(1) verdicts len = 653     // evaluated directly
+FLAT total = 722
+```
+
+The identical geometry produces **722 verdicts when evaluated as a
+document and 0 when reached through an instantiate node**. The verdict
+log is not merely lossy across the seam; it is completely empty on the
+far side of it.
+
+**Scope of the observation:** this is one fixture on the f64 lane. It
+establishes that the seam drops verdicts; it does not establish how much
+the diff engine's output is degraded in practice, which depends on how
+much assembly work real documents do. The regression test this wants is
+the probe above with `assert!(!verdicts.is_empty())` — it fails today.
+
+This defect predates this scan and is independent of every performance
+finding in it. It is listed here rather than in §1 because it is a
+correctness consequence of the structural problem, and fixing the
+structure (2.4) should subsume it — a returned value cannot be
+clobbered by a nested call, and an RAII guard that refuses re-entry
+would have failed loudly at the first assembly evaluation instead of
+silently returning nothing.
+
+### 2.4 The obligation
+
+Either **(a) redo it** so verdicts are a value, or **(b) prove (a)
+unaffordable in writing and then make the current mechanism structurally
+safe.**
+
+Under (a), the shape is that `run_op` returns verdicts in its tuple like
+`name_table` already is, with the sink threaded explicitly. The honest
+objection — presumably why it went the way it did — is that this means
+touching every kernel predicate signature, which is enormously invasive
+and would put a sink parameter in `geom-core`'s hottest function. That
+objection deserves to be written down and weighed rather than assumed;
+intermediate designs exist (a sink threaded only as far as each crate's
+single `sign_within` funnel, rather than to every call site).
+
+Under (b), **"structurally safe" means at minimum all four of**:
+
+- **The bracket cannot leak or be forgotten.** `start_verdict_log()`
+  returns `()`; make it return an RAII guard whose `Drop` harvests, so
+  the log's lifetime is the guard's scope and a forgotten `take` is
+  impossible.
+- **Re-entrancy fails loud instead of silently discarding.** Installing
+  a log over an existing one is a defect (2.3). It must refuse or
+  compose deliberately — never overwrite.
+- **The thread-confinement assumption is enforced or removed.** Today it
+  is asserted in prose. Either the type prevents an op from spanning
+  threads, or the log tolerates it. "We currently don't" is what breaks
+  the first time finding 6 lands.
+- **The cross-crate coupling is visible at both ends.** `geom-core`
+  should say that `editor-core::resolve::vdiff` is a consumer, and
+  `editor-core` should not depend on a `geom-core` thread-local without
+  that dependency appearing in a signature or a named contract.
+
+### 2.5 Interactions with the rest of this report
+
+- **Finding 6** (turn on parallel evaluation) is the change most likely
+  to break the comment-enforced invariant. Resolving this obligation
+  should precede it, or the two should land together.
+- **Finding 18**'s `Cell<bool>` guard on the `RefCell` borrow is
+  orthogonal and safe under either resolution — it changes cost, not
+  structure.
+- Nothing else in this report depends on the outcome.
+
+## 3. What this changes about `die`
 
 Two of this report's findings are independent quadratics on the same
 structure, and both were missed by PERF-PLAN's ranking:
@@ -776,7 +944,7 @@ baseline that survives §0's caveats.
 
 ---
 
-## 3. Recommended sequence
+## 4. Recommended sequence
 
 **Wave 1 — correctness and measurement (nothing depends on ordering):**
 finding 1 (NURBS box + curved differential scenarios), finding 2 (Criterion
@@ -793,6 +961,14 @@ API), then 9, 11, 12, 13. Finding 7b (CDT bulk-load) is independent of
 all of these and can run in parallel — but it is gated on the upstream
 spade fix, so start that round-trip early.
 
+**Not a wave — §2 runs on its own track.** The verdict-log obligation is
+a design decision, not a scheduled optimization. Two parts of it are
+time-ordered against the rest, though: the regression test for the
+observed empty-log defect (§2.3) can land immediately and independently,
+and the structural fix (§2.4) should precede or accompany finding 6,
+since turning on parallel evaluation is what invalidates the invariant
+the current mechanism rests on.
+
 **Wave 4 — contract-touching, needs discussion first:** finding 8
 (re-pins the K sample stream), finding 15 (name digest; the interning
 variant touches the wire format), finding 10 (trades billed minutes for
@@ -800,7 +976,7 @@ wall-clock — Evan's call).
 
 ---
 
-## 4. Negative results
+## 5. Negative results
 
 Recorded so they are not re-investigated, and so stale PERF-PLAN claims
 are not re-reported as findings.
@@ -969,7 +1145,7 @@ are not re-reported as findings.
 
 ---
 
-## 5. Corrections to PERF-PLAN
+## 6. Corrections to PERF-PLAN
 
 PERF-PLAN §1.3's ranking was written at M3-start against the M2
 codebase. Four of its six entries have moved. This is not a criticism of
@@ -1075,7 +1251,7 @@ pinned-compiler determinism project is against the charter.
 
 ---
 
-## 6. Method and limits
+## 7. Method and limits
 
 Six domain scans ran in parallel over the tree at `870c7a9`, each given
 the same brief: anchor at `file:line`, argue by complexity class or call
