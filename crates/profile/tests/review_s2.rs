@@ -889,6 +889,36 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
         rho.abs() < 3e-4,
         "the pin's outgoing offset lever is {rho}, not the near-collapse it was mined for"
     );
+    // THE OUTCOME IS eps-KEYED, and saying so is the point of the row.
+    // The gate's least lever is `scale * sqrt(C * R2 / band.zero())`, so
+    // a looser ambient band affords MORE conditioning: this corner's
+    // 2.29e-9 residual is uncertifiable against a 1e-9 band and entirely
+    // fine against a 1e-6 one. Asserting the refusal unconditionally
+    // would be exactly the eps-blindness this suite has been removing
+    // elsewhere — and CI caught it doing so on the 1e-6 row.
+    //
+    // So: at a band this corner's conditioning cannot support, it must
+    // REFUSE typed; at a band that can support it, it must BUILD and the
+    // tangent point it returns must actually sit on its carrier within
+    // that band. Both halves are claims; neither row is a skip.
+    let eps = tol().eps;
+    if 2.291e-9 < eps {
+        let lp = build_corner(corner, leg_in, leg_out, r).unwrap_or_else(|e| {
+            panic!(
+                "at eps = {eps:e} this corner's conditioning IS supported, so it must \
+                 build rather than refuse; got {e:?}"
+            )
+        });
+        let nv = lp.vertices.len();
+        let t2 = lp.vertices[nv - 1].pos;
+        let res = leg_out.carrier_residual(corner, t2);
+        assert!(
+            res < eps,
+            "at eps = {eps:e} the corner builds, so its tangent point must sit on the \
+             carrier within the band it was certified against: off by {res:e}"
+        );
+        return;
+    }
     match build_corner(corner, leg_in, leg_out, r) {
         Err(ProfileError::FilletOffsetLeverTooShort {
             leg,
