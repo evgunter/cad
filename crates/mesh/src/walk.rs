@@ -436,6 +436,24 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 
 /// Walks a curved face's loop into its UV polygon (module docs: the
 /// classification, unwrapping, pole, and disambiguation rules).
+/// The loop-closure bar: may a residue of `residue` radians at
+/// `radius` metres from the chart axis be snapped onto its column?
+///
+/// One predicate so the assertion and the snap cannot drift apart.
+/// They did, in the form this replaces: both read a bare `residue <
+/// 1e-9`, so exceeding it disabled BOTH — the debug build screamed
+/// while release silently declined to snap and shipped the unsnapped
+/// polygon on.
+///
+/// `residue * radius` is the arc length the snap moves the polygon
+/// side by, and `eps` is the length this module already measures
+/// against. At `radius == 0` the azimuth carries no length at all, so
+/// every residue is snappable — the correct limit, and reached here
+/// without a special case or a division.
+fn closure_is_snappable(residue: f64, radius: f64, eps: f64) -> bool {
+    residue * radius < eps
+}
+
 pub(crate) fn loop_polygon(
     body: &Body<f64>,
     chart: &Chart,
@@ -654,12 +672,14 @@ pub(crate) fn loop_polygon(
     // which is the correct limit rather than a special case.
     if !no_rim && matches!(travs[m - 1].kind, TravKind::Meridian { .. }) && !out.is_empty() {
         let residue = (out[0].u - prev_u).abs();
-        let arc = residue * chart.radial(positions[out[0].id as usize]);
+        let radius = chart.radial(positions[out[0].id as usize]);
         debug_assert!(
-            arc < eps,
-            "loop closure residue {residue} rad displaces the side by {arc} m, over eps {eps}"
+            closure_is_snappable(residue, radius, eps),
+            "loop closure residue {residue} rad at radius {radius} m displaces the \
+             side by {} m, over eps {eps}",
+            residue * radius
         );
-        if arc < eps {
+        if closure_is_snappable(residue, radius, eps) {
             out[0].u = prev_u;
         }
     }
@@ -687,5 +707,83 @@ mod tests {
             (u - core::f64::consts::PI).abs() < 1e-12,
             "expected pi, got {u}"
         );
+    }
+
+    /// A chart about +z, anchored at the origin.
+    fn z_chart(kind: ChartKind) -> Chart {
+        let axis = Vec3::new(0.0, 0.0, 1.0);
+        let u_ref = Vec3::new(1.0, 0.0, 0.0);
+        Chart {
+            axis,
+            u_ref,
+            v_ref: axis.cross(u_ref),
+            anchor: Point3::new(0.0, 0.0, 0.0),
+            kind,
+        }
+    }
+
+    /// The lever arm is the distance from the axis, and sliding a point
+    /// ALONG the axis does not change it.
+    #[test]
+    fn radial_is_the_distance_from_the_axis() {
+        let c = z_chart(ChartKind::Cylinder { r: 2.0 });
+        for z in [-10.0, 0.0, 7.5] {
+            let d = c.radial(Point3::new(3.0, 4.0, z));
+            assert!((d - 5.0).abs() < 1e-15, "expected 5, got {d} at z = {z}");
+        }
+    }
+
+    /// `radial` reads the POINT, not `ChartKind` — which is what makes
+    /// the cone work without a special case. A cone's radius is not in
+    /// its kind payload at all (only the half-angle is); it varies along
+    /// the loop, so one chart must yield different lever arms at
+    /// different points. On a 45° cone from the origin, radius = height.
+    #[test]
+    fn radial_varies_along_a_cone_whose_kind_carries_no_radius() {
+        let c = z_chart(ChartKind::Cone {
+            half_angle: core::f64::consts::FRAC_PI_4,
+        });
+        for h in [3.0, 9.0] {
+            let d = c.radial(Point3::new(0.0, h, h));
+            assert!((d - h).abs() < 1e-15, "expected {h}, got {d}");
+        }
+    }
+
+    /// The bar is SPATIAL. The residue that falsified the old bare-radian
+    /// form — `nist_ftc_09_asme1_rd.stp` closes at 3.56e-9 rad, over the
+    /// old 1e-9 constant — snaps at any real lever arm, and only fails to
+    /// at an absurd one.
+    #[test]
+    fn the_closure_bar_is_spatial_not_angular() {
+        let eps = 3.38e-5;
+        let residue = 3.56e-9;
+        assert!(
+            closure_is_snappable(residue, 0.05, eps),
+            "3.56e-9 rad at 50 mm displaces ~1.8e-10 m — far under eps"
+        );
+        assert!(
+            !closure_is_snappable(residue, 1e5, eps),
+            "the same residue must NOT pass at a 100 km lever arm"
+        );
+    }
+
+    /// Growing the lever arm tightens the angular bar proportionally —
+    /// the property a bare radian constant did not have.
+    #[test]
+    fn the_closure_bar_tightens_as_the_lever_arm_grows() {
+        let eps = 1e-5;
+        let residue = 1e-6;
+        assert!(closure_is_snappable(residue, 1.0, eps), "1e-6 m < eps");
+        assert!(
+            !closure_is_snappable(residue, 100.0, eps),
+            "1e-4 m > eps — the same angle, ten thousand times the arc"
+        );
+    }
+
+    /// On the axis the azimuth carries no length, so every residue
+    /// snaps. Must be a plain comparison, not a NaN or a division.
+    #[test]
+    fn on_the_axis_every_residue_snaps() {
+        assert!(closure_is_snappable(core::f64::consts::PI, 0.0, 1e-9));
     }
 }
