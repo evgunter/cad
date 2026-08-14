@@ -106,6 +106,12 @@ on:
         type: choice
         default: use
         options: [use, refresh]
+      wild_cache:
+        description: "Wild generator output: reuse the cache when sources are unchanged, or force a rebuild"
+        required: false
+        type: choice
+        default: use
+        options: [use, refresh]
       ref:
         description: "Branch/tag/SHA to render (default: this workflow's ref)"
         required: false
@@ -128,6 +134,10 @@ on:
         required: false
         default: "2"
       tour_cache:
+        type: string
+        required: false
+        default: use
+      wild_cache:
         type: string
         required: false
         default: use
@@ -556,17 +566,68 @@ jobs:
       # changes as non-triggering (its _is_docs).
       - name: prune local-scripts (hosted CI may not depend on them)
         run: rm -rf local-scripts
+
+      # THE GENERATOR'S OUTPUT IS CACHED ON ITS SOURCES' HASH, exactly
+      # like the tour's above and for the same measured reason:
+      # Swatinem/rust-cache evicts LOCAL crates from what it restores,
+      # and every kernel crate is a path dependency of this detached
+      # workspace — so a "full match" hit still recompiles the whole
+      # kernel graph every run. This lane was the last one with no
+      # output cache at all, which made it the only lane paying that
+      # cost unconditionally. Caching what the generator PRODUCES skips
+      # the compile and the import+tessellate both.
+      #
+      # DIRECTLY UNDER THE CHECKOUT, BEFORE ANY CARGO STEP — `hashFiles`
+      # globs the working tree, so a cargo step running first would fold
+      # `demos/wild/target/` into the key. See the tour's note: ci.yml's
+      # copy of that step was misplaced once and computed a permanent
+      # miss that still looked like a working cache.
+      #
+      # EXPLICIT SOURCE GLOBS, not `demos/wild/**` (the shape the tour
+      # can afford). The tour's output lives at `demos/out`, OUTSIDE the
+      # `demos/tour/**` it hashes; this generator writes to
+      # `demos/wild/out` — INSIDE the directory — so a `**` key would
+      # hash the very tree the restore populates and fold `target/` in
+      # besides. Naming src + the manifests keeps the key a function of
+      # sources only. The fixtures need no entry of their own: they live
+      # under `crates/step-import/tests/fixtures/wild/`, already covered
+      # by `crates/**`.
+      #
+      # Exact key, no `restore-keys`: a near-miss must MISS. A hit means
+      # every byte the generator reads is unchanged — kernel included —
+      # so the postconditions this lane now runs armed (the release
+      # profile in demos/wild/Cargo.toml) would fire or stay silent
+      # identically. The assertion is assumed rather than re-earned only
+      # when nothing it could assert about has moved; `wild_cache:
+      # refresh` forces the rebuild when you want it re-earned anyway.
+      - name: wild generator output cache
+        id: wild-cache
+        if: ${{ inputs.wild_cache != 'refresh' }}
+        uses: actions/cache@v4
+        with:
+          path: demos/wild/out
+          key: wild-out-v1-${{ hashFiles('crates/**', 'demos/wild/src/**', 'demos/wild/Cargo.toml', 'demos/wild/Cargo.lock', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
+
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.wild-cache.outputs.cache-hit != 'true'
       - uses: Swatinem/rust-cache@v2
+        if: steps.wild-cache.outputs.cache-hit != 'true'
         with:
           key: render-demos-wild
           workspaces: |
             .
             demos/wild
+      # Needed on BOTH paths: render-wild.sh builds the venv itself, so
+      # this is the renderer's dependency, not the generator's.
       - name: venv deps
         run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-venv
       - name: wild generator (import + tessellate + STL + scenes.json)
+        if: steps.wild-cache.outputs.cache-hit != 'true'
         run: cd demos/wild && cargo run --release -- out
+      - name: where the wild output came from
+        run: |
+          echo "wild generator output: ${{ steps.wild-cache.outputs.cache-hit == 'true' && 'restored from cache' || 'built' }}" \
+            >> "$GITHUB_STEP_SUMMARY"
       - name: render (demos/render-wild.sh)
         run: demos/render-wild.sh
       - uses: actions/upload-artifact@v4
