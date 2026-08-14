@@ -22,14 +22,23 @@
 //! **every node evaluation** in a verdict log (M4 PR 4 / NAMING-DESIGN
 //! N5, so the verdict-diff engine can attribute flips), and retains the
 //! result on the node. So production *does* record, on the one path
-//! that asks to. Two things this is NOT: it is not the `Probe` lane
-//! (that is `SINK`, feature-gated), and it is not something the `probe`
-//! feature can switch off — `VERDICTS` is deliberately outside the
-//! feature for the same D9 reason `CURRENT` is, so that the funnel's
-//! code path is byte-identical with the feature on and off. Paths that
-//! never install a log (STL export, step-import, the demos) still pay
-//! the `RefCell` borrow check per decision; gating that on a
-//! `Cell<bool>` is a live optimization, not a correctness question.
+//! that asks to.
+//!
+//! **`VERDICTS` is not part of the `probe` lane and must not be gated
+//! on it.** The K-telemetry sink is `SINK`, which *is* feature-gated;
+//! `VERDICTS` merely shares this funnel because this is where decisions
+//! pass. Its consumer is production editor-core code —
+//! `resolve::vdiff` reads `NodeValue::verdicts` to compare per-predicate
+//! sign populations and emit `NodeVerdictDelta`'s flips and
+//! divergences. Putting it behind `probe` would not reduce recording;
+//! it would hand the verdict-diff engine empty logs in every default
+//! build and silently stop it attributing flips. The name is the
+//! confusing part, not the design.
+//!
+//! Paths that never install a log (STL export, step-import, the demos)
+//! still pay the `RefCell` borrow check per decision. Gating *that* on
+//! a `Cell<bool>` is a live optimization and is orthogonal to any
+//! feature — it behaves identically in every build configuration.
 //!
 //! (This paragraph used to read "Production code pays one thread-local
 //! `Cell` write per decision and records nothing." That stopped being
