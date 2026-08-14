@@ -178,6 +178,7 @@ jobs:
       run_step_export: ${{ steps.classify.outputs.RUN_STEP_EXPORT }}
       run_pncad_py: ${{ steps.classify.outputs.RUN_PNCAD_PY }}
       run_interval_backend: ${{ steps.classify.outputs.RUN_INTERVAL_BACKEND }}
+      run_interval_oracle: ${{ steps.classify.outputs.RUN_INTERVAL_ORACLE }}
       run_k_lint: ${{ steps.classify.outputs.RUN_K_LINT }}
     steps:
       - uses: actions/checkout@v4
@@ -1054,6 +1055,73 @@ jobs:
             echo "ERROR: the default feature set reaches the gmp stack"
             exit 1
           fi
+
+  # The differential certification lane: `certify.rs` against inari+MPFR as
+  # oracle, asserting `oracle ⊆ ours` on millions of drawn cases. It was a
+  # by-hand gate until now, for a good reason and a bad one.
+  #
+  # The good reason is cost: it builds GMP and MPFR from C source, measured
+  # at 234s of a ~250s job on a hosted runner (#480). It is keyed on the
+  # PATHS under interval-transcendentals/ rather than on the tier, because
+  # that crate is its own workspace and so every change to it lands in
+  # TIER=all — which is most merges. See ci-filter.py's ORACLE_PATHS.
+  # Measured churn: 2 of the last 400 first-parent merges, both during the
+  # crate's creation. Order of eight runner-minutes a year.
+  #
+  # The bad reason is that "run it by hand when the pads change" is a
+  # convention with no enforcement, and it had already failed silently:
+  # the tier did not BUILD at all (the README's x86-64-v3 floor was retired
+  # out from under it, #480) and nobody noticed, because nothing ran it.
+  oracle-certify:
+    name: interval oracle (certify vs inari+MPFR)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_interval_oracle == 'true'
+    # inari's rounding primitives sit behind
+    # cfg(all(target_feature = "avx", target_feature = "fma")) and it raises
+    # a compile_error! without them. The repo sets no target-cpu floor
+    # (.cargo/config.toml, deliberately), so the flag is supplied HERE, on
+    # the one lane that needs it, leaving the kernel's codegen untouched.
+    env:
+      RUSTFLAGS: "-C target-cpu=x86-64-v3"
+    steps:
+      - uses: actions/checkout@v4
+      - name: prune local-scripts (hosted CI may not depend on them)
+        run: rm -rf local-scripts
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: interval-oracle
+          workspaces: interval-transcendentals
+      # Assert the runner can execute what -C target-cpu=x86-64-v3 emits
+      # BEFORE spending four minutes building GMP for it. Exactly the sort
+      # of thing that holds on one runner generation and not the next.
+      - name: the x86-64-v3 floor holds on this runner
+        run: |
+          grep -q avx2 /proc/cpuinfo || { echo "NO AVX2 — the v3 floor does not hold here"; exit 1; }
+          grep -q fma /proc/cpuinfo || { echo "NO FMA"; exit 1; }
+      # gmp-mpfr-sys needs a C toolchain plus m4; ubuntu-latest carries
+      # build-essential but m4 is worth asserting rather than assuming.
+      - name: m4 for the gmp build
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq m4
+      # Depth is nearly free on this lane and that is the whole reason to
+      # spend it. The build above is a fixed ~234s; the cases are ~7s at
+      # effort 1 (measured hosted, #480) and scale linearly — 8.2x measured
+      # locally from effort 1 to 8. So effort 8 buys 32M cases per firing
+      # for about 52s on top of a 250s job.
+      #
+      # Together with the varying seed this is the point of the exercise:
+      # a lane that fires twice a year with a pinned seed re-certifies one
+      # fixed sample forever, however deep it is. Fresh millions each
+      # firing is worth more than the same millions faster.
+      - name: certify against the oracle
+        working-directory: interval-transcendentals
+        env:
+          CAD_FUZZ_EFFORT: "8"
+        run: |
+          t0=$SECONDS
+          cargo test --release --features oracle-inari -- --nocapture
+          echo "CASES_SECONDS=$((SECONDS - t0))"
 
   watertight:
     name: watertight (admesh)

@@ -44,16 +44,52 @@ a ~63k-case smoke sweep, `CAD_FUZZ_EFFORT=280` restores the full
 **`cargo test --release --features oracle-inari`** adds `certify.rs`, the
 differential harness against **inari-with-gmp as a dev-dependency oracle**
 (never shipped; consumers inherit zero LGPL obligations): millions of
-seed-pinned property cases per run asserting *oracle ⊆ ours* (the
-oracle's correctly rounded enclosure contains truth), decoration
-soundness, and empty/NaI taxonomy agreement. Tightness ratios are printed
-per function (`--nocapture`). The oracle is optional precisely so that
-the default `cargo test` pulls no C toolchain; run this tier by hand
-whenever the rounding layer or the pads change.
+property cases per run asserting *oracle ⊆ ours* (the oracle's correctly
+rounded enclosure contains truth), decoration soundness, and empty/NaI
+taxonomy agreement. Tightness ratios are printed per function
+(`--nocapture`). The oracle is optional precisely so that the default
+`cargo test` pulls no C toolchain.
 
-The oracle needs the repo's x86-64-v3 floor (inherited from the repo-root
-`.cargo/config.toml` via cargo's hierarchical config discovery); the
-crate itself does not.
+The oracle needs AVX+FMA — inari's rounding primitives are behind
+`cfg(all(target_feature = "avx", target_feature = "fma"))` and it raises a
+`compile_error!` without them — so the tier is:
+
+```
+RUSTFLAGS="-C target-cpu=x86-64-v3" cargo test --release --features oracle-inari
+```
+
+This used to say the floor was inherited from the repo-root
+`.cargo/config.toml`. It was, until that floor was retired; the config now
+sets no target-cpu flags anywhere, deliberately, and a floor returns only
+as a benchmarked decision. The flag is therefore supplied per-invocation.
+Only the oracle needs it — this crate's own code, and the kernel, need
+none.
+
+### The seed varies
+
+These cases used to be seed-pinned: eleven literal constants, one per
+test. They are now drawn from `test_utils::fuzz`, the tree's one harness,
+with a **per-run seed logged unconditionally** and `CAD_FUZZ_SEED=0x…` to
+replay.
+
+The reason is the harness's own taxonomy. Every test here is a
+counterexample search — *∀ sampled x, oracle ⊆ ours* — which is shape 1,
+and pinning shape 1 means re-certifying the same few million points
+forever however often the lane runs. That bit hardest precisely *because*
+the lane is rare: pinned, a decade of firings re-checks one sample.
+
+### It is no longer run by hand
+
+`.github/workflows/ci.yml`'s `oracle-certify` job runs this tier whenever
+anything under `interval-transcendentals/src/`, `tests/`, `Cargo.toml` or
+`Cargo.lock` changes (`scripts/ci-filter.py`'s `ORACLE_PATHS`). "Run it by
+hand when the pads change" was a convention with no enforcement, and it
+had already failed silently: the tier did not build at all once the floor
+above was retired, and nothing noticed, because nothing ran it.
+
+Case depth is one env var away — the job's `CAD_FUZZ_EFFORT` multiplies
+every count — and depth is cheap here, because the job's cost is dominated
+by building GMP and MPFR from C source, not by the cases.
 
 ## Big-argument contract (honest refusal)
 
