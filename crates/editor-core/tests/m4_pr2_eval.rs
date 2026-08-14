@@ -1,18 +1,19 @@
-//! M4 PR 2 acceptance (spec D7): the die document EVALUATES — exact
-//! oracle volume, incremental-recompute counting, D9 cross-checks
-//! (memo vs scratch, sequential vs parallel), poisoning, cancelation,
-//! the typed empty boolean, and split's both-parts value.
+//! M4 PR 2 acceptance (spec D7): the die document EVALUATES —
+//! doc-param recompute counting, poisoning, cancelation, the typed
+//! empty boolean, and split's both-parts value.
+//!
+//! **Two rows retired here by the 2026-08-13 test-time audit**, each
+//! naming the gate that now owns its claim; the retirement notes sit
+//! where the rows were, below.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod fixture;
-
-use std::fmt::Write as _;
 
 use editor_core::{
     BooleanValue, CancelToken, EvalOptions, EvalOutcome, Evaluation, NodeResult, ProfileDoc,
     SlotId, ValuePayload, evaluate,
 };
-use fixture::{DEPTH, DIE_VOLUME, die, len};
+use fixture::{die, len};
 use topo::{Body, mass_properties, validate, validate_closed};
 
 fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>, parallel: bool) -> Evaluation<f64> {
@@ -31,97 +32,77 @@ fn final_body(ev: &Evaluation<f64>, id: editor_core::RecipeNodeId) -> &Body<f64>
     }
 }
 
-/// A bit-level fingerprint of a body: every geometry arena entry (in
-/// key order) plus the topology and the mass-property bits. Two
-/// fingerprint-equal bodies are bit-identical in everything the
-/// kernel stores (Debug prints floats shortest-round-trip, which is
-/// bit-faithful for the non-NaN values bodies carry).
-fn fingerprint(b: &Body<f64>) -> String {
-    let mut s = String::new();
-    let m = mass_properties(b).unwrap();
-    let _ = writeln!(
-        s,
-        "V {:016x} A {:016x}",
-        m.volume.to_bits(),
-        m.surface_area.to_bits()
-    );
-    for (k, p) in b.points() {
-        let _ = writeln!(
-            s,
-            "P {k:?} {:016x} {:016x} {:016x}",
-            p.x.to_bits(),
-            p.y.to_bits(),
-            p.z.to_bits()
-        );
-    }
-    for (k, c) in b.curves() {
-        let _ = writeln!(s, "C {k:?} {c:?}");
-    }
-    for (k, sf) in b.surfaces() {
-        let _ = writeln!(s, "S {k:?} {sf:?}");
-    }
-    for (k, e) in b.edges() {
-        let _ = writeln!(s, "E {k:?} {e:?}");
-    }
-    for (k, f) in b.faces() {
-        let _ = writeln!(s, "F {k:?} {f:?}");
-    }
-    s
-}
+// **RETIRED (2026-08-13 test-time audit): `die_evaluates_to_the_exact\
+// _oracle`.** It built `fixture::die()`, ran it cold, and asserted
+// `n_nodes == 77`, `outcome == Completed`, `order.len() == 77`,
+// `(recomputed, reused) == (77, 0)`, `volume == 7.8359375`,
+// `surface_area == 26.625`, `validate == Ok`, `validate_closed == Ok`.
+//
+// The gate that owns those claims is `m4_pr8_corpus.rs` over corpus
+// document `die` (`tests/corpus/die.rs`), which is the SAME document —
+// it calls this crate's `fixture::die()` verbatim, "so the corpus and
+// the PR 2/5/6 acceptance rows can never drift apart" — carrying
+// `MassPin { volume: 7.8359375, area: Some(26.625) }`:
+//
+// * `every_document_evaluates_green` asserts no failed/poisoned node,
+//   `outcome == Completed`, `order.len() == d.len()` and
+//   `(recomputed, reused) == (d.len(), 0)` — the cold-evaluation half,
+//   over every corpus document rather than this one;
+// * `exact_mass_pins_hold` asserts `validate == Ok`,
+//   `validate_closed == Ok`, `volume == 7.8359375` EXACTLY and
+//   `surface_area == 26.625` EXACTLY (the retired row wrote the area
+//   as `24.0 + 21.0 * 4.0 * 0.25 * DEPTH`, which is that number), plus
+//   a floor on how many documents still carry a pin at all.
+//
+// The one assertion that is a literal 77 rather than the document's own
+// length stays in this file: `cancelation_returns_a_typed_partial_\
+// result` asserts `ev.order.len() == 77` and `(77, 0)` on the same
+// document, and `poisoning_hits_descendants_only_and_is_walkable`
+// asserts `77 - 3`. So the die's node count is still pinned here.
 
-#[test]
-fn die_evaluates_to_the_exact_oracle() {
-    let d = die();
-    assert_eq!(d.n_nodes, 77); // 2 cube + 12 masters + 21×3 pip triples (M4 PR 5: + Declare)
-    let ev = run(&d.doc, None, false);
-    assert_eq!(ev.outcome, EvalOutcome::Completed);
-    assert_eq!(ev.order.len(), 77);
-    assert_eq!((ev.recomputed, ev.reused), (77, 0));
-    let body = final_body(&ev, d.final_node);
-    let m = mass_properties(body).unwrap();
-    assert_eq!(m.volume, DIE_VOLUME); // exactly 7.8359375
-    assert_eq!(m.surface_area, 24.0 + 21.0 * 4.0 * 0.25 * DEPTH);
-    assert_eq!(validate(body), Ok(()));
-    assert_eq!(validate_closed(body), Ok(()));
-}
-
-#[test]
-fn incremental_edit_recomputes_only_the_downstream_cone() {
-    let d = die();
-    let full = run(&d.doc, None, false);
-
-    // Move the +z pip from (1,1) to (0.5,1) — one slot edit on the
-    // LAST Transform; its cone is exactly {transform, final subtract}.
-    let edited = d
-        .doc
-        .apply(&editor_core::DocEdit::SetParam {
-            node: d.pz_transform,
-            slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(0.5),
-        })
-        .unwrap()
-        .doc;
-
-    let memo = run(&edited, Some(&full), false);
-    assert_eq!(memo.outcome, EvalOutcome::Completed);
-    assert_eq!((memo.recomputed, memo.reused), (2, 75)); // D4 acceptance
-    let vol = mass_properties(final_body(&memo, d.final_node))
-        .unwrap()
-        .volume;
-    assert_eq!(vol, DIE_VOLUME); // pip still fully in the face
-
-    // D9 cross-checks: the memoized result bit-matches a from-scratch
-    // evaluation (D4), and both schedules produce the same bits with
-    // parallelism on and off (D6).
-    let scratch = run(&edited, None, false);
-    let par_scratch = run(&edited, None, true);
-    let par_memo = run(&edited, Some(&full), true);
-    assert_eq!((par_memo.recomputed, par_memo.reused), (2, 75));
-    let fp = fingerprint(final_body(&memo, d.final_node));
-    for other in [&scratch, &par_scratch, &par_memo] {
-        assert_eq!(fp, fingerprint(final_body(other, d.final_node)));
-    }
-}
+// **RETIRED (2026-08-13 test-time audit): `incremental_edit_recomputes\
+// _only_the_downstream_cone`.** It moved the +z pip's Transform x from
+// 1.0 to 0.5 and asserted `outcome == Completed`,
+// `(recomputed, reused) == (2, 75)`, that the volume was unchanged, and
+// then a 4-way D9 cross-check: sequential-memo, sequential-scratch,
+// parallel-scratch and parallel-memo all produce a bit-identical final
+// body, with the parallel memo run also at `(2, 75)`.
+//
+// Two gates own the claim between them:
+//
+// * the COUNTING half — `m4_pr8_corpus::incremental_recompute_reuses\
+//   _the_cone_complement`, which for every corpus document bumps a
+//   mid-DAG slot and asserts `(recomputed, reused)` equals
+//   `(cone.len(), total - cone.len())` where the cone is derived
+//   independently from the recipe DAG (`corpus::cone`), not from the
+//   evaluator, plus that the bumped document still evaluates green.
+//   A hardcoded `(2, 75)` on one edit of one document is a single cell
+//   of that; and the die itself is one of the documents it runs, bumped
+//   on `pz_extrude`. The literal `(2, 75)` for a `pz_transform` slot
+//   edit ALSO survives verbatim, in `review_m4_pr2::edit_back_restores\
+//   _bit_identical_bodies`;
+// * the BIT-IDENTITY half — `review_m4_pr2::four_way_schedule_memo\
+//   _identity_on_rich_doc`, which runs the same four evaluations
+//   (seq/par × scratch/memo) and compares `eval_digest`s: not one final
+//   body but EVERY node's result kind, content key, `through` target
+//   and full body fingerprint, split sides and pattern instances
+//   included, over the 14-node `rich_doc` (diamond, circular pattern,
+//   revolve, split, and a poisoned subgraph — a wider node vocabulary
+//   than the die's Profile/Extrude/Transform/Declare/Subtract).
+//   Memo-after-an-EDIT bit-identity is separately owned by
+//   `review_m4_pr2::edit_back_restores_bit_identical_bodies` (edit,
+//   re-evaluate, edit back against the stale memo, final body must be
+//   bit-identical to the original scratch run) and by
+//   `operand_swap_never_reuses_the_prior_subtract` (a memo run over an
+//   edited doc must bit-match its own scratch run).
+//
+// **What is lost, stated:** the PARALLEL schedule is no longer
+// exercised on a memo run whose prior belongs to a DIFFERENT (pre-edit)
+// document — `four_way_schedule_memo_identity_on_rich_doc`'s memo runs
+// take the same document's own prior, and the edited-doc memo rows
+// above are sequential. The parallel scheduler is still gated on
+// scratch and same-doc-memo digests there, and on verdict logs by
+// `m4_pr4_diff::parallel_schedule_preserves_verdict_logs`.
 
 #[test]
 fn doc_param_edit_recomputes_the_param_cone() {

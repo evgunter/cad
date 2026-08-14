@@ -101,24 +101,22 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
     );
 }
 
-/// The re-derivation is not a formality: corrupt the stored cache's
-/// chart image and the at-rest pass refuses, typed.
-#[test]
-fn a_corrupted_fitted_cache_fails_the_at_rest_pass() {
-    let Some(mut built) = fixture::build::<f64>() else {
-        println!("SKIPPED: FitSampleBudget stand-down at this ε");
-        return;
-    };
-    let band = Band::linear().unwrap();
-    let foreign = fixture::foreign_cache(&built);
-    built.body.attach_pcurve(built.he_plus, foreign);
-    let findings = topo::pcurves::validate_pcurves(&built.body, band);
-    assert!(
-        !findings.is_empty(),
-        "a foreign arc's chart image must fail the re-derivation, not ride its own \
-         (perfectly true) stored bound"
-    );
-}
+// **RETIRED (2026-08-13 test-time audit):
+// `a_corrupted_fitted_cache_fails_the_at_rest_pass`.** It built this
+// file's cyl×sphere fixture at `f64`, attached `fixture::foreign_cache`
+// to `he_plus`, ran `validate_pcurves`, and asserted
+// `!findings.is_empty()` — the re-derivation is not a formality.
+//
+// The gate that owns that claim now is
+// `review_m6_2_probes::the_foreign_arc_cache_fails_on_the_map_residual\
+// _against_the_edges_carrier`: SAME fixture (`fixture::build::<f64>()`),
+// SAME corruption (`fixture::foreign_cache`), SAME half-edge, SAME
+// `validate_pcurves` call — and instead of "some finding", it requires
+// the finding to be `PcurveMintError::Certify` on `he_plus` carrying
+// `PcurveCertifyError::ResidualExceeded { check: PcurveCheck::\
+// MapResidual }`. A non-empty findings list is implied by that match
+// existing, so the retired row's assertion is a strict weakening of the
+// successor's. Nothing is lost.
 
 /// The `Dual` lane's refusing side, executed rather than assumed: a
 /// fitted cache cannot be certified where there is no bracket to reach
