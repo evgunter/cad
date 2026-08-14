@@ -1,4 +1,6 @@
-//! Shared harness for the workspace's randomized falsification sweeps.
+//! Shared harness for the tree's randomized falsification sweeps —
+//! every workspace in it, including `interval-transcendentals/`, which
+//! is its own root.
 //!
 //! Three things the sweeps each hand-rolled a copy of, in one place: the
 //! xorshift64\* generator, the per-run **seed**, and the **effort** dial
@@ -88,10 +90,10 @@
 // This module PANICS on a malformed dial, deliberately: a typo'd
 // `CAD_FUZZ_EFFORT` that silently fell back to the default would report
 // a depth the run never ran at, which is the failure this whole harness
-// exists to prevent. The crate's blanket no-panic rule is about
+// exists to prevent. The workspace's blanket no-panic rule is about
 // production code, and nothing on a shipped build path can reach here —
-// the module is gated behind the dev-only `fuzz-support` feature (see
-// Cargo.toml), the same posture the test suites take.
+// no production manifest names this crate at all (see the crate docs),
+// the same posture the test suites take.
 #![allow(clippy::panic)]
 
 use std::sync::OnceLock;

@@ -4,14 +4,14 @@
 //! removal-bound honesty in both directions. Tolerances as in the curve
 //! attack file (stated there).
 //!
-//! The sweeps draw from `geom_core::fuzz` — a fresh seed per run, logged
+//! The sweeps draw from `test_utils::fuzz` — a fresh seed per run, logged
 //! unconditionally, with every count a multiple of `CAD_FUZZ_EFFORT`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
-use geom_core::fuzz;
 use geom_core::spline::KnotVector;
+use test_utils::fuzz;
 // Promotion adaptation (mechanical): dropped an unused Real import.
 use geom_core::{Point3, Vec3};
 use geom_surfaces::nurbs::NurbsSurface;

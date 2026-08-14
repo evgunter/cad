@@ -50,8 +50,8 @@
 //! pad per operation); the observed value is in the test output.
 
 use geom_core::RingInterval;
-use geom_core::fuzz;
 use interval_transcendentals::DInterval;
+use test_utils::fuzz;
 
 fn finite(rng: &mut fuzz::Rng) -> f64 {
     loop {

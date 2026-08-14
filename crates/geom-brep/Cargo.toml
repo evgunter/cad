@@ -32,11 +32,10 @@ slotmap = { workspace = true }
 
 [dev-dependencies]
 # Shared fuzz harness for this crate's randomized sweeps (one RNG, the
-# per-run seed, the CAD_FUZZ_EFFORT dial). DEV-ONLY: `fuzz-support` is
-# requested here and nowhere else, so nothing on a shipped build path can
-# reach it — the same posture geom-core documents for its own self
-# dev-dependency.
-geom-core = { path = "../geom-core", features = ["fuzz-support"] }
+# per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
+# named by [dev-dependencies] only, here and everywhere else — which is
+# what keeps it off every shipped build path.
+test-utils = { path = "../test-utils" }
 proptest = { workspace = true }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test

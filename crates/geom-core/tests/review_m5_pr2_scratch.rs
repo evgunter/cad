@@ -6,7 +6,7 @@
 //! shares no *comparator* code with `ring_interval_fuzz.rs`. (It used to
 //! carry its own SplitMix64 as a second axis of independence; since the
 //! 2026-08-13 fuzz audit both suites draw from the shared
-//! `geom_core::fuzz` stream, which varies its seed per run — a moving
+//! `test_utils::fuzz` stream, which varies its seed per run — a moving
 //! stream buys more than a second fixed one did. The lane structure and
 //! the exact comparators below remain this file's own.) Different
 //! comparators:
@@ -40,8 +40,8 @@
 //! ```
 
 use geom_core::RingInterval;
-use geom_core::fuzz;
 use std::cmp::Ordering;
+use test_utils::fuzz;
 
 fn subnormal(rng: &mut fuzz::Rng) -> f64 {
     let m = (rng.next_u64() & 0xf_ffff_ffff_ffff) | 1;

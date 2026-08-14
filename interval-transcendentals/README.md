@@ -34,6 +34,13 @@ oracle at all because it compares against exact `u128` rational
 arithmetic. This is the tier the kernel's CI runs,
 so a dropped pad is caught by the same pipeline that gates the kernel.
 
+The division fuzz draws from the tree's shared harness (`test-utils`, a
+dependency-free dev-only crate): its seed VARIES per run and is logged
+unconditionally, and its depth is one env var away — the shipped level is
+a ~63k-case smoke sweep, `CAD_FUZZ_EFFORT=280` restores the full
+17.5M-case sweep the M5 PR 1 adversarial review ran, and
+`CAD_FUZZ_SEED=0x…` replays any run exactly.
+
 **`cargo test --release --features oracle-inari`** adds `certify.rs`, the
 differential harness against **inari-with-gmp as a dev-dependency oracle**
 (never shipped; consumers inherit zero LGPL obligations): millions of

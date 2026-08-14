@@ -4,7 +4,7 @@
 //! removals, F5 knot-algebra invariance fuzz, F6 placeholder poison bit
 //! identity, F7 validation attacks.
 //!
-//! The sweeps draw from `geom_core::fuzz` — a fresh seed per run, logged
+//! The sweeps draw from `test_utils::fuzz` — a fresh seed per run, logged
 //! unconditionally, with every count a multiple of `CAD_FUZZ_EFFORT`.
 //!
 //! Tolerance derivations (stated per F5's assignment):
@@ -23,9 +23,9 @@
 
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
 // Promotion adaptation (mechanical): dropped an unused Real import.
-use geom_core::fuzz;
 use geom_core::{Dual64, Point3};
 use geom_curves::{Curve3, NurbsCurve3};
+use test_utils::fuzz;
 
 /// Random clamped curve: degree p, `interior` distinct interior knots
 /// (multiplicity 1), coords in [-10, 10], weights in [wlo, whi].

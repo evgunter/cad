@@ -28,9 +28,9 @@
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
 
 use geom_core::Point3;
-use geom_core::fuzz;
 use geom_core::spline::KnotVector;
 use geom_curves::NurbsCurve3;
+use test_utils::fuzz;
 
 fn dense_min_speed(c: &NurbsCurve3<f64>, n: usize) -> f64 {
     let (lo, hi) = c.domain();

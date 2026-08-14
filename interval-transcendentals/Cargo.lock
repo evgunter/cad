@@ -49,6 +49,7 @@ version = "0.1.0"
 dependencies = [
  "inari",
  "libm",
+ "test-utils",
 ]
 
 [[package]]
@@ -96,6 +97,10 @@ dependencies = [
  "libc",
  "libm",
 ]
+
+[[package]]
+name = "test-utils"
+version = "0.0.0"
 
 [[package]]
 name = "windows-link"
