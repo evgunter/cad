@@ -58,6 +58,7 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_STEP_EXPORT=true|false    step import (freecad) row
   RUN_PNCAD_PY=true|false       python suite (wheel + unittest) row
   RUN_INTERVAL_BACKEND=true|false   interval-transcendentals' own workspace
+  RUN_INTERVAL_ORACLE=true|false    its oracle-inari certification tier
   RUN_K_LINT=true|false         k-lint (gate) row
 """
 
@@ -235,7 +236,43 @@ JOB_ROOTS = {
 }
 
 
-def decorate(res: dict[str, str]) -> dict[str, str]:
+# The oracle-inari certification tier is the ONE job keyed on paths rather
+# than on TIER/PKGS, and it has to be.
+#
+# `interval-transcendentals` is its own workspace, so `classify`'s allowlist
+# sends every change under it to TIER=all — and TIER=all is the majority
+# verdict across merges, so `tier == "all"` (what RUN_INTERVAL_BACKEND uses)
+# would fire this on most of them. That is affordable for the backend's
+# oracle-free tier, which is seconds; it is not affordable here, because this
+# job builds GMP and MPFR from C source: 234s of the ~250s it costs, measured
+# on a hosted runner in #480, against 7s for the 4M certification cases
+# themselves.
+#
+# Keyed on the paths, it fires when the certified code or its dependency
+# pinning moves — 2 of the last 400 first-parent merges — for about eight
+# runner-minutes a year.
+ORACLE_PATHS: tuple[str, ...] = (
+    "interval-transcendentals/src/",
+    "interval-transcendentals/tests/",
+    "interval-transcendentals/Cargo.toml",
+    "interval-transcendentals/Cargo.lock",
+)
+
+
+def _touches_oracle(files: list[str] | None) -> bool:
+    # Fail CLOSED, like everything else here: if we could not resolve a file
+    # list at all, we cannot prove the certified code held still, so run it.
+    #
+    # An EMPTY list counts as unresolved, not as "nothing changed" — the same
+    # reading `classify` already takes of an empty diff, and for the same
+    # reason. Keeping the two consistent matters: otherwise the one input
+    # that makes `classify` shout would make this signal go quiet.
+    if not files:
+        return True
+    return any(f.startswith(ORACLE_PATHS) for f in files)
+
+
+def decorate(res: dict[str, str], files: list[str] | None = None) -> dict[str, str]:
     tier = res["TIER"]
     pkgs = set(p for p in res["PKGS"].split(",") if p)
     res["RUN_BUILD"] = "false" if tier == "docs" else "true"
@@ -250,6 +287,7 @@ def decorate(res: dict[str, str]) -> dict[str, str]:
     # appear in TIER=closure (any such change is TIER=all). Its job therefore
     # has nothing to verify in the closure tier.
     res["RUN_INTERVAL_BACKEND"] = "true" if tier == "all" else "false"
+    res["RUN_INTERVAL_ORACLE"] = "true" if _touches_oracle(files) else "false"
     # k-lint has no minimal root set: it is the only job that compiles
     # demos/tour (a path-dependent of NINE members) and tools/k-lint, and its
     # probe sweep records predicate margins from every kernel crate. Any
@@ -266,6 +304,10 @@ def main() -> int:
     args = ap.parse_args()
     root = _repo_root()
 
+    # `None` until a file list is actually in hand, so that a failure ANYWHERE
+    # below — including one that happens before `files` is ever bound — still
+    # reaches the path-keyed signals as "unknown", which they read as run.
+    files: list[str] | None = None
     try:
         if args.files:
             raw = sys.stdin.read() if args.files == "-" else open(args.files).read()
@@ -284,7 +326,13 @@ def main() -> int:
         print(f"ci-filter: falling back to TIER=all: {exc}", file=sys.stderr)
         res = _all_tier(root)
 
-    for key, val in decorate(res).items():
+    # `files` deliberately survives the `except` above. A Bail out of
+    # `classify` is the NORMAL route for this signal, not a breakdown:
+    # every interval-transcendentals path is workspace-level by the
+    # allowlist, so the very changes the oracle cares about arrive here as
+    # TIER=all with a perfectly good file list. Only a failure to resolve
+    # the diff at all leaves `files` None, and that is the case that runs.
+    for key, val in decorate(res, files).items():
         print(f"{key}={val}")
     return 0
 

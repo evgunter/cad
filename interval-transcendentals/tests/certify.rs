@@ -2,8 +2,17 @@
 //!
 //! Soundness direction: truth ⊆ oracle ⊆ mine (oracle enclosures are
 //! correctly rounded, hence contain truth; ours must contain the
-//! oracle's). Millions of seed-pinned property cases; tightness ratios
-//! are reported per function (visible with `--nocapture`).
+//! oracle's). Millions of property cases per run; tightness ratios are
+//! reported per function (visible with `--nocapture`).
+//!
+//! **The seed VARIES per run** (`test_utils::fuzz`, the tree's one
+//! harness). Every test here is a counterexample search — `∀ sampled x.
+//! oracle ⊆ ours` — which is the harness's shape 1, so a fixed seed
+//! would mean certifying the same few million points forever no matter
+//! how often the lane ran. It ran rarely enough that this mattered:
+//! pinned, a decade of firings re-checks one sample; varying, each
+//! firing is a fresh several million. The seed is logged unconditionally
+//! and `CAD_FUZZ_SEED=0x…` replays any run exactly.
 //!
 //! Gated on `oracle-inari` (M5 PR 1 fix pass): the oracle is inari with
 //! its bundled GMP/MPFR C build, and making it optional is what lets the
@@ -14,11 +23,18 @@
 
 mod common;
 
-use common::{Rng, Tightness, assert_contains, gen_interval, to_inari};
+use common::{Tightness, assert_contains, gen_interval, to_inari};
 use interval_transcendentals::DInterval;
+use test_utils::fuzz;
 
-const CASES_UNARY: u64 = 400_000;
-const CASES_BINARY: u64 = 300_000;
+// Shipped case counts BEFORE `fuzz::scaled` multiplies them by
+// CAD_FUZZ_EFFORT. At effort 1 the whole file is ~4.0M cases in ~7s
+// (release) — and the lane it runs on spends 234s building GMP and MPFR
+// from C source before it gets here (#480). The cases are 3% of the job,
+// so depth here is very nearly free: the CI lane sets CAD_FUZZ_EFFORT=8
+// and pays ~56s for 32M cases against that same fixed build cost.
+const CASES_UNARY: usize = 400_000;
+const CASES_BINARY: usize = 300_000;
 
 /// Magnitude windows (binade exponents) swept per case batch: everyday
 /// values, subnormal/tiny, huge (argument-reduction stress).
@@ -29,18 +45,21 @@ const WINDOWS: [(i32, i32); 4] = [(-8, 8), (-1074, -960), (-60, 4), (30, 1022)];
 
 fn drive_unary(
     label: &str,
-    seed: u64,
     mine_f: impl Fn(DInterval) -> DInterval,
     oracle_f: impl Fn(inari::DecInterval) -> inari::DecInterval,
 ) {
-    let mut rng = Rng(seed);
+    // The label is mixed into the stream, so the seven unary functions
+    // still draw DIFFERENT cases from one another within a run — what
+    // the seven distinct literal seeds used to buy — while the run as a
+    // whole moves.
+    let mut rng = fuzz::start(&format!("certify::{label}"));
     // Split reporting: the huge-magnitude window (index 3) exercises the
     // documented localization degradation (semantics-diffs D3) and would
     // otherwise swamp the everyday-regime statistics.
     let mut tight = Tightness::default();
     let mut tight_huge = Tightness::default();
-    for i in 0..CASES_UNARY {
-        let wi = (i % 4) as usize;
+    for i in 0..fuzz::scaled(CASES_UNARY) {
+        let wi = i % 4;
         let w = WINDOWS[wi];
         let x = gen_interval(&mut rng, w.0, w.1);
         let mine = mine_f(x);
@@ -54,65 +73,45 @@ fn drive_unary(
 
 #[test]
 fn certify_sin() {
-    drive_unary("sin", 0x5EED_0001, DInterval::sin, inari::DecInterval::sin);
+    drive_unary("sin", DInterval::sin, inari::DecInterval::sin);
 }
 
 #[test]
 fn certify_cos() {
-    drive_unary("cos", 0x5EED_0002, DInterval::cos, inari::DecInterval::cos);
+    drive_unary("cos", DInterval::cos, inari::DecInterval::cos);
 }
 
 #[test]
 fn certify_tan() {
-    drive_unary("tan", 0x5EED_0003, DInterval::tan, inari::DecInterval::tan);
+    drive_unary("tan", DInterval::tan, inari::DecInterval::tan);
 }
 
 #[test]
 fn certify_asin() {
-    drive_unary(
-        "asin",
-        0x5EED_0004,
-        DInterval::asin,
-        inari::DecInterval::asin,
-    );
+    drive_unary("asin", DInterval::asin, inari::DecInterval::asin);
 }
 
 #[test]
 fn certify_acos() {
-    drive_unary(
-        "acos",
-        0x5EED_0005,
-        DInterval::acos,
-        inari::DecInterval::acos,
-    );
+    drive_unary("acos", DInterval::acos, inari::DecInterval::acos);
 }
 
 #[test]
 fn certify_atan() {
-    drive_unary(
-        "atan",
-        0x5EED_0006,
-        DInterval::atan,
-        inari::DecInterval::atan,
-    );
+    drive_unary("atan", DInterval::atan, inari::DecInterval::atan);
 }
 
 #[test]
 fn certify_sqrt() {
-    drive_unary(
-        "sqrt",
-        0x5EED_0007,
-        DInterval::sqrt,
-        inari::DecInterval::sqrt,
-    );
+    drive_unary("sqrt", DInterval::sqrt, inari::DecInterval::sqrt);
 }
 
 #[test]
 fn certify_atan2() {
-    let mut rng = Rng(0x5EED_0008);
+    let mut rng = fuzz::start("certify::atan2");
     let mut tight = Tightness::default();
-    for i in 0..CASES_BINARY {
-        let w = WINDOWS[(i % 4) as usize];
+    for i in 0..fuzz::scaled(CASES_BINARY) {
+        let w = WINDOWS[i % 4];
         let y = gen_interval(&mut rng, w.0, w.1);
         let x = gen_interval(&mut rng, w.0, w.1);
         let mine = y.atan2(x);
@@ -135,7 +134,7 @@ fn certify_atan2() {
 
 #[test]
 fn certify_powi() {
-    let mut rng = Rng(0x5EED_0009);
+    let mut rng = fuzz::start("certify::powi");
     // Split like drive_unary: the huge window (index 3) is where the
     // documented negative-exponent overflow-saturation looseness lives
     // (|x|^|n| overflows f64, so pow_mag_lo saturates at MAX and the
@@ -145,8 +144,8 @@ fn certify_powi() {
     let mut tight = Tightness::default();
     let mut tight_huge = Tightness::default();
     let exps: [i32; 12] = [0, 1, 2, 3, 4, 5, 7, 12, -1, -2, -3, 31];
-    for i in 0..CASES_BINARY {
-        let wi = (i % 4) as usize;
+    for i in 0..fuzz::scaled(CASES_BINARY) {
+        let wi = i % 4;
         let w = WINDOWS[wi];
         let x = gen_interval(&mut rng, w.0, w.1);
         let n = exps[(rng.next_u64() % exps.len() as u64) as usize];
@@ -166,10 +165,10 @@ fn certify_powi() {
 
 #[test]
 fn certify_arith() {
-    let mut rng = Rng(0x5EED_000A);
+    let mut rng = fuzz::start("certify::arith");
     let mut tights: [Tightness; 4] = Default::default();
-    for i in 0..CASES_BINARY {
-        let w = WINDOWS[(i % 4) as usize];
+    for i in 0..fuzz::scaled(CASES_BINARY) {
+        let w = WINDOWS[i % 4];
         let a = gen_interval(&mut rng, w.0, w.1);
         let b = gen_interval(&mut rng, w.0, w.1);
         let (ia, ib) = (to_inari(&a), to_inari(&b));
@@ -232,9 +231,9 @@ fn certify_exact_ops() {
     // constant-on-box with an integer left endpoint is Com for us
     // (restriction-continuity) but Dac for inari (ambient), see
     // docs/semantics-diffs.md.
-    let mut rng = Rng(0x5EED_000B);
-    for i in 0..CASES_BINARY {
-        let w = WINDOWS[(i % 4) as usize];
+    let mut rng = fuzz::start("certify::exact_ops");
+    for i in 0..fuzz::scaled(CASES_BINARY) {
+        let w = WINDOWS[i % 4];
         let a = gen_interval(&mut rng, w.0, w.1);
         let b = gen_interval(&mut rng, w.0, w.1);
         let (ia, ib) = (to_inari(&a), to_inari(&b));
