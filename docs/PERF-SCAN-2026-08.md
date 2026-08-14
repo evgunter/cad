@@ -959,6 +959,15 @@ codebase. Four of its six entries have moved. This is not a criticism of
 the doc — it labelled itself advisory and dated — but the ranking is
 cited as if current, so the deltas should be written down.
 
+**These corrections have been annotated into `docs/PERF-PLAN.md` itself
+(2026-08-14), as dated `[STALE …]` / `[SUPERSEDED …]` / `[STATUS …]`
+markers beside each expired claim.** The original prose was left intact
+— that doc's value is partly as a record of what was believed at
+M3-start — so the annotations are additive (161 lines added, none
+removed). If you are reading PERF-PLAN, the markers point back here; if
+you are reading this section, PERF-PLAN now carries the same deltas
+inline where they matter.
+
 | PERF-PLAN rank | Claim | Status now |
 |---|---|---|
 | 1 | CDT quadratic; "100× tighter δ ⇒ ~10⁴× CDT time" | **Right that it's quadratic, wrong about where and by how much** (below) |
