@@ -714,11 +714,60 @@ impl<T: Real> Leg<T> {
 
     /// The exact tangent point of the radius-`radius` circle centered at
     /// `center` on this leg's carrier.
+    ///
+    /// # The spoke is measured, not assumed
+    ///
+    /// On a circular leg the tangent point is the fillet centre pushed
+    /// out along its spoke `center − O` to the carrier radius. The
+    /// spoke's length **ought** to be the offset radius ρ, and the
+    /// obvious scale factor is therefore `R/ρ` — but that is an
+    /// assumption about a computed point, and where it is false it is
+    /// false by exactly the radial error of `center`, which the factor
+    /// then multiplies by `R/|ρ|` and deposits off the carrier. That is
+    /// the amplification [`ArcCarrier::offset_circles`]' gate exists to
+    /// bound, and the M8 `review_s2` red (a 2.29e-9 residual) was one
+    /// instance of it.
+    ///
+    /// So divide by the spoke's **measured** length instead, signed like
+    /// ρ (a negative offset radius puts the tangent point on the far
+    /// side, and that sign is geometry, not roundoff). The returned point
+    /// then lies on the carrier BY CONSTRUCTION, to a relative ulp of R,
+    /// for any `center` whatever.
+    ///
+    /// # Why this reduces the error rather than hiding it
+    ///
+    /// The worry the shape invites — that zeroing the residual the tests
+    /// measure just moves the error somewhere unmeasured — does not
+    /// survive being written down. Let P\* be the exact fillet centre and
+    /// δ = P − P\*. The true tangent point is
+    /// `t* = O + (P* − O)·(R/ρ)`, because `|P* − O| = ρ` **exactly** —
+    /// that is what it means for P\* to be the solution.
+    ///
+    /// - Scaling by the nominal ρ gives `t = t* + δ·(R/ρ)`: the whole of
+    ///   δ, magnified.
+    /// - Scaling by the measured length gives `t = t* + δ_⊥·(R/ρ) +
+    ///   O(δ²)`, where `δ_⊥` is δ's component *across* the spoke.
+    ///
+    /// The difference is δ's radial component, and that component is
+    /// **identifiable**: we know the true spoke length independently (it
+    /// is ρ), so every part of `|P − O| − ρ` is error and none of it is
+    /// signal. Discarding it is a projection onto a constraint P\* is
+    /// known to satisfy, and such a projection cannot increase the
+    /// distance to P\*. So `|t − t*|` is never larger than before and is
+    /// usually much smaller — strictly better, for both legs, on every
+    /// input.
+    ///
+    /// What remains is `δ_⊥·(R/ρ)`: the spoke's *angular* error, which
+    /// displaces the tangent point ALONG its carrier. That one is real,
+    /// is not removable here, and is what a conditioning gate should be
+    /// measured against — see [`ArcCarrier::offset_circles`].
     fn tangent_point(&self, center: Point2<T>, sgn: T, radius: T) -> Point2<T> {
         match self.arc {
             None => center - left_normal(self.dir) * (sgn * radius),
             Some(arc) => {
-                arc.center + (center - arc.center) * (arc.radius / offset_radius(&arc, sgn, radius))
+                let spoke = center - arc.center;
+                let rho = offset_radius(&arc, sgn, radius);
+                arc.center + spoke * (arc.radius / spoke.norm().copysign(rho))
             }
         }
     }
@@ -834,6 +883,26 @@ impl<T: Real> Leg<T> {
 /// It is a machine-precision count, not a tolerance: ε enters the gate
 /// through the band, so the affordable conditioning loosens at ε = 1e-6
 /// and tightens at ε = 1e-12 without this number moving.
+///
+/// # This constant is now CONSERVATIVE, and knowingly so
+///
+/// Every measurement above was taken before [`Leg::tangent_point`]
+/// started dividing the spoke by its measured length. That change
+/// removes one of the two `1/ρ₂` amplifications the derivation below
+/// composes — the back-projection's — so the residual this constant is
+/// calibrated against no longer occurs. On the draws that produced the
+/// numbers above, the worst off-carrier residual fell from 1.18e-2 to
+/// 2.22e-16, and the worst remaining defect (in the emitted fillet
+/// RADIUS, not the carrier residual) now scales as `1/|ρ₂|` rather than
+/// `1/ρ₂²`.
+///
+/// The gate is therefore refusing corners the kernel can now build
+/// correctly — by roughly three decades of lever at ε = 1e-9. It is
+/// left in place, unchanged and over-tight, rather than retuned in the
+/// same change that invalidated its calibration: loosening a refusal is
+/// a capability claim and deserves its own derivation, its own
+/// adversarial sweep and its own constant, exactly as this one got.
+/// Retuning it is tracked as follow-up work.
 const BACK_PROJECTION_ULPS: f64 = 32.0;
 
 impl<T: Real> ArcCarrier<T> {
@@ -841,6 +910,17 @@ impl<T: Real> ArcCarrier<T> {
     /// `other`'s (0, 1 or 2, in fixed order).
     ///
     /// # The conditioning gate (`fillet_offset_lever`)
+    ///
+    /// **Read this section as history.** It derives the gate from an
+    /// amplification that [`Leg::tangent_point`] no longer performs: it
+    /// used to rescale the spoke by the nominal `R/ρ`, which multiplied
+    /// P's radial error by `R/|ρ|` and deposited it off the carrier, and
+    /// it now divides by the spoke's measured length, which discards
+    /// that error instead. What follows is still the right account of
+    /// WHY a lever gate belongs here, and its `1/ρ₂²` law was correct
+    /// for the code it was written against; but the surviving defect is
+    /// one power of `ρ₂` weaker, so the constant is over-tight. See
+    /// [`BACK_PROJECTION_ULPS`].
     ///
     /// A tangent point is recovered from the fillet centre P by
     /// projecting it back onto the leg's carrier,
