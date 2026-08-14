@@ -848,12 +848,26 @@ fn overrun_attribution_names_the_authored_corners_candidate() {
 /// said so. The outgoing leg's carrier radius (0.567 322 99) sits
 /// 2.9e-4 from the authored fillet radius (0.567 033 69) on the side the
 /// corner turns toward, so its offset radius ρ = R − σ·τ·r collapses to
-/// that difference; the tangent point is recovered by projecting the
-/// fillet centre back over exactly that lever, and the corner's carriers
-/// are 2.27 m apart, so the centre's last-place rounding arrives at the
-/// carrier magnified past ε. `fillet_offset_lever` now says so:
-/// |ρ| = 2.89e-4 against a least supported lever of 6.44e-3, short by a
-/// factor of 22.
+/// that difference, and the corner's carriers are 2.27 m apart.
+///
+/// # This corner is now BUILT, not refused, at ε = 1e-9
+///
+/// Twice retargeted, and the history is the point of keeping it. It was
+/// first returned wrong (2.29e-9 off carrier, reported as success); then
+/// refused, once `fillet_offset_lever` existed; and it now BUILDS with a
+/// residual of **exactly zero**, because `Leg::tangent_point` divides the
+/// spoke by its measured length and the gate was retuned onto the
+/// one-power-of-ρ law that survives that.
+///
+/// So the ε key moved rather than went away: |ρ| = 2.89e-4 against a
+/// least supported lever of 7.31e-2 at ε = 1e-12 (short by 253x) but of
+/// 7.31e-5 at ε = 1e-9 (comfortably clear). The crossover sits at
+/// ε ≈ 2.53e-10.
+///
+/// That threshold is a literal below, derived from the shipped
+/// `LEVER_ULPS`, and it is deliberately a tripwire: moving the constant
+/// is a capability change and should require touching a witness that
+/// says which corners it moves.
 ///
 /// Pinned as a fixture rather than left to the seed (the harness's shape-2
 /// rule): the witness is written down, so it is checked on every run
@@ -890,19 +904,19 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
         "the pin's outgoing offset lever is {rho}, not the near-collapse it was mined for"
     );
     // THE OUTCOME IS eps-KEYED, and saying so is the point of the row.
-    // The gate's least lever is `scale * sqrt(C * R2 / band.zero())`, so
-    // a looser ambient band affords MORE conditioning: this corner's
-    // 2.29e-9 residual is uncertifiable against a 1e-9 band and entirely
-    // fine against a 1e-6 one. Asserting the refusal unconditionally
-    // would be exactly the eps-blindness this suite has been removing
-    // elsewhere — and CI caught it doing so on the 1e-6 row.
+    // The gate's least lever is `C * R2 * scale^2 / (d * band.zero())`,
+    // so a looser ambient band affords MORE conditioning. Asserting
+    // either outcome unconditionally would be exactly the eps-blindness
+    // this suite has been removing elsewhere — and CI caught this very
+    // row doing so on the 1e-6 leg once already.
     //
-    // So: at a band this corner's conditioning cannot support, it must
-    // REFUSE typed; at a band that can support it, it must BUILD and the
-    // tangent point it returns must actually sit on its carrier within
-    // that band. Both halves are claims; neither row is a skip.
+    // So: at a band this corner's conditioning cannot support it must
+    // REFUSE typed; at a band that can support it, it must BUILD — and
+    // then its tangent point must sit on the carrier at the ULP FLOOR,
+    // not merely within the band, because the construction no longer has
+    // any 1/rho amplification left to spend. Both halves are claims.
     let eps = tol().eps;
-    if 2.291e-9 < eps {
+    if 2.53e-10 < eps {
         let lp = build_corner(corner, leg_in, leg_out, r).unwrap_or_else(|e| {
             panic!(
                 "at eps = {eps:e} this corner's conditioning IS supported, so it must \
@@ -912,10 +926,14 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
         let nv = lp.vertices.len();
         let t2 = lp.vertices[nv - 1].pos;
         let res = leg_out.carrier_residual(corner, t2);
+        // 8 ulps of the ~1 m scene, not `eps`: the measured-spoke scaling
+        // puts this at 0.0, and holding it to the band would be a far
+        // weaker claim than the construction actually supports.
+        let bound = 8.0 * f64::EPSILON;
         assert!(
-            res < eps,
+            res <= bound,
             "at eps = {eps:e} the corner builds, so its tangent point must sit on the \
-             carrier within the band it was certified against: off by {res:e}"
+             carrier at the ulp floor: off by {res:e}, bound {bound:e}"
         );
         return;
     }
@@ -934,7 +952,7 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
             );
             // Short by more than a decade: the gate is not deciding a
             // hairline here, it is refusing a corner that misses the
-            // supported conditioning by 22x.
+            // supported conditioning by 253x at eps = 1e-12.
             assert!(
                 least_lever > 10.0 * offset_radius.abs(),
                 "least lever {least_lever} against |rho| {}: the pin no longer sits well \
@@ -947,8 +965,8 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
             );
         }
         other => panic!(
-            "a tangent point this unconditioned must refuse typed rather than be returned \
-             2.29e-9 off its carrier; got {other:?}"
+            "at eps = {eps:e} this corner's conditioning is NOT supported, so it must \
+             refuse typed rather than return a tangent point it cannot place; got {other:?}"
         ),
     }
 }
@@ -1093,4 +1111,98 @@ fn an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier() {
          corner 2.01e-14 (90.6 ulps) out — see Leg::tangent_point.",
         res_out / (f64::EPSILON * SCENE)
     );
+}
+
+/// **The typed refusal, on every band — through BOTH arms of the gate.**
+///
+/// Its sibling [`an_uncertifiable_tangent_point_refuses_instead_of_being_returned`]
+/// is ε-keyed and, since the M8 retune, takes the BUILD arm at ε = 1e-9 and
+/// 1e-6, which would leave `FilletOffsetLeverTooShort` exercised only on the
+/// 1e-12 leg. This row covers it everywhere.
+///
+/// The outgoing carrier radius sits 1.2e-7 from the authored fillet radius on
+/// the side the corner turns toward, collapsing the offset lever to
+/// |ρ₂| = 1.20e-7 against a least supported lever of 6.11e-5 at ε = 1e-9
+/// (short by 508x) and 6.11e-2 at ε = 1e-12 (short by 5.1e5).
+///
+/// # Why it cannot be short at ε = 1e-6, and why that is not a gap
+///
+/// It is refused there too, but by the gate's **in-band** arm rather than its
+/// definite one, and the reason is structural rather than incidental. A
+/// collapsed lever forces marginal clearance: with |ρ₂| small,
+/// `external = |ρ₁|+|ρ₂|−d` and `internal = d−||ρ₁|−|ρ₂||` are near-negatives
+/// of one another, so `min(clearance) ≲ |ρ₂|`. Reaching the lever gate at all
+/// therefore needs the clearances decidable, `|ρ₂| ≳ ε·scale`, while tripping
+/// it needs `|ρ₂| < C·R₂·scale²/(d·ε)`. Those two bracket an EMPTY window
+/// once `ε ≳ √(C·R₂·scale/d) ≈ 1e-7`: at ε = 1e-6 no corner can be short
+/// enough for the lever gate while still having offset circles that
+/// decidably meet.
+///
+/// So at 1e-6 this corner's margin is positive (5.9e-8) but smaller than the
+/// band, and the gate refuses because it cannot decide the shortfall — which
+/// is the D4 ¶1 (iv) obligation that the in-band arm render the same typed
+/// recourse as the definite one. Both arms, one fixture.
+#[test]
+fn a_collapsed_offset_lever_refuses_typed_at_every_band() {
+    let corner = p2(-0.466_393_541_070_097, -0.036_421_594_587_948_69);
+    let leg_in = arc_leg(
+        corner,
+        2.166_517_959_434_531_6,
+        2.271_512_339_781_247,
+        1.0,
+        1.205_372_593_734_55,
+        true,
+    );
+    let leg_out = arc_leg(
+        corner,
+        2.166_547_354_045_76,
+        0.672_869_286_050_959_2,
+        1.0,
+        2.679_318_364_718_840_3,
+        false,
+    );
+    let r = 0.672_869_165_673_333_2;
+    let eps = tol().eps;
+
+    match build_corner(corner, leg_in, leg_out, r) {
+        Err(ProfileError::FilletOffsetLeverTooShort {
+            leg,
+            carrier_radius,
+            offset_radius,
+            least_lever,
+            margin,
+        }) => {
+            // The contract, on every band: typed (never laundered into
+            // `NoCornerForFillet` — a corner and a tangent circle both exist
+            // here; what is missing is the conditioning to place the point),
+            // naming the exposed leg, and carrying the lever, the threshold
+            // and the margin so a caller can see how far off it was.
+            assert_eq!(leg, profile::FilletLeg::Outgoing);
+            assert!(
+                (carrier_radius - 0.672_869_286_050_959_2).abs() < 1e-15,
+                "the refusal reports carrier radius {carrier_radius}, not the leg's"
+            );
+            assert!(
+                offset_radius.abs() < 1e-6,
+                "the pin's offset lever is {offset_radius}, not the collapse it was mined for"
+            );
+            // WHICH ARM is eps-keyed, and the docs above say why the 1e-6
+            // leg structurally cannot take the definite one.
+            if margin < 0.0 {
+                assert!(
+                    least_lever > 10.0 * offset_radius.abs(),
+                    "at eps = {eps:e} the definite arm fired, so the pin must sit well \
+                     inside the refused region: least lever {least_lever} against |rho| {}",
+                    offset_radius.abs()
+                );
+            } else {
+                assert!(
+                    margin <= eps,
+                    "at eps = {eps:e} the in-band arm fired, so the margin must be \
+                     positive-but-undecidable against the band; got {margin:e}"
+                );
+            }
+        }
+        other => panic!("a collapsed offset lever must refuse typed on every band; got {other:?}"),
+    }
 }
