@@ -169,6 +169,21 @@ impl Chart {
         w.dot(self.v_ref).atan2(w.dot(self.u_ref))
     }
 
+    /// Distance of a point from the chart axis — the lever arm that
+    /// converts an angular u-discrepancy into a spatial one (arc
+    /// length `r·δu`). `(u_ref, v_ref, axis)` is orthonormal by
+    /// construction (`v_ref = axis × u_ref`), so this is just the
+    /// in-plane component's length.
+    ///
+    /// Kind-free on purpose: it reads the POINT, not the surface
+    /// parameters, so the cone — whose radius varies along the loop as
+    /// `v·sin α` rather than sitting in `ChartKind` — needs no special
+    /// case, and a point on the axis correctly reports 0.
+    pub(crate) fn radial(&self, p: Point3<f64>) -> f64 {
+        let w = p - self.anchor;
+        w.dot(self.u_ref).hypot(w.dot(self.v_ref))
+    }
+
     /// Raw chart u of a point, in (−π, π] — the azimuth, **except on a
     /// cone's mirror nappe** (v < 0, i.e. below the apex along the
     /// axis), where `S(u, v) = apex + axis·(v cos α) + radial(u)·(v sin α)`
@@ -611,22 +626,40 @@ pub(crate) fn loop_polygon(
         }
     }
     // Closure: if the walk ends in a meridian, the first entry is that
-    // column's junction. The anchor-branch unwrap above makes closure
-    // exact by construction — `out[0].u` and the final column are the
-    // same analytic azimuth reached through two float paths (vertex
-    // atan2 vs carrier-midpoint atan2), so any residue is
-    // rounding-scale (observed ≲ 1e-12 rad). Snap it onto the column
-    // so the polygon side is bitwise straight; anything larger is a
-    // structural defect — kept loud by the debug assertion, and in
-    // release the unsnapped self-crossing polygon is refused by the
-    // CDT constraint pre-check (typed `Triangulation` error).
+    // column's junction. `out[0].u` and the final column are the same
+    // analytic azimuth reached through two float paths (vertex atan2 vs
+    // carrier-midpoint atan2), so they disagree only by accumulated
+    // rounding. Snap onto the column so the polygon side is bitwise
+    // straight; a residue too large to snap SAFELY is the structural
+    // defect, and in release the unsnapped self-crossing polygon is
+    // refused by the CDT constraint pre-check (typed `Triangulation`
+    // error).
+    //
+    // THE BAR IS SPATIAL, NOT ANGULAR. This used to read `residue <
+    // 1e-9` — a bare radian constant, unrelated to `eps` and to the
+    // model's size, calibrated on an observed ≲1e-12 rad across the
+    // scenes that existed then. `nist_ftc_09_asme1_rd.stp` (the wild
+    // corpus's largest: genus 34, 454 edges, ε = 3.4e-5 m — by far the
+    // longest walks in the corpus) closes at 3.56e-9 rad and tripped
+    // it, having silently skipped the snap in release for as long as
+    // that lane ran with assertions compiled out.
+    //
+    // u is an azimuth, so a residue is only as big as its lever arm:
+    // `r·δu` is the arc length it displaces the polygon side by, and
+    // `eps` is the length the rest of this function already measures
+    // against (the junction merge above). Comparing the two in metres
+    // is the dimensionally honest test; comparing radians to a
+    // hard-coded angle was not a test of anything. At r → 0 the
+    // azimuth carries no length at all and `eps/r → ∞` accepts freely,
+    // which is the correct limit rather than a special case.
     if !no_rim && matches!(travs[m - 1].kind, TravKind::Meridian { .. }) && !out.is_empty() {
         let residue = (out[0].u - prev_u).abs();
+        let arc = residue * chart.radial(positions[out[0].id as usize]);
         debug_assert!(
-            residue < 1e-9,
-            "loop closure residue {residue} rad exceeds rounding scale"
+            arc < eps,
+            "loop closure residue {residue} rad displaces the side by {arc} m, over eps {eps}"
         );
-        if residue < 1e-9 {
+        if arc < eps {
             out[0].u = prev_u;
         }
     }
