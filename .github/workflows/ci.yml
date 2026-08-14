@@ -1533,3 +1533,51 @@ jobs:
     with:
       gate: true
       lanes: all
+
+  # EXPERIMENT (do not merge): what does the oracle-inari certification
+  # tier cost on a 2-vCPU hosted runner?
+  #
+  # Measured because Evan asked for the cost "in the cases where it does
+  # fire", and because a local number would flatter it badly: gmp-mpfr-sys
+  # builds GMP and MPFR from C source and that parallelises, so an 8-core
+  # desktop is not the runner this would actually run on.
+  #
+  # Split into three timed steps on purpose. Only the first two are
+  # unavoidable per firing; the case count is a dial we choose.
+  oracle-cost:
+    name: EXPERIMENT oracle-inari cost
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: prune local-scripts (hosted CI may not depend on them)
+        run: rm -rf local-scripts
+      - uses: dtolnay/rust-toolchain@stable
+      - name: runner provenance
+        run: nproc && free -g | head -2 && cat /proc/cpuinfo | grep -m1 "model name"
+      # gmp-mpfr-sys needs a C toolchain plus m4; ubuntu-latest carries
+      # build-essential but m4 is worth asserting rather than assuming.
+      - name: toolchain for gmp
+        run: |
+          t0=$SECONDS
+          sudo apt-get update -qq && sudo apt-get install -y -qq m4
+          echo "APT_SECONDS=$((SECONDS - t0))"
+      - name: BUILD the oracle graph (gmp + mpfr from source, release)
+        working-directory: interval-transcendentals
+        run: |
+          t0=$SECONDS
+          cargo build --release --features oracle-inari --tests
+          echo "BUILD_SECONDS=$((SECONDS - t0))"
+      - name: RUN the certification cases
+        working-directory: interval-transcendentals
+        run: |
+          t0=$SECONDS
+          cargo test --release --features oracle-inari -- --nocapture 2>&1 | tail -40
+          echo "CASES_SECONDS=$((SECONDS - t0))"
+      # Does the x86-64-v3 floor the README requires actually hold here?
+      # It is inherited from the repo-root .cargo/config.toml, and it is
+      # exactly the sort of thing that passes on one runner generation and
+      # fails on another, so assert it rather than hope.
+      - name: x86-64-v3 floor is satisfied by this runner
+        run: |
+          grep -q avx2 /proc/cpuinfo && echo "avx2 present" || (echo "NO AVX2 — the v3 floor does not hold here" && exit 1)
+          grep -q fma /proc/cpuinfo && echo "fma present" || (echo "NO FMA" && exit 1)
