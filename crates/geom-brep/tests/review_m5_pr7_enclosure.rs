@@ -70,6 +70,19 @@ fn cyl_enclosure_naive(origin: Point3<f64>, axis: Vec3<f64>, r: f64, b: B3) -> R
     (q2 - h.sqr() - ring(r * r)) / ring(2.0 * r)
 }
 
+/// Containment of the sample's own one-ulp rounding bracket. The
+/// enclosure's contract (`RingInterval` module docs) binds the REAL
+/// residual of points in the box; the f64 sample is itself a rounded
+/// evaluation, so its final rounding may step across the enclosure's
+/// endpoint (Lemma P1: a correctly rounded result lies within one
+/// representable step of the true value). The honest oracle claim is
+/// that the enclosure meets `[next_down(sample), next_up(sample)]` —
+/// no relative slack: a genuinely lying enclosure misses by the
+/// geometry's scale, orders of magnitude, never by one step.
+fn brackets(e: RingInterval, sample: f64) -> bool {
+    e.lo() <= sample.next_up() && sample.next_down() <= e.hi()
+}
+
 fn sph_enclosure(center: Point3<f64>, r: f64, b: B3) -> RingInterval {
     let q = [
         b.x - ring(center.x),
@@ -156,22 +169,29 @@ fn enclosures_contain_every_sampled_residual_hence_exclusion_cannot_lie() {
         for i in 0..5 {
             for j in 0..5 {
                 for k in 0..5 {
+                    // Clamped into the box: the lattice formula rounds,
+                    // and an unclamped corner can land a ulp OUTSIDE the
+                    // box — a point the enclosure makes no claim about,
+                    // whose residual the gradient pushes several ulps
+                    // past the bound. The containment claim's hypothesis
+                    // is "point in the box"; the clamp makes the sample
+                    // satisfy it exactly.
                     let p = Point3::new(
-                        c.x - r + 2.0 * r * (i as f64) / 4.0,
-                        c.y - r + 2.0 * r * (j as f64) / 4.0,
-                        c.z - r + 2.0 * r * (k as f64) / 4.0,
+                        (c.x - r + 2.0 * r * (i as f64) / 4.0).clamp(b.x.lo(), b.x.hi()),
+                        (c.y - r + 2.0 * r * (j as f64) / 4.0).clamp(b.y.lo(), b.y.hi()),
+                        (c.z - r + 2.0 * r * (k as f64) / 4.0).clamp(b.z.lo(), b.z.hi()),
                     );
                     let fs = implicit_residual(&sph, p);
                     let fc = implicit_residual(&cyl, p);
                     assert!(
-                        es.lo() <= fs && fs <= es.hi(),
+                        brackets(es, fs),
                         "sphere enclosure lies at {p:?}: {fs} not in [{}, {}] — {}",
                         es.lo(),
                         es.hi(),
                         fuzz::replay()
                     );
                     assert!(
-                        ec.lo() <= fc && fc <= ec.hi(),
+                        brackets(ec, fc),
                         "cylinder enclosure lies at {p:?}: {fc} not in [{}, {}] — {}",
                         ec.lo(),
                         ec.hi(),
