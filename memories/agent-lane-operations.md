@@ -178,6 +178,15 @@ sweep checks open PRs' mergeable state, not just lane activity.
 Binary/render conflicts are never hand-picked — take a side,
 regenerate through the pipeline, re-verify the reproducibility
 contract.
+**Shared-scratchpad hazard (2026-08-15, observed live):** the
+session scratchpad (/tmp/claude-1000/.../scratchpad/) is SHARED
+between concurrently running agents of one session — two fix
+passes crossed `pr.md` files and one agent briefly published the
+OTHER unit's body onto its PR via `gh pr edit --body-file`.
+PR/issue bodies and anything else to-be-published go to
+LANE-PRIVATE paths (~/.local/share/cad-work/<lane>-*.md), never
+the scratchpad; orchestrator briefs state this.
+
 **Substrate-output placement (lesson 2026-08-06):** clean-lanes
 on a substrate dir's PARENT deletes the inventory beside the
 lane (m6-5's inventory was lost this way; the implementer

@@ -1,6 +1,6 @@
 # Memory Index
 
-- [CAD project state](cad-project-state.md) — M0–M7 COMPLETE (#89 closed K=10); M8 = kernel residuals (OPEN), M9 = C7 join lane, M10 = error propagation; the LIB and ASM programs run concurrently; live status = the relevant *-LOG tail, never the memory; gate = hosted nextest matrix
+- [CAD project state](cad-project-state.md) — M0–M8 COMPLETE (#89 closed K=10; M8 closed #508 2026-08-15); M9 = C7 join lane (next), M10 = error propagation; A′ PlacedUnion design ratified/unscheduled; the LIB and ASM programs run concurrently; live status = the relevant *-LOG tail, never the memory; gate = hosted nextest matrix
 - [CAD working style](cad-working-style.md) — discuss → ratify into DESIGN.md → commit; propose firmly, welcome pushback; no escape hatches; fail loud
 - [Evan profile](evan-profile.md) — differential-geometry fluent; define CAD jargon, don't simplify math; probes fudged invariants
 - [FreeCAD render lane](freecad-render-lane.md) — ROOT CAUSE FOUND 2026-08-10: the "random stall" is a FreeCAD self-deadlock (NotificationArea re-enters its own lock via the Console when the offscreen QPA plugin warns on raise()); fixed in render_freecad.py by disabling the notification area, side effect stated. Keep the per-scene isolation + staged publish anyway; PNG path stamp + timeout's unreliable exit status still bite; renders are hosted, and since 2026-08-11 CI RENDERS AND GATES all four lanes on every push — take them with `local-scripts/render-hosted.sh` (the default; dispatching is `--on-demand`), and expect a monthly mesa re-baseline
