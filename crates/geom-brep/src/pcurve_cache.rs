@@ -1848,11 +1848,51 @@ fn chart_windings<T: Decide>(
 /// The rate that meters this carrier's parameter into metres — the
 /// lever arm the forward-span and period checks use (the
 /// [`crate::certify`] convention: radians × the conservative radius).
+/// A NURBS net answers its certified speed lower bound, the same
+/// meter [`crate::certify`]'s span check uses, so a parameter span
+/// crosses to model space through the kind's real metric everywhere.
+/// The bound is POISON on a degenerate net, so every caller gates it
+/// through [`param_rate_gate`] before metering anything through it.
 fn param_rate<T: Real>(carrier: &Curve3<T>) -> T {
     match *carrier {
-        Curve3::Line { .. } | Curve3::Nurbs(_) => T::one(),
+        Curve3::Line { .. } => T::one(),
+        Curve3::Nurbs(ref n) => n.speed_lower_bound(),
         Curve3::Circle { radius, .. } => radius,
         Curve3::Ellipse { minor, .. } => minor,
+    }
+}
+
+/// The collapsed-arm gate for [`param_rate`] (the
+/// [`crate::certify`] idiom, `enters`' shape): the rate is metres per
+/// parameter unit, so what a classifier may see is the LENGTH it
+/// subtends over the carrier's own parameter extent — a NURBS net's
+/// knot-domain length, and the unit parameter the closed-form kinds
+/// state their rate over. A collapsed (zero/negative) or poison rate
+/// cannot convert a span to metres and no forward verdict may be
+/// fabricated from one; refusing here keeps that failure distinct
+/// from a backwards span, which the metered span check names.
+///
+/// # Errors
+///
+/// [`Indeterminate`] carrying [`geom_core::MarginDiag::Invalid`] when
+/// the subtended length is not definitely positive; the classifier's
+/// own escalation otherwise.
+fn param_rate_gate<T: Decide>(carrier: &Curve3<T>, band: Band) -> Result<T, Indeterminate> {
+    let rate = param_rate(carrier);
+    let extent = match *carrier {
+        Curve3::Nurbs(ref n) => {
+            let (d0, d1) = n.domain();
+            T::from_f64(d1 - d0)
+        }
+        _ => T::one(),
+    };
+    match decide("pcurve_interval_meter", Margin::metered(extent, rate), band)? {
+        Sign::Positive => Ok(rate),
+        Sign::Zero | Sign::Negative => Err(Indeterminate {
+            margin: geom_core::MarginDiag::Invalid,
+            band,
+            predicate: Some("pcurve_interval_meter"),
+        }),
     }
 }
 
@@ -2325,33 +2365,37 @@ fn run_fitted_checks<T: PcurveFittedLane>(
 
     // ---- Check 2: the parameter interval, metered into metres. ----
     let span = t1 - t0;
-    // Ledger row F6 (fitted lane): a NURBS carrier's `param_rate` is 1 —
-    // the span crosses to the band as a bare, reparametrization-
-    // sensitive parameter quantity. No door fits; flagged, not cast.
-    match geom_core::k_stats::decide_flagged(
-        "pcurve_interval_forward",
-        span * param_rate(carrier),
-        band,
-        "F6",
-    )
-    .map_err(|cause| PcurveCertifyError::Escalated {
+    // The span crosses to model space through the carrier kind's own
+    // metric rate, gated definitely-positive first so a collapsed or
+    // poison meter can never fabricate a forward verdict.
+    let span_escalated = |cause| PcurveCertifyError::Escalated {
         check: PcurveCheck::ParamSpan,
         sample: 0,
         cause,
-    })? {
+    };
+    let rate = param_rate_gate(carrier, band).map_err(span_escalated)?;
+    match decide(
+        "pcurve_interval_forward",
+        Margin::metered(span, rate),
+        band,
+    )
+    .map_err(span_escalated)?
+    {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
     }
     let boxed = pcurve.chart_box(t0, t1);
-    let (u_arm, _) = chart_arms(surface);
     if !matches!(surface, Surface::Plane { .. } | Surface::Nurbs(_)) {
-        // Ledger row F6: `chart_arms`' whole-chart azimuth arm (1 for
-        // the cone lane) — flagged, not cast.
-        let headroom = geom_core::k_stats::decide_flagged(
+        // The azimuth headroom is an ANGLE, so it reaches the band
+        // through the chart's own lever arm — the cone's taken at the
+        // `v` reach that dominates both the pcurve's box and the
+        // window, which is the local lever's supremum everywhere
+        // either object lives (`chart_arms_at`'s safe direction).
+        let (u_arm, _) = chart_arms_at(surface, &boxed, &window);
+        let headroom = decide(
             "pcurve_azimuth_period",
-            (T::tau() - (boxed.u_max - boxed.u_min)) * u_arm,
+            Margin::levered(T::tau() - (boxed.u_max - boxed.u_min), u_arm),
             band,
-            "F6",
         );
         match headroom.map_err(|cause| PcurveCertifyError::Escalated {
             check: PcurveCheck::AzimuthPeriod,
@@ -2488,11 +2532,10 @@ fn run_iso_arc_checks<T: Decide>(
 
     // ---- Check 2: the parameter interval, metered into metres. ----
     //
-    // NOT a ledger-F6 site, unlike the fitted lane's twin: this class's
-    // carrier is a `Curve3::Circle` by construction (refused just
-    // above otherwise), so `param_rate` is the RADIUS and `span·rate`
-    // is arc length — a genuine metre, the harmonic lane's own door.
-    // The clause-(i) census stays at 12 shipped `decide_flagged` sites.
+    // This class's carrier is a `Curve3::Circle` by construction
+    // (refused just above otherwise), so `param_rate` is the RADIUS
+    // and `span·rate` is arc length — a genuine metre, and a rate that
+    // cannot be poison, which is why no meter gate stands here.
     let span = t1 - t0;
     match decide(
         "pcurve_interval_forward",
@@ -2813,18 +2856,21 @@ fn run_iso_checks<T: Decide>(
 
     // ---- Check 2: the parameter interval, metered into metres. ----
     let span = t1 - t0;
-    // Ledger row F6 (iso lane, same shape as the fitted lane's meter).
-    match geom_core::k_stats::decide_flagged(
-        "pcurve_interval_forward",
-        span * param_rate(carrier),
-        band,
-        "F6",
-    )
-    .map_err(|cause| PcurveCertifyError::Escalated {
+    // The metered span, gated on its meter first — the fitted lane's
+    // shape exactly.
+    let span_escalated = |cause| PcurveCertifyError::Escalated {
         check: PcurveCheck::ParamSpan,
         sample: 0,
         cause,
-    })? {
+    };
+    let rate = param_rate_gate(carrier, band).map_err(span_escalated)?;
+    match decide(
+        "pcurve_interval_forward",
+        Margin::metered(span, rate),
+        band,
+    )
+    .map_err(span_escalated)?
+    {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
     }
