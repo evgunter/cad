@@ -126,11 +126,10 @@ rather than riding M9-1 unconsumed.
   crate-disjoint, and the lily rebuild benefits directly (the
   tan(π/8) detour deletes as its acceptance). Sequence EARLY.
 - **A′ PlacedUnion** (docs/GROUP-BOOLEAN-DESIGN.md, shape
-  ratified): scheduling DELEGATED to the orchestrator (Evan,
-  in-session) — offered to the LIB program first (active again;
-  recipe-layer vocabulary sits near their surface), runs as an M9
-  candidate if they pass. Its schema claim is its own clean break
-  per the schema ruling; only one-meaning-per-version binds.
+  ratified): **LIB TOOK IT** (right-of-first-refusal accepted on
+  the #510 thread, 2026-08-15 — it closes their G8/diecomposed/
+  heatsink register items; dispatches after their RESPELL PR-1).
+  Off M9's slate; its schema claim is LIB's, its own clean break.
 
 ## Excluded, named
 
