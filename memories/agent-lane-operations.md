@@ -20,10 +20,10 @@ ci-filter.py treat local-scripts/ changes as non-triggering (they used
 to force the full matrix). Existing lanes had the OLD hooks path
 cached in .git/config, so the rename silently disabled their pre-push
 fmt hook (git says NOTHING when core.hooksPath is missing) — it hit the
-build-perf lane itself. with-build-slot.sh now REPAIRS a dangling
-core.hooksPath on the next build and says so, so no manual step is
-needed — a MIGRATION SHIM, **RETIRE 2026-08-13** (grep
-`RETIRE 2026-08-13`; it nags on every acquisition past that date). General lesson: a repo-relative path cached in per-clone git
+build-perf lane itself. The with-build-slot.sh self-heal shim was
+RETIRED on schedule (2026-08-15, due 08-13); a dangling
+core.hooksPath now gets a loud WARNING naming the one-liner fix
+instead of silent repair. General lesson: a repo-relative path cached in per-clone git
 config is invisible to a repo-side rename — grep for `git config` when
 moving directories. See docs/LOCAL-BUILD-PERF.md §6.
 
