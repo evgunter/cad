@@ -185,7 +185,11 @@ impl core::fmt::Display for ChartRegionError {
                  (rung-3) pair escalates: two descriptions of one locus may differ \
                  as charts (C2), so no chart-space overlap test exists for it"
             ),
-            Self::NonPlanarTrim { face, half_edge, what } => write!(
+            Self::NonPlanarTrim {
+                face,
+                half_edge,
+                what,
+            } => write!(
                 f,
                 "chart-region: face {face:?} half-edge {half_edge:?} is outside the \
                  planar trim inventory ({what}) — the area test is exact on straight \
@@ -226,8 +230,11 @@ impl core::fmt::Display for ChartRegionError {
                 "chart-region: every schedule ray grazed — ill-conditioned \
                  containment query at this ε"
             ),
-            Self::Corrupt => write!(f, "chart-region: unwalkable topology or a \
-                 self-contradictory crossing walk"),
+            Self::Corrupt => write!(
+                f,
+                "chart-region: unwalkable topology or a \
+                 self-contradictory crossing walk"
+            ),
         }
     }
 }
@@ -292,8 +299,14 @@ fn same_chart<T: Decide>(
     body_b: &Body<T>,
     face_b: FaceKey,
 ) -> Result<Surface<T>, ChartRegionError> {
-    let key_a = body_a.get_face(face_a).ok_or(ChartRegionError::Corrupt)?.surface;
-    let key_b = body_b.get_face(face_b).ok_or(ChartRegionError::Corrupt)?.surface;
+    let key_a = body_a
+        .get_face(face_a)
+        .ok_or(ChartRegionError::Corrupt)?
+        .surface;
+    let key_b = body_b
+        .get_face(face_b)
+        .ok_or(ChartRegionError::Corrupt)?
+        .surface;
     // Arena keys are meaningful only within one arena: the key rung
     // exists only for the one-body site.
     let same_body = core::ptr::eq(body_a, body_b);
@@ -400,7 +413,9 @@ fn loop_uv_polygon<T: Decide + Bounds>(
     let mut poly = Vec::new();
     for he in body.loop_cycle(first).ok_or(ChartRegionError::Corrupt)? {
         let he_data = body.get_half_edge(he).ok_or(ChartRegionError::Corrupt)?;
-        let edge = body.get_edge(he_data.edge).ok_or(ChartRegionError::Corrupt)?;
+        let edge = body
+            .get_edge(he_data.edge)
+            .ok_or(ChartRegionError::Corrupt)?;
         let forward = edge.he_plus == he;
         let refuse = |what| ChartRegionError::NonPlanarTrim {
             face,
@@ -482,8 +497,14 @@ fn seam_gate<T: Decide + Bounds>(
     let mut u_max: Option<T> = None;
     let mut visit = |poly: &Vec<Point2<T>>| {
         for p in poly {
-            u_min = Some(match u_min { None => p.x, Some(m) => m.min(p.x) });
-            u_max = Some(match u_max { None => p.x, Some(m) => m.max(p.x) });
+            u_min = Some(match u_min {
+                None => p.x,
+                Some(m) => m.min(p.x),
+            });
+            u_max = Some(match u_max {
+                None => p.x,
+                Some(m) => m.max(p.x),
+            });
         }
     };
     visit(&a.outer);
@@ -494,7 +515,11 @@ fn seam_gate<T: Decide + Bounds>(
         return Err(ChartRegionError::Corrupt);
     };
     let excess = (hi - lo) - T::tau();
-    match decide("chart_region_seam_span", Margin::levered(excess, radius), band) {
+    match decide(
+        "chart_region_seam_span",
+        Margin::levered(excess, radius),
+        band,
+    ) {
         // A definite excess: no common branch. Zero (the exact
         // full-wrap wall pair) and definite negatives proceed.
         Ok(Sign::Positive) => Err(ChartRegionError::SeamBranch),
@@ -679,17 +704,16 @@ fn point_in_polygon<T: Decide>(
         let w = q - a;
         // norm_squared, not e·e: the interval-square-poison rule.
         let len2 = e.norm_squared();
-        let dist = match decide("chart_region_boundary", Margin::of(e.norm()), band)
-            .map_err(escalate)?
-        {
-            Sign::Zero => w.norm(),
-            _ => {
-                // Foot parameter clamped to the span (evaluation lane).
-                let t = (w.dot(e) / len2).max(T::zero()).min(T::one());
-                let foot = a + e * t;
-                (q - foot).norm()
-            }
-        };
+        let dist =
+            match decide("chart_region_boundary", Margin::of(e.norm()), band).map_err(escalate)? {
+                Sign::Zero => w.norm(),
+                _ => {
+                    // Foot parameter clamped to the span (evaluation lane).
+                    let t = (w.dot(e) / len2).max(T::zero()).min(T::one());
+                    let foot = a + e * t;
+                    (q - foot).norm()
+                }
+            };
         if decide("chart_region_boundary", Margin::of(dist), band).map_err(escalate)? == Sign::Zero
         {
             return Ok(PolyContainment::OnBoundary);
@@ -819,12 +843,8 @@ fn proper_crossings<T: Decide>(
                         let s1 = (b[(bi + 1) % b.len()] - p).dot(rhat);
                         let (lo, hi) = (s0.min(s1), s0.max(s1));
                         let overlap = hi.min(r.norm()) - lo.max(T::zero());
-                        match decide(
-                            "chart_region_collinear_overlap",
-                            Margin::of(overlap),
-                            band,
-                        )
-                        .map_err(escalate)?
+                        match decide("chart_region_collinear_overlap", Margin::of(overlap), band)
+                            .map_err(escalate)?
                         {
                             Sign::Positive => return Err(ChartRegionError::TouchingBoundary),
                             _ => continue,
@@ -1043,7 +1063,7 @@ fn overlap_of_regions<T: Decide + Bounds>(
                 Some(PolyContainment::In) => (a.outer_2a, a.outer_p), // A ⊆ B
                 _ => match polygon_relation(&b.outer, &a.outer, band)? {
                     Some(PolyContainment::In) => (b.outer_2a, b.outer_p), // B ⊆ A
-                    Some(_) => return Ok(ChartOverlap::Empty), // definitely disjoint
+                    Some(_) => return Ok(ChartOverlap::Empty),            // definitely disjoint
                     None => return Err(ChartRegionError::TouchingBoundary),
                 },
             }
@@ -1092,7 +1112,10 @@ fn overlap_of_regions<T: Decide + Bounds>(
     // only its hole-adjusted area is unresolved) and escalates typed.
     match decide("chart_region_area", Margin::over_lever(net_2a, tot_p), band) {
         Ok(Sign::Positive) => Ok(ChartOverlap::PositiveArea),
-        Ok(_) => Err(ChartRegionError::Escalated(invalid(band, "chart_region_area"))),
+        Ok(_) => Err(ChartRegionError::Escalated(invalid(
+            band,
+            "chart_region_area",
+        ))),
         Err(diag) => Err(ChartRegionError::Escalated(diag)),
     }
 }
@@ -1594,10 +1617,24 @@ mod tests {
     #[test]
     fn rung2_shared_source_certifies_and_rung3_escalates() {
         let mut body_a = Body::<f64>::new();
-        let fa = sheet(&mut body_a, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+        let fa = sheet(
+            &mut body_a,
+            0.0,
+            0.0,
+            2.0,
+            2.0,
+            FaceSurface::New(xy_plane()),
+        );
         let ka = body_a.get_face(fa).unwrap().surface;
         let mut body_b = Body::<f64>::new();
-        let fb = sheet(&mut body_b, 1.0, 1.0, 3.0, 3.0, FaceSurface::New(xy_plane()));
+        let fb = sheet(
+            &mut body_b,
+            1.0,
+            1.0,
+            3.0,
+            3.0,
+            FaceSurface::New(xy_plane()),
+        );
         let kb = body_b.get_face(fb).unwrap().surface;
 
         // No sources: value-equal descriptions do NOT glue (C2).
@@ -1824,8 +1861,10 @@ mod tests {
         let window = pcurve.chart_box(t0, t1);
         let cache =
             geom_brep::PcurveCache::certify(pcurve, t0, t1, &ellipse, &surface, window, band())
-                .expect("the sinusoid image itself certifies (C5 row) — the exclusion is the \
-                         REGION machinery's, not the cache's");
+                .expect(
+                    "the sinusoid image itself certifies (C5 row) — the exclusion is the \
+                         REGION machinery's, not the cache's",
+                );
         // Plant it on the wall's bottom rim: the region query must
         // refuse typed at the inventory gate.
         let bottom_he = {
@@ -1870,4 +1909,3 @@ mod tests {
         }
     }
 }
-

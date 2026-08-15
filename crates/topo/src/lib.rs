@@ -189,6 +189,7 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
+pub use chart_region::{ChartOverlap, ChartRegionError, chart_region_overlap};
 pub use geom_brep::{
     CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, EdgeNurbsLane, Pcurve,
     PcurveCache, PcurveCertifyError,
@@ -196,7 +197,6 @@ pub use geom_brep::{
 pub use geom_curves::Curve3;
 pub use geom_surfaces::Surface;
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
-pub use chart_region::{ChartOverlap, ChartRegionError, chart_region_overlap};
 pub use instance::{GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed};
 pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
