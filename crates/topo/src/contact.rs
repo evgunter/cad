@@ -25,7 +25,7 @@ use crate::entity::FaceKey;
 ///
 /// - [`Rest`](Self::Rest) — conformal: same carrier, opposed senses,
 ///   gap ≡ 0. Generalizes S1's planar declared-REST vocabulary to
-///   every carrier kind ([`crate::boolean::carrier_eq`]).
+///   every carrier kind ([`mod@crate::boolean::carrier_eq`]).
 /// - [`Tangent`](Self::Tangent) — curve/point touch: opposed
 ///   tangency, non-crossing, verified through the jet schedule.
 ///

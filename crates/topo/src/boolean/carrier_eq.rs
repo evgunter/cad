@@ -39,7 +39,7 @@
 //! spelling of two boxes' opposed faces. Aligned coincidence is
 //! CONTAINMENT, not contact (the C1 lemma); the carrier ladder
 //! reports it honestly as `SameOriented` and the CONTACT doors
-//! ([`super::rest::contact_pair_verdict`]) are what refuse it.
+//! ([`super::contact_verify::contact_pair_verdict`]) are what refuse it.
 //!
 //! **Value-equality still never glues** (AQ6). Two independently
 //! authored spheres with bit-equal radii reach rung 4 and refuse

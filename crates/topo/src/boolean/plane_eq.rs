@@ -52,7 +52,7 @@ use crate::validate::decide;
 /// the one carrier verdict.
 ///
 /// One type, not two: `Rest` generalizes to every carrier kind
-/// ([`super::carrier_eq`]), so a caller that handles "same carrier"
+/// ([`mod@super::carrier_eq`]), so a caller that handles "same carrier"
 /// for planes handles it for spheres and cylinders by construction
 /// rather than by remembering to.
 pub use super::carrier_eq::CarrierRelation as PlaneRelation;

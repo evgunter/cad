@@ -11,7 +11,7 @@
 //!   NOTHING else ([`crate::contact::ContactVerdict::Bridged`]).
 //!
 //! [`contact_pair_verdict`] is the class-dispatching door: `Rest`
-//! goes down the carrier ladder ([`super::carrier_eq`]), `Tangent`
+//! goes down the carrier ladder ([`mod@super::carrier_eq`]), `Tangent`
 //! down the jet schedule ([`tangent_pair_relation`]).
 //!
 //! **The Tangent lane reuses the jet machinery, it does not restate

@@ -313,7 +313,7 @@ pub struct BooleanDeclarations {
     /// Cross-operand declared face pairs, each naming its class:
     /// classification treats a `Rest` pair's carriers as the same
     /// carrier (orientation decided, contradiction refused —
-    /// [`carrier_eq`] rung 2), and the result's merge stage glues the
+    /// [`mod@carrier_eq`] rung 2), and the result's merge stage glues the
     /// pair's surviving coplanar-adjacent material (N3 `Merged`).
     pub coincident_faces: Vec<FacePairDeclaration>,
     /// Contacts carried within operand A.
