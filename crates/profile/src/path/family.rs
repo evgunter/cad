@@ -128,7 +128,8 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
 ) -> Result<Dir<T>, PathError<T>> {
     let band = linear_band()?;
     let dir = carrier_tangent(anchor, centre, winding, band)?;
-    let (pending, _meta) = core.take_pending("arc-carrier fillet arrival without an opened fillet")?;
+    let (pending, _meta) =
+        core.take_pending("arc-carrier fillet arrival without an opened fillet")?;
     let trims = resolver(
         pending.side(),
         arc_fillet::FilletSide {
@@ -191,7 +192,10 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
             &Incoming {
                 ang: end_ang,
                 arm: radius.min(chord),
-                carrier: Some(SegArc { center: centre, radius }),
+                carrier: Some(SegArc {
+                    center: centre,
+                    radius,
+                }),
             },
             start_ang,
             true,
@@ -480,7 +484,13 @@ impl<T: geom_core::Decide> ViaArrival<T> {
     /// Completes the directed anchor with an angle; the fillet resolves.
     pub fn angle(mut self, theta: T) -> Result<OnArc<T>, PathError<T>> {
         self.core.record(Step::Angle(theta));
-        via_complete(self.core, self.q, self.p, Dir::from_angle(theta), self.resolver)
+        via_complete(
+            self.core,
+            self.q,
+            self.p,
+            Dir::from_angle(theta),
+            self.resolver,
+        )
     }
 
     /// Completes the directed anchor with exact components.
@@ -539,14 +549,7 @@ fn via_close<T: geom_core::Decide>(
         site: "close before the entry position is bound",
     })?;
     let band = linear_band()?;
-    let (centre, winding) = verbs::via_carrier(
-        DirectedPoint {
-            at: start_pos,
-            dir,
-        },
-        q,
-        band,
-    )?;
+    let (centre, winding) = verbs::via_carrier(DirectedPoint { at: start_pos, dir }, q, band)?;
     resolve_arc_close(&mut core, resolver, centre, winding)
 }
 
@@ -615,11 +618,7 @@ fn bulge_carrier<T: geom_core::Decide>(
     let band = linear_band()?;
     // The bulge's sign IS the travel sense, so the classification that
     // gates it degenerate also decides the winding — one funnel row.
-    let winding = match crate::k_stats::decide(
-        "path_arc_bulge",
-        geom_core::Margin::of(b),
-        band,
-    ) {
+    let winding = match crate::k_stats::decide("path_arc_bulge", geom_core::Margin::of(b), band) {
         Ok(geom_core::Sign::Positive) => crate::sugar::ArcSweep::Ccw,
         Ok(geom_core::Sign::Negative) => crate::sugar::ArcSweep::Cw,
         Ok(geom_core::Sign::Zero) => return Err(PathError::DegenerateArcSpec { value: b }),
@@ -668,11 +667,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
         // The collinear gate, then the existing closed form — the sharp
         // `arc_via` leg's own derivation, verbatim.
         let offset = chord_v.perp_dot(self.q - at) / chord;
-        match crate::k_stats::decide(
-            "path_arc_via_offset",
-            geom_core::Margin::of(offset),
-            band,
-        ) {
+        match crate::k_stats::decide("path_arc_via_offset", geom_core::Margin::of(offset), band) {
             Ok(geom_core::Sign::Zero) => return Err(PathError::ArcViaCollinear { offset }),
             Ok(_) => {}
             Err(source) => return Err(PathError::Escalated { source }),

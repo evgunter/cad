@@ -595,11 +595,20 @@ fn do_arrival<T: ArcCarrierScalar>(
             winding,
             target: Target::Start,
         } => Ok(Applied::Closed(
-            ArrivalSpec::apply(core, super::Center { c, winding, p: Start })?.loop_,
+            ArrivalSpec::apply(
+                core,
+                super::Center {
+                    c,
+                    winding,
+                    p: Start,
+                },
+            )?
+            .loop_,
         )),
-        ArcData::Radius { r, side } => Ok(Applied::Tip(DynTip::RadiusArrival(
-            ArrivalSpec::apply(core, super::Radius { r, side })?,
-        ))),
+        ArcData::Radius { r, side } => Ok(Applied::Tip(DynTip::RadiusArrival(ArrivalSpec::apply(
+            core,
+            super::Radius { r, side },
+        )?))),
         ArcData::Via {
             q,
             target: Target::Point(p),
@@ -948,15 +957,9 @@ fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
         ),
 
         // --- OnArc (§2c: an interior arc arrival's tip) ---------------
-        (DynTip::OnArc(p0), Step::ArcFillet { spec, radius }) => {
-            Ok(Applied::Tip(DynTip::Open(do_fused_on_arc(
-                p0,
-                spec,
-                radius,
-                TipState::OnArc,
-                Verb::ArcFillet,
-            )?)))
-        }
+        (DynTip::OnArc(p0), Step::ArcFillet { spec, radius }) => Ok(Applied::Tip(DynTip::Open(
+            do_fused_on_arc(p0, spec, radius, TipState::OnArc, Verb::ArcFillet)?,
+        ))),
         (
             DynTip::OnArc(p0),
             Step::ArcFilletArc {
@@ -987,9 +990,7 @@ fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
         (DynTip::RadiusArrivalAt(p0), Step::Toward { dx, dy }) => {
             Ok(Applied::Tip(DynTip::OnArc(p0.toward(dx, dy)?)))
         }
-        (DynTip::RadiusArrivalDir(p0), Step::At(p)) => {
-            Ok(Applied::Tip(DynTip::OnArc(p0.at(p)?)))
-        }
+        (DynTip::RadiusArrivalDir(p0), Step::At(p)) => Ok(Applied::Tip(DynTip::OnArc(p0.at(p)?))),
         (DynTip::ViaArrival(p0), Step::Angle(theta)) => {
             Ok(Applied::Tip(DynTip::OnArc(p0.angle(theta)?)))
         }

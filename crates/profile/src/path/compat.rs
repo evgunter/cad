@@ -108,7 +108,10 @@ fn attach_arrival<T: Decide>(core: &mut Core<T>, spec2: ArcData<T>) -> Result<()
             let Step::Fillet { radius } = *step else {
                 unreachable!()
             };
-            *step = Step::FilletArc { radius, spec: spec2 };
+            *step = Step::FilletArc {
+                radius,
+                spec: spec2,
+            };
             Ok(())
         }
         Some(step @ Step::ArcFillet { .. }) => {
@@ -148,13 +151,8 @@ impl<T: Decide + Bounds> PartialPath<T, NoPos, NoAng> {
                 target: Target::Point(p),
             },
         )?;
-        let dir = resolve_arc_arrival(
-            &mut self.core,
-            arc_fillet::resolve::<T>,
-            p,
-            centre,
-            winding,
-        )?;
+        let dir =
+            resolve_arc_arrival(&mut self.core, arc_fillet::resolve::<T>, p, centre, winding)?;
         Ok(in_state(
             self.core,
             Tip {

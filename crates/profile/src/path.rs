@@ -318,9 +318,9 @@ pub use family::{
     ArrivalSpec, OnArc, OnArcIncoming, PointIncoming, RadiusArrival, RadiusArrivalAt,
     RadiusArrivalDir, TangentIncoming, ViaArrival, ViaArrivalStart,
 };
+pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
 #[doc(hidden)]
 pub use verbs::{DirectedPoint, TangentArcLeg};
-pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
 
 // ------------------------------------------------------------------
 // Lattice markers (PATHS-DESIGN §5: one struct under type-level
