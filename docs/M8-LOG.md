@@ -399,3 +399,20 @@ DONE**: M8-1..M8-5, #317, #327, #222, #382 half-1, the #214 F6/F7
 riders. Banked follow-ups: #498, #501, #388, #389, #368, #382
 half-2, #427 (M9), #497. Next: the M8 EXIT WALK (criteria vs
 evidence, honesty rows) — needs Evan's closure affordance.
+
+## M8 CLOSED (2026-08-15) — the walk RATIFIED (#508)
+
+Evan's 👍 on the closure affordance (comment 5302962744, confirmed
+directly in-session) ratified the walk: 6 MET, 5
+MET-WITH-RECORDED-HONESTY, 2 CARRIED with named owners, zero
+criteria unmet. docs/M8-EXIT-WALK.md is M8's done-state of record.
+In the same exchange the group-boolean design conversation (#496)
+ratified **option A′ — PlacedUnion, "a Pattern that fuses"** (one
+prototype, PatternKind rule incl. Explicit placements, one body
+out, Instance{i} naming unchanged, CERTIFIED disjointness via the
+prototype BVH; docs/GROUP-BOOLEAN-DESIGN.md rewritten in place);
+the implementation unit is deliberately UNSCHEDULED — an M9-seam
+carried item (M9-adjacent or LIB, schema-v9 claim coordinated
+either way). M9 (C7 declared-contact join lane + the lily FULL
+rebuild) opens per the standing #300 ratification. This log is now
+the historical record; M9's log takes over as the live tail.
