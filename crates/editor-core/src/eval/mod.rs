@@ -634,7 +634,10 @@ impl core::fmt::Display for NodeErrorKind {
             Self::UnschedulableCycle => {
                 f.write_str("the node is in, or downstream of, a dependency cycle")
             }
-            Self::Naming(_) => f.write_str("name emission failed"),
+            // #380: the emitter's OWN payload, not a bare category —
+            // two distinct emitter refusals must read differently from
+            // Python, whose exception message is this prose.
+            Self::Naming(e) => core::fmt::Display::fmt(e, f),
             Self::DeclareResolve { .. } => {
                 f.write_str("a declared name failed to resolve through the operands' tables")
             }

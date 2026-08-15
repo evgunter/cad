@@ -71,6 +71,36 @@ impl From<DuplicateName> for NamingError {
     }
 }
 
+/// Fail-loud prose (#380): a refusal names its SUBJECT, so the caller
+/// — including Python, which reads `NodeError`'s `Display` — can tell
+/// two emitter refusals apart without a `Debug` dump. Every variant's
+/// own payload appears; the `Emission` variant's `what` IS the
+/// diagnosis, so it is quoted verbatim.
+impl core::fmt::Display for NamingError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Duplicate { name } => write!(
+                f,
+                "name emission failed: duplicate name {name:?} (no silent aliasing)"
+            ),
+            Self::Unnamed { kind, body } => write!(
+                f,
+                "name emission failed: a live {kind:?} of output body {body} was left unnamed"
+            ),
+            Self::MissingUpstream { node } => write!(
+                f,
+                "name emission failed: upstream node {} names no such entity",
+                node.0
+            ),
+            Self::Emission { what } => write!(f, "name emission failed: {what}"),
+            Self::Escalated { predicate, .. } => write!(
+                f,
+                "name emission failed: predicate {predicate} escalated (in-band indeterminacy)"
+            ),
+        }
+    }
+}
+
 /// A name at `node` with a single role segment.
 pub(crate) fn name1(kind: EntityKind, node: RecipeNodeId, seg: super::role::RoleSeg) -> StableName {
     StableName {
