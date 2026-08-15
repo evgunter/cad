@@ -13,6 +13,7 @@ from pncad import (
     Doc,
     DocEdit,
     DocParam,
+    EditError,
     EvaluationError,
     Node,
     SketchPlane,
@@ -195,6 +196,83 @@ class TestEvaluation(unittest.TestCase):
         # never go missing, LIB-DOORS F3).
         self.assertIsNone(caught.exception.finding)
         self.assertIn("poisoned by failed ancestor", str(caught.exception))
+
+
+class TestDetectDeclareDoors(unittest.TestCase):
+    """LIB-PYG5 (G5): the detect/declare doors' own contracts —
+    positive paths through every spelling, adversarial args refused
+    typed. The scene-level flips live in `test_north_star.py`
+    (`TestTable`, `TestCrosslapGlued`); the guide's executed block is
+    the end-to-end menu recourse."""
+
+    def stacked(self):
+        doc = Doc()
+        lower = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        upper = slab(
+            doc, (0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), (1 * m, 1.5 * m)
+        )
+        return doc, lower, upper
+
+    def test_every_declare_spelling_feeds_the_boolean(self):
+        # One resting contact; three spellings of the declare arm,
+        # each wired into the SAME union, each at the exact volume
+        # 1 + 0.5^2 * 0.5 = 1.125 (dyadic).
+        for spelling in ("doc_declare", "doc_declare_all", "node_declare"):
+            with self.subTest(spelling=spelling):
+                doc, lower, upper = self.stacked()
+                ev = evaluate(doc)
+                findings = ev.find_flush_candidates(lower, upper)
+                self.assertEqual(len(findings), 1)
+                self.assertEqual(
+                    findings[0].relation, pncad.PlaneRelation.SameOpposite
+                )
+                if spelling == "doc_declare":
+                    decl = doc.declare(findings[0])
+                elif spelling == "doc_declare_all":
+                    decl = doc.declare_all(findings)
+                else:
+                    decl = doc.insert(Node.declare(findings))
+                glued = doc.insert(
+                    Node.boolean(BooleanOp.Union, lower, upper, declare=decl)
+                )
+                ev = evaluate(doc)
+                body = ev.value(glued).body()
+                body.validate()
+                self.assertEqual(body.mass_properties().volume, 1.125)
+
+    def test_declaring_nothing_refuses_typed_at_every_door(self):
+        # An empty Declare records no intent — refused, never inserted
+        # (`no_findings`), at the sugar AND at the node constructor.
+        doc = Doc()
+        with self.assertRaises(EditError) as caught:
+            doc.declare_all([])
+        self.assertEqual(caught.exception.variant, "no_findings")
+        self.assertEqual(len(doc), 0, "a refused declare inserts nothing")
+        with self.assertRaises(EditError) as caught:
+            Node.declare([])
+        self.assertEqual(caught.exception.variant, "no_findings")
+
+    def test_detection_answers_empty_for_separated_and_unevaluated(self):
+        doc = Doc()
+        a = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        b = slab(doc, (3 * m, 4 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        ev = evaluate(doc)
+        self.assertEqual(ev.find_flush_candidates(a, b), [])
+        # A node the evaluation does not know: empty, like `select`.
+        c = slab(doc, (6 * m, 7 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        self.assertEqual(ev.find_flush_candidates(a, c), [])
+
+    def test_findings_are_values_with_opaque_names(self):
+        doc, lower, upper = self.stacked()
+        ev = evaluate(doc)
+        finding = ev.find_flush_candidates(lower, upper)[0]
+        # The names are the same alphabet the materializers speak.
+        self.assertIn(finding.a, ev.all_faces(lower))
+        self.assertIn(finding.b, ev.all_faces(upper))
+        self.assertEqual(finding.class_, pncad.ContactClass.Rest)
+        self.assertEqual(finding.rung, pncad.FlushRung.DecidedCoincident)
+        # Value semantics: re-detection answers an equal value.
+        self.assertEqual(finding, ev.find_flush_candidates(lower, upper)[0])
 
 
 class TestLiteralRefusals(unittest.TestCase):
