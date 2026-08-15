@@ -7,17 +7,36 @@
 # ... -D warnings`, `cargo nextest run`, `cargo test --doc`, the tripwire
 # scripts, `crates/pncad-py/run-python-tests.sh`, and the admesh
 # watertight check. Everything those need that a bare container lacks is
-# installed below — plus the demo renderers' Python venv, so a scene can
-# be previewed without a cold install mid-session (§7 for why that is the
-# only render prerequisite worth warming here).
+# installed below — plus both halves of the PREVIEW path (§7 the scene
+# generators at --release, §8 the renderers' Python venv), so an agent can
+# look at a scene without a cold compile or a cold install mid-session.
 #
-# All of those were run end to end on a hosted container on 2026-08-14
-# and were green: fmt, clippy -D warnings, `cargo nextest run` (geom-core,
-# 267 passed), `cargo test --doc` (pncad, 33 passed),
+# All of those were run end to end on a hosted container on 2026-08-14,
+# and re-run on 2026-08-15, and were green both times: fmt, clippy -D
+# warnings, `cargo nextest run` (2026-08-15: the whole workspace, 2770
+# passed / 9 skipped), `cargo test --doc` (pncad, 33 passed), the
+# tripwires (check-test-aggregation.sh, compose_uv_montage.py --selftest),
 # run-python-tests.sh (132 passed, with `ty` present so the stub lattice
-# is MEASURED rather than skipped), check_admesh.sh, and a full preview
-# montage. That list is what "provisioned" is supposed to mean; a session
+# is MEASURED rather than skipped), check_admesh.sh, and all three preview
+# montages. That list is what "provisioned" is supposed to mean; a session
 # finding one of them broken should suspect the container, not the row.
+#
+# TWO ROWS ARE OUT OF SCOPE HERE BY DESIGN, so do not read their absence
+# as a broken container:
+#
+#   * scripts/check_step.sh needs freecadcmd and SKIPS loudly without it.
+#     FreeCAD is a ~1 GB AppImage whose whole purpose is the hosted OCC
+#     reference lane (ci.yml installs it there, checksum-verified and
+#     cached); it is not worth a container's provisioning budget;
+#   * the `--features interval` lane (its own ci.yml jobs) is not warmed.
+#     It BUILDS and RUNS fine here — verified 2026-08-15, ~1m20s cold from
+#     the warm registry, geom-core 331 passed — it just costs a second set
+#     of artifacts in an already ~10 GB target/, and the session's writable
+#     disk is a fixed allowance. Run it by hand when a change touches
+#     interval arithmetic; note the feature must be spelled at the
+#     WORKSPACE scope (`cargo nextest run --workspace --features interval
+#     -E 'package(geom-core)'`), because `-p geom-core --features interval`
+#     is rejected as "features for packages outside of workspace".
 #
 # REMOTE ONLY. Local machines are provisioned by hand and carry
 # machine-local tuning this script must not second-guess (see
@@ -282,10 +301,12 @@ fi
 # PER-ROOT NON-FATAL, and specifically because of --locked: an excluded
 # demo root that path-depends on the kernel has a lockfile that must track
 # the kernel's dependency set, so it goes stale whenever a kernel dep lands
-# without that lock being refreshed (demos/wild is in exactly that state as
-# this hook lands). That is a real thing to fix in the repo, but it is not
-# a reason to deny the session its toolchain — the warning names the root,
-# and `cargo fetch` (no --locked) inside it is the fix.
+# without that lock being refreshed. (demos/wild was in exactly that state
+# when this hook landed; it has since been refreshed, and all five roots
+# fetch clean as of 2026-08-15 — so a warning here now means a NEW drift,
+# not the known one.) That is a real thing to fix in the repo, but it is
+# not a reason to deny the session its toolchain — the warning names the
+# root, and `cargo fetch` (no --locked) inside it is the fix.
 # ---------------------------------------------------------------------------
 say "cargo fetch (workspace + the excluded roots)"
 for root in . interval-transcendentals tools/k-lint demos/tour demos/wild; do
@@ -309,7 +330,52 @@ say "warm build (workspace, all targets)"
 cargo build --workspace --all-targets
 
 # ---------------------------------------------------------------------------
-# 7. The demo renderers' Python venv (numpy + matplotlib, pinned by
+# 7. The scene generators, AT --release, which is what the render lanes
+#    actually invoke.
+#
+# THE BUILD IS PROVISIONING; THE RUN IS PER-SCENE. §8 warms the renderers'
+# venv so a preview needs no cold install, but the venv was never the
+# expensive half. Measured on a hosted container, 2026-08-15, with §6
+# already warm:
+#
+#     demos/tour   cold `cargo run --release -- ../out`   1m 40s
+#                  ...of which the RUN itself is             6.0s
+#     demos/wild   cold `cargo run --release -- out`         35s
+#                  ...of which the RUN itself is             0.4s
+#
+# So ~2 minutes of an agent's first look at a scene was compilation, and
+# none of it was reused from §6: these roots are workspace-EXCLUDED (their
+# own `[workspace]` table, their own target/ — demos/tour/target and
+# demos/wild/target, NOT the root one), and the profile is `release`,
+# which shares no artifacts with §6's dev build either. Two misses, so
+# `--workspace --all-targets` could never have covered this no matter how
+# it was spelled. Cost of fixing it: ~170 MB of target/ per root.
+#
+# Only the BUILD belongs here. Running the tour is per-scene work whose
+# output goes stale the moment an agent edits geometry, and it is 6s
+# anyway — see §8 for the invocation and the ../out trap.
+#
+# --features probe is deliberately NOT built (demos/tour/Cargo.toml): it
+# is a second `Real` instantiation that monomorphizes the whole geometry
+# stack again for a mode no render lane invokes. scripts/k_probe_sweep.sh
+# is what wants it, and it can pay for it.
+#
+# PER-ROOT NON-FATAL. A demo root is a place to LOOK at the kernel, not a
+# gate row; a broken demo must not cost a session the toolchain that would
+# let it fix the demo. Nothing after §6 may be fatal for that reason.
+# ---------------------------------------------------------------------------
+say "warm demo scene generators (release)"
+for root in demos/tour demos/wild; do
+  if ( cd "$root" && cargo build --release >/dev/null 2>&1 ); then
+    echo "built: $root (release)"
+  else
+    warn "the release build of ${root}" \
+      "the first render pass pays its compile mid-session (~1-2 min), and if the root is genuinely broken that pass fails there rather than here. Every gate row is unaffected — this root is workspace-excluded."
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# 8. The demo renderers' Python venv (numpy + matplotlib, pinned by
 #    demos/render.sh and demos/render-wild.sh).
 #
 # NOT the committed sheets: hosted CI renders those (render.yml), and
@@ -326,16 +392,26 @@ cargo build --workspace --all-targets
 # so loudly, exactly as designed.
 #
 # The two things a preview pass needs beyond this venv, neither of which
-# belongs in a hook (both are per-scene work, not provisioning):
+# belongs in a hook (both are per-scene work, not provisioning — §7 warms
+# the compile behind the second one, so both are now seconds, not minutes):
 #
 #   * THE DRIFT SENTENCE. demos/hosted-render-guard.sh refuses without
 #     CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift, spelled out
 #     in full on purpose. Frames still land in the gitignored
 #     demos/renders-preview/ and the committed lanes stay untouched.
-#   * THE TOUR OUTPUT, and it is `cd demos/tour && cargo run --release --
+#   * THE SCENE OUTPUT, and it is `cd demos/tour && cargo run --release --
 #     ../out`. Note ../out: the bare `out` that reads naturally writes to
 #     demos/tour/out, where render.sh will not find scenes.json and dies
-#     on a FileNotFoundError several minutes into a pass.
+#     on a FileNotFoundError several minutes into a pass. The wild lane is
+#     the same shape with the trap absent: `cd demos/wild && cargo run
+#     --release -- out`, which render-wild.sh then reads from demos/wild/.
+#
+# Whole preview pass, end to end on a hooked container (2026-08-15, all
+# three lanes verified green): tour 6s + render.sh ~1m -> the 29-cell
+# renders-preview/renders/montage.png; wild 0.4s + render-wild.sh -> the
+# 8-cell renders-wild/montage-wild.png; render-uv.sh ~2s -> the 43-cell
+# renders-uv/montage-uv.svg. The uv lane draws (u, v) charts, so it needs
+# neither this venv nor any renderer at all — stdlib Python only.
 # ---------------------------------------------------------------------------
 say "demo render venv (numpy + matplotlib)"
 if [ -x demos/.venv/bin/python ]; then
