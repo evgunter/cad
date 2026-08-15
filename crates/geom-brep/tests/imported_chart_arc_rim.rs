@@ -188,7 +188,7 @@ fn an_interior_column_still_refuses() {
 fn a_seam_column_certifies_on_a_non_unit_chart() {
     let wall = imported_wall();
     let Surface::Nurbs(ref payload) = wall else {
-        unreachable!()
+        panic!("the imported wall is a described NURBS chart")
     };
     let column = geom_brep::boundary_iso_u(payload.as_ref(), false)
         .expect("the chart's own start column re-wraps as a curve");

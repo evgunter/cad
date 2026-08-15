@@ -290,7 +290,7 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
         return;
     };
     let Pcurve::IsoLine { p0, pl } = image else {
-        unreachable!()
+        panic!("a certified posture carries the iso line it asserted")
     };
     // The moving channel is the chart's own `v`, traversed with the
     // carrier: an affine map of the carrier's interval onto the v
@@ -458,7 +458,7 @@ fn an_imported_domain_chart_mints_the_boundary_intersection() {
         return;
     };
     let Pcurve::IsoLine { p0, pl } = image else {
-        unreachable!()
+        panic!("a certified posture carries the iso line it asserted")
     };
     assert!(
         p0.x == 0.0 || p0.x == wide,
