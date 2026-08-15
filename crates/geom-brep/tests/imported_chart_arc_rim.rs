@@ -178,3 +178,49 @@ fn an_interior_column_still_refuses() {
         "u = 1 is an interior column of a [0, 3√3] chart, not a boundary"
     );
 }
+
+/// The SEAM class on the same imported chart (M8-4): the boundary
+/// column an `Intersection` seam's chart image lands on is a knot-domain
+/// end, so a `u = 0` image over the chart's own boundary row certifies —
+/// and the `u = 1` restatement of it, which a `[0, 1]` literal would
+/// have called a boundary, is an INTERIOR column and refuses typed.
+#[test]
+fn a_seam_column_certifies_on_a_non_unit_chart() {
+    let wall = imported_wall();
+    let Surface::Nurbs(ref payload) = wall else {
+        unreachable!()
+    };
+    let column = geom_brep::boundary_iso_u(payload.as_ref(), false)
+        .expect("the chart's own start column re-wraps as a curve");
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(column));
+    let seam = |u: f64| {
+        PcurveCache::certify(
+            Pcurve::IsoLine {
+                p0: Point2::new(u, 0.0),
+                pl: Vec2::new(0.0, 1.0),
+            },
+            0.0,
+            1.0,
+            &carrier,
+            &wall,
+            window(),
+            band(),
+        )
+    };
+    let cache = seam(0.0).expect("the chart's own boundary column certifies as a seam");
+    assert!(
+        cache.certificate().envelope < 1e-9,
+        "envelope {:e}",
+        cache.certificate().envelope
+    );
+    // `u = 1` is an INTERIOR column of a `[0, 3√3]` chart AND a
+    // different locus from the carrier, so it refuses TYPED — at the
+    // residual, which measures the distance between the two loci before
+    // the boundary question is reached.
+    let refusal = seam(1.0).expect_err("u = 1 is no boundary of this chart");
+    let shown = format!("{refusal:?}");
+    assert!(
+        shown.contains("MapResidual") || shown.contains("INTERIOR"),
+        "the refusal is typed and names its check: {shown}"
+    );
+}
