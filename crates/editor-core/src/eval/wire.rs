@@ -13,7 +13,8 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
 use topo::{
-    Body, BooleanDeclarations, BooleanResult, CarriedContacts, GeomSource, VfContact, VvContact,
+    Body, BooleanDeclarations, BooleanResult, CarriedContacts, CarriedVf, CarriedVv, ContactClass,
+    FacePairDeclaration, GeomSource, VfContact, VvContact,
 };
 
 use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
@@ -896,7 +897,7 @@ fn resolve_declarations(
             // Cross-operand face pair: the coincident-plane intent.
             ((Operand::A, EntityKey::Face(fa)), (Operand::B, EntityKey::Face(fb)))
             | ((Operand::B, EntityKey::Face(fb)), (Operand::A, EntityKey::Face(fa))) => {
-                out.coincident_faces.push((fa, fb));
+                out.coincident_faces.push(FacePairDeclaration::rest(fa, fb));
             }
             // Same-operand carried contacts.
             ((oa, EntityKey::Vertex(va)), (ob, EntityKey::Vertex(vb))) if oa == ob => {
@@ -904,7 +905,16 @@ fn resolve_declarations(
                     Operand::A => &mut out.carried_a,
                     Operand::B => &mut out.carried_b,
                 };
-                c.vv.push(VvContact { a: va, b: vb });
+                // The class is a FIELD at every mint site: this door
+                // resolves today's class-less `Declare` payload, and
+                // the conformal class is what that payload has always
+                // meant. The recipe-side class rides in with the
+                // Declare payload change; the kernel type is already
+                // ready for it.
+                c.vv.push(CarriedVv {
+                    pair: VvContact { a: va, b: vb },
+                    class: ContactClass::Rest,
+                });
             }
             ((oa, EntityKey::Vertex(v)), (ob, EntityKey::Face(f)))
             | ((ob, EntityKey::Face(f)), (oa, EntityKey::Vertex(v)))
@@ -914,7 +924,10 @@ fn resolve_declarations(
                     Operand::A => &mut out.carried_a,
                     Operand::B => &mut out.carried_b,
                 };
-                c.vf.push(VfContact { vertex: v, face: f });
+                c.vf.push(CarriedVf {
+                    rest: VfContact { vertex: v, face: f },
+                    class: ContactClass::Rest,
+                });
             }
             _ => return Err(unsupported()),
         }

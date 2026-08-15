@@ -849,7 +849,12 @@ impl<T: SpanLocate> EdgeCurve<T> {
 
 /// The schedule parameter `t₀ + (t₁ − t₀)·(i/8)` (exact dyadic
 /// fraction; fixed association order, D9).
-fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
+///
+/// Public because the contact vocabulary's tangency verification runs
+/// the SAME schedule over a locus that is not an edge yet
+/// (`topo::boolean::contact_verify`): two samplers over one schedule
+/// is the twin this export exists to prevent.
+pub fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
     let frac = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
     t0 + (t1 - t0) * frac
 }
