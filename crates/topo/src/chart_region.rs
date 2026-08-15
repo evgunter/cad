@@ -863,20 +863,34 @@ fn proper_crossings<T: Decide>(
                 (u, s.norm()),
                 (one - u, s.norm()),
             ];
-            let mut proper = true;
-            for (frac, len) in spans {
-                match decide("chart_region_cross_span", Margin::levered(frac, len), band)
-                    .map_err(escalate)?
-                {
-                    Sign::Positive => {}
-                    Sign::Negative => {
-                        proper = false;
-                        break;
-                    }
-                    Sign::Zero => return Err(ChartRegionError::TouchingBoundary),
+            // All four clearances are decided BEFORE any verdict: a
+            // definite Negative anywhere means the line intersection
+            // lies definitely off a segment — no crossing and no
+            // touch, whatever the other spans read (a Zero there is
+            // the OTHER segment's endpoint sitting on this one's
+            // LINE, far away — the shared-height rectangle corner
+            // configuration). Only with no Negative do the weaker
+            // outcomes speak: an in-band span escalates (a genuine
+            // near-endpoint crossing), an exact Zero is a true
+            // boundary touch.
+            let mut outcomes = [Sign::Positive; 4];
+            let mut indeterminate = None;
+            for (slot, (frac, len)) in outcomes.iter_mut().zip(spans) {
+                match decide("chart_region_cross_span", Margin::levered(frac, len), band) {
+                    Ok(sign) => *slot = sign,
+                    Err(diag) => indeterminate = indeterminate.or(Some(diag)),
                 }
             }
-            if proper {
+            if outcomes.contains(&Sign::Negative) {
+                continue;
+            }
+            if let Some(diag) = indeterminate {
+                return Err(ChartRegionError::Escalated(diag));
+            }
+            if outcomes.contains(&Sign::Zero) {
+                return Err(ChartRegionError::TouchingBoundary);
+            }
+            {
                 out.push(Crossing {
                     ai,
                     bi,
@@ -1152,6 +1166,16 @@ mod tests {
         Point2::new(x, y)
     }
 
+    /// Exact coordinate equality (Point2 carries no PartialEq).
+    fn assert_pt(p: Point2<f64>, x: f64, y: f64) {
+        assert!(
+            p.x == x && p.y == y,
+            "expected ({x}, {y}), got ({}, {})",
+            p.x,
+            p.y
+        );
+    }
+
     /// CCW axis-aligned rectangle polygon.
     fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<Point2<f64>> {
         vec![pt(x0, y0), pt(x1, y0), pt(x1, y1), pt(x0, y1)]
@@ -1186,8 +1210,8 @@ mod tests {
             p0: pt(0.25, 0.0),
             pl: Vec2::new(0.5, 1.0),
         };
-        assert_eq!(pcurve_entry(&line, 0.0, 2.0, true).unwrap(), pt(0.25, 0.0));
-        assert_eq!(pcurve_entry(&line, 0.0, 2.0, false).unwrap(), pt(1.25, 2.0));
+        assert_pt(pcurve_entry(&line, 0.0, 2.0, true).unwrap(), 0.25, 0.0);
+        assert_pt(pcurve_entry(&line, 0.0, 2.0, false).unwrap(), 1.25, 2.0);
 
         let arc = geom_brep::Pcurve::IsoArc {
             p0: pt(0.0, 1.0),
@@ -1198,8 +1222,8 @@ mod tests {
         };
         // The UV image is the straight segment p0 → p0 + pd by
         // variant; endpoints are structural, no Bézier evaluation.
-        assert_eq!(pcurve_entry(&arc, 0.0, 1.0, true).unwrap(), pt(0.0, 1.0));
-        assert_eq!(pcurve_entry(&arc, 0.0, 1.0, false).unwrap(), pt(1.0, 1.0));
+        assert_pt(pcurve_entry(&arc, 0.0, 1.0, true).unwrap(), 0.0, 1.0);
+        assert_pt(pcurve_entry(&arc, 0.0, 1.0, false).unwrap(), 1.0, 1.0);
     }
 
     #[test]
@@ -1210,7 +1234,7 @@ mod tests {
             pb: Vec2::zero(),
             pl: Vec2::new(1.0, 0.0),
         };
-        assert_eq!(pcurve_entry(&linear, 0.0, 3.0, true).unwrap(), pt(0.0, 0.5));
+        assert_pt(pcurve_entry(&linear, 0.0, 3.0, true).unwrap(), 0.0, 0.5);
 
         // The tilted-cut class: an alive sin channel refuses typed.
         let sinusoid = geom_brep::Pcurve::Harmonic {
@@ -1739,15 +1763,17 @@ mod tests {
     }
 
     /// An open cylinder-wall sheet `u ∈ [u0, u1] × z ∈ [z0, z1]` on
-    /// the shared `cyl` key (unit cylinder about ẑ).
+    /// the unit cylinder about ẑ: pass `None` to mint the cylinder
+    /// surface (AFTER the seed solid exists — an unreferenced surface
+    /// is an orphan at the mvfs postcondition), `Some(key)` to share.
     fn cyl_sheet(
         body: &mut Body<f64>,
-        cyl: crate::geometry::SurfaceKey,
+        cyl: Option<crate::geometry::SurfaceKey>,
         u0: f64,
         u1: f64,
         z0: f64,
         z1: f64,
-    ) -> FaceKey {
+    ) -> (FaceKey, crate::geometry::SurfaceKey) {
         let (p00, p10, p11, p01) = (
             cyl_pt(u0, z0),
             cyl_pt(u1, z0),
@@ -1755,6 +1781,7 @@ mod tests {
             cyl_pt(u0, z1),
         );
         let seed = body.mvfs(p00).unwrap();
+        let cyl = cyl.unwrap_or_else(|| body.add_surface(cyl_surface(1.0)));
         let bottom = rim_spec(body, cyl, z0, u0, u1, true);
         let e_b = body
             .mev(
@@ -1788,24 +1815,25 @@ mod tests {
         let he = body
             .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
             .unwrap();
-        body.mef(
-            MefSite::Chords {
-                he1: he,
-                he2: e_b.he_plus,
-            },
-            EdgeCurveSpec::line_between(p01, p00),
-            FaceSurface::Shared(cyl),
-        )
-        .unwrap()
-        .face
+        let face = body
+            .mef(
+                MefSite::Chords {
+                    he1: he,
+                    he2: e_b.he_plus,
+                },
+                EdgeCurveSpec::line_between(p01, p00),
+                FaceSurface::Shared(cyl),
+            )
+            .unwrap()
+            .face;
+        (face, cyl)
     }
 
     #[test]
     fn cylinder_walls_overlap_through_the_radius_lever() {
         let mut body = Body::<f64>::new();
-        let cyl = body.add_surface(cyl_surface(1.0));
-        let w1 = cyl_sheet(&mut body, cyl, 0.2, 1.6, 0.0, 1.0);
-        let w2 = cyl_sheet(&mut body, cyl, 1.0, 2.4, 0.3, 0.7);
+        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0);
+        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7);
         // Without minted caches a minting chart refuses (props.rs
         // posture) — plane charts are the only derive-on-demand lane.
         match chart_region_overlap(&body, w1, &body, w2, band()) {
@@ -1818,7 +1846,7 @@ mod tests {
             ChartOverlap::PositiveArea
         );
         // Disjoint azimuth ranges answer EMPTY.
-        let w3 = cyl_sheet(&mut body, cyl, 3.0, 4.0, 0.0, 1.0);
+        let (w3, _) = cyl_sheet(&mut body, Some(cyl), 3.0, 4.0, 0.0, 1.0);
         crate::pcurves::mint_pcurves(&mut body).unwrap();
         assert_eq!(
             chart_region_overlap(&body, w1, &body, w3, band()).unwrap(),
@@ -1832,14 +1860,13 @@ mod tests {
         // the tilted-section SINUSOID (the F5 envelope discipline
         // moved to (u, v)) refuses typed — never a chord read.
         let mut body = Body::<f64>::new();
-        let cyl = body.add_surface(cyl_surface(1.0));
-        let wall = cyl_sheet(&mut body, cyl, 0.2, 1.6, 0.0, 1.0);
+        let (wall, _) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0);
         crate::pcurves::mint_pcurves(&mut body).unwrap();
 
         // The tilted section z = 0.4·x of the unit cylinder, as its
         // exact ellipse carrier, charted onto the cylinder: the
         // sinusoid Harmonic (pa's v channel = 0.4·cos t).
-        let k = 0.4;
+        let k: f64 = 0.4;
         let major_len = (1.0 + k * k).sqrt();
         let ellipse = Curve3::Ellipse {
             center: Point3::origin(),
