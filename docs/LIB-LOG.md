@@ -414,6 +414,18 @@ satisfies V3 via resolved-bits convention.
   acceptable when the point IS the better authoring; specs should
   say which contract applies. Claimed byte-identity is still
   verified as claimed.
+  **Applied retroactively to #289 itself (2026-08-14).** The ruling
+  landed 57 minutes before that PR merged and was recorded as
+  forward policy, but #289's own deviation D3 — SEL1 deliverable 4's
+  acceptance MOVED off `demos/tour/src/diefillet.rs` to the corpus
+  `die_composed`, because the tour's die "cannot be a recipe at
+  byte-identity" — was left standing, with the byte-identity
+  argument in the demo's own doc comment. It is now discharged at
+  its origin site: the die is ONE recipe document and both surgery
+  blends are `select_where` calls, geometry unchanged in every
+  measured respect. The two library residuals the conversion raised
+  (the all-on-axis revolve-emitter refusal, and the missing group
+  union) are named in `docs/M8-LOG.md`.
 - **Lint-drift check** (#290): the pncad-py hand-restated [lints]
   table needs a drift test vs the workspace set — folded into the
   U9S review as a formal claim.
