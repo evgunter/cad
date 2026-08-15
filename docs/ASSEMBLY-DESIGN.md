@@ -13,8 +13,8 @@ it:
 | NAMING-DESIGN N1–N7 | Names are derivation paths; this doc discharges its scope exclusion "assembly pin representation" (A4) |
 | DESIGN.md banked flags | SE(3) witnesses budgeted, not assumed from sketch machinery; ε-disagreement across referenced documents is a typed error at the seam; pattern indices ride provenance explicitly; free-move/hide are display-layer state, never persisted (G3) |
 
-Decisions are **A1–A11**; open questions **AQ1–AQ6** (AQ3
-discharged by A11). This doc schedules nothing; the implementation
+Decisions are **A1–A12**; open questions **AQ1–AQ7** (AQ3
+discharged by A11; AQ7 by A12). This doc schedules nothing; the implementation
 ladder below names homes, and the program that works through it is
 `docs/ASM-PLAN.md` / `docs/ASM-LOG.md`. Chat/issue rulings
 incorporated: the scope ladder, materialized evaluation, and the
@@ -492,47 +492,39 @@ rung (c); loop CERTIFICATION beyond the C2 verification tables
   shape for value-equal-by-authoring carriers (peg/bore radii),
   and the recourse text steering designed clearance to
   `Fit { g₀ }`. Belongs with the C7-era verification-table specs.
-- **AQ7 — Mate edges, components, and roots (R2-a gate; surfaced
-  by the 2026-08-15 census recon).** Three ratified texts do not
-  compose as written, in one specific spot. A9 defines relative
-  freedom as connected components "of the recipe DAG itself" and
-  states "a `Mate` references both its instances" AS connectivity;
-  A3 gives `Mate` instance-qualified *stable references* (names);
-  and the shipped D3 carve-out (the `Node::inputs()` ruling —
-  `Declare`/`InstantiatePart` precedent) makes name references NOT
-  DAG edges. Read literally, mated instances stay in different
-  components — "relatively free" while mate-constrained, exactly
-  the silent-contradiction-on-drag A9's principle forbids.
-  **Proposed resolution (firm):** (1) `Mate` contributes edges of
-  a second sort — *reading edges* — to the instantiate nodes its
-  references resolve through (the head segment of each name,
-  resolvable structurally at edit time; recomputed from recipe
-  data, never stored beside it, honoring A9's no-derived-graph
-  simplification; a dangling head per N5 simply contributes no
-  edge until `Rebind`). (2) A9's partition — and A11's
-  mate-connected placement clusters — runs over ALL edges: mates
-  couple components; G3's free-drag moves/refuses whole mated
-  clusters. (3) A10's invariants, maintenance, and gather run
-  over CONSUMING edges only: inserting a mate consumes no root
-  (no tip-transfer to a bodiless node — the instances' bodies
-  keep gathering), ancestor-freedom and the gather are untouched.
-  **The residual fork — the Mate node's own root status** (under
-  consuming-edge maintenance a mate is an isolated sink):
-  *Option A (recommended)*: mates are ordinary non-body roots —
-  A10 already legalizes non-body-denoting roots, "no consumers →
-  root" applies unchanged, coverage holds trivially; cost is
-  root-list noise (every mate appears in the product-roots list
-  that users and A4's split/inline manipulate — a crossing mate's
-  root membership then meets the interface record, spec'd in R2).
-  *Option B*: declaration-sort nodes are coverage-exempt and
-  never roots — cleaner list, but amends A10's invariant text
-  (coverage and the sink-set observation gain a node-sort
-  restriction) and adds a sort test to maintenance. A is
-  recommended because it keeps every ratified A10 sentence true
-  as written and moves the noise concern to presentation, where a
-  filter is cheap. Ruling wanted before the R2-a spec binds: it
-  fixes `Node::inputs()` semantics, the cluster-partition source,
-  and root-maintenance behavior on mate insert/delete.
+- **AQ7 — DISCHARGED into A12** (sign-off 2026-08-15, PR #522).
+
+## A12 — Mate edges and roots (discharges AQ7)
+
+**(Sign-off 2026-08-15, PR #522 — Option A.)** Ratified resolution
+of the A3/A9/A10 composition question the R2 census recon surfaced
+(a `Mate`'s stable-name references are not DAG edges under the
+shipped D3 carve-out, yet A9 defines relative freedom over the
+recipe DAG itself):
+
+- **Reading edges.** A `Mate` contributes edges of a second sort —
+  *reading edges* — to the instantiate nodes its references
+  resolve through (the head segment of each instance-qualified
+  name). Reading edges are RECOMPUTED from recipe data at need,
+  never stored beside it — the DAG stays the single structure
+  (A9's no-derived-graph simplification holds). A dangling head
+  (N5) contributes no edge until `Rebind`.
+- **Partitions.** A9's relative-freedom partition — and A11's
+  mate-connected placement clusters — run over ALL edges: mates
+  couple components, so G3's free-drag moves or refuses whole
+  mated clusters. A10's invariants, automatic maintenance, and
+  the product gather run over CONSUMING edges only: inserting a
+  mate consumes no root (no tip-transfer onto a bodiless node —
+  the instances' bodies keep gathering), and ancestor-freedom is
+  read over consuming paths.
+- **Mates are ordinary non-body roots (Option A).** Under
+  consuming-edge maintenance a mate is an isolated sink, so "no
+  consumers → root" applies unchanged and every A10 sentence
+  stays true as written: the mate joins the root list, denotes no
+  body, and the gather ignores it. The root-list noise concern is
+  presentational — a filter is cheap; A4's split handles a
+  crossing mate's root membership alongside the interface record
+  (spec'd in R2).
 
 ## Implementation ladder
 
