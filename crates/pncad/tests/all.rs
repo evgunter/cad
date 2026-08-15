@@ -1889,3 +1889,161 @@ fn asm2b_spawn_probe(tag: &str) -> String {
     let _ = std::fs::remove_file(&out);
     bits
 }
+
+// ---- ASM-4: split and inline through the real store ----
+
+/// D-1 — the workspace write side: `create` mints `{id}.pncad` and the
+/// scan sees it; `resave` rewrites in place (the pin moves, and a
+/// stale reference refuses typed); the misuse doors refuse typed —
+/// duplicate id at create (acceptance row 3), unknown id at resave.
+#[test]
+fn asm4_workspace_create_and_resave() {
+    use pncad::document as d;
+    let dir = WsDir::new("asm4-ws");
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("empty scan");
+
+    let (doc, _) = ws_doc("asm4-ws-part");
+    let path = ws.create(&doc).expect("the create writes");
+    assert_eq!(
+        path.file_name().and_then(|n| n.to_str()),
+        Some(format!("{}.pncad", doc.id()).as_str()),
+        "the file name is a pure function of the identity (D9)"
+    );
+    let doc_ref = d::DocRef {
+        id: doc.id(),
+        pin: d::content_pin(&doc).expect("pins"),
+    };
+    // A fresh scan agrees with the incremental map, and resolves.
+    let reopened = pncad::workspace::Workspace::open(&dir.0).expect("rescan");
+    assert!(reopened.resolve(&doc_ref).expect("resolves").bit_eq(&doc));
+
+    // Duplicate id at create: refused naming both paths, nothing
+    // written.
+    let (dup, _) = ws_doc("asm4-ws-part");
+    match ws.create(&dup) {
+        Err(pncad::workspace::WorkspaceError::DuplicateId { id, first, second }) => {
+            assert_eq!(id, doc.id());
+            assert_eq!(first, path);
+            assert_eq!(second, path, "the same id names the same file");
+        }
+        other => panic!("expected DuplicateId, got {other:?}"),
+    }
+
+    // Resave rewrites in place; the old pin no longer holds and the
+    // stale reference is a typed PinMismatch (A4 — never retargeted).
+    let (moved, _) = doors_insert(doc.clone(), doors_square(3.0));
+    let resaved = ws.resave(&moved).expect("the resave writes");
+    assert_eq!(resaved, path, "the file keeps its path");
+    let reopened = pncad::workspace::Workspace::open(&dir.0).expect("rescan");
+    match pncad::workspace::Workspace::resolve(&reopened, &doc_ref) {
+        Err(pncad::workspace::WorkspaceError::PinMismatch { .. }) => {}
+        other => panic!("expected PinMismatch, got {other:?}"),
+    }
+
+    // Resave of an id the store never scanned refuses typed.
+    let (foreign, _) = ws_doc("asm4-ws-foreign");
+    match ws.resave(&foreign) {
+        Err(pncad::workspace::WorkspaceError::UnknownId { id }) => {
+            assert_eq!(id, foreign.id());
+        }
+        other => panic!("expected UnknownId, got {other:?}"),
+    }
+}
+
+/// The document-layer end-to-end: split through the real store —
+/// create the part, resave the remainder, reopen, and the A4 identity
+/// holds; inline back through the workspace resolver and it holds
+/// against the original.
+#[test]
+fn asm4_split_and_inline_through_the_real_store() {
+    use pncad::document as d;
+    let dir = WsDir::new("asm4-e2e");
+    let part_ref = asm2a_part(&dir, "part.pncad", "asm4-e2e-part");
+    let (doc, ids) = asm2a_assembly("asm4-e2e-asm", part_ref, 2);
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("scan");
+    let mut ws_mut = ws.clone();
+    let ev1 = asm2a_eval(&doc, &ws);
+    let body1 = d::product(&doc, &ev1).expect("gathers");
+    let vol = |b: &pncad::topo::Body<f64>| {
+        pncad::topo::mass_properties(b)
+            .expect("mass properties")
+            .volume
+            .to_bits()
+    };
+
+    let cut = std::collections::BTreeSet::from([ids[1]]);
+    let out = d::split(&doc, &cut, d::DocumentId::derive("asm4-e2e-new")).expect("legal");
+    ws_mut.create(&out.part).expect("the part lands in the store");
+    // The assembly itself is not in this store (it was never saved);
+    // saving the remainder under its id is the caller's create-or-
+    // resave choice — here the assembly starts on disk too.
+    let ws2 = pncad::workspace::Workspace::open(&dir.0).expect("rescan");
+    let ev2 = asm2a_eval(&out.remainder, &ws2);
+    let body2 = d::product(&out.remainder, &ev2).expect("gathers");
+    assert_eq!(body1.solids().count(), body2.solids().count());
+    assert_eq!(body1.faces().count(), body2.faces().count());
+    assert_eq!(vol(&body1), vol(&body2), "volumes bit-equal through the store");
+
+    let inlined = d::inline(&out.remainder, out.instance, &ws2).expect("inlines back");
+    let ev3 = asm2a_eval(&inlined.doc, &ws2);
+    let body3 = d::product(&inlined.doc, &ev3).expect("gathers");
+    assert_eq!(vol(&body1), vol(&body3), "the round trip's volume is bit-equal");
+    assert_eq!(body1.solids().count(), body3.solids().count());
+}
+
+/// Row 6 (D9) — split twice in FRESH processes produces byte-identical
+/// documents (both sides; the minted id is caller-supplied and
+/// derived, so the whole pair is a pure function of the recipe).
+#[test]
+fn asm4_row6_split_bytes_agree_across_two_fresh_processes() {
+    let a = asm4_spawn_probe("a");
+    let b = asm4_spawn_probe("b");
+    assert_eq!(a, b, "two fresh processes split to identical bytes (D9)");
+    assert!(
+        a.contains("\u{1e}"),
+        "the probe really wrote both documents"
+    );
+}
+
+const ASM4_PROBE_OUT: &str = "ASM4_PROBE_OUT";
+
+/// The child half of row 6: build the deterministic two-cluster
+/// assembly, split its second cluster out, and write both documents'
+/// save bytes.
+#[test]
+fn asm4_child_split_probe() {
+    use pncad::document as d;
+    let Ok(out) = std::env::var(ASM4_PROBE_OUT) else {
+        return; // not the child — nothing to do
+    };
+    let dir = WsDir::new("asm4-probe");
+    let part_ref = asm2a_part(&dir, "part.pncad", "asm4-probe-part");
+    let (doc, ids) = asm2a_assembly("asm4-probe-asm", part_ref, 2);
+    let cut = std::collections::BTreeSet::from([ids[1]]);
+    let split_out =
+        d::split(&doc, &cut, d::DocumentId::derive("asm4-probe-new")).expect("legal");
+    let text = format!(
+        "{}\u{1e}{}",
+        d::save(&split_out.part, &[]).expect("part saves"),
+        d::save(&split_out.remainder, &[]).expect("remainder saves"),
+    );
+    std::fs::write(&out, text).expect("probe output writable");
+}
+
+fn asm4_spawn_probe(tag: &str) -> String {
+    let exe = std::env::current_exe().expect("test exe path");
+    let out = std::env::temp_dir().join(format!("asm4-probe-{tag}-{}", std::process::id()));
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::asm4_child_split_probe"),
+        None => "asm4_child_split_probe".to_string(),
+    };
+    let status = std::process::Command::new(exe)
+        .args([probe.as_str(), "--exact", "--nocapture"])
+        .env(ASM4_PROBE_OUT, &out)
+        .status()
+        .expect("probe spawns");
+    assert!(status.success(), "probe {tag} failed");
+    let bytes = std::fs::read_to_string(&out).expect("probe wrote");
+    let _ = std::fs::remove_file(&out);
+    bytes
+}

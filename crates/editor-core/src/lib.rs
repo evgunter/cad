@@ -32,6 +32,7 @@ pub mod persist;
 pub mod placement;
 pub mod product;
 pub mod program;
+pub mod refactor;
 pub mod resolve;
 pub mod roots;
 pub mod witness;
@@ -76,6 +77,9 @@ pub use persist::{
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use placement::Frame;
 pub use product::{ProductError, product, product_named};
+pub use refactor::{
+    InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split,
+};
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramRefusal, ProgramStep,
     ProgramTarget, RecordedProgramError,
