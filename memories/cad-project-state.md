@@ -38,3 +38,9 @@ the M7 landing-retraction addendum). Merge gate = hosted Actions
 (nextest build-once/sharded matrix since #167), ci-local.sh mirror.
 References live in the MAIN checkout. Name still pending (Q9);
 `pncad` is the greppable placeholder.
+
+**Schema posture (Evan, 2026-08-15, at the M9 plan conversation):**
+document-schema changes are CLEAN BREAKS while nothing is released
+— no migrations, no overhead, bump count is NOT optimized. The only
+remaining discipline: one-meaning-per-version (the v7/v8
+double-claim rule) and claim-on-main-at-dispatch.
