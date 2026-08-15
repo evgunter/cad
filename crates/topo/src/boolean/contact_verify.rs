@@ -234,6 +234,43 @@ pub fn tangent_pair_relation<T: Decide>(
                 what: "the B-side declared face has no surface",
             })?,
     );
+    tangent_locus_relation(
+        s1,
+        face_a.sense,
+        s2,
+        face_b.sense,
+        carrier,
+        t0,
+        t1,
+        declared,
+        band,
+    )
+}
+
+/// [`tangent_pair_relation`]'s body, at the SURFACE level: the two
+/// oriented surfaces (each with its face's material-side bit), the
+/// locus and its parameter range.
+///
+/// The face-level door resolves keys and calls this; the geometry is
+/// all here, so a fixture can drive the C4 table on raw surfaces
+/// without building a body around a configuration whose whole point is
+/// the surface pair. One ladder, two entry points.
+///
+/// # Errors
+///
+/// [`ContactRefusal`] — see [`tangent_pair_relation`].
+#[allow(clippy::too_many_arguments)]
+pub fn tangent_locus_relation<T: Decide>(
+    s1: &geom_surfaces::Surface<T>,
+    sense1: bool,
+    s2: &geom_surfaces::Surface<T>,
+    sense2: bool,
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    declared: bool,
+    band: Band,
+) -> Result<ContactVerdict, ContactRefusal> {
     // The lane gate FIRST: the demanded set is the certifiable set,
     // so a configuration whose span bounds do not exist gets no
     // per-sample verdict either — refusing here is the order-k
@@ -248,7 +285,8 @@ pub fn tangent_pair_relation<T: Decide>(
         tangent_span_bounds(s1, s2, carrier, t0, t1).ok_or(ContactRefusal::NotCertifiable {
             what: "the jet schedule's span bounds are unavailable for this configuration",
         })?;
-    let (sa, sb) = (face_a.sense_sign::<T>(), face_b.sense_sign::<T>());
+    let sa = if sense1 { T::one() } else { -T::one() };
+    let sb = if sense2 { T::one() } else { -T::one() };
     let mut bridged = false;
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
@@ -383,4 +421,188 @@ pub fn tangent_pair_relation<T: Decide>(
     } else {
         ContactVerdict::Definite
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use geom_core::{Point3, Vec3};
+    use geom_surfaces::Surface;
+
+    fn band() -> Band {
+        Band::from_eps(1e-9).unwrap()
+    }
+
+    fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
+        Surface::Plane {
+            origin: Point3::new(o[0], o[1], o[2]),
+            normal: Vec3::new(n[0], n[1], n[2]),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            source: None,
+        }
+    }
+
+    fn line(o: [f64; 3], d: [f64; 3]) -> geom_curves::Curve3<f64> {
+        geom_curves::Curve3::Line {
+            origin: Point3::new(o[0], o[1], o[2]),
+            dir: Vec3::new(d[0], d[1], d[2]),
+        }
+    }
+
+    /// The certified-lane row: a cylinder resting on a plane, tangent
+    /// along the contact ruling. Every must-verify condition is
+    /// DEFINITE, so the verdict stands without the declaration doing
+    /// any work — and the detector arm (`declared: false`) agrees,
+    /// which is what "the declaration added nothing" means.
+    #[test]
+    fn cylinder_on_plane_verifies_definite_through_the_jet_loop() {
+        let cyl = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            axis: Vec3::new(1.0, 0.0, 0.0),
+            radius: 1.0,
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+            source: None,
+        };
+        let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+        let ruling = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+        // Cylinder outward points away from its axis, so at z = 0 it
+        // is −ẑ; the plane's face normal is +ẑ. Opposed.
+        for declared in [true, false] {
+            assert_eq!(
+                tangent_locus_relation(
+                    &cyl,
+                    true,
+                    &flat,
+                    true,
+                    &ruling,
+                    -1.0,
+                    1.0,
+                    declared,
+                    band()
+                )
+                .unwrap(),
+                ContactVerdict::Definite,
+                "declared = {declared}"
+            );
+        }
+    }
+
+    /// The contradiction row: a sphere and a plane through its
+    /// equator. The locus lies on BOTH surfaces, so nothing is
+    /// separated — but the normals there are definitely INDEPENDENT
+    /// (radial versus axial), which is a transverse intersection, not
+    /// a tangency. The declaration loses: every definite verdict wins.
+    #[test]
+    fn definite_normal_independence_contradicts_the_declaration() {
+        let sphere = Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            v_ref: Vec3::new(0.0, 0.0, 1.0),
+            source: None,
+        };
+        let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+        let equator = geom_curves::Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let err = tangent_locus_relation(
+            &sphere,
+            true,
+            &flat,
+            false,
+            &equator,
+            0.0,
+            std::f64::consts::TAU,
+            true,
+            band(),
+        )
+        .unwrap_err();
+        match err {
+            ContactRefusal::Contradicted { diag, .. } => assert_eq!(
+                diag.predicate,
+                Some("contact_tangent_independent"),
+                "the refusal must name the margin that decided"
+            ),
+            other => panic!("expected Contradicted, got {other:?}"),
+        }
+    }
+
+    /// **The #175 clause, pinned as its own row.** Two coincident
+    /// opposite-sense planes are tangent along every line in them, and
+    /// their relative curvature is EXACTLY zero everywhere — the
+    /// degenerate limit of the G1 tube chain's neutral meridian
+    /// points. The jet certificate is honestly indeterminate there.
+    ///
+    /// Three outcomes at one geometry, which is the whole point:
+    /// DECLARED it BRIDGES (intent carries the non-crossing claim
+    /// across exactly those samples); UNDECLARED it refuses typed (a
+    /// detector never mints a candidate it cannot certify); and the
+    /// certifiable configuration one row up is DEFINITE. Demanding
+    /// jet-determinacy here would make every G1 chain undeclarable at
+    /// its neutral points — #175 finding 1 with extra steps.
+    #[test]
+    fn exact_kappa_zero_bridges_when_declared_and_refuses_when_not() {
+        let up = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+        let down = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+        let along = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+        assert_eq!(
+            tangent_locus_relation(&up, true, &down, false, &along, -1.0, 1.0, true, band())
+                .unwrap(),
+            ContactVerdict::Bridged,
+            "declared: the in-band/zero second-order margin is the bridged residue"
+        );
+        let refusal =
+            tangent_locus_relation(&up, true, &down, false, &along, -1.0, 1.0, false, band())
+                .unwrap_err();
+        assert!(
+            matches!(refusal, ContactRefusal::Escalated { .. }),
+            "undeclared: the same geometry refuses typed, never silently passes: {refusal:?}"
+        );
+    }
+
+    /// Outside the certified lane there is no verdict at all — the
+    /// demanded set IS the certifiable set (C3's order-k boundary),
+    /// so a cone tangency refuses typed rather than being sampled.
+    #[test]
+    fn outside_the_lane_refuses_typed_rather_than_sampling() {
+        let cone = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 2.0),
+            axis: Vec3::new(0.0, 0.0, -1.0),
+            half_angle: 0.5,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            source: None,
+        };
+        let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+        let along = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+        assert!(matches!(
+            tangent_locus_relation(&cone, true, &flat, true, &along, -1.0, 1.0, true, band()),
+            Err(ContactRefusal::NotCertifiable { .. })
+        ));
+    }
+
+    /// AQ6's steer: a SEPARATION-shaped contradiction points at the
+    /// class that would fit and names its deferral; an ANGULAR one
+    /// does not, because no gap makes two non-parallel carriers one.
+    #[test]
+    fn fit_steer_fires_only_where_a_gap_could_help() {
+        let diag = |p| Indeterminate {
+            margin: geom_core::MarginDiag::Invalid,
+            band: band(),
+            predicate: Some(p),
+        };
+        assert_eq!(
+            fit_steer(&diag("carrier_sphere_radius")),
+            Some(FIT_DEFERRAL)
+        );
+        assert_eq!(
+            fit_steer(&diag("carrier_cyl_axis_offset")),
+            Some(FIT_DEFERRAL)
+        );
+        assert_eq!(fit_steer(&diag("carrier_cyl_axis_parallel")), None);
+        assert_eq!(fit_steer(&diag("bool_plane_parallel")), None);
+    }
 }

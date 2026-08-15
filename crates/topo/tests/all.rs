@@ -76,6 +76,8 @@ mod m5_s1_rest_zip;
 mod m6_2_fitted_at_rest;
 #[path = "m6_3_chart_completion.rs"]
 mod m6_3_chart_completion;
+#[path = "m9_1_contact_vocabulary.rs"]
+mod m9_1_contact_vocabulary;
 #[path = "merge_skip.rs"]
 mod merge_skip;
 #[path = "review_m1_pr5.rs"]
