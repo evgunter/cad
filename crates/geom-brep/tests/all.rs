@@ -80,6 +80,8 @@ mod review_r1_rational_probes;
 mod rim_dim_review_probes;
 #[path = "rim_dim_scale_twins.rs"]
 mod rim_dim_scale_twins;
+#[path = "span_meter_dim_twins.rs"]
+mod span_meter_dim_twins;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.
