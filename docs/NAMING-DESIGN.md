@@ -334,7 +334,7 @@ contract).
   the menu starts empty by decision.
 
 ## The split-naming walls (2026-08-15 survey; the G14 disposition
-## — PROPOSED, part A awaiting Evan)
+## — RATIFIED: Evan 👍 on #512, A2 + the B1 alignment)
 
 The LIB audit's "G14" turned out to be TWO disjoint M4-era
 deferrals (one logged sentence, M4-LOG:311), disentangled by
@@ -367,7 +367,7 @@ SectionEdge entries (one tie story everywhere — B1's direction;
 the selector layer already narrows ties geometrically, so a
 specific chord stays reachable via select_where); A3 index by
 the minted section face (new coupling to face identity).
-RECOMMENDED: A2 — it reuses the ratified tie vocabulary instead
+RATIFIED: A2 — it reuses the ratified tie vocabulary instead
 of inventing an ordering, and composes with the SEL1 selector
 story for disambiguation. #380 (a Display for NamingError) rides
 the implementation unit as a mechanical fail-loud rider; it
