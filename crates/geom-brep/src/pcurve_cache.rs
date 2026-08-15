@@ -4216,4 +4216,85 @@ mod tests {
             Err(PcurveCertifyError::AzimuthPeriodExceeded)
         ));
     }
+
+    /// The cone's azimuth lever DOMINATES the local one everywhere
+    /// either object lives. `azimuth_lever` at a single `v` is the
+    /// parallel radius there (`|v|·sin alpha`); the arm the checks take
+    /// is that lever at the `|v|` supremum of the pcurve's box and the
+    /// face window together, so it is an upper bound at every `v` in
+    /// either — the direction that cannot under-state an escape or a
+    /// winding. Both signs of `v` (both nappes) are swept.
+    #[test]
+    fn the_cone_azimuth_lever_dominates_the_local_lever_over_box_and_window() {
+        let half_angle = 0.5_f64.atan();
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle,
+            u_ref: Vec3::unit_x(),
+        };
+        let boxed = ChartWindow {
+            u_min: 0.0,
+            u_max: FRAC_PI_2,
+            v_min: -3.0,
+            v_max: 1.5,
+        };
+        let window = ChartWindow {
+            u_min: -0.5,
+            u_max: PI,
+            v_min: 0.25,
+            v_max: 2.25,
+        };
+        let (arm, v_arm) = chart_arms_at(&cone, &boxed, &window);
+        assert!(
+            (v_arm - 1.0).abs() < 1e-15,
+            "the cone's v IS a slant length"
+        );
+        for w in [&boxed, &window] {
+            for i in 0..=64 {
+                let t = f64::from(i) / 64.0;
+                let v = w.v_min + (w.v_max - w.v_min) * t;
+                let local = azimuth_lever(&cone, v.abs());
+                assert!(
+                    local <= arm + 1e-15,
+                    "the arm {arm:e} must dominate the local lever {local:e} at v = {v:e}"
+                );
+            }
+        }
+        // And it is the lever AT the supremum, not something larger:
+        // an arm bigger than the geometry demands would refuse honest
+        // work. |v| tops out at 3 (the box's lower edge).
+        assert!((arm - azimuth_lever(&cone, 3.0)).abs() < 1e-15);
+    }
+
+    /// A carrier whose meter collapses refuses AT THE METER — no
+    /// forward verdict is fabricated from a rate that cannot convert a
+    /// span to metres, and the refusal is `Invalid`, distinct from the
+    /// backwards-span verdict the metered check below it names.
+    #[test]
+    fn a_collapsed_carrier_meter_refuses_rather_than_metering_a_span() {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let point = Point3::new(1.0, 2.0, 3.0);
+        let net = NurbsCurve3::new(knots, vec![point, point], vec![1.0, 1.0]).unwrap();
+        let carrier = Curve3::Nurbs(Arc::new(net));
+        assert!(
+            param_rate(&carrier).is_nan(),
+            "a net that never moves states no speed bound at all"
+        );
+        let cause = param_rate_gate(&carrier, band())
+            .expect_err("a poison meter cannot license a metered span");
+        assert!(matches!(cause.margin, geom_core::MarginDiag::Invalid));
+        assert_eq!(cause.predicate, Some("pcurve_interval_meter"));
+        // A HEALTHY net of the same shape licenses its span, so the
+        // refusal above is the meter's, not the lane's.
+        let ok_knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let ok = NurbsCurve3::new(
+            ok_knots,
+            vec![point, Point3::new(1.0, 2.0, 4.0)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
+        let rate = param_rate_gate(&Curve3::Nurbs(Arc::new(ok)), band()).unwrap();
+        assert!((rate - 1.0).abs() < 1e-15, "the unit-chord net meters at 1");
+    }
 }
