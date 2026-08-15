@@ -6,11 +6,13 @@
 mod fixture;
 
 use editor_core::{
-    CancelToken, CapEnd, Datum, EntityKind, Entry, EvalOptions, Evaluation, MeridianEnd, NameTable,
-    Node, ProfileDoc, ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, RoleSeg, SplitHalf,
-    StableName, evaluate,
+    CancelToken, CapEnd, Datum, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
+    MeridianEnd, NameTable, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
+    ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SplitHalf, StableName, evaluate,
 };
 use fixture::{ang, desc, insert, len};
+use geom_core::{Point3, Vec3};
+use profile::SketchPlane;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
@@ -140,6 +142,49 @@ fn revolve_doc(pts: Vec<(f64, f64)>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = insert(
         doc,
         Node::Profile(desc([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts])),
+    );
+    let (doc, axis) = insert(
+        doc,
+        Node::Datum(Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
+        }),
+    );
+    insert(
+        doc,
+        Node::Revolve {
+            profile: p,
+            axis,
+            angle: ang(angle),
+        },
+    )
+}
+
+/// The natural meridian, on the same plane and axis as [`revolve_doc`]:
+/// a bulge-1 semicircle from (0, −1) to (0, 1) closed by its on-axis
+/// diameter. EVERY vertex of this loop is on the axis — the shape the
+/// pole export exists for.
+fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("m4_pr3_names");
+    let p2 = |x: f64, y: f64| [len(x), len(y)];
+    let meridian = LoopProgram::Chain(vec![
+        ProgramStep::At(p2(0.0, -1.0)),
+        ProgramStep::ArcTo {
+            target: ProgramTarget::Point(p2(0.0, 1.0)),
+            bulge: fixture::scl(1.0),
+        },
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let (doc, p) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane: SketchPlane::from_frame(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
+            loops: vec![meridian],
+        }),
     );
     let (doc, axis) = insert(
         doc,
@@ -310,6 +355,30 @@ fn full_wire_revolve_names_pi_band_and_poles() {
         .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Pole(_))))
         .count();
     assert_eq!(poles, 2);
+}
+
+/// RED ROW (M9-D1, pre-fix): the all-on-axis loop the emitter refuses.
+#[test]
+fn full_revolve_of_an_all_on_axis_loop_refuses_typed() {
+    let (doc, rev) = ball_doc(std::f64::consts::TAU);
+    let ev = run(&doc);
+    let msg = format!("{:?}", ev.nodes.get(&rev));
+    assert!(
+        ev.value(rev).is_none() && msg.contains("all-on-axis loop"),
+        "expected the all-on-axis naming refusal, got {msg}"
+    );
+}
+
+/// RED ROW (M9-D1, pre-fix): the same loop, partially revolved.
+#[test]
+fn partial_revolve_of_an_all_on_axis_loop_refuses_typed() {
+    let (doc, rev) = ball_doc(std::f64::consts::FRAC_PI_2);
+    let ev = run(&doc);
+    let msg = format!("{:?}", ev.nodes.get(&rev));
+    assert!(
+        ev.value(rev).is_none() && msg.contains("all-on-axis loop"),
+        "expected the all-on-axis naming refusal, got {msg}"
+    );
 }
 
 // ---- Split: sections, fragments, crossings, pass-through. ----
