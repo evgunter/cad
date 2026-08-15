@@ -417,13 +417,18 @@
 //! let Some(NodeResult::Failed(e)) = ev.nodes.get(&uni) else {
 //!     panic!("the undeclared union must refuse");
 //! };
-//! assert!(matches!(
-//!     e.kind,
-//!     NodeErrorKind::Boolean(BooleanError::UndeclaredCoincidence { .. })
-//! ));
+//! // The refusal IS the menu (register R3): it carries the candidate
+//! // declaration — the pair by stable name, with its relation — in
+//! // the detector's own value shape.
+//! let NodeErrorKind::UndeclaredContact { finding, .. } = &e.kind else {
+//!     panic!("expected the refusal menu, got {:?}", e.kind);
+//! };
+//! assert_eq!(finding.class, ContactClass::Rest);
 //!
 //! // The declare arm: detect, INSPECT, declare, and the SAME doors
-//! // that refused now verify the declared contact.
+//! // that refused now verify the declared contact. (Declaring the
+//! // menu's own finding — `declare(&doc, finding)` — is the same
+//! // door; the detector shows the full inventory.)
 //! let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
 //! let findings = find_flush_candidates(&ev, base, block).expect("definite findings");
 //! assert_eq!(findings.len(), 1);

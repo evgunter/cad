@@ -64,8 +64,21 @@ pub enum PlaneEqError {
     /// A margin landed in the sliver band.
     Escalated(Indeterminate),
     /// Geometrically coincident-or-near without shared source or
-    /// declared intent: an undeclared coincidence (F6).
-    Undeclared(Indeterminate),
+    /// declared intent: an undeclared coincidence (F6). Carries the
+    /// orientation rung 3 DECIDED before the offset was taken
+    /// (`bool_plane_orient` is definite on this path), so a refusal
+    /// can name the relation a declaration would assert — the
+    /// refusal-menu payload (SELECT-DESIGN §3d) — without re-running
+    /// any decide on the error path.
+    Undeclared {
+        /// The offset predicate's diagnostics (a decided-zero offset
+        /// encodes as `MarginDiag::Invalid`; an in-band offset
+        /// carries the real margin).
+        diag: Indeterminate,
+        /// The decided orientation: [`PlaneRelation::SameOriented`]
+        /// or [`PlaneRelation::SameOpposite`], never `Distinct`.
+        relation: PlaneRelation,
+    },
     /// A declared-coincident pair whose planes are DEFINITELY distinct
     /// — the recipe's declaration contradicts the geometry; refused
     /// loudly, never glued (rung 2's verification direction).
@@ -191,9 +204,12 @@ pub fn oriented_plane_eq<T: Decide>(
     // orientation flip induces at the arm (rim-dimensional audit,
     // class (c); |cos| ≈ 1 here so the margin is ≈ ±arm, decisive).
     let sign_margin = Margin::levered(p1.normal.dot(p2.normal), arm);
-    let sigma = match decide("bool_plane_orient", sign_margin, band) {
-        Ok(Sign::Positive) => T::one(),
-        Ok(Sign::Negative) => -T::one(),
+    // `relation` rides beside σ: it is the orientation this decision
+    // just made definite, and the relation an `Undeclared` refusal
+    // names (only the offset's coincidence lacks intent there).
+    let (sigma, relation) = match decide("bool_plane_orient", sign_margin, band) {
+        Ok(Sign::Positive) => (T::one(), PlaneRelation::SameOriented),
+        Ok(Sign::Negative) => (-T::one(), PlaneRelation::SameOpposite),
         Ok(Sign::Zero) => {
             return Err(PlaneEqError::Escalated(Indeterminate {
                 margin: geom_core::MarginDiag::Invalid,
@@ -209,12 +225,15 @@ pub fn oriented_plane_eq<T: Decide>(
         // Rung 4: geometrically the same plane, but neither identity
         // rung fired — undeclared coincidence, typed (rung (b): value
         // equality never glues).
-        Ok(Sign::Zero) => Err(PlaneEqError::Undeclared(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
-            band,
-            predicate: Some("bool_plane_offset"),
-        })),
-        Err(diag) => Err(PlaneEqError::Undeclared(diag)),
+        Ok(Sign::Zero) => Err(PlaneEqError::Undeclared {
+            diag: Indeterminate {
+                margin: geom_core::MarginDiag::Invalid,
+                band,
+                predicate: Some("bool_plane_offset"),
+            },
+            relation,
+        }),
+        Err(diag) => Err(PlaneEqError::Undeclared { diag, relation }),
     }
 }
 
@@ -335,7 +354,7 @@ mod tests {
         // the ratified rung (b), the M4 PR 5 narrowing).
         let other = GeomSource::minted(9, 3);
         let err = oriented_plane_eq(&p1, &p1.clone(), id(&s, &other), 1.0, band()).unwrap_err();
-        assert!(matches!(err, PlaneEqError::Undeclared(_)), "{err:?}");
+        assert!(matches!(err, PlaneEqError::Undeclared { .. }), "{err:?}");
     }
 
     /// The declared-pair rung (F5): intent + non-contradiction glues
@@ -401,7 +420,7 @@ mod tests {
         // Same plane to within a fraction of ε, described differently.
         let p2 = plane([0.0, 0.0, 5.0 + 0.25 * eps], [0.0, 0.0, 1.0]);
         let err = oriented_plane_eq(&p1, &p2, PlaneIdentity::NONE, 1.0, band()).unwrap_err();
-        assert!(matches!(err, PlaneEqError::Undeclared(_)), "{err:?}");
+        assert!(matches!(err, PlaneEqError::Undeclared { .. }), "{err:?}");
     }
 
     /// A near-miss in the sliver band escalates typed.
@@ -414,7 +433,7 @@ mod tests {
         let err = oriented_plane_eq(&p1, &p2, PlaneIdentity::NONE, 1.0, band()).unwrap_err();
         assert!(matches!(
             err,
-            PlaneEqError::Undeclared(_) | PlaneEqError::Escalated(_)
+            PlaneEqError::Undeclared { .. } | PlaneEqError::Escalated(_)
         ));
     }
 }

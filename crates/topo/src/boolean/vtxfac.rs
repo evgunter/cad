@@ -151,8 +151,12 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             }
             Ok(rel) => rel,
             Err(PlaneEqError::Escalated(diag)) => return Err(BooleanError::Escalated { diag }),
-            Err(PlaneEqError::Undeclared(diag)) => {
-                return Err(BooleanError::UndeclaredCoincidence { diag });
+            Err(PlaneEqError::Undeclared { diag, relation }) => {
+                return Err(BooleanError::UndeclaredCoincidence {
+                    diag,
+                    pair: [(piercing, s.face), (pierced_op, contact.face)],
+                    relation,
+                });
             }
             Err(PlaneEqError::Contradicted(diag)) => {
                 return Err(BooleanError::DeclarationContradicted { diag });

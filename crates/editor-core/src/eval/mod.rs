@@ -508,6 +508,31 @@ pub enum NodeErrorKind {
         /// Whether the names resolved in different operands.
         cross_operand: bool,
     },
+    /// The boolean refused an UNDECLARED contact (F6) and the raise
+    /// site identified the face pair — the refusal-menu payload
+    /// (SELECT-DESIGN §3d, register R3, LIB-PYG5). `finding` is the
+    /// SAME value shape the detector answers with: the pair's keys
+    /// resolved to StableNames through the OPERANDS' name tables, the
+    /// relation the coincidence ladder decided before refusing.
+    /// Nothing is re-detected on the error path — the payload is what
+    /// the raise site held. So the recourse is IN the error, and the
+    /// menu has exactly two arms (the #256 ruling applied to contact,
+    /// no absorb arm): declare this finding
+    /// ([`crate::names::declare`] / [`crate::node::Node::Declare`] →
+    /// the boolean's `declare` input), or move the geometry.
+    ///
+    /// Raised INSTEAD of wrapping the kernel's
+    /// `BooleanError::UndeclaredCoincidence` under
+    /// [`NodeErrorKind::Boolean`]; if either key fails to resolve to
+    /// a name (an emitter-coverage invariant break, not an authoring
+    /// state), the plain `Boolean` wrapping is preserved — the
+    /// boolean's refusal is never masked by its own menu.
+    UndeclaredContact {
+        /// The candidate declaration, in the detector's value shape.
+        finding: Box<crate::names::FlushFinding>,
+        /// The refusing predicate's diagnostics, unaltered.
+        diag: Indeterminate,
+    },
     /// A `Node::Fillet` selection name failed to resolve through the
     /// TARGET's name table (M6-5) — the same N5 typed trio as
     /// [`NodeErrorKind::DeclareResolve`], and for the same reason: a
@@ -645,6 +670,22 @@ impl core::fmt::Display for NodeErrorKind {
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
                 "declare pair {kinds:?} is outside the v1 threading vocabulary"
+            ),
+            Self::UndeclaredContact { finding, .. } => write!(
+                f,
+                "the Boolean refused an undeclared contact: a face pair of its operands \
+                 is {} without a shared source or declared intent — the refusal carries \
+                 the candidate declaration (the pair, by stable name, with its relation); \
+                 declare that finding and wire it into the Boolean's declare input, or \
+                 move the geometry",
+                match finding.evidence.relation {
+                    topo::PlaneRelation::SameOpposite =>
+                        "coincident with opposed orientations (resting contact)",
+                    topo::PlaneRelation::SameOriented =>
+                        "coincident with the same orientation (flush walls)",
+                    // Never constructed on a finding; rendered honestly anyway.
+                    topo::PlaneRelation::Distinct => "reported coincident",
+                }
             ),
             Self::FilletSelectionResolve { .. } => {
                 f.write_str("a fillet selection name failed to resolve")
