@@ -24,9 +24,9 @@ mod fixture;
 
 use editor_core::{
     BooleanOp, CancelToken, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions,
-    Evaluation, GeomPred, NamePat, NameTable, NamingError, Node, ParamEnv, ProfileDoc,
-    RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, SplitHalf, StableName, evaluate, select,
-    select_where,
+    Evaluation, GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, ParamEnv,
+    ProfileDoc, RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, SplitHalf, StableName, evaluate,
+    select, select_where,
 };
 
 use fixture::{desc, insert, len, scl};
@@ -317,42 +317,45 @@ fn the_l_split_chain_reports_no_naming_failure() {
     }
 }
 
-// ---- #380: NamingError's Display carries the emitter's payload. ----
+// ---- #380: the emitter payload reaches the NODE-level prose. ----
 
-/// Before this unit `NamingError` had NO `Display` at all and
-/// `NodeErrorKind::Naming` rendered the constant "name emission
-/// failed", so Python — whose exception message IS this prose — could
-/// not tell two emitter refusals apart. That opacity is exactly why
-/// the two walls above stayed conflated in the audit for a milestone.
-/// Every variant now names its subject.
+/// `NamingError`'s own `Display` landed separately (#516); what this
+/// row pins is the property G14 needed and did not have — that the
+/// payload survives the `NodeErrorKind::Naming` boundary, which is the
+/// ONLY route by which an emitter refusal reaches a human (Python's
+/// typed exception message is exactly this prose). While it did not,
+/// the two walls above read as one opaque "name emission failed" from
+/// the audit's vantage point, and stayed conflated for a milestone.
 #[test]
-fn naming_errors_display_their_own_payload() {
-    let e = NamingError::Emission {
+fn node_level_prose_carries_the_emitter_payload() {
+    let carried = |e: NamingError| NodeErrorKind::Naming(e).to_string();
+
+    let s = carried(NamingError::Emission {
         what: "section face classified On",
-    };
-    let s = e.to_string();
+    });
     assert!(
         s.contains("section face classified On"),
-        "the Emission payload is the diagnosis: {s}"
+        "the Emission payload is the diagnosis, and it must survive the \
+         node boundary: {s}"
     );
     assert!(s.contains("name emission failed"), "category kept: {s}");
 
-    let u = NamingError::Unnamed {
+    let s = carried(NamingError::Unnamed {
         kind: EntityKind::Edge,
         body: 1,
-    };
-    let s = u.to_string();
+    });
     assert!(s.contains("Edge") && s.contains('1'), "{s}");
 
-    let m = NamingError::MissingUpstream {
+    let s = carried(NamingError::MissingUpstream {
         node: RecipeNodeId(7),
-    };
-    assert!(m.to_string().contains('7'), "{}", m.to_string());
+    });
+    assert!(s.contains('7'), "{s}");
 
-    // Two DISTINCT emitter refusals must read differently — the
-    // property the audit needed and did not have.
+    // Two DISTINCT emitter refusals must read differently at the node
+    // level — the separability the audit needed to tell G14's two
+    // walls apart without bisecting scenes.
     assert_ne!(
-        NamingError::Emission { what: "a" }.to_string(),
-        NamingError::Emission { what: "b" }.to_string()
+        carried(NamingError::Emission { what: "a" }),
+        carried(NamingError::Emission { what: "b" })
     );
 }

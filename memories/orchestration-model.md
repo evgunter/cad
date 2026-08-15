@@ -111,9 +111,13 @@ git history and the M-logs):**
   BODIES with your tag when filing — the membership check reads
   title+body+comments, so a signed filing auto-subscribes you to
   its thread (and makes authorship visible across the shared
-  account). Sign-off watchlist path:
-  `~/.local/share/cad-work/signoff-watchlist-m7.txt` (per the
-  sole-orchestrator wind-down). No usage-limit monitor (dropped,
+  account). Sign-off watchlist: the script reads
+  `$CAD_SIGNOFF_WATCHLIST` or DEFAULTS to
+  `~/.local/share/cad-work/signoff-watchlist.txt` — append to the
+  file the ARMED monitor actually reads (2026-08-15: two
+  affordance 👍s went unwatched because entries went to the old
+  `-m7` file while the monitor, armed without the env, polled the
+  default; Evan noticed, not the channel). No usage-limit monitor (dropped,
   Evan 2026-07-23) — the stopping rule covers it.
 - **Channel to Evan**: questions go out via GitHub as
   design-conversation PRs (edit the doc to state the question,
