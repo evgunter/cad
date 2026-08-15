@@ -2157,6 +2157,7 @@ mod tests {
                 face: dead_face,
             }],
             b_on_a: vec![],
+            ..ContactRecords::default()
         };
         // Without the descendant row: the record drops (pre-D5 loss).
         let out = remap_contacts(
@@ -2187,6 +2188,7 @@ mod tests {
             }],
             a_on_b: vec![],
             b_on_a: vec![],
+            ..ContactRecords::default()
         };
         let mut desc = Descendants::default();
         desc.vertices.insert(dead_vertex, live_vertex);

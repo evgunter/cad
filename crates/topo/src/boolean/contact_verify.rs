@@ -431,7 +431,7 @@ mod tests {
     use geom_surfaces::Surface;
 
     fn band() -> Band {
-        Band::from_eps(1e-9).unwrap()
+        Band::linear().unwrap()
     }
 
     fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
@@ -439,7 +439,6 @@ mod tests {
             origin: Point3::new(o[0], o[1], o[2]),
             normal: Vec3::new(n[0], n[1], n[2]),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
-            source: None,
         }
     }
 
@@ -462,7 +461,6 @@ mod tests {
             axis: Vec3::new(1.0, 0.0, 0.0),
             radius: 1.0,
             u_ref: Vec3::new(0.0, 1.0, 0.0),
-            source: None,
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let ruling = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
@@ -498,9 +496,8 @@ mod tests {
         let sphere = Surface::Sphere {
             center: Point3::origin(),
             radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
-            v_ref: Vec3::new(0.0, 0.0, 1.0),
-            source: None,
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let equator = geom_curves::Curve3::Circle {
@@ -574,7 +571,6 @@ mod tests {
             axis: Vec3::new(0.0, 0.0, -1.0),
             half_angle: 0.5,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
-            source: None,
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let along = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);

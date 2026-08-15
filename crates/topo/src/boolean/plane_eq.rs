@@ -358,7 +358,6 @@ mod tests {
     /// it).
     #[test]
     fn same_source_rungs() {
-        use crate::contact::ContactVerdict;
         use crate::source::GeomSource;
         let p1 = plane([1.0, 2.0, 5.0], [0.0, 0.0, 1.0]);
         let s = GeomSource::minted(7, 3);

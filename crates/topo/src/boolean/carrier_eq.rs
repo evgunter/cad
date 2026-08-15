@@ -358,7 +358,7 @@ mod tests {
     use super::*;
 
     fn band() -> Band {
-        Band::from_eps(1e-9).unwrap()
+        Band::linear().unwrap()
     }
 
     fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
@@ -545,7 +545,8 @@ mod tests {
             band(),
         )
         .unwrap();
-        let direct = oriented_plane_eq(&p1, &p2, declared(), 1.0, band()).unwrap();
+        let direct =
+            crate::boolean::plane_eq::oriented_plane_eq(&p1, &p2, declared(), 1.0, band()).unwrap();
         assert_eq!(via_carrier, direct);
         assert_eq!(direct, CarrierRelation::SameOpposite);
     }
