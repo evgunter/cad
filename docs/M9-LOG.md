@@ -85,3 +85,18 @@ so it dispatches immediately in parallel; PR-2 (census door,
 import channel, #382 half-2, the pin retirements) waits on M9-1
 PR-1. The C3 invariant's cross-rung clarification rides the spec
 PR for Evan's eye.
+
+## M9-D1 spec (2026-08-15) — pole keys, not cleverness
+
+D1's substrate collapsed the design space: the emitter's
+"never geometric matching" contract + the pole-swap-symmetric cell
+complex force a CONSTRUCTION RECORD — the sweep bundle exports
+canonical-indexed pole keys (both arms), the emitter looks them
+up into the EXISTING RoleSeg::Pole; no vocabulary growth, no
+schema, no margins. Three M8-LOG D1-entry corrections recorded in
+the spec (two-vs-four bands; the byte drift is the authoring
+frame's, not the split's; the refusal covers partial arms).
+Binding spec docs/M9-D1-SPEC.md; dispatch = block M8-15 position
+3 (OPUS, closing the block; next opens M9-16), S-M / STRUCTURAL
+pre-logged. Board: M9-1 (kernel) + M9-2a (predicate, fable @
+position 2) implementing; D1 dispatches on this spec's merge.
