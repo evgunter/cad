@@ -1,7 +1,10 @@
 # M9 — C7: the declared-contact join lane (plan)
 
-**STATUS: DRAFT — design conversation, awaiting Evan's
-ratification.** Scope was fixed by the #300 closure ratification
+**STATUS: RATIFIED (Evan's 👍 on PR #509's affordance, comment
+5303293943, confirmed directly in-session, 2026-08-15 — with the
+in-conversation rulings folded: A5 ownership, schema posture,
+`Fit{gap}` deferral, lily wall-2 deferral, A′ → LIB).** Scope was
+fixed by the #300 closure ratification
 (M9 = C7 pulled forward as its own logical unit; the lily FULL
 rebuild rides it) and CONTACT-DESIGN's sibling-deliverable
 paragraph ("the M9 spec adopts both doors deliberately"):
