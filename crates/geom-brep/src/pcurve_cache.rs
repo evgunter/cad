@@ -2374,12 +2374,8 @@ fn run_fitted_checks<T: PcurveFittedLane>(
         cause,
     };
     let rate = param_rate_gate(carrier, band).map_err(span_escalated)?;
-    match decide(
-        "pcurve_interval_forward",
-        Margin::metered(span, rate),
-        band,
-    )
-    .map_err(span_escalated)?
+    match decide("pcurve_interval_forward", Margin::metered(span, rate), band)
+        .map_err(span_escalated)?
     {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
@@ -2864,12 +2860,8 @@ fn run_iso_checks<T: Decide>(
         cause,
     };
     let rate = param_rate_gate(carrier, band).map_err(span_escalated)?;
-    match decide(
-        "pcurve_interval_forward",
-        Margin::metered(span, rate),
-        band,
-    )
-    .map_err(span_escalated)?
+    match decide("pcurve_interval_forward", Margin::metered(span, rate), band)
+        .map_err(span_escalated)?
     {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
