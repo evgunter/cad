@@ -242,6 +242,38 @@ question (my comment on the thread); the #388 provenance fork
 
 **Addendum (2026-08-12):** the pcurve-unification design conversation is filed as #427 (Evan's lean: unification; MappedCurve → provenance record; M9 design item). #388 proceeds with option (a) independently. #409 scope clarified by Evan: only the merged text is in force; P1–P3 remain proposals.
 
+## RESUMED (2026-08-14, successor M8 orchestrator — Evan's pickup ask)
+
+Cold-resumed from the 2026-08-12 resting state: nothing was in
+flight and nothing from the pause list was lost. While paused,
+main took the closure-census line (#481/#486 — the loop-closure
+residues are SOURCE-FILE coordinate rounding, 21.4 pm at one
+radius, not accumulation) and session-start-hook infra
+(#485/#487); the shared A/B ordinal ledger advanced through 36
+(LIB/ASM), dual stopping-rule tally still 4-of-6 (#11 and #12
+both zero-MAJOR, non-qualifying). Monitors re-armed (all four,
+away-channel env per the handoff).
+
+**#489 (flaky scratch-hull width pin) → PR #490, orchestrator-
+direct.** A fresh fuzz seed outgrew the zero-branch absolute cap
+(256 subnormal steps, seed-calibrated by the 2026-08-13 audit):
+the ring's pads around an exact zero scale as
+(degree+1)·64/du + pads, and degree 4 / du 1 yields 643 steps.
+Cap now DERIVED from that structure with 2x slack; red-then-green
+on the reported seed, both historical seeds green, 12 fresh seeds
+at effort 2 green, cold clippy clean. Process note (Evan,
+in-chat, 2026-08-14): this size of change may run orchestrator-
+direct and merge on green WITHOUT the unit protocol; nontrivial
+chunks go through the protocol — recorded as the standing
+boundary, matching the resting state's "orchestrator-direct
+class" for #382 half-1.
+
+Dispatched per the orchestration model: #382 half-1 doc-honesty
+(delegated, lane 382-doc, branch kernel/382-instance-doc-honesty)
+and the M8-4 substrate exploration (read-only) that feeds the
+binding spec; M8-4 completes as drawn (OPUS, block M8-14 slot 2,
+pre-v4 draw), difficulty + task-class to log pre-dispatch.
+
 ## Demo-raised residuals — the die's recipe conversion (2026-08-14)
 
 `demos/tour/src/diefillet.rs` became ONE recipe document, discharging
@@ -300,3 +332,4 @@ residuals the demos raised):
 Neither blocks anything today; both are named so the workarounds are
 visible as workarounds. The `tan(π/8)` meridian in `diefillet.rs`
 carries a pointer back to this entry.
+
