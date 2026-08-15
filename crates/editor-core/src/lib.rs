@@ -55,13 +55,13 @@ pub use ident::{ContentPin, DocRef, DocumentId};
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
     ALL_SURFACE_KINDS, CapEnd, Cmp, ContactClass, CurveKind, CurveKindSet, DeclareError,
-    Denotation, EntityKey, EntityKind, EntityRef, Entry, FlushEvidence, FlushFinding, FlushRung,
-    GeomPred, InterrogateError, MeridianEnd, NamePat, NameTable, NamingError, OpGroup,
-    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
-    SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName,
-    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, declare, declare_all,
-    declare_node, denotation, edge_frame, face_frame, find_flush_candidates, select, select_where,
-    vertex_position,
+    Denotation, DuplicateName, EntityKey, EntityKind, EntityRef, Entry, FlushEvidence,
+    FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd, NamePat, NameTable,
+    NamingError, OpGroup, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath,
+    RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict,
+    SplitHalf, StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
+    declare, declare_all, declare_node, denotation, edge_frame, face_frame, find_flush_candidates,
+    select, select_where, vertex_position,
 };
 pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId, StepArg};
 pub use parse::{ParseError, parse_expr};
