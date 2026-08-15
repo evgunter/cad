@@ -133,7 +133,7 @@ fn an_iso_arc_wall_extracts_and_refuses_at_the_arm_gate() {
             )
         })
         .map(|(key, _)| key)
-        .find(|&key| wall_pcurve_kinds(&body, key).iter().any(|k| *k == "IsoArc"))
+        .find(|&key| wall_pcurve_kinds(&body, key).contains(&"IsoArc"))
         .expect("the bulged edge sweeps to a wall with IsoArc rims");
     match chart_region_overlap(&body, arc_wall, &body, arc_wall, band()) {
         Err(ChartRegionError::ArmUnbounded { chart }) => assert_eq!(chart, "NURBS"),

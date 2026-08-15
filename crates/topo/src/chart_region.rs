@@ -752,7 +752,7 @@ fn point_in_polygon<T: Decide>(
                 Sign::Zero => continue 'ray,
             }
         }
-        return Ok(if crossings % 2 == 1 {
+        return Ok(if !crossings.is_multiple_of(2) {
             PolyContainment::In
         } else {
             PolyContainment::Out
@@ -920,7 +920,7 @@ fn intersection_pieces<T: Decide + Bounds>(
     crossings: &[Crossing<T>],
 ) -> Result<Vec<Vec<Point2<T>>>, ChartRegionError> {
     let m = crossings.len();
-    if m == 0 || m % 2 != 0 {
+    if m == 0 || !m.is_multiple_of(2) {
         return Err(ChartRegionError::Corrupt); // parity: closed curves cross evenly
     }
     let sort_key = |edge: usize, frac: T| -> Result<(usize, f64), ChartRegionError> {
