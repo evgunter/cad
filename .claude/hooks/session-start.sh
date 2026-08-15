@@ -11,6 +11,14 @@
 # be previewed without a cold install mid-session (§7 for why that is the
 # only render prerequisite worth warming here).
 #
+# All of those were run end to end on a hosted container on 2026-08-14
+# and were green: fmt, clippy -D warnings, `cargo nextest run` (geom-core,
+# 267 passed), `cargo test --doc` (pncad, 33 passed),
+# run-python-tests.sh (132 passed, with `ty` present so the stub lattice
+# is MEASURED rather than skipped), check_admesh.sh, and a full preview
+# montage. That list is what "provisioned" is supposed to mean; a session
+# finding one of them broken should suspect the container, not the row.
+#
 # REMOTE ONLY. Local machines are provisioned by hand and carry
 # machine-local tuning this script must not second-guess (see
 # local-scripts/setup-build-env.sh); the guard below makes this a no-op
@@ -44,6 +52,30 @@
 # is preserved — what is dropped is fail-EARLY, which here only ever
 # punished the steps that matter most. The hook still exits nonzero if
 # the toolchain or the warm build itself fails.
+#
+# EGRESS IS POLICY-FILTERED, AND THE FILTER DIFFERS PER ENVIRONMENT.
+# Outbound HTTPS goes through an agent proxy enforcing an allow-list, so
+# "the download failed" here usually means "your organization does not
+# permit that host", not "the network is flaky". As measured on
+# `cloud_default`, 2026-08-14:
+#
+#   DENIED   get.nexte.st — the gateway answers 403 to CONNECT
+#   allowed  github.com (release assets), crates.io + static.crates.io,
+#            pypi.org, the Ubuntu apt mirrors
+#
+# DIAGNOSING THE NEXT ONE: `curl -sS "$HTTPS_PROXY/__agentproxy/status"`.
+# Its `recentRelayFailures` names the host AND the reason, which is the
+# only place to get it — curl hides the response body on a failed
+# CONNECT, so at the call site a policy denial is indistinguishable from
+# a dead mirror (that is precisely how the get.nexte.st breakage read
+# before the status endpoint was consulted). /root/.ccr/README.md has the
+# other failure classes.
+#
+# WHAT TO DO ABOUT A DENIAL: report the blocked host; do not tunnel
+# around the policy. Reaching for a DIFFERENT OFFICIAL SOURCE OF THE SAME
+# ARTIFACT is not tunnelling around it — that is what the nextest
+# fallback below is, and the distinction is the publisher, not the
+# hostname. A random mirror of a binary would not qualify.
 set -euo pipefail
 
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
@@ -292,6 +324,18 @@ cargo build --workspace --all-targets
 # whole purpose here is the hosted OCC reference lane), so on this
 # container the tour's kernel lane takes its matplotlib fallback and says
 # so loudly, exactly as designed.
+#
+# The two things a preview pass needs beyond this venv, neither of which
+# belongs in a hook (both are per-scene work, not provisioning):
+#
+#   * THE DRIFT SENTENCE. demos/hosted-render-guard.sh refuses without
+#     CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift, spelled out
+#     in full on purpose. Frames still land in the gitignored
+#     demos/renders-preview/ and the committed lanes stay untouched.
+#   * THE TOUR OUTPUT, and it is `cd demos/tour && cargo run --release --
+#     ../out`. Note ../out: the bare `out` that reads naturally writes to
+#     demos/tour/out, where render.sh will not find scenes.json and dies
+#     on a FileNotFoundError several minutes into a pass.
 # ---------------------------------------------------------------------------
 say "demo render venv (numpy + matplotlib)"
 if [ -x demos/.venv/bin/python ]; then
