@@ -19,15 +19,56 @@
 # montage. That list is what "provisioned" is supposed to mean; a session
 # finding one of them broken should suspect the container, not the row.
 #
-# REMOTE ONLY. Local machines are provisioned by hand and carry
-# machine-local tuning this script must not second-guess (see
-# local-scripts/setup-build-env.sh); the guard below makes this a no-op
-# outside Claude Code on the web.
+# TWO ENTRY POINTS, ONE FILE — AND THEY RUN IN DIFFERENT WORLDS. Claude
+# Code on the web provisions a container from two places, and this script
+# is meant to be installed in BOTH:
 #
-# SYNCHRONOUS, deliberately: the session must not open onto a half-built
-# toolchain, because the first thing an agent does here is compile. The
-# container state is snapshotted once the hook finishes, so the cold cost
-# below is paid by the first session on a given cache and reused after.
+#   SETUP SCRIPT — pasted into the environment dialog at claude.ai/code.
+#     Runs as root, once per environment cache, BEFORE Claude Code
+#     launches and BEFORE THE REPO IS CLONED. Anthropic then snapshots
+#     the filesystem and reuses it, so whatever this installs is free for
+#     every later session. Re-runs only when the script text changes, the
+#     allowed-hosts list changes, or the cache expires (~7 days).
+#     Constraints: must EXIT ZERO (a nonzero exit fails the session
+#     outright) and finish inside ~5 minutes.
+#   SESSIONSTART HOOK — registered in .claude/settings.json. Runs after
+#     the clone, with the repo on disk, on every session AND every
+#     resume/clear/compact. NOT cached, ever; its cost is paid in full
+#     each time.
+#
+# THE 2026-08-15 BREAKAGE, and the reason for the split below: this file
+# assumed the repo. Pasted verbatim into the setup-script box it resolved
+# `repo` to `/`, reported the container's default `stable` instead of the
+# pinned channel because rust-toolchain.toml was not there to read,
+# `cd`-ed into demo roots that did not exist, and finally died on
+# `cargo build` with "could not find Cargo.toml in `/`" — exit 101, which
+# in setup-script context means THE SESSION DOES NOT START. So the phase
+# is DETECTED, not assumed, and each half does only what its world can:
+#
+#   * REPO-INDEPENDENT (rustup, nextest, maturin, ty, admesh) runs in
+#     both. In the setup script it lands in the snapshot and every later
+#     session finds it already installed; in the hook it is a no-op when
+#     the snapshot already carried it, and the fallback when there is no
+#     setup script configured at all.
+#   * REPO-DEPENDENT (the toolchain pin, cargo fetch, the warm build, the
+#     demo venv) runs ONLY when the repo is actually on disk — §5-§7 are
+#     skipped wholesale otherwise.
+#
+# Neither half is redundant. The setup script cannot warm target/ (no
+# repo, and the build is minutes past the 5-minute budget); the hook
+# cannot cache anything. Configure both.
+#
+# REMOTE ONLY, when there is a repo. Local machines are provisioned by
+# hand and carry machine-local tuning this script must not second-guess
+# (see local-scripts/setup-build-env.sh); the guard below makes the hook
+# a no-op outside Claude Code on the web. The setup-script phase is
+# exempt from that guard on purpose — see the guard for why.
+#
+# THE WARM BUILD IS SYNCHRONOUS, deliberately: the session must not open
+# onto a half-built toolchain, because the first thing an agent does here
+# is compile. It is the expensive step (~9.5 min cold, 0.2 s warm) and,
+# because hooks are never snapshotted, it is paid by every fresh session.
+# See §6 for why backgrounding it is not the free win it looks like.
 #
 # IDEMPOTENT: every step is a no-op when its output is already present, so
 # a resume/clear/compact re-fire costs seconds.
@@ -78,12 +119,39 @@
 # hostname. A random mirror of a binary would not qualify.
 set -euo pipefail
 
-if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
-  exit 0
-fi
+# WHICH PHASE ARE WE IN? Ask the filesystem, not the environment. The
+# question that actually matters is "is the repo here?", and the honest
+# test for that is whether rust-toolchain.toml — the file §1 needs — can
+# be read. CLAUDE_PROJECT_DIR is the hook's answer; falling back to the
+# script's own location covers a hook invoked with it unset, and a
+# by-hand run from an arbitrary cwd.
+#
+# `repo` empty means SETUP-SCRIPT PHASE: no clone yet, §5-§7 skipped.
+repo=""
+for candidate in "${CLAUDE_PROJECT_DIR:-}" \
+                 "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)"; do
+  if [ -n "$candidate" ] && [ -f "$candidate/rust-toolchain.toml" ]; then
+    repo="$candidate"
+    break
+  fi
+done
 
-repo="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-cd "$repo"
+# The remote-only guard applies to the HOOK, which is the only phase that
+# can fire on Evan's laptop. It deliberately does NOT gate the
+# setup-script phase: that phase is reached only when no repo is on disk,
+# which never happens locally, and gating it on an environment variable
+# would mean one unset variable silently provisioning nothing and
+# snapshotting the emptiness for a week.
+if [ -n "$repo" ]; then
+  if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
+    exit 0
+  fi
+  cd "$repo"
+  printf '\n== phase: SessionStart hook (repo at %s)\n' "$repo"
+else
+  printf '\n== phase: setup script (no repo on disk yet — VM provisioning only)\n'
+  printf '   Repo-dependent steps (cargo fetch, warm build, demo venv) are the hook'"'"'s job.\n'
+fi
 
 # Pinned to hosted CI's version (ci.yml is the single source of truth for
 # it; keep the two in sync). A dev/CI tool only — never in a shipped build
@@ -165,17 +233,57 @@ fetch_tool() {
 # ---------------------------------------------------------------------------
 # 1. The pinned compiler (D9 / L2) plus rustfmt and clippy.
 #
-# `rustup show active-toolchain` honours rust-toolchain.toml — it installs
-# the pinned channel AND its components list on first call, and prints in
-# under a second afterwards. Doing it here rather than letting the first
-# `cargo` invocation trigger it keeps the download out of the middle of an
-# agent's first command, where it interleaves with real output.
+# HOOK PHASE: `rustup show active-toolchain` honours rust-toolchain.toml —
+# it installs the pinned channel AND its components list on first call,
+# and prints in under a second afterwards. Doing it here rather than
+# letting the first `cargo` invocation trigger it keeps the download out
+# of the middle of an agent's first command, where it interleaves with
+# real output.
+#
+# SETUP-SCRIPT PHASE: rust-toolchain.toml is not on disk, so there is
+# nothing to honour — this is exactly how the broken run came to report
+# `stable` / cargo 1.94.1 where the repo pins 1.97.0. The channel is
+# therefore named by the literal below, which is the ONE place in this
+# script that duplicates a fact the repo already states.
+#
+# THAT DUPLICATE IS CHECKED, NOT TRUSTED. A stale literal here would be
+# invisible in the worst way: the snapshot would carry a toolchain nobody
+# uses, every session would silently re-download the real one, and the
+# setup script would look like it was working. So the hook phase — which
+# CAN read rust-toolchain.toml — diffs the two and warns loudly on drift.
+# Installing is not the same as selecting: rust-toolchain.toml still
+# picks the channel once the repo lands, so this only pre-populates
+# ~/.rustup for the snapshot and never overrides the pin.
+RUST_TOOLCHAIN=1.97.0
 # ---------------------------------------------------------------------------
 say "rust toolchain (rust-toolchain.toml)"
-rustup show active-toolchain
-cargo --version
-cargo fmt --version
-cargo clippy --version
+if [ -n "$repo" ]; then
+  rustup show active-toolchain
+  pinned=$(sed -n 's/^[[:space:]]*channel[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
+             rust-toolchain.toml | head -1)
+  if [ -n "$pinned" ] && [ "$pinned" != "$RUST_TOOLCHAIN" ]; then
+    echo "WARNING: this script's RUST_TOOLCHAIN literal (${RUST_TOOLCHAIN}) has drifted" >&2
+    echo "         from rust-toolchain.toml (${pinned}). This session is fine — the" >&2
+    echo "         .toml wins here — but the SETUP SCRIPT is pre-installing the wrong" >&2
+    echo "         channel, so every session pays a toolchain download the snapshot" >&2
+    echo "         was supposed to have covered. Update the literal in §1." >&2
+  fi
+elif rustup toolchain install "$RUST_TOOLCHAIN" \
+       --profile minimal --component rustfmt --component clippy; then
+  echo "pre-installed for the snapshot: ${RUST_TOOLCHAIN} (+rustfmt, clippy)"
+else
+  warn "the pinned toolchain ${RUST_TOOLCHAIN}" \
+    "the snapshot carries no pinned compiler, so the FIRST cargo command of every session in this environment pays the rustup download instead. Nothing is broken; startup is just slower than it should be."
+fi
+
+# Name the channel explicitly without a repo: a bare `cargo --version`
+# there reports the image's default (1.94.1 as of writing), which reads
+# like the pin failed one line after it succeeded.
+tc=()
+[ -n "$repo" ] || tc=("+${RUST_TOOLCHAIN}")
+cargo "${tc[@]}" --version
+cargo "${tc[@]}" fmt --version
+cargo "${tc[@]}" clippy --version
 
 # ---------------------------------------------------------------------------
 # 2. cargo-nextest — the test runner every hosted test row uses.
@@ -262,7 +370,21 @@ else
   if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
     sudo="sudo"
   fi
+  # ONLY THE UBUNTU SOURCES. The base image ships third-party PPAs it
+  # does not need for our purposes (deadsnakes, ondrej/php), and those
+  # live on ppa.launchpadcontent.net, which the Trusted allow-list does
+  # NOT cover — it lists ppa.launchpad.net, a different host. A plain
+  # `apt-get update` therefore exits nonzero on their 403s and takes
+  # admesh down with it even though archive.ubuntu.com answered fine;
+  # that is precisely what happened on the 2026-08-15 setup-script run.
+  # Pointing sourcelist at ubuntu.sources with an empty sourceparts
+  # limits the refresh to the mirrors we actually install from, so a
+  # denied PPA is no longer admesh's problem. Nothing is bypassed: the
+  # blocked host is simply not consulted.
   if (DEBIAN_FRONTEND=noninteractive $sudo apt-get update -qq \
+        -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources \
+        -o Dir::Etc::sourceparts=/dev/null \
+        -o APT::Get::List-Cleanup=0 \
       && DEBIAN_FRONTEND=noninteractive $sudo apt-get install -y -qq admesh); then
     admesh --version 2>&1 | head -1
   else
@@ -286,7 +408,38 @@ fi
 # this hook lands). That is a real thing to fix in the repo, but it is not
 # a reason to deny the session its toolchain — the warning names the root,
 # and `cargo fetch` (no --locked) inside it is the fix.
+#
+# SKIPPED WHOLESALE WITHOUT A REPO. In the setup-script phase there are no
+# lockfiles to honour, and the loop's `cd` into each root is what produced
+# the "No such file or directory" spray in the 2026-08-15 failure.
 # ---------------------------------------------------------------------------
+if [ -z "$repo" ]; then
+  say "skipping cargo fetch / warm build / demo venv (setup-script phase)"
+  echo "The repo is not cloned yet; those are the hook's half of the split."
+  if [ "${#DEGRADED[@]}" -gt 0 ]; then
+    {
+      echo
+      echo "================================================================"
+      echo " SETUP SCRIPT FINISHED WITH ${#DEGRADED[@]} TOOL(S) MISSING from the snapshot:"
+      echo
+      printf '   * %s\n' "${DEGRADED[@]}"
+      echo
+      echo " The SessionStart hook retries every one of them per session, so"
+      echo " this is a slower startup rather than a lost gate row. If a tool"
+      echo " was denied by egress policy, report the blocked host rather than"
+      echo " routing around it."
+      echo "================================================================"
+    } >&2
+  fi
+  # EXIT ZERO, ALWAYS. A nonzero exit here does not degrade the session,
+  # it prevents the session: "Setup script failed with exit code 101 —
+  # edit your environment's setup script and start a new session". Every
+  # absence above has already been reported loudly and is recoverable by
+  # the hook, so none of them is worth that.
+  say "ready (VM provisioned; the hook finishes the job once the repo lands)"
+  exit 0
+fi
+
 say "cargo fetch (workspace + the excluded roots)"
 for root in . interval-transcendentals tools/k-lint demos/tour demos/wild; do
   if ( cd "$root" && cargo fetch --locked >/dev/null 2>&1 ); then
@@ -302,8 +455,34 @@ done
 #
 # --all-targets covers the test binaries too, which is what the nextest
 # rows need; the doc-test and clippy rows reuse the dependency artifacts.
-# This is the expensive step (minutes cold, seconds warm) and it is the
-# main thing the post-hook container snapshot is worth caching.
+# Measured on cloud_default: ~9.5 min cold, ~0.2 s warm.
+#
+# THE SNAPSHOT DOES NOT COVER THIS, contrary to what this comment used to
+# claim. Only the SETUP SCRIPT's filesystem is snapshotted, and the setup
+# script runs before the clone — there is no target/ to snapshot and no
+# repo to build. Hook output is never cached. So this cost is real, and
+# paid in full, by every fresh session in this repo.
+#
+# WHY IT IS STILL SYNCHRONOUS. Backgrounding it (`nohup cargo build &`,
+# or the hook's `{"async": true}` mode) is legal and the docs even
+# recommend the shape for long installs — but here it buys less than it
+# looks like and costs more:
+#
+#   * cargo holds an exclusive lock on target/. A background build does
+#     not make the agent's first `cargo` command faster, it makes it
+#     BLOCK — on "Blocking waiting for file lock on build directory",
+#     with no progress output, for as long as the build has left to run.
+#     A wedged-looking session is worse than an honest wait;
+#   * a backgrounded failure is a silent failure. This script's whole
+#     posture is fail-loud, and `nohup` puts the one step that is allowed
+#     to fail the hook somewhere nobody reads;
+#   * the win is bounded by how long the agent spends NOT compiling at
+#     session start — real (reading DESIGN.md, the milestone plan,
+#     memories) but a few minutes, against a 9.5-minute build.
+#
+# The honest fix for cold-start cost is the setup script covering more of
+# the toolchain, which is what the split above does. Revisit
+# backgrounding only with a sentinel file the agent is told to check.
 # ---------------------------------------------------------------------------
 say "warm build (workspace, all targets)"
 cargo build --workspace --all-targets
