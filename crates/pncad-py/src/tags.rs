@@ -181,6 +181,11 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::DeclareResolve { .. } => "declare_resolve",
         NodeErrorKind::DeclareBothOperands { .. } => "declare_both_operands",
         NodeErrorKind::DeclareUnsupportedPair { .. } => "declare_unsupported_pair",
+        // The refusal MENU (register R3, LIB-PYG5): the boolean's
+        // undeclared-contact refusal carrying the candidate
+        // declaration; the `finding` payload crosses as a typed
+        // attribute beside this tag.
+        NodeErrorKind::UndeclaredContact { .. } => "undeclared_contact",
         NodeErrorKind::FilletSelectionResolve { .. } => "fillet_selection_resolve",
         NodeErrorKind::FilletSelectionKind { .. } => "fillet_selection_kind",
         NodeErrorKind::FilletSelectionEmpty => "fillet_selection_empty",
@@ -189,6 +194,19 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         // "the pin does not hold" and "the tolerances disagree" are
         // different recourses, so they are different tags.
         NodeErrorKind::Part { fault, .. } => part_fault_tag(fault),
+    }
+}
+
+/// The stable tag for a declare-sugar refusal (LIB-PYG5: the
+/// `Doc.declare`/`Doc.declare_all` doors over
+/// `editor_core::declare_all`). The `Edit` arm carries the document
+/// layer's own tag through rather than flattening it.
+pub fn declare_error_tag(err: &pncad::select::DeclareError) -> &'static str {
+    use pncad::select::DeclareError as E;
+    match err {
+        E::NoFindings => "no_findings",
+        E::Edit(inner) => edit_error_tag(inner),
+        E::NoMintedId => "no_minted_id",
     }
 }
 

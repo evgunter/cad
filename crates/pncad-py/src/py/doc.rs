@@ -27,6 +27,34 @@ fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
     )
 }
 
+/// Raise `EditError` for a declare-sugar refusal (LIB-PYG5).
+///
+/// `DeclareError` carries no `Display`; the per-arm prose is
+/// hand-written here and the machine payload is the stable tag
+/// (`crate::tags::declare_error_tag` — the `Edit` arm carries the
+/// document layer's own tag through).
+fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
+    use pncad::select::DeclareError as E;
+    let message = match err {
+        E::NoFindings => "declare of NO findings: an empty Declare node records no                           intent and would only pretend something was declared"
+            .to_string(),
+        E::Edit(inner) => inner.to_string(),
+        E::NoMintedId => "the Declare insert applied but minted no id (an apply                           contract violation)"
+            .to_string(),
+    };
+    typed_err(
+        py,
+        ErrorClass::Edit,
+        message,
+        &[(
+            "variant",
+            PyString::new(py, crate::tags::declare_error_tag(err))
+                .unbind()
+                .into_any(),
+        )],
+    )
+}
+
 /// Raise `PersistError` carrying the refusal's stable tag.
 fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
     let tag = persist_error_tag(err);
@@ -200,6 +228,40 @@ impl Doc {
                 )],
             )
         })
+    }
+
+    /// Declare ONE inspected finding: insert a `Declare` node with
+    /// its pair and return the node's id, for `Node.boolean`'s
+    /// `declare=` input — the detect/declare protocol's declare arm
+    /// (SELECT-DESIGN §3; LIB-PYG5). Sugar over the same vocabulary
+    /// `Node.declare` constructs; nothing here detects — findings
+    /// reach this door as VALUES the caller already inspected (the
+    /// ruled no-fusion boundary).
+    fn declare(
+        &mut self,
+        py: Python<'_>,
+        finding: &super::flush::FlushFinding,
+    ) -> PyResult<NodeId> {
+        let (doc, id) =
+            pncad::select::declare(&self.inner, &finding.0).map_err(|err| declare_err(py, &err))?;
+        self.inner = doc;
+        Ok(NodeId(id))
+    }
+
+    /// Declare a SET of inspected findings in one `Declare` node —
+    /// the many-pair case (the boundary is fusion, not arity). Same
+    /// contract as `declare`; an EMPTY list refuses (`no_findings`)
+    /// rather than inserting a pretend-declaration.
+    fn declare_all(
+        &mut self,
+        py: Python<'_>,
+        findings: Vec<super::flush::FlushFinding>,
+    ) -> PyResult<NodeId> {
+        let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
+        let (doc, id) = pncad::select::declare_all(&self.inner, &kernel)
+            .map_err(|err| declare_err(py, &err))?;
+        self.inner = doc;
+        Ok(NodeId(id))
     }
 
     /// How many nodes the document holds.
@@ -472,9 +534,11 @@ impl Node {
     /// `elevation` earns its keep because the kernel is fail-loud
     /// about coincidence: it never INFERS that two faces are the same
     /// face, so two solids merely touching on a shared plane are
-    /// refused (`UndeclaredCoincidence`) until the author declares the
-    /// contact. Authoring a genuine Boolean therefore needs solids
-    /// that interpenetrate, which needs sketches at different heights.
+    /// refused (the `undeclared_contact` menu) until the author
+    /// declares the contact. Authoring a genuine Boolean therefore
+    /// needs solids that interpenetrate, which needs sketches at
+    /// different heights — or the detect/declare protocol
+    /// (`Evaluation.find_flush_candidates` → `Doc.declare_all`).
     #[staticmethod]
     #[pyo3(signature = (points, elevation=None, plane=None))]
     fn polygon(
@@ -798,13 +862,14 @@ impl Node {
     /// `declare` names a `Declare` node whose coincidence pairs this
     /// boolean consumes — the DATA door for F5's declared contact.
     /// Without it the kernel never infers that two faces are the same
-    /// face, so operands that merely touch refuse
-    /// (`UndeclaredCoincidence`). The detect/declare PROTOCOL —
-    /// finding candidates, building the pairs — is a separate surface
-    /// and is not bound: `Node.declare` does not exist, so today the
-    /// only thing this argument can carry is a declaration built in
-    /// Rust and loaded, which is why the audit still counts declared
-    /// contact as a gap.
+    /// face, so operands that merely touch refuse — and since
+    /// register R3 the refusal is the typed MENU: an
+    /// `EvaluationError` with `kind == "undeclared_contact"` whose
+    /// `finding` attribute carries the candidate declaration. The
+    /// protocol that fills this argument is
+    /// `Evaluation.find_flush_candidates` → inspect → `Node.declare`
+    /// (or the `Doc.declare`/`Doc.declare_all` sugar) → this
+    /// `declare=` (LIB-PYG5, audit G5).
     #[staticmethod]
     #[pyo3(signature = (op, a, b, declare=None))]
     fn boolean(op: BooleanOp, a: &NodeId, b: &NodeId, declare: Option<NodeId>) -> Self {
@@ -816,6 +881,21 @@ impl Node {
                 declare: declare.map(|d| d.0),
             },
         }
+    }
+
+    /// The `Declare` node built from INSPECTED findings — the
+    /// detect/declare protocol's declare arm as a node constructor;
+    /// its inserted id feeds `Node.boolean`'s `declare=` input.
+    /// `Doc.declare`/`Doc.declare_all` are the insert-and-return-id
+    /// sugar over this same vocabulary. Nothing here detects
+    /// (SELECT-DESIGN §3's ruled no-fusion boundary: findings pass
+    /// through your hands as values), and an EMPTY list refuses
+    /// (`no_findings`) — an empty Declare records no intent.
+    #[staticmethod]
+    fn declare(py: Python<'_>, findings: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
+        let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
+        let node = pncad::select::declare_node(&kernel).map_err(|err| declare_err(py, &err))?;
+        Ok(Self { inner: node })
     }
 }
 

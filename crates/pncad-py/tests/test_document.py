@@ -152,14 +152,28 @@ class TestEvaluation(unittest.TestCase):
             ev.value(cut)
         self.assertEqual(caught.exception.reason, "node_failed")
         self.assertEqual(caught.exception.node, cut)
-        # The NodeErrorKind's stable tag: the Boolean op refused.
-        self.assertEqual(caught.exception.kind, "boolean")
+        # Since register R3 (LIB-PYG5) the undeclared-contact refusal
+        # is the typed MENU: its own stable tag, and the candidate
+        # declaration attached as a `FlushFinding` value.
+        self.assertEqual(caught.exception.kind, "undeclared_contact")
         self.assertIsNone(caught.exception.through)
+        finding = caught.exception.finding
+        self.assertIsInstance(finding, pncad.FlushFinding)
+        # Both boxes rise from z=0: the shared bottom planes face the
+        # same way — the flush-wall (merge-stage) flavor.
+        self.assertEqual(finding.relation, pncad.PlaneRelation.SameOriented)
+        self.assertEqual(finding.class_, pncad.ContactClass.Rest)
+        self.assertEqual(finding.rung, pncad.FlushRung.DecidedCoincident)
+        # The pair's names speak the one opaque alphabet: each side is
+        # a FACE name of its own operand's evaluation.
+        self.assertIn(finding.a, ev.all_faces(outer))
+        self.assertIn(finding.b, ev.all_faces(inner))
         # F6 (reopened on review): the MESSAGE is prose stating the
-        # problem, not the kernel enum's Debug guts.
+        # problem and the two-armed recourse, not Debug guts.
         message = str(caught.exception)
-        self.assertIn("Boolean op refused", message)
-        for guts in ("UndeclaredCoincidence", "{", "NodeError"):
+        self.assertIn("Boolean refused an undeclared contact", message)
+        self.assertIn("declare that finding", message)
+        for guts in ("UndeclaredCoincidence", "UndeclaredContact", "{", "NodeError"):
             self.assertNotIn(guts, message)
 
     def test_a_poisoned_node_names_its_failed_ancestor(self):
@@ -174,8 +188,12 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(caught.exception.reason, "poisoned")
         self.assertEqual(caught.exception.node, downstream)
         self.assertEqual(caught.exception.through, cut)
-        # The root cause's tag rides along: the ancestor's Boolean.
-        self.assertEqual(caught.exception.kind, "boolean")
+        # The root cause's tag rides along: the ancestor's refusal.
+        self.assertEqual(caught.exception.kind, "undeclared_contact")
+        # The menu payload does NOT ride a poisoning — the recourse
+        # belongs to the node that refused; here it is None (attributes
+        # never go missing, LIB-DOORS F3).
+        self.assertIsNone(caught.exception.finding)
         self.assertIn("poisoned by failed ancestor", str(caught.exception))
 
 

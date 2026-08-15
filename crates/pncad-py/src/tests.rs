@@ -107,6 +107,37 @@ fn select_refusal_tags_are_stable() {
     assert_eq!(select_refusal_tag(&SelectRefusal::Band), "band");
 }
 
+/// LIB-PYG5: `ContactClass` is `#[non_exhaustive]` kernel-side, so
+/// the Python mirror (`py/flush.rs`) is forced to carry a wildcard
+/// arm and the compile-time drift alarm is unavailable — an unknown
+/// class refuses typed (`unclassified`) at the crossing instead.
+/// This pin is the pointer: it constructs the whole v1 vocabulary
+/// (exactly `Rest`) and asserts the tag the crossing would speak, so
+/// when Tangent/Fit land the mirror is the named place to grow.
+#[test]
+fn contact_class_rest_is_the_whole_v1_vocabulary() {
+    let class = pncad::select::ContactClass::Rest;
+    let tag = match class {
+        pncad::select::ContactClass::Rest => "rest",
+        _ => "unclassified",
+    };
+    assert_eq!(tag, "rest");
+}
+
+/// LIB-PYG5: the declare-sugar refusal tags, exercised through the
+/// real doors on the default (no-Python) path. The `Edit` arm
+/// carries the document layer's own tag through.
+#[test]
+fn declare_error_tags_are_stable() {
+    use crate::tags::declare_error_tag;
+    use pncad::select::{DeclareError, declare_node};
+
+    let empty =
+        declare_node::<pncad::document::ProfileProgram>(&[]).expect_err("an empty declare refuses");
+    assert_eq!(declare_error_tag(&empty), "no_findings");
+    assert_eq!(declare_error_tag(&DeclareError::NoMintedId), "no_minted_id");
+}
+
 /// LIB-DOORS F5: the binding matches `Expr::literal`'s OWN refusals
 /// (the `check_literal` pre-check is gone), and the tags Python sees
 /// for the two literal-reachable arms are unchanged from LIB-U9S.
