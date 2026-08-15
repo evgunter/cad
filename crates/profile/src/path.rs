@@ -308,9 +308,14 @@ use crate::{ProfileLoop, ProfileVertex};
 /// see its docs for the ratified justification, and `path.rs` itself
 /// stays `Bounds`-free.
 pub(crate) mod arc_fillet;
+mod compat;
+mod family;
 pub mod program;
+pub(crate) mod verbs;
 
 pub use arc_fillet::ArcCarrierScalar;
+pub use family::OnArc;
+pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
 
 // ------------------------------------------------------------------
 // Lattice markers (PATHS-DESIGN §5: one struct under type-level
@@ -533,20 +538,24 @@ pub enum PathError<T: Real> {
         /// currency as `setback`).
         available: T,
     },
-    /// **G2 §3d**: a side runs on an ARC CARRIER and the door reached
-    /// binds only straight ones. This variant RETIRES `SeamFilletOntoArc`
-    /// and `ArcArrivalFillet`, whose situations are no longer "out of
-    /// scope in v1" but simply spelled elsewhere: the carrier-aware
-    /// binder family `.at_on(p, centre, winding)` /
-    /// `.to_on(Start, centre, winding)` (`crate::path::arc_fillet`).
-    ///
-    /// It is unreachable from any program that does not use that family
-    /// — a straight-carrier chain never sets a carrier to trip over —
-    /// so it names a SPELLING, always with the door that does the job.
+    /// **RETIRING (§2c)** — the §2b compound register's spelling
+    /// refusal, kept compiling only for the retired `at_on`/`to_on`/
+    /// `at_toward` compat doors until the consumer re-spell deletes
+    /// them. No §2c-family verb can construct it: under the axiom a
+    /// carrier-keyed refusal is unwritable (the kernel's pending states
+    /// carry no carrier to branch on).
+    #[doc(hidden)]
     ArcCarrierSpelling {
         /// What was reached, and what binds it instead.
         site: &'static str,
     },
+    /// A `.to(Start)` seam fillet reached a chain whose FIRST side is
+    /// an arc: the seam retrims the entry vertex, and retrimming the
+    /// start of an arc would slide it off its own carrier (LB5: a
+    /// mid-arc seam vertex is authored topology). Closing onto a
+    /// carrier while KEEPING the entry vertex is the arc-arrival close,
+    /// `fillet_arc(r, Center { c, winding, p: Start })`.
+    SeamRetrimsArcFirstSide,
     /// A leg length that is not definitely positive: a negative length
     /// would run the side BACKWARD, detaching the tip's anchored
     /// on-path points from the final path (§4 item 3's invariant,
@@ -757,6 +766,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  the anchor pins — reduce the radius or move the anchor"
             ),
             Self::ArcCarrierSpelling { site } => write!(f, "{site}"),
+            Self::SeamRetrimsArcFirstSide => write!(
+                f,
+                "a seam fillet retrims the entry vertex, so it needs a straight first side; \
+                 to close onto an arc carrier and KEEP the entry vertex, use \
+                 fillet_arc(r, Center {{ c, winding, p: Start }})"
+            ),
             Self::NonpositiveLeg { length } => write!(
                 f,
                 "a leg must advance the tip by a definitely positive length (got {length:?} m): \
@@ -1006,27 +1021,22 @@ enum FirstSeg {
     Arc,
 }
 
-/// An opened fillet awaiting its arrival side (the `Open` state's
-/// runtime content): the consumed departure ray, the radius, and the
-/// ray-origin junction's book-keeping for the zero-fit knife edges.
+/// Chain-side bookkeeping for an opened fillet — the §4 item 4
+/// zero-fit knife-edge data. This is NOT part of the kernel's
+/// [`verbs::Pending`] state value: the kernel cannot name it, which is
+/// what keeps the verbs pure (§2c round 12).
 #[derive(Clone, Debug)]
-struct PendingFillet<T: Real> {
-    origin: Point2<T>,
-    ang: Dir<T>,
-    radius: T,
-    /// The ray was bound by `.tangent()` (its origin joint is already
-    /// declared).
+struct PendingMeta<T: Real> {
+    /// The ray was bound by `.tangent()` (or ray-extended off a leg
+    /// end): its origin joint is already declared.
     by_tangent: bool,
     /// The ray origin's incoming carrier, if the origin was a leg end.
     origin_incoming: Option<Incoming<T>>,
-    /// **G2 §3a**: the fillet's INCOMING side runs on this arc carrier
-    /// — set exactly when the departure tip was bound by `.at_on`.
-    ///
-    /// It is never inferred: a `.tangent()` departure off an arc leg
-    /// still fillets against the tangent LINE, as it always has, because
-    /// the carrier there is a value the author did not name. Authoring
-    /// the carrier is what makes the side circular.
-    carrier: Option<(Point2<T>, ArcSweep)>,
+    /// **RETIRING (§2b compat)**: the carrier a retired `at_on` door
+    /// bound the departure tip on. Only the retired arrival doors read
+    /// it; the §2c family never sets it, and the generic binders refuse
+    /// on it exactly as the register always did.
+    compat_carrier: Option<(Point2<T>, ArcSweep)>,
 }
 
 /// The accumulated lowering state: the vertex chain emitted so far
@@ -1040,7 +1050,9 @@ struct Core<T: Real> {
     start_pos: Option<Point2<T>>,
     start_ang: Option<Dir<T>>,
     first_seg: FirstSeg,
-    pending: Option<PendingFillet<T>>,
+    pending: Option<verbs::Pending<T>>,
+    /// Chain-side knife-edge bookkeeping for `pending` (same lifetime).
+    pending_meta: Option<PendingMeta<T>>,
     /// The carrier of the last emitted segment when it is an arc.
     last_arc: Option<ArcData<T>>,
     /// **Profiles-as-programs (v2)**: the authoring verbs, recorded as
@@ -1058,6 +1070,7 @@ impl<T: Real> Core<T> {
             start_ang: None,
             first_seg: FirstSeg::NotYet,
             pending: None,
+            pending_meta: None,
             last_arc: None,
             program: Vec::new(),
         }
@@ -1299,6 +1312,80 @@ fn fillet_arc_carrier<T: Real>(trims: &LineFilletTrims<T>, u2: Vec2<T>, radius: 
 }
 
 impl<T: Decide> Core<T> {
+    /// Takes the opened fillet and its chain-side bookkeeping together.
+    fn take_pending(
+        &mut self,
+        site: &'static str,
+    ) -> Result<(verbs::Pending<T>, PendingMeta<T>), PathError<T>> {
+        let pending = self
+            .pending
+            .take()
+            .ok_or(PathError::OverdeterminedJunction { site })?;
+        let meta = self.pending_meta.take().unwrap_or(PendingMeta {
+            by_tangent: false,
+            origin_incoming: None,
+            compat_carrier: None,
+        });
+        Ok((pending, meta))
+    }
+
+    /// Resolves a FUSED-incoming fillet (`Pending::Arc`) against a
+    /// STRAIGHT arrival (the generic binders' ray, the far-end anchor,
+    /// or the seam): the boundary machinery derives the corner from the
+    /// authored carrier × the arrival ray, and the chain applies the
+    /// emissions — the trimmed incoming run along its own carrier, then
+    /// the fillet arc (interior) or the closing retrim (seam).
+    fn resolve_arc_pending_ray_arrival(
+        &mut self,
+        arc: verbs::PendingArc<T>,
+        _meta: PendingMeta<T>,
+        arr_pos: Point2<T>,
+        arr_ang: Dir<T>,
+        kind: ArrivalKind,
+    ) -> Result<(ArcData<T>, Sign), PathError<T>> {
+        // The seam gate runs BEFORE resolution, exactly as the straight
+        // path's does: retrimming an arc first side is refused whatever
+        // the corner would have been.
+        if kind == ArrivalKind::Seam && self.first_seg != FirstSeg::Line {
+            return Err(PathError::SeamRetrimsArcFirstSide);
+        }
+        let incoming = arc_fillet::FilletSide {
+            anchor: arc.anchor,
+            carrier: arc_fillet::SideCarrier::Circle {
+                centre: arc.centre,
+                winding: arc.winding,
+            },
+        };
+        let arrival = arc_fillet::FilletSide {
+            anchor: arr_pos,
+            carrier: arc_fillet::SideCarrier::Ray(arr_ang.unit),
+        };
+        let trims = (arc.resolver)(incoming, arrival, arc.radius, Tolerance::get())?;
+        self.emit_fillet_in(&trims)?;
+        match kind {
+            ArrivalKind::Seam => {
+                // The fillet arc IS the closing segment; the entry
+                // vertex retrims to its end and joint 0 is the
+                // constructed seam tangency (the straight seam's rule).
+                self.set_leaving(trims.bulge, FirstSeg::Arc)?;
+                match self.verts.first_mut() {
+                    Some(v0) => v0.pos = trims.t2,
+                    None => {
+                        return Err(PathError::UnderdeterminedLeg {
+                            site: "seam fillet on an empty chain",
+                        });
+                    }
+                }
+                self.tangent.push(0);
+            }
+            ArrivalKind::Continues => self.emit_fillet_arc(&trims, true)?,
+            ArrivalKind::EndsAtAnchor => {
+                self.emit_fillet_arc(&trims, trims.fit_out == Sign::Positive)?;
+            }
+        }
+        Ok((trims.arc, trims.fit_out))
+    }
+
     /// Resolves an opened fillet the moment its arrival side is
     /// Directed (PATHS-DESIGN §2: the r-arc tangent to both carriers is
     /// inserted at their implicit virtual corner, trimming both).
@@ -1320,19 +1407,20 @@ impl<T: Decide> Core<T> {
         arr_ang: Dir<T>,
         kind: ArrivalKind,
     ) -> Result<(ArcData<T>, Sign), PathError<T>> {
-        let pending = self
-            .pending
-            .take()
-            .ok_or(PathError::OverdeterminedJunction {
-                site: "fillet resolution without an opened fillet",
-            })?;
-        // G2: this is the STRAIGHT-carrier resolution and stays exactly
-        // what it was, bracket-free, bit-for-bit. A departure bound on
-        // an arc carrier is resolved by the boundary module instead
-        // (`arc_fillet::resolve`, which reads the S8 channel), reached
-        // through the carrier-aware arrival binders; a straight arrival
-        // door cannot complete it, and says so.
-        if pending.carrier.is_some() {
+        let (pending, meta) = self.take_pending("fillet resolution without an opened fillet")?;
+        let pending = match pending {
+            verbs::Pending::Ray(ray) => ray,
+            // §2c: a fused verb AUTHORED the incoming arc, so a straight
+            // arrival completes it through the boundary machinery — the
+            // old carrier-keyed refusal is gone with the register.
+            verbs::Pending::Arc(arc) => {
+                return self.resolve_arc_pending_ray_arrival(arc, meta, arr_pos, arr_ang, kind);
+            }
+        };
+        // §2b compat: a departure bound on a carrier by the RETIRED
+        // `at_on` door still refuses the generic straight arrivals,
+        // exactly as the register did, until those doors delete.
+        if meta.compat_carrier.is_some() {
             return Err(PathError::ArcCarrierSpelling {
                 site: "a fillet departing on an arc carrier binds its arrival with \
                        .at_on(p, centre, winding), .at_toward(p, dx, dy) (a STRAIGHT \
@@ -1341,7 +1429,7 @@ impl<T: Decide> Core<T> {
             });
         }
         let band = linear_band()?;
-        let u1 = pending.ang.unit;
+        let u1 = pending.dir.unit;
         let u2 = arr_ang.unit;
         let w = arr_pos - pending.origin;
         let wn = w.norm_squared().sqrt();
@@ -1384,17 +1472,12 @@ impl<T: Decide> Core<T> {
         }
         // (3) a `.to(Start)` seam RETRIMS the entry vertex, so the
         // segment leaving it must be the straight side 1 — retrimming
-        // the start of an arc would slide that arc off its own carrier.
-        // G2 does not relax this (LB5: the rocker outline's mid-arc seam
-        // vertex is authored topology); it gives the case its own door,
-        // `.to_on(Start, centre, winding)`, which CLOSES on the entry's
-        // carrier and keeps the vertex instead of eating it.
+        // the start of an arc would slide that arc off its own carrier
+        // (LB5: a mid-arc seam vertex is authored topology). Closing
+        // onto a carrier and KEEPING the vertex is the arc-arrival
+        // close, `fillet_arc(r, Center { c, winding, p: Start })`.
         if kind == ArrivalKind::Seam && self.first_seg != FirstSeg::Line {
-            return Err(PathError::ArcCarrierSpelling {
-                site: "a seam fillet that retrims the entry vertex needs a straight first \
-                       side; to close onto an arc carrier and KEEP the entry vertex, use \
-                       .to_on(Start, centre, winding)",
-            });
+            return Err(PathError::SeamRetrimsArcFirstSide);
         }
         let corner = pending.origin + u1 * t_ray;
         // (4) the shared line×line closed form, anchored: head = the
@@ -1411,8 +1494,8 @@ impl<T: Decide> Core<T> {
             self.push_line(trims.t1)?;
             self.declare_last();
         } else if self.last_declared() {
-            let adjacent = if pending.by_tangent {
-                pending.origin_incoming.as_ref().and_then(|inc| inc.carrier)
+            let adjacent = if meta.by_tangent {
+                meta.origin_incoming.as_ref().and_then(|inc| inc.carrier)
             } else {
                 self.last_arc
             };
@@ -2057,13 +2140,15 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Ok(_) => return Err(PathError::NonpositiveFilletRadius { radius }),
             Err(source) => return Err(PathError::Escalated { source }),
         }
-        self.core.pending = Some(PendingFillet {
+        self.core.pending = Some(verbs::Pending::Ray(verbs::PendingRay {
             origin: at,
-            ang,
+            dir: ang,
             radius,
+        }));
+        self.core.pending_meta = Some(PendingMeta {
             by_tangent: self.tip.ang_by_tangent,
             origin_incoming: self.tip.pos.as_ref().and_then(|p| p.incoming),
-            carrier: self.tip.pos.as_ref().and_then(|p| p.on),
+            compat_carrier: self.tip.pos.as_ref().and_then(|p| p.on),
         });
         Ok(in_state(
             self.core,
