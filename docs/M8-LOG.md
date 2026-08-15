@@ -322,8 +322,10 @@ residuals the demos raised):
 - **D2 — no group union in the recipe layer.** `Node::Boolean` is
   pairwise, so the 21-shell cutting tool the closed-group discipline
   requires (S13 refuses a trimmed sphere face as the next operand)
-  costs TWENTY union nodes, and leaves the last ball's names twenty
-  `FromA`/`FromB` segments deep. `die_pips` sidesteps this by carrying
+  costs TWENTY union nodes, and leaves the FIRST ball's names twenty
+  `FromA`/`FromB` segments deep (the fold's accumulator is the `a`
+  operand — corrected 2026-08-15 by the design-conversation
+  substrate; docs/GROUP-BOOLEAN-DESIGN.md). `die_pips` sidesteps this by carrying
   one pip; the tour cannot, because 21 pips are the scene. A
   group-union node — or a union taking a list of operands — says it
   once. Related but distinct from F4 (a Boolean node cannot consume a
