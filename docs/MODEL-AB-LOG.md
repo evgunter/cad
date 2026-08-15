@@ -811,3 +811,9 @@ PYG5 (G5 + R3, docs/LIB-PYG5-SPEC.md) = FABLE; pre-draw fields
 M / STRUCTURAL. Parallel with RESPELL PR-1 (disjoint trees per
 the spec's fence); a G14 design survey runs read-only alongside.
 Slots 2-4 (opus ×3) bank.
+LIB-10 slot 3 dispatch (2026-08-15): G14 (the ratified #512
+disposition — A2 tied SectionEdge + B1 tied propagation + the
+#380 Display rider; docs/LIB-G14-SPEC.md) = OPUS. Pre-draw
+fields M / STRUCTURAL. Third parallel lane (names/ territory,
+disjoint from RESPELL PR-1 and PYG5 per the fences). Slots 2
+(PlacedUnion, behind RESPELL PR-1's schema claim) and 4 bank.
