@@ -82,7 +82,7 @@ use std::sync::Arc;
 
 use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3};
-pub use nurbs::{NurbsSurface, SurfaceJet, SurfaceJet3};
+pub use nurbs::{NurbsSurface, SurfaceJet, SurfaceJet3, SurfaceWindow};
 pub use projection::{
     SURFACE_PROJECT_EPS_COSINE, SURFACE_PROJECT_EPS_POINT, SURFACE_PROJECT_MAX_ITERS,
     SURFACE_PROJECT_SEEDS_PER_SPAN, SurfaceProjection, SurfaceProjectionInconclusive,

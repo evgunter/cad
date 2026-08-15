@@ -30,9 +30,13 @@ records stay cross-referenced).
    refused class), tier-3 on rational walls.
 4. **M8-4 — the `nurbs_iso_derive` Intersection arm** (the second
    gap #288 measured: pcurve minting for declared plane×NURBS
-   intersection edges on integral walls). With M8-3 it makes mixed
-   plane×NURBS bodies first-class END-TO-END — the #288 walk row's
-   full retirement.
+   intersection edges). *Scope amended at spec time (2026-08-14,
+   docs/M8-4-SPEC.md, binding): #353 collapsed the integral/rational
+   wall split, so the arm is wall-kind-independent, and the flip is
+   ε-conditional (at 1e-12 both fixtures honestly refuse upstream of
+   the pcurve stage) — the #288 walk row retires with its ε cells
+   stated, boundary-iso carriers only, interior/diagonal carriers
+   keep their typed refusal with a named follow-up.*
 
 5. **M8-5 — mesh rational deviation certificate** (plan amendment,
    2026-08-10, discovered by M8-2: the restored crescent blade

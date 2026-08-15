@@ -25,16 +25,11 @@
 use geom_brep::implicit_residual;
 use geom_core::{Point3, RingInterval, Vec3};
 use geom_surfaces::Surface;
+use test_utils::fuzz;
 
-struct Lcg(u64);
-impl Lcg {
-    fn next_f64(&mut self) -> f64 {
-        self.0 = self
-            .0
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407);
-        ((self.0 >> 11) as f64 / (1u64 << 53) as f64) * 2.0 - 1.0
-    }
+/// Uniform in `[-1, 1)`, the shape the reviewer's probe drew.
+fn signed_unit(rng: &mut fuzz::Rng) -> f64 {
+    rng.range(-1.0, 1.0)
 }
 
 fn ring(v: f64) -> RingInterval {
@@ -75,6 +70,19 @@ fn cyl_enclosure_naive(origin: Point3<f64>, axis: Vec3<f64>, r: f64, b: B3) -> R
     (q2 - h.sqr() - ring(r * r)) / ring(2.0 * r)
 }
 
+/// Containment of the sample's own one-ulp rounding bracket. The
+/// enclosure's contract (`RingInterval` module docs) binds the REAL
+/// residual of points in the box; the f64 sample is itself a rounded
+/// evaluation, so its final rounding may step across the enclosure's
+/// endpoint (Lemma P1: a correctly rounded result lies within one
+/// representable step of the true value). The honest oracle claim is
+/// that the enclosure meets `[next_down(sample), next_up(sample)]` —
+/// no relative slack: a genuinely lying enclosure misses by the
+/// geometry's scale, orders of magnitude, never by one step.
+fn brackets(e: RingInterval, sample: f64) -> bool {
+    e.lo() <= sample.next_up() && sample.next_down() <= e.hi()
+}
+
 fn sph_enclosure(center: Point3<f64>, r: f64, b: B3) -> RingInterval {
     let q = [
         b.x - ring(center.x),
@@ -98,24 +106,25 @@ fn enclosures_contain_every_sampled_residual_hence_exclusion_cannot_lie() {
         radius: 0.08,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let mut rng = Lcg(0xA5A5A5A55A5A5A5A);
+    let mut rng = fuzz::start("review_m5_pr7_enclosure::enclosures_contain_residuals");
     // Random boxes across the slab, plus boxes planted ON the locus
     // (centered at points of the two polar loops) — the adversarial
     // case: an excluded cell there would be a lie.
     let mut boxes: Vec<(Point3<f64>, f64)> = Vec::new();
-    for _ in 0..600 {
+    for _ in 0..fuzz::scaled(75) {
         let c = Point3::new(
-            rng.next_f64() * 1.5,
-            rng.next_f64() * 1.5,
-            rng.next_f64() * 1.5,
+            signed_unit(&mut rng) * 1.5,
+            signed_unit(&mut rng) * 1.5,
+            signed_unit(&mut rng) * 1.5,
         );
-        let r = 10f64.powf(-3.0 * (0.5 * (rng.next_f64() + 1.0))) * 0.8; // 0.8 down to ~8e-4
+        let r = 10f64.powf(-3.0 * (0.5 * (signed_unit(&mut rng) + 1.0))) * 0.8; // 0.8 down to ~8e-4
         boxes.push((c, r));
     }
     // Locus points of x²+... : points on the cylinder at angle t, height
     // solved onto the sphere.
-    for i in 0..200 {
-        let t = std::f64::consts::TAU * (i as f64) / 200.0;
+    let loop_pts = fuzz::scaled(25);
+    for i in 0..loop_pts {
+        let t = std::f64::consts::TAU * (i as f64) / (loop_pts as f64);
         let x = 0.03 + 0.08 * t.cos();
         let y = 0.08 * t.sin();
         let z2 = 1.0 - x * x - y * y;
@@ -147,28 +156,46 @@ fn enclosures_contain_every_sampled_residual_hence_exclusion_cannot_lie() {
         };
         let es = sph_enclosure(*center, *radius, b);
         let ec = cyl_enclosure_good(*origin, *axis, *cr, b);
-        assert!(!es.is_poison() && !ec.is_poison());
+        assert!(
+            !es.is_poison() && !ec.is_poison(),
+            "enclosure poisoned on box centre {c:?} — {}",
+            fuzz::replay()
+        );
+        // The 5×5×5 lattice is corners + face centres + interior of the
+        // box, i.e. the structure of the containment claim itself rather
+        // than a sweep count — dropping to 2 per axis would test only
+        // corners, where an interval enclosure is least likely to lie.
+        // It stays fixed; the BOX counts above carry the EFFORT dial.
         for i in 0..5 {
             for j in 0..5 {
                 for k in 0..5 {
+                    // Clamped into the box: the lattice formula rounds,
+                    // and an unclamped corner can land a ulp OUTSIDE the
+                    // box — a point the enclosure makes no claim about,
+                    // whose residual the gradient pushes several ulps
+                    // past the bound. The containment claim's hypothesis
+                    // is "point in the box"; the clamp makes the sample
+                    // satisfy it exactly.
                     let p = Point3::new(
-                        c.x - r + 2.0 * r * (i as f64) / 4.0,
-                        c.y - r + 2.0 * r * (j as f64) / 4.0,
-                        c.z - r + 2.0 * r * (k as f64) / 4.0,
+                        (c.x - r + 2.0 * r * (i as f64) / 4.0).clamp(b.x.lo(), b.x.hi()),
+                        (c.y - r + 2.0 * r * (j as f64) / 4.0).clamp(b.y.lo(), b.y.hi()),
+                        (c.z - r + 2.0 * r * (k as f64) / 4.0).clamp(b.z.lo(), b.z.hi()),
                     );
                     let fs = implicit_residual(&sph, p);
                     let fc = implicit_residual(&cyl, p);
                     assert!(
-                        es.lo() <= fs && fs <= es.hi(),
-                        "sphere enclosure lies at {p:?}: {fs} not in [{}, {}]",
+                        brackets(es, fs),
+                        "sphere enclosure lies at {p:?}: {fs} not in [{}, {}] — {}",
                         es.lo(),
-                        es.hi()
+                        es.hi(),
+                        fuzz::replay()
                     );
                     assert!(
-                        ec.lo() <= fc && fc <= ec.hi(),
-                        "cylinder enclosure lies at {p:?}: {fc} not in [{}, {}]",
+                        brackets(ec, fc),
+                        "cylinder enclosure lies at {p:?}: {fc} not in [{}, {}] — {}",
                         ec.lo(),
-                        ec.hi()
+                        ec.hi(),
+                        fuzz::replay()
                     );
                 }
             }

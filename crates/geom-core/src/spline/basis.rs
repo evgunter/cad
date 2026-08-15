@@ -1,6 +1,6 @@
 //! Generic B-spline basis evaluation — the **ring-ops half** of the
-//! spline substrate (C9): given a span index (structure, supplied by
-//! the caller — see [`super::locate`]), basis values and derivatives
+//! spline substrate (C9): given a [`Span`] (structure, supplied by the
+//! caller — see [`super::locate`]), basis values and derivatives
 //! at a generic scalar `t` use only `+ − × ÷` and
 //! [`Real::from_f64`]-lifted structure constants. No comparisons on
 //! `t` appear anywhere in this file; every `f64` comparison below
@@ -8,14 +8,20 @@
 //!
 //! # The span contract (binding, shared by every consumer)
 //!
-//! `span` must be a nonempty span index in
-//! `[kv.first_span(), kv.last_span()]`; that range is checkable
-//! structure, and an out-of-range span yields **all-poison** output
-//! (fail-loud, D4). Within a valid span the result is the span's
-//! polynomial: for `t` outside the span's knot interval the values are
-//! the **polynomial extension** — documented garbage-out, like
-//! `Mat3::inverse` on singular input, because detecting it would need
-//! the comparison [`Real`] deliberately lacks.
+//! **Structural, not checked.** A [`Span`] is a span index proven
+//! nonempty and in `[kv.first_span(), kv.last_span()]` at construction
+//! (its only constructors are [`KnotVector::span`] and
+//! [`KnotVector::span_at`]), so "out-of-range span" is not a
+//! representable input and there is no poison-on-bad-span output here.
+//! The one obligation left to the caller is the one the type cannot
+//! state: a `Span` is **not branded** to its knot vector, so it must be
+//! drawn from the `kv` it is evaluated against.
+//!
+//! Within a span the result is the span's polynomial: for `t` outside
+//! the span's knot interval the values are the **polynomial extension**
+//! — documented garbage-out, like `Mat3::inverse` on singular input,
+//! because detecting it would need the comparison [`Real`] deliberately
+//! lacks.
 //!
 //! # Fixed association (D9)
 //!
@@ -28,29 +34,31 @@
 //! would widen enclosures at the interval scalar (and could put 0 in a
 //! denominator enclosure that is structurally positive).
 
-use super::knots::KnotVector;
+use super::knots::{KnotVector, Span};
 use crate::real::Real;
-
-/// All-poison row, the total outcome for an invalid span index.
-fn poison_row<T: Real>(len: usize) -> Vec<T> {
-    vec![T::from_f64(f64::NAN); len]
-}
 
 /// The `p + 1` nonvanishing basis functions
 /// `N_{span−p,p}(t), …, N_{span,p}(t)` on `span` (Book A2.2 shape,
 /// structure-denominator form — module docs).
 ///
-/// Total: an out-of-range or **empty** `span` returns all-poison; a
-/// poisoned `t`
-/// propagates through the arithmetic. Division safety: every
-/// denominator is `knots[span+1+r] − knots[span+1+r−j] ≥
-/// knots[span+1] − knots[span] > 0` for a valid (nonempty) span of a
-/// validated clamped vector.
-pub fn basis_funs<T: Real>(kv: &KnotVector, span: usize, t: T) -> Vec<T> {
+/// Total: a poisoned `t` propagates through the arithmetic, and there
+/// is no invalid-span case to totalize (module docs: the contract is
+/// structural). Division safety: every denominator is
+/// `knots[span+1+r] − knots[span+1+r−j] ≥ knots[span+1] − knots[span] > 0`,
+/// which is exactly the nonemptiness [`Span`] carries.
+///
+/// That estimate is why the inner loop stops at `r = j − 1` and the
+/// level's high end is written after it as `n[j] = saved`. It needs
+/// `span + 1 + r − j ≤ span`, which fails at `r = j`: the denominator
+/// becomes `knots[span+1+j] − knots[span+1]`, no longer straddling the
+/// span's own gap, and at a clamped end (where those knots coincide) it
+/// is exactly zero — so folding the tail write into the loop for
+/// uniformity computes `0/0` and poisons the row.
+pub fn basis_funs<T: Real>(kv: &KnotVector, span: Span, t: T) -> Vec<T> {
     let p = kv.degree();
-    if span < kv.first_span() || span > kv.last_span() || !kv.span_is_nonempty(span) {
-        return poison_row(p + 1);
-    }
+    // The index, once — the recursion below reads knots around it. Its
+    // range facts (`span ≥ p`, `span + 1 < len`) came with the `Span`.
+    let span = span.index();
     let u = kv.knots();
     let mut n = vec![T::zero(); p + 1];
     n[0] = T::one();
@@ -58,8 +66,8 @@ pub fn basis_funs<T: Real>(kv: &KnotVector, span: usize, t: T) -> Vec<T> {
         let mut saved = T::zero();
         for r in 0..j {
             // Indexing justified: span + 1 + r ≤ span + j ≤ span + p ≤
-            // len − 2, and span + 1 + r − j ≥ span + 1 − p ≥ 1 (valid
-            // span range, checked above).
+            // len − 2, and span + 1 + r − j ≥ span + 1 − p ≥ 1 — the
+            // `Span`'s own range invariant, established at construction.
             let denom = u[span + 1 + r] - u[span + 1 + r - j];
             let temp = n[r] / T::from_f64(denom);
             n[r] = saved + (T::from_f64(u[span + 1 + r]) - t) * temp;
@@ -82,11 +90,12 @@ pub fn basis_funs<T: Real>(kv: &KnotVector, span: usize, t: T) -> Vec<T> {
 /// the span; its coefficient is set to exactly 0). The generic scalar
 /// enters only in the stored basis triangle and the final ascending-`j`
 /// accumulation `Σ a_{k,j}·N_{i+j,p−k}`, scaled by `p!/(p−k)!`.
-pub fn ders_basis_funs<T: Real>(kv: &KnotVector, span: usize, t: T, n_ders: usize) -> Vec<Vec<T>> {
+pub fn ders_basis_funs<T: Real>(kv: &KnotVector, span: Span, t: T, n_ders: usize) -> Vec<Vec<T>> {
     let p = kv.degree();
-    if span < kv.first_span() || span > kv.last_span() || !kv.span_is_nonempty(span) {
-        return (0..=n_ders).map(|_| poison_row(p + 1)).collect();
-    }
+    // The window's base, subtracted once inside `Span`, and the index
+    // the knot reads are centred on. Neither needs checking here.
+    let base = span.first_control();
+    let span = span.index();
     let u = kv.knots();
     // The full basis triangle: tri[j][r] = N_{span−j+r, j}(t),
     // levels j = 0..=p — the same recursion as `basis_funs`, all
@@ -120,7 +129,7 @@ pub fn ders_basis_funs<T: Real>(kv: &KnotVector, span: usize, t: T, n_ders: usiz
         factor *= (p - k + 1) as f64;
         let mut row = Vec::with_capacity(p + 1);
         for r in 0..=p {
-            let i = span - p + r; // control index; span ≥ p ⇒ no underflow
+            let i = base + r; // control index — the window's base plus r
             // a-ladder at f64 (structure): a_cur[j] = a_{k,j} for this i.
             let mut a_prev = vec![0.0f64; k + 1];
             let mut a_cur = vec![0.0f64; k + 1];
@@ -177,7 +186,7 @@ mod tests {
     fn bezier_span_matches_bernstein_closed_form() {
         let k = kv(&[0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3);
         let t = 0.3;
-        let n = basis_funs(&k, 3, t);
+        let n = basis_funs(&k, k.span(3).unwrap(), t);
         let binom = [1.0, 3.0, 3.0, 1.0];
         for (i, b) in binom.iter().enumerate() {
             let expect = b * t.powi(i as i32) * (1.0 - t).powi((3 - i) as i32);
@@ -193,7 +202,7 @@ mod tests {
     fn partition_of_unity_and_derivative_sums() {
         let k = kv(&[0.0, 0.0, 0.0, 1.0, 2.5, 4.0, 4.0, 4.0], 2);
         for t in [0.0, 0.4, 1.0, 1.7, 2.5, 3.9, 4.0] {
-            let span = k.find_span(t);
+            let span = k.span_at(t);
             let ders = ders_basis_funs(&k, span, t, 3);
             let sum0: f64 = ders[0].iter().sum();
             assert!((sum0 - 1.0).abs() < 1e-14, "Σ N = {sum0} at t = {t}");
@@ -210,7 +219,7 @@ mod tests {
     fn first_derivative_matches_dual_and_finite_difference() {
         let k = kv(&[0.0, 0.0, 0.0, 0.0, 1.0, 3.0, 3.0, 3.0, 3.0], 3);
         for t in [0.2, 0.99, 1.0, 2.4] {
-            let span = k.find_span(t);
+            let span = k.span_at(t);
             let ders = ders_basis_funs(&k, span, t, 2);
             let dual = basis_funs(&k, span, Dual64::variable(t));
             let h = 1e-7;
@@ -235,14 +244,5 @@ mod tests {
                 assert_eq!(ders[0][r].to_bits(), dual[r].value.to_bits());
             }
         }
-    }
-
-    #[test]
-    fn invalid_span_poisons_totally() {
-        let k = kv(&[0.0, 0.0, 1.0, 1.0], 1);
-        assert!(basis_funs(&k, 0, 0.5).iter().all(|x: &f64| x.is_nan()));
-        assert!(basis_funs(&k, 9, 0.5).iter().all(|x: &f64| x.is_nan()));
-        let d = ders_basis_funs(&k, 9, 0.5, 1);
-        assert!(d.iter().flatten().all(|x: &f64| x.is_nan()));
     }
 }

@@ -2,9 +2,10 @@
 //! branch, adopted BY MERGE at the fix pass. The two probes that
 //! FAILED BY DESIGN as findings are now regression pins: the F1
 //! rim-off-wall plant asserts the residual-gate refusal
-//! (`probe_arm_b_rim_off_wall_arc`, with its positive control), and
-//! the F2 sub-unit-direction probe asserts every `PlacedSegment`
-//! placement in a certified import is an honest rigid frame.
+//! (`probe_arm_b_rim_off_wall_arc`; its positive control is the merged
+//! row in `nurbs_import.rs`, see that probe's docs), and the F2
+//! sub-unit-direction probe asserts every `PlacedSegment` placement in
+//! a certified import is an honest rigid frame.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -46,9 +47,26 @@ fn native_loft_prism() -> topo::Body<f64> {
 }
 
 /// V2: a seam carrier byte-equal to NEITHER wall's boundary iso (a
-/// "legitimately refit" foreign seam) must refuse typed, not misadopt.
+/// "legitimately refit" foreign seam) is disposed of by the TOLERANCE,
+/// never by a gate of its own.
+///
+/// The plant moves one seam control point by 1e-7 m, and whether that
+/// is a falsification is an ε question: at ε_in ≤ 1e-9 the displacement
+/// is OUTSIDE tolerance and the seam must refuse TYPED — the probe's
+/// original teeth, and where the bitwise `IsoCurve` rung's absence must
+/// not become a silent adoption. At ε_in = 1e-6 the displacement is
+/// INSIDE tolerance: the file's carrier is honest evidence at the
+/// tolerance the caller asked for, declare-and-check certifies it, and
+/// refusing it would be a gate tighter than ε_in.
+///
+/// Both cells are pinned with the plant's own number. The falsifier
+/// with real teeth at EVERY ε is `recognize_pins`'s 1e-3 m displaced
+/// carrier, which refuses carrying its measured residual.
 #[test]
 fn probe_refit_seam_refuses_typed() {
+    /// The plant's displacement, in metres.
+    const PLANT: f64 = 1e-7;
+    let eps = geom_core::Tolerance::get().eps;
     let text = fixture("loft_prism", "step").replace(
         "#90 = CARTESIAN_POINT('', (-1.75, -1.0, 1.0));",
         "#90 = CARTESIAN_POINT('', (-1.7499999, -1.0, 1.0));",
@@ -57,18 +75,49 @@ fn probe_refit_seam_refuses_typed() {
     match import(&text) {
         Err(e) => {
             let msg = e.to_string();
-            eprintln!("PROBE refit-seam refusal: {msg}");
+            eprintln!("PROBE refit-seam refusal @ eps={eps:e}: {msg}");
             assert!(
-                !msg.is_empty(),
-                "refusal must be typed with a message: {msg}"
+                PLANT > eps,
+                "a displacement INSIDE ε_in must not be refused: {msg}"
+            );
+            // The refusal is the ADOPTION verdict on the plant, and it
+            // carries the number that caught it: the declare-and-check
+            // lane's measured on-locus residual, which must exceed ε_in
+            // and be the plant's own order. A refusal from any later
+            // stage would mean the seam was adopted and something
+            // downstream objected — a different fact, and not this
+            // probe's.
+            let step_import::StepImportError::Adoption { attempts, .. } = &e else {
+                panic!("the plant must be caught at ADOPTION, not downstream: {msg}");
+            };
+            let measured = attempts.iter().find_map(|a| match a.refusal {
+                topo::EulerOpError::Certification {
+                    error:
+                        geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
+                            value,
+                            ..
+                        }),
+                } => Some(value),
+                _ => None,
+            });
+            let Some(measured) = measured else {
+                panic!("the refusal must carry the lane's measured bound: {attempts:?}");
+            };
+            assert!(
+                measured > eps && measured < 1e-6,
+                "the refusal's own number explains it: on-locus residual {measured:e} m \
+                 past ε_in {eps:e}, and of the plant's own order ({PLANT:e} m)"
             );
         }
         Ok(StepImport::Solid { body, .. }) => {
-            // If it imported anyway, the seam was misadopted somewhere.
-            panic!(
-                "MISADOPTION: refit seam imported as a solid (census {:?})",
+            assert!(
+                PLANT < eps,
+                "MISADOPTION: refit seam displaced {PLANT:e} m — past ε_in {eps:e} — \
+                 imported as a solid (census {:?})",
                 census(&body)
             );
+            topo::validate_geometric(&body)
+                .expect("a seam adopted inside ε_in leaves a body that is valid at rest");
         }
         Ok(other) => panic!("unexpected disposition: {other:?}"),
     }
@@ -193,9 +242,17 @@ fn probe_arc_loft_weights_snapped_to_one_refuses() {
 /// the z=0 cap's quarter arc (center ~(0,0,0), r = √2) replaced by a
 /// DIFFERENT circle through the same two endpoints
 /// (center (1−√24, 0, 0), r = 5) — must now REFUSE, typed, naming
-/// the residual. The positive control beside this
-/// ([`probe_arm_b_true_arc_rim_positive_control`]) pins that the
-/// TRUE arc still imports through the same gate.
+/// the residual.
+///
+/// **The positive control is
+/// `nurbs_import::arc_loft_natively_computes_its_rational_volume`**,
+/// which builds the character-identical arc loft and pins that the
+/// UNMUTATED file clears this same residual gate and imports (or, at
+/// a tight enough ε, stops only at the quadrature budget, with the
+/// verdict list pinned structurally). The discrimination this probe
+/// exists for — the plant refuses `RimOffWallBoundary`, the true arc
+/// does not — is therefore stated across the two rows, and the true
+/// arc's rational quadrature is paid once instead of twice.
 #[test]
 fn probe_arm_b_rim_off_wall_arc() {
     let native = native_arc_loft_for_probe();
@@ -274,66 +331,6 @@ fn probe_arm_b_rim_off_wall_arc() {
             );
         }
         Ok(other) => panic!("unexpected disposition: {other:?}"),
-    }
-}
-
-/// The positive control beside the flipped F1 plant: the TRUE arc rim
-/// passes the residual gate — a gate that refused the genuine body
-/// would be a false alarm, not a certification. That discrimination is
-/// what this row exists for, and it still holds: the plant refuses
-/// `RimOffWallBoundary`, the true arc does not.
-///
-/// M7-7 (#260 ruling (a)) moved the true arc's stop one gate later, to
-/// the shared at-rest gate, on the BANKED rational volume lane.
-/// **M8-3 RETIRES that stop**: the arc rim mints (`Pcurve::IsoArc`)
-/// and the rational wall's flux certifies, so the true arc now imports
-/// FIRST-CLASS — and `StepImport::Solid` may only carry a body the
-/// shared at-rest gate passes, so `Ok` here IS the tier-3 verdict.
-///
-/// The discrimination the row exists for is therefore stated at full
-/// strength for the first time: the plant refuses `RimOffWallBoundary`
-/// and the true arc imports. A gate that refused the genuine body
-/// would now be visibly a false alarm rather than hidden behind a
-/// downstream refusal. `nurbs_import.rs` holds the full disposition
-/// row for this body class, including its ε posture.
-#[test]
-fn probe_arm_b_true_arc_rim_positive_control() {
-    let native = native_arc_loft_for_probe();
-    let text = step_export::step_string(&native, &step_export::StepOptions::default())
-        .expect("arc loft exports");
-    let eps = geom_core::Tolerance::get().eps;
-    match import(&text) {
-        Ok(StepImport::Solid { body, .. }) => {
-            assert_eq!(
-                topo::validate_geometric(&body),
-                Ok(()),
-                "an imported Solid is at-rest valid by construction of the gate"
-            );
-            eprintln!("PROBE true arc rim @ eps={eps:e}: FIRST-CLASS (M8-3)");
-        }
-        // The fixed schedule's honest frontier: at a tight enough ε the
-        // rational flux cannot reach `1024·ε` and the shared gate
-        // refuses TYPED with the measured width. Not a rim statement,
-        // and never widened.
-        Err(step_import::StepImportError::TierInvalid { errors, .. }) => {
-            assert!(
-                matches!(
-                    errors.as_slice(),
-                    [topo::ValidationError::VolumeUncomputable {
-                        source: topo::MassPropsError::Face {
-                            source: geom_brep::props::PropsError::QuadratureBudget { .. },
-                            ..
-                        },
-                    }]
-                ),
-                "the only surviving verdict is the fixed schedule's budget: {errors:?}"
-            );
-            eprintln!("PROBE true arc rim @ eps={eps:e}: quadrature budget (honest)");
-        }
-        other => panic!(
-            "the true arc rim must clear the residual gate and import, or stop only at \
-             the quadrature budget, got: {other:?}"
-        ),
     }
 }
 
@@ -528,67 +525,6 @@ fn probe_reexport_promotion_divergence() {
     let body2 = solid(&out, "first re-export");
     let out2 = step_export::step_string(&body2, &options).expect("second re-export");
     assert_eq!(out, out2, "fixed point from the first re-export on");
-}
-
-/// V6, re-anchored at M8-14 (#327): dm1-id-214's first refusal site
-/// has moved four times, always FORWARD, and each move retired a
-/// distance. From `#667 QUASI_UNIFORM_CURVE` (parse vocabulary,
-/// retired by M7-6's knots-implied synthesis) past the whole geometry
-/// pass — the 24 NURBS surfaces recognize, the trim rings ride the
-/// promoted planes — to the ASSEMBLY layer at `#186` (M7-4 Leg D), to
-/// the D7 adoption ladder at edge `#685` (M8 instancing put the
-/// placement layer behind the geometry).
-///
-/// #327 retires THAT: `#685`'s carrier is a rational quadratic that
-/// IS a circle, stage-1 curve recognition certifies it and promotes
-/// it, the existing arc-rim rungs take over, and every edge of every
-/// instance adopts with its pcurve minted and certified. The site is
-/// now the SHARED AT-REST GATE — the exact-B-rep volume of the
-/// rational cylinder wall, whose quadrature enclosure stalls short of
-/// the target: the banked rational-patch-flux lane, named in this
-/// crate's own docs, and a different unit from anything D7 does.
-///
-/// Pinning that the site is the GATE is the point: an `Adoption` here
-/// again would mean the ladder came back.
-#[test]
-fn probe_dm1_first_refusal_site() {
-    let path: std::path::PathBuf = [
-        env!("CARGO_MANIFEST_DIR"),
-        "tests",
-        "fixtures",
-        "wild",
-        "stepcode",
-        "dm1-id-214.stp",
-    ]
-    .iter()
-    .collect();
-    let text = std::fs::read_to_string(&path).unwrap();
-    // Two cells, because the ambient band selects which frontier is
-    // first: at a COARSE ε the ladder now reaches `#389` — a
-    // two-point polyline carrier that stays NURBS and is offered zero
-    // candidates, a PRE-EXISTING gap that was masked behind #685 at
-    // every band until #327 retired it. Named, not averaged.
-    let coarse = geom_core::Tolerance::get().eps > 1e-9;
-    match import(&text) {
-        Err(e @ step_import::StepImportError::TierInvalid { .. }) => {
-            let shown = e.to_string();
-            eprintln!("PROBE dm1 refusal: {shown}");
-            assert!(!coarse, "the coarse cell is the #389 ladder gap: {shown}");
-            assert!(
-                shown.contains("the certified quadrature enclosure stalled at"),
-                "the site is the rational-patch-flux lane: {shown}"
-            );
-        }
-        Err(step_import::StepImportError::Adoption { id, attempts }) => {
-            eprintln!(
-                "PROBE dm1 refusal: edge #{id}, {} candidate(s)",
-                attempts.len()
-            );
-            assert!(coarse, "the fine cells are past the ladder entirely");
-            assert_eq!(id, 389, "the coarse-band cell's edge");
-        }
-        other => panic!("dm1-id-214 must refuse at the at-rest gate, got {other:?}"),
-    }
 }
 
 /// V2 determinism: two imports of the same file produce identical

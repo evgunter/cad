@@ -20,36 +20,12 @@
 //!    bound would pass containment and fail here.
 
 use geom_core::spline::{KnotVector, basis, hull};
-
-/// SplitMix64, matching the sibling scratch suite.
-struct Sm64(u64);
-
-impl Sm64 {
-    fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9e37_79b9_7f4a_7c15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
-        z ^ (z >> 31)
-    }
-
-    fn below(&mut self, n: usize) -> usize {
-        (self.next() % n as u64) as usize
-    }
-
-    fn unit(&mut self) -> f64 {
-        (self.next() >> 11) as f64 * (1.0 / 9_007_199_254_740_992.0)
-    }
-
-    fn range(&mut self, lo: f64, hi: f64) -> f64 {
-        lo + (hi - lo) * self.unit()
-    }
-}
+use test_utils::fuzz;
 
 /// A clamped knot vector on `[0, 1]` whose interior knots are multiples
 /// of `1/64` — dyadic, so every knot difference is exact in `f64` and
 /// exactly an integer once scaled by 64.
-fn dyadic_kv(rng: &mut Sm64, degree: usize, interior: usize) -> Option<KnotVector> {
+fn dyadic_kv(rng: &mut fuzz::Rng, degree: usize, interior: usize) -> Option<KnotVector> {
     let mut inner: Vec<i64> = Vec::new();
     for _ in 0..interior {
         inner.push(1 + rng.below(63) as i64);
@@ -64,7 +40,7 @@ fn dyadic_kv(rng: &mut Sm64, degree: usize, interior: usize) -> Option<KnotVecto
 
 /// Coefficients that are multiples of `1/1024` — exact in `f64`, exact
 /// integers once scaled by 1024.
-fn dyadic_coeffs(rng: &mut Sm64, n: usize) -> (Vec<f64>, Vec<i64>) {
+fn dyadic_coeffs(rng: &mut fuzz::Rng, n: usize) -> (Vec<f64>, Vec<i64>) {
     let ints: Vec<i64> = (0..n).map(|_| rng.below(4096) as i64 - 2048).collect();
     let vals = ints.iter().map(|k| *k as f64 / 1024.0).collect();
     (vals, ints)
@@ -73,13 +49,13 @@ fn dyadic_coeffs(rng: &mut Sm64, n: usize) -> (Vec<f64>, Vec<i64>) {
 /// Rational spline value at `t` — the sampling oracle, independent of
 /// the hull machinery.
 fn eval_rational(kv: &KnotVector, coeffs: &[f64], weights: &[f64], t: f64) -> f64 {
-    let span = kv.find_span(t);
+    let span = kv.span_at(t);
     let nvals = basis::basis_funs(kv, span, t);
-    let p = kv.degree();
+    let first = span.first_control();
     let (mut num, mut den) = (0.0, 0.0);
     for (j, nj) in nvals.iter().enumerate() {
-        let w = nj * weights[span - p + j];
-        num += w * coeffs[span - p + j];
+        let w = nj * weights[first + j];
+        num += w * coeffs[first + j];
         den += w;
     }
     num / den
@@ -90,11 +66,11 @@ fn near_collapse_weights_never_escape_the_hull() {
     // Weights straddling the whole representable range while staying
     // strictly positive and finite: the precondition holds, so the bound
     // must hold, however degenerate the basis looks numerically.
-    let mut rng = Sm64(0x5eed_1234_abcd_0001);
+    let mut rng = fuzz::start("review_m5_pr2_scratch_hull::near_collapse_weights");
     let mut samples = 0u64;
     let mut worst = 0.0f64;
     for degree in 1..=5usize {
-        for _ in 0..300 {
+        for _ in 0..fuzz::scaled(38) {
             let interior = rng.below(4);
             let Some(kv) = dyadic_kv(&mut rng, degree, interior) else {
                 continue;
@@ -102,18 +78,30 @@ fn near_collapse_weights_never_escape_the_hull() {
             let n = kv.control_count();
             let coeffs: Vec<f64> = (0..n).map(|_| rng.range(-100.0, 100.0)).collect();
             let weights: Vec<f64> = (0..n)
-                .map(|_| if rng.next() & 1 == 0 { 1e-300 } else { 1e300 })
+                .map(|_| {
+                    if rng.next_u64() & 1 == 0 {
+                        1e-300
+                    } else {
+                        1e300
+                    }
+                })
                 .collect();
             let domain = hull::domain_hull_rational(&kv, &coeffs, &weights);
-            assert!(!domain.is_poison(), "positive weights must not poison");
-            for span in kv.first_span()..=kv.last_span() {
-                if !kv.span_is_nonempty(span) {
-                    continue;
-                }
+            assert!(
+                !domain.is_poison(),
+                "positive weights must not poison — {}",
+                fuzz::replay()
+            );
+            for index in kv.first_span()..=kv.last_span() {
+                let Some(span) = kv.span(index) else { continue };
                 let b = hull::span_hull_rational(&kv, &coeffs, &weights, span);
-                let (u0, u1) = (kv.knots()[span], kv.knots()[span + 1]);
-                for k in 0..=64 {
-                    let t = (u0 + (u1 - u0) * (f64::from(k) / 64.0)).min(u1);
+                let (u0, u1) = (kv.knots()[index], kv.knots()[index + 1]);
+                // Falsification grid across the span; its density is a
+                // sweep count like any other, so it rides the EFFORT dial.
+                let grid = fuzz::scaled(8);
+                for k in 0..=grid {
+                    let frac = k as f64 / grid as f64;
+                    let t = (u0 + (u1 - u0) * frac).min(u1);
                     let v = eval_rational(&kv, &coeffs, &weights, t);
                     if !v.is_finite() {
                         // The 1e±300 ratio can overflow the f64 SAMPLE
@@ -126,11 +114,16 @@ fn near_collapse_weights_never_escape_the_hull() {
                     let over = (b.lo() - v).max(v - b.hi()).max(0.0) / (mag * f64::EPSILON);
                     assert!(
                         over <= 64.0,
-                        "near-collapse sample {v:e} outside [{:e}, {:e}] by {over} ulps",
+                        "near-collapse sample {v:e} outside [{:e}, {:e}] by {over} ulps — {}",
                         b.lo(),
-                        b.hi()
+                        b.hi(),
+                        fuzz::replay()
                     );
-                    assert!(domain.contains(v) || over <= 64.0);
+                    assert!(
+                        domain.contains(v) || over <= 64.0,
+                        "near-collapse sample {v:e} outside the domain hull — {}",
+                        fuzz::replay()
+                    );
                     worst = worst.max(over);
                     samples += 1;
                 }
@@ -152,10 +145,10 @@ fn derivative_coefficients_are_exact_by_i128_cross_multiplication() {
     // then `lo ≤ NUM/DEN ≤ hi`, i.e. `lo·DEN ≤ NUM` and `NUM ≤ hi·DEN`
     // — checked in i128 after scaling the bound by 2^k, with no
     // floating-point re-evaluation of the formula anywhere.
-    let mut rng = Sm64(0x5eed_1234_abcd_0002);
+    let mut rng = fuzz::start("review_m5_pr2_scratch_hull::derivative_coefficients");
     let (mut checked, mut worst_ulps) = (0u64, 0.0f64);
     for degree in 1..=5usize {
-        for _ in 0..400 {
+        for _ in 0..fuzz::scaled(50) {
             let interior = rng.below(5);
             let Some(kv) = dyadic_kv(&mut rng, degree, interior) else {
                 continue;
@@ -163,16 +156,29 @@ fn derivative_coefficients_are_exact_by_i128_cross_multiplication() {
             let n = kv.control_count();
             let (coeffs, cints) = dyadic_coeffs(&mut rng, n);
             let qs = hull::derivative_coeffs(&kv, &coeffs);
-            assert_eq!(qs.len(), n - 1, "one derivative coefficient per gap");
+            assert_eq!(
+                qs.len(),
+                n - 1,
+                "one derivative coefficient per gap — {}",
+                fuzz::replay()
+            );
             let u64ths: Vec<i64> = kv
                 .knots()
                 .iter()
                 .map(|u| (u * 64.0).round() as i64)
                 .collect();
             for (i, q) in qs.iter().enumerate() {
-                assert!(!q.is_poison(), "degree {degree}, i {i}: poisoned");
+                assert!(
+                    !q.is_poison(),
+                    "degree {degree}, i {i}: poisoned — {}",
+                    fuzz::replay()
+                );
                 let du = u64ths[i + degree + 1] - u64ths[i + 1];
-                assert!(du > 0, "clamped-v1 guarantees a positive knot gap");
+                assert!(
+                    du > 0,
+                    "clamped-v1 guarantees a positive knot gap — {}",
+                    fuzz::replay()
+                );
                 // NUM / DEN with DEN > 0.
                 let num = i128::from(degree as i64) * i128::from(cints[i + 1] - cints[i]) * 64;
                 let den = i128::from(du) * 1024;
@@ -182,21 +188,67 @@ fn derivative_coefficients_are_exact_by_i128_cross_multiplication() {
                 // so compare via exact f64 → rational conversion.
                 assert!(
                     cmp_bound_vs_ratio(q.lo(), num, den) != std::cmp::Ordering::Greater,
-                    "deriv LO above truth: degree {degree} i {i}"
+                    "deriv LO above truth: degree {degree} i {i} — {}",
+                    fuzz::replay()
                 );
                 assert!(
                     cmp_bound_vs_ratio(q.hi(), num, den) != std::cmp::Ordering::Less,
-                    "deriv HI below truth: degree {degree} i {i}"
+                    "deriv HI below truth: degree {degree} i {i} — {}",
+                    fuzz::replay()
                 );
                 // Width pin: a sound-but-slack bound fails here.
+                //
+                // The relative-ulp metric below is UNDEFINED for an
+                // enclosure straddling zero (`c[i] == c[i+1]` makes the
+                // true coefficient exactly 0): `q.mag()` is 0, the
+                // `.max(MIN_POSITIVE)` clamp makes the denominator one
+                // smallest subnormal, and "relative ulps" degenerates
+                // into an absolute count of subnormal steps. So: relative
+                // width where a relative width exists, an absolute cap
+                // where it does not.
+                //
+                // The absolute cap is DERIVED from the ring's pad
+                // structure, not a constant a fresh seed can outgrow
+                // (#489): around zero each outward pad is one subnormal
+                // step, and the op chain `(dc) * degree / (du/64)` bounds
+                // the half-width by (degree·1 + 1)·(64/du) + 1 steps —
+                // the subtraction pads ±1, the scale multiplies and pads,
+                // the division by the knot gap (du 64ths) multiplies by
+                // 64/du and pads. The assert allows 2× that width for
+                // op-order and subnormal-rounding freedom; a genuinely
+                // slack bound overshoots by orders of magnitude, never 2×.
+                if q.lo() <= 0.0 && q.hi() >= 0.0 {
+                    #[allow(clippy::cast_precision_loss)]
+                    let half_steps = (degree as f64 + 1.0) * 64.0 / du as f64 + 2.0;
+                    let abs_cap = 4.0 * half_steps * f64::MIN_POSITIVE * f64::EPSILON;
+                    assert!(
+                        q.width() <= abs_cap,
+                        "derivative enclosure of an exactly-zero coefficient is \
+                         {:e} wide (absolute cap {abs_cap:e}): [{:e}, {:e}] — \
+                         degree {degree} i {i} num {num} den {den} du {du} \
+                         c[i] {} c[i+1] {} — {}",
+                        q.width(),
+                        q.lo(),
+                        q.hi(),
+                        cints[i],
+                        cints[i + 1],
+                        fuzz::replay()
+                    );
+                    checked += 1;
+                    continue;
+                }
                 let mag = q.mag().max(f64::MIN_POSITIVE);
                 let ulps = q.width() / (mag * f64::EPSILON);
                 assert!(
                     ulps <= 16.0,
                     "derivative enclosure is {ulps} relative ulps wide (cap 16): \
-                     [{:e}, {:e}]",
+                     [{:e}, {:e}] — degree {degree} i {i} num {num} den {den} \
+                     du {du} c[i] {} c[i+1] {} mag {mag:e} — {}",
                     q.lo(),
-                    q.hi()
+                    q.hi(),
+                    cints[i],
+                    cints[i + 1],
+                    fuzz::replay()
                 );
                 worst_ulps = worst_ulps.max(ulps);
                 checked += 1;

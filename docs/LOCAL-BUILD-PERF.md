@@ -10,6 +10,13 @@ Companion to `~/.local/share/cad-work/bazel-verdict-report.md` (hosted-CI
 compile cost) and PR #174 (which landed mold + line-tables-only on CI).
 This document is about the LOCAL box.
 
+**See also `docs/GENERICS-BUILD-COST.md` (2026-08-12)** — the other half
+of the picture. This document is about *machine conditions*; that one is
+about *what the compiler is actually spending time on* (answer: not the
+`Real` generics; 62% of workspace LLVM IR is serde in one crate). It also
+supersedes two numbers used here: the mold verdict below became the basis
+for retiring mold from CI, and `test-fast.sh`'s 15× speedup is now 4.30×.
+
 ## 0. The machine
 
 | | |
@@ -253,13 +260,12 @@ remember a one-liner. If the hooks directory is missing entirely it warns
 loudly rather than proceeding quietly. The manual equivalent, if you want it
 now: `git config core.hooksPath local-scripts/hooks`.
 
-**The self-heal is a MIGRATION SHIM — RETIRE 2026-08-13 (Evan).** Every lane
-heals on its first build after merging the split, so once all lanes have
-cycled the block is dead weight, and a permanent repair path hides the very
-misconfiguration it papers over. Delete it: `grep -n 'RETIRE 2026-08-13'
-local-scripts/with-build-slot.sh` finds the whole shim (the repair block and
-its expiry notice). Past the date the script says so on every slot
-acquisition — a dated comment alone rots, so the reminder is self-enforcing.
+**The self-heal was a MIGRATION SHIM — RETIRED 2026-08-15 (due
+2026-08-13; the expiry nag did its job).** Every lane had cycled, so the
+repair block is deleted; what remains in with-build-slot.sh is the loud
+WARNING on a dangling `core.hooksPath` (a permanent repair path would
+hide the very misconfiguration it papers over — the warning names the
+one-liner fix instead).
 
 **General lesson, worth more than this instance**: a repo-relative path
 cached in per-clone git config is invisible to any repo-side rename. Grep

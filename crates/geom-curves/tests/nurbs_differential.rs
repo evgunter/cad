@@ -481,8 +481,12 @@ fn dual_kink_convention_at_knot_follows_the_tie_break() {
         .collect();
     let nd = NurbsCurve3::new(kv, ctrl, vec![1.0; 5]).unwrap();
     let t = 0.5;
-    let span_right = n64.knots().find_span(t); // the span starting at 0.5
-    let span_left = span_right - 2; // the [0, 0.5) span (mult-2 knot between)
+    let span_right = n64.knots().span_at(t); // the span starting at 0.5
+    // The [0, 0.5) span (mult-2 knot between).
+    let span_left = n64
+        .knots()
+        .span(span_right.index() - 2)
+        .expect("the left span is nonempty");
     let d_right = n64.deriv_in_span(span_right, t);
     let d_left = n64.deriv_in_span(span_left, t);
     // The corner is real: one-sided derivatives disagree.

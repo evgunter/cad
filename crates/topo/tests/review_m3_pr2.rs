@@ -283,6 +283,11 @@ fn r4_straight_cap_corner_single_wedge_single_null_edge() {
 /// scales), (c) proves via K-telemetry that the reduction never
 /// re-measures a constructed vertex, and (d) checks a consumer
 /// re-sweeping the reduced body reproduces ON.
+///
+/// (c) is the only Probe-dependent claim in this file, and it is a
+/// block INSIDE this test rather than a test of its own — so it carries
+/// its own `#[cfg(feature = "probe")]` instead of the file being split.
+/// (a), (b) and (d) run in the default build.
 #[test]
 fn r5_crossing_vertex_on_is_declared_not_measured() {
     // Plane x + 3y = 400000, normal (1,3,0)/√10; crossing edges hit it
@@ -299,7 +304,6 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
         normal: Vec3::new(1.0 / l, 3.0 / l, 0.0),
     };
     let fx = prism::<f64>(&profile, 1.0);
-    let n_operand_vertices = fx.body.vertices().count();
     let band = geom_core::Band::linear().unwrap();
 
     let red = match split_reduce(&fx.body, &plane) {
@@ -329,8 +333,16 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
     // exactly once per OPERAND vertex — constructed crossing vertices
     // and null-edge copies are cached, never re-measured through the
     // predicate.
+    //
+    // `Probe` is behind the `probe` feature (it is a `Real`
+    // instantiation, so everything generic monomorphizes at it), and
+    // (a)/(b)/(d) below are f64 claims that must keep running in the
+    // default build — so the gate is on this block rather than on the
+    // whole test or the whole file.
+    #[cfg(feature = "probe")]
     {
         use geom_core::k_stats::{Probe, start_recording, take_samples};
+        let n_operand_vertices = fx.body.vertices().count();
         let fx_p = prism::<Probe>(&profile, 1.0);
         let plane_p = SplitPlane {
             origin: Point3::new(Probe(100000.0), Probe(100000.0), Probe(0.0)),

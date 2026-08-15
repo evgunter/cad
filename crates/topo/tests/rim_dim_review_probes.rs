@@ -8,6 +8,7 @@
 //! it is verified by code-read + suites-green only (rare germ-fan
 //! lane), stated in the audit doc's row.
 
+#![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;

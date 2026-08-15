@@ -1,11 +1,18 @@
-//! Shared harness support: seed-pinned PRNG, structured interval
-//! generators, and the containment/decoration/tightness checkers against
-//! the inari(+MPFR) oracle.
+//! Shared harness support: structured interval generators and the
+//! containment/decoration/tightness checkers against the inari(+MPFR)
+//! oracle.
 //!
 //! Split by feature: everything that mentions `inari` is behind
-//! `oracle-inari`, so the oracle-free half (PRNG, generators) is
+//! `oracle-inari`, so the oracle-free half (the generators) is
 //! available to the tier of tests the kernel's CI runs without a C
 //! toolchain. See the crate README's "Certification" section.
+//!
+//! The PRNG is **not** here. It used to be — a local SplitMix64 whose
+//! every caller named a literal seed — and it is now `test_utils::fuzz`,
+//! the same stream, dial and per-run seed the rest of the tree draws
+//! from, which `review_fuzz_div.rs` already used. What is left below is
+//! the part that is actually specific to this crate: how to shape a
+//! random interval.
 
 #![allow(dead_code)] // shared by multiple integration-test binaries; each uses a subset
 #[cfg(feature = "oracle-inari")]
@@ -13,45 +20,26 @@ use inari::DecInterval;
 use interval_transcendentals::DInterval;
 #[cfg(feature = "oracle-inari")]
 use interval_transcendentals::Decoration;
+use test_utils::fuzz;
 
-/// SplitMix64: tiny, seed-pinned, dependency-free. Every test names its
-/// own constant seed; runs are bit-reproducible.
-pub struct Rng(pub u64);
-
-impl Rng {
-    pub fn next_u64(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-
-    /// Uniform in [0, 1).
-    pub fn unit(&mut self) -> f64 {
-        (self.next_u64() >> 11) as f64 * (1.0 / 9007199254740992.0)
-    }
-
-    /// Uniform in [lo, hi).
-    pub fn range(&mut self, lo: f64, hi: f64) -> f64 {
-        lo + self.unit() * (hi - lo)
-    }
-
-    /// Signed, log-uniform magnitude in [2^emin, 2^emax): stresses
-    /// subnormals through huge values evenly per binade.
-    pub fn log_mag(&mut self, emin: i32, emax: i32) -> f64 {
-        let e = self.range(f64::from(emin), f64::from(emax));
-        let m = 1.0 + self.unit();
-        let s = if self.next_u64() & 1 == 0 { 1.0 } else { -1.0 };
-        s * m * libm::exp2(e)
-    }
+/// Signed, log-uniform magnitude in [2^emin, 2^emax): stresses
+/// subnormals through huge values evenly per binade.
+///
+/// A free function rather than a method because the RNG is now the
+/// shared `fuzz::Rng`, and this shaping is this crate's business, not
+/// the harness's.
+pub fn log_mag(rng: &mut fuzz::Rng, emin: i32, emax: i32) -> f64 {
+    let e = rng.range(f64::from(emin), f64::from(emax));
+    let m = 1.0 + rng.unit();
+    let s = if rng.next_u64() & 1 == 0 { 1.0 } else { -1.0 };
+    s * m * libm::exp2(e)
 }
 
 /// One structured random interval: mixes points, ulp-tight, moderate,
 /// wide, extremum-straddling (near k·π/2), zero-touching, and
 /// signed-zero cases, over the magnitude window [2^emin, 2^emax).
-pub fn gen_interval(rng: &mut Rng, emin: i32, emax: i32) -> DInterval {
-    let a = rng.log_mag(emin, emax);
+pub fn gen_interval(rng: &mut fuzz::Rng, emin: i32, emax: i32) -> DInterval {
+    let a = log_mag(rng, emin, emax);
     match rng.next_u64() % 8 {
         0 => DInterval::point(a),
         1 => DInterval::from_bounds(a, a + a.abs() * 1e-15 + f64::MIN_POSITIVE),
@@ -60,17 +48,17 @@ pub fn gen_interval(rng: &mut Rng, emin: i32, emax: i32) -> DInterval {
             // Straddle a trig-critical point k·π/2, tight jitter.
             let k = (rng.next_u64() % 64) as f64 - 32.0;
             let c = k * core::f64::consts::FRAC_PI_2;
-            let w = rng.log_mag(-40, 2).abs();
+            let w = log_mag(rng, -40, 2).abs();
             DInterval::from_bounds(c - w, c + w)
         }
         4 => {
-            let w = rng.log_mag(emin, emax).abs();
+            let w = log_mag(rng, emin, emax).abs();
             DInterval::from_bounds(a, a + w)
         }
         5 => DInterval::from_bounds(-0.0, a.abs()),
         6 => DInterval::from_bounds(-a.abs(), 0.0),
         _ => {
-            let b = rng.log_mag(emin, emax);
+            let b = log_mag(rng, emin, emax);
             DInterval::from_bounds(a.min(b), a.max(b))
         }
     }

@@ -38,9 +38,11 @@ libm = "=0.2.16"
 # The `interval` feature of geom-core never enables `oracle-inari`, so no
 # kernel build in any configuration pulls inari, gmp-mpfr-sys or rug, and
 # their LGPL-3.0+ obligations reach neither this crate's consumers nor the
-# kernel's. inari itself requires AVX+FMA on x86-64, so the ORACLE lane
-# needs a machine that has them; the repo sets no target-cpu floor
-# (.cargo/config.toml) and this crate's own code needs none.
+# kernel's. inari itself requires AVX+FMA on x86-64 — not merely a machine
+# that HAS them, but a build that ENABLES them, or its `compile_error!`
+# fires. The repo sets no target-cpu floor (.cargo/config.toml), so the
+# ORACLE lane passes `RUSTFLAGS="-C target-cpu=x86-64-v3"` itself; this
+# crate's own code needs none. See README "Certification".
 version = "=2.0.0"
 features = ["gmp"]
 optional = true
@@ -49,6 +51,21 @@ optional = true
 # Enables tests/certify.rs (the differential lane against inari+MPFR).
 # Test-only: `src/` must never reference `inari` or this feature.
 oracle-inari = ["dep:inari"]
+
+[dev-dependencies]
+# Shared fuzz harness for tests/review_fuzz_div.rs (one RNG, the per-run
+# seed, the CAD_FUZZ_EFFORT dial) — the same one every sweep in the
+# kernel workspace draws from, so one dial and one seed cover the whole
+# tree including this separate root.
+#
+# A plain path dependency is all it takes, and that is the point of the
+# crate: `test-utils` has ZERO dependencies, so unlike an unconditional
+# dev-dependency on anything heavier it adds nothing to what `cargo
+# test` builds here (contrast the `[dependencies.inari]` note above),
+# and unlike a harness living in `geom-core` it does not invert the
+# layering — geom-core path-depends on THIS crate, so the harness had to
+# sit below both.
+test-utils = { path = "../crates/test-utils" }
 
 # The benchmark compares our timings against inari's, so it needs the
 # oracle too. `required-features` keeps it out of the default (oracle-less)

@@ -3,46 +3,20 @@
 Status: **RATIFIED (Evan, PR #85, 2026-07-24: "lgtm!").** This
 document is the design record for M5 curved geometry. Every fork was
 decided in the #85 review conversation and is recorded inline as
-DECIDED with its ground; candidate decisions C1-C12 are now the
-ratified decisions of this doc. Tensions T1-T6 remain flags on
-ratified decisions elsewhere (flag != reopen). Post-ratification
-obligations (tracked in M4-LOG/M5 planning): the DESIGN.md
-D2-sharpening pass (incl. the TangencyLocus -> TangentIntersection
-rename sweep and the Q5 lean revision), the inari quarantine
-boundary-text update for the transition state, and the
-LGPL-before-publish exit condition. The K = 10 tangent was resolved
+DECIDED with its ground; candidate decisions C1–C12 are the ratified
+decisions of this doc. Tensions T1–T6 remain flags on ratified
+decisions elsewhere (flag != reopen). The K = 10 tangent was resolved
 at issue #89 (CLOSED — K = 10 permanent; docs/K-REPORT.md).
 
-*IMPLEMENTATION STATUS (added at the M4 8c exit sweep, 2026-07-27;
-record unchanged):* M5 has not started — nothing here is implemented
-yet. Two inputs matured during M4: the OQ8 in-house interval ring now
-EXISTS as the workspace-excluded `interval-transcendentals` crate
-(#115; dual-oracle certified; kernel adoption = M5-PLAN ratified
-decision), and #89's K-revisit gained its baseline (8b K-probe:
-sharply bimodal margins, K = 10 unpressured on the analytic kernel).
-The post-ratification obligations listed above remain open for M5
-planning.
-
-*IMPLEMENTATION STATUS SUPERSEDED (M5 PR 14 exit sweep, 2026-08-03).*
-The paragraph above is kept as the record of what was true at M4's
-close; it is no longer true. **M5 is complete** — see DESIGN.md's
-roadmap M5 line and `docs/M5-EXIT-WALK.md` for what shipped, what is
-banked by name, and what is carried. Two consequences for reading
-THIS document. (1) **Every "inari" / "LGPL quarantine" reference
-below — including C9's heading, C9's decided note, and T2 — is
-HISTORICAL.** The transition allowance C9 granted was never needed:
-M5 PR 1 (#127, 2026-07-28) swapped the kernel's interval backend to
-the in-house `interval-transcendentals` crate and removed inari and
-its LGPL stack from the tree entirely (Cargo.lock zero hits,
-dev-dependencies included), so there was no quarantine boundary left
-to redraw — it was retired by REMOVAL, and issue #4's exit condition
-is met that way. The "quarantine boundary-text update" obligation is
-DISCHARGED; DESIGN.md carries the tombstone and the crate-table
-history. (2) The C1–C12 decisions remain this doc's ratified design
-record, but several were implemented with recorded deviations and
-several frontiers moved. Implementation truth lives in
-`docs/archive/M5-LOG.md` and the exit walk; where they disagree, the log
-wins.
+*Reading this document against the code (M5 complete 2026-08-03):*
+the C1–C12 decisions are the ratified design record, but several
+were implemented with recorded deviations and several frontiers
+moved. Implementation truth lives in `docs/archive/M5-LOG.md` and
+`docs/M5-EXIT-WALK.md`; where they disagree with this doc, the log
+wins. One decision was overtaken outright: **C9's inari quarantine
+is dead vocabulary** — M5 PR 1 (#127) removed inari and its LGPL
+stack from the tree entirely, so the transition allowance C9 granted
+was never needed and issue #4's exit condition is met by removal.
 
 Grounding read for this doc: DESIGN.md (D2–D4, D9, Q1, Q5, Q8, the
 Banked principles — especially SSI-completeness-is-an-interval-
@@ -60,7 +34,7 @@ Tiller *The NURBS Book* 2e ch. 5–7, 9, 10; Vida–Martin–Várady 1994
 M3-PLAN F5 ratified the dependency chain that defers curved booleans
 to M5 *as a unit*: (a) intersection-locus representation beyond
 `Line | Circle`, (b) general pcurves, (c) second-order sector
-classification (the `TangencyLocus` regime), (d) certified marching
+classification (the `TangentIntersection` regime), (d) certified marching
 numerics. M5 = that chain, plus the NURBS substrate it rides on
 (sweeps/lofts per the roadmap), plus constant-radius fillets (whose
 validity predicates were banked pre-M5), with the M3 face-intersection
@@ -257,7 +231,7 @@ local data). Instead:
   toward the C7 regime rather than desingularize: Hoffmann §6.5's
   quadratic-transformation tracing through singular points
   (pp. 243–251) is deliberately NOT adopted — tangential contact is
-  `TangencyLocus`'s domain and in-band contact is a genuine sliver
+  `TangentIntersection`'s domain and in-band contact is a genuine sliver
   (F6); we refuse loudly where he traces through.
 
 **Alternatives considered:** (i) *per-step certified stepping*
@@ -361,13 +335,13 @@ march+fit. Rules:
   angular thresholds with named lever arms, center/axis distances vs
   radii) classified by named Q1 predicates: definitely-generic ⇒ the
   arm's rung; exactly-degenerate ⇒ the degenerate closed form (two
-  lines, a point, a `Seam`-adjacent case, a `TangencyLocus`
+  lines, a point, a `Seam`-adjacent case, a `TangentIntersection`
   candidate); in-band ⇒ escalated typed error (F6 verbatim — an
   ill-conditioned operand pair at this ε).
 - The M2 pairs enter the table unchanged; their certificates already
   match rung 1. `Nurbs`×anything routes to rung 3. The table is also
   where the *tangency* dispatch lives: a pair whose transversality
-  margin dies along the whole candidate locus is a `TangencyLocus`
+  margin dies along the whole candidate locus is a `TangentIntersection`
   construction (C7), reached by classification, never by marching
   into it.
 
@@ -402,13 +376,13 @@ never topology. Pinning the discipline's boundary explicitly:
   structure.) This keeps the naming pillar airtight: the name table
   is a function of recipe structure + verdicts (N4), and cache shape
   is in neither.
-- Under M8 interval replay the fitted structure transfers with the
+- Under M10 interval replay the fitted structure transfers with the
   body (lineage-scoped keys; content-keyed transfer applies — the
   cache is keyed by the bit-content of its inputs), and the interval
   lane certifies residuals over the parameter box; an indeterminate
   certificate joins the subdivision-driver posture like every other
   interval refusal. Refitting per sub-box is an *optimization*
-  decision for M8, never a semantic one.
+  decision for M10, never a semantic one.
 
 **Alternative considered:** make the fitting loop's convergence tests
 trilean and replay the whole fit at every T — rejected: it manufactures
@@ -416,12 +390,12 @@ escalations with no semantic content (a knot-count difference is not a
 topology event), multiplies interval-lane cost by the fit's iteration
 count, and W2's precedent already gives the sound split.
 
-## C7 — `TangencyLocus` and second-order sector classification
+## C7 — `TangentIntersection` and second-order sector classification
 
 The second intrinsic variant lands (D2 specified its validity
 predicate in full; this section only mechanizes it):
 
-- **Shape**: `TangencyLocus { s1, s2, witness }` — mirroring
+- **Shape**: `TangentIntersection { s1, s2, witness }` — mirroring
   `Intersection`, witness pinned at carrier(mid) by the same S2
   argument. (Rename decided per OQ7, Evan 👍 #85 2026-07-24: the
   variant becomes `TangentIntersection`, a D2 sharpening at
@@ -484,7 +458,7 @@ predicate in full; this section only mechanizes it):
 
 Vocabulary (Vida–Martin–Várady pp. 341–345, Figs. 4/6, adopted): the
 **base surfaces** are blended; the blend meets them along
-**trimlines** (our contact curves — `TangencyLocus` loci); the
+**trimlines** (our contact curves — `TangentIntersection` loci); the
 **spine** is the center curve of the rolling ball; a **profile** is
 the cross-section. Constant-radius rolling-ball **edge blends** only
 at M5 (the survey's own observation that edge blends dominate
@@ -503,7 +477,7 @@ practice, p. 343).
   convex↔concave mid-edge has no constant-radius rolling-ball blend
   — trilean per sample, escalate on flip), corner configuration
   (enumerated; see scope). Every one is a Q1 trilean through k_stats
-  from birth, which is what lets M8 certify fillet validity over a
+  from birth, which is what lets M10 certify fillet validity over a
   parameter box (the banked payoff, restated not re-argued).
 - **Blend surface representation, analytic-first (D3 payoff)**: the
   constant-radius rolling ball over analytic supports lands on
@@ -524,7 +498,7 @@ practice, p. 343).
   dimension (schedule over (u,v), hull bounds per patch,
   envelope-system residuals as the on-locus test).
 - **Prefer-intrinsic applied (D2 verbatim)**: trimline edges are
-  stored `TangencyLocus`; the rolling-ball construction is demoted to
+  stored `TangentIntersection`; the rolling-ball construction is demoted to
   supplying witnesses and initial caches. Construction history lives
   in D5 provenance. Native and (future, M7) imported fillets carry
   identical descriptions — the D7 story depends on M5 doing this
@@ -542,13 +516,13 @@ practice, p. 343).
   names — `RunOutStopAtVertex`, `RunOutFeather`, corner-configuration
   tags — zero constructor surface; see OQ6.)
 
-## C9 — The exclusion arithmetic: hull/ring intervals; inari stays quarantined
+## C9 — The exclusion arithmetic: hull/ring intervals
 
 C2/C3/C7's enclosure obligations (exhaustiveness exclusion, sup-norm
-hull bounds, uniqueness tubes) threaten to make interval arithmetic
-load-bearing on the default build path — but the `interval` feature's
-inari/GMP transcendentals are LGPL-quarantined (crate-table probe,
-issue #4), and D4/D9 forbid quietly weakening the claims instead. The
+hull bounds, uniqueness tubes) make interval arithmetic load-bearing
+on the default build path — which at the time meant dragging the
+`interval` feature's LGPL transcendental stack (issue #4) into every
+consumer, and D4/D9 forbid quietly weakening the claims instead. The
 resolution is structural, not a compromise:
 
 - **Every enclosure M5 needs is transcendental-free.** The implicit
@@ -572,17 +546,12 @@ resolution is structural, not a compromise:
   program, scoped to the ring (the Tabled item's hard part —
   transcendental pads — stays tabled).
 
-**DECIDED (Evan, #85, 2026-07-24) — pending whole-doc ratification:**
-the in-house ring is approved (OQ8). Transition allowance, reconciling
-the quarantine (T2): while the ring lands, `inari` MAY sit on the
-default build path *temporarily*, as the ring's seed/reference
-implementation and differential test oracle — Evan explicitly
-accepted the temporary default-path presence (#85, the line-164 and
-OQ8 threads). The quarantine boundary text (crate table / issue #4)
-gets updated to name this transition state and its exit condition:
-the ring lands ⇒ inari returns behind the `interval` feature; the
-temporary LGPL exposure is acceptable for the private repo but must
-be resolved before any publish (dual MIT/Apache license).
+**DECIDED (Evan, #85, 2026-07-24):** the in-house ring is approved
+(OQ8). *(As built, it went further than this section proposed: M5
+PR 1 (#127) grew the in-house crate to full transcendentals and
+retired inari from the tree altogether, so the second bullet's
+"inari remains the full-transcendental lane" is historical — see
+DESIGN.md's crate table.)*
 
 **Alternatives:** (i) require the `interval` feature for curved
 certification — makes default builds unable to validate curved bodies
@@ -674,8 +643,10 @@ PR-plan line item, none re-ratifying anything):
    (unreachable-at-rest) gets revisited once curved booleans mint
    split curved edges at rest.
 4. **Census** (`topo::census`): stays planar-exact; the
-   `CensusUnsupported` boundary text updates to name the C7/OQ5
-   deferral explicitly.
+   `CensusUnsupported` boundary text names the frontier explicitly.
+   *(OQ5 has since CLOSED — the boundary text's target is now
+   CONTACT-DESIGN's classes and recourse, not a deferral; see that
+   doc's C8 refusal migration.)*
 5. **`merge_coplanar_faces`**: the structural/declared rungs are
    already kind-agnostic in principle; the op generalizes to
    same-surface (cosurface) merging for curved seams the boolean zip
@@ -713,7 +684,7 @@ PR-plan line item, none re-ratifying anything):
 
 - Curved boolean results that TOUCH → typed 3′ refusal (C7; census
   stays planar). Transverse curved booleans are the milestone.
-- `TangencyLocus` from *classification of independently modeled
+- `TangentIntersection` from *classification of independently modeled
   tangent pairs* → escalated sliver (F6) unless structurally/
   declaredly coincident — the repair/adoption op (D7-style, banked at
   M3's F6 text as "M5+") is still NOT in M5; near-tangent operands
@@ -759,9 +730,9 @@ for* — each an obligation on M5 code shape, none a new decision:
   stack and C9's enclosures are its substrate, and nothing more is
   built for it at M5 (non-goal reaffirmed — no feature recognition,
   D7's own text).
-- **`TangencyLocus` is the pressure-test variant.** D2 predicts
+- **`TangentIntersection` is the pressure-test variant.** D2 predicts
   imported fillets force the intrinsic form; C8 storing native
-  trimlines as `TangencyLocus` from birth is what makes M7's adoption
+  trimlines as `TangentIntersection` from birth is what makes M7's adoption
   of imported fillets a reconstruction into an *existing, certified*
   variant rather than a taxonomy scramble.
 
@@ -867,7 +838,7 @@ the structural-only conformality boundary with the
 correctly-scoped identity lemma, CurveContact/PatchContact
 records, the Rest/Tangent/Fit declaration vocabulary with
 per-class verification tables, the signed gap co-designed for
-M8, interference-fit semantics, the join-lane target, and the
+M10, interference-fit semantics, the join-lane target, and the
 disposition itself). Ratification changes no verdict on any body
 (CONTACT-DESIGN C8's invariant); implementation is sequenced
 separately (banked past M6 unless M7 adoption pulls it). The
@@ -903,7 +874,7 @@ constructor surface; the finer taxonomy (per-end assignment, setback
 parameters) is left to the post-M5 design that implements run-outs.
 
 **OQ7 — Symmetric prefer-intrinsic enforcement.** Extend tier 3 with
-definitely-tangent-smooth-contact ⇒ must-carry-`TangencyLocus`
+definitely-tangent-smooth-contact ⇒ must-carry-`TangentIntersection`
 (mirroring `TransverseNotIntrinsic`)? Recommended in principle
 (unenforced preferences drift — the ratified rationale), but it
 redraws the boundary between conventional `MappedCurve` smooth joins
@@ -927,13 +898,11 @@ predicate itself* (their second-order margin is zero-side; the
 surfaces under-determine the locus), never by an exemption list;
 in-band second order escalates per F6. The discriminator "do the
 surfaces determine the locus" is thereby the enforcement predicate,
-not prose. **Rename decided:** `TangencyLocus` →
-`TangentIntersection { s1, s2, witness }` (mirrors `Intersection` —
-same shape, same witness pin, margin one differential order up),
-landing as an explicit **D2 sharpening** applied to DESIGN.md in the
-ratification pass; this doc keeps the `TangencyLocus` spelling in
-untouched sections so quotations of currently-ratified text stay
-verbatim until then.
+not prose. **Rename decided:** the variant is
+`TangentIntersection { s1, s2, witness }` (mirroring `Intersection`
+— same shape, same witness pin, margin one differential order up),
+landed as an explicit **D2 sharpening** in DESIGN.md and applied
+throughout this doc.
 
 **OQ8 — The in-house interval ring** (C9). Sign off on adding a
 second interval type (ring-only, MIT-clean, ulp-widened) alongside
@@ -977,17 +946,14 @@ cache classes — the two-strength state this flag named was the trap
 the C2 design avoids, never a feature, and the staging door that
 could have reintroduced it mid-milestone is closed.)*
 
-**T2 — Interval quarantine vs certification on the default path.**
-The `interval` feature's LGPL quarantine (issue #4, crate table) was
-scoped when interval arithmetic was an M8 replay lane. C2/C3 make
+**T2 — Interval certification on the default path.** C2/C3 make
 enclosures load-bearing for default-build validation of curved
-bodies. C9 resolves it structurally (ring-only in-house type); the
-flag stands in case Evan prefers a different resolution, because
-whichever way, the quarantine boundary text needs an update.
-*(Resolution direction decided in #85, 2026-07-24: the C9 in-house
-ring, with the temporary inari-on-default-path transition allowance —
-see C9's decided note. The quarantine boundary text update is now a
-committed obligation.)*
+bodies, which the interval backend then had to support without
+dragging a copyleft dependency into every consumer. *(RESOLVED by
+removal, M5 PR 1 (#127): the in-house `interval-transcendentals`
+crate replaced inari outright and its LGPL stack left the tree, so
+there is no quarantine boundary to draw. See DESIGN.md's crate
+table.)*
 
 **T3 — Witness component-selection semantics.** D2's S2 sharpening
 says the selection semantics "activates with real SSI at M5." It

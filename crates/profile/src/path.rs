@@ -533,6 +533,29 @@ pub enum PathError<T: Real> {
         /// currency as `setback`).
         available: T,
     },
+    /// **M8**: the derived corner and a tangent circle of the requested
+    /// radius both exist, but the tangent point on one side cannot be
+    /// certified — that side's offset radius ρ = R − σ·τ·r, the lever
+    /// the tangent point is recovered over, is shorter than the least
+    /// lever the run's band supports at the corner's scale.
+    ///
+    /// The algebra's spelling of
+    /// [`crate::ProfileError::FilletOffsetLeverTooShort`]; the
+    /// derivation lives on `sugar::ArcCarrier::offset_circles`. The
+    /// situation is a fillet radius too close to that side's own
+    /// carrier radius, so the recourse is to move one of the two.
+    FilletOffsetLeverTooShort {
+        /// The side whose offset lever is short.
+        side: FilletLeg,
+        /// That side's carrier radius R, meters (scalar-typed payload).
+        carrier_radius: T,
+        /// Its signed offset radius ρ = R − σ·τ·r, meters.
+        offset_radius: T,
+        /// The least |ρ| the band supports here, meters.
+        least_lever: T,
+        /// The classified margin |ρ| − `least_lever`, meters.
+        margin: T,
+    },
     /// **G2 §3d**: a side runs on an ARC CARRIER and the door reached
     /// binds only straight ones. This variant RETIRES `SeamFilletOntoArc`
     /// and `ArcArrivalFillet`, whose situations are no longer "out of
@@ -755,6 +778,22 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "the fillet trim would eat the {side} side's anchoring on-path point on its \
                  {carrier} carrier: tangent setback {setback:?} m exceeds the {available:?} m \
                  the anchor pins — reduce the radius or move the anchor"
+            ),
+            Self::FilletOffsetLeverTooShort {
+                side,
+                carrier_radius,
+                offset_radius,
+                least_lever,
+                margin,
+            } => write!(
+                f,
+                "the {side} side's offset lever rho {offset_radius:?} m (carrier radius \
+                 {carrier_radius:?} m) is shorter than the {least_lever:?} m this corner's \
+                 scale needs at the run's tolerance (margin {margin:?} m): the fillet's \
+                 tangent point is recovered by projecting its centre back onto that \
+                 carrier, and dividing by a lever that short cannot place the point within \
+                 tolerance — move the fillet radius away from that side's carrier radius, \
+                 or bring the corner's carriers closer together"
             ),
             Self::ArcCarrierSpelling { site } => write!(f, "{site}"),
             Self::NonpositiveLeg { length } => write!(

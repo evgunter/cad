@@ -18,6 +18,17 @@ interval = [
     "geom-brep/interval",
     "topo/interval",
 ]
+# Forwards geom-core's K-telemetry recording scalar so the
+# workspace-wide `--features probe` lane builds uniformly. Same shape
+# and same reason as the `interval` row above; see geom-core's manifest
+# for why Probe is opt-in (it is a `Real` instantiation, so it
+# monomorphizes every generic-over-`Real` body, and only the K
+# experiment consumes it).
+probe = [
+    "geom-core/probe",
+    "geom-brep/probe",
+    "topo/probe",
+]
 
 [dependencies]
 geom-brep = { path = "../geom-brep" }
@@ -30,6 +41,11 @@ topo = { path = "../topo" }
 spade = { workspace = true }
 
 [dev-dependencies]
+# Shared fuzz harness for this crate's randomized sweeps (one RNG, the
+# per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
+# named by [dev-dependencies] only, here and everywhere else — which is
+# what keeps it off every shipped build path.
+test-utils = { path = "../test-utils" }
 profile = { path = "../profile" }
 sweep = { path = "../sweep" }
 

@@ -42,8 +42,14 @@
 //! body is gated on its own when the product holds more than one solid
 //! (with one, the per-solid and aggregate subjects are the same body
 //! and the call is skipped as an identity, never as an exemption), then the
-//! aggregate is gated. Disjoint multi-solid bodies are tier-3 legal;
-//! solids that overlap are a false body and tier 3 says so.
+//! aggregate is gated. Disjoint multi-solid bodies are tier-3 legal.
+//! Know what the aggregate gate proves: tier 3 is a LOCAL battery
+//! (per-face, per-edge, per-edge–face-pair, plus one whole-body signed
+//! volume that SUMS), so solids that OVERLAP pass it undetected —
+//! inter-solid interference is not among its checks. Undeclared
+//! cross-instance contact is A5's hard error, interference fits are
+//! C6's recorded-gate-skips territory, and detection is planned as
+//! tier-3′ census growth (issue #382).
 
 use std::sync::Arc;
 
@@ -106,8 +112,9 @@ pub enum ProductError {
         /// Every failure the validator found.
         errors: Vec<ValidationError>,
     },
-    /// The gathered product failed the at-rest validity gate — solids
-    /// that overlap are a false body, and tier 3 says so.
+    /// The gathered product failed the at-rest validity gate — a
+    /// per-entity local verdict; inter-solid overlap is not among its
+    /// checks (module docs, issue #382).
     ProductInvalid {
         /// Every failure the validator found.
         errors: Vec<ValidationError>,

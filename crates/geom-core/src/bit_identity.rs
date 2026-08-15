@@ -56,6 +56,7 @@ pub fn repr_bits<T: crate::Real>(x: &T) -> Option<ScalarBits> {
     if let Some(v) = any.downcast_ref::<f64>() {
         return Some((v.to_bits(), 0, 0));
     }
+    #[cfg(feature = "probe")]
     if let Some(v) = any.downcast_ref::<crate::Probe>() {
         return Some((v.0.to_bits(), 0, 0));
     }

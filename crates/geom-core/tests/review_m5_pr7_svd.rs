@@ -17,18 +17,11 @@
 )]
 
 use geom_core::linalg::svd::{Svd2x3, Svd3x4};
+use test_utils::fuzz;
 
-/// Deterministic LCG so the probe replays.
-struct Lcg(u64);
-impl Lcg {
-    fn next_f64(&mut self) -> f64 {
-        self.0 = self
-            .0
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407);
-        // Uniform in [-1, 1).
-        ((self.0 >> 11) as f64 / (1u64 << 53) as f64) * 2.0 - 1.0
-    }
+/// Uniform in `[-1, 1)`, the shape the reviewer's probe drew.
+fn signed_unit(rng: &mut fuzz::Rng) -> f64 {
+    rng.range(-1.0, 1.0)
 }
 
 /// Eigenvalues of a symmetric 2x2 (closed form, independent of the SVD).
@@ -67,19 +60,19 @@ fn eig3(a: [[f64; 3]; 3]) -> [f64; 3] {
 
 #[test]
 fn svd2x3_matches_independent_eigenvalues_and_solves() {
-    let mut rng = Lcg(0x9E3779B97F4A7C15);
-    for case in 0..4000 {
+    let mut rng = fuzz::start("review_m5_pr7_svd::svd2x3");
+    for case in 0..fuzz::scaled(500) {
         let mut a = [[0.0f64; 3]; 2];
         for row in a.iter_mut() {
             for v in row.iter_mut() {
-                *v = rng.next_f64() * 3.0;
+                *v = signed_unit(&mut rng) * 3.0;
             }
         }
         // Every 4th case: make the rows nearly parallel (near rank 1).
         if case % 4 == 0 {
-            let t = 10f64.powi(-((case / 4) % 14) as i32);
+            let t = 10f64.powi(-(((case / 4) % 14) as i32));
             for j in 0..3 {
-                a[1][j] = 1.7 * a[0][j] + t * rng.next_f64();
+                a[1][j] = 1.7 * a[0][j] + t * signed_unit(&mut rng);
             }
         }
         let s = Svd2x3::new(a);
@@ -98,25 +91,35 @@ fn svd2x3_matches_independent_eigenvalues_and_solves() {
         // ~sqrt(ulp)·σmax, while one-sided Jacobi can.
         assert!(
             (smax * smax - e[0]).abs() <= 1e-12 * e[0].max(1.0),
-            "case {case}: smax {smax} vs eig {}",
-            e[0].sqrt()
+            "case {case}: smax {smax} vs eig {} — {}",
+            e[0].sqrt(),
+            fuzz::replay()
         );
         assert!(
             (smin * smin - e[1]).abs() <= 1e-12 * e[0].max(1.0),
-            "case {case}: smin {smin} vs eig {} (a={a:?})",
-            e[1].max(0.0).sqrt()
+            "case {case}: smin {smin} vs eig {} (a={a:?}) — {}",
+            e[1].max(0.0).sqrt(),
+            fuzz::replay()
         );
         // Null direction annihilated + unit.
         let n = s.null_direction();
         let nn: f64 = n.iter().map(|x| x * x).sum::<f64>().sqrt();
-        assert!((nn - 1.0).abs() < 1e-12, "case {case}: |n| = {nn}");
+        assert!(
+            (nn - 1.0).abs() < 1e-12,
+            "case {case}: |n| = {nn} — {}",
+            fuzz::replay()
+        );
         for i in 0..2 {
             let r: f64 = (0..3).map(|j| a[i][j] * n[j]).sum();
-            assert!(r.abs() <= 1e-10 * scale, "case {case}: A n = {r}");
+            assert!(
+                r.abs() <= 1e-10 * scale,
+                "case {case}: A n = {r} — {}",
+                fuzz::replay()
+            );
         }
         // Min-norm solve, only when well-conditioned.
         if smin > 1e-6 * scale {
-            let b = [rng.next_f64(), rng.next_f64()];
+            let b = [signed_unit(&mut rng), signed_unit(&mut rng)];
             let x = s.solve_min_norm(&b);
             for i in 0..2 {
                 let r: f64 = (0..3).map(|j| a[i][j] * x[j]).sum();
@@ -125,14 +128,16 @@ fn svd2x3_matches_independent_eigenvalues_and_solves() {
                         <= 1e-8
                             * (1.0 + x.iter().map(|v| v.abs()).fold(0.0, f64::max))
                             * scale.max(1.0),
-                    "case {case}: residual {r} vs {}",
-                    b[i]
+                    "case {case}: residual {r} vs {} — {}",
+                    b[i],
+                    fuzz::replay()
                 );
             }
             let d: f64 = x.iter().zip(n.iter()).map(|(p, q)| p * q).sum();
             assert!(
                 d.abs() <= 1e-8 * (1.0 + nn),
-                "case {case}: not min-norm, x.n = {d}"
+                "case {case}: not min-norm, x.n = {d} — {}",
+                fuzz::replay()
             );
         }
     }
@@ -140,19 +145,19 @@ fn svd2x3_matches_independent_eigenvalues_and_solves() {
 
 #[test]
 fn svd3x4_matches_independent_eigenvalues() {
-    let mut rng = Lcg(0xDEADBEEFCAFEF00D);
-    for case in 0..4000 {
+    let mut rng = fuzz::start("review_m5_pr7_svd::svd3x4");
+    for case in 0..fuzz::scaled(500) {
         let mut a = [[0.0f64; 4]; 3];
         for row in a.iter_mut() {
             for v in row.iter_mut() {
-                *v = rng.next_f64() * 2.0;
+                *v = signed_unit(&mut rng) * 2.0;
             }
         }
         if case % 5 == 0 {
             // Near rank 2: row 2 a combination of rows 0 and 1.
-            let t = 10f64.powi(-((case / 5) % 14) as i32);
+            let t = 10f64.powi(-(((case / 5) % 14) as i32));
             for j in 0..4 {
-                a[2][j] = 0.6 * a[0][j] - 1.1 * a[1][j] + t * rng.next_f64();
+                a[2][j] = 0.6 * a[0][j] - 1.1 * a[1][j] + t * signed_unit(&mut rng);
             }
         }
         let s = Svd3x4::new(a);
@@ -166,20 +171,26 @@ fn svd3x4_matches_independent_eigenvalues() {
         let scale = e[0].max(0.0).sqrt().max(1e-30);
         assert!(
             (s.sigma_max() * s.sigma_max() - e[0]).abs() <= 1e-11 * e[0].max(1.0),
-            "case {case}: smax {} vs {}",
+            "case {case}: smax {} vs {} — {}",
             s.sigma_max(),
-            e[0].sqrt()
+            e[0].sqrt(),
+            fuzz::replay()
         );
         assert!(
             (s.sigma_min() * s.sigma_min() - e[2]).abs() <= 1e-11 * e[0].max(1.0),
-            "case {case}: smin {} vs {}",
+            "case {case}: smin {} vs {} — {}",
             s.sigma_min(),
-            e[2].max(0.0).sqrt()
+            e[2].max(0.0).sqrt(),
+            fuzz::replay()
         );
         let n = s.null_direction();
         for i in 0..3 {
             let r: f64 = (0..4).map(|j| a[i][j] * n[j]).sum();
-            assert!(r.abs() <= 1e-9 * scale, "case {case}: A n = {r}");
+            assert!(
+                r.abs() <= 1e-9 * scale,
+                "case {case}: A n = {r} — {}",
+                fuzz::replay()
+            );
         }
         // Reconstruction.
         let rec = s.reconstruct();
@@ -187,9 +198,10 @@ fn svd3x4_matches_independent_eigenvalues() {
             for j in 0..4 {
                 assert!(
                     (rec[i][j] - a[i][j]).abs() <= 1e-8 * scale,
-                    "case {case}: rec {} vs {}",
+                    "case {case}: rec {} vs {} — {}",
                     rec[i][j],
-                    a[i][j]
+                    a[i][j],
+                    fuzz::replay()
                 );
             }
         }

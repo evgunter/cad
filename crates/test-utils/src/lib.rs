@@ -1,0 +1,25 @@
+//! Shared test scaffolding for the whole tree — the pieces several
+//! suites would otherwise each hand-roll a copy of.
+//!
+//! Today that is exactly one thing: [`fuzz`], the harness every
+//! randomized falsification sweep draws its RNG, its per-run seed and
+//! its EFFORT dial from.
+//!
+//! # DEV-ONLY, by convention
+//!
+//! Nothing depends on this crate outside `[dev-dependencies]`, and
+//! nothing should. It used to live inside `geom-core` behind a
+//! `fuzz-support` feature reached through a self dev-dependency —
+//! machinery that existed *only* because the host crate was a shipping
+//! one. A standalone crate needs neither: a crate that no production
+//! manifest names cannot be reached from a production build path, which
+//! is the same guarantee the feature bought, with none of the wiring.
+//!
+//! Being a LEAF with ZERO dependencies is the other half of the point.
+//! `interval-transcendentals/` is its own workspace root and is
+//! path-depended on by `geom-core` (the `interval` feature's backend),
+//! so its tests could never have used a harness living in `geom-core`
+//! without inverting the layering. Below everything, there is no cycle
+//! to create.
+
+pub mod fuzz;

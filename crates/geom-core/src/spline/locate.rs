@@ -8,7 +8,8 @@
 //! like `floor`/`copysign`'s per-instantiation kink handling in
 //! [`crate::dual`]: each scalar answers "which spans does this value
 //! overlap?" in its own honest way, and generic evaluation consumes the
-//! answer (a `usize` range — structure) without branching on values.
+//! answer (a validated span range — structure) without branching on
+//! values.
 //!
 //! Per-instantiation behavior:
 //!
@@ -41,7 +42,7 @@
 //! same style rule as [`crate::Bounds`] — it is a `Real` subtrait, so
 //! the ring operations come with it).
 
-use super::knots::KnotVector;
+use super::knots::{KnotVector, Span};
 use crate::real::Real;
 
 /// Seals [`SpanLocate`]: implemented for exactly the kernel scalars.
@@ -49,6 +50,7 @@ pub(crate) mod sealed {
     /// The sealing supertrait (pub-in-private: unnameable downstream).
     pub trait Sealed {}
     impl Sealed for f64 {}
+    #[cfg(feature = "probe")]
     impl Sealed for crate::k_stats::Probe {}
     impl<T: Sealed> Sealed for crate::dual::Dual<T> {}
     #[cfg(feature = "interval")]
@@ -56,14 +58,22 @@ pub(crate) mod sealed {
 }
 
 /// The inclusive range of knot spans a scalar value overlaps —
-/// **structure** output (indices), consumed by span-restricted
-/// evaluation. `first == last` for point scalars.
+/// **structure** output, consumed by span-restricted evaluation.
+/// `first == last` for point scalars.
+///
+/// Both ends are [`Span`]s rather than bare indices: span validity
+/// originates *here*, in the locator, and every locator route is
+/// [`KnotVector::span_at`], which is total. Carrying the proof out
+/// means no consumer re-derives it — an evaluator that took a `usize`
+/// would have to re-check (or assert) what the locator already knew.
+/// Iterate the interior with `first.index() + 1 ..= last.index()` and
+/// [`KnotVector::span`], which refuses the empty spans in between.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SpanSet {
-    /// The first overlapped span index.
-    pub first: usize,
-    /// The last overlapped span index (inclusive; `≥ first`).
-    pub last: usize,
+    /// The first overlapped span.
+    pub first: Span,
+    /// The last overlapped span (inclusive; `≥ first`).
+    pub last: Span,
 }
 
 /// Per-instantiation span selection (module docs) — the seam that lets
@@ -94,7 +104,7 @@ pub trait SpanLocate: sealed::Sealed + Real {
 
 impl SpanLocate for f64 {
     fn locate_spans(self, knots: &KnotVector) -> SpanSet {
-        let span = knots.find_span(self);
+        let span = knots.span_at(self);
         SpanSet {
             first: span,
             last: span,
@@ -118,22 +128,35 @@ mod tests {
         KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap()
     }
 
-    #[test]
-    fn f64_locates_one_span_with_the_find_span_tie_break() {
-        let k = kv();
-        assert_eq!(0.5.locate_spans(&k), SpanSet { first: 2, last: 2 });
-        assert_eq!(1.0.locate_spans(&k), SpanSet { first: 3, last: 3 });
-        assert_eq!(2.0.locate_spans(&k), SpanSet { first: 3, last: 3 });
-        assert!(0.5f64.enclosure_hull(0.6).is_nan());
+    /// `Span`'s fields are private (that is the point), so the
+    /// locator's answer is compared as the pair of indices it names.
+    fn indices(set: SpanSet) -> (usize, usize) {
+        (set.first.index(), set.last.index())
     }
 
     #[test]
+    fn f64_locates_one_span_with_the_find_span_tie_break() {
+        let k = kv();
+        assert_eq!(indices(0.5.locate_spans(&k)), (2, 2));
+        assert_eq!(indices(1.0.locate_spans(&k)), (3, 3));
+        assert_eq!(indices(2.0.locate_spans(&k)), (3, 3));
+        assert!(0.5f64.enclosure_hull(0.6).is_nan());
+    }
+
+    /// The `Probe` half is behind the `probe` feature (the recording
+    /// scalar is opt-in); the `Dual` half is not, so this test keeps
+    /// asserting the dual value-channel in a default build rather than
+    /// disappearing with the feature.
+    #[test]
     fn probe_and_dual_follow_their_value_channels() {
         let k = kv();
-        let p = crate::k_stats::Probe(1.5);
-        assert_eq!(p.locate_spans(&k), SpanSet { first: 3, last: 3 });
+        #[cfg(feature = "probe")]
+        {
+            let p = crate::k_stats::Probe(1.5);
+            assert_eq!(indices(p.locate_spans(&k)), (3, 3));
+        }
         let d = Dual64::variable(1.0);
-        assert_eq!(d.locate_spans(&k), SpanSet { first: 3, last: 3 });
+        assert_eq!(indices(d.locate_spans(&k)), (3, 3));
         // Dual hulls channel-wise: over f64 channels that is poison.
         let h = Dual::new(0.25, 1.0).enclosure_hull(Dual::new(0.75, -1.0));
         assert!(h.value.is_nan() && h.deriv.is_nan());
