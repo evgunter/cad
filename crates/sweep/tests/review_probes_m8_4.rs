@@ -97,11 +97,11 @@ fn flat_bowed_seam(
 /// The intrinsic-seam surgery (the unit's own fixture), with the bowed
 /// wall's chart optionally REVERSED in `v` before the description is
 /// attached — same surface point set, opposite `v` orientation.
-fn seam_on_chart(reverse_v: bool) -> (Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey) {
-    assert!(
-        Tolerance::get().eps >= 1e-9,
-        "these probes run at the coarse matrix rows only"
-    );
+/// `None` is the ε-FINE cell, asserted rather than skipped: this seam's
+/// certified between-samples sup is ~6.22e-12 m, so at ε_in = 1e-12 the
+/// declare-and-check rung refuses TYPED carrying that number and there
+/// is no chart image to probe at all.
+fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey)> {
     let mut body = offset_square_prism();
     let (edge, flat, bowed, he_bowed) = flat_bowed_seam(&body);
     let bowed = if reverse_v {
@@ -156,7 +156,8 @@ fn seam_on_chart(reverse_v: bool) -> (Body<f64>, topo::HalfEdgeKey, topo::Surfac
             }),
         )
         .expect("the exactly-planar wall restates as a plane");
-    body.set_edge_curve_nurbs_lane(
+    let eps = Tolerance::get().eps;
+    match body.set_edge_curve_nurbs_lane(
         edge,
         EdgeCurveSpec {
             description: EdgeGeometry::Intersection {
@@ -168,10 +169,37 @@ fn seam_on_chart(reverse_v: bool) -> (Body<f64>, topo::HalfEdgeKey, topo::Surfac
             param_start: t0,
             param_end: t1,
         },
-    )
-    .expect("the intrinsic seam attaches at the coarse rows");
+    ) {
+        Ok(_) => {
+            assert!(
+                eps >= 1e-9,
+                "the seam's certified sup does not fit a finer ε_in"
+            );
+        }
+        Err(topo::EulerOpError::Certification {
+            error:
+                geom_brep::CertifyError::Escalated {
+                    check: geom_brep::CertCheck::PlaneNurbsCertificate,
+                    cause,
+                    ..
+                },
+        }) => {
+            assert!(eps < 1e-9, "only the ε-fine cell refuses: {cause:?}");
+            let geom_core::MarginDiag::Value(sup) = cause.margin else {
+                panic!("the refusal carries the lane's measured bound: {cause:?}");
+            };
+            assert!(
+                sup > eps,
+                "the refusal's own number explains it: certified sup {sup:e} m does not fit \
+                 inside ε_in {eps:e}"
+            );
+            println!("P-E attachment @ eps={eps:e}: refused, certified sup {sup:e} m");
+            return None;
+        }
+        Err(other) => panic!("no other posture is pinned for this attachment: {other:?}"),
+    }
     body.detach_pcurve(he_bowed);
-    (body, he_bowed, bowed)
+    Some((body, he_bowed, bowed))
 }
 
 /// **P-E: the direction half of the 4-candidate schedule selects but
@@ -187,7 +215,9 @@ fn seam_on_chart(reverse_v: bool) -> (Body<f64>, topo::HalfEdgeKey, topo::Surfac
 /// silently.
 #[test]
 fn probe_e_reversed_chart_takes_the_backward_candidate() {
-    let (body, he, bowed) = seam_on_chart(true);
+    let Some((body, he, bowed)) = seam_on_chart(true) else {
+        return;
+    };
     let chart = match body.get_surface(bowed) {
         Some(Surface::Nurbs(n)) => (**n).clone(),
         other => panic!("the bowed wall is a described chart: {other:?}"),
@@ -263,9 +293,8 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
 /// the arm runs, some certificate vouched for the pair.
 #[test]
 fn probe_f_uncertifiable_pair_refuses_at_attachment() {
-    if Tolerance::get().eps < 1e-9 {
-        return;
-    }
+    // ε-independent: a NURBS × NURBS pair has no certificate at any
+    // tolerance, so this row runs at every matrix cell.
     let mut body = offset_square_prism();
     let (edge, _flat, bowed, _he) = flat_bowed_seam(&body);
     let (carrier, t0, t1) = {
