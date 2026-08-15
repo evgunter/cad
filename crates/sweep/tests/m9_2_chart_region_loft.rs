@@ -13,7 +13,7 @@
 
 use geom_core::{Affine3, Band, Point2, Vec3};
 use geom_surfaces::Surface;
-use profile::{ProfileLoop, ProfileVertex};
+use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use topo::{Body, ChartRegionError, FaceKey, Pcurve, chart_region_overlap};
 
 fn band() -> Band {
