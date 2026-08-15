@@ -137,9 +137,13 @@ fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
             .map(|(k, _)| k)
             .unwrap()
     };
-    // A's z = 0 floor declared flush with B's z = 2 ceiling: parallel,
-    // definitely offset by 2 m — a lie the op must never glue.
-    let mut decls = topo::BooleanDeclarations::none();
+    // The genuine contact stays declared (otherwise the op refuses at
+    // the undeclared-coincidence door and never reaches the lie), and
+    // A's z = 0 floor is ALSO declared flush with B's z = 2 ceiling:
+    // parallel, definitely offset by 2 m. The op must never glue it —
+    // and must not stay silent about it just because the classifier
+    // never walks past a pair whose faces are 2 m apart.
+    let mut decls = flush_declarations(&a, &b);
     decls
         .coincident_faces
         .push(FacePairDeclaration::rest(cap_of(&a, 0.0), cap_of(&b, 2.0)));

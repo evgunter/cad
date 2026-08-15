@@ -173,8 +173,8 @@ fn false_rest_declaration_contradicts_at_the_lane() {
     ));
     let err = union_with(&bot.body, &top.body, &decls).unwrap_err();
     assert!(
-        matches!(err, BooleanError::DeclarationContradicted { .. }),
-        "false REST declaration must contradict at the lane: {err:?}"
+        matches!(err, BooleanError::ContactContradicted { .. }),
+        "false REST declaration must contradict, naming the class and the margin: {err:?}"
     );
 }
 
