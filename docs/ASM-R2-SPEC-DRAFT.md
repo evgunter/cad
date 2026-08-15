@@ -71,3 +71,43 @@ planar subset):**
   **numeric-predicate** (the program's first — the verification
   margins are numeric decisions; stratified allocation applies
   per #409 P3 from block ASM-3 onward).
+
+## Recon addendum (2026-08-15; full report cad-work/asm-r2-recon-report.md)
+
+The census mini-recon ran against post-M8-close main. Four
+corrections the finalizer folds in (file:line grounding in the
+report):
+
+- **(a) R2-b BUILDS the cross-instance census door, it does not
+  call one.** `census_and_certify` is single-body; touching
+  solids after a disjoint graft sit in the tier-3-not-3′ gap by
+  documented design (instance.rs:41-56, = #382). The F1 row's
+  cost estimate rises accordingly; the planar-corpus-only claim
+  is otherwise CONFIRMED (structurally enforced refusals).
+- **(b) The product gather DROPS ContactRecords** — product_named
+  gates with validate_geometric only and sources_of discards the
+  boolean wrapper's contacts; PartValue is {body, names}. The
+  "same type, no adapter" landing needs a contacts channel
+  through product/instantiate, a real (if mechanical) plumbing
+  addition to R2-b's cut. resolve_declarations (wire.rs:819) is
+  the no-adapter name→key mechanism a Mate reuses.
+- **(c) A no-input `Node::Mate` is an A10 SINK → root** (sink-set
+  theorem): uncovered violates coverage, root hits the
+  no-body-root refusal. The draft's "mates must not make
+  instances consumers" half composes (Declare precedent:
+  name refs are not DAG edges); the Mate node's OWN root status
+  needs a ruling at finalization — carve-out vs input edge vs
+  off-DAG registry (placements precedent). Likely an Evan
+  touchpoint: it grazes ratified A10's invariant statement.
+- **(d) ContactRecords is vertex-granularity** in per-body arena
+  keys; a face-pair planar Rest mate maps onto it via vv/vf rows
+  plus a face-pair rung that exists today only as
+  BooleanDeclarations::coincident_faces (no class payload yet;
+  editor-side ContactClass is Rest-only non_exhaustive and can
+  be shared rather than minting a third enum).
+
+Also confirmed for R2-a: NO coset/SE(3) machinery exists — the
+class×class table is greenfield (imitate oriented_plane_eq /
+merge_faces ladders, don't reuse); the trilean rail is fully in
+place (Margin/Band/decide funnel with predicate-name recording);
+a solved pose could ride WitnessDatum's schema-tagged bytes.
