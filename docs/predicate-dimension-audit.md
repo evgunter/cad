@@ -124,12 +124,12 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | intersect.rs:1000/1006/1043 | pn_apex_*, pn_axis_normal | m·unit; trig diff×extent; sin×rim r | m | OK |
 | pcurve_cache.rs:1225/1233 | pcurve_chart_azimuth_affine / winding | (rad coeff)×radius | m | OK |
 | pcurve_cache.rs:1268 | pcurve_map_residual | mapped point distance | m | OK |
-| pcurve_cache.rs:1959 | pcurve_interval_forward (harmonic) | span × param_rate | m | OK |
-| pcurve_cache.rs:1983 | pcurve_azimuth_period (harmonic) | (τ−extent)·azimuth_lever | m | OK |
-| pcurve_cache.rs:1889 | pcurve_interval_meter (fitted/iso gate) | carrier parameter extent × param_rate (a NURBS net's knot domain × its certified speed lower bound) | m | OK (metered door; the collapsed-arm gate) |
-| pcurve_cache.rs:2305 | pcurve_trim_containment | chart-param overhang × `chart_arms_at` (the cone arm from the check's own boxes since M6-3) | m | OK (metered door) |
-| pcurve_cache.rs:2378 / :2868 | pcurve_interval_forward (fitted / iso) | span × param_rate — a NURBS carrier's rate IS its certified speed lower bound | m | OK (metered door; the meter gated at :1889) |
-| pcurve_cache.rs:2396 | pcurve_azimuth_period (fitted) | rad headroom × `chart_arms_at`'s azimuth lever (the cone's `v_sup·sin α`) | m | OK (levered door) |
+| pcurve_cache.rs:1964 | pcurve_interval_forward (harmonic) | span × param_rate | m | OK |
+| pcurve_cache.rs:1988 | pcurve_azimuth_period (harmonic) | (τ−extent)·azimuth_lever | m | OK |
+| pcurve_cache.rs:1894 | pcurve_interval_meter (fitted/iso gate) | carrier parameter extent × param_rate (a NURBS net's knot domain × its certified speed lower bound) | m | OK (metered door; the collapsed-arm gate) |
+| pcurve_cache.rs:2310 | pcurve_trim_containment | chart-param overhang × `chart_arms_at` (the cone arm from the check's own boxes since M6-3) | m | OK (metered door) |
+| pcurve_cache.rs:2382 / :2868 | pcurve_interval_forward (fitted / iso) | span × param_rate — a NURBS carrier's rate IS its certified speed lower bound | m | OK (metered door; the meter gated at :1894) |
+| pcurve_cache.rs:2397 | pcurve_azimuth_period (fitted) | rad headroom × `chart_arms_at`'s azimuth lever (the cone's `v_sup·sin α`) | m | OK (levered door) |
 | pcurve_cache.rs:1664 | pcurve_chart_radial_moving | Σ m-norms BARE (amplitude is metres) | m | FIXED (M6-3) |
 | pcurve_cache.rs:1680/1772/1791 | pcurve_chart_orientation / sphere meridian | m² ÷ radius | m | OK |
 | pcurve_cache.rs:1752 | pcurve_sphere_chart_frame | m at :1770, dimensionless at :1836 (tie-break) | mixed | FLAG (note N5) |

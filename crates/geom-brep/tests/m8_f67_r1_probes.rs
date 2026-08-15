@@ -85,7 +85,9 @@ fn wiggle(s: f64) -> Curve3<f64> {
 }
 
 fn speed_bound(c: &Curve3<f64>) -> f64 {
-    let Curve3::Nurbs(n) = c else { unreachable!() };
+    let Curve3::Nurbs(n) = c else {
+        panic!("the probes' carriers are nets by construction")
+    };
     n.speed_lower_bound()
 }
 

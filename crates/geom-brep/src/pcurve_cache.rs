@@ -1851,8 +1851,13 @@ fn chart_windings<T: Decide>(
 /// A NURBS net answers its certified speed lower bound, the same
 /// meter [`crate::certify`]'s span check uses, so a parameter span
 /// crosses to model space through the kind's real metric everywhere.
-/// The bound is POISON on a degenerate net, so every caller gates it
-/// through [`param_rate_gate`] before metering anything through it.
+/// The bound is POISON on a degenerate net, so the two lanes a NURBS
+/// carrier can reach — fitted and iso — gate it through
+/// [`param_rate_gate`] before metering anything through it. The
+/// harmonic and ARC-RIM lanes take the rate bare because neither can
+/// receive one: `carrier_harmonic` answers `None` for a net, and the
+/// ARC-RIM class refuses any carrier that is not a `Curve3::Circle`.
+/// A new caller that CAN see a net must take the gate.
 fn param_rate<T: Real>(carrier: &Curve3<T>) -> T {
     match *carrier {
         Curve3::Line { .. } => T::one(),
