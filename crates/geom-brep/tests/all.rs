@@ -46,6 +46,8 @@ mod m5_pr7_ssi;
 mod m5_pr9_tangent;
 #[path = "m7_8_plane_nurbs_edge.rs"]
 mod m7_8_plane_nurbs_edge;
+#[path = "m8_f67_r1_probes.rs"]
+mod m8_f67_r1_probes;
 #[path = "pcurve_conic.rs"]
 mod pcurve_conic;
 #[path = "pcurve_parameter_finding.rs"]
@@ -80,6 +82,8 @@ mod review_r1_rational_probes;
 mod rim_dim_review_probes;
 #[path = "rim_dim_scale_twins.rs"]
 mod rim_dim_scale_twins;
+#[path = "span_meter_dim_twins.rs"]
+mod span_meter_dim_twins;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.

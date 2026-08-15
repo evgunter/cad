@@ -354,3 +354,21 @@ D2 group-union design conversation (recipe-layer; F4 coupling,
 naming provenance shape, schema-bump claim discipline) — substrate
 running, writeup to follow for Evan's sign-off; D1 (revolve
 emitter) queued behind it under the M8-5 adoption precedent.
+
+## M8-F67 MERGED (#502, 2026-08-15) — F6/F7 retired, the ledger at 8
+
+The dimensional fold-in landed with the strongest census of the
+F-series: F7's bare rate and both F6 interval_forward sites now gate
+the SAME metred quantity (knot-domain length × certified speed lower
+bound, collapsed-arm at every lane), the cone's azimuth headroom took
+its real lever, and the 1.82M-row K-stream diff showed ZERO outcome
+changes — the pre-authorized baseline re-derivation was not needed
+and the k-lint gate stayed green at all three ε. The review executed
+everything (reparametrization twin, three red mutants, the weakening
+attack, the census reproduced byte-for-byte) and returned
+APPROVE-WITH-FIXES 0/2/4 with nothing silent. Two flakes this unit's
+CI surfaced were fixed on main en route (#503→#505; #489→#490 was
+this session's earlier twin). decide_flagged census now 8 (F2 ×4,
+F10, F13, F14, F15); #501 carries the excluded pcurves arm residue.
+Remaining before the EXIT WALK: M8-4's fix pass (in flight), then
+the walk itself (Evan's closure affordance).
