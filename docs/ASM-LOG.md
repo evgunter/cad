@@ -149,3 +149,27 @@ was main-owned (ci-local discipline allowlist drift at #421 —
 LIB notified on their thread). R1 remaining: ASM-4 ONLY
 (docs/ASM-4-SPEC.md, binding, ready to dispatch on block ASM-2
 slot 3 = fable). Handoff: issue #430. Seam swept.
+
+## Seam: new orchestrator; ASM-4 dispatched (2026-08-15)
+
+Session resumed off handoff #430 after the three-day gap (main's
+motion in between was all M8 — now CLOSED — and LIB; no ASM state
+moved). Orchestrator branch this session: mngr/cad-asm-2
+(away-channel armed with asm/, mngr/cad-asm-2,
+mngr/cad-assemblies-implement). Resolved with Evan at session
+start: the #414 resolver shape is SETTLED — his open half was
+`Arc<dyn>`, not `Option`; the alternatives walk (concrete/enum
+blocked by layering, generic infects every EvalOptions carrier
+for a once-per-cache-miss call, Box breaks Clone+sharing, &dyn
+adds a lifetime) is on the #414 thread; accepted per his
+accept-if-confident. ASM-4 dispatched (block ASM-2 slot 3, lane
+asm-4, branch asm/4-split-inline, spec binding). In parallel per
+Evan's go-ahead: the R2 census mini-recon (read-only) runs
+alongside; R2 spec finalization still waits on ASM-4's
+interface-record hook shape. Subscribed to #509 (M9 plan): the
+M8 orchestrator confirmed the seam — M9 BUILDS the A5 door, ASM
+consumes same-currency, R2's planar subset proceeds
+independently. Dual tally still 4-of-6 (samples #11/#12 both
+0-MAJOR, non-qualifying); next ordinal claim is 39 = the banked
+same-model dual, shared with LIB's pending PYG5 claim —
+main-is-authority at whoever dispatches first.
