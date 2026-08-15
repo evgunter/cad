@@ -1,6 +1,11 @@
 # M8 exit walk — criteria vs evidence
 
-**STATUS: DRAFT — presented for Evan's closure affordance.** M8 =
+**STATUS: RATIFIED — M8 CLOSED (Evan's 👍 on PR #508's closure
+affordance, comment 5302962744, confirmed directly in-session,
+2026-08-15). This document is M8's done-state of record. M9 (C7
+declared-contact join lane + the lily FULL rebuild) opens per the
+standing #300 ratification, with the D1/D2 disposition and #496's
+ratified A′ shape as the seam's carried items.** M8 =
 the misc kernel residuals the demos raised (ratified with M7's
 close, PR #300 comment 5234714306). Criteria are quoted **verbatim**
 from `docs/M8-PLAN.md` — the five firm units, the four adopted
