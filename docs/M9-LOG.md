@@ -55,3 +55,16 @@ certification lanes (the exactness argument), MappedCurve →
 authority record, OQ4 stays closed; migration is its own
 post-ratification unit; under U2, M9-4 collapses into M9-3.
 Four questions to Evan on the PR.
+
+## M9-D RATIFIED (#514, 2026-08-15) — U2; M9-4 collapses into M9-3
+
+Evan ratified U2 (unify the DESCRIPTION to (surface, pcurve);
+KEEP the certification lanes as exactness certificates) and the
+narrow-MappedCurve scaffold; Seam folds in as drafted. Q3 (the
+authority record's home) adopted by dominant argument — per-edge
+KERNEL data, forced by tier-3's kernel-side reads — with Evan's
+pushback window open. Migration = post-M9 kernel candidate
+(orchestrator-scheduled). Consequences folded: M9-4 COLLAPSED
+into M9-3 (plan amended); lily wall 8's flip retargets the
+migration unit. The slate is now M9-1 (implementing, PR-1 kernel
+scope) → M9-2 → M9-0 → M9-3 → M9-5, with D1 the early candidate.
