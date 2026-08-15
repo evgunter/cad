@@ -34,6 +34,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathError::SameCarrierJunction { .. } => "same_carrier_junction",
         PathError::NoCornerForFillet { .. } => "no_corner_for_fillet",
         PathError::AnchorOutsideTrimmedExtent { .. } => "anchor_outside_trimmed_extent",
+        PathError::FilletOffsetLeverTooShort { .. } => "fillet_offset_lever_too_short",
         PathError::ArcCarrierSpelling { .. } => "arc_carrier_spelling",
         PathError::NonpositiveLeg { .. } => "nonpositive_leg",
         PathError::NonpositiveFilletRadius { .. } => "nonpositive_fillet_radius",

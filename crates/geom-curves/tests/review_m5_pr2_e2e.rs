@@ -187,13 +187,11 @@ fn the_clean_fit_is_certified_and_the_plant_is_refused() {
     // --- the per-span form refuses too -------------------------------
     let mut refusing_spans = 0;
     let mut certifying_spans = 0;
-    for span in kv.first_span()..=kv.last_span() {
-        if !kv.span_is_nonempty(span) {
-            continue;
-        }
+    for index in kv.first_span()..=kv.last_span() {
+        let Some(span) = kv.span(index) else { continue };
         assert!(
             hull::sup_norm_bound_span(kv, &clean, span) <= EPS,
-            "clean span {span} must certify"
+            "clean span {index} must certify"
         );
         if hull::sup_norm_bound_span(kv, &dirty, span) > EPS {
             refusing_spans += 1;

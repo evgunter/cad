@@ -489,16 +489,10 @@ mod review_fuzz {
     use super::uv_of;
     use geom_core::{Point3, Vec3};
     use geom_surfaces::Surface;
+    use test_utils::fuzz;
 
-    fn lcg(state: &mut u64) -> f64 {
-        *state = state
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407);
-        ((*state >> 11) as f64) / ((1u64 << 53) as f64)
-    }
-
-    fn frame(s: &mut u64) -> (Vec3<f64>, Vec3<f64>) {
-        let a = Vec3::new(lcg(s) - 0.5, lcg(s) - 0.5, lcg(s) - 0.5).normalize();
+    fn frame(s: &mut fuzz::Rng) -> (Vec3<f64>, Vec3<f64>) {
+        let a = Vec3::new(s.unit() - 0.5, s.unit() - 0.5, s.unit() - 0.5).normalize();
         let h = if a.x.abs() < 0.9 {
             Vec3::new(1.0, 0.0, 0.0)
         } else {
@@ -512,17 +506,17 @@ mod review_fuzz {
     /// near-seam and near-pole parameters included.
     #[test]
     fn review_fuzz_roundtrip() {
-        let mut s = 0x5eed_u64;
+        let mut s = fuzz::start("chart::review_fuzz_roundtrip");
         let pi = core::f64::consts::PI;
         let mut worst: f64 = 0.0;
-        for trial in 0..400 {
+        for trial in 0..fuzz::scaled(50) {
             let (axis, u_ref) = frame(&mut s);
             let origin = Point3::new(
-                lcg(&mut s) * 4.0 - 2.0,
-                lcg(&mut s) * 4.0 - 2.0,
-                lcg(&mut s) * 4.0 - 2.0,
+                s.unit() * 4.0 - 2.0,
+                s.unit() * 4.0 - 2.0,
+                s.unit() * 4.0 - 2.0,
             );
-            let r = 0.2 + lcg(&mut s) * 3.0;
+            let r = 0.2 + s.unit() * 3.0;
             let kinds: [Surface<f64>; 5] = [
                 Surface::Plane {
                     origin,
@@ -538,7 +532,7 @@ mod review_fuzz {
                 Surface::Cone {
                     apex: origin,
                     axis,
-                    half_angle: 0.05 + lcg(&mut s) * 1.4,
+                    half_angle: 0.05 + s.unit() * 1.4,
                     u_ref,
                 },
                 Surface::Sphere {
@@ -557,17 +551,17 @@ mod review_fuzz {
             ];
             for (k, surf) in kinds.iter().enumerate() {
                 // Parameter menu: generic, near-seam, near-pole/apex.
-                let us = [lcg(&mut s) * 2.0 * pi - pi, pi - 1e-9, -pi + 1e-9];
+                let us = [s.unit() * 2.0 * pi - pi, pi - 1e-9, -pi + 1e-9];
                 let vs = match k {
-                    1 => [lcg(&mut s) * 4.0 - 2.0, 1e-9, -1e-9],
-                    2 => [0.1 + lcg(&mut s) * 2.0, 1e-6, 3.0], // cone: v>0 (import never sees mirror nappe from eval side; also test v<0)
+                    1 => [s.unit() * 4.0 - 2.0, 1e-9, -1e-9],
+                    2 => [0.1 + s.unit() * 2.0, 1e-6, 3.0], // cone: v>0 (import never sees mirror nappe from eval side; also test v<0)
                     3 => [
-                        lcg(&mut s) * 3.0 - 1.5,
+                        s.unit() * 3.0 - 1.5,
                         core::f64::consts::FRAC_PI_2 - 1e-7,
                         -core::f64::consts::FRAC_PI_2 + 1e-7,
                     ],
-                    4 => [lcg(&mut s) * 2.0 * pi - pi, pi - 1e-9, 1e-9],
-                    _ => [lcg(&mut s) * 4.0 - 2.0, 0.0, 1.0],
+                    4 => [s.unit() * 2.0 * pi - pi, pi - 1e-9, 1e-9],
+                    _ => [s.unit() * 4.0 - 2.0, 0.0, 1.0],
                 };
                 for &u in &us {
                     for &v in &vs {
@@ -576,7 +570,8 @@ mod review_fuzz {
                             // Only poles/apex may answer None.
                             assert!(
                                 matches!(surf, Surface::Sphere { .. } | Surface::Cone { .. }),
-                                "t{trial} k{k} ({u},{v}): unexpected None"
+                                "t{trial} k{k} ({u},{v}): unexpected None — {}",
+                                fuzz::replay()
                             );
                             continue;
                         };
@@ -585,9 +580,10 @@ mod review_fuzz {
                         worst = worst.max(err / (1.0 + (p - origin).norm()));
                         assert!(
                             err <= 1e-9 * (1.0 + (p - origin).norm()),
-                            "t{trial} k{k} ({u},{v}) -> uv({},{}) err {err:e}",
+                            "t{trial} k{k} ({u},{v}) -> uv({},{}) err {err:e} — {}",
                             uv.x,
-                            uv.y
+                            uv.y,
+                            fuzz::replay()
                         );
                     }
                 }
@@ -602,16 +598,18 @@ mod review_fuzz {
             half_angle: 0.6,
             u_ref,
         };
-        for i in 0..200 {
-            let u = (f64::from(i) / 200.0) * 2.0 * pi - pi;
-            let v = -(0.01 + lcg(&mut s) * 2.0);
+        let nappe = fuzz::scaled(25);
+        for i in 0..nappe {
+            let u = ((i as f64) / (nappe as f64)) * 2.0 * pi - pi;
+            let v = -(0.01 + s.unit() * 2.0);
             let p = cone.eval(u, v);
             let uv = uv_of(&cone, p).expect("mirror nappe preimage");
             let back = cone.eval(uv.x, uv.y);
             assert!(
                 (back - p).norm() <= 1e-9,
-                "nappe u={u} v={v}: {:?}",
-                (back - p).norm()
+                "nappe u={u} v={v}: {:?} — {}",
+                (back - p).norm(),
+                fuzz::replay()
             );
         }
     }

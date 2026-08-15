@@ -14,6 +14,14 @@ publish = false
 
 [workspace]
 
+# `features = ["probe"]` because the litmus test IS the recording-scalar
+# test (see the header: it resurrects the #99 bracket datum at `Probe`).
+# Probe became opt-in when it was gated — it is a `Real` instantiation, so
+# carrying it unconditionally monomorphized every generic-over-`Real` body
+# in every build. Enabling it here rather than gating the test keeps
+# `cargo test` in this directory working exactly as CI invokes it, with no
+# workflow change; these are dev-dependencies of an excluded tooling
+# crate, so nothing ships with the feature on.
 [dev-dependencies]
-geom-core = { path = "../../crates/geom-core" }
-profile = { path = "../../crates/profile" }
+geom-core = { path = "../../crates/geom-core", features = ["probe"] }
+profile = { path = "../../crates/profile", features = ["probe"] }

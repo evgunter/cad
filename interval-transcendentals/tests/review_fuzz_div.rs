@@ -10,17 +10,46 @@
 //!
 //! Why it earns a place in CI: it needs **no oracle library**, so it runs
 //! in the kernel's own pipeline with no C toolchain (README
-//! "Certification", ci.yml's `interval-backend` job). The default run is
-//! a reduced seeded subset of ~500k cases across all four lanes; the full
-//! 17.5M-case sweep the review ran is behind `#[ignore]`:
+//! "Certification", ci.yml's `interval-backend` job).
+//!
+//! # Depth and seed
+//!
+//! Counts are multiples of `test_utils::fuzz`'s EFFORT dial and the seed
+//! VARIES per run — both logged unconditionally by `fuzz::start`, so a
+//! red run always names the draw that produced it. The shipped level is
+//! a smoke sweep of ~63k cases across ALL FOUR lanes (a cheaper sweep
+//! that dropped a lane would lose the witness-floor and subnormal
+//! coverage lanes 2-4 exist for). `CAD_FUZZ_EFFORT=280` restores the
+//! full 17.5M-case sweep the adversarial review ran, which the dial
+//! replaces — it used to be an `#[ignore]`d twin of this file's one
+//! test:
 //!
 //! ```text
-//! cargo test --test review_fuzz_div -- --ignored --nocapture
+//! CAD_FUZZ_EFFORT=280 cargo test --test review_fuzz_div -- --nocapture
 //! ```
 //!
-//! Both modes are bit-reproducible: one seed, `xorshift64*`, no threads.
+//! Any run is bit-reproducible from the seed it logged:
+//! `CAD_FUZZ_SEED=0x… cargo test --test review_fuzz_div -- --nocapture`.
+//!
+//! # The witness floor is not part of the sweep
+//!
+//! The sweep counts degenerate (exact) results and asserts a floor on
+//! them. Read as a coverage claim that would be the trap
+//! `test_utils::fuzz`'s taxonomy names: a counterexample search with an
+//! anti-vacuity floor bolted on, whose sample count then carries one
+//! obligation that is safe to cut and one that is not. It is not that
+//! here, because "a division that comes out exact" is concisely
+//! constructible — shape 2, *a witness you can write down*. So it IS
+//! written down, in
+//! [`the_exactness_witness_fires_on_written_down_exact_divisions`], and
+//! asserted every run at no cost and with no draw involved. What
+//! survives inside the sweep is a pure ANTI-VACUITY floor on lane 2's
+//! generator (does it still construct exact divisions at the rate it
+//! was built to?), scaled from the same constants as the loops and left
+//! with the ~33x margin it has always had.
 
 use interval_transcendentals::DInterval;
+use test_utils::fuzz;
 
 /// Decompose a finite nonzero f64 into (negative, odd_mantissa u128, exp)
 /// with value = sign * m * 2^e and m odd (trailing zeros stripped).
@@ -159,53 +188,70 @@ fn check_case(a: f64, b: f64) {
     }
 }
 
-struct Rng(u64);
-impl Rng {
-    fn next(&mut self) -> u64 {
-        // xorshift64*
-        let mut x = self.0;
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
-        self.0 = x;
-        x.wrapping_mul(0x2545_f491_4f6c_dd1d)
-    }
-    fn f64_raw(&mut self) -> f64 {
-        f64::from_bits(self.next())
-    }
-    /// Finite f64 with exponent forced near `center` (+/- 32 binades).
-    fn f64_near_exp(&mut self, center: i32) -> f64 {
-        let m = self.next() & 0xf_ffff_ffff_ffff;
-        let e = (center + 1023 + (self.next() % 65) as i32 - 32).clamp(0, 2046) as u64;
-        let s = self.next() & (1 << 63);
-        f64::from_bits(s | (e << 52) | m)
-    }
-    fn subnormal(&mut self) -> f64 {
-        let m = (self.next() & 0xf_ffff_ffff_ffff) | 1;
-        let s = self.next() & (1 << 63);
-        f64::from_bits(s | m)
-    }
+// The stream itself is `fuzz::Rng` (the workspace's single xorshift64*,
+// seeded per run); what stays local is only the SHAPING these four lanes
+// need, which nothing else in the tree wants.
+
+fn f64_raw(rng: &mut fuzz::Rng) -> f64 {
+    f64::from_bits(rng.next_u64())
+}
+
+/// Finite f64 with exponent forced near `center` (+/- 32 binades).
+fn f64_near_exp(rng: &mut fuzz::Rng, center: i32) -> f64 {
+    let m = rng.next_u64() & 0xf_ffff_ffff_ffff;
+    let e = (center + 1023 + (rng.next_u64() % 65) as i32 - 32).clamp(0, 2046) as u64;
+    let s = rng.next_u64() & (1 << 63);
+    f64::from_bits(s | (e << 52) | m)
+}
+
+fn subnormal(rng: &mut fuzz::Rng) -> f64 {
+    let m = (rng.next_u64() & 0xf_ffff_ffff_ffff) | 1;
+    let s = rng.next_u64() & (1 << 63);
+    f64::from_bits(s | m)
 }
 
 fn ok_pair(a: f64, b: f64) -> bool {
     a.is_finite() && b.is_finite() && b != 0.0
 }
 
-/// Divisor applied to every lane's case count in the default run; `1`
-/// is the review's full sweep. Chosen so the default lands near 500k
-/// total while keeping ALL FOUR lanes (a cheaper sweep that dropped a
-/// lane would lose the witness-floor and subnormal coverage that lanes
-/// 2-4 exist for).
-const REDUCED_DIVISOR: u64 = 35;
+// Shipped case counts, one per lane, BEFORE `fuzz::scaled` multiplies
+// them by the EFFORT dial. Each is the adversarial review's full sweep
+// divided by 280, so `CAD_FUZZ_EFFORT=280` reproduces that sweep (what
+// the deleted `#[ignore]`d twin used to do) and the shipped level is
+// about an eighth of the fixed-seed "reduced" run this replaced.
+//
+// ALL FOUR lanes are kept at every effort, which is why the dial scales
+// them together instead of any lane being dropped: a cheaper sweep that
+// dropped one would lose the witness-floor and subnormal coverage lanes
+// 2-4 exist for.
+const LANE1_RAW_PAIRS: usize = 21_429; // full sweep: 6_000_000
+const LANE2_EXACT_DIVISIONS: usize = 14_286; // full sweep: 4_000_000
+const LANE3_PER_WINDOW: usize = 1_786; // full sweep: 500_000, x8 windows
 
-fn fuzz(divisor: u64, label: &str) {
-    let mut rng = Rng(0x9e3779b97f4a7c15);
-    let mut n = 0u64;
-    let mut degenerate = 0u64;
+/// Anti-vacuity floor on the total case count: a generator that started
+/// rejecting nearly everything (or a lane silently skipped) fails here
+/// rather than reporting green on nothing. Scaled from the same
+/// constants as the loops, so it tracks the dial exactly; the shipped
+/// run clears it by ~1.75x, as the full sweep always did.
+const CASE_FLOOR: usize = 35_714;
+
+/// Anti-vacuity floor on LANE 2's generator specifically — does it still
+/// construct divisions that come out exact, at the rate it was built to?
+/// This is NOT the exactness-witness coverage claim (that is written
+/// down as a static fixture below, see the module docs); it is the
+/// tripwire for lane 2 quietly degenerating into lane 1. The shipped run
+/// clears it by ~33x, so a varying seed cannot bring it near.
+const DEGENERATE_FLOOR: usize = 357;
+
+#[test]
+fn fuzz_div_witness_soundness_and_containment() {
+    let mut rng = fuzz::start("review_fuzz_div");
+    let mut n = 0usize;
+    let mut degenerate = 0usize;
     // Lane 1: raw random bit patterns (full exponent sweep, subnormals,
     // signed zeros in the numerator, everything).
-    for _ in 0..(6_000_000u64 / divisor) {
-        let (a, b) = (rng.f64_raw(), rng.f64_raw());
+    for _ in 0..fuzz::scaled(LANE1_RAW_PAIRS) {
+        let (a, b) = (f64_raw(&mut rng), f64_raw(&mut rng));
         if !ok_pair(a, b) {
             continue;
         }
@@ -219,11 +265,11 @@ fn fuzz(divisor: u64, label: &str) {
     // Lane 2: constructed EXACT divisions a = q*b with small mantissas,
     // across the exponent range including the 2^-960 witness floor and
     // the subnormal zone (witness must refuse; containment must hold).
-    for _ in 0..(4_000_000u64 / divisor) {
-        let mq = ((rng.next() & 0x3f_ffff) | 1) as f64; // odd, <= 22 bits
-        let mb = ((rng.next() & 0x3fff_ffff) | 1) as f64; // odd, <= 30 bits
-        let scale_b = ((rng.next() % 600) as i32) - 300;
-        let scale_q = ((rng.next() % 2400) as i32) - 1360; // reaches subnormal & near-max products
+    for _ in 0..fuzz::scaled(LANE2_EXACT_DIVISIONS) {
+        let mq = ((rng.next_u64() & 0x3f_ffff) | 1) as f64; // odd, <= 22 bits
+        let mb = ((rng.next_u64() & 0x3fff_ffff) | 1) as f64; // odd, <= 30 bits
+        let scale_b = ((rng.next_u64() % 600) as i32) - 300;
+        let scale_q = ((rng.next_u64() % 2400) as i32) - 1360; // reaches subnormal & near-max products
         let b = mb * pow2(scale_b);
         let q = mq * pow2(scale_q);
         let a = q * b; // exact when the product mantissa fits (<= 52 bits) and no over/underflow rounding
@@ -240,15 +286,15 @@ fn fuzz(divisor: u64, label: &str) {
     // Lane 3: magnitude-window pairs around the witness floor 2^-960,
     // the subnormal boundary, and MAX.
     for center in [-960i32, -1022, -900, -480, 0, 480, 900, 1020] {
-        for _ in 0..(500_000u64 / divisor) {
-            let a = rng.f64_near_exp(center);
-            let bc = (rng.next() % 41) as i32 - 20;
-            let b = rng.f64_near_exp(bc);
+        for _ in 0..fuzz::scaled(LANE3_PER_WINDOW) {
+            let a = f64_near_exp(&mut rng, center);
+            let bc = (rng.next_u64() % 41) as i32 - 20;
+            let b = f64_near_exp(&mut rng, bc);
             if ok_pair(a, b) && b != 0.0 {
                 check_case(a, b);
                 n += 1;
             }
-            let bs = rng.subnormal();
+            let bs = subnormal(&mut rng);
             if ok_pair(a, bs) {
                 check_case(a, bs);
                 n += 1;
@@ -289,28 +335,64 @@ fn fuzz(divisor: u64, label: &str) {
             }
         }
     }
-    // Floors scale with the run, so the reduced mode is still a real
-    // test rather than a smoke check: a harness that stopped generating
-    // cases, or a witness that stopped firing, fails here either way.
-    assert!(n > 10_000_000 / divisor, "{label}: coverage floor: n={n}");
+    // Both floors scale with the dial, so the shipped smoke level is
+    // still a real test rather than a self-satisfied one: a harness that
+    // stopped generating cases, or a lane 2 that stopped constructing
+    // exact divisions, fails here either way.
     assert!(
-        degenerate > 100_000 / divisor,
-        "{label}: witness rarely fired: {degenerate}"
+        n > fuzz::scaled(CASE_FLOOR),
+        "coverage floor: only n={n} cases generated — {}",
+        fuzz::replay()
     );
-    println!("{label}: checked {n} cases, {degenerate} degenerate-exact");
+    assert!(
+        degenerate > fuzz::scaled(DEGENERATE_FLOOR),
+        "lane 2 rarely produced an exact division: {degenerate} — {}",
+        fuzz::replay()
+    );
+    println!("review_fuzz_div: checked {n} cases, {degenerate} degenerate-exact");
 }
 
+/// **The exactness witness, on cases written down rather than hunted
+/// for.** Shape 2 of `test_utils::fuzz`'s taxonomy: the class "a
+/// division that is exact" is concisely constructible, so constructing
+/// it costs nothing and holds on 100% of runs, where searching for it
+/// would hold on ~99% and would make the sweep's sample count carry an
+/// anti-monotone obligation.
+///
+/// Every row is an exact quotient by construction (the mantissa product
+/// fits in 53 bits and neither operand is near an overflow or underflow
+/// boundary), so `point(a)/point(b)` must come back DEGENERATE — the
+/// witness fired on both endpoints — and `check_case` re-derives that
+/// exactness against exact rational arithmetic.
 #[test]
-fn fuzz_div_witness_soundness_and_containment() {
-    fuzz(REDUCED_DIVISOR, "review_fuzz_div (reduced)");
-}
-
-/// The full 17.5M-case sweep exactly as the adversarial review ran it
-/// (minutes, not seconds — hence `#[ignore]`).
-#[test]
-#[ignore = "full 17.5M-case sweep; run with --ignored"]
-fn fuzz_div_witness_soundness_and_containment_full() {
-    fuzz(1, "review_fuzz_div (full)");
+fn the_exactness_witness_fires_on_written_down_exact_divisions() {
+    for (a, b) in [
+        (6.0, 2.0),
+        (1.0, 2.0),
+        (1.0, 4.0),
+        (-7.5, 2.5),
+        (3.0, 1.0),
+        (3.0, -1.0),
+        // 2^53 / 2 — the widest mantissa an f64 quotient can carry.
+        (9_007_199_254_740_992.0, 2.0),
+        // Large and small magnitudes, still exact and still well away
+        // from the 2^-960 witness floor.
+        (f64::MAX, 2.0),
+        (pow2(-500), pow2(-100)),
+        (pow2(700), pow2(200)),
+    ] {
+        let r = DInterval::point(a) / DInterval::point(b);
+        assert!(
+            r.lo() == r.hi(),
+            "exactness witness did NOT fire on the exact division \
+             a={a:e}({:#x}) b={b:e}({:#x}): got [{:e}, {:e}]",
+            a.to_bits(),
+            b.to_bits(),
+            r.lo(),
+            r.hi()
+        );
+        check_case(a, b);
+    }
 }
 
 fn pow2(e: i32) -> f64 {

@@ -25,6 +25,30 @@
 //! 7. **The closure trio**, exercised as verdicts: a closed loop, a
 //!    boundary-terminated branch, and the tangent-match arm.
 //! 8. **Idealized vs realized**, the T4 differential pin.
+//!
+//! # Two SSI operations, not ten (the test-cost audit)
+//!
+//! Rows 1, 5 and 8 — plus the fit-budget row, the accounting receipt and
+//! the dedup row — are all questions about ONE `cylinder_sphere_ssi`
+//! call on the planted fixture, and rows 3 and the corrupted-pcurve half
+//! of row 5 are questions about ONE `plane_nurbs_ssi` call on the
+//! substrate wall. nextest runs one process per test, so the `OnceLock`s
+//! that claimed to compute each fixture "once per process" shared
+//! nothing and the suite paid each operation once PER ROW. There is now
+//! one test per fixture:
+//! [`the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated`]
+//! and
+//! [`shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcurve`].
+//! Each labels every assertion with the property it belongs to, so a
+//! merged failure still names what broke; each retired row's name is
+//! recorded on the merged row's doc comment. [`shape_iii_bit_replay`]
+//! deliberately keeps its own test — it runs the operation TWICE and the
+//! second run is its whole content.
+//!
+//! Every ε stand-down in this file is LOUD: the run prints, by name, the
+//! coverage it did not deliver. The retired `fixture_or_return!` /
+//! `carrier_or_return!` macros returned green in silence, which is the
+//! honesty gap `docs/M5-EXIT-WALK.md` row 15 recorded.
 
 #![allow(
     clippy::unwrap_used,
@@ -141,17 +165,43 @@ fn slab() -> SsiDomain {
     }
 }
 
-/// The planted fixture's outcome, computed **once per process**.
+/// **The planted fixture, built ONCE, and every row that reads it.**
+///
+/// Eight rows until the test-cost audit, all of them questions about
+/// the SAME `cylinder_sphere_ssi` call on the SAME planted shape:
+///
+/// | retired row | block below |
+/// |---|---|
+/// | `the_fit_sample_budget_refuses_typed_rather_than_grinding` | `BUDGET` |
+/// | `shape_iv_both_interior_loops_are_found_and_certified` | `SHAPE-IV` |
+/// | `the_accounting_receipt_is_bounded_and_reported` | `RECEIPT` |
+/// | `a_good_carrier_certifies_all_three_limbs` | `LIMBS` |
+/// | `corrupting_a_carrier_grossly_fails_the_on_locus_limb` | `LIMB-1` |
+/// | `a_between_samples_excursion_is_caught_by_the_hull_limb_alone` | `LIMB-2` |
+/// | `a_seed_refining_onto_a_found_branch_does_not_mint_a_duplicate` | `DEDUP` |
+/// | `idealized_and_realized_steppers_agree_on_the_locus_they_trace` | `DIFFERENTIAL` |
+///
+/// # Why one row and not eight
 ///
 /// A rung-3 intersection at ε = 1e-9 legitimately produces a carrier
 /// with several hundred control points (the geometry's own requirement:
 /// a cubic needs that many spans to stay inside ε on a loop of 0.08 m
-/// radius), and the interpolation solve is cubic in that. Re-running it
-/// per row would make the suite's cost a multiple of the operation's
-/// for no extra coverage — the rows below ask different questions of
-/// the *same* result.
-/// The fixture, or `None` when the run's ε makes it exceed the named
-/// fit-sample budget.
+/// radius), and the interpolation solve is cubic in that — measured
+/// ~3.2 s per call at the default ε. Two `OnceLock`s (`fixture_or_\
+/// budget` and `good_carrier`) used to say that cost was paid "once per
+/// process". It was: nextest runs ONE PROCESS PER TEST, so the memo
+/// shared nothing across the eight rows and the suite paid the
+/// operation eight times per ε row for one operation's worth of
+/// coverage. The memos are gone with the split that needed them.
+///
+/// What the split bought and a merged row cannot is failure ISOLATION:
+/// eight independent properties now surface under one test id. So every
+/// assertion NAMES its property — `BUDGET`, `SHAPE-IV`, `RECEIPT`,
+/// `LIMBS`, `LIMB-1`, `LIMB-2`, `DEDUP`, `DIFFERENTIAL` — and the
+/// message alone says which one broke. Keep that discipline when adding
+/// assertions here.
+///
+/// # The ε stand-down, said out loud
 ///
 /// The battery runs at ε ∈ {1e-6, 1e-9, 1e-12}. The step rule spaces
 /// samples as `ε^{−1/4}`, so this 0.08 m loop wants ~126 samples at
@@ -162,73 +212,91 @@ fn slab() -> SsiDomain {
 /// from too coarse a set).
 ///
 /// This is a **skip gated on a typed kernel refusal**, not on an ε
-/// literal: the rows below run wherever the operation runs, and the
-/// refusal itself is pinned by its own row rather than being stepped
-/// around. Scaling the fixture instead would mean holding `r/ε`
+/// literal. Scaling the fixture instead would mean holding `r/ε`
 /// constant — an 80 m loop at 1e-6 and an 0.08 mm one at 1e-12 — which
 /// stops being the planted small-loop shape the row exists to test.
-fn fixture_or_budget() -> Option<geom_brep::SsiOutcome> {
-    static ONCE: std::sync::OnceLock<Option<geom_brep::SsiOutcome>> = std::sync::OnceLock::new();
-    ONCE.get_or_init(|| {
-        let (s, c) = (sphere(), threaded_cylinder());
-        match ssi::cylinder_sphere_ssi(&c, &s, slab(), band()) {
-            Ok(o) => Some(o),
-            Err(SsiError::FitSampleBudget { .. }) => None,
-            Err(e) => panic!("the planted fixture: {e}"),
-        }
-    })
-    .clone()
-}
-
-/// `return` from a row when the fixture is budget-refused at this ε.
-macro_rules! fixture_or_return {
-    () => {
-        match fixture_or_budget() {
-            Some(o) => o,
-            None => return,
-        }
-    };
-}
-
+///
+/// The retired `fixture_or_return!` / `carrier_or_return!` macros made
+/// that stand-down a bare `return`, so a row that asserted NOTHING
+/// reported green and nothing in the log said which it had been — the
+/// honesty gap `docs/M5-EXIT-WALK.md` row 15 records. The `BUDGET` arm
+/// below still pins the refusal typed, and then SAYS, by name, every
+/// property this run did not cover.
 #[test]
-fn the_fit_sample_budget_refuses_typed_rather_than_grinding() {
-    // The refusal the rows above stand down for, pinned where it can be
-    // read: whichever ε the run resolved, the operation either produces
-    // certified branches or says — in one typed error, naming the fix —
-    // that this tolerance and this curvature need more control points
-    // than the fit can afford. It never truncates the sample set.
+fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
     let (s, c) = (sphere(), threaded_cylinder());
-    match ssi::cylinder_sphere_ssi(&c, &s, slab(), band()) {
-        Ok(o) => assert_eq!(o.branches.len(), 2),
+    // BUDGET: whichever ε the run resolved, the operation either
+    // produces certified branches or says — in one typed error, naming
+    // the fix — that this tolerance and this curvature need more
+    // control points than the fit can afford. It never truncates the
+    // sample set.
+    let out = match ssi::cylinder_sphere_ssi(&c, &s, slab(), band()) {
+        Ok(o) => {
+            assert_eq!(
+                o.branches.len(),
+                2,
+                "BUDGET: an operation that fits at all fits both loops"
+            );
+            o
+        }
         Err(SsiError::FitSampleBudget { samples, budget }) => {
-            assert!(samples > budget, "{samples} vs {budget}");
+            assert!(samples > budget, "BUDGET: {samples} vs {budget}");
             let msg = format!("{}", SsiError::FitSampleBudget { samples, budget });
-            assert!(msg.contains("fit budget"), "{msg}");
-            assert!(msg.contains("raise the tolerance"), "{msg}");
+            assert!(msg.contains("fit budget"), "BUDGET: {msg}");
+            assert!(msg.contains("raise the tolerance"), "BUDGET: {msg}");
+            println!(
+                "SKIPPED (planted fixture, eps = {:e}): the SSI door refused typed on its \
+                 named fit-sample budget ({samples} samples vs {budget}). THIS RUN \
+                 CONTRIBUTES NO SHAPE-(iv) COVERAGE — no found-and-certified row, no \
+                 three-limb row, no limb-1/limb-2 separation, no accounting receipt, no \
+                 dedup row, no idealized-vs-realized differential. Only the BUDGET \
+                 assertions above executed.",
+                eps()
+            );
+            return;
         }
         Err(e) => panic!("unexpected: {e}"),
-    }
-}
+    };
+    println!(
+        "EPS-ROW planted fixture @ eps = {:e}: CERTIFIED — {} branches, {} seeds",
+        eps(),
+        out.branches.len(),
+        out.seeds
+    );
 
-#[test]
-fn shape_iv_both_interior_loops_are_found_and_certified() {
-    let out = fixture_or_return!();
+    // ---- SHAPE-IV: both interior loops are found AND certified -----
     assert_eq!(
         out.branches.len(),
         2,
-        "expected two interior loops, got {} (exhaustiveness {:?})",
+        "SHAPE-IV: expected two interior loops, got {} (exhaustiveness {:?})",
         out.branches.len(),
         out.exhaustiveness
     );
     for b in out.branches.iter() {
-        assert_eq!(b.end, BranchEnd::Closed, "an interior loop must close");
+        assert_eq!(
+            b.end,
+            BranchEnd::Closed,
+            "SHAPE-IV: an interior loop must close"
+        );
         // The full three-limb certificate rode along.
-        assert!(b.certificate.on_locus_max <= eps(), "{:?}", b.certificate);
-        assert!(b.certificate.hull_sup <= eps(), "{:?}", b.certificate);
-        assert!(b.certificate.tube_boxes >= 1, "{:?}", b.certificate);
+        assert!(
+            b.certificate.on_locus_max <= eps(),
+            "SHAPE-IV: {:?}",
+            b.certificate
+        );
+        assert!(
+            b.certificate.hull_sup <= eps(),
+            "SHAPE-IV: {:?}",
+            b.certificate
+        );
+        assert!(
+            b.certificate.tube_boxes >= 1,
+            "SHAPE-IV: {:?}",
+            b.certificate
+        );
         assert!(
             b.certificate.tube_transversality > 0.0,
-            "the uniqueness tube must have positive headroom: {:?}",
+            "SHAPE-IV: the uniqueness tube must have positive headroom: {:?}",
             b.certificate
         );
         // The witness is carrier(mid), unchanged from M2.
@@ -237,16 +305,241 @@ fn shape_iv_both_interior_loops_are_found_and_certified() {
         };
         let (t0, t1) = n.domain();
         let mid = n.eval(0.5 * (t0 + t1));
-        assert!((b.witness - mid).norm() < 1e-15);
+        assert!(
+            (b.witness - mid).norm() < 1e-15,
+            "SHAPE-IV: the witness is carrier(mid)"
+        );
     }
     // The two loops are near opposite poles, so they are genuinely
     // distinct components and not the same one found twice.
     let z: Vec<f64> = out.branches.iter().map(|b| b.witness.z).collect();
-    assert!(z[0] * z[1] < 0.0, "expected one loop per pole, got {z:?}");
+    assert!(
+        z[0] * z[1] < 0.0,
+        "SHAPE-IV: expected one loop per pole, got {z:?}"
+    );
     // The never-silence receipt.
-    assert!(out.exhaustiveness.excluded > 0, "{:?}", out.exhaustiveness);
-    assert!(out.exhaustiveness.accounted > 0, "{:?}", out.exhaustiveness);
-    assert!(out.seeds >= 2, "seeds = {}", out.seeds);
+    assert!(
+        out.exhaustiveness.excluded > 0,
+        "SHAPE-IV: {:?}",
+        out.exhaustiveness
+    );
+    assert!(
+        out.exhaustiveness.accounted > 0,
+        "SHAPE-IV: {:?}",
+        out.exhaustiveness
+    );
+    assert!(out.seeds >= 2, "SHAPE-IV: seeds = {}", out.seeds);
+
+    // ---- RECEIPT: the exhaustiveness contract is also AFFORDABLE ----
+    //
+    // A subdivision that must refine to ε along the whole locus is a
+    // hang, not a proof. What makes it terminate is the certified tube
+    // radius — cells are accounted at the geometry's own scale — so
+    // this block pins both the accounting numbers and the radius they
+    // depend on, and would fail loudly if the tube ladder ever started
+    // bottoming out.
+    let e = out.exhaustiveness;
+    println!("exhaustiveness = {e:?}, seeds = {}", out.seeds);
+    for b in out.branches.iter() {
+        println!("certificate = {:?}", b.certificate);
+    }
+    assert!(e.examined > 0, "RECEIPT: {e:?}");
+    assert_eq!(
+        e.examined,
+        e.excluded + e.accounted + e.refined,
+        "RECEIPT: the receipt must add up: every cell excluded, accounted, or split"
+    );
+    assert!(
+        e.excluded > 0 && e.accounted > 0,
+        "RECEIPT: both terminal states must be exercised: {e:?}"
+    );
+    assert!(
+        e.examined < 100_000,
+        "RECEIPT: the accounting should terminate at the tube's scale, not at ε: {e:?}"
+    );
+
+    // ---- The corrupted-cache limb rows, on the fixture's own carrier
+    let Curve3::Nurbs(ref first) = out.branches[0].carrier else {
+        panic!("a rung-3 carrier is a NURBS curve");
+    };
+    let carrier: NurbsCurve3<f64> = (**first).clone();
+
+    // LIMBS: the carrier the operation produced re-certifies, all three.
+    let cert = certify_against(&carrier).expect("LIMBS: the branch this came from certified");
+    assert_eq!(cert.samples, CERT_SAMPLES, "LIMBS: the PR 6 schedule");
+    assert!(
+        cert.hull_sup <= eps(),
+        "LIMBS: hull sup {:e}",
+        cert.hull_sup
+    );
+    assert!(
+        cert.tube_transversality > 0.0,
+        "LIMBS: tube margin {:e}",
+        cert.tube_transversality
+    );
+
+    // LIMB-1: a gross corruption fails the on-locus limb.
+    //
+    // A hundred escalation-bands' worth of displacement: whatever ε the
+    // run resolved, the schedule sees this immediately. A literal
+    // (a micron, say) is definitely-outside only at the default ε and
+    // silently *inside* limb 1 at ε = 1e-6, where the row would then be
+    // asserting the kernel is wrong for being right.
+    let n = carrier.control().len() / 2;
+    let bad = displaced(&carrier, n, definitely_positive());
+    match certify_against(&bad) {
+        Err(SsiError::CertificateLimb { limb, value }) => {
+            assert_eq!(limb, SsiLimb::OnLocus, "LIMB-1: value = {value}");
+        }
+        other => panic!("LIMB-1: expected limb 1 to refuse, got {other:?}"),
+    }
+
+    // LIMB-2 (C2.2's whole reason to exist): a displacement small
+    // enough that the nine-point schedule still passes, but large
+    // enough that the certified control-hull bound does not. The
+    // sampled max steers; the hull bound certifies.
+    //
+    // Deliberately NOT the middle: a control point at the parameter
+    // midpoint sits on a schedule sample, so its bump would be seen by
+    // limb 1 and the row would be testing nothing. Three sixteenths
+    // lands between samples 1 and 2 of the nine.
+    let n = carrier.control().len() * 3 / 16;
+    let mut found = None;
+    // A deterministic ascending scan — the planted excursion is looked
+    // for, not guessed at.
+    for k in 1..=200u32 {
+        let d = eps() * 0.05 * f64::from(k);
+        let bad = displaced(&carrier, n, d);
+        match certify_against(&bad) {
+            Err(SsiError::CertificateLimb {
+                limb: SsiLimb::HullSup,
+                value,
+            }) => {
+                found = Some((d, value));
+                break;
+            }
+            // A hull bound that lands just ABOVE ε is inside the
+            // escalation band, so limb 2 speaks as an F6 escalation
+            // rather than a definite refusal. Same limb, same meaning —
+            // and the predicate name is how they are told apart.
+            Err(SsiError::Escalated(ref diag)) if diag.predicate == Some("ssi_hull_sup") => {
+                found = Some((d, f64::NAN));
+                break;
+            }
+            // Still inside both limbs, or already gross enough to trip
+            // limb 1 — keep scanning / stop.
+            Ok(_) => {}
+            Err(SsiError::CertificateLimb {
+                limb: SsiLimb::OnLocus,
+                ..
+            }) => break,
+            // The scan walks a displacement across ε, so the schedule's
+            // own trilean legitimately lands in the escalation band on
+            // the way past: that is limb 1 speaking, and the scan is
+            // over.
+            Err(SsiError::Escalated(ref diag)) if diag.predicate == Some("ssi_on_locus") => {
+                break;
+            }
+            Err(e) => panic!("LIMB-2: unexpected refusal while scanning: {e}"),
+        }
+    }
+    let (d, value) = found.expect(
+        "LIMB-2: no displacement made the hull bound refuse while the sampled schedule \
+         still passed — either the hull bound is not tighter than the schedule, or the \
+         scan range is wrong; both are defects worth failing on",
+    );
+    assert!(
+        value.is_nan() || value > eps(),
+        "LIMB-2: the hull bound must exceed ε: {value}"
+    );
+    // And the same displacement passes limb 1 on its own schedule.
+    let bad = displaced(&carrier, n, d);
+    let (t0, t1) = bad.domain();
+    for i in 0..CERT_SAMPLES {
+        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
+        let r = geom_brep::implicit_residual(&c, bad.eval(t)).abs();
+        assert!(
+            r <= eps(),
+            "LIMB-2: the schedule must NOT see it: sample {i} = {r}"
+        );
+    }
+
+    // ---- DEDUP: the dedup guards the LANDING point, not the seed ----
+    //
+    // This block builds the case that distinguishes them: a point well
+    // outside every tube (so the old location test would have let it
+    // through) whose Newton refinement lands squarely on a branch
+    // already found.
+    assert_eq!(
+        out.branches.len(),
+        2,
+        "DEDUP: the fixture has two components"
+    );
+    let radius = out.branches[0].certificate.tube_radius;
+    // A point off the locus by several tube radii — a tube box is the
+    // span hull padded by exactly `radius`, so nothing contains this.
+    let off = out.branches[0].witness + Vec3::new(0.0, 0.0, 3.0 * radius);
+    assert!(
+        carrier.project(off).unwrap().distance > radius,
+        "DEDUP: the probe must start outside every tube or the row proves nothing"
+    );
+    // Marched from there, it re-traces the branch that already exists:
+    // Newton pulls the seed onto the locus first, and the component it
+    // lands on is the one already found. Under the old seed-LOCATION
+    // dedup this seed passed the filter and this trace became a second
+    // `SsiBranch` for one component.
+    let (pts, end) = ssi::idealized_trace_r3(&c, &s, off, slab(), band())
+        .expect("DEDUP: the off-locus probe refines onto the locus");
+    assert_eq!(
+        end,
+        BranchEnd::Closed,
+        "DEDUP: it re-traced a closed component"
+    );
+    for (i, p) in pts.iter().enumerate() {
+        assert!(
+            carrier.project(*p).unwrap().distance <= radius,
+            "DEDUP: sample {i} of the duplicate trace left the found branch's tube"
+        );
+    }
+    // And the operation minted no duplicate: two components, two
+    // branches, witnesses on opposite poles.
+    let z: Vec<f64> = out.branches.iter().map(|b| b.witness.z).collect();
+    assert!(
+        z[0] * z[1] < 0.0,
+        "DEDUP: one branch per component, got {z:?}"
+    );
+
+    // ---- DIFFERENTIAL: the T4 / PERF-PLAN §4.4 pin ------------------
+    //
+    // The two steppers place different samples at different arc lengths
+    // by construction, so the pin is on the LOCUS: same branch
+    // topology, and every idealized sample within the realized branch's
+    // own certified band of the realized carrier.
+    for b in out.branches.iter() {
+        let Curve3::Nurbs(ref realized) = b.carrier else {
+            panic!("a rung-3 carrier is a NURBS curve");
+        };
+        let seed = b.witness;
+        let (pts, end) = ssi::idealized_trace_r3(&c, &s, seed, slab(), band())
+            .expect("DIFFERENTIAL: the idealized trace");
+        assert_eq!(
+            end, b.end,
+            "DIFFERENTIAL: the two steppers must agree on branch topology"
+        );
+        // The band the realized branch actually earned, plus a term for
+        // the idealized stepper's own Newton residual — both scale with
+        // the resolved ε, so this row means the same thing at every row
+        // of the battery.
+        let tol = b.certificate.hull_sup + 2.0 * eps();
+        for (i, p) in pts.iter().enumerate() {
+            let d = distance_to_carrier(realized, *p);
+            assert!(
+                d <= tol,
+                "DIFFERENTIAL: idealized sample {i} is {d:e} m off the realized carrier \
+                 (band {tol:e})"
+            );
+        }
+    }
 }
 
 #[test]
@@ -373,6 +666,15 @@ fn the_uniqueness_tube_margin_dies_on_a_tangent_pair() {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let n = (need as usize).max(64);
     if n > geom_brep::ssi::SSI_MAX_FIT_SAMPLES {
+        println!(
+            "SKIPPED (equator interpolant, eps = {:e}): limbs 1 and 2 would need {n} samples \
+             against a fit budget of {} — THIS RUN DOES NOT EXERCISE THE LIMB-3 TUBE \
+             REFUSAL ON A TANGENT PAIR. The refusal itself is still reached end-to-end by \
+             `a_tangent_pair_refuses_toward_the_c7_regime_and_never_desingularizes`; what \
+             is absent is the isolated limb-3 statement.",
+            eps(),
+            geom_brep::ssi::SSI_MAX_FIT_SAMPLES
+        );
         return;
     }
     let pts: Vec<Point3<f64>> = (0..=n)
@@ -408,33 +710,10 @@ fn the_uniqueness_tube_margin_dies_on_a_tangent_pair() {
 }
 
 // ---------------------------------------------------------------------
-// The corrupted-cache limb rows
+// The corrupted-cache limb rows' helpers (the rows themselves are the
+// `LIMBS` / `LIMB-1` / `LIMB-2` blocks of the planted-fixture row above,
+// which already has the carrier they corrupt)
 // ---------------------------------------------------------------------
-
-/// A good carrier for one loop of the planted fixture. Computed once
-/// per process: the operation runs a full exhaustiveness sweep, and the
-/// corruption rows only need the carrier it produced.
-fn good_carrier() -> Option<NurbsCurve3<f64>> {
-    static ONCE: std::sync::OnceLock<Option<NurbsCurve3<f64>>> = std::sync::OnceLock::new();
-    ONCE.get_or_init(|| {
-        let out = fixture_or_budget()?;
-        let Curve3::Nurbs(ref n) = out.branches[0].carrier else {
-            panic!("a rung-3 carrier is a NURBS curve");
-        };
-        Some((**n).clone())
-    })
-    .clone()
-}
-
-/// `return` from a row when the carrier is budget-refused at this ε.
-macro_rules! carrier_or_return {
-    () => {
-        match good_carrier() {
-            Some(c) => c,
-            None => return,
-        }
-    };
-}
 
 /// The same carrier with control point `i` displaced by `d` metres in
 /// `+z` — a planted corruption.
@@ -463,104 +742,6 @@ fn certify_against(carrier: &NurbsCurve3<f64>) -> Result<geom_brep::SsiCertifica
         eps(),
         band(),
     )
-}
-
-#[test]
-fn a_good_carrier_certifies_all_three_limbs() {
-    let carrier = carrier_or_return!();
-    let cert = certify_against(&carrier).expect("the branch this came from certified");
-    assert_eq!(cert.samples, CERT_SAMPLES);
-    assert!(cert.hull_sup <= eps());
-    assert!(cert.tube_transversality > 0.0);
-}
-
-#[test]
-fn corrupting_a_carrier_grossly_fails_the_on_locus_limb() {
-    let carrier = carrier_or_return!();
-    let n = carrier.control().len() / 2;
-    // A hundred escalation-bands' worth of displacement: whatever ε the
-    // run resolved, the schedule sees this immediately. A literal
-    // (a micron, say) is definitely-outside only at the default ε and
-    // silently *inside* limb 1 at ε = 1e-6, where the row would then be
-    // asserting the kernel is wrong for being right.
-    let bad = displaced(&carrier, n, definitely_positive());
-    match certify_against(&bad) {
-        Err(SsiError::CertificateLimb { limb, value }) => {
-            assert_eq!(limb, SsiLimb::OnLocus, "value = {value}");
-        }
-        other => panic!("expected limb 1 to refuse, got {other:?}"),
-    }
-}
-
-#[test]
-fn a_between_samples_excursion_is_caught_by_the_hull_limb_alone() {
-    // THE limb-2 row (C2.2's whole reason to exist): a displacement
-    // small enough that the nine-point schedule still passes, but large
-    // enough that the certified control-hull bound does not. The
-    // sampled max steers; the hull bound certifies.
-    let carrier = carrier_or_return!();
-    // Deliberately NOT the middle: a control point at the parameter
-    // midpoint sits on a schedule sample, so its bump would be seen by
-    // limb 1 and the row would be testing nothing. Three sixteenths
-    // lands between samples 1 and 2 of the nine.
-    let n = carrier.control().len() * 3 / 16;
-    let mut found = None;
-    // A deterministic ascending scan — the planted excursion is looked
-    // for, not guessed at.
-    for k in 1..=200u32 {
-        let d = eps() * 0.05 * f64::from(k);
-        let bad = displaced(&carrier, n, d);
-        match certify_against(&bad) {
-            Err(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup,
-                value,
-            }) => {
-                found = Some((d, value));
-                break;
-            }
-            // A hull bound that lands just ABOVE ε is inside the
-            // escalation band, so limb 2 speaks as an F6 escalation
-            // rather than a definite refusal. Same limb, same meaning —
-            // and the predicate name is how they are told apart.
-            Err(SsiError::Escalated(ref diag)) if diag.predicate == Some("ssi_hull_sup") => {
-                found = Some((d, f64::NAN));
-                break;
-            }
-            // Still inside both limbs, or already gross enough to trip
-            // limb 1 — keep scanning / stop.
-            Ok(_) => {}
-            Err(SsiError::CertificateLimb {
-                limb: SsiLimb::OnLocus,
-                ..
-            }) => break,
-            // The scan walks a displacement across ε, so the schedule's
-            // own trilean legitimately lands in the escalation band on
-            // the way past: that is limb 1 speaking, and the scan is
-            // over.
-            Err(SsiError::Escalated(ref diag)) if diag.predicate == Some("ssi_on_locus") => {
-                break;
-            }
-            Err(e) => panic!("unexpected refusal while scanning: {e}"),
-        }
-    }
-    let (d, value) = found.expect(
-        "no displacement made the hull bound refuse while the sampled schedule still \
-         passed — either the hull bound is not tighter than the schedule, or the scan \
-         range is wrong; both are defects worth failing on",
-    );
-    assert!(
-        value.is_nan() || value > eps(),
-        "the hull bound must exceed ε: {value}"
-    );
-    // And the same displacement passes limb 1 on its own schedule.
-    let bad = displaced(&carrier, n, d);
-    let (t0, t1) = bad.domain();
-    let c = threaded_cylinder();
-    for i in 0..CERT_SAMPLES {
-        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
-        let r = geom_brep::implicit_residual(&c, bad.eval(t)).abs();
-        assert!(r <= eps(), "the schedule must NOT see it: sample {i} = {r}");
-    }
 }
 
 // ---------------------------------------------------------------------
@@ -634,41 +815,78 @@ fn wall_domain() -> SsiDomain {
     }
 }
 
-/// The certified outcome for the substrate wall, once per process (the
-/// operation runs a full march + exhaustiveness sweep; several rows
-/// read it). `None` when the fit budget refuses at this ε — pinned by
-/// its own row, and the budget's demand is march-side, which PR 7b
-/// deliberately did not touch.
+/// The certified outcome for the substrate wall (the operation runs a
+/// full march + exhaustiveness sweep). `None` when the fit budget
+/// refuses at this ε — pinned by its own row, and the budget's demand
+/// is march-side, which PR 7b deliberately did not touch.
+///
+/// **No memo.** This was a `OnceLock` "once per process"; nextest is
+/// process-per-test, so it shared nothing and each reader paid the
+/// march. The two readers that only wanted the finished outcome are one
+/// row now; `shape_iii_bit_replay` calls this AND re-runs the operation
+/// independently, which is the content of its claim, not duplication.
 fn wall_outcome() -> Option<geom_brep::SsiOutcome> {
-    static ONCE: std::sync::OnceLock<Option<geom_brep::SsiOutcome>> = std::sync::OnceLock::new();
-    ONCE.get_or_init(|| {
-        let (p, w) = (cutting_plane(), certifiable_wall());
-        match ssi::plane_nurbs_ssi(&p, &w, wall_domain(), band()) {
-            Ok(o) => Some(o),
-            Err(SsiError::FitSampleBudget { .. }) => None,
-            Err(e) => panic!("shape (iii) substrate must certify: {e}"),
-        }
-    })
-    .clone()
+    let (p, w) = (cutting_plane(), certifiable_wall());
+    match ssi::plane_nurbs_ssi(&p, &w, wall_domain(), band()) {
+        Ok(o) => Some(o),
+        Err(SsiError::FitSampleBudget { .. }) => None,
+        Err(e) => panic!("shape (iii) substrate must certify: {e}"),
+    }
 }
 
+/// The wall fixture's stand-down, said out loud: which row stood down,
+/// and what it therefore did NOT cover. A bare `return` here reports
+/// coverage the run does not have (`docs/M5-EXIT-WALK.md` row 15).
+fn wall_stand_down(row: &str, absent: &str) {
+    println!(
+        "SKIPPED ({row}, eps = {:e}): the plane×NURBS march wants more samples than the \
+         SSI fit budget allows, so the shape-(iii) wall never fitted at this ε — {absent}",
+        eps()
+    );
+}
+
+/// **The shape-(iii) substrate, built ONCE, with both rows that read
+/// it.** `a_corrupted_pcurve_is_caught_by_the_hull_limb_alone` is the
+/// `CORRUPT-PCURVE` block below; it consumed the SAME `wall_outcome()`
+/// march and, under nextest's process-per-test isolation, paid it a
+/// second time. Every assertion NAMES its block — `SUBSTRATE`,
+/// `TABLE`, `CORRUPT-PCURVE` — so a merged failure still says which
+/// property broke. `shape_iii_bit_replay` deliberately stays out: it
+/// runs the operation TWICE and the second run is its content.
 #[test]
-fn shape_iii_the_wall_cut_certifies_all_three_limbs() {
+fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcurve() {
     // THE SUBSTRATE ROW (M5-PR7-SPEC §6, left unmet at PR 7 as its
     // deviation 1; exit-gating for shape (iii)): a directly-authored
     // NURBS wall cut by a plane — rung-3 marched + fitted + certified,
     // ALL THREE limbs, through the retired arm. Limb 2 is the tensor
     // composite bound; every pin scales from the resolved band.
-    let Some(out) = wall_outcome() else { return };
-    assert_eq!(out.branches.len(), 1, "one open branch, edge to edge");
+    let Some(out) = wall_outcome() else {
+        wall_stand_down(
+            "shape (iii) substrate",
+            "THIS RUN ASSERTS NEITHER the three-limb certification of the wall cut NOR \
+             the limb-2-alone refusal of a corrupted pcurve NOR this row's C5 table \
+             read (that last claim is ε-independent and is also stated \
+             unconditionally by `the_c5_table_retires_the_arm_whose_proof_is_complete`)",
+        );
+        return;
+    };
+    assert_eq!(
+        out.branches.len(),
+        1,
+        "SUBSTRATE: one open branch, edge to edge"
+    );
     let b = &out.branches[0];
     let cert = &b.certificate;
-    assert_eq!(cert.samples, CERT_SAMPLES);
+    assert_eq!(cert.samples, CERT_SAMPLES, "SUBSTRATE: the PR 6 schedule");
     // Limb 1 and limb 2 certified within the band's zero region — and
     // limb 2 is the number that certifies (C2.2), so it is the pin
     // that matters: the composite bound reaches the fit's own scale.
-    assert!(cert.on_locus_max <= eps(), "{:e}", cert.on_locus_max);
-    assert!(cert.hull_sup <= eps(), "{:e}", cert.hull_sup);
+    assert!(
+        cert.on_locus_max <= eps(),
+        "SUBSTRATE: {:e}",
+        cert.on_locus_max
+    );
+    assert!(cert.hull_sup <= eps(), "SUBSTRATE: {:e}", cert.hull_sup);
     // The measured bound-improvement, order-of-magnitude (spec §5):
     // where the first-order enclosure reported span-width scale
     // (~1e-2 m at any ε), the composite lands ~1e-8·(ε/1e-9) — an
@@ -676,21 +894,84 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs() {
     // default ε, band-relative so the row means the same at 1e-6.
     assert!(
         cert.hull_sup <= 10.0 * eps(),
-        "the composite bound lost its tightness: {:e}",
+        "SUBSTRATE: the composite bound lost its tightness: {:e}",
         cert.hull_sup
     );
     // Limb 3: a real tube with a real margin.
-    assert!(cert.tube_radius > 0.0 && cert.tube_boxes > 0);
-    assert!(cert.tube_transversality > 0.0);
+    assert!(
+        cert.tube_radius > 0.0 && cert.tube_boxes > 0,
+        "SUBSTRATE: limb 3 has a real tube"
+    );
+    assert!(
+        cert.tube_transversality > 0.0,
+        "SUBSTRATE: limb 3 has a real margin"
+    );
     // The ℝ⁴ shape's products: both pcurves, on the carrier's own
     // parameter (the OQ4 identity the certified path now consumes).
-    assert!(b.pcurve_a.is_some() && b.pcurve_b.is_some());
+    assert!(
+        b.pcurve_a.is_some() && b.pcurve_b.is_some(),
+        "SUBSTRATE: the ℝ⁴ arm fits both pcurves"
+    );
     // And the table says RETIRED where a caller reads it (C12.1: the
     // arm retires WITH its proof, and the note records the date).
+    assert_c5_plane_nurbs_retired();
+
+    // ---- CORRUPT-PCURVE: exclusion-cannot-lie against the NEW bound,
+    // and limb separation.
+    //
+    // A pcurve corruption leaves limb 1 clean — the foot-point check
+    // re-projects from the corrupted warm start and converges to the
+    // true foot, so on-locus distance and orthogonality stay in band —
+    // while limb 2, which consumes the pcurve AS the parameter map,
+    // must see |S(P(t)) − C(t)| at the corruption's full size. The
+    // displacement scales from the resolved band (definitely positive
+    // at any battery ε).
+    let Curve3::Nurbs(ref carrier) = b.carrier else {
+        panic!("a rung-3 carrier is a NURBS curve");
+    };
+    let pb = b
+        .pcurve_b
+        .as_ref()
+        .expect("CORRUPT-PCURVE: the ℝ⁴ arm fits both pcurves");
+    let mut control = pb.control().to_vec();
+    let mid = control.len() / 2;
+    let d = definitely_positive();
+    control[mid] = geom_core::Point2::new(control[mid].x + d, control[mid].y);
+    let bad = geom_curves::NurbsCurve2::new(pb.knots().clone(), control, pb.weights().to_vec())
+        .expect("structure unchanged");
+    let (p, w) = (cutting_plane(), certifiable_wall());
+    let err = ssi::certify_rung3(
+        carrier,
+        Some(&bad),
+        &SsiOperand::Analytic(&p),
+        &SsiOperand::Nurbs(&w),
+        wall_domain().extent,
+        wall_domain().extent,
+        eps(),
+        band(),
+    )
+    .expect_err("CORRUPT-PCURVE: a corrupted parameter map cannot certify");
+    match err {
+        SsiError::CertificateLimb {
+            limb: SsiLimb::HullSup,
+            value,
+        } => assert!(value > eps(), "CORRUPT-PCURVE: {value:e}"),
+        other => panic!("CORRUPT-PCURVE: expected limb 2 alone, got {other}"),
+    }
+}
+
+/// The C5 table's plane×NURBS row, read the way a caller reads it. Pure
+/// table lookup — no geometry, no ε — so it is stated whether or not
+/// the wall fixture fitted at this ε.
+fn assert_c5_plane_nurbs_retired() {
     let r = geom_brep::route(geom_brep::SurfaceKind::Plane, geom_brep::SurfaceKind::Nurbs);
-    assert!(r.implemented);
-    assert!(r.note.contains("RETIRED 2026-07-31"), "{}", r.note);
-    assert!(r.note.contains("Bernstein composition"), "{}", r.note);
+    assert!(r.implemented, "TABLE: plane×NURBS is retired");
+    assert!(r.note.contains("RETIRED 2026-07-31"), "TABLE: {}", r.note);
+    assert!(
+        r.note.contains("Bernstein composition"),
+        "TABLE: {}",
+        r.note
+    );
 }
 
 #[test]
@@ -698,7 +979,14 @@ fn shape_iii_bit_replay() {
     // The same operation twice is the same certificate and the same
     // carrier to the BIT (D9) — the certified path includes the ring
     // composite, so this replays the whole PR 7b pipeline.
-    let Some(a) = wall_outcome() else { return };
+    let Some(a) = wall_outcome() else {
+        wall_stand_down(
+            "shape (iii) bit replay",
+            "THIS RUN DOES NOT REPLAY the PR 7b pipeline — no certificate or control-point \
+             bit comparison was made at this ε",
+        );
+        return;
+    };
     let (p, w) = (cutting_plane(), certifiable_wall());
     let b = ssi::plane_nurbs_ssi(&p, &w, wall_domain(), band()).expect("replay");
     assert_eq!(a.branches.len(), b.branches.len());
@@ -789,7 +1077,14 @@ fn the_composite_bound_tracks_dense_scan_truth_on_the_pr7_fixture() {
     let (carrier, _pa, pb) =
         match ssi::trace_plane_nurbs_uncertified(&p, &w, (0.5, 0.5), wall_domain(), band()) {
             Ok(t) => t,
-            Err(SsiError::FitSampleBudget { .. }) => return,
+            Err(SsiError::FitSampleBudget { .. }) => {
+                wall_stand_down(
+                    "composite bound vs dense scan",
+                    "THIS RUN COMPARES NOTHING against the 1e5-sample dense scan — the \
+                     measured-improvement claim (spec §5) is unstated at this ε",
+                );
+                return;
+            }
             Err(e) => panic!("the ℝ⁴ trace: {e}"),
         };
     use geom_core::spline::compose::{CurveRingData, tensor};
@@ -825,49 +1120,6 @@ fn the_composite_bound_tracks_dense_scan_truth_on_the_pr7_fixture() {
 }
 
 #[test]
-fn a_corrupted_pcurve_is_caught_by_the_hull_limb_alone() {
-    // Exclusion-cannot-lie against the NEW bound, and limb separation:
-    // a pcurve corruption leaves limb 1 clean — the foot-point check
-    // re-projects from the corrupted warm start and converges to the
-    // true foot, so on-locus distance and orthogonality stay in band —
-    // while limb 2, which consumes the pcurve AS the parameter map,
-    // must see |S(P(t)) − C(t)| at the corruption's full size. The
-    // displacement scales from the resolved band (definitely positive
-    // at any battery ε).
-    let Some(out) = wall_outcome() else { return };
-    let b = &out.branches[0];
-    let Curve3::Nurbs(ref carrier) = b.carrier else {
-        panic!("a rung-3 carrier is a NURBS curve");
-    };
-    let pb = b.pcurve_b.as_ref().expect("the ℝ⁴ arm fits both pcurves");
-    let mut control = pb.control().to_vec();
-    let mid = control.len() / 2;
-    let d = definitely_positive();
-    control[mid] = geom_core::Point2::new(control[mid].x + d, control[mid].y);
-    let bad = geom_curves::NurbsCurve2::new(pb.knots().clone(), control, pb.weights().to_vec())
-        .expect("structure unchanged");
-    let (p, w) = (cutting_plane(), certifiable_wall());
-    let err = ssi::certify_rung3(
-        carrier,
-        Some(&bad),
-        &SsiOperand::Analytic(&p),
-        &SsiOperand::Nurbs(&w),
-        wall_domain().extent,
-        wall_domain().extent,
-        eps(),
-        band(),
-    )
-    .expect_err("a corrupted parameter map cannot certify");
-    match err {
-        SsiError::CertificateLimb {
-            limb: SsiLimb::HullSup,
-            value,
-        } => assert!(value > eps(), "{value:e}"),
-        other => panic!("expected limb 2 alone, got {other}"),
-    }
-}
-
-#[test]
 fn oq4_the_two_pcurves_share_the_carriers_own_parameter() {
     // THE OQ4-discharge demonstration, and it does not depend on the
     // arm being retired: the ℝ⁴ trace yields the 3-D curve and both
@@ -884,7 +1136,14 @@ fn oq4_the_two_pcurves_share_the_carriers_own_parameter() {
             // Same budget stand-down as the ℝ³ fixture: at ε = 1e-12
             // the wall's cut wants more samples than the fit affords,
             // and the refusal is pinned by its own row.
-            Err(SsiError::FitSampleBudget { .. }) => return,
+            Err(SsiError::FitSampleBudget { .. }) => {
+                wall_stand_down(
+                    "OQ4 parameter identity",
+                    "THIS RUN MAKES NO OQ4 DEMONSTRATION — neither pcurve was checked \
+                     against the carrier's own parameter on the PR 6 schedule at this ε",
+                );
+                return;
+            }
             Err(e) => panic!("the ℝ⁴ trace: {e}"),
         };
     let (t0, t1) = carrier.domain();
@@ -953,41 +1212,6 @@ fn a_clipped_domain_ends_the_branch_on_the_boundary() {
 }
 
 #[test]
-fn idealized_and_realized_steppers_agree_on_the_locus_they_trace() {
-    // The T4 / PERF-PLAN §4.4 differential pin. The two steppers place
-    // different samples at different arc lengths by construction, so the
-    // pin is on the LOCUS: same branch topology, and every idealized
-    // sample within the realized branch's own certified band of the
-    // realized carrier.
-    let (s, c) = (sphere(), threaded_cylinder());
-    let out = fixture_or_return!();
-    for b in out.branches.iter() {
-        let Curve3::Nurbs(ref carrier) = b.carrier else {
-            panic!("a rung-3 carrier is a NURBS curve");
-        };
-        let seed = b.witness;
-        let (pts, end) =
-            ssi::idealized_trace_r3(&c, &s, seed, slab(), band()).expect("the idealized trace");
-        assert_eq!(end, b.end, "the two steppers must agree on branch topology");
-        // The certified band the realized branch actually earned, plus
-        // the tolerance itself for the idealized stepper's own Newton
-        // residual.
-        // The band the realized branch actually earned, plus a term for
-        // the idealized stepper's own Newton residual — both scale with
-        // the resolved ε, so this row means the same thing at every row
-        // of the battery.
-        let tol = b.certificate.hull_sup + 2.0 * eps();
-        for (i, p) in pts.iter().enumerate() {
-            let d = distance_to_carrier(carrier, *p);
-            assert!(
-                d <= tol,
-                "idealized sample {i} is {d:e} m off the realized carrier (band {tol:e})"
-            );
-        }
-    }
-}
-
-#[test]
 fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
     use geom_brep::{Rung, SurfaceKind, route};
     // Retired: all three C2 limbs certify.
@@ -1028,37 +1252,6 @@ fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
             r.note
         );
     }
-}
-
-#[test]
-fn the_accounting_receipt_is_bounded_and_reported() {
-    // The exhaustiveness contract is only useful if it is also
-    // *affordable*: a subdivision that must refine to ε along the whole
-    // locus is a hang, not a proof. What makes it terminate is the
-    // certified tube radius — cells are accounted at the geometry's own
-    // scale — so this row pins both the accounting numbers and the
-    // radius they depend on, and would fail loudly if the tube ladder
-    // ever started bottoming out.
-    let out = fixture_or_return!();
-    let e = out.exhaustiveness;
-    println!("exhaustiveness = {e:?}, seeds = {}", out.seeds);
-    for b in out.branches.iter() {
-        println!("certificate = {:?}", b.certificate);
-    }
-    assert!(e.examined > 0);
-    assert_eq!(
-        e.examined,
-        e.excluded + e.accounted + e.refined,
-        "the receipt must add up: every cell excluded, accounted, or split"
-    );
-    assert!(
-        e.excluded > 0 && e.accounted > 0,
-        "both terminal states must be exercised: {e:?}"
-    );
-    assert!(
-        e.examined < 100_000,
-        "the accounting should terminate at the tube's scale, not at ε: {e:?}"
-    );
 }
 
 // ---------------------------------------------------------------------
@@ -1189,44 +1382,4 @@ fn the_ssi_predicates_reach_the_k_funnel() {
                 .collect::<std::collections::BTreeSet<_>>()
         );
     }
-}
-
-#[test]
-fn a_seed_refining_onto_a_found_branch_does_not_mint_a_duplicate() {
-    // The dedup guards the LANDING point, not the seed location. This
-    // row builds the case that distinguishes them: a point well outside
-    // every tube (so the old location test would have let it through)
-    // whose Newton refinement lands squarely on a branch already found.
-    let out = fixture_or_return!();
-    assert_eq!(out.branches.len(), 2, "the fixture has two components");
-    let Curve3::Nurbs(ref carrier) = out.branches[0].carrier else {
-        panic!("a rung-3 carrier is a NURBS curve");
-    };
-    let radius = out.branches[0].certificate.tube_radius;
-    // A point off the locus by several tube radii — a tube box is the
-    // span hull padded by exactly `radius`, so nothing contains this.
-    let off = out.branches[0].witness + Vec3::new(0.0, 0.0, 3.0 * radius);
-    assert!(
-        carrier.project(off).unwrap().distance > radius,
-        "the probe must start outside every tube or the row proves nothing"
-    );
-    // Marched from there, it re-traces the branch that already exists:
-    // Newton pulls the seed onto the locus first, and the component it
-    // lands on is the one already found. Under the old
-    // seed-LOCATION dedup this seed passed the filter and this trace
-    // became a second `SsiBranch` for one component.
-    let (s, c) = (sphere(), threaded_cylinder());
-    let (pts, end) = ssi::idealized_trace_r3(&c, &s, off, slab(), band())
-        .expect("the off-locus probe refines onto the locus");
-    assert_eq!(end, BranchEnd::Closed, "it re-traced a closed component");
-    for (i, p) in pts.iter().enumerate() {
-        assert!(
-            carrier.project(*p).unwrap().distance <= radius,
-            "sample {i} of the duplicate trace left the found branch's tube"
-        );
-    }
-    // And the operation minted no duplicate: two components, two
-    // branches, witnesses on opposite poles.
-    let z: Vec<f64> = out.branches.iter().map(|b| b.witness.z).collect();
-    assert!(z[0] * z[1] < 0.0, "one branch per component, got {z:?}");
 }

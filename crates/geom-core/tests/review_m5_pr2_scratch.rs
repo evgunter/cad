@@ -3,8 +3,13 @@
 //! description after its scratch worktree was collected.
 //!
 //! Its regression value is that it is an **independent derivation**: it
-//! shares no code with `ring_interval_fuzz.rs`. Different generator
-//! (SplitMix64, not xorshift64*), different comparators:
+//! shares no *comparator* code with `ring_interval_fuzz.rs`. (It used to
+//! carry its own SplitMix64 as a second axis of independence; since the
+//! 2026-08-13 fuzz audit both suites draw from the shared
+//! `test_utils::fuzz` stream, which varies its seed per run — a moving
+//! stream buys more than a second fixed one did. The lane structure and
+//! the exact comparators below remain this file's own.) Different
+//! comparators:
 //!
 //! - **`×`, `÷`, `powi`**: `u128` dyadic cross-comparison. Every finite
 //!   `f64` is `±m·2^e` with `m` odd; a product of two of them is
@@ -26,46 +31,30 @@
 //! `powi` exact oracle plus structural pins, and the zero-annihilator /
 //! infinite-bracket edge probe.
 //!
-//! The default run is a reduced seeded subset; the review's full counts
-//! are behind `#[ignore]`:
+//! The shipped run is a smoke-level subset. `CAD_FUZZ_EFFORT=64` restores
+//! roughly the review's full counts, which is what the `#[ignore]`d
+//! full-scale twin used to do:
 //!
 //! ```text
-//! cargo test -p geom-core --test review_m5_pr2_scratch -- --ignored --nocapture
+//! CAD_FUZZ_EFFORT=64 cargo test -p geom-core --test all -- review_m5_pr2_scratch --nocapture
 //! ```
 
 use geom_core::RingInterval;
 use std::cmp::Ordering;
+use test_utils::fuzz;
 
-/// SplitMix64 — deliberately a different generator from the primary
-/// fuzz's xorshift64*, so the two suites cannot share a blind spot.
-struct Sm64(u64);
+fn subnormal(rng: &mut fuzz::Rng) -> f64 {
+    let m = (rng.next_u64() & 0xf_ffff_ffff_ffff) | 1;
+    let s = rng.next_u64() & (1 << 63);
+    f64::from_bits(s | m)
+}
 
-impl Sm64 {
-    fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9e37_79b9_7f4a_7c15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
-        z ^ (z >> 31)
-    }
-
-    fn below(&mut self, n: usize) -> usize {
-        (self.next() % n as u64) as usize
-    }
-
-    fn subnormal(&mut self) -> f64 {
-        let m = (self.next() & 0xf_ffff_ffff_ffff) | 1;
-        let s = self.next() & (1 << 63);
-        f64::from_bits(s | m)
-    }
-
-    /// Finite `f64` with a chosen unbiased exponent.
-    fn at_exp(&mut self, e: i32) -> f64 {
-        let m = self.next() & 0xf_ffff_ffff_ffff;
-        let biased = (e + 1023).clamp(1, 2046) as u64;
-        let s = self.next() & (1 << 63);
-        f64::from_bits(s | (biased << 52) | m)
-    }
+/// Finite `f64` with a chosen unbiased exponent.
+fn at_exp(rng: &mut fuzz::Rng, e: i32) -> f64 {
+    let m = rng.next_u64() & 0xf_ffff_ffff_ffff;
+    let biased = (e + 1023).clamp(1, 2046) as u64;
+    let s = rng.next_u64() & (1 << 63);
+    f64::from_bits(s | (biased << 52) | m)
 }
 
 // ------------------------------------------------- exact comparators
@@ -252,43 +241,52 @@ fn cmp_x_vs_sum(x: f64, a: f64, b: f64) -> Ordering {
 /// Asserts `r` brackets the exact `a + b` (or `a − b` when `sub`).
 fn assert_sum_bracket(r: RingInterval, a: f64, b: f64, sub: bool, what: &str) {
     let b = if sub { -b } else { b };
-    assert!(!r.is_poison(), "{what}: unexpected poison ({a:e}, {b:e})");
+    assert!(
+        !r.is_poison(),
+        "{what}: unexpected poison ({a:e}, {b:e}) — {}",
+        fuzz::replay()
+    );
     assert!(
         cmp_x_vs_sum(r.lo(), a, b) != Ordering::Greater,
-        "{what} LO ABOVE TRUTH: a={a:e} b={b:e} lo={:e}",
-        r.lo()
+        "{what} LO ABOVE TRUTH: a={a:e} b={b:e} lo={:e} — {}",
+        r.lo(),
+        fuzz::replay()
     );
     assert!(
         cmp_x_vs_sum(r.hi(), a, b) != Ordering::Less,
-        "{what} HI BELOW TRUTH: a={a:e} b={b:e} hi={:e}",
-        r.hi()
+        "{what} HI BELOW TRUTH: a={a:e} b={b:e} hi={:e} — {}",
+        r.hi(),
+        fuzz::replay()
     );
 }
 
 /// Asserts `r` brackets the exact `a · b`.
 fn assert_prod_bracket(r: RingInterval, a: f64, b: f64, what: &str) {
-    assert!(!r.is_poison(), "{what}: unexpected poison ({a:e}, {b:e})");
+    assert!(
+        !r.is_poison(),
+        "{what}: unexpected poison ({a:e}, {b:e}) — {}",
+        fuzz::replay()
+    );
     assert!(
         cmp_x_vs_prod(r.lo(), a, b) != Ordering::Greater,
-        "{what} LO ABOVE TRUTH: a={a:e} b={b:e} lo={:e}",
-        r.lo()
+        "{what} LO ABOVE TRUTH: a={a:e} b={b:e} lo={:e} — {}",
+        r.lo(),
+        fuzz::replay()
     );
     assert!(
         cmp_x_vs_prod(r.hi(), a, b) != Ordering::Less,
-        "{what} HI BELOW TRUTH: a={a:e} b={b:e} hi={:e}",
-        r.hi()
+        "{what} HI BELOW TRUTH: a={a:e} b={b:e} hi={:e} — {}",
+        r.hi(),
+        fuzz::replay()
     );
 }
 
 // ------------------------------------------------------------- lanes
 
-/// Scale divisor for the default run; `1` is the review's full sweep.
-const REDUCED: u64 = 8;
-
 /// The boundary pool: signed zeros, the smallest subnormal, the
 /// normal/subnormal frontier, and the overflow frontier — every place a
 /// one-step outward pad or a sign clamp can change the answer.
-fn pool(rng: &mut Sm64) -> Vec<f64> {
+fn pool(rng: &mut fuzz::Rng) -> Vec<f64> {
     let mut v = vec![
         0.0,
         -0.0,
@@ -303,7 +301,7 @@ fn pool(rng: &mut Sm64) -> Vec<f64> {
         -1.0,
     ];
     for _ in 0..8 {
-        v.push(rng.subnormal());
+        v.push(subnormal(rng));
     }
     v
 }
@@ -313,7 +311,7 @@ fn pool(rng: &mut Sm64) -> Vec<f64> {
 /// a product/quotient of two same-signed enclosures may not have a
 /// lower bound below zero, and of opposite-signed ones may not have an
 /// upper bound above zero.
-fn lane_sign_clamp(rng: &mut Sm64, cases: u64) -> u64 {
+fn lane_sign_clamp(rng: &mut fuzz::Rng, cases: usize) -> u64 {
     let p = pool(rng);
     let mut n = 0;
     for _ in 0..cases {
@@ -324,24 +322,60 @@ fn lane_sign_clamp(rng: &mut Sm64, cases: u64) -> u64 {
         let nonneg = (a >= 0.0 && b >= 0.0) || (a <= 0.0 && b <= 0.0);
         let nonpos = (a >= 0.0 && b <= 0.0) || (a <= 0.0 && b >= 0.0);
         if nonneg {
-            assert!(prod.lo() >= 0.0, "clamp: {a:e}*{b:e} lo {:e}", prod.lo());
+            assert!(
+                prod.lo() >= 0.0,
+                "clamp: {a:e}*{b:e} lo {:e} — {}",
+                prod.lo(),
+                fuzz::replay()
+            );
         }
         if nonpos {
-            assert!(prod.hi() <= 0.0, "clamp: {a:e}*{b:e} hi {:e}", prod.hi());
+            assert!(
+                prod.hi() <= 0.0,
+                "clamp: {a:e}*{b:e} hi {:e} — {}",
+                prod.hi(),
+                fuzz::replay()
+            );
         }
         // Signed zeros must not survive as a "nonzero" divisor.
         let quo = ri / si;
         if b == 0.0 {
-            assert!(quo.is_poison(), "divisor {b:e} (signed zero) must poison");
+            assert!(
+                quo.is_poison(),
+                "divisor {b:e} (signed zero) must poison — {}",
+                fuzz::replay()
+            );
         } else {
-            assert!(!quo.is_poison());
-            assert!(cmp_x_vs_quot(quo.lo(), a, b) != Ordering::Greater);
-            assert!(cmp_x_vs_quot(quo.hi(), a, b) != Ordering::Less);
+            assert!(
+                !quo.is_poison(),
+                "pool div: unexpected poison — {}",
+                fuzz::replay()
+            );
+            assert!(
+                cmp_x_vs_quot(quo.lo(), a, b) != Ordering::Greater,
+                "pool div LO ABOVE TRUTH: {a:e}/{b:e} — {}",
+                fuzz::replay()
+            );
+            assert!(
+                cmp_x_vs_quot(quo.hi(), a, b) != Ordering::Less,
+                "pool div HI BELOW TRUTH: {a:e}/{b:e} — {}",
+                fuzz::replay()
+            );
             if nonneg {
-                assert!(quo.lo() >= 0.0, "clamp: {a:e}/{b:e} lo {:e}", quo.lo());
+                assert!(
+                    quo.lo() >= 0.0,
+                    "clamp: {a:e}/{b:e} lo {:e} — {}",
+                    quo.lo(),
+                    fuzz::replay()
+                );
             }
             if nonpos {
-                assert!(quo.hi() <= 0.0, "clamp: {a:e}/{b:e} hi {:e}", quo.hi());
+                assert!(
+                    quo.hi() <= 0.0,
+                    "clamp: {a:e}/{b:e} hi {:e} — {}",
+                    quo.hi(),
+                    fuzz::replay()
+                );
             }
         }
         n += 2;
@@ -352,15 +386,15 @@ fn lane_sign_clamp(rng: &mut Sm64, cases: u64) -> u64 {
 /// Lane 2 — catastrophic alignment. A huge normal against a subnormal:
 /// the exact sum needs ~2100 bits, which is exactly what the TwoSum
 /// distillation handles and a naive re-evaluation cannot.
-fn lane_alignment(rng: &mut Sm64, cases: u64) -> u64 {
+fn lane_alignment(rng: &mut fuzz::Rng, cases: usize) -> u64 {
     let mut n = 0;
     for _ in 0..cases {
         let e = 967 + (rng.below(57) as i32);
-        let big = rng.at_exp(e);
-        let tiny = if rng.next() & 1 == 0 {
-            rng.subnormal()
+        let big = at_exp(rng, e);
+        let tiny = if rng.next_u64() & 1 == 0 {
+            subnormal(rng)
         } else {
-            f64::from_bits(1) * if rng.next() & 1 == 0 { 1.0 } else { -1.0 }
+            f64::from_bits(1) * if rng.next_u64() & 1 == 0 { 1.0 } else { -1.0 }
         };
         let (bi, ti) = (RingInterval::point(big), RingInterval::point(tiny));
         assert_sum_bracket(bi + ti, big, tiny, false, "align add");
@@ -376,21 +410,33 @@ fn lane_alignment(rng: &mut Sm64, cases: u64) -> u64 {
 /// step from zero is where a quotient's outward pad is largest, and a
 /// bracket that merely *touches* zero (including `[-0.0, +0.0]`) must
 /// refuse rather than produce a half-line.
-fn lane_tiny_div(rng: &mut Sm64, cases: u64) -> u64 {
+fn lane_tiny_div(rng: &mut fuzz::Rng, cases: usize) -> u64 {
     let mut n = 0;
     for _ in 0..cases {
         let ne = rng.below(200) as i32 - 100;
-        let num = rng.at_exp(ne);
+        let num = at_exp(rng, ne);
         let den = match rng.below(4) {
             0 => f64::from_bits(1),
             1 => -f64::from_bits(1),
-            2 => rng.subnormal(),
-            _ => f64::MIN_POSITIVE * if rng.next() & 1 == 0 { 1.0 } else { -1.0 },
+            2 => subnormal(rng),
+            _ => f64::MIN_POSITIVE * if rng.next_u64() & 1 == 0 { 1.0 } else { -1.0 },
         };
         let q = RingInterval::point(num) / RingInterval::point(den);
-        assert!(!q.is_poison(), "tiny divisor {den:e} must not poison");
-        assert!(cmp_x_vs_quot(q.lo(), num, den) != Ordering::Greater);
-        assert!(cmp_x_vs_quot(q.hi(), num, den) != Ordering::Less);
+        assert!(
+            !q.is_poison(),
+            "tiny divisor {den:e} must not poison — {}",
+            fuzz::replay()
+        );
+        assert!(
+            cmp_x_vs_quot(q.lo(), num, den) != Ordering::Greater,
+            "tiny div LO ABOVE TRUTH: {num:e}/{den:e} — {}",
+            fuzz::replay()
+        );
+        assert!(
+            cmp_x_vs_quot(q.hi(), num, den) != Ordering::Less,
+            "tiny div HI BELOW TRUTH: {num:e}/{den:e} — {}",
+            fuzz::replay()
+        );
         // Zero-touching brackets, every spelling.
         for (lo, hi) in [
             (0.0, 0.0),
@@ -413,10 +459,10 @@ fn lane_tiny_div(rng: &mut Sm64, cases: u64) -> u64 {
 
 /// A short-mantissa dyadic `±m·2^e`, exact in `f64` and exactly
 /// representable as `(neg, m, e)` for the `u128` comparators.
-fn dyadic(rng: &mut Sm64, mant_bits: u32, exp_span: i32) -> (f64, bool, u128, i32) {
-    let m = u128::from((rng.next() & ((1u64 << mant_bits) - 1)) | 1);
+fn dyadic(rng: &mut fuzz::Rng, mant_bits: u32, exp_span: i32) -> (f64, bool, u128, i32) {
+    let m = u128::from((rng.next_u64() & ((1u64 << mant_bits) - 1)) | 1);
     let e = rng.below(2 * exp_span as usize + 1) as i32 - exp_span;
-    let neg = rng.next() & 1 == 1;
+    let neg = rng.next_u64() & 1 == 1;
     let mut v = m as f64;
     for _ in 0..e.abs() {
         v = if e > 0 { v * 2.0 } else { v * 0.5 };
@@ -427,7 +473,7 @@ fn dyadic(rng: &mut Sm64, mant_bits: u32, exp_span: i32) -> (f64, bool, u128, i3
 /// Lane 4 — exact dyadic chains. `(a+b)·c` and `a·b+c` on short-mantissa
 /// dyadics: the ring's two-step enclosure must still contain the exact
 /// real value of the whole chain, which is what certification composes.
-fn lane_chains(rng: &mut Sm64, cases: u64) -> u64 {
+fn lane_chains(rng: &mut fuzz::Rng, cases: usize) -> u64 {
     let mut n = 0;
     for _ in 0..cases {
         let (a, an, am, ae) = dyadic(rng, 20, 20);
@@ -443,7 +489,7 @@ fn lane_chains(rng: &mut Sm64, cases: u64) -> u64 {
         // comparator on the two factors of the product instead: bound
         // the product's endpoints against (a+b) scaled by c.
         let chain1 = (ri + si) * ti;
-        assert!(!chain1.is_poison());
+        assert!(!chain1.is_poison(), "(a+b)*c poisoned — {}", fuzz::replay());
         // exact (a+b): align the two dyadics to the common exponent.
         let Some((sneg, sm, se)) = add_dyadic(an, am, ae, bn, bm, be) else {
             continue;
@@ -451,19 +497,35 @@ fn lane_chains(rng: &mut Sm64, cases: u64) -> u64 {
         if sm != 0 && cm != 0 {
             let (pneg, pm, pe) = (sneg != cn, sm.checked_mul(cm), se + ce);
             if let Some(pm) = pm {
-                assert!(cmp_x_vs_term(chain1.lo(), pneg, pm, pe) != Ordering::Greater);
-                assert!(cmp_x_vs_term(chain1.hi(), pneg, pm, pe) != Ordering::Less);
+                assert!(
+                    cmp_x_vs_term(chain1.lo(), pneg, pm, pe) != Ordering::Greater,
+                    "(a+b)*c LO ABOVE TRUTH — {}",
+                    fuzz::replay()
+                );
+                assert!(
+                    cmp_x_vs_term(chain1.hi(), pneg, pm, pe) != Ordering::Less,
+                    "(a+b)*c HI BELOW TRUTH — {}",
+                    fuzz::replay()
+                );
                 n += 1;
             }
         }
         // a·b + c
         let chain2 = ri * si + ti;
-        assert!(!chain2.is_poison());
+        assert!(!chain2.is_poison(), "a*b+c poisoned — {}", fuzz::replay());
         if let Some(abm) = am.checked_mul(bm)
             && let Some((tneg, tm, te)) = add_dyadic(an != bn, abm, ae + be, cn, cm, ce)
         {
-            assert!(cmp_x_vs_term(chain2.lo(), tneg, tm, te) != Ordering::Greater);
-            assert!(cmp_x_vs_term(chain2.hi(), tneg, tm, te) != Ordering::Less);
+            assert!(
+                cmp_x_vs_term(chain2.lo(), tneg, tm, te) != Ordering::Greater,
+                "a*b+c LO ABOVE TRUTH — {}",
+                fuzz::replay()
+            );
+            assert!(
+                cmp_x_vs_term(chain2.hi(), tneg, tm, te) != Ordering::Less,
+                "a*b+c HI BELOW TRUTH — {}",
+                fuzz::replay()
+            );
             n += 1;
         }
     }
@@ -514,13 +576,13 @@ fn add_dyadic(
 
 /// Lane 5 — `powi` against an exact `u128` oracle plus the structural
 /// pins the review asked for.
-fn lane_powi(rng: &mut Sm64, cases: u64) -> u64 {
+fn lane_powi(rng: &mut fuzz::Rng, cases: usize) -> u64 {
     let mut n = 0;
     for _ in 0..cases {
         // Odd mantissa ≤ 13 keeps m^n inside u128 for large n.
         let m = [1u128, 3, 5, 7, 9, 11, 13][rng.below(7)];
         let e = rng.below(41) as i32 - 20;
-        let neg = rng.next() & 1 == 1;
+        let neg = rng.next_u64() & 1 == 1;
         let mut v = m as f64;
         for _ in 0..e.abs() {
             v = if e > 0 { v * 2.0 } else { v * 0.5 };
@@ -532,20 +594,30 @@ fn lane_powi(rng: &mut Sm64, cases: u64) -> u64 {
             let n_i = k as i32;
             let tneg = neg && (k % 2 == 1);
             let r = x.powi(n_i);
-            assert!(!r.is_poison(), "{base:e}^{n_i}: unexpected poison");
+            assert!(
+                !r.is_poison(),
+                "{base:e}^{n_i}: unexpected poison — {}",
+                fuzz::replay()
+            );
             assert!(
                 cmp_x_vs_term(r.lo(), tneg, mp, e * n_i) != Ordering::Greater,
-                "powi LO above truth: {base:e}^{n_i}"
+                "powi LO above truth: {base:e}^{n_i} — {}",
+                fuzz::replay()
             );
             assert!(
                 cmp_x_vs_term(r.hi(), tneg, mp, e * n_i) != Ordering::Less,
-                "powi HI below truth: {base:e}^{n_i}"
+                "powi HI below truth: {base:e}^{n_i} — {}",
+                fuzz::replay()
             );
             n += 1;
             // Negative exponent: truth is 1/(±mp·2^(e·k)); cross-multiply.
             if k > 0 && k <= 20 {
                 let rn = x.powi(-n_i);
-                assert!(!rn.is_poison());
+                assert!(
+                    !rn.is_poison(),
+                    "{base:e}^-{k} poisoned — {}",
+                    fuzz::replay()
+                );
                 let cmp = |b: f64| -> Ordering {
                     if b == f64::INFINITY {
                         return Ordering::Greater;
@@ -574,9 +646,14 @@ fn lane_powi(rng: &mut Sm64, cases: u64) -> u64 {
                 };
                 assert!(
                     cmp(rn.lo()) != Ordering::Greater,
-                    "powi neg LO: {base:e}^-{k}"
+                    "powi neg LO: {base:e}^-{k} — {}",
+                    fuzz::replay()
                 );
-                assert!(cmp(rn.hi()) != Ordering::Less, "powi neg HI: {base:e}^-{k}");
+                assert!(
+                    cmp(rn.hi()) != Ordering::Less,
+                    "powi neg HI: {base:e}^-{k} — {}",
+                    fuzz::replay()
+                );
                 n += 1;
             }
         }
@@ -586,12 +663,14 @@ fn lane_powi(rng: &mut Sm64, cases: u64) -> u64 {
         assert_eq!(
             p1.lo().to_bits(),
             w.lo().to_bits(),
-            "powi(1) lo not identical"
+            "powi(1) lo not identical — {}",
+            fuzz::replay()
         );
         assert_eq!(
             p1.hi().to_bits(),
             w.hi().to_bits(),
-            "powi(1) hi not identical"
+            "powi(1) hi not identical — {}",
+            fuzz::replay()
         );
         n += 1;
     }
@@ -602,14 +681,14 @@ fn lane_powi(rng: &mut Sm64, cases: u64) -> u64 {
 /// *including its sign bit* (a `-0.0` would still compare equal to zero
 /// but would sign-flip a downstream reciprocal), and `powi` never
 /// escapes the naive repeated-multiplication chain's enclosure.
-fn lane_powi_pins(rng: &mut Sm64, cases: u64) -> u64 {
+fn lane_powi_pins(rng: &mut fuzz::Rng, cases: usize) -> u64 {
     let mut n = 0;
     for _ in 0..cases {
         let (lo, hi) = {
             let ea = rng.below(80) as i32 - 40;
-            let a = rng.at_exp(ea);
+            let a = at_exp(rng, ea);
             let eb = rng.below(80) as i32 - 40;
-            let b = rng.at_exp(eb);
+            let b = at_exp(rng, eb);
             (-a.abs(), b.abs())
         };
         if !(lo < 0.0 && hi > 0.0) {
@@ -624,7 +703,8 @@ fn lane_powi_pins(rng: &mut Sm64, cases: u64) -> u64 {
             assert_eq!(
                 p.lo().to_bits(),
                 0.0f64.to_bits(),
-                "even power lower bound is not +0.0 for [{lo:e}, {hi:e}]^{k}"
+                "even power lower bound is not +0.0 for [{lo:e}, {hi:e}]^{k} — {}",
+                fuzz::replay()
             );
             n += 1;
         }
@@ -639,7 +719,8 @@ fn lane_powi_pins(rng: &mut Sm64, cases: u64) -> u64 {
             }
             assert!(
                 p.lo() <= naive.hi() && naive.lo() <= p.hi(),
-                "powi({k}) and the naive chain are disjoint"
+                "powi({k}) and the naive chain are disjoint — {}",
+                fuzz::replay()
             );
             n += 1;
         }
@@ -650,22 +731,27 @@ fn lane_powi_pins(rng: &mut Sm64, cases: u64) -> u64 {
 /// Lane 6 — the zero annihilator and the infinite-bracket edge. After
 /// the fix pass a bracket whose closed side is infinite contains no real
 /// number and must refuse to construct.
-fn lane_edges(rng: &mut Sm64, cases: u64) -> u64 {
+fn lane_edges(rng: &mut fuzz::Rng, cases: usize) -> u64 {
     let mut n = 0;
     let z = RingInterval::zero();
     for _ in 0..cases {
         let ea = rng.below(2000) as i32 - 1000;
-        let a = rng.at_exp(ea);
+        let a = at_exp(rng, ea);
         let x = RingInterval::point(a);
         for r in [z * x, x * z, z / x] {
             assert!(
                 r.lo().to_bits() == 0.0f64.to_bits() && r.hi().to_bits() == 0.0f64.to_bits(),
-                "zero annihilator did not give exact +0.0 for {a:e}"
+                "zero annihilator did not give exact +0.0 for {a:e} — {}",
+                fuzz::replay()
             );
         }
         // A wide bracket times exact zero is still exactly zero.
         let wide = RingInterval::from_bounds(-a.abs(), a.abs());
-        assert!((z * wide).width() == 0.0);
+        assert!(
+            (z * wide).width() == 0.0,
+            "zero times a wide bracket is not exactly zero — {}",
+            fuzz::replay()
+        );
         n += 4;
     }
     for (lo, hi) in [
@@ -687,29 +773,28 @@ fn lane_edges(rng: &mut Sm64, cases: u64) -> u64 {
     n + 3
 }
 
-/// The review's full lane counts, divided by `divisor` for the default
-/// run. Ratios are the review's; only the scale changes.
-fn run(divisor: u64, label: &str) {
-    let mut rng = Sm64(0x0ddc_0ffe_ebad_f00d);
-    // Fixed lane order (D9): the seed stream is consumed in this order,
-    // so the reduced run is a prefix-compatible subset of the full one.
+/// The review's lane RATIOS at the shipped smoke scale; `CAD_FUZZ_EFFORT`
+/// buys the depth the `#[ignore]`d full twin used to hold (EFFORT=64 is
+/// approximately the review's original counts).
+#[test]
+fn review_scratch_ring_lanes() {
+    let mut rng = fuzz::start("review_m5_pr2_scratch::ring_lanes");
+    // Fixed lane order (D9): the stream is consumed in this order, so a
+    // low-effort run is a prefix-compatible subset of a high-effort one.
     let totals = [
         (
             "sign-clamp pool",
-            lane_sign_clamp(&mut rng, 600_000 / divisor),
+            lane_sign_clamp(&mut rng, fuzz::scaled(9_375)),
         ),
         (
             "catastrophic align",
-            lane_alignment(&mut rng, 1_000_000 / divisor),
+            lane_alignment(&mut rng, fuzz::scaled(15_625)),
         ),
-        ("tiny divisor", lane_tiny_div(&mut rng, 200_000 / divisor)),
-        ("dyadic chains", lane_chains(&mut rng, 600_000 / divisor)),
-        (
-            "powi exact",
-            lane_powi(&mut rng, 4_000 / divisor.min(4_000)),
-        ),
-        ("powi pins", lane_powi_pins(&mut rng, 40_000 / divisor)),
-        ("edges", lane_edges(&mut rng, 40_000 / divisor)),
+        ("tiny divisor", lane_tiny_div(&mut rng, fuzz::scaled(3_125))),
+        ("dyadic chains", lane_chains(&mut rng, fuzz::scaled(9_375))),
+        ("powi exact", lane_powi(&mut rng, fuzz::scaled(63))),
+        ("powi pins", lane_powi_pins(&mut rng, fuzz::scaled(625))),
+        ("edges", lane_edges(&mut rng, fuzz::scaled(625))),
     ];
     let sum: u64 = totals.iter().map(|(_, n)| n).sum();
     let detail: Vec<String> = totals
@@ -717,21 +802,8 @@ fn run(divisor: u64, label: &str) {
         .map(|(name, n)| format!("{name} {n}"))
         .collect();
     println!(
-        "[review-scratch {label}] {sum} verdicts, 0 violations — {}",
+        "[review-scratch] {sum} verdicts, 0 violations — {}",
         detail.join(", ")
     );
-    assert!(sum > 0);
-}
-
-#[test]
-fn review_scratch_ring_lanes() {
-    run(REDUCED, "reduced");
-}
-
-/// The review's full counts (9.16M boundary verdicts, measured — the
-/// review reported 6.8M for the subset of lanes it ran interactively).
-#[test]
-#[ignore = "full review sweep: run explicitly with --ignored"]
-fn review_scratch_ring_lanes_full() {
-    run(1, "full");
+    assert!(sum > 0, "no lane produced a verdict — {}", fuzz::replay());
 }

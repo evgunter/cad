@@ -32,7 +32,7 @@ additivity — the shipped precedent generalized here). The M6
 evidence: #175 findings 1–2 ("a branching G1 tube system is nothing
 but tangent curved contacts"), the two-peg demo
 considered-not-built pending cylindrical declared contact, and #161
-§2a–c — this unit's origin. ERROR-DESIGN E3/E7 (M8, renumbered),
+§2a–c — this unit's origin. ERROR-DESIGN E3/E7 (M10),
 whose `min_clearance` Measure and clearance trichotomy consume C5's
 contract below.
 
@@ -263,7 +263,7 @@ ContactClass =
 carrier kind; `Tangent` generalizes #101's profile-junction tangency
 to body pairs; `Fit` is C6. A declaration asserts *intent about the
 nominal geometry*; parameter-band assertions ("gap ∈ [lo, hi] over
-the tolerance box") are M8 assertions over the C5 measure, not
+the tolerance box") are M10 assertions over the C5 measure, not
 kernel declarations — the kernel's nominal geometry is never "maybe
 touching".
 
@@ -346,7 +346,7 @@ declaration; and no path exists from "the numbers look equal" to a
 glued contact without a structural or declared rung — at any ε, at
 any scalar backend.
 
-## C5 — The signed gap: one clearance object, co-designed for M8
+## C5 — The signed gap: one clearance object, co-designed for M10
 
 **Definition (per declared pair).** For a declared contact/fit pair
 on same-kind carriers with a shared mating frame, the **gap** g is
@@ -359,7 +359,7 @@ the carrier-relative signed offset, positive toward separation:
   axis offset (parallel axes; skew axes refuse typed — a skewed
   "fit" is not a fit).
 
-**Sign convention (binding for M8): g > 0 clearance, g = 0 contact,
+**Sign convention (binding for M10): g > 0 clearance, g = 0 contact,
 g < 0 interference.** The census classes are the strata of g's zero
 set, stated exactly: g = 0 with structural frame sharing (Δc ≡ 0)
 and equal radii is the conformal class `Rest`; g = 0 with an offset
@@ -373,7 +373,7 @@ min-over-points distance; that is the point of defining it
 carrier-relative. Its regularity in model parameters:
 
 - with **structural** frame sharing (Δc ≡ 0, d ≡ 0 by construction),
-  g is linear in the radii — smooth, the ideal M8 citizen; the
+  g is linear in the radii — smooth, the ideal M10 citizen; the
   derivative of `R − r` is ±1 and a tolerance stackup on a fit is
   exact interval arithmetic;
 - with **independent** frames, g carries the norm kink ‖Δc‖ at
@@ -387,22 +387,22 @@ carrier-relative. Its regularity in model parameters:
   already specifies.
 
 Design pressure made explicit: structural mates don't just verify
-more cheaply (C2 rung 2), they make the M8 stackup differentiable at
+more cheaply (C2 rung 2), they make the M10 stackup differentiable at
 the operating point. The kernel should say so in the recourse text.
 
-**What M8 consumes (the contract, nothing more designed here):**
+**What M10 consumes (the contract, nothing more designed here):**
 (i) the sign convention above; (ii) g as an ordinary scalar-generic
 E3 Measure (a signed Length — `min_clearance(sel)` generalizes to
 `gap(declaration)`); (iii) the zero-set-is-contact identification,
 so E7's trichotomy gains a two-sided form: certify g ∈ [band] over
 the leaf box; (iv) the smoothness statement, so the E4 dual lane
 knows where derivatives exist and where the Clarke enclosure is the
-honest object. M8's propagation itself (leaves, mass accounting,
+honest object. M10's propagation itself (leaves, mass accounting,
 budgets) is untouched by this doc.
 
 **Invariant (C5).** One gap definition serves census verification
 (its sign trilean is C4's separation/contact/interference evidence),
-the fit band (C6), and M8's measure — defined once, evaluated at any
+the fit band (C6), and M10's measure — defined once, evaluated at any
 `T`, never re-derived per consumer with drifting sign conventions.
 
 ## C6 — Interference fits: declared negative clearance
@@ -413,7 +413,7 @@ interference (press) fit. g₀ = 0 is REJECTED at declaration: zero
 nominal gap is conformal contact and must be authored as `Rest`
 (same carrier, structural) — otherwise the vocabulary would reopen
 the value-equality door the ladder closed. Transition fits are a
-band question, hence M8's: model the nominal at its definite g₀ (or
+band question, hence M10's: model the nominal at its definite g₀ (or
 as `Rest`), assert the band over the tolerance box.
 
 Verification table (C4 pattern): definite = same kind,
@@ -503,7 +503,7 @@ rung 2/3 conformal candidate; verification: same center/radius
 (structural or non-contradicted), senses opposed (socket face sense
 opposes the ball's — outward normals negate), chart overlap = the
 seated cap, area definite ⇒ `PatchContact`. Gap g = R − r ≡ 0
-structurally. M8: nothing to propagate on the contact itself;
+structurally. M10: nothing to propagate on the contact itself;
 perturb r and the pair becomes a `Fit` with g = R − r linear — the
 r → R conformal limit is entered by *declaration change*, never by
 numeric drift (the C2 invariant closing #161 §2c's failing regime).
@@ -512,7 +512,7 @@ numeric drift (the C2 invariant closing #161 §2c's failing regime).
 by shared axis datum; declared `Fit { gap: r_b − r_p < 0 }`.
 Verified: coaxial structural, g = r_b − r_p definite-negative,
 |g − g₀| zero. Gates skip the pair (recorded); mass props refuse or
-subtract π(r_p² − r_b²)·L on opt-in; M8 asserts
+subtract π(r_p² − r_b²)·L on opt-in; M10 asserts
 g ∈ [−δ_max, −δ_min] over the tolerance box with dg/dr_b = +1,
 dg/dr_p = −1 exactly.
 
@@ -555,30 +555,32 @@ classification and its invariants (C1); the representation boundary,
 identity lemma, and decision procedure (C2); the record granularities
 (C3); the declaration vocabulary, per-class verification tables,
 storage/replay/persistence semantics, and failure modes (C4); the
-signed-gap object and the M8 contract (C5); interference-fit
+signed-gap object and the M10 contract (C5); interference-fit
 semantics (C6); the join-lane shape as the stated implementation
 target (C7). Their ratification CLOSED OQ5: the deferral's condition
 ("waits for its own design doc") is discharged by this document
 (CURVED-DESIGN's OQ5 entry records the closure).
 
-**Explicitly still open, with owners:** implementation sequencing
-(banked past M6 — "curved REST" and the joined-path sweep lane per
-M6-PLAN; re-opens with the milestone that ships assemblies/contacts
-as a feature, or earlier if M7 adoption forces it — imported
-assemblies arrive carrying contacts, the original #161 pressure);
-the assembly/mate layer's node vocabulary (GQ4 design-time — C4
-binds the declaration *shape* only); NURBS↔analytic same-locus
-recognition (D7/M7); kinematics (contact records are geometric —
-DOF/mate solving is Band 3's SE(3) story, deliberately absent here).
+**Explicitly still open, with owners:** NURBS↔analytic same-locus
+recognition (D7 adoption work); kinematics (contact records are
+geometric — DOF/mate solving is Band 3's SE(3) story, deliberately
+absent here). Discharged since ratification: implementation
+sequencing — the C7 join lane plus the A5 at-rest census door is
+**M9**; and the assembly/mate layer's node vocabulary, which landed
+as ASSEMBLY-DESIGN A3 (C4 binds the declaration *shape*, A3 is its
+second home).
 
-**Refusal migration (text-level, rides any touching PR; behavior
-unchanged until the lane ships):** the `boolean/vtxfac.rs` C7/OQ5
-comment and the census `CensusUnsupported` boundary text update to
-cite this document's classes and name the recourse ("a declared
-Tangent/Rest contact — vocabulary CONTACT-DESIGN C4, implementation
-banked") instead of citing a deferral that no longer defers;
+**Refusal migration (text-level; behavior unchanged until the lane
+ships) — TRACKED AS #459:** the `boolean/vtxfac.rs` C7/OQ5 comment
+and the census `CensusUnsupported` boundary text update to cite this
+document's classes and name the recourse ("a declared Tangent/Rest
+contact — vocabulary CONTACT-DESIGN C4, implementation M9") instead
+of citing a deferral that no longer defers;
 `CurvedBooleanUnsupported` at tangent-contact sites keeps its type
-and gains the same pointer. When the C7 lane ships, each arm retires
+and gains the same pointer. *(Originally scoped to ride any touching
+PR. No PR touched those sites in the eight days after ratification,
+so it is issue-tracked instead — the rider mechanism did not work
+for a change nothing else needs.)* When the C7 lane ships, each arm retires
 per class through the CURVED-DESIGN C5 dispatch-table discipline —
 incrementally, never wholesale, exactly as
 `CurvedBooleanUnsupported` retired by table arm through M5.

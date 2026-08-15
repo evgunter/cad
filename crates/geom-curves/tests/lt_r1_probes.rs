@@ -18,6 +18,7 @@
 use geom_core::Point3;
 use geom_core::spline::KnotVector;
 use geom_curves::NurbsCurve3;
+use test_utils::fuzz;
 
 /// The retired global-chord arm, replicated independently.
 fn old_arm(c: &NurbsCurve3<f64>) -> f64 {
@@ -40,6 +41,11 @@ fn old_arm(c: &NurbsCurve3<f64>) -> f64 {
 /// Densely sampled minimum speed with local ternary refinement around
 /// the coarse argmin — an upper bound on the true infimum that is
 /// tight enough to catch any real excess.
+///
+/// The oracle's sample count rides `CAD_FUZZ_EFFORT` (callers pass
+/// `fuzz::scaled`); the 200-step ternary polish afterwards does not — it
+/// is a convergence budget, not a sweep, and 200 thirds is already far
+/// past f64 resolution.
 fn sampled_min_speed(c: &NurbsCurve3<f64>, n: usize) -> f64 {
     let (lo, hi) = c.domain();
     let mut smin = f64::INFINITY;
@@ -74,15 +80,21 @@ fn check(name: &str, c: &NurbsCurve3<f64>) {
     let m = c.speed_lower_bound();
     let old = old_arm(c);
     if !m.is_nan() {
-        let truth = sampled_min_speed(c, 20_000);
+        let truth = sampled_min_speed(c, fuzz::scaled(2_000));
         assert!(
             m <= truth + truth.abs() * 1e-9 + 1e-12,
-            "{name}: UNSOUND — join bound {m} exceeds refined sampled min speed {truth}"
+            "{name}: UNSOUND — join bound {m} exceeds refined sampled min speed \
+             {truth} — {}",
+            fuzz::replay()
         );
         if !old.is_nan() {
+            // The never-weaker gate: this file's unique contribution, and
+            // O(n) in the control net — never trimmed.
             assert!(
                 m >= old,
-                "{name}: WEAKENED — join {m} below the old global-chord arm {old}"
+                "{name}: WEAKENED — join {m} below the old global-chord arm \
+                 {old} — {}",
+                fuzz::replay()
             );
         }
     } else {
@@ -90,7 +102,8 @@ fn check(name: &str, c: &NurbsCurve3<f64>) {
         // regression on a structurally valid carrier.
         assert!(
             old.is_nan() || !(old > 0.0),
-            "{name}: join poisoned where the old arm was green ({old})"
+            "{name}: join poisoned where the old arm was green ({old}) — {}",
+            fuzz::replay()
         );
     }
 }
@@ -168,14 +181,8 @@ fn r1_adversarial_soundness() {
 /// real join bound must sit at or below the sampled true min speed.
 #[test]
 fn r1_randomized_soundness() {
-    let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
-    let mut next = move || {
-        state ^= state << 13;
-        state ^= state >> 7;
-        state ^= state << 17;
-        (state >> 11) as f64 / (1u64 << 53) as f64
-    };
-    for case in 0..400 {
+    let mut rng = fuzz::start("lt_r1_probes::randomized_soundness");
+    for case in 0..fuzz::scaled(50) {
         let p = 2 + (case % 4); // degree 2..=5
         let extra = case % 13;
         let n_ctrl = p + 1 + extra;
@@ -196,7 +203,7 @@ fn r1_randomized_soundness() {
             continue;
         };
         let ctrl: Vec<Point3<f64>> = (0..n_ctrl)
-            .map(|_| Point3::new(scale * next(), scale * next(), scale * next()))
+            .map(|_| Point3::new(scale * rng.unit(), scale * rng.unit(), scale * rng.unit()))
             .collect();
         let Ok(c) = NurbsCurve3::<f64>::new(kv, ctrl, vec![1.0; n_ctrl]) else {
             continue;
@@ -285,7 +292,7 @@ fn r1_min_slack_report() {
             println!("SLACK {name} bound {m:?} (not positive; skipped)");
             continue;
         }
-        let truth = sampled_min_speed(curve, 20_000);
+        let truth = sampled_min_speed(curve, fuzz::scaled(2_000));
         let rel = (truth - m) / truth;
         println!("SLACK {name} bound {m:?} truth {truth:?} rel_slack {rel:.3e}");
         if rel < worst.1 {
@@ -318,7 +325,7 @@ fn r1_join_abstention_logic() {
         !m.is_nan(),
         "global-chord collapse must ABSTAIN, not poison the join (got NaN)"
     );
-    let truth = sampled_min_speed(&square, 20_000);
+    let truth = sampled_min_speed(&square, fuzz::scaled(2_000));
     assert!(m <= truth + 1e-12, "abstention case unsound: {m} > {truth}");
 
     // (2) A per-span chord exactly collapsed (P_span == P_{span-p} for

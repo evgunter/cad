@@ -14,7 +14,10 @@
 //! `fillet_leg_reach` (the corner-side extent test, same exact-order
 //! band) and, against the run's linear band, `fillet_corner_arm`,
 //! `fillet_corner_turn` and the `fillet_offset_*` carrier-intersection
-//! family. They are the one place sugar decides, and they decide only
+//! family — the last of which, `fillet_offset_lever` (M8), decides not
+//! whether the offset carriers meet but whether their meeting point is
+//! conditioned well enough to place a tangent point within ε at all.
+//! They are the one place sugar decides, and they decide only
 //! *which construction the author asked for* — never a geometric
 //! verdict about the finished loop, which stays
 //! [`crate::Profile::validate`]'s. Everything else holds everywhere:
@@ -330,6 +333,29 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
         margin: T,
         /// The lever arm it was levered by.
         arm: T,
+    },
+    /// `fillet_offset_lever` not Positive: the leg's **offset radius**
+    /// ρ = R − σ·τ·r — the lever the tangent point is recovered over —
+    /// is shorter than the least lever the run's band can support, so
+    /// the tangent point cannot be placed ALONG that carrier within ε.
+    /// (It lies ON the carrier by construction; what a short lever costs
+    /// is where along it, which surfaces as the emitted fillet's radius
+    /// and tangency.) A corner and a tangent circle both exist; what does
+    /// not exist is a *certifiable* tangent point (D4 ¶2).
+    ///
+    /// See [`ArcCarrier::offset_circles`] for the gate's derivation and
+    /// for why only the outgoing leg can reach this arm.
+    OffsetLeverTooShort {
+        /// The leg whose offset lever is short.
+        leg: FilletLeg,
+        /// That leg's carrier radius R.
+        carrier_radius: T,
+        /// Its signed offset radius ρ = R − σ·τ·r — the lever itself.
+        offset_radius: T,
+        /// The least |ρ| the band supports at this corner's scale.
+        least_lever: T,
+        /// The gate's margin |ρ| − least_lever, meters.
+        margin: T,
     },
     /// A Negative `fillet_leg_fit` on a corner-side candidate: the
     /// radius pushes a tangent point off the far end of its leg.
@@ -690,11 +716,60 @@ impl<T: Real> Leg<T> {
 
     /// The exact tangent point of the radius-`radius` circle centered at
     /// `center` on this leg's carrier.
+    ///
+    /// # The spoke is measured, not assumed
+    ///
+    /// On a circular leg the tangent point is the fillet centre pushed
+    /// out along its spoke `center − O` to the carrier radius. The
+    /// spoke's length **ought** to be the offset radius ρ, and the
+    /// obvious scale factor is therefore `R/ρ` — but that is an
+    /// assumption about a computed point, and where it is false it is
+    /// false by exactly the radial error of `center`, which the factor
+    /// then multiplies by `R/|ρ|` and deposits off the carrier. That is
+    /// the amplification [`ArcCarrier::offset_circles`]' gate exists to
+    /// bound, and the M8 `review_s2` red (a 2.29e-9 residual) was one
+    /// instance of it.
+    ///
+    /// So divide by the spoke's **measured** length instead, signed like
+    /// ρ (a negative offset radius puts the tangent point on the far
+    /// side, and that sign is geometry, not roundoff). The returned point
+    /// then lies on the carrier BY CONSTRUCTION, to a relative ulp of R,
+    /// for any `center` whatever.
+    ///
+    /// # Why this reduces the error rather than hiding it
+    ///
+    /// The worry the shape invites — that zeroing the residual the tests
+    /// measure just moves the error somewhere unmeasured — does not
+    /// survive being written down. Let P\* be the exact fillet centre and
+    /// δ = P − P\*. The true tangent point is
+    /// `t* = O + (P* − O)·(R/ρ)`, because `|P* − O| = ρ` **exactly** —
+    /// that is what it means for P\* to be the solution.
+    ///
+    /// - Scaling by the nominal ρ gives `t = t* + δ·(R/ρ)`: the whole of
+    ///   δ, magnified.
+    /// - Scaling by the measured length gives `t = t* + δ_⊥·(R/ρ) +
+    ///   O(δ²)`, where `δ_⊥` is δ's component *across* the spoke.
+    ///
+    /// The difference is δ's radial component, and that component is
+    /// **identifiable**: we know the true spoke length independently (it
+    /// is ρ), so every part of `|P − O| − ρ` is error and none of it is
+    /// signal. Discarding it is a projection onto a constraint P\* is
+    /// known to satisfy, and such a projection cannot increase the
+    /// distance to P\*. So `|t − t*|` is never larger than before and is
+    /// usually much smaller — strictly better, for both legs, on every
+    /// input.
+    ///
+    /// What remains is `δ_⊥·(R/ρ)`: the spoke's *angular* error, which
+    /// displaces the tangent point ALONG its carrier. That one is real,
+    /// is not removable here, and is what a conditioning gate should be
+    /// measured against — see [`ArcCarrier::offset_circles`].
     fn tangent_point(&self, center: Point2<T>, sgn: T, radius: T) -> Point2<T> {
         match self.arc {
             None => center - left_normal(self.dir) * (sgn * radius),
             Some(arc) => {
-                arc.center + (center - arc.center) * (arc.radius / offset_radius(&arc, sgn, radius))
+                let spoke = center - arc.center;
+                let rho = offset_radius(&arc, sgn, radius);
+                arc.center + spoke * (arc.radius / spoke.norm().copysign(rho))
             }
         }
     }
@@ -784,9 +859,125 @@ impl<T: Real> Leg<T> {
     }
 }
 
+/// The conditioning constant of [`ArcCarrier::offset_circles`]' lever
+/// gate, in units of `f64::EPSILON` — the ONE empirical number in it, and
+/// the only thing in the gate that is not algebra.
+///
+/// The derivation it multiplies is in the gate's docs; what is measured is
+/// the constant in front. Over **300 000+ accepted arc×arc corners across
+/// nine sweeps**, the worst observed ratio of the actual defect to the
+/// derived expression was **20.1·`f64::EPSILON`**:
+///
+/// | sweep | corners | worst |
+/// |---|---|---|
+/// | natural (`review_s2`'s draw) | 222 778 | 3.3 ulps |
+/// | outgoing lever 1e-3..1e-1 | 36 450 | **17.0** |
+/// | outgoing lever 1e-7..1e-3 | 1 656 | 14.0 |
+/// | incoming lever 1e-3..1e-1 | 36 489 | 1.3 |
+/// | incoming lever 1e-7..1e-3 | 1 707 | 0.9 |
+/// | both levers short | 7 | 1.0 |
+/// | scene and radii x1000 | 1 701 | 14.4 |
+/// | scene and radii x1/1000 | 1 146 | **20.1** |
+/// | gain: R₂/|ρ₂| to 2e5 | 169 | 3.9 |
+///
+/// The shipped constant is 128 — **6.4x the adversarial worst**. The
+/// previous constant carried 3.7x; the extra margin is close to free here
+/// because even at 128 the gate is 133x looser at ε = 1e-9 than the one it
+/// replaces, so buying headroom costs almost no capability.
+///
+/// **The adversarial sweeps are the point.** The law this replaces fit its
+/// natural draws well and was then refuted by four decades under adversarial
+/// ones, so this one was attacked on every axis its derivation leans on:
+/// both levers at once, scene magnitude up and down by 10³ (the ratio is
+/// scale-invariant — 14.4 and 20.1 against 3.3 natural, no trend), and the
+/// back-projection gain `R₂/|ρ₂|` pushed to 2e5. Nothing found a decade.
+///
+/// It is a machine-precision count, not a tolerance: ε enters the gate
+/// through the band, so the affordable conditioning loosens at ε = 1e-6 and
+/// tightens at ε = 1e-12 without this number moving.
+const LEVER_ULPS: f64 = 128.0;
+
 impl<T: Real> ArcCarrier<T> {
     /// The candidate centers where this carrier's offset circle meets
     /// `other`'s (0, 1 or 2, in fixed order).
+    ///
+    /// # The conditioning gate (`fillet_offset_lever`)
+    ///
+    /// The fillet centre P is placed by intersecting the two offset
+    /// carriers, and the tangent points are then read off it. How
+    /// accurately P can be placed is not gated by anything above:
+    /// `fillet_corner_turn` gates whether a corner EXISTS, and the two
+    /// clearances below gate whether the offset carriers MEET. Whether the
+    /// meeting point supports a certifiable corner at ε is this gate.
+    ///
+    /// **Only `other`'s lever is gated, and the asymmetry is real** — a
+    /// property of the closed form, not an oversight. Of the two offset
+    /// circles, THIS one's radius is honoured by identity:
+    /// `|P − self.center|² = along² + half²` with `half = √(ρ₁² − along²)`,
+    /// so the two cancel exactly and P sits at `|ρ₁|` from `self.center`
+    /// whatever `along` did — and because `half` moves to absorb `along`'s
+    /// error, P slides ALONG circle 1 rather than off it. The other circle
+    /// has no such identity: `|P − other.center|² = d² − 2·d·along + ρ₁²`,
+    /// derivative `−d/|ρ₂|` in `along`.
+    ///
+    /// Measured, and the measurement is what settles it: dialling the
+    /// INCOMING leg's lever down to 3.7e-4 leaves the worst defect at
+    /// 1.3e-15 (0.9 ulps of the derived expression), while the same
+    /// treatment of the OUTGOING leg reaches 1.8e-9. A symmetric gate
+    /// would refuse a large region for no reason.
+    ///
+    /// **line×arc corners are not gated at all, and that is a known gap
+    /// rather than a proof.** They never reach here — the call site is
+    /// `(Some(a), Some(b)) => a.offset_circles(b, ..)`, so a straight leg
+    /// routes to [`Leg::offset_line_circle`], which has the half-chord
+    /// identity on BOTH sides (`h² + half² = ρ²`) and carries no lever
+    /// gate. That identity does bound the OFF-CARRIER residual there
+    /// (worst 1.3e-13 over 900 000 line×arc corners). It does not bound
+    /// the defect this gate is about: over 762 686 natural corners at
+    /// ε = 1e-12, **2 line×arc corners exceeded ε** (worst 3.9e-10)
+    /// against **0** arc×arc ones. Whether `offset_line_circle` wants a
+    /// gate of its own is open, and is tracked separately; nothing in
+    /// this gate's retune moved it either way.
+    ///
+    /// **The derivation.** `along = (d² + ρ₁² − ρ₂²)/2d` is evaluated in a
+    /// scalar of unit roundoff `u`, so its absolute error is
+    /// `≲ u·(d² + ρ₁² + ρ₂²)/d`. Since [`Leg::tangent_point`] divides the
+    /// spoke by its MEASURED length, P's radial error about `other.center`
+    /// is discarded rather than amplified, and what survives is the
+    /// spoke's ANGULAR error — the tangent point sliding along its own
+    /// carrier, which shows up in the emitted fillet's radius and tangency
+    /// rather than as an off-carrier residual. That is `R₂/|ρ₂|` times the
+    /// component of P's error ACROSS the spoke, and that component is
+    /// `δalong · half/|ρ₂|`, with the half-chord bounded by `|ρ₂|` itself:
+    ///
+    /// ```text
+    ///   defect  ≈  (R₂/|ρ₂|) · (half/|ρ₂|) · u·(d² + ρ₁² + ρ₂²)
+    ///           ≤  C · R₂ · scale² / (d·|ρ₂|),   scale² = d² + ρ₁² + ρ₂²
+    /// ```
+    ///
+    /// One power of `|ρ₂|`, where the pre-M8 code had two — the second was
+    /// the back-projection's, and it is gone.
+    ///
+    /// Requiring `defect ≤ ε` inverts to a **least lever**, which is what
+    /// the gate classifies (and which is why the margin is a length, in
+    /// the currency of ρ itself):
+    ///
+    /// ```text
+    ///   |ρ₂|  ≥  C · R₂ · scale² / (d · ε)
+    /// ```
+    ///
+    /// ε is read from the band, never written down — see [`LEVER_ULPS`]
+    /// for C and the nine sweeps that fix it.
+    ///
+    /// **The representation floor is deliberately NOT in the gate.** The
+    /// defect cannot fall below an ulp of the scene however benign the
+    /// conditioning (`t − O` is a difference of O(1) points), so the fitted
+    /// law carries a `+ scale` term. Gating on it would be wrong twice
+    /// over: it is a representation limit rather than a conditioning one,
+    /// so no choice of radius fixes it; and multiplied by C's safety factor
+    /// it would refuse whole scenes outright at large coordinates. Its
+    /// contribution to an accepted corner is at most `C·u·scale`, which is
+    /// below ε for any scene the (deferred) session box would admit.
     fn offset_circles(
         self,
         other: ArcCarrier<T>,
@@ -820,6 +1011,33 @@ impl<T: Real> ArcCarrier<T> {
             return Err(ArcTrimRefusal::NoCorner {
                 reason: NoCornerReason::OffsetCarriersDisjoint,
                 radius,
+            });
+        }
+        // The conditioning gate, after the clearances on purpose: "the
+        // carriers do meet, and what I cannot do is place the tangent
+        // point there" is the precise story, and a pair that never met
+        // keeps its own (stronger) refusal unchanged.
+        //
+        // powi(2)-discipline squares: both ρ straddle zero in general
+        // (memories/interval-square-poison.md). No sqrt anywhere — the
+        // law is linear in 1/|ρ₂|, so scale² is wanted as it stands.
+        let scale_squared = dist_squared + rho1.powi(2) + rho2.powi(2);
+        let least_lever = T::from_f64(LEVER_ULPS * f64::EPSILON) * other.radius * scale_squared
+            / (dist * T::from_f64(band.zero()));
+        // `other` is the OUTGOING leg at the one call site that reaches
+        // here (`(Some(a), Some(b)) => a.offset_circles(b, ..)`, a being
+        // the incoming leg's carrier), and the docs above say why the
+        // exposed side is the second argument's rather than either.
+        if decide("fillet_offset_lever", Margin::of(r2 - least_lever), band)
+            .map_err(ArcTrimRefusal::Escalated)?
+            != Sign::Positive
+        {
+            return Err(ArcTrimRefusal::OffsetLeverTooShort {
+                leg: FilletLeg::Outgoing,
+                carrier_radius: other.radius,
+                offset_radius: rho2,
+                least_lever,
+                margin: r2 - least_lever,
             });
         }
         let along = (dist_squared + rho1.powi(2) - rho2.powi(2)) / (dist + dist);

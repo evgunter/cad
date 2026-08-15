@@ -151,6 +151,7 @@ impl ContentBits for f64 {
 /// lets the K-telemetry probe run a whole document evaluation at
 /// `T = Probe` (the M2 report's collection mechanics over the Band 4
 /// corpus); it feeds bits identical to the f64 lane by construction.
+#[cfg(feature = "probe")]
 impl ContentBits for geom_core::Probe {
     fn feed(&self, h: &mut KeyHasher) {
         h.write_f64_bits(self.0);

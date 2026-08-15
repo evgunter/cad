@@ -49,15 +49,9 @@ concurrency:
 # binaries; 6 of the last 16 crate-touching merges did exactly that)
 # means the cache would miss anyway. So: attack the per-binary cost.
 #
-#   RUSTFLAGS=-C link-arg=-fuse-ld=mold   261 static links of a ~40-rlib
-#     graph were running on GNU ld. CI-ONLY: it rides the build jobs'
-#     `env:`, NOT .cargo/config.toml, so local builds keep the default
-#     linker. `-fuse-ld=` is a LINK argument, not a codegen flag: it
-#     cannot move rounding or instruction selection, so D9 determinism
-#     and the interval backend are untouched. (local-scripts/gate.sh's RUSTFLAGS
-#     hazard note is about codegen flags and about a warm local target/
-#     re-fingerprinting; it already unsets RUSTFLAGS, so this cannot leak
-#     into the local gate.)
+#   RUSTFLAGS=-C link-arg=-fuse-ld=mold   RETIRED 2026-08-12 — see the
+#     LINKER note directly below. It was correct for 261 links and is not
+#     correct for 14.
 #   CARGO_PROFILE_{DEV,TEST}_DEBUG=line-tables-only   CI was emitting
 #     full DWARF across 261 binaries and then throwing it away at link
 #     (CARGO_PROFILE_TEST_STRIP=debuginfo, kept below for the 500 MB
@@ -75,6 +69,30 @@ concurrency:
 #   was wrong). That is why 261 independent link/codegen units are so
 #   expensive here, and why item 1 (collapsing 249 test crates into ~12)
 #   is still the big one.
+#
+# LINKER — mold RETIRED 2026-08-12. #174 adopted it on a -24%/-20% result
+# measured across 261 static links; that is the whole basis for it, and
+# the basis is gone. #179 and #387 took this workspace to 14 test targets
+# (`scripts/check-test-aggregation.sh` asserts the count), so the
+# per-binary link constant mold attacks now multiplies 14, not 261. Two
+# independent readings say it no longer pays:
+#   * LOCAL, measured 2026-08-11 at today's target count:
+#     189 s baseline vs 186 s with mold — noise. That measurement is
+#     written up in docs/LOCAL-BUILD-PERF.md, which reverted mold locally
+#     and said in as many words: "Revisit only if the test-target count
+#     grows back toward triple digits."
+#   * The install is not free and sits ON the critical path: `apt-get
+#     install mold` measured 9-21 s per build job over 11 runs, against a
+#     link cost it can now only shave a fraction of.
+# Opt-level 2 (see the OPT LEVEL note on the build job) pushes this
+# further the same way: it makes compile the dominant term and shrinks
+# link's share again.
+# HOW TO PUT IT BACK, if the archive step regresses: restore
+# `RUSTFLAGS: "-C link-arg=-fuse-ld=mold"` to both build jobs' env plus
+# their `install mold` step. Do it on a measurement, not a hunch — and
+# note that a single run cannot settle it, because any env change here
+# rotates the rust-cache key and buys one cold rebuild.
+#
 #   BUILD_RUNNER   repo variable, unset today ⇒ `ubuntu-latest`. Item 4
 #     of the ranked list (8-vCPU runner) is NOT LANDABLE on this repo:
 #     GitHub-hosted larger runners require an ORGANIZATION on Team or
@@ -160,19 +178,23 @@ jobs:
       run_step_export: ${{ steps.classify.outputs.RUN_STEP_EXPORT }}
       run_pncad_py: ${{ steps.classify.outputs.RUN_PNCAD_PY }}
       run_interval_backend: ${{ steps.classify.outputs.RUN_INTERVAL_BACKEND }}
+      run_interval_oracle: ${{ steps.classify.outputs.RUN_INTERVAL_ORACLE }}
       run_k_lint: ${{ steps.classify.outputs.RUN_K_LINT }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - id: classify
         # RUSTUP_TOOLCHAIN=stable keeps this job off the pinned 1.97.0
         # download: the script only runs `cargo metadata --no-deps`, which
@@ -211,14 +233,17 @@ jobs:
     if: needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       # Compound Bounds bounds (`T: Decide + Bounds`) are legal ONLY in
       # the seams the 2026-07-29 amendment ratified (geom-core
       # `real.rs`, Bounds scope rule): the C10 boolean-sweep driver
@@ -378,6 +403,19 @@ jobs:
       # never opted in — that is the hole this closes.
       - name: test-aggregation discipline
         run: scripts/check-test-aggregation.sh
+      # The `interval` feature must stay PURELY ADDITIVE. This is not a
+      # style rule: the `test-interval` legs run only the tests that
+      # feature ADDS (see that job's header), which is sound only while
+      # enabling it cannot change the default build. A gated item that
+      # is not an impl/mod/use/type or test-only code, or any
+      # `cfg(not(feature = "interval"))`, fails here — and the correct
+      # response is to reconsider the run-leg selection, NOT to
+      # allowlist. Stdlib-only python3, so it rides this cheap-tripwire
+      # job. The --selftest pass shows the guard actually fires.
+      - name: interval-feature additivity (gates the interval run legs)
+        run: |
+          python3 scripts/check-interval-cfg-additive.py --selftest
+          python3 scripts/check-interval-cfg-additive.py
       # Bit-identity coincidence checking is RETIRED from production
       # (M4 PR 5, NAMING-DESIGN N6; DESIGN.md roadmap; Evan, #53): the
       # declared rung is GeomSource lookup, and the production-consumer
@@ -471,14 +509,17 @@ jobs:
     if: needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
@@ -490,14 +531,17 @@ jobs:
     if: needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # No --all-features here: the `interval` feature is a different
@@ -519,11 +563,70 @@ jobs:
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
     if: needs.filter.outputs.run_build == 'true'
-    # Test-speed handling lives in Cargo.toml as per-package opt-level
-    # overrides for the measured hot spot (spade + mesh) — blanket opt 2
-    # via profile env here was measured net-slower on core-crate PRs
-    # (#52/#53 timings) because every push recompiles the changed crate
-    # graph at opt 2.
+    # OPT LEVEL — reverses the #52/#53 verdict, because both of its
+    # premises expired. That decision ("blanket opt 2 is net-slower on
+    # core-crate PRs") was measured when this workspace had 261 test
+    # binaries and compile dominated the run. #179/#387 took that to 14,
+    # and test EXECUTION is now ~79% of run wall (measured 2026-08-12:
+    # compile jobs ~220 s of a ~1060 s critical path). Re-measured on the
+    # same box, whole workspace, `--all-targets`:
+    #
+    #   clean compile   opt-0 130.6 s -> opt-2 422.9 s   (3.24x WORSE)
+    #   clean compile   opt-0 136.5 s -> opt-2 442.4 s   (interval, 3.24x)
+    #   nextest run     opt-0 558.7 s -> opt-2 130.0 s   (4.30x BETTER,
+    #                                   2791 tests, all green both ways)
+    #   nextest run     opt-0 691.7 s -> opt-2 301.6 s   (interval, 2.29x,
+    #                                   3001 tests, all green both ways)
+    #
+    # Break-even needed only 1.5x on execution. MEASURED HOSTED, warm
+    # cache, run 31668174443 (these supersede the local projections above
+    # — trust these):
+    #
+    #   archive step, default    127 s ->  432 s   (3.40x worse)
+    #   archive step, interval   132 s ->  605 s   (4.58x worse)
+    #   test (interval, default, 2/2)         <- the critical-path leg
+    #                            828 s ->  117 s   (7.1x better)
+    #   ten test legs, summed   5620 s ->  895 s
+    #   critical path           1065 s ->  840 s   (-21%)
+    #   billed                  ~137m  ->  ~72m    (-65 min)
+    #
+    # The compile penalty is WORSE hosted than locally (4.58x vs 3.24x) —
+    # 2 vCPU parallelises opt-2 codegen badly — and the execution win is
+    # much BETTER (7.1x vs the 2.29x measured locally, which was taken on
+    # a box with an express-lane job running alongside it and is therefore
+    # pessimistic). Both errors happened to point the same way; the trade
+    # is still strongly positive.
+    #
+    # Note rust-cache does not cache workspace crates, only deps, so 605 s
+    # IS the steady state: run 1 (cold deps) was 920 s, run 2 onward 704 s
+    # for the whole job. Do not read a first run on a knob change as the
+    # verdict.
+    #
+    # The gap between those two is itself a finding: at opt-0 the interval
+    # lane looks only 1.24x slower than default (691.7 vs 558.7), but at
+    # opt-2 it is 2.32x slower (301.6 vs 130.0). opt-0's own overhead was
+    # masking the enclosure cost regime that geom-core's manifest has
+    # always claimed. Anyone reading interval-vs-f64 runtime off an opt-0
+    # CI leg is reading a flattered number.
+    #
+    # NOTE these supersede local-scripts/test-fast.sh's "75 s -> 4.9 s"
+    # (15x, 2026-07-21, 807 tests) — the suite has since grown to 2791
+    # tests and the ones added are less compute-bound, so that header is
+    # stale.
+    #
+    # Scoped to the two ARCHIVE jobs on purpose: they feed all ten test
+    # legs, which compile nothing, so one opt-2 compile here buys the
+    # speedup ten times over. `k-lint` deliberately does NOT get this — it
+    # regenerates the K sweep CSVs that are diffed against the committed
+    # baselines in docs/k-report-data/, and that lane stays on the exact
+    # configuration those baselines were produced under.
+    # debug-assertions and overflow-checks are unaffected by opt-level
+    # (cargo defaults them ON for dev/test), so fail-loud postconditions
+    # keep their teeth — this is the same configuration
+    # local-scripts/test-fast.sh has used locally since M6.
+    #
+    # Cargo.toml's per-package opt-2 overrides (spade + mesh) stay: they
+    # cover the `cargo test`-driven jobs that do NOT set this env.
     #
     # JOB-LEVEL, not step-level, on purpose: Swatinem/rust-cache hashes
     # env vars prefixed CARGO_/RUST* into its cache key, and it runs
@@ -533,31 +636,30 @@ jobs:
     # rust-cache would never re-save. Job-level means exactly one cold
     # rebuild per knob change, then warm forever.
     env:
-      RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
-      # mold: this job's cost is 261 static links of a ~40-rlib graph
-      # (measured: 494 of the build step's 514 s is the 261 test
-      # binaries). CI-ONLY — the flag rides RUSTFLAGS in this job's env,
-      # never .cargo/config.toml, so local builds and local-scripts/ci-local.sh
-      # keep the default linker and need no mirrored row.
-      - name: install mold
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq mold
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      # NO mold here — see the LINKER note at the top of this file. It was
+      # right for 261 test binaries and is not right for 14.
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: runner + linker provenance (for perf attribution)
-        run: nproc && free -g | head -2 && mold --version
+        run: nproc && free -g | head -2 && ld --version | head -1
       - name: install cargo-nextest (pinned, official prebuilt)
         uses: ./.github/actions/install-nextest
         with:
@@ -575,6 +677,20 @@ jobs:
         with:
           name: nextest-default
           path: nextest-default.tar.zst
+          retention-days: 1
+      # The default build's TEST NAME LIST — the left operand of the
+      # interval run legs' set difference (scripts/interval-only-
+      # selection.py; see the `test-interval` job). Listed from the same
+      # already-compiled targets the archive was built from, with the
+      # same scope, so it IS the archive's contents; listing is a
+      # metadata pass, not a build. A few KB, so it costs nothing
+      # against the artifact quota the cleanup job exists to protect.
+      - name: list archived tests (default features)
+        run: cargo nextest list ${{ needs.filter.outputs.cargo_scope }} --message-format json > nextest-list-default.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nextest-list-default
+          path: nextest-list-default.json
           retention-days: 1
       # Doc-tests DO NOT run under nextest (upstream design): this step
       # keeps them gated. The workspace has real doctests, including
@@ -632,14 +748,17 @@ jobs:
       # Runner workspace paths are identical across jobs, so build-time
       # env!("CARGO_MANIFEST_DIR") paths resolve here too.
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - name: install cargo-nextest (pinned, official prebuilt)
         uses: ./.github/actions/install-nextest
         with:
@@ -662,31 +781,35 @@ jobs:
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
     if: needs.filter.outputs.run_build == 'true'
-    # Same link/debuginfo knobs, same job-level-not-step-level reasoning,
-    # as the default build job — see the LINK/DEBUGINFO note at the top.
-    # This job is the run's critical path (11.9 of the 17.6 min wall on
-    # run 30884593286), so it is the one that most wants them.
+    # Same link/debuginfo/opt knobs, same job-level-not-step-level
+    # reasoning, as the default build job — see the LINK/DEBUGINFO and
+    # OPT LEVEL notes there. This job is the run's critical path (its
+    # archive feeds the longest test leg in the run), so it is the one
+    # that most wants them: the interval lane's slowest leg was 828 s of
+    # pure execution, and opt-2 is aimed squarely at that.
     env:
-      RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       # The `interval` feature's backend is the in-repo
       # `interval-transcendentals` crate — pure Rust over libm — so this
-      # job needs no C toolchain. mold is the one system package, and it
-      # is a linker for the 261 links, not a dependency of the graph.
-      - name: install mold
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq mold
+      # job needs no system packages at all now that mold is gone (see the
+      # LINKER note at the top of this file).
       - uses: dtolnay/rust-toolchain@stable
       # CACHE SEPARATION (verified against the action's source,
       # 2026-07-30): this job builds a DIFFERENT feature set from the
@@ -706,7 +829,7 @@ jobs:
         with:
           key: interval
       - name: runner + linker provenance (for perf attribution)
-        run: nproc && free -g | head -2 && mold --version
+        run: nproc && free -g | head -2 && ld --version | head -1
       - name: install cargo-nextest (pinned, official prebuilt)
         uses: ./.github/actions/install-nextest
         with:
@@ -722,16 +845,95 @@ jobs:
           name: nextest-interval
           path: nextest-interval.tar.zst
           retention-days: 1
-      # This job owns the interval feature's clippy pass (the default
-      # clippy job deliberately skips --all-features).
+      # The right operand of the run legs' set difference — see the
+      # matching step in the default build job.
+      - name: list archived tests (interval)
+        run: cargo nextest list ${{ needs.filter.outputs.cargo_scope }} --features interval --message-format json > nextest-list-interval.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nextest-list-interval
+          path: nextest-list-interval.json
+          retention-days: 1
+
+  # The interval feature's clippy pass (the default clippy job
+  # deliberately skips --all-features) and its doc-tests.
+  #
+  # WHY A SEPARATE JOB (2026-08-12): these two steps used to live at the
+  # end of `build-interval`, after the archive upload. That put them on
+  # the RUN'S CRITICAL PATH for no reason — `test-interval` declares
+  # `needs: build-interval`, and `needs` waits for the whole JOB, not for
+  # the artifact it actually consumes. So the longest test leg in the run
+  # sat behind a clippy pass it has no dependency on. Measured over 11
+  # runs: clippy 37 s + doc-tests 7 s, i.e. ~44 s of pure critical-path
+  # latency. Split out, they run concurrently with the archive instead.
+  #
+  # Deliberately NOT inheriting build-interval's env: this job links no
+  # test binaries, so mold buys nothing and its ~12 s apt install would
+  # cost more than it saves, and opt-level 2 would slow the compile with
+  # nothing executing at scale to pay it back. It keeps only the
+  # debuginfo knobs, which are pure win. Its own rust-cache key follows
+  # from the no-shared-key rule documented on build-interval.
+  lint-interval:
+    name: clippy + doc-tests (interval)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_build == 'true'
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+    steps:
+      - uses: actions/checkout@v4
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: interval-lint
       - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets --features interval -- -D warnings
       - name: doc-tests (interval)
         run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }} --features interval
 
+  # THESE LEGS RUN ONLY THE TESTS THE `interval` FEATURE ADDS (2026-08-13).
+  # Measured on run 31665082966: of the 2995 tests these legs executed,
+  # 214 are `#[cfg(feature = "interval")]`-gated — 168.7 cpu-s of coverage
+  # the default legs cannot have — and the other 2781 cost 4406.7 cpu-s,
+  # 42.0% of the run's whole 10482 cpu-s of test execution, re-running
+  # code the default legs had already run. Seven test binaries
+  # (step-import::all at 1919 cpu-s, step-export::all, mesh, mesh::all,
+  # stl::all, topo, geom-brep) contain ZERO interval-gated tests and were
+  # re-running in full.
+  #
+  # Why that is sound: the feature is purely ADDITIVE. Every
+  # `#[cfg(feature = "interval")]` item in crates/*/src is an
+  # `impl ... for Interval`, a mod/use/type for `Interval`, or test-only
+  # code; there is no `cfg(not(feature = "interval"))` in the tree; and
+  # Rust has no specialization, so extra impls cannot move how the f64
+  # paths monomorphize. A test present in both builds therefore executes
+  # the same machine code in both. That premise is not left to prose —
+  # scripts/check-interval-cfg-additive.py GATES it in the `discipline`
+  # job and fails loudly the moment it stops holding. The two changes
+  # stand or fall together: if that gate ever fires, these legs go back
+  # to running the full suite.
+  #
+  # The set is DERIVED, never declared: scripts/interval-only-selection.py
+  # diffs the two builds' `cargo nextest list` outputs, so no test can
+  # opt itself out, a test that stops being gated returns to the default
+  # legs automatically, and a newly gated one is picked up with no edit
+  # here. It fails closed — an empty difference, an unrecognised list
+  # shape, or any test present in the default build but NOT the interval
+  # one is an error, never a silently empty filter.
+  #
+  # NOT reduced: the interval BUILD job still compiles the whole graph
+  # with the feature on and runs clippy and the doc-tests over it, so
+  # compile-side interval coverage is untouched. Only the re-execution
+  # of already-executed tests is dropped.
   test-interval:
     name: test (interval, eps = ${{ matrix.eps }}, ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
-    needs: [filter, build-interval]
+    # `build` joins `needs` for its test list only (a few KB). It
+    # finishes well before build-interval, which is the run's critical
+    # path, so this adds no wall-clock.
+    needs: [filter, build, build-interval]
     if: needs.filter.outputs.run_build == 'true'
     strategy:
       fail-fast: false
@@ -749,14 +951,17 @@ jobs:
       RUSTUP_TOOLCHAIN: stable
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - name: install cargo-nextest (pinned, official prebuilt)
         uses: ./.github/actions/install-nextest
         with:
@@ -764,8 +969,22 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: nextest-interval
-      - name: run archived tests (interval)
-        run: ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2
+      - uses: actions/download-artifact@v4
+        with:
+          name: nextest-list-default
+      - uses: actions/download-artifact@v4
+        with:
+          name: nextest-list-interval
+      # The set difference, computed here rather than in a job of its
+      # own: both lists are a few KB, so this costs a download and a
+      # millisecond. The script prints the counts it derived (and fails
+      # closed — see its header), so the log always records how many
+      # tests this leg selected and how many it skipped as already
+      # covered by the default legs.
+      - name: derive the interval-only test selection
+        run: scripts/interval-only-selection.py nextest-list-default.json nextest-list-interval.json > interval-selection.txt
+      - name: run archived tests (interval-only)
+        run: ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 -E "$(cat interval-selection.txt)"
       # M4 PR 6 D6.1, Interval member: the save/load/replay-identity row
       # at the certified interval scalar (already inside the full archive
       # run above; named here so the obligation is visible). One leg only
@@ -830,14 +1049,17 @@ jobs:
     # see the crate README's "Certification" section.
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -861,6 +1083,73 @@ jobs:
             exit 1
           fi
 
+  # The differential certification lane: `certify.rs` against inari+MPFR as
+  # oracle, asserting `oracle ⊆ ours` on millions of drawn cases. It was a
+  # by-hand gate until now, for a good reason and a bad one.
+  #
+  # The good reason is cost: it builds GMP and MPFR from C source, measured
+  # at 234s of a ~250s job on a hosted runner (#480). It is keyed on the
+  # PATHS under interval-transcendentals/ rather than on the tier, because
+  # that crate is its own workspace and so every change to it lands in
+  # TIER=all — which is most merges. See ci-filter.py's ORACLE_PATHS.
+  # Measured churn: 2 of the last 400 first-parent merges, both during the
+  # crate's creation. Order of eight runner-minutes a year.
+  #
+  # The bad reason is that "run it by hand when the pads change" is a
+  # convention with no enforcement, and it had already failed silently:
+  # the tier did not BUILD at all (the README's x86-64-v3 floor was retired
+  # out from under it, #480) and nobody noticed, because nothing ran it.
+  oracle-certify:
+    name: interval oracle (certify vs inari+MPFR)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_interval_oracle == 'true'
+    # inari's rounding primitives sit behind
+    # cfg(all(target_feature = "avx", target_feature = "fma")) and it raises
+    # a compile_error! without them. The repo sets no target-cpu floor
+    # (.cargo/config.toml, deliberately), so the flag is supplied HERE, on
+    # the one lane that needs it, leaving the kernel's codegen untouched.
+    env:
+      RUSTFLAGS: "-C target-cpu=x86-64-v3"
+    steps:
+      - uses: actions/checkout@v4
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: interval-oracle
+          workspaces: interval-transcendentals
+      # Assert the runner can execute what -C target-cpu=x86-64-v3 emits
+      # BEFORE spending four minutes building GMP for it. Exactly the sort
+      # of thing that holds on one runner generation and not the next.
+      - name: the x86-64-v3 floor holds on this runner
+        run: |
+          grep -q avx2 /proc/cpuinfo || { echo "NO AVX2 — the v3 floor does not hold here"; exit 1; }
+          grep -q fma /proc/cpuinfo || { echo "NO FMA"; exit 1; }
+      # gmp-mpfr-sys needs a C toolchain plus m4; ubuntu-latest carries
+      # build-essential but m4 is worth asserting rather than assuming.
+      - name: m4 for the gmp build
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq m4
+      # Depth is nearly free on this lane and that is the whole reason to
+      # spend it. The build above is a fixed ~234s; the cases are ~7s at
+      # effort 1 (measured hosted, #480) and scale linearly — 8.2x measured
+      # locally from effort 1 to 8. So effort 8 buys 32M cases per firing
+      # for about 52s on top of a 250s job.
+      #
+      # Together with the varying seed this is the point of the exercise:
+      # a lane that fires twice a year with a pinned seed re-certifies one
+      # fixed sample forever, however deep it is. Fresh millions each
+      # firing is worth more than the same millions faster.
+      - name: certify against the oracle
+        working-directory: interval-transcendentals
+        env:
+          CAD_FUZZ_EFFORT: "8"
+        run: |
+          t0=$SECONDS
+          cargo test --release --features oracle-inari -- --nocapture
+          echo "CASES_SECONDS=$((SECONDS - t0))"
+
   watertight:
     name: watertight (admesh)
     runs-on: ubuntu-latest
@@ -872,14 +1161,17 @@ jobs:
     if: needs.filter.outputs.run_stl == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       # External STL verification (M2 PR 7): admesh 0.98.4 is
       # apt-packaged; the check script accepts NO repair as success.
       - name: install admesh
@@ -903,14 +1195,17 @@ jobs:
     if: needs.filter.outputs.run_step_export == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       # External STEP import acceptance (M4 PR 7, the admesh pattern
       # STEP-shaped): FreeCAD/OCC imports the committed fixtures
       # (byte-golden against the writer via the cargo test suite) and
@@ -970,14 +1265,17 @@ jobs:
     if: needs.filter.outputs.run_pncad_py == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       # Python pinned at 3.12 — the interpreter the suite was written
       # and validated on (U9S/DOORS/U10 all ran the local 3.12). The
       # wheel is abi3-py38, so this is a determinism pin, not a
@@ -1057,14 +1355,17 @@ jobs:
         eps: ["1e-6", "1e-12"]
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # D6.1 save/load/replay-identity + the D2 float property row +
@@ -1103,18 +1404,27 @@ jobs:
     if: needs.filter.outputs.run_editor_core == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      # `--ignored`: the test is `#[ignore]`d so the ε matrix stops
+      # paying for it 5× (it is reporting, and its two assertions are a
+      # strict subset of the corpus row's — see the rustdoc on
+      # `rebuild_latency_table`). THIS job is the one that runs it, so
+      # the flag is what keeps the table alive. Same idiom as
+      # scripts/k_probe_sweep.sh.
       - name: per-document full-rebuild + incremental-recompute table
-        run: "cargo test -p editor-core --test all -- --nocapture m4_pr8_latency::"
+        run: "cargo test -p editor-core --test all -- --ignored --nocapture m4_pr8_latency::"
 
   # M4 PR 8a spec D1: the Band 4 corpus as a NAMED row (it also runs
   # inside the workspace rows; naming it keeps the milestone's
@@ -1132,14 +1442,17 @@ jobs:
         eps: ["1e-6", "1e-12"]
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: evaluation, exact mass pins, counted reuse, vocabulary totality
@@ -1176,14 +1489,17 @@ jobs:
     if: needs.filter.outputs.run_k_lint == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
 
       # THE TOUR'S OUTPUT, ON RENDER.YML'S KEY. `uv sheet drift` below
       # is the only RELEASE build of demos/tour in this job — the

@@ -1,6 +1,7 @@
 //! Review probe (review/f34): dump the FULL per-sample census of both
 //! twin boolean configurations at both scales, for merge-base-vs-tip
 //! byte-identity diffing (T3).
+#![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod common;
 

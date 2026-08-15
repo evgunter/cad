@@ -15,3 +15,24 @@ publish = false
 
 [dependencies]
 pncad = { path = "../../crates/pncad" }
+
+# See demos/tour/Cargo.toml for the full rationale: cargo's release
+# default compiles every `debug_assert` out, and `cargo run --release`
+# (render.yml's wild lane) is one of only two release builds of the
+# kernel in CI. Re-arm them rather than dropping `--release` — this is a
+# detached workspace, so a dev build would lose the root manifest's
+# spade+mesh opt-2 overrides and tessellate at opt 0.
+#
+# This lane earns it more than the tour does: the wild corpus is
+# FOREIGN STEP, the only input in the project nobody here authored, and
+# therefore the likeliest to drive the kernel into a state D9's
+# unreachable-by-construction footnote never contemplated. Compiling
+# the postconditions out was exactly backwards.
+#
+# Both knobs: cargo emits `-C overflow-checks=off` under release even
+# when debug-assertions is on (they are independent), and dev defaults
+# both ON — so only setting the first would leave this lane checking
+# less than the nextest legs.
+[profile.release]
+debug-assertions = true
+overflow-checks = true

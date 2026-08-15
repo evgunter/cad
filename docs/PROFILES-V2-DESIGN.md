@@ -38,7 +38,7 @@ walls W1–W6, the per-loop disposition census); the code as merged
 profile_desc,persist/wire}.rs`); PATHS-DESIGN.md; DESIGN.md D8/D9/Q8;
 LIB-LOG's v2 evidence accumulator.
 
-## V1. What a stored profile-program IS (PROPOSED FIRM)
+## V1. What a stored profile-program IS
 
 **A profile-program is the constructor-call sequence as data**: an
 ordered list of program steps, one per algebra verb, each step a tag
@@ -144,7 +144,7 @@ value-dependent branch in user code silently breaks interval replay;
 the recipe is data. The step list IS the D8-shaped residue of the
 call sequence: structure explicit, every value a typed slot.
 
-## V2. Expression binding (PROPOSED FIRM core; sub-opens noted)
+## V2. Expression binding
 
 **Which arguments become Expr-bearing: every continuous scalar; no
 structural datum.** Concretely, with dimensions:
@@ -185,7 +185,7 @@ program structure only changes by re-authoring (above), the same
 stability argument the frozen fillet selection makes. The Expr-tree
 sub-path mechanism (`Expr::descend`'s u8 path) is reused unchanged.
 
-**What re-evaluation means (PROPOSED FIRM)**: evaluation resolves the
+**What re-evaluation means**: evaluation resolves the
 program's Exprs in the parameter environment **at f64**, replays the
 step list through the driver, and obtains fresh
 `ProfileLoop<f64>` segments + declared flags; the profile then embeds
@@ -242,7 +242,7 @@ inherited, not invented — but it deserves Evan's explicit eyes,
 because under v2 the SAME document parameter can feed both kinds of
 slot.
 
-## V3. Caches and provenance (PROPOSED FIRM)
+## V3. Caches and provenance
 
 **Derived segments become a cache: keyed, rebuildable, and NOT
 persisted.**
@@ -320,11 +320,11 @@ worries anyone (it should not: replay is a linear pass over a few
 dozen steps per loop; the corpus's largest program is the A-outline
 at ~20 steps).
 
-## V4. Schema v4 and the raw-loop question (THE central OPEN)
+## V4. The schema break and the raw-loop question (VQ1, the central decision)
 
-The v4 break itself is committed shape: `SCHEMA_VERSION` bumps 3→4
+The break itself is committed shape: `SCHEMA_VERSION` bumps by one
 with an EMPTY migration table (LQ7a: clean break; the chain machinery
-stays, carrying nothing — the current table is already `&[]`).
+stays, carrying nothing — the table at the time was already `&[]`).
 `Node::Profile(P)` remains the payload seat; what changes is what `P`
 is. What replaces `ProfileDesc(opaque Profile<f64>)` is a
 **ProfileProgram**: plane placement + per-loop programs, wire-shaped
@@ -358,8 +358,9 @@ spelling for a post-fillet side ending at a sharp vertex.
 
 So: v2 commits "the program is the definition" while the algebra can
 define only 12 of 26 corpus loops. The schema must answer what the
-other 14 ARE. **OPEN — VQ1**, the central question. Three real
-options:
+other 14 ARE. This is **VQ1**, the central question, **RULED
+(b)-DIRECT** — §V7's VQ1 entry carries the ruling and its ground.
+The three options are kept below as the record of the decision:
 
 **(a) Raw loops remain a first-class sibling representation.** A
 loop's payload is `Chain(program)` | `Raw{vertices, bulges,
@@ -423,17 +424,19 @@ Consequences:
 - The bowtie is simply a raw program that validate refuses — the
   demo survives unchanged in meaning.
 
-Recommendation: **(c)**, with (b)'s cheap subset (circle + via/centre
-modes) authorized as a follow-on unit rather than a gate. The
-deciding argument is the census inversion: the parametric pressure
-is in exactly the loops (a) would freeze, and (b) gates the entire
-bindings program on the rocker fillet closed forms, the one item
-with real geometric risk. (c) is also the only option under which
-"the program is the definition" is TRUE of every profile at the
-switch, which is what #104 committed. Sequencing note if (c) is
-taken: U3 (SectionSegments retirement) should target the program
-form directly, per LQ2's "or the v2 program form directly, given
-LQ4".
+This section's own recommendation was **(c)**, on the census
+inversion — the parametric pressure sits in exactly the loops (a)
+would freeze, and (b) appeared to gate the entire bindings program
+on the rocker fillet closed forms, the one item with real geometric
+risk. **The ruling went to (b)-direct instead** (§V7, VQ1), on an
+argument this section had not found: schema evolution under LQ7 is
+asymmetric, so a second vocabulary creates removal debt on a
+pre-release deadline while chain-only forecloses nothing. Both
+options make "the program is the definition" true of every profile
+at the switch; (b) gets there with one wire vocabulary instead of
+two. Sequencing consequence carried either way: U3 (SectionSegments
+retirement) targets the program form directly, per LQ2's "or the v2
+program form directly, given LQ4".
 
 **Round-1/2 sharpening — (b) vs (c), for Evan's lean-(b). REVISED:
 round 2's probe landed** — the round-1 claim "the bowtie forces a
@@ -481,7 +484,7 @@ binding code never grow raw-program habits whose later removal is
 churn). Whether that transient existence is acceptable is the
 actual VQ1 ruling.
 
-## V5. The v1→program lift — tool status post-clean-break (PROPOSED FIRM)
+## V5. The v1→program lift — tool status post-clean-break
 
 What survives of PATHS-DESIGN's "mechanical lift" language after
 LQ7a's no-migration ruling: **a development-side authoring tool, not
@@ -517,7 +520,7 @@ the acceptance instrument for V4(c)'s chain-vocabulary growth — each
 new binding mode turns some refusals into lifts, measurably. Not
 owed to users as a promise; not run at load, ever (clean break).
 
-## V6. What does NOT change (PROPOSED FIRM — the fence)
+## V6. What does NOT change — the fence
 
 - **The #101 verify layer**: flags verified-never-trusted,
   `UndeclaredTangency`/`TangencyContradicted`, fit gating,
@@ -597,8 +600,9 @@ owed to users as a promise; not run at load, ever (clean break).
 
 ## V7. Question ledger
 
-Each OPEN carries a recommendation; PROPOSED-FIRM items above are
-restated here only where a reviewer might want to reopen them.
+VQ1 was delegated to orchestrator judgment and ruled; VQ2–VQ9 were
+reviewed in detail and agreed by Evan (PR #242 round 4). Each entry
+is the ruling plus the argument that decided it.
 
 - **VQ1 — raw loops' status: RULED — (b) DIRECT** (Evan delegated
   the call, PR #242 round 3, 2026-08-08: "use your judgment …
@@ -629,53 +633,49 @@ restated here only where a reviewer might want to reopen them.
   changes: it still never persists**); (3) U9 queues behind
   the switch per LQ4, accepted under no-hurry; (4) the V4 §
   option analysis is retained as the record of why.
-- **VQ2 — do derived-segment caches persist? (OPEN, lean firm NO.)**
-  V3's strict-door + D9 argument. Reopen only if load-time replay
-  cost surprises at corpus scale (it should not; programs are tens
-  of steps).
-- **VQ3 — edit addressing for program slots (OPEN in detail).**
-  Recommend `(step index, per-verb argument role)` extending the
-  SlotId scheme, Expr sub-paths unchanged (V2). The alternative — a
-  flat slot enumeration per program — makes step identity implicit
-  and breaks the structural-edit story; recommend against.
-- **VQ4 — exact directors (OPEN, new vocabulary).** PR-2 W1: angle
-  directors are sin_cos-dirty; the corpus's one line×line fillet
-  could not move because `.angle(PI)` carries 1.22e-16 into the
-  ray. Recommend adding a direction-valued director spelling
-  (`.toward(dx, dy)` or axis tokens) whose components are exact
-  data — Angle stays for genuinely angular authoring (slant). This
-  is the difference between "the showcase fillet lifts
-  bit-identically" and "it cannot move"; small, high-leverage.
-- **VQ5 — what does sugar store? (OPEN, lean core-only.)** PATHS
-  Tier-1 sugar "adds no semantics"; recommend sugar (and builder
-  functions like `path_polygon`, and the wanted `rect`/`polygon`
-  verbs — PR-2: 12 of 26 sites are polygons) expand AT AUTHORING to
-  core steps. Crucially this loses NO parametric value: expansion
+- **VQ2 — derived-segment caches do NOT persist.** V3's
+  strict-door + D9 argument. Reopen only if load-time replay cost
+  surprises at corpus scale (it should not; programs are tens of
+  steps).
+- **VQ3 — edit addressing is `(step index, per-verb argument
+  role)`**, extending the SlotId scheme with Expr sub-paths
+  unchanged (V2). A flat slot enumeration per program was rejected:
+  it makes step identity implicit and breaks the structural-edit
+  story. Detail belongs to the implementing unit's spec.
+- **VQ4 — exact directors are added as new vocabulary.** PR-2 W1:
+  angle directors are sin_cos-dirty, and the corpus's one line×line
+  fillet could not move because `.angle(PI)` carries 1.22e-16 into
+  the ray. A direction-valued director spelling (`.toward(dx, dy)`
+  or axis tokens) whose components are exact data closes it; Angle
+  stays for genuinely angular authoring (slant). This is the
+  difference between "the showcase fillet lifts bit-identically"
+  and "it cannot move" — small, high-leverage.
+- **VQ5 — sugar stores CORE STEPS ONLY.** PATHS Tier-1 sugar "adds
+  no semantics", so sugar (and builder functions like
+  `path_polygon`, and the wanted `rect`/`polygon` verbs — PR-2: 12
+  of 26 sites are polygons) expands AT AUTHORING to core steps.
+  Crucially this loses NO parametric value: expansion
   happens at the Expr level, so `rect(x0,x1,y0,y1)` corners are
   Expr pairs SHARING the extent subtrees — the slab evidence's
   "re-flattening" disease was about literals, and Exprs don't
   flatten. Alternative (first-class sugar steps, richer provenance
   for a future GUI's "this is a rect") is additive later; do not
   pay its schema cost now.
-- **VQ6 — ε_input source for authoring/replay junction checks
-  (OPEN, small).** PR-1 F2: the doc never says where path-authoring
-  tolerance comes from; implementation used run-global
-  `Tolerance::get()`. Under v2 the checks run inside document
-  evaluation, so the tolerance must be the evaluation's tolerance
-  (whatever the run context pins) — recommend stating exactly that
-  and closing F2 in this doc's ratified form.
-- **VQ7 — NURBS legs (OPEN, deferred-in.)** PR-1 F1: no v1
-  representation to lower to; PATHS banked them for v2 "exactly as
-  anticipated". They are a SEGMENT-vocabulary extension (ProfileLoop
-  has no NURBS segment), not a program-shape question — the program
-  form in V1 carries them the day the segment layer does. Recommend:
-  out of this switch's scope, unblocked by it, own unit later.
-- **VQ8 — plane placement Exprs (OPEN, lean out-of-scope.)** The
-  profile's `SketchPlane` placement stays stored f64 (as today) in
-  v4; Expr-izing placement is the U4 pose-vocabulary conversation
-  (P6/P7), not this switch. Note it so the v4 wire shape leaves the
-  seam visible (placement as its own struct, not inlined into the
-  program).
+- **VQ6 — junction checks take the EVALUATION's tolerance.** PR-1
+  F2 found that nothing said where path-authoring tolerance comes
+  from (the implementation used run-global `Tolerance::get()`).
+  Under v2 the checks run inside document evaluation, so the
+  tolerance is whatever the run context pins. F2 closes here.
+- **VQ7 — NURBS legs are out of this switch's scope**, unblocked
+  by it, and get their own unit later. PR-1 F1: there was no v1
+  representation to lower to, and PATHS banked them for v2 "exactly
+  as anticipated". They are a SEGMENT-vocabulary extension
+  (ProfileLoop has no NURBS segment), not a program-shape question
+  — V1's program form carries them the day the segment layer does.
+- **VQ8 — plane placement stays stored f64**, not Expr-ized:
+  that is the U4 pose-vocabulary conversation (P6/P7), not this
+  switch. The wire shape must leave the seam visible — placement as
+  its own struct, never inlined into the program.
 - **VQ9 — where authoring-time checks bind (restated, firm).** The
   document authoring surface checks under the CURRENT param env;
   re-evaluation re-checks under every binding (V2). No "check only

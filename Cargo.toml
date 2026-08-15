@@ -29,6 +29,7 @@ members = [
     "crates/step-import",
     "crates/stl",
     "crates/sweep",
+    "crates/test-utils",
     "crates/topo",
 ]
 

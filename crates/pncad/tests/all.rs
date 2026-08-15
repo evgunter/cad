@@ -1739,8 +1739,10 @@ fn asm2b_workspace(dir: &WsDir) -> (pncad::document::DocRef, pncad::document::Do
 
 /// Two instances of the sub-assembly, the second displaced 100 along
 /// +x. Its own spacing, not 2A's: B already spans x in [0, 12], so the
-/// copies must clear each other or the product is a false body (two
-/// overlapping solids, refused at the at-rest gate — correctly).
+/// spacing is what keeps the copies clear of each other — an
+/// overlapping product is a false body the at-rest gate would NOT
+/// refuse (inter-solid overlap is outside tier 3's local checks; issue
+/// #382), so the fixture must not lean on the gate for it.
 fn asm2b_outer(
     label: &str,
     doc_ref: pncad::document::DocRef,

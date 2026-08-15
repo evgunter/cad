@@ -7,9 +7,9 @@
 - **History**: 836 commits, 2024-04-18 → 2026-06-25, essentially single-author (mattatz 787 + 47
   under his full name). Active and healthy as an upstream.
 
-## Headline correction to DESIGN.md's crate-landscape row (APPLIED — DESIGN.md's row and its Q5 entry both carry this today; kept as the evidence record)
+## Headline correction to DESIGN.md's crate-landscape row (APPLIED — DESIGN.md's row and its Q5 entry both carry the corrected scope; kept as the evidence record)
 
-DESIGN.md describes curvo as "excellent active pure-Rust NURBS **incl. SSI** and trimming".
+The pre-audit row claimed curvo offered NURBS "incl. SSI" and trimming.
 **curvo has no surface–surface intersection.** `src/intersects/` covers curve–curve,
 curve–plane, surface–curve, surface–plane, and mesh–plane only; `src/marching/mod.rs` is an
 empty one-line placeholder. Its "booleans" (`src/boolean/`) are **planar 2-D curve/region

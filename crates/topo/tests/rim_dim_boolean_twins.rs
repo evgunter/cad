@@ -52,6 +52,7 @@
 //!   exemption are dropped, so the pin now holds it to the full
 //!   elementwise claim.
 
+#![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;

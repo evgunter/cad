@@ -186,10 +186,17 @@ fn sub_exact(a: &Body<f64>, b: &Body<f64>, volume: f64) -> Body<f64> {
     let rb = b.revert().unwrap();
     let ri = run(topo::intersect_with, a, &rb);
     assert_eq!(vol(&body_of(&ri).body), volume, "revert-oracle volume");
-    match run(subtract_with, a, b) {
-        BooleanResult::Body(bb) => bb.body,
-        BooleanResult::Empty => panic!("expected body"),
-    }
+    // The owned body is the one ALREADY computed above, cloned — not a
+    // fresh `run`. INVARIANT: a third execution would be bit-identical
+    // to `out.body` and so asserts nothing new. `run` above already
+    // executed `subtract_with(a, b, &decls)` TWICE and asserted the two
+    // results `Debug`-identical (the D9 replay), with both operands
+    // asserted bitwise untouched by the call — i.e. determinism of this
+    // op on these operands is established, in this process, by the
+    // assertions we keep. Every check the discarded run performed
+    // (operands untouched, tier 1, tier 2, D9 replay) is performed by
+    // the kept one on the same inputs, so nothing is given up.
+    out.body.clone()
 }
 
 /// A refusal must be typed, deterministic, and leave operands bitwise

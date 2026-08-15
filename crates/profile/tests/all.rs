@@ -52,18 +52,26 @@ mod rejections;
 mod review_m2_pr2;
 #[path = "review_m2_pr2_consumers.rs"]
 mod review_m2_pr2_consumers;
+#[path = "review_m2_pr2_probe.rs"]
+mod review_m2_pr2_probe;
 #[path = "review_s2.rs"]
 mod review_s2;
+#[path = "review_s2_probe.rs"]
+mod review_s2_probe;
 #[path = "review_s6_probe.rs"]
 mod review_s6_probe;
 #[path = "review_s8_probe.rs"]
 mod review_s8_probe;
 #[path = "scalar_channels.rs"]
 mod scalar_channels;
+#[path = "scalar_channels_probe.rs"]
+mod scalar_channels_probe;
 #[path = "sketch_plane.rs"]
 mod sketch_plane;
 #[path = "validate_ok.rs"]
 mod validate_ok;
+#[path = "validate_ok_probe.rs"]
+mod validate_ok_probe;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.
