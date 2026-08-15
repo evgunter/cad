@@ -10,7 +10,7 @@
 //! (schema v1) arrived in M4 PR 6 as [`persist`].
 //!
 //! Layering (M4 PR 2 spec D1, G1): editor-core sits ABOVE the kernel —
-//! the evaluation service ([`eval`]) depends on the op crates it wires
+//! the evaluation service ([`mod@eval`]) depends on the op crates it wires
 //! (`profile`, `sweep`, `topo`); the kernel crates gain no editor-core
 //! dependency. Profiles are carried opaquely in the document (a type
 //! parameter, never a re-model); [`ProfileDoc`] is the canonical

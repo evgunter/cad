@@ -15,7 +15,7 @@
 //!    surface, two consumers; no second spelling of any verb.
 //! 3. [`replay`] — the driver. It holds the in-flight tip as [`DynTip`],
 //!    an enum over the lattice states each of which carries the TYPED
-//!    [`PartialPath`](super::PartialPath) value, and applying a step is a
+//!    [`super::PartialPath`] value, and applying a step is a
 //!    match on (state, verb) whose arm bodies can only call the ONE typed
 //!    binder that is well-typed at that state.
 //!
