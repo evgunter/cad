@@ -1,6 +1,17 @@
 # Pcurve unification (#427) — M9-D design conversation
 
-STATUS: OPEN — awaiting Evan's ruling. This is M9-D (M9-PLAN,
+STATUS: **RATIFIED (Evan, PR #514 comment 5303556411,
+2026-08-15): U2 as scoped; the scaffold = MappedCurve retained as
+a description SOLELY for pre-body edges (narrow, tightly fenced);
+Seam folds in as drafted. Q3 (the authority record's home) adopted
+by dominant argument with Evan's pushback window open: per-edge
+KERNEL data — forced because tier-3's prefer-intrinsic enforcement
+(validate.rs's TransverseNotIntrinsic/TangentNotIntrinsic) must
+read the record replacing MappedCurve's negative space, and the
+naming layer is editor-core, invisible to the kernel; the same
+layering argument that moved ContactClass down. Scheduling
+(delegated): the migration is a post-M9 kernel candidate,
+revisited after M9-3 if the milestone has room.** This is M9-D (M9-PLAN,
 ratified #509): the ratification pass that must precede any code,
 sequenced before M9-3's seam minting hardens new edge
 descriptions. Substrate: fresh exploration 2026-08-15 (file:line
