@@ -861,7 +861,6 @@ pub fn split(
     for name in doc.appearance().keys() {
         classify(name)?;
     }
-    drop(classify);
     // The deterministic id remap: cut nodes in document order mint
     // part ids 0, 1, 2, … (D9 — two runs agree byte for byte).
     let node_map: NodeMap = doc
@@ -1166,7 +1165,6 @@ pub fn inline(
     for name in doc.appearance().keys() {
         classify(name)?;
     }
-    drop(classify);
     wrapped.sort();
     wrapped.dedup();
     // The id remap is precomputed from the mint counter: parameter
