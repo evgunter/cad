@@ -90,7 +90,7 @@ fn certify_seam(u: f64, carrier: &Curve3<f64>) -> Result<(), String> {
 
 fn start_column() -> geom_curves::NurbsCurve3<f64> {
     let Surface::Nurbs(p) = imported_wall() else {
-        unreachable!()
+        panic!("the imported wall is a described NURBS chart")
     };
     geom_brep::boundary_iso_u(p.as_ref(), false).unwrap()
 }

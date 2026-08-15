@@ -80,9 +80,33 @@ fn probe_refit_seam_refuses_typed() {
                 PLANT > eps,
                 "a displacement INSIDE ε_in must not be refused: {msg}"
             );
+            // The refusal is the ADOPTION verdict on the plant, and it
+            // carries the number that caught it: the declare-and-check
+            // lane's measured on-locus residual, which must exceed ε_in
+            // and be the plant's own order. A refusal from any later
+            // stage would mean the seam was adopted and something
+            // downstream objected — a different fact, and not this
+            // probe's.
+            let step_import::StepImportError::Adoption { attempts, .. } = &e else {
+                panic!("the plant must be caught at ADOPTION, not downstream: {msg}");
+            };
+            let measured = attempts.iter().find_map(|a| match a.refusal {
+                topo::EulerOpError::Certification {
+                    error:
+                        geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
+                            value,
+                            ..
+                        }),
+                } => Some(value),
+                _ => None,
+            });
+            let Some(measured) = measured else {
+                panic!("the refusal must carry the lane's measured bound: {attempts:?}");
+            };
             assert!(
-                !msg.is_empty(),
-                "refusal must be typed with a message: {msg}"
+                measured > eps && measured < 1e-6,
+                "the refusal's own number explains it: on-locus residual {measured:e} m \
+                 past ε_in {eps:e}, and of the plant's own order ({PLANT:e} m)"
             );
         }
         Ok(StepImport::Solid { body, .. }) => {

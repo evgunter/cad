@@ -619,9 +619,21 @@ fn nurbs_iso_derive<T: Decide>(
         // A SELECTION, checked: the full seam-class certification
         // follows every derivation.
         //
-        // An `Intersection` whose carrier lies on NO boundary column —
-        // an INTERIOR or DIAGONAL locus, the trimmed-NURBS/cut-loft
-        // lane — refuses typed and permanently (C5).
+        // **What the schedule selects is wider than what the seam class
+        // CERTIFIES, and deliberately so.** The certified inventory is
+        // FORWARD only: the class's parameter-map slack is metered
+        // against the identity map and its control hull against the
+        // boundary row's own ordering, so a carrier that traverses the
+        // chart's `v` backwards refuses at certification (the envelope)
+        // rather than charting. The backward candidates stay in the
+        // schedule because the honest answer for such a carrier is the
+        // image it actually has, judged by the certification — not a
+        // forward image that fits the class by construction and states
+        // the wrong traversal.
+        //
+        // An `Intersection` whose carrier traverses NEITHER boundary
+        // column under the chart's own parameterization refuses typed
+        // and permanently (C5).
         geom_brep::EdgeGeometry::Intersection { .. } => {
             if !matches!(carrier, geom_curves::Curve3::Nurbs(_)) {
                 return Err(refuse(
@@ -658,9 +670,11 @@ fn nurbs_iso_derive<T: Decide>(
             match deferred {
                 Some(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
                 None => Err(refuse(
-                    "an Intersection carrier on neither boundary column of this chart — \
-                     an INTERIOR or DIAGONAL intersection locus, which has no boundary-row \
-                     closed form (the trimmed-NURBS/cut-loft pcurve lane is that unit's)",
+                    "an Intersection carrier that traverses neither boundary column of this \
+                     chart under the chart's own parameterization: an INTERIOR or DIAGONAL \
+                     locus (the trimmed-NURBS/cut-loft pcurve lane is that unit's), or a \
+                     partial or reparameterized restatement of a column, which the \
+                     boundary-row closed form does not cover",
                 )),
             }
         }

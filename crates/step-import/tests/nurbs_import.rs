@@ -440,3 +440,61 @@ fn loft_prism_descriptions_land_in_the_native_classes() {
          MappedCurve, 4 promoted-wall cap rims under Intersection"
     );
 }
+
+/// **The IsoCurve rung reads the chart's own knot domain** (#327): the
+/// column an adopted `IsoCurve` names is `u` at an END of the wall
+/// payload's knot domain, never a `[0, 1]` literal.
+///
+/// The fixture states one stays-NURBS wall (`#111`) on `u ∈ [0, 3]`.
+/// That is an affine REPARAMETERIZATION — not one point of the solid
+/// moves, every seam carrier stays bitwise that wall's own boundary
+/// column, and the bitwise rung still answers for both of its seams —
+/// so the only thing that changes is where the chart says its
+/// boundaries are. The two adopted descriptions must therefore name
+/// `u = 0` and `u = 3`: under a `[0, 1]` literal the second one names
+/// an INTERIOR column of this chart, certification refuses it, and the
+/// seam falls to another rung (or the import dies).
+#[test]
+fn an_adopted_iso_column_is_a_knot_domain_end() {
+    let orig = common::fixture("loft_prism", "step");
+    let text = orig.replace(
+        "#111 = B_SPLINE_SURFACE_WITH_KNOTS('', 1, 2, ((#105, #106, #107), (#108, #109, \
+         #110)), .UNSPECIFIED., .U., .U., .U., (2, 2), (3, 3), (0.0, 1.0), (0.0, 1.0), \
+         .UNSPECIFIED.);",
+        "#111 = B_SPLINE_SURFACE_WITH_KNOTS('', 1, 2, ((#105, #106, #107), (#108, #109, \
+         #110)), .UNSPECIFIED., .U., .U., .U., (2, 2), (3, 3), (0.0, 3.0), (0.0, 1.0), \
+         .UNSPECIFIED.);",
+    );
+    assert_ne!(text, orig, "the reparameterization applied");
+    let step_import::StepImport::Solid { body, .. } =
+        import_step(&text, &ImportOptions::default()).expect("the reparameterized wall imports")
+    else {
+        panic!("loft_prism is a solid");
+    };
+    // The wall the reparameterization names, located by its DOMAIN so
+    // the row survives arena renumbering.
+    let (wall, _) = body
+        .surfaces()
+        .find(|(_, s)| match s {
+            geom_surfaces::Surface::Nurbs(n) => n.knots_u().domain() == (0.0, 3.0),
+            _ => false,
+        })
+        .expect("the reparameterized wall survives the import");
+    let mut columns: Vec<f64> = body
+        .curves()
+        .filter_map(|(_, geom)| match geom {
+            topo::CurveGeom::Certified(c) => match *c.description() {
+                geom_brep::EdgeGeometry::IsoCurve { surface, u, .. } if surface == wall => Some(u),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    columns.sort_by(f64::total_cmp);
+    assert_eq!(
+        columns,
+        vec![0.0, 3.0],
+        "both of the wall's seams adopt on ITS OWN knot-domain ends"
+    );
+    topo::validate_geometric(&body).expect("and the reparameterized body is valid at rest");
+}
