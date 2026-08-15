@@ -1139,3 +1139,355 @@ proptest! {
         validate_ok(&lowered);
     }
 }
+
+// ------------------------------------------------------------------
+// LIB-RESPELL §2c: the fused family's admissibility matrix, row by row.
+// Every ADMISSIBLE (site, state, mode) pair is exercised; inadmissible
+// pairs are missing impls (compile-time) and, at the wire, the
+// Transition class (path_program.rs).
+// ------------------------------------------------------------------
+
+use profile::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
+
+/// LEG rows `Sweep@Directed` / `ArcLen@Directed`: the endpoint-free
+/// pair are the arc analogs of `line(len)` — and `ArcLen { len }` IS
+/// `Sweep { angle: len / r }`, bit for bit.
+#[test]
+fn sweep_and_arclen_legs_agree_bitwise() {
+    let by_sweep = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0)
+        .unwrap()
+        .arc_to(Sweep {
+            r: 2.0,
+            side: ArcSide::Left,
+            angle: 0.8,
+        })
+        .unwrap()
+        .line_to(Start)
+        .map(pinned)
+        .unwrap();
+    let by_len = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0)
+        .unwrap()
+        .arc_to(ArcLen {
+            r: 2.0,
+            side: ArcSide::Left,
+            len: 1.6,
+        })
+        .unwrap()
+        .line_to(Start)
+        .map(pinned)
+        .unwrap();
+    assert_eq!(by_sweep.vertices.len(), by_len.vertices.len());
+    for (a, b) in by_sweep.vertices.iter().zip(by_len.vertices.iter()) {
+        assert_eq!(a.pos.x.to_bits(), b.pos.x.to_bits());
+        assert_eq!(a.pos.y.to_bits(), b.pos.y.to_bits());
+        assert_eq!(a.bulge.to_bits(), b.bulge.to_bits());
+    }
+    validate_lp(&by_sweep);
+}
+
+fn validate_lp(lp: &ProfileLoop<f64>) {
+    Profile::new(SketchPlane::xy(), vec![lp.clone()])
+        .validate(Tolerance::get())
+        .expect("the loop validates");
+}
+
+/// FUSED-INCOMING rows `Bulge@Point`, `Via@Point`, `Center@Point`: the
+/// endpoint-full modes author the incoming side and its anchor in one
+/// act; the anchor is a real on-path point INSIDE the emitted run (the
+/// trim extends past it into the corner), never a vertex.
+#[test]
+fn fused_point_incomings_author_their_anchor_on_path() {
+    // Bulge: the sagging arc (0,0)→(4,0), b = +0.25 (Ccw), filleted
+    // onto the northbound line x = 6 anchored at (6,3).
+    let bulge = Open
+        .at(p2(0.0, 0.0))
+        .arc_fillet(
+            Bulge {
+                p: p2(4.0, 0.0),
+                b: 0.25,
+            },
+            0.3,
+        )
+        .unwrap()
+        .at(p2(6.0, 3.0))
+        .unwrap()
+        .toward(0.0, 1.0)
+        .unwrap()
+        .line(2.0)
+        .unwrap()
+        .line_to(Start)
+        .map(pinned)
+        .unwrap();
+    validate_lp(&bulge);
+    // The authored anchor (4,0) lies ON the first emitted arc's carrier
+    // (it is interior to the run, not a vertex).
+    assert!(
+        !bulge
+            .vertices
+            .iter()
+            .any(|v| v.pos.x == 4.0 && v.pos.y == 0.0)
+    );
+
+    // Via and Center naming the SAME carrier (centre (2, 1.5) exact):
+    // the circle through (0,0), (2,−1), (4,0).
+    let via = Open
+        .at(p2(0.0, 0.0))
+        .arc_fillet(
+            Via {
+                q: p2(2.0, -1.0),
+                p: p2(4.0, 0.0),
+            },
+            0.3,
+        )
+        .unwrap()
+        .at(p2(4.0, 4.0))
+        .unwrap()
+        .toward(0.0, 1.0)
+        .unwrap()
+        .line(1.0)
+        .unwrap()
+        .line_to(Start)
+        .map(pinned)
+        .unwrap();
+    validate_lp(&via);
+    let center = Open
+        .at(p2(0.0, 0.0))
+        .arc_fillet(
+            Center {
+                c: p2(2.0, 1.5),
+                winding: profile::ArcSweep::Ccw,
+                p: p2(4.0, 0.0),
+            },
+            0.3,
+        )
+        .unwrap()
+        .at(p2(4.0, 4.0))
+        .unwrap()
+        .toward(0.0, 1.0)
+        .unwrap()
+        .line(1.0)
+        .unwrap()
+        .line_to(Start)
+        .map(pinned)
+        .unwrap();
+    validate_lp(&center);
+}
+
+/// FUSED-INCOMING rows `Sweep@Directed` / `ArcLen@Directed` (the
+/// tangent-departing incomings), bit-identical to each other, plus the
+/// far-end anchor ENDING an arc-incoming fillet's straight arrival.
+#[test]
+fn fused_tangent_incomings_and_the_far_end_arrival() {
+    let chain = |by_len: bool| {
+        let dir = Open.at(p2(0.0, 0.0)).angle(0.0).unwrap();
+        let opened = if by_len {
+            dir.arc_fillet(
+                ArcLen {
+                    r: 2.0,
+                    side: ArcSide::Left,
+                    len: 1.6,
+                },
+                0.25,
+            )
+        } else {
+            dir.arc_fillet(
+                Sweep {
+                    r: 2.0,
+                    side: ArcSide::Left,
+                    angle: 0.8,
+                },
+                0.25,
+            )
+        };
+        opened
+            .unwrap()
+            .toward(-1.0, 0.0)
+            .unwrap()
+            .to(p2(0.0, 3.0))
+            .unwrap()
+            .line_to(Start)
+            .map(pinned)
+            .unwrap()
+    };
+    let sweep = chain(false);
+    let len = chain(true);
+    for (a, b) in sweep.vertices.iter().zip(len.vertices.iter()) {
+        assert_eq!(a.pos.x.to_bits(), b.pos.x.to_bits());
+        assert_eq!(a.pos.y.to_bits(), b.pos.y.to_bits());
+    }
+    // The far-end anchor is a vertex, exactly as on straight chains.
+    assert!(
+        sweep
+            .vertices
+            .iter()
+            .any(|v| v.pos.x == 0.0 && v.pos.y == 3.0)
+    );
+    validate_lp(&sweep);
+}
+
+/// ARRIVAL rows `Radius` (both binder orders) and `Via` (interior):
+/// the Radius arrival derives its centre from the directed anchor; the
+/// binder ORDER cannot move a bit.
+#[test]
+fn radius_and_via_arrivals_complete_via_their_binders() {
+    let close_from = |on_arc: profile::OnArc<f64>| {
+        on_arc
+            .arc_fillet(
+                Radius {
+                    r: 1.0,
+                    side: ArcSide::Left,
+                },
+                0.25,
+            )
+            .unwrap()
+            .at(p2(1.2, 0.2))
+            .unwrap()
+            .toward(0.0, -1.0)
+            .unwrap()
+            .line(0.1)
+            .unwrap()
+            .line_to(Start)
+            .map(pinned)
+            .unwrap()
+    };
+    let entry = || Open.at(p2(0.0, 0.0)).toward(1.0, 0.0).unwrap();
+    // Radius arrival, anchor-first and director-first.
+    let a = close_from(
+        entry()
+            .fillet_arc(
+                0.25,
+                Radius {
+                    r: 1.0,
+                    side: ArcSide::Left,
+                },
+            )
+            .unwrap()
+            .at(p2(2.0, 1.5))
+            .toward(-1.0, 0.0)
+            .unwrap(),
+    );
+    let b = close_from(
+        entry()
+            .fillet_arc(
+                0.25,
+                Radius {
+                    r: 1.0,
+                    side: ArcSide::Left,
+                },
+            )
+            .unwrap()
+            .toward(-1.0, 0.0)
+            .unwrap()
+            .at(p2(2.0, 1.5))
+            .unwrap(),
+    );
+    for (va, vb) in a.vertices.iter().zip(b.vertices.iter()) {
+        assert_eq!(va.pos.x.to_bits(), vb.pos.x.to_bits());
+        assert_eq!(va.pos.y.to_bits(), vb.pos.y.to_bits());
+        assert_eq!(va.bulge.to_bits(), vb.bulge.to_bits());
+    }
+    validate_lp(&a);
+    // Via arrival: the SAME carrier named through a point on it.
+    let v = close_from(
+        entry()
+            .fillet_arc(
+                0.25,
+                Via {
+                    q: p2(3.0, 0.5),
+                    p: p2(2.0, 1.5),
+                },
+            )
+            .unwrap()
+            .toward(-1.0, 0.0)
+            .unwrap(),
+    );
+    validate_lp(&v);
+}
+
+/// ARRIVAL row `Via { q, p: Start }`: the via-completed CLOSE, and the
+/// SEAM fillet on a fused arc incoming (`.to(Start)` with a straight
+/// first side) — the two Start-targeting completions the family adds.
+#[test]
+fn via_start_close_and_the_arc_incoming_seam() {
+    let via_close = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0)
+        .unwrap()
+        .line(3.0)
+        .unwrap()
+        .fillet_arc(
+            0.25,
+            Via {
+                q: p2(2.5, 2.5),
+                p: Start,
+            },
+        )
+        .unwrap()
+        .toward(-0.2, -1.0)
+        .unwrap();
+    let via_close = pinned(via_close);
+    validate_lp(&via_close);
+
+    let seam = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0)
+        .unwrap()
+        .line(3.0)
+        .unwrap()
+        .angle(2.0)
+        .unwrap()
+        .arc_fillet(
+            Sweep {
+                r: 3.5,
+                side: ArcSide::Left,
+                angle: 1.9,
+            },
+            0.3,
+        )
+        .unwrap()
+        .to(Start)
+        .map(pinned)
+        .unwrap();
+    validate_lp(&seam);
+    // The seam arc closes the loop: joint 0 is declared.
+    assert!(seam.tangent_joints.contains(&0));
+}
+
+/// RAY EXTENSION (§2c round 10): bare `fillet(r)` directly on a leg
+/// end is `.tangent().fillet(r)`, bit for bit — the surviving ray
+/// piece is a genuine line leg, whatever leg came before.
+#[test]
+fn ray_extension_is_tangent_fillet_bitwise() {
+    let chain = |extend: bool| {
+        let leg = Open.at(p2(0.0, 0.0)).line_to(p2(3.0, 0.0)).unwrap();
+        let opened = if extend {
+            leg.fillet(0.5)
+        } else {
+            leg.tangent().fillet(0.5)
+        };
+        opened
+            .unwrap()
+            .at(p2(5.0, 3.0))
+            .unwrap()
+            .toward(0.0, 1.0)
+            .unwrap()
+            .line(1.0)
+            .unwrap()
+            .line_to(Start)
+            .map(pinned)
+            .unwrap()
+    };
+    let extended = chain(true);
+    let spelled = chain(false);
+    for (a, b) in extended.vertices.iter().zip(spelled.vertices.iter()) {
+        assert_eq!(a.pos.x.to_bits(), b.pos.x.to_bits());
+        assert_eq!(a.pos.y.to_bits(), b.pos.y.to_bits());
+        assert_eq!(a.bulge.to_bits(), b.bulge.to_bits());
+    }
+    assert_eq!(extended.tangent_joints, spelled.tangent_joints);
+    validate_lp(&extended);
+}

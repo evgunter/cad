@@ -128,8 +128,14 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
 ) -> Result<Dir<T>, PathError<T>> {
     let band = linear_band()?;
     let dir = carrier_tangent(anchor, centre, winding, band)?;
-    let (pending, _meta) =
+    let (pending, meta) =
         core.take_pending("arc-carrier fillet arrival without an opened fillet")?;
+    let merge = matches!(&pending, verbs::Pending::Ray(_))
+        && meta.by_tangent
+        && meta
+            .origin_incoming
+            .as_ref()
+            .is_some_and(|i| i.carrier.is_none());
     let trims = resolver(
         pending.side(),
         arc_fillet::FilletSide {
@@ -139,7 +145,7 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
         pending.radius(),
         Tolerance::get(),
     )?;
-    core.emit_fillet_in(&trims)?;
+    core.emit_fillet_in(&trims, merge)?;
     // The continuation rides the arrival carrier from `t2` by
     // construction, so the joint there IS a constructed tangency.
     core.emit_fillet_arc(&trims, true)?;
@@ -168,7 +174,13 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     // The arrival's END tangent is the carrier's tangent at the entry
     // point — the incoming half of the seam junction.
     let end_ang = carrier_tangent(start_pos, centre, winding, band)?;
-    let (pending, _meta) = core.take_pending("arc-carrier close without an opened fillet")?;
+    let (pending, meta) = core.take_pending("arc-carrier close without an opened fillet")?;
+    let merge = matches!(&pending, verbs::Pending::Ray(_))
+        && meta.by_tangent
+        && meta
+            .origin_incoming
+            .as_ref()
+            .is_some_and(|i| i.carrier.is_none());
     let trims = resolver(
         pending.side(),
         arc_fillet::FilletSide {
@@ -178,7 +190,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         pending.radius(),
         Tolerance::get(),
     )?;
-    core.emit_fillet_in(&trims)?;
+    core.emit_fillet_in(&trims, merge)?;
     let radius = (start_pos - centre).norm_squared().sqrt();
     if trims.fit_out == Sign::Positive {
         // The arrival still has carrier run left: the fillet arc is an

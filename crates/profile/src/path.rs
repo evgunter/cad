@@ -1422,7 +1422,7 @@ impl<T: Decide> Core<T> {
             carrier: arc_fillet::SideCarrier::Ray(arr_ang.unit),
         };
         let trims = (arc.resolver)(incoming, arrival, arc.radius, Tolerance::get())?;
-        self.emit_fillet_in(&trims)?;
+        self.emit_fillet_in(&trims, false)?;
         match kind {
             ArrivalKind::Seam => {
                 // The fillet arc IS the closing segment; the entry
@@ -1552,8 +1552,20 @@ impl<T: Decide> Core<T> {
         // carries a declared flag (a `.tangent()` ray, or a previous
         // fillet's arc end), §4 item 4 refuses carrier identity there.
         if trims.fit_in == Sign::Positive {
-            self.push_line(trims.t1)?;
-            self.declare_last();
+            if meta.by_tangent
+                && meta
+                    .origin_incoming
+                    .as_ref()
+                    .is_some_and(|i| i.carrier.is_none())
+            {
+                // Ray extension of a STRAIGHT leg: extend the leg
+                // itself (see `extend_leg_to`); the joint declared at
+                // the leg's end is the leg→arc tangency.
+                self.extend_leg_to(trims.t1)?;
+            } else {
+                self.push_line(trims.t1)?;
+                self.declare_last();
+            }
         } else if self.last_declared() {
             let adjacent = if meta.by_tangent {
                 meta.origin_incoming.as_ref().and_then(|inc| inc.carrier)
@@ -1608,9 +1620,14 @@ impl<T: Decide> Core<T> {
     /// reproduce the hand-authored loop to the bit. A `Zero` fit emits
     /// nothing and springs the arc off the last vertex, where §4 item 4
     /// refuses carrier identity against an already-declared neighbour.
-    fn emit_fillet_in(&mut self, t: &arc_fillet::ArcFilletTrims<T>) -> Result<(), PathError<T>> {
+    fn emit_fillet_in(
+        &mut self,
+        t: &arc_fillet::ArcFilletTrims<T>,
+        merge: bool,
+    ) -> Result<(), PathError<T>> {
         if t.fit_in == Sign::Positive {
             match t.in_arc {
+                None if merge => self.extend_leg_to(t.t1)?,
                 None => self.push_line(t.t1)?,
                 Some((centre, sweep)) => {
                     let head = self.head()?;
@@ -1626,13 +1643,36 @@ impl<T: Decide> Core<T> {
                     )?;
                 }
             }
-            self.declare_last();
+            if !(t.in_arc.is_none() && merge) {
+                self.declare_last();
+            }
         } else if self.last_declared()
             && let Some(adj) = self.last_arc
         {
             refuse_identical_carriers(&adj, &t.arc)?;
         }
         Ok(())
+    }
+
+    /// **§2c round 10 (ray extension after a STRAIGHT leg)**: the
+    /// surviving ray piece and the leg it extends share one carrier, so
+    /// emitting it as a separate segment would mint the collinear
+    /// neighbor §4 item 4 forbids — instead the leg's own end vertex
+    /// MOVES to the trim point (the §4 exemption, "extends one leg",
+    /// applied at emission). The leg's authored end stays on the final
+    /// path, interior to the extended segment, and the joint the
+    /// extension declared becomes the leg→fillet-arc tangency — exactly
+    /// what a hand author drawing the leg long would have written.
+    fn extend_leg_to(&mut self, t1: Point2<T>) -> Result<(), PathError<T>> {
+        match self.verts.last_mut() {
+            Some(v) => {
+                v.pos = t1;
+                Ok(())
+            }
+            None => Err(PathError::UnderdeterminedLeg {
+                site: "ray extension on an empty chain",
+            }),
+        }
     }
 
     /// **G2**: emits the fillet arc itself as a chain segment, declaring

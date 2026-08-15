@@ -431,6 +431,52 @@ fn lattice_violations_refuse_as_the_transition_class() {
         TipState::PlainPoint,
         Some(Verb::Circle),
     );
+    // §2c: an INADMISSIBLE (state, mode) pair is unrepresentable at the
+    // typed surface (a missing trait impl), so at the wire it is this
+    // same class. Sweep needs a tangent, which a bare Point lacks …
+    assert_transition(
+        &[
+            Step::At(a),
+            Step::ArcTo(profile::ArcData::Sweep {
+                r: 1.0,
+                side: profile::ArcSide::Left,
+                angle: 0.5,
+            }),
+        ],
+        1,
+        TipState::PlainPoint,
+        Some(Verb::ArcTo),
+    );
+    // … the entry fused verb admits Center alone (nothing else seeds) …
+    assert_transition(
+        &[Step::ArcFillet {
+            spec: profile::ArcData::Radius {
+                r: 1.0,
+                side: profile::ArcSide::Left,
+            },
+            radius: 0.25,
+        }],
+        0,
+        TipState::Entry,
+        Some(Verb::ArcFillet),
+    );
+    // … and Bulge is never an arrival (no chord exists there).
+    assert_transition(
+        &[
+            Step::At(a),
+            Step::Angle(0.0),
+            Step::FilletArc {
+                radius: 0.25,
+                spec: profile::ArcData::Bulge {
+                    target: Target::Point(p2(2.0, 2.0)),
+                    b: 0.5,
+                },
+            },
+        ],
+        2,
+        TipState::DirectedPlain,
+        Some(Verb::FilletArc),
+    );
 }
 
 /// A chain that never reaches `Start`, an empty program, and a step
