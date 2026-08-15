@@ -253,13 +253,17 @@ class TestDetectDeclareDoors(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "no_findings")
 
     def test_detection_answers_empty_for_separated_and_unevaluated(self):
+        # Separated in EVERY plane family: a pair sharing any plane —
+        # even with disjoint faces (two boxes side by side on one
+        # floor) — is honestly a finding, so "no findings" needs no
+        # shared carrier at all.
         doc = Doc()
         a = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-        b = slab(doc, (3 * m, 4 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        b = slab(doc, (3 * m, 4 * m), (5 * m, 6 * m), (2 * m, 3 * m))
         ev = evaluate(doc)
         self.assertEqual(ev.find_flush_candidates(a, b), [])
         # A node the evaluation does not know: empty, like `select`.
-        c = slab(doc, (6 * m, 7 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        c = slab(doc, (6 * m, 7 * m), (8 * m, 9 * m), (4 * m, 5 * m))
         self.assertEqual(ev.find_flush_candidates(a, c), [])
 
     def test_findings_are_values_with_opaque_names(self):
