@@ -206,3 +206,6 @@ fn every_suite_file_is_aggregated() {
 
 #[path = "m8_3_rational_volume.rs"]
 mod m8_3_rational_volume;
+
+#[path = "m8_4_intersection_iso.rs"]
+mod m8_4_intersection_iso;
