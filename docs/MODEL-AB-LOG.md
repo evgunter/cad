@@ -795,3 +795,11 @@ SINGLE** (39 is the next third — the banked same-model twin of the
 second v4 dual block). Reviewer fable, v4 ladder. Pre-draw fields
 logged at spec time: M / NUMERIC (docs/M8-4-SPEC.md; arm = the
 pre-v4 block M8-14 slot 2 draw). Row at merge.
+M8-F67 review ordinal fixed at dispatch (2026-08-15, PR #502 open,
+frozen head dd34cfd3): claimed through 37 (M8-4) + 1 = **38 →
+SINGLE** (39 is the next third — the banked same-model twin).
+Reviewer fable, v4 ladder. Pre-draw fields logged at spec time:
+M / NUMERIC (docs/M8-F67-SPEC.md; arm = block M8-15 slot 0, byte
+186). Row at merge. PR #502's sole red at dispatch is the
+main-owned #503 flake (reproduced on unmodified main by the
+implementer; fix in flight separately).
