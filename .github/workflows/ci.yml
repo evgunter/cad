@@ -553,6 +553,31 @@ jobs:
       # `-p <closure>` list in tier `closure`.
       - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets -- -D warnings
 
+  # RUSTDOC gate (#465): clippy is blind to rustdoc lints, so a doc
+  # comment can silently stop rendering with the gate green. The command,
+  # the flags, and the shrinking exclusion list all live in
+  # scripts/doc-gate.sh — one implementation, called by this job and by
+  # local-scripts/ci-local.sh, the ci-filter.py arrangement.
+  #
+  # NOT scoped by the filter, deliberately: the gate is a workspace-wide
+  # ratchet over a fixed crate set, and it runs in ~15 s cold, so scoping
+  # it to the change closure would trade the ratchet's meaning for no
+  # measurable time. It still respects the docs tier via run_build.
+  doc:
+    name: rustdoc (gate)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_build == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # see the identical step in the clippy job for the full reasoning.
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: scripts/doc-gate.sh
+
   # BUILD job, default features (see the build-once header comment above
   # the `env:` block). Compiles the scoped test binaries exactly once and
   # publishes them as a nextest archive; the `test` matrix below only RUNS.
