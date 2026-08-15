@@ -83,132 +83,186 @@ pub enum Target<T: Real> {
     Start,
 }
 
-/// One recorded authoring verb.
-///
-/// **Authored data only.** Every field is a number or a structural tag
-/// the author wrote; nothing derived is stored (the §2a exactness
-/// contract, item 1). In particular [`Step::ArcVia`] and
-/// [`Step::ArcCenter`] keep their points and winding — the bulge is
-/// re-derived at replay by the very binder the typed surface uses.
+/// **The unified arc-spec record (§2c rounds 5–9)**: one enum, every
+/// authored mode, exactly as the surface's standalone spec types
+/// authored it (record-as-you-lower keeps the mode; the VQ contracts
+/// rely on that distinctness). The typed surface consumes the
+/// standalone types ([`Radius`](super::Radius), [`Bulge`](super::Bulge),
+/// [`Via`](super::Via), [`Center`](super::Center),
+/// [`Sweep`](super::Sweep), [`ArcLen`](super::ArcLen)) through the
+/// state-keyed trait matrix; the wire and the replay driver match THIS
+/// enum exhaustively, which is the round-9 forcing argument for the
+/// whole family shipping at once.
 #[derive(Clone, Copy, Debug)]
-pub enum Step<T: Real> {
-    /// `.at(p)` — bind the position bit.
-    At(Point2<T>),
-    /// **G2** `.at_on(p, centre, winding)` — bind position AND the
-    /// carrier's tangent there, in one act.
-    AtOn {
-        /// The anchor, on the carrier.
-        p: Point2<T>,
-        /// The carrier's centre.
-        centre: Point2<T>,
-        /// Travel sense about the centre (structural).
-        winding: ArcSweep,
+pub enum ArcData<T: Real> {
+    /// `Radius { r, side }` — arrival mode: centre derived from the
+    /// arrival's directed anchor.
+    Radius {
+        /// The carrier radius.
+        r: T,
+        /// Which side of the tangent the centre sits on.
+        side: super::ArcSide,
     },
-    /// **LB10 route 3** `.at_toward(p, dx, dy)` — bind a STRAIGHT
-    /// arrival side's anchor AND its exact director, in one act, on a
-    /// fillet whose departure runs on an arc carrier.
-    AtToward {
-        /// The arrival side's anchor.
-        p: Point2<T>,
-        /// The director's x component (only the RATIO carries meaning).
-        dx: T,
-        /// The director's y component.
-        dy: T,
-    },
-    /// `.angle(θ)` — bind the outgoing direction as an angle (radians).
-    Angle(T),
-    /// **G1** `.toward(dx, dy)` — bind it as exact components. Only the
-    /// RATIO carries meaning (dimensionless).
-    Toward {
-        /// x component.
-        dx: T,
-        /// y component.
-        dy: T,
-    },
-    /// `.tangent()` — inherit the incoming end tangent and DECLARE the
-    /// joint tangent.
-    Tangent,
-    /// `.turn(δ)` — depart at the incoming tangent rotated by δ.
-    Turn(T),
-    /// `line(len)` — a straight leg of the given length along the bound
-    /// direction.
-    Line(T),
-    /// `line_to(target)` — a straight leg to the target.
-    LineTo(Target<T>),
-    /// `arc_to(target, bulge)` — an arc leg with an AUTHORED bulge.
-    ArcTo {
-        /// Where the leg ends.
+    /// `Bulge { p, b }` — chord-relative: leg targets and fused
+    /// incoming specs.
+    Bulge {
+        /// The authored endpoint.
         target: Target<T>,
         /// The authored bulge (M2 convention).
-        bulge: T,
+        b: T,
     },
-    /// `arc_via(via, target)` — the arc through an authored via-point.
-    /// The bulge is derived at replay.
-    ArcVia {
-        /// A point the arc passes through.
-        via: Point2<T>,
-        /// Where the leg ends.
+    /// `Via { q, p }` — the arc through an authored point.
+    Via {
+        /// The through-point.
+        q: Point2<T>,
+        /// The authored endpoint.
         target: Target<T>,
     },
-    /// `arc_center(centre, target, winding)` — the arc about an authored
-    /// centre. The bulge is derived at replay.
-    ArcCenter {
-        /// The arc's centre.
-        centre: Point2<T>,
-        /// Where the leg ends.
-        target: Target<T>,
-        /// Travel sense about the centre (structural).
+    /// `Center { c, winding, p }` — the arc about an authored centre.
+    Center {
+        /// The carrier centre.
+        c: Point2<T>,
+        /// Travel sense (structural).
         winding: ArcSweep,
+        /// The authored anchor/endpoint (`Start` closes).
+        target: Target<T>,
     },
-    /// `tangent_arc_to(target)` — the unique arc leaving tangent to the
-    /// bound direction and reaching the target.
+    /// `Sweep { r, side, angle }` — endpoint-free: tangent-departing,
+    /// endpoint derived.
+    Sweep {
+        /// The carrier radius.
+        r: T,
+        /// Which side of the departure tangent the centre sits on.
+        side: super::ArcSide,
+        /// The swept central angle, radians.
+        angle: T,
+    },
+    /// `ArcLen { r, side, len }` — endpoint-free, extent as arc length.
+    ArcLen {
+        /// The carrier radius.
+        r: T,
+        /// Which side of the departure tangent the centre sits on.
+        side: super::ArcSide,
+        /// The arc length, meters.
+        len: T,
+    },
+}
+
+/// **The step vocabulary and its projections, from ONE declaration**
+/// (§2c rounds 13–15, lean (a)): this macro is the single place a verb
+/// is declared, and it expands into the [`Step`] variant, the [`Verb`]
+/// tag, and the [`Step::verb`] mapping — so a missing verb is missing
+/// everywhere consistently, and an inconsistent pair is unwritable
+/// because there is no second place to write it. The driver arms in
+/// [`replay`]'s `apply` consume these variants; an arm the driver
+/// lacks is the SAFE direction (an over-strict transition refusal),
+/// which the differential suite pins (see the module docs).
+macro_rules! step_vocabulary {
+    ($( $(#[doc = $doc:literal])* $name:ident $({ $($(#[doc = $fdoc:literal])* $f:ident : $ft:ty),* $(,)? })? $(( $($tt:ty),* ))? ),* $(,)?) => {
+        /// One recorded authoring verb (**authored data only** — every
+        /// field is a number or structural tag the author wrote;
+        /// derived quantities are re-derived at replay by the same
+        /// binders the typed surface calls).
+        #[derive(Clone, Copy, Debug)]
+        pub enum Step<T: Real> {
+            $( $(#[doc = $doc])* $name $({ $($(#[doc = $fdoc])* $f : $ft),* })? $(( $($tt),* ))? ),*
+        }
+
+        /// Which verb a step names — the `verb` half of a
+        /// [`ReplayErrorKind::Transition`]. One value per [`Step`]
+        /// variant, projected from the same declaration.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub enum Verb {
+            $( $(#[doc = $doc])* $name ),*
+        }
+
+        impl<T: Real> Step<T> {
+            /// The verb this step names.
+            pub fn verb(&self) -> Verb {
+                match self {
+                    $( Step::$name { .. } => Verb::$name ),*
+                }
+            }
+        }
+    };
+}
+
+step_vocabulary! {
+    #[doc = " `.at(p)` — bind the position bit."]
+    At(Point2<T>),
+    #[doc = " `.angle(θ)` — bind the outgoing direction as an angle (radians)."]
+    Angle(T),
+    #[doc = " `.toward(dx, dy)` — bind it as exact components (ratio-only)."]
+    Toward {
+        #[doc = " x component."]
+        dx: T,
+        #[doc = " y component."]
+        dy: T,
+    },
+    #[doc = " `.tangent()` — inherit the incoming end tangent and DECLARE the joint."]
+    Tangent,
+    #[doc = " `.turn(δ)` — depart at the incoming tangent rotated by δ."]
+    Turn(T),
+    #[doc = " `line(len)` — a straight leg along the bound direction."]
+    Line(T),
+    #[doc = " `line_to(target)` — a straight leg to the target."]
+    LineTo(Target<T>),
+    #[doc = " `arc_to(spec)` — the sharp arc leg, every mode in the one"]
+    #[doc = " unified [`ArcData`] record (the retired `arc_to(p, b)` /"]
+    #[doc = " `arc_via` / `arc_center` doors record their modes here)."]
+    ArcTo(ArcData<T>),
+    #[doc = " `tangent_arc_to(target)` — the unique tangent arc to the target."]
     TangentArcTo(Target<T>),
-    /// `arc_continue(target)` — the declared-subdivision step
-    /// (LIB-SWITCH §5-1): continue the incoming ARC carrier to an
-    /// authored on-carrier point, minting a STRUCTURAL subdivision
-    /// vertex (a same-carrier identity, not a junction claim).
+    #[doc = " `arc_continue(target)` — the declared-subdivision step."]
     ArcContinue(Point2<T>),
-    /// `.fillet(r)` — open a fillet of radius `r`; the tip becomes an
-    /// unbound arrival side.
+    #[doc = " `.fillet(r)` — line incoming (the tangent ray), line arrival."]
     Fillet {
-        /// The fillet radius.
+        #[doc = " The fillet radius."]
         radius: T,
     },
-    /// **G1** `.to(anchor)` — the far-end anchor: bind the arrival
-    /// side's position and END the side there.
+    #[doc = " `fillet_arc(r, spec)` — line incoming, ARC arrival per the spec."]
+    FilletArc {
+        #[doc = " The fillet radius."]
+        radius: T,
+        #[doc = " The arc-arrival spec."]
+        spec: ArcData<T>,
+    },
+    #[doc = " `arc_fillet(spec, r)` — fused ARC incoming, line arrival."]
+    ArcFillet {
+        #[doc = " The fused incoming-arc spec."]
+        spec: ArcData<T>,
+        #[doc = " The fillet radius."]
+        radius: T,
+    },
+    #[doc = " `arc_fillet_arc(spec, r, spec₂)` — fused arc incoming, arc arrival."]
+    ArcFilletArc {
+        #[doc = " The fused incoming-arc spec."]
+        spec: ArcData<T>,
+        #[doc = " The fillet radius."]
+        radius: T,
+        #[doc = " The arc-arrival spec."]
+        spec2: ArcData<T>,
+    },
+    #[doc = " `.to(anchor)` — the far-end anchor: end the arrival side there."]
     FarEndTo(Point2<T>),
-    /// `.to(Start)` — the SEAM FILLET close: the fillet arc becomes the
-    /// closing segment and the entry vertex is retrimmed.
+    #[doc = " `.to(Start)` — the seam-fillet close (entry vertex retrimmed)."]
     CloseTo,
-    /// **G2** `.to_on(Start, centre, winding)` — close with the arrival
-    /// running on a carrier that differs from side 1's, so the entry
-    /// vertex is KEPT as a genuine two-carrier junction.
-    CloseToOn {
-        /// The arrival carrier's centre.
-        centre: Point2<T>,
-        /// Travel sense about the centre (structural).
-        winding: ArcSweep,
-    },
-    /// [`circle`](super::circle) — the one-step complete-loop program
-    /// form. A `Circle` program is exactly one step: it authors no seam,
-    /// binds nothing, and continues into nothing.
+    #[doc = " `circle(centre, r)` — the one-step complete-loop program form."]
     Circle {
-        /// The circle's centre.
+        #[doc = " The circle's centre."]
         centre: Point2<T>,
-        /// The circle's radius (must classify definitely positive).
+        #[doc = " The circle's radius (definitely positive)."]
         radius: T,
     },
-    /// [`circle_split`](super::circle_split) — the declared-subdivision
-    /// closed carrier: `n` equal arcs, first vertex at `phase`. Like
-    /// [`Step::Circle`] a one-step complete-loop program form.
+    #[doc = " `circle_split(centre, r, n, phase)` — the declared-subdivision closed carrier."]
     CircleSplit {
-        /// The carrier's centre.
+        #[doc = " The carrier's centre."]
         centre: Point2<T>,
-        /// The carrier's radius (must classify definitely positive).
+        #[doc = " The carrier's radius (definitely positive)."]
         radius: T,
-        /// The subdivision count (STRUCTURAL — a count, ≥ 2).
+        #[doc = " The subdivision count (STRUCTURAL, ≥ 2)."]
         n: usize,
-        /// The first vertex's angle from +x (continuous).
+        #[doc = " The first vertex's angle from +x (continuous)."]
         phase: T,
     },
 }
@@ -242,17 +296,14 @@ impl<T: Real> From<ClosedLoop<T>> for ProfileLoop<T> {
 
 /// Which lattice state the driver's tip was in — the `state` half of a
 /// [`ReplayErrorKind::Transition`], and the vocabulary the driver's
-/// match is written over.
-///
-/// Four lattice states (PATHS-DESIGN §5), with the marker flavors named
-/// where the surface distinguishes them, plus the two ends of a run:
-/// [`TipState::Entry`] (nothing authored yet) and [`TipState::Closed`]
-/// (the loop is finished).
+/// match is written over: the four lattice states (with the marker
+/// flavors the surface distinguishes), the §2c arc-arrival states, and
+/// the two ends of a run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TipState {
     /// Before the first verb — the `Open` value itself.
     Entry,
-    /// `Open` = {}: a fillet's freshly opened arrival side.
+    /// `Open` = {}: a fillet's freshly opened LINE arrival side.
     Open,
     /// `Angle` = {angle}: direction bound, position pending.
     Angle,
@@ -265,82 +316,21 @@ pub enum TipState {
     DirectedPlain,
     /// `Directed` = {both}, over a leg-end position.
     DirectedIncoming,
+    /// **§2c**: an interior arc arrival's tip (position + carrier
+    /// tangent bound; continuations are the fused verbs).
+    OnArc,
+    /// **§2c**: a `Radius` arrival awaiting both binders.
+    RadiusArrival,
+    /// **§2c**: a `Radius` arrival with its anchor bound.
+    RadiusArrivalAt,
+    /// **§2c**: a `Radius` arrival with its director bound.
+    RadiusArrivalDir,
+    /// **§2c**: a `Via` arrival awaiting its director.
+    ViaArrival,
+    /// **§2c**: a `Via` CLOSE awaiting its director.
+    ViaArrivalStart,
     /// The loop is closed; no verb may follow.
     Closed,
-}
-
-/// Which verb a step names — the `verb` half of a
-/// [`ReplayErrorKind::Transition`]. One value per [`Step`] variant.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Verb {
-    /// [`Step::At`].
-    At,
-    /// [`Step::AtOn`].
-    AtOn,
-    /// [`Step::AtToward`].
-    AtToward,
-    /// [`Step::Angle`].
-    Angle,
-    /// [`Step::Toward`].
-    Toward,
-    /// [`Step::Tangent`].
-    Tangent,
-    /// [`Step::Turn`].
-    Turn,
-    /// [`Step::Line`].
-    Line,
-    /// [`Step::LineTo`].
-    LineTo,
-    /// [`Step::ArcTo`].
-    ArcTo,
-    /// [`Step::ArcVia`].
-    ArcVia,
-    /// [`Step::ArcCenter`].
-    ArcCenter,
-    /// [`Step::TangentArcTo`].
-    TangentArcTo,
-    /// [`Step::ArcContinue`].
-    ArcContinue,
-    /// [`Step::Fillet`].
-    Fillet,
-    /// [`Step::FarEndTo`].
-    FarEndTo,
-    /// [`Step::CloseTo`].
-    CloseTo,
-    /// [`Step::CloseToOn`].
-    CloseToOn,
-    /// [`Step::Circle`].
-    Circle,
-    /// [`Step::CircleSplit`].
-    CircleSplit,
-}
-
-impl<T: Real> Step<T> {
-    /// The verb this step names.
-    pub fn verb(&self) -> Verb {
-        match self {
-            Step::At(_) => Verb::At,
-            Step::AtOn { .. } => Verb::AtOn,
-            Step::AtToward { .. } => Verb::AtToward,
-            Step::Angle(_) => Verb::Angle,
-            Step::Toward { .. } => Verb::Toward,
-            Step::Tangent => Verb::Tangent,
-            Step::Turn(_) => Verb::Turn,
-            Step::Line(_) => Verb::Line,
-            Step::LineTo(_) => Verb::LineTo,
-            Step::ArcTo { .. } => Verb::ArcTo,
-            Step::ArcVia { .. } => Verb::ArcVia,
-            Step::ArcCenter { .. } => Verb::ArcCenter,
-            Step::TangentArcTo(_) => Verb::TangentArcTo,
-            Step::ArcContinue(_) => Verb::ArcContinue,
-            Step::Fillet { .. } => Verb::Fillet,
-            Step::FarEndTo(_) => Verb::FarEndTo,
-            Step::CloseTo => Verb::CloseTo,
-            Step::CloseToOn { .. } => Verb::CloseToOn,
-            Step::Circle { .. } => Verb::Circle,
-            Step::CircleSplit { .. } => Verb::CircleSplit,
-        }
-    }
 }
 
 /// Why a replay refused, and at which step.
@@ -360,23 +350,26 @@ pub struct ReplayError<T: Real> {
 /// (PROFILES-V2 §V1).
 #[derive(Clone, Debug)]
 pub enum ReplayErrorKind<T: Real> {
-    /// **Lattice violation** — the step's verb is not well-typed at the
-    /// tip's state. No authoring surface can produce this: it is the
-    /// corrupt-or-hand-edited-file class, refused typed at the door.
+    /// **Lattice violation** — the step's verb (or its spec MODE, for
+    /// the ArcData-carrying steps: an inadmissible (state, mode) pair
+    /// is unrepresentable at the typed surface, so at the wire it is
+    /// this class) is not well-typed at the tip's state. No authoring
+    /// surface can produce this: it is the corrupt-or-hand-edited-file
+    /// class, refused typed at the door.
     ///
-    /// `verb` is `None` when the program simply ENDED in `state` without
-    /// a closing verb — a chain that never reaches [`Start`] is the same
-    /// lattice violation, one step past the end.
+    /// `verb` is `None` when the program simply ENDED in `state`
+    /// without a closing verb.
     Transition {
         /// The tip's lattice state.
         state: TipState,
-        /// The verb that is ill-typed there, or `None` for end-of-program.
+        /// The verb that is ill-typed there, or `None` for
+        /// end-of-program.
         verb: Option<Verb>,
     },
     /// **Geometry refusal** — the chain is well-typed but the geometry
-    /// refuses (a tangent junction, no fillet corner, a nonpositive leg).
-    /// This class CAN exist at rest: once arguments carry expressions,
-    /// whether a program elaborates depends on the parameter binding.
+    /// refuses. This class CAN exist at rest: once arguments carry
+    /// expressions, whether a program elaborates depends on the
+    /// parameter binding.
     Path(PathError<T>),
 }
 
@@ -430,12 +423,9 @@ impl<T: Real> From<PathError<T>> for ReplayErrorKind<T> {
 }
 
 /// The in-flight tip: one variant per lattice state, each carrying the
-/// TYPED [`PartialPath`] value for that state.
-///
-/// This is the drift-proofing construction. Because each variant holds
-/// the real typed value, a match arm on (variant, verb) can only call a
-/// binder that is well-typed at that state — there is no way to spell an
-/// illegal transition, and no binder body is duplicated.
+/// TYPED value for that state — a match arm on (variant, verb) can only
+/// call a binder that is well-typed at that state, so an illegal
+/// transition cannot be spelled and no binder body is duplicated.
 enum DynTip<T: Real> {
     Entry,
     Open(PartialPath<T, NoPos, NoAng>),
@@ -444,6 +434,12 @@ enum DynTip<T: Real> {
     DirectedPoint(PartialPath<T, HasPos<WithIncoming>, NoAng>),
     DirectedPlain(PartialPath<T, HasPos<Plain>, HasAng>),
     DirectedIncoming(PartialPath<T, HasPos<WithIncoming>, HasAng>),
+    OnArc(super::OnArc<T>),
+    RadiusArrival(super::family::RadiusArrival<T>),
+    RadiusArrivalAt(super::family::RadiusArrivalAt<T>),
+    RadiusArrivalDir(super::family::RadiusArrivalDir<T>),
+    ViaArrival(super::family::ViaArrival<T>),
+    ViaArrivalStart(super::family::ViaArrivalStart<T>),
 }
 
 impl<T: Real> DynTip<T> {
@@ -456,6 +452,12 @@ impl<T: Real> DynTip<T> {
             DynTip::DirectedPoint(_) => TipState::DirectedPoint,
             DynTip::DirectedPlain(_) => TipState::DirectedPlain,
             DynTip::DirectedIncoming(_) => TipState::DirectedIncoming,
+            DynTip::OnArc(_) => TipState::OnArc,
+            DynTip::RadiusArrival(_) => TipState::RadiusArrival,
+            DynTip::RadiusArrivalAt(_) => TipState::RadiusArrivalAt,
+            DynTip::RadiusArrivalDir(_) => TipState::RadiusArrivalDir,
+            DynTip::ViaArrival(_) => TipState::ViaArrival,
+            DynTip::ViaArrivalStart(_) => TipState::ViaArrivalStart,
         }
     }
 }
@@ -470,10 +472,15 @@ enum Applied<T: Real> {
 
 type Applying<T> = Result<Applied<T>, ReplayErrorKind<T>>;
 
-// The flavor-generic target dispatchers. Each is generic over exactly
-// the marker the surface itself is generic over, so every branch below
-// still names ONE binder — the one well-typed at that (state, verb,
-// target-kind).
+fn violation<T: Real>(state: TipState, verb: Verb) -> Applying<T> {
+    Err(ReplayErrorKind::Transition {
+        state,
+        verb: Some(verb),
+    })
+}
+
+// The flavor-generic target dispatchers. Each branch names exactly ONE
+// binder — the one well-typed at that (state, verb, target/mode).
 
 fn do_line_to<T: Decide, F: Flavor>(
     p: PartialPath<T, HasPos<F>, NoAng>,
@@ -485,39 +492,63 @@ fn do_line_to<T: Decide, F: Flavor>(
     }
 }
 
-fn do_arc_to<T: Decide, F: Flavor>(
+/// The sharp arc leg's mode dispatch: the endpoint-full modes from a
+/// Point tip (through the retired-name doors, which ARE these rows'
+/// surface until the consumer re-spell renames them).
+fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
     p: PartialPath<T, HasPos<F>, NoAng>,
-    t: Target<T>,
-    bulge: T,
+    spec: ArcData<T>,
+    state: TipState,
 ) -> Applying<T> {
-    match t {
-        Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.arc_to(q, bulge)?))),
-        Target::Start => Ok(Applied::Closed(p.arc_to(Start, bulge)?.loop_)),
-    }
-}
-
-fn do_arc_via<T: Decide, F: Flavor>(
-    p: PartialPath<T, HasPos<F>, NoAng>,
-    via: Point2<T>,
-    t: Target<T>,
-) -> Applying<T> {
-    match t {
-        Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.arc_via(via, q)?))),
-        Target::Start => Ok(Applied::Closed(p.arc_via(via, Start)?.loop_)),
-    }
-}
-
-fn do_arc_center<T: Decide, F: Flavor>(
-    p: PartialPath<T, HasPos<F>, NoAng>,
-    centre: Point2<T>,
-    t: Target<T>,
-    winding: ArcSweep,
-) -> Applying<T> {
-    match t {
-        Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_center(centre, q, winding)?,
+    match spec {
+        ArcData::Bulge {
+            target: Target::Point(q),
+            b,
+        } => Ok(Applied::Tip(DynTip::DirectedPoint(p.arc_to(q, b)?))),
+        ArcData::Bulge {
+            target: Target::Start,
+            b,
+        } => Ok(Applied::Closed(p.arc_to(Start, b)?.loop_)),
+        ArcData::Via {
+            q,
+            target: Target::Point(t),
+        } => Ok(Applied::Tip(DynTip::DirectedPoint(p.arc_via(q, t)?))),
+        ArcData::Via {
+            q,
+            target: Target::Start,
+        } => Ok(Applied::Closed(p.arc_via(q, Start)?.loop_)),
+        ArcData::Center {
+            c,
+            winding,
+            target: Target::Point(t),
+        } => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_center(c, t, winding)?,
         ))),
-        Target::Start => Ok(Applied::Closed(p.arc_center(centre, Start, winding)?.loop_)),
+        ArcData::Center {
+            c,
+            winding,
+            target: Target::Start,
+        } => Ok(Applied::Closed(p.arc_center(c, Start, winding)?.loop_)),
+        ArcData::Radius { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => {
+            violation(state, Verb::ArcTo)
+        }
+    }
+}
+
+/// The endpoint-free sharp legs from a Directed tip.
+fn do_arc_to_directed<T: ArcCarrierScalar, F: Flavor>(
+    p: PartialPath<T, HasPos<F>, HasAng>,
+    spec: ArcData<T>,
+    state: TipState,
+) -> Applying<T> {
+    match spec {
+        ArcData::Sweep { r, side, angle } => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(super::Sweep { r, side, angle })?,
+        ))),
+        ArcData::ArcLen { r, side, len } => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(super::ArcLen { r, side, len })?,
+        ))),
+        _ => violation(state, Verb::ArcTo),
     }
 }
 
@@ -539,11 +570,155 @@ fn do_fillet<T: Decide, F: Flavor>(p: PartialPath<T, HasPos<F>, HasAng>, radius:
     Ok(Applied::Tip(DynTip::Open(p.fillet(radius)?)))
 }
 
+/// Applies an ARC-ARRIVAL spec to an opened fillet — the shared second
+/// half of the `FilletArc` / `ArcFilletArc` rows, dispatching each mode
+/// to its own `ArrivalSpec` impl (the typed surface's exact code).
+fn do_arrival<T: ArcCarrierScalar>(
+    open: PartialPath<T, NoPos, NoAng>,
+    spec: ArcData<T>,
+    state: TipState,
+    verb: Verb,
+) -> Applying<T> {
+    use super::family::ArrivalSpec;
+    let core = open.core;
+    match spec {
+        ArcData::Center {
+            c,
+            winding,
+            target: Target::Point(p),
+        } => Ok(Applied::Tip(DynTip::OnArc(ArrivalSpec::apply(
+            core,
+            super::Center { c, winding, p },
+        )?))),
+        ArcData::Center {
+            c,
+            winding,
+            target: Target::Start,
+        } => Ok(Applied::Closed(
+            ArrivalSpec::apply(core, super::Center { c, winding, p: Start })?.loop_,
+        )),
+        ArcData::Radius { r, side } => Ok(Applied::Tip(DynTip::RadiusArrival(
+            ArrivalSpec::apply(core, super::Radius { r, side })?,
+        ))),
+        ArcData::Via {
+            q,
+            target: Target::Point(p),
+        } => Ok(Applied::Tip(DynTip::ViaArrival(ArrivalSpec::apply(
+            core,
+            super::Via { q, p },
+        )?))),
+        ArcData::Via {
+            q,
+            target: Target::Start,
+        } => Ok(Applied::Tip(DynTip::ViaArrivalStart(ArrivalSpec::apply(
+            core,
+            super::Via { q, p: Start },
+        )?))),
+        ArcData::Bulge { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => {
+            violation(state, verb)
+        }
+    }
+}
+
+/// The fused incoming from a POINT tip (the endpoint-full modes).
+fn do_fused_point<T: ArcCarrierScalar, F: Flavor>(
+    p: PartialPath<T, HasPos<F>, NoAng>,
+    spec: ArcData<T>,
+    radius: T,
+    state: TipState,
+    verb: Verb,
+) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
+    match spec {
+        ArcData::Bulge {
+            target: Target::Point(q),
+            b,
+        } => Ok(p.arc_fillet(super::Bulge { p: q, b }, radius)?),
+        ArcData::Via {
+            q,
+            target: Target::Point(t),
+        } => Ok(p.arc_fillet(super::Via { q, p: t }, radius)?),
+        ArcData::Center {
+            c,
+            winding,
+            target: Target::Point(t),
+        } => Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius)?),
+        _ => Err(ReplayErrorKind::Transition {
+            state,
+            verb: Some(verb),
+        }),
+    }
+}
+
+/// The fused incoming from a DIRECTED tip (the endpoint-free modes).
+fn do_fused_directed<T: ArcCarrierScalar, F: Flavor>(
+    p: PartialPath<T, HasPos<F>, HasAng>,
+    spec: ArcData<T>,
+    radius: T,
+    state: TipState,
+    verb: Verb,
+) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
+    match spec {
+        ArcData::Sweep { r, side, angle } => {
+            Ok(p.arc_fillet(super::Sweep { r, side, angle }, radius)?)
+        }
+        ArcData::ArcLen { r, side, len } => {
+            Ok(p.arc_fillet(super::ArcLen { r, side, len }, radius)?)
+        }
+        _ => Err(ReplayErrorKind::Transition {
+            state,
+            verb: Some(verb),
+        }),
+    }
+}
+
+/// The fused incoming from an [`super::OnArc`] tip.
+fn do_fused_on_arc<T: ArcCarrierScalar>(
+    p: super::OnArc<T>,
+    spec: ArcData<T>,
+    radius: T,
+    state: TipState,
+    verb: Verb,
+) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
+    match spec {
+        ArcData::Radius { r, side } => Ok(p.arc_fillet(super::Radius { r, side }, radius)?),
+        ArcData::Center {
+            c,
+            winding,
+            target: Target::Point(t),
+        } => Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius)?),
+        _ => Err(ReplayErrorKind::Transition {
+            state,
+            verb: Some(verb),
+        }),
+    }
+}
+
+/// The fused incoming at the ENTRY (`Center` alone can seed).
+fn do_fused_entry<T: ArcCarrierScalar>(
+    spec: ArcData<T>,
+    radius: T,
+) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
+    match spec {
+        ArcData::Center {
+            c,
+            winding,
+            target: Target::Point(t),
+        } => Ok(Open.arc_fillet(super::Center { c, winding, p: t }, radius)?),
+        _ => Err(ReplayErrorKind::Transition {
+            state: TipState::Entry,
+            verb: Some(Verb::ArcFillet),
+        }),
+    }
+}
+
 /// Applies ONE step to the tip.
 ///
-/// Every arm calls exactly one binder — the one the typestate makes
-/// well-typed at that state. The trailing wildcard is the lattice
-/// violation: a (state, verb) pair the authoring surface cannot spell.
+/// Every arm calls exactly one typed binder — the one well-typed at
+/// that state. The trailing wildcard is the lattice violation: a
+/// (state, verb) pair the authoring surface cannot spell. A missing
+/// arm is the SAFE direction (an over-strict refusal), pinned by the
+/// differential suite.
+#[allow(clippy::too_many_lines)]
 fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
     match (tip, step) {
         // --- Entry (nothing bound; the `Open` value itself) -----------
@@ -552,9 +727,22 @@ fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
         (DynTip::Entry, Step::Toward { dx, dy }) => {
             Ok(Applied::Tip(DynTip::Angle(Open.toward(dx, dy)?)))
         }
-        (DynTip::Entry, Step::AtOn { p, centre, winding }) => Ok(Applied::Tip(
-            DynTip::DirectedPlain(Open.at_on(p, centre, winding)?),
-        )),
+        (DynTip::Entry, Step::ArcFillet { spec, radius }) => {
+            Ok(Applied::Tip(DynTip::Open(do_fused_entry(spec, radius)?)))
+        }
+        (
+            DynTip::Entry,
+            Step::ArcFilletArc {
+                spec,
+                radius,
+                spec2,
+            },
+        ) => do_arrival(
+            do_fused_entry(spec, radius)?,
+            spec2,
+            TipState::Entry,
+            Verb::ArcFilletArc,
+        ),
         (DynTip::Entry, Step::Circle { centre, radius }) => {
             Ok(Applied::Closed(super::circle(centre, radius)?.loop_))
         }
@@ -570,22 +758,13 @@ fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
             super::circle_split(centre, radius, n, phase)?.loop_,
         )),
 
-        // --- Open = {} (a fillet's freshly opened arrival side) -------
+        // --- Open = {} (a fillet's freshly opened LINE arrival) -------
         (DynTip::Open(p0), Step::At(p)) => Ok(Applied::Tip(DynTip::PlainPoint(p0.at(p)?))),
         (DynTip::Open(p0), Step::Angle(theta)) => Ok(Applied::Tip(DynTip::Angle(p0.angle(theta)?))),
         (DynTip::Open(p0), Step::Toward { dx, dy }) => {
             Ok(Applied::Tip(DynTip::Angle(p0.toward(dx, dy)?)))
         }
-        (DynTip::Open(p0), Step::AtOn { p, centre, winding }) => Ok(Applied::Tip(
-            DynTip::DirectedPlain(p0.at_on(p, centre, winding)?),
-        )),
-        (DynTip::Open(p0), Step::AtToward { p, dx, dy }) => Ok(Applied::Tip(
-            DynTip::DirectedPlain(p0.at_toward(p, dx, dy)?),
-        )),
         (DynTip::Open(p0), Step::CloseTo) => Ok(Applied::Closed(p0.to(Start)?.loop_)),
-        (DynTip::Open(p0), Step::CloseToOn { centre, winding }) => {
-            Ok(Applied::Closed(p0.to_on(Start, centre, winding)?.loop_))
-        }
 
         // --- Angle = {angle} ------------------------------------------
         (DynTip::Angle(p0), Step::At(p)) => Ok(Applied::Tip(DynTip::DirectedPlain(p0.at(p)?))),
@@ -601,16 +780,31 @@ fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
             Ok(Applied::Tip(DynTip::DirectedPlain(p0.toward(dx, dy)?)))
         }
         (DynTip::PlainPoint(p0), Step::LineTo(t)) => do_line_to(p0, t),
-        (DynTip::PlainPoint(p0), Step::ArcTo { target, bulge }) => do_arc_to(p0, target, bulge),
-        (DynTip::PlainPoint(p0), Step::ArcVia { via, target }) => do_arc_via(p0, via, target),
+        (DynTip::PlainPoint(p0), Step::ArcTo(spec)) => {
+            do_arc_to_point(p0, spec, TipState::PlainPoint)
+        }
+        (DynTip::PlainPoint(p0), Step::ArcFillet { spec, radius }) => {
+            Ok(Applied::Tip(DynTip::Open(do_fused_point(
+                p0,
+                spec,
+                radius,
+                TipState::PlainPoint,
+                Verb::ArcFillet,
+            )?)))
+        }
         (
             DynTip::PlainPoint(p0),
-            Step::ArcCenter {
-                centre,
-                target,
-                winding,
+            Step::ArcFilletArc {
+                spec,
+                radius,
+                spec2,
             },
-        ) => do_arc_center(p0, centre, target, winding),
+        ) => do_arrival(
+            do_fused_point(p0, spec, radius, TipState::PlainPoint, Verb::ArcFilletArc)?,
+            spec2,
+            TipState::PlainPoint,
+            Verb::ArcFilletArc,
+        ),
 
         // --- Point = {position}, directed flavor (a leg end) ----------
         (DynTip::DirectedPoint(p0), Step::Angle(theta)) => {
@@ -629,24 +823,185 @@ fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
         (DynTip::DirectedPoint(p0), Step::ArcContinue(p)) => {
             Ok(Applied::Tip(DynTip::DirectedPoint(p0.arc_continue(p)?)))
         }
-        (DynTip::DirectedPoint(p0), Step::ArcTo { target, bulge }) => do_arc_to(p0, target, bulge),
-        (DynTip::DirectedPoint(p0), Step::ArcVia { via, target }) => do_arc_via(p0, via, target),
+        (DynTip::DirectedPoint(p0), Step::ArcTo(spec)) => {
+            do_arc_to_point(p0, spec, TipState::DirectedPoint)
+        }
+        // §2c round 10: RAY EXTENSION — bare fillet directly on a leg end.
+        (DynTip::DirectedPoint(p0), Step::Fillet { radius }) => {
+            Ok(Applied::Tip(DynTip::Open(p0.fillet(radius)?)))
+        }
+        (DynTip::DirectedPoint(p0), Step::FilletArc { radius, spec }) => do_arrival(
+            p0.fillet(radius)?,
+            spec,
+            TipState::DirectedPoint,
+            Verb::FilletArc,
+        ),
+        (DynTip::DirectedPoint(p0), Step::ArcFillet { spec, radius }) => {
+            Ok(Applied::Tip(DynTip::Open(do_fused_point(
+                p0,
+                spec,
+                radius,
+                TipState::DirectedPoint,
+                Verb::ArcFillet,
+            )?)))
+        }
         (
             DynTip::DirectedPoint(p0),
-            Step::ArcCenter {
-                centre,
-                target,
-                winding,
+            Step::ArcFilletArc {
+                spec,
+                radius,
+                spec2,
             },
-        ) => do_arc_center(p0, centre, target, winding),
+        ) => do_arrival(
+            do_fused_point(
+                p0,
+                spec,
+                radius,
+                TipState::DirectedPoint,
+                Verb::ArcFilletArc,
+            )?,
+            spec2,
+            TipState::DirectedPoint,
+            Verb::ArcFilletArc,
+        ),
 
         // --- Directed = {both} ----------------------------------------
         (DynTip::DirectedPlain(p0), Step::Line(len)) => do_line(p0, len),
         (DynTip::DirectedPlain(p0), Step::Fillet { radius }) => do_fillet(p0, radius),
         (DynTip::DirectedPlain(p0), Step::TangentArcTo(t)) => do_tangent_arc_to(p0, t),
+        (DynTip::DirectedPlain(p0), Step::ArcTo(spec)) => {
+            do_arc_to_directed(p0, spec, TipState::DirectedPlain)
+        }
+        (DynTip::DirectedPlain(p0), Step::FilletArc { radius, spec }) => do_arrival(
+            p0.fillet(radius)?,
+            spec,
+            TipState::DirectedPlain,
+            Verb::FilletArc,
+        ),
+        (DynTip::DirectedPlain(p0), Step::ArcFillet { spec, radius }) => {
+            Ok(Applied::Tip(DynTip::Open(do_fused_directed(
+                p0,
+                spec,
+                radius,
+                TipState::DirectedPlain,
+                Verb::ArcFillet,
+            )?)))
+        }
+        (
+            DynTip::DirectedPlain(p0),
+            Step::ArcFilletArc {
+                spec,
+                radius,
+                spec2,
+            },
+        ) => do_arrival(
+            do_fused_directed(
+                p0,
+                spec,
+                radius,
+                TipState::DirectedPlain,
+                Verb::ArcFilletArc,
+            )?,
+            spec2,
+            TipState::DirectedPlain,
+            Verb::ArcFilletArc,
+        ),
         (DynTip::DirectedIncoming(p0), Step::Line(len)) => do_line(p0, len),
         (DynTip::DirectedIncoming(p0), Step::Fillet { radius }) => do_fillet(p0, radius),
         (DynTip::DirectedIncoming(p0), Step::TangentArcTo(t)) => do_tangent_arc_to(p0, t),
+        (DynTip::DirectedIncoming(p0), Step::ArcTo(spec)) => {
+            do_arc_to_directed(p0, spec, TipState::DirectedIncoming)
+        }
+        (DynTip::DirectedIncoming(p0), Step::FilletArc { radius, spec }) => do_arrival(
+            p0.fillet(radius)?,
+            spec,
+            TipState::DirectedIncoming,
+            Verb::FilletArc,
+        ),
+        (DynTip::DirectedIncoming(p0), Step::ArcFillet { spec, radius }) => {
+            Ok(Applied::Tip(DynTip::Open(do_fused_directed(
+                p0,
+                spec,
+                radius,
+                TipState::DirectedIncoming,
+                Verb::ArcFillet,
+            )?)))
+        }
+        (
+            DynTip::DirectedIncoming(p0),
+            Step::ArcFilletArc {
+                spec,
+                radius,
+                spec2,
+            },
+        ) => do_arrival(
+            do_fused_directed(
+                p0,
+                spec,
+                radius,
+                TipState::DirectedIncoming,
+                Verb::ArcFilletArc,
+            )?,
+            spec2,
+            TipState::DirectedIncoming,
+            Verb::ArcFilletArc,
+        ),
+
+        // --- OnArc (§2c: an interior arc arrival's tip) ---------------
+        (DynTip::OnArc(p0), Step::ArcFillet { spec, radius }) => {
+            Ok(Applied::Tip(DynTip::Open(do_fused_on_arc(
+                p0,
+                spec,
+                radius,
+                TipState::OnArc,
+                Verb::ArcFillet,
+            )?)))
+        }
+        (
+            DynTip::OnArc(p0),
+            Step::ArcFilletArc {
+                spec,
+                radius,
+                spec2,
+            },
+        ) => do_arrival(
+            do_fused_on_arc(p0, spec, radius, TipState::OnArc, Verb::ArcFilletArc)?,
+            spec2,
+            TipState::OnArc,
+            Verb::ArcFilletArc,
+        ),
+
+        // --- The arc-arrival builders (§2c) ---------------------------
+        (DynTip::RadiusArrival(p0), Step::At(p)) => {
+            Ok(Applied::Tip(DynTip::RadiusArrivalAt(p0.at(p))))
+        }
+        (DynTip::RadiusArrival(p0), Step::Angle(theta)) => {
+            Ok(Applied::Tip(DynTip::RadiusArrivalDir(p0.angle(theta))))
+        }
+        (DynTip::RadiusArrival(p0), Step::Toward { dx, dy }) => {
+            Ok(Applied::Tip(DynTip::RadiusArrivalDir(p0.toward(dx, dy)?)))
+        }
+        (DynTip::RadiusArrivalAt(p0), Step::Angle(theta)) => {
+            Ok(Applied::Tip(DynTip::OnArc(p0.angle(theta)?)))
+        }
+        (DynTip::RadiusArrivalAt(p0), Step::Toward { dx, dy }) => {
+            Ok(Applied::Tip(DynTip::OnArc(p0.toward(dx, dy)?)))
+        }
+        (DynTip::RadiusArrivalDir(p0), Step::At(p)) => {
+            Ok(Applied::Tip(DynTip::OnArc(p0.at(p)?)))
+        }
+        (DynTip::ViaArrival(p0), Step::Angle(theta)) => {
+            Ok(Applied::Tip(DynTip::OnArc(p0.angle(theta)?)))
+        }
+        (DynTip::ViaArrival(p0), Step::Toward { dx, dy }) => {
+            Ok(Applied::Tip(DynTip::OnArc(p0.toward(dx, dy)?)))
+        }
+        (DynTip::ViaArrivalStart(p0), Step::Angle(theta)) => {
+            Ok(Applied::Closed(p0.angle(theta)?.loop_))
+        }
+        (DynTip::ViaArrivalStart(p0), Step::Toward { dx, dy }) => {
+            Ok(Applied::Closed(p0.toward(dx, dy)?.loop_))
+        }
 
         // --- everything else is a lattice violation -------------------
         (other, unusable) => Err(ReplayErrorKind::Transition {
@@ -657,28 +1012,16 @@ fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
 }
 
 /// **The replay driver**: elaborates a recorded program into the loop it
-/// describes, through the typed binders and every check they carry.
-///
-/// This is the only path from steps to geometry. It is the dynamic
-/// mirror of the typestate lattice: every transition the markers forbid
-/// statically is a typed [`ReplayErrorKind::Transition`] here, and every
-/// geometric refusal the binders raise is a
-/// [`ReplayErrorKind::Path`] — see those variants for why the two
-/// classes are deliberately different.
+/// describes, through the typed binders and every check they carry —
+/// the only path from steps to geometry, and the dynamic mirror of the
+/// typestate lattice (every transition the markers forbid statically is
+/// a typed [`ReplayErrorKind::Transition`] here).
 ///
 /// A chain program must end in a `Start`-targeting verb; a
-/// [`Step::Circle`] program is exactly one step. Anything else — an
-/// empty program, a chain that stops mid-air, a step after the close —
-/// is the transition class.
-///
-/// **The program replay re-records is DISCARDED.** Driving the binders
-/// makes them record too, so the closing verb hands back a
-/// [`ClosedLoop`] whose `program` is a re-derivation of the input; this
-/// function keeps only `loop_`. That is right for today's consumers (the
-/// input program is the authority, and the round-trip is pinned by the
-/// differential suite rather than trusted). A caller that wants the
-/// re-recorded program — a canonicalizer, say — needs a variant that
-/// returns the pair; none exists yet because nothing needs one.
+/// [`Step::Circle`] program is exactly one step. **The program replay
+/// re-records is DISCARDED** — the input program is the authority, and
+/// the round-trip is pinned by the differential suite rather than
+/// trusted.
 ///
 /// # Errors
 ///

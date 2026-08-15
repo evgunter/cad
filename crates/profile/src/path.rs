@@ -294,7 +294,7 @@ use core::marker::PhantomData;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tolerance, Vec2};
 
 use crate::k_stats::decide;
-use crate::path::program::{ClosedLoop, Step, Target};
+use crate::path::program::{ArcData as ArcSpecData, ClosedLoop, Step, Target};
 use crate::sugar::{
     ArcSweep, LineFilletTrims, TrimRefusal, bulge_from_center, bulge_from_via,
     line_line_fillet_trims,
@@ -314,7 +314,12 @@ pub mod program;
 pub(crate) mod verbs;
 
 pub use arc_fillet::ArcCarrierScalar;
-pub use family::OnArc;
+pub use family::{
+    ArrivalSpec, OnArc, OnArcIncoming, PointIncoming, RadiusArrival, RadiusArrivalAt,
+    RadiusArrivalDir, TangentIncoming, ViaArrival, ViaArrivalStart,
+};
+#[doc(hidden)]
+pub use verbs::{DirectedPoint, TangentArcLeg};
 pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
 
 // ------------------------------------------------------------------
@@ -606,6 +611,15 @@ pub enum PathError<T: Real> {
         /// The refused radius, meters (scalar-typed payload).
         radius: T,
     },
+    /// **§2c**: a fused/endpoint-free arc spec whose authored datum
+    /// names no arc — a zero bulge (the arc degenerates to its chord),
+    /// or a sweep angle / arc length that is not definitely positive.
+    /// Classified through the funnel (`path_arc_bulge` /
+    /// `path_arc_sweep`).
+    DegenerateArcSpec {
+        /// The refused authored datum (bulge, angle, or length).
+        value: T,
+    },
     /// A [`circle_split`] subdivision count below 2: one vertex cannot
     /// carry a full turn (bulge = tan(θ/4) diverges at θ = 2π), so the
     /// smallest declared subdivision of a closed carrier is two arcs —
@@ -805,6 +819,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  or bring the corner's carriers closer together"
             ),
             Self::ArcCarrierSpelling { site } => write!(f, "{site}"),
+            Self::DegenerateArcSpec { value } => write!(
+                f,
+                "this arc spec's authored datum ({value:?}) names no arc: a zero bulge \
+                 degenerates to the chord (author a line), and a sweep angle or arc length \
+                 must be definitely positive"
+            ),
             Self::SeamRetrimsArcFirstSide => write!(
                 f,
                 "a seam fillet retrims the entry vertex, so it needs a straight first side; \
@@ -978,8 +998,9 @@ struct TangentArcGeom<T: Real> {
 /// that genuinely needs a number. Every ray construction reads
 /// [`Dir::unit`]; nothing rebuilds a ray from [`Dir::ang`], so
 /// exactness survives every hop it can.
+#[doc(hidden)]
 #[derive(Clone, Copy, Debug)]
-struct Dir<T: Real> {
+pub struct Dir<T: Real> {
     /// The direction's angle, radians.
     ang: T,
     /// The unit ray — exact when the director authored components.
@@ -1082,8 +1103,9 @@ struct PendingMeta<T: Real> {
 /// (mirroring the raw chain builder's emission verb-for-verb), the
 /// declared joints, the entry pose (the [`Start`] value), and the
 /// pending fillet, if a side is open.
+#[doc(hidden)]
 #[derive(Clone, Debug)]
-struct Core<T: Real> {
+pub struct Core<T: Real> {
     verts: Vec<ProfileVertex<T>>,
     tangent: Vec<usize>,
     start_pos: Option<Point2<T>>,
@@ -2756,10 +2778,10 @@ pub trait ArcTarget<T: Decide, F: Flavor>: sealed::Sealed {
 impl<T: Decide, F: Flavor> ArcTarget<T, F> for Point2<T> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
     fn arc_from(mut path: PartialPath<T, HasPos<F>, NoAng>, target: Self, bulge: T) -> Self::Out {
-        path.core.record(Step::ArcTo {
+        path.core.record(Step::ArcTo(ArcSpecData::Bulge {
             target: Target::Point(target),
-            bulge,
-        });
+            b: bulge,
+        }));
         path.arc_to_point(target, bulge)
     }
 }
@@ -2767,10 +2789,10 @@ impl<T: Decide, F: Flavor> ArcTarget<T, F> for Point2<T> {
 impl<T: Decide, F: Flavor> ArcTarget<T, F> for Start {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
     fn arc_from(mut path: PartialPath<T, HasPos<F>, NoAng>, _target: Self, bulge: T) -> Self::Out {
-        path.core.record(Step::ArcTo {
+        path.core.record(Step::ArcTo(ArcSpecData::Bulge {
             target: Target::Start,
-            bulge,
-        });
+            b: bulge,
+        }));
         path.arc_to_start(bulge)
     }
 }
@@ -2796,10 +2818,10 @@ impl<T: Decide, F: Flavor> ArcViaTarget<T, F> for Point2<T> {
         via: Point2<T>,
         target: Self,
     ) -> Self::Out {
-        path.core.record(Step::ArcVia {
-            via,
+        path.core.record(Step::ArcTo(ArcSpecData::Via {
+            q: via,
             target: Target::Point(target),
-        });
+        }));
         let bulge = path.arc_via_bulge(via, target)?;
         path.arc_to_point(target, bulge)
     }
@@ -2812,10 +2834,10 @@ impl<T: Decide, F: Flavor> ArcViaTarget<T, F> for Start {
         via: Point2<T>,
         _target: Self,
     ) -> Self::Out {
-        path.core.record(Step::ArcVia {
-            via,
+        path.core.record(Step::ArcTo(ArcSpecData::Via {
+            q: via,
             target: Target::Start,
-        });
+        }));
         let bulge = path.arc_via_bulge(via, path.start_target()?)?;
         path.arc_to_start(bulge)
     }
@@ -2844,11 +2866,11 @@ impl<T: Decide, F: Flavor> ArcCenterTarget<T, F> for Point2<T> {
         target: Self,
         winding: ArcSweep,
     ) -> Self::Out {
-        path.core.record(Step::ArcCenter {
-            centre: center,
-            target: Target::Point(target),
+        path.core.record(Step::ArcTo(ArcSpecData::Center {
+            c: center,
             winding,
-        });
+            target: Target::Point(target),
+        }));
         let bulge = path.arc_center_bulge(center, target, winding)?;
         path.arc_to_point(target, bulge)
     }
@@ -2862,11 +2884,11 @@ impl<T: Decide, F: Flavor> ArcCenterTarget<T, F> for Start {
         _target: Self,
         winding: ArcSweep,
     ) -> Self::Out {
-        path.core.record(Step::ArcCenter {
-            centre: center,
-            target: Target::Start,
+        path.core.record(Step::ArcTo(ArcSpecData::Center {
+            c: center,
             winding,
-        });
+            target: Target::Start,
+        }));
         let bulge = path.arc_center_bulge(center, path.start_target()?, winding)?;
         path.arc_to_start(bulge)
     }

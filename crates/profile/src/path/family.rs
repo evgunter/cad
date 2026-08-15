@@ -31,13 +31,11 @@ use geom_core::{Point2, Real, Sign, Tolerance};
 
 use super::arc_fillet::{self, ArcCarrierScalar, carrier_tangent};
 use super::program::{ArcData, ClosedLoop, Step, Target};
-use super::verbs::{
-    self, ArcLen, ArcSide, Center, DirectedPoint, Pending, PendingArc, Radius, Sweep, Via,
-};
+use super::verbs::{self, ArcLen, Center, DirectedPoint, PendingArc, Radius, Sweep, Via};
 use super::{
     ArcData as SegArc, Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open,
-    PartialPath, PathError, PendingMeta, Plain, Start, Tip, WithIncoming, in_state,
-    junction_check, leg_end_tip, linear_band,
+    PartialPath, PathError, PendingMeta, Start, Tip, WithIncoming, in_state, junction_check,
+    leg_end_tip, linear_band,
 };
 
 // ------------------------------------------------------------------
@@ -85,7 +83,7 @@ pub(super) fn open_ray<T: geom_core::Decide>(
     verbs::gate_positive("path_fillet_radius", radius, band, |r| {
         PathError::NonpositiveFilletRadius { radius: r }
     })?;
-    core.pending = Some(Pending::Ray(verbs::PendingRay {
+    core.pending = Some(verbs::Pending::Ray(verbs::PendingRay {
         origin: at,
         dir,
         radius,
@@ -107,7 +105,7 @@ pub(super) fn open_arc<T: ArcCarrierScalar>(
     verbs::gate_positive("path_fillet_radius", arc.radius, band, |r| {
         PathError::NonpositiveFilletRadius { radius: r }
     })?;
-    core.pending = Some(Pending::Arc(arc));
+    core.pending = Some(verbs::Pending::Arc(arc));
     core.pending_meta = Some(PendingMeta {
         by_tangent: false,
         origin_incoming: None,
@@ -231,6 +229,8 @@ pub trait ArrivalSpec<T: ArcCarrierScalar> {
     #[doc(hidden)]
     fn apply(core: Core<T>, spec: Self) -> Self::Out;
     #[doc(hidden)]
+    fn fail(err: PathError<T>) -> Self::Out;
+    #[doc(hidden)]
     fn to_wire(&self) -> ArcData<T>;
 }
 
@@ -254,6 +254,9 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Point2<T>> {
             dir,
         })
     }
+    fn fail(err: PathError<T>) -> Self::Out {
+        Err(err)
+    }
     fn to_wire(&self) -> ArcData<T> {
         ArcData::Center {
             c: self.c,
@@ -272,6 +275,9 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Start> {
         let Start = spec.p;
         resolve_arc_close(&mut core, arc_fillet::resolve::<T>, spec.c, spec.winding)
     }
+    fn fail(err: PathError<T>) -> Self::Out {
+        Err(err)
+    }
     fn to_wire(&self) -> ArcData<T> {
         ArcData::Center {
             c: self.c,
@@ -285,13 +291,16 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Start> {
 /// directed anchor, so the mode leaves BOTH binders free — the builder
 /// awaits `.at(p)` and a director, in either order.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Radius<T> {
-    type Out = RadiusArrival<T>;
+    type Out = Result<RadiusArrival<T>, PathError<T>>;
     fn apply(core: Core<T>, spec: Self) -> Self::Out {
-        RadiusArrival {
+        Ok(RadiusArrival {
             core,
             spec,
             resolver: arc_fillet::resolve::<T>,
-        }
+        })
+    }
+    fn fail(err: PathError<T>) -> Self::Out {
+        Err(err)
     }
     fn to_wire(&self) -> ArcData<T> {
         ArcData::Radius {
@@ -305,14 +314,17 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Radius<T> {
 /// DIRECTED anchor, so the anchor is the spec's own `p` and only the
 /// director is left free.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Via<T, Point2<T>> {
-    type Out = ViaArrival<T>;
+    type Out = Result<ViaArrival<T>, PathError<T>>;
     fn apply(core: Core<T>, spec: Self) -> Self::Out {
-        ViaArrival {
+        Ok(ViaArrival {
             core,
             q: spec.q,
             p: spec.p,
             resolver: arc_fillet::resolve::<T>,
-        }
+        })
+    }
+    fn fail(err: PathError<T>) -> Self::Out {
+        Err(err)
     }
     fn to_wire(&self) -> ArcData<T> {
         ArcData::Via {
@@ -325,13 +337,16 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Via<T, Point2<T>> {
 /// `Via { q, p: Start }`: the via-completed CLOSE — anchor at the
 /// entry, director pending, `q` picks the carrier.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Via<T, Start> {
-    type Out = ViaArrivalStart<T>;
+    type Out = Result<ViaArrivalStart<T>, PathError<T>>;
     fn apply(core: Core<T>, spec: Self) -> Self::Out {
-        ViaArrivalStart {
+        Ok(ViaArrivalStart {
             core,
             q: spec.q,
             resolver: arc_fillet::resolve::<T>,
-        }
+        })
+    }
+    fn fail(err: PathError<T>) -> Self::Out {
+        Err(err)
     }
     fn to_wire(&self) -> ArcData<T> {
         ArcData::Via {
@@ -596,18 +611,26 @@ fn bulge_carrier<T: geom_core::Decide>(
     at: Point2<T>,
     p: Point2<T>,
     b: T,
-) -> (Point2<T>, crate::sugar::ArcSweep, Dir<T>) {
-    let data = super::arc_carrier(at, p, b);
-    let winding = if b > T::zero() {
-        crate::sugar::ArcSweep::Ccw
-    } else {
-        crate::sugar::ArcSweep::Cw
+) -> Result<(Point2<T>, crate::sugar::ArcSweep, Dir<T>), PathError<T>> {
+    let band = linear_band()?;
+    // The bulge's sign IS the travel sense, so the classification that
+    // gates it degenerate also decides the winding — one funnel row.
+    let winding = match crate::k_stats::decide(
+        "path_arc_bulge",
+        geom_core::Margin::of(b),
+        band,
+    ) {
+        Ok(geom_core::Sign::Positive) => crate::sugar::ArcSweep::Ccw,
+        Ok(geom_core::Sign::Negative) => crate::sugar::ArcSweep::Cw,
+        Ok(geom_core::Sign::Zero) => return Err(PathError::DegenerateArcSpec { value: b }),
+        Err(source) => return Err(PathError::Escalated { source }),
     };
+    let data = super::arc_carrier(at, p, b);
     let d = p - at;
     let gamma = d.y.atan2(d.x);
     let theta = b.atan() * T::from_f64(4.0);
     let start = Dir::from_angle(gamma - theta / T::from_f64(2.0));
-    (data.center, winding, start)
+    Ok((data.center, winding, start))
 }
 
 impl<T: ArcCarrierScalar> PointIncoming<T> for verbs::Bulge<T, Point2<T>> {
@@ -620,7 +643,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for verbs::Bulge<T, Point2<T>> {
         verbs::gate_positive("path_arc_chord", chord, band, |c| {
             PathError::DegenerateArcChord { chord: c }
         })?;
-        let (c, w, start) = bulge_carrier(at, self.p, self.b);
+        let (c, w, start) = bulge_carrier(at, self.p, self.b)?;
         Ok((c, w, start, self.p))
     }
     fn to_wire(&self) -> ArcData<T> {
@@ -655,7 +678,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
             Err(source) => return Err(PathError::Escalated { source }),
         }
         let b = crate::sugar::bulge_from_via(at, self.q, self.p);
-        let (c, w, start) = bulge_carrier(at, self.p, b);
+        let (c, w, start) = bulge_carrier(at, self.p, b)?;
         Ok((c, w, start, self.p))
     }
     fn to_wire(&self) -> ArcData<T> {
@@ -759,5 +782,411 @@ impl<T: ArcCarrierScalar> OnArcIncoming<T> for Center<T, Point2<T>> {
             winding: self.winding,
             target: Target::Point(self.p),
         }
+    }
+}
+
+// ------------------------------------------------------------------
+// The fused verbs, per consumed state.
+// ------------------------------------------------------------------
+
+impl Open {
+    /// **§2c, the entry fused verb**: authors the ENTRY side ON an arc
+    /// carrier — the spec's `p` is the entry anchor, the direction is
+    /// the carrier's tangent there (derived, never authored) — and
+    /// opens a fillet of `radius` off that carrier, line arrival.
+    ///
+    /// This is the retired `Open.at_on(p, c, w).fillet(r)` pair, fused
+    /// into the one authoring act the axiom demands.
+    pub fn arc_fillet<T: ArcCarrierScalar>(
+        self,
+        spec: Center<T, Point2<T>>,
+        radius: T,
+    ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
+        let mut core = Core::empty();
+        core.record(Step::ArcFillet {
+            spec: PointIncoming::to_wire(&spec),
+            radius,
+        });
+        entry_arc_open(&mut core, &spec, radius)?;
+        Ok(in_state(
+            core,
+            Tip {
+                pos: None,
+                ang: None,
+                ang_by_tangent: false,
+            },
+        ))
+    }
+
+    /// The entry fused verb with an ARC arrival: `arc_fillet` whose
+    /// arrival is the spec₂ mode's own completion (a `Center` interior
+    /// anchor resolves at the verb; `Center { p: Start }` would close a
+    /// two-sided loop; `Radius`/`Via` await their binders).
+    pub fn arc_fillet_arc<T: ArcCarrierScalar, S2: ArrivalSpec<T>>(
+        self,
+        spec: Center<T, Point2<T>>,
+        radius: T,
+        spec2: S2,
+    ) -> S2::Out {
+        let mut core = Core::empty();
+        core.record(Step::ArcFilletArc {
+            spec: PointIncoming::to_wire(&spec),
+            radius,
+            spec2: spec2.to_wire(),
+        });
+        if let Err(e) = entry_arc_open(&mut core, &spec, radius) {
+            return S2::fail(e);
+        }
+        S2::apply(core, spec2)
+    }
+}
+
+/// The entry fused verbs' shared incoming half: seed the chain at the
+/// spec's anchor, bind the entry direction to the carrier tangent
+/// there, open the arc-incoming fillet.
+fn entry_arc_open<T: ArcCarrierScalar>(
+    core: &mut Core<T>,
+    spec: &Center<T, Point2<T>>,
+    radius: T,
+) -> Result<(), PathError<T>> {
+    let band = linear_band()?;
+    let dir = carrier_tangent(spec.p, spec.c, spec.winding, band)?;
+    core.seed(spec.p);
+    core.start_ang = Some(dir);
+    open_arc(
+        core,
+        PendingArc {
+            anchor: spec.p,
+            centre: spec.c,
+            winding: spec.winding,
+            radius,
+            resolver: arc_fillet::resolve::<T>,
+        },
+    )
+}
+
+impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
+    /// **§2c**: line incoming, ARC arrival — consumes the directed tip
+    /// (the incoming side is its ray) and opens/resolves the arc
+    /// arrival per the spec mode's own completion story.
+    pub fn fillet_arc<S: ArrivalSpec<T>>(mut self, radius: T, spec: S) -> S::Out {
+        self.core.record(Step::FilletArc {
+            radius,
+            spec: spec.to_wire(),
+        });
+        let (at, ang) = match self.dep() {
+            Ok(v) => v,
+            Err(e) => return S::fail(e),
+        };
+        if let Err(e) = open_ray(
+            &mut self.core,
+            at,
+            ang,
+            radius,
+            self.tip.ang_by_tangent,
+            self.tip.pos.as_ref().and_then(|p| p.incoming),
+        ) {
+            return S::fail(e);
+        }
+        S::apply(self.core, spec)
+    }
+
+    /// **§2c**: fused ARC incoming from a directed tip — the
+    /// endpoint-free pair departs tangentially and derives its
+    /// endpoint, which becomes the incoming side's anchor; the fillet
+    /// of `radius` trims off its far end. Line arrival.
+    pub fn arc_fillet<S: TangentIncoming<T>>(
+        mut self,
+        spec: S,
+        radius: T,
+    ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
+        self.core.record(Step::ArcFillet {
+            spec: spec.to_wire(),
+            radius,
+        });
+        self.tangent_arc_open(&spec, radius)?;
+        Ok(in_state(
+            self.core,
+            Tip {
+                pos: None,
+                ang: None,
+                ang_by_tangent: false,
+            },
+        ))
+    }
+
+    /// **§2c**: fused arc incoming AND arc arrival.
+    pub fn arc_fillet_arc<Si: TangentIncoming<T>, S2: ArrivalSpec<T>>(
+        mut self,
+        spec: Si,
+        radius: T,
+        spec2: S2,
+    ) -> S2::Out {
+        self.core.record(Step::ArcFilletArc {
+            spec: spec.to_wire(),
+            radius,
+            spec2: spec2.to_wire(),
+        });
+        if let Err(e) = self.tangent_arc_open(&spec, radius) {
+            return S2::fail(e);
+        }
+        S2::apply(self.core, spec2)
+    }
+
+    /// The tangent-departing fused incoming: derive the leg, run the §4
+    /// item 4 identity check against an inherited departure's carrier,
+    /// and open the arc-incoming fillet. Nothing is emitted here — the
+    /// trimmed run is the resolution's emission, from the chain's head.
+    fn tangent_arc_open<S: TangentIncoming<T>>(
+        &mut self,
+        spec: &S,
+        radius: T,
+    ) -> Result<(), PathError<T>> {
+        let (at, ang) = self.dep()?;
+        let leg = spec.leg(DirectedPoint { at, dir: ang })?;
+        if self.tip.ang_by_tangent
+            && let Some(inc) = self.tip.pos.as_ref().and_then(|pd| pd.incoming.as_ref())
+            && let Some(prev) = &inc.carrier
+        {
+            super::refuse_identical_carriers(
+                prev,
+                &SegArc {
+                    center: leg.centre,
+                    radius: (at - leg.centre).norm_squared().sqrt(),
+                },
+            )?;
+        }
+        open_arc(
+            &mut self.core,
+            PendingArc {
+                anchor: leg.end,
+                centre: leg.centre,
+                winding: leg.winding,
+                radius,
+                resolver: arc_fillet::resolve::<T>,
+            },
+        )
+    }
+
+    /// **§2c**: the endpoint-free SHARP arc legs — `arc_to(spec)` with
+    /// `Sweep`/`ArcLen`, the arc analogs of `line(len)`: tangent
+    /// departure (already junction-checked when the director bound),
+    /// endpoint derived, terminating at a directed point.
+    pub fn arc_to<S: TangentIncoming<T>>(
+        mut self,
+        spec: S,
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+        self.core.record(Step::ArcTo(spec.to_wire()));
+        let (at, ang) = self.dep()?;
+        self.refuse_off_carrier(
+            "a side bound on an arc carrier runs ALONG it: continue with .fillet(r), which \
+             trims the carrier run into the next corner, or close with \
+             .to_on(Start, centre, winding) — a tangent-departing leg would leave the carrier",
+        )?;
+        let leg = spec.leg(DirectedPoint { at, dir: ang })?;
+        let carrier = SegArc {
+            center: leg.centre,
+            radius: (at - leg.centre).norm_squared().sqrt(),
+        };
+        if self.tip.ang_by_tangent
+            && let Some(inc) = self.tip.pos.as_ref().and_then(|pd| pd.incoming.as_ref())
+            && let Some(prev) = &inc.carrier
+        {
+            super::refuse_identical_carriers(prev, &carrier)?;
+        }
+        self.core.push_arc(leg.end, leg.bulge, carrier)?;
+        let arm = carrier.radius.min(leg.chord);
+        Ok(in_state(
+            self.core,
+            leg_end_tip(leg.end, leg.end_dir, arm, Some(carrier)),
+        ))
+    }
+}
+
+impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
+    /// **§2c**: fused arc incoming from a POINT tip — the endpoint-full
+    /// modes author the incoming side's carrier and its anchor `p` in
+    /// one act; on a leg-end tip the derived start tangent is
+    /// junction-checked exactly as the sharp legs check theirs. Line
+    /// arrival.
+    pub fn arc_fillet<S: PointIncoming<T>>(
+        mut self,
+        spec: S,
+        radius: T,
+    ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
+        self.core.record(Step::ArcFillet {
+            spec: spec.to_wire(),
+            radius,
+        });
+        self.point_arc_open(&spec, radius)?;
+        Ok(in_state(
+            self.core,
+            Tip {
+                pos: None,
+                ang: None,
+                ang_by_tangent: false,
+            },
+        ))
+    }
+
+    /// **§2c**: fused arc incoming (point modes) AND arc arrival.
+    pub fn arc_fillet_arc<Si: PointIncoming<T>, S2: ArrivalSpec<T>>(
+        mut self,
+        spec: Si,
+        radius: T,
+        spec2: S2,
+    ) -> S2::Out {
+        self.core.record(Step::ArcFilletArc {
+            spec: spec.to_wire(),
+            radius,
+            spec2: spec2.to_wire(),
+        });
+        if let Err(e) = self.point_arc_open(&spec, radius) {
+            return S2::fail(e);
+        }
+        S2::apply(self.core, spec2)
+    }
+
+    fn point_arc_open<S: PointIncoming<T>>(
+        &mut self,
+        spec: &S,
+        radius: T,
+    ) -> Result<(), PathError<T>> {
+        let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
+            site: "fused arc incoming on a tip without a position",
+        })?;
+        let at = pos.at;
+        let (centre, winding, start, anchor) = spec.carrier(at)?;
+        if let Some(inc) = &pos.incoming {
+            junction_check(inc, start, false)?;
+        }
+        if self.core.start_ang.is_none() {
+            self.core.start_ang = Some(start);
+        }
+        open_arc(
+            &mut self.core,
+            PendingArc {
+                anchor,
+                centre,
+                winding,
+                radius,
+                resolver: arc_fillet::resolve::<T>,
+            },
+        )
+    }
+}
+
+impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
+    /// **§2c round 10 — RAY EXTENSION**: bare `fillet(r)` directly on a
+    /// leg end. The incoming contact sits on the TANGENT RAY ahead of
+    /// the directed point, as new path: the surviving ray piece is a
+    /// genuine line leg extending from the leg's end (declared tangent
+    /// by construction — the ray IS the tangent), whatever leg came
+    /// before. Line arrival.
+    pub fn fillet(mut self, radius: T) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
+        self.core.record(Step::Fillet { radius });
+        self.ray_extend(radius)?;
+        Ok(in_state(
+            self.core,
+            Tip {
+                pos: None,
+                ang: None,
+                ang_by_tangent: false,
+            },
+        ))
+    }
+
+    /// Ray extension with an ARC arrival (`fillet_arc` off a leg end).
+    pub fn fillet_arc<S: ArrivalSpec<T>>(mut self, radius: T, spec: S) -> S::Out {
+        self.core.record(Step::FilletArc {
+            radius,
+            spec: spec.to_wire(),
+        });
+        if let Err(e) = self.ray_extend(radius) {
+            return S::fail(e);
+        }
+        S::apply(self.core, spec)
+    }
+
+    /// The shared ray-extension opening: inherit the incoming end
+    /// tangent, declare the (constructed) tangency at the leg end, and
+    /// open the ray-incoming fillet there — `.tangent().fillet(r)`'s
+    /// exact emissions, in one verb.
+    fn ray_extend(&mut self, radius: T) -> Result<(), PathError<T>> {
+        let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
+            site: "ray extension on a tip without a position",
+        })?;
+        let at = pos.at;
+        let inc = pos.incoming.ok_or(PathError::UnderdeterminedLeg {
+            site: "ray extension on a tip without incoming data",
+        })?;
+        self.core.declare_last();
+        open_ray(&mut self.core, at, inc.ang, radius, true, Some(inc))
+    }
+}
+
+impl<T: ArcCarrierScalar> OnArc<T> {
+    /// **§2c**: the fused verb off an [`OnArc`] tip — the one place the
+    /// carrier run into the next trim is emitted (from the chain's
+    /// head, along the carrier the spec authors). Line arrival.
+    pub fn arc_fillet<S: OnArcIncoming<T>>(
+        mut self,
+        spec: S,
+        radius: T,
+    ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
+        self.core.record(Step::ArcFillet {
+            spec: spec.to_wire(),
+            radius,
+        });
+        let (anchor, centre, winding) = spec.side(self.dp())?;
+        open_arc(
+            &mut self.core,
+            PendingArc {
+                anchor,
+                centre,
+                winding,
+                radius,
+                resolver: arc_fillet::resolve::<T>,
+            },
+        )?;
+        Ok(in_state(
+            self.core,
+            Tip {
+                pos: None,
+                ang: None,
+                ang_by_tangent: false,
+            },
+        ))
+    }
+
+    /// The [`OnArc`] fused verb with an ARC arrival.
+    pub fn arc_fillet_arc<Si: OnArcIncoming<T>, S2: ArrivalSpec<T>>(
+        mut self,
+        spec: Si,
+        radius: T,
+        spec2: S2,
+    ) -> S2::Out {
+        self.core.record(Step::ArcFilletArc {
+            spec: spec.to_wire(),
+            radius,
+            spec2: spec2.to_wire(),
+        });
+        let (anchor, centre, winding) = match spec.side(self.dp()) {
+            Ok(v) => v,
+            Err(e) => return S2::fail(e),
+        };
+        if let Err(e) = open_arc(
+            &mut self.core,
+            PendingArc {
+                anchor,
+                centre,
+                winding,
+                radius,
+                resolver: arc_fillet::resolve::<T>,
+            },
+        ) {
+            return S2::fail(e);
+        }
+        S2::apply(self.core, spec2)
     }
 }

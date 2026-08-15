@@ -47,11 +47,11 @@ pub(crate) type ArcResolver<T> =
 /// A directed point: position + tangent — the §2 binding bits and
 /// NOTHING else. The kernel's one incoming-state currency.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct DirectedPoint<T: Real> {
+pub struct DirectedPoint<T: Real> {
     /// The bound position.
     pub at: Point2<T>,
     /// The bound (or intrinsic incoming) direction.
-    pub dir: Dir<T>,
+    pub dir: super::Dir<T>,
 }
 
 /// An opened fillet whose incoming side is the tangent RAY of the
@@ -186,7 +186,7 @@ pub struct Bulge<T, Tgt> {
 /// anchor (tangent-at-anchor circle through `q` — determined) and a
 /// bare POINT tip (three points); underdetermines a bare anchor.
 #[derive(Clone, Copy, Debug)]
-pub struct Via<T, Tgt> {
+pub struct Via<T: Real, Tgt> {
     /// A point the arc passes through.
     pub q: Point2<T>,
     /// The authored endpoint (or `Start` to close).
@@ -198,7 +198,7 @@ pub struct Via<T, Tgt> {
 /// `at_on` was); `Center@Directed` is EXCLUDED — the bound direction
 /// would have to value-match the derived tangent (§2c round 6).
 #[derive(Clone, Copy, Debug)]
-pub struct Center<T, Tgt> {
+pub struct Center<T: Real, Tgt> {
     /// The carrier centre.
     pub c: Point2<T>,
     /// Travel sense about the centre (structural).
@@ -288,18 +288,14 @@ pub(crate) fn via_carrier<T: Decide>(
     let across = d.dot(n);
     // The signed offset of q from the tangent LINE, meters — zero means
     // no tangent circle reaches q (the collinear class).
-    match decide("path_arc_via_offset", Margin::of(across), band) {
+    let winding = match decide("path_arc_via_offset", Margin::of(across), band) {
         Ok(Sign::Zero) => return Err(PathError::ArcViaCollinear { offset: across }),
-        Ok(_) => {}
+        Ok(Sign::Positive) => ArcSweep::Ccw,
+        Ok(Sign::Negative) => ArcSweep::Cw,
         Err(source) => return Err(PathError::Escalated { source }),
-    }
+    };
     let t = d.norm_squared() / (T::from_f64(2.0) * across);
     let centre = dp.at + n * t;
-    let winding = if across > T::zero() {
-        ArcSweep::Ccw
-    } else {
-        ArcSweep::Cw
-    };
     Ok((centre, winding))
 }
 
@@ -309,7 +305,7 @@ pub(crate) fn via_carrier<T: Decide>(
 /// the side's travel sense, and the leg's bulge tan(angle/4) signed by
 /// the side. Everything closed-form; the swept angle is gated
 /// definitely positive (`path_arc_sweep`).
-pub(crate) struct TangentArcLeg<T: Real> {
+pub struct TangentArcLeg<T: Real> {
     /// The derived endpoint.
     pub end: Point2<T>,
     /// The derived carrier centre.
@@ -334,8 +330,8 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
     gate_positive("path_arc_center_radius", r, band, |radius| {
         PathError::DegenerateArcCenter { radius }
     })?;
-    gate_positive("path_arc_sweep", angle, band, |chord| {
-        PathError::DegenerateArcChord { chord }
+    gate_positive("path_arc_sweep", angle, band, |value| {
+        PathError::DegenerateArcSpec { value }
     })?;
     let sgn = side.sign::<T>();
     let n = Vec2::new(-dp.dir.unit.y, dp.dir.unit.x);
