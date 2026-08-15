@@ -333,3 +333,22 @@ Neither blocks anything today; both are named so the workarounds are
 visible as workarounds. The `tan(π/8)` meridian in `diefillet.rs`
 carries a pointer back to this entry.
 
+
+## Parallel slate opened (2026-08-15, Evan's ask)
+
+With M8-4 implementing, three parallel tracks opened: (1) #415
+re-sequenced from ride-the-next-unit to its own delegated fix
+(crate-disjoint, root cause = the geom-core all.rs aggregation vs
+process-global tolerance init); (2) the #214 F6/F7 unit — substrate
+verified the audit's line numbers stale, one row FALSE
+(trim_containment is metered since M6-3), F7's rate-margin k-linted
+against the metre floor in the wrong units, and F7 + both census F6
+interval_forward sites to be the SAME quantity (speed_lower_bound)
+handled three ways; binding spec docs/M8-F67-SPEC.md, scoped OUT of
+M8-4's active regions (azimuth_arm residue → named follow-up).
+**Block M8-15 drawn (v4, size 4): byte 186 → fable position 2**;
+slot 0 = M8-F67 (OPUS; difficulty M / NUMERIC pre-logged). (3) the
+D2 group-union design conversation (recipe-layer; F4 coupling,
+naming provenance shape, schema-bump claim discipline) — substrate
+running, writeup to follow for Evan's sign-off; D1 (revolve
+emitter) queued behind it under the M8-5 adoption precedent.
