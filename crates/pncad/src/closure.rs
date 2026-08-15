@@ -83,12 +83,12 @@
 //! - `step_import`: `StepImportError`, `AdoptionAttempt` **[2]**,
 //!   `AdoptionCandidate` **[2]**
 //! - `editor_core`: `NodeError`/`NodeErrorKind`, `EditError`,
-//!   `NamingError`, `ResolveError`, `HitTestError`, `EvalError`,
+//!   `NamingError`, `DuplicateName`, `ResolveError`, `HitTestError`, `EvalError`,
 //!   `DimensionError`, `PersistError`, `SnapshotError`, `MetaError`,
 //!   `MetaVersionError`, `ResolutionFailure` **[2]**,
 //!   `persist::MigrationError` **[2]**
 //!
-//! **Result: the property holds, with two stated exceptions (below),
+//! **Result: the property holds, with one stated exception (below),
 //! and it required zero kernel edits.** The `SurfaceKind` leak was
 //! never a missing type — it was a gap in one crate's re-export list,
 //! and a façade that re-exports the owning crates closes the class
@@ -100,7 +100,7 @@
 //! lives in a *public* module, so each is nameable through `pncad` —
 //! a longer path, never a second crate.
 //!
-//! # The two exceptions, stated
+//! # The exception, stated
 //!
 //! Honesty is worth more here than a clean claim:
 //!
@@ -113,16 +113,19 @@
 //!    today; a consumer who writes schema migrations needs that crate
 //!    directly. If the bindings unit ever exposes migrations, this is
 //!    the decision to revisit.
-//! 2. **`editor_core`'s `DuplicateName`** is a `pub` type in a
-//!    *private* module, surfaced only as the error of a public
-//!    method's return type. It is unnameable from anywhere — including
-//!    from its own crate — so no façade can fix it. A caller can
-//!    obtain and match the value but cannot write its path. That is a
-//!    kernel wart, reported rather than papered over.
 //!
-//! Neither exception involves `bvh` (nothing in any public error
-//! payload references it, which is what justifies leaving it interior)
-//! or any other unreachable kernel type.
+//! **Retired (#234):** `editor_core`'s `DuplicateName` — the error of
+//! `NameTable::insert`/`insert_tied` — used to be a second exception:
+//! a `pub` type in a *private* module, obtainable and matchable but
+//! with no writable path from anywhere, its own crate included. The
+//! U1 audit read that as a kernel wart no façade could fix, and it was
+//! right that no FAÇADE could: the missing line was in `editor_core`,
+//! which now re-exports the type at its root. `pncad::select` carries
+//! it beside `NameTable`, so the façade route exists too.
+//!
+//! The remaining exception does not involve `bvh` (nothing in any
+//! public error payload references it, which is what justifies leaving
+//! it interior) or any other unreachable kernel type.
 //!
 //! # The pin
 //!

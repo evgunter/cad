@@ -659,7 +659,10 @@ impl core::fmt::Display for NodeErrorKind {
             Self::UnschedulableCycle => {
                 f.write_str("the node is in, or downstream of, a dependency cycle")
             }
-            Self::Naming(_) => f.write_str("name emission failed"),
+            // #380: the payload is editor-core's OWN diagnostic, not a
+            // kernel refusal riding the variant — it has no other route
+            // to a human, so it is carried through rather than dropped.
+            Self::Naming(e) => write!(f, "name emission failed: {e}"),
             Self::DeclareResolve { .. } => {
                 f.write_str("a declared name failed to resolve through the operands' tables")
             }
