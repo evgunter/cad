@@ -287,11 +287,13 @@ fn an_arc_leg_from_a_bound_arrival_names_the_carrier_binder() {
     );
 }
 
-/// **G2**: `SeamFilletOntoArc` is RETIRED into the same spelling
-/// refusal. `.to(Start)` still needs a straight first side, because it
+/// **§2c**: `.to(Start)` still needs a straight first side, because it
 /// RETRIMS the entry vertex (LB5: that vertex is authored topology);
-/// the case that wants an arc carrier at the seam has its own door,
-/// `.to_on(Start, centre, winding)`, which keeps the vertex.
+/// the case that wants an arc carrier at the seam is the arc-arrival
+/// close, `fillet_arc(r, Center { c, winding, p: Start })`, which keeps
+/// the vertex. The refusal is its own variant now — under the axiom no
+/// carrier-keyed spelling refusal exists, and this one is about the
+/// SEAM's retrim, not about any carrier the state secretly knew.
 #[test]
 fn a_seam_fillet_onto_an_arc_first_side_names_the_closing_door() {
     // Side 1 is an arc leg — retrimming the entry would slide it off
@@ -308,9 +310,9 @@ fn a_seam_fillet_onto_an_arc_first_side_names_the_closing_door() {
         .unwrap();
     let arrival = tip.fillet(0.3).unwrap();
     let err = arrival.to(Start).unwrap_err();
-    assert!(matches!(err, PathError::ArcCarrierSpelling { .. }));
+    assert!(matches!(err, PathError::SeamRetrimsArcFirstSide));
     assert!(
-        err.to_string().contains(".to_on(Start, centre, winding)"),
+        err.to_string().contains("Center { c, winding, p: Start }"),
         "the refusal must name the close that KEEPS the entry vertex: {err}"
     );
 }
