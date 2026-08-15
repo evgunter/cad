@@ -65,6 +65,47 @@ pub enum NamingError {
     },
 }
 
+// #380: the refusal must NAME its subject. Every variant above is
+// diagnosed precisely at the emitter — which name collided, which
+// entity went uncovered, which upstream table missed, which
+// consistency fact broke — and until this impl existed all of that
+// died at the `EvalError::Naming` boundary, whose `Display` said only
+// "name emission failed". Callers (Python's typed exception text
+// included) had to BISECT scenes to relocate a wall the emitter had
+// already located. Unlike the kernel-refusal payloads that ride the
+// op variants unaltered (`NodeErrorKind`'s Display note, D2), this is
+// editor-core's OWN error: rendering it IS the op's vocabulary, and
+// there is no other path by which it reaches a human.
+impl core::fmt::Display for NamingError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Duplicate { name } => write!(
+                f,
+                "the name {name:?} was minted twice — names alias silently only over the \
+                 kernel's dead body (N1)"
+            ),
+            Self::Unnamed { kind, body } => write!(
+                f,
+                "a live {kind:?} of output body {body} was left unnamed — a kernel-emission \
+                 gap, not a naming choice"
+            ),
+            Self::MissingUpstream { node } => write!(
+                f,
+                "the name table of upstream node {} lacks an entity the emission needed",
+                node.0
+            ),
+            Self::Emission { what } => write!(
+                f,
+                "a mint-time emission fact was inconsistent with the result body: {what}"
+            ),
+            Self::Escalated { predicate, source } => write!(
+                f,
+                "the discriminator {predicate} escalated (in-band indeterminacy): {source}"
+            ),
+        }
+    }
+}
+
 impl From<DuplicateName> for NamingError {
     fn from(e: DuplicateName) -> Self {
         Self::Duplicate { name: e.name }
@@ -598,6 +639,96 @@ mod pattern_tests {
         assert!(
             format!("{err:?}").contains("multi-OUTPUT-BODY"),
             "typed, and about bodies: {err:?}"
+        );
+    }
+}
+
+/// **#380**: the diagnostic must SURVIVE the `EvalError` boundary. The
+/// bug these rows close was not a missing diagnosis — every emitter
+/// already refused precisely — but a rendering that threw the
+/// diagnosis away, leaving `Display` consumers (Python's typed
+/// exception text among them) with "name emission failed" and a
+/// bisect. Substring pins, per the [`geom_core::COINCIDENCE_RECOURSE`]
+/// convention: prose may be reworded, the SUBJECT may not vanish.
+#[cfg(test)]
+mod display_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use geom_core::{Band, MarginDiag};
+
+    use super::*;
+    use crate::eval::NodeErrorKind;
+    use crate::names::role::RoleSeg;
+
+    fn escalation() -> Indeterminate {
+        Indeterminate {
+            margin: MarginDiag::Invalid,
+            band: Band::new(1e-9, 1e-6).unwrap(),
+            predicate: Some("side_of_plane"),
+        }
+    }
+
+    /// Every variant names WHICH entity/node/fact it refused on.
+    #[test]
+    fn every_variant_names_its_subject() {
+        let name = StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(7),
+            path: vec![RoleSeg::Cap(super::super::role::CapEnd::Top)],
+        };
+        let rows: Vec<(NamingError, Vec<&str>)> = vec![
+            (
+                NamingError::Duplicate {
+                    name: Box::new(name),
+                },
+                vec!["Face", "7", "Cap"],
+            ),
+            (
+                NamingError::Unnamed {
+                    kind: EntityKind::Edge,
+                    body: 3,
+                },
+                vec!["Edge", "3"],
+            ),
+            (
+                NamingError::MissingUpstream {
+                    node: RecipeNodeId(11),
+                },
+                vec!["11"],
+            ),
+            (
+                NamingError::Emission {
+                    what: "tied upstream entry through a downstream op",
+                },
+                vec!["tied upstream entry"],
+            ),
+            (
+                NamingError::Escalated {
+                    predicate: "side_of_plane",
+                    source: escalation(),
+                },
+                vec!["side_of_plane"],
+            ),
+        ];
+        for (err, wanted) in rows {
+            let shown = err.to_string();
+            for w in wanted {
+                assert!(shown.contains(w), "{err:?} rendered without {w:?}: {shown}");
+            }
+        }
+    }
+
+    /// The boundary the issue was actually about: wrapping the refusal
+    /// in `NodeErrorKind` must not swallow it.
+    #[test]
+    fn the_eval_boundary_carries_the_diagnostic_through() {
+        let shown = NodeErrorKind::Naming(NamingError::Emission {
+            what: "split naming across boolean-minted faces",
+        })
+        .to_string();
+        assert!(
+            shown.contains("split naming across boolean-minted faces"),
+            "the emitter's diagnostic must reach Display consumers: {shown}"
         );
     }
 }
