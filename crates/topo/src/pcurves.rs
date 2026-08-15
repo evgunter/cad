@@ -407,6 +407,13 @@ fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
 ///   line through the chart's own rational-quadratic parameter
 ///   ([`Pcurve::IsoArc`], M8-3). Both mapped description forms the
 ///   kernel mints for a circle reach it — see the arm's own note.
+/// - An [`geom_brep::EdgeGeometry::Intersection`] over a SPLINE carrier
+///   that lies on a boundary column maps as that column: the same iso
+///   line the `IsoCurve` arm mints, recovered from the carrier because
+///   the intrinsic description names no chart coordinate. The residency
+///   is a pick over the columns and the two `v` directions, definite or
+///   escalated; an interior or diagonal intersection locus has no
+///   boundary-row closed form and refuses typed.
 /// - Everything else on a NURBS chart refuses typed with the class
 ///   named.
 fn nurbs_iso_derive<T: Decide>(
@@ -589,10 +596,79 @@ fn nurbs_iso_derive<T: Decide>(
                 pl: Vec2::new(plx, T::zero()),
             })
         }
+        // **The boundary-iso INTERSECTION arm.** The same wall–wall
+        // seam the `IsoCurve` arm maps, stated INTRINSICALLY: the locus
+        // is `S₁ ∩ S₂`, and where that locus IS this chart's own
+        // `u = u₀`/`u = u₁` boundary column its chart image is the same
+        // iso line. The description carries no chart coordinates at all
+        // — it names two surfaces and a witness — so the image is
+        // recovered from the CARRIER against the chart's own domain.
+        //
+        // Keyed on the carrier and on BOUNDARY RESIDENCY, never on the
+        // description form or the operand order: which of `s1`/`s2` is
+        // the plane is not a fact about the locus, and the same seam
+        // stated natively or restated foreign must mint the same image.
+        //
+        // The pick is ONE fixed schedule (D9): the chart's two boundary
+        // columns × the two directions the carrier can traverse the
+        // chart's `v`, each candidate image evaluated at an interior
+        // probe and metered against the carrier there in METRES. The
+        // start point cannot decide it alone — it fixes a chart CORNER,
+        // and a column and a direction both pass through one — so the
+        // probe sits a quarter span in, where the candidates separate.
+        // A SELECTION, checked: the full seam-class certification
+        // follows every derivation.
+        //
+        // An `Intersection` whose carrier lies on NO boundary column —
+        // an INTERIOR or DIAGONAL locus, the trimmed-NURBS/cut-loft
+        // lane — refuses typed and permanently (C5).
+        geom_brep::EdgeGeometry::Intersection { .. } => {
+            if !matches!(carrier, geom_curves::Curve3::Nurbs(_)) {
+                return Err(refuse(
+                    "an Intersection carrier that is not a spline — the certified \
+                     boundary-column class compares the carrier against the chart's own \
+                     boundary ROW, which is a spline",
+                ));
+            }
+            let probe_t = t0 + span * T::from_f64(0.25);
+            let probe = carrier.eval(probe_t);
+            // Escalations are DEFERRED per candidate: an indeterminate
+            // first candidate must not rob the rest of their turn.
+            let mut deferred: Option<Indeterminate> = None;
+            for x in [cu0, cu1] {
+                for (v_at_t0, v_at_t1) in [(cv0, cv1), (cv1, cv0)] {
+                    let slope = (v_at_t1 - v_at_t0) / span;
+                    let cand = Pcurve::IsoLine {
+                        p0: Point2::new(x, v_at_t0 - slope * t0),
+                        pl: Vec2::new(T::zero(), slope),
+                    };
+                    let uv = cand.eval(probe_t);
+                    let gap = probe.distance(surface.eval(uv.x, uv.y));
+                    match decide("pcurve_iso_seam_column", Margin::of(gap), band) {
+                        Ok(Sign::Zero) => return Ok(cand),
+                        Ok(Sign::Positive | Sign::Negative) => {}
+                        Err(cause) => {
+                            if deferred.is_none() {
+                                deferred = Some(cause);
+                            }
+                        }
+                    }
+                }
+            }
+            match deferred {
+                Some(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
+                None => Err(refuse(
+                    "an Intersection carrier on neither boundary column of this chart — \
+                     an INTERIOR or DIAGONAL intersection locus, which has no boundary-row \
+                     closed form (the trimmed-NURBS/cut-loft pcurve lane is that unit's)",
+                )),
+            }
+        }
         _ => Err(refuse(
             "no iso derivation for this description kind on a NURBS chart — only \
-             IsoCurve seams, Line cap rims and CIRCLE cap rims have exact chart images \
-             (the trimmed-NURBS pcurve lane is the cut-loft unit's)",
+             IsoCurve seams, boundary-iso Intersection seams, Line cap rims and CIRCLE \
+             cap rims have exact chart images (the trimmed-NURBS pcurve lane is the \
+             cut-loft unit's)",
         )),
     }
 }

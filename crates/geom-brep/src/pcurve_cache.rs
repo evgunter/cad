@@ -632,14 +632,21 @@ pub enum PcurveCertifyError {
     /// could drift from the body's own), so a caller that has one must
     /// supply it.
     FittedMateMissing,
-    /// A [`Pcurve::IsoLine`] was offered outside the iso lane's
-    /// certified inventory (M6-3), with the exact boundary named:
-    /// a rational chart (the control-difference stretch bounds are
-    /// polynomial convexity facts — the rational extension is banked
-    /// with rational-wall flux), an interior (non-boundary) iso, a
-    /// diagonal line in UV, an arc-parameterized cap rim, or a
-    /// carrier whose spline structure is not the chart's own boundary
-    /// row. Typed and permanent until a unit moves it — never a
+    /// An iso image was offered outside the iso lane's certified
+    /// inventory, with the exact boundary named. The refused set is:
+    /// a chart that is still the mvfs placeholder; an INTERIOR
+    /// (non-boundary) iso; a DIAGONAL line in UV; a degenerate iso
+    /// (neither chart channel moves); an image that leaves the chart's
+    /// parameter domain, where the hull bound does not hold; a carrier
+    /// whose spline structure is not the chart's own boundary row, or
+    /// whose weights are not positive (the convex-hull hypothesis
+    /// itself); a seam-class image over a non-spline carrier; a LINE
+    /// cap rim on a RATIONAL column (the Greville hull is a
+    /// linear-precision fact the rational basis does not have); and,
+    /// at the mint, an intersection locus that is not a boundary
+    /// column. A rational CHART and an ARC-parameterized cap rim are
+    /// not in that set — both certify, through the seam and arc-rim
+    /// classes. Typed and permanent until a unit moves it — never a
     /// runtime fallback (C5).
     IsoUnsupported {
         /// The refused class, named.
