@@ -13,9 +13,18 @@
 //! choice unambiguous away from poles). One structural exception: a
 //! rim-anchored loop's **final** meridian contains the loop's closing
 //! vertex, so its column takes the branch nearest the first polygon
-//! entry (`out[0].u`) rather than continuity — exact closure by
+//! entry (`out[0].u`) rather than continuity — the right BRANCH by
 //! construction for every wedge angle (continuity would pick the wrong
-//! branch for θ > 3π/2, where the complement 2π − θ < π/2 is closer).
+//! one for θ > 3π/2, where the complement 2π − θ < π/2 is closer).
+//!
+//! Branch choice being exact does not make the closure exact to the
+//! last bit, and the difference took a defect to notice: the branch is
+//! discrete, while the residue within it is a float quantity that
+//! imported geometry can make nonzero. Measured, it usually IS zero —
+//! 266 of 315 closures across the tour and the wild corpus close
+//! bitwise, and the tour's worst is 9 ulps — but see `loop_polygon`'s
+//! closure block for the exception class, its traced cause, and why
+//! the snap bar is a length rather than an angle.
 //!
 //! Pole handling (chart singularities; the surface's `normal` is never
 //! sampled): a pole/apex is always an edge **endpoint** (valence 2). A
@@ -656,11 +665,62 @@ pub(crate) fn loop_polygon(
     // THE BAR IS SPATIAL, NOT ANGULAR. This used to read `residue <
     // 1e-9` — a bare radian constant, unrelated to `eps` and to the
     // model's size, calibrated on an observed ≲1e-12 rad across the
-    // scenes that existed then. `nist_ftc_09_asme1_rd.stp` (the wild
-    // corpus's largest: genus 34, 454 edges, ε = 3.4e-5 m — by far the
-    // longest walks in the corpus) closes at 3.56e-9 rad and tripped
-    // it, having silently skipped the snap in release for as long as
-    // that lane ran with assertions compiled out.
+    // scenes that existed then. `nist_ftc_09_asme1_rd.stp` closes at
+    // 3.56e-9 rad and tripped it, having silently skipped the snap in
+    // release for as long as that lane ran with assertions compiled
+    // out (assert and snap read the same constant, so exceeding it
+    // disabled both — the shape `closure_is_snappable` now forecloses).
+    //
+    // MEASURED (M8 census, 315 governed closures over the tour and the
+    // wild corpus; instrumentation was temporary, the numbers are not):
+    //
+    //   tour, 202 closures — 171 bitwise EXACT, worst 4.0e-15 rad (9
+    //     ulps at u ≈ π), worst arc 4.7e-16 m.
+    //   wild, 113 closures — 95 bitwise exact. SEVEN of the eight
+    //     importable files are exact on every closure. All 18 nonzero
+    //     residues are in `nist_ftc_09`, and 16 of those sit at just
+    //     two values (3.5640e-9 and 8.4502e-9 rad), eight apiece, all
+    //     at one radius: 2.9718e-3 m = exactly 0.117 inch.
+    //
+    // So "exact by construction" is the RULE, not an approximation —
+    // and the exception is not accumulated error. Discrete values
+    // repeated eight times at a single radius is one geometric feature
+    // instanced eight times; walk length has nothing to do with it.
+    //
+    // THE MECHANISM, traced. Those closures are hole generators whose
+    // two endpoints the FILE states non-co-azimuthally. One of them:
+    //
+    //   p0 = (-3.1330000001, +0.0896, -4.2499999992) inch
+    //   p1 = (-3.1330000000,  0.0,    -4.2500000000) inch
+    //
+    // The line runs along the hole's axis and should hold x and z
+    // fixed; the file's ~10-decimal-digit coordinates differ in the
+    // last one. That is 21.4 pm of displacement PERPENDICULAR to the
+    // axis, which at r = 2.9718e-3 m subtends 7.2e-9 rad — and the
+    // residue is half that spread (3.564e-9), because `out[0].u` reads
+    // a vertex azimuth while the column reads the carrier MIDPOINT's.
+    //
+    // That is the whole case for measuring in metres. The angle is
+    // `displacement / radius`, so a fixed coordinate-rounding error in
+    // the source produces a LARGER angle on a SMALLER feature: a
+    // scale-free angular bar necessarily mis-ranks small features, and
+    // flags the 0.117-inch holes while passing the same physical error
+    // elsewhere. The spatial bar sees the invariant quantity — 21 pm,
+    // 1.6e6x inside this file's own ε — whatever the radius.
+    //
+    // TWO ROUTES TO ACTUAL EXACTNESS, neither taken here, both real:
+    //   (a) adoption-side — re-mint such a line onto a single azimuth
+    //       at import, the normalization class `StructureNormalization`
+    //       already exists for. The move is 21 pm. Caveat: vertices are
+    //       shared, so an azimuth snap for one cylinder perturbs the
+    //       vertex its other faces see (still far inside ε).
+    //   (b) kernel-side — have the FINAL meridian take its column from
+    //       the closing vertex rather than the carrier midpoint, which
+    //       is exact whatever the skew. `mid_azimuth` exists to dodge
+    //       apex/pole endpoints, but `out[0]` is by construction a
+    //       non-degenerate entry. Touches the anchor-branch choice
+    //       (tuned for wedge angles > 3π/2), so it is a design
+    //       conversation, not a tidy-up.
     //
     // u is an azimuth, so a residue is only as big as its lever arm:
     // `r·δu` is the arc length it displaces the polygon side by, and
