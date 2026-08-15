@@ -98,7 +98,7 @@ fn assembly(label: &str, refs: &[DocRef], spacing: f64) -> (ProfileDoc, Vec<Reci
     let mut doc = ProfileDoc::empty(DocumentId::derive(label));
     let mut ids = Vec::new();
     for (i, r) in refs.iter().enumerate() {
-        let (next, id) = insert(doc, Node::InstantiatePart { doc_ref: *r });
+        let (next, id) = insert(doc, Node::instantiate_part(*r));
         doc = next;
         if i > 0 {
             #[allow(clippy::cast_precision_loss)]

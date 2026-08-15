@@ -1535,7 +1535,7 @@ fn asm2a_assembly(
     let mut doc = pncad::document::ProfileDoc::empty(pncad::document::DocumentId::derive(label));
     let mut ids = Vec::new();
     for i in 0..n {
-        let (next, id) = doors_insert(doc, pncad::document::Node::InstantiatePart { doc_ref });
+        let (next, id) = doors_insert(doc, pncad::document::Node::instantiate_part(doc_ref));
         doc = next;
         if i > 0 {
             #[allow(clippy::cast_precision_loss)]
@@ -1753,7 +1753,7 @@ fn asm2b_outer(
     let mut doc = pncad::document::ProfileDoc::empty(pncad::document::DocumentId::derive(label));
     let mut ids = Vec::new();
     for i in 0..2 {
-        let (next, id) = doors_insert(doc, pncad::document::Node::InstantiatePart { doc_ref });
+        let (next, id) = doors_insert(doc, pncad::document::Node::instantiate_part(doc_ref));
         doc = next;
         if i > 0 {
             doc = pncad::document::apply(
