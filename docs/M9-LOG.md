@@ -68,3 +68,20 @@ pushback window open. Migration = post-M9 kernel candidate
 into M9-3 (plan amended); lily wall 8's flip retargets the
 migration unit. The slate is now M9-1 (implementing, PR-1 kernel
 scope) → M9-2 → M9-0 → M9-3 → M9-5, with D1 the early candidate.
+
+## M9-2 spec (2026-08-15) — the predicate parallelizes
+
+The chart-region substrate answered the crux: the certified lane
+is same-chart BY CONSTRUCTION (shared SurfaceKey at rest; rung 2's
+bit-identical descriptions), rung-3 pairs ESCALATE per C2's own
+chart-divergence caveat; the planar-inventory gate uses the C6
+exact-f64-structure pattern (no scalar zero-tests); positive area
+restricts to exact-constant-arm charts (the chart_arms
+over-statement is unsafe in this direction — inf-bounds are a
+named follow-up); seam-branch divergence refuses typed. Binding
+spec docs/M9-2-SPEC.md: TWO PRs — PR-1 (the chart-region
+predicate) is FILE-DISJOINT from M9-1 and needs none of its types,
+so it dispatches immediately in parallel; PR-2 (census door,
+import channel, #382 half-2, the pin retirements) waits on M9-1
+PR-1. The C3 invariant's cross-rung clarification rides the spec
+PR for Evan's eye.
