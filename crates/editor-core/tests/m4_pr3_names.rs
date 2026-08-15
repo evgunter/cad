@@ -357,27 +357,74 @@ fn full_wire_revolve_names_pi_band_and_poles() {
     assert_eq!(poles, 2);
 }
 
-/// RED ROW (M9-D1, pre-fix): the all-on-axis loop the emitter refuses.
+/// M9-D1: the natural ball. Every vertex of the meridian is on-axis,
+/// so the table stands entirely on the sweep's pole export — this row
+/// was RED (the "all-on-axis loop" refusal) before it.
 #[test]
-fn full_revolve_of_an_all_on_axis_loop_refuses_typed() {
+fn full_revolve_of_an_all_on_axis_loop_names_both_poles() {
     let (doc, rev) = ball_doc(std::f64::consts::TAU);
     let ev = run(&doc);
-    let msg = format!("{:?}", ev.nodes.get(&rev));
+    let t = table(&ev, rev);
+    // The two-band sphere patch (V2 E2 F2): 1 body + 2 bands +
+    // 2 meridians + 2 poles.
+    assert_eq!(t.len(), 7);
+    // Canonical vertex 0 is the lexicographic least — (0, −1), the
+    // south pole; 1 is (0, 1). Canonical segment 0 is the arc.
+    for v in 0..2 {
+        assert!(
+            t.lookup(&name1(EntityKind::Vertex, rev, RoleSeg::Pole(pv(0, v))))
+                .is_some(),
+            "pole {v} unnamed"
+        );
+    }
+    for seg in [
+        RoleSeg::Band(pe(0, 0)),
+        RoleSeg::BandPi(pe(0, 0)),
+        RoleSeg::Meridian(MeridianEnd::Seam, pe(0, 0)),
+        RoleSeg::Meridian(MeridianEnd::Pi, pe(0, 0)),
+    ] {
+        let kind = match seg {
+            RoleSeg::Band(_) | RoleSeg::BandPi(_) => EntityKind::Face,
+            _ => EntityKind::Edge,
+        };
+        assert!(
+            t.lookup(&name1(kind, rev, seg.clone())).is_some(),
+            "{seg:?} unnamed — canonical segment 0 is not the arc"
+        );
+    }
+    // The on-axis diameter sweeps to nothing: no segment-1 roles.
     assert!(
-        ev.value(rev).is_none() && msg.contains("all-on-axis loop"),
-        "expected the all-on-axis naming refusal, got {msg}"
+        t.lookup(&name1(EntityKind::Face, rev, RoleSeg::Band(pe(0, 1))))
+            .is_none()
     );
 }
 
-/// RED ROW (M9-D1, pre-fix): the same loop, partially revolved.
+/// M9-D1: the same all-on-axis meridian, partially revolved — the
+/// wedge. Also RED before the fix (the partial arm refused
+/// identically).
 #[test]
-fn partial_revolve_of_an_all_on_axis_loop_refuses_typed() {
+fn partial_revolve_of_an_all_on_axis_loop_names_both_poles() {
     let (doc, rev) = ball_doc(std::f64::consts::FRAC_PI_2);
     let ev = run(&doc);
-    let msg = format!("{:?}", ev.nodes.get(&rev));
+    let t = table(&ev, rev);
+    // Ball wedge: 1 body + (1 band + 2 caps) + (2 meridians + 1 axis
+    // edge) + 2 poles.
+    assert_eq!(t.len(), 9);
+    for v in 0..2 {
+        assert!(
+            t.lookup(&name1(EntityKind::Vertex, rev, RoleSeg::Pole(pv(0, v))))
+                .is_some(),
+            "pole {v} unnamed"
+        );
+    }
     assert!(
-        ev.value(rev).is_none() && msg.contains("all-on-axis loop"),
-        "expected the all-on-axis naming refusal, got {msg}"
+        t.lookup(&name1(EntityKind::Edge, rev, RoleSeg::AxisEdge(pe(0, 1))))
+            .is_some(),
+        "the on-axis diameter is the caps' shared axis edge"
+    );
+    assert!(
+        t.lookup(&name1(EntityKind::Face, rev, RoleSeg::Band(pe(0, 0))))
+            .is_some()
     );
 }
 
