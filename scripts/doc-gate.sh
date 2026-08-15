@@ -47,15 +47,10 @@ set -euo pipefail
 # Crates with a rustdoc-warning backlog, with their current counts, to be
 # emptied one crate per change (#465). Cheapest first.
 KNOWN_DIRTY=(
-  step-import  #  1
-  geom-brep    #  3
-  mesh         #  4
-  sweep        #  6
   editor-core  #  8
   profile      #  9
   geom-core    # 14
   topo         # 14
-  pncad        # 16
 )
 
 exclude=()

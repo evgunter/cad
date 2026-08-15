@@ -76,7 +76,7 @@ pub struct BoundaryPolyline {
     pub end_vertex: VertexKey,
 }
 
-/// Typed failure of [`crate::tessellate`] (closed enum, D4 ¶3).
+/// Typed failure of [`fn@crate::tessellate`] (closed enum, D4 ¶3).
 #[derive(Clone, Debug, PartialEq)]
 pub enum TessellateError {
     /// δ is not a finite, strictly positive number (zero, negative,
@@ -93,7 +93,7 @@ pub enum TessellateError {
     /// History (the S9 discipline — a flipped refusal carries its
     /// record): through M7 this variant refused EVERY `Nurbs` face,
     /// described or not, as the first dispatch arm of
-    /// [`crate::tessellate`] — the banked trimmed-NURBS frontier that
+    /// [`fn@crate::tessellate`] — the banked trimmed-NURBS frontier that
     /// `trimmed`'s module docs named. The trimmed-NURBS lane (M7,
     /// the montage skin-scenes unit) routes described faces through
     /// `trimmed` with the control-net Hessian certificate; only the
