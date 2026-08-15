@@ -22,9 +22,8 @@ use std::sync::Arc;
 
 use editor_core::{
     CancelToken, DocEdit, DocParam, DocRef, DocumentId, EvalOptions, Evaluation, Expr, InlineError,
-    Node, ParamName, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault,
-    RoleSeg, SplitError, StableName, content_pin, evaluate, inline, load, product_named, save,
-    split,
+    Node, ParamName, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg,
+    SplitError, StableName, content_pin, evaluate, inline, load, product_named, save, split,
 };
 use fixture::{desc, insert, len, square, step};
 
@@ -149,12 +148,11 @@ fn wrap(instance: RecipeNodeId, of: &StableName) -> StableName {
 
 /// Replays an edit list over a starting document — the "the recorded
 /// edits ARE the result" comparator undo leans on.
-fn replay(
-    mut doc: ProfileDoc,
-    edits: &[DocEdit<editor_core::ProfileProgram>],
-) -> ProfileDoc {
+fn replay(mut doc: ProfileDoc, edits: &[DocEdit<editor_core::ProfileProgram>]) -> ProfileDoc {
     for edit in edits {
-        doc = editor_core::apply(&doc, edit).expect("the recorded edit replays").doc;
+        doc = editor_core::apply(&doc, edit)
+            .expect("the recorded edit replays")
+            .doc;
     }
     doc
 }
@@ -560,9 +558,12 @@ fn row3_uncut_param_reference_refuses() {
     }
     // A parameter referenced ONLY by the cut side is copied, and the
     // split is legal.
-    let out = split(&doc, &BTreeSet::from([p1, e1, p2, e2]), DocumentId::derive("n")).expect(
-        "a cut containing every referencing node carries the parameter",
-    );
+    let out = split(
+        &doc,
+        &BTreeSet::from([p1, e1, p2, e2]),
+        DocumentId::derive("n"),
+    )
+    .expect("a cut containing every referencing node carries the parameter");
     assert!(out.part.params().contains_key(&ParamName::new("h")));
 }
 
@@ -619,11 +620,7 @@ fn row3_further_typed_refusals() {
         Node::Transform {
             input: inst,
             translation: [len(1.0), len(0.0), len(0.0)],
-            rotation_axis: [
-                fixture::scl(0.0),
-                fixture::scl(0.0),
-                fixture::scl(1.0),
-            ],
+            rotation_axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
             rotation_angle: fixture::ang(0.0),
         },
     );
@@ -668,15 +665,23 @@ fn row3_further_typed_refusals() {
 fn row4_roots_and_placements_land_as_the_rules_say() {
     // The hoisted single-cluster cut.
     let (_, doc, ids) = two_cluster_assembly("asm4-r4");
-    let out = split(&doc, &BTreeSet::from([ids[1]]), DocumentId::derive("asm4-r4-new"))
-        .expect("legal");
+    let out = split(
+        &doc,
+        &BTreeSet::from([ids[1]]),
+        DocumentId::derive("asm4-r4-new"),
+    )
+    .expect("legal");
     let mapped = out.node_map[&ids[1]];
     assert_eq!(
         out.remainder.roots(),
         &[ids[0], out.instance],
         "the instance takes the cut root's list position"
     );
-    assert_eq!(out.part.roots(), &[mapped], "the part's root is the cut root");
+    assert_eq!(
+        out.part.roots(),
+        &[mapped],
+        "the part's root is the cut root"
+    );
     assert!(
         out.remainder
             .placement(out.instance)
@@ -760,8 +765,12 @@ fn row4_roots_and_placements_land_as_the_rules_say() {
 #[test]
 fn row5_interface_record_exists_and_round_trips() {
     let (_, doc, ids) = two_cluster_assembly("asm4-r5");
-    let out = split(&doc, &BTreeSet::from([ids[1]]), DocumentId::derive("asm4-r5-new"))
-        .expect("legal");
+    let out = split(
+        &doc,
+        &BTreeSet::from([ids[1]]),
+        DocumentId::derive("asm4-r5-new"),
+    )
+    .expect("legal");
     match out.remainder.node(out.instance) {
         Some(Node::InstantiatePart { interface, .. }) => {
             assert!(interface.is_empty(), "no mate vocabulary exists to cross");
@@ -794,11 +803,15 @@ fn split_pair_round_trips_persistence_and_still_evaluates_identically() {
     let ev1 = run(&doc, &opts);
     let (body1, _) = product_named(&doc, &ev1).expect("gathers");
 
-    let out = split(&doc, &BTreeSet::from([ids[1]]), DocumentId::derive("asm4-per-new"))
-        .expect("legal");
+    let out = split(
+        &doc,
+        &BTreeSet::from([ids[1]]),
+        DocumentId::derive("asm4-per-new"),
+    )
+    .expect("legal");
     let part_loaded = load(&save(&out.part, &[]).expect("part saves")).expect("part loads");
-    let rem_loaded = load(&save(&out.remainder, &[]).expect("remainder saves"))
-        .expect("remainder loads");
+    let rem_loaded =
+        load(&save(&out.remainder, &[]).expect("remainder saves")).expect("remainder loads");
     assert!(part_loaded.doc.bit_eq(&out.part));
     assert!(rem_loaded.doc.bit_eq(&out.remainder));
     assert_eq!(

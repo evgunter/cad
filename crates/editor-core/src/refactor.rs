@@ -241,7 +241,10 @@ impl core::fmt::Display for SplitError {
                  root body rows, so the instance-qualified rewrite could never resolve"
             ),
             Self::Pin { error } => {
-                write!(f, "split: the new document's pin would not compute: {error}")
+                write!(
+                    f,
+                    "split: the new document's pin would not compute: {error}"
+                )
             }
             Self::PartEdit { error } => {
                 write!(f, "split: a part-side edit refused: {error}")
@@ -611,9 +614,7 @@ fn remap_node(
     let id = |n: RecipeNodeId| -> Result<RecipeNodeId, RemapMiss> {
         map.get(&n).copied().ok_or(RemapMiss::Input(n))
     };
-    let nm = |n: &StableName| {
-        remap_name(n, map).map_err(|_| RemapMiss::Name(Box::new(n.clone())))
-    };
+    let nm = |n: &StableName| remap_name(n, map).map_err(|_| RemapMiss::Name(Box::new(n.clone())));
     Ok(match node {
         Node::Datum(_) | Node::Profile(_) => node.clone(),
         Node::Extrude { profile, distance } => Node::Extrude {
@@ -630,10 +631,7 @@ fn remap_node(
             angle: angle.clone(),
         },
         Node::Loft { profiles, v_degree } => Node::Loft {
-            profiles: profiles
-                .iter()
-                .map(|&p| id(p))
-                .collect::<Result<_, _>>()?,
+            profiles: profiles.iter().map(|&p| id(p)).collect::<Result<_, _>>()?,
             v_degree: v_degree.clone(),
         },
         Node::Sweep {
@@ -878,8 +876,8 @@ pub fn split(
     let mut part = Doc::empty(part_id);
     let mut part_edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let part_apply = |part: &mut ProfileDoc,
-                          edits: &mut Vec<DocEdit<ProfileProgram>>,
-                          edit: DocEdit<ProfileProgram>|
+                      edits: &mut Vec<DocEdit<ProfileProgram>>,
+                      edit: DocEdit<ProfileProgram>|
      -> Result<(), SplitError> {
         *part = apply(part, &edit)
             .map_err(|error| SplitError::PartEdit {
@@ -947,7 +945,10 @@ pub fn split(
                 part_apply(
                     &mut part,
                     &mut part_edits,
-                    DocEdit::SetPlacement { node: new, frame: *frame },
+                    DocEdit::SetPlacement {
+                        node: new,
+                        frame: *frame,
+                    },
                 )?;
             }
         }
@@ -974,8 +975,8 @@ pub fn split(
     let mut remainder = doc.clone();
     let mut remainder_edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let rem_apply = |remainder: &mut ProfileDoc,
-                         edits: &mut Vec<DocEdit<ProfileProgram>>,
-                         edit: DocEdit<ProfileProgram>|
+                     edits: &mut Vec<DocEdit<ProfileProgram>>,
+                     edit: DocEdit<ProfileProgram>|
      -> Result<Option<RecipeNodeId>, SplitError> {
         let applied = apply(remainder, &edit).map_err(|error| SplitError::RemainderEdit {
             error: Box::new(error),
@@ -1183,8 +1184,8 @@ pub fn inline(
     let mut current = doc.clone();
     let mut edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let step = |current: &mut ProfileDoc,
-                    edits: &mut Vec<DocEdit<ProfileProgram>>,
-                    edit: DocEdit<ProfileProgram>|
+                edits: &mut Vec<DocEdit<ProfileProgram>>,
+                edit: DocEdit<ProfileProgram>|
      -> Result<(), InlineError> {
         *current = apply(current, &edit)
             .map_err(|error| InlineError::Edit {
@@ -1297,9 +1298,8 @@ pub fn inline(
                 name: Box::new(from.clone()),
             });
         };
-        let to = remap_name(of, &node_map).map_err(|_| InlineError::StrandedPartName {
-            name: of.clone(),
-        })?;
+        let to = remap_name(of, &node_map)
+            .map_err(|_| InlineError::StrandedPartName { name: of.clone() })?;
         step(
             &mut current,
             &mut edits,
@@ -1309,7 +1309,11 @@ pub fn inline(
             },
         )?;
     }
-    step(&mut current, &mut edits, DocEdit::DeleteNode { id: instance })?;
+    step(
+        &mut current,
+        &mut edits,
+        DocEdit::DeleteNode { id: instance },
+    )?;
     // A10: the spliced roots take the instance's list position, in the
     // part's own root order.
     let mut desired: Vec<RecipeNodeId> = Vec::new();
@@ -1321,7 +1325,11 @@ pub fn inline(
         }
     }
     if current.roots() != desired {
-        step(&mut current, &mut edits, DocEdit::SetRoots { roots: desired })?;
+        step(
+            &mut current,
+            &mut edits,
+            DocEdit::SetRoots { roots: desired },
+        )?;
     }
     Ok(InlineOutcome {
         doc: current,
@@ -1329,4 +1337,3 @@ pub fn inline(
         node_map,
     })
 }
-

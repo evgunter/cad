@@ -1973,7 +1973,9 @@ fn asm4_split_and_inline_through_the_real_store() {
 
     let cut = std::collections::BTreeSet::from([ids[1]]);
     let out = d::split(&doc, &cut, d::DocumentId::derive("asm4-e2e-new")).expect("legal");
-    ws_mut.create(&out.part).expect("the part lands in the store");
+    ws_mut
+        .create(&out.part)
+        .expect("the part lands in the store");
     // The assembly itself is not in this store (it was never saved);
     // saving the remainder under its id is the caller's create-or-
     // resave choice — here the assembly starts on disk too.
@@ -1982,12 +1984,20 @@ fn asm4_split_and_inline_through_the_real_store() {
     let body2 = d::product(&out.remainder, &ev2).expect("gathers");
     assert_eq!(body1.solids().count(), body2.solids().count());
     assert_eq!(body1.faces().count(), body2.faces().count());
-    assert_eq!(vol(&body1), vol(&body2), "volumes bit-equal through the store");
+    assert_eq!(
+        vol(&body1),
+        vol(&body2),
+        "volumes bit-equal through the store"
+    );
 
     let inlined = d::inline(&out.remainder, out.instance, &ws2).expect("inlines back");
     let ev3 = asm2a_eval(&inlined.doc, &ws2);
     let body3 = d::product(&inlined.doc, &ev3).expect("gathers");
-    assert_eq!(vol(&body1), vol(&body3), "the round trip's volume is bit-equal");
+    assert_eq!(
+        vol(&body1),
+        vol(&body3),
+        "the round trip's volume is bit-equal"
+    );
     assert_eq!(body1.solids().count(), body3.solids().count());
 }
 
@@ -2020,8 +2030,7 @@ fn asm4_child_split_probe() {
     let part_ref = asm2a_part(&dir, "part.pncad", "asm4-probe-part");
     let (doc, ids) = asm2a_assembly("asm4-probe-asm", part_ref, 2);
     let cut = std::collections::BTreeSet::from([ids[1]]);
-    let split_out =
-        d::split(&doc, &cut, d::DocumentId::derive("asm4-probe-new")).expect("legal");
+    let split_out = d::split(&doc, &cut, d::DocumentId::derive("asm4-probe-new")).expect("legal");
     let text = format!(
         "{}\u{1e}{}",
         d::save(&split_out.part, &[]).expect("part saves"),

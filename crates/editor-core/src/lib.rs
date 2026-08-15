@@ -77,13 +77,11 @@ pub use persist::{
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use placement::Frame;
 pub use product::{ProductError, product, product_named};
-pub use refactor::{
-    InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split,
-};
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramRefusal, ProgramStep,
     ProgramTarget, RecordedProgramError,
 };
+pub use refactor::{InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split};
 pub use resolve::{
     Diagnosis, FlipSet, HitTestError, MeshPatchKey, NodeVerdictDelta, PredicateDivergence,
     RecipeEditRef, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, Resolved,
