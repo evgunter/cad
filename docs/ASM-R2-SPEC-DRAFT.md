@@ -193,3 +193,22 @@ mates are ordinary non-body roots (Option A — no coverage
 exemption). R2-a's inputs()/cluster-partition/maintenance
 semantics are now fixed by A12; the draft's second open item
 (reading edges) is discharged.
+
+## M9-1 seam update (2026-08-15, PR #524 / docs/M9-1-SPEC.md)
+
+M9-1 PR-1 lands the kernel contact vocabulary and SUPERSEDES two
+recon-addendum facts in R2-b's favor: `ContactClass` moves DOWN
+into the kernel (one enum, defined lowest, re-exported — the spec
+names R2-b's `Node::Mate { class }` as a forcing consumer), and
+`PatchContact { face_a, face_b }` + `CurveContact` land beside
+the vv/vf records with `DeclaredPairs` becoming a class-keyed map
+— the face-pair rung recon item (d) said was missing. The
+`carrier_eq` kind-generalization of `oriented_plane_eq` is also
+M9-1's, not R2-b's. Still ASM-owned: the contacts channel through
+product/instantiate (recon b) and the cross-instance census door
+(recon a). NEW COORDINATION ITEM for the finalizer: M9-1 defers
+`Fit{gap}` (payload pinned, additive) — A3's class vocabulary
+includes Fit, so R2-a either restricts v1 Mate classes to
+Rest/Tangent-with-typed-refusal-on-Fit, or waits on Fit's landing;
+restriction is the draft's recommendation (matches the refusal
+posture everywhere else).
