@@ -52,6 +52,8 @@ mod pcurve_conic;
 mod pcurve_parameter_finding;
 #[path = "r1_pxn_probes.rs"]
 mod r1_pxn_probes;
+#[path = "m8_f67_r1_probes.rs"]
+mod m8_f67_r1_probes;
 #[path = "review_flux_probes_r1.rs"]
 mod review_flux_probes_r1;
 #[path = "review_m2_pr3_certify.rs"]
