@@ -1330,7 +1330,7 @@ fn naming_key(content: ContentKey, upstream: &[(RecipeNodeId, NamingKey)]) -> Na
 /// under the float tag — (tag, payload) throughout, so structure can
 /// never alias float data (the retired token stream's rule, kept).
 fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
-    use profile::{ArcSweep, Step, Target};
+    use profile::{ArcData, ArcSide, ArcSweep, Step, Target};
     fn f(h: &mut KeyHasher, v: f64) {
         h.write_tag(2);
         h.write_u64(v.to_bits());
@@ -1351,37 +1351,67 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             ArcSweep::Cw => 7,
         });
     }
+    // Tags are append-only and NEVER reused (the tag-29 lesson): the
+    // §2c re-spell RETIRED 11 (AtOn), 19 (ArcVia), 20 (ArcCenter),
+    // 25 (CloseToOn) and 29 (AtToward) — those numbers stay dead —
+    // and appended 30–40 below. Verb identity is structure — two verbs
+    // sharing a tag could collide their digests within one run, which
+    // `switch_program_key`'s `verb_tags_are_structure` exists to
+    // forbid. Keys are process-internal, so no migration.
+    fn side(h: &mut KeyHasher, s: ArcSide) {
+        h.write_tag(match s {
+            ArcSide::Left => 36,
+            ArcSide::Right => 37,
+        });
+    }
+    fn spec(h: &mut KeyHasher, s: &ArcData<f64>) {
+        match s {
+            ArcData::Radius { r, side: sd } => {
+                h.write_tag(30);
+                f(h, *r);
+                side(h, *sd);
+            }
+            ArcData::Bulge { target: t, b } => {
+                h.write_tag(31);
+                target(h, t);
+                f(h, *b);
+            }
+            ArcData::Via { q, target: t } => {
+                h.write_tag(32);
+                f(h, q.x);
+                f(h, q.y);
+                target(h, t);
+            }
+            ArcData::Center {
+                c,
+                winding: w,
+                target: t,
+            } => {
+                h.write_tag(33);
+                f(h, c.x);
+                f(h, c.y);
+                winding(h, *w);
+                target(h, t);
+            }
+            ArcData::Sweep { r, side: sd, angle } => {
+                h.write_tag(34);
+                f(h, *r);
+                side(h, *sd);
+                f(h, *angle);
+            }
+            ArcData::ArcLen { r, side: sd, len } => {
+                h.write_tag(35);
+                f(h, *r);
+                side(h, *sd);
+                f(h, *len);
+            }
+        }
+    }
     match step {
         Step::At(p) => {
             h.write_tag(10);
             f(h, p.x);
             f(h, p.y);
-        }
-        Step::AtOn {
-            p,
-            centre,
-            winding: w,
-        } => {
-            h.write_tag(11);
-            f(h, p.x);
-            f(h, p.y);
-            f(h, centre.x);
-            f(h, centre.y);
-            winding(h, *w);
-        }
-        // Tag 29: the next FREE tag in this function's sequence (10-28
-        // were taken, 28 by `ArcContinue` below). Verb identity is
-        // structure — two verbs sharing a tag could collide their
-        // digests within one run, which `switch_program_key`'s
-        // `verb_tags_are_structure` exists to forbid. Keys are
-        // process-internal, so a tag is chosen once and then left
-        // alone; new verbs append.
-        Step::AtToward { p, dx, dy } => {
-            h.write_tag(29);
-            f(h, p.x);
-            f(h, p.y);
-            f(h, *dx);
-            f(h, *dy);
         }
         Step::Angle(theta) => {
             h.write_tag(12);
@@ -1405,27 +1435,9 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             h.write_tag(17);
             target(h, t);
         }
-        Step::ArcTo { target: t, bulge } => {
+        Step::ArcTo(data) => {
             h.write_tag(18);
-            target(h, t);
-            f(h, *bulge);
-        }
-        Step::ArcVia { via, target: t } => {
-            h.write_tag(19);
-            f(h, via.x);
-            f(h, via.y);
-            target(h, t);
-        }
-        Step::ArcCenter {
-            centre,
-            target: t,
-            winding: w,
-        } => {
-            h.write_tag(20);
-            f(h, centre.x);
-            f(h, centre.y);
-            target(h, t);
-            winding(h, *w);
+            spec(h, data);
         }
         Step::TangentArcTo(t) => {
             h.write_tag(21);
@@ -1440,18 +1452,32 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             h.write_tag(22);
             f(h, *radius);
         }
+        Step::FilletArc { radius, spec: sp } => {
+            h.write_tag(38);
+            f(h, *radius);
+            spec(h, sp);
+        }
+        Step::ArcFillet { spec: sp, radius } => {
+            h.write_tag(39);
+            spec(h, sp);
+            f(h, *radius);
+        }
+        Step::ArcFilletArc {
+            spec: sp,
+            radius,
+            spec2,
+        } => {
+            h.write_tag(40);
+            spec(h, sp);
+            f(h, *radius);
+            spec(h, spec2);
+        }
         Step::FarEndTo(p) => {
             h.write_tag(23);
             f(h, p.x);
             f(h, p.y);
         }
         Step::CloseTo => h.write_tag(24),
-        Step::CloseToOn { centre, winding: w } => {
-            h.write_tag(25);
-            f(h, centre.x);
-            f(h, centre.y);
-            winding(h, *w);
-        }
         Step::Circle { centre, radius } => {
             h.write_tag(26);
             f(h, centre.x);

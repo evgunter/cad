@@ -42,7 +42,7 @@
 //!
 //! A chain binds its entry with `.at(p)`, which declares nothing, and
 //! the two closers that DO declare the seam joint (`.to(Start)`,
-//! `.to_on(Start, …)`) retrim vertex 0. So a loop whose joint 0 is
+//! the arc-arrival close) retrim vertex 0. So a loop whose joint 0 is
 //! declared cannot be lifted at that seam. Since a loop is cyclic and
 //! the seam is authoring freedom, the lift ROTATES to the first
 //! undeclared joint and reports the rotation it used; the differential

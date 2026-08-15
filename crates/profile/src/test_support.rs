@@ -28,7 +28,7 @@
 //! `tests/review_s8_probe.rs`, `tests/common/mod.rs::bracket`, and the
 //! cross-crate fixtures in `sweep`/`step-export`) author their corners
 //! through `fillet`/`fillet_corner` here. Their only lattice target is
-//! the §2b arc-carrier fillet family (`at_on`/`to_on`) — which is
+//! the §2c arc-carrier fillet family — which is
 //! precisely the surface PATHS-DESIGN §2c redesigns (RATIFIED on #419,
 //! 2026-08-11; carrier-typed tips, uniform arrival binders, the compound
 //! register dissolved). The re-spell UNIT has not run yet, so migrating

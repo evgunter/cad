@@ -36,6 +36,8 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathError::AnchorOutsideTrimmedExtent { .. } => "anchor_outside_trimmed_extent",
         PathError::FilletOffsetLeverTooShort { .. } => "fillet_offset_lever_too_short",
         PathError::ArcCarrierSpelling { .. } => "arc_carrier_spelling",
+        PathError::SeamRetrimsArcFirstSide => "seam_retrims_arc_first_side",
+        PathError::DegenerateArcSpec { .. } => "degenerate_arc_spec",
         PathError::NonpositiveLeg { .. } => "nonpositive_leg",
         PathError::NonpositiveFilletRadius { .. } => "nonpositive_fillet_radius",
         PathError::NonpositiveCircleRadius { .. } => "nonpositive_circle_radius",

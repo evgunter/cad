@@ -111,17 +111,17 @@
 //!
 //! # Not in this lowering (v1 scope)
 //!
-//! NURBS legs (`nurbs_in_place`, `nurbs(curve)` and variants,
-//! `FilletCarrierUnsupported`) are specified by PATHS-DESIGN §2 but
-//! have **no representation in the v1 lowering target** (a
-//! [`ProfileLoop`] is a vertex+bulge chain; this crate deliberately
-//! depends on `geom-core` only) — they arrive with the v2
-//! profiles-as-programs representation (#104). Arc-arrival fillets are
-//! explicitly out of scope (§7), which with straight-only fillet
-//! carriers makes every v1 algebra fillet line×line. Mixed authoring
-//! is OUT (§6): a loop is authored either here or as a raw chain,
-//! never both; there is no path-concatenation operator — repeated
-//! motifs are builder functions over the one chain.
+//! NURBS legs (`nurbs_in_place`, `nurbs(curve)` and variants) are
+//! specified by PATHS-DESIGN §2 but have **no representation in the
+//! v1 lowering target** (a [`ProfileLoop`] is a vertex+bulge chain;
+//! this crate deliberately depends on `geom-core` only) — they arrive
+//! with the v2 profiles-as-programs representation (#104). There is no
+//! NURBS-adjacent fillet WALL waiting with them: bare `fillet(r)` is
+//! the uniform ray extension (§2c round 10), and `nurbs_fillet` is an
+//! absent verb. Mixed authoring is OUT (§6): a loop is authored
+//! either here or as a raw chain, never both; there is no
+//! path-concatenation operator — repeated motifs are builder
+//! functions over the one chain.
 //!
 //! # Example: the all-rounded square (4 anchors + 4 directions)
 //!
@@ -248,27 +248,46 @@
 //!     .fillet(0.5).unwrap().angle(1.0).unwrap().to(Start);
 //! ```
 //!
-//! **G2**: the carrier binders are ARRIVAL-side forms too. `.at_on`
-//! needs both slots empty (it binds both), so it is ill-typed on a tip
-//! whose position is already bound …
+//! **§2c**: the fused family's INADMISSIBLE (state, mode) pairs are
+//! missing trait impls. `Bulge` is never an arrival (no chord exists
+//! there) …
 //!
-//! ```compile_fail,E0599
+//! ```compile_fail,E0277
 //! use geom_core::Point2;
-//! use profile::{ArcSweep, Open};
-//! let p = Open.at(Point2::new(0.0, 0.0_f64))
-//!     .at_on(Point2::new(1.0, 0.0), Point2::new(0.0, 0.0), ArcSweep::Ccw);
+//! use profile::{Bulge, Open};
+//! let p = Open.at(Point2::new(0.0, 0.0_f64)).angle(0.0).unwrap()
+//!     .fillet_arc(0.25, Bulge { p: Point2::new(2.0, 2.0), b: 0.5 });
 //! ```
 //!
-//! … and `.to_on` is closing, so nothing continues from its result:
+//! … an [`OnArc`] tip's side runs ON its carrier, so the straight
+//! verbs do not exist on it (the fused verbs re-author the carrier
+//! from its binding bits) …
 //!
 //! ```compile_fail,E0599
 //! use geom_core::Point2;
-//! use profile::{ArcSweep, Open, Start};
-//! let done = Open.at_on(Point2::new(0.0, -1.0_f64), Point2::new(0.0, 0.0), ArcSweep::Ccw)
-//!     .unwrap()
-//!     .fillet(0.25)
-//!     .unwrap()
-//!     .to_on(Start, Point2::new(1.0, 0.0), ArcSweep::Ccw)
+//! use profile::{ArcSweep, Center, Open};
+//! let on_arc = Open.at(Point2::new(0.0, 0.0_f64)).angle(0.0).unwrap()
+//!     .fillet_arc(0.25, Center {
+//!         c: Point2::new(2.0, 2.0),
+//!         winding: ArcSweep::Ccw,
+//!         p: Point2::new(2.0, 4.0),
+//!     })
+//!     .unwrap();
+//! let off = on_arc.line(1.0);
+//! ```
+//!
+//! … and the arc-arrival CLOSE (`Center { p: Start }`) is a complete
+//! loop, so nothing continues from its result:
+//!
+//! ```compile_fail,E0599
+//! use geom_core::Point2;
+//! use profile::{ArcSweep, Center, Open, Start};
+//! let done = Open.at(Point2::new(0.0, 0.0_f64)).toward(1.0, 0.0).unwrap()
+//!     .fillet_arc(0.3, Center {
+//!         c: Point2::new(2.0, -2.0),
+//!         winding: ArcSweep::Ccw,
+//!         p: Start,
+//!     })
 //!     .unwrap();
 //! let more = done.line_to(Point2::new(1.0, 1.0));
 //! ```
@@ -1058,9 +1077,10 @@ struct Tip<T: Real> {
 struct PosData<T: Real> {
     at: Point2<T>,
     incoming: Option<Incoming<T>>,
-    /// **G2 §3a**: the ARC CARRIER this position was bound ON, when it
-    /// was bound by `.at_on(p, centre, winding)` — the symmetric
-    /// arrival bit to the departure side's [`Incoming::carrier`].
+    /// **RETIRING (§2b compat)**: the ARC CARRIER this position was
+    /// bound ON by a retired `at_on` door — the compat shim's buffer,
+    /// deleted with it at the consumer re-spell. The §2c family never
+    /// sets it (an OnArc tip is its own state).
     ///
     /// This is the widened *payload* of the position slot, not a new
     /// slot: §5's one-struct shape is unchanged (still `pos` and `ang`,
@@ -2159,8 +2179,9 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         Ok((pos.at, ang))
     }
 
-    /// **G2**: refuses a verb that would leave the arc carrier this tip
-    /// was bound ON (`.at_on`), naming what to write instead.
+    /// **§2b compat**: refuses a verb that would leave the arc carrier
+    /// a retired `at_on` door bound this tip ON, naming what to write
+    /// instead (deleted with the compat shim).
     ///
     /// A carrier-bound tip's side runs ALONG its circle; the carrier run
     /// is emitted by whatever trims it (the next `.fillet(r)`'s
@@ -2381,12 +2402,10 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     /// direction from chord + bulge, the M2 convention: b = tan(θ/4),
     /// start tangent = chord − θ/2). On a directed point the junction
     /// check runs on the arc's start tangent. `arc_to(Start, b)` is
-    /// the sharp arc seam. On a fillet arrival this refuses
-    /// [`PathError::ArcCarrierSpelling`] (G2): an arc arrival is not
-    /// out of scope any more, it is bound by its CARRIER —
-    /// `.at_on(p, centre, winding)` / `.to_on(Start, centre, winding)`
-    /// — rather than by an arc LEG from an already-bound arrival
-    /// point, and the refusal names that door.
+    /// the sharp arc seam. On a fillet arrival this refuses (§2c): an
+    /// arc arrival is bound by its CARRIER through the fused verbs'
+    /// arrival specs, never by an arc LEG from an already-bound
+    /// arrival point, and the refusal names that door.
     pub fn arc_to<Tgt: ArcTarget<T, F>>(self, target: Tgt, bulge: T) -> Tgt::Out {
         Tgt::arc_from(self, target, bulge)
     }

@@ -48,8 +48,8 @@
 
 use editor_core::{
     Axis3, BooleanOp, CapEnd, Datum, DocEdit, EntityKind, LoopProgram, MeridianEnd, NamePat, Node,
-    ProfileEdgeRef, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SegPat,
-    SegTag, Selector, SlotId, StableName,
+    ProfileEdgeRef, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    RoleSeg, SegPat, SegTag, Selector, SlotId, StableName,
 };
 use geom_core::{Point3, Vec3};
 use profile::SketchPlane;
@@ -313,10 +313,10 @@ fn half_disc_program(quarter: f64) -> LoopProgram {
     };
     LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, -PIP_R)),
-        ProgramStep::ArcTo {
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
             target: ProgramTarget::Point(lpt(PIP_R, 0.0)),
-            bulge: editor_core::Expr::literal(quarter, editor_core::Dimension::Scalar).unwrap(),
-        },
+            b: editor_core::Expr::literal(quarter, editor_core::Dimension::Scalar).unwrap(),
+        }),
         ProgramStep::ArcContinue(lpt(0.0, PIP_R)),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])

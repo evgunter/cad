@@ -181,9 +181,20 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// is ONE LINE, so the second merge resolves it CLEANLY to the same
 /// text while the two meanings silently collapse.
 ///
+/// Version 9 is the **§2c fillet-family re-spell** (PATHS-DESIGN §2c,
+/// ratified on #419; LIB-RESPELL PR-1): the chain step vocabulary
+/// RE-SPELLED — `AtOn`/`AtToward`/`CloseToOn`/`ArcVia`/`ArcCenter`
+/// retired, `ArcTo` re-shaped onto the one unified arc-spec record,
+/// and the fused verbs (`FilletArc`/`ArcFillet`/`ArcFilletArc`)
+/// added. A pre-release clean break, both directions: a v8 file's
+/// retired variants would die in serde under today's types, and a v9
+/// file's fused variants are unknown to a v8 reader — so v8 refuses
+/// TYPED at the gate with the regenerate recourse (the v3 precedent),
+/// and the migration table stays empty.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these seven.
-pub const SCHEMA_VERSION: u32 = 8;
+/// [`migration_step`] entry, or a ratified break like these eight.
+pub const SCHEMA_VERSION: u32 = 9;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
