@@ -99,10 +99,13 @@ rather than riding M9-1 unconsumed.
    (and may collapse into M9-3). No code until ratified; the
    #388/#498 pcurve banks cite it but stay excluded.
 
-6. **M9-4 — post-union edge descriptions (C7 item 3).**
-   Determinate-jet G1 rims carry `TangentIntersection`; isolated
-   κ_rel-zero rims stay `MappedCurve`, conservatively unenforced;
-   wedge = π already legal. Shaped by M9-D's outcome.
+6. **M9-4 — COLLAPSED INTO M9-3 (M9-D's ratified consequence,
+   2026-08-15).** Under U2 the marks and their enforcement
+   predicates already exist — the join lane wires them
+   (determinate-jet G1 rims carry `TangentIntersection`; isolated
+   κ_rel-zero rims conservatively unenforced; wedge = π legal),
+   and M9-3's emission shapes map 1:1 onto (surface, pcurve) so
+   the migration unit inherits them cleanly.
 
 7. **M9-5 — the lily FULL rebuild** (the demo moment; the lily's
    CONTENT stays Evan's — the rebuild executes the ratified plan
@@ -113,9 +116,10 @@ rather than riding M9-1 unconsumed.
    contact) — the wall stays probed and refusing with its named
    residue; the germ-chord lane stays banked. **Wall 8 carries a
    stated dependency**: its refusal is `CurvedEdgeUnsupported` —
-   an edge-vocabulary gap, so its flip likely needs M9-D/M9-4's
-   outcome, and its disposition is stated with that dependency
-   rather than promised unconditionally. The
+   an edge-vocabulary gap whose flip rides the post-M9 pcurve
+   MIGRATION unit (M9-D's ratified sequencing), so its
+   disposition is stated with that dependency rather than
+   promised unconditionally. The
    internal-tangency fixture row (#250/#161 §2c) rides as
    evidence; #368 (≥π spines) only if the rebuilt spines demand
    it. The two-peg plate lands as the join lane's canonical new
