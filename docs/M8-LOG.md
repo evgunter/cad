@@ -241,3 +241,62 @@ question (my comment on the thread); the #388 provenance fork
 (my #391 comment states the fork + lean, unit will present it).
 
 **Addendum (2026-08-12):** the pcurve-unification design conversation is filed as #427 (Evan's lean: unification; MappedCurve → provenance record; M9 design item). #388 proceeds with option (a) independently. #409 scope clarified by Evan: only the merged text is in force; P1–P3 remain proposals.
+
+## Demo-raised residuals — the die's recipe conversion (2026-08-14)
+
+`demos/tour/src/diefillet.rs` became ONE recipe document, discharging
+LIB-SEL1 deliverable 4 (`docs/LIB-SEL1-SPEC.md` §2.4: "diefillet.rs's
+two geometric filters move to `select_where` + name-fed
+`fillet_edges` — THE acceptance, P10 dies at its origin site") at its
+origin site. #289 had reported that acceptance as MOVED, to the
+corpus `die_composed`, on the ground that the tour's die could not be
+a recipe at byte-identity. Evan's ruling on that PR (2026-08-09,
+14:57Z, now the binding preamble in `demos/tour/src/main.rs`) retired
+the premise — demo byte-identity is soft when the point IS the better
+authoring — and the conversion went through with the geometry
+UNCHANGED in every measured respect: same three bodies, same face /
+edge / vertex counts (26/48/24, 48/96/71, 89/195/129), same volumes to
+every printed digit, tier-3 valid. `diefillet.stl` / `.step` are
+byte-identical to the raw build; `diepips` and `diecomposed` differ
+only where noted below. The blank's twelve edges are `all_edges`, and
+the two surgery blends are `select_where` calls over the EXACT atoms
+(`CurveKind(Line)` → 12; `AdjacentKinds({Plane}, {Sphere})` → 42 rim
+arcs, the 42 co-surface meridians excluded BY DESCRIPTION).
+
+Two library residuals the conversion RAISED — recorded per the demo
+doctrine (`main.rs`: awkwardness through the public surface is a
+library finding, never a quiet workaround), both M8-class (misc kernel
+residuals the demos raised):
+
+- **D1 — the revolve name emitter refuses an all-on-axis loop.**
+  `editor-core/src/names/emit_sweep.rs`'s `UNRESOLVED` ("revolve
+  vertex resolution exceeded elimination (all-on-axis loop) —
+  deferred"): pole vertices resolve by ELIMINATION along the meridian
+  chains, and a two-pole loop offers no off-axis anchor. Consequence:
+  **no sphere reaches a `Node::Revolve` at all**. The natural pip
+  meridian — one bulge-1 semicircle closed by its on-axis diameter —
+  is unsayable, and every recipe that wants a ball pays the same
+  detour: split it at an off-axis equator vertex into two quarter arcs
+  derived from `tan(π/8)` (`die_pips` deviation (b), now the tour's
+  too). Cost, measured here: the ball carries two band faces instead
+  of one, and the pip cavity's seam meridians land at a different
+  azimuth than the raw build's did — which is the whole of the
+  `diepips`/`diecomposed` STL/STEP drift (STEP entity-type sequence
+  identical, 237 of 2579 lines differing, all of them the sphere
+  charts' swapped frame axes; `diecomposed`'s tessellated vertex cloud
+  is bit-identical, 24437 points, with 1530 of 48870 planar-face
+  triangles split differently). Fix = a discriminator in the emitter;
+  deleting both workarounds is the acceptance.
+- **D2 — no group union in the recipe layer.** `Node::Boolean` is
+  pairwise, so the 21-shell cutting tool the closed-group discipline
+  requires (S13 refuses a trimmed sphere face as the next operand)
+  costs TWENTY union nodes, and leaves the last ball's names twenty
+  `FromA`/`FromB` segments deep. `die_pips` sidesteps this by carrying
+  one pip; the tour cannot, because 21 pips are the scene. A
+  group-union node — or a union taking a list of operands — says it
+  once. Related but distinct from F4 (a Boolean node cannot consume a
+  Pattern node's `Instances` payload, `heatsink.rs` module docs).
+
+Neither blocks anything today; both are named so the workarounds are
+visible as workarounds. The `tan(π/8)` meridian in `diefillet.rs`
+carries a pointer back to this entry.
