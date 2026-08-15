@@ -9,7 +9,10 @@ Three tiers (Evan's ask: "changing a core crate runs everything, adding a
 new crate only runs that new crate's tests" — dependency-AWARE, not naive
 per-crate):
 
-  TIER=docs     only *.md files and memories/ changed. Nothing builds; the
+  TIER=docs     only NON-TRIGGERING paths changed — *.md anywhere,
+                memories/, local-scripts/, .claude/ (the full list is
+                `_is_docs`, and every entry past the first two is a tree
+                hosted CI structurally cannot read). Nothing builds; the
                 `docs-only ok` marker job is the whole gate. (Floor
                 convention: floors apply to CODE PRs.)
   TIER=all      a workspace-level file changed — the change can move any
@@ -20,11 +23,11 @@ per-crate):
                 is a real build edge for `cargo test`).
 
 Classification is an ALLOWLIST, so it fails CLOSED by construction: a path
-is scopable only if it is a *.md/memories docs path or lives inside a known
-workspace member's directory. Anything unrecognised — a new top-level file,
-a new excluded workspace, a renamed crate dir — lands in TIER=all. Every
-error path (git failure, cargo-metadata failure, empty diff, a crates/
-subdirectory that is not a member) also lands in TIER=all.
+is scopable only if `_is_docs` recognises it as non-triggering or it lives
+inside a known workspace member's directory. Anything unrecognised — a new
+top-level file, a new excluded workspace, a renamed crate dir — is TIER=all.
+Every error path (git failure, cargo-metadata failure, empty diff, a
+crates/ subdirectory that is not a member) also lands in TIER=all.
 
 Why no third-party tool. `determinator` (guppy) is the obvious ecosystem
 answer and was evaluated: it is a LIBRARY with no binary (0.12.0, published
@@ -84,6 +87,21 @@ import sys
 # to a developer's machine. Scripts hosted CI DOES run stay in scripts/ and
 # keep forcing TIER=all, because a change to any of them can move a result.
 #
+# .claude/: agent session config (2026-08-15) — the SessionStart hook that
+# provisions a Claude Code on the web container, and the settings.json that
+# registers it. It is local-only tooling in exactly the sense above, just
+# for an agent's container rather than a developer's laptop: it runs when a
+# SESSION opens, never when a workflow does. It rides the SAME structural
+# guard, and deliberately so — the prune step that deletes local-scripts/
+# deletes this too, so the claim "hosted CI does not read .claude/" is
+# checked on every run rather than trusted. Before that guard existed, a
+# one-line hook edit cost a full 20-row gate including both render lanes.
+#
+# The distinction to keep hold of if this list grows again: a path belongs
+# here only when hosted CI CANNOT read it (proven by the prune), not merely
+# when it looks developer-ish. Anything hosted CI does read — scripts/,
+# .github/, .cargo/ — stays out and keeps forcing TIER=all.
+#
 # Still an allowlist, still fails closed: a new top-level directory, or a
 # new file directly under scripts/, is unrecognised and lands in TIER=all.
 def _is_docs(path: str) -> bool:
@@ -91,6 +109,7 @@ def _is_docs(path: str) -> bool:
         path.startswith("memories/")
         or path.endswith(".md")
         or path.startswith("local-scripts/")
+        or path.startswith(".claude/")
     )
 
 

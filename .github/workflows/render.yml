@@ -176,14 +176,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
 
       # THE TOUR'S OUTPUT IS CACHED ON ITS SOURCES' HASH, not rebuilt
       # per dispatch. Measured on run 31426382563: the step is ~94 s of
@@ -252,14 +255,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: actions/download-artifact@v4
         with:
           name: tour-out
@@ -345,14 +351,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: actions/download-artifact@v4
         with:
           name: tour-out
@@ -558,14 +567,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
 
       # THE GENERATOR'S OUTPUT IS CACHED ON ITS SOURCES' HASH, exactly
       # like the tour's above and for the same measured reason:
