@@ -26,7 +26,9 @@ disagree; retiring a finding updates both. Retired so far: F1 plus the
 eight inline class-(c) sites (rim-dimensional unit, #197); F5 and most
 of F6 (M6-3, #192); F3 and F4 (the F3+F4 dimensional unit — F3 was the
 tree's last funnel bypass, so predicate-name attribution in the K
-telemetry is now complete).
+telemetry is now complete); F6's residue and F7 together (the typed-
+margin fold-in — one quantity, the NURBS carrier's metric rate, that
+three sites had handled three different ways).
 
 **Clause-(i) migration (the margin dimensional convention's typed
 seam — executed by the margin-migrate unit).**
@@ -44,11 +46,10 @@ comparand this ledger FLAGS as not-a-length are carried through the
 seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
-enumerates the clause-(i) debt exactly (F2 ×4, F6 ×3 — the fitted/iso
-lane meters and the fitted lane's whole-chart azimuth arm, F7 ×1,
+enumerates the clause-(i) debt exactly (F2 ×4,
 F10 ×1 — one loop over seven rigidity residuals — F13 ×1, F14 ×1,
 F15 ×1 —
-12 shipped sites, tracked as issue #214 and pinned by the census count
+8 shipped sites, tracked as issue #214 and pinned by the census count
 assertion `geom-core/tests/flagged_census.rs`: no new site ships
 without a row here, and the count only moves together with this
 section).
@@ -106,8 +107,8 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | certify.rs:849/858 | interval_span_forward/winding (Circle) | span·radius / (τ−span)·radius | m | OK |
 | certify.rs:872/877 | interval_span_forward/winding (Ellipse) | span·minor (conservative) | m | OK |
 | certify.rs:883 | interval_span_forward (Line) | span (t IS arc length) | m | OK |
-| certify.rs:897 | nurbs_span_meter | speed_lower_bound() | m/param | FLAG F7 |
-| certify.rs:908 | interval_span_forward (Nurbs) | span × (m/param) | m | OK |
+| certify.rs:1164 | nurbs_span_meter | knot-domain length × speed_lower_bound() — the net's arc-length lower bound, reparametrization-invariant | m | OK (metered door; the collapsed-arm gate on the meter) |
+| certify.rs:1175 | interval_span_forward (Nurbs) | span × (m/param) | m | OK |
 | certify.rs:917/925 | carrier_endpoint_start/end | point distance | m | OK |
 | certify.rs:950/958/992/1000 | carrier/tangent_on_surface_1/2 | implicit_residual (/2r-normalized) | m | OK |
 | certify.rs:1015 | tangent_second_order | κ_rel·arm²/2 | m | OK |
@@ -123,17 +124,18 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | intersect.rs:1000/1006/1043 | pn_apex_*, pn_axis_normal | m·unit; trig diff×extent; sin×rim r | m | OK |
 | pcurve_cache.rs:1225/1233 | pcurve_chart_azimuth_affine / winding | (rad coeff)×radius | m | OK |
 | pcurve_cache.rs:1268 | pcurve_map_residual | mapped point distance | m | OK |
-| pcurve_cache.rs:1315 | pcurve_interval_forward (harmonic) | span × param_rate | m | OK |
-| pcurve_cache.rs:1327 | pcurve_azimuth_period | (τ−span)·radius | m | OK |
-| pcurve_cache.rs:1471 | pcurve_trim_containment | chart-param overhang × chart_arms | mixed | FLAG F6 |
-| pcurve_cache.rs:1528 | pcurve_interval_forward (fitted) | NURBS param span × 1 | dimensionless | FLAG F6 |
-| pcurve_cache.rs:1542 | pcurve_azimuth_period (fitted) | rad headroom × u_arm (1 for cone/torus) | mixed | FLAG F6 |
+| pcurve_cache.rs:1964 | pcurve_interval_forward (harmonic) | span × param_rate | m | OK |
+| pcurve_cache.rs:1988 | pcurve_azimuth_period (harmonic) | (τ−extent)·azimuth_lever | m | OK |
+| pcurve_cache.rs:1894 | pcurve_interval_meter (fitted/iso gate) | carrier parameter extent × param_rate (a NURBS net's knot domain × its certified speed lower bound) | m | OK (metered door; the collapsed-arm gate) |
+| pcurve_cache.rs:2310 | pcurve_trim_containment | chart-param overhang × `chart_arms_at` (the cone arm from the check's own boxes since M6-3) | m | OK (metered door) |
+| pcurve_cache.rs:2382 / :2868 | pcurve_interval_forward (fitted / iso) | span × param_rate — a NURBS carrier's rate IS its certified speed lower bound | m | OK (metered door; the meter gated at :1894) |
+| pcurve_cache.rs:2397 | pcurve_azimuth_period (fitted) | rad headroom × `chart_arms_at`'s azimuth lever (the cone's `v_sup·sin α`) | m | OK (levered door) |
 | pcurve_cache.rs:1664 | pcurve_chart_radial_moving | Σ m-norms BARE (amplitude is metres) | m | FIXED (M6-3) |
 | pcurve_cache.rs:1680/1772/1791 | pcurve_chart_orientation / sphere meridian | m² ÷ radius | m | OK |
 | pcurve_cache.rs:1752 | pcurve_sphere_chart_frame | m at :1770, dimensionless at :1836 (tie-break) | mixed | FLAG (note N5) |
 | pcurve_cache.rs:1759–1829 | pcurve_sphere_chart_* | m-scaled coefficients / rooted | m | OK |
 | pcurve_cache.rs (iso lane, M7) | pcurve_iso_boundary / iso_axis_u/v / iso_domain | chart-param values/extents/overhangs × stretch bounds (m per chart unit) | m | OK (metered door; added by the clause-(i) migration) |
-| pcurve_cache.rs (ARC-RIM iso class, M8-3) | pcurve_interval_forward / pcurve_iso_boundary | span × `param_rate` = arc LENGTH (the class's carrier is a `Curve3::Circle` by construction, so the rate is the radius); the sub-arc weight residual `w − cos(h/2)` metered at the radius | m | OK (metered door — deliberately NOT the fitted lane's F6 twin: no bare parameter crosses) |
+| pcurve_cache.rs (ARC-RIM iso class, M8-3) | pcurve_interval_forward / pcurve_iso_boundary | span × `param_rate` = arc LENGTH (the class's carrier is a `Curve3::Circle` by construction, so the rate is the radius); the sub-arc weight residual `w − cos(h/2)` metered at the radius | m | OK (metered door; its rate cannot be poison, which is why it carries no meter gate) |
 | pcurve_cache.rs (iso/fitted lanes) | pcurve_envelope | certified sup bound (m) | m | OK (added by the clause-(i) migration) |
 | pcurve_cache.rs (chart derivation, M6-3) | pcurve_cone/sphere/torus_chart_axial / _centered / chart_radial_moving | axial displacement sums; radial-offset norms; Σ m-norms | m | OK (added by the clause-(i) migration) |
 | pcurve_cache.rs (chart derivation) | pcurve_chart_orientation / sphere/torus_chart_meridian | oriented area a×b·n̂ over its radius lever (m²/m) | m | OK (over_lever door; added by the clause-(i) migration) |
@@ -200,7 +202,7 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | census.rs:666 | pm_census_ee_parallel | sin(unit dirs) × min(edge lengths) | m | FIXED (was bare sine) |
 | census.rs:812/831 | pm_census_confirm_* | distances / residuals | m | OK |
 | merge_faces.rs:924 | bool_ring_run_winding | (n̂ · Newell sum) / loop perimeter | m | FIXED (F4) |
-| pcurves.rs:508–717 | pcurve_loop_continuity / closure(_height) | Δu(rad)×azimuth_arm; Δv (m on cylinder charts) | m | OK today; FLAG F6 (non-cylinder fallback arm = 1) |
+| pcurves.rs:631–641 / :1027 / :1273 | pcurve_loop_continuity / closure(_height) | Δu(rad)×`azimuth_arm`; Δv×`v_meter` | m on every ANALYTIC chart, and on a PLANE chart (its u/v ARE metres, so the `_ => 1` arm is exactly right); the `v_meter` fallbacks are 1 only where no polar arm exists | m | OK, except the NURBS chart: `azimuth_arm`'s `_ => 1` and the `v_meter` `unwrap_or_else(T::one)` fallbacks under-state a NURBS chart's stretch. FLAGGED as a cross-crate residue (an honest arm needs geom-brep's `nurbs_stretch_bounds`), tracked by issue #501 — not a `decide_flagged` site |
 | pcurves.rs | pcurve_iso_side / pcurve_loop_pole_joint | chart-image point distance; local azimuth lever (m) | m | OK (added by the clause-(i) migration) |
 | split.rs:197 | split_edge_param_interior | param spans × per-kind rate (1 / radius / minor / speed bound) | m | OK |
 | transform.rs:139 | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, no arm | dimensionless | FLAG F10 |
@@ -361,20 +363,30 @@ Flagged, NOT fixed here (dispositions):
   step-import/tests/freecad.rs, composing #197's F-row retirement).
   In-band amplitudes take the meridian arm as a D9 tie-break, the
   discarded drift carried by check 4's envelope in metres.
-- **F6** pcurve chart arms — **mostly closed by M6-3** alongside the
-  chart completion: `chart_arms` now answers (r, r) for spheres and
-  (R+r, r) for tori, the cone's azimuth arm comes from the
-  containment check's own boxes (`chart_arms_at`, v_sup·sin α), and
-  `pcurves.rs::azimuth_arm` is the LOCAL lever (r·cos v etc. — zero
-  at poles/apex, which the walk exploits). Still bare: the
-  fitted-lane `pcurve_interval_forward` NURBS param span (a
-  reparametrization-sensitive rate) — fold into F7's typed-margin
-  design.
-- **F7** `nurbs_span_meter` (certify.rs:897): a RATE (m/param) gated
-  against the linear band — reparametrization-sensitive. Fold into the
-  typed-margin design. (The certify.rs collision claim is STALE as of
-  the F3+F4 unit — the loft-assembly lane merged; deferred on its own
-  merits now, not on a file conflict.)
+- **F6** pcurve chart arms — **RETIRED**. M6-3 closed most of it
+  (`chart_arms` answers (r, r) for spheres and (R+r, r) for tori, and
+  `pcurves.rs::azimuth_arm` is the LOCAL lever — r·cos v etc., zero at
+  poles/apex, which the walk exploits). The residue closed with F7:
+  `param_rate` answers a NURBS carrier's certified speed lower bound,
+  so the fitted and iso `pcurve_interval_forward` spans cross to the
+  band as arc lengths through the metered door, with the meter itself
+  gated as a length (`pcurve_interval_meter`, the collapsed-arm
+  idiom); and the fitted lane's azimuth headroom takes
+  `chart_arms_at`'s lever, so the cone's arm is `v_sup·sin α` from the
+  check's own boxes rather than 1. What remains is NOT this family:
+  `pcurves.rs::azimuth_arm`'s non-plane `_ => 1` fallback (:644) and
+  the `v_meter` fallbacks (:1027, :1273) are cross-crate — an honest
+  arm needs geom-brep's `nurbs_stretch_bounds` from topo — and carry
+  issue #501. The Plane case there is OK, not flagged:
+  a plane chart's u/v ARE metres, so 1 is exactly right.
+- **F7** `nurbs_span_meter` (certify.rs:1164) — **RETIRED**. The gate
+  is a LENGTH: the net's knot-domain extent metered through the
+  certified speed lower bound, a lower bound on its arc length. That
+  comparand is reparametrization-invariant where the bare rate was
+  not (`t → 2t` halves the rate and doubles the domain), and it is
+  what D4's ε classifies. The collapsed-arm idiom keeps the two
+  failure modes distinct: a collapsed or poison meter is `Invalid`,
+  a backwards span is `IntervalNotForward`.
 - **F8** window/cosine family: `bool_between_arc_window` (cosΔ−cos h,
   quadratic near narrow/full windows), `bool_wall_trim` cone term
   (same shape, conservative direction), sphere-wall `split_arc_window`
