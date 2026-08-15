@@ -186,6 +186,10 @@ decided NUMERIC predicates, so R2-a is not purely structural as
 pre-logged — under #409's mixed rule it records as numeric. Amend
 the pre-log AT SPEC TIME, before any dispatch draw reads it.
 
-**AQ7 dependency**: the cluster partition and root behavior on
-mate insert/delete wait on the AQ7 ruling (PR #522); the table
-above is partition-independent.
+**AQ7 → A12 (RATIFIED 2026-08-15, #522)**: reading edges
+recomputed from name heads; A9/A11 partition over all edges;
+A10 invariants/maintenance/gather over consuming edges only;
+mates are ordinary non-body roots (Option A — no coverage
+exemption). R2-a's inputs()/cluster-partition/maintenance
+semantics are now fixed by A12; the draft's second open item
+(reading edges) is discharged.

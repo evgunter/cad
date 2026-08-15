@@ -173,3 +173,26 @@ independently. Dual tally still 4-of-6 (samples #11/#12 both
 0-MAJOR, non-qualifying); next ordinal claim is 39 = the banked
 same-model dual, shared with LIB's pending PYG5 claim —
 main-is-authority at whoever dispatches first.
+
+## Seam: AQ7 raised and RATIFIED as A12 same-day (2026-08-15)
+
+Parallelization pass while ASM-4 implements (Evan's prompt): the
+recon's Mate-root wrinkle sharpened, on reading A9's ratified
+text, into a genuine three-way composition failure (A9 expects
+mate references to connect components; A3 makes them stable
+names; shipped D3 makes name refs non-edges) — raised as AQ7 on
+PR #522 with a firm proposal. Evan signed off within the hour
+(👍 + comment concurring against coverage-exemption): **A12
+ratified** — reading edges recomputed from name heads, A9/A11
+partition over ALL edges, A10 over CONSUMING edges only, mates
+ordinary non-body roots. AQ7 discharged; #522 merged. Also this
+pass: the R2-a coset intersection table written out in the draft
+(closure set {SE(3), planar, cylindrical, prismatic, revolute,
+trivial, empty}; decided case splits; verdict fold), with the
+pre-log flag that R2-a's case splits are decided numerics — the
+L/structural pre-log amends to numeric under #409's mixed rule
+AT SPEC TIME, before any draw reads it. #382's cheap half turned
+out already done (M8's #491), so nothing to parallelize there.
+R2 spec finalization now waits ONLY on ASM-4's interface-record
+hook. ASM-4 lane healthy at the last sweep (D-1 + hook committed,
+refactor.rs in progress).
