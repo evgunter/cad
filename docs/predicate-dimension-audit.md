@@ -202,7 +202,7 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | census.rs:666 | pm_census_ee_parallel | sin(unit dirs) × min(edge lengths) | m | FIXED (was bare sine) |
 | census.rs:812/831 | pm_census_confirm_* | distances / residuals | m | OK |
 | merge_faces.rs:924 | bool_ring_run_winding | (n̂ · Newell sum) / loop perimeter | m | FIXED (F4) |
-| pcurves.rs:631–641 / :1027 / :1273 | pcurve_loop_continuity / closure(_height) | Δu(rad)×`azimuth_arm`; Δv×`v_meter` | m on every ANALYTIC chart, and on a PLANE chart (its u/v ARE metres, so the `_ => 1` arm is exactly right); the `v_meter` fallbacks are 1 only where no polar arm exists | m | OK, except the NURBS chart: `azimuth_arm`'s `_ => 1` and the `v_meter` `unwrap_or_else(T::one)` fallbacks under-state a NURBS chart's stretch. FLAGGED as a cross-crate residue (an honest arm needs geom-brep's `nurbs_stretch_bounds`), tracked by its own follow-up issue — not a `decide_flagged` site |
+| pcurves.rs:631–641 / :1027 / :1273 | pcurve_loop_continuity / closure(_height) | Δu(rad)×`azimuth_arm`; Δv×`v_meter` | m on every ANALYTIC chart, and on a PLANE chart (its u/v ARE metres, so the `_ => 1` arm is exactly right); the `v_meter` fallbacks are 1 only where no polar arm exists | m | OK, except the NURBS chart: `azimuth_arm`'s `_ => 1` and the `v_meter` `unwrap_or_else(T::one)` fallbacks under-state a NURBS chart's stretch. FLAGGED as a cross-crate residue (an honest arm needs geom-brep's `nurbs_stretch_bounds`), tracked by issue #501 — not a `decide_flagged` site |
 | pcurves.rs | pcurve_iso_side / pcurve_loop_pole_joint | chart-image point distance; local azimuth lever (m) | m | OK (added by the clause-(i) migration) |
 | split.rs:197 | split_edge_param_interior | param spans × per-kind rate (1 / radius / minor / speed bound) | m | OK |
 | transform.rs:139 | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, no arm | dimensionless | FLAG F10 |
@@ -377,7 +377,7 @@ Flagged, NOT fixed here (dispositions):
   `pcurves.rs::azimuth_arm`'s non-plane `_ => 1` fallback (:644) and
   the `v_meter` fallbacks (:1027, :1273) are cross-crate — an honest
   arm needs geom-brep's `nurbs_stretch_bounds` from topo — and carry
-  their own follow-up issue. The Plane case there is OK, not flagged:
+  issue #501. The Plane case there is OK, not flagged:
   a plane chart's u/v ARE metres, so 1 is exactly right.
 - **F7** `nurbs_span_meter` (certify.rs:1164) — **RETIRED**. The gate
   is a LENGTH: the net's knot-domain extent metered through the
