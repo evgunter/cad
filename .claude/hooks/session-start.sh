@@ -8,7 +8,7 @@
 # scripts, `crates/pncad-py/run-python-tests.sh`, and the admesh
 # watertight check. Everything those need that a bare container lacks is
 # installed below — plus the demo renderers' Python venv, so a scene can
-# be previewed without a cold install mid-session (§7 for why that is the
+# be previewed without a cold install mid-session (§6 for why that is the
 # only render prerequisite worth warming here).
 #
 # All of those were run end to end on a hosted container on 2026-08-14
@@ -25,23 +25,35 @@
 # outside Claude Code on the web.
 #
 # SYNCHRONOUS, deliberately: the session must not open onto a half-built
-# toolchain, because the first thing an agent does here is compile. The
-# container state is snapshotted once the hook finishes, so the cold cost
-# below is paid by the first session on a given cache and reused after.
+# toolchain, because the first thing an agent does here is compile.
 #
 # IDEMPOTENT: every step is a no-op when its output is already present, so
 # a resume/clear/compact re-fire costs seconds.
 #
+# NO WARM BUILD (2026-08-15). This hook used to end with `cargo build
+# --workspace --all-targets`, on the belief that the container is
+# snapshotted after the hook and later sessions would open onto a warm
+# target/. They do not: a session opens on a fresh clone with an empty
+# target/ regardless, so the build bought nothing that outlived the
+# session that paid for it. Within a session it is worse than
+# neutral: the same compile happens either way, and doing it HERE spends
+# minutes before the agent can type, hides the output behind hook capture,
+# and compiles the whole workspace when the first real command usually
+# wants one crate. So provisioning here is confined to what a bare
+# container LACKS — tools it has no copy of, and the registry warm that
+# keeps the first build from also being a download. Do not re-add a build
+# step without a measurement showing target/ actually survives the
+# session.
+#
 # NO SINGLE TOOL MAY COST THE SESSION ITS COMPILER (2026-08-14). This
 # script used to die on the first failed download: `set -e` plus a
 # `curl | tar` pipeline meant one unreachable host aborted the hook where
-# it stood, and everything AFTER that point — the registry warm, the
-# `cargo build` that is the whole reason for the container snapshot —
-# simply never ran. That is exactly backwards. The rows differ in how
-# much they cost when absent:
+# it stood, and everything AFTER that point — the remaining tools, the
+# registry warm — simply never ran. That is exactly backwards. The rows
+# differ in how much they cost when absent:
 #
-#   * the COMPILER and the WARM BUILD are the session. Nothing here may
-#     stand between the agent and `cargo build`;
+#   * the COMPILER is the session. Nothing here may stand between the
+#     agent and `cargo build`;
 #   * a TEST-RUNNER or CHECKER (nextest, maturin, ty, admesh) costs its
 #     own gate row and nothing else. A session missing one can still
 #     build, still `cargo test`, still read code.
@@ -50,8 +62,8 @@
 # on stderr naming the tool and what it costs, records itself in
 # DEGRADED, and the hook prints the whole list again at the end. Fail-loud
 # is preserved — what is dropped is fail-EARLY, which here only ever
-# punished the steps that matter most. The hook still exits nonzero if
-# the toolchain or the warm build itself fails.
+# punished the steps that matter most. The hook still exits nonzero if the
+# toolchain itself fails.
 #
 # EGRESS IS POLICY-FILTERED, AND THE FILTER DIFFERS PER ENVIRONMENT.
 # Outbound HTTPS goes through an agent proxy enforcing an allow-list, so
@@ -298,18 +310,7 @@ for root in . interval-transcendentals tools/k-lint demos/tour demos/wild; do
 done
 
 # ---------------------------------------------------------------------------
-# 6. Warm target/ so the first real command is incremental.
-#
-# --all-targets covers the test binaries too, which is what the nextest
-# rows need; the doc-test and clippy rows reuse the dependency artifacts.
-# This is the expensive step (minutes cold, seconds warm) and it is the
-# main thing the post-hook container snapshot is worth caching.
-# ---------------------------------------------------------------------------
-say "warm build (workspace, all targets)"
-cargo build --workspace --all-targets
-
-# ---------------------------------------------------------------------------
-# 7. The demo renderers' Python venv (numpy + matplotlib, pinned by
+# 6. The demo renderers' Python venv (numpy + matplotlib, pinned by
 #    demos/render.sh and demos/render-wild.sh).
 #
 # NOT the committed sheets: hosted CI renders those (render.yml), and
@@ -364,8 +365,8 @@ if [ "${#DEGRADED[@]}" -gt 0 ]; then
   {
     echo
     echo "================================================================"
-    echo " DEGRADED CONTAINER — the compiler and the warm build are fine,"
-    echo " but ${#DEGRADED[@]} gate row(s) cannot run in this session:"
+    echo " DEGRADED CONTAINER — the compiler is fine, but"
+    echo " ${#DEGRADED[@]} gate row(s) cannot run in this session:"
     echo
     printf '   * %s\n' "${DEGRADED[@]}"
     echo
