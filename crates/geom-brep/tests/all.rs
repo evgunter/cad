@@ -46,14 +46,14 @@ mod m5_pr7_ssi;
 mod m5_pr9_tangent;
 #[path = "m7_8_plane_nurbs_edge.rs"]
 mod m7_8_plane_nurbs_edge;
+#[path = "m8_f67_r1_probes.rs"]
+mod m8_f67_r1_probes;
 #[path = "pcurve_conic.rs"]
 mod pcurve_conic;
 #[path = "pcurve_parameter_finding.rs"]
 mod pcurve_parameter_finding;
 #[path = "r1_pxn_probes.rs"]
 mod r1_pxn_probes;
-#[path = "m8_f67_r1_probes.rs"]
-mod m8_f67_r1_probes;
 #[path = "review_flux_probes_r1.rs"]
 mod review_flux_probes_r1;
 #[path = "review_m2_pr3_certify.rs"]
