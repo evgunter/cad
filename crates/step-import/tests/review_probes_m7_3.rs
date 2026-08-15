@@ -47,9 +47,26 @@ fn native_loft_prism() -> topo::Body<f64> {
 }
 
 /// V2: a seam carrier byte-equal to NEITHER wall's boundary iso (a
-/// "legitimately refit" foreign seam) must refuse typed, not misadopt.
+/// "legitimately refit" foreign seam) is disposed of by the TOLERANCE,
+/// never by a gate of its own.
+///
+/// The plant moves one seam control point by 1e-7 m, and whether that
+/// is a falsification is an ε question: at ε_in ≤ 1e-9 the displacement
+/// is OUTSIDE tolerance and the seam must refuse TYPED — the probe's
+/// original teeth, and where the bitwise `IsoCurve` rung's absence must
+/// not become a silent adoption. At ε_in = 1e-6 the displacement is
+/// INSIDE tolerance: the file's carrier is honest evidence at the
+/// tolerance the caller asked for, declare-and-check certifies it, and
+/// refusing it would be a gate tighter than ε_in.
+///
+/// Both cells are pinned with the plant's own number. The falsifier
+/// with real teeth at EVERY ε is `recognize_pins`'s 1e-3 m displaced
+/// carrier, which refuses carrying its measured residual.
 #[test]
 fn probe_refit_seam_refuses_typed() {
+    /// The plant's displacement, in metres.
+    const PLANT: f64 = 1e-7;
+    let eps = geom_core::Tolerance::get().eps;
     let text = fixture("loft_prism", "step").replace(
         "#90 = CARTESIAN_POINT('', (-1.75, -1.0, 1.0));",
         "#90 = CARTESIAN_POINT('', (-1.7499999, -1.0, 1.0));",
@@ -58,18 +75,49 @@ fn probe_refit_seam_refuses_typed() {
     match import(&text) {
         Err(e) => {
             let msg = e.to_string();
-            eprintln!("PROBE refit-seam refusal: {msg}");
+            eprintln!("PROBE refit-seam refusal @ eps={eps:e}: {msg}");
             assert!(
-                !msg.is_empty(),
-                "refusal must be typed with a message: {msg}"
+                PLANT > eps,
+                "a displacement INSIDE ε_in must not be refused: {msg}"
+            );
+            // The refusal is the ADOPTION verdict on the plant, and it
+            // carries the number that caught it: the declare-and-check
+            // lane's measured on-locus residual, which must exceed ε_in
+            // and be the plant's own order. A refusal from any later
+            // stage would mean the seam was adopted and something
+            // downstream objected — a different fact, and not this
+            // probe's.
+            let step_import::StepImportError::Adoption { attempts, .. } = &e else {
+                panic!("the plant must be caught at ADOPTION, not downstream: {msg}");
+            };
+            let measured = attempts.iter().find_map(|a| match a.refusal {
+                topo::EulerOpError::Certification {
+                    error:
+                        geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
+                            value,
+                            ..
+                        }),
+                } => Some(value),
+                _ => None,
+            });
+            let Some(measured) = measured else {
+                panic!("the refusal must carry the lane's measured bound: {attempts:?}");
+            };
+            assert!(
+                measured > eps && measured < 1e-6,
+                "the refusal's own number explains it: on-locus residual {measured:e} m \
+                 past ε_in {eps:e}, and of the plant's own order ({PLANT:e} m)"
             );
         }
         Ok(StepImport::Solid { body, .. }) => {
-            // If it imported anyway, the seam was misadopted somewhere.
-            panic!(
-                "MISADOPTION: refit seam imported as a solid (census {:?})",
+            assert!(
+                PLANT < eps,
+                "MISADOPTION: refit seam displaced {PLANT:e} m — past ε_in {eps:e} — \
+                 imported as a solid (census {:?})",
                 census(&body)
             );
+            topo::validate_geometric(&body)
+                .expect("a seam adopted inside ε_in leaves a body that is valid at rest");
         }
         Ok(other) => panic!("unexpected disposition: {other:?}"),
     }
