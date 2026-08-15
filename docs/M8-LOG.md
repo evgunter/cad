@@ -370,3 +370,30 @@ this session's earlier twin). decide_flagged census now 8 (F2 ×4,
 F10, F13, F14, F15); #501 carries the excluded pcurves arm residue.
 Remaining before the EXIT WALK: M8-4's fix pass (in flight), then
 the walk itself (Evan's closure affordance).
+
+## M8-4 MERGED (#499, 2026-08-15) — the slate is EMPTY; exit walk next
+
+The Intersection arm landed: mixed plane×NURBS bodies are
+first-class END-TO-END at default/1e-6 (the #288 walk row's full
+retirement, ε-cells stated — at 1e-12 both fixtures honestly refuse
+upstream with measured sups), through the existing seam class on a
+carrier-keyed, payload-domain, fixed-schedule arm. Review 0/2/2 with
+the pick surviving every constructed attack and deviation #5 proven
+honest by merge-base measurement; fix pass took both MINORs, both
+NOTEs, adopted the probes, and fixed two defects IN the adopted
+probe suite (the recurring probe-feature/cold-clippy class). #498
+carries the excluded interior/diagonal lane.
+
+**Operational rule from this unit's fix pass (recorded to
+memories/agent-lane-operations.md): the session scratchpad is
+SHARED between concurrently running agents** — two fix passes
+crossed PR-body files there and one wrong body was briefly
+published. PR/issue bodies and any to-be-published artifact go to
+LANE-PRIVATE paths (~/.local/share/cad-work/<lane>-*), never the
+scratchpad; orchestrator briefs now say so.
+
+**With M8-F67 and M8-4 both merged, every ratified M8 slate item is
+DONE**: M8-1..M8-5, #317, #327, #222, #382 half-1, the #214 F6/F7
+riders. Banked follow-ups: #498, #501, #388, #389, #368, #382
+half-2, #427 (M9), #497. Next: the M8 EXIT WALK (criteria vs
+evidence, honesty rows) — needs Evan's closure affordance.
