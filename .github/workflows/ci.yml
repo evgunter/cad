@@ -1685,8 +1685,19 @@ jobs:
       #
       # Baseline + how to re-cut it: docs/tess-budget-data/ and the
       # tool's own failure message, which prints the recourse.
+      #
+      # `--sizing-only`, deliberately: the default sweep also resamples
+      # |S - Pi| on every emitted triangle to fill `worst_dev`, which is
+      # ~1.15M triangles x 28 barycentric samples — tens of millions of
+      # surface evaluations — and the gate reads NONE of it. What
+      # `compare` looks at is triangle counts and `uniform_cells /
+      # span_opt_cells`, all of them sizing columns the lane produces
+      # for free. The deviation pass is what the WRITEUP needed
+      # (docs/TESS-BUDGET.md's total-slack column, and the committed
+      # baseline still carries it); re-cutting the baseline runs the
+      # script without this flag.
       - name: tessellation-budget sweep (every tour scene, per face)
-        run: scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv
+        run: scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only
       - name: tessellation-budget lint (gate — a grown budget fails this row)
         run: |
           cd tools/tess-lint && cargo run -- \
