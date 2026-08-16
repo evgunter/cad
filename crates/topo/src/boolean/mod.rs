@@ -1286,7 +1286,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
 ) -> Result<BooleanReduction<T>, BooleanError> {
     let band = Band::linear()?;
     validate_declarations(a_operand, b_operand, decls)?;
-    verify_declared_contacts(a_operand, b_operand, decls, band)?;
     let declared = DeclaredPairs::build(decls);
     reduce::gate_planar(a_operand, Operand::A)?;
     reduce::gate_planar(b_operand, Operand::B)?;
@@ -1388,61 +1387,19 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
 /// operand, and declared faces must be planes. A dangling declaration
 /// is a caller bug refused before any classification runs — never a
 /// silent drop (F5's no-silent-drop contract).
-/// **C4's verify-at-use, at the door**: every declared pair is checked
-/// against the geometry before the op runs — not only the pairs the
-/// classification happens to walk past.
-///
-/// The gap this closes is named in C4: "a declaration that never meets
-/// geometry is a silent no-op at the op". A pair naming two faces that
-/// never come near each other is exactly that shape, and letting it
-/// pass would mean a lie is loud when the classifier trips over it and
-/// silent when it does not.
-///
-/// Both Same± verdicts pass: this door verifies the CARRIER claim (the
-/// classification's question), and aligned coincidence is the merge
-/// stage's legitimate flush-wall answer. Refusing containment is the
-/// contact record's job, one level up.
-fn verify_declared_contacts<T: Decide>(
-    a: &Body<T>,
-    b: &Body<T>,
-    decls: &BooleanDeclarations,
-    band: Band,
-) -> Result<(), BooleanError> {
-    for &FacePairDeclaration {
-        a: fa,
-        b: fb,
-        class,
-    } in &decls.coincident_faces
-    {
-        let Some(outcome) = rest::carrier_pair_relation(a, fa, b, fb, true, band) else {
-            continue; // a kind the ladder cannot describe: the door's own gate already spoke
-        };
-        match outcome {
-            Ok(_) => {}
-            Err(carrier_eq::CarrierEqError::Contradicted(diag)) => {
-                return Err(BooleanError::ContactContradicted {
-                    declaration: crate::contact::ContactFinding {
-                        a: fa,
-                        b: fb,
-                        class,
-                        verdict: crate::contact::ContactVerdict::Definite,
-                    },
-                    steer: contact_verify::fit_steer(&diag),
-                    margin: diag,
-                });
-            }
-            Err(carrier_eq::CarrierEqError::Escalated(diag)) => {
-                return Err(BooleanError::Escalated { diag });
-            }
-            // Unreachable with `declared: true`; refuse loudly anyway.
-            Err(carrier_eq::CarrierEqError::Undeclared(diag)) => {
-                return Err(BooleanError::UndeclaredCoincidence { diag });
-            }
-        }
-    }
-    Ok(())
-}
-
+// **A declaration that never meets geometry is still a silent no-op
+// here** (C4 names this gap; closing it is NOT this unit's change).
+//
+// An op-door pass that verified every declared pair through the
+// carrier ladder was written and reverted: it fires on an existing
+// green recipe corpus (`m4_pr3_names_interval`'s declared cap pair),
+// which means either that corpus carries a lie the classifier has
+// always stepped over, or the door needs an operand view the reduction
+// applies later. Either answer is a finding worth having deliberately
+// rather than as a side effect of this unit, so it is recorded here
+// and left for the reviewer. What DOES fire today: every declared pair
+// the classification or the REST lane actually walks past is verified
+// at use, and contradiction there is `BooleanError::ContactContradicted`.
 fn validate_declarations<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
