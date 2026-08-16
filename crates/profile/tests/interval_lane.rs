@@ -224,22 +224,30 @@ fn exact_fit_arc_fillet_escalates_at_interval() {
     }
 }
 
-/// The S8 two-survivor vesica corner at the interval scalar: the
-/// nearest-corner selection is a diagnostic-channel choice (enclosure
-/// lower bounds), and here the survivors' setback gap is macroscopic
-/// next to the enclosure width, so this lane picks the SAME near
-/// candidate as the f64 lane —
-/// `symmetric_lens_pick_is_bit_deterministic_across_runs`'s cross-lane
-/// half.
+/// The S8 two-survivor vesica corner at the interval scalar —
+/// **ESCALATES, and that is the honest answer.**
 ///
-/// Both sides are arcs and the loop has two vertices' worth of authored
-/// content, so the whole corner is ONE fused act at the entry: the
-/// incoming carrier about (−1, 0) anchored at (0, −√3), and the arrival
-/// carrier about (1, 0) closing back onto that same entry vertex.
+/// The f64 twin (`arc_fillet.rs`'s lens rows) picks the near candidate
+/// and validates. The interval lane cannot, and the reason is
+/// structural rather than a widening artefact: the §2c door DERIVES
+/// its corners from the two carriers, and a lens' two carriers cross
+/// at BOTH tips — so the entry anchor is itself one of the derived
+/// candidates. Its advance along the incoming carrier is exactly zero,
+/// which f64 classifies Zero (not ahead, discarded) and an ENCLOSURE
+/// cannot: a zero swept angle straddles the `signed_swept` fold, so
+/// the enclosure spans a full turn either way and the predicate is
+/// undecidable. The algebra escalates instead of picking, which is the
+/// contract — a candidate it cannot classify is never silently
+/// dropped.
+///
+/// The row therefore pins the ESCALATION, by predicate name. Recovering
+/// the near pick at Interval means giving the derived-candidate gate a
+/// fold-free spelling near zero; that is a kernel question, recorded
+/// with this row rather than papered over.
 #[test]
-fn vesica_near_pick_agrees_at_interval() {
+fn vesica_near_pick_escalates_at_interval_on_the_coincident_candidate() {
     let s3 = 3.0f64.sqrt();
-    let lp = profile::Open
+    let err = profile::Open
         .arc_fillet_arc(
             profile::Center {
                 c: ip2(-1.0, 0.0),
@@ -253,15 +261,13 @@ fn vesica_near_pick_agrees_at_interval() {
                 p: profile::Start,
             },
         )
-        .expect("the two-survivor vesica corner resolves at Interval")
-        .loop_;
-    assert_eq!(lp.tangent_joints, vec![1, 2]);
-    use geom_core::Bounds;
-    // The near (top-pocket) candidate: both tangent points above the
-    // lens' waist, exactly as the f64 row asserts.
-    assert!(lp.vertices[1].pos.y.lo() > 0.0);
-    assert!(lp.vertices[2].pos.y.lo() > 0.0);
-    profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .expect("the near-pick vesica validates at Interval");
+        .expect_err("the coincident candidate is undecidable on an enclosure");
+    match err {
+        profile::PathError::Escalated { source } => assert_eq!(
+            source.predicate,
+            Some("path_corner_advance_arc"),
+            "the fold-straddling gate, named"
+        ),
+        other => panic!("expected an escalation, got {other:?}"),
+    }
 }

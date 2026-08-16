@@ -87,9 +87,9 @@ pub enum Target<T: Real> {
 /// authored mode, exactly as the surface's standalone spec types
 /// authored it (record-as-you-lower keeps the mode; the VQ contracts
 /// rely on that distinctness). The typed surface consumes the
-/// standalone types ([`Radius`](super::Radius), [`Bulge`](super::Bulge),
-/// [`Via`](super::Via), [`Center`](super::Center),
-/// [`Sweep`](super::Sweep), [`ArcLen`](super::ArcLen)) through the
+/// standalone types ([`Radius`](super::Radius), [`Bulge`], [`Via`],
+/// [`Center`], [`Sweep`](super::Sweep), [`ArcLen`](super::ArcLen))
+/// through the
 /// state-keyed trait matrix; the wire and the replay driver match THIS
 /// enum exhaustively, which is the round-9 forcing argument for the
 /// whole family shipping at once.
