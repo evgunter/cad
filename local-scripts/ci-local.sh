@@ -184,7 +184,11 @@ discipline() {
     rc=1
   fi
   # Compound Bounds allowlist (ratified 2026-07-29; geom-core real.rs
-  # Bounds scope rule) — mirror of the hosted step. topo/props.rs is
+  # Bounds scope rule) — mirror of the hosted step. `chart_region.rs`
+  # (M9-2 PR-1's chart-region overlap predicate) was ratified into
+  # ci.yml's copy but not this one, so this row was red locally while
+  # hosted was green; the entry is synced here with the reasoning left
+  # where it was written, in ci.yml. topo/props.rs is
   # the M5 PR 11 certified-quadrature seam (Evan's lane-split ruling);
   # sweep/src/fillet/{battery,build}.rs is the M5 PR 12 fillet-battery
   # seam, ratified under that same ruling because its margins are
@@ -241,7 +245,8 @@ discipline() {
     | grep -vE '^crates/profile/src/test_support\.rs$' \
     | grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
     | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' \
-    | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' || true)
+    | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
+    | grep -vE '^crates/topo/src/chart_region\.rs$' || true)
   if [ -n "$bhits" ]; then
     echo "$bhits"
     echo "ERROR: compound Bounds bound outside the ratified seams — see geom-core/src/real.rs (Bounds scope rule)"
@@ -269,6 +274,20 @@ discipline() {
     | grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
     | grep -vE ':[0-9]+:\s*//'; then
     echo "ERROR: bit-identity punning outside the sanctioned seam (geom-core/src/bit_identity.rs)"
+    rc=1
+  fi
+  # No ambient environment in the kernel — mirror of ci.yml's step of
+  # the same name; see it for the NURBS_PROBE back channel this was
+  # written for and for why the two allowlisted knobs are ratified.
+  # `env!` is compile-time and deliberately not matched.
+  ehits=$(grep -rPn '\benv::vars?(_os)?\s*\(' crates/*/src --include='*.rs' \
+    | grep -vE ':[0-9]+:\s*(//|///|//!)' \
+    | cut -d: -f1 | sort -u \
+    | grep -vE '^crates/geom-core/src/tolerance\.rs$' \
+    | grep -vE '^crates/test-utils/src/fuzz\.rs$' || true)
+  if [ -n "$ehits" ]; then
+    echo "$ehits"
+    echo "ERROR: kernel crate reads the environment at runtime — a back channel into shipped code (NURBS_PROBE was exactly this); arm by an explicit call behind a feature, or ratify into the allowlist"
     rc=1
   fi
   return $rc
@@ -490,6 +509,37 @@ klint_gate() {
     ../../target/k-fresh/k-eps-1e-12.csv)
 }
 
+# The tessellation-budget lint (issue #320; mirrors the two ci.yml
+# `k-lint`-job rows of the same names). Two rows again: the tool's own
+# hygiene + tests, then the fresh per-face sweep + the GATE.
+#
+# The gate compares against docs/tess-budget-data/, and it compares
+# DIFFERENCES, not absolute slack — a scene whose mesh grew, a face
+# whose sizing got wastefuller, or a scene that dropped out of the
+# sweep. On a failure read the tool's message: coarsening a demo's
+# delta to get the number down is the one forbidden move. What the
+# absolute factors currently are, and why: docs/TESS-BUDGET.md.
+tesslint_tool() {
+  (cd tools/tess-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
+}
+# The meter's own suite (mirrors ci.yml's row of the same name).
+# `mesh::budget` is gated at its module boundary, so every row above
+# runs the INERT half — the live half needs its own row or it rots.
+budget_meter() {
+  cargo clippy -p mesh --all-targets --features budget -- -D warnings && \
+    cargo test -p mesh --features budget
+}
+# `--sizing-only` mirrors ci.yml: the gate reads triangle counts and
+# the sizing columns, never `worst_dev`, so the default sweep's
+# per-triangle resampling (tens of millions of surface evaluations)
+# would be paid for nothing. Re-cutting the baseline drops the flag.
+tesslint_gate() {
+  scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only || return 1
+  (cd tools/tess-lint && cargo run -- \
+    ../../target/tess-budget-fresh.csv \
+    --baseline ../../docs/tess-budget-data/tess-budget-baseline.csv)
+}
+
 # Rows always run (discipline greps are cheap; rustfmt is --all by design
 # and cheap; the cargo rows are already package-scoped by $SCOPE).
 # shellcheck disable=SC2086
@@ -498,6 +548,10 @@ run_row "render provenance (demos)"    render_provenance
 run_row "uv composer selftest (demos)" uv_composer_selftest
 run_row "rustfmt"                      cargo fmt --all --check
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
+# Rustdoc gate (#465): same script hosted calls, unscoped there and here
+# — it is a workspace-wide ratchet over a fixed crate set, not a
+# per-closure row. See scripts/doc-gate.sh for the flags and the list.
+run_row "rustdoc (gate)"               scripts/doc-gate.sh
 # ε battery {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
 # env rows straddle the compiled default — DEFAULT_EPS = 1e-9, geom-core/
 # src/tolerance.rs — three orders either side. Mirror of ci.yml's `test`
@@ -524,13 +578,17 @@ run_row_if "$RUN_EDITOR_CORE" "rebuild latency (reporting)"     rebuild_latency
 # interval-transcendentals/ is its own workspace, so tier `closure` can
 # never contain a change to it — this row belongs to tier `all` only.
 run_row_if "$RUN_INTERVAL_BACKEND" "interval backend crate" interval_backend
-# demos/tour and tools/k-lint are excluded workspaces that path-depend on
-# nine members between them, and the probe sweep records margins from every
-# kernel crate — no minimal root set, so these run whenever anything builds.
+# demos/tour, tools/k-lint and tools/tess-lint are excluded workspaces
+# that path-depend on nine members between them, and the probe sweep
+# records margins from every kernel crate — no minimal root set, so
+# these run whenever anything builds.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
 run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift
 run_row_if "$RUN_K_LINT" "k-lint tool (fmt+clippy+litmus)" klint_tool
 run_row_if "$RUN_K_LINT" "k-lint sweep + gate"             klint_gate
+run_row_if "$RUN_K_LINT" "tess-lint tool (fmt+clippy+cli)" tesslint_tool
+run_row_if "$RUN_K_LINT" "mesh budget meter (feature)"     budget_meter
+run_row_if "$RUN_K_LINT" "tess-budget sweep + gate"        tesslint_gate
 # Root package stl: the acceptance example and its whole (dev-)dependency
 # chain profile -> sweep -> topo -> mesh live under it.
 run_row_if "$RUN_STL" "watertight (admesh)"          watertight

@@ -112,7 +112,9 @@ pub fn flush_declarations<S: Scalar>(a: &Body<S>, b: &Body<S>) -> pncad::topo::B
                 decide("demo_flush_offset", Margin::of(da - sigma * db), band),
                 Ok(Sign::Zero)
             ) {
-                decls.coincident_faces.push((fa, fb));
+                decls
+                    .coincident_faces
+                    .push(pncad::topo::FacePairDeclaration::rest(fa, fb));
             }
         }
     }

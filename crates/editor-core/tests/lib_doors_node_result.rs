@@ -148,8 +148,9 @@ fn refusals_render_as_prose_not_debug_guts() {
     assert_eq!(literal.to_string(), "a literal value must be finite");
 
     // The live failure: the coincident Boolean's message states the
-    // problem and mentions the common cause; the enum's structure
-    // (variant names, braces) stays OUT of the prose.
+    // problem and the two-armed recourse (since R3 the refusal is the
+    // typed menu variant); the enum's structure (variant names,
+    // braces) stays OUT of the prose.
     let (doc, cut, _) = doc_with_failure();
     let ev = run(&doc);
     let error = ev.node_error(cut).expect("the Boolean failed");
@@ -158,8 +159,18 @@ fn refusals_render_as_prose_not_debug_guts() {
         message.starts_with(&format!("node {} failed: ", cut.0)),
         "{message}"
     );
-    assert!(message.contains("Boolean op refused"), "{message}");
-    for guts in ["UndeclaredCoincidence", "{", "Indeterminate"] {
+    assert!(
+        message.contains("Boolean refused an undeclared contact"),
+        "{message}"
+    );
+    assert!(message.contains("declare that finding"), "{message}");
+    for guts in [
+        "UndeclaredCoincidence",
+        "UndeclaredContact",
+        "FlushFinding",
+        "{",
+        "Indeterminate",
+    ] {
         assert!(!message.contains(guts), "Debug guts leaked: {message}");
     }
 }

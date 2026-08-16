@@ -1,6 +1,6 @@
 //! Tessellation: watertight triangle meshes from B-rep bodies (M2 PR 6).
 //!
-//! [`tessellate`] triangulates every face of a closed body into a
+//! [`fn@tessellate`] triangulates every face of a closed body into a
 //! [`Mesh`] whose triangles are certified to lie within a caller-chosen
 //! **chordal tolerance δ** of the exact analytic surfaces. Planar faces
 //! (rings included) go through constrained Delaunay triangulation (CDT,
@@ -196,6 +196,17 @@
 //! `spade` wants f64 coordinates; D8 replay at other scalars reaches
 //! display through the f64 lane.
 
+// The tessellation budget meter (issue #320). PUBLIC only under its
+// own feature: with the feature off the module is the inert half —
+// `armed() -> false` plus a handful of no-op recorders the
+// tessellation lane calls unconditionally — which is nothing a caller
+// outside this crate can use, so a default build does not export it.
+// `pub` in both configurations would leave a permanently visible
+// surface on the kernel crate whose only consumer is a diagnostic.
+#[cfg(feature = "budget")]
+pub mod budget;
+#[cfg(not(feature = "budget"))]
+pub(crate) mod budget;
 pub mod cert;
 pub mod chords;
 mod curved;
@@ -232,11 +243,33 @@ pub mod probe_stats {
     pub fn arm(on: bool) {
         ARMED.with(|a| a.set(on));
     }
-    /// Is the falsifier armed? (Also true when the reviewer's original
-    /// `NURBS_PROBE` env var is set — the manual drive stays usable,
-    /// process-wide.)
+    /// Is the falsifier armed? **Explicit [`arm`] only.**
+    ///
+    /// This used to also answer true for a `NURBS_PROBE` environment
+    /// variable — the reviewer's original manual drive, kept as a
+    /// convenience after M8-5's MIN-1 made the suite self-arming. That
+    /// was a BACK CHANNEL INTO SHIPPED CODE and it is gone:
+    ///
+    /// * it was ambient and process-wide, so a variable in a
+    ///   deployment environment silently switched on a 91-sample
+    ///   resampling of every emitted triangle — measured at 7.9 s →
+    ///   19.8 s on the demo tour's release binary, same binary, same
+    ///   arguments, ~71M extra surface evaluations;
+    /// * and the sampling block asserts, so it also converted
+    ///   [`crate::tessellate()`]'s typed [`TessellateError`] contract
+    ///   into a PANIC — chosen by the environment rather than by the
+    ///   caller.
+    ///
+    /// Nothing in the tree read it (the suites use [`arm`]), so its
+    /// removal costs no coverage. The module is still `pub` and still
+    /// unconditionally compiled, which is the remaining exposure —
+    /// gating it the way [`crate::budget`] is gated is issue #558, and
+    /// the standing rule it came from is
+    /// `memories/telemetry-gating.md`.
+    ///
+    /// [`TessellateError`]: crate::types::TessellateError
     pub fn armed() -> bool {
-        ARMED.with(Cell::get) || std::env::var_os("NURBS_PROBE").is_some()
+        ARMED.with(Cell::get)
     }
     /// Record one sample: measured deviation `d` against its
     /// triangle's certificate `cert`.

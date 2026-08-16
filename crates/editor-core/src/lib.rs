@@ -10,7 +10,7 @@
 //! (schema v1) arrived in M4 PR 6 as [`persist`].
 //!
 //! Layering (M4 PR 2 spec D1, G1): editor-core sits ABOVE the kernel —
-//! the evaluation service ([`eval`]) depends on the op crates it wires
+//! the evaluation service ([`mod@eval`]) depends on the op crates it wires
 //! (`profile`, `sweep`, `topo`); the kernel crates gain no editor-core
 //! dependency. Profiles are carried opaquely in the document (a type
 //! parameter, never a re-model); [`ProfileDoc`] is the canonical
@@ -32,8 +32,10 @@ pub mod persist;
 pub mod placement;
 pub mod product;
 pub mod program;
+pub mod refactor;
 pub mod resolve;
 pub mod roots;
+pub mod update;
 pub mod witness;
 
 pub use appearance::{
@@ -54,16 +56,19 @@ pub use expr::{
 pub use ident::{ContentPin, DocRef, DocumentId};
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
-    ALL_SURFACE_KINDS, CapEnd, Cmp, ContactClass, CurveKind, CurveKindSet, DeclareError,
-    Denotation, EntityKey, EntityKind, EntityRef, Entry, FlushEvidence, FlushFinding, FlushRung,
-    GeomPred, InterrogateError, MeridianEnd, NamePat, NameTable, NamingError, OpGroup,
-    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
-    SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName,
-    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, declare, declare_all,
-    declare_node, denotation, edge_frame, face_frame, find_flush_candidates, select, select_where,
-    vertex_position,
+    ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
+    CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
+    EntityKind, EntityRef, Entry, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
+    InterrogateError, MeridianEnd, NamePat, NameTable, NamingError, OpGroup, ProfileEdgeRef,
+    ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag,
+    SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName, SurfaceKindSet, TagPat,
+    all_bodies, all_edges, all_faces, all_vertices, declare, declare_all, declare_node, denotation,
+    edge_frame, face_frame, find_flush_candidates, select, select_where, vertex_position,
 };
-pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId, StepArg};
+pub use node::{
+    Axis3, BooleanOp, Datum, InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId,
+    SlotId, StepArg,
+};
 pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
@@ -74,9 +79,10 @@ pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use placement::Frame;
 pub use product::{ProductError, product, product_named};
 pub use program::{
-    LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramRefusal, ProgramStep,
-    ProgramTarget, RecordedProgramError,
+    LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
+    ProgramStep, ProgramTarget, RecordedProgramError,
 };
+pub use refactor::{InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split};
 pub use resolve::{
     Diagnosis, FlipSet, HitTestError, MeshPatchKey, NodeVerdictDelta, PredicateDivergence,
     RecipeEditRef, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, Resolved,
@@ -90,6 +96,7 @@ pub use resolve::{
     diff_summaries, verdict_summary,
 };
 pub use roots::RootFault;
+pub use update::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
 pub use witness::{
     BifurcationKind, BranchCertification, BranchMarginEvidence, Implicated, WitnessAge,
     WitnessBifurcation, WitnessDatum,

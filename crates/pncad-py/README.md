@@ -99,7 +99,10 @@ guide:
   upstream failure names the culprit in `through`.
 - **The kernel refuses rather than guesses.** Two faces that merely
   touch are not silently welded; a boolean over an undeclared
-  coincidence fails loudly. Refusals are exceptions carrying
+  coincidence fails loudly — and the refusal carries its own
+  recourse: the candidate declaration rides the exception as a typed
+  `finding` (`Evaluation.find_flush_candidates` → `Node.declare` is
+  the protocol behind it). Refusals are exceptions carrying
   attributes, never prose to parse — all of them subclass
   `PncadError`.
 

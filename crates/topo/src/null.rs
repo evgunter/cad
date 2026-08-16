@@ -17,7 +17,7 @@
 //! relaxed certification**: its curve-arena entry is
 //! [`CurveGeom::NullScaffold`] — carrying the F9 attribute and *no
 //! carrier at all* — rather than a certified
-//! [`EdgeCurve`](geom_brep::EdgeCurve) with a degenerate interval. The
+//! [`geom_brep::EdgeCurve`] with a degenerate interval. The
 //! forward-span certification gate (M2 PR 3: a certified interval's
 //! arc length is definitely positive) is untouched; zero length is
 //! representable only *by type*, and the type is transient:

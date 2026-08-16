@@ -6,11 +6,14 @@
 mod fixture;
 
 use editor_core::{
-    CancelToken, CapEnd, Datum, EntityKind, Entry, EvalOptions, Evaluation, MeridianEnd, NameTable,
-    Node, ProfileDoc, ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, RoleSeg, SplitHalf,
-    StableName, evaluate,
+    CancelToken, CapEnd, Datum, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
+    MeridianEnd, NameTable, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SplitHalf, StableName,
+    evaluate,
 };
 use fixture::{ang, desc, insert, len};
+use geom_core::{Point3, Vec3};
+use profile::SketchPlane;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
@@ -140,6 +143,49 @@ fn revolve_doc(pts: Vec<(f64, f64)>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = insert(
         doc,
         Node::Profile(desc([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts])),
+    );
+    let (doc, axis) = insert(
+        doc,
+        Node::Datum(Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
+        }),
+    );
+    insert(
+        doc,
+        Node::Revolve {
+            profile: p,
+            axis,
+            angle: ang(angle),
+        },
+    )
+}
+
+/// The natural meridian, on the same plane and axis as [`revolve_doc`]:
+/// a bulge-1 semicircle from (0, −1) to (0, 1) closed by its on-axis
+/// diameter. EVERY vertex of this loop is on the axis — the shape the
+/// pole export exists for.
+fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("m4_pr3_names");
+    let p2 = |x: f64, y: f64| [len(x), len(y)];
+    let meridian = LoopProgram::Chain(vec![
+        ProgramStep::At(p2(0.0, -1.0)),
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
+            target: ProgramTarget::Point(p2(0.0, 1.0)),
+            b: fixture::scl(1.0),
+        }),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let (doc, p) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane: SketchPlane::from_frame(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
+            loops: vec![meridian],
+        }),
     );
     let (doc, axis) = insert(
         doc,
@@ -312,6 +358,77 @@ fn full_wire_revolve_names_pi_band_and_poles() {
     assert_eq!(poles, 2);
 }
 
+/// M9-D1: the natural ball. Every vertex of the meridian is on-axis,
+/// so the table stands entirely on the sweep's pole export — this row
+/// was RED (the "all-on-axis loop" refusal) before it.
+#[test]
+fn full_revolve_of_an_all_on_axis_loop_names_both_poles() {
+    let (doc, rev) = ball_doc(std::f64::consts::TAU);
+    let ev = run(&doc);
+    let t = table(&ev, rev);
+    // The two-band sphere patch (V2 E2 F2): 1 body + 2 bands +
+    // 2 meridians + 2 poles.
+    assert_eq!(t.len(), 7);
+    // Canonical vertex 0 is the lexicographic least — (0, −1), the
+    // south pole; 1 is (0, 1). Canonical segment 0 is the arc.
+    for v in 0..2 {
+        assert!(
+            t.lookup(&name1(EntityKind::Vertex, rev, RoleSeg::Pole(pv(0, v))))
+                .is_some(),
+            "pole {v} unnamed"
+        );
+    }
+    for seg in [
+        RoleSeg::Band(pe(0, 0)),
+        RoleSeg::BandPi(pe(0, 0)),
+        RoleSeg::Meridian(MeridianEnd::Seam, pe(0, 0)),
+        RoleSeg::Meridian(MeridianEnd::Pi, pe(0, 0)),
+    ] {
+        let kind = match seg {
+            RoleSeg::Band(_) | RoleSeg::BandPi(_) => EntityKind::Face,
+            _ => EntityKind::Edge,
+        };
+        assert!(
+            t.lookup(&name1(kind, rev, seg.clone())).is_some(),
+            "{seg:?} unnamed — canonical segment 0 is not the arc"
+        );
+    }
+    // The on-axis diameter sweeps to nothing: no segment-1 roles.
+    assert!(
+        t.lookup(&name1(EntityKind::Face, rev, RoleSeg::Band(pe(0, 1))))
+            .is_none()
+    );
+}
+
+/// M9-D1: the same all-on-axis meridian, partially revolved — the
+/// wedge. Also RED before the fix (the partial arm refused
+/// identically).
+#[test]
+fn partial_revolve_of_an_all_on_axis_loop_names_both_poles() {
+    let (doc, rev) = ball_doc(std::f64::consts::FRAC_PI_2);
+    let ev = run(&doc);
+    let t = table(&ev, rev);
+    // Ball wedge: 1 body + (1 band + 2 caps) + (2 meridians + 1 axis
+    // edge) + 2 poles.
+    assert_eq!(t.len(), 9);
+    for v in 0..2 {
+        assert!(
+            t.lookup(&name1(EntityKind::Vertex, rev, RoleSeg::Pole(pv(0, v))))
+                .is_some(),
+            "pole {v} unnamed"
+        );
+    }
+    assert!(
+        t.lookup(&name1(EntityKind::Edge, rev, RoleSeg::AxisEdge(pe(0, 1))))
+            .is_some(),
+        "the on-axis diameter is the caps' shared axis edge"
+    );
+    assert!(
+        t.lookup(&name1(EntityKind::Face, rev, RoleSeg::Band(pe(0, 0))))
+            .is_some()
+    );
+}
+
 // ---- Split: sections, fragments, crossings, pass-through. ----
 
 #[test]
@@ -482,12 +599,7 @@ fn declare_pairs_resolve_in_the_named_nodes_tables() {
         name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top)),
         name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::Bottom)),
     );
-    let (doc, _decl) = insert(
-        doc,
-        Node::Declare {
-            pairs: vec![pair.clone()],
-        },
-    );
+    let (doc, _decl) = insert(doc, Node::declare_rest(vec![pair.clone()]));
     let ev = run(&doc);
     for name in [&pair.0, &pair.1] {
         let t = table(&ev, name.node);

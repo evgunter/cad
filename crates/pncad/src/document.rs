@@ -123,8 +123,36 @@ pub use editor_core::{
     Frame, PartFault, PartResolver, ResolveFailure, ResolveFault, product_named,
 };
 
+// Split and inline (ASM-4; ASSEMBLY-DESIGN A4): the first-class
+// recorded refactorings. `split` cuts a closed node set out into a new
+// document (identity supplied by the caller — `DocumentId::derive` or
+// `workspace::random_document_id`) and leaves an instance behind;
+// `inline` splices a referenced document back in through a
+// `PartResolver`. Both return the new document VALUES plus the
+// ordinary recorded edits producing them; persistence of the results
+// is the workspace write side (`workspace::Workspace::create` /
+// `resave`). `InterfaceRecord`/`InterfaceCrossing` are the split
+// seam's crossing-declaration record — uninhabited-empty in v1, the
+// hook R2's mates extend.
+pub use editor_core::{
+    InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
+    SplitOutcome, inline, split,
+};
+
+// The pin-update door (ASM-UPD; ASSEMBLY-DESIGN A13). `DocEdit`'s
+// `UpdateReference` arm is the per-reference primitive;
+// `update_references` is the whole-document ELABORATION over it,
+// returning the ordinary edits and applying none of them (purity =
+// atomicity), and `UpdateError` is its typed refusal. `mixed_pins`
+// is A13 clause 3's multiplicity LINT — a report, never a gate:
+// one entry per referenced id carrying more than one pin
+// (`PinMultiplicity`), each pin listed with the nodes holding it
+// (`PinSites`). The store-facing convenience that computes the new
+// pin from disk is `workspace::update_to_store`.
+pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
+
 // The profile description node type and its document alias.
 pub use editor_core::{
-    LoopProgram, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecordedProgramError,
-    StepArg,
+    LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecordedProgramError, StepArg,
 };

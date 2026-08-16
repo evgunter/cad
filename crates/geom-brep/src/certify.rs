@@ -849,7 +849,12 @@ impl<T: SpanLocate> EdgeCurve<T> {
 
 /// The schedule parameter `t₀ + (t₁ − t₀)·(i/8)` (exact dyadic
 /// fraction; fixed association order, D9).
-fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
+///
+/// Public because the contact vocabulary's tangency verification runs
+/// the SAME schedule over a locus that is not an edge yet
+/// (`topo::boolean::contact_verify`): two samplers over one schedule
+/// is the twin this export exists to prevent.
+pub fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
     let frac = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
     t0 + (t1 - t0) * frac
 }
@@ -1146,14 +1151,22 @@ fn run_checks<T: Decide>(
         // guess. RATIONAL carriers used to land here unconditionally;
         // since M7 they have their own arm of the meter and state a
         // real bound (`speed_lower_bound`'s rational derivation).
-        // F7 note: the flagged margin here is still the BARE rate —
-        // the typed-margin fold-in F7/F6 name stays open, deliberately
-        // untouched by that unit.
+        //
+        // The gated quantity is a LENGTH, not the bare rate: the rate
+        // is metres per parameter unit, so what must be definitely
+        // positive is the metre extent it subtends over the carrier's
+        // OWN knot domain — a lower bound on the net's arc length.
+        // That comparand is reparametrization-invariant (a carrier
+        // reparametrized `t → 2t` halves the rate and doubles the
+        // domain), which the bare rate is not, and it is the quantity
+        // ε classifies under D4. The two failure modes stay distinct:
+        // a collapsed or poison meter answers `Invalid`/escalates,
+        // while a backwards span is `IntervalNotForward` below.
         Curve3::Nurbs(n) => {
             let meter = n.speed_lower_bound();
-            match geom_core::k_stats::decide_flagged("nurbs_span_meter", meter, band, "F7")
-                .map_err(span_escalated)?
-            {
+            let (d0, d1) = n.domain();
+            let net_length = Margin::metered(T::from_f64(d1 - d0), meter);
+            match decide("nurbs_span_meter", net_length, band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {
                     return Err(span_escalated(Indeterminate {

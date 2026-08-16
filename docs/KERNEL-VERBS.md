@@ -14,17 +14,18 @@ when scheduled; the register never schedules anything itself.
 loft, sweep (straight + curved single-arc path), booleans (planar
 complete; curved per wired germ classes plane×cyl / plane×sphere),
 split, constant-radius edge fillets (**plane–plane and plane–sphere
-supports only** — see the row below) + in-place composition surgery,
+supports only, and only on OPEN rims** — see the row below, and the
+lever-arm entry in the defects section) + in-place composition surgery,
 merge_coplanar_faces, rigid transform, tessellation/STL/STEP
 export, STEP import (adoption incl. recognition + tier gate).
 
 | verb | what | prerequisites / blockers (as ratified) | notes |
 |---|---|---|---|
-| **shell / hollow** | offset the boundary inward, remove faces, thicken | Q8: offset surfaces — analytic kinds are CLOSED under offset (a D3 payoff); a NURBS offset is NOT a NURBS → needs the approximating-surface machinery (intensional spec `Offset(S,d)` + fit + certified residual ≤ ε, "exactly mirroring fitted intersection curves"). Also wants open-shell/face-removal vocabulary (D1's manifold-first boundary) | **The Utah teapot is this verb's designated demo** (Evan, 2026-08-09) — a vessel is a shelled revolve; the demo queues behind the verb |
+| **shell / hollow** | offset the boundary inward, remove faces, thicken | Q8: offset surfaces — analytic kinds are CLOSED under offset (a D3 payoff); a NURBS offset is NOT a NURBS → needs the approximating-surface machinery (intensional spec `Offset(S,d)` + fit + certified residual ≤ ε, "exactly mirroring fitted intersection curves"). Also wants open-shell/face-removal vocabulary (D1's manifold-first boundary) | **The Utah teapot is this verb's designated demo** (Evan, 2026-08-09) — a vessel is a shelled revolve; the demo queues behind the verb. **Second consumer, and the first to PAY for the absence in full: the Klein bottle** (`demos/tour/src/klein.rs`, 2026-08-16). A thin 3-manifold whose midsurface is the immersed Klein bottle is nothing but shell, so every wall is authored as its own two offsets by hand — each radius spelled twice as `r ± t/2`, each blend radius twice as `R ∓ t/2` with the sign depending on which side the centre of curvature is on, and the offsets swapping sides wherever the surface turns back on itself. It builds and it is exact; it is the whole row, paid once per wall |
 | **offset (surface/solid)** | the standalone Q8 operation | same as shell's core; Q8 says "needed before shelling/offset work (M5+), stated now" | shell's substrate; may land as one unit |
 | **chamfer** | the fillet's ruled-surface sibling | the fillet machinery's trimline/support-split infrastructure exists (M5 PR 12 + M6-1 surgery); a chamfer swaps the rolling-ball band for a ruled strip | likely the cheapest entry in this register |
-| **constant-radius fillet on CURVED support pairs** | the arms of C8's analytic table that M5 PR 12 did not implement — sphere×cone, cone×plane, cone×cone, sphere×sphere, and the cylinder pairs | **Not frontier (f), despite sharing its error variant.** `classify_arm` (`sweep/src/fillet/battery.rs`) implements exactly two arms — plane×plane → cylinder, plane×sphere → torus — and everything else falls through to `FilletError::SpineUnsupported`, whose payload reads `non-(plane–plane / plane–sphere)`. Its own doc comment says so: "C8's list, **restricted to the arms this unit implements**". CURVED-DESIGN C8 already ratified the missing arms as ANALYTIC: "circular-arc spine with fixed profile orientation → torus patch; … cone cases → cone/torus". On a solid of revolution the sphere×cone rim is the easy case — offset sphere and offset cone are coaxial, so the spine is a circle and the blend is a TORUS, the surface `PlaneSphereTorus` already mints (derivation not yet tested in-repo) | Consumer: the calochortus bud's sphere–cone seam (2026-08-09). **Distinguish from DESIGN frontier (f)** — that is the canal-surface general blend, for spines that are neither line nor circle, and is parked for want of a consumer. These arms need no approximating surface at all, so they are plumbing, not research. Until this row lands, `SpineUnsupported` does not by itself mean "the canal case" |
-| **variable-radius fillet** | radius varies along the spine | the canal-surface blend (banked, consumer-gated — DESIGN frontier (f)): a variable-radius spine is generically neither line nor circle | Band-3; re-opens the canal unit with a consumer |
+| **constant-radius fillet on CURVED support pairs** | the arms of C8's analytic table that M5 PR 12 did not implement — sphere×cone, cone×plane, cone×cone, sphere×sphere, and the cylinder pairs | **Not frontier (f), despite sharing its error variant.** `classify_arm` (`sweep/src/fillet/battery.rs`) implements exactly two arms — plane×plane → cylinder, plane×sphere → torus — and everything else falls through to `FilletError::SpineUnsupported`, whose payload reads `non-(plane–plane / plane–sphere)`. Its own doc comment says so: "C8's list, **restricted to the arms this unit implements**". CURVED-DESIGN C8 already ratified the missing arms as ANALYTIC: "circular-arc spine with fixed profile orientation → torus patch; … cone cases → cone/torus". On a solid of revolution the sphere×cone rim is the easy case — offset sphere and offset cone are coaxial, so the spine is a circle and the blend is a TORUS, the surface `PlaneSphereTorus` already mints (derivation not yet tested in-repo) | Consumer: the calochortus bud's sphere–cone seam (2026-08-09). **The COAXIAL arms of this row may need no consumer at all** (Evan, 2026-08-16, on the Klein bottle's neck→flare blend — a cone×cylinder pair): a blend between two coaxial surfaces of revolution is itself a surface of revolution, so it is authorable as an ARC IN THE MERIDIAN (`.fillet(r)` on the profile before revolving) — exact, free, and *better* than asking `fillet_edges` for it, because the blend is then a constructed part of the shape rather than a post-hoc roll. `klein::wall_probes` wall 2 records what the verb says today (`SpineUnsupported`) without claiming the bottle needs it. The escape closes as soon as the supports are NOT coaxial — that is the canal case below. **Distinguish from DESIGN frontier (f)** — that is the canal-surface general blend, for spines that are neither line nor circle, and is parked for want of a consumer. These arms need no approximating surface at all, so they are plumbing, not research. Until this row lands, `SpineUnsupported` does not by itself mean "the canal case" |
+| **variable-radius fillet** | radius varies along the spine | the canal-surface blend (banked, consumer-gated — DESIGN frontier (f)): a variable-radius spine is generically neither line nor circle | Band-3; re-opens the canal unit with a consumer. The Klein bottle supplies a CONSTANT-radius one for frontier (f) as well: blending the top loop's torus against the body's cone, taken literally, has supports that share no axis, so the rolling ball's spine is neither line nor circle. The bottle sidesteps it with a tangent neck cylinder (2026-08-16), which is the modeller's answer, not the kernel's |
 | **draft** | tapered replacement of walls for molding | face-replacement surgery (the M6-1 split/graft pattern generalized) + tapered-surface mint (cone/ruled) | no design record yet — needs its own conversation |
 | **hole features** | counterbore / countersink / tapped | sugar over booleans + patterns per D8 (structural parameters); the recipe-layer node vocabulary | blocked mainly on patterns |
 | **patterns (linear/circular) + mirror** | D8 structural-parameter instancing | recipe-level: pattern indices are a ratified naming-doc requirement ("never degrade to positional guessing"); mirror additionally needs reflection instancing — lily wall 5; equivariance convention (D9 conv. 4) is the design frame | assembly instancing (import side) is the same family's foreign face — fixtures banked in STEP-BANK |
@@ -34,11 +35,98 @@ export, STEP import (adoption incl. recognition + tier gate).
 | **spheroid / ellipsoid primitive** | non-spherical quadric | D3 closed-enum extension (new analytic kind: every dispatch site enumerated by the compiler) or NURBS route | lily wall 4 |
 | **rib / text** | Band-3 conveniences | text = profile vocabulary + patterns; rib = draft-adjacent | far tail |
 | **datum planes / axes** | reference geometry | recipe-layer entities with stable names (N-doc machinery exists) | GUI-era consumer |
-| **curved boolean breadth** | cyl×sphere, sphere×sphere, cone/torus operands | the banked germ-chord lanes (DESIGN frontier (d)); the SSI lift removed the storage half | each lane is its own unit; the teapot's spout∪body would ride revolve-surface × NURBS classes — far |
+| **curved boolean breadth** | cyl×sphere, sphere×sphere, cone/torus operands | the banked germ-chord lanes (DESIGN frontier (d)); the SSI lift removed the storage half | each lane is its own unit; the teapot's spout∪body would ride revolve-surface × NURBS classes — far. **The operand gate is per-face-KIND and rejects the whole body**, so a single cone or torus face makes every boolean unavailable to it: the Klein bottle's three pieces cannot be joined (`union` → `CurvedBooleanUnsupported { kind: Torus }`) and its self-intersection — the neck through the body wall, the one crossing an immersed Klein bottle MUST have — cannot be trimmed (`subtract` → `CurvedOpUnsupported`). Walls 3 and 4 of `klein::wall_probes` |
 | **point-section loft ("generalized cone")** | loft whose end section degenerates to a point (apex) | three tiers (Evan's mark-down, 2026-08-10, PR #300-era chat): (1) circle profile + straight axis = the ANALYTIC CONE — mint exact CONICAL_SURFACE (the tube_along_arc exact-intent pattern; #256 always-promote applies), mostly sugar + recognition; (2) polygon profile = pyramid, plain planar walls, possibly already expressible; (3) general curved profile = a NURBS wall with a collapsed boundary row — needs apex-degenerate certification (span meter is honestly zero at the apex, normals undefined, quadrature hulls loose) with the apex as a vertex-loop (the sphere-pole precedent) | no design conversation yet by ruling ("mark it down for the future"); tier 1 is a cheap early pick when a consumer appears |
 | **declared conformal / REST joins (curved)** | ball-and-socket, interference fits | **this one IS M9** — C7 (CONTACT-DESIGN, ratified #178) | listed for completeness; the register's one M9 row |
 
 Consumers waiting on rows above: the Utah teapot (shell), the full
 calochortus rebuild (C7 — in M9), helical parts (#222), the
 petal'd lily (sheet bodies), the calochortus bud's sphere–cone seam
-(constant-radius fillet on curved supports, #319).
+(constant-radius fillet on curved supports, #319), and **the Klein
+bottle** (shell; curved booleans both ways; the canal blend —
+`demos/tour/src/klein.rs`, whose module docs carry the findings list
+and whose `wall_probes` runs every refusal live). The bottle is
+deliberately NOT a consumer of the coaxial curved-fillet arms: the
+meridian arc is the better answer there, per the row's own note.
+
+## Scope limits and defects met by consumers — NOT missing verbs
+
+Added 2026-08-16 with the Klein bottle, which met five of these in one
+model. They are a different KIND of entry from the table above: the
+verb exists and is reachable, but it refuses (or mis-answers) inside
+what a modeller would call its own territory. They live here because
+this register is where "what the kernel will not let me do" stops
+being a scattered note — the section schedules nothing, exactly like
+the table.
+
+- **`fillet_edges` mis-meters every closed rim.** The battery's lever
+  arm is `|carrier(t1) − carrier(t0)|`, the straight-line chord
+  between an edge's endpoints — which is ~0 for a FULL revolve's
+  latitude rims, whose start and end vertex are the same. Every
+  angular predicate is levered against it, so the dihedral classifier
+  decides Zero and returns `TangentialEdge`, i.e. "the supports share
+  a tangent plane", on supports that meet at 30°. **The verdict is
+  false, not merely unhelpful**: the same profile revolved PARTIALLY
+  (open rims, chord 0.27 m) refuses `SpineUnsupported` — the honest
+  answer. Consequence: no full solid of revolution can be filleted at
+  all, and the refusal misdescribes why. `klein::wall_probes` walls 1
+  and 2 are the pair, run back to back. Note what this does to reading
+  an existing probe: the lily's wall 6 refuses `TangentialEdge` at
+  margin exactly 0.0 and diagnoses it as a co-surface seam meridian,
+  which is honest — but it asks for EVERY edge of a full-revolve
+  lantern, so its refusal cannot distinguish that case from this one.
+  Measured 2026-08-16 (`crates/sweep/src/fillet/battery.rs`,
+  `extent_of` + `convexity_at`); filed as **#554**.
+- **`mesh::planar`'s banked sub-floor case is no longer synthetic.**
+  That module's docs bank exactly one uncovered class — a planar
+  face whose boundary points carry off-plane noise, where the chart
+  frame's far point has an *engineered* exact-zero v-coordinate whose
+  float residue lands below spade's `MIN_ALLOWED_VALUE` (2⁻¹⁴²) — and
+  say of it "synthetic today (no corpus body hits it; wild translator
+  noise observed so far is axis noise)". The Klein bottle's bulb hits
+  it with an ordinary annular cap at plain coordinates: `insert`
+  refuses at `(0.4978884624952483, 3.94e-47)` and the face returns
+  `Triangulation`, at every δ. Whether it fires is a roundoff lottery
+  over parameters that do not touch the cap — sweeping flare angle
+  against rim radius, it fires at (30°, 0.85 m) and (34°, 1.00 m) and
+  not at their neighbours. `klein::wall_probes` wall 7 pins it by
+  building the shipped bottle with a 5 cm wider rim. Same shape as
+  #284 — a valid body that refuses tessellation — and filed as
+  **#555**, since #284 itself is closed and its fix deliberately did
+  not claim this case.
+- **`sweep_body` cannot round a U-turn.** The loft's canonical
+  stacking trilean compares the LAST placement's mean displacement
+  against the FIRST section's plane normal, so any path that ends
+  behind where it started refuses `ReversedStacking` wholesale, no
+  matter how well every consecutive pair stacks. The Klein bottle's
+  top loop is one path and would be one body; this gate is why it is
+  two. (`crates/sweep/src/loft.rs`, the `loft_stacking` decide;
+  wall 5.)
+- **`tube_along_arc` is solid-only.** The torus door takes a
+  `minor_radius` and no wall thickness, so nothing HOLLOW can use it
+  — a thin tube must be re-said as a partial `revolve` of an annulus,
+  giving up the door's whole point (the caller's intent parameters
+  stored bit-exactly). A `wall`/inner-radius parameter is the obvious
+  shape and has no design record yet.
+- **A full revolve of a holed profile refuses `FullRevolveHoles`**, so
+  the one-call hollow RING is unavailable while partial elbows are
+  fine. The revolve's own docs name this as M2 scope ("the per-hole
+  seam surgery is mechanical but unexercised by the plan's acceptance
+  set") — recorded here because it is now a consumer's refusal and
+  not only a deviation note. (Wall 6.)
+- **The PATHS lattice has no tangent straight leg to an anchor.**
+  After a declared-tangent joint off an arc, the only straight
+  continuation is `.line(len)` — `.to(anchor)` belongs to a fillet's
+  arrival side — so a G1 line following an arc is placed by LENGTH and
+  its far end is derived. The Klein bottle's inner tube wall is placed
+  that way, and the revolve then reconstructs its cylinder radius from
+  the swept endpoints: two walls that are geometrically the same
+  cylinder come out with radii differing by tens of ulps. Same drift
+  class the `tube_along_arc` door was built to retire, met from the
+  profile side.
+- **Geometric edge selection is document-layer only.** `select_where`
+  + `GeomPred::AdjacentKinds` is the ratified way to say "the
+  cone×cylinder corners", and it takes an `Evaluation` — so a body
+  built by calling `revolve` directly has no selector at all and must
+  scan `body.edges()` through two back-pointers by hand
+  (`klein::corner_edges`). A gap in reach rather than a refusal.

@@ -340,7 +340,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             }
         }
         if let Node::Declare { pairs } = node {
-            for (a, b) in pairs {
+            for ((a, b), _) in pairs {
                 for n in derivation_nodes(a).iter().chain(derivation_nodes(b).iter()) {
                     check_id(*n)?;
                 }
@@ -413,7 +413,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramFault {
     /// A program slot's expression has the wrong dimension for its
-    /// role (V2's table, [`StepArg::dimension`]).
+    /// role (V2's table, [`crate::StepArg::dimension`]).
     SlotDimension {
         /// The offending slot.
         slot: SlotId,

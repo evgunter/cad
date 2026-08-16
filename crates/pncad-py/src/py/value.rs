@@ -46,10 +46,11 @@ use pncad::topo;
 
 /// Raise `EvaluationError` with a stable `reason` tag.
 ///
-/// `kind` and `through` are ALWAYS present on the exception — `None`
-/// where the reason has no failing kind or poisoning ancestor — so
-/// stub-guided code can read them without an `AttributeError` trap
-/// (the R1/R2 NOTE on over-promising stubs).
+/// `kind`, `through` and `finding` are ALWAYS present on the
+/// exception — `None` where the reason has no failing kind, no
+/// poisoning ancestor, or no refusal-menu payload — so stub-guided
+/// code can read them without an `AttributeError` trap (the R1/R2
+/// NOTE on over-promising stubs).
 fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: NodeId) -> PyErr {
     let node = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -66,6 +67,7 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: Node
             ("node", node),
             ("kind", py.None().into_any()),
             ("through", py.None().into_any()),
+            ("finding", py.None().into_any()),
         ],
     )
 }
@@ -78,6 +80,20 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
         Err(failed) => return failed,
+    };
+    // The refusal MENU (register R3, LIB-PYG5): an undeclared-contact
+    // refusal carries its candidate declaration as a typed
+    // `FlushFinding` on the exception — the same value shape
+    // `Evaluation.find_flush_candidates` answers with, ready for
+    // `Node.declare`/`Doc.declare`. `None` on every other kind.
+    let finding = match &error.kind {
+        d::NodeErrorKind::UndeclaredContact { finding, .. } => {
+            match super::flush::FlushFinding((**finding).clone()).into_pyobject(py) {
+                Ok(bound) => bound.unbind().into_any(),
+                Err(failed) => return failed,
+            }
+        }
+        _ => py.None().into_any(),
     };
     typed_err(
         py,
@@ -96,6 +112,7 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
                     .into_any(),
             ),
             ("through", py.None().into_any()),
+            ("finding", finding),
         ],
     )
 }
@@ -114,6 +131,7 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
         ("reason", PyString::new(py, "poisoned").unbind().into_any()),
         ("node", node_obj),
         ("through", through_obj),
+        ("finding", py.None().into_any()),
     ];
     // The message is the root cause's `Display` prose (F6): the node
     // never ran, so the honest sentence names the ancestor's problem.
@@ -548,6 +566,42 @@ impl Evaluation {
         let atoms: Vec<pncad::select::GeomPred> = geom.into_iter().map(|g| g.0).collect();
         match pncad::select::select_where(&self.inner, node.0, &selector.0, &atoms, &self.params) {
             Ok(found) => names(py, found),
+            Err(refusal) => Err(super::select::select_refusal(py, &refusal)),
+        }
+    }
+
+    /// **The cross-body flush-plane candidates between `a`'s and
+    /// `b`'s outputs, as of THIS evaluation** — the detect arm of the
+    /// detect/declare protocol (SELECT-DESIGN §3; LIB-PYG5, audit
+    /// G5): the C4 verifier run in candidate-generation mode, so a
+    /// finding can never disagree with the boolean's own
+    /// verify-at-use.
+    ///
+    /// Findings come back in canonical order and are only ever
+    /// DEFINITE values — inspect them, then `Node.declare` /
+    /// `Doc.declare` / `Doc.declare_all` turn the inspected findings
+    /// into the `Declare` node `Node.boolean`'s `declare=` consumes.
+    /// Detection and declaration are separate doors ON PURPOSE (the
+    /// ruled no-fusion boundary). Like `select`, the query answers
+    /// EMPTY if either node has no value in this evaluation.
+    ///
+    /// Raises `SelectRefusal`, typed, exactly where the Rust door
+    /// refuses: a pair whose verify-door margin is inside the
+    /// ambiguity band (`reason="pair_in_band"` — neither reported nor
+    /// silently dropped), a tied name whose candidates disagree
+    /// (`"tied_disagrees"`), an unreadable name-table entry
+    /// (`"unreadable"`), a broken ambient tolerance (`"band"`).
+    fn find_flush_candidates(
+        &self,
+        py: Python<'_>,
+        a: &NodeId,
+        b: &NodeId,
+    ) -> PyResult<Vec<super::flush::FlushFinding>> {
+        match pncad::select::find_flush_candidates(&self.inner, a.0, b.0) {
+            Ok(findings) => Ok(findings
+                .into_iter()
+                .map(super::flush::FlushFinding)
+                .collect()),
             Err(refusal) => Err(super::select::select_refusal(py, &refusal)),
         }
     }

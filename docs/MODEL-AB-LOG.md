@@ -789,3 +789,176 @@ unowned infra pickup, recorded here.
 | U4B | 2026-08-12 | LQ3(c) frame-constructor family in geom-core (constructors only): point_at (+Z aim, +Y roll-ref convention pinned bitwise), path_start_frame (P1 recipe once — bitwise-identical to point_at with the ladder reference), mirror_across_plane (det −1, transform_rigid refusal executed); degeneracy POLICY through decide/Margin/Band replacing the n.z<0.9 dodge (no ledger row); resonance table per Evan's amendment (unification NOT done and said) | M / NUMERIC (pre-draw logged) | OPUS (block LIB-9 slot 3, the parallel track) | single (ordinal 35, reviewed head 3a874c07) — APPROVE 0/2/3, rubric 5/5/4 (frame math re-derived by hand incl. both poles + a 3e-9 near-tie; sign and ladder mutations proved the pins bite; tie probes definite-or-refuse never silent; the 26° bit-preservation cone math verified vs skinned.rs; G3 reproduced pristine = #415's defect with a sharper mechanism; MINORs = overflow-class refusal naming + report length) | 0 silent load-bearing (10 findings genuine; gaps G1 rotation_taking / G2 orientation-reversing topo consumer / G3=#415 recorded) | 5 | 5 | 4 | tiny, text (overflow class named in docs + a pinning assertion; report 150; two NOTEs adopted); executor: implementer-inherited | MERGED #440 32/32 at fc6c257e; the pose/mirror/path-start family EXISTS as plain Affine3 values — U4b's constructors-only slice done, demo migration rides future consumers | impl ~192k / review ~145k / fix ~216k-cum | impl ~2.9h / review ~3.8h (~2.5h slot contention — the stale-holder incident) / fix ~0.8h |
 | U4A-DOOR | 2026-08-12 | LQ3(b) chain→curve composition door in geom-curves: compose_chain (C⁰ by shared provenance — twin dropped, never value-matched; G¹ from control data via decide/Margin::over_lever; C¹ arranged exactly by parameter-interval scaling); compose(quarter,quarter) bit-for-bit = the semicircle chain; s_duct quantified 3.79e-3 (interpolation) vs 8.88e-16 (composition) | M-L / NUMERIC (pre-draw logged) | OPUS (block LIB-9 slot 4, the parallel track) | **DUAL (sample #12, ordinal 36, FIRST LIB CROSS-MODEL — R1 fable, R2 opus, concurrent frozen 5f774e29)**: R1 APPROVE-WITH-FIXES 0/2/— ; R2 APPROVE-WITH-FIXES 0/3/4. CONVERGED including LABELS; both 0 MAJOR; both executed everything (R2 measured exact one-sided C¹ jumps ~2e-16 via deriv_in_span and authored a STRONGER bitwise pin than the PR's; R1 caught the one behavior defect — the co-orientation Sign::Zero arm asserting a cusp on sub-band forward tangents); disjoint tails complementary (R1: the mislabel + missing rows; R2: the unstated knot-merge deviation + prose overreach). Cross-model calibration point: comparable depth both arms | 2 silent prose-level (the spec's KnotAlgebra-merge wording unaddressed — measured: no such routine exists, hand-assembly forced; report length), rest reported | 5/5 | 4/5 | 4/4 | moderate (SeamTangentUncertifiable replaces the cusp assertion with a sub-band forcing argument; both reviewers' rows + R2's stronger pin ADOPTED credited; deviations stated in PR body; report 150) ; executor: implementer-inherited | MERGED #442 32/32 at 142ad4fc; THE COMPOSITION DOOR EXISTS — the SWEEP_FRONTIER discharge site is built, pending its own wiring unit; findings feed U4a-proper (notably: promote geom-brep's private rational_arc_chain) | impl ~218k / R1 ~119k / R2 ~121k / fix ~282k-cum | impl ~4.8h (92min starved by the stale holder) / R1 ~2.1h / R2 ~1.8h / fix ~0.8h |
 | RETTAIL | 2026-08-12 | the retirement's tail: ProfileLoop construction demoted (RawLoop trait + curated pub mod — the measured door; inherent methods travel with the type), bowtie re-homed to rejections.rs with its oracle ASSERTED, twins onto blessed fixtures (mutation-proven), shim deletion re-sequenced to RESPELL by ruling | S-M / STRUCTURAL (pre-draw logged) | OPUS (block LIB-9 slot 1) | **DUAL (sample #11, ordinal 33, same-model fable+fable, concurrent frozen 79391413)**: R1 APPROVE 0/0/3; R2 APPROVE 0/2/3. CONVERGED including labels, zero MAJORs both; both independently mutation-proved the twins (distinct mutations), both reproduced #433 and the pristine-main geom-core failure (=#415, deterministic — R1's sharper note: a main-side aggregation bug, not a flake); disjoint tails tiny (R2: stale re-bless command + a stale count; R1: the turbofish evasion NOTE) | 0 silent (4 reported; the mid-unit #419 ratification honestly surfaced as the shim-sequencing driver) | 5/5 | 5/5 | 4/4 | tiny, text, ORCHESTRATOR-applied (the re-bless command now names the aggregated all target; the 111→104 count corrected) | MERGED #431 33/33 (one post-run archive-cleanup housekeeping job red — not a test row); the #413 rulings are EXECUTED: raw construction off the presented surface, the broken-on-purpose demo out of the tour; struct-literal sealing = Evan's open question on the thread | impl ~264k-cum (session-restart annotated) / R1 ~157k / R2 ~143k / fix orchestrator-direct | impl fragmented across the restart / R1 ~9.5h wall (~6h the stale-holder + queue — the max-hold evidence) / R2 ~4.1h |
+M8-4 review ordinal fixed at dispatch (2026-08-15, PR #499 open,
+frozen head 213f7db4): claimed through 36 (U4A-DOOR) + 1 = **37 →
+SINGLE** (39 is the next third — the banked same-model twin of the
+second v4 dual block). Reviewer fable, v4 ladder. Pre-draw fields
+logged at spec time: M / NUMERIC (docs/M8-4-SPEC.md; arm = the
+pre-v4 block M8-14 slot 2 draw). Row at merge.
+M8-F67 review ordinal fixed at dispatch (2026-08-15, PR #502 open,
+frozen head dd34cfd3): claimed through 37 (M8-4) + 1 = **38 →
+SINGLE** (39 is the next third — the banked same-model twin).
+Reviewer fable, v4 ladder. Pre-draw fields logged at spec time:
+M / NUMERIC (docs/M8-F67-SPEC.md; arm = block M8-15 slot 0, byte
+186). Row at merge. PR #502's sole red at dispatch is the
+main-owned #503 flake (reproduced on unmodified main by the
+implementer; fix in flight separately).
+| M8-F67 | 2026-08-15 | #214 F6/F7 typed-margin fold-in: the F7 certify gate → Margin::metered(knot-domain length, speed_lower_bound) collapsed-arm; param_rate answers the bound for Curve3::Nurbs via param_rate_gate at both pcurve lanes; cone azimuth lever; ledger census 12→8 + audit truth pass (the FALSE trim_containment row corrected) | M / NUMERIC (pre-draw logged at spec) | OPUS (block M8-15 slot 0, byte 186) | single (ordinal 38, frozen dd34cfd3, v4) — APPROVE-WITH-FIXES 0/2/4, rubric 5/5/4 (arc-length lower bound re-derived by hand both arms + the reparametrization twin executed: t→2t invariant where the bare rate splits by exactly 2; three comparand mutants all red incl. a byte-for-byte reproduction of the unit's own red transcript; the weakening attack non-vacuous in the F3+F4 direction; the ~1.82M-row census diff reproduced exactly against merge-base sweeps — +528 pcurve_interval_meter rows min 0.312 m, 264 margins off the 1e0 placeholder, ZERO outcome changes, nurbs_span_meter byte-identical, rule-4 absence adjudicated sound; M1 = the #503-cancelled 1e-12 shard needed a green rerun, M2 = stale audit line numbers) | 0 silent (3 reported, all confirmed) | 5 | 5 | 4 | IMPLEMENTER-INHERITED: main re-merge through #505 → the killed shard green with 1389/1389 EXECUTED (log-verified, not short-circuited); every touched audit line re-derived post-edit (caught one drift the review missed); reviewer probes fast-forwarded authorship-kept; N1–N3 all adopted (the "every caller gates it" falsehood corrected; census counts re-derived); latent probe-feature clippy defect (unreachable! under --features probe, invisible to hosted clippy) fixed | MERGED #502 33/0/2 at 714e8299 (merge 7fa34a1e); F6+F7 RETIRED — census 12→8, k-lint gate green at all three ε with NO baseline re-cut (smallest new margin 0.312 m, ~4 decades above the 4.0e-5 floor); follow-up #501 carries the topo::pcurves arm residue | impl ~200k + fix ~45k / review ~180k | impl ~3.6h + fix ~0.9h / review ~4h |
+| M8-4 | 2026-08-15 | the nurbs_iso_derive Intersection arm (boundary-iso mint): Intersection carriers on a described NURBS chart's boundary column derive that column's iso image through the EXISTING seam class (no new certification class, as the spec expected); carrier-keyed (reads neither s1 nor s2), payload-domain boundaries, fixed 4-candidate schedule with a metres-metered interior probe, per-candidate deferred escalation; riders R1 (adopt.rs knot-domain ends) + R2 (IsoUnsupported doc truth) | M / NUMERIC (pre-draw logged at spec) | OPUS (pre-v4 block M8-14 slot 2 — the block's last slot, completed as drawn) | single (ordinal 37, frozen 213f7db4, v4) — APPROVE-WITH-FIXES 0/2/2, rubric 4/4/4 (pick-blind doctored carrier refused at certification; reparameterized/diagonal/interior/double-residency attacks all typed refusals or benign deterministic mints; deviation #5 proven HONEST by the reviewer's own merge-base runs — main's ε=1e-6 refusal was the missing arm AFTER adoption had accepted the 1e-7 plant, and the re-pinned row carries adoption's own measured 1.9017e-8 m; MINOR-1 = the schedule's two backward candidates select but can never certify, comment overstated the inventory; MINOR-2 = rider R1 lacked a call-site row, reversion turned nothing red — the 1 understated deviation, weighted worst) | 1 understated (the R1 coverage claim; 5 reported all verified honest) | 4 | 4 | 4 | IMPLEMENTER-INHERITED: inventory comment truthed (FORWARD-only certified, backward candidates kept for the honest refusal); new call-site row with red-then-green reversion proof (loft_prism wall #111 on u∈[0,3]); reviewer probes adopted --ff-only authorship+trailers intact; both NOTEs taken; TWO defects found IN the adopted probes and fixed (P-E's ε-guard panic reddening the hosted 1e-12 row → posture assert; P-F's silent skip deleted); the probe unreachable!-vs-cold-clippy class hit again | MERGED #499 33/0/2 at cd94fb2a (merge f90020f5); THE #288 WALK ROW FULLY RETIRES with its ε cells stated: both flip rows execute their retirement text (integral twin + rational arc prism first-class at default/1e-6; 1e-12 cells stay pinned refusals with measured sups); follow-up #498 (interior/diagonal carriers) | impl ~215k + fix ~56k / review ~93k | impl ~5.8h + fix ~2.7h / review ~3.2h |
+Block LIB-10 draw (2026-08-15, post-gap): byte 248 (<252) mod 4
+= 0 = fable's position → (fable, opus, opus, opus). Slot 1 =
+PYG5 (G5 + R3, docs/LIB-PYG5-SPEC.md) = FABLE; pre-draw fields
+M / STRUCTURAL. Parallel with RESPELL PR-1 (disjoint trees per
+the spec's fence); a G14 design survey runs read-only alongside.
+Slots 2-4 (opus ×3) bank.
+LIB-10 slot 3 dispatch (2026-08-15): G14 (the ratified #512
+disposition — A2 tied SectionEdge + B1 tied propagation + the
+#380 Display rider; docs/LIB-G14-SPEC.md) = OPUS. Pre-draw
+fields M / STRUCTURAL. Third parallel lane (names/ territory,
+disjoint from RESPELL PR-1 and PYG5 per the fences). Slots 2
+(PlacedUnion, behind RESPELL PR-1's schema claim) and 4 bank.
+M9-1 review ordinal fixed at dispatch (2026-08-15, PR #524 open —
+the unit's PR-1, kernel scope; the orchestrator exercised the
+spec's early-round option): claimed through 38 + 1 = **39 → a
+third → DUAL (sample #13), SAME-MODEL (fable+fable) — the banked
+twin of the second v4 dual block (#405 parity draw)**. R1+R2
+concurrent same-head, frozen a557da3b. Pre-draw fields logged at
+spec time: L / MIXED→NUMERIC (docs/M9-1-SPEC.md; arm = block
+M8-15 slot 1). Unit row at PR-2's merge per the two-PR pattern;
+this dual's verdicts recorded there.
+ASM-4 review ordinal fixed at dispatch (2026-08-15, PR #525 open,
+frozen head d34541e1): claimed through 39 (M9-1 PR-1's dual, #526
+— wall-clock priority among unpushed claims per the refined
+main-is-authority rule) + 1 = **40 → SINGLE** (42 is the next
+third — that dual block's draw happens at its claim). Reviewer
+fable, v4 ladder. Pre-draw fields logged at spec time: L /
+STRUCTURAL (docs/ASM-4-SPEC.md; arm = block ASM-2 slot 3, the
+block's last slot, completed as drawn). Row at merge.
+M9-2 PR-1 review ordinal fixed at dispatch (2026-08-15, PR #527
+open, frozen head per the claim): LIB's open #532 holds 41 by the
+wall-clock tiebreak (claims not yet on main) → claimed **42 → a
+third → DUAL (sample #14)**. THIRD v4 dual block drawn: byte 121,
+parity 1 → **CROSS-MODEL first** (the #405 mapping) — R1 fable +
+R2 OPUS concurrent same-head; the same-model twin banks for
+ordinal 45. Pre-draw fields logged at spec time: PR-1 M / unit L /
+NUMERIC (docs/M9-2-SPEC.md; arm = block M8-15 position 2, fable).
+Unit row at PR-2's merge. NOTE: dispatched during the fleet
+nextest-shard CI incident — hosted re-run owed before merge.
+RESPELL PR-1 review ordinal fixed at dispatch (2026-08-15, PR
+#531 open): claimed through 40 (ASM-4) + 1 = **41 → SINGLE**
+(42 is the next third — dual block draws at its claim).
+Reviewer fable.
+G14 review ordinal fixed at dispatch (2026-08-16, PR #535 open):
+claimed through 42 (M9-2's dual) + 1 = **43 → SINGLE** (45 next
+dual). Reviewer fable. Fork banked for the fix-pass ruling: the
+ratified A2 clause's "selector narrows ties" claim is FALSE
+(GS-Q4 all-or-nothing) — disposition = amend the clause to
+reachable-not-narrowable + register the per-candidate SEL door
+as a named pickup (the smallest honest reading; commissioning
+the door is its own unit if a scene demands it).
+PYG5 review ordinal fixed at dispatch (2026-08-16, PR #536 open):
+claimed through 43 (G14) + 1 = **44 → SINGLE** (45 next dual —
+the third dual block draws at its claim). Reviewer fable.
+M9-D1 review ordinal fixed at dispatch (2026-08-15, PR #530 open,
+frozen head 6affe027): claimed through 44 (PYG5) + 1 = **45 → a
+third → DUAL (sample #15), the SAME-MODEL twin** of the third v4
+dual block (byte 121: cross ran at 42, same banks here) — R1+R2
+both fable, concurrent same-head. Pre-draw fields logged at spec
+time: S-M / STRUCTURAL (docs/M9-D1-SPEC.md; arm = block M8-15
+position 3, the block's last slot — the next block opens M9-16).
+STOPPING-RULE note: tally 5-of-6; if this dual or the running
+sample #14 qualifies (≥1 reviewer MAJOR), that is the SIXTH — the
+dual-review experiment ends and Evan is notified explicitly.
+| ASM-4 | 2026-08-16 | split/inline (R1's closing unit): Workspace write side, editor_core::refactor split+inline as pure functions returning recorded edits, interface-record hook (uninhabited, skip-serialized, NO schema bump — pin preimage proven unchanged), Frame::compose w/ bit-exact fast paths; 8 split + 8 inline typed refusal vocabularies all naming subjects | L / STRUCTURAL (pre-logged at spec) | FABLE (block ASM-2 slot 3 — block complete as drawn) | single (ordinal 40, frozen d34541e1, v4) — APPROVE-WITH-FIXES 0/2/3, rubric 5/4/4 (reviewer executed everything: 6/6 targeted mutants killed incl. the wire-skip and roots-rule guards; own 3-cluster probe FOUND the root-order collapse MIN-1; row 6's two-fresh-process byte identity verified real; pin stability proven from the canonical-serde preimage + pre-PR golden; all three clippy lanes reviewer-run cold-clean; D-2 deviation adjudicated ACCEPT-AS-AMENDMENT — both implementer premises proven true on the spec text, ratified with the order-collapse + A12-cluster riders via #540) | 0 silent (6 reported, all verified honest; MIN-1 = a PR-body overclaim, corrected in the fix) | 5 | 4 | 4 | IMPLEMENTER-INHERITED (order-collapse invariant doc + the reviewer's exact probe shape pinned as a test; all NINE untested refusal arms constructed+tested incl. PartCarriesMetadata via wire injection; witness-copy + PartIdCollides invariant comments; body corrections) | MERGED #525 green (run 31921773824); the #534 Actions-budget outage opened AND resolved inside this seam (Evan restored; precedent #366); R1 COMPLETE | impl ~404k + fix ~396k / review ~163k | impl ~7.8h / review ~1.3h / fix ~0.4h |
+Block ASM-3 draw (2026-08-16, post-R1): byte 207 (<252) mod 4 =
+3 = fable's position → **(opus, opus, opus, fable)**. Slot 1 =
+R2-A (the mate solve, docs/ASM-R2A-SPEC.md, binding) = **OPUS**;
+pre-draw fields logged AT SPEC TIME: **L / NUMERIC** (the draft's
+structural pre-log amended per #409's mixed rule BEFORE this
+draw — the coset case splits are decided numerics; amendment
+recorded in the spec header and the draft's pre-log flag).
+Dispatch GATED on M9-1 PR-2's merge (editor-core ContactClass —
+the #524 seam). Slots 2–4 bank (R2-B = the natural slot-2
+candidate; its own pre-log at its spec).
+ASM-UPD dispatch (2026-08-16): block ASM-3 slot 2 = **OPUS**
+(the byte-207 draw). Pre-draw fields logged at spec time:
+**M / STRUCTURAL** (docs/ASM-UPD-SPEC.md — edit vocabulary +
+elaboration + multiplicity lint, no numeric decisions). A13
+ratified (#544) is the binding design. Ungated; runs while R2-A
+(slot 1, opus) waits on M9-1 PR-2. Row at merge.
+| M9-D1 | 2026-08-16 | revolve pole resolution: sweep::Revolved exports canonical-indexed pole keys (both arms; lamina all-None), name_revolve resolves by LOOKUP into the existing RoleSeg::Pole (no new vocabulary, no schema, no margins); the all-on-axis UNRESOLVED narrows behind a topology-contradiction argument; both workarounds + the die_composed twin DELETED — the natural pip meridian is authored; census delta V4→V2/E6→E2/F4→F2 with ZERO downstream expectation edits | S-M / STRUCTURAL (pre-logged at spec) | OPUS (block M8-15 position 3 — the block's last slot; next opens M9-16) | **DUAL (sample #15, ordinal 45, same-model fable+fable, concurrent frozen 6affe027)**: R1 APPROVE 0/0/3 rubric 5/5/5; R2 APPROVE 0/1/3 (rubric in report). CONVERGED at zero MAJORs — does NOT qualify for the stopping rule (tally stays 5-of-6); the shipped suite killed R1's pole-swap mutant ALONE; R2's one MINOR = the θ<0 non-reversed arm had no shipped row (a direction-keyed export — the spec's rejected shape — would have passed the suite), closed permanently by adopting R2's probes; both re-executed the red rows in both directions and mutation-proved check_total as the exact backstop | 0 silent (2 reported, both verified by both reviewers) | 5 | 5 | 5 | small, IMPLEMENTER-INHERITED: both probe suites adopted authorship-kept (the union cold-clippy caught a real lint defect IN R1's probe file that R1's own cargo test could not see); NOTE-1 → issue #542 (natural-ball wedge VolumeUncomputable, flip condition named); census delta stated per fixture; NOTE-3 ruled document-not-trim with the invariant at the recording site | MERGED #530 35/35 at f1135ac4 (merge 2d48adc5); THE NATURAL MERIDIAN REVOLVES — no sphere detour anywhere, tan(π/8) deleted at all three sites, the authored fourteen + excluded_meridians survive verbatim | impl ~185k + fix ~55k / R1 ~156k / R2 ~150k | impl ~5h + fix ~1.3h / R1 ~2.2h / R2 ~2.2h |
+ASM-UPD review ordinal fixed at dispatch (2026-08-16, PR #549
+open, frozen head 1fe8c809): claimed through 45 (M9-D1's dual) + 1 =
+**46 → SINGLE** (48 is the next third). Reviewer fable, v4
+ladder. Pre-draw fields logged at spec time: M / STRUCTURAL
+(docs/ASM-UPD-SPEC.md; arm = block ASM-3 slot 2, byte-207 draw).
+Cross-program note at dispatch: #549 and LIB's #531 BOTH claim
+schema v9 — the v7/v8 deterministic rule invoked on the #531
+thread; the reviewer verifies the bump ritual as-shipped, the
+number resolves at final re-merge. Row at merge.
+| G14 | 2026-08-16 | the ratified #512 split-naming disposition: A2 tied SectionEdge chords (the boolean-free L-extrude wall down), B1 tie propagation w/ stage-boundary narrowing (the graft_names shape, both lanes), cutaway flipped from Python (2/8/32/32+48 counts), the #516 Display consumed w/ a payload-survival pin | M / STRUCTURAL (pre-draw logged) | OPUS (block LIB-10 slot 3) | single (ordinal 43, reviewed head b4b43393) — APPROVE 0/2/3 (reviewer constructed the missing narrowing case themselves — one-survivor tie → Unique, correct; the FORK verified TRUE by execution: select_where genuinely cannot narrow a tie per-chord, GS-Q4 all-or-nothing; determinism byte-identical across independent evaluations; the Display pin mutation-bites; MINORs both test-shaped w/ the reviewer's probes as donors) | 1 silent at unit-delivery (the audit row's own wrong diagnosis, corrected as the unit's durable finding — the wall was never boolean-provenance), rest reported incl. the A2-clause overstatement | 5 | 4 | 4 | light (both reviewer probes ADOPTED credited — suite 6→8 rows; the unbuildable refusal row kept prose w/ the why stated; the FORK strengthened to an executed assertion); executor: implementer-inherited | MERGED #535 32/0; the audit's cutaway row flips; the A2-clause amendment + the per-candidate SEL-door register entry ride the next seam; #539 filed en route | impl ~258k-cum (2 limit kills annotated) / review ~125k / fix ~22k | impl fragmented / review ~0.8h / fix ~0.3h |
+| PYG5 | 2026-08-16 | audit G5 + register R3: the detect/declare protocol from Python (find_flush_candidates/FlushFinding mirrors/declare doors) + the refusal-menu wiring (UndeclaredContact{finding} — the menu IN the exception, zero decides on the error path); table + crosslap-glued flipped; the N3 bottom-pair residue pinned expected-failure | M / STRUCTURAL (pre-draw logged) | fable (block LIB-10 slot 1) | single (ordinal 44, reviewed head c57a1683) — APPROVE-WITH-FIXES 0/2/3 (reviewer read the error path end-to-end confirming zero fresh decides; mutation-verified the menu/detector parity pin; declared FROM the caught exception and glued at exactly 1.125; re-bisected the residue independently; planted-variant tripwire E0004-verified; MINORs = mangled literal whitespace + two wrong report figures) | 0 silent (the residue pinned not hidden; the audit-diagnosis interplay with concurrent G14 honestly reconciled at the fix pass) | 5 | 4 | 4 | light (literals de-mangled + text pinned; figures corrected; the G14-conflict audit reconciliation off the merged table); executor: implementer-inherited (unit limit-fragmented ×2 + one waiter-parking correction, annotated) | MERGED #536; G5 CLOSED + R3 DISCHARGED — audit 28 of 34 authorable (25+3), 6 NO (G2:6); the refusal-menu recourse is end-to-end from Python | impl ~434k-cum / review ~129k / fix ~25k | impl fragmented / review ~1.0h / fix ~0.4h |
+M9-1 PR-2 review ordinal fixed at dispatch (2026-08-16, PR #552
+open, frozen head dc9dbdee): claimed through 46 (ASM-UPD) + 1 =
+**47 → SINGLE** (48 is the next third). Reviewer fable, v4 ladder
+— the unit's second round (PR-1 carried the dual at 39); unit row
+at PR-2's merge. Orchestrator rulings on the PR's two deviations,
+recorded pre-review: DEV-1 ACCEPTED (the Tangent detector needs
+contact-locus geometry — it FOLDS INTO M9-2 PR-2 beside the
+CurveContact census arms, with the LIB detector arm as its named
+follow-up; shipping unverifiable candidates would break
+FlushFinding's definite-only contract); DEV-2 ACCEPTED (the
+serde(with) bridge resolves the no-kernel-serde vs no-mirror-enum
+rule collision without breaking either; stable spellings, typed
+refusals both directions, content_tag in the defining crate).
+| RESPELL-PR1 | 2026-08-16 | the ratified §2c fillet family, kernel half: sealed verbs kernel (signature-purity axiom, E0609-proven), fused fillet/fillet_arc/arc_fillet/arc_fillet_arc/arc_to(spec), state-keyed ArcData matrix, ray-extension semantics (FilletCarrierUnsupported + ArcCarrierSpelling retired), step_vocabulary! table (enum-side projections), schema v9, docs §2/§2a/§2b/§3 rewritten | L / NUMERIC (pre-draw logged) | fable (block LIB-9 slot 2) | single (ordinal 41, reviewed 27ba1191→714de3ab extended) — APPROVE-WITH-FIXES 2/3/— (M1 SILENT: Center@OnArc shipped untested w/ tip-ignoring impl → ADJUDICATED INADMISSIBLE at the fix pass — the ratified Center@Directed value-match exclusion applies verbatim to a directed state; impl+arm DELETED, matrix text corrected, flagged for Evan's retroactive review; M2 reported: the table derives only enum-side projections → MEASURED 500-700 macro lines, Evan RULED follow-up (LIB-RESPELL-TABLE registered), §2c amended honestly; the reviewer also proved the real seal guarantee is signature purity not module unnameability — the doc now says so; differential + inadmissible-spellings + ray-extension + tag hygiene + v9 both-directions all executed; the straight-leg merge justified by the old spelling failing validate on base) | 1 silent (M1), rest reported (incl. the post-open demo-tour red: a separate-workspace enum-shape adaptation the crate rows missed, fixed in the bridge philosophy) | 4 | 4 | 4 | substantial ×2 rounds + the final reconciliation (three concurrent merges re-spelled into the unified vocabulary; v9 verified standing at merge); executor: implementer-inherited (2 limit kills + 1 session-restart kill annotated) | MERGED #531 35/35 at 3b3e5f41; §2c IS THE SURFACE — the fifteen-round conversation is code; PR-2 (corpus/Python + shim deletion) and PlacedUnion unblock | impl ~700k-cum (multi-kill, annotated) / review ~175k / fix ~85k-delta | wall fragmented across 3 kills + the CI outage |
+LIB-10 slots 2+4 dispatch (2026-08-16, the post-RESPELL wave):
+slot 2 = PLACEDUNION (the ratified A′ group boolean,
+docs/LIB-PLACEDUNION-SPEC.md; the #510 home-acceptance) = OPUS;
+pre-draw fields L / STRUCTURAL. Slot 4 = RESPELL-PR2 (the spec's
+PR-2 scope: corpus/demos/Python re-spell + shim deletion + the
+#433 adjudication) = OPUS; pre-draw fields L / STRUCTURAL
+(mechanical re-spell against the frozen PR-1 kernel). LIB-10
+consumed (fable, opus, opus, opus = PYG5, PLACEDUNION, G14,
+RESPELL-PR2).
+| ASM-UPD | 2026-08-16 | A13's pin-update door: DocEdit::UpdateReference (recorded/undoable/replayable, unresolved-at-edit-time), update_references elaboration + update_to_store w/ Workspace::current_pin, mixed_pins lint (reports, never gates), D-4 memo re-key evidence sharpened by an (id,pin)-keyed stub store; schema v10 (the v9 double-claim resolved by the deterministic rule — RESPELL kept 9; ledger records the twice-claimed 9) | M / STRUCTURAL (pre-logged at spec) | OPUS (block ASM-3 slot 2) | single (ordinal 46, frozen 1fe8c809, v4) — APPROVE-WITH-FIXES 0/1/2, rubric 5/4/5 (both shipped-guard mutations caught; reviewer's own staged fixture + warm-prior/nested/anti-masking memo attacks all failed to break it; all three deviations adjudicated honest BY EXECUTION incl. removing the AlreadyPinned guard to produce the un-appliable group; MIN-1 = the prior memo channel had no shipped warm-path row) | 0 silent (3 reported, all verified; the schema hazard self-flagged at delivery) | 5 | 4 | 5 | IMPLEMENTER-INHERITED (row5c/row5d warm-prior + nested rows, mutation-verified to be the ONLY red on a pin-feed deletion; AlreadyPinned Display asserted; the v9→v10 shift w/ header-only re-bless + both-direction refusal rows; two hygiene repairs: RESPELL's future-version literal now SCHEMA_VERSION+1-derived, two drifted pin names righted); NOTE-1 filed as #561, adopted by LIB | MERGED #549 32/32 at a13bfed2; THE UPDATE DOOR EXISTS — pins move only by recorded edits, staged states lint | impl ~194k + fix ~236k / review ~133k | impl ~0.6h + fix ~0.6h / review ~1.3h |
+R2-A dispatch note (2026-08-16): the M9-1-PR-2 gate LIFTED EARLY
+by Evan's ruling (in-session) — the dependency was ContactClass
+type identity, which PR-1 already merged; #552's fix-pass surface
+(re-export sugar, wire module, possible serde placement flip)
+cannot move R2-a's design. Implementer briefed to build against
+topo::ContactClass directly, absorb #552 at routine re-merges,
+and mint its own schema bump at main's next number (the live
+chain: v10 = ASM-UPD, v11 = M9-1 at its re-merge). Lane asm-r2a,
+branch asm/r2a-mate-solve, OPUS per the slot-1 draw. Review
+ordinal claims at review dispatch (note: the next third is 48 —
+the pending dual, tally 5-of-6).
+M9-2 PR-2 review ordinal fixed at dispatch (2026-08-16, PR #564
+open, frozen head a1b78954): claimed through 47 (M9-1 PR-2) + 1 =
+**48 → a third → DUAL (sample #16)**. FOURTH v4 dual block drawn:
+byte 88, parity 0 → **SAME-MODEL first** (fable+fable, concurrent
+same-head); the cross-model twin banks for ordinal 51. The unit's
+row (dual #14 on PR-1 + this dual + both fix passes) records at
+this PR's merge. STOPPING-RULE note: tally 5-of-6 — if EITHER
+reviewer here finds a MAJOR, this is the SIXTH qualifying dual:
+the dual-review experiment ENDS and Evan is notified explicitly
+per the v4 amendment.
+MESH-PROBEGATE dispatch (2026-08-16): the #558 register-class
+residue, assigned to ASM by Evan in-session as a side-lane unit
+under the normal protocol. Block ASM-3 slot 3 = **OPUS** (the
+byte-207 draw). Pre-draw fields logged at spec time: **S-M /
+STRUCTURAL** (docs/MESH-PROBEGATE-SPEC.md — module-boundary
+gating on the #560 budget pattern; no numeric decisions).
+Crate-disjoint from the in-flight R2-A (editor-core). Row at
+merge; review ordinal claims at its dispatch.
+TESS-SPAN dispatch (2026-08-16): the #320 span half (as
+corrected by #547 — the recon at cad-work/tess-320-recon.md is
+the diagnosis of record: whole-patch sup ≈ 2.5x secondary; the
+4.1x AM-GM split factor waits on the aspect-policy design
+conversation). Block ASM-3 slot 4 = **FABLE** (the byte-207
+draw; block ASM-3 fully consumed: R2-A opus / ASM-UPD opus /
+PROBEGATE opus / TESS-SPAN fable). Pre-draw fields logged at
+spec time: **M-L / NUMERIC** (docs/TESS-SPAN-SPEC.md). Same-file
+overlap with the in-flight PROBEGATE declared (re-merge duty in
+both briefs). Row at merge.
+| M9-1 | 2026-08-16 | contact vocabulary end-to-end (two-PR unit): PR-1 kernel — ContactClass{Rest,Tangent} + the finding vocabulary defined LOWEST (topo/contact.rs, re-exported upward), CurveContact/PatchContact granularities, class-keyed DeclaredPairs + carried channels (class-less unrepresentable), the kind-generalized carrier_eq ladder, the C4 Tangent table over the jet lane, failure modes at BOTH gates, AQ6 trilean + Fit-deferral recourse; PR-2 recipe/LIB/schema — class through Declare/resolve/content-key, declare_node preservation, kernel-rooted re-exports, serde(with) bridge (DEV-2 ruling), schema v11 (shifted twice in the race: RESPELL took 9, ASM-UPD 10) | L / MIXED→NUMERIC (pre-draw logged at spec) | OPUS (block M8-15 slot 1) | PR-1: **DUAL (sample #13, ordinal 39, same-model fable+fable, frozen a557da3b)** — R1 AWF 2/5/3, R2 AWF 1/5/3, rubric 4/4/4 both; CONVERGED where it mattered: BOTH independently proved the reverted op-door pass RIGHT and main's corpus carrying a genuine 0.5 m coincidence lie (R2's sharper mechanism: green only because verify-at-use was Union-only and the op a Subtract) — a QUALIFYING dual (tally → 5-of-6); productively divergent on the Tangent bridge (R1 measured in-band residual/opposition bridging; C4's three-list structure adjudicated it ESCALATE — the substantive fix). PR-2: single (ordinal 47, fable, frozen dc9dbdee) — AWF 0/4/2, 0 silent; headline = the preservation row couldn't distinguish the dropping code (detector Rest-only); DEV-4 RULED (door refusal ≠ contradiction) | PR-1: 1 understated (the R1 coverage claim) + 2 low-stakes silent; PR-2: 0 silent, 2 PR-body factual errors review-caught | 4 | 4 | 4 | BOTH IMPLEMENTER-INHERITED. PR-1 fix: the C4-lists Tangent rework (arms 3/4 decided together — the first-order lever IS the second-order question; a reachable 0/0 NaN the old code silently bridged, fixed), #539 filed + corpus lie fixed + op-door pass REINSTATED red-then-green, both probe suites adopted, 3 adopted rows' literal ε gaps re-derived band-relative. PR-2 fix: the preservation row bites (synthetic Tangent finding, RED under mutant), the tripwire truth-pass found REAL drift behind deliberate wildcards (Tangent missing from the PyO3 mirror — arm added, pin rewritten to enumerate), v10→v11 shift executing the race rule — WITH the process find: the one-line constant merged CLEANLY at 10-vs-10, the ledger PROSE was the only collision (the v7/v8 mode reproduced; prose = load-bearing machinery, recorded) | PR-1 MERGED #524 35/1 at cfd2fb57→24d11220 (merge 7f5a6c63); PR-2 MERGED #552 34/2 at 8d85634d (merge 134f5fac); DECLARED CONTACT HAS A VOCABULARY: Rest/Tangent authored, verified, persisted, refused typed at every seam; ASM R2 consumes it as-is | impl ~335k + fix1 ~245k + pr2 ~285k + fix2 ~120k / R1 ~150k / R2 ~130k / pr2-R ~115k | impl ~7h + fix1 ~4h + pr2 ~5h + fix2 ~1.7h / R1 ~2h / R2 ~3.2h / pr2-R ~1.8h (slot-queue dominated throughout) |

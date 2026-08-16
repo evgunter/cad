@@ -256,6 +256,69 @@ except EvaluationError as err:
     assert err.node == glued
 ```
 
+And for this particular refusal, the payload does better than say
+why: **the refusal is the menu**. An undeclared-contact refusal
+carries the candidate declaration itself — the face pair by stable
+name, with the relation the verifier decided — as a typed
+`FlushFinding` on the exception, so the recourse is in the error, not
+in a doc. The menu has exactly two arms: declare that finding, or
+move the geometry. Here is the whole conversation, end to end —
+author the undeclared boolean, read the typed menu, declare, succeed:
+
+```python
+from pncad import (
+    BooleanOp, ContactClass, Doc, EvaluationError, Node, PlaneRelation,
+    evaluate, mm,
+)
+
+
+def slab(doc, z0, z1):
+    profile = doc.insert(
+        Node.polygon(
+            [(0 * mm, 0 * mm), (10 * mm, 0 * mm), (10 * mm, 10 * mm), (0 * mm, 10 * mm)],
+            elevation=z0,
+        )
+    )
+    return doc.insert(Node.extrude(profile, z1 - z0))
+
+
+doc = Doc()
+lower = slab(doc, 0 * mm, 10 * mm)
+upper = slab(doc, 10 * mm, 20 * mm)   # they meet exactly at z = 10 mm
+naive = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+
+# 1. The undeclared union refuses — with the typed menu attached.
+ev = evaluate(doc)
+try:
+    ev.value(naive)
+    raise AssertionError("the undeclared union must refuse")
+except EvaluationError as err:
+    assert err.kind == "undeclared_contact"
+    menu = err.finding                      # the candidate declaration
+    assert menu.relation == PlaneRelation.SameOpposite  # resting contact
+    assert menu.class_ == ContactClass.Rest
+
+# 2. The declare arm: detect, INSPECT, declare. The detector is the
+#    boolean's own verifier run in candidate-generation mode, so a
+#    finding can never disagree with verify-at-use — and the menu's
+#    finding is drawn from the same inventory.
+findings = ev.find_flush_candidates(lower, upper)
+assert menu in findings
+decl = doc.declare_all(findings)            # or doc.declare(menu)
+
+# 3. The SAME union, with the contact declared: verified and glued.
+glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper, declare=decl))
+body = evaluate(doc).value(glued).body()
+body.validate()
+# 10 × 10 × 20 mm³ — one block, watertight.
+assert abs(body.mass_properties().volume - 2e-6) < 1e-15
+```
+
+Notice what is *not* here: no `detect_and_declare`. Findings pass
+through your hands as values — that pause is the enforceable
+intent-recording property, and the declaration is still verified at
+use (a declaration the geometry contradicts refuses loudly).
+
 A node downstream of a failure is not itself broken — it is
 **poisoned**, and it says so, naming the node that actually failed:
 

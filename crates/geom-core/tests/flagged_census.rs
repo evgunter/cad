@@ -4,8 +4,8 @@
 //! ledger row** in `docs/predicate-dimension-audit.md`. This test pins
 //! the number of SHIPPED call sites (crate `src/` trees — fixtures and
 //! demos carry prose reasons instead of rows and are not counted) to
-//! the ledger's inventory: F2 ×4, F6 ×3, F7 ×1, F10 ×1 (one loop over
-//! seven rigidity residuals), F13 ×1, F14 ×1, F15 ×1 — **12 sites**.
+//! the ledger's inventory: F2 ×4, F10 ×1 (one loop over seven
+//! rigidity residuals), F13 ×1, F14 ×1, F15 ×1 — **8 sites**.
 //!
 //! Adding a site without updating BOTH the ledger and this count fails
 //! the suite; retiring a flagged family (its own unit) decrements it.
@@ -17,7 +17,7 @@
 use std::path::{Path, PathBuf};
 
 /// The ledger's current shipped `decide_flagged` inventory.
-const LEDGER_FLAGGED_SITES: usize = 12;
+const LEDGER_FLAGGED_SITES: usize = 8;
 
 fn count_in_tree(dir: &Path, hits: &mut Vec<(PathBuf, usize)>) {
     for entry in std::fs::read_dir(dir).expect("readable src tree") {

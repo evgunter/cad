@@ -28,7 +28,7 @@
 //! `tests/review_s8_probe.rs`, `tests/common/mod.rs::bracket`, and the
 //! cross-crate fixtures in `sweep`/`step-export`) author their corners
 //! through `fillet`/`fillet_corner` here. Their only lattice target is
-//! the §2b arc-carrier fillet family (`at_on`/`to_on`) — which is
+//! the §2c arc-carrier fillet family — which is
 //! precisely the surface PATHS-DESIGN §2c redesigns (RATIFIED on #419,
 //! 2026-08-11; carrier-typed tips, uniform arrival binders, the compound
 //! register dissolved). The re-spell UNIT has not run yet, so migrating
@@ -36,10 +36,10 @@
 //! rides the §2c re-spell. The plain (non-fillet) chains in those files
 //! carry no such constraint and are raw-data spellings away.
 //!
-//! What is NOT here, deliberately: raw [`ProfileLoop`](crate::ProfileLoop)
+//! What is NOT here, deliberately: raw [`crate::ProfileLoop`]
 //! DATA (`new`/`polygon`, now on the [`RawLoop`](crate::RawLoop) trait)
-//! and the bulge constructors ([`bulge_from_via`](crate::bulge_from_via)
-//! / [`bulge_from_center`](crate::bulge_from_center)) stay kernel
+//! and the bulge constructors ([`crate::bulge_from_via`]
+//! / [`crate::bulge_from_center`]) stay kernel
 //! vocabulary — they never were `LoopBuilder`. The validate-refusal
 //! demo they used to justify (the bowtie) is gone from the tour and
 //! lives in `tests/rejections.rs`, authored through the lattice.
@@ -346,7 +346,8 @@ impl<T: Real> LoopBuilder<T> {
     /// - exactly one survivor ⇒ that is the fillet;
     /// - **two** survivors ⇒ the candidate **nearest the authored
     ///   corner** wins (M5 S8, Evan's ruling 2026-07-30): smallest total
-    ///   tangent setback, ties falling down [`nearest_candidate`]'s
+    ///   tangent setback, ties falling down
+    ///   [`crate::fillet_select::nearest_candidate`]'s
     ///   documented ladder. Both survivors are valid tangent fillets of
     ///   the authored legs, so the selection is between constructions,
     ///   not geometric truths — and the far circle stays deliberately

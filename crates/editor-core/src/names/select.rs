@@ -14,7 +14,7 @@
 //!
 //! # It is a MATERIALIZER, never a live query
 //!
-//! [`select`] takes an [`Evaluation`](crate::eval::Evaluation) and
+//! [`select`] takes an [`crate::eval::Evaluation`] and
 //! hands back `Vec<StableName>` **as of that evaluation**, exactly
 //! like [`all_edges`](super::all_edges). A selector value is never
 //! stored in a recipe: [`crate::Node::Fillet`]'s payload freezes

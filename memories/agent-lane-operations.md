@@ -20,10 +20,10 @@ ci-filter.py treat local-scripts/ changes as non-triggering (they used
 to force the full matrix). Existing lanes had the OLD hooks path
 cached in .git/config, so the rename silently disabled their pre-push
 fmt hook (git says NOTHING when core.hooksPath is missing) — it hit the
-build-perf lane itself. with-build-slot.sh now REPAIRS a dangling
-core.hooksPath on the next build and says so, so no manual step is
-needed — a MIGRATION SHIM, **RETIRE 2026-08-13** (grep
-`RETIRE 2026-08-13`; it nags on every acquisition past that date). General lesson: a repo-relative path cached in per-clone git
+build-perf lane itself. The with-build-slot.sh self-heal shim was
+RETIRED on schedule (2026-08-15, due 08-13); a dangling
+core.hooksPath now gets a loud WARNING naming the one-liner fix
+instead of silent repair. General lesson: a repo-relative path cached in per-clone git
 config is invisible to a repo-side rename — grep for `git config` when
 moving directories. See docs/LOCAL-BUILD-PERF.md §6.
 
@@ -150,6 +150,13 @@ must be re-run untrusted (one R2 review stopped mid-battery this
 way — the reply "mid-battery, progressing normally" surfaced
 with the kill).
 
+**Waiter self-test (2026-08-15, #511):** run a background waiter's
+detection expression ONCE in the foreground before arming it — a
+catch-all retry arm (`|| echo retry`) converts a permanent error
+into silent eternal waiting (observed: a jq filter using `||`,
+which jq does not have — `or` — errored every poll and the waiter
+never fired; Evan spotted the green PR before the monitor did).
+
 **Death recovery.** A dead subagent's transcript AND its isolation
 worktree (with uncommitted work) survive — `git worktree list`
 from the main checkout, then SendMessage resumes it. Choose
@@ -178,6 +185,15 @@ sweep checks open PRs' mergeable state, not just lane activity.
 Binary/render conflicts are never hand-picked — take a side,
 regenerate through the pipeline, re-verify the reproducibility
 contract.
+**Shared-scratchpad hazard (2026-08-15, observed live):** the
+session scratchpad (/tmp/claude-1000/.../scratchpad/) is SHARED
+between concurrently running agents of one session — two fix
+passes crossed `pr.md` files and one agent briefly published the
+OTHER unit's body onto its PR via `gh pr edit --body-file`.
+PR/issue bodies and anything else to-be-published go to
+LANE-PRIVATE paths (~/.local/share/cad-work/<lane>-*.md), never
+the scratchpad; orchestrator briefs state this.
+
 **Substrate-output placement (lesson 2026-08-06):** clean-lanes
 on a substrate dir's PARENT deletes the inventory beside the
 lane (m6-5's inventory was lost this way; the implementer

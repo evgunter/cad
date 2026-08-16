@@ -39,11 +39,21 @@
 //! were individually certified and gated — not a re-derivation of them.
 //!
 //! Validity is the caller's to establish, exactly as with `combine`:
-//! this is a raw transplant, and the at-rest validator is what says
-//! whether the result is a body. Two solids that OVERLAP are a false
-//! body and tier 3 says so; two that merely touch land in the
-//! tier-3-not-3′ gap (declared contact is the boolean pipeline's
-//! currency, and a disjoint graft declares none).
+//! this is a raw transplant, and the at-rest validator
+//! ([`validate_geometric`](crate::validate_geometric)) is what says
+//! whether the result is a body. Know what that gate proves: the
+//! structural tiers, then tier 3's LOCAL battery — every check reads
+//! one face, one edge, or one edge–face pair, and the one whole-body
+//! check (the +V signed volume) SUMS flux, so overlapping positive
+//! volumes only reinforce it. Two grafted solids share no edge, so no
+//! tier-3 check ever compares one against the other: solids that
+//! OVERLAP pass the gate undetected, and solids that merely touch land
+//! in the tier-3-not-3′ gap (declared contact is the boolean
+//! pipeline's currency, and a disjoint graft declares none).
+//! Cross-solid contact and interference are the assembly design's
+//! territory — undeclared touching is A5's hard error, interference
+//! fits live behind C6's recorded gate-skips — and detection is
+//! planned as tier-3′ census growth (issue #382).
 
 use crate::body::Body;
 use crate::boolean::BooleanError;

@@ -184,14 +184,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - id: classify
         # RUSTUP_TOOLCHAIN=stable keeps this job off the pinned 1.97.0
         # download: the script only runs `cargo metadata --no-deps`, which
@@ -230,14 +233,17 @@ jobs:
     if: needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       # Compound Bounds bounds (`T: Decide + Bounds`) are legal ONLY in
       # the seams the 2026-07-29 amendment ratified (geom-core
       # `real.rs`, Bounds scope rule): the C10 boolean-sweep driver
@@ -278,6 +284,20 @@ jobs:
       # the same shape — `EdgeNurbsLane` splits f64/Probe/Interval
       # (certified) from `Dual` (typed refusal) — and it is what keeps
       # `Bounds` out of `topo`'s signatures.
+      # topo/src/chart_region.rs is M9-2 PR-1's chart-region overlap
+      # predicate (spec item 1; the PR 11 class, retroactive Evan
+      # review per the self-merge convention): it simultaneously
+      # DECIDES (its chart_region_* funnel margins) and reads
+      # exact-f64 STRUCTURE through the bracket — the C6 planar-trim
+      # inventory gate (a Harmonic trig channel is straight only when
+      # its bracket is a point at exactly 0.0, the props.rs
+      # rectangle-trim read) and the bit-identical-region fast path —
+      # so `Decide + Bounds` is its honest signature. No dual lane
+      # exists to split today (Bounds has no Dual impl, so the
+      # predicate is uninstantiable at duals); the PropsQuadLane-shape
+      # static lane is the stated obligation of its first
+      # Decide-generic consumer (M9-2 PR-2's census arms) — see the
+      # real.rs rule entry.
       # Sole-bound `T: Bounds`
       # (certification/driver code) is untouched by this check. A NEW
       # file writing a compound Bounds bound fails here until it is
@@ -306,6 +326,7 @@ jobs:
             | cut -d: -f1 | sort -u \
             | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
             | grep -vE '^crates/topo/src/props\.rs$' \
+            | grep -vE '^crates/topo/src/chart_region\.rs$' \
             | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
             | grep -vE '^crates/profile/src/test_support\.rs$' \
             | grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
@@ -358,6 +379,43 @@ jobs:
       #    selection lanes (lsq's hits are usize buffer sizing);
       #  - geom-brep ssi/jet.rs / march.rs / system.rs — f64-only jet and
       #    marcher numerics (finite differences, step control).
+      # NO AMBIENT ENVIRONMENT IN THE KERNEL. A runtime env read inside
+      # crates/*/src is a back channel: it changes shipped behaviour
+      # with no rebuild, no flag, and no call site to review. This gate
+      # exists because one had been live — `mesh::probe_stats::armed()`
+      # answered true for `NURBS_PROBE`, which switched on a 91-sample
+      # resampling of every emitted triangle (measured 7.9 s -> 19.8 s
+      # on the tour's release binary, same binary, same arguments) AND
+      # put an `assert!` in the tessellation path, so an environment
+      # variable converted `tessellate`'s typed error contract into a
+      # panic.
+      #
+      # The allowlist is the two RATIFIED knobs, both read once and
+      # documented where they are read:
+      #  - geom-core tolerance.rs — CAD_TOLERANCE_EPS, the eps matrix
+      #    this whole workflow is built on (a OnceLock, read at init);
+      #  - test-utils fuzz.rs — CAD_FUZZ_SEED / CAD_FUZZ_EFFORT, and
+      #    test-utils is a dev-only leaf no shipped build can reach.
+      #
+      # `env!` is deliberately NOT matched: it is compile-time, baked
+      # into the binary, and cannot be an ambient channel.
+      #
+      # Telemetry is the recurring offender, so it has a rule of its
+      # own (memories/telemetry-gating.md): gate it behind a feature at
+      # the module boundary from the first commit, and arm it by an
+      # explicit call — never by the environment.
+      - name: no ambient environment in the kernel
+        run: |
+          hits=$(grep -rPn '\benv::vars?(_os)?\s*\(' crates/*/src --include='*.rs' \
+            | grep -vE ':[0-9]+:\s*(//|///|//!)' \
+            | cut -d: -f1 | sort -u \
+            | grep -vE '^crates/geom-core/src/tolerance\.rs$' \
+            | grep -vE '^crates/test-utils/src/fuzz\.rs$' || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo "::error::a kernel crate reads the environment at runtime — that is a back channel into shipped code, changing behaviour with no rebuild and no call site to review (NURBS_PROBE was exactly this). Arm it by an explicit call and gate it behind a feature, or ratify this file into the allowlist."
+            exit 1
+          fi
       - name: interval-square powi(2) allowlist (ratified 2026-08-01)
         run: |
           hits=$(grep -rPn '\b([a-z_][a-z0-9_]*)\s*\*\s*\1\b' crates/*/src --include='*.rs' \
@@ -503,14 +561,17 @@ jobs:
     if: needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
@@ -522,14 +583,17 @@ jobs:
     if: needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # No --all-features here: the `interval` feature is a different
@@ -540,6 +604,31 @@ jobs:
       # Scoped by the filter: `--workspace` in tier `all`, an explicit
       # `-p <closure>` list in tier `closure`.
       - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets -- -D warnings
+
+  # RUSTDOC gate (#465): clippy is blind to rustdoc lints, so a doc
+  # comment can silently stop rendering with the gate green. The command,
+  # the flags, and the shrinking exclusion list all live in
+  # scripts/doc-gate.sh — one implementation, called by this job and by
+  # local-scripts/ci-local.sh, the ci-filter.py arrangement.
+  #
+  # NOT scoped by the filter, deliberately: the gate is a workspace-wide
+  # ratchet over a fixed crate set, and it runs in ~15 s cold, so scoping
+  # it to the change closure would trade the ratchet's meaning for no
+  # measurable time. It still respects the docs tier via run_build.
+  doc:
+    name: rustdoc (gate)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: needs.filter.outputs.run_build == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # see the identical step in the clippy job for the full reasoning.
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: scripts/doc-gate.sh
 
   # BUILD job, default features (see the build-once header comment above
   # the `env:` block). Compiles the scoped test binaries exactly once and
@@ -631,14 +720,17 @@ jobs:
       CARGO_PROFILE_TEST_OPT_LEVEL: "2"
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       # NO mold here — see the LINKER note at the top of this file. It was
       # right for 261 test binaries and is not right for 14.
       - uses: dtolnay/rust-toolchain@stable
@@ -733,14 +825,17 @@ jobs:
       # Runner workspace paths are identical across jobs, so build-time
       # env!("CARGO_MANIFEST_DIR") paths resolve here too.
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - name: install cargo-nextest (pinned, official prebuilt)
         uses: ./.github/actions/install-nextest
         with:
@@ -777,14 +872,17 @@ jobs:
       CARGO_PROFILE_TEST_OPT_LEVEL: "2"
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       # The `interval` feature's backend is the in-repo
       # `interval-transcendentals` crate — pure Rust over libm — so this
       # job needs no system packages at all now that mold is gone (see the
@@ -862,8 +960,8 @@ jobs:
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
     steps:
       - uses: actions/checkout@v4
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -930,14 +1028,17 @@ jobs:
       RUSTUP_TOOLCHAIN: stable
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - name: install cargo-nextest (pinned, official prebuilt)
         uses: ./.github/actions/install-nextest
         with:
@@ -1025,14 +1126,17 @@ jobs:
     # see the crate README's "Certification" section.
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -1086,8 +1190,8 @@ jobs:
       RUSTFLAGS: "-C target-cpu=x86-64-v3"
     steps:
       - uses: actions/checkout@v4
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -1134,14 +1238,17 @@ jobs:
     if: needs.filter.outputs.run_stl == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       # External STL verification (M2 PR 7): admesh 0.98.4 is
       # apt-packaged; the check script accepts NO repair as success.
       - name: install admesh
@@ -1165,14 +1272,17 @@ jobs:
     if: needs.filter.outputs.run_step_export == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       # External STEP import acceptance (M4 PR 7, the admesh pattern
       # STEP-shaped): FreeCAD/OCC imports the committed fixtures
       # (byte-golden against the writer via the cargo test suite) and
@@ -1232,14 +1342,17 @@ jobs:
     if: needs.filter.outputs.run_pncad_py == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       # Python pinned at 3.12 — the interpreter the suite was written
       # and validated on (U9S/DOORS/U10 all ran the local 3.12). The
       # wheel is abi3-py38, so this is a determinism pin, not a
@@ -1319,14 +1432,17 @@ jobs:
         eps: ["1e-6", "1e-12"]
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # D6.1 save/load/replay-identity + the D2 float property row +
@@ -1365,14 +1481,17 @@ jobs:
     if: needs.filter.outputs.run_editor_core == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # `--ignored`: the test is `#[ignore]`d so the ε matrix stops
@@ -1400,14 +1519,17 @@ jobs:
         eps: ["1e-6", "1e-12"]
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: evaluation, exact mass pins, counted reuse, vocabulary totality
@@ -1444,14 +1566,17 @@ jobs:
     if: needs.filter.outputs.run_k_lint == 'true'
     steps:
       - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on the local half of the
-      # tooling split. Deleting it here means a workflow that grows a
-      # reference to local-scripts/ fails loudly on the very next run
-      # instead of silently coupling the gate to a developer's machine.
-      # This is also what lets scripts/ci-filter.py treat local-scripts/
-      # changes as non-triggering (its _is_docs).
-      - name: prune local-scripts (hosted CI may not depend on them)
-        run: rm -rf local-scripts
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
 
       # THE TOUR'S OUTPUT, ON RENDER.YML'S KEY. `uv sheet drift` below
       # is the only RELEASE build of demos/tour in this job — the
@@ -1503,6 +1628,7 @@ jobs:
             demos/tour
             demos/wild
             tools/k-lint
+            tools/tess-lint
       # Hosted mirror of ci-local's "demos tour (fmt + clippy)" row:
       # the tour is workspace-excluded, so the fmt/clippy jobs above
       # never see it — and this is the job that builds it anyway (the
@@ -1515,6 +1641,17 @@ jobs:
         run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+      - name: tess-lint tool fmt + clippy + tests (the three exit voices)
+        run: cd tools/tess-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+      # The meter's own suite. `mesh::budget` is gated at its module
+      # boundary (mesh's `budget` feature), so the workspace test rows
+      # above run the INERT half — which is the right default, and
+      # exactly why the live half needs a row of its own or it rots.
+      # Clippy too: two configurations, two lints.
+      - name: mesh budget meter (feature = budget)
+        run: |
+          cargo clippy -p mesh --all-targets --features budget -- -D warnings
+          cargo test -p mesh --features budget
       # Drift gate for the committed UV sheet. The two PNG lanes cannot
       # be gated — they need FreeCAD, which this job does not have — so
       # this is the ONLY render lane CI can actually reproduce, and an
@@ -1561,6 +1698,48 @@ jobs:
           re-run demos/tour then demos/render-uv.sh and commit the result"
             exit 1
           }
+      # The tessellation-budget gate (issue #320). It rides THIS job
+      # because this job is the one that builds demos/tour, and the
+      # sweep IS the tour walking its own scenes (~4 s in release).
+      #
+      # COST, stated: on a `tour-cache` HIT the uv-drift step above
+      # skips its release build, and this step then pays it instead —
+      # the tour binary, not its dependencies, so tens of seconds
+      # against this job's own critical path, not the workflow's. It is
+      # deliberately not a debug run (the k-probe sweep's profile):
+      # debug tessellates the same scenes 5-10x slower, which spends
+      # more wall clock than the build it would avoid. The `--features
+      # budget` that arms the meter at all lives in the sweep script,
+      # once, beside the k-probe sweep's `--features probe`.
+      #
+      # It gates REGRESSION,
+      # not absolute slack: the head's factors are large and known
+      # (docs/TESS-BUDGET.md), so an absolute threshold could only be
+      # set above them, and the one thing that must never happen is
+      # someone coarsening a demo's delta to get a number down. What
+      # this catches is a scene's mesh growing, a face's sizing getting
+      # wastefuller, or a scene silently dropping out of the sweep.
+      #
+      # Baseline + how to re-cut it: docs/tess-budget-data/ and the
+      # tool's own failure message, which prints the recourse.
+      #
+      # `--sizing-only`, deliberately: the default sweep also resamples
+      # |S - Pi| on every emitted triangle to fill `worst_dev`, which is
+      # ~1.15M triangles x 28 barycentric samples — tens of millions of
+      # surface evaluations — and the gate reads NONE of it. What
+      # `compare` looks at is triangle counts and `uniform_cells /
+      # span_opt_cells`, all of them sizing columns the lane produces
+      # for free. The deviation pass is what the WRITEUP needed
+      # (docs/TESS-BUDGET.md's total-slack column, and the committed
+      # baseline still carries it); re-cutting the baseline runs the
+      # script without this flag.
+      - name: tessellation-budget sweep (every tour scene, per face)
+        run: scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only
+      - name: tessellation-budget lint (gate — a grown budget fails this row)
+        run: |
+          cd tools/tess-lint && cargo run -- \
+            ../../target/tess-budget-fresh.csv \
+            --baseline ../../docs/tess-budget-data/tess-budget-baseline.csv
       - name: K-telemetry probe sweep (corpus + demo scenes, 3 eps rows)
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: large-K lint (gate — a flagged margin fails this row)

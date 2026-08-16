@@ -36,12 +36,20 @@ mod asm1_identity_pins;
 mod asm2a_instantiate;
 #[path = "asm2b_multisolid.rs"]
 mod asm2b_multisolid;
+#[path = "asm4_split_inline.rs"]
+mod asm4_split_inline;
 #[path = "asm_roots.rs"]
 mod asm_roots;
+#[path = "asm_upd_pin_update.rs"]
+mod asm_upd_pin_update;
+#[path = "asm_upd_schema_v10.rs"]
+mod asm_upd_schema_v10;
 #[path = "lbret_schema_v8.rs"]
 mod lbret_schema_v8;
 #[path = "lib_doors_node_result.rs"]
 mod lib_doors_node_result;
+#[path = "lib_g14_split_walls.rs"]
+mod lib_g14_split_walls;
 #[path = "lib_sel1_geoselect.rs"]
 mod lib_sel1_geoselect;
 #[path = "lib_sel2_flush.rs"]
@@ -144,6 +152,16 @@ mod m6_5_schema_v3;
 mod m6_5_selection_refusals;
 #[path = "m6_composed_node.rs"]
 mod m6_composed_node;
+#[path = "m9_1_declare_classes.rs"]
+mod m9_1_declare_classes;
+#[path = "m9_1_schema_v11.rs"]
+mod m9_1_schema_v11;
+#[path = "m9_d1_r1_probes.rs"]
+mod m9_d1_r1_probes;
+#[path = "m9_d1_r2_probes.rs"]
+mod m9_d1_r2_probes;
+#[path = "respell_schema_v9.rs"]
+mod respell_schema_v9;
 #[path = "review_m4_pr1.rs"]
 mod review_m4_pr1;
 #[path = "review_m4_pr1_die.rs"]

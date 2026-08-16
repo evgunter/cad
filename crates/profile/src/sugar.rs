@@ -274,7 +274,8 @@ pub(crate) struct ArcFilletCandidate<T: Real> {
     /// The outgoing leg's fit classification, same rule.
     pub fit_out: Sign,
     /// The `[incoming, outgoing]` tangent setbacks from the corner, in
-    /// meters (arc lengths `R·Δθ` on circular legs) — [`nearest_candidate`]'s
+    /// meters (arc lengths `R·Δθ` on circular legs) —
+    /// [`crate::fillet_select::nearest_candidate`]'s
     /// input once the door has read the diagnostic channel.
     pub setbacks: [T; 2],
 }
@@ -363,7 +364,7 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
         /// The overrun leg.
         leg: FilletLeg,
         /// The leg's carrier radius, `None` for a straight leg — the
-        /// door turns it into a [`FilletLegCarrier`].
+        /// door turns it into a [`crate::FilletLegCarrier`].
         carrier_radius: Option<T>,
         /// The fit margin `extent − setback`, meters (the door divides
         /// by the carrier radius for the angular story).
@@ -397,7 +398,7 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
 /// with exactly the shipped `decide` sequence, and returns EVERY
 /// surviving candidate rather than one pick. The selection is the
 /// caller's: the test-support twin applies
-/// [`nearest_candidate`] over the diagnostic channel (the S8 rule), and
+/// [`crate::fillet_select::nearest_candidate`] over the diagnostic channel (the S8 rule), and
 /// the algebra applies it over the joint corner×candidate space, which
 /// is why the survivors — not a winner — are what crosses this seam.
 ///

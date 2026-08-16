@@ -3,6 +3,11 @@
 //! this data against the kernel ops.
 
 use crate::expr::{Dimension, Expr};
+// The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
+// PR-1). Imported, never redefined: the boolean's own refusals must
+// carry the same words this node authors, and `crate::names::flush`
+// owns the single upward re-export.
+use topo::ContactClass;
 
 /// A stable recipe-node identity (spec D3, NAMING-DESIGN N1's
 /// substrate): minted from `Doc`'s monotone counter at insertion,
@@ -88,6 +93,28 @@ pub enum StepArg {
     Bulge,
     /// A `circle_split` first-vertex phase (Angle).
     Phase,
+    /// **§2c** an arc spec's carrier radius (`Radius`/`Sweep`/`ArcLen`).
+    CarrierRadius,
+    /// **§2c** a `Sweep` spec's swept central angle.
+    SweepVal,
+    /// **§2c** an `ArcLen` spec's arc length.
+    ArcLenVal,
+    /// **§2c** a fused step's ARRIVAL-spec carrier centre x (the spec₂
+    /// role twin — a fused step carries two specs, so the arrival's
+    /// roles are distinct).
+    Center2X,
+    /// That centre's y.
+    Center2Y,
+    /// The arrival spec's through-point x.
+    Via2X,
+    /// That through-point's y.
+    Via2Y,
+    /// The arrival spec's target x.
+    Target2X,
+    /// That target's y.
+    Target2Y,
+    /// The arrival spec's carrier radius.
+    CarrierRadius2,
 }
 
 impl StepArg {
@@ -105,8 +132,17 @@ impl StepArg {
             | Self::CenterX
             | Self::CenterY
             | Self::Length
-            | Self::Radius => Dimension::Length,
-            Self::AngleVal | Self::TurnVal | Self::Phase => Dimension::Angle,
+            | Self::Radius
+            | Self::CarrierRadius
+            | Self::ArcLenVal
+            | Self::Center2X
+            | Self::Center2Y
+            | Self::Via2X
+            | Self::Via2Y
+            | Self::Target2X
+            | Self::Target2Y
+            | Self::CarrierRadius2 => Dimension::Length,
+            Self::AngleVal | Self::TurnVal | Self::Phase | Self::SweepVal => Dimension::Angle,
             Self::DirX | Self::DirY | Self::Bulge => Dimension::Scalar,
         }
     }
@@ -227,6 +263,47 @@ pub enum Datum {
         /// Position components, Length ([`SlotId::Origin`]).
         position: [Expr; 3],
     },
+}
+
+/// One declaration crossing a split seam (ASM-4 D-2; ASSEMBLY-DESIGN
+/// A4: "the seam is the crossing declarations" — each entry is a
+/// (wrapped name, declaration) pair against the pinned document).
+///
+/// UNINHABITED in v1: no mate vocabulary exists yet, so no crossing
+/// declaration can be spelled — every [`InterfaceRecord`] is provably
+/// empty, which is why the record feeds no content key and never
+/// appears on the wire. R2 EXTENDS this enum with the mate-edge
+/// variants (rather than retrofitting a record type onto the node);
+/// making it inhabited is a format change that must feed the
+/// instantiate node's content key and ride a schema-version bump.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum InterfaceCrossing {}
+
+/// The interface record of an instantiate seam (ASM-4 D-2): the
+/// declarations that crossed the cut when the referenced document was
+/// split out. Ordinary node data — recorded by the split that minted
+/// the instance, carried by every instantiate node (empty when nothing
+/// crossed or the instance was authored directly).
+///
+/// An ABSENT record on the wire is the empty record (the A11
+/// placement-registry precedent: a missing entry is the identity, not
+/// a hole), so the empty state costs no bytes and moves no pin.
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InterfaceRecord {
+    /// The crossing declarations, in the deterministic order the split
+    /// collected them. Provably empty in v1 ([`InterfaceCrossing`] is
+    /// uninhabited).
+    pub crossings: Vec<InterfaceCrossing>,
+}
+
+impl InterfaceRecord {
+    /// Whether the record carries no crossings — the wire-presence
+    /// test (an empty record serializes as nothing at all).
+    pub fn is_empty(&self) -> bool {
+        self.crossings.is_empty()
+    }
 }
 
 /// A pattern's replication rule (F4: LinearPattern/CircularPattern;
@@ -440,8 +517,18 @@ pub enum Node<P> {
     /// delete would force cascade-or-pre-repair, worse than the
     /// typed-failure flow.
     Declare {
-        /// The declared-coincident name pairs.
-        pairs: Vec<(StableName, StableName)>,
+        /// The declared contact pairs, each with the CLASS it asserts
+        /// (CONTACT-DESIGN C4).
+        ///
+        /// The class rides every pair rather than a node-level
+        /// default: a declaration is "these two faces are in contact,
+        /// of THIS kind", and one `Declare` node may carry pairs of
+        /// different kinds. A class-less pair is unrepresentable —
+        /// there is no constructor that omits it and no default to
+        /// fall back to, because defaulting would let a `Tangent`
+        /// intent be verified against the conformal table.
+        #[serde(with = "declare_pairs_wire")]
+        pairs: Vec<((StableName, StableName), ContactClass)>,
     },
     /// An instance of another document's product (ASSEMBLY-DESIGN
     /// A2/A3, ASM-2A D-1): a LEAF — its material crosses the document
@@ -460,6 +547,15 @@ pub enum Node<P> {
         /// — an edit to the referenced document never retargets this
         /// reference; moving the pin is its own recorded edit.
         doc_ref: crate::ident::DocRef,
+        /// The split seam's interface record (ASM-4 D-2): the
+        /// declarations that crossed the cut this instance was minted
+        /// by. Empty for directly-authored instances — and provably
+        /// empty in v1, since [`InterfaceCrossing`] is uninhabited
+        /// until R2's mates give a crossing something to say. Absent
+        /// from the wire while empty, so it feeds no content key and
+        /// moves no pin.
+        #[serde(default, skip_serializing_if = "InterfaceRecord::is_empty")]
+        interface: InterfaceRecord,
     },
 }
 
@@ -692,11 +788,40 @@ impl<P> Node<P> {
     /// a later delete may strand them, N5 semantics).
     pub fn named_nodes(&self) -> Vec<RecipeNodeId> {
         match self {
-            Node::Declare { pairs } => pairs.iter().flat_map(|(a, b)| [a.node, b.node]).collect(),
+            Node::Declare { pairs } => pairs
+                .iter()
+                .flat_map(|((a, b), _)| [a.node, b.node])
+                .collect(),
             // The fillet selection references names the same way, and
             // carries the same N5 carve-out (M6-5).
             Node::Fillet { selection, .. } => selection.iter().map(|n| n.node).collect(),
             _ => Vec::new(),
+        }
+    }
+
+    /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
+    /// record — the authoring constructor. A non-empty record is
+    /// mintable only by the refactoring that observed declarations
+    /// crossing a cut (none can in v1: [`InterfaceCrossing`] is
+    /// uninhabited).
+    pub fn instantiate_part(doc_ref: crate::ident::DocRef) -> Self {
+        Node::InstantiatePart {
+            doc_ref,
+            interface: InterfaceRecord::default(),
+        }
+    }
+
+    /// A `Declare` node whose every pair asserts the CONFORMAL class
+    /// — the class the class-less payload always meant.
+    ///
+    /// This NAMES `Rest` at the call site; it does not default it.
+    /// The difference matters: a reader of the call sees which of C4's
+    /// classes is being claimed, and a pair that means something else
+    /// cannot arrive here by omission. Mixed-class nodes build
+    /// [`Node::Declare`] directly.
+    pub fn declare_rest(pairs: Vec<(StableName, StableName)>) -> Self {
+        Node::Declare {
+            pairs: pairs.into_iter().map(|p| (p, ContactClass::Rest)).collect(),
         }
     }
 
@@ -738,5 +863,84 @@ impl<P: PartialEq> Node<P> {
                 (None, None) => true,
                 _ => false,
             })
+    }
+}
+
+/// The wire form of a [`Node::Declare`] payload's classes.
+///
+/// **Why this module exists instead of `#[derive(Serialize)]` on
+/// [`ContactClass`].** Two ratified rules meet here and both are kept:
+///
+/// - the kernel crates gain NO serde dependency (the F3/G1 layering
+///   rule, workspace `Cargo.toml`) — persistence is editor-core's job;
+/// - the contact vocabulary is ONE enum, defined lowest and
+///   re-exported upward, never a parallel enum (CONTACT-DESIGN C4's
+///   layering ruling, M9-1 PR-1) — so the mirror-enum pattern
+///   `BooleanOp` uses is not available for this type.
+///
+/// A `with` module satisfies both: the type stays `topo::ContactClass`
+/// everywhere, and only the BYTES are described here.
+///
+/// The wire spelling is a stable STRING, not a discriminant: a
+/// discriminant would silently re-map if `Fit` ever lands between the
+/// two variants, and the file would then read a different class than
+/// it was written with. Both directions refuse typed on a spelling
+/// this build does not know — including the SERIALIZE direction, which
+/// `ContactClass` being `#[non_exhaustive]` makes reachable: a class
+/// added in a newer kernel than this writer must never be written out
+/// under a guessed tag.
+mod declare_pairs_wire {
+    use super::{ContactClass, StableName};
+    use serde::de::Error as _;
+    use serde::ser::Error as _;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    /// The wire spelling of a class, or `None` if this build has no
+    /// name for it.
+    fn tag(class: ContactClass) -> Option<&'static str> {
+        match class {
+            ContactClass::Rest => Some("rest"),
+            ContactClass::Tangent => Some("tangent"),
+            // `ContactClass` is `#[non_exhaustive]`: a kernel newer
+            // than this writer can present a class with no spelling
+            // here. Refusing is the only honest answer — see the
+            // module docs.
+            _ => None,
+        }
+    }
+
+    fn untag(s: &str) -> Option<ContactClass> {
+        match s {
+            "rest" => Some(ContactClass::Rest),
+            "tangent" => Some(ContactClass::Tangent),
+            _ => None,
+        }
+    }
+
+    type Pairs = Vec<((StableName, StableName), ContactClass)>;
+
+    pub(super) fn serialize<S: Serializer>(pairs: &Pairs, ser: S) -> Result<S::Ok, S::Error> {
+        let mut out = Vec::with_capacity(pairs.len());
+        for ((a, b), class) in pairs {
+            let t = tag(*class).ok_or_else(|| {
+                S::Error::custom(
+                    "persist: this build has no wire spelling for the declared contact class \
+                     (a newer kernel's vocabulary) — refusing to write a guessed tag",
+                )
+            })?;
+            out.push(((a, b), t));
+        }
+        out.serialize(ser)
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Pairs, D::Error> {
+        let raw: Vec<((StableName, StableName), String)> = Vec::deserialize(de)?;
+        raw.into_iter()
+            .map(|(pair, t)| {
+                untag(&t)
+                    .map(|class| (pair, class))
+                    .ok_or_else(|| D::Error::custom(format!("unknown contact class '{t}'")))
+            })
+            .collect()
     }
 }

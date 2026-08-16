@@ -14,15 +14,25 @@
 //! reproducible value (ASSEMBLY-DESIGN A4's Cargo.lock semantics), so
 //! an out-of-date pin is surfaced, never silently retargeted.
 //!
-//! No write side lives here: creating files stays
-//! [`crate::document::save`] + `std::fs` at the callers.
+//! The write side is MINIMAL (ASM-4 D-1): exactly what the split/
+//! inline refactorings need — [`Workspace::create`] mints a new save
+//! file from a `Doc` (the id is the caller's, per ASM-1 D-1:
+//! [`DocumentId::derive`] for deterministic callers,
+//! [`random_document_id`] for interactive authoring), and
+//! [`Workspace::resave`] rewrites an existing document's file by id.
+//! Duplicate-id refusal is unchanged, and there is no general mutation
+//! API: split and inline are the only intended writers. Both write the
+//! CURRENT state as a snapshot with an empty log (history is not
+//! state; the refactoring's own record is its returned edit lists).
+//!
+//! [`DocumentId::derive`]: crate::document::DocumentId::derive
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::document::{
     ContentPin, DocRef, DocumentId, PartResolver, PersistError, ProfileDoc, ResolveFailure,
-    ResolveFault, content_pin, header_document_id, load,
+    ResolveFault, content_pin, header_document_id, load, save,
 };
 
 /// Mints a fresh random [`DocumentId`] from OS randomness — the
@@ -45,12 +55,14 @@ pub fn random_document_id() -> Result<DocumentId, WorkspaceError> {
 
 /// The one recourse sentence a [`WorkspaceError::PinMismatch`] ends
 /// on, naming the edit that legitimately moves a pin (ASSEMBLY-DESIGN
-/// A4: "accept updated version" is a recorded `DocEdit`, planned for
-/// the split/inline unit — pins never move silently). Public so
-/// callers can assert on it without restating prose.
+/// A4: "accept updated version" is a recorded `DocEdit` —
+/// `DocEdit::UpdateReference`, landed by ASM-UPD; pins never move
+/// silently). Public so callers can assert on it without restating
+/// prose.
 pub const PIN_MISMATCH_RECOURSE: &str = "the referenced document changed since this reference was pinned; if the new version is \
-     intended, record an \"accept updated version\" edit (the planned pin-moving DocEdit) — \
-     references are never retargeted silently";
+     intended, record the \"accept updated version\" edit (DocEdit::UpdateReference, or \
+     workspace::update_to_store for every site at once) — references are never retargeted \
+     silently";
 
 /// Typed workspace refusal (fail loud; no silent best-effort scans
 /// or resolves).
@@ -121,10 +133,27 @@ pub enum WorkspaceError {
         /// The pin the document actually hashes to.
         found: ContentPin,
     },
+    /// The document refused to serialize for a workspace write (the
+    /// same shared validator every save runs) — surfaced before any
+    /// file is touched, so a refused write leaves the store unchanged.
+    Save {
+        /// The document that would not save.
+        id: DocumentId,
+        /// The typed persistence refusal (boxed, as in `Header`).
+        error: Box<PersistError>,
+    },
     /// The OS entropy source refused ([`random_document_id`]).
     RandomnessUnavailable {
         /// The source's message.
         message: String,
+    },
+    /// [`update_to_store`] found the store's current pin, and the
+    /// document-layer elaboration refused it (ASM-UPD D-2): the id is
+    /// referenced nowhere, or every reference already names that pin.
+    /// The store did its part; the refusal is about the ASSEMBLY.
+    Update {
+        /// The typed elaboration refusal.
+        error: crate::document::UpdateError,
     },
 }
 
@@ -166,9 +195,13 @@ impl core::fmt::Display for WorkspaceError {
                  {wanted} but the document hashes to {found} — {PIN_MISMATCH_RECOURSE}",
                 path.display()
             ),
+            Self::Save { id, error } => {
+                write!(f, "workspace: document {id} refused to save: {error}")
+            }
             Self::RandomnessUnavailable { message } => {
                 write!(f, "workspace: OS randomness unavailable: {message}")
             }
+            Self::Update { error } => write!(f, "workspace: {error}"),
         }
     }
 }
@@ -263,26 +296,7 @@ impl Workspace {
     /// [`WorkspaceError::PinMismatch`] carrying both pins and the
     /// recourse ([`PIN_MISMATCH_RECOURSE`]).
     pub fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, WorkspaceError> {
-        let path = self
-            .by_id
-            .get(&doc_ref.id)
-            .ok_or(WorkspaceError::UnknownId { id: doc_ref.id })?;
-        let text = std::fs::read_to_string(path).map_err(|e| WorkspaceError::Io {
-            path: path.clone(),
-            message: e.to_string(),
-        })?;
-        let loaded = load(&text).map_err(|error| WorkspaceError::Load {
-            path: path.clone(),
-            error: Box::new(error),
-        })?;
-        // Pin the REPLAYED document (D-3: the pin is of the canonical
-        // form of current state — never the raw snapshot, never file
-        // bytes; a save carrying a non-empty log must pin its
-        // replayed result).
-        let found = content_pin(&loaded.doc).map_err(|error| WorkspaceError::Pin {
-            path: path.clone(),
-            error: Box::new(error),
-        })?;
+        let (path, doc, found) = self.load_pinned(doc_ref.id)?;
         if found != doc_ref.pin {
             return Err(WorkspaceError::PinMismatch {
                 id: doc_ref.id,
@@ -291,7 +305,111 @@ impl Workspace {
                 found,
             });
         }
-        Ok(loaded.doc)
+        Ok(doc)
+    }
+
+    /// The pin the store's CURRENT content for `id` hashes to — the
+    /// version an update would move a reference onto (ASM-UPD D-2).
+    /// Distinct from [`Workspace::resolve`] by exactly one thing: no
+    /// expected pin is supplied, so there is nothing to disagree with.
+    ///
+    /// # Errors
+    ///
+    /// [`WorkspaceError::UnknownId`], [`WorkspaceError::Io`],
+    /// [`WorkspaceError::Load`], [`WorkspaceError::Pin`] — the read
+    /// side's own vocabulary, unchanged.
+    pub fn current_pin(&self, id: DocumentId) -> Result<ContentPin, WorkspaceError> {
+        let (_, _, pin) = self.load_pinned(id)?;
+        Ok(pin)
+    }
+
+    /// The shared read: locate, load through the full door sequence,
+    /// and pin the REPLAYED document (ASM-1 D-3: the pin is of the
+    /// canonical form of current state — never the raw snapshot, never
+    /// file bytes; a save carrying a non-empty log must pin its
+    /// replayed result).
+    fn load_pinned(
+        &self,
+        id: DocumentId,
+    ) -> Result<(&PathBuf, ProfileDoc, ContentPin), WorkspaceError> {
+        let path = self
+            .by_id
+            .get(&id)
+            .ok_or(WorkspaceError::UnknownId { id })?;
+        let text = std::fs::read_to_string(path).map_err(|e| WorkspaceError::Io {
+            path: path.clone(),
+            message: e.to_string(),
+        })?;
+        let loaded = load(&text).map_err(|error| WorkspaceError::Load {
+            path: path.clone(),
+            error: Box::new(error),
+        })?;
+        let pin = content_pin(&loaded.doc).map_err(|error| WorkspaceError::Pin {
+            path: path.clone(),
+            error: Box::new(error),
+        })?;
+        Ok((path, loaded.doc, pin))
+    }
+
+    /// Creates a new save file for `doc` in the workspace (ASM-4 D-1:
+    /// split's write side) and returns its path. The file is named
+    /// `{id}.pncad` — a pure function of the identity, so two split
+    /// runs write byte-identical stores (D9). A duplicate id refuses
+    /// exactly as the scan does, naming the file that already claims
+    /// it; nothing is written on any refusal.
+    ///
+    /// # Errors
+    ///
+    /// [`WorkspaceError::DuplicateId`] (the store's uniqueness
+    /// invariant — `second` names the path this create would have
+    /// written), [`WorkspaceError::Save`] for a document the shared
+    /// validator refuses, [`WorkspaceError::Io`] naming the file.
+    pub fn create(&mut self, doc: &ProfileDoc) -> Result<PathBuf, WorkspaceError> {
+        let id = doc.id();
+        let path = self.root.join(format!("{id}.pncad"));
+        if let Some(first) = self.by_id.get(&id) {
+            return Err(WorkspaceError::DuplicateId {
+                id,
+                first: first.clone(),
+                second: path,
+            });
+        }
+        let text = save(doc, &[]).map_err(|error| WorkspaceError::Save {
+            id,
+            error: Box::new(error),
+        })?;
+        std::fs::write(&path, text).map_err(|e| WorkspaceError::Io {
+            path: path.clone(),
+            message: e.to_string(),
+        })?;
+        self.by_id.insert(id, path.clone());
+        Ok(path)
+    }
+
+    /// Rewrites the save file of an EXISTING document with `doc`'s
+    /// current state (ASM-4 D-1: the remainder's write side). The id
+    /// must already be in the store — this door never creates — and
+    /// the file keeps its scanned path, so references by id stay
+    /// valid while the content (and therefore the pin) moves.
+    ///
+    /// # Errors
+    ///
+    /// [`WorkspaceError::UnknownId`] for an id the scan never saw,
+    /// [`WorkspaceError::Save`], [`WorkspaceError::Io`].
+    pub fn resave(&mut self, doc: &ProfileDoc) -> Result<PathBuf, WorkspaceError> {
+        let id = doc.id();
+        let Some(path) = self.by_id.get(&id).cloned() else {
+            return Err(WorkspaceError::UnknownId { id });
+        };
+        let text = save(doc, &[]).map_err(|error| WorkspaceError::Save {
+            id,
+            error: Box::new(error),
+        })?;
+        std::fs::write(&path, text).map_err(|e| WorkspaceError::Io {
+            path: path.clone(),
+            message: e.to_string(),
+        })?;
+        Ok(path)
     }
 }
 
@@ -324,4 +442,41 @@ impl PartResolver for Workspace {
             },
         })
     }
+}
+
+/// "Update every reference to `id` in `doc` to whatever the store
+/// currently holds" — the workspace-layer convenience over the
+/// document layer's [`crate::document::update_references`] (ASM-UPD
+/// D-2; ASSEMBLY-DESIGN A13 clause 2).
+///
+/// The ONE thing this adds is the pin: the elaboration is pure and
+/// storeless by design, so somebody has to say which version "the new
+/// one" is, and only the store knows. That answer is
+/// [`Workspace::current_pin`] — the canonical pin of the id's current
+/// file, computed through the same load-and-replay door every resolve
+/// uses, so "the version on disk" means exactly what it means
+/// everywhere else.
+///
+/// Returns the ordinary edit list, applied to nothing: the caller
+/// applies the whole group, exactly as with the storeless door. The
+/// document is READ here and never written — persisting the updated
+/// assembly is [`Workspace::resave`]'s job, and keeping those separate
+/// is what lets an author inspect (or lint) the result before it lands.
+///
+/// # Errors
+///
+/// The read side's own vocabulary for a store miss
+/// ([`WorkspaceError::UnknownId`], [`WorkspaceError::Io`],
+/// [`WorkspaceError::Load`], [`WorkspaceError::Pin`]), and
+/// [`WorkspaceError::Update`] carrying the elaboration's typed refusal
+/// — an id this document never references, or one every reference
+/// already pins.
+pub fn update_to_store(
+    doc: &ProfileDoc,
+    id: DocumentId,
+    workspace: &Workspace,
+) -> Result<Vec<crate::document::DocEdit<crate::document::ProfileProgram>>, WorkspaceError> {
+    let new_pin = workspace.current_pin(id)?;
+    crate::document::update_references(doc, id, new_pin)
+        .map_err(|error| WorkspaceError::Update { error })
 }

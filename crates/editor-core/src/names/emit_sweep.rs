@@ -17,10 +17,17 @@ use super::role::{CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertex
 use super::table::{EntityKey, NameTable};
 use crate::node::RecipeNodeId;
 
-/// The typed refusal when pole resolution exceeds elimination (a loop
-/// whose every vertex is on-axis — part-1 limitation, reported).
+/// The typed refusal when an OFF-AXIS meridian vertex stays
+/// unresolved. Not a shape limitation: an off-axis vertex always has
+/// a rim, and a meridian edge at it (partial chains are total; the
+/// full case omits only on-axis segments, whose endpoints are poles),
+/// so the rim ∩ meridian anchor always runs — reaching this means the
+/// two share both endpoints or none, i.e. the built topology
+/// contradicts the key bundle. Refused typed, never guessed. Poles do
+/// not come this way at all: they are looked up in the sweep's
+/// `poles` export.
 const UNRESOLVED: NamingError = NamingError::Emission {
-    what: "revolve vertex resolution exceeded elimination (all-on-axis loop) — deferred",
+    what: "revolve meridian vertex unresolved: rim and meridian are not incident",
 };
 
 /// Truncating-safe index cast (loop/segment counts are far below
@@ -146,11 +153,14 @@ fn name_swept_topology<T: Decide>(
 /// band/pole/seam taxonomy, read off the `Revolved` maps).
 ///
 /// Vertex resolution: off-axis meridian vertices anchor as
-/// rim ∩ meridian endpoint intersections; on-axis (pole) vertices
-/// resolve by ELIMINATION along the meridian chains (an edge with one
-/// resolved endpoint resolves the other). A loop whose every vertex
-/// is on-axis (two-pole loops: sphere-like) exceeds elimination and
-/// refuses typed — reported as a part-1 limitation, never guessed.
+/// rim ∩ meridian endpoint intersections, then eliminate along the
+/// meridian chains (an edge with one resolved endpoint resolves the
+/// other); on-axis (pole) vertices are LOOKED UP in the sweep's
+/// `poles` export — a construction record, since the builders know
+/// each pole by the operator that minted it. A pole absent from the
+/// export is a vertex the sweep deleted (the full case's omitted axis
+/// run), so nothing is named for it; had one been wrongly omitted,
+/// `check_total` would catch the unnamed body vertex.
 pub(crate) fn name_revolve<T: Decide>(
     node: RecipeNodeId,
     built: &sweep::Revolved<T>,
@@ -237,9 +247,8 @@ pub(crate) fn name_revolve<T: Decide>(
                             RoleSeg::MeridianVertex(MeridianEnd::End, pv(l, v)),
                             end[v].ok_or(UNRESOLVED)?,
                         )?;
-                    } else {
+                    } else if let Some(p) = built.poles[l][v] {
                         // Pole: the same physical vertex in both chains.
-                        let p = start[v].or(end[v]).ok_or(UNRESOLVED)?;
                         insert_vertex(&mut t, RoleSeg::Pole(pv(l, v)), p)?;
                     }
                 }
@@ -290,8 +299,7 @@ pub(crate) fn name_revolve<T: Decide>(
                             RoleSeg::MeridianVertex(MeridianEnd::Pi, pv(0, v)),
                             pi[v].ok_or(UNRESOLVED)?,
                         )?;
-                    } else {
-                        let p = seam[v].or(pi[v]).ok_or(UNRESOLVED)?;
+                    } else if let Some(p) = built.poles[0][v] {
                         insert_vertex(&mut t, RoleSeg::Pole(pv(0, v)), p)?;
                     }
                 }

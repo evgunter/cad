@@ -632,14 +632,21 @@ pub enum PcurveCertifyError {
     /// could drift from the body's own), so a caller that has one must
     /// supply it.
     FittedMateMissing,
-    /// A [`Pcurve::IsoLine`] was offered outside the iso lane's
-    /// certified inventory (M6-3), with the exact boundary named:
-    /// a rational chart (the control-difference stretch bounds are
-    /// polynomial convexity facts — the rational extension is banked
-    /// with rational-wall flux), an interior (non-boundary) iso, a
-    /// diagonal line in UV, an arc-parameterized cap rim, or a
-    /// carrier whose spline structure is not the chart's own boundary
-    /// row. Typed and permanent until a unit moves it — never a
+    /// An iso image was offered outside the iso lane's certified
+    /// inventory, with the exact boundary named. The refused set is:
+    /// a chart that is still the mvfs placeholder; an INTERIOR
+    /// (non-boundary) iso; a DIAGONAL line in UV; a degenerate iso
+    /// (neither chart channel moves); an image that leaves the chart's
+    /// parameter domain, where the hull bound does not hold; a carrier
+    /// whose spline structure is not the chart's own boundary row, or
+    /// whose weights are not positive (the convex-hull hypothesis
+    /// itself); a seam-class image over a non-spline carrier; a LINE
+    /// cap rim on a RATIONAL column (the Greville hull is a
+    /// linear-precision fact the rational basis does not have); and,
+    /// at the mint, an intersection locus that is not a boundary
+    /// column. A rational CHART and an ARC-parameterized cap rim are
+    /// not in that set — both certify, through the seam and arc-rim
+    /// classes. Typed and permanent until a unit moves it — never a
     /// runtime fallback (C5).
     IsoUnsupported {
         /// The refused class, named.
@@ -882,7 +889,7 @@ pub struct PcurveCertificate<T: Real> {
 }
 
 /// **Which scalars can derive a fitted pcurve's certificate** — the
-/// static lane split, in the [`topo::props::PropsQuadLane`] shape (M5
+/// static lane split, in the `topo::props::PropsQuadLane` shape (M5
 /// PR 11's ratified pattern; `topo/src/props.rs`).
 ///
 /// A [`Pcurve::Fitted`] cache's between-samples obligation is a C9-ring
@@ -1546,7 +1553,7 @@ impl Winding {
 /// - **Plane chart**: the map is affine, so the pcurve's coefficients
 ///   map through one by one.
 /// - **Cylinder chart**: the azimuth channel is `α + β·t` with
-///   `β ∈ {−1, 0, +1}` (named by [`chart_winding`]). For `β = 0` the
+///   `β ∈ {−1, 0, +1}` (named by [`chart_windings`]). For `β = 0` the
 ///   radial vector is constant and folds into the constant term; for
 ///   `β = ±1` the angle-sum identity
 ///   `cos(α + βt) = cos α·cos t − β·sin α·sin t` puts the radial
@@ -1848,16 +1855,61 @@ fn chart_windings<T: Decide>(
 /// The rate that meters this carrier's parameter into metres — the
 /// lever arm the forward-span and period checks use (the
 /// [`crate::certify`] convention: radians × the conservative radius).
+/// A NURBS net answers its certified speed lower bound, the same
+/// meter [`crate::certify`]'s span check uses, so a parameter span
+/// crosses to model space through the kind's real metric everywhere.
+/// The bound is POISON on a degenerate net, so the two lanes a NURBS
+/// carrier can reach — fitted and iso — gate it through
+/// [`param_rate_gate`] before metering anything through it. The
+/// harmonic and ARC-RIM lanes take the rate bare because neither can
+/// receive one: `carrier_harmonic` answers `None` for a net, and the
+/// ARC-RIM class refuses any carrier that is not a `Curve3::Circle`.
+/// A new caller that CAN see a net must take the gate.
 fn param_rate<T: Real>(carrier: &Curve3<T>) -> T {
     match *carrier {
-        Curve3::Line { .. } | Curve3::Nurbs(_) => T::one(),
+        Curve3::Line { .. } => T::one(),
+        Curve3::Nurbs(ref n) => n.speed_lower_bound(),
         Curve3::Circle { radius, .. } => radius,
         Curve3::Ellipse { minor, .. } => minor,
     }
 }
 
+/// The collapsed-arm gate for [`param_rate`] (the
+/// [`crate::certify`] idiom, `enters`' shape): the rate is metres per
+/// parameter unit, so what a classifier may see is the LENGTH it
+/// subtends over the carrier's own parameter extent — a NURBS net's
+/// knot-domain length, and the unit parameter the closed-form kinds
+/// state their rate over. A collapsed (zero/negative) or poison rate
+/// cannot convert a span to metres and no forward verdict may be
+/// fabricated from one; refusing here keeps that failure distinct
+/// from a backwards span, which the metered span check names.
+///
+/// # Errors
+///
+/// [`Indeterminate`] carrying [`geom_core::MarginDiag::Invalid`] when
+/// the subtended length is not definitely positive; the classifier's
+/// own escalation otherwise.
+fn param_rate_gate<T: Decide>(carrier: &Curve3<T>, band: Band) -> Result<T, Indeterminate> {
+    let rate = param_rate(carrier);
+    let extent = match *carrier {
+        Curve3::Nurbs(ref n) => {
+            let (d0, d1) = n.domain();
+            T::from_f64(d1 - d0)
+        }
+        _ => T::one(),
+    };
+    match decide("pcurve_interval_meter", Margin::metered(extent, rate), band)? {
+        Sign::Positive => Ok(rate),
+        Sign::Zero | Sign::Negative => Err(Indeterminate {
+            margin: geom_core::MarginDiag::Invalid,
+            band,
+            predicate: Some("pcurve_interval_meter"),
+        }),
+    }
+}
+
 /// Folds a residual into the running max and classifies it against the
-/// band (the [`crate::certify::check_residual`] idiom, one module over).
+/// band (the `certify::check_residual` idiom, one module over).
 fn check_residual<T: Decide>(
     name: &'static str,
     check: PcurveCheck,
@@ -2325,33 +2377,33 @@ fn run_fitted_checks<T: PcurveFittedLane>(
 
     // ---- Check 2: the parameter interval, metered into metres. ----
     let span = t1 - t0;
-    // Ledger row F6 (fitted lane): a NURBS carrier's `param_rate` is 1 —
-    // the span crosses to the band as a bare, reparametrization-
-    // sensitive parameter quantity. No door fits; flagged, not cast.
-    match geom_core::k_stats::decide_flagged(
-        "pcurve_interval_forward",
-        span * param_rate(carrier),
-        band,
-        "F6",
-    )
-    .map_err(|cause| PcurveCertifyError::Escalated {
+    // The span crosses to model space through the carrier kind's own
+    // metric rate, gated definitely-positive first so a collapsed or
+    // poison meter can never fabricate a forward verdict.
+    let span_escalated = |cause| PcurveCertifyError::Escalated {
         check: PcurveCheck::ParamSpan,
         sample: 0,
         cause,
-    })? {
+    };
+    let rate = param_rate_gate(carrier, band).map_err(span_escalated)?;
+    match decide("pcurve_interval_forward", Margin::metered(span, rate), band)
+        .map_err(span_escalated)?
+    {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
     }
     let boxed = pcurve.chart_box(t0, t1);
-    let (u_arm, _) = chart_arms(surface);
     if !matches!(surface, Surface::Plane { .. } | Surface::Nurbs(_)) {
-        // Ledger row F6: `chart_arms`' whole-chart azimuth arm (1 for
-        // the cone lane) — flagged, not cast.
-        let headroom = geom_core::k_stats::decide_flagged(
+        // The azimuth headroom is an ANGLE, so it reaches the band
+        // through the chart's own lever arm — the cone's taken at the
+        // `v` reach that dominates both the pcurve's box and the
+        // window, which is the local lever's supremum everywhere
+        // either object lives (`chart_arms_at`'s safe direction).
+        let (u_arm, _) = chart_arms_at(surface, &boxed, &window);
+        let headroom = decide(
             "pcurve_azimuth_period",
-            (T::tau() - (boxed.u_max - boxed.u_min)) * u_arm,
+            Margin::levered(T::tau() - (boxed.u_max - boxed.u_min), u_arm),
             band,
-            "F6",
         );
         match headroom.map_err(|cause| PcurveCertifyError::Escalated {
             check: PcurveCheck::AzimuthPeriod,
@@ -2488,11 +2540,10 @@ fn run_iso_arc_checks<T: Decide>(
 
     // ---- Check 2: the parameter interval, metered into metres. ----
     //
-    // NOT a ledger-F6 site, unlike the fitted lane's twin: this class's
-    // carrier is a `Curve3::Circle` by construction (refused just
-    // above otherwise), so `param_rate` is the RADIUS and `span·rate`
-    // is arc length — a genuine metre, the harmonic lane's own door.
-    // The clause-(i) census stays at 12 shipped `decide_flagged` sites.
+    // This class's carrier is a `Curve3::Circle` by construction
+    // (refused just above otherwise), so `param_rate` is the RADIUS
+    // and `span·rate` is arc length — a genuine metre, and a rate that
+    // cannot be poison, which is why no meter gate stands here.
     let span = t1 - t0;
     match decide(
         "pcurve_interval_forward",
@@ -2813,18 +2864,17 @@ fn run_iso_checks<T: Decide>(
 
     // ---- Check 2: the parameter interval, metered into metres. ----
     let span = t1 - t0;
-    // Ledger row F6 (iso lane, same shape as the fitted lane's meter).
-    match geom_core::k_stats::decide_flagged(
-        "pcurve_interval_forward",
-        span * param_rate(carrier),
-        band,
-        "F6",
-    )
-    .map_err(|cause| PcurveCertifyError::Escalated {
+    // The metered span, gated on its meter first — the fitted lane's
+    // shape exactly.
+    let span_escalated = |cause| PcurveCertifyError::Escalated {
         check: PcurveCheck::ParamSpan,
         sample: 0,
         cause,
-    })? {
+    };
+    let rate = param_rate_gate(carrier, band).map_err(span_escalated)?;
+    match decide("pcurve_interval_forward", Margin::metered(span, rate), band)
+        .map_err(span_escalated)?
+    {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
     }
@@ -4177,5 +4227,86 @@ mod tests {
             out,
             Err(PcurveCertifyError::AzimuthPeriodExceeded)
         ));
+    }
+
+    /// The cone's azimuth lever DOMINATES the local one everywhere
+    /// either object lives. `azimuth_lever` at a single `v` is the
+    /// parallel radius there (`|v|·sin alpha`); the arm the checks take
+    /// is that lever at the `|v|` supremum of the pcurve's box and the
+    /// face window together, so it is an upper bound at every `v` in
+    /// either — the direction that cannot under-state an escape or a
+    /// winding. Both signs of `v` (both nappes) are swept.
+    #[test]
+    fn the_cone_azimuth_lever_dominates_the_local_lever_over_box_and_window() {
+        let half_angle = 0.5_f64.atan();
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle,
+            u_ref: Vec3::unit_x(),
+        };
+        let boxed = ChartWindow {
+            u_min: 0.0,
+            u_max: FRAC_PI_2,
+            v_min: -3.0,
+            v_max: 1.5,
+        };
+        let window = ChartWindow {
+            u_min: -0.5,
+            u_max: PI,
+            v_min: 0.25,
+            v_max: 2.25,
+        };
+        let (arm, v_arm) = chart_arms_at(&cone, &boxed, &window);
+        assert!(
+            (v_arm - 1.0).abs() < 1e-15,
+            "the cone's v IS a slant length"
+        );
+        for w in [&boxed, &window] {
+            for i in 0..=64 {
+                let t = f64::from(i) / 64.0;
+                let v = w.v_min + (w.v_max - w.v_min) * t;
+                let local = azimuth_lever(&cone, v.abs());
+                assert!(
+                    local <= arm + 1e-15,
+                    "the arm {arm:e} must dominate the local lever {local:e} at v = {v:e}"
+                );
+            }
+        }
+        // And it is the lever AT the supremum, not something larger:
+        // an arm bigger than the geometry demands would refuse honest
+        // work. |v| tops out at 3 (the box's lower edge).
+        assert!((arm - azimuth_lever(&cone, 3.0)).abs() < 1e-15);
+    }
+
+    /// A carrier whose meter collapses refuses AT THE METER — no
+    /// forward verdict is fabricated from a rate that cannot convert a
+    /// span to metres, and the refusal is `Invalid`, distinct from the
+    /// backwards-span verdict the metered check below it names.
+    #[test]
+    fn a_collapsed_carrier_meter_refuses_rather_than_metering_a_span() {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let point = Point3::new(1.0, 2.0, 3.0);
+        let net = NurbsCurve3::new(knots, vec![point, point], vec![1.0, 1.0]).unwrap();
+        let carrier = Curve3::Nurbs(Arc::new(net));
+        assert!(
+            param_rate(&carrier).is_nan(),
+            "a net that never moves states no speed bound at all"
+        );
+        let cause = param_rate_gate(&carrier, band())
+            .expect_err("a poison meter cannot license a metered span");
+        assert!(matches!(cause.margin, geom_core::MarginDiag::Invalid));
+        assert_eq!(cause.predicate, Some("pcurve_interval_meter"));
+        // A HEALTHY net of the same shape licenses its span, so the
+        // refusal above is the meter's, not the lane's.
+        let ok_knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let ok = NurbsCurve3::new(
+            ok_knots,
+            vec![point, Point3::new(1.0, 2.0, 4.0)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
+        let rate = param_rate_gate(&Curve3::Nurbs(Arc::new(ok)), band()).unwrap();
+        assert!((rate - 1.0).abs() < 1e-15, "the unit-chord net meters at 1");
     }
 }

@@ -79,7 +79,11 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
 
     // Per-face dispatch, face-arena order.
     let mut patches = Vec::new();
-    for (fk, face) in body.faces() {
+    for (ordinal, (fk, face)) in body.faces().enumerate() {
+        // BUDGET METER (dead in normal runs): open this face's row, so
+        // a previous face that REFUSED cannot leave its sizing behind
+        // to be reported under this one's name (`crate::budget`).
+        crate::budget::begin_face();
         let surface = body
             .get_surface(face.surface)
             .ok_or(TessellateError::MissingEntity {
@@ -129,6 +133,20 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
             )?,
             _ => tessellate_curved(body, fk, surface, &chords, &mut positions, &tol)?,
         };
+        // BUDGET METER (dead in normal runs): one row per face, every
+        // chart — "which face IS the scene's cost" is unanswerable if
+        // only the Hessian-sized lane reports (`crate::budget`).
+        if crate::budget::armed() {
+            let chart = match *surface {
+                Surface::Plane { .. } => crate::budget::Chart::Plane,
+                Surface::Cylinder { .. } => crate::budget::Chart::Cylinder,
+                Surface::Cone { .. } => crate::budget::Chart::Cone,
+                Surface::Sphere { .. } => crate::budget::Chart::Sphere,
+                Surface::Torus { .. } => crate::budget::Chart::Torus,
+                Surface::Nurbs(_) => crate::budget::Chart::Nurbs,
+            };
+            crate::budget::finish_face(ordinal, chart, chordal, triangles.len());
+        }
         patches.push(FacePatch {
             face: fk,
             triangles,

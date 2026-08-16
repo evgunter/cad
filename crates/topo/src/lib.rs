@@ -15,7 +15,7 @@
 //! ten-operator catalog with the kill-direction duals — [`Body::kvfs`],
 //! [`Body::kev`], [`Body::kef`], [`Body::mfkrh`] (see [`euler_kill`]) —
 //! plus the make/kill roundtrip property-test machinery; PR 5 completed
-//! the validator (validity tiers — [`validate`] accepts every
+//! the validator (validity tiers — [`fn@validate`] accepts every
 //! Euler-reachable state, [`validate_closed`] the finished closed
 //! solids) and retired the raw-insertion builder to `pub(crate)`: **the
 //! Euler operators are the only public construction path** (D1).
@@ -75,7 +75,7 @@
 //!
 //! Build the unit cube through the Euler operators — the §9.4.2-minimal
 //! sequence, 1 `mvfs` + 7 `mev` + 5 `mef` — and validate it at both
-//! tiers. Every intermediate state is tier-1 valid ([`validate`]); the
+//! tiers. Every intermediate state is tier-1 valid ([`fn@validate`]); the
 //! finished cube is a tier-2 closed solid ([`validate_closed`]).
 //!
 //! ```
@@ -132,6 +132,8 @@ pub mod attach;
 pub mod body;
 pub mod boolean;
 pub(crate) mod census;
+pub mod chart_region;
+pub mod contact;
 pub mod entity;
 pub mod euler;
 pub mod euler_kill;
@@ -175,15 +177,23 @@ pub mod validate;
 pub use body::Body;
 pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
-    BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts, CompletedPolygonPair,
-    ContactRecords, FaceContainment, NullEdgePairRecord, Operand, OperandKeys, PairSite,
-    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError,
-    SideCode, SolidContainment, SweepStrategy, SweepTrace, VfContact, VvContact, boolean_op_with,
-    boolean_reduce, boolean_reduce_declared, contfp, flush_pair_relation, intersect,
-    intersect_with, oriented_plane_eq, point_in_solid, subtract, subtract_with, union, union_with,
+    BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts, CarriedVf, CarriedVv,
+    CarrierDesc, CarrierEqError, CarrierRelation, CompletedPolygonPair, ContactRecords,
+    CurveContact, FaceContainment, FacePairDeclaration, NullEdgePairRecord, Operand, OperandKeys,
+    PairSite, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity,
+    PlaneRelation, PointInSolidError, SideCode, SolidContainment, SweepStrategy, SweepTrace,
+    VfContact, VvContact, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq,
+    contfp, face_carrier, flush_pair_relation, intersect, intersect_with, oriented_plane_eq,
+    point_in_solid, subtract, subtract_with, tangent_pair_relation, union, union_with,
 };
+// The contact vocabulary (C3/C4), defined once at the lowest crate
+// that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{PlantedDegradation, sweep_traces, sweep_traces_with_pad};
+pub use contact::{
+    CONTACT_RECOURSE, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
+    DeclaredContact, FIT_DEFERRAL,
+};
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
@@ -194,6 +204,7 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
+pub use chart_region::{ChartOverlap, ChartRegionError, chart_region_overlap};
 pub use geom_brep::{
     CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, EdgeNurbsLane, Pcurve,
     PcurveCache, PcurveCertifyError,

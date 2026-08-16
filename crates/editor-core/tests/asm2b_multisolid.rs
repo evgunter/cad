@@ -98,7 +98,7 @@ fn assembly(label: &str, refs: &[DocRef], spacing: f64) -> (ProfileDoc, Vec<Reci
     let mut doc = ProfileDoc::empty(DocumentId::derive(label));
     let mut ids = Vec::new();
     for (i, r) in refs.iter().enumerate() {
-        let (next, id) = insert(doc, Node::InstantiatePart { doc_ref: *r });
+        let (next, id) = insert(doc, Node::instantiate_part(*r));
         doc = next;
         if i > 0 {
             #[allow(clippy::cast_precision_loss)]
@@ -433,9 +433,9 @@ fn row5_the_single_solid_path_is_bit_identical_across_the_lift() {
 /// A PRE-EXISTING gap, probed here so the lift is not blamed for it:
 /// two instances placed so their solids INTERPENETRATE gather into a
 /// product without complaint — `topo::validate_geometric` does not do
-/// solid-solid interference detection, so the gather's module docs
-/// ("solids that overlap are a false body and tier 3 says so") describe
-/// more than the gate enforces today.
+/// solid-solid interference detection (tier 3 is a per-edge/per-face
+/// LOCAL battery; detection is planned as tier-3′ census growth, issue
+/// #382), and the gather's module docs state exactly that boundary.
 ///
 /// The row is written both ways on purpose: the SINGLE-solid case is
 /// ASM-2A behaviour, untouched by this unit, and the MULTI-solid case

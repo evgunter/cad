@@ -272,6 +272,40 @@ the M4 declarer), and `Rest`'s verify ladder is the most mature.
 `ContactClass` shape when their demand arrives; the type is built
 for that from day one (the `class` field, not a `flush: bool`).
 
+**(e) Where the vocabulary lives, and what M9-1 changed.** The
+`ContactClass` this section names is the KERNEL's
+(`topo::contact::ContactClass`, M9-1 PR-1): the boolean's own
+`UndeclaredContact` / `ContactContradicted` refusals must carry the
+same words the detector produces, and `topo` cannot depend on
+`editor-core`, so the enum is defined lowest and re-exported upward
+through `editor_core::names::flush` → `editor_core` → `pncad::select`
+→ the prelude. There is no parallel enum at any level, and the same
+door re-exports the rest of the vocabulary a rendered refusal needs
+(`CONTACT_RECOURSE`, `FIT_DEFERRAL`, `ContactVerdict`,
+`ContactRefusal`, `DeclaredContact`) so a message quotes the kernel's
+sentence rather than paraphrasing it.
+
+M9-1 PR-2 closed the gap between (a) and (c): `Node::Declare`'s pairs
+each carry their class, so the class a finding reports is the class
+the declaration records and the class the boolean verifies against —
+one vocabulary end-to-end, now as data and not only as a type. Before
+that change `declare_node` dropped `finding.class` on the floor, which
+was invisible while `Rest` was the only class and would have become a
+silent mis-verification the moment a second one existed.
+
+**What the detector still does NOT do.** The `Tangent` arm of
+`find_flush_candidates` is not built. Detecting a tangency needs the
+contact LOCUS — the kernel's `Tangent` table verifies *along* a curve
+— and the detector holds two faces from two unevaluated-together
+bodies with no shared edge between them. Supplying the locus in closed
+form is possible for exactly the certified-lane configurations (a
+plane and a cylinder tangent along a ruling; parallel cylinders), and
+that is geometry, so it belongs beside `carrier_pair_relation` in the
+kernel rather than in the recipe layer. Recorded here as the named
+next step rather than approximated: a detector that reported tangency
+candidates without a locus would be reporting something the verifier
+cannot check.
+
 ## 4. GQ7 re-homing
 
 Per Evan's LB7-note ruling ("a bunch of general-usefulness stuff

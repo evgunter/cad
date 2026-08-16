@@ -360,8 +360,14 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             Err(super::PlaneEqError::Escalated(diag)) => {
                 return Err(BooleanError::Escalated { diag });
             }
-            Err(super::PlaneEqError::Undeclared(diag)) => {
-                return Err(BooleanError::UndeclaredCoincidence { diag });
+            Err(super::PlaneEqError::Undeclared { diag, relation }) => {
+                // Same-operand pair (the F7 maximal-faces gate): both
+                // entries carry THIS operand's tag.
+                return Err(BooleanError::UndeclaredCoincidence {
+                    diag,
+                    pair: [(operand, f1), (operand, f2)],
+                    relation,
+                });
             }
             // Unreachable with `declared: false`; kept typed.
             Err(super::PlaneEqError::Contradicted(diag)) => {

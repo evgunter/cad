@@ -486,7 +486,9 @@ pub fn flush_declarations<T: geom_core::Decide>(
                 decide("test_flush_offset", Margin::of(da - sigma * db), band),
                 Ok(Sign::Zero)
             ) {
-                decls.coincident_faces.push((fa, fb));
+                decls
+                    .coincident_faces
+                    .push(topo::FacePairDeclaration::rest(fa, fb));
             }
         }
     }

@@ -414,6 +414,18 @@ satisfies V3 via resolved-bits convention.
   acceptable when the point IS the better authoring; specs should
   say which contract applies. Claimed byte-identity is still
   verified as claimed.
+  **Applied retroactively to #289 itself (2026-08-14).** The ruling
+  landed 57 minutes before that PR merged and was recorded as
+  forward policy, but #289's own deviation D3 — SEL1 deliverable 4's
+  acceptance MOVED off `demos/tour/src/diefillet.rs` to the corpus
+  `die_composed`, because the tour's die "cannot be a recipe at
+  byte-identity" — was left standing, with the byte-identity
+  argument in the demo's own doc comment. It is now discharged at
+  its origin site: the die is ONE recipe document and both surgery
+  blends are `select_where` calls, geometry unchanged in every
+  measured respect. The two library residuals the conversion raised
+  (the all-on-axis revolve-emitter refusal, and the missing group
+  union) are named in `docs/M8-LOG.md`.
 - **Lint-drift check** (#290): the pncad-py hand-restated [lints]
   table needs a drift test vs the workspace set — folded into the
   U9S review as a formal claim.
@@ -439,7 +451,12 @@ Beyond "docs update as the kernel grows," five categories:
   (the U1 closure-class, mild).
 - R3 (SEL2 follow-up): the UndeclaredContact refusal-menu WIRING
   (the finding payload into the boolean's refusal) — shape
-  recorded in the SEL2 report.
+  recorded in the SEL2 report. **DISCHARGED (LIB-PYG5)**: the raise
+  sites keep their (Operand, FaceKey) pair + decided relation,
+  editor-core lifts them through the operands' name tables into
+  `NodeErrorKind::UndeclaredContact { finding, diag }` — the
+  detector's own FlushFinding shape, no re-detection on the error
+  path; the menu crosses to Python as `EvaluationError.finding`.
 
 **B. Bindings-parity residuals (the north-star audit, executable):**
 G1-G11 ranked in the U10 report — the audit test FAILS as doors
@@ -707,3 +724,13 @@ asymmetry, adopt as a rider on the next bindings unit; (b) the
 LB13 guard's blind spot (arena key in a new public FN SIGNATURE
 would not trip the pub-use scan) — recorded against register
 R-series as a known-scope caveat, exposure zero today.
+
+**RESPELL-TABLE registered (Evan's M2 ruling on #531,
+2026-08-16): the full four-projection transition table is the
+ratified end state, scheduled as a FOLLOW-UP unit** — the
+shipped PR-1 form (enum-side projections mechanical, typed
+methods hand-written, drift caught by the differential + smoke
+row) merges as the honest interim, with the §2c mechanism text
+amended to say so. The follow-up's measured cost: ~8 macro
+row-shapes, 500–700 macro lines, ~45 rustdoc-carrying methods
+into table syntax. Queues after PR-2 (same files).

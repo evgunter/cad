@@ -198,29 +198,29 @@ fn derivative_coefficients_are_exact_by_i128_cross_multiplication() {
                 );
                 // Width pin: a sound-but-slack bound fails here.
                 //
-                // AUDIT FINDING (2026-08-13, when this suite's pinned seed
-                // was replaced by a varying one): the relative-ulp metric
-                // below is UNDEFINED for an enclosure of exactly zero. When
-                // `c[i] == c[i+1]` the true coefficient is 0 and the ring
-                // returns a symmetric bracket of a few smallest subnormals
-                // (its one-step outward pads around zero, e.g.
-                // `[-5.4e-323, 5.4e-323]`). `q.mag()` is then 0, the
-                // `.max(MIN_POSITIVE)` clamp makes the denominator exactly
-                // one smallest subnormal, and the "relative ulps" number
-                // degenerates into an ABSOLUTE count of subnormal steps —
-                // 23 of them on seed 0x82fe6e062f661520, which trips a cap
-                // of 16 on a bound that is exact to 322 decimal places.
-                // The containment assertions above pass in that case; only
-                // the tightness metric is at fault. The old pinned seed
-                // (0x5eed_1234_abcd_0002) simply never drew a repeated
-                // coefficient, so the defect was invisible.
+                // The relative-ulp metric below is UNDEFINED for an
+                // enclosure straddling zero (`c[i] == c[i+1]` makes the
+                // true coefficient exactly 0): `q.mag()` is 0, the
+                // `.max(MIN_POSITIVE)` clamp makes the denominator one
+                // smallest subnormal, and "relative ulps" degenerates
+                // into an absolute count of subnormal steps. So: relative
+                // width where a relative width exists, an absolute cap
+                // where it does not.
                 //
-                // So: relative width where a relative width EXISTS, and an
-                // absolute width where it does not. The absolute cap is
-                // 256 smallest subnormals — a slack derivative bound is
-                // slack by orders of magnitude, never by 1e-321.
+                // The absolute cap is DERIVED from the ring's pad
+                // structure, not a constant a fresh seed can outgrow
+                // (#489): around zero each outward pad is one subnormal
+                // step, and the op chain `(dc) * degree / (du/64)` bounds
+                // the half-width by (degree·1 + 1)·(64/du) + 1 steps —
+                // the subtraction pads ±1, the scale multiplies and pads,
+                // the division by the knot gap (du 64ths) multiplies by
+                // 64/du and pads. The assert allows 2× that width for
+                // op-order and subnormal-rounding freedom; a genuinely
+                // slack bound overshoots by orders of magnitude, never 2×.
                 if q.lo() <= 0.0 && q.hi() >= 0.0 {
-                    let abs_cap = 256.0 * f64::MIN_POSITIVE * f64::EPSILON;
+                    #[allow(clippy::cast_precision_loss)]
+                    let half_steps = (degree as f64 + 1.0) * 64.0 / du as f64 + 2.0;
+                    let abs_cap = 4.0 * half_steps * f64::MIN_POSITIVE * f64::EPSILON;
                     assert!(
                         q.width() <= abs_cap,
                         "derivative enclosure of an exactly-zero coefficient is \

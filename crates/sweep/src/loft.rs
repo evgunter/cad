@@ -43,7 +43,7 @@
 //! # Scalar posture (C6)
 //!
 //! Structure — the skinned walls' knots, control bits, weights, and
-//! the section chains — is selected at `f64` ([`crate::skin`]'s
+//! the section chains — is selected at `f64` ([`fn@crate::skin`]'s
 //! contract) and lifted exactly (`from_f64`) into the requested
 //! scalar, so every lane builds the SAME body and the interval lane
 //! encloses the very geometry the `f64` lane defines.
@@ -99,7 +99,7 @@ pub struct Lofted<T: Real> {
     ///
     /// This is a re-read of what the kernel chose, not a measurement
     /// — the produced surface IS the definition (DESIGN Q8), so no
-    /// residual pad accompanies it. [`loft_parameters`] answers the
+    /// residual pad accompanies it. [`crate::loft_parameters`] answers the
     /// same question BEFORE the body is built.
     pub section_params: Vec<f64>,
 }
