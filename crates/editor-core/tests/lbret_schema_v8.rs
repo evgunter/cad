@@ -29,12 +29,13 @@ const V7: &str = include_str!("golden/v7_golden.cad");
 
 #[test]
 fn schema_version_is_current() {
-    // Moved twice since this row was written (LIB-RESPELL's v9 §2c
-    // re-spell, then ASM-UPD's v10 `UpdateReference` arm) — the
+    // Moved three times since this row was written (LIB-RESPELL's v9
+    // §2c re-spell, ASM-UPD's v10 `UpdateReference` arm, then
+    // ASM-R2a's v11 `Node::Mate` arm) — the
     // convention is that a bump updates every pin it invalidates, so
     // the number stays exact here. Named for the PROPERTY rather than
     // the number, since the number is exactly what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 10);
+    assert_eq!(SCHEMA_VERSION, 11);
 }
 
 #[test]

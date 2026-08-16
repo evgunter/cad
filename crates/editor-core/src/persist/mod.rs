@@ -214,9 +214,38 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// BEFORE the collision fired and re-checked the constant by eye at
 /// the merge — which is the discipline the v7/v8 entry asks for.
 ///
+/// Version 11 is **node vocabulary growth** (ASSEMBLY-DESIGN
+/// A3/A12, ratified #522; ASM-R2a D-1): [`crate::Node`] gained the
+/// `Mate` variant — the mate declaration, its contact class and its
+/// alignment datum, all file data. A new node arm is the case v7
+/// bumped for, and v2/v3/v8 before it: forward-additive (a v10 file
+/// contains no `Mate`), while the gate buys the direction that fails
+/// badly — a v11 file handed to a v10 reader must refuse at the
+/// version door rather than reach serde and die on an unknown
+/// variant. A v10 file refuses TYPED with the regenerate recourse and
+/// the migration table stays empty.
+///
+/// The A11 placement registry did NOT force this bump on its own, and
+/// that is worth stating: its keys generalized from per-instance to
+/// per-cluster-representative, which is a change of MEANING with no
+/// change of shape — a mate-less document's registry is the same map
+/// with the same keys, because every singleton cluster's gauge is its
+/// own instance. The bump is the node arm's, and its consequence for
+/// the compatibility row is that a no-mates document round-trips
+/// identically BELOW the header while the header itself necessarily
+/// moves.
+///
+/// **Why 11**: taken as main's next number at the re-merge before this
+/// unit's PR opened, checked BY EYE against the constant on main —
+/// the v7/v8 and v9/v10 collisions both happened because two units
+/// each computed "the next one" from a main that did not yet carry
+/// the other's bump, and both resolved cleanly to identical text while
+/// the meanings silently collapsed. A gap in the sequence costs
+/// nothing; a collision costs a human eye.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these nine.
-pub const SCHEMA_VERSION: u32 = 10;
+/// [`migration_step`] entry, or a ratified break like these ten.
+pub const SCHEMA_VERSION: u32 = 11;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
