@@ -707,7 +707,7 @@ impl<T: Decide> Body<T> {
                 Err(PlaneEqError::Contradicted(diag)) => {
                     Err(MergeCoplanarError::DeclarationContradicted { diag })
                 }
-                Err(PlaneEqError::Escalated(diag) | PlaneEqError::Undeclared(diag)) => {
+                Err(PlaneEqError::Escalated(diag) | PlaneEqError::Undeclared { diag, .. }) => {
                     Err(MergeCoplanarError::Escalated { diag })
                 }
             };

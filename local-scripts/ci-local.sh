@@ -490,6 +490,33 @@ klint_gate() {
     ../../target/k-fresh/k-eps-1e-12.csv)
 }
 
+# The tessellation-budget lint (issue #320; mirrors the two ci.yml
+# `k-lint`-job rows of the same names). Two rows again: the tool's own
+# hygiene + tests, then the fresh per-face sweep + the GATE.
+#
+# The gate compares against docs/tess-budget-data/, and it compares
+# DIFFERENCES, not absolute slack — a scene whose mesh grew, a face
+# whose sizing got wastefuller, or a scene that dropped out of the
+# sweep. On a failure read the tool's message: coarsening a demo's
+# delta to get the number down is the one forbidden move. What the
+# absolute factors currently are, and why: docs/TESS-BUDGET.md.
+tesslint_tool() {
+  (cd tools/tess-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
+}
+# The meter's own suite (mirrors ci.yml's row of the same name).
+# `mesh::budget` is gated at its module boundary, so every row above
+# runs the INERT half — the live half needs its own row or it rots.
+budget_meter() {
+  cargo clippy -p mesh --all-targets --features budget -- -D warnings && \
+    cargo test -p mesh --features budget
+}
+tesslint_gate() {
+  scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv || return 1
+  (cd tools/tess-lint && cargo run -- \
+    ../../target/tess-budget-fresh.csv \
+    --baseline ../../docs/tess-budget-data/tess-budget-baseline.csv)
+}
+
 # Rows always run (discipline greps are cheap; rustfmt is --all by design
 # and cheap; the cargo rows are already package-scoped by $SCOPE).
 # shellcheck disable=SC2086
@@ -528,13 +555,17 @@ run_row_if "$RUN_EDITOR_CORE" "rebuild latency (reporting)"     rebuild_latency
 # interval-transcendentals/ is its own workspace, so tier `closure` can
 # never contain a change to it — this row belongs to tier `all` only.
 run_row_if "$RUN_INTERVAL_BACKEND" "interval backend crate" interval_backend
-# demos/tour and tools/k-lint are excluded workspaces that path-depend on
-# nine members between them, and the probe sweep records margins from every
-# kernel crate — no minimal root set, so these run whenever anything builds.
+# demos/tour, tools/k-lint and tools/tess-lint are excluded workspaces
+# that path-depend on nine members between them, and the probe sweep
+# records margins from every kernel crate — no minimal root set, so
+# these run whenever anything builds.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
 run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift
 run_row_if "$RUN_K_LINT" "k-lint tool (fmt+clippy+litmus)" klint_tool
 run_row_if "$RUN_K_LINT" "k-lint sweep + gate"             klint_gate
+run_row_if "$RUN_K_LINT" "tess-lint tool (fmt+clippy+cli)" tesslint_tool
+run_row_if "$RUN_K_LINT" "mesh budget meter (feature)"     budget_meter
+run_row_if "$RUN_K_LINT" "tess-budget sweep + gate"        tesslint_gate
 # Root package stl: the acceptance example and its whole (dev-)dependency
 # chain profile -> sweep -> topo -> mesh live under it.
 run_row_if "$RUN_STL" "watertight (admesh)"          watertight

@@ -80,8 +80,22 @@ pub enum CarrierEqError {
     /// A margin landed in the sliver band.
     Escalated(Indeterminate),
     /// Geometrically coincident-or-near without shared source or
-    /// declared intent: an undeclared coincidence (F6).
-    Undeclared(Indeterminate),
+    /// declared intent: an undeclared coincidence (F6). Carries the
+    /// orientation the data rungs had ALREADY decided before the
+    /// refusal (alignment is settled before the coincidence margins
+    /// are taken), so a refusal can name the relation a declaration
+    /// would assert — the refusal-menu payload (SELECT-DESIGN §3d,
+    /// LIB-PYG5 R3) — without re-running any decide on the error
+    /// path.
+    Undeclared {
+        /// The coincidence predicate's diagnostics (a decided-zero
+        /// margin encodes as `MarginDiag::Invalid`; an in-band margin
+        /// rides as measured).
+        diag: Indeterminate,
+        /// The decided orientation: [`CarrierRelation::SameOriented`]
+        /// or [`CarrierRelation::SameOpposite`], never `Distinct`.
+        relation: CarrierRelation,
+    },
     /// A declared pair whose carriers are DEFINITELY distinct — the
     /// recipe's declaration contradicts the geometry; refused loudly,
     /// never glued.
@@ -348,13 +362,16 @@ fn data_rungs<T: Decide>(
     // fallback names the kind's FIRST datum rather than inventing a
     // predicate name no `decide` call ever used — an invented name
     // would read as a measurement that never happened.
-    Err(CarrierEqError::Undeclared(any_in_band.unwrap_or(
-        Indeterminate {
+    Err(CarrierEqError::Undeclared {
+        diag: any_in_band.unwrap_or(Indeterminate {
             margin: geom_core::MarginDiag::Invalid,
             band,
             predicate: Some(margins[0].0),
-        },
-    )))
+        }),
+        // The alignment this traversal was run under: the relation a
+        // declaration of this pair would verify with (R3).
+        relation: same,
+    })
 }
 
 #[cfg(test)]
@@ -400,7 +417,7 @@ mod tests {
         let b = sphere([0.0, 0.0, 0.0], 2.0, false);
         assert!(matches!(
             carrier_eq(&a, &b, PlaneIdentity::NONE, 1.0, band()),
-            Err(CarrierEqError::Undeclared(_))
+            Err(CarrierEqError::Undeclared { .. })
         ));
         assert_eq!(
             carrier_eq(&a, &b, declared(), 1.0, band()).unwrap(),
@@ -453,7 +470,7 @@ mod tests {
         assert!(
             matches!(
                 carrier_eq(&a, &in_band, PlaneIdentity::NONE, 1.0, band()),
-                Err(CarrierEqError::Undeclared(_))
+                Err(CarrierEqError::Undeclared { .. })
             ),
             "in-band, undeclared: refuses"
         );
@@ -524,7 +541,7 @@ mod tests {
         assert!(
             matches!(
                 carrier_eq(&a, &in_band, PlaneIdentity::NONE, 1.0, band()),
-                Err(CarrierEqError::Undeclared(_))
+                Err(CarrierEqError::Undeclared { .. })
             ),
             "in-band, undeclared: refuses"
         );
