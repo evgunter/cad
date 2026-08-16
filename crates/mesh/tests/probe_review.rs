@@ -76,18 +76,12 @@ fn swept_elbow() -> Body<f64> {
     .body
 }
 
-/// Z1: per-triangle |S - Pi| vs cert on every NURBS triangle of all
-/// three fixtures at two deltas — the probe assertions live inside
-/// trimmed.rs (env-gated); here we drive them and print headroom.
-#[test]
-fn z1_per_triangle_certificate_falsification() {
-    // MIN-1 adoption: the probe is the SUITE'S guard now — it arms
-    // itself (mesh::probe_stats::arm) instead of demanding an env
-    // var, so the hosted gate runs it unconditionally. The planted
-    // 0.25 -> 0.05 cert bug the review used dies HERE, empirically,
-    // not in a formula mirror.
-    mesh::probe_stats::arm(true);
-    for (name, body) in [
+/// The four fixtures the Z1 rows drive, and the two deltas they drive
+/// them at. Shared by the armed row and its default-build counterpart
+/// so the two cannot drift into "the falsifier covers a corpus the
+/// default build never tessellates".
+fn z1_fixtures() -> [(&'static str, Body<f64>); 4] {
+    [
         ("loft_prism", loft_at(&[0.0, 1.0, 2.0])),
         ("nonuniform_loft", loft_at(&[0.0, 1.0, 3.0])),
         ("swept_elbow", swept_elbow()),
@@ -97,8 +91,35 @@ fn z1_per_triangle_certificate_falsification() {
         // armed per-triangle falsifier covers the RATIONAL lane end to
         // end — which is what its retirement condition asked for.
         ("rational_pie", rational_pie()),
-    ] {
-        for delta in [3e-2, 6e-3] {
+    ]
+}
+
+/// See [`z1_fixtures`].
+const Z1_DELTAS: [f64; 2] = [3e-2, 6e-3];
+
+/// Z1: per-triangle |S - Pi| vs cert on every NURBS triangle of all
+/// four fixtures at two deltas — the probe assertions live inside
+/// trimmed.rs; here we drive them and print headroom.
+///
+/// **GATED (issue #558)**: `mesh::probe_stats` is compiled only under
+/// `mesh`'s `probe-stats` feature, so this row rides that build — with
+/// the feature off there is no `arm`/`take` to call, which is the
+/// point of the gate rather than a limitation of it. M8-5 MIN-1's
+/// intent is intact: the hosted gate still runs this UNCONDITIONALLY,
+/// in ci.yml's "mesh certificate falsifier (feature = probe-stats)"
+/// row (mirrored by local-scripts/ci-local.sh). What moved is which
+/// build the row rides in, not whether the row runs.
+#[cfg(feature = "probe-stats")]
+#[test]
+fn z1_per_triangle_certificate_falsification() {
+    // MIN-1 adoption: the probe is the SUITE'S guard now — it arms
+    // itself (mesh::probe_stats::arm) instead of demanding an env
+    // var, so the hosted gate runs it unconditionally. The planted
+    // 0.25 -> 0.05 cert bug the review used dies HERE, empirically,
+    // not in a formula mirror.
+    mesh::probe_stats::arm(true);
+    for (name, body) in z1_fixtures() {
+        for delta in Z1_DELTAS {
             let _ = mesh::probe_stats::take();
             let m = mesh::tessellate(&body, delta).expect("tessellates");
             let (worst_d, its_cert, max_ratio, count) = mesh::probe_stats::take();
@@ -114,6 +135,36 @@ fn z1_per_triangle_certificate_falsification() {
         }
     }
     mesh::probe_stats::arm(false);
+}
+
+/// The Z1 corpus in a DEFAULT build, where the falsifier is gated out
+/// (issue #558) — the row that keeps the default suite's coverage of
+/// these four fixtures, and its count, when the armed row moves to the
+/// `probe-stats` build.
+///
+/// It asserts what a default build can honestly assert: the fixtures
+/// still tessellate at both Z1 deltas and the results are watertight.
+/// It deliberately does NOT claim to falsify anything — the
+/// certificate check needs the 12-sample resampling that this build
+/// does not contain, and a same-named row quietly doing less would be
+/// exactly the fail-quiet the gate is supposed to avoid.
+///
+/// INVARIANT this row pins: gating the falsifier removed the SAMPLING,
+/// not the lane. If `mesh::tessellate` starts refusing these fixtures
+/// in a default build, that is a tessellation regression and it fails
+/// here, in the default row, rather than only in the feature row.
+#[cfg(not(feature = "probe-stats"))]
+#[test]
+fn z1_fixtures_still_tessellate_with_the_falsifier_gated_out() {
+    for (name, body) in z1_fixtures() {
+        for delta in Z1_DELTAS {
+            let m = mesh::tessellate(&body, delta).expect("tessellates");
+            let tris: usize = m.patches.iter().map(|p| p.triangles.len()).sum();
+            assert!(tris > 0, "{name} at delta={delta:.0e}: empty mesh");
+            mesh::validate::check_mesh(&m)
+                .unwrap_or_else(|e| panic!("{name} at delta={delta:.0e}: not watertight: {e:?}"));
+        }
+    }
 }
 
 /// Z2 (d'): a NURBS-face half-edge with NO stored pcurve must refuse

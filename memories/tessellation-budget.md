@@ -18,14 +18,18 @@ cd tools/tess-lint && cargo run -- /tmp/b.csv --top 20
 Three pieces: `mesh::budget` (per-face meter behind the crate's
 `budget` feature — gated at the MODULE boundary with a no-op stub, so
 `armed()` folds to `const false` and the tessellation lane carries no
-`#[cfg]`; the same shape would gate `probe_stats`, which today keeps a
-live per-face `env::var_os` and a 91-sample-per-triangle block),
+`#[cfg]`; `probe_stats` was gated to the same shape by #558, behind
+its OWN `probe-stats` feature — deliberately not this one, because
+`scripts/tess_budget_sweep.sh` runs the tour at `--features budget`
+and a shared feature would put the falsifier's 12-sample-per-edge
+resampling and its `assert!` into that release artifact),
 `mesh::nurbs_cert::nurbs_cell_bounds` (the certificate assembly
 reported per knot-span cell — a SECOND path, so the shipped bound stays
 bit-identical), and `tools/tess-lint` (report + regression gate,
 `k-lint`'s posture). CI runs them in the `k-lint` job, plus a
-`--features budget` row for the armed half; the committed baseline is
-`docs/tess-budget-data/`.
+`--features budget` row for the armed half (and, beside it, a
+`--features probe-stats` row for the falsifier's); the committed
+baseline is `docs/tess-budget-data/`.
 
 ## The findings, so they are not re-derived
 
