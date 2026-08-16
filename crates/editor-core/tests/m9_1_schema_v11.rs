@@ -46,12 +46,10 @@ const V1: &str = include_str!("golden/v1_golden.cad");
 
 #[test]
 fn schema_version_is_current() {
-    // Moved once since this row was written (ASM-R2a's v12
-    // `Node::Mate` arm) — the convention is that a bump updates every
-    // pin it invalidates, so the number stays exact here. Named for
-    // the PROPERTY rather than the number, since the number is
-    // exactly what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 12);
+    // Named for the PROPERTY, not the number (the `lbret_schema_v8`
+    // precedent): M9-1's own bump was v11; LIB-PLACEDUNION took v12
+    // and ASM-R2a v13, and the number is exactly what keeps moving.
+    assert_eq!(SCHEMA_VERSION, 13);
 }
 
 /// The IMMEDIATE prior version refuses, from the real file. Named
@@ -168,18 +166,16 @@ fn too_old_beats_a_broken_body() {
     }
 }
 
-/// A saved document announces the CURRENT version in its header, and
-/// it round-trips with its declaration CLASSES intact — the actual
-/// content of this break. (The header number moved once since, with
-/// ASM-R2a's v12 `Node::Mate` arm; the class round trip is what the
-/// row is about, and it is untouched.)
+/// A saved document announces the CURRENT version in its header, and a
+/// class-bearing document round-trips with its declaration CLASSES
+/// intact — the actual content of this break.
 #[test]
 fn a_declaration_round_trips_carrying_its_class() {
     let (doc, decl) = declaring_doc();
     let text = save(&doc, &[]).expect("saves");
     assert_eq!(
         text.lines().next(),
-        Some(&format!("schema: {SCHEMA_VERSION}")[..])
+        Some(format!("schema: {SCHEMA_VERSION}").as_str())
     );
 
     let back: ProfileDoc = load(&text).expect("the current version loads").doc;

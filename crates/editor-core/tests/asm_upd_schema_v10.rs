@@ -30,12 +30,11 @@ const V9: &str = include_str!("golden/v9_golden.cad");
 
 #[test]
 fn schema_version_is_current() {
-    // Moved twice since this row was written (M9-1 PR-2's v11
-    // declaration-class break, then ASM-R2a's v12 `Node::Mate` arm) —
-    // the convention is that a bump updates every pin it invalidates,
-    // so the number stays exact here. Named for the PROPERTY rather
-    // than the number, since the number is exactly what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 12);
+    // Named for the PROPERTY, not the number (the `lbret_schema_v8`
+    // precedent): ASM-UPD's own bump was v10; M9-1 took v11,
+    // LIB-PLACEDUNION v12 and ASM-R2a v13, and the number is exactly
+    // what keeps moving.
+    assert_eq!(SCHEMA_VERSION, 13);
 }
 
 #[test]

@@ -325,6 +325,62 @@ pub enum PatternKind {
         /// Angular step between instances ([`SlotId::Step`]).
         step: Expr,
     },
+    /// Instances at ABSOLUTE frames, listed (GROUP-BOOLEAN-DESIGN,
+    /// ratified A′): the rule vocabulary's non-parametric member, for
+    /// the placements no linear or circular step generates — the die's
+    /// twenty-one pip locations, say.
+    ///
+    /// **The list IS the count.** Order is data and the index is
+    /// D8-structural (it is what `RoleSeg::Instance` indexes), so
+    /// appending a placement changes no existing index. A node carrying
+    /// this rule has NO [`SlotId::Count`] slot: the number of
+    /// placements has exactly one spelling, and the
+    /// two-sources-of-truth state is refused at the edit door rather
+    /// than reconciled there.
+    Explicit(Vec<crate::placement::Frame>),
+}
+
+/// What makes a placement-rule node's rule unusable
+/// ([`Node::placement_rule_fault`]) — one vocabulary for the edit
+/// door, the persist re-check and the evaluation backstop.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PlacementRuleFault {
+    /// The rule and the count slot would answer "how many placements"
+    /// two different ways: an `Explicit` rule paired with a count, a
+    /// stepped rule without one, or an `Explicit` rule on
+    /// [`Node::Pattern`] (whose count is a non-optional field).
+    CountSpelling,
+    /// An `Explicit` rule listing NO placements. The list is the
+    /// count, so this is the explicit rule's `count < 1`.
+    NoPlacements,
+    /// A placement frame with a non-finite coordinate.
+    NonFiniteFrame {
+        /// Its index in the placement list.
+        index: usize,
+    },
+    /// An IMPROPER placement frame — determinant ≤ 0, i.e. a mirror
+    /// (A6). Admitting one is gated on the equivariance audit R4 owns,
+    /// exactly as for a cluster placement.
+    ImproperFrame {
+        /// Its index in the placement list.
+        index: usize,
+        /// The linear part's determinant.
+        determinant: f64,
+    },
+}
+
+impl PatternKind {
+    /// The listed placements when this rule carries its own, `None` for
+    /// the parametric rules (whose count is the structural slot).
+    ///
+    /// The one door every count question goes through, so "how many
+    /// instances" is never answered two ways.
+    pub fn placements(&self) -> Option<&[crate::placement::Frame]> {
+        match self {
+            PatternKind::Explicit(frames) => Some(frames),
+            PatternKind::Linear { .. } | PatternKind::Circular { .. } => None,
+        }
+    }
 }
 
 /// The v1 feature-node payload (ratified F4; spec D3) — pure data.
@@ -502,6 +558,38 @@ pub enum Node<P> {
         /// The replication rule.
         kind: PatternKind,
     },
+    /// **The group boolean** (GROUP-BOOLEAN-DESIGN, ratified A′): ONE
+    /// prototype, a placement rule, ONE BODY OUT — the union of the
+    /// prototype placed at each placement.
+    ///
+    /// A Pattern that fuses, and deliberately NOT a [`PatternKind`] of
+    /// [`Node::Pattern`]: Pattern's N-bodies-unfused output contract
+    /// stays untouched, because forking a node's RESULT TYPE on a
+    /// variant is the silent-dispatch trap D3 forbids. What the two
+    /// share is the rule vocabulary and the naming: per-instance
+    /// discrimination is the ratified `RoleSeg::Instance { i, of }`
+    /// (A8/N1) verbatim, so the vocabulary does not grow and
+    /// "instance 7's cavity face" is one selector row.
+    ///
+    /// Disjointness is CERTIFIED, never declared: one
+    /// [`topo::Separation`] over the prototype, queried per placement
+    /// pair, and the union lowers through the existing
+    /// `graft_disjoint_all_keyed` door — no new kernel op, no new
+    /// kernel naming record. The certificate is sufficient-not-
+    /// necessary, so a BVH-touching-but-genuinely-disjoint arrangement
+    /// refuses honestly rather than passing on a guess.
+    PlacedUnion {
+        /// The prototype placed at every placement.
+        input: RecipeNodeId,
+        /// Placement count — the structural slot ([`SlotId::Count`]) —
+        /// present exactly for the PARAMETRIC rules. `Explicit` carries
+        /// its own placements and derives the count from them, so the
+        /// slot is ABSENT there rather than inert: one number, one
+        /// spelling (the edit door refuses the mismatched states).
+        count: Option<Expr>,
+        /// The placement rule.
+        kind: PatternKind,
+    },
     /// Coincidence-intent pairs by [`StableName`] (F5; resolution is
     /// PR 3/5 — this crate only carries the data).
     ///
@@ -616,6 +704,43 @@ fn comp_mut(v: &mut [Expr; 3], axis: Axis3) -> &mut Expr {
     &mut v[axis.index()]
 }
 
+/// A placement-rule node's slot lookup, shared by [`Node::Pattern`] and
+/// [`Node::PlacedUnion`] — one rule vocabulary, one slot mapping, so
+/// the two nodes can never drift apart on what a slot means.
+///
+/// `count` is the node's structural count slot when it has one.
+/// `Explicit` answers `None` for EVERY slot including `Count`: its
+/// placements are the count and carry no expressions, which is exactly
+/// what [`Node::slots`] reports for it.
+fn rule_expr<'a>(count: Option<&'a Expr>, kind: &'a PatternKind, slot: SlotId) -> Option<&'a Expr> {
+    match (kind, slot) {
+        (PatternKind::Explicit(_), _) => None,
+        (_, SlotId::Count) => count,
+        (PatternKind::Linear { direction, .. }, SlotId::Direction(ax)) => Some(comp(direction, ax)),
+        (PatternKind::Linear { spacing, .. }, SlotId::Spacing) => Some(spacing),
+        (PatternKind::Circular { step, .. }, SlotId::Step) => Some(step),
+        _ => None,
+    }
+}
+
+/// [`rule_expr`]'s mutable twin — same mapping, same `Explicit` rule.
+fn rule_expr_mut<'a>(
+    count: Option<&'a mut Expr>,
+    kind: &'a mut PatternKind,
+    slot: SlotId,
+) -> Option<&'a mut Expr> {
+    match (kind, slot) {
+        (PatternKind::Explicit(_), _) => None,
+        (_, SlotId::Count) => count,
+        (PatternKind::Linear { direction, .. }, SlotId::Direction(ax)) => {
+            Some(comp_mut(direction, ax))
+        }
+        (PatternKind::Linear { spacing, .. }, SlotId::Spacing) => Some(spacing),
+        (PatternKind::Circular { step, .. }, SlotId::Step) => Some(step),
+        _ => None,
+    }
+}
+
 impl<P> Node<P> {
     /// The upstream node references — the recipe DAG's edges (spec
     /// D3). Deterministic order (field order).
@@ -642,7 +767,9 @@ impl<P> Node<P> {
                 v
             }
             Node::Transform { input, .. } => vec![*input],
-            Node::Pattern { input, kind, .. } => {
+            // The two placement-rule nodes take the same edges: the
+            // body, plus the datum a circular rule turns about.
+            Node::Pattern { input, kind, .. } | Node::PlacedUnion { input, kind, .. } => {
                 let mut v = vec![*input];
                 if let PatternKind::Circular { axis, .. } = kind {
                     v.push(*axis);
@@ -696,17 +823,19 @@ impl<P> Node<P> {
                 s.push(SlotId::RotationAngle);
                 s
             }
-            Node::Pattern { kind, .. } => {
-                let mut s = vec![SlotId::Count];
-                match kind {
-                    PatternKind::Linear { .. } => {
-                        s.extend(vec3(SlotId::Direction));
-                        s.push(SlotId::Spacing);
-                    }
-                    PatternKind::Circular { .. } => s.push(SlotId::Step),
+            Node::Pattern { kind, .. } | Node::PlacedUnion { kind, .. } => match kind {
+                PatternKind::Linear { .. } => {
+                    let mut s = vec![SlotId::Count];
+                    s.extend(vec3(SlotId::Direction));
+                    s.push(SlotId::Spacing);
+                    s
                 }
-                s
-            }
+                PatternKind::Circular { .. } => vec![SlotId::Count, SlotId::Step],
+                // The listed placements ARE the rule: no count slot
+                // (the list's length is the count) and no expressions
+                // (the frames are structural data, D8).
+                PatternKind::Explicit(_) => Vec::new(),
+            },
         }
     }
 
@@ -741,28 +870,8 @@ impl<P> Node<P> {
                 Some(comp(rotation_axis, ax))
             }
             (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
-            (Node::Pattern { count, .. }, S::Count) => Some(count),
-            (
-                Node::Pattern {
-                    kind: PatternKind::Linear { direction, .. },
-                    ..
-                },
-                S::Direction(ax),
-            ) => Some(comp(direction, ax)),
-            (
-                Node::Pattern {
-                    kind: PatternKind::Linear { spacing, .. },
-                    ..
-                },
-                S::Spacing,
-            ) => Some(spacing),
-            (
-                Node::Pattern {
-                    kind: PatternKind::Circular { step, .. },
-                    ..
-                },
-                S::Step,
-            ) => Some(step),
+            (Node::Pattern { count, kind, .. }, s) => rule_expr(Some(count), kind, s),
+            (Node::PlacedUnion { count, kind, .. }, s) => rule_expr(count.as_ref(), kind, s),
             _ => None,
         }
     }
@@ -798,28 +907,8 @@ impl<P> Node<P> {
                 Some(comp_mut(rotation_axis, ax))
             }
             (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
-            (Node::Pattern { count, .. }, S::Count) => Some(count),
-            (
-                Node::Pattern {
-                    kind: PatternKind::Linear { direction, .. },
-                    ..
-                },
-                S::Direction(ax),
-            ) => Some(comp_mut(direction, ax)),
-            (
-                Node::Pattern {
-                    kind: PatternKind::Linear { spacing, .. },
-                    ..
-                },
-                S::Spacing,
-            ) => Some(spacing),
-            (
-                Node::Pattern {
-                    kind: PatternKind::Circular { step, .. },
-                    ..
-                },
-                S::Step,
-            ) => Some(step),
+            (Node::Pattern { count, kind, .. }, s) => rule_expr_mut(Some(count), kind, s),
+            (Node::PlacedUnion { count, kind, .. }, s) => rule_expr_mut(count.as_mut(), kind, s),
             _ => None,
         }
     }
@@ -855,6 +944,79 @@ impl<P> Node<P> {
             doc_ref,
             interface: InterfaceRecord::default(),
         }
+    }
+
+    /// Builds a [`Node::PlacedUnion`] with a PARAMETRIC rule (linear
+    /// or circular) and its structural count.
+    ///
+    /// `None` for an [`PatternKind::Explicit`] rule: that rule brings
+    /// its own placements, so pairing it with a count is the
+    /// two-sources-of-truth state — [`Node::placed_union_at`] is its
+    /// door. (The edit door refuses the same state on a hand-built
+    /// value, so this is the convenient refusal, not the only one.)
+    pub fn placed_union(input: RecipeNodeId, count: Expr, kind: PatternKind) -> Option<Self> {
+        kind.placements().is_none().then_some(Node::PlacedUnion {
+            input,
+            count: Some(count),
+            kind,
+        })
+    }
+
+    /// Builds a [`Node::PlacedUnion`] over LISTED absolute frames — the
+    /// count is the list's length, so there is no count slot to
+    /// disagree with it.
+    pub fn placed_union_at(input: RecipeNodeId, placements: Vec<crate::placement::Frame>) -> Self {
+        Node::PlacedUnion {
+            input,
+            count: None,
+            kind: PatternKind::Explicit(placements),
+        }
+    }
+
+    /// What is wrong with this node's placement rule, if anything —
+    /// the ONE door the edit gate, the persist re-check and the
+    /// evaluation backstop all read, so the three can never diverge on
+    /// what a usable rule is. `None` for every non-placement node.
+    pub fn placement_rule_fault(&self) -> Option<PlacementRuleFault> {
+        let (count_present, kind) = match self {
+            // Pattern's count is a non-optional field, so it always
+            // "has" one — which is why an explicit list there is
+            // always a second answer to the same question.
+            Node::Pattern { kind, .. } => (true, kind),
+            Node::PlacedUnion { count, kind, .. } => (count.is_some(), kind),
+            _ => return None,
+        };
+        let Some(frames) = kind.placements() else {
+            // A stepped rule needs its count slot and nothing else.
+            return (!count_present).then_some(PlacementRuleFault::CountSpelling);
+        };
+        if count_present {
+            return Some(PlacementRuleFault::CountSpelling);
+        }
+        // The list IS the count, so an EMPTY list is the explicit
+        // rule's `count < 1` — refused for the same reason
+        // `NonPositiveCount` refuses a stepped rule's zero, rather
+        // than quietly denoting an empty body (LIB-PLACEDUNION review
+        // MAJOR-1).
+        if frames.is_empty() {
+            return Some(PlacementRuleFault::NoPlacements);
+        }
+        // A11/A6 parity: a placement frame is held to exactly what
+        // `SetPlacement` holds a cluster frame to — finite, and proper
+        // (det > 0; admitting mirrors is gated on R4's equivariance
+        // audit). Checked HERE so the refusal lands at the edit door
+        // with the best diagnostics, not at the kernel's rigidity
+        // re-check downstream.
+        for (index, frame) in frames.iter().enumerate() {
+            if !frame.is_finite() {
+                return Some(PlacementRuleFault::NonFiniteFrame { index });
+            }
+            let determinant = frame.determinant();
+            if determinant <= 0.0 {
+                return Some(PlacementRuleFault::ImproperFrame { index, determinant });
+            }
+        }
+        None
     }
 
     /// A `Declare` node whose every pair asserts the CONFORMAL class

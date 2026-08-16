@@ -17,8 +17,8 @@
 //! is deferred to the unit that binds the complete surface.
 
 use pncad::document::{
-    DimensionError, EditError, MateFault, NodeErrorKind, PersistError, RecordedProgramError,
-    RootFault,
+    DimensionError, EditError, MateFault, NodeErrorKind, PersistError, PlacementRuleFault,
+    RecordedProgramError, RootFault,
 };
 use pncad::profile::PathError;
 
@@ -137,6 +137,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // branches on.
         EditError::Roots(fault) => root_fault_tag(fault),
         EditError::PlacementOnNonInstance { .. } => "placement_on_non_instance",
+        EditError::PlacementRuleMismatch { .. } => "placement_rule_mismatch",
+        EditError::EmptyPlacementList { .. } => "empty_placement_list",
         EditError::ImproperPlacement { .. } => "improper_placement",
         EditError::NonFinitePlacement { .. } => "non_finite_placement",
         EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
@@ -185,6 +187,15 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::Escalated { .. } => "escalated",
         NodeErrorKind::AxisNotInSketchPlane { .. } => "axis_not_in_sketch_plane",
         NodeErrorKind::NonPositiveCount { .. } => "non_positive_count",
+        NodeErrorKind::PlacementsUncertified { .. } => "placements_uncertified",
+        // One tag per fault so a Python caller can tell "the count is
+        // spelled twice" from "the list is empty" from a bad frame.
+        NodeErrorKind::PlacementRule(fault) => match fault {
+            PlacementRuleFault::CountSpelling => "placement_rule_mismatch",
+            PlacementRuleFault::NoPlacements => "empty_placement_list",
+            PlacementRuleFault::NonFiniteFrame { .. } => "non_finite_placement",
+            PlacementRuleFault::ImproperFrame { .. } => "improper_placement",
+        },
         NodeErrorKind::UnschedulableCycle => "unschedulable_cycle",
         NodeErrorKind::Naming { .. } => "naming",
         NodeErrorKind::DeclareResolve { .. } => "declare_resolve",

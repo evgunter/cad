@@ -294,6 +294,15 @@ pub enum SnapshotError {
         /// The offending mate.
         node: RecipeNodeId,
     },
+    /// A placement-rule node carrying a rule the edit door would have
+    /// refused (GROUP-BOOLEAN-DESIGN): the count spelled two ways, an
+    /// empty explicit list, or a non-finite / improper frame.
+    PlacementRule {
+        /// The offending node.
+        node: RecipeNodeId,
+        /// What is wrong with it.
+        fault: crate::node::PlacementRuleFault,
+    },
     /// An appearance metadata value violating the D7 producer
     /// convention (map with an integer `"v"`).
     MetadataUnversioned {
@@ -379,6 +388,14 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             if selection.windows(2).any(|w| w[0] >= w[1]) {
                 return Err(SnapshotError::FilletSelectionNotCanonical { node: id });
             }
+        }
+        // The placement RULE (GROUP-BOOLEAN-DESIGN), re-checked for the
+        // same reason the A11 registry is below: a saved file is DATA,
+        // and every rule on the wire must be one the edit door would
+        // have accepted — one spelling of the count, at least one
+        // placement, and frames that are finite and proper.
+        if let Some(fault) = node.placement_rule_fault() {
+            return Err(SnapshotError::PlacementRule { node: id, fault });
         }
     }
     for name in doc.appearance.keys() {

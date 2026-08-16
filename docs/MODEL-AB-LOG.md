@@ -965,19 +965,26 @@ and mint its own schema bump at main's next number (the live
 chain: v10 = ASM-UPD, v11 = M9-1 at its re-merge). Lane asm-r2a,
 branch asm/r2a-mate-solve, OPUS per the slot-1 draw.
 
-**ASM-R2a SCHEMA CLAIM: v12** (2026-08-16, PR #575 open) — the
+**ASM-R2a SCHEMA CLAIM: v13** (2026-08-16, PR #575 open) — the
 `Node::Mate` arm, new node vocabulary, the case v7 bumped for.
 Claimed as main's next number after reading main's ACTUAL constant
 by eye immediately before setting it (`git show
 origin/main:crates/editor-core/src/persist/mod.rs | grep
-SCHEMA_VERSION` → 11, M9-1 PR-2's declaration-class break, which
-merged while this branch was open; the unit had claimed 11 itself
-and shifted). This paragraph IS the tripwire the
+SCHEMA_VERSION`). This paragraph IS the tripwire the
 `schema-claim-discipline` memory asks for: any other in-flight
-branch claiming 12 collides HERE, because the constant will not —
-one line of identical text merges clean. Confirmed live on this
-branch's own re-merge with #552: the ledger prose conflicted, the
-constant did not. Review
+branch claiming 13 collides HERE, because the constant will not —
+one line of identical text merges clean.
+
+**The claim moved TWICE on this one branch, and both times only the
+by-eye read caught it.** 11 → 12 when M9-1 PR-2 (#552) merged with
+11; 12 → 13 when LIB-PLACEDUNION (#571) merged with 12. In the
+first, the ledger prose conflicted and the constant did not — the
+memory's own case. In the SECOND, nothing conflicted at all: this
+branch's paragraph was newer than #571's ledger edit, so the two
+prose blocks merged cleanly TOO, and the collision was visible only
+in the constant read. Recorded as the sharper lesson: prose is a
+tripwire, not a guarantee — the explicit read at every re-merge is
+the thing that actually holds. Review
 ordinal claims at review dispatch (note: the next third is 48 —
 the pending dual, tally 5-of-6).
 M9-2 PR-2 review ordinal fixed at dispatch (2026-08-16, PR #564
@@ -1032,3 +1039,10 @@ inconsistency (the binding coset table itself makes
 coaxial+planar(⊥) UNDER; acceptance row 1's DETERMINED claim was
 the spec author's error) — the reviewer adjudicates. Row at
 merge.
+MESH-PROBEGATE review ordinal fixed at dispatch (2026-08-16, PR
+#579 open, frozen head bf037c08): claimed through 51 (RESPELL PR-2's
+cross-model dual, #578) + 1 = **52 → SINGLE** (54 is the next
+third). Reviewer fable, v4 ladder. Pre-draw fields logged at
+spec time: S-M / STRUCTURAL (docs/MESH-PROBEGATE-SPEC.md; arm =
+block ASM-3 slot 3). Row at merge.
+| MESH-PROBEGATE | 2026-08-16 | #558 executed: probe_stats live/inert module split on the budget pattern (armed() = pub const fn false + build-enforced const assert; arm/take absent from default builds; zero #[cfg] in the tessellation lane); feature ruling probe-stats (join-budget rejected on the release-artifact evidence, probe rename rejected on blast radius, NAME CAUTION in both manifest entries); the MIN-1 falsifier preserved by an unconditional k-lint CI row; budget.rs inert half hardened to the same const shape (reported addition) | S-M / STRUCTURAL (pre-logged at spec) | OPUS (block ASM-3 slot 3) | single (ordinal 52, frozen bf037c08, v4) — **APPROVE 0/0/2, rubric 5/5/5** (reviewer reproduced the compile-error close both halves; own 2.5× cert plant RED under probe-stats + GREEN default with the block ABSENT; CI-row unconditionality read from the workflow source; 11/11 STLs byte-identical on the reviewer's own merge-base build; both static asserts mutation-proven E0080; all 4 clippy lanes clean; NOTEs: the "six manifests" undercount actually STRENGTHENS the ruling at 15, falsifier floor ~2×) | 0 silent (5 reported incl. the budget.rs hardening; all verified) | 5 | 5 | 5 | NONE (both NOTEs informational; no fix pass) | MERGED #579 35/35; #558 CLOSED — shipped builds carry no falsifier, the hosted gate still runs it | impl ~183k / review ~91k | impl ~5h wall / review ~1.5h (one usage-window resume) |

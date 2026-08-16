@@ -262,50 +262,50 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// exactly, and caught only because the ledger prose is long enough to
 /// collide. All three meanings survive here: 9 the fillet-family
 /// re-spell, 10 the `UpdateReference` arm, 11 the declaration class.
-/// Version 12 is **node vocabulary growth** (ASSEMBLY-DESIGN
+/// Version 13 is **node vocabulary growth** (ASSEMBLY-DESIGN
 /// A3/A12, ratified #522; ASM-R2a D-1): [`crate::Node`] gained the
 /// `Mate` variant — the mate's two instance-qualified references, its
 /// declared [`topo::ContactClass`], and its alignment datum, all file
 /// data. A new node arm is the case v7 bumped for, and v2/v3/v8 before
-/// it: forward-additive (a v11 file contains no `Mate`), while the
-/// gate buys the direction that fails badly — a v12 file handed to a
-/// v11 reader must refuse at the version door rather than reach serde
-/// and die on an unknown variant. A v11 file refuses TYPED with the
+/// it: forward-additive (a v12 file contains no `Mate`), while the
+/// gate buys the direction that fails badly — a v13 file handed to a
+/// v12 reader must refuse at the version door rather than reach serde
+/// and die on an unknown variant. A v12 file refuses TYPED with the
 /// regenerate recourse and the migration table stays empty.
 ///
 /// The mate's class rides the SAME stable spellings v11 gave
-/// `Declare`'s pairs (`crate::names::declare_pairs_wire`'s
-/// convention, reused rather than re-spelled): one contact vocabulary,
-/// one wire spelling of it. A class outside v1's admitted
-/// `Rest`/`Tangent` refuses at that door naming
-/// [`topo::FIT_DEFERRAL`] verbatim, which is the same sentence the
-/// solve door says — two doors, one refusal.
+/// `Declare`'s pairs (`declare_pairs_wire`'s table, reused rather
+/// than re-spelled): one contact vocabulary, one wire spelling of it.
+/// A class outside v1's admitted `Rest`/`Tangent` refuses at that door
+/// naming [`topo::FIT_DEFERRAL`] verbatim — the same sentence the
+/// solve door says.
 ///
 /// The A11 placement registry did NOT force this bump, and that is
 /// worth stating: its keys generalized from per-instance to
 /// per-cluster-REPRESENTATIVE, a change of MEANING with no change of
 /// shape — a mate-less document's registry is the same map with the
 /// same keys, because every singleton cluster's gauge is its own
-/// instance. The bump is the node arm's alone, and its one consequence
-/// for the compatibility row is that a no-mates document round-trips
-/// identically BELOW the header while the header itself necessarily
-/// moves.
+/// instance. The bump is the node arm's alone.
 ///
-/// **Why 12, and how it was checked.** Main was read BY EYE
-/// immediately before this constant was set (`git show
-/// origin/main:crates/editor-core/src/persist/mod.rs | grep
-/// SCHEMA_VERSION`), and it held 11 — M9-1 PR-2's declaration-class
-/// break, which merged while this branch was open. This unit had
-/// claimed 11 at its own bump and moved to 12 on that reading. The
-/// check is an explicit step and not a merge outcome, because the
-/// entry above records the finding that makes the merge worthless
-/// here: two branches claiming the SAME number merge CLEANLY, since
-/// the constant is one line of identical text. A gap in the sequence
-/// would cost nothing; a collision costs a human eye.
+/// **Why 13: the same-number race, run TWICE on one branch, and what
+/// it costs.** This unit claimed 11 at its own bump, moved to 12 when
+/// M9-1 PR-2 merged with 11, and moved to 13 when LIB-PLACEDUNION
+/// merged with 12. BOTH shifts were caught the same way and only that
+/// way: an explicit read of main's constant at the re-merge
+/// (`git show origin/main:crates/editor-core/src/persist/mod.rs |
+/// grep SCHEMA_VERSION`). Neither produced a merge conflict on the
+/// constant — both sides had written the identical line, so git
+/// merged it silently, exactly as the v11 and v12 entries above
+/// predicted. Three consecutive units have now reproduced that
+/// failure mode; the discipline (`memories/schema-claim-discipline`)
+/// is that the CLAIM lives as prose in `docs/MODEL-AB-LOG.md`, where
+/// it collides, and the number is re-read by eye at every re-merge.
+/// A gap in the sequence would cost nothing; a collision costs a
+/// human eye.
 ///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these eleven.
-pub const SCHEMA_VERSION: u32 = 12;
+/// [`migration_step`] entry, or a ratified break like these twelve.
+pub const SCHEMA_VERSION: u32 = 13;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
