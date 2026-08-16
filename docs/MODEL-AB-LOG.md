@@ -961,3 +961,11 @@ PROBEGATE opus / TESS-SPAN fable). Pre-draw fields logged at
 spec time: **M-L / NUMERIC** (docs/TESS-SPAN-SPEC.md). Same-file
 overlap with the in-flight PROBEGATE declared (re-merge duty in
 both briefs). Row at merge.
+TESS-SPLIT spec finalized (2026-08-16): the #320 split half
+under the RATIFIED aspect policy (#568: FFF cap A=16, Evan's
+comment + 👍). Pre-draw fields logged AT SPEC TIME: **M /
+NUMERIC** (docs/TESS-SPLIT-SPEC.md). **Dispatch GATED on
+TESS-SPAN's merge** (same sizing functions — sequenced, not
+parallel); block ASM-4's draw happens at that dispatch, slot 1 =
+TESS-SPLIT. The M9-5 lily-rebuild re-bless coupling (#569
+thread) rides the spec's row 8.
