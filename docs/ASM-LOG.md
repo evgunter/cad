@@ -214,3 +214,19 @@ R2-a. All nine refusal arms now tested naming their subjects. The
 finalization — every input is now in hand (interface-record hook
 shape, A12, the coset table, the census recon, the M9-1 seam) —
 then the R2-a dispatch. Seam sweep: lanes asm-4 + asm-4-r1.
+
+## ASM-UPD MERGED (#549, 2026-08-16) — the update door exists
+
+A13's four clauses are executable: per-reference UpdateReference
+(same-pin refuses, wrong pins surface at the evaluation seam),
+the update-all elaboration with AlreadyPinned making staged
+update-all appliable, the mixed-pin lint reporting multiplicity,
+and the memo re-key evidence now warm-path-hardened (the review's
+one MINOR, closed mutation-verified). Schema landed v10 — the
+v9 double-claim resolved by the deterministic rule (RESPELL kept
+9), and the bump repaired RESPELL's future-version literal en
+route. Review 0-MAJOR at ordinal 46; NOTE-1 (tag values
+unpinned) filed as #561 and adopted by LIB's bindings queue.
+Remaining pipeline: R2-A dispatches when M9-1 PR-2 merges (it
+shifts to schema 11); R2-B spec finalizes after that merge. Seam
+swept (asm-upd + asm-upd-r1).
