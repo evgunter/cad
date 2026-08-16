@@ -549,7 +549,7 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// construction contract between the verify-at-use site and the
 /// detector's candidate-generation mode — only the carrier kind
 /// widens. The planar case reaches exactly the same numbers it
-/// reached before ([`super::carrier_eq`]'s plane arm delegates), so
+/// reached before ([`mod@super::carrier_eq`]'s plane arm delegates), so
 /// this door is a superset of the old one rather than a replacement
 /// for it.
 ///

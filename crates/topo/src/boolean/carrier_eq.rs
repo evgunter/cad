@@ -510,8 +510,17 @@ mod tests {
     /// contradicts.
     #[test]
     fn cylinder_radius_epsilon_row_three_outcomes() {
+        // Derived from the RUN's band, never a literal: the same
+        // number is a gap at one ε and nothing at another, and a row
+        // that only means what it says at one ε is not an ε row.
+        let b = band();
         let a = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0, true);
-        let in_band = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0 + 1e-12, false);
+        let in_band = cyl(
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            3.0 + (b.zero() + b.escalate()) * 0.5,
+            false,
+        );
         assert!(
             matches!(
                 carrier_eq(&a, &in_band, PlaneIdentity::NONE, 1.0, band()),
@@ -524,7 +533,12 @@ mod tests {
             CarrierRelation::SameOpposite,
             "in-band, declared: the bridged residue"
         );
-        let definite = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.001, false);
+        let definite = cyl(
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            3.0 + b.escalate() * 1000.0,
+            false,
+        );
         match carrier_eq(&a, &definite, declared(), 1.0, band()).unwrap_err() {
             CarrierEqError::Contradicted(d) => {
                 assert_eq!(d.predicate, Some("carrier_cyl_radius"));
@@ -539,8 +553,13 @@ mod tests {
     /// 1000 km one. Same geometry, two arms, two honest answers.
     #[test]
     fn cylinder_axis_tilt_is_decided_at_the_lever_arm() {
+        let b = band();
         let a = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0, true);
-        let tilted = cyl([0.0, 0.0, 0.0], [1e-11, 0.0, 1.0], 3.0, false);
+        // A tilt whose displacement is sub-band over 1 m and decisive
+        // over 1000 km — stated in band units so the row survives
+        // every ε the matrix runs.
+        let tilt = b.zero() * 0.1;
+        let tilted = cyl([0.0, 0.0, 0.0], [tilt, 0.0, 1.0], 3.0, false);
         assert_eq!(
             carrier_eq(&a, &tilted, declared(), 1.0, band()).unwrap(),
             CarrierRelation::SameOpposite,

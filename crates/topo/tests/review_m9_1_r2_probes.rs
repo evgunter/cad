@@ -11,7 +11,7 @@ use geom_core::{Band, Point3, Vec3};
 use topo::boolean::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
 use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::boolean::plane_eq::PlaneIdentity;
-use topo::contact::ContactRefusal;
+use topo::contact::{ContactRefusal, ContactVerdict};
 use topo::{BooleanResult, ContactRecords, Surface, ValidationError, union_with};
 
 fn band() -> Band {
@@ -164,8 +164,12 @@ fn probe_cylinder_axis_near_tie_three_outcomes() {
         radius: 3.0,
         outward: false,
     };
-    // Sub-band tilt (1e-12 rad at 1 m arm, linear band ~1e-9).
-    let near = tilt(1e-12);
+    // Tilts stated in BAND units, not literals: a fixed 1e-12 rad is
+    // sub-band at the default ε and definite at ε = 1e-12, so the
+    // literal version of this row asserted the wrong posture in the
+    // matrix's own lower leg (adopted-probe fix, M9-1 fix pass).
+    let b = band();
+    let near = tilt(b.zero() * 0.001);
     assert!(
         matches!(
             carrier_eq(&base, &near, PlaneIdentity::NONE, 1.0, band()),
@@ -178,8 +182,9 @@ fn probe_cylinder_axis_near_tie_three_outcomes() {
         CarrierRelation::SameOpposite,
         "in-band, declared: bridged"
     );
-    // Definite tilt (1e-6 rad at 1 m arm).
-    match carrier_eq(&base, &tilt(1e-6), declared(), 1.0, band()).unwrap_err() {
+    // Definite tilt: three orders above the escalate edge at the same
+    // 1 m arm.
+    match carrier_eq(&base, &tilt(b.escalate() * 1000.0), declared(), 1.0, band()).unwrap_err() {
         CarrierEqError::Contradicted(d) => {
             assert_eq!(d.predicate, Some("carrier_cyl_axis_parallel"));
         }
@@ -278,21 +283,52 @@ fn probe_census_gate_contradicts_curve_and_refuses_patch() {
 /// bridged residue (which is in-band κ_rel alone). So the honest
 /// third outcome is `Escalated`. Red-then-green: this assertion read
 /// `assert_eq!(v, ContactVerdict::Bridged)` when the probe was written.
+///
+/// The gaps are derived FROM the run's band, not hard-coded: the first
+/// fix pinned a literal 3e-9, which is in-band only at the default ε
+/// and reads as definite separation at ε = 1e-12 and as no gap at all
+/// at ε = 1e-6. A row that only means what it says at one ε is not an
+/// ε row. Each cell below asserts its own posture's invariant.
 #[test]
 fn probe_in_band_gap_is_bridged_not_definite() {
-    let cyl = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 1.0 + 3e-9),
-        axis: Vec3::new(1.0, 0.0, 0.0),
-        radius: 1.0,
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
-    };
     let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     let locus = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
-    let refusal = tangent_locus_relation(&cyl, true, &flat, true, &locus, -1.0, 1.0, true, band())
-        .expect_err("an in-band gap is not a residue any declaration may bridge");
+    let at_gap = |gap: f64| {
+        let cyl = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 1.0 + gap),
+            axis: Vec3::new(1.0, 0.0, 0.0),
+            radius: 1.0,
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        tangent_locus_relation(&cyl, true, &flat, true, &locus, -1.0, 1.0, true, band())
+    };
+    let b = band();
+
+    // Below the band's zero: no gap the run can see. The geometry
+    // verifies on its own evidence; the declaration adds nothing.
+    assert_eq!(
+        at_gap(b.zero() * 0.1).expect("a sub-zero gap is not a gap at this ε"),
+        ContactVerdict::Definite,
+        "below band-zero the declaration must not be credited with a bridge"
+    );
+
+    // Inside the band: a residual margin that cannot be decided. It is
+    // on C4's must-verify-DEFINITE list, so no declaration may bridge
+    // it — the honest answer is a typed escalation.
+    let mid = (b.zero() + b.escalate()) * 0.5;
+    let refusal =
+        at_gap(mid).expect_err("an in-band gap is not a residue a declaration may bridge");
     assert!(
         matches!(refusal, ContactRefusal::Escalated { .. }),
         "in-band gap must escalate: {refusal:?}"
+    );
+
+    // Above the band: definite separation beats the declaration, and
+    // the recourse names the class that would fit.
+    let far = at_gap(b.escalate() * 1000.0).expect_err("a definite gap contradicts");
+    assert!(
+        matches!(far, ContactRefusal::Contradicted { .. }),
+        "a definite gap must contradict: {far:?}"
     );
 }
 
