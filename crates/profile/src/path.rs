@@ -207,14 +207,14 @@
 //! ill-typed on a Directed tip (the departure is already bound, and
 //! the mode would have to value-match it):
 //!
-//! ```compile_fail
+//! ```compile_fail,E0277
 //! use geom_core::Point2;
 //! use profile::{Open, Via};
 //! let p = Open.at(Point2::new(0.0, 0.0)).angle(0.0).unwrap()
 //!     .arc_to(Via { q: Point2::new(1.0, 1.0), p: Point2::new(2.0, 0.0) });
 //! ```
 //!
-//! ```compile_fail
+//! ```compile_fail,E0277
 //! use geom_core::Point2;
 //! use profile::{ArcSweep, Center, Open};
 //! let p = Open.at(Point2::new(0.0, 0.0)).angle(0.0).unwrap()
@@ -224,11 +224,24 @@
 //! and the endpoint-FREE pair is symmetrically ill-typed on a bare
 //! point, which has no departure tangent to sweep about:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0277
 //! use geom_core::Point2;
 //! use profile::{ArcSide, Open, Sweep};
 //! let p = Open.at(Point2::new(0.0_f64, 0.0))
 //!     .arc_to(Sweep { r: 1.0, side: ArcSide::Left, angle: 1.0 });
+//! ```
+//!
+//! The matrix is CLOSED, not extensible: [`PointLeg`] is sealed, so a
+//! foreign spec type cannot mint a seventh row.
+//!
+//! ```compile_fail,E0277
+//! use geom_core::Point2;
+//! use profile::path::{Flavor, HasPos, NoAng, PartialPath, PointLeg};
+//! struct ForeignSpec;
+//! impl<F: Flavor> PointLeg<f64, F> for ForeignSpec {
+//!     type Out = ();
+//!     fn leg_from(_path: PartialPath<f64, HasPos<F>, NoAng>, _spec: Self) {}
+//! }
 //! ```
 //!
 //! `circle` is a complete-loop PROGRAM FORM, not a chain: there is no

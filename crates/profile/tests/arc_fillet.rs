@@ -628,8 +628,14 @@ fn symmetric_lens_pick_is_bit_deterministic_across_runs() {
 /// definite pocket committed to — NOT cross-lane agreement: a setback
 /// gap below the interval channel's enclosure width may legally resolve
 /// to the other pocket at Interval, and per the ruling both candidates
-/// are valid fillets of the authored carriers (the interval twin is
-/// `ulp_perturbed_lens_pick_is_deterministic_at_interval`).
+/// are valid fillets of the authored carriers. THE INTERVAL TWIN IS
+/// GONE and the claim now rests on this lane alone: the fused door
+/// derives its corners, a lens' carriers cross at BOTH tips, so the
+/// entry anchor is itself a candidate whose zero advance straddles the
+/// `signed_swept` fold on an enclosure — the Interval lane escalates
+/// before any pick exists to pin
+/// (`interval_lane::vesica_near_pick_escalates_at_interval_on_the_coincident_candidate`
+/// pins that escalation, by predicate).
 #[test]
 fn ulp_perturbed_lens_pick_is_deterministic_within_the_lane() {
     let build = || {

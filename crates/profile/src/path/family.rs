@@ -160,7 +160,8 @@ impl<T: Real> OnArc<T> {
 }
 
 // ------------------------------------------------------------------
-// Shared plumbing (pub(super) so the compat shim drives the same code).
+// Shared plumbing: `pub(super)` because the fused verbs here and the
+// chain doors in `path.rs` drive the ONE construction.
 // ------------------------------------------------------------------
 
 /// Opens a fillet with a RAY incoming from a directed pose (no step
@@ -1288,12 +1289,20 @@ impl<T: ArcCarrierScalar> OnArc<T> {
 /// departure tangent to sweep about, so that pair is unrepresentable
 /// rather than refused. It reaches `arc_to` from the Directed tip
 /// instead ([`TangentIncoming`]).
-pub trait PointLeg<T: geom_core::Decide, F: Flavor> {
+/// SEALED, on the same rule as the lattice markers: the admissible
+/// (state, mode) pairs ARE the matrix, so a foreign impl would mint a
+/// row the doctrine does not have. The six mode types below are the
+/// whole implementor set.
+pub trait PointLeg<T: geom_core::Decide, F: Flavor>: super::sealed::Sealed {
     /// The state the leg leaves the chain in.
     type Out;
     #[doc(hidden)]
     fn leg_from(path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out;
 }
+
+impl<T, Tgt> super::sealed::Sealed for verbs::Bulge<T, Tgt> {}
+impl<T: Real, Tgt> super::sealed::Sealed for Via<T, Tgt> {}
+impl<T: Real, Tgt> super::sealed::Sealed for Center<T, Tgt> {}
 
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Point2<T>> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
