@@ -30,6 +30,8 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "budget_meter.rs"]
+mod budget_meter;
 #[path = "errors.rs"]
 mod errors;
 #[path = "exact_vs_mesh.rs"]
