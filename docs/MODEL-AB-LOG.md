@@ -933,3 +933,11 @@ chain: v10 = ASM-UPD, v11 = M9-1 at its re-merge). Lane asm-r2a,
 branch asm/r2a-mate-solve, OPUS per the slot-1 draw. Review
 ordinal claims at review dispatch (note: the next third is 48 —
 the pending dual, tally 5-of-6).
+MESH-PROBEGATE dispatch (2026-08-16): the #558 register-class
+residue, assigned to ASM by Evan in-session as a side-lane unit
+under the normal protocol. Block ASM-3 slot 3 = **OPUS** (the
+byte-207 draw). Pre-draw fields logged at spec time: **S-M /
+STRUCTURAL** (docs/MESH-PROBEGATE-SPEC.md — module-boundary
+gating on the #560 budget pattern; no numeric decisions).
+Crate-disjoint from the in-flight R2-A (editor-core). Row at
+merge; review ordinal claims at its dispatch.
