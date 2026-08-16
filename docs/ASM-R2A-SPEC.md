@@ -118,3 +118,21 @@ poll harness-backgrounded output files; kill by recorded PID only;
 local-scripts/ tooling; merge-before-open + re-merge on movement +
 confirm checks START; invariant comments; commit+push per unit;
 PR bodies from lane-private paths, never the shared scratchpad).
+
+## Amendments (adjudicated at review, ordinal 50, 2026-08-16)
+
+1. **Acceptance row 1 re-worded** (implementer deviation 1 +
+   reviewer concurrence: the original row was UNSATISFIABLE under
+   the binding table — planar∩cylindrical leaves a 1-dim residual
+   in every arm): row 1's DETERMINED chain is A11 rule 1's own
+   example, coaxial + clocking (→ prismatic) ∩ planar rest with
+   normal along the axis (→ trivial). The pin-in-hole and slot
+   entries remain asserted in row 5.
+2. **D-3 maintenance wording** (implementer deviation 2 +
+   reviewer concurrence; ratified A11 rule 2 itself says the join
+   is ONE recorded edit with the absorbed frame consumed into the
+   edit record): cluster maintenance is CARRIED ON THE ACCEPTED
+   EDIT'S RECORD (the A10 automatic-maintenance pattern),
+   deterministic from the edit, replay-reproduced, undo = prior
+   document value — not minted as additional DocEdits, which
+   would double-log the fact and make replay order-dependent.
