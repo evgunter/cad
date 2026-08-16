@@ -93,9 +93,10 @@ pub fn document() -> CorpusDoc {
         node: sub1,
         path: vec![RoleSeg::FromB(Box::new(cap(slot1, CapEnd::Bottom)))],
     };
-    let decl = r.insert(Node::Declare {
-        pairs: vec![(cavity_floor, cap(slot2, CapEnd::Bottom))],
-    });
+    let decl = r.insert(Node::declare_rest(vec![(
+        cavity_floor,
+        cap(slot2, CapEnd::Bottom),
+    )]));
     let sub2 = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,
         a: sub1,

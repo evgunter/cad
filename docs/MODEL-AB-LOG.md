@@ -943,3 +943,22 @@ this PR's merge. STOPPING-RULE note: tally 5-of-6 — if EITHER
 reviewer here finds a MAJOR, this is the SIXTH qualifying dual:
 the dual-review experiment ENDS and Evan is notified explicitly
 per the v4 amendment.
+MESH-PROBEGATE dispatch (2026-08-16): the #558 register-class
+residue, assigned to ASM by Evan in-session as a side-lane unit
+under the normal protocol. Block ASM-3 slot 3 = **OPUS** (the
+byte-207 draw). Pre-draw fields logged at spec time: **S-M /
+STRUCTURAL** (docs/MESH-PROBEGATE-SPEC.md — module-boundary
+gating on the #560 budget pattern; no numeric decisions).
+Crate-disjoint from the in-flight R2-A (editor-core). Row at
+merge; review ordinal claims at its dispatch.
+TESS-SPAN dispatch (2026-08-16): the #320 span half (as
+corrected by #547 — the recon at cad-work/tess-320-recon.md is
+the diagnosis of record: whole-patch sup ≈ 2.5x secondary; the
+4.1x AM-GM split factor waits on the aspect-policy design
+conversation). Block ASM-3 slot 4 = **FABLE** (the byte-207
+draw; block ASM-3 fully consumed: R2-A opus / ASM-UPD opus /
+PROBEGATE opus / TESS-SPAN fable). Pre-draw fields logged at
+spec time: **M-L / NUMERIC** (docs/TESS-SPAN-SPEC.md). Same-file
+overlap with the in-flight PROBEGATE declared (re-merge duty in
+both briefs). Row at merge.
+| M9-1 | 2026-08-16 | contact vocabulary end-to-end (two-PR unit): PR-1 kernel — ContactClass{Rest,Tangent} + the finding vocabulary defined LOWEST (topo/contact.rs, re-exported upward), CurveContact/PatchContact granularities, class-keyed DeclaredPairs + carried channels (class-less unrepresentable), the kind-generalized carrier_eq ladder, the C4 Tangent table over the jet lane, failure modes at BOTH gates, AQ6 trilean + Fit-deferral recourse; PR-2 recipe/LIB/schema — class through Declare/resolve/content-key, declare_node preservation, kernel-rooted re-exports, serde(with) bridge (DEV-2 ruling), schema v11 (shifted twice in the race: RESPELL took 9, ASM-UPD 10) | L / MIXED→NUMERIC (pre-draw logged at spec) | OPUS (block M8-15 slot 1) | PR-1: **DUAL (sample #13, ordinal 39, same-model fable+fable, frozen a557da3b)** — R1 AWF 2/5/3, R2 AWF 1/5/3, rubric 4/4/4 both; CONVERGED where it mattered: BOTH independently proved the reverted op-door pass RIGHT and main's corpus carrying a genuine 0.5 m coincidence lie (R2's sharper mechanism: green only because verify-at-use was Union-only and the op a Subtract) — a QUALIFYING dual (tally → 5-of-6); productively divergent on the Tangent bridge (R1 measured in-band residual/opposition bridging; C4's three-list structure adjudicated it ESCALATE — the substantive fix). PR-2: single (ordinal 47, fable, frozen dc9dbdee) — AWF 0/4/2, 0 silent; headline = the preservation row couldn't distinguish the dropping code (detector Rest-only); DEV-4 RULED (door refusal ≠ contradiction) | PR-1: 1 understated (the R1 coverage claim) + 2 low-stakes silent; PR-2: 0 silent, 2 PR-body factual errors review-caught | 4 | 4 | 4 | BOTH IMPLEMENTER-INHERITED. PR-1 fix: the C4-lists Tangent rework (arms 3/4 decided together — the first-order lever IS the second-order question; a reachable 0/0 NaN the old code silently bridged, fixed), #539 filed + corpus lie fixed + op-door pass REINSTATED red-then-green, both probe suites adopted, 3 adopted rows' literal ε gaps re-derived band-relative. PR-2 fix: the preservation row bites (synthetic Tangent finding, RED under mutant), the tripwire truth-pass found REAL drift behind deliberate wildcards (Tangent missing from the PyO3 mirror — arm added, pin rewritten to enumerate), v10→v11 shift executing the race rule — WITH the process find: the one-line constant merged CLEANLY at 10-vs-10, the ledger PROSE was the only collision (the v7/v8 mode reproduced; prose = load-bearing machinery, recorded) | PR-1 MERGED #524 35/1 at cfd2fb57→24d11220 (merge 7f5a6c63); PR-2 MERGED #552 34/2 at 8d85634d (merge 134f5fac); DECLARED CONTACT HAS A VOCABULARY: Rest/Tangent authored, verified, persisted, refused typed at every seam; ASM R2 consumes it as-is | impl ~335k + fix1 ~245k + pr2 ~285k + fix2 ~120k / R1 ~150k / R2 ~130k / pr2-R ~115k | impl ~7h + fix1 ~4h + pr2 ~5h + fix2 ~1.7h / R1 ~2h / R2 ~3.2h / pr2-R ~1.8h (slot-queue dominated throughout) |

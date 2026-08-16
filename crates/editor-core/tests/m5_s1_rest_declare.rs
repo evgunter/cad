@@ -71,7 +71,7 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
         (fname(a, wall(2)), fname(b, wall(2))),
         (fname(a, wall(3)), fname(b, wall(3))),
     ];
-    let (doc, decl) = insert(doc, Node::Declare { pairs });
+    let (doc, decl) = insert(doc, Node::declare_rest(pairs));
     let (doc, u) = insert(
         doc,
         Node::Boolean {
