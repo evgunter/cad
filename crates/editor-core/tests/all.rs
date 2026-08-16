@@ -152,6 +152,10 @@ mod m6_5_schema_v3;
 mod m6_5_selection_refusals;
 #[path = "m6_composed_node.rs"]
 mod m6_composed_node;
+#[path = "m9_1_declare_classes.rs"]
+mod m9_1_declare_classes;
+#[path = "m9_1_schema_v11.rs"]
+mod m9_1_schema_v11;
 #[path = "m9_d1_r1_probes.rs"]
 mod m9_d1_r1_probes;
 #[path = "m9_d1_r2_probes.rs"]

@@ -143,6 +143,39 @@ amended:
      variance data; its R1-0-MAJOR/R2-2-MAJOR divergence is
      same-model calibration signal, and NO cross-model dual has
      run before the v4 pilots.)
+     **STOPPING RULE AMENDED (2026-08-16, third readout; Evan
+     authorised the update in-chat, conditional on the
+     projection showing six would not suffice — it does not).**
+     Three parts:
+     (a) **Tally correction: 5 of 6, not 4.** Sample #13 (M9-1
+     PR-1, R1 2 MAJ / R2 1 MAJ) also qualifies and had not been
+     folded in.
+     (b) **The same-model variance stream STOPS at 6 as
+     originally written — deliberately NOT extended.** The
+     projection (off-file, `analysis/model-ab/projection.py`)
+     shows the reviewer-noise estimate converging as 1/sqrt(n):
+     at six qualifying pairs its 95% bound still admits an
+     arm-interval widening of up to ~70%, and even thirty pairs
+     would only bring that to ~20%. More same-model pairs
+     therefore change no decision — the more so because the
+     negative-binomial arm fit already absorbs overdispersion
+     using every row rather than a handful of pairs, and because
+     reviewer noise that is independent of the implementer arm
+     (which is exactly what blinding guarantees) cannot bias the
+     arm contrast at all. It only widens it.
+     (c) **NEW pre-registered target, replacing the extension:
+     TWELVE cross-model dual pairs.** All cross-model pairs
+     count, not only MAJOR-bearing ones — a systematic
+     reviewer-model difference shows up in MINOR/NOTE yield too,
+     and those are plentiful. Twelve resolves such a difference
+     to about 1.23x; four pairs only to 1.44x. Complete so far:
+     #10, #12, with #14 pending. **Until the target is met,
+     EVERY dual is cross-model** — v4 item 3's {same-model,
+     cross-model} block alternation is suspended. This is
+     cost-neutral: the every-3rd dual frequency is unchanged,
+     the budget is only re-pointed. The orchestrator recording
+     the twelfth cross-model pair notifies Evan explicitly, as
+     above.
      **Sample numbering follows ORDINALS** (ratified in the
      #398 thread, 2026-08-11, all three programs concurring —
      resolving the concurrent-dispatch collision in which two
@@ -943,3 +976,45 @@ this PR's merge. STOPPING-RULE note: tally 5-of-6 — if EITHER
 reviewer here finds a MAJOR, this is the SIXTH qualifying dual:
 the dual-review experiment ENDS and Evan is notified explicitly
 per the v4 amendment.
+MESH-PROBEGATE dispatch (2026-08-16): the #558 register-class
+residue, assigned to ASM by Evan in-session as a side-lane unit
+under the normal protocol. Block ASM-3 slot 3 = **OPUS** (the
+byte-207 draw). Pre-draw fields logged at spec time: **S-M /
+STRUCTURAL** (docs/MESH-PROBEGATE-SPEC.md — module-boundary
+gating on the #560 budget pattern; no numeric decisions).
+Crate-disjoint from the in-flight R2-A (editor-core). Row at
+merge; review ordinal claims at its dispatch.
+TESS-SPAN dispatch (2026-08-16): the #320 span half (as
+corrected by #547 — the recon at cad-work/tess-320-recon.md is
+the diagnosis of record: whole-patch sup ≈ 2.5x secondary; the
+4.1x AM-GM split factor waits on the aspect-policy design
+conversation). Block ASM-3 slot 4 = **FABLE** (the byte-207
+draw; block ASM-3 fully consumed: R2-A opus / ASM-UPD opus /
+PROBEGATE opus / TESS-SPAN fable). Pre-draw fields logged at
+spec time: **M-L / NUMERIC** (docs/TESS-SPAN-SPEC.md). Same-file
+overlap with the in-flight PROBEGATE declared (re-merge duty in
+both briefs). Row at merge.
+| M9-1 | 2026-08-16 | contact vocabulary end-to-end (two-PR unit): PR-1 kernel — ContactClass{Rest,Tangent} + the finding vocabulary defined LOWEST (topo/contact.rs, re-exported upward), CurveContact/PatchContact granularities, class-keyed DeclaredPairs + carried channels (class-less unrepresentable), the kind-generalized carrier_eq ladder, the C4 Tangent table over the jet lane, failure modes at BOTH gates, AQ6 trilean + Fit-deferral recourse; PR-2 recipe/LIB/schema — class through Declare/resolve/content-key, declare_node preservation, kernel-rooted re-exports, serde(with) bridge (DEV-2 ruling), schema v11 (shifted twice in the race: RESPELL took 9, ASM-UPD 10) | L / MIXED→NUMERIC (pre-draw logged at spec) | OPUS (block M8-15 slot 1) | PR-1: **DUAL (sample #13, ordinal 39, same-model fable+fable, frozen a557da3b)** — R1 AWF 2/5/3, R2 AWF 1/5/3, rubric 4/4/4 both; CONVERGED where it mattered: BOTH independently proved the reverted op-door pass RIGHT and main's corpus carrying a genuine 0.5 m coincidence lie (R2's sharper mechanism: green only because verify-at-use was Union-only and the op a Subtract) — a QUALIFYING dual (tally → 5-of-6); productively divergent on the Tangent bridge (R1 measured in-band residual/opposition bridging; C4's three-list structure adjudicated it ESCALATE — the substantive fix). PR-2: single (ordinal 47, fable, frozen dc9dbdee) — AWF 0/4/2, 0 silent; headline = the preservation row couldn't distinguish the dropping code (detector Rest-only); DEV-4 RULED (door refusal ≠ contradiction) | PR-1: 1 understated (the R1 coverage claim) + 2 low-stakes silent; PR-2: 0 silent, 2 PR-body factual errors review-caught | 4 | 4 | 4 | BOTH IMPLEMENTER-INHERITED. PR-1 fix: the C4-lists Tangent rework (arms 3/4 decided together — the first-order lever IS the second-order question; a reachable 0/0 NaN the old code silently bridged, fixed), #539 filed + corpus lie fixed + op-door pass REINSTATED red-then-green, both probe suites adopted, 3 adopted rows' literal ε gaps re-derived band-relative. PR-2 fix: the preservation row bites (synthetic Tangent finding, RED under mutant), the tripwire truth-pass found REAL drift behind deliberate wildcards (Tangent missing from the PyO3 mirror — arm added, pin rewritten to enumerate), v10→v11 shift executing the race rule — WITH the process find: the one-line constant merged CLEANLY at 10-vs-10, the ledger PROSE was the only collision (the v7/v8 mode reproduced; prose = load-bearing machinery, recorded) | PR-1 MERGED #524 35/1 at cfd2fb57→24d11220 (merge 7f5a6c63); PR-2 MERGED #552 34/2 at 8d85634d (merge 134f5fac); DECLARED CONTACT HAS A VOCABULARY: Rest/Tangent authored, verified, persisted, refused typed at every seam; ASM R2 consumes it as-is | impl ~335k + fix1 ~245k + pr2 ~285k + fix2 ~120k / R1 ~150k / R2 ~130k / pr2-R ~115k | impl ~7h + fix1 ~4h + pr2 ~5h + fix2 ~1.7h / R1 ~2h / R2 ~3.2h / pr2-R ~1.8h (slot-queue dominated throughout) |
+PLACEDUNION review ordinal fixed at dispatch (2026-08-16, PR
+#571 open, frozen head c2e4b5b3): claimed through 48 (M9-2 PR-2
+dual) + 1 = **49 → SINGLE** (51 next third, under the #572
+amendment's composition once merged). Reviewer fable.
+TESS-SPLIT spec finalized (2026-08-16): the #320 split half
+under the RATIFIED aspect policy (#568: FFF cap A=16, Evan's
+comment + 👍). Pre-draw fields logged AT SPEC TIME: **M /
+NUMERIC** (docs/TESS-SPLIT-SPEC.md). **Dispatch GATED on
+TESS-SPAN's merge** (same sizing functions — sequenced, not
+parallel); block ASM-4's draw happens at that dispatch, slot 1 =
+TESS-SPLIT. The M9-5 lily-rebuild re-bless coupling (#569
+thread) rides the spec's row 8.
+ASM-R2A review ordinal fixed at dispatch (2026-08-16, PR #575
+open, frozen head 59d7bfda): claimed through 49 (PlacedUnion) + 1 =
+**50 → SINGLE** (51 is the next third — a CROSS-MODEL dual under
+the #572 amendment, whoever claims it). Reviewer fable, v4
+ladder. Pre-draw fields logged at spec time: L / NUMERIC
+(docs/ASM-R2A-SPEC.md; arm = block ASM-3 slot 1). Note for the
+row: the implementer's deviation 1 reports a SPEC-INTERNAL
+inconsistency (the binding coset table itself makes
+coaxial+planar(⊥) UNDER; acceptance row 1's DETERMINED claim was
+the spec author's error) — the reviewer adjudicates. Row at
+merge.

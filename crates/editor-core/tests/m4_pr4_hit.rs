@@ -283,7 +283,7 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     // The Unnamed bug door: a node whose (legitimately empty) table
     // cannot answer for a foreign entity refuses LOUDLY with the
     // entity attached — never a silent None.
-    let (doc2, decl) = insert(doc, Node::Declare { pairs: vec![] });
+    let (doc2, decl) = insert(doc, Node::declare_rest(vec![]));
     let ev2 = run(&doc2);
     let some_face = ev2
         .value(ext2)
