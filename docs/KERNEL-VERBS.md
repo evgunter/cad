@@ -76,7 +76,7 @@ the table.
   which is honest — but it asks for EVERY edge of a full-revolve
   lantern, so its refusal cannot distinguish that case from this one.
   Measured 2026-08-16 (`crates/sweep/src/fillet/battery.rs`,
-  `extent_of` + `convexity_at`).
+  `extent_of` + `convexity_at`); filed as **#554**.
 - **`mesh::planar`'s banked sub-floor case is no longer synthetic.**
   That module's docs bank exactly one uncovered class — a planar
   face whose boundary points carry off-plane noise, where the chart
@@ -91,7 +91,9 @@ the table.
   against rim radius, it fires at (30°, 0.85 m) and (34°, 1.00 m) and
   not at their neighbours. `klein::wall_probes` wall 7 pins it by
   building the shipped bottle with a 5 cm wider rim. Same shape as
-  #284: a valid body that refuses tessellation.
+  #284 — a valid body that refuses tessellation — and filed as
+  **#555**, since #284 itself is closed and its fix deliberately did
+  not claim this case.
 - **`sweep_body` cannot round a U-turn.** The loft's canonical
   stacking trilean compares the LAST placement's mean displacement
   against the FIRST section's plane normal, so any path that ends

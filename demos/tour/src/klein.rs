@@ -78,7 +78,7 @@
 //!    NOT a probe: there is no verb to call, so there is no refusal
 //!    to pin.
 //! 2. **`fillet_edges` on a FULL solid of revolution refuses
-//!    `TangentialEdge`, and the verdict is false** (wall 1). A full
+//!    `TangentialEdge`, and the verdict is false** (wall 1, #554). A full
 //!    revolve's latitude rims are CLOSED circles: start vertex ==
 //!    end vertex. The fillet battery's lever arm is
 //!    `|carrier(t1) − carrier(t0)|`, the straight-line chord between
@@ -663,12 +663,17 @@ pub fn stops() -> Vec<Stop> {
             RRIM + WALL / 2.0,
             RRIM - WALL / 2.0,
         )),
-        // The bottle's spine is entirely in the world xz-plane, so a
-        // camera near ±y sees the loop as the loop and the flare as a
-        // flare; 18° off it keeps the annular rims readable as rims.
+        // The whole model is symmetric about the world xz-plane, so
+        // that plane is the ONE camera to avoid: from it the loop
+        // reads as a flat ring and the place where the neck enters
+        // the flare — the crossing that makes this a Klein bottle —
+        // is seen edge-on and hides behind the bulb's silhouette. 40°
+        // out of it puts the loop in three-quarter view and the
+        // crossing in the open, and the raised elevation keeps the
+        // annular rims reading as rims rather than as lines.
         view: View {
-            elev: 14.0,
-            azim: -72.0,
+            elev: 22.0,
+            azim: -40.0,
             up: 'z',
         },
         bodies: vec![
@@ -678,10 +683,10 @@ pub fn stops() -> Vec<Stop> {
             // render hides the half of the shape that makes it a
             // Klein bottle at any camera.
             SceneBody::plain("klein_bulb", [0.38, 0.62, 0.72], bulb).transparent(55),
-            SceneBody::plain("klein_loop_over", [0.78, 0.60, 0.30], over),
-            // Opaque, and a colour of its own: this is the piece that
-            // is INSIDE the bulb, and seeing it there is the point.
-            SceneBody::plain("klein_loop_into", [0.80, 0.34, 0.24], into),
+            SceneBody::plain("klein_loop_over", [0.78, 0.60, 0.30], over).transparent(45),
+            // A colour of its own: this is the piece that runs INSIDE
+            // the bulb, and seeing where it enters is the point.
+            SceneBody::plain("klein_loop_into", [0.80, 0.34, 0.24], into).transparent(45),
         ],
     }]
 }
