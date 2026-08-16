@@ -859,3 +859,13 @@ the door is its own unit if a scene demands it).
 PYG5 review ordinal fixed at dispatch (2026-08-16, PR #536 open):
 claimed through 43 (G14) + 1 = **44 → SINGLE** (45 next dual —
 the third dual block draws at its claim). Reviewer fable.
+M9-D1 review ordinal fixed at dispatch (2026-08-15, PR #530 open,
+frozen head 6affe027): claimed through 44 (PYG5) + 1 = **45 → a
+third → DUAL (sample #15), the SAME-MODEL twin** of the third v4
+dual block (byte 121: cross ran at 42, same banks here) — R1+R2
+both fable, concurrent same-head. Pre-draw fields logged at spec
+time: S-M / STRUCTURAL (docs/M9-D1-SPEC.md; arm = block M8-15
+position 3, the block's last slot — the next block opens M9-16).
+STOPPING-RULE note: tally 5-of-6; if this dual or the running
+sample #14 qualifies (≥1 reviewer MAJOR), that is the SIXTH — the
+dual-review experiment ends and Evan is notified explicitly.
