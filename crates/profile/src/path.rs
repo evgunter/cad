@@ -313,7 +313,7 @@ use core::marker::PhantomData;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tolerance, Vec2};
 
 use crate::k_stats::decide;
-use crate::path::program::{ArcData as ArcSpecData, ClosedLoop, Step, Target};
+use crate::path::program::{ClosedLoop, Step, Target};
 use crate::sugar::{
     ArcSweep, LineFilletTrims, TrimRefusal, bulge_from_center, bulge_from_via,
     line_line_fillet_trims,
@@ -333,7 +333,7 @@ pub(crate) mod verbs;
 
 pub use arc_fillet::ArcCarrierScalar;
 pub use family::{
-    ArrivalSpec, OnArc, OnArcIncoming, PointIncoming, RadiusArrival, RadiusArrivalAt,
+    ArrivalSpec, OnArc, OnArcIncoming, PointIncoming, PointLeg, RadiusArrival, RadiusArrivalAt,
     RadiusArrivalDir, TangentIncoming, ViaArrival, ViaArrivalStart,
 };
 pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
@@ -595,6 +595,12 @@ pub enum PathError<T: Real> {
         /// What was reached, and what binds it instead.
         site: &'static str,
     },
+    /// A `.to(Start)` seam fillet reached a chain whose FIRST side is
+    /// an arc: the seam retrims the entry vertex, and retrimming the
+    /// start of an arc would slide it off its own carrier (LB5: a
+    /// mid-arc seam vertex is authored topology). Closing onto a
+    /// carrier while KEEPING the entry vertex is the arc-arrival close,
+    /// `fillet_arc(r, Center { c, winding, p: Start })`.
     SeamRetrimsArcFirstSide,
     /// A leg length that is not definitely positive: a negative length
     /// would run the side BACKWARD, detaching the tip's anchored

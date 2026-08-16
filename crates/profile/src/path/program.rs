@@ -58,8 +58,8 @@
 use geom_core::{Decide, Point2, Real};
 
 use super::{
-    ArcCarrierScalar, Flavor, HasAng, HasPos, NoAng, NoPos, Open, PartialPath, PathError, Plain,
-    Start, WithIncoming,
+    ArcCarrierScalar, Bulge, Center, Flavor, HasAng, HasPos, NoAng, NoPos, Open, PartialPath,
+    PathError, Plain, Start, Via, WithIncoming,
 };
 use crate::ProfileLoop;
 use crate::sugar::ArcSweep;
@@ -493,8 +493,8 @@ fn do_line_to<T: Decide, F: Flavor>(
 }
 
 /// The sharp arc leg's mode dispatch: the endpoint-full modes from a
-/// Point tip (through the retired-name doors, which ARE these rows'
-/// surface until the consumer re-spell renames them).
+/// Point tip — one row per admissible (state, mode) pair of the §2c
+/// matrix, each calling the one typed `arc_to(spec)` binder.
 fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
     p: PartialPath<T, HasPos<F>, NoAng>,
     spec: ArcData<T>,
@@ -504,31 +504,42 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
         ArcData::Bulge {
             target: Target::Point(q),
             b,
-        } => Ok(Applied::Tip(DynTip::DirectedPoint(p.arc_to(q, b)?))),
+        } => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(Bulge { p: q, b })?,
+        ))),
         ArcData::Bulge {
             target: Target::Start,
             b,
-        } => Ok(Applied::Closed(p.arc_to(Start, b)?.loop_)),
+        } => Ok(Applied::Closed(p.arc_to(Bulge { p: Start, b })?.loop_)),
         ArcData::Via {
             q,
             target: Target::Point(t),
-        } => Ok(Applied::Tip(DynTip::DirectedPoint(p.arc_via(q, t)?))),
+        } => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(Via { q, p: t })?,
+        ))),
         ArcData::Via {
             q,
             target: Target::Start,
-        } => Ok(Applied::Closed(p.arc_via(q, Start)?.loop_)),
+        } => Ok(Applied::Closed(p.arc_to(Via { q, p: Start })?.loop_)),
         ArcData::Center {
             c,
             winding,
             target: Target::Point(t),
         } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_center(c, t, winding)?,
+            p.arc_to(Center { c, winding, p: t })?,
         ))),
         ArcData::Center {
             c,
             winding,
             target: Target::Start,
-        } => Ok(Applied::Closed(p.arc_center(c, Start, winding)?.loop_)),
+        } => Ok(Applied::Closed(
+            p.arc_to(Center {
+                c,
+                winding,
+                p: Start,
+            })?
+            .loop_,
+        )),
         ArcData::Radius { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => {
             violation(state, Verb::ArcTo)
         }
