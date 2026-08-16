@@ -53,9 +53,29 @@ fn corrupt(what: &'static str) -> BooleanError {
 /// boundary edges' own certified boxes (the axial coordinate is
 /// linear, so its face extremes lie on the boundary), widened by the
 /// full radius in EVERY coordinate (deliberately loose; a bigger box
-/// only admits candidates — the conservative direction). Other curved
-/// kinds fall through to the vertex hull only if they reach here at
-/// all (the operand gate refuses them first).
+/// only admits candidates — the conservative direction).
+///
+/// **KNOWN GAP — `Nurbs` faces reach the vertex-hull fallthrough and
+/// the hull is NOT a superset for them.** This doc used to say other
+/// curved kinds "fall through to the vertex hull only if they reach
+/// here at all (the operand gate refuses them first)". That is no
+/// longer true: [`super::reduce::gate_planar`] admits
+/// `Surface::Nurbs(_)`, and a patch's interior bulges past the hull of
+/// its boundary vertices exactly as a sphere's belly bulges past its
+/// poles — the same reasoning the `Cylinder` and `Sphere` arms above
+/// are written to respect. So this function can currently hand
+/// `Bvh::overlapping` a box that prunes a pair the exact predicate
+/// would have examined, which breaks the conservative-superset
+/// contract (see the module docs) and turns what should be
+/// `curved_face_arm`'s typed refusal into a silently wrong result.
+/// [`edge_box`] already guards the matching case by poisoning its
+/// `Nurbs` arm; this one has no such arm. The sound constructor exists
+/// unused: `geom_surfaces::boxes::nurbs_surface_aabb` returns the
+/// control-net hull. Reachable today via **Union** with a lofted
+/// operand (`boolean_op_with` refuses non-planar operands only for
+/// Subtract and Intersect); no corpus document exercises it, which is
+/// why it has not bitten. `tests/m5_pr8_bvh_diff.rs` cannot catch it —
+/// every scenario there is built from planar bricks.
 pub(super) fn face_box<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
