@@ -184,7 +184,11 @@ discipline() {
     rc=1
   fi
   # Compound Bounds allowlist (ratified 2026-07-29; geom-core real.rs
-  # Bounds scope rule) — mirror of the hosted step. topo/props.rs is
+  # Bounds scope rule) — mirror of the hosted step. `chart_region.rs`
+  # (M9-2 PR-1's chart-region overlap predicate) was ratified into
+  # ci.yml's copy but not this one, so this row was red locally while
+  # hosted was green; the entry is synced here with the reasoning left
+  # where it was written, in ci.yml. topo/props.rs is
   # the M5 PR 11 certified-quadrature seam (Evan's lane-split ruling);
   # sweep/src/fillet/{battery,build}.rs is the M5 PR 12 fillet-battery
   # seam, ratified under that same ruling because its margins are
@@ -241,7 +245,8 @@ discipline() {
     | grep -vE '^crates/profile/src/test_support\.rs$' \
     | grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
     | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' \
-    | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' || true)
+    | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
+    | grep -vE '^crates/topo/src/chart_region\.rs$' || true)
   if [ -n "$bhits" ]; then
     echo "$bhits"
     echo "ERROR: compound Bounds bound outside the ratified seams — see geom-core/src/real.rs (Bounds scope rule)"
@@ -269,6 +274,20 @@ discipline() {
     | grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
     | grep -vE ':[0-9]+:\s*//'; then
     echo "ERROR: bit-identity punning outside the sanctioned seam (geom-core/src/bit_identity.rs)"
+    rc=1
+  fi
+  # No ambient environment in the kernel — mirror of ci.yml's step of
+  # the same name; see it for the NURBS_PROBE back channel this was
+  # written for and for why the two allowlisted knobs are ratified.
+  # `env!` is compile-time and deliberately not matched.
+  ehits=$(grep -rPn '\benv::vars?(_os)?\s*\(' crates/*/src --include='*.rs' \
+    | grep -vE ':[0-9]+:\s*(//|///|//!)' \
+    | cut -d: -f1 | sort -u \
+    | grep -vE '^crates/geom-core/src/tolerance\.rs$' \
+    | grep -vE '^crates/test-utils/src/fuzz\.rs$' || true)
+  if [ -n "$ehits" ]; then
+    echo "$ehits"
+    echo "ERROR: kernel crate reads the environment at runtime — a back channel into shipped code (NURBS_PROBE was exactly this); arm by an explicit call behind a feature, or ratify into the allowlist"
     rc=1
   fi
   return $rc
