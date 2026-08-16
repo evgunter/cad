@@ -104,28 +104,27 @@ fn re_arm<T: Decide + Bounds>(core: &mut Core<T>) -> Result<(), PathError<T>> {
 /// out exactly as the fused verbs would have recorded it.
 fn attach_arrival<T: Decide>(core: &mut Core<T>, spec2: ArcData<T>) -> Result<(), PathError<T>> {
     match core.program.last_mut() {
-        Some(step @ Step::Fillet { .. }) => {
-            let Step::Fillet { radius } = *step else {
-                unreachable!()
-            };
-            *step = Step::FilletArc {
-                radius,
-                spec: spec2,
-            };
-            Ok(())
-        }
-        Some(step @ Step::ArcFillet { .. }) => {
-            let Step::ArcFillet { spec, radius } = step.clone() else {
-                unreachable!()
-            };
-            *step = Step::ArcFilletArc {
-                spec,
-                radius,
-                spec2,
-            };
-            Ok(())
-        }
-        _ => Err(PathError::OverdeterminedJunction {
+        Some(step) => match *step {
+            Step::Fillet { radius } => {
+                *step = Step::FilletArc {
+                    radius,
+                    spec: spec2,
+                };
+                Ok(())
+            }
+            Step::ArcFillet { spec, radius } => {
+                *step = Step::ArcFilletArc {
+                    spec,
+                    radius,
+                    spec2,
+                };
+                Ok(())
+            }
+            _ => Err(PathError::OverdeterminedJunction {
+                site: "retired arc-carrier arrival without a recorded fillet step",
+            }),
+        },
+        None => Err(PathError::OverdeterminedJunction {
             site: "retired arc-carrier arrival without a recorded fillet step",
         }),
     }
