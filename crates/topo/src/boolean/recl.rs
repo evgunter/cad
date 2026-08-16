@@ -68,7 +68,7 @@ fn require_same<T: Decide>(
     let id = super::PlaneIdentity {
         s1: g1.as_ref(),
         s2: g2.as_ref(),
-        declared: declared.contains(o1, s1.face, o2, s2.face),
+        declared: declared.declares_rest(o1, s1.face, o2, s2.face),
     };
     match super::oriented_plane_eq(&plane_of(body1, s1)?, &plane_of(body2, s2)?, id, arm, band) {
         Ok(PlaneRelation::Distinct) => Err(BooleanError::ClassificationInvariant {

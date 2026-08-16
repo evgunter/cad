@@ -167,11 +167,14 @@ fn false_rest_declaration_contradicts_at_the_lane() {
     // The lie: bot's bottom cap (z = 0, outward −z) declared
     // coincident with top's top cap (z = 2, outward +z) — opposite
     // orientation, definitely-distinct planes.
-    decls.coincident_faces.push((bot.bottom_face, top.top_face));
+    decls.coincident_faces.push(topo::FacePairDeclaration::rest(
+        bot.bottom_face,
+        top.top_face,
+    ));
     let err = union_with(&bot.body, &top.body, &decls).unwrap_err();
     assert!(
-        matches!(err, BooleanError::DeclarationContradicted { .. }),
-        "false REST declaration must contradict at the lane: {err:?}"
+        matches!(err, BooleanError::ContactContradicted { .. }),
+        "false REST declaration must contradict, naming the class and the margin: {err:?}"
     );
 }
 

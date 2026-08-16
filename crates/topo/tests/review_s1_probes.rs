@@ -121,12 +121,13 @@ fn probe_near_miss_false_declaration_contradicts() {
             .map(|(k, _)| k)
             .unwrap()
     };
-    decls
-        .coincident_faces
-        .push((side_of(&bot.body, 0.0), side_of(&top.body, 0.0625)));
+    decls.coincident_faces.push(topo::FacePairDeclaration::rest(
+        side_of(&bot.body, 0.0),
+        side_of(&top.body, 0.0625),
+    ));
     let err = union_with(&bot.body, &top.body, &decls).unwrap_err();
     assert!(
-        matches!(err, BooleanError::DeclarationContradicted { .. }),
+        matches!(err, BooleanError::ContactContradicted { .. }),
         "near-miss false declaration must contradict: {err:?}"
     );
 }
