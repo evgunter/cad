@@ -227,10 +227,8 @@ pub fn document() -> CorpusDoc {
         origin: [len(0.0), len(0.0), len(0.0)],
         direction: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    // v4: die_pips' declared-subdivision half-disc (LIB-SWITCH §5-1
-    // fallback; see die_pips for the measurement note).
-    let quarter = std::f64::consts::FRAC_PI_8.tan();
-    let half_disc = half_disc_program(quarter);
+    // die_pips' half-disc: the bulge-1 semicircle closed on-axis.
+    let half_disc = half_disc_program();
     let ball_p = r.insert(Node::Profile(ProfileProgram {
         plane: SketchPlane::from_frame(
             Point3::new(0.0, 0.0, 0.0),
@@ -303,8 +301,8 @@ pub fn document() -> CorpusDoc {
     }
 }
 
-/// The half-disc loop PROGRAM (die_pips' twin, same deviation notes).
-fn half_disc_program(quarter: f64) -> LoopProgram {
+/// The half-disc loop PROGRAM (die_pips' twin).
+fn half_disc_program() -> LoopProgram {
     let lpt = |x: f64, y: f64| {
         [
             editor_core::Expr::literal(x, editor_core::Dimension::Length).unwrap(),
@@ -314,10 +312,9 @@ fn half_disc_program(quarter: f64) -> LoopProgram {
     LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, -PIP_R)),
         ProgramStep::ArcTo {
-            target: ProgramTarget::Point(lpt(PIP_R, 0.0)),
-            bulge: editor_core::Expr::literal(quarter, editor_core::Dimension::Scalar).unwrap(),
+            target: ProgramTarget::Point(lpt(0.0, PIP_R)),
+            bulge: editor_core::Expr::literal(1.0, editor_core::Dimension::Scalar).unwrap(),
         },
-        ProgramStep::ArcContinue(lpt(0.0, PIP_R)),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])
 }
