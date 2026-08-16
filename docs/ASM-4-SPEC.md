@@ -90,3 +90,26 @@ As ASM-2B-SPEC's, verbatim (OUTPUT DISCIPLINE; foreground rows;
 poll harness-backgrounded output files; kill by recorded PID only;
 local-scripts/ tooling; merge-before-open; confirm checks start;
 invariant comments; commit+push per unit).
+
+## D-2 amendment (adjudicated at review, ordinal 40, 2026-08-16)
+
+The shipped shape is RATIFIED over the original text (reviewer
+verified both premises true on the spec text; restore-as-written
+would duplicate material): the remainder receives **ONE**
+`InstantiatePart` for the whole cut — per-cluster instances of the
+one new document would materialize every other cluster's product
+N times, and D-2's two placement sentences ("placements move to
+the new doc" vs "placed at the cluster's old frame") conflict for
+a single frame. Resolution: a cut of EXACTLY ONE cluster hoists
+the cluster frame onto the remainder instance (part placements
+identity); any other cut moves placements verbatim and the
+instance sits at identity. Riders: (i) for non-adjacent
+multi-cluster cuts, the cut roots collapse onto the instance's
+root position, so inline restores the root SET and relative order
+of the spliced block but not the original interleaving — within
+D-4's ratified identity (census + bit-volumes + name
+re-resolution; root order is unnamed there), stated and pinned by
+test; (ii) under A12 (post-dates this unit), when mates make
+clusters multi-node the hoist predicate keys on "exactly one
+CLUSTER", never "exactly one instantiate node" — R2-a's keying
+migration owns the re-check.
