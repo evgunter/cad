@@ -24,13 +24,14 @@ mod fixture;
 
 use editor_core::{
     Attr, CancelToken, Dimension, DocEdit, DocParam, EntityKind, EvalOptions, Expr, LoopProgram,
-    MetaValue, Node, NodeResult, ParamName, PersistError, ProfileDoc, ProfileProgram, ProgramStep,
-    ProgramTarget, Rgba8, RoleSeg, StableName, WitnessDatum, apply, evaluate, load, save,
+    MetaValue, Node, NodeResult, ParamName, PersistError, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, Rgba8, RoleSeg, StableName, WitnessDatum, apply,
+    evaluate, load, save,
 };
 use fixture::desc;
 
-const GOLDEN: &str = include_str!("golden/v8_golden.cad");
-const GOLDEN_PATH: &str = "tests/golden/v8_golden.cad";
+const GOLDEN: &str = include_str!("golden/v9_golden.cad");
+const GOLDEN_PATH: &str = "tests/golden/v9_golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
@@ -74,10 +75,10 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     d.loops = vec![LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, 0.0)),
         ProgramStep::LineTo(ProgramTarget::Point(lpt(2.0, 0.0))),
-        ProgramStep::ArcTo {
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
             target: ProgramTarget::Point(lpt(2.0, 1.0)),
-            bulge: Expr::literal(0.25, Dimension::Scalar).expect("finite"),
-        },
+            b: Expr::literal(0.25, Dimension::Scalar).expect("finite"),
+        }),
         ProgramStep::LineTo(ProgramTarget::Point(lpt(0.0, 1.0))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])];

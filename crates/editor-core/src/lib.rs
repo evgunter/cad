@@ -32,6 +32,7 @@ pub mod persist;
 pub mod placement;
 pub mod product;
 pub mod program;
+pub mod refactor;
 pub mod resolve;
 pub mod roots;
 pub mod witness;
@@ -63,7 +64,10 @@ pub use names::{
     declare, declare_all, declare_node, denotation, edge_frame, face_frame, find_flush_candidates,
     select, select_where, vertex_position,
 };
-pub use node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId, StepArg};
+pub use node::{
+    Axis3, BooleanOp, Datum, InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId,
+    SlotId, StepArg,
+};
 pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
@@ -74,9 +78,10 @@ pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use placement::Frame;
 pub use product::{ProductError, product, product_named};
 pub use program::{
-    LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramRefusal, ProgramStep,
-    ProgramTarget, RecordedProgramError,
+    LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
+    ProgramStep, ProgramTarget, RecordedProgramError,
 };
+pub use refactor::{InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split};
 pub use resolve::{
     Diagnosis, FlipSet, HitTestError, MeshPatchKey, NodeVerdictDelta, PredicateDivergence,
     RecipeEditRef, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, Resolved,

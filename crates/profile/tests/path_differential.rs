@@ -841,11 +841,19 @@ fn eye_arc_by_arc_fillet_matches_loopbuilder_fillet_corner() {
     let tip = 0.75f64.sqrt();
     let r = 0.25;
     let algebra = Open
-        .at_on(p2(0.0, -tip), p2(-0.5, 0.0), ArcSweep::Ccw)
-        .unwrap()
-        .fillet(r)
-        .unwrap()
-        .to_on(Start, p2(0.5, 0.0), ArcSweep::Ccw)
+        .arc_fillet_arc(
+            profile::Center {
+                c: p2(-0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(0.0, -tip),
+            },
+            r,
+            profile::Center {
+                c: p2(0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
+        )
         .unwrap();
     let algebra = pinned(algebra);
     let hand = recorded(
@@ -931,9 +939,14 @@ fn line_by_arc_carrier_fillet_matches_loopbuilder_fillet_corner() {
         .at(p2(0.0, 0.0))
         .toward(1.0, 0.0)
         .unwrap()
-        .fillet(r)
-        .unwrap()
-        .to_on(Start, centre, ArcSweep::Ccw)
+        .fillet_arc(
+            r,
+            profile::Center {
+                c: centre,
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
+        )
         .unwrap();
     let algebra = pinned(algebra);
     let hand = recorded(
@@ -953,9 +966,14 @@ fn the_advance_gate_discards_the_root_at_the_incoming_anchor() {
         .at(p2(0.0, 0.0))
         .toward(1.0, 0.0)
         .unwrap()
-        .fillet(0.3)
-        .unwrap()
-        .to_on(Start, p2(2.0, -2.0), ArcSweep::Ccw)
+        .fillet_arc(
+            0.3,
+            profile::Center {
+                c: p2(2.0, -2.0),
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
+        )
         .unwrap();
     let lowered = pinned(lowered);
     // Vertex 1 is the trim point on the straight side: it must sit
@@ -991,11 +1009,18 @@ fn straight_arrival_off_an_arc_departure_matches_loopbuilder_fillet_corner() {
     let centre = p2(0.0, 0.0);
     let r = 0.5;
     let algebra = Open
-        .at_on(p2(5.0, 0.0), centre, ArcSweep::Ccw)
+        .arc_fillet(
+            profile::Center {
+                c: centre,
+                winding: ArcSweep::Ccw,
+                p: p2(5.0, 0.0),
+            },
+            r,
+        )
         .unwrap()
-        .fillet(r)
+        .at(p2(0.0, 3.0))
         .unwrap()
-        .at_toward(p2(0.0, 3.0), -1.0, 0.0)
+        .toward(-1.0, 0.0)
         .unwrap()
         .line(3.0)
         .unwrap()

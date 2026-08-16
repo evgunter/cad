@@ -29,7 +29,7 @@
 //!    original join refusal stands).
 //! 2. **Lane door**: every declared face pair is verified through
 //!    [`super::oriented_plane_eq`]'s declared rung — a false
-//!    declaration refuses [`BooleanError::DeclarationContradicted`]
+//!    declaration refuses [`BooleanError::ContactContradicted`]
 //!    here, never a silent no-op. Opposite-oriented verified pairs
 //!    name the REST-contact surfaces.
 //! 3. **Undo the scaffolding**: the classification's null-edge struts
@@ -72,6 +72,7 @@
 use geom_core::{Band, Bounds, Decide, Margin, Sign};
 use slotmap::SecondaryMap;
 
+use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
 use super::ops::{
     Descendants, KeyView, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
@@ -82,9 +83,10 @@ use super::reduce::{face_plane, face_plane_source};
 use super::zip::{ZipReport, zip_seam};
 use super::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
-    BooleanReduction, BooleanResult, BooleanResultKind, Operand, OperandKeys,
+    BooleanReduction, BooleanResult, BooleanResultKind, FacePairDeclaration, Operand, OperandKeys,
 };
 use crate::body::Body;
+use crate::contact::ContactClass;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
@@ -124,7 +126,7 @@ struct Segment {
 ///
 /// # Errors
 ///
-/// [`BooleanError`] — [`BooleanError::DeclarationContradicted`] for
+/// [`BooleanError`] — [`BooleanError::ContactContradicted`] for
 /// false declarations at the lane door,
 /// [`BooleanError::RestZipUnsupported`] for named sub-frontiers, and
 /// the shared output-stage refusals.
@@ -497,10 +499,105 @@ pub fn flush_pair_relation<T: Decide>(
     Some(super::oriented_plane_eq(&pa, &pb, id, T::one(), band))
 }
 
+/// The face's **oriented carrier description** — the curved
+/// generalization of [`face_plane`], folding the face's sense into
+/// the material side exactly as that door does (S10).
+///
+/// `None` for a surface kind outside the `Rest` ladder's inventory
+/// (cone, torus, NURBS): the C4 table names plane, sphere and
+/// cylinder, and a kind it cannot compare refuses typed at the caller
+/// rather than being approximated by one it can.
+pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
+    let f = body.get_face(face)?;
+    let sign = f.sense_sign::<T>();
+    // `sense` is the material-side bit: true means the face's outward
+    // normal IS the chart normal, which for a sphere/cylinder chart
+    // points away from the centre/axis. Read as a BIT, never as a
+    // comparison on `T` — the scalar backends order intervals, not
+    // signs (S10's exact-bit discipline).
+    let outward = f.sense;
+    match body.get_surface(f.surface) {
+        Some(geom_surfaces::Surface::Plane { origin, normal, .. }) => Some(CarrierDesc::Plane {
+            origin: *origin,
+            normal: *normal * sign,
+        }),
+        Some(geom_surfaces::Surface::Sphere { center, radius, .. }) => Some(CarrierDesc::Sphere {
+            center: *center,
+            radius: *radius,
+            outward,
+        }),
+        Some(geom_surfaces::Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        }) => Some(CarrierDesc::Cylinder {
+            origin: *origin,
+            axis: *axis,
+            radius: *radius,
+            outward,
+        }),
+        _ => None,
+    }
+}
+
+/// **The one carrier-pair door**: [`flush_pair_relation`] for every
+/// carrier kind the `Rest` table names.
+///
+/// Same descriptions-plus-identity construction, same verification
+/// arm (**1 m**, living here and nowhere else), same shared-by-
+/// construction contract between the verify-at-use site and the
+/// detector's candidate-generation mode — only the carrier kind
+/// widens. The planar case reaches exactly the same numbers it
+/// reached before ([`mod@super::carrier_eq`]'s plane arm delegates), so
+/// this door is a superset of the old one rather than a replacement
+/// for it.
+///
+/// `None`: a face whose surface kind is outside the ladder's
+/// inventory — there is no description to compare.
+pub fn carrier_pair_relation<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    declared: bool,
+    band: Band,
+) -> Option<Result<CarrierRelation, CarrierEqError>> {
+    Some(carrier_pair_verdict(a, fa, b, fb, declared, band)?.map(|(rel, _)| rel))
+}
+
+/// [`carrier_pair_relation`] plus the AQ6 trilean — the door the
+/// CONTACT verification uses, since only a caller that can see the
+/// bridged residue can enforce C4's "trusted exactly there" invariant.
+/// One traversal, two projections.
+pub fn carrier_pair_verdict<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    declared: bool,
+    band: Band,
+) -> Option<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>> {
+    let (ca, cb) = (face_carrier(a, fa)?, face_carrier(b, fb)?);
+    let (ga, gb) = (face_plane_source(a, fa), face_plane_source(b, fb));
+    let id = PlaneIdentity {
+        s1: ga.as_ref(),
+        s2: gb.as_ref(),
+        declared,
+    };
+    Some(super::carrier_eq::carrier_eq_verdict(
+        &ca,
+        &cb,
+        id,
+        T::one(),
+        band,
+    ))
+}
+
 /// Verifies every declared face pair through the declared rung and
 /// returns the opposite-oriented (REST-contact) surface sets per
 /// operand. A definitely-distinct declared pair is the typed
-/// [`BooleanError::DeclarationContradicted`] — a false REST
+/// [`BooleanError::ContactContradicted`] — a false REST
 /// declaration refuses at the lane, never a silent no-op.
 fn verify_declared_pairs<T: Decide>(
     a: &Body<T>,
@@ -510,14 +607,18 @@ fn verify_declared_pairs<T: Decide>(
 ) -> Result<RestSurfaces, BooleanError> {
     let mut a_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
     let mut b_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
-    for &(fa, fb) in &decls.coincident_faces {
+    for &FacePairDeclaration { a: fa, b: fb, .. } in &decls.coincident_faces {
         // The one flush-pair door ([`flush_pair_relation`]): oriented
         // sources, sense-folded descriptions, and the verification
         // arm all live inside it — shared with the LIB-SEL2 detector
         // by construction.
-        let relation = flush_pair_relation(a, fa, b, fb, true, band).ok_or(
+        // The generalized door: planar pairs reach exactly the numbers
+        // the plane ladder always reached (its plane arm delegates),
+        // and a curved declared pair is verified rather than being
+        // silently outside the lane.
+        let relation = carrier_pair_relation(a, fa, b, fb, true, band).ok_or(
             BooleanError::ClassificationInvariant {
-                what: "REST lane: a declared face lost its plane",
+                what: "REST lane: a declared face lost its carrier",
             },
         )?;
         match relation {
@@ -544,14 +645,30 @@ fn verify_declared_pairs<T: Decide>(
                 });
             }
             Err(PlaneEqError::Contradicted(diag)) => {
-                return Err(BooleanError::DeclarationContradicted { diag });
+                // C4's verify-at-use: the refusal names the pair, the
+                // CLASS that was claimed and the margin that decided —
+                // and steers to the class that would fit when the
+                // counter-evidence is a separation (AQ6).
+                return Err(BooleanError::ContactContradicted {
+                    declaration: crate::contact::DeclaredContact {
+                        a: fa,
+                        b: fb,
+                        class: ContactClass::Rest,
+                    },
+                    steer: super::contact_verify::fit_steer(&diag),
+                    margin: diag,
+                });
             }
             Err(PlaneEqError::Escalated(diag)) => {
                 return Err(BooleanError::Escalated { diag });
             }
-            Err(PlaneEqError::Undeclared(diag)) => {
+            Err(PlaneEqError::Undeclared { diag, relation }) => {
                 // Unreachable with declared=true; refuse loudly anyway.
-                return Err(BooleanError::UndeclaredCoincidence { diag });
+                return Err(BooleanError::UndeclaredCoincidence {
+                    diag,
+                    pair: [(Operand::A, fa), (Operand::B, fb)],
+                    relation,
+                });
             }
         }
     }

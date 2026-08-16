@@ -48,7 +48,9 @@ fn thin_profile_doc() -> ProfileDoc {
             // v4: the thin bulge authors as an arc_to step with its
             // AUTHORED bulge (the program stores exactly the value the
             // retired form stored on the vertex).
-            use editor_core::{Dimension, Expr, LoopProgram, ProgramStep, ProgramTarget};
+            use editor_core::{
+                Dimension, Expr, LoopProgram, ProgramArcData, ProgramStep, ProgramTarget,
+            };
             let lpt = |x: f64, y: f64| {
                 [
                     Expr::literal(x, Dimension::Length).unwrap(),
@@ -61,10 +63,10 @@ fn thin_profile_doc() -> ProfileDoc {
                 ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 0.0))),
                 ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 1.0))),
                 // The (1,1) → (0,1) segment's thin bulge.
-                ProgramStep::ArcTo {
+                ProgramStep::ArcTo(ProgramArcData::Bulge {
                     target: ProgramTarget::Point(lpt(0.0, 1.0)),
-                    bulge: Expr::literal(2e-6, Dimension::Scalar).unwrap(),
-                },
+                    b: Expr::literal(2e-6, Dimension::Scalar).unwrap(),
+                }),
                 ProgramStep::LineTo(ProgramTarget::Start),
             ])];
             d

@@ -51,6 +51,8 @@ mod projectbox;
 mod rocker;
 mod scalar;
 mod skinned;
+#[cfg(feature = "budget")]
+mod tessbudget;
 mod tube;
 mod uvdump;
 mod walls;
@@ -427,10 +429,111 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
     )
 }
 
+/// Walks the tour in order, handing every scene to `visit`.
+///
+/// This is the **one** enumeration of what the tour contains: the
+/// render pass walks it, and so does the `tess-budget` sweep
+/// (`tessbudget`). A scene cannot appear in one and be missing from
+/// the other, which is the drift a second hand-maintained list would
+/// guarantee.
+///
+/// A visitor rather than a `Vec<Stop>` because the tour is LAZY on
+/// purpose. Several scene constructors narrate as they build (the
+/// coincidence ladder, the mated-union doors, the stable-name count),
+/// and returning a fully built list would print all of that up front,
+/// detached from the stops it belongs to. Building each group as it is
+/// reached also keeps one group's bodies alive at a time, and lets the
+/// project box hand its body to the cutaway exactly as it always has.
+fn walk_tour(visit: &mut dyn FnMut(&Stop)) {
+    for stop in bodies::stops() {
+        visit(&stop);
+    }
+
+    println!("\n-- the rocker plate (M5 S2/S8: fillets on arc legs, the branch PICKED) --");
+    for stop in rocker::stops() {
+        visit(&stop);
+    }
+
+    println!("\n-- the die (M5 PR 12: rolling-ball fillets, and the pips) --");
+    for stop in diefillet::stops() {
+        visit(&stop);
+    }
+
+    println!(
+        "\n-- the fairy lantern (Calochortus pulchellus): a plant, at the kernel's frontier --"
+    );
+    for stop in lily::stops() {
+        visit(&stop);
+    }
+    lily::wall_probes::<f64>();
+
+    println!("\n-- the Klein bottle: a non-orientable surface, three bodies deep --");
+    for stop in klein::stops() {
+        visit(&stop);
+    }
+    klein::wall_probes::<f64>();
+
+    println!("\n-- the tilted cut (M5 PR 5's exact ellipse; RENDERING since PR 11) --");
+    for stop in curvedcut::stops() {
+        visit(&stop);
+    }
+
+    println!("\n-- boss ∪ plate (M5 PR 9's first transverse curved boolean, visible) --");
+    for stop in bossplate::stops() {
+        visit(&stop);
+    }
+
+    skinned::narration();
+    for stop in skinned::stops() {
+        visit(&stop);
+    }
+
+    println!("\n-- the tube door (M6-3 Leg F: a torus from its INTENT parameters) --");
+    for stop in tube::stops() {
+        visit(&stop);
+    }
+
+    println!("\n-- the boolean leg (M3): union / subtract / intersect, planar-only --");
+    for stop in bool_bodies::stops() {
+        visit(&stop);
+    }
+    bool_bodies::voidbox_narration();
+
+    println!("\n-- silhouettes (the first `intersect` in the tour) --");
+    for stop in letterforms::stops() {
+        visit(&stop);
+    }
+
+    println!("\n-- A x Z (#93's acceptance case, building since #108) --");
+    for stop in az::stops() {
+        visit(&stop);
+    }
+
+    println!("\n-- the cross-lap joint (#90's boolean-of-boolean, made visible) --");
+    for stop in crosslap::stops() {
+        visit(&stop);
+    }
+
+    println!("\n-- the project box (the longest boolean-of-boolean chain) --");
+    let (box_stop, box_body) = projectbox::stop();
+    visit(&box_stop);
+
+    println!("\n-- the cutaway (the first `topo::split` in the tour) --");
+    for stop in cutaway::stops(&box_body) {
+        visit(&stop);
+    }
+
+    println!("\n-- the heat sink (the M4 recipe layer: edit, recompute, stable names) --");
+    for stop in heatsink::stops() {
+        visit(&stop);
+    }
+}
+
 fn main() {
-    let outdir = std::env::args()
-        .nth(1)
-        .expect("usage: demo-tour <outdir> | demo-tour k-probe [out.csv]");
+    let outdir = std::env::args().nth(1).expect(
+        "usage: demo-tour <outdir> | demo-tour k-probe [out.csv] | \
+                 demo-tour tess-budget [out.csv] [--deviation]",
+    );
     // The K-telemetry mode (M4 PR 8b): rebuild every scene at the
     // recording scalar and dump the margin CSV — see `probe`.
     //
@@ -455,6 +558,27 @@ fn main() {
         );
         std::process::exit(2);
     }
+    // The tessellation-budget sweep (issue #320) — see `tessbudget`.
+    // Behind the `budget` feature for the same reason `k-probe` is
+    // behind `probe`: the recording half of `mesh::budget` is gated at
+    // its module boundary, so without the feature there is no meter to
+    // arm — and this mode says that instead of writing an empty CSV.
+    #[cfg(feature = "budget")]
+    if outdir == "tess-budget" {
+        let rest: Vec<String> = std::env::args().skip(2).collect();
+        let deviation = rest.iter().any(|a| a == "--deviation");
+        tessbudget::run(rest.into_iter().find(|a| !a.starts_with("--")), deviation);
+        return;
+    }
+    #[cfg(not(feature = "budget"))]
+    if outdir == "tess-budget" {
+        eprintln!(
+            "demo-tour: `tess-budget` needs the `budget` feature \
+             (cargo run --release --features budget -- tess-budget [out.csv] \
+             [--deviation]); scripts/tess_budget_sweep.sh passes it."
+        );
+        std::process::exit(2);
+    }
     std::fs::create_dir_all(&outdir).expect("create outdir");
     let mut manifest = String::new();
     let mut scenes: Vec<String> = Vec::new();
@@ -468,88 +592,7 @@ fn main() {
 
     println!("B-rep kernel demo tour — sweeps, booleans, split, and the M4 recipe layer");
     println!("==========================================================================");
-    for stop in bodies::stops() {
-        run(&stop);
-    }
-
-    println!("\n-- the rocker plate (M5 S2/S8: fillets on arc legs, the branch PICKED) --");
-    for stop in rocker::stops() {
-        run(&stop);
-    }
-
-    println!("\n-- the die (M5 PR 12: rolling-ball fillets, and the pips) --");
-    for stop in diefillet::stops() {
-        run(&stop);
-    }
-
-    println!(
-        "\n-- the fairy lantern (Calochortus pulchellus): a plant, at the kernel's frontier --"
-    );
-    for stop in lily::stops() {
-        run(&stop);
-    }
-    lily::wall_probes::<f64>();
-
-    println!("\n-- the Klein bottle: a non-orientable surface, three bodies deep --");
-    for stop in klein::stops() {
-        run(&stop);
-    }
-    klein::wall_probes::<f64>();
-
-    println!("\n-- the tilted cut (M5 PR 5's exact ellipse; RENDERING since PR 11) --");
-    for stop in curvedcut::stops() {
-        run(&stop);
-    }
-
-    println!("\n-- boss ∪ plate (M5 PR 9's first transverse curved boolean, visible) --");
-    for stop in bossplate::stops() {
-        run(&stop);
-    }
-
-    skinned::narration();
-    for stop in skinned::stops() {
-        run(&stop);
-    }
-
-    println!("\n-- the tube door (M6-3 Leg F: a torus from its INTENT parameters) --");
-    for stop in tube::stops() {
-        run(&stop);
-    }
-
-    println!("\n-- the boolean leg (M3): union / subtract / intersect, planar-only --");
-    for stop in bool_bodies::stops() {
-        run(&stop);
-    }
-    bool_bodies::voidbox_narration();
-
-    println!("\n-- silhouettes (the first `intersect` in the tour) --");
-    for stop in letterforms::stops() {
-        run(&stop);
-    }
-
-    println!("\n-- A x Z (#93's acceptance case, building since #108) --");
-    for stop in az::stops() {
-        run(&stop);
-    }
-
-    println!("\n-- the cross-lap joint (#90's boolean-of-boolean, made visible) --");
-    for stop in crosslap::stops() {
-        run(&stop);
-    }
-
-    println!("\n-- the project box (the longest boolean-of-boolean chain) --");
-    let (box_stop, box_body) = projectbox::stop();
-    run(&box_stop);
-
-    println!("\n-- the cutaway (the first `topo::split` in the tour) --");
-    for stop in cutaway::stops(&box_body) {
-        run(&stop);
-    }
-
-    println!("\n-- the heat sink (the M4 recipe layer: edit, recompute, stable names) --");
-    for stop in heatsink::stops() {
-        run(&stop);
-    }
+    walk_tour(&mut run);
 
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");

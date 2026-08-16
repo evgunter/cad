@@ -1,0 +1,199 @@
+//! The detect/declare protocol's value vocabulary (LIB-PYG5, audit
+//! G5): `FlushFinding` and its evidence enums, crossing Rust → Python.
+//!
+//! A finding is a REPORT — `Evaluation.find_flush_candidates` answers
+//! with these values, the caller INSPECTS them, and `Node.declare` /
+//! `Doc.declare` / `Doc.declare_all` turn inspected findings into the
+//! shipped `Declare` vocabulary (SELECT-DESIGN §3; the no-fusion
+//! boundary is kept across the language boundary: no door here both
+//! detects and declares). The same value also rides the boolean's
+//! refusal MENU: an `EvaluationError` with `kind ==
+//! "undeclared_contact"` carries one as its `finding` attribute
+//! (register R3 — the recourse is in the error).
+//!
+//! The pair's names cross as the SAME opaque texts every other door
+//! speaks (`doc::name_text`) — the ordinal-28 contract: a name is an
+//! identifier to store and hand back, never parsed. Nothing here
+//! requires reading inside one: the finding itself is what
+//! `Node.declare` consumes, typed.
+
+use pyo3::prelude::*;
+
+use crate::py::doc::name_text;
+use pncad::select as s;
+use pncad::topo::PlaneRelation as KPlaneRelation;
+
+/// The verify door's relation verdict a finding's evidence carries.
+#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq)]
+#[allow(
+    missing_docs,
+    reason = "each variant mirrors the documented `topo::PlaneRelation` variant of the same name"
+)]
+pub(crate) enum PlaneRelation {
+    SameOriented,
+    SameOpposite,
+    Distinct,
+}
+
+/// The contact class a finding would verify as (CONTACT-DESIGN C4).
+#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq)]
+#[allow(
+    missing_docs,
+    reason = "each variant mirrors the documented `editor_core::ContactClass` variant of the same name"
+)]
+pub(crate) enum ContactClass {
+    Rest,
+}
+
+/// Which rung of the verify ladder decided a finding.
+#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq)]
+#[allow(
+    missing_docs,
+    reason = "each variant mirrors the documented `editor_core::FlushRung` variant of the same name"
+)]
+pub(crate) enum FlushRung {
+    SharedSource,
+    DecidedCoincident,
+}
+
+/// One flush-plane finding: "this face pair would verify as declared
+/// contact" — a VALUE to inspect and pass to `Node.declare` /
+/// `Doc.declare` / `Doc.declare_all`, never itself a declaration.
+///
+/// `a` and `b` are the pair's names as opaque text (`a` from the
+/// query's first node, `b` from its second); `relation` is the verify
+/// door's own verdict (`SameOpposite` = resting contact, opposed
+/// outward normals; `SameOriented` = flush walls, the merge-stage
+/// flavor); `class_` names the C4 contact class (trailing underscore:
+/// `class` is a Python keyword — the `or_` precedent); `rung` says
+/// which ladder rung decided (`SharedSource` = syntactic recipe
+/// identity, `DecidedCoincident` = the geometric trilean).
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct FlushFinding(pub(crate) s::FlushFinding);
+
+/// Crossing helper: the kernel relation as the Python mirror.
+pub(crate) fn plane_relation(rel: KPlaneRelation) -> PlaneRelation {
+    match rel {
+        KPlaneRelation::SameOriented => PlaneRelation::SameOriented,
+        KPlaneRelation::SameOpposite => PlaneRelation::SameOpposite,
+        KPlaneRelation::Distinct => PlaneRelation::Distinct,
+    }
+}
+
+/// Crossing helper: the kernel contact class as the Python mirror.
+///
+/// `ContactClass` is `#[non_exhaustive]` kernel-side (Tangent/Fit are
+/// reserved, not built), so unlike the other mirrors the wildcard arm
+/// is FORCED on this crate and the compile-time drift alarm is
+/// unavailable; a kernel class this binding does not know refuses
+/// typed HERE rather than crossing mislabeled. The pin in
+/// `src/tests.rs` (`contact_class_rest_is_the_whole_v1_vocabulary`)
+/// is the alarm that a new class needs a real mirror.
+pub(crate) fn contact_class(py: Python<'_>, class: s::ContactClass) -> PyResult<ContactClass> {
+    match class {
+        s::ContactClass::Rest => Ok(ContactClass::Rest),
+        other => Err(crate::py::typed_err(
+            py,
+            crate::errors::ErrorClass::Select,
+            format!("a contact class this binding predates: {other:?}"),
+            &[(
+                "reason",
+                pyo3::types::PyString::new(py, "unclassified")
+                    .unbind()
+                    .into_any(),
+            )],
+        )),
+    }
+}
+
+/// Crossing helper: the kernel rung as the Python mirror.
+pub(crate) fn flush_rung(rung: s::FlushRung) -> FlushRung {
+    match rung {
+        s::FlushRung::SharedSource => FlushRung::SharedSource,
+        s::FlushRung::DecidedCoincident => FlushRung::DecidedCoincident,
+    }
+}
+
+#[pymethods]
+impl FlushFinding {
+    /// The pair's first name (the query's `a` node side), as the
+    /// opaque name text.
+    #[getter]
+    fn a(&self, py: Python<'_>) -> PyResult<String> {
+        name_text(py, &self.0.pair.0)
+    }
+
+    /// The pair's second name (the query's `b` node side).
+    #[getter]
+    fn b(&self, py: Python<'_>) -> PyResult<String> {
+        name_text(py, &self.0.pair.1)
+    }
+
+    /// The verify door's relation verdict.
+    #[getter]
+    fn relation(&self) -> PlaneRelation {
+        plane_relation(self.0.evidence.relation)
+    }
+
+    /// The C4 contact class the pair would verify as.
+    #[getter]
+    fn class_(&self, py: Python<'_>) -> PyResult<ContactClass> {
+        contact_class(py, self.0.class)
+    }
+
+    /// Which ladder rung decided.
+    #[getter]
+    fn rung(&self) -> FlushRung {
+        flush_rung(self.0.evidence.rung)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.0)
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+/// **Kernel-growth tripwires** (the `select.rs` precedent): exhaustive
+/// matches over the KERNEL enums, no wildcard arm, never called — a
+/// kernel variant this module does not mirror stops the
+/// `python`-feature build here. `ContactClass` is absent by necessity
+/// (`#[non_exhaustive]` forces a wildcard); its replacement alarm is
+/// the typed refusal in [`contact_class`] plus the `src/tests.rs` pin.
+#[allow(
+    dead_code,
+    reason = "compile-time exhaustiveness tripwires; the match is the check, no caller needed"
+)]
+mod growth_tripwire {
+    use super::{FlushRung, KPlaneRelation, PlaneRelation, s};
+
+    fn plane_relation(k: KPlaneRelation) -> PlaneRelation {
+        match k {
+            KPlaneRelation::SameOriented => PlaneRelation::SameOriented,
+            KPlaneRelation::SameOpposite => PlaneRelation::SameOpposite,
+            KPlaneRelation::Distinct => PlaneRelation::Distinct,
+        }
+    }
+
+    fn flush_rung(k: s::FlushRung) -> FlushRung {
+        match k {
+            s::FlushRung::SharedSource => FlushRung::SharedSource,
+            s::FlushRung::DecidedCoincident => FlushRung::DecidedCoincident,
+        }
+    }
+}
+
+/// Register the detect/declare value vocabulary on the module.
+pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PlaneRelation>()?;
+    m.add_class::<ContactClass>()?;
+    m.add_class::<FlushRung>()?;
+    m.add_class::<FlushFinding>()?;
+    Ok(())
+}

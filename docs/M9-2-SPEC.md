@@ -73,7 +73,12 @@ never refactors them** (no shared-code merge surface with M9-1).
 
 1. **Census arms beyond exact-on-planar**: CurveContact certified
    per C3's jet schedule (M9-1's certifier); PatchContact
-   certified through PR-1's predicate; `Declared::index` grows
+   certified through PR-1's predicate; **the certified-lane
+   tangent-locus geometry rides here** (closed-form:
+   plane-on-cylinder ruling, parallel cylinders — beside
+   carrier_pair_relation; the M9-1 PR-2 DEV-1 ruling, 2026-08-16;
+   the LIB flush-detector arm for Tangent is its named follow-up
+   once this helper exists); `Declared::index` grows
    face-granularity keys; `confirm_declarations` (two-directional)
    extends verbatim; `UndeclaredContact` reach extended with the
    kernel finding type (M9-1's layering ruling).

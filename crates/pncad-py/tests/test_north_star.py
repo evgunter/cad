@@ -18,6 +18,7 @@ from pathlib import Path
 from pncad import (
     ArcSweep,
     BooleanOp,
+    ContactClass,
     CurveKind,
     Doc,
     DocEdit,
@@ -31,6 +32,7 @@ from pncad import (
     Open,
     ParamName,
     PathError,
+    PlaneRelation,
     SegPat,
     SegTag,
     Selector,
@@ -61,6 +63,37 @@ def slab(doc, x, y, z):
         )
     )
     return doc.insert(Node.extrude(profile, (z[1] - z[0]) * m))
+
+
+def projectbox(doc):
+    """Tour scene `projectbox` (demos/tour/src/projectbox.rs): 15 ops
+    over 16 boxes — cavity, six vent slots, four bosses, four pilot
+    pockets. Shared by the volume-oracle row and the `cutaway` row,
+    which splits exactly this body."""
+    body = slab(doc, (0, 3), (0, 2), (0, 1.5))
+    body = doc.insert(
+        Node.boolean(BooleanOp.Subtract, body, slab(doc, (0.25, 2.75), (0.25, 1.75), (0.25, 2.0)))
+    )
+    for x in [(0.5, 0.875), (1.3125, 1.6875), (2.125, 2.5)]:
+        for y in [(-0.25, 0.5), (1.5, 2.25)]:
+            body = doc.insert(
+                Node.boolean(BooleanOp.Subtract, body, slab(doc, x, y, (0.5, 1.25)))
+            )
+    bx = [(0.4375, 0.8125), (2.1875, 2.5625)]
+    by = [(0.4375, 0.8125), (1.1875, 1.5625)]
+    for x in bx:
+        for y in by:
+            body = doc.insert(
+                Node.boolean(BooleanOp.Union, body, slab(doc, x, y, (0.1875, 0.875)))
+            )
+    for x in bx:
+        for y in by:
+            px = (x[0] + 0.09375, x[1] - 0.09375)
+            py = (y[0] + 0.09375, y[1] - 0.09375)
+            body = doc.insert(
+                Node.boolean(BooleanOp.Subtract, body, slab(doc, px, py, (0.5625, 1.0625)))
+            )
+    return body
 
 
 def volume_of(doc, node):
@@ -136,29 +169,7 @@ class TestProjectbox(unittest.TestCase):
 
     def test_projectbox_matches_the_exact_dyadic_oracle(self):
         doc = Doc()
-        body = slab(doc, (0, 3), (0, 2), (0, 1.5))
-        body = doc.insert(
-            Node.boolean(BooleanOp.Subtract, body, slab(doc, (0.25, 2.75), (0.25, 1.75), (0.25, 2.0)))
-        )
-        for x in [(0.5, 0.875), (1.3125, 1.6875), (2.125, 2.5)]:
-            for y in [(-0.25, 0.5), (1.5, 2.25)]:
-                body = doc.insert(
-                    Node.boolean(BooleanOp.Subtract, body, slab(doc, x, y, (0.5, 1.25)))
-                )
-        bx = [(0.4375, 0.8125), (2.1875, 2.5625)]
-        by = [(0.4375, 0.8125), (1.1875, 1.5625)]
-        for x in bx:
-            for y in by:
-                body = doc.insert(
-                    Node.boolean(BooleanOp.Union, body, slab(doc, x, y, (0.1875, 0.875)))
-                )
-        for x in bx:
-            for y in by:
-                px = (x[0] + 0.09375, x[1] - 0.09375)
-                py = (y[0] + 0.09375, y[1] - 0.09375)
-                body = doc.insert(
-                    Node.boolean(BooleanOp.Subtract, body, slab(doc, px, py, (0.5625, 1.0625)))
-                )
+        body = projectbox(doc)
 
         # The scene's own running oracle, term for term:
         #   9 - 2.5*1.5*1.25                     the cavity
@@ -219,7 +230,7 @@ class TestPlateParam(unittest.TestCase):
 
     FIXTURE = (
         Path(__file__).resolve().parents[3]
-        / "crates" / "pncad" / "tests" / "plate_param.v8.pncad"
+        / "crates" / "pncad" / "tests" / "plate_param.v9.pncad"
     )
 
     def plate(self):
@@ -1233,6 +1244,150 @@ class TestRocker(unittest.TestCase):
         self.assertEqual(self.outline().step_count, 12)
 
 
+class TestTable(unittest.TestCase):
+    """Corpus scene `corner_table` (row 21): the corner-aligned
+    four-leg table, authored through the DETECT/DECLARE protocol from
+    Python (LIB-PYG5, G5) exactly as the Rust corpus authors it
+    (`editor-core/tests/corpus/table.rs`): per leg, evaluate the
+    document so far, `find_flush_candidates` between the accumulated
+    body and the new leg, INSPECT the findings (the counts below are
+    that inspection), `Doc.declare_all`, and wire the Declare id into
+    the union. Nothing is fused; nothing parses a name.
+
+    Exact oracles, derived as the corpus derives them (dyadic):
+    volume = top 4·3·0.25 = 3, plus per leg 0.5·0.5·1.125 = 0.28125
+    minus the slab overlap 0.5·0.5·0.125 = 0.03125 ⇒ +0.25 each ⇒
+    4.0. Area = 27.5 + 4·2.75 − 4·0.625 (interior boundary removed
+    per union) − 4·0.125 (double-counted coplanar wall overlap) =
+    35.5. The finding inventory per leg is 2, 4, 5, 7: two corner
+    wall planes each, plus every earlier leg's floor plane, plus one
+    inner-wall plane per same-side earlier leg — all flush walls, the
+    merge-stage SameOriented flavor."""
+
+    def test_table_builds_through_detect_declare_and_matches_the_oracles(self):
+        doc = Doc()
+        top = slab(doc, (0, 4), (0, 3), (1, 1.25))
+        legs = [
+            ((0.0, 0.5), (0.0, 0.5)),
+            ((3.5, 4.0), (0.0, 0.5)),
+            ((3.5, 4.0), (2.5, 3.0)),
+            ((0.0, 0.5), (2.5, 3.0)),
+        ]
+        acc = top
+        for i, (x, y) in enumerate(legs):
+            leg = slab(doc, x, y, (0, 1.125))
+            # The protocol: evaluate, detect, INSPECT, declare —
+            # findings pass through the author's hands as values.
+            ev = evaluate(doc)
+            findings = ev.find_flush_candidates(acc, leg)
+            self.assertEqual(len(findings), [2, 4, 5, 7][i])
+            for f in findings:
+                self.assertEqual(f.relation, PlaneRelation.SameOriented)
+                self.assertEqual(f.class_, ContactClass.Rest)
+            decl = doc.declare_all(findings)
+            acc = doc.insert(Node.boolean(BooleanOp.Union, acc, leg, declare=decl))
+        ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(acc))
+        body = ev.value(acc).body()
+        body.validate()
+        props = body.mass_properties()
+        # Dyadic scene: both oracles hold EXACTLY, as the Rust corpus
+        # pins them (4.0 / 35.5).
+        self.assertEqual(props.volume, 4.0)
+        self.assertEqual(props.surface_area, 35.5)
+
+
+class TestCrosslapGlued(unittest.TestCase):
+    """Tour scene `crosslap` (row 28): the two notched beams MATED.
+    Undeclared, the mate refuses at the coincidence door — since
+    register R3 as the typed MENU (`kind == "undeclared_contact"`,
+    the candidate declaration attached). The recourse the menu names
+    is executed: detect, INSPECT (the joint's mate is the
+    resting-contact class — the notch floor/ceiling and the four
+    crossing walls, all `SameOpposite`), declare, and the SAME union
+    glues through the declared-REST zip at the scene's exact oracle
+    2·(BEAM_VOL − NOTCH_VOL) = 1.875 (`demos/tour/src/crosslap.rs`
+    asserts the same both ways).
+
+    The inspection step EARNS ITS KEEP here, and honestly: the
+    detector also reports the beams' coplanar exteriors (bottoms at
+    z=0, tops at z=0.5 — `SameOriented`, the merge-stage flavor), and
+    declaring the BOTTOM pairs trips a document-layer naming-emitter
+    wall (`kind == "naming"`) after the kernel glues fine — a
+    measured residue pinned below, not hidden. The scene's statement
+    (the mate) needs none of those pairs; its oracle holds exactly."""
+
+    def beams(self, doc):
+        beam_a = doc.insert(
+            Node.boolean(
+                BooleanOp.Subtract,
+                slab(doc, (0, 4), (1.75, 2.25), (0, 0.5)),
+                slab(doc, (1.75, 2.25), (1.5, 2.5), (0.25, 0.75)),
+            )
+        )
+        beam_b = doc.insert(
+            Node.boolean(
+                BooleanOp.Subtract,
+                slab(doc, (1.75, 2.25), (0, 4), (0, 0.5)),
+                slab(doc, (1.5, 2.5), (1.75, 2.25), (-0.25, 0.25)),
+            )
+        )
+        return beam_a, beam_b
+
+    def test_the_mate_refuses_undeclared_then_glues_declared(self):
+        doc = Doc()
+        beam_a, beam_b = self.beams(doc)
+        naive = doc.insert(Node.boolean(BooleanOp.Union, beam_a, beam_b))
+        ev = evaluate(doc)
+        self.assertFalse(ev.succeeded(naive))
+        with self.assertRaises(EvaluationError) as caught:
+            ev.value(naive)
+        self.assertEqual(caught.exception.kind, "undeclared_contact")
+        menu = caught.exception.finding
+        self.assertIsNotNone(menu)
+
+        # The menu's declare arm, executed: the detector reports the
+        # joint's whole flush inventory, the menu's own finding among
+        # them. The INSPECTION narrows to the mate itself — the
+        # resting-contact class, a typed field, no name ever read:
+        # the notch floor/ceiling and the four crossing walls.
+        findings = ev.find_flush_candidates(beam_a, beam_b)
+        self.assertIn(menu, findings)
+        mate = [f for f in findings if f.relation == PlaneRelation.SameOpposite]
+        self.assertEqual(len(mate), 5)
+        decl = doc.declare_all(mate)
+        glued = doc.insert(
+            Node.boolean(BooleanOp.Union, beam_a, beam_b, declare=decl)
+        )
+        # 2·(4·0.5·0.5 − 0.5·0.5·0.25) = 1.875, exactly (dyadic).
+        self.assertEqual(volume_of(doc, glued), 1.875)
+
+    def test_the_merge_stage_bottom_declaration_hits_the_naming_wall(self):
+        """The measured residue, pinned so its fall is loud: declare
+        the detector's FULL inventory — mate plus the merge-stage
+        `SameOriented` exteriors — and the kernel glues, but the
+        boolean node still fails in the document layer's NAMING
+        emitter (the bottom-plane pairs: one beam-A face merging with
+        one of beam B's two coplanar bottom halves). When this test
+        fails with the union succeeding, the wall has fallen — flip
+        this scene's declaration back to the whole inventory and drop
+        the inspection narrowing above."""
+        doc = Doc()
+        beam_a, beam_b = self.beams(doc)
+        ev = evaluate(doc)
+        findings = ev.find_flush_candidates(beam_a, beam_b)
+        self.assertEqual(len(findings), 9)
+        decl = doc.declare_all(findings)
+        glued = doc.insert(
+            Node.boolean(BooleanOp.Union, beam_a, beam_b, declare=decl)
+        )
+        ev = evaluate(doc)
+        self.assertFalse(ev.succeeded(glued))
+        with self.assertRaises(EvaluationError) as caught:
+            ev.value(glued)
+        self.assertEqual(caught.exception.kind, "naming")
+
+
 class TestCrosslapExploded(unittest.TestCase):
     """Tour scene `crosslap_exploded` (row 29): two notched beams, the
     second LIFTED clear so the joint reads. The lift was the whole
@@ -1292,8 +1447,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
-                "boolean", "datum_axis", "datum_plane", "extrude", "fillet",
-                "loft", "polygon", "profile", "revolve", "split", "transform",
+                "boolean", "datum_axis", "datum_plane", "declare", "extrude",
+                "fillet", "loft", "polygon", "profile", "revolve", "split",
+                "transform",
             ],
         )
         self.assertEqual(
@@ -1311,13 +1467,18 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `test_the_selector_surface_narrows_without_reading_names`
         # are the positive forms; `select`/`select_where` are
         # `Evaluation` METHODS (the materializer posture `all_edges`
-        # set), so the module-level absence below is shape, not gap.
+        # set), so the module-level absence below is shape, not gap —
+        # and `find_flush_candidates` joined them when G5 closed
+        # (LIB-PYG5): the detector is an `Evaluation` method too
+        # (`TestTable`/`TestCrosslapGlued` are the positive forms).
         # `StableName` stays: a name is CARRIED as text, never
-        # composed, so there is no name type and no name grammar.
+        # composed, so there is no name type and no name grammar —
+        # a `FlushFinding`'s pair crosses as the same opaque texts.
         for door in [
             "tessellate", "Mesh", "write_stl",        # mesh + STL
             "select", "select_where",                 # methods, not module doors
-            "StableName", "find_flush_candidates",    # names, detect/declare
+            "find_flush_candidates",                  # method, not a module door
+            "StableName",                             # names stay text
         ]:
             with self.subTest(door=door):
                 self.assertFalse(hasattr(pncad, door), f"{door} is now bound")
@@ -1330,11 +1491,13 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `fillet`, `split` and `transform` left it when LIB-PYBUNDLE
         # closed G4/G6/G7 — the positive forms are `TestDiefillet`,
         # `TestTiltedcut` and `TestCrosslapExploded`/`TestDiepips`.
+        # `declare` left it when LIB-PYG5 closed G5 — the positive
+        # forms are `TestTable` and `TestCrosslapGlued`.
         # `sweep` and `tube` STAY: `wire_sweep` refuses unconditionally
         # (SWEEP_FRONTIER, the path-composition lane banked past M6),
         # and no `Node::Tube` exists at all. `pattern` stays for the
         # measured reason below.
-        for node_kind in ["sweep", "tube", "pattern", "declare"]:
+        for node_kind in ["sweep", "tube", "pattern"]:
             with self.subTest(node=node_kind):
                 self.assertFalse(hasattr(Node, node_kind), f"Node.{node_kind} exists")
 
@@ -1410,13 +1573,24 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             [],
         )
 
-    def test_a_split_through_boolean_minted_faces_still_refuses(self):
-        """G14, the gap `cutaway` now waits on — measured, not
-        guessed. `Node.split` names a cut through PASS-THROUGH faces
-        fine; a cut that crosses a face the boolean itself minted
-        refuses in the naming emitter, so the tour's cutaway (a tilted
-        plane through the project box's cavity) has no document
-        spelling even though `topo::split` does the geometry."""
+    def test_a_split_whose_section_re_enters_one_face_now_names(self):
+        """G14, CLOSED (LIB-G14) — and the diagnosis this test used to
+        carry was WRONG, which is the more useful half of the finding.
+
+        The name said "through boolean-minted faces"; measurement
+        (cad-work/g14-survey.md) found TWO disjoint M4-era walls, and
+        the one this scene hits has nothing to do with booleans. A
+        split ACROSS boolean-minted faces named fine all along. What
+        refused was a section line that re-enters ONE operand face —
+        an inner loop, or any non-convex face — because
+        `RoleSeg::SectionEdge{side, face}` names a chord only by the
+        face it crosses, so a face crossed twice would mint one name
+        twice. The walls read as one refusal because `NamingError` had
+        no `Display` (#380).
+
+        Both are gone: the chords become an N2 TIE (A2, ratified on
+        #512), and a tied upstream entry PROPAGATES instead of
+        refusing the whole op (B1)."""
         doc = Doc()
         box = slab(doc, (0, 3), (0, 2), (0, 1.5))
         cavity = slab(doc, (0.25, 0.75), (0.25, 0.75), (0.25, 2.0))
@@ -1425,15 +1599,50 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         clear = doc.insert(Node.datum_plane((2.5 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0)))
         through = doc.insert(Node.datum_plane((0.5 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0)))
         ok = doc.insert(Node.split(hollow, clear))
-        refused = doc.insert(Node.split(hollow, through))
+        was_refused = doc.insert(Node.split(hollow, through))
 
         ev = evaluate(doc)
-        above, below = ev.value(ok).split()
+        for node in (ok, was_refused):
+            above, below = ev.value(node).split()
+            self.assertIsNotNone(above)
+            self.assertIsNotNone(below)
+
+    def test_the_cutaway_scene_has_a_document_spelling(self):
+        """Tour scene `cutaway` (demos/tour/src/cutaway.rs), audit row
+        31 — the row LIB-G14 flips.
+
+        The scene runs `topo::split` KERNEL-level on the 15-op boolean
+        project box with a tilted plane (normal (0.75, 0.1875, 1) — no
+        axis alignment, crossing cavity floor, bosses and vents), then
+        moves the halves apart. The geometry always worked; what did
+        not exist was the DOCUMENT spelling, because `Node.split` on
+        that boolean refused at name emission. Here is that spelling,
+        with the scene's exact plane, and the names it now mints."""
+        doc = Doc()
+        box = projectbox(doc)
+        tool = doc.insert(
+            Node.datum_plane((1.5 * m, 1.0 * m, 0.75 * m), (0.75, 0.1875, 1.0))
+        )
+        cut = doc.insert(Node.split(box, tool))
+
+        ev = evaluate(doc)
+        above, below = ev.value(cut).split()
         self.assertIsNotNone(above)
         self.assertIsNotNone(below)
-        with self.assertRaises(EvaluationError) as caught:
-            ev.value(refused)
-        self.assertEqual(caught.exception.kind, "naming")
+
+        # The split vocabulary is reachable from Python over the cut,
+        # which is what "names end to end" means here: the emitter is
+        # TOTAL, not merely non-refusing.
+        def count(kind, tag):
+            return len(
+                ev.select(cut, Selector.of(NamePat.of_kind(kind).seg(SegPat.tag(tag))))
+            )
+
+        self.assertEqual(count(EntityKind.Body, SegTag.SplitBody), 2)
+        self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 8)
+        self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 32)
+        self.assertEqual(count(EntityKind.Face, SegTag.SplitFragment), 32)
+        self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 48)
 
     def test_the_rocker_outline_is_authorable(self):
         """G12, CLOSED (LIB-LBRET) — the flip of the absence this test

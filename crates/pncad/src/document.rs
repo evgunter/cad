@@ -123,8 +123,24 @@ pub use editor_core::{
     Frame, PartFault, PartResolver, ResolveFailure, ResolveFault, product_named,
 };
 
+// Split and inline (ASM-4; ASSEMBLY-DESIGN A4): the first-class
+// recorded refactorings. `split` cuts a closed node set out into a new
+// document (identity supplied by the caller — `DocumentId::derive` or
+// `workspace::random_document_id`) and leaves an instance behind;
+// `inline` splices a referenced document back in through a
+// `PartResolver`. Both return the new document VALUES plus the
+// ordinary recorded edits producing them; persistence of the results
+// is the workspace write side (`workspace::Workspace::create` /
+// `resave`). `InterfaceRecord`/`InterfaceCrossing` are the split
+// seam's crossing-declaration record — uninhabited-empty in v1, the
+// hook R2's mates extend.
+pub use editor_core::{
+    InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
+    SplitOutcome, inline, split,
+};
+
 // The profile description node type and its document alias.
 pub use editor_core::{
-    LoopProgram, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecordedProgramError,
-    StepArg,
+    LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecordedProgramError, StepArg,
 };

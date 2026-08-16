@@ -102,19 +102,15 @@ use crate::names::role::{EntityKind, StableName};
 use crate::names::table::{EntityKey, EntityRef, Entry};
 use crate::node::{Node, RecipeNodeId};
 
-/// The contact class a declaration asserts (CONTACT-DESIGN C4).
+/// The contact class a declaration asserts (CONTACT-DESIGN C4) — a
+/// RE-EXPORT of the kernel's vocabulary, never a parallel enum.
 ///
-/// v1 carries [`Rest`](Self::Rest) — the coincident-plane class, the
-/// only demand-evidenced detector. `Tangent` and `Fit { gap }` are
-/// C4 vocabulary whose detectors have no demand yet; the enum is
-/// `#[non_exhaustive]` so they land additively when it arrives (the
-/// same reserved-not-built posture as convexity, GS-Q2).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum ContactClass {
-    /// Conformal contact: same carrier, gap ≡ 0 (planes, in v1).
-    Rest,
-}
+/// The type is defined in `topo` because the boolean's own contact
+/// refusals must carry the same words the detector produces
+/// (SELECT-DESIGN §3d, "one vocabulary end-to-end") and `topo` cannot
+/// depend on this crate. Everything above re-exports it; nothing
+/// redefines it.
+pub use topo::ContactClass;
 
 /// Which rung of the verify ladder decided a finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -329,13 +325,15 @@ fn tied_disagrees<T: Decide>(
 /// Everything — descriptions, oriented sources, AND the verification
 /// arm — comes from [`flush_pair_relation`], the one door the REST
 /// lane's verify-at-use site also calls (shared BY CONSTRUCTION;
-/// #304 review MINOR-1 retired the hand-mirrored arm). The FIRST call
-/// runs `declared: false` — its `Undeclared` refusal with the
+/// #304 review MINOR-1 retired the hand-mirrored arm). ONE call, in
+/// `declared: false` mode: its `Undeclared` refusal with the
 /// verifier's definite-zero encoding ([`MarginDiag::Invalid`]) is
-/// precisely "would verify if declared"; the SECOND call (same door,
-/// same inputs, `declared: true`) then reports the orientation the
-/// declared rung will decide at use. Deterministic, so the two calls
-/// cannot disagree.
+/// precisely "would verify if declared", and since LIB-PYG5 the
+/// refusal itself carries the orientation the ladder decided — the
+/// same `bool_plane_orient` verdict the declared rung re-decides
+/// deterministically at use, so the carried relation and the
+/// verify-at-use verdict cannot disagree (this retired the second,
+/// `declared: true` call this arm used to make).
 fn probe<T: Decide>(
     ba: &Body<T>,
     fa: FaceKey,
@@ -351,24 +349,19 @@ fn probe<T: Decide>(
         Ok(PlaneRelation::Distinct) => Ok(None),
         // Rung 1 fired: same recipe source, exact verdict.
         Ok(rel) => Ok(Some((rel, FlushRung::SharedSource))),
-        Err(PlaneEqError::Undeclared(diag)) => {
+        Err(PlaneEqError::Undeclared { diag, relation }) => {
             if matches!(diag.margin, MarginDiag::Invalid) {
                 // The verifier's definite-zero-offset encoding (module
-                // docs, residuals): the pair would verify if declared.
-                // Ask the declared rung which orientation it will
-                // verify with at use.
-                match flush_pair_relation(ba, fa, bb, fb, true, band) {
-                    Some(Ok(rel @ (PlaneRelation::SameOriented | PlaneRelation::SameOpposite))) => {
-                        Ok(Some((rel, FlushRung::DecidedCoincident)))
+                // docs, residuals): the pair would verify if declared,
+                // with the orientation the refusal itself carries.
+                match relation {
+                    PlaneRelation::SameOriented | PlaneRelation::SameOpposite => {
+                        Ok(Some((relation, FlushRung::DecidedCoincident)))
                     }
-                    // Unreachable by construction (the undeclared call
-                    // already decided coincident); typed, never silent.
-                    Some(Ok(PlaneRelation::Distinct)) | None => Err(diag),
-                    Some(Err(
-                        PlaneEqError::Undeclared(d)
-                        | PlaneEqError::Escalated(d)
-                        | PlaneEqError::Contradicted(d),
-                    )) => Err(d),
+                    // Unreachable by the variant's contract (an
+                    // Undeclared refusal never carries `Distinct`);
+                    // typed, never silent.
+                    PlaneRelation::Distinct => Err(diag),
                 }
             } else {
                 // In-band coincidence: not definite, not droppable.
