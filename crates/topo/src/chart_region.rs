@@ -1935,4 +1935,289 @@ mod tests {
             }
         }
     }
+
+    // ==================================================================
+    // R1 blinded-review probes (branch kernel/m9-2a-r1-probes; review
+    // evidence only, never for merge into the implementation branch).
+    // ==================================================================
+    mod r1_probes {
+        use super::*;
+
+        // ---- Claim 1: the structural inventory gate cannot be fooled.
+        #[test]
+        fn r1_near_zero_channels_refuse_at_every_magnitude() {
+            for tiny in [1e-300, f64::MIN_POSITIVE, 5e-324, 1e-17, -1e-300] {
+                for (pa, pb) in [
+                    (Vec2::new(tiny, 0.0), Vec2::zero()),
+                    (Vec2::new(0.0, tiny), Vec2::zero()),
+                    (Vec2::zero(), Vec2::new(tiny, 0.0)),
+                    (Vec2::zero(), Vec2::new(0.0, tiny)),
+                ] {
+                    let h = geom_brep::Pcurve::Harmonic {
+                        p0: pt(0.0, 0.0),
+                        pa,
+                        pb,
+                        pl: Vec2::new(1.0, 0.0),
+                    };
+                    assert!(
+                        pcurve_entry(&h, 0.0, 1.0, true).is_err(),
+                        "a {tiny:e} trig channel must refuse typed"
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn r1_negative_zero_is_the_zero_function_and_passes() {
+            // -0.0 == 0.0 in value: the trig term is the exact zero
+            // function, so admitting it is sound (structure, not bits).
+            let h = geom_brep::Pcurve::Harmonic {
+                p0: pt(0.25, 0.5),
+                pa: Vec2::new(-0.0, 0.0),
+                pb: Vec2::new(0.0, -0.0),
+                pl: Vec2::new(1.0, 2.0),
+            };
+            assert_pt(pcurve_entry(&h, 0.5, 1.0, true).unwrap(), 0.75, 1.5);
+        }
+
+        // ---- Claim 2: the same-chart lane is airtight (and its trust
+        // boundary is source attachment, not surface values).
+        #[test]
+        fn r1_value_equal_but_distinct_keys_on_one_body_escalate() {
+            let mut body = Body::<f64>::new();
+            let f1 = sheet(&mut body, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+            let f2 = sheet(&mut body, 1.0, 1.0, 3.0, 3.0, FaceSurface::New(xy_plane()));
+            match chart_region_overlap(&body, f1, &body, f2, band()) {
+                Err(ChartRegionError::ChartDivergence { .. }) => {}
+                other => panic!("value-equal distinct keys must escalate, got {other:?}"),
+            }
+        }
+
+        #[test]
+        fn r1_the_lane_trusts_source_attachment_not_surface_values() {
+            // The SAME minted source attached to value-DIFFERENT plane
+            // descriptions (u_ref x̂ vs ŷ): the lane admits on recipe
+            // identity and charts BOTH faces through body A's surface.
+            // For derive-on-demand plane charts the 3-D carriers are
+            // re-charted against A's description, so the verdict is
+            // still locus-correct; the probe records that N6 attachment
+            // integrity is a kernel-trust premise the module does not
+            // (and per C2 need not) re-verify numerically.
+            let mut a = Body::<f64>::new();
+            let fa = sheet(&mut a, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+            let ka = a.get_face(fa).unwrap().surface;
+            let rotated = Surface::Plane {
+                origin: Point3::origin(),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_y(),
+            };
+            let mut b = Body::<f64>::new();
+            let fb = sheet(&mut b, 1.0, 1.0, 3.0, 3.0, FaceSurface::New(rotated));
+            let kb = b.get_face(fb).unwrap().surface;
+            a.set_surface_source(ka, GeomSource::minted(3, 0)).unwrap();
+            b.set_surface_source(kb, GeomSource::minted(3, 0)).unwrap();
+            assert_eq!(
+                chart_region_overlap(&a, fa, &b, fb, band()).unwrap(),
+                ChartOverlap::PositiveArea
+            );
+        }
+
+        // ---- Claims 3/4: dimensional honesty and the band biting.
+        #[test]
+        fn r1_mm_vs_metre_twins_verdicts_track_the_band_linearly() {
+            // Every chart_region_* margin is metres: scaling geometry
+            // AND band by s must preserve every verdict. A hidden m² or
+            // dimensionless margin flips one of these at s = 1e±3.
+            for s in [1e-3, 1.0, 1e3] {
+                let band_s = Band::new(1e-9 * s, 1e-8 * s).unwrap();
+                let a = face_of(rect(0.0, 0.0, 2.0 * s, 2.0 * s), &[]);
+                let b = face_of(rect(1.0 * s, 1.0 * s, 3.0 * s, 3.0 * s), &[]);
+                assert_eq!(
+                    overlap_of_regions(&a, &b, false, band_s).unwrap(),
+                    ChartOverlap::PositiveArea,
+                    "positive at scale {s}"
+                );
+                let sliver = face_of(rect(2.0 * s - 3e-9 * s, -0.3 * s, 4.0 * s, 2.3 * s), &[]);
+                match overlap_of_regions(&a, &sliver, false, band_s) {
+                    Err(ChartRegionError::Escalated(_)) => {}
+                    other => panic!("sliver at scale {s}: {other:?}"),
+                }
+                let disjoint = face_of(rect(5.0 * s, 5.0 * s, 6.0 * s, 6.0 * s), &[]);
+                assert_eq!(
+                    overlap_of_regions(&a, &disjoint, false, band_s).unwrap(),
+                    ChartOverlap::Empty,
+                    "empty at scale {s}"
+                );
+            }
+        }
+
+        #[test]
+        fn r1_the_area_row_itself_is_three_outcome_under_band_mutation() {
+            // A ring eating the region down to a 3e-9 mean width: every
+            // boundary decision is definite (bit-identical outers ride
+            // the fast path), so the verdict is the AREA row's alone.
+            let d = 3e-9;
+            let holed = face_of(
+                rect(0.0, 0.0, 2.0, 2.0),
+                &[vec![
+                    pt(0.0, 0.0),
+                    pt(0.0, 2.0 - d),
+                    pt(2.0 - d, 2.0 - d),
+                    pt(2.0 - d, 0.0),
+                ]],
+            );
+            let probe = face_of(rect(0.0, 0.0, 2.0, 2.0), &[]);
+            // In-band mean width: escalates.
+            match overlap_of_regions(&holed, &probe, false, band()) {
+                Err(ChartRegionError::Escalated(_)) => {}
+                other => panic!("in-band net area must escalate, got {other:?}"),
+            }
+            // Tighter band: the same margin is definite — the row bites.
+            let tight = Band::new(1e-12, 1e-11).unwrap();
+            assert_eq!(
+                overlap_of_regions(&holed, &probe, false, tight).unwrap(),
+                ChartOverlap::PositiveArea
+            );
+        }
+
+        #[test]
+        fn r1_the_shipped_sliver_certifies_below_the_band_and_escalates_in_it() {
+            let a = face_of(rect(0.0, 0.0, 1.0, 1.0), &[]);
+            let b = face_of(rect(1.0 - 3e-9, -0.3, 2.0, 1.3), &[]);
+            let tight = Band::new(1e-11, 1e-10).unwrap();
+            assert_eq!(
+                overlap_of_regions(&a, &b, false, tight).unwrap(),
+                ChartOverlap::PositiveArea
+            );
+            match overlap_of_regions(&a, &b, false, band()) {
+                Err(ChartRegionError::Escalated(_)) => {}
+                other => panic!("in-band sliver must escalate, got {other:?}"),
+            }
+        }
+
+        // ---- Claim 5: the seam gate is metred by the azimuth arm.
+        #[test]
+        fn r1_the_radius_lever_meters_the_seam_row_three_ways() {
+            let tau = core::f64::consts::TAU;
+            // One geometry, three radii: excess 3e-12 rad reads as
+            // 3e-9 m (in-band), 3e-15 m (inside one branch), 3e-6 m
+            // (definite branch divergence) purely through the r arm.
+            let a = uv_of(rect(0.0, 0.0, 1e-3, 1.0));
+            let b = uv_of(rect(tau - 1e-3, 0.0, tau + 3e-12, 1.0));
+            match seam_gate(&cyl_surface(1000.0), &a, &b, band()) {
+                Err(ChartRegionError::Escalated(_)) => {}
+                other => panic!("in-band seam excess must escalate, got {other:?}"),
+            }
+            seam_gate(&cyl_surface(1e-3), &a, &b, band()).unwrap();
+            match seam_gate(&cyl_surface(1e6), &a, &b, band()) {
+                Err(ChartRegionError::SeamBranch) => {}
+                other => panic!("definite seam excess must refuse, got {other:?}"),
+            }
+        }
+
+        // ---- Claim 7: adversarial clip-walk configurations.
+        #[test]
+        fn r1_shared_height_disjoint_rectangles_answer_empty() {
+            // B's corners sit on A's edge LINES (the rectangle-corner
+            // configuration): a Zero cross-span with a definite Negative
+            // elsewhere must read as no-crossing — Negative-first — and
+            // the collinear-disjoint lane must not refuse.
+            let a = face_of(rect(0.0, 0.0, 1.0, 1.0), &[]);
+            let b = face_of(rect(2.0, 0.0, 3.0, 1.0), &[]);
+            assert_eq!(
+                overlap_of_regions(&a, &b, false, band()).unwrap(),
+                ChartOverlap::Empty
+            );
+        }
+
+        #[test]
+        fn r1_a_rotated_square_clips_to_the_octagon() {
+            let a = rect(-1.0, -1.0, 1.0, 1.0);
+            let b = vec![pt(1.5, 0.0), pt(0.0, 1.5), pt(-1.5, 0.0), pt(0.0, -1.5)];
+            let crossings = proper_crossings(&a, &b, band()).unwrap();
+            assert_eq!(crossings.len(), 8);
+            let pieces = intersection_pieces(&a, &b, &crossings).unwrap();
+            assert_eq!(pieces.len(), 1, "one octagon piece");
+            let (a2, _) = loop_measures(&pieces[0]);
+            // 2A = 2·(4 − 4·0.125) = 7 exactly (dyadic coordinates).
+            assert!((a2 - 7.0).abs() < 1e-12, "octagon 2A, got {a2}");
+        }
+
+        #[test]
+        fn r1_a_degenerate_spike_overlap_escalates_never_silently() {
+            // A 4e-9-wide needle penetrating 0.5 deep: every crossing
+            // clearance is definite, the piece's mean width is in-band.
+            let (w, x) = (2e-9, 0.5);
+            let a = face_of(rect(0.0, 0.0, 1.0, 1.0), &[]);
+            let spike = face_of(
+                vec![
+                    pt(x - w, -1.0),
+                    pt(x + w, -1.0),
+                    pt(x + w, 0.5),
+                    pt(x - w, 0.5),
+                ],
+                &[],
+            );
+            match overlap_of_regions(&a, &spike, false, band()) {
+                Err(ChartRegionError::Escalated(_)) => {}
+                other => panic!("spike overlap must escalate, got {other:?}"),
+            }
+        }
+
+        #[test]
+        fn r1_a_vertex_touch_on_an_edge_interior_refuses_typed() {
+            let a = face_of(rect(0.0, 0.0, 2.0, 1.0), &[]);
+            let t = face_of(vec![pt(0.5, -1.0), pt(1.5, -1.0), pt(1.0, 0.0)], &[]);
+            match overlap_of_regions(&a, &t, false, band()) {
+                Err(ChartRegionError::TouchingBoundary) => {}
+                other => panic!("apex-on-edge touch must refuse typed, got {other:?}"),
+            }
+        }
+
+        #[test]
+        fn r1_partial_collinear_edge_overlap_refuses_typed() {
+            // Regions on opposite sides sharing a partial edge run.
+            let a = face_of(rect(0.0, 0.0, 2.0, 1.0), &[]);
+            let b = face_of(rect(1.0, -1.0, 3.0, 0.0), &[]);
+            match overlap_of_regions(&a, &b, false, band()) {
+                Err(ChartRegionError::TouchingBoundary) => {}
+                other => panic!("partial shared edge must refuse typed, got {other:?}"),
+            }
+        }
+
+        #[test]
+        fn r1_a_repeated_vertex_polygon_never_answers_silently() {
+            // A zero-length edge reaches proper_crossings ungated: its
+            // parallel row is over_lever(0, 0) = NaN → MarginDiag::
+            // Invalid → Escalated. Fail-loud, never a silent verdict.
+            let dup = vec![
+                pt(0.0, 0.0),
+                pt(1.0, 0.0),
+                pt(1.0, 0.0),
+                pt(1.0, 1.0),
+                pt(0.0, 1.0),
+            ];
+            let a = face_of(dup, &[]);
+            let b = face_of(rect(0.5, 0.5, 1.5, 1.5), &[]);
+            match overlap_of_regions(&a, &b, false, band()) {
+                Err(ChartRegionError::Escalated(_)) => {}
+                other => panic!("degenerate edge must escalate, got {other:?}"),
+            }
+        }
+
+        // ---- Claim 6: replay determinism (same inputs, same verdicts,
+        // crossing walk included).
+        #[test]
+        fn r1_replay_is_bit_deterministic() {
+            let a = face_of(rect(-1.0, -1.0, 1.0, 1.0), &[]);
+            let b = face_of(
+                vec![pt(1.5, 0.0), pt(0.0, 1.5), pt(-1.5, 0.0), pt(0.0, -1.5)],
+                &[],
+            );
+            let first = overlap_of_regions(&a, &b, false, band()).unwrap();
+            for _ in 0..8 {
+                assert_eq!(overlap_of_regions(&a, &b, false, band()).unwrap(), first);
+            }
+        }
+    }
 }
