@@ -143,6 +143,39 @@ amended:
      variance data; its R1-0-MAJOR/R2-2-MAJOR divergence is
      same-model calibration signal, and NO cross-model dual has
      run before the v4 pilots.)
+     **STOPPING RULE AMENDED (2026-08-16, third readout; Evan
+     authorised the update in-chat, conditional on the
+     projection showing six would not suffice — it does not).**
+     Three parts:
+     (a) **Tally correction: 5 of 6, not 4.** Sample #13 (M9-1
+     PR-1, R1 2 MAJ / R2 1 MAJ) also qualifies and had not been
+     folded in.
+     (b) **The same-model variance stream STOPS at 6 as
+     originally written — deliberately NOT extended.** The
+     projection (off-file, `analysis/model-ab/projection.py`)
+     shows the reviewer-noise estimate converging as 1/sqrt(n):
+     at six qualifying pairs its 95% bound still admits an
+     arm-interval widening of up to ~70%, and even thirty pairs
+     would only bring that to ~20%. More same-model pairs
+     therefore change no decision — the more so because the
+     negative-binomial arm fit already absorbs overdispersion
+     using every row rather than a handful of pairs, and because
+     reviewer noise that is independent of the implementer arm
+     (which is exactly what blinding guarantees) cannot bias the
+     arm contrast at all. It only widens it.
+     (c) **NEW pre-registered target, replacing the extension:
+     TWELVE cross-model dual pairs.** All cross-model pairs
+     count, not only MAJOR-bearing ones — a systematic
+     reviewer-model difference shows up in MINOR/NOTE yield too,
+     and those are plentiful. Twelve resolves such a difference
+     to about 1.23x; four pairs only to 1.44x. Complete so far:
+     #10, #12, with #14 pending. **Until the target is met,
+     EVERY dual is cross-model** — v4 item 3's {same-model,
+     cross-model} block alternation is suspended. This is
+     cost-neutral: the every-3rd dual frequency is unchanged,
+     the budget is only re-pointed. The orchestrator recording
+     the twelfth cross-model pair notifies Evan explicitly, as
+     above.
      **Sample numbering follows ORDINALS** (ratified in the
      #398 thread, 2026-08-11, all three programs concurring —
      resolving the concurrent-dispatch collision in which two
