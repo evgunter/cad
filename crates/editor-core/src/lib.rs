@@ -35,6 +35,7 @@ pub mod program;
 pub mod refactor;
 pub mod resolve;
 pub mod roots;
+pub mod update;
 pub mod witness;
 
 pub use appearance::{
@@ -95,6 +96,7 @@ pub use resolve::{
     diff_summaries, verdict_summary,
 };
 pub use roots::RootFault;
+pub use update::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
 pub use witness::{
     BifurcationKind, BranchCertification, BranchMarginEvidence, Implicated, WitnessAge,
     WitnessBifurcation, WitnessDatum,

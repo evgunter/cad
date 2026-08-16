@@ -230,7 +230,7 @@ class TestPlateParam(unittest.TestCase):
 
     FIXTURE = (
         Path(__file__).resolve().parents[3]
-        / "crates" / "pncad" / "tests" / "plate_param.v9.pncad"
+        / "crates" / "pncad" / "tests" / "plate_param.v10.pncad"
     )
 
     def plate(self):

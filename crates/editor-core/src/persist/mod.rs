@@ -192,9 +192,31 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// TYPED at the gate with the regenerate recourse (the v3 precedent),
 /// and the migration table stays empty.
 ///
+/// Version 10 is **edit vocabulary growth** (ASSEMBLY-DESIGN A13,
+/// ratified #544; ASM-UPD D-1): [`crate::DocEdit`] gained the
+/// `UpdateReference` arm, the recorded per-reference pin move. The
+/// edit log is FILE data — a saved document carries its unreplayed
+/// edits — so a new arm is a new wire shape, exactly the case v8
+/// bumped for one level over in the vocabulary. Forward-additive
+/// again (a v9 file contains no `UpdateReference`), and again the
+/// gate buys the other direction: a v10 file handed to a v9 reader
+/// must refuse at the version door rather than reach serde and die on
+/// an unknown variant. A v9 file refuses TYPED with the regenerate
+/// recourse and the migration table stays empty.
+///
+/// **9 was claimed twice, and this is the resolution** — the v7/v8
+/// collision again, and caught the same way. LIB-RESPELL (#531) and
+/// ASM-UPD (#549) each concluded 9 was theirs, each having re-merged
+/// main before the other's bump landed. RESPELL merged first, so v9
+/// is the re-spell and the `UpdateReference` arm takes 10. What made
+/// it visible this time rather than silent: the pattern is now in
+/// this ledger, so ASM-UPD flagged the hazard in its own PR body
+/// BEFORE the collision fired and re-checked the constant by eye at
+/// the merge — which is the discipline the v7/v8 entry asks for.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these eight.
-pub const SCHEMA_VERSION: u32 = 9;
+/// [`migration_step`] entry, or a ratified break like these nine.
+pub const SCHEMA_VERSION: u32 = 10;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
