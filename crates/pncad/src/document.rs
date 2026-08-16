@@ -34,7 +34,9 @@ pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
 // node's operation, distinct from `topo::BooleanOp`, the kernel's.
 // The prelude carries the kernel's and cannot carry both under one
 // name, so this module is where document-layer code spells it.
-pub use editor_core::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
+pub use editor_core::{
+    Axis3, BooleanOp, Datum, Node, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId,
+};
 
 // Expressions and their text door.
 // `ParamEnv` joins them for LIB-SEL1: `select_where` takes one, so a
@@ -138,6 +140,18 @@ pub use editor_core::{
     InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
     SplitOutcome, inline, split,
 };
+
+// The pin-update door (ASM-UPD; ASSEMBLY-DESIGN A13). `DocEdit`'s
+// `UpdateReference` arm is the per-reference primitive;
+// `update_references` is the whole-document ELABORATION over it,
+// returning the ordinary edits and applying none of them (purity =
+// atomicity), and `UpdateError` is its typed refusal. `mixed_pins`
+// is A13 clause 3's multiplicity LINT — a report, never a gate:
+// one entry per referenced id carrying more than one pin
+// (`PinMultiplicity`), each pin listed with the nodes holding it
+// (`PinSites`). The store-facing convenience that computes the new
+// pin from disk is `workspace::update_to_store`.
+pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
 
 // The profile description node type and its document alias.
 pub use editor_core::{

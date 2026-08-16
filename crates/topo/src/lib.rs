@@ -60,7 +60,13 @@
 //! construction history, which the pure-replay model guarantees. The
 //! standing invariant (documented at [`body`]): no arena iteration may
 //! feed a geometry decision unless the construction sequence is itself
-//! deterministic; accordingly this crate contains no `HashMap`/`HashSet`.
+//! deterministic; accordingly this crate contains no `HashMap`/`HashSet`
+//! in any position that can feed a decision. One `HashSet` does exist —
+//! `transform.rs`'s `rewritten` set, which tracks which curve keys the
+//! walk remapped so an orphaned entry is refused as corruption. It is
+//! **membership-only and never iterated**, so no hash order can reach
+//! an output; a `SecondaryMap` would be both cheaper and consistent
+//! with the rule, and is the preferred form for anything new.
 //! Half-edge traversal is **bounded** — the walks cap at the arena
 //! length and fail loud instead of spinning on corrupt input (the kernel
 //! never hangs, D9).
@@ -158,6 +164,7 @@ mod review_m1_pr3;
 mod review_m1_pr4;
 #[cfg(test)]
 mod review_m1_pr5_internal;
+pub mod separation;
 #[cfg(test)]
 pub(crate) mod seqgen;
 pub mod source;
@@ -207,13 +214,17 @@ pub use geom_brep::{
 pub use geom_curves::Curve3;
 pub use geom_surfaces::Surface;
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
-pub use instance::{GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed};
+pub use instance::{
+    GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed,
+    graft_disjoint_all_onto_keyed,
+};
 pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use pcurves::{PcurveMintError, mint_pcurves, pcurve_of};
 pub use props::{MassProperties, MassPropsError, PropsQuadLane, mass_properties};
 pub use provenance::Provenance;
 pub use revert::RevertError;
+pub use separation::{PlacementsMeet, Separation};
 pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
 pub use split::SplitEdgeCreated;
 pub use splitting::{

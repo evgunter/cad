@@ -36,7 +36,7 @@ use profile::ProfileError;
 use sweep::{ExtrudeError, RevolveError, SkinError};
 use topo::splitting::SplitError;
 use topo::transform::TransformError;
-use topo::{Body, BooleanError, BooleanResultKind, ContactRecords};
+use topo::{Body, BooleanError, BooleanResultKind, ContactClass, ContactRecords};
 
 use crate::appearance::{self, AppearanceResolution};
 use crate::doc::Doc;
@@ -248,9 +248,12 @@ pub enum ValuePayload<T: Decide> {
     /// A pattern's instances AS DATA (D3: patterns do not implicitly
     /// union; index `i` is the A8/N1 `Instance(i)` substrate).
     Instances(Vec<Arc<Body<T>>>),
-    /// A Declare node's pairs, passed through as data (D3; threading
-    /// into booleans is PR 5).
-    Declarations(Vec<(StableName, StableName)>),
+    /// A Declare node's pairs with their contact classes, passed
+    /// through as data (D3; the boolean consumes them at its
+    /// `declare` input). The class travels WITH its pair from
+    /// authoring to the kernel door — the one vocabulary end-to-end
+    /// (SELECT-DESIGN §3d).
+    Declarations(Vec<((StableName, StableName), ContactClass)>),
 }
 
 impl<T: Decide> ValuePayload<T> {
@@ -477,6 +480,34 @@ pub enum NodeErrorKind {
         /// The evaluated count.
         count: i64,
     },
+    /// A [`crate::node::Node::PlacedUnion`]'s placements could not be
+    /// CERTIFIED disjoint (GROUP-BOOLEAN-DESIGN, ratified A′): the two
+    /// named copies' conservative boxes meet.
+    ///
+    /// The certificate is sufficient-not-necessary, so this refusal
+    /// covers two situations and does not distinguish them: placements
+    /// that genuinely interfere, and placements that are genuinely
+    /// disjoint but too close for a box test. Budget-class, refinable
+    /// by a sharper predicate later — never a silent maybe, because
+    /// the graft door the union lowers through asserts nothing about
+    /// its operands (#382).
+    PlacementsUncertified {
+        /// The lower placement index.
+        i: usize,
+        /// The higher placement index.
+        j: usize,
+    },
+    /// A placement-rule node's rule is unusable — the count spelled two
+    /// ways, an EMPTY explicit placement list, or a non-finite /
+    /// improper frame.
+    ///
+    /// Unreachable through `apply` (the edit door refuses all four
+    /// there, with the better diagnostics) and through `load` (the
+    /// snapshot check re-refuses them); kept as a typed evaluation
+    /// refusal so a hand-built document fails loudly and BY NAME —
+    /// an empty list must not denote an empty body, and a poisoned
+    /// frame must not read as a separation failure.
+    PlacementRule(crate::node::PlacementRuleFault),
     /// The node is in (or downstream of) a dependency cycle — Kahn
     /// never released it (unreachable through `apply`, refused typed).
     UnschedulableCycle,
@@ -656,6 +687,28 @@ impl core::fmt::Display for NodeErrorKind {
             Self::NonPositiveCount { count } => {
                 write!(f, "pattern count {count} is not at least 1")
             }
+            Self::PlacementsUncertified { i, j } => write!(
+                f,
+                "placements {i} and {j} are not certified disjoint — their conservative boxes meet, \
+                 so the group union cannot be lowered through the disjoint-graft door"
+            ),
+            Self::PlacementRule(fault) => match fault {
+                crate::node::PlacementRuleFault::CountSpelling => f.write_str(
+                    "the placement rule and the count slot disagree about how many placements \
+                     there are",
+                ),
+                crate::node::PlacementRuleFault::NoPlacements => f.write_str(
+                    "the placement list is empty — a group needs at least one placement, exactly \
+                     as a stepped rule needs a count of at least 1",
+                ),
+                crate::node::PlacementRuleFault::NonFiniteFrame { index } => {
+                    write!(f, "placement {index} has a non-finite coordinate")
+                }
+                crate::node::PlacementRuleFault::ImproperFrame { index, determinant } => write!(
+                    f,
+                    "placement {index} is improper (mirroring): determinant {determinant}"
+                ),
+            },
             Self::UnschedulableCycle => {
                 f.write_str("the node is in, or downstream of, a dependency cycle")
             }
@@ -1232,6 +1285,9 @@ where
         Node::Pattern { kind, .. } => match kind {
             PatternKind::Linear { .. } => 12,
             PatternKind::Circular { .. } => 13,
+            // Verified next-free at LIB-PLACEDUNION (the tag-29
+            // lesson: an EXISTING tag never gains a new meaning).
+            PatternKind::Explicit(_) => 19,
         },
         Node::Declare { .. } => 14,
         // M5 PR 10: new tags append — the key's tag space is
@@ -1243,6 +1299,14 @@ where
         Node::Fillet { .. } => 17,
         // ASM-2A.
         Node::InstantiatePart { .. } => 18,
+        // LIB-PLACEDUNION (19 is `Pattern`'s explicit rule, above):
+        // the group boolean, one tag per placement rule, so a rule
+        // change moves the key even when every slot value holds.
+        Node::PlacedUnion { kind, .. } => match kind {
+            PatternKind::Linear { .. } => 20,
+            PatternKind::Circular { .. } => 21,
+            PatternKind::Explicit(_) => 22,
+        },
     };
     h.write_tag(tag);
     // Structural payloads beyond the tag: profile floats and Declare
@@ -1306,9 +1370,34 @@ where
         }
         Node::Declare { pairs } => {
             h.write_u64(pairs.len() as u64);
-            for (a, b) in pairs {
+            for ((a, b), class) in pairs {
                 feed_stable_name(&mut h, a);
                 feed_stable_name(&mut h, b);
+                // The CLASS is part of the node's identity: two
+                // declarations of the same pair under different
+                // classes are different nodes, and a memo keyed
+                // without it would serve a `Rest` answer to a
+                // `Tangent` question. Keys are process-internal, so
+                // this costs a one-time memo invalidation and no
+                // schema.
+                h.write_u64(class.content_tag());
+            }
+        }
+        // LIB-PLACEDUNION: an `Explicit` rule's FRAMES are recipe
+        // payload, not slots (the list is the count, D8-structural),
+        // so they must feed the key by hand or an edited placement
+        // would recompute nothing. Bits, in placement order (D9) —
+        // `0.0` and `-0.0` are different placements to this key,
+        // exactly as they are to `bit_eq`.
+        Node::Pattern { kind, .. } | Node::PlacedUnion { kind, .. } => {
+            if let Some(frames) = kind.placements() {
+                h.write_u64(frames.len() as u64);
+                for x in frames
+                    .iter()
+                    .flat_map(|f| f.columns.iter().flatten().chain(f.translation.iter()))
+                {
+                    h.write_f64_bits(*x);
+                }
             }
         }
         // The fillet SELECTION is recipe payload, not a slot: two

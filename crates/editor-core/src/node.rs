@@ -3,6 +3,11 @@
 //! this data against the kernel ops.
 
 use crate::expr::{Dimension, Expr};
+// The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
+// PR-1). Imported, never redefined: the boolean's own refusals must
+// carry the same words this node authors, and `crate::names::flush`
+// owns the single upward re-export.
+use topo::ContactClass;
 
 /// A stable recipe-node identity (spec D3, NAMING-DESIGN N1's
 /// substrate): minted from `Doc`'s monotone counter at insertion,
@@ -320,6 +325,62 @@ pub enum PatternKind {
         /// Angular step between instances ([`SlotId::Step`]).
         step: Expr,
     },
+    /// Instances at ABSOLUTE frames, listed (GROUP-BOOLEAN-DESIGN,
+    /// ratified A′): the rule vocabulary's non-parametric member, for
+    /// the placements no linear or circular step generates — the die's
+    /// twenty-one pip locations, say.
+    ///
+    /// **The list IS the count.** Order is data and the index is
+    /// D8-structural (it is what `RoleSeg::Instance` indexes), so
+    /// appending a placement changes no existing index. A node carrying
+    /// this rule has NO [`SlotId::Count`] slot: the number of
+    /// placements has exactly one spelling, and the
+    /// two-sources-of-truth state is refused at the edit door rather
+    /// than reconciled there.
+    Explicit(Vec<crate::placement::Frame>),
+}
+
+/// What makes a placement-rule node's rule unusable
+/// ([`Node::placement_rule_fault`]) — one vocabulary for the edit
+/// door, the persist re-check and the evaluation backstop.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PlacementRuleFault {
+    /// The rule and the count slot would answer "how many placements"
+    /// two different ways: an `Explicit` rule paired with a count, a
+    /// stepped rule without one, or an `Explicit` rule on
+    /// [`Node::Pattern`] (whose count is a non-optional field).
+    CountSpelling,
+    /// An `Explicit` rule listing NO placements. The list is the
+    /// count, so this is the explicit rule's `count < 1`.
+    NoPlacements,
+    /// A placement frame with a non-finite coordinate.
+    NonFiniteFrame {
+        /// Its index in the placement list.
+        index: usize,
+    },
+    /// An IMPROPER placement frame — determinant ≤ 0, i.e. a mirror
+    /// (A6). Admitting one is gated on the equivariance audit R4 owns,
+    /// exactly as for a cluster placement.
+    ImproperFrame {
+        /// Its index in the placement list.
+        index: usize,
+        /// The linear part's determinant.
+        determinant: f64,
+    },
+}
+
+impl PatternKind {
+    /// The listed placements when this rule carries its own, `None` for
+    /// the parametric rules (whose count is the structural slot).
+    ///
+    /// The one door every count question goes through, so "how many
+    /// instances" is never answered two ways.
+    pub fn placements(&self) -> Option<&[crate::placement::Frame]> {
+        match self {
+            PatternKind::Explicit(frames) => Some(frames),
+            PatternKind::Linear { .. } | PatternKind::Circular { .. } => None,
+        }
+    }
 }
 
 /// The v1 feature-node payload (ratified F4; spec D3) — pure data.
@@ -497,6 +558,38 @@ pub enum Node<P> {
         /// The replication rule.
         kind: PatternKind,
     },
+    /// **The group boolean** (GROUP-BOOLEAN-DESIGN, ratified A′): ONE
+    /// prototype, a placement rule, ONE BODY OUT — the union of the
+    /// prototype placed at each placement.
+    ///
+    /// A Pattern that fuses, and deliberately NOT a [`PatternKind`] of
+    /// [`Node::Pattern`]: Pattern's N-bodies-unfused output contract
+    /// stays untouched, because forking a node's RESULT TYPE on a
+    /// variant is the silent-dispatch trap D3 forbids. What the two
+    /// share is the rule vocabulary and the naming: per-instance
+    /// discrimination is the ratified `RoleSeg::Instance { i, of }`
+    /// (A8/N1) verbatim, so the vocabulary does not grow and
+    /// "instance 7's cavity face" is one selector row.
+    ///
+    /// Disjointness is CERTIFIED, never declared: one
+    /// [`topo::Separation`] over the prototype, queried per placement
+    /// pair, and the union lowers through the existing
+    /// `graft_disjoint_all_keyed` door — no new kernel op, no new
+    /// kernel naming record. The certificate is sufficient-not-
+    /// necessary, so a BVH-touching-but-genuinely-disjoint arrangement
+    /// refuses honestly rather than passing on a guess.
+    PlacedUnion {
+        /// The prototype placed at every placement.
+        input: RecipeNodeId,
+        /// Placement count — the structural slot ([`SlotId::Count`]) —
+        /// present exactly for the PARAMETRIC rules. `Explicit` carries
+        /// its own placements and derives the count from them, so the
+        /// slot is ABSENT there rather than inert: one number, one
+        /// spelling (the edit door refuses the mismatched states).
+        count: Option<Expr>,
+        /// The placement rule.
+        kind: PatternKind,
+    },
     /// Coincidence-intent pairs by [`StableName`] (F5; resolution is
     /// PR 3/5 — this crate only carries the data).
     ///
@@ -512,8 +605,18 @@ pub enum Node<P> {
     /// delete would force cascade-or-pre-repair, worse than the
     /// typed-failure flow.
     Declare {
-        /// The declared-coincident name pairs.
-        pairs: Vec<(StableName, StableName)>,
+        /// The declared contact pairs, each with the CLASS it asserts
+        /// (CONTACT-DESIGN C4).
+        ///
+        /// The class rides every pair rather than a node-level
+        /// default: a declaration is "these two faces are in contact,
+        /// of THIS kind", and one `Declare` node may carry pairs of
+        /// different kinds. A class-less pair is unrepresentable —
+        /// there is no constructor that omits it and no default to
+        /// fall back to, because defaulting would let a `Tangent`
+        /// intent be verified against the conformal table.
+        #[serde(with = "declare_pairs_wire")]
+        pairs: Vec<((StableName, StableName), ContactClass)>,
     },
     /// An instance of another document's product (ASSEMBLY-DESIGN
     /// A2/A3, ASM-2A D-1): a LEAF — its material crosses the document
@@ -565,6 +668,43 @@ fn comp_mut(v: &mut [Expr; 3], axis: Axis3) -> &mut Expr {
     &mut v[axis.index()]
 }
 
+/// A placement-rule node's slot lookup, shared by [`Node::Pattern`] and
+/// [`Node::PlacedUnion`] — one rule vocabulary, one slot mapping, so
+/// the two nodes can never drift apart on what a slot means.
+///
+/// `count` is the node's structural count slot when it has one.
+/// `Explicit` answers `None` for EVERY slot including `Count`: its
+/// placements are the count and carry no expressions, which is exactly
+/// what [`Node::slots`] reports for it.
+fn rule_expr<'a>(count: Option<&'a Expr>, kind: &'a PatternKind, slot: SlotId) -> Option<&'a Expr> {
+    match (kind, slot) {
+        (PatternKind::Explicit(_), _) => None,
+        (_, SlotId::Count) => count,
+        (PatternKind::Linear { direction, .. }, SlotId::Direction(ax)) => Some(comp(direction, ax)),
+        (PatternKind::Linear { spacing, .. }, SlotId::Spacing) => Some(spacing),
+        (PatternKind::Circular { step, .. }, SlotId::Step) => Some(step),
+        _ => None,
+    }
+}
+
+/// [`rule_expr`]'s mutable twin — same mapping, same `Explicit` rule.
+fn rule_expr_mut<'a>(
+    count: Option<&'a mut Expr>,
+    kind: &'a mut PatternKind,
+    slot: SlotId,
+) -> Option<&'a mut Expr> {
+    match (kind, slot) {
+        (PatternKind::Explicit(_), _) => None,
+        (_, SlotId::Count) => count,
+        (PatternKind::Linear { direction, .. }, SlotId::Direction(ax)) => {
+            Some(comp_mut(direction, ax))
+        }
+        (PatternKind::Linear { spacing, .. }, SlotId::Spacing) => Some(spacing),
+        (PatternKind::Circular { step, .. }, SlotId::Step) => Some(step),
+        _ => None,
+    }
+}
+
 impl<P> Node<P> {
     /// The upstream node references — the recipe DAG's edges (spec
     /// D3). Deterministic order (field order).
@@ -588,7 +728,9 @@ impl<P> Node<P> {
                 v
             }
             Node::Transform { input, .. } => vec![*input],
-            Node::Pattern { input, kind, .. } => {
+            // The two placement-rule nodes take the same edges: the
+            // body, plus the datum a circular rule turns about.
+            Node::Pattern { input, kind, .. } | Node::PlacedUnion { input, kind, .. } => {
                 let mut v = vec![*input];
                 if let PatternKind::Circular { axis, .. } = kind {
                     v.push(*axis);
@@ -639,17 +781,19 @@ impl<P> Node<P> {
                 s.push(SlotId::RotationAngle);
                 s
             }
-            Node::Pattern { kind, .. } => {
-                let mut s = vec![SlotId::Count];
-                match kind {
-                    PatternKind::Linear { .. } => {
-                        s.extend(vec3(SlotId::Direction));
-                        s.push(SlotId::Spacing);
-                    }
-                    PatternKind::Circular { .. } => s.push(SlotId::Step),
+            Node::Pattern { kind, .. } | Node::PlacedUnion { kind, .. } => match kind {
+                PatternKind::Linear { .. } => {
+                    let mut s = vec![SlotId::Count];
+                    s.extend(vec3(SlotId::Direction));
+                    s.push(SlotId::Spacing);
+                    s
                 }
-                s
-            }
+                PatternKind::Circular { .. } => vec![SlotId::Count, SlotId::Step],
+                // The listed placements ARE the rule: no count slot
+                // (the list's length is the count) and no expressions
+                // (the frames are structural data, D8).
+                PatternKind::Explicit(_) => Vec::new(),
+            },
         }
     }
 
@@ -684,28 +828,8 @@ impl<P> Node<P> {
                 Some(comp(rotation_axis, ax))
             }
             (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
-            (Node::Pattern { count, .. }, S::Count) => Some(count),
-            (
-                Node::Pattern {
-                    kind: PatternKind::Linear { direction, .. },
-                    ..
-                },
-                S::Direction(ax),
-            ) => Some(comp(direction, ax)),
-            (
-                Node::Pattern {
-                    kind: PatternKind::Linear { spacing, .. },
-                    ..
-                },
-                S::Spacing,
-            ) => Some(spacing),
-            (
-                Node::Pattern {
-                    kind: PatternKind::Circular { step, .. },
-                    ..
-                },
-                S::Step,
-            ) => Some(step),
+            (Node::Pattern { count, kind, .. }, s) => rule_expr(Some(count), kind, s),
+            (Node::PlacedUnion { count, kind, .. }, s) => rule_expr(count.as_ref(), kind, s),
             _ => None,
         }
     }
@@ -741,28 +865,8 @@ impl<P> Node<P> {
                 Some(comp_mut(rotation_axis, ax))
             }
             (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
-            (Node::Pattern { count, .. }, S::Count) => Some(count),
-            (
-                Node::Pattern {
-                    kind: PatternKind::Linear { direction, .. },
-                    ..
-                },
-                S::Direction(ax),
-            ) => Some(comp_mut(direction, ax)),
-            (
-                Node::Pattern {
-                    kind: PatternKind::Linear { spacing, .. },
-                    ..
-                },
-                S::Spacing,
-            ) => Some(spacing),
-            (
-                Node::Pattern {
-                    kind: PatternKind::Circular { step, .. },
-                    ..
-                },
-                S::Step,
-            ) => Some(step),
+            (Node::Pattern { count, kind, .. }, s) => rule_expr_mut(Some(count), kind, s),
+            (Node::PlacedUnion { count, kind, .. }, s) => rule_expr_mut(count.as_mut(), kind, s),
             _ => None,
         }
     }
@@ -773,7 +877,10 @@ impl<P> Node<P> {
     /// a later delete may strand them, N5 semantics).
     pub fn named_nodes(&self) -> Vec<RecipeNodeId> {
         match self {
-            Node::Declare { pairs } => pairs.iter().flat_map(|(a, b)| [a.node, b.node]).collect(),
+            Node::Declare { pairs } => pairs
+                .iter()
+                .flat_map(|((a, b), _)| [a.node, b.node])
+                .collect(),
             // The fillet selection references names the same way, and
             // carries the same N5 carve-out (M6-5).
             Node::Fillet { selection, .. } => selection.iter().map(|n| n.node).collect(),
@@ -790,6 +897,93 @@ impl<P> Node<P> {
         Node::InstantiatePart {
             doc_ref,
             interface: InterfaceRecord::default(),
+        }
+    }
+
+    /// Builds a [`Node::PlacedUnion`] with a PARAMETRIC rule (linear
+    /// or circular) and its structural count.
+    ///
+    /// `None` for an [`PatternKind::Explicit`] rule: that rule brings
+    /// its own placements, so pairing it with a count is the
+    /// two-sources-of-truth state — [`Node::placed_union_at`] is its
+    /// door. (The edit door refuses the same state on a hand-built
+    /// value, so this is the convenient refusal, not the only one.)
+    pub fn placed_union(input: RecipeNodeId, count: Expr, kind: PatternKind) -> Option<Self> {
+        kind.placements().is_none().then_some(Node::PlacedUnion {
+            input,
+            count: Some(count),
+            kind,
+        })
+    }
+
+    /// Builds a [`Node::PlacedUnion`] over LISTED absolute frames — the
+    /// count is the list's length, so there is no count slot to
+    /// disagree with it.
+    pub fn placed_union_at(input: RecipeNodeId, placements: Vec<crate::placement::Frame>) -> Self {
+        Node::PlacedUnion {
+            input,
+            count: None,
+            kind: PatternKind::Explicit(placements),
+        }
+    }
+
+    /// What is wrong with this node's placement rule, if anything —
+    /// the ONE door the edit gate, the persist re-check and the
+    /// evaluation backstop all read, so the three can never diverge on
+    /// what a usable rule is. `None` for every non-placement node.
+    pub fn placement_rule_fault(&self) -> Option<PlacementRuleFault> {
+        let (count_present, kind) = match self {
+            // Pattern's count is a non-optional field, so it always
+            // "has" one — which is why an explicit list there is
+            // always a second answer to the same question.
+            Node::Pattern { kind, .. } => (true, kind),
+            Node::PlacedUnion { count, kind, .. } => (count.is_some(), kind),
+            _ => return None,
+        };
+        let Some(frames) = kind.placements() else {
+            // A stepped rule needs its count slot and nothing else.
+            return (!count_present).then_some(PlacementRuleFault::CountSpelling);
+        };
+        if count_present {
+            return Some(PlacementRuleFault::CountSpelling);
+        }
+        // The list IS the count, so an EMPTY list is the explicit
+        // rule's `count < 1` — refused for the same reason
+        // `NonPositiveCount` refuses a stepped rule's zero, rather
+        // than quietly denoting an empty body (LIB-PLACEDUNION review
+        // MAJOR-1).
+        if frames.is_empty() {
+            return Some(PlacementRuleFault::NoPlacements);
+        }
+        // A11/A6 parity: a placement frame is held to exactly what
+        // `SetPlacement` holds a cluster frame to — finite, and proper
+        // (det > 0; admitting mirrors is gated on R4's equivariance
+        // audit). Checked HERE so the refusal lands at the edit door
+        // with the best diagnostics, not at the kernel's rigidity
+        // re-check downstream.
+        for (index, frame) in frames.iter().enumerate() {
+            if !frame.is_finite() {
+                return Some(PlacementRuleFault::NonFiniteFrame { index });
+            }
+            let determinant = frame.determinant();
+            if determinant <= 0.0 {
+                return Some(PlacementRuleFault::ImproperFrame { index, determinant });
+            }
+        }
+        None
+    }
+
+    /// A `Declare` node whose every pair asserts the CONFORMAL class
+    /// — the class the class-less payload always meant.
+    ///
+    /// This NAMES `Rest` at the call site; it does not default it.
+    /// The difference matters: a reader of the call sees which of C4's
+    /// classes is being claimed, and a pair that means something else
+    /// cannot arrive here by omission. Mixed-class nodes build
+    /// [`Node::Declare`] directly.
+    pub fn declare_rest(pairs: Vec<(StableName, StableName)>) -> Self {
+        Node::Declare {
+            pairs: pairs.into_iter().map(|p| (p, ContactClass::Rest)).collect(),
         }
     }
 
@@ -831,5 +1025,84 @@ impl<P: PartialEq> Node<P> {
                 (None, None) => true,
                 _ => false,
             })
+    }
+}
+
+/// The wire form of a [`Node::Declare`] payload's classes.
+///
+/// **Why this module exists instead of `#[derive(Serialize)]` on
+/// [`ContactClass`].** Two ratified rules meet here and both are kept:
+///
+/// - the kernel crates gain NO serde dependency (the F3/G1 layering
+///   rule, workspace `Cargo.toml`) — persistence is editor-core's job;
+/// - the contact vocabulary is ONE enum, defined lowest and
+///   re-exported upward, never a parallel enum (CONTACT-DESIGN C4's
+///   layering ruling, M9-1 PR-1) — so the mirror-enum pattern
+///   `BooleanOp` uses is not available for this type.
+///
+/// A `with` module satisfies both: the type stays `topo::ContactClass`
+/// everywhere, and only the BYTES are described here.
+///
+/// The wire spelling is a stable STRING, not a discriminant: a
+/// discriminant would silently re-map if `Fit` ever lands between the
+/// two variants, and the file would then read a different class than
+/// it was written with. Both directions refuse typed on a spelling
+/// this build does not know — including the SERIALIZE direction, which
+/// `ContactClass` being `#[non_exhaustive]` makes reachable: a class
+/// added in a newer kernel than this writer must never be written out
+/// under a guessed tag.
+mod declare_pairs_wire {
+    use super::{ContactClass, StableName};
+    use serde::de::Error as _;
+    use serde::ser::Error as _;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    /// The wire spelling of a class, or `None` if this build has no
+    /// name for it.
+    fn tag(class: ContactClass) -> Option<&'static str> {
+        match class {
+            ContactClass::Rest => Some("rest"),
+            ContactClass::Tangent => Some("tangent"),
+            // `ContactClass` is `#[non_exhaustive]`: a kernel newer
+            // than this writer can present a class with no spelling
+            // here. Refusing is the only honest answer — see the
+            // module docs.
+            _ => None,
+        }
+    }
+
+    fn untag(s: &str) -> Option<ContactClass> {
+        match s {
+            "rest" => Some(ContactClass::Rest),
+            "tangent" => Some(ContactClass::Tangent),
+            _ => None,
+        }
+    }
+
+    type Pairs = Vec<((StableName, StableName), ContactClass)>;
+
+    pub(super) fn serialize<S: Serializer>(pairs: &Pairs, ser: S) -> Result<S::Ok, S::Error> {
+        let mut out = Vec::with_capacity(pairs.len());
+        for ((a, b), class) in pairs {
+            let t = tag(*class).ok_or_else(|| {
+                S::Error::custom(
+                    "persist: this build has no wire spelling for the declared contact class \
+                     (a newer kernel's vocabulary) — refusing to write a guessed tag",
+                )
+            })?;
+            out.push(((a, b), t));
+        }
+        out.serialize(ser)
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Pairs, D::Error> {
+        let raw: Vec<((StableName, StableName), String)> = Vec::deserialize(de)?;
+        raw.into_iter()
+            .map(|(pair, t)| {
+                untag(&t)
+                    .map(|class| (pair, class))
+                    .ok_or_else(|| D::Error::custom(format!("unknown contact class '{t}'")))
+            })
+            .collect()
     }
 }

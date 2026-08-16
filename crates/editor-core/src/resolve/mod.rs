@@ -919,7 +919,7 @@ pub fn apply_with_names<T: Decide>(
     match edit {
         DocEdit::InsertNode {
             node: Node::Declare { pairs },
-        } => names.extend(pairs.iter().flat_map(|(a, b)| [a, b])),
+        } => names.extend(pairs.iter().flat_map(|((a, b), _)| [a, b])),
         DocEdit::Rebind { to, .. } => names.push(to),
         _ => {}
     }

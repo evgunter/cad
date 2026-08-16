@@ -46,7 +46,9 @@ pub mod die;
 pub mod die_composed;
 pub mod die_fillet;
 pub mod die_pips;
+pub mod die_tool;
 pub mod heatsink;
+pub mod heatsink_union;
 pub mod islands;
 pub mod loft_prism;
 pub mod plate_param;
@@ -141,6 +143,13 @@ pub fn documents() -> Vec<CorpusDoc> {
         // scalars by `m5_pr12_fillet_node.rs`.
         die_fillet::document(),
         die_pips::document(),
+        // LIB-PLACEDUNION's two register payoffs, each the grouped
+        // TWIN of a document already here (`heat_sink`; the die tour's
+        // pip tool): the ungrouped originals stay, so the two are
+        // asserted against each other rather than against a re-derived
+        // oracle (`lib_placedunion.rs`).
+        heatsink_union::document(),
+        die_tool::document(),
         // `loft_prism` (M6-3): R5 shape (iii)'s loft body — the
         // Band 4 corpus's first NURBS-walled solid. Standard rows
         // (every ε, interval lane, persistence, latency) for free by
@@ -212,7 +221,7 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
 }
 
 /// The node kinds a document exercises (the coverage tally's domain).
-pub const NODE_KINDS: [&str; 12] = [
+pub const NODE_KINDS: [&str; 13] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -227,6 +236,8 @@ pub const NODE_KINDS: [&str; 12] = [
     "Boolean",
     "Transform",
     "Pattern",
+    // LIB-PLACEDUNION: the ratified A′ group boolean.
+    "PlacedUnion",
     // M5 PR 10's definitional feature nodes. `Loft` is COVERED since
     // M6-3 (the loft body assembles; `loft_prism` is registered).
     // `Sweep` alone stays at zero: its NODE lane waits on the
@@ -259,7 +270,7 @@ pub const EDIT_KINDS: [&str; 14] = [
 /// The node SUB-kinds the corpus must also cover in full: every datum
 /// flavour, every boolean operator (and the declared boolean), and
 /// both pattern kinds.
-pub const SUB_KINDS: [&str; 9] = [
+pub const SUB_KINDS: [&str; 11] = [
     "Datum::Plane",
     "Datum::Axis",
     "Datum::Point",
@@ -269,6 +280,13 @@ pub const SUB_KINDS: [&str; 9] = [
     "Boolean+Declare",
     "Pattern::Linear",
     "Pattern::Circular",
+    // LIB-PLACEDUNION's two register payoffs. `PlacedUnion::Circular`
+    // is deliberately NOT listed: no corpus document needs one, and a
+    // listed-but-uncovered sub-kind would fail the tally. The circular
+    // rule is exercised directly in `lib_placedunion.rs`, and it shares
+    // `stepped_map` with the pattern node that the corpus does cover.
+    "PlacedUnion::Linear",
+    "PlacedUnion::Explicit",
 ];
 
 /// The sub-kind tally names a node contributes (possibly none).
@@ -291,6 +309,15 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         Node::Pattern { kind, .. } => vec![match kind {
             PatternKind::Linear { .. } => "Pattern::Linear",
             PatternKind::Circular { .. } => "Pattern::Circular",
+            // Refused at the edit door (a pattern's count is its slot),
+            // so no corpus document can carry one — named here only
+            // because the match is exhaustive on purpose.
+            PatternKind::Explicit(_) => "Pattern::Explicit",
+        }],
+        Node::PlacedUnion { kind, .. } => vec![match kind {
+            PatternKind::Linear { .. } => "PlacedUnion::Linear",
+            PatternKind::Circular { .. } => "PlacedUnion::Circular",
+            PatternKind::Explicit(_) => "PlacedUnion::Explicit",
         }],
         // EXHAUSTIVE on purpose (review MIN-2): no wildcard arm, so a
         // new `Node` variant — or a new `Datum`/`BooleanOp`/
@@ -322,6 +349,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Boolean { .. } => "Boolean",
         Node::Transform { .. } => "Transform",
         Node::Pattern { .. } => "Pattern",
+        Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
         Node::Declare { .. } => "Declare",
@@ -348,6 +376,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::ClearAppearanceMeta { .. } => "ClearAppearanceMeta",
         DocEdit::SetRoots { .. } => "SetRoots",
         DocEdit::SetPlacement { .. } => "SetPlacement",
+        DocEdit::UpdateReference { .. } => "UpdateReference",
     }
 }
 

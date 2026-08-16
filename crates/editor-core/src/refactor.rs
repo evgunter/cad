@@ -605,6 +605,27 @@ enum RemapMiss {
     Name(Box<StableName>),
 }
 
+/// Rewrites a placement rule's id references: the circular rule's datum
+/// axis is the only one the vocabulary carries (a linear rule is pure
+/// expressions, an explicit rule pure frames). Shared by both
+/// placement-rule nodes so their seam behavior cannot drift apart.
+///
+/// # Errors
+///
+/// The first [`RemapMiss`].
+fn remap_rule(
+    kind: &PatternKind,
+    id: &impl Fn(RecipeNodeId) -> Result<RecipeNodeId, RemapMiss>,
+) -> Result<PatternKind, RemapMiss> {
+    Ok(match kind {
+        PatternKind::Linear { .. } | PatternKind::Explicit(_) => kind.clone(),
+        PatternKind::Circular { axis, step } => PatternKind::Circular {
+            axis: id(*axis)?,
+            step: step.clone(),
+        },
+    })
+}
+
 /// Rewrites a node payload's id references — DAG inputs AND
 /// name-reference payloads — through `map`, for insertion into the
 /// other document. `InstantiatePart` crosses verbatim: its reference
@@ -686,18 +707,17 @@ fn remap_node(
         Node::Pattern { input, count, kind } => Node::Pattern {
             input: id(*input)?,
             count: count.clone(),
-            kind: match kind {
-                PatternKind::Linear { .. } => kind.clone(),
-                PatternKind::Circular { axis, step } => PatternKind::Circular {
-                    axis: id(*axis)?,
-                    step: step.clone(),
-                },
-            },
+            kind: remap_rule(kind, &id)?,
+        },
+        Node::PlacedUnion { input, count, kind } => Node::PlacedUnion {
+            input: id(*input)?,
+            count: count.clone(),
+            kind: remap_rule(kind, &id)?,
         },
         Node::Declare { pairs } => Node::Declare {
             pairs: pairs
                 .iter()
-                .map(|(a, b)| Ok((nm(a)?, nm(b)?)))
+                .map(|((a, b), class)| Ok(((nm(a)?, nm(b)?), *class)))
                 .collect::<Result<_, RemapMiss>>()?,
         },
         Node::InstantiatePart { .. } => node.clone(),
@@ -720,7 +740,7 @@ fn node_param_refs(node: &Node<ProfileProgram>) -> BTreeSet<crate::doc::ParamNam
 /// rewrites, beside the appearance keys.
 fn payload_names(node: &Node<ProfileProgram>) -> Vec<&StableName> {
     match node {
-        Node::Declare { pairs } => pairs.iter().flat_map(|(a, b)| [a, b]).collect(),
+        Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a, b]).collect(),
         Node::Fillet { selection, .. } => selection.iter().collect(),
         _ => Vec::new(),
     }

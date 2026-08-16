@@ -33,13 +33,14 @@ mod table;
 
 pub use emit::NamingError;
 pub(crate) use emit::name_in_part;
-pub(crate) use emit::{empty, name_pattern};
+pub(crate) use emit::{empty, name_pattern, name_placed_union};
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
 pub use flush::{
-    ContactClass, DeclareError, FlushEvidence, FlushFinding, FlushRung, declare, declare_all,
-    declare_node, find_flush_candidates,
+    CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, DeclareError, DeclaredContact,
+    FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare, declare_all, declare_node,
+    find_flush_candidates,
 };
 pub use geompred::{
     ALL_SURFACE_KINDS, Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal,

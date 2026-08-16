@@ -12,8 +12,55 @@
 //! `sign_within` call site (the `geom-brep` funnel pattern); after the
 //! PR 7 unification a [`Probe`]-lane run tags every sample with its
 //! real predicate name — `<unnamed>` is unreachable from shipped decide
-//! paths. Production code pays one thread-local `Cell` write per
-//! decision and records nothing.
+//! paths.
+//!
+//! Cost on the production path: one thread-local `Cell` write per
+//! decision, plus — **whenever a verdict log is installed** — one
+//! `Vec` push per definite outcome (see [`start_verdict_log`] and
+//! `decide`'s own contract below, which has always said this). That
+//! caveat is not hypothetical: `editor_core`'s evaluator brackets
+//! **every node evaluation** in a verdict log (M4 PR 4 / NAMING-DESIGN
+//! N5, so the verdict-diff engine can attribute flips), and retains the
+//! result on the node. So production *does* record, on the one path
+//! that asks to.
+//!
+//! **`VERDICTS` is not part of the `probe` lane and must not be gated
+//! on it.** The K-telemetry sink is `SINK`, which *is* feature-gated;
+//! `VERDICTS` merely shares this funnel because this is where decisions
+//! pass. Its consumer is production editor-core code —
+//! `resolve::vdiff` reads `NodeValue::verdicts` to compare per-predicate
+//! sign populations and emit `NodeVerdictDelta`'s flips and
+//! divergences. Putting it behind `probe` would not reduce recording;
+//! it would hand the verdict-diff engine empty logs in every default
+//! build and silently stop it attributing flips. The name is the
+//! confusing part, not the design.
+//!
+//! Paths that never install a log (STL export, step-import, the demos)
+//! still pay the `RefCell` borrow check per decision. Gating *that* on
+//! a `Cell<bool>` is a live optimization and is orthogonal to any
+//! feature — it behaves identically in every build configuration.
+//!
+//! **OPEN OBLIGATION — this mechanism is on notice; see
+//! `docs/PERF-SCAN-2026-08.md` §2.** Delivering a production value by
+//! thread-local side effect makes the per-node bracket's correctness a
+//! comment rather than a type, and it has already failed once:
+//! [`start_verdict_log`] overwrites an installed log unconditionally,
+//! so a nested evaluation destroys its parent's — measured, an
+//! `InstantiatePart` node records **0** verdicts where the same
+//! geometry evaluated directly records 722. The obligation is that this
+//! is redone so verdicts are a returned value, or that the alternative
+//! is proven unaffordable in writing AND this mechanism is made
+//! structurally safe (RAII bracket, re-entry refused loudly, thread
+//! confinement enforced rather than asserted). **Which of those two is
+//! UNRESOLVED — left open deliberately at merge (Evan, 2026-08-16), not
+//! overlooked.** The nesting bug itself is not blocked on that choice
+//! and can be fixed directly. Do not add call sites that deepen the
+//! dependency on the current shape.
+//!
+//! (This paragraph used to read "Production code pays one thread-local
+//! `Cell` write per decision and records nothing." That stopped being
+//! true when M4 PR 4 added the verdict log, and it contradicted
+//! `decide`'s own doc sixty lines below.)
 //!
 //! Recording happens through the [`Probe`] scalar: a transparent `f64`
 //! wrapper whose `Decide` implementation logs `(predicate, margin,

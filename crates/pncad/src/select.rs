@@ -448,13 +448,14 @@
 //! ```
 
 pub use editor_core::{
-    ALL_SURFACE_KINDS, CapEnd, Cmp, ContactClass, CurveKind, CurveKindSet, DeclareError,
-    Denotation, DuplicateName, EntityKind, FlushEvidence, FlushFinding, FlushRung, GeomPred,
-    InterrogateError, MeridianEnd, NamePat, NameTable, OpGroup, ProfileEdgeRef, ProfileVertexRef,
-    RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector,
-    Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    declare, declare_all, declare_node, denotation, edge_frame, edge_name, face_frame, face_name,
-    find_flush_candidates, select, select_where, vertex_position,
+    ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
+    CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKind,
+    FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
+    NamePat, NameTable, OpGroup, ProfileEdgeRef, ProfileVertexRef, RimSupport, RolePath, RoleSeg,
+    SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet,
+    TagPat, all_bodies, all_edges, all_faces, all_vertices, declare, declare_all, declare_node,
+    denotation, edge_frame, edge_name, face_frame, face_name, find_flush_candidates, select,
+    select_where, vertex_position,
 };
 /// The frame type the geometry doors answer with, and its refusal —
 /// re-exported from the kernel's read-back module so a façade user
