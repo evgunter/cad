@@ -18,7 +18,7 @@ use profile::RawLoop;
 
 use geom_core::{Band, Point2, Point3, Tolerance};
 use geom_surfaces::Surface;
-use profile::{ArcSweep, FilletLegShape, Profile, ProfileLoop, SketchPlane};
+use profile::{ArcSweep, FilletLegShape, Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
@@ -44,11 +44,24 @@ fn sense_of(body: &Body<f64>, f: FaceKey) -> bool {
 #[test]
 fn adv_mixed_convex_concave_hole() {
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(6.0, 0.0), p2(6.0, 6.0), p2(0.0, 6.0)]);
-    let hole = ProfileLoop::builder(p2(2.0, 2.0))
-        .arc_to(p2(4.0, 2.0), 0.5)
-        .line_to(p2(4.0, 4.0))
-        .arc_to(p2(2.0, 4.0), -0.5)
-        .close();
+    let hole = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(2.0, 2.0),
+            bulge: 0.5,
+        },
+        ProfileVertex {
+            pos: p2(4.0, 2.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(4.0, 4.0),
+            bulge: -0.5,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 4.0),
+            bulge: 0.0,
+        },
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(Tolerance::get())
         .unwrap();
@@ -178,13 +191,34 @@ fn adv_eye_slot_outer_and_hole_senses() {
 #[test]
 fn adv_asymmetric_downward_invariance() {
     let mk = || {
-        ProfileLoop::builder(p2(0.0, 0.0))
-            .line_to(p2(3.0, 0.0))
-            .arc_to(p2(3.0, 1.0), -0.4) // concave bite on the right edge
-            .line_to(p2(3.0, 2.0))
-            .arc_to(p2(1.0, 2.0), 0.7) // convex bulge on top, off-center
-            .line_to(p2(0.0, 2.0))
-            .close()
+        <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+            ProfileVertex {
+                pos: p2(0.0, 0.0),
+                bulge: 0.0,
+            },
+            // concave bite on the right edge
+            ProfileVertex {
+                pos: p2(3.0, 0.0),
+                bulge: -0.4,
+            },
+            ProfileVertex {
+                pos: p2(3.0, 1.0),
+                bulge: 0.0,
+            },
+            // convex bulge on top, off-center
+            ProfileVertex {
+                pos: p2(3.0, 2.0),
+                bulge: 0.7,
+            },
+            ProfileVertex {
+                pos: p2(1.0, 2.0),
+                bulge: 0.0,
+            },
+            ProfileVertex {
+                pos: p2(0.0, 2.0),
+                bulge: 0.0,
+            },
+        ])
     };
     let up = extrude(
         &Profile::new(SketchPlane::xy(), vec![mk()])
@@ -268,13 +302,34 @@ fn adv_reversed_authoring_revolve_same_senses() {
 /// traversal -> sense false; exact Pappus volume.
 #[test]
 fn adv_bore_groove_torus_band() {
-    let lp = ProfileLoop::builder(p2(1.0, 0.0))
-        .line_to(p2(2.0, 0.0))
-        .line_to(p2(2.0, 1.0))
-        .line_to(p2(1.0, 1.0))
-        .line_to(p2(1.0, 0.75))
-        .arc_to(p2(1.0, 0.25), -1.0)
-        .close();
+    // Only (1, 0.75) leaves on an arc: the semicircular groove cut
+    // into the bore.
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(1.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 1.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 1.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 0.75),
+            bulge: -1.0,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 0.25),
+            bulge: 0.0,
+        },
+    ]);
     let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(topo::validate::validate_geometric(&t.body), Ok(()));

@@ -54,7 +54,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::geom_core::{Affine3, Point2, Point3, Tolerance, Vec3};
-use pncad::prelude::{Open, Start};
+use pncad::prelude::{Open, Start, Via};
 use pncad::profile::SketchPlane;
 use pncad::sweep::skin::{Section, loft_geometry, sweep_geometry};
 use pncad::sweep::{SketchSegment, segment_curve};
@@ -67,8 +67,8 @@ fn chain(s: f64) -> Section {
     // Lattice-authored since LIB-RETTAIL (raw `ProfileLoop` construction
     // is no longer presented surface, Evan's ruling on #413). The one
     // curved leg was a bulge of 0.25 on the vertex at (2, 0); the same
-    // arc, said through the lattice, is `arc_via` through the apex the
-    // bulge implies. INVARIANT (why the through-point is exactly this):
+    // arc, said through the lattice, is `arc_to(Via { .. })` through the
+    // apex the bulge implies. INVARIANT (why the point is exactly this):
     // for chord A->B of length L, apex = midpoint - n_hat * (L*b/2) with
     // n_hat the left normal, so b = 0.25 on the chord (2,0)->(2,1) puts
     // the apex at x = 2 + 0.125, y = 0.5 — and bulge_from_via returns
@@ -77,7 +77,12 @@ fn chain(s: f64) -> Section {
     let loop_ = Open
         .at(p(0.0, 0.0))
         .line_to(p(2.0, 0.0))
-        .and_then(|t| t.arc_via(p(2.125, 0.5), p(2.0, 1.0)))
+        .and_then(|t| {
+            t.arc_to(Via {
+                q: p(2.125, 0.5),
+                p: p(2.0, 1.0),
+            })
+        })
         .and_then(|t| t.line_to(p(0.0, 1.0)))
         .and_then(|t| t.line_to(Start))
         .expect("the arc-and-lines section authors");

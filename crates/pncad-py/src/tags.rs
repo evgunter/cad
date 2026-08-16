@@ -35,7 +35,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathError::NoCornerForFillet { .. } => "no_corner_for_fillet",
         PathError::AnchorOutsideTrimmedExtent { .. } => "anchor_outside_trimmed_extent",
         PathError::FilletOffsetLeverTooShort { .. } => "fillet_offset_lever_too_short",
-        PathError::ArcCarrierSpelling { .. } => "arc_carrier_spelling",
+        PathError::ArcLegOnOpenFillet { .. } => "arc_leg_on_open_fillet",
         PathError::SeamRetrimsArcFirstSide => "seam_retrims_arc_first_side",
         PathError::DegenerateArcSpec { .. } => "degenerate_arc_spec",
         PathError::NonpositiveLeg { .. } => "nonpositive_leg",

@@ -116,7 +116,7 @@ use core::f64::consts::PI;
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ArcSweep, ProfileLoop, ProfileVertex, SketchPlane};
+use pncad::profile::{ArcSweep, Center, ProfileLoop, ProfileVertex, SketchPlane, Via};
 use pncad::sweep::fillet::FilletError;
 use pncad::sweep::readback::{WedgeFrames, revolved_caps};
 use pncad::sweep::{
@@ -258,7 +258,7 @@ fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64) -> (Body<S>, WedgeFrames<S>) {
 /// meeting under the lantern.
 ///
 /// Faces: attachment plane, sphere zone, cone, mouth plane. Every one
-/// exact; the profile is authored centre-first (`arc_center`) so the
+/// exact; the profile is authored centre-first (`Center`) so the
 /// zone's carrier is the sphere itself and not a fitted arc. That
 /// centre-intent is now sayable in the algebra (LIB-G1 constructor 3):
 /// the globe centre is authored, the winding is structural, and
@@ -287,7 +287,11 @@ fn meridian<S: Scalar>(
         .expect("lantern attachment disk")
         // The belly: the sphere's own arc about the globe centre,
         // swept the long way round the equator (Ccw in sketch (s, t)).
-        .arc_center(p2(0.0, top), p2(r_mouth, t_mouth), ArcSweep::Ccw)
+        .arc_to(Center {
+            c: p2(0.0, top),
+            winding: ArcSweep::Ccw,
+            p: p2(r_mouth, t_mouth),
+        })
         .expect("lantern belly rides the globe")
         .line_to(p2(lip_r, t_end))
         .expect("lantern pucker cone")
@@ -1356,7 +1360,11 @@ fn ball<S: Scalar>(c: (f64, f64), r: f64) -> Body<S> {
     // centre authored and the bulge derived at lowering.
     let lp = Open
         .at(p2(0.0, -r))
-        .arc_center(p2(0.0, 0.0), p2(0.0, r), ArcSweep::Ccw)
+        .arc_to(Center {
+            c: p2(0.0, 0.0),
+            winding: ArcSweep::Ccw,
+            p: p2(0.0, r),
+        })
         .expect("ball meridian rides its centre")
         .line_to(Start)
         .expect("ball axis seam")
@@ -1475,9 +1483,15 @@ pub fn wall_probes<S: Scalar>() {
         // Algebra-authored (LIB-G1): via-point arcs (see `leaf`).
         let lp = Open
             .at(p2(0.0, 0.0))
-            .arc_via(p2(0.5, 0.12), p2(1.0, 0.0))
+            .arc_to(Via {
+                q: p2(0.5, 0.12),
+                p: p2(1.0, 0.0),
+            })
             .expect("probe leaf outer arc")
-            .arc_via(p2(0.5, 0.02), Start)
+            .arc_to(Via {
+                q: p2(0.5, 0.02),
+                p: Start,
+            })
             .expect("probe leaf inner arc")
             .into();
         validated(plane, vec![lp]).expect("lily profile validates")

@@ -11,7 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::geom_core::Vec2;
-use pncad::prelude::{Open, Start};
+use pncad::prelude::{Open, Start, Via};
 use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
@@ -117,7 +117,7 @@ pub fn plate<S: Scalar>() -> pncad::topo::Body<S> {
 pub fn vase<S: Scalar>() -> pncad::topo::Body<S> {
     // Belly arc: circle of radius 1.3 centered at (0, 0.8) — on the
     // axis — from (1.2, 0.3) through (1.3, 0.8) to (0.5, 2.0).
-    // Algebra-authored (LIB-G1): `arc_via` is the through-point binding
+    // Algebra-authored (LIB-G1): `Via` is the through-point binding
     // mode the belly wanted all along — all three points are authored
     // and stored verbatim, and the bulge is derived at lowering by the
     // same closed form the raw chain used, so nothing computed is
@@ -128,7 +128,10 @@ pub fn vase<S: Scalar>() -> pncad::topo::Body<S> {
         .expect("vase base")
         .line_to(p2(1.2, 0.3))
         .expect("vase base wall")
-        .arc_via(p2(1.3, 0.8), p2(0.5, 2.0))
+        .arc_to(Via {
+            q: p2(1.3, 0.8),
+            p: p2(0.5, 2.0),
+        })
         .expect("vase belly arc")
         .line_to(p2(0.9, 2.5))
         .expect("vase lip flare")
@@ -156,8 +159,8 @@ pub fn vase<S: Scalar>() -> pncad::topo::Body<S> {
 /// cone, torus), which is why the pulley (plane/cylinder/cone only)
 /// retired into it at the #91 revision pass. Center bore → genus 1.
 pub fn sheave<S: Scalar>() -> (pncad::topo::Body<S>, String) {
-    // Algebra-authored (LIB-G1): the groove is an `arc_via` through
-    // its own deepest point, between two chord-derived line sides.
+    // Algebra-authored (LIB-G1): the groove is an arc bound `Via` its
+    // own deepest point, between two chord-derived line sides.
     let lp = Open
         .at(p2(0.4, 0.0))
         .line_to(p2(0.9, 0.0))
@@ -172,7 +175,11 @@ pub fn sheave<S: Scalar>() -> (pncad::topo::Body<S>, String) {
         .expect("sheave rim face")
         .line_to(p2(2.1, 0.2)) // tapered shoulder: cone zone
         .expect("sheave lower shoulder")
-        .arc_via(p2(1.8, 0.5), p2(2.1, 0.8)) // groove: r = 0.3 semicircle
+        // groove: r = 0.3 semicircle
+        .arc_to(Via {
+            q: p2(1.8, 0.5),
+            p: p2(2.1, 0.8),
+        })
         .expect("sheave rope groove")
         .line_to(p2(2.0, 1.0)) // tapered shoulder: cone zone
         .expect("sheave upper shoulder")
@@ -356,7 +363,7 @@ pub fn stops() -> Vec<Stop> {
         stop(
             "vase",
             "solid vase — axis-touching profile, spherical belly zone + conical lip",
-            "PATHS algebra (line_to/arc_via) -> revolve(axis y, Full); sphere/cone/plane faces",
+            "PATHS algebra (line_to/arc_to Via) -> revolve(axis y, Full); sphere/cone/plane faces",
             2e-2,
             View {
                 elev: 16.0,
@@ -371,7 +378,7 @@ pub fn stops() -> Vec<Stop> {
             "sheave",
             "rope-groove sheave — hub, web, TAPERED rim shoulders, semicircular groove: \
              plane + cylinder + cone + torus on one part",
-            "PATHS algebra polyline + arc_via -> revolve(axis y, Full), genus 1",
+            "PATHS algebra polyline + arc_to Via -> revolve(axis y, Full), genus 1",
             5e-2,
             View {
                 elev: 26.0,
