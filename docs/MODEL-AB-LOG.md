@@ -1018,3 +1018,9 @@ inconsistency (the binding coset table itself makes
 coaxial+planar(⊥) UNDER; acceptance row 1's DETERMINED claim was
 the spec author's error) — the reviewer adjudicates. Row at
 merge.
+MESH-PROBEGATE review ordinal fixed at dispatch (2026-08-16, PR
+#579 open, frozen head bf037c08): claimed through 51 (RESPELL PR-2's
+cross-model dual, #578) + 1 = **52 → SINGLE** (54 is the next
+third). Reviewer fable, v4 ladder. Pre-draw fields logged at
+spec time: S-M / STRUCTURAL (docs/MESH-PROBEGATE-SPEC.md; arm =
+block ASM-3 slot 3). Row at merge.
