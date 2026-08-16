@@ -69,6 +69,17 @@ pub enum SweepStrategy {
     /// BVH-pruned candidate generation (the production path).
     Realized,
     /// Brute-force all-pairs (the reference definition).
+    ///
+    /// `sweep-testing` feature only. The idealized half of a §4.4 pair
+    /// is reference surface, exactly like [`PlantedDegradation`] and
+    /// [`super::sweep_traces`] — it exists so the differential suite
+    /// can execute the definition, not so a production caller can
+    /// choose O(n²) candidate generation. Gating the variant is what
+    /// makes "production entries always run [`SweepStrategy::Realized`]"
+    /// a fact the compiler enforces rather than a convention; with the
+    /// feature off the brute-force scan is not merely unreachable, it
+    /// is not built (see `sweep_direction`).
+    #[cfg(feature = "sweep-testing")]
     Idealized,
 }
 
@@ -385,6 +396,39 @@ fn edge_chord_len<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<T> {
 /// (2026-07-29 — geom-core `real.rs`, Bounds scope rule): the C10
 /// tree is the subdivision driver, and box construction reads
 /// coordinate brackets — never a value comparison in classification.
+/// The realized candidate generator's per-direction face tree, built
+/// ONCE over the face snapshot (arena order = input order). Mid-sweep
+/// splits of `y`'s edges only mint vertices ON existing boundary
+/// (within the pad), so the snapshot boxes stay conservative for the
+/// whole direction.
+fn face_tree<T: Decide + Bounds>(
+    y: &Body<T>,
+    faces: &[FaceKey],
+    knobs: &SweepKnobs,
+    pad: f64,
+) -> Result<bvh::Bvh, BooleanError> {
+    let mut face_boxes = Vec::with_capacity(faces.len());
+    for &f in faces {
+        let planted = knobs.plant == Some(f);
+        face_boxes.push(if planted {
+            // Pin (iii)'s planted degradation: the inverted box
+            // overlaps nothing — this face's events get lost and the
+            // suite's superset pin must catch it.
+            bvh::Aabb {
+                min_x: f64::INFINITY,
+                min_y: f64::INFINITY,
+                min_z: f64::INFINITY,
+                max_x: f64::NEG_INFINITY,
+                max_y: f64::NEG_INFINITY,
+                max_z: f64::NEG_INFINITY,
+            }
+        } else {
+            boxes::face_box(y, f, pad)?
+        });
+    }
+    Ok(bvh::Bvh::build(&face_boxes))
+}
+
 #[allow(clippy::too_many_arguments)] // one parameter per named duty (bodies, orientation, sinks, band, strategy, plant, trace)
 pub(super) fn sweep_direction<T: Decide + Bounds>(
     x: &mut Body<T>,
@@ -397,35 +441,20 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
     mut trace: Option<&mut SweepTrace>,
 ) -> Result<(), BooleanError> {
     let faces: Vec<FaceKey> = y.faces().map(|(k, _)| k).collect();
-    // Realized: the per-direction face tree, built ONCE over the face
-    // snapshot (arena order = input order). Mid-sweep splits of `y`'s
-    // edges only mint vertices ON existing boundary (within the pad),
-    // so the snapshot boxes stay conservative for the whole direction.
     let pad = knobs.pad_override.unwrap_or_else(|| boxes::sweep_pad(band));
-    let tree = match strategy {
-        SweepStrategy::Realized => {
-            let mut face_boxes = Vec::with_capacity(faces.len());
-            for &f in &faces {
-                let planted = knobs.plant == Some(f);
-                face_boxes.push(if planted {
-                    // Pin (iii)'s planted degradation: the inverted box
-                    // overlaps nothing — this face's events get lost
-                    // and the suite's superset pin must catch it.
-                    bvh::Aabb {
-                        min_x: f64::INFINITY,
-                        min_y: f64::INFINITY,
-                        min_z: f64::INFINITY,
-                        max_x: f64::NEG_INFINITY,
-                        max_y: f64::NEG_INFINITY,
-                        max_z: f64::NEG_INFINITY,
-                    }
-                } else {
-                    boxes::face_box(y, f, pad)?
-                });
-            }
-            Some(bvh::Bvh::build(&face_boxes))
-        }
+    // With `sweep-testing`, the tree is optional so the idealized
+    // reference can decline it. Without the feature there is no
+    // `Idealized` variant to decline it with, so the tree is
+    // unconditional and the brute-force arm below does not exist.
+    #[cfg(feature = "sweep-testing")]
+    let tree: Option<bvh::Bvh> = match strategy {
+        SweepStrategy::Realized => Some(face_tree(y, &faces, knobs, pad)?),
         SweepStrategy::Idealized => None,
+    };
+    #[cfg(not(feature = "sweep-testing"))]
+    let tree: bvh::Bvh = {
+        let SweepStrategy::Realized = strategy;
+        face_tree(y, &faces, knobs, pad)?
     };
     let mut worklist: std::collections::VecDeque<(EdgeKey, usize)> =
         x.edges().map(|(k, _)| (k, 0)).collect();
@@ -435,10 +464,16 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
         // realized set is a subsequence of the idealized scan, so the
         // examination order (and with it every split/requeue) is
         // preserved pair-for-pair.
+        #[cfg(feature = "sweep-testing")]
         let candidates: Vec<usize> = match &tree {
             Some(t) => t.overlapping(&boxes::edge_box(x, edge_key, pad)?),
+            // The idealized reference's candidate set: every face, in
+            // arena order. Reachable only through the gated
+            // `SweepStrategy::Idealized`, and compiled out with it.
             None => (0..faces.len()).collect(),
         };
+        #[cfg(not(feature = "sweep-testing"))]
+        let candidates: Vec<usize> = tree.overlapping(&boxes::edge_box(x, edge_key, pad)?);
         let mut ci = 0;
         'faces: while let Some(&j) = candidates.get(ci) {
             ci += 1;
