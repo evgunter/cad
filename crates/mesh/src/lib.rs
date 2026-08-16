@@ -212,6 +212,25 @@ pub mod chords;
 mod curved;
 mod nurbs_cert;
 mod planar;
+// The per-triangle certificate falsifier (issue #558). PUBLIC only
+// under its own feature — the `budget` shape above, for the same
+// reason. With the feature off the module is the inert half
+// (`armed()` a `const fn` returning `false`, plus the no-op recorder
+// the tessellation lane calls unconditionally), which is nothing a
+// caller outside this crate can use, so a default build does not
+// export it and `pncad::mesh::probe_stats` does not resolve.
+//
+// A SEPARATE feature from `budget`, not a shared one: the meter is a
+// sizing instrument with a committed baseline and a RELEASE consumer
+// (`scripts/tess_budget_sweep.sh` runs the tour at `--features
+// budget`), while this is a review falsifier whose only consumer is a
+// test. Folding them together would put the falsifier's 12-sample
+// resampling and its `assert!` back into the budget sweep's release
+// binary — the exact exposure #558 exists to close.
+#[cfg(feature = "probe-stats")]
+pub mod probe_stats;
+#[cfg(not(feature = "probe-stats"))]
+pub(crate) mod probe_stats;
 mod tessellate;
 mod trimmed;
 pub mod types;
@@ -220,78 +239,3 @@ pub mod walk;
 
 pub use tessellate::tessellate;
 pub use types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
-
-/// REVIEW PROBE support (dead in normal runs): per-triangle
-/// certificate headroom stats, **thread-local** (R1 of the M8-5 PR,
-/// MINOR-2): tessellation runs entirely on the calling thread, so
-/// arming and stats scoped to the arming thread make the armed
-/// evidence rows reproducible under a parallel test runner — a
-/// concurrent test's tessellations can no longer contaminate the
-/// driving test's `take()`. Soundness never depended on this (every
-/// recorded sample is also assert-checked in place in `trimmed`);
-/// this is about the EVIDENCE being attributable.
-pub mod probe_stats {
-    use std::cell::Cell;
-    thread_local! {
-        /// (worst measured deviation, its cert, max ratio d/cert,
-        /// count) — this thread's accumulator.
-        static STATS: Cell<(f64, f64, f64, u64)> = const { Cell::new((0.0, 0.0, 0.0, 0)) };
-        /// Is the falsifier armed on this thread?
-        static ARMED: Cell<bool> = const { Cell::new(false) };
-    }
-    /// Arm/disarm the falsifier for tessellations on THIS thread.
-    pub fn arm(on: bool) {
-        ARMED.with(|a| a.set(on));
-    }
-    /// Is the falsifier armed? **Explicit [`arm`] only.**
-    ///
-    /// This used to also answer true for a `NURBS_PROBE` environment
-    /// variable — the reviewer's original manual drive, kept as a
-    /// convenience after M8-5's MIN-1 made the suite self-arming. That
-    /// was a BACK CHANNEL INTO SHIPPED CODE and it is gone:
-    ///
-    /// * it was ambient and process-wide, so a variable in a
-    ///   deployment environment silently switched on a 91-sample
-    ///   resampling of every emitted triangle — measured at 7.9 s →
-    ///   19.8 s on the demo tour's release binary, same binary, same
-    ///   arguments, ~71M extra surface evaluations;
-    /// * and the sampling block asserts, so it also converted
-    ///   [`crate::tessellate()`]'s typed [`TessellateError`] contract
-    ///   into a PANIC — chosen by the environment rather than by the
-    ///   caller.
-    ///
-    /// Nothing in the tree read it (the suites use [`arm`]), so its
-    /// removal costs no coverage. The module is still `pub` and still
-    /// unconditionally compiled, which is the remaining exposure —
-    /// gating it the way [`crate::budget`] is gated is issue #558, and
-    /// the standing rule it came from is
-    /// `memories/telemetry-gating.md`.
-    ///
-    /// [`TessellateError`]: crate::types::TessellateError
-    pub fn armed() -> bool {
-        ARMED.with(Cell::get)
-    }
-    /// Record one sample: measured deviation `d` against its
-    /// triangle's certificate `cert`.
-    pub fn record(d: f64, cert: f64) {
-        STATS.with(|c| {
-            let mut s = c.get();
-            if d > s.0 {
-                s.0 = d;
-                s.1 = cert;
-            }
-            if cert > 0.0 {
-                let r = d / cert;
-                if r > s.2 {
-                    s.2 = r;
-                }
-            }
-            s.3 += 1;
-            c.set(s);
-        });
-    }
-    /// Take-and-reset this thread's accumulated stats.
-    pub fn take() -> (f64, f64, f64, u64) {
-        STATS.with(|c| c.replace((0.0, 0.0, 0.0, 0)))
-    }
-}

@@ -999,16 +999,6 @@ PLACEDUNION review ordinal fixed at dispatch (2026-08-16, PR
 #571 open, frozen head c2e4b5b3): claimed through 48 (M9-2 PR-2
 dual) + 1 = **49 → SINGLE** (51 next third, under the #572
 amendment's composition once merged). Reviewer fable.
-<<<<<<< HEAD
-RESPELL PR-2 review ordinal fixed at dispatch (2026-08-16, PR
-#576 open, frozen head = the 35/35 head): claimed through 50
-(ASM-R2a) + 1 = **51 → a third → DUAL, CROSS-MODEL per the #572
-amendment (every dual cross-model until the 12-pair target)** —
-R1 fable + R2 OPUS, concurrent same-head. The unit's OnArc
-continuation gap goes to Evan as a design question at the fix
-pass (proposed, not built — the §2c completion the migration
-surfaced).
-=======
 TESS-SPLIT spec finalized (2026-08-16): the #320 split half
 under the RATIFIED aspect policy (#568: FFF cap A=16, Evan's
 comment + 👍). Pre-draw fields logged AT SPEC TIME: **M /
@@ -1028,5 +1018,19 @@ inconsistency (the binding coset table itself makes
 coaxial+planar(⊥) UNDER; acceptance row 1's DETERMINED claim was
 the spec author's error) — the reviewer adjudicates. Row at
 merge.
->>>>>>> origin/main
+MESH-PROBEGATE review ordinal fixed at dispatch (2026-08-16, PR
+#579 open, frozen head bf037c08): claimed through 51 (RESPELL PR-2's
+cross-model dual, #578) + 1 = **52 → SINGLE** (54 is the next
+third). Reviewer fable, v4 ladder. Pre-draw fields logged at
+spec time: S-M / STRUCTURAL (docs/MESH-PROBEGATE-SPEC.md; arm =
+block ASM-3 slot 3). Row at merge.
+| MESH-PROBEGATE | 2026-08-16 | #558 executed: probe_stats live/inert module split on the budget pattern (armed() = pub const fn false + build-enforced const assert; arm/take absent from default builds; zero #[cfg] in the tessellation lane); feature ruling probe-stats (join-budget rejected on the release-artifact evidence, probe rename rejected on blast radius, NAME CAUTION in both manifest entries); the MIN-1 falsifier preserved by an unconditional k-lint CI row; budget.rs inert half hardened to the same const shape (reported addition) | S-M / STRUCTURAL (pre-logged at spec) | OPUS (block ASM-3 slot 3) | single (ordinal 52, frozen bf037c08, v4) — **APPROVE 0/0/2, rubric 5/5/5** (reviewer reproduced the compile-error close both halves; own 2.5× cert plant RED under probe-stats + GREEN default with the block ABSENT; CI-row unconditionality read from the workflow source; 11/11 STLs byte-identical on the reviewer's own merge-base build; both static asserts mutation-proven E0080; all 4 clippy lanes clean; NOTEs: the "six manifests" undercount actually STRENGTHENS the ruling at 15, falsifier floor ~2×) | 0 silent (5 reported incl. the budget.rs hardening; all verified) | 5 | 5 | 5 | NONE (both NOTEs informational; no fix pass) | MERGED #579 35/35; #558 CLOSED — shipped builds carry no falsifier, the hosted gate still runs it | impl ~183k / review ~91k | impl ~5h wall / review ~1.5h (one usage-window resume) |
+RESPELL PR-2 review ordinal fixed at dispatch (2026-08-16, PR
+#576 open, frozen head = the 35/35 head): claimed through 50
+(ASM-R2a) + 1 = **51 → a third → DUAL, CROSS-MODEL per the #572
+amendment (every dual cross-model until the 12-pair target)** —
+R1 fable + R2 OPUS, concurrent same-head. The unit's OnArc
+continuation gap goes to Evan as a design question at the fix
+pass (proposed, not built — the §2c completion the migration
+surfaced).
 | PLACEDUNION | 2026-08-16 | the ratified A′ group boolean: Node::PlacedUnion (one prototype + PatternKind rule incl. Explicit(Vec<Frame>), ONE body out, Instance{i} naming), topo::Separation certified disjointness (BVH, both refusal postures), the graft_disjoint_all_onto_keyed door (design-owner RATIFIED on-thread — the union semantics demand one-solid/N-shell; ASM's existing door untouched per their consumption contract), corpus payoffs heat_sink_fins + die_tool, schema v12 (the merged-clean trap caught by explicit read) | L / STRUCTURAL (pre-draw logged) | OPUS (block LIB-10 slot 2; the #510 home-acceptance) | single (ordinal 49, frozen c2e4b5b3) — APPROVE-WITH-FIXES 1/several/— (MAJOR = Explicit(vec![]) silently evaluating to an empty body — the fail-loud violation, caught by the reviewer's probe; soundness probed and HELD at hairline/touch/1e-12 gaps; the ratified door proven a thin wrapper over pre-existing graft_solids_with with the existing door byte-untouched; the reviewer authored a rotated Explicit bit-compat twin the PR lacked; the Bounds-allowlist terminal-grant adjudicated in-class w/ the design-owner's conservative-direction ack) | 5 silent vs 10 reported (doc honesty 3/5 — the version-pin misattributions + doc mis-attachment class) | 4 | 4 | 3 | moderate (the shared placement_rule_fault door — edit gate + snapshot + eval backstop all read it; Explicit frames meet the A6/A11 bar at the EDIT door w/ honest labels; reviewer's twin ADOPTED credited) ; executor: implementer-inherited | MERGED #571 35/35 at 3931d68b; THE GROUP BOOLEAN EXISTS — G8's wall halves (fins move into the document; the BASE union's multi-solid-operand boolean = the named residual gap); the Python/audit slice queued | impl ~450k-cum / review ~204k (~4h slot-queue annotated) / fix ~85k-delta | wall multi-day across the outages |
