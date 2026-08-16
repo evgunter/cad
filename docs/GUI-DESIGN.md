@@ -3,8 +3,9 @@
 **Status: RATIFIED architecture (G1–G5 agreed; GQ1–GQ5 resolved,
 with the `editor-core` substrate shipped — the freshness note below
 is the verified shipped-vs-absent inventory; GQ6–GQ7 deferred to
-GUI time by design); the GUI layer itself remains unbuilt as
-sequenced.** Companion to
+GUI time by design, GQ6's mandated re-survey done 2026-08-16 in
+`docs/GQ6-RESURVEY.md` and still awaiting ratification); the GUI
+layer itself remains unbuilt as sequenced.** Companion to
 `DESIGN.md` (read that first; this doc never overrides D1–D9). GUI
 work is sequenced **after** "usable as a library" (DESIGN.md, Beyond
 the kernel), but the decisions here were banked early because they
@@ -350,8 +351,20 @@ need.*
 
 ### GQ6: Toolkit and platform (decide at GUI time; re-survey first)
 
-Ecosystem snapshot 2026-07 (knowledge dated — re-survey before
-committing): the **substrate** is reusable, the **CAD-ness** is not
+**The re-survey was performed 2026-08-16 → `docs/GQ6-RESURVEY.md`.**
+That document supersedes the snapshot below as the factual record
+(and decides nothing — GQ6 stays open pending Evan). Headline
+deltas: Slint and GPUI drop off the slate on license and
+maintenance-posture grounds respectively, leaving egui vs iced;
+Fornjot was archived 2026-06 and CADmium 2025-09, so "no CAD-ness
+to borrow" is now stronger; the wasm row below is **wrong in our
+favor** — the whole kernel plus `editor-core` compiles to
+`wasm32-unknown-unknown` today, `--features interval` included
+(measured, not surveyed).
+
+Ecosystem snapshot 2026-07 (SUPERSEDED by the re-survey — kept as
+the record of what was believed when GQ6 was banked): the
+**substrate** is reusable, the **CAD-ness** is not
 (no sketcher, feature tree, or error UX exists to borrow, in Rust or
 license-compatible elsewhere). Candidates: **egui** (immediate-mode;
 `rerun` proves egui + wgpu viewport + panels at production scale) vs.
@@ -364,7 +377,9 @@ Picking: GPU ID-buffer pass for hover/click exactness + CPU ray-cast
 (`parry3d`, Apache-2.0) for snapping — both sit on the M2 PR 6
 back-references. Web/wasm is a live strategic option (Zoo and CADmium
 both chose it; pure-Rust `libm` means D9 accidentally made the f64
-lane wasm-friendly; the `interval` feature is not, per issue #4) —
+lane wasm-friendly; the `interval` feature is not, per issue #4
+— that last clause is FALSE as of the re-survey: #4 was met by
+removal at M5 PR 1 and the interval lane builds on wasm) —
 G1 is deliberately agnostic to it. `rerun` served as the
 zero-effort debug viewer through M5 (now closed); as of 2026-08 the
 demo/montage pipeline renders through FreeCAD offscreen, which is a
@@ -373,7 +388,10 @@ viewer commitment has been made.
 
 *(Snapshot explicitly dated: the toolkit, ezpz, and wasm rows are
 as of 2026-07 and nothing in this snapshot binds — the
-re-survey-first instruction is the decision.)*
+re-survey-first instruction is the decision, and it was carried
+out on 2026-08-16: see `docs/GQ6-RESURVEY.md` for the current
+facts, the shrunken slate, the measured wasm result, and the
+spike that would settle egui-vs-iced.)*
 
 ### GQ7: Selection mechanics
 
