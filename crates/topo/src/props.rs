@@ -430,7 +430,7 @@ where
 }
 
 /// The PR 11 certified-quadrature lane's body-side plumbing: stored
-/// pcurve caches → ring-bracketed [`quad::TrimEdgeQ`]s (C4's first hot
+/// pcurve caches → ring-bracketed [`geom_brep::props::quad::TrimEdgeQ`]s (C4's first hot
 /// consumer). Key-free math stays in `geom_brep::props::quad`; this
 /// module owns everything that needs half-edges and vertex points.
 mod quad_lane {

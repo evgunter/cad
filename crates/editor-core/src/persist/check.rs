@@ -413,7 +413,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramFault {
     /// A program slot's expression has the wrong dimension for its
-    /// role (V2's table, [`StepArg::dimension`]).
+    /// role (V2's table, [`crate::StepArg::dimension`]).
     SlotDimension {
         /// The offending slot.
         slot: SlotId,

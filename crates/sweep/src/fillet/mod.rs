@@ -22,8 +22,8 @@
 //! 1. [`battery::radius_headroom`] — `fillet3_radius_headroom`
 //! 2. [`battery::face_clearance`] — `fillet3_face_clearance`
 //! 3. [`battery::spine_regularity`] — `fillet3_spine_regularity`
-//! 4. [`battery::chain_closure`] — `fillet3_chain_g1`
-//! 5. [`battery::convexity_sign`] — `fillet3_convexity_sign`
+//! 4. [`battery::chain_g1`] — `fillet3_chain_g1`
+//! 5. [`battery::convexity_at`] — `fillet3_convexity_sign`
 //! 6. [`battery::corner_config`] — `fillet3_corner_independence`
 //!
 //! # Why `fillet3_*` and not S2's `fillet_*`
@@ -48,7 +48,7 @@
 //! In: closed smooth chains, and open chains terminating in the
 //! three-convex-edge vertex whose corner patch is a sphere octant.
 //! Out, refused typed with the OQ6 payload vocabulary: every other
-//! corner configuration ([`FilletCornerUnsupported`]), and every
+//! corner configuration ([`FilletError::FilletCornerUnsupported`]), and every
 //! chain whose spine is not a line or a circle
 //! ([`FilletError::SpineUnsupported`] — the canal-surface
 //! approximating-blend lane, banked as its own reviewed unit).
