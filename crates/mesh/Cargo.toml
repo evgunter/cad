@@ -41,6 +41,9 @@ probe = [
 # (via pncad's forward of the same name).
 budget = []
 
+# EXPERIMENT: gate the review probe's falsifier the same way.
+cert-probe = []
+
 [dependencies]
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }

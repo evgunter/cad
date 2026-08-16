@@ -80,6 +80,7 @@ fn swept_elbow() -> Body<f64> {
 /// three fixtures at two deltas — the probe assertions live inside
 /// trimmed.rs (env-gated); here we drive them and print headroom.
 #[test]
+#[cfg(feature = "cert-probe")]
 fn z1_per_triangle_certificate_falsification() {
     // MIN-1 adoption: the probe is the SUITE'S guard now — it arms
     // itself (mesh::probe_stats::arm) instead of demanding an env

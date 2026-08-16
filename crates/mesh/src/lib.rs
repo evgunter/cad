@@ -190,45 +190,49 @@ pub use types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 /// recorded sample is also assert-checked in place in `trimmed`);
 /// this is about the EVIDENCE being attributable.
 pub mod probe_stats {
-    use std::cell::Cell;
-    thread_local! {
-        /// (worst measured deviation, its cert, max ratio d/cert,
-        /// count) — this thread's accumulator.
-        static STATS: Cell<(f64, f64, f64, u64)> = const { Cell::new((0.0, 0.0, 0.0, 0)) };
-        /// Is the falsifier armed on this thread?
-        static ARMED: Cell<bool> = const { Cell::new(false) };
-    }
-    /// Arm/disarm the falsifier for tessellations on THIS thread.
-    pub fn arm(on: bool) {
-        ARMED.with(|a| a.set(on));
-    }
-    /// Is the falsifier armed? (Also true when the reviewer's original
-    /// `NURBS_PROBE` env var is set — the manual drive stays usable,
-    /// process-wide.)
-    pub fn armed() -> bool {
-        ARMED.with(Cell::get) || std::env::var_os("NURBS_PROBE").is_some()
-    }
-    /// Record one sample: measured deviation `d` against its
-    /// triangle's certificate `cert`.
-    pub fn record(d: f64, cert: f64) {
-        STATS.with(|c| {
-            let mut s = c.get();
-            if d > s.0 {
-                s.0 = d;
-                s.1 = cert;
-            }
-            if cert > 0.0 {
-                let r = d / cert;
-                if r > s.2 {
-                    s.2 = r;
+    #[cfg(feature = "cert-probe")]
+    mod live {
+        use std::cell::Cell;
+        thread_local! {
+            static STATS: Cell<(f64, f64, f64, u64)> = const { Cell::new((0.0, 0.0, 0.0, 0)) };
+            static ARMED: Cell<bool> = const { Cell::new(false) };
+        }
+        pub fn arm(on: bool) {
+            ARMED.with(|a| a.set(on));
+        }
+        pub fn armed() -> bool {
+            ARMED.with(Cell::get)
+        }
+        pub fn record(d: f64, cert: f64) {
+            STATS.with(|c| {
+                let mut s = c.get();
+                if d > s.0 {
+                    s.0 = d;
+                    s.1 = cert;
                 }
-            }
-            s.3 += 1;
-            c.set(s);
-        });
+                if cert > 0.0 {
+                    let r = d / cert;
+                    if r > s.2 {
+                        s.2 = r;
+                    }
+                }
+                s.3 += 1;
+                c.set(s);
+            });
+        }
+        pub fn take() -> (f64, f64, f64, u64) {
+            STATS.with(|c| c.replace((0.0, 0.0, 0.0, 0)))
+        }
     }
-    /// Take-and-reset this thread's accumulated stats.
-    pub fn take() -> (f64, f64, f64, u64) {
-        STATS.with(|c| c.replace((0.0, 0.0, 0.0, 0)))
+    #[cfg(not(feature = "cert-probe"))]
+    mod inert {
+        pub fn armed() -> bool {
+            false
+        }
+        pub fn record(_d: f64, _cert: f64) {}
     }
+    #[cfg(not(feature = "cert-probe"))]
+    pub use inert::*;
+    #[cfg(feature = "cert-probe")]
+    pub use live::*;
 }
