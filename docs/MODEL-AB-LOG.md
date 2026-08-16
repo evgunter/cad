@@ -826,3 +826,11 @@ concurrent same-head, frozen a557da3b. Pre-draw fields logged at
 spec time: L / MIXED→NUMERIC (docs/M9-1-SPEC.md; arm = block
 M8-15 slot 1). Unit row at PR-2's merge per the two-PR pattern;
 this dual's verdicts recorded there.
+ASM-4 review ordinal fixed at dispatch (2026-08-15, PR #525 open,
+frozen head d34541e1): claimed through 39 (M9-1 PR-1's dual, #526
+— wall-clock priority among unpushed claims per the refined
+main-is-authority rule) + 1 = **40 → SINGLE** (42 is the next
+third — that dual block's draw happens at its claim). Reviewer
+fable, v4 ladder. Pre-draw fields logged at spec time: L /
+STRUCTURAL (docs/ASM-4-SPEC.md; arm = block ASM-2 slot 3, the
+block's last slot, completed as drawn). Row at merge.
