@@ -35,43 +35,27 @@
 # argument. Whether to reinstate it (and render two doc sets, public and
 # private) is banked as its own question: issue #519.
 #
-# THE RATCHET. This fails CLOSED: the gate runs over the WHOLE workspace
-# and every crate is subject to it, except the crates named in
-# KNOWN_DIRTY below. A NEW crate is therefore gated from its first
-# commit. The list only ever SHRINKS — each cleanup lands one crate's
-# fixes and deletes its line, and a crate already off the list cannot
-# regress. Do not add to it.
+# COVERAGE. The gate is workspace-wide with no exclusions: every crate
+# is subject to it, a new crate from its first commit. It landed with a
+# shrinking KNOWN_DIRTY exclusion list (#465 chunk 0) because 75
+# warnings had accumulated unseen; that list is now empty and the
+# machinery is gone with it. If a cleanup ever needs staging again,
+# stage it in the CHANGE, not by re-adding an escape hatch here.
 
 set -euo pipefail
 
-# Crates with a rustdoc-warning backlog, with their current counts, to be
-# emptied one crate per change (#465). Cheapest first.
-KNOWN_DIRTY=(
-  step-import  #  1
-  geom-brep    #  3
-  mesh         #  4
-  sweep        #  6
-  editor-core  #  8
-  profile      #  9
-  geom-core    # 14
-  topo         # 14
-  pncad        # 16
-)
-
-exclude=()
-for crate in "${KNOWN_DIRTY[@]}"; do
-  exclude+=(--exclude "$crate")
-done
-
-if [ "${#KNOWN_DIRTY[@]}" -gt 0 ]; then
-  echo "doc gate: ${#KNOWN_DIRTY[@]} crate(s) still excluded (#465): ${KNOWN_DIRTY[*]}"
-else
-  echo "doc gate: no exclusions left — #465 is done; delete KNOWN_DIRTY and the --exclude plumbing."
-fi
-
 # -D warnings on the rustdoc lints proper; the private-link lint is
-# allowed for the reason argued above. No --all-features: the `interval`
-# feature is a different build graph and its own cache, exactly as the
-# clippy job reasons.
+# allowed for the reason argued above.
+#
+# --all-features, UNLIKE the clippy job. Clippy avoids it because the
+# `interval` feature is a second build graph whose test targets would
+# double that job's compile time for no extra coverage, and the interval
+# job owns its own clippy pass. Neither reason survives here: rustdoc
+# builds no test targets, and there is no second doc job. What the flag
+# buys is real — under default features alone, every doc link into
+# `#[cfg(feature = "probe")]` or `#[cfg(feature = "interval")]` code
+# resolves to nothing, so rustdoc reported 12 CORRECT links as broken
+# while the prose on those items went unchecked entirely. Documenting
+# the full feature set is also what docs.rs does by default.
 RUSTDOCFLAGS="-D warnings -A rustdoc::private_intra_doc_links" \
-  exec cargo doc --workspace "${exclude[@]}" --no-deps --document-private-items
+  exec cargo doc --workspace --all-features --no-deps --document-private-items

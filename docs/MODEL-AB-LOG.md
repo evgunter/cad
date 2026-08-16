@@ -817,3 +817,30 @@ disposition — A2 tied SectionEdge + B1 tied propagation + the
 fields M / STRUCTURAL. Third parallel lane (names/ territory,
 disjoint from RESPELL PR-1 and PYG5 per the fences). Slots 2
 (PlacedUnion, behind RESPELL PR-1's schema claim) and 4 bank.
+M9-1 review ordinal fixed at dispatch (2026-08-15, PR #524 open —
+the unit's PR-1, kernel scope; the orchestrator exercised the
+spec's early-round option): claimed through 38 + 1 = **39 → a
+third → DUAL (sample #13), SAME-MODEL (fable+fable) — the banked
+twin of the second v4 dual block (#405 parity draw)**. R1+R2
+concurrent same-head, frozen a557da3b. Pre-draw fields logged at
+spec time: L / MIXED→NUMERIC (docs/M9-1-SPEC.md; arm = block
+M8-15 slot 1). Unit row at PR-2's merge per the two-PR pattern;
+this dual's verdicts recorded there.
+ASM-4 review ordinal fixed at dispatch (2026-08-15, PR #525 open,
+frozen head d34541e1): claimed through 39 (M9-1 PR-1's dual, #526
+— wall-clock priority among unpushed claims per the refined
+main-is-authority rule) + 1 = **40 → SINGLE** (42 is the next
+third — that dual block's draw happens at its claim). Reviewer
+fable, v4 ladder. Pre-draw fields logged at spec time: L /
+STRUCTURAL (docs/ASM-4-SPEC.md; arm = block ASM-2 slot 3, the
+block's last slot, completed as drawn). Row at merge.
+M9-2 PR-1 review ordinal fixed at dispatch (2026-08-15, PR #527
+open, frozen head per the claim): LIB's open #532 holds 41 by the
+wall-clock tiebreak (claims not yet on main) → claimed **42 → a
+third → DUAL (sample #14)**. THIRD v4 dual block drawn: byte 121,
+parity 1 → **CROSS-MODEL first** (the #405 mapping) — R1 fable +
+R2 OPUS concurrent same-head; the same-model twin banks for
+ordinal 45. Pre-draw fields logged at spec time: PR-1 M / unit L /
+NUMERIC (docs/M9-2-SPEC.md; arm = block M8-15 position 2, fable).
+Unit row at PR-2's merge. NOTE: dispatched during the fleet
+nextest-shard CI incident — hosted re-run owed before merge.
