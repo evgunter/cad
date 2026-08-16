@@ -214,10 +214,12 @@ fn probe_forged_source_on_divergent_charts() {
     let kb = bb.get_face(fb).unwrap().surface;
     bb.set_surface_source(kb, GeomSource::minted(7, 0)).unwrap();
     let got = chart_region_overlap(&ba, fa, &bb, fb, band());
-    // Recorded, not asserted-away: this documents how far the module
-    // trusts the attachment door.
+    // The union fix (U1): the rung-2 lane VERIFIES N6's bit-identity
+    // claim instead of assuming it — a forged same-source pair on two
+    // different chart frames refuses typed. (Pre-fix this probe
+    // recorded the hole: the pair answered Ok(PositiveArea).)
     println!("forged-source divergent charts => {got:?}");
-    assert!(matches!(got, Ok(ChartOverlap::PositiveArea)));
+    assert!(matches!(got, Err(ChartRegionError::ChartDivergence { .. })));
 }
 
 #[test]
@@ -329,7 +331,7 @@ fn probe_mean_width_matches_the_hand_derivation() {
     let a = face_of(rect(0.0, 0.0, 1.0, 1.0), &[]);
     let b = face_of(rect(0.9, -1.0, 3.0, 2.0), &[]);
     let crossings = proper_crossings(&a.outer, &b.outer, band()).unwrap();
-    let pieces = intersection_pieces(&a.outer, &b.outer, &crossings).unwrap();
+    let pieces = intersection_pieces(&a.outer, &b.outer, &crossings, band()).unwrap();
     let (mut a2, mut p) = (0.0, 0.0);
     for pc in &pieces {
         let (x, y) = loop_measures(pc);
@@ -396,7 +398,7 @@ fn probe_collinear_runs_do_not_disturb_the_walk() {
         ChartOverlap::PositiveArea
     );
     let crossings = proper_crossings(&a.outer, &b.outer, band()).unwrap();
-    let pieces = intersection_pieces(&a.outer, &b.outer, &crossings).unwrap();
+    let pieces = intersection_pieces(&a.outer, &b.outer, &crossings, band()).unwrap();
     let (a2, _) = loop_measures(&pieces[0]);
     assert!((a2 - 2.0 * 0.25).abs() < 1e-12, "2A of 0.5×0.5, got {a2}");
 }
@@ -426,7 +428,7 @@ fn probe_comb_yields_three_pieces_with_exact_area() {
         12,
         "three teeth ⇒ each tooth's two walls crossed twice"
     );
-    let pieces = intersection_pieces(&a.outer, &bar.outer, &crossings).unwrap();
+    let pieces = intersection_pieces(&a.outer, &bar.outer, &crossings, band()).unwrap();
     assert_eq!(pieces.len(), 3, "three teeth ⇒ three pieces");
     let total: f64 = pieces.iter().map(|p| loop_measures(p).0).sum();
     assert!(
@@ -448,7 +450,7 @@ fn probe_crossing_on_edge_zero_and_the_order_wrap() {
     let crossings = proper_crossings(&a.outer, &b.outer, band()).unwrap();
     assert_eq!(crossings.len(), 2);
     assert!(crossings.iter().all(|c| c.ai == 0), "both on A's edge 0");
-    let pieces = intersection_pieces(&a.outer, &b.outer, &crossings).unwrap();
+    let pieces = intersection_pieces(&a.outer, &b.outer, &crossings, band()).unwrap();
     assert_eq!(pieces.len(), 1);
     let (a2, _) = loop_measures(&pieces[0]);
     assert!((a2 - 2.0 * 1.0).abs() < 1e-12, "2A of 1×1, got {a2}");

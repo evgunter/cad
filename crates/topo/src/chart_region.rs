@@ -241,11 +241,18 @@ impl core::fmt::Display for ChartRegionError {
 
 impl std::error::Error for ChartRegionError {}
 
-/// An in-band diagnostic for definite-but-uncertifiable outcomes that
-/// re-use the escalation channel (the `contain.rs` `invalid` idiom).
-fn invalid(band: Band, predicate: &'static str) -> Indeterminate {
+/// The diagnostic for a DEFINITE margin whose outcome is nevertheless
+/// uncertifiable (the conservative-deduction escalations): the margin
+/// was validly posed and classified — `MarginDiag::Invalid` would
+/// claim otherwise — so the diag echoes the classified value itself
+/// (its conservative bracket end), named to its row.
+fn definite_diag<T: Bounds>(
+    band: Band,
+    predicate: &'static str,
+    margin: Margin<T>,
+) -> Indeterminate {
     Indeterminate {
-        margin: geom_core::MarginDiag::Invalid,
+        margin: geom_core::MarginDiag::Value(margin.value().lo()),
         band,
         predicate: Some(predicate),
     }
@@ -293,7 +300,7 @@ pub fn chart_region_overlap<T: Decide + Bounds>(
 /// `SurfaceKey` on one body, or the same [`crate::GeomSource`] across
 /// bodies (N6: bit-identical descriptions ⇒ the identical chart).
 /// Anything weaker escalates typed.
-fn same_chart<T: Decide>(
+fn same_chart<T: Decide + Bounds>(
     body_a: &Body<T>,
     face_a: FaceKey,
     body_b: &Body<T>,
@@ -320,10 +327,28 @@ fn same_chart<T: Decide>(
         // Full `GeomSource` equality, orientation included: N6's
         // theorem is about the WHOLE recipe identity — a same-base
         // reverted pair describes the mirrored chart and diverges.
-        (Some(sa), Some(sb)) if sa == sb => body_a
-            .get_surface(key_a)
-            .cloned()
-            .ok_or(ChartRegionError::Corrupt),
+        //
+        // The theorem's conclusion is VERIFIED, not assumed (union
+        // fix U1): `set_surface_source` is a pub door, so "same
+        // source" is a claim any caller can attach — and PR-2's
+        // import-side declaration channel is where a wrong attachment
+        // first becomes plausible. Bit-identical descriptions are
+        // re-checked through the module's own exact-bracket
+        // comparator; a same-source pair whose descriptions differ by
+        // one bit refuses typed instead of certifying overlap in an
+        // arbitrarily chosen chart.
+        (Some(sa), Some(sb)) if sa == sb => {
+            let s_a = body_a.get_surface(key_a).ok_or(ChartRegionError::Corrupt)?;
+            let s_b = body_b.get_surface(key_b).ok_or(ChartRegionError::Corrupt)?;
+            if surface_bits_equal(s_a, s_b) {
+                Ok(s_a.clone())
+            } else {
+                Err(ChartRegionError::ChartDivergence {
+                    detail: "same GeomSource with non-bit-identical descriptions — \
+                             N6 violated (forged or corrupted source attachment)",
+                })
+            }
+        }
         (Some(sa), Some(sb)) if sa.same_base(sb) => Err(ChartRegionError::ChartDivergence {
             detail: "same source base with flipped orientation — the charts mirror",
         }),
@@ -333,6 +358,111 @@ fn same_chart<T: Decide>(
         _ => Err(ChartRegionError::ChartDivergence {
             detail: "no shared SurfaceKey and no GeomSource on both faces",
         }),
+    }
+}
+
+/// Exact-bit equality of two scalars through their brackets: both
+/// point brackets, equal, finite ([`bit_equal_cyclic`]'s read — the
+/// C6 comparator, so NaN never equals and a non-point enclosure never
+/// verifies; both are the conservative direction, a typed divergence).
+fn exact_pair<T: Bounds>(a: T, b: T) -> bool {
+    a.lo() == a.hi() && b.lo() == b.hi() && a.lo() == b.lo() && a.lo().is_finite()
+}
+
+/// Bit-identity of two surface DESCRIPTIONS, read structurally (union
+/// fix U1; the rung-2 verification). Analytic kinds compare every
+/// scalar field; `Nurbs` payloads verify only through pointer
+/// identity today (one shared description object) — an independent
+/// cross-body NURBS pair conservatively fails and takes the typed
+/// divergence, which costs nothing the arm gate would not refuse
+/// anyway; net-level verification extends with the census/inf-bounds
+/// work. Different kinds are never identical.
+fn surface_bits_equal<T: Decide + Bounds>(a: &Surface<T>, b: &Surface<T>) -> bool {
+    let v3 = |p: geom_core::Vec3<T>, q: geom_core::Vec3<T>| {
+        exact_pair(p.x, q.x) && exact_pair(p.y, q.y) && exact_pair(p.z, q.z)
+    };
+    let p3 = |p: geom_core::Point3<T>, q: geom_core::Point3<T>| {
+        exact_pair(p.x, q.x) && exact_pair(p.y, q.y) && exact_pair(p.z, q.z)
+    };
+    match (a, b) {
+        (
+            Surface::Plane {
+                origin: o1,
+                normal: n1,
+                u_ref: u1,
+            },
+            Surface::Plane {
+                origin: o2,
+                normal: n2,
+                u_ref: u2,
+            },
+        ) => p3(*o1, *o2) && v3(*n1, *n2) && v3(*u1, *u2),
+        (
+            Surface::Cylinder {
+                origin: o1,
+                axis: a1,
+                radius: r1,
+                u_ref: u1,
+            },
+            Surface::Cylinder {
+                origin: o2,
+                axis: a2,
+                radius: r2,
+                u_ref: u2,
+            },
+        ) => p3(*o1, *o2) && v3(*a1, *a2) && exact_pair(*r1, *r2) && v3(*u1, *u2),
+        (
+            Surface::Cone {
+                apex: p1,
+                axis: a1,
+                half_angle: h1,
+                u_ref: u1,
+            },
+            Surface::Cone {
+                apex: p2,
+                axis: a2,
+                half_angle: h2,
+                u_ref: u2,
+            },
+        ) => p3(*p1, *p2) && v3(*a1, *a2) && exact_pair(*h1, *h2) && v3(*u1, *u2),
+        (
+            Surface::Sphere {
+                center: c1,
+                radius: r1,
+                axis: a1,
+                u_ref: u1,
+            },
+            Surface::Sphere {
+                center: c2,
+                radius: r2,
+                axis: a2,
+                u_ref: u2,
+            },
+        ) => p3(*c1, *c2) && exact_pair(*r1, *r2) && v3(*a1, *a2) && v3(*u1, *u2),
+        (
+            Surface::Torus {
+                center: c1,
+                axis: a1,
+                major_radius: j1,
+                minor_radius: m1,
+                u_ref: u1,
+            },
+            Surface::Torus {
+                center: c2,
+                axis: a2,
+                major_radius: j2,
+                minor_radius: m2,
+                u_ref: u2,
+            },
+        ) => {
+            p3(*c1, *c2)
+                && v3(*a1, *a2)
+                && exact_pair(*j1, *j2)
+                && exact_pair(*m1, *m2)
+                && v3(*u1, *u2)
+        }
+        (Surface::Nurbs(x), Surface::Nurbs(y)) => std::sync::Arc::ptr_eq(x, y),
+        _ => false,
     }
 }
 
@@ -909,15 +1039,26 @@ fn proper_crossings<T: Decide>(
 /// the standard clip walk — follow A while inside B, switch at every
 /// crossing, follow B while inside A — with every switch point a
 /// definite crossing and every inconsistency a fail-loud `Corrupt`.
-/// Ordering along each boundary is (edge index, advance fraction) by
-/// the fractions' certified brackets (D9-fixed; two crossings whose
-/// order is not bracket-separated would have escalated as a
-/// boundary-touch/sliver before reaching this walk in any
-/// configuration this module certifies, and a tie here is `Corrupt`).
+///
+/// Ordering along each boundary is (edge index, advance fraction),
+/// D9-fixed — and CERTIFIED, not assumed (union fix U2): edge indices
+/// order exactly; within one edge, each adjacent pair of sorted
+/// crossings passes the `chart_region_cross_order` row — their
+/// advance-fraction difference levered by the edge's own length, the
+/// metre separation of the two crossing points along the boundary.
+/// A definite Positive certifies the walk order; an in-band or
+/// non-positive separation escalates typed (two crossings the sort
+/// cannot certifiably order — the `chart_region_cross_span` rows
+/// meter clearance from segment ENDPOINTS and say nothing about
+/// crossing-to-crossing separation, so this row exists). Behind the
+/// certificate, the walk's enter/exit alternation, parity and
+/// consumption checks remain the fail-loud backstop: an adjacent
+/// mis-sort breaks alternation and lands in `Corrupt`.
 fn intersection_pieces<T: Decide + Bounds>(
     a: &[Point2<T>],
     b: &[Point2<T>],
     crossings: &[Crossing<T>],
+    band: Band,
 ) -> Result<Vec<Vec<Point2<T>>>, ChartRegionError> {
     let m = crossings.len();
     if m == 0 || !m.is_multiple_of(2) {
@@ -946,11 +1087,41 @@ fn intersection_pieces<T: Decide + Bounds>(
                 .partial_cmp(&keys[j])
                 .unwrap_or(core::cmp::Ordering::Equal)
         });
-        // A tie (two crossings at one bracket position) is a
-        // configuration the decides upstream cannot have certified.
+        // Certify the sorted order (doc comment): same-edge neighbours
+        // must be definitely separated along the boundary. The margin
+        // is the advance-fraction difference (dimensionless) levered
+        // by the edge's own length — the crossing points' metre
+        // separation along that edge. An exact tie decides Zero and a
+        // bracket-overlapping pair lands in-band: both escalate typed
+        // (no silent assumption, no Corrupt masquerade — the geometry
+        // is degenerate/unresolvable at this ε, not corrupt).
+        let poly: &[Point2<T>] = if on_a { a } else { b };
         for w in idx.windows(2) {
-            if keys[w[0]] == keys[w[1]] {
-                return Err(ChartRegionError::Corrupt);
+            let (ei, fi) = if on_a {
+                (crossings[w[0]].ai, crossings[w[0]].ta)
+            } else {
+                (crossings[w[0]].bi, crossings[w[0]].tb)
+            };
+            let (ej, fj) = if on_a {
+                (crossings[w[1]].ai, crossings[w[1]].ta)
+            } else {
+                (crossings[w[1]].bi, crossings[w[1]].tb)
+            };
+            if ei != ej {
+                continue; // distinct edges order exactly by index
+            }
+            let edge_len = (poly[(ei + 1) % poly.len()] - poly[ei]).norm();
+            let sep = Margin::levered(fj - fi, edge_len);
+            match decide("chart_region_cross_order", sep, band) {
+                Ok(Sign::Positive) => {}
+                Ok(_) => {
+                    return Err(ChartRegionError::Escalated(definite_diag(
+                        band,
+                        "chart_region_cross_order",
+                        sep,
+                    )));
+                }
+                Err(diag) => return Err(ChartRegionError::Escalated(diag)),
             }
         }
         Ok(idx)
@@ -1075,14 +1246,23 @@ fn overlap_of_regions<T: Decide + Bounds>(
             // boundary coincident with the other's ⇒ touching).
             match polygon_relation(&a.outer, &b.outer, band)? {
                 Some(PolyContainment::In) => (a.outer_2a, a.outer_p), // A ⊆ B
-                _ => match polygon_relation(&b.outer, &a.outer, band)? {
+                // Defense-in-depth (union fix U3), stated as the
+                // invariant it is: every A vertex ON B's boundary with
+                // ZERO proper crossings cannot occur without a
+                // `chart_region_cross_span` Zero having refused first
+                // (three adversarial witness constructions all hit
+                // TouchingBoundary at the crossing rows). If the arm
+                // is ever reached, the pair is a touching
+                // configuration — never Empty.
+                None => return Err(ChartRegionError::TouchingBoundary),
+                Some(_) => match polygon_relation(&b.outer, &a.outer, band)? {
                     Some(PolyContainment::In) => (b.outer_2a, b.outer_p), // B ⊆ A
                     Some(_) => return Ok(ChartOverlap::Empty),            // definitely disjoint
                     None => return Err(ChartRegionError::TouchingBoundary),
                 },
             }
         } else {
-            let pieces = intersection_pieces(&a.outer, &b.outer, &crossings)?;
+            let pieces = intersection_pieces(&a.outer, &b.outer, &crossings, band)?;
             let mut sum_2a = T::zero();
             let mut sum_p = T::zero();
             for piece in &pieces {
@@ -1101,6 +1281,17 @@ fn overlap_of_regions<T: Decide + Bounds>(
     // enough to threaten the overlap drives the margin out of the
     // definite-positive range and the query escalates rather than
     // certifies.
+    //
+    // Stated as the deviation it is (PR deviation 5): on a
+    // ring-bearing face this GLOBAL deduction narrows the letter of
+    // C3's "exact in chart space" — the holes are never clipped
+    // against the intersection, so the certified quantity is a LOWER
+    // bound on the true mean width, exact only for ring-free faces.
+    // The narrowing is one-directional by construction: 2A_true ≥
+    // 2A_pieces − Σ 2A_ring and P_true ≤ P_pieces + Σ P_ring, so the
+    // margin under-states — it can refuse a true overlap (escalate),
+    // it can never certify a false one or answer a false Empty (Empty
+    // is decided from outers alone, and holes only shrink).
     let mut net_2a = pieces_2a;
     let mut tot_p = pieces_p;
     let ring_sets: &[&Vec<(T, T)>] = if same_face {
@@ -1124,11 +1315,18 @@ fn overlap_of_regions<T: Decide + Bounds>(
     // exact Zero or a definite Negative after the conservative ring
     // deduction cannot certify EITHER direction (the region exists;
     // only its hole-adjusted area is unresolved) and escalates typed.
-    match decide("chart_region_area", Margin::over_lever(net_2a, tot_p), band) {
+    let area_margin = Margin::over_lever(net_2a, tot_p);
+    match decide("chart_region_area", area_margin, band) {
         Ok(Sign::Positive) => Ok(ChartOverlap::PositiveArea),
-        Ok(_) => Err(ChartRegionError::Escalated(invalid(
+        // A definite Zero/Negative here is NOT an invalid question
+        // (union fix U5: `MarginDiag::Invalid` means never-posed —
+        // NaN/poison — which this is not): the margin was posed and
+        // answered; the conservative ring deduction just leaves no
+        // certifiable direction. Echo the classified margin itself.
+        Ok(_) => Err(ChartRegionError::Escalated(definite_diag(
             band,
             "chart_region_area",
+            area_margin,
         ))),
         Err(diag) => Err(ChartRegionError::Escalated(diag)),
     }
@@ -1323,7 +1521,7 @@ mod tests {
         let b = rect(0.5, 0.5, 1.5, 1.5);
         let crossings = proper_crossings(&a, &b, band()).unwrap();
         assert_eq!(crossings.len(), 2);
-        let pieces = intersection_pieces(&a, &b, &crossings).unwrap();
+        let pieces = intersection_pieces(&a, &b, &crossings, band()).unwrap();
         assert_eq!(pieces.len(), 1);
         let (a2, p) = loop_measures(&pieces[0]);
         assert!((a2 - 0.5).abs() < 1e-12, "2A of the 0.5×0.5 overlap");
@@ -1348,7 +1546,7 @@ mod tests {
         // Each of the four vertical U edges (x = 0, 1, 2, 3) crosses
         // both bar edges (y = 1 and y = 1.5).
         assert_eq!(crossings.len(), 8);
-        let pieces = intersection_pieces(&u, &bar, &crossings).unwrap();
+        let pieces = intersection_pieces(&u, &bar, &crossings, band()).unwrap();
         assert_eq!(pieces.len(), 2, "one piece per prong");
         let total: f64 = pieces.iter().map(|p| loop_measures(p).0).sum();
         assert!((total - 2.0 * 1.0).abs() < 1e-12, "2A = 2 × (1 × 0.5)");
@@ -2001,13 +2199,12 @@ mod tests {
         #[test]
         fn r1_the_lane_trusts_source_attachment_not_surface_values() {
             // The SAME minted source attached to value-DIFFERENT plane
-            // descriptions (u_ref x̂ vs ŷ): the lane admits on recipe
-            // identity and charts BOTH faces through body A's surface.
-            // For derive-on-demand plane charts the 3-D carriers are
-            // re-charted against A's description, so the verdict is
-            // still locus-correct; the probe records that N6 attachment
-            // integrity is a kernel-trust premise the module does not
-            // (and per C2 need not) re-verify numerically.
+            // descriptions (u_ref x̂ vs ŷ). As reviewed, the lane
+            // admitted on recipe identity alone (this probe recorded
+            // PositiveArea); the union fix (U1) VERIFIES N6's
+            // bit-identity conclusion through the module's own
+            // exact-bracket comparator, so the forged pair now refuses
+            // typed — the rung-2 premise is checked, never assumed.
             let mut a = Body::<f64>::new();
             let fa = sheet(&mut a, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
             let ka = a.get_face(fa).unwrap().surface;
@@ -2021,10 +2218,10 @@ mod tests {
             let kb = b.get_face(fb).unwrap().surface;
             a.set_surface_source(ka, GeomSource::minted(3, 0)).unwrap();
             b.set_surface_source(kb, GeomSource::minted(3, 0)).unwrap();
-            assert_eq!(
-                chart_region_overlap(&a, fa, &b, fb, band()).unwrap(),
-                ChartOverlap::PositiveArea
-            );
+            match chart_region_overlap(&a, fa, &b, fb, band()) {
+                Err(ChartRegionError::ChartDivergence { .. }) => {}
+                other => panic!("forged same-source pair must diverge, got {other:?}"),
+            }
         }
 
         // ---- Claims 3/4: dimensional honesty and the band biting.
@@ -2141,7 +2338,7 @@ mod tests {
             let b = vec![pt(1.5, 0.0), pt(0.0, 1.5), pt(-1.5, 0.0), pt(0.0, -1.5)];
             let crossings = proper_crossings(&a, &b, band()).unwrap();
             assert_eq!(crossings.len(), 8);
-            let pieces = intersection_pieces(&a, &b, &crossings).unwrap();
+            let pieces = intersection_pieces(&a, &b, &crossings, band()).unwrap();
             assert_eq!(pieces.len(), 1, "one octagon piece");
             let (a2, _) = loop_measures(&pieces[0]);
             // 2A = 2·(4 − 4·0.125) = 7 exactly (dyadic coordinates).
