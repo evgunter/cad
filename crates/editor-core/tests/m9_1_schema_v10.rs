@@ -219,3 +219,18 @@ fn block(
         },
     )
 }
+
+/// PROBE (review m9-1-pr2-r1): a v9 header — the number LIB-RESPELL
+/// (#531) holds but has not merged — refuses `SchemaTooOld` naming 9
+/// as the first missing step, not a parse error: a hypothetical v9
+/// document gets the same typed recourse as v1..v8.
+#[test]
+fn probe_v9_header_refuses_too_old() {
+    match load("schema: 9\n{}\n") {
+        Err(PersistError::SchemaTooOld { found, missing, .. }) => {
+            assert_eq!(found, 9);
+            assert_eq!(missing, 9);
+        }
+        other => panic!("v9 must refuse SchemaTooOld, got {other:?}"),
+    }
+}
