@@ -940,13 +940,26 @@ the probe above with `assert!(!verdicts.is_empty())` — it fails today.
 
 This defect predates this scan and is independent of every performance
 finding in it. It is listed here rather than in §1 because it is a
-correctness consequence of the structural problem, and fixing the
-structure (2.4) should subsume it — a returned value cannot be
-clobbered by a nested call, and an RAII guard that refuses re-entry
-would have failed loudly at the first assembly evaluation instead of
-silently returning nothing.
+correctness consequence of the structural problem.
+
+**It is not blocked on §2.4's unresolved choice.** Either branch would
+subsume it — a returned value cannot be clobbered by a nested call, and
+an RAII guard that refuses re-entry would have failed loudly at the
+first assembly evaluation rather than silently returning nothing — but
+it does not have to wait for that decision. A direct fix (save and
+restore the enclosing log across a nested bracket, or refuse re-entry)
+plus the regression test is landable on its own, and should be, since
+the design question may sit for a while. Whoever takes §2.4 later
+inherits a fixed bug and a test that pins it, which is strictly better
+than inheriting both.
 
 ### 2.4 The obligation
+
+**Status: (a) vs (b) is UNRESOLVED and was left so deliberately at
+merge (Evan, 2026-08-16).** Neither branch is chosen here; the choice
+is recorded as open rather than settled by whoever wrote this report.
+What *is* settled is that one of them has to happen — "leave it, it
+works today" is not a third branch.
 
 Either **(a) redo it** so verdicts are a value, or **(b) prove (a)
 unaffordable in writing and then make the current mechanism structurally

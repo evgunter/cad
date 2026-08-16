@@ -51,8 +51,11 @@
 //! is redone so verdicts are a returned value, or that the alternative
 //! is proven unaffordable in writing AND this mechanism is made
 //! structurally safe (RAII bracket, re-entry refused loudly, thread
-//! confinement enforced rather than asserted). Do not add call sites
-//! that deepen the dependency on the current shape.
+//! confinement enforced rather than asserted). **Which of those two is
+//! UNRESOLVED — left open deliberately at merge (Evan, 2026-08-16), not
+//! overlooked.** The nesting bug itself is not blocked on that choice
+//! and can be fixed directly. Do not add call sites that deepen the
+//! dependency on the current shape.
 //!
 //! (This paragraph used to read "Production code pays one thread-local
 //! `Cell` write per decision and records nothing." That stopped being
