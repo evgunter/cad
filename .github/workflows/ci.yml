@@ -1591,6 +1591,7 @@ jobs:
             demos/tour
             demos/wild
             tools/k-lint
+            tools/tess-lint
       # Hosted mirror of ci-local's "demos tour (fmt + clippy)" row:
       # the tour is workspace-excluded, so the fmt/clippy jobs above
       # never see it — and this is the job that builds it anyway (the
@@ -1603,6 +1604,17 @@ jobs:
         run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+      - name: tess-lint tool fmt + clippy + tests (the three exit voices)
+        run: cd tools/tess-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+      # The meter's own suite. `mesh::budget` is gated at its module
+      # boundary (mesh's `budget` feature), so the workspace test rows
+      # above run the INERT half — which is the right default, and
+      # exactly why the live half needs a row of its own or it rots.
+      # Clippy too: two configurations, two lints.
+      - name: mesh budget meter (feature = budget)
+        run: |
+          cargo clippy -p mesh --all-targets --features budget -- -D warnings
+          cargo test -p mesh --features budget
       # Drift gate for the committed UV sheet. The two PNG lanes cannot
       # be gated — they need FreeCAD, which this job does not have — so
       # this is the ONLY render lane CI can actually reproduce, and an
@@ -1649,6 +1661,37 @@ jobs:
           re-run demos/tour then demos/render-uv.sh and commit the result"
             exit 1
           }
+      # The tessellation-budget gate (issue #320). It rides THIS job
+      # because this job is the one that builds demos/tour, and the
+      # sweep IS the tour walking its own scenes (~4 s in release).
+      #
+      # COST, stated: on a `tour-cache` HIT the uv-drift step above
+      # skips its release build, and this step then pays it instead —
+      # the tour binary, not its dependencies, so tens of seconds
+      # against this job's own critical path, not the workflow's. It is
+      # deliberately not a debug run (the k-probe sweep's profile):
+      # debug tessellates the same scenes 5-10x slower, which spends
+      # more wall clock than the build it would avoid. The `--features
+      # budget` that arms the meter at all lives in the sweep script,
+      # once, beside the k-probe sweep's `--features probe`.
+      #
+      # It gates REGRESSION,
+      # not absolute slack: the head's factors are large and known
+      # (docs/TESS-BUDGET.md), so an absolute threshold could only be
+      # set above them, and the one thing that must never happen is
+      # someone coarsening a demo's delta to get a number down. What
+      # this catches is a scene's mesh growing, a face's sizing getting
+      # wastefuller, or a scene silently dropping out of the sweep.
+      #
+      # Baseline + how to re-cut it: docs/tess-budget-data/ and the
+      # tool's own failure message, which prints the recourse.
+      - name: tessellation-budget sweep (every tour scene, per face)
+        run: scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv
+      - name: tessellation-budget lint (gate — a grown budget fails this row)
+        run: |
+          cd tools/tess-lint && cargo run -- \
+            ../../target/tess-budget-fresh.csv \
+            --baseline ../../docs/tess-budget-data/tess-budget-baseline.csv
       - name: K-telemetry probe sweep (corpus + demo scenes, 3 eps rows)
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: large-K lint (gate — a flagged margin fails this row)

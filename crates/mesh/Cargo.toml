@@ -30,6 +30,17 @@ probe = [
     "topo/probe",
 ]
 
+# The tessellation budget meter (issue #320): the per-face telemetry
+# `mesh::budget` records and `tools/tess-lint` consumes. OPT-IN, gated
+# at the module boundary — with the feature off, `budget::armed()` is a
+# constant `false` and every recording branch in the tessellation lane
+# folds away, so a shipped build carries no telemetry state at all. The
+# lane itself has no `#[cfg]` in it: the call sites are shared and only
+# the module behind them changes, which is what keeps the two
+# configurations from drifting. `demo-tour tess-budget` is the consumer
+# (via pncad's forward of the same name).
+budget = []
+
 [dependencies]
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
