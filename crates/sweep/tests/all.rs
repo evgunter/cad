@@ -114,6 +114,8 @@ mod m7_skin_integral;
 mod m8_14_long_turn_sweep;
 #[path = "m9_d1_r1_probes.rs"]
 mod m9_d1_r1_probes;
+#[path = "m9_d1_r2_probes.rs"]
+mod m9_d1_r2_probes;
 #[path = "mass_props.rs"]
 mod mass_props;
 #[path = "mass_props_interval.rs"]
