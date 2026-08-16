@@ -239,7 +239,11 @@ per-locus, and a configuration needing more than bounding records
 plus the jet schedule (order-k > 1 contact) has no record type and
 refuses. A `PatchContact`'s area test is exact in chart space on the
 planar trim inventory and refuses typed on trim curves outside it —
-the same envelope discipline as the F5 census, moved to (u,v).
+the same envelope discipline as the F5 census, moved to (u,v); its
+"shared chart" is the structural rungs' by construction (shared key /
+same source ⇒ bit-identical descriptions), and a rung-3 pair
+escalates typed — C2's own caveat that two descriptions of one locus
+may differ as charts makes chart-space exactness unachievable there.
 
 *Alternative — area-sampled patch certification*: rejected; sampling
 can miss a trim hole and certify a contact that is not there — the
