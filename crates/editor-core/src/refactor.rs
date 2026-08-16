@@ -701,6 +701,20 @@ fn remap_node(
                 .collect::<Result<_, RemapMiss>>()?,
         },
         Node::InstantiatePart { .. } => node.clone(),
+        // A mate's references cross the cut like any other name
+        // reference: both heads remap, or the cut severed the mate and
+        // the remap MISSES loudly.
+        Node::Mate {
+            a,
+            b,
+            class,
+            alignment,
+        } => Node::Mate {
+            a: nm(a)?,
+            b: nm(b)?,
+            class: *class,
+            alignment: *alignment,
+        },
     })
 }
 

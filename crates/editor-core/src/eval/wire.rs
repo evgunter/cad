@@ -38,6 +38,10 @@ type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 pub(crate) struct OpEnv<'a, T: Decide> {
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::PartCache<'a, T>,
+    /// The document's mate solve, run once per evaluation (ASM-R2a
+    /// D-5): every instance's pose relative to its cluster gauge, and
+    /// every mate's role.
+    pub poses: &'a crate::mate::SolvedPoses,
 }
 
 /// Runs one node's op against its (already Ok) inputs and evaluated
@@ -75,8 +79,24 @@ where
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals),
         Node::Declare { pairs } => Ok((ValuePayload::Declarations(pairs.clone()), names::empty())),
         Node::InstantiatePart { doc_ref, .. } => {
-            wire_instantiate_part(id, doc_ref, doc.placement(id), env)
+            let placement = env
+                .poses
+                .placement(doc, id)
+                .map_err(NodeErrorKind::Mate)?;
+            wire_instantiate_part(id, doc_ref, placement, env)
         }
+        // A mate DENOTES NO BODY (A12): it evaluates to its role in
+        // the solve, which the product gather skips exactly as it
+        // skips a `Declare`. A refusing mate fails typed here rather
+        // than at the instance it would have placed, so the message
+        // names the mate that is wrong.
+        Node::Mate { .. } => match env.poses.fault(id) {
+            Some(fault) => Err(NodeErrorKind::Mate(Box::new(fault.clone()))),
+            None => Ok((
+                ValuePayload::Mate(env.poses.role(id).unwrap_or(crate::mate::MateRole::Declaring)),
+                names::empty(),
+            )),
+        },
     }
 }
 

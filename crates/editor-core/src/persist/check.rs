@@ -276,6 +276,24 @@ pub enum SnapshotError {
         /// The linear part's determinant.
         determinant: f64,
     },
+    /// A placement row keyed by an instance that is NOT its cluster's
+    /// gauge (ASM-R2a D-3). A11 puts the frame on the cluster, and the
+    /// cluster's key is its document-order-first instance; any other
+    /// key would place a member instead of the cluster, which is the
+    /// multi-anchor state A11 makes unrepresentable.
+    PlacementNotGauge {
+        /// The offending key.
+        node: RecipeNodeId,
+        /// The gauge that should have carried the row.
+        gauge: RecipeNodeId,
+    },
+    /// A mate's alignment datum carries a non-finite coordinate. The
+    /// edit door refuses it, so a file holding one is corrupt: no
+    /// predicate could decide anything about it.
+    MateAlignment {
+        /// The offending mate.
+        node: RecipeNodeId,
+    },
     /// An appearance metadata value violating the D7 producer
     /// convention (map with an integer `"v"`).
     MetadataUnversioned {
@@ -385,6 +403,19 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         let determinant = frame.determinant();
         if !frame.is_finite() || determinant <= 0.0 {
             return Err(SnapshotError::PlacementFrame { node, determinant });
+        }
+        let gauge = crate::mate::gauge_of(doc, node);
+        if gauge != node {
+            return Err(SnapshotError::PlacementNotGauge { node, gauge });
+        }
+    }
+    // ASM-R2a D-1: a mate's alignment is authored numbers a predicate
+    // must be able to decide on.
+    for (&node, n) in &doc.nodes {
+        if let Node::Mate { alignment, .. } = n
+            && !alignment.is_finite()
+        {
+            return Err(SnapshotError::MateAlignment { node });
         }
     }
     // The A10 root invariants (ASM-ROOTS D-2), run AFTER the node

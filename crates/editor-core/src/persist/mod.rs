@@ -591,8 +591,9 @@ pub fn load(text: &str) -> Result<Loaded, PersistError> {
     let mut doc = body.snapshot.clone();
     let mut records = Vec::with_capacity(body.edits.len());
     for (index, edit) in body.edits.iter().enumerate() {
-        let Applied { doc: next, record } =
-            apply(&doc, edit).map_err(|error| PersistError::EditReplay { index, error })?;
+        let Applied {
+            doc: next, record, ..
+        } = apply(&doc, edit).map_err(|error| PersistError::EditReplay { index, error })?;
         doc = next;
         records.push(record);
     }

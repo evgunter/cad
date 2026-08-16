@@ -197,14 +197,32 @@ impl<P> Doc<P> {
         &self.roots
     }
 
-    /// The placement frame of `node`'s cluster (A11): the recorded
-    /// frame, or the identity when nothing is recorded — the missing
-    /// entry IS the identity, so this is total.
+    /// The placement frame of `node`'s CLUSTER (A11): the frame
+    /// recorded against the cluster's gauge, or the identity when
+    /// nothing is recorded — the missing entry IS the identity, so
+    /// this is total.
+    ///
+    /// This is the CLUSTER's frame, which places its gauge; an
+    /// instance's own world placement is this composed with its solved
+    /// relative pose ([`crate::mate::SolvedPoses::placement`]). The
+    /// two coincide exactly for a singleton cluster, which is every
+    /// cluster in a mate-less document.
     pub fn placement(&self, node: RecipeNodeId) -> crate::placement::Frame {
         self.placements
-            .get(&node)
+            .get(&crate::mate::gauge_of(self, node))
             .copied()
             .unwrap_or(crate::placement::Frame::IDENTITY)
+    }
+
+    /// Replaces the whole placement registry — the ONE door A11's
+    /// cluster-record maintenance writes through
+    /// ([`crate::mate::solve::reconcile`]), so re-keying is a single
+    /// observable act rather than a scatter of per-row edits.
+    pub(crate) fn set_placements(
+        &mut self,
+        rows: BTreeMap<RecipeNodeId, crate::placement::Frame>,
+    ) {
+        self.placements = rows;
     }
 
     /// The recorded placement rows, in node order. Rows absent here
