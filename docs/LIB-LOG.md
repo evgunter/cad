@@ -735,6 +735,23 @@ amended to say so. The follow-up's measured cost: ~8 macro
 row-shapes, 500–700 macro lines, ~45 rustdoc-carrying methods
 into table syntax. Queues after PR-2 (same files).
 
+**RULED (Evan, in-chat 2026-08-16): ProfileLoop SEALS — private
+fields + read accessors.** His lean confirmed after analysis:
+sealing makes the PATHS-channel funnel the only compilable route
+at every crate boundary (a downstream struct literal becomes
+uncompilable; the type stays nameable and readable), and shrinks
+#433 to a kernel-internal consistency question. Registered as
+**LIB-SEAL** (small): fields private on ProfileLoop/
+ProfileVertex, read accessors (or a read-only view) for the
+sweep/topo/editor-core consumers, the serde CANNOT-MINT proof
+(grep + the wire.rs-style argument — the stored form is the
+program, replayed; raw-loop deserialization must be shown
+absent), closure-test rows proving the accessor set complete.
+Honest boundary stated: privacy seals at the crate boundary;
+crates/profile's internals stay on the sealed-verbs discipline.
+Sequenced after RESPELL PR-2 (same surfaces). Also settles
+#431's open question — noted there.
+
 **DELETION-HORIZON REGISTER ENTRY NARROWED TO ONE NAMED VOCABULARY
 GAP (LIB-RESPELL PR-2, 2026-08-16) — it does NOT close, and the
 reason is the SURFACE, not the suites.** Of the shim's ~42 callers,
