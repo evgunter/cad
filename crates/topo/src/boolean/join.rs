@@ -945,7 +945,8 @@ fn choose_roles<T: Decide>(
 /// the k_stats funnel; `Indeterminate` escalates. Zero is a
 /// degenerate area-free run and a loud desync (the ring lane only
 /// closes full island cycles — slit-growing joins are mekr-lane
-/// merges). The ring lane is planar-scoped like [`point_in_solid`]'s
+/// merges). The ring lane is planar-scoped like
+/// [`super::solid_contain::point_in_solid`]'s
 /// F5 gate: a non-planar carrier refuses loudly.
 ///
 /// # Dimension (audit F4, `docs/predicate-dimension-audit.md`)
@@ -1241,7 +1242,8 @@ fn cut_pair<T: Decide>(
 /// face is the IN copy iff the region material adjacent to it (the
 /// faces holding its chords' mates) lies inside the OTHER body —
 /// decided by probing the region faces' NON-seam vertices with
-/// [`point_in_solid`] against the pristine other operand (seam
+/// [`super::solid_contain::point_in_solid`] against the pristine other
+/// operand (seam
 /// vertices sit ON the other boundary and are skipped via the
 /// trilean's `OnBoundary`). The two regions flank the seam, so one
 /// definitive verdict fixes both roles; agreeing verdicts on both
@@ -1258,7 +1260,8 @@ fn cut_pair<T: Decide>(
 /// region bounded entirely by seam vertices (all `OnBoundary`), yet
 /// its non-seam edges' interiors classify definitively; the midpoint
 /// (`lerp` at ½, the [`super::ops`] witness-point precedent) is probed
-/// through the same [`point_in_solid`] reified-predicate funnel — no
+/// through the same [`super::solid_contain::point_in_solid`]
+/// reified-predicate funnel — no
 /// new predicate, no epsilon comparison. Seam-chord midpoints lie ON
 /// the other boundary and are skipped by the trilean like seam
 /// vertices. Third, REGION-INTERIOR candidates (the nested-island

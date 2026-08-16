@@ -162,7 +162,7 @@ pub struct FlushFinding {
 /// candidate-generation mode (module docs; SELECT-DESIGN §3a/b).
 ///
 /// Findings come back in canonical order (sorted by name pair) and
-/// are only ever DEFINITE. Like [`select`](super::select), the query
+/// are only ever DEFINITE. Like [`select`](fn@super::select), the query
 /// answers empty if either node has no value in this evaluation.
 ///
 /// # Errors

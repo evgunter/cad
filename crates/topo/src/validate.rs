@@ -478,7 +478,7 @@ pub enum ValidationError {
     /// signed volume is itself winding-derived and therefore blind to
     /// a lone `sense` flip. (The analytic curved kinds get the same
     /// statement from this check's curved arm,
-    /// [`CurvedSenseInverted`] — M6-6.) `Zero` and escalated
+    /// [`Self::CurvedSenseInverted`] — M6-6.) `Zero` and escalated
     /// windings are exempt (the check-7 posture: an orientation probe,
     /// not a thinness gate — degenerate pillow fixtures stay legal and
     /// ε-tightening never flips valid → invalid; a genuinely
@@ -493,7 +493,7 @@ pub enum ValidationError {
     /// Tier 3 (check 6, curved arm — M6-6): a curved face's stored
     /// [`crate::Face::sense`] bit **definitely disagrees** with the
     /// material side its own boundary encodes — the
-    /// [`LoopRoleInverted`] sibling for the analytic curved kinds
+    /// [`Self::LoopRoleInverted`] sibling for the analytic curved kinds
     /// (cylinder, cone, rim-bearing sphere, torus). The face's two
     /// orientation encodings are the S10 `sense` bit and the stored
     /// outer-loop traversal (interior-left): the flux derivations read

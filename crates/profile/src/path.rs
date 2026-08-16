@@ -446,7 +446,7 @@ pub enum PathNoCornerReason {
 
 /// Typed refusals of the authoring algebra — geometry the lattice
 /// cannot rule out, refused loudly (PATHS-DESIGN §3 "Refusals" and §4).
-/// The verify layer's own errors ([`ProfileError`]) still apply to the
+/// The verify layer's own errors ([`crate::ProfileError`]) still apply to the
 /// lowered loop at [`crate::Profile::validate`], unchanged.
 #[derive(Clone, Debug)]
 pub enum PathError<T: Real> {

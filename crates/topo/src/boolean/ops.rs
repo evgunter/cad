@@ -30,7 +30,7 @@
 //!
 //! When operand boundaries do not intersect, classification falls back
 //! to per-shell vertex-in-solid containment
-//! ([`point_in_solid`](super::solid_contain::point_in_solid), F8's ray
+//! ([`point_in_solid`], F8's ray
 //! design promoted to 3-D), probing non-contact vertices against the
 //! pristine other operand.
 //!
@@ -585,7 +585,7 @@ pub(super) fn merge_rows(
 /// `Seamed` result must satisfy the set-theoretic bounds
 /// vol(∩) ≤ min(vol A, vol B), vol(∪) ≥ max(vol A, vol B),
 /// vol(∖) ≤ vol A — computed with the exact planar
-/// [`mass_properties_with`]. The min/max are decomposed into per-operand
+/// [`crate::mass_properties`]. The min/max are decomposed into per-operand
 /// inequalities, so no operand-vs-operand comparison is needed.
 ///
 /// Comparison posture: each bound margin is classified through the

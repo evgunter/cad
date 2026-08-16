@@ -15,7 +15,7 @@
 //! ten-operator catalog with the kill-direction duals — [`Body::kvfs`],
 //! [`Body::kev`], [`Body::kef`], [`Body::mfkrh`] (see [`euler_kill`]) —
 //! plus the make/kill roundtrip property-test machinery; PR 5 completed
-//! the validator (validity tiers — [`validate`] accepts every
+//! the validator (validity tiers — [`fn@validate`] accepts every
 //! Euler-reachable state, [`validate_closed`] the finished closed
 //! solids) and retired the raw-insertion builder to `pub(crate)`: **the
 //! Euler operators are the only public construction path** (D1).
@@ -69,7 +69,7 @@
 //!
 //! Build the unit cube through the Euler operators — the §9.4.2-minimal
 //! sequence, 1 `mvfs` + 7 `mev` + 5 `mef` — and validate it at both
-//! tiers. Every intermediate state is tier-1 valid ([`validate`]); the
+//! tiers. Every intermediate state is tier-1 valid ([`fn@validate`]); the
 //! finished cube is a tier-2 closed solid ([`validate_closed`]).
 //!
 //! ```
