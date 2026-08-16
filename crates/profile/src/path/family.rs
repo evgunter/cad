@@ -611,13 +611,14 @@ impl<T: ArcCarrierScalar> TangentIncoming<T> for ArcLen<T> {
 /// tip exactly as the sharp arc legs check theirs.
 pub trait PointIncoming<T: ArcCarrierScalar> {
     #[doc(hidden)]
-    fn carrier(
-        &self,
-        at: Point2<T>,
-    ) -> Result<(Point2<T>, crate::sugar::ArcSweep, Dir<T>, Point2<T>), PathError<T>>;
+    fn carrier(&self, at: Point2<T>) -> Result<PointCarrier<T>, PathError<T>>;
     #[doc(hidden)]
     fn to_wire(&self) -> ArcData<T>;
 }
+
+/// A point-mode incoming's derived pieces: (centre, winding, start
+/// tangent, anchor).
+type PointCarrier<T> = (Point2<T>, crate::sugar::ArcSweep, Dir<T>, Point2<T>);
 
 /// The shared Bulge-shaped derivation: carrier from chord + bulge (the
 /// existing closed form), winding from the bulge's sign, start tangent
@@ -645,10 +646,7 @@ fn bulge_carrier<T: geom_core::Decide>(
 }
 
 impl<T: ArcCarrierScalar> PointIncoming<T> for verbs::Bulge<T, Point2<T>> {
-    fn carrier(
-        &self,
-        at: Point2<T>,
-    ) -> Result<(Point2<T>, crate::sugar::ArcSweep, Dir<T>, Point2<T>), PathError<T>> {
+    fn carrier(&self, at: Point2<T>) -> Result<PointCarrier<T>, PathError<T>> {
         let band = linear_band()?;
         let chord = (self.p - at).norm_squared().sqrt();
         verbs::gate_positive("path_arc_chord", chord, band, |c| {
@@ -666,10 +664,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for verbs::Bulge<T, Point2<T>> {
 }
 
 impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
-    fn carrier(
-        &self,
-        at: Point2<T>,
-    ) -> Result<(Point2<T>, crate::sugar::ArcSweep, Dir<T>, Point2<T>), PathError<T>> {
+    fn carrier(&self, at: Point2<T>) -> Result<PointCarrier<T>, PathError<T>> {
         let band = linear_band()?;
         let chord_v = self.p - at;
         let chord = chord_v.norm_squared().sqrt();
@@ -697,10 +692,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
 }
 
 impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
-    fn carrier(
-        &self,
-        at: Point2<T>,
-    ) -> Result<(Point2<T>, crate::sugar::ArcSweep, Dir<T>, Point2<T>), PathError<T>> {
+    fn carrier(&self, at: Point2<T>) -> Result<PointCarrier<T>, PathError<T>> {
         let band = linear_band()?;
         // The sharp `arc_center` leg's gates: both radii definitely
         // positive, equidistance definitely zero, chord non-degenerate.
