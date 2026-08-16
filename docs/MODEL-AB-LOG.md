@@ -943,3 +943,11 @@ this PR's merge. STOPPING-RULE note: tally 5-of-6 — if EITHER
 reviewer here finds a MAJOR, this is the SIXTH qualifying dual:
 the dual-review experiment ENDS and Evan is notified explicitly
 per the v4 amendment.
+MESH-PROBEGATE dispatch (2026-08-16): the #558 register-class
+residue, assigned to ASM by Evan in-session as a side-lane unit
+under the normal protocol. Block ASM-3 slot 3 = **OPUS** (the
+byte-207 draw). Pre-draw fields logged at spec time: **S-M /
+STRUCTURAL** (docs/MESH-PROBEGATE-SPEC.md — module-boundary
+gating on the #560 budget pattern; no numeric decisions).
+Crate-disjoint from the in-flight R2-A (editor-core). Row at
+merge; review ordinal claims at its dispatch.
