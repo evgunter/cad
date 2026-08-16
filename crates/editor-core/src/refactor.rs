@@ -24,8 +24,10 @@
 //!
 //! # Placements move with the cut (A11), one frame is hoisted
 //!
-//! When the cut is EXACTLY one placement cluster (v1: one instantiate
-//! node), its frame is HOISTED: the part document holds the copy
+//! When the cut is EXACTLY one placement cluster — its instances and
+//! the mates holding them together, nothing else (ASM-4 D-2 rider ii,
+//! re-keyed by ASM-R2a now that mates make a cluster multi-node) — its
+//! frame is HOISTED: the part document holds the copy
 //! unplaced (identity) and the remainder's new instance is placed at
 //! the cluster's old frame — D-2's "placed at the cluster's old
 //! frame", and the shape a reusable part wants (its world pose belongs
@@ -800,15 +802,37 @@ pub fn split(
             }
         }
     }
-    // The hoisted-frame case: the cut is exactly one placement cluster
-    // (v1: one instantiate node — module docs).
-    let hoisted = match cut.iter().next() {
-        Some(&only)
-            if cut.len() == 1 && matches!(doc.node(only), Some(Node::InstantiatePart { .. })) =>
-        {
-            Some(only)
+    // The hoisted-frame case: the cut is exactly one placement CLUSTER
+    // (ASM-4's D-2 amendment, rider ii — re-keyed here now that A12's
+    // mates make a cluster multi-node; the pre-mate reading, "exactly
+    // one instantiate node", is the singleton case of this one).
+    //
+    // Three conditions, and each says something the frame move needs:
+    // the cut's instances all belong to ONE cluster (else there is no
+    // single frame to hoist); that cluster is WHOLLY inside the cut
+    // (else hoisting would move a frame that still places material
+    // left behind); and the cut carries nothing but that cluster and
+    // the mates holding it together (else the part document owns
+    // material the hoisted frame does not place).
+    let hoisted = {
+        let cut_instances: Vec<RecipeNodeId> = cut
+            .iter()
+            .copied()
+            .filter(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
+            .collect();
+        let gauges: BTreeSet<RecipeNodeId> = crate::mate::clusters(doc)
+            .into_iter()
+            .filter(|members| members.iter().any(|m| cut_instances.contains(m)))
+            .filter(|members| members.iter().all(|m| cut.contains(m)))
+            .filter_map(|members| members.first().copied())
+            .collect();
+        let only_cluster_and_its_mates = cut.iter().all(|&id| {
+            cut_instances.contains(&id) || matches!(doc.node(id), Some(Node::Mate { .. }))
+        });
+        match gauges.iter().next() {
+            Some(&gauge) if gauges.len() == 1 && only_cluster_and_its_mates => Some(gauge),
+            _ => None,
         }
-        _ => None,
     };
     // Parameters: referenced by cut nodes → copied into the part;
     // referenced by BOTH sides → refused (no silent sharing). The

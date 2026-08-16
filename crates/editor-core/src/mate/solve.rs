@@ -234,6 +234,15 @@ fn components(
     out
 }
 
+/// Whether the document contains any live mate — the cheap
+/// precondition for every cluster question, since without one the
+/// answers are all the singleton ones.
+fn has_mates<P>(doc: &Doc<P>) -> bool {
+    doc.order()
+        .iter()
+        .any(|&id| matches!(doc.node(id), Some(Node::Mate { .. })))
+}
+
 // ---- A11: placement clusters ----
 
 /// **A11's placement clusters**: the connected components of the
@@ -276,6 +285,14 @@ pub fn clusters<P>(doc: &Doc<P>) -> Vec<Vec<RecipeNodeId>> {
 /// record, or `instance` itself when it is not a live instance (the
 /// total reading a registry lookup wants).
 pub fn gauge_of<P>(doc: &Doc<P>, instance: RecipeNodeId) -> RecipeNodeId {
+    // A document with no mates has only singleton clusters, so every
+    // instance IS its own gauge — stated as a fast path because this
+    // is the door every placement lookup goes through, and the walk
+    // below would otherwise cost a pass over the recipe for an answer
+    // that is structurally fixed.
+    if !has_mates(doc) {
+        return instance;
+    }
     clusters(doc)
         .into_iter()
         .find(|c| c.contains(&instance))
@@ -737,6 +754,13 @@ pub enum ClusterMaintenance {
 /// prior row VERBATIM — bit-identical, which is what makes a mate-less
 /// document's registry unchanged by this machinery existing.
 pub(crate) fn reconcile<P>(before: &Doc<P>, after: &mut Doc<P>) -> Vec<ClusterMaintenance> {
+    // Neither side has a mate: every cluster is a singleton on both,
+    // so the registry is already keyed by its own gauges and the
+    // maintenance has nothing to do. The invariant below would compute
+    // exactly this, at the cost of a recipe pass per edit.
+    if !has_mates(before) && !has_mates(after) {
+        return Vec::new();
+    }
     let before_clusters = clusters(before);
     let before_gauge: BTreeMap<RecipeNodeId, RecipeNodeId> = before_clusters
         .iter()
