@@ -57,7 +57,7 @@ def orient(verts, up):
     return verts
 
 
-def shade(verts, base):
+def shade(verts, base, alpha=1.0):
     """Flat Lambert shading per triangle (recomputed normals)."""
     n = np.cross(verts[:, 1] - verts[:, 0], verts[:, 2] - verts[:, 0])
     norm = np.linalg.norm(n, axis=1, keepdims=True)
@@ -66,7 +66,7 @@ def shade(verts, base):
     fill = np.clip(n @ np.array([-0.55, 0.35, 0.15]), 0.0, 1.0)  # soft fill
     lum = 0.30 + 0.60 * lam + 0.12 * fill
     rgb = np.clip(np.outer(lum, np.asarray(base)), 0, 1)
-    return np.concatenate([rgb, np.ones((len(rgb), 1))], axis=1)
+    return np.concatenate([rgb, np.full((len(rgb), 1), alpha)], axis=1)
 
 
 def cull_backfaces(verts, elev, azim):
@@ -101,14 +101,24 @@ def draw(ax, scene, stl_dir):
             continue
         drawn += 1
         verts = orient(read_binary_stl(stl_dir / body["stl"]), up)
-        front = cull_backfaces(verts, elev, azim)
-        colors = shade(front, body["color"])
+        # Transparency (a scene property, carried in the manifest):
+        # backfaces are what a see-through body is FOR, so a
+        # transparent body keeps them and the painter's z-sort does
+        # the rest. Opaque bodies still cull exactly, as before.
+        alpha = 1.0 - body.get("transparency", 0) / 100.0
+        front = verts if alpha < 1.0 else cull_backfaces(verts, elev, azim)
+        colors = shade(front, body["color"], alpha)
         ax.add_collection3d(
             Poly3DCollection(
                 front,
                 facecolors=colors,
-                edgecolors=colors,  # match faces: no wireframe, no AA cracks
-                linewidths=0.3,
+                # Opaque: edges match faces (no wireframe, no AA
+                # cracks). Transparent: no edges at all — a
+                # semi-transparent edge drawn over its own face
+                # double-darkens every triangle boundary and the body
+                # reads as a wire mesh.
+                edgecolors=colors if alpha >= 1.0 else "none",
+                linewidths=0.3 if alpha >= 1.0 else 0.0,
                 zsort="average",
             )
         )

@@ -41,6 +41,7 @@ mod curvedcut;
 mod cutaway;
 mod diefillet;
 mod heatsink;
+mod klein;
 mod letterforms;
 mod lily;
 mod paths;
@@ -52,6 +53,7 @@ mod scalar;
 mod skinned;
 mod tube;
 mod uvdump;
+mod walls;
 
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 use pncad::topo::{Body, ContactRecords};
@@ -67,6 +69,12 @@ struct SceneBody {
     contacts: Option<ContactRecords>,
     /// Base RGB for the render manifest.
     color: [f64; 3],
+    /// Render transparency, 0–100 (0 = opaque, the default every
+    /// scene had before the Klein bottle). Carried in the manifest so
+    /// it is a property of the SCENE rather than of a renderer: a
+    /// shape whose point is what happens INSIDE it (a neck entering a
+    /// body wall) cannot be read from an opaque render at any camera.
+    transparency: u8,
     /// Whether STEP export MUST succeed for this body (#91 review M2:
     /// a refusal on a body inside the writer's subset is a regression
     /// that fails the tour, never a silently hollowed F6 dogfood).
@@ -92,8 +100,17 @@ impl SceneBody {
             body,
             contacts: None,
             color,
+            transparency: 0,
             step_expected: true,
         }
+    }
+
+    /// The same body, rendered see-through (`t` = 0–100). Only for
+    /// shapes whose subject is interior — the Klein bottle's neck
+    /// inside its own body wall is the founding case.
+    fn transparent(mut self, t: u8) -> Self {
+        self.transparency = t;
+        self
     }
 
     /// An all-planar non-boolean body (split halves, transformed
@@ -115,6 +132,7 @@ impl SceneBody {
             body,
             contacts: Some(contacts),
             color,
+            transparency: 0,
             step_expected: true,
         }
     }
@@ -180,6 +198,7 @@ struct ManifestBody {
     stl: String,
     step: Option<String>,
     color: [f64; 3],
+    transparency: u8,
 }
 
 fn run_body(
@@ -336,6 +355,7 @@ fn run_body(
         stl,
         step,
         color: sb.color,
+        transparency: sb.transparency,
     })
 }
 
@@ -383,12 +403,14 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
                 None => "null".to_string(),
             };
             format!(
-                "{{\"stl\": \"{}\", \"step\": {}, \"color\": [{}, {}, {}]}}",
+                "{{\"stl\": \"{}\", \"step\": {}, \"color\": [{}, {}, {}], \
+                 \"transparency\": {}}}",
                 b.stl,
                 opt(&b.step),
                 b.color[0],
                 b.color[1],
-                b.color[2]
+                b.color[2],
+                b.transparency
             )
         })
         .collect();
@@ -467,6 +489,12 @@ fn main() {
         run(&stop);
     }
     lily::wall_probes::<f64>();
+
+    println!("\n-- the Klein bottle: a non-orientable surface, three bodies deep --");
+    for stop in klein::stops() {
+        run(&stop);
+    }
+    klein::wall_probes::<f64>();
 
     println!("\n-- the tilted cut (M5 PR 5's exact ellipse; RENDERING since PR 11) --");
     for stop in curvedcut::stops() {
