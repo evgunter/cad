@@ -880,3 +880,9 @@ recorded in the spec header and the draft's pre-log flag).
 Dispatch GATED on M9-1 PR-2's merge (editor-core ContactClass —
 the #524 seam). Slots 2–4 bank (R2-B = the natural slot-2
 candidate; its own pre-log at its spec).
+ASM-UPD dispatch (2026-08-16): block ASM-3 slot 2 = **OPUS**
+(the byte-207 draw). Pre-draw fields logged at spec time:
+**M / STRUCTURAL** (docs/ASM-UPD-SPEC.md — edit vocabulary +
+elaboration + multiplicity lint, no numeric decisions). A13
+ratified (#544) is the binding design. Ungated; runs while R2-A
+(slot 1, opus) waits on M9-1 PR-2. Row at merge.
