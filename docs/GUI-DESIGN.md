@@ -3,9 +3,10 @@
 **Status: RATIFIED architecture (G1–G5 agreed; GQ1–GQ5 resolved,
 with the `editor-core` substrate shipped — the freshness note below
 is the verified shipped-vs-absent inventory; GQ6–GQ7 deferred to
-GUI time by design, GQ6's mandated re-survey done 2026-08-16 in
-`docs/GQ6-RESURVEY.md` and still awaiting ratification); the GUI
-layer itself remains unbuilt as sequenced.** Companion to
+GUI time by design — except GQ6's toolkit row, ratified 2026-08-16
+off the mandated re-survey in `docs/GQ6-RESURVEY.md`: **egui**, with
+iced as the named fallback); the GUI layer itself remains unbuilt as
+sequenced.** Companion to
 `DESIGN.md` (read that first; this doc never overrides D1–D9). GUI
 work is sequenced **after** "usable as a library" (DESIGN.md, Beyond
 the kernel), but the decisions here were banked early because they
@@ -153,7 +154,7 @@ requirement, not a solver one).
   here makes "preview disagreed with commit" conceptually impossible
   rather than merely tested-against.
 
-## GQ items (GQ1–GQ5 RATIFIED and shipped — kept as the rationale record; GQ6–GQ7 deliberately deferred to GUI time)
+## GQ items (GQ1–GQ5 RATIFIED and shipped — kept as the rationale record; GQ6's toolkit row RATIFIED 2026-08-16, its remaining rows and GQ7 deliberately deferred to GUI time)
 
 ### GQ1 (RATIFIED 2026-07-19 round 4): The solver/replay boundary — witness as authoritative branch selection
 
@@ -349,15 +350,37 @@ Both land in the library program (LIBRARY-DESIGN U8 — bindings are
 the first consumer of round-tripping `25 mm`), ahead of any GUI
 need.*
 
-### GQ6: Toolkit and platform (decide at GUI time; re-survey first)
+### GQ6: Toolkit and platform (toolkit RATIFIED 2026-08-16; the rest still decided at GUI time)
 
-**The re-survey was performed 2026-08-16 → `docs/GQ6-RESURVEY.md`.**
-That document supersedes the snapshot below as the factual record
-(and decides nothing — GQ6 stays open pending Evan). Headline
-deltas: Slint and GPUI drop off the slate on license and
-maintenance-posture grounds respectively, leaving egui vs iced;
-Fornjot was archived 2026-06 and CADmium 2025-09, so "no CAD-ness
-to borrow" is now stronger; the wasm row below is **wrong in our
+**The mandated re-survey was performed 2026-08-16 →
+`docs/GQ6-RESURVEY.md`**, which supersedes the snapshot below as the
+factual record.
+
+**Toolkit (RATIFIED, Evan, 2026-08-16): egui — and if egui does not
+work out, iced.** A default with a named fallback, not a tie to be
+broken later by a bake-off. Deciding factors: egui tracks current
+wgpu (30) where iced 0.14 pins 27 and has not released since
+2025-12; the docking chrome a feature-tree + viewport + property
+panel needs on day one exists in egui's ecosystem and is thin in
+iced's; and rerun is a production existence proof of exactly our
+shape (egui panels + wgpu viewport). iced's MVU fit with G1 is real
+but is an argument about where the architecture *lives*, and G1's
+architecture already lives in `editor-core`, below any toolkit —
+which is also why the fallback is cheap: switching costs the
+interaction layer and nothing beneath it. The conditions that would
+trigger the fallback are written down in advance in the re-survey's
+§5.
+
+Two candidates left the slate for good: **Slint** (its only
+OSI-approved branch is GPL-3.0-only, which cannot ship in an
+MIT-OR-Apache-2.0 product; the royalty-free branch is a proprietary
+grant — and its renderers give a wgpu viewport no first-class seat)
+and **GPUI** (upstream states it lacks the resources to maintain it
+standalone). bevy remains listed but demoted.
+
+The other rows stay as the snapshot left them, with two corrections:
+Fornjot was archived 2026-06 and CADmium 2025-09, so "no CAD-ness to
+borrow" is now *stronger*; and the wasm row below is **wrong in our
 favor** — the whole kernel plus `editor-core` compiles to
 `wasm32-unknown-unknown` today, `--features interval` included
 (measured, not surveyed).
@@ -388,10 +411,10 @@ viewer commitment has been made.
 
 *(Snapshot explicitly dated: the toolkit, ezpz, and wasm rows are
 as of 2026-07 and nothing in this snapshot binds — the
-re-survey-first instruction is the decision, and it was carried
-out on 2026-08-16: see `docs/GQ6-RESURVEY.md` for the current
-facts, the shrunken slate, the measured wasm result, and the
-spike that would settle egui-vs-iced.)*
+re-survey-first instruction was the decision. It was carried out
+on 2026-08-16 and the toolkit row is now settled on top of it; see
+`docs/GQ6-RESURVEY.md` for the current facts, the measured wasm
+result, and the conditions that would trigger the iced fallback.)*
 
 ### GQ7: Selection mechanics
 

@@ -1,14 +1,19 @@
 # GQ6 re-survey — toolkit, viewport, picking, wasm (2026-08-16)
 
-**Status: SURVEY + RECOMMENDATION, ratifying nothing.** GQ6
+**Status: the survey, plus one RATIFIED row.** GQ6
 (`docs/GUI-DESIGN.md`) was deferred to GUI time with one binding
 instruction — *re-survey before committing*. This document is that
-re-survey. It **supersedes the 2026-07 ecosystem snapshot** in
-GUI-DESIGN's GQ6 section as the current factual record, and it
-**does not decide GQ6**: per the repo's design convention, a
-question this shape is ratified in conversation with Evan, not by
-an agent writing a doc. Everything below is evidence plus a ranked
-recommendation to argue with.
+re-survey, and it **supersedes the 2026-07 ecosystem snapshot** in
+GUI-DESIGN's GQ6 section as the current factual record.
+
+**Toolkit: RATIFIED 2026-08-16 (Evan) — egui, falling back to iced
+if egui does not work out.** Evan's ruling on this survey: "egui
+sounds enough better than iced that I'd switch the framing to
+'egui, unless that doesn't work, then try iced'." §1 is written in
+that frame. The remaining rows are unchanged in status: viewport
+(§2) and picking (§3) are recommendations carrying no ratification,
+the wasm row (§4) is measurement rather than decision, and GQ7 is
+untouched.
 
 ## Method, and what is *not* evidence here
 
@@ -150,15 +155,24 @@ healthy and irrelevant: a DOM/web-tech component model in which a
 CAD viewport is a foreign object. `floem` 0.2.0 has not released
 since 2024-11. None of these changes the shape of the decision.
 
-**Recommendation: egui, with iced as the named runner-up.** The
-deciding factors are current-wgpu tracking, the docking ecosystem, a
-production existence proof of exactly our shape (rerun = egui panels
-+ wgpu viewport), and release cadence. The MVU-fit argument for iced
-is genuine but is an argument about where the architecture *lives*,
-not whether it works — and G1's architecture already lives in
-`editor-core`, below any toolkit, by design. That is precisely what
-makes this choice reversible: the toolkit sits above the layer that
-holds the decisions.
+**Ratified (Evan, 2026-08-16): egui — and if egui does not work
+out, iced.** Not a tie to be broken later by a bake-off: egui is the
+toolkit the GUI is built in, and iced is the named fallback if
+building in egui goes badly. The deciding factors are current-wgpu
+tracking, the docking ecosystem, a production existence proof of
+exactly our shape (rerun = egui panels + wgpu viewport), and release
+cadence. The MVU-fit argument for iced is genuine but is an argument
+about where the architecture *lives*, not whether it works — and
+G1's architecture already lives in `editor-core`, below any toolkit,
+by design.
+
+That layering is what makes committing now cheap rather than brave,
+and it is why the fallback is a real option rather than a
+face-saving clause: the toolkit sits **above** the layer that holds
+the decisions, so switching to iced later costs the interaction
+layer and nothing beneath it. What a fallback would cost concretely
+is the viewport's wgpu version (30 under egui, 27 under iced 0.14)
+and the docking chrome — both interaction-layer work.
 
 ## 2. Viewport
 
@@ -257,38 +271,58 @@ In-browser modeling is genuinely available to us in a way it was not
 to the reference implementations, and it costs a build lane rather
 than an architecture. G1 stays agnostic; the option is real.
 
-## 5. What would settle this, and what would flip it
+## 5. What "doesn't work out" would look like
 
-The cheapest decisive experiment is **one spike, one afternoon, done
-twice**: a window with a docked side panel and a wgpu viewport
-drawing one M5 tessellation, with click → `ray → stable ref` through
-the `editor-core` hit-test service — once in egui, once in iced.
-That measures the two things this survey cannot: how much friction
-the immediate-mode/retained-document seam actually creates, and how
-much of the toolkit's version churn lands on us.
+The toolkit is decided, so the spike is no longer a bake-off — the
+first GUI increment is simply built in egui: a docked side panel
+plus a wgpu viewport drawing one M5 tessellation, with click →
+`ray → stable ref` through the `editor-core` hit-test service. What
+that increment measures is the one thing this survey could not —
+how much friction the immediate-mode/retained-document seam actually
+creates.
 
-Tripwires that would change the recommendation:
+This section exists so the fallback has teeth: the conditions below
+are what would send us to iced, written down in advance so the
+switch is a recorded judgement rather than a mood.
 
-- **iced ships 0.15 on current wgpu** with the release gap
-  narrowing → the MVU-fit argument stops carrying a cadence penalty
-  and iced becomes the leading candidate on merit.
-- **egui's churn lands on the toolchain pin.** If an egui MSRV bump
-  ever forces a compiler move that D9's bit-identity gate is not
-  ready for, that is a direct conflict with L2 and worth re-opening.
-- **We decide the browser is the primary target.** Then the toolkit
-  question re-ranks around web ergonomics (both egui and iced run on
-  wasm; the panel/text/IME story on mobile browsers differs), and
-  the wgpu-30 web backend versus Firefox-on-Linux's timeline enters.
+- **The immediate-mode seam fights the document.** If holding
+  `Doc` authoritative under an immediate-mode loop needs
+  ad-hoc frame-to-frame state to keep widgets coherent, egui is
+  costing us the thing G1 exists to protect, and iced's MVU shape
+  stops being merely philosophical.
+- **egui's churn lands on the toolchain pin.** MSRV went
+  1.88 → 1.92 → 1.95 across three releases. If a bump ever forces a
+  compiler move that D9's bit-identity gate is not ready for, that
+  is a direct conflict with L2 — and unlike the seam risk, it is
+  visible early, from the MSRV row of each egui release.
+- **Rendering-integration breakage becomes chronic.** The bet on
+  egui is partly that it tracks current wgpu; if paint callbacks or
+  the wgpu pin become a recurring migration cost, that bet failed on
+  its own terms.
 
-## Open questions for the ratification conversation
+Two things that would NOT reopen this on their own: iced shipping
+0.15 on current wgpu (welcome, but "the runner-up improved" is not a
+reason to move a working GUI), and a decision to target the browser
+(both toolkits run on wasm; that would re-rank web ergonomics
+without re-ranking the toolkit).
 
-1. Is the toolkit decision taken now, or does it stay deferred with
-   this document as the refreshed snapshot? (Nothing forces it: the
-   GUI is unbuilt and `editor-core` holds the decisions. But the
-   slate has shrunk from five to two, which is new information.)
-2. Does the **wasm result change the sequencing** — i.e. is "the
+## Questions, answered and open
+
+1. *Is the toolkit decision taken now, or deferred with this as the
+   refreshed snapshot?* **Answered 2026-08-16: taken** — egui, iced
+   as fallback (§1). The slate shrinking from five to two was the
+   new information that made deferral pointless.
+2. *Is egui's quarterly-breaking-change tax acceptable against L2's
+   pinned toolchain?* **Answered by the same ruling: yes**, and §5
+   keeps it under watch as the fallback condition with the earliest
+   warning signal.
+3. **Still open:** does the wasm result change sequencing — is "the
    kernel runs in a browser" something to protect with a CI target
    check now (cheap, and it would catch a regression the day it
-   lands) rather than rediscover at GUI time?
-3. Is egui's quarterly-breaking-change tax acceptable against L2's
-   pinned toolchain, or is that the axis on which iced wins?
+   lands) rather than rediscover at GUI time? Note this is now a
+   question about a *property we have*, not a strategic bet: nothing
+   in the toolkit ruling depends on it, since egui runs on wasm too.
+
+What stays deferred regardless: the viewport (§2) and picking (§3)
+recommendations are engineering calls for whoever builds the first
+GUI increment, and GQ7 (selection mechanics) is untouched.
