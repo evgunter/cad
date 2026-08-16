@@ -192,24 +192,53 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// TYPED at the gate with the regenerate recourse (the v3 precedent),
 /// and the migration table stays empty.
 ///
-/// Version 10 is the **group boolean's vocabulary** (GROUP-BOOLEAN-
+/// Version 10 is **edit vocabulary growth** (ASSEMBLY-DESIGN A13,
+/// ratified #544; ASM-UPD D-1): [`crate::DocEdit`] gained the
+/// `UpdateReference` arm, the recorded per-reference pin move. The
+/// edit log is FILE data — a saved document carries its unreplayed
+/// edits — so a new arm is a new wire shape, exactly the case v8
+/// bumped for one level over in the vocabulary. Forward-additive
+/// again (a v9 file contains no `UpdateReference`), and again the
+/// gate buys the other direction: a v10 file handed to a v9 reader
+/// must refuse at the version door rather than reach serde and die on
+/// an unknown variant. A v9 file refuses TYPED with the regenerate
+/// recourse and the migration table stays empty.
+///
+/// **9 was claimed twice, and this is the resolution** — the v7/v8
+/// collision again, and caught the same way. LIB-RESPELL (#531) and
+/// ASM-UPD (#549) each concluded 9 was theirs, each having re-merged
+/// main before the other's bump landed. RESPELL merged first, so v9
+/// is the re-spell and the `UpdateReference` arm takes 10. What made
+/// it visible this time rather than silent: the pattern is now in
+/// this ledger, so ASM-UPD flagged the hazard in its own PR body
+/// BEFORE the collision fired and re-checked the constant by eye at
+/// the merge — which is the discipline the v7/v8 entry asks for.
+///
+/// Version 11 is the **group boolean's vocabulary** (GROUP-BOOLEAN-
 /// DESIGN, ratified A′; LIB-PLACEDUNION): the node vocabulary gained
 /// `Node::PlacedUnion` — one prototype, a placement rule, ONE fused
 /// body out — and the rule vocabulary gained `PatternKind::Explicit`,
 /// a listed set of absolute frames. ONE vocabulary change, one version
-/// (the one-meaning-per-version rule above): the node kind and the rule
-/// kind ship together because neither is expressible without the other
-/// at the die tour's twenty-one-pip site that motivated both.
+/// (the one-meaning-per-version rule): the node kind and the rule kind
+/// ship together because neither is expressible without the other at
+/// the die tour's twenty-one-pip site that motivated both.
 ///
 /// A pre-release clean break, both directions, on the v3/v9 precedent:
-/// a v10 file's new variants are unknown to a v9 reader, and this
-/// reader has no v9-shaped meaning to migrate from, so a v9 file
-/// refuses TYPED at the gate with the regenerate recourse and the
-/// migration table stays empty.
+/// a v11 file's new variants are unknown to a v10 reader, and this
+/// reader has no v10-shaped meaning to migrate from, so a v10 file
+/// refuses TYPED with the regenerate recourse and the migration table
+/// stays empty.
+///
+/// **10 was claimed twice, and the ledger caught it a third time.**
+/// ASM-UPD (#549) and LIB-PLACEDUNION each concluded 10 was theirs,
+/// each having read main before the other's bump landed. ASM-UPD
+/// merged first, so v10 is `UpdateReference` and the group boolean
+/// takes 11 — re-checked by eye at the final re-merge, which is
+/// exactly the discipline the v7/v8 and v9/v10 entries ask for.
 ///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these nine.
-pub const SCHEMA_VERSION: u32 = 10;
+/// [`migration_step`] entry, or a ratified break like these ten.
+pub const SCHEMA_VERSION: u32 = 11;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]

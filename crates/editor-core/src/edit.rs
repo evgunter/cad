@@ -210,6 +210,36 @@ pub enum DocEdit<P> {
         /// The cluster's new frame.
         frame: crate::placement::Frame,
     },
+    /// Move ONE instance's pin to a new version of the same document
+    /// (A13's per-reference primitive; ASM-UPD D-1). The id does not
+    /// move — A4 keeps identity and version distinct, and this edit
+    /// touches only the version half.
+    ///
+    /// **The A13 clause-4 contract, verbatim**: *Update triggers
+    /// ordinary re-evaluation; once R2-b lands, a pin move on an
+    /// instance with crossing declarations additionally triggers mate
+    /// re-verification (A4's "does it actually fit" gate — the edit's
+    /// contract, stated once). Disk-moved-pin-held staleness is AQ5's
+    /// capture question, out of this decision.* No R2-b machinery
+    /// exists here; the clause is stated so the later unit extends a
+    /// contract rather than inventing one.
+    ///
+    /// **The new pin is RECIPE DATA, not a resolution.** `apply` does
+    /// not reach across the document seam — it has no resolver and no
+    /// store — so a pin naming content that does not exist is accepted
+    /// here and refused at EVALUATION, through the seam vocabulary
+    /// that already names both pins ([`crate::ResolveFault::PinMismatch`]
+    /// / [`crate::ResolveFault::Unresolved`]). Checking at the edit
+    /// door would make the edit's meaning depend on which store was
+    /// mounted when it was recorded, which is exactly what a recorded,
+    /// replayable log must not carry.
+    UpdateReference {
+        /// The instantiate node whose pin moves.
+        node: RecipeNodeId,
+        /// The version this reference now names. Undo is keeping the
+        /// prior document, which still carries the prior pin.
+        new_pin: crate::ident::ContentPin,
+    },
 }
 
 /// Typed, specific edit refusal (spec D6: no stringly errors).
@@ -518,6 +548,24 @@ pub enum EditError {
         /// The offending target.
         node: RecipeNodeId,
     },
+    /// A pin update aimed at a node that does not instantiate a part
+    /// (A13; ASM-UPD D-1 — the [`EditError::PlacementOnNonInstance`]
+    /// precedent: only a cross-document reference HAS a version).
+    UpdateOnNonInstance {
+        /// The offending target.
+        node: RecipeNodeId,
+    },
+    /// A pin update whose new pin is the one the reference already
+    /// names. The edit would record a step that changes nothing —
+    /// refused rather than written, so a log's presence of an update
+    /// always means a version actually moved (ASM-UPD D-1's fail-loud
+    /// rule).
+    PinUnchanged {
+        /// The reference that already names this pin.
+        node: RecipeNodeId,
+        /// The pin both sides carry.
+        pin: crate::ident::ContentPin,
+    },
 }
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
@@ -695,6 +743,16 @@ impl core::fmt::Display for EditError {
             Self::NonFinitePlacement { node } => write!(
                 f,
                 "edit: the placement frame for node {} carries a non-finite coordinate",
+                node.0
+            ),
+            Self::UpdateOnNonInstance { node } => write!(
+                f,
+                "edit: node {} does not instantiate a part, so it has no pinned version to update",
+                node.0
+            ),
+            Self::PinUnchanged { node, pin } => write!(
+                f,
+                "edit: node {} already pins {pin}, so this update would record no version move",
                 node.0
             ),
         }
@@ -1255,6 +1313,33 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // Structural: a placement decides where the instance's
             // material lands, so it is recipe shape, not a continuous
             // slot value — and it moves the document's content pin.
+            EditRecord {
+                minted: None,
+                structural: true,
+            }
+        }
+        DocEdit::UpdateReference { node, new_pin } => {
+            // Three refusals, each naming its own subject — an unknown
+            // id and a live-but-wrong-kind node are different mistakes
+            // and must not collapse into one message.
+            let Some(target) = new.nodes.get_mut(node) else {
+                return Err(EditError::UnknownNode { id: *node });
+            };
+            let Node::InstantiatePart { doc_ref, .. } = target else {
+                return Err(EditError::UpdateOnNonInstance { node: *node });
+            };
+            if doc_ref.pin == *new_pin {
+                return Err(EditError::PinUnchanged {
+                    node: *node,
+                    pin: *new_pin,
+                });
+            }
+            // Only the version half moves: A4's document id answers
+            // "which part", and no update ever changes that answer.
+            doc_ref.pin = *new_pin;
+            // Structural: the pin decides WHICH content this instance
+            // materializes, so it is recipe shape, not a continuous
+            // slot value — and it moves this document's own pin.
             EditRecord {
                 minted: None,
                 structural: true,

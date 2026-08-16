@@ -139,6 +139,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PlacementRuleMismatch { .. } => "placement_rule_mismatch",
         EditError::ImproperPlacement { .. } => "improper_placement",
         EditError::NonFinitePlacement { .. } => "non_finite_placement",
+        EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
+        EditError::PinUnchanged { .. } => "pin_unchanged",
     }
 }
 

@@ -625,7 +625,7 @@ enum RemapMiss {
 /// The first [`RemapMiss`].
 fn remap_rule(
     kind: &PatternKind,
-    id: impl Fn(RecipeNodeId) -> Result<RecipeNodeId, RemapMiss>,
+    id: &impl Fn(RecipeNodeId) -> Result<RecipeNodeId, RemapMiss>,
 ) -> Result<PatternKind, RemapMiss> {
     Ok(match kind {
         PatternKind::Linear { .. } | PatternKind::Explicit(_) => kind.clone(),

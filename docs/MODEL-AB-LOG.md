@@ -921,3 +921,25 @@ PR-2 scope: corpus/demos/Python re-spell + shim deletion + the
 (mechanical re-spell against the frozen PR-1 kernel). LIB-10
 consumed (fable, opus, opus, opus = PYG5, PLACEDUNION, G14,
 RESPELL-PR2).
+| ASM-UPD | 2026-08-16 | A13's pin-update door: DocEdit::UpdateReference (recorded/undoable/replayable, unresolved-at-edit-time), update_references elaboration + update_to_store w/ Workspace::current_pin, mixed_pins lint (reports, never gates), D-4 memo re-key evidence sharpened by an (id,pin)-keyed stub store; schema v10 (the v9 double-claim resolved by the deterministic rule — RESPELL kept 9; ledger records the twice-claimed 9) | M / STRUCTURAL (pre-logged at spec) | OPUS (block ASM-3 slot 2) | single (ordinal 46, frozen 1fe8c809, v4) — APPROVE-WITH-FIXES 0/1/2, rubric 5/4/5 (both shipped-guard mutations caught; reviewer's own staged fixture + warm-prior/nested/anti-masking memo attacks all failed to break it; all three deviations adjudicated honest BY EXECUTION incl. removing the AlreadyPinned guard to produce the un-appliable group; MIN-1 = the prior memo channel had no shipped warm-path row) | 0 silent (3 reported, all verified; the schema hazard self-flagged at delivery) | 5 | 4 | 5 | IMPLEMENTER-INHERITED (row5c/row5d warm-prior + nested rows, mutation-verified to be the ONLY red on a pin-feed deletion; AlreadyPinned Display asserted; the v9→v10 shift w/ header-only re-bless + both-direction refusal rows; two hygiene repairs: RESPELL's future-version literal now SCHEMA_VERSION+1-derived, two drifted pin names righted); NOTE-1 filed as #561, adopted by LIB | MERGED #549 32/32 at a13bfed2; THE UPDATE DOOR EXISTS — pins move only by recorded edits, staged states lint | impl ~194k + fix ~236k / review ~133k | impl ~0.6h + fix ~0.6h / review ~1.3h |
+R2-A dispatch note (2026-08-16): the M9-1-PR-2 gate LIFTED EARLY
+by Evan's ruling (in-session) — the dependency was ContactClass
+type identity, which PR-1 already merged; #552's fix-pass surface
+(re-export sugar, wire module, possible serde placement flip)
+cannot move R2-a's design. Implementer briefed to build against
+topo::ContactClass directly, absorb #552 at routine re-merges,
+and mint its own schema bump at main's next number (the live
+chain: v10 = ASM-UPD, v11 = M9-1 at its re-merge). Lane asm-r2a,
+branch asm/r2a-mate-solve, OPUS per the slot-1 draw. Review
+ordinal claims at review dispatch (note: the next third is 48 —
+the pending dual, tally 5-of-6).
+M9-2 PR-2 review ordinal fixed at dispatch (2026-08-16, PR #564
+open, frozen head a1b78954): claimed through 47 (M9-1 PR-2) + 1 =
+**48 → a third → DUAL (sample #16)**. FOURTH v4 dual block drawn:
+byte 88, parity 0 → **SAME-MODEL first** (fable+fable, concurrent
+same-head); the cross-model twin banks for ordinal 51. The unit's
+row (dual #14 on PR-1 + this dual + both fix passes) records at
+this PR's merge. STOPPING-RULE note: tally 5-of-6 — if EITHER
+reviewer here finds a MAJOR, this is the SIXTH qualifying dual:
+the dual-review experiment ENDS and Evan is notified explicitly
+per the v4 amendment.

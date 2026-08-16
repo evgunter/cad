@@ -1222,7 +1222,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 
 /// R1-PARAMS: `plate_param` authors façade-only, evaluates to the
 /// corpus scene's analytic oracle, and its saved text is pinned as
-/// `tests/plate_param.v10.pncad` — the fixture the Python audit loads
+/// `tests/plate_param.v11.pncad` — the fixture the Python audit loads
 /// (`crates/pncad-py/tests/test_north_star.py`) to author the
 /// `set_doc_param` edit from Python. Python cannot yet author this
 /// profile from scratch (audit gaps G1/G9: circles, multi-loop), so
@@ -1264,7 +1264,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
 
     let text = pncad::document::save(&doc, &[]).expect("the document saves");
     if std::env::var_os("PNCAD_BLESS").is_some() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v10.pncad");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v11.pncad");
         std::fs::write(path, &text).expect("the fixture writes");
         return; // freshly written; the next compile pins it
     }
@@ -1287,7 +1287,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     };
     assert_eq!(
         sans_epsilon(&text),
-        sans_epsilon(include_str!("plate_param.v10.pncad")),
+        sans_epsilon(include_str!("plate_param.v11.pncad")),
         "the saved plate_param text moved — regenerate the fixture with \
          `PNCAD_BLESS=1 cargo test -p pncad plate_param` (default env) and re-run"
     );
@@ -2059,6 +2059,201 @@ fn asm4_spawn_probe(tag: &str) -> String {
     let status = std::process::Command::new(exe)
         .args([probe.as_str(), "--exact", "--nocapture"])
         .env(ASM4_PROBE_OUT, &out)
+        .status()
+        .expect("probe spawns");
+    assert!(status.success(), "probe {tag} failed");
+    let bytes = std::fs::read_to_string(&out).expect("probe wrote");
+    let _ = std::fs::remove_file(&out);
+    bytes
+}
+
+// ---- ASM-UPD: the pin-update door through the real store ----
+
+/// Re-authors the document id `id`'s file with a `side`-wide square
+/// extruded 1.5 tall — the "the part changed on disk" move — and
+/// returns the store's new current pin for it.
+fn asm_upd_resave_part(
+    ws: &mut pncad::workspace::Workspace,
+    id: pncad::document::DocumentId,
+    side: f64,
+) -> pncad::document::ContentPin {
+    use pncad::document::{Expr, Node};
+    let doc = pncad::document::ProfileDoc::empty(id);
+    let (doc, profile) = doors_insert(doc, doors_square(side));
+    let (doc, _) = doors_insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: Expr::literal(1.5, pncad::document::Dimension::Length).unwrap(),
+        },
+    );
+    ws.resave(&doc).expect("the part rewrites");
+    pncad::document::content_pin(&doc).expect("the pin computes")
+}
+
+/// Row 3 — the store convenience, end to end: an assembly pinned to a
+/// part, the part resaved on disk, `update_to_store` computing the new
+/// pin from the store, and the applied result EVALUATING to the new
+/// geometry through the real workspace.
+#[test]
+fn asm_upd_row3_update_to_store_picks_up_the_resaved_part() {
+    use pncad::document as d;
+    let dir = WsDir::new("asm-upd-e2e");
+    let part_ref = asm2a_part(&dir, "part.pncad", "asm-upd-e2e-part");
+    let (doc, ids) = asm2a_assembly("asm-upd-e2e-asm", part_ref, 2);
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+
+    let vol = |b: &pncad::topo::Body<f64>| {
+        pncad::topo::mass_properties(b)
+            .expect("mass properties")
+            .volume
+    };
+    let ev = asm2a_eval(&doc, &ws);
+    let before = vol(&d::product(&doc, &ev).expect("gathers"));
+
+    // The part changes on disk. The assembly is a self-contained
+    // reproducible value, so nothing about it moves yet — that is A4,
+    // and it is what makes an update an EDIT.
+    let new_pin = asm_upd_resave_part(&mut ws, part_ref.id, 4.0);
+    assert_ne!(new_pin, part_ref.pin, "the part's content really moved");
+    let stale = asm2a_eval(&doc, &ws);
+    match stale.result(ids[0]) {
+        Some(d::NodeResult::Failed(e)) => match &e.kind {
+            d::NodeErrorKind::Part { fault, .. } => assert!(
+                matches!(
+                    fault,
+                    d::PartFault::Unresolved {
+                        fault: d::ResolveFault::PinMismatch,
+                        ..
+                    }
+                ),
+                "the un-updated assembly still names the old version: {fault}"
+            ),
+            other => panic!("expected a Part refusal, got {other:?}"),
+        },
+        other => panic!("the stale pin must refuse, got {other:?}"),
+    }
+
+    // The convenience reads the pin off the store; the caller applies.
+    let edits = pncad::workspace::update_to_store(&doc, part_ref.id, &ws)
+        .expect("both sites elaborate against the store");
+    assert_eq!(edits.len(), 2, "one edit per site, computed not supplied");
+    let mut updated = doc.clone();
+    for e in &edits {
+        updated = d::apply(&updated, e).expect("the group applies").doc;
+    }
+
+    let after_ev = asm2a_eval(&updated, &ws);
+    let after = vol(&d::product(&updated, &after_ev).expect("gathers"));
+    assert_eq!(
+        after_ev.part_evaluations, 1,
+        "both sites name one version again"
+    );
+    // The square door's fixture is `side`-wide; 2.0 → 4.0 at the same
+    // 1.5 height is exactly four times the material, per instance.
+    assert!(
+        (after - 4.0 * before).abs() < 1e-9,
+        "the new geometry is served: {before} → {after}"
+    );
+    assert!(
+        d::mixed_pins(&updated).is_empty(),
+        "a completed update leaves no multiplicity to report"
+    );
+}
+
+/// Row 3b — the store's own refusals reach the convenience unchanged:
+/// an id the store never scanned refuses `UnknownId` (a store miss,
+/// through the existing vocabulary), and an id the store HAS but the
+/// document never references refuses `Update` (an assembly question,
+/// under its own arm).
+#[test]
+fn asm_upd_row3b_store_miss_and_unreferenced_id_refuse_apart() {
+    let dir = WsDir::new("asm-upd-refuse");
+    let part_ref = asm2a_part(&dir, "part.pncad", "asm-upd-refuse-part");
+    let other_ref = asm2a_part(&dir, "other.pncad", "asm-upd-refuse-other");
+    let (doc, _) = asm2a_assembly("asm-upd-refuse-asm", part_ref, 1);
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+
+    let ghost = pncad::document::DocumentId::derive("asm-upd-refuse-ghost");
+    match pncad::workspace::update_to_store(&doc, ghost, &ws) {
+        Err(pncad::workspace::WorkspaceError::UnknownId { id }) => assert_eq!(id, ghost),
+        other => panic!("a store miss must refuse UnknownId, got {other:?}"),
+    }
+    match pncad::workspace::update_to_store(&doc, other_ref.id, &ws) {
+        Err(pncad::workspace::WorkspaceError::Update {
+            error: pncad::document::UpdateError::NoSuchReference { id },
+        }) => assert_eq!(id, other_ref.id),
+        other => panic!("an unreferenced id must refuse Update, got {other:?}"),
+    }
+    // The current pin equals the reference's, so an update-all is a
+    // whole-document no-op and refuses rather than reporting success.
+    match pncad::workspace::update_to_store(&doc, part_ref.id, &ws) {
+        Err(pncad::workspace::WorkspaceError::Update {
+            error: pncad::document::UpdateError::AlreadyPinned { id, pin },
+        }) => {
+            assert_eq!(id, part_ref.id);
+            assert_eq!(pin, part_ref.pin);
+        }
+        other => panic!("an already-current id must refuse AlreadyPinned, got {other:?}"),
+    }
+}
+
+/// Row 6 (D9) — the UPDATED assembly's save bytes and its evaluated
+/// product agree across two fresh processes: a document reached by a
+/// recorded pin move is as reproducible as one authored at the new pin
+/// directly.
+#[test]
+fn asm_upd_row6_updated_bytes_and_product_agree_across_two_fresh_processes() {
+    let a = asm_upd_spawn_probe("a");
+    let b = asm_upd_spawn_probe("b");
+    assert_eq!(a, b, "two fresh processes agree bit for bit (D9)");
+    assert!(a.contains('\u{1e}'), "the probe really wrote both halves");
+}
+
+const ASM_UPD_PROBE_OUT: &str = "ASM_UPD_PROBE_OUT";
+
+/// The child half of row 6: build the assembly, resave the part,
+/// update to the store, and write the updated document's save bytes
+/// alongside its product volume bits.
+#[test]
+fn asm_upd_child_update_probe() {
+    use pncad::document as d;
+    let Ok(out) = std::env::var(ASM_UPD_PROBE_OUT) else {
+        return; // not the child — nothing to do
+    };
+    let dir = WsDir::new("asm-upd-probe");
+    let part_ref = asm2a_part(&dir, "part.pncad", "asm-upd-probe-part");
+    let (doc, _) = asm2a_assembly("asm-upd-probe-asm", part_ref, 2);
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    asm_upd_resave_part(&mut ws, part_ref.id, 4.0);
+    let edits =
+        pncad::workspace::update_to_store(&doc, part_ref.id, &ws).expect("the elaboration holds");
+    let mut updated = doc;
+    for e in &edits {
+        updated = d::apply(&updated, e).expect("applies").doc;
+    }
+    let ev = asm2a_eval(&updated, &ws);
+    let volume = pncad::topo::mass_properties(&d::product(&updated, &ev).expect("gathers"))
+        .expect("mass properties")
+        .volume;
+    let text = format!(
+        "{}\u{1e}{}",
+        d::save(&updated, &[]).expect("the updated document saves"),
+        volume.to_bits(),
+    );
+    std::fs::write(&out, text).expect("probe output writable");
+}
+
+fn asm_upd_spawn_probe(tag: &str) -> String {
+    let exe = std::env::current_exe().expect("test exe path");
+    let out = std::env::temp_dir().join(format!("asm-upd-probe-{tag}-{}", std::process::id()));
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::asm_upd_child_update_probe"),
+        None => "asm_upd_child_update_probe".to_string(),
+    };
+    let status = std::process::Command::new(exe)
+        .args([probe.as_str(), "--exact", "--nocapture"])
+        .env(ASM_UPD_PROBE_OUT, &out)
         .status()
         .expect("probe spawns");
     assert!(status.success(), "probe {tag} failed");

@@ -23,10 +23,11 @@ const V3: &str = include_str!("golden/v3_golden.cad");
 #[test]
 fn schema_version_is_current() {
     // Bumped by the ASM-2A instantiate-part clean break (v7), by
-    // LIB-LBRET's step-vocabulary growth (v8), and by LIB-RESPELL's
-    // §2c re-spell (v9); this file keeps pinning the v3 refusal
-    // fixture below.
-    assert_eq!(SCHEMA_VERSION, 10);
+    // LIB-LBRET's step-vocabulary growth (v8), by LIB-RESPELL's §2c
+    // re-spell (v9), by ASM-UPD's `UpdateReference` edit arm (v10),
+    // and by LIB-PLACEDUNION's group boolean (v11); this file keeps
+    // pinning the v3 refusal fixture below.
+    assert_eq!(SCHEMA_VERSION, 11);
 }
 
 #[test]

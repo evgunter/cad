@@ -1,4 +1,4 @@
-//! LIB-PLACEDUNION — the schema-v10 bump, pinned.
+//! LIB-PLACEDUNION — the schema-v11 bump, pinned.
 //!
 //! The call: GROUP-BOOLEAN-DESIGN (ratified A′) grew the node
 //! vocabulary a `PlacedUnion` and the placement-rule vocabulary an
@@ -6,9 +6,9 @@
 //! version — the two ship together because neither is expressible
 //! without the other at the site that motivated both.
 //!
-//! A break in BOTH directions, on the v3/v9 precedent: a v10 file's
-//! new variants are unknown to a v9 reader, and this reader has no
-//! v9-shaped meaning to migrate from, so the gate refuses TYPED with
+//! A break in BOTH directions, on the v3/v9 precedent: a v11 file's
+//! new variants are unknown to a v10 reader, and this reader has no
+//! v10-shaped meaning to migrate from, so the gate refuses TYPED with
 //! the regenerate recourse, the migration table stays empty, and the
 //! v9 bytes stay checked in as the refusal fixture (a break nobody can
 //! demonstrate is a break nobody can trust).
@@ -30,32 +30,35 @@ use fixture::{desc, len, scl};
 
 /// The pre-bump bytes, kept verbatim as the refusal fixture (the file
 /// `m4_pr6_golden.rs` pinned as LIVE until this bump).
-const V9: &str = include_str!("golden/v9_golden.cad");
+const V10: &str = include_str!("golden/v10_golden.cad");
 
 #[test]
-fn schema_version_is_ten() {
-    assert_eq!(SCHEMA_VERSION, 10);
+fn schema_version_is_eleven() {
+    assert_eq!(SCHEMA_VERSION, 11);
 }
 
 #[test]
-fn the_checked_in_v9_file_is_really_v9() {
-    assert_eq!(V9.lines().next(), Some("schema: 9"));
+fn the_checked_in_v10_file_is_really_v10() {
+    assert_eq!(V10.lines().next(), Some("schema: 10"));
 }
 
 /// The break, demonstrated: a v9 file refuses TYPED at the version
 /// door, naming the version found, the version supported, and the step
 /// that does not exist.
 #[test]
-fn v9_refuses_too_old() {
-    match load(V9) {
+fn v10_refuses_too_old() {
+    match load(V10) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
             missing,
         }) => {
-            assert_eq!(found, 9);
+            assert_eq!(found, 10);
             assert_eq!(supported, SCHEMA_VERSION);
-            assert_eq!(missing, 9, "the 9 → 10 step is the one that does not exist");
+            assert_eq!(
+                missing, 10,
+                "the 10 → 11 step is the one that does not exist"
+            );
         }
         other => panic!("v9 must refuse SchemaTooOld, got {other:?}"),
     }
@@ -64,7 +67,7 @@ fn v9_refuses_too_old() {
 /// The recourse is the standing one — regenerate, never a shim.
 #[test]
 fn the_refusal_names_the_regenerate_recourse() {
-    let err = load(V9).expect_err("v9 refuses");
+    let err = load(V10).expect_err("v10 refuses");
     assert!(
         err.to_string().contains(REGENERATE_RECOURSE),
         "the refusal must carry the regenerate recourse: {err}"
@@ -75,21 +78,21 @@ fn the_refusal_names_the_regenerate_recourse() {
 /// unknown — the newest this build supports is named.
 #[test]
 fn a_future_version_refuses_unknown() {
-    let future = V9.replacen("schema: 9", "schema: 11", 1);
+    let future = V10.replacen("schema: 10", "schema: 12", 1);
     match load(&future) {
         Err(PersistError::UnknownSchema { found, newest }) => {
-            assert_eq!(found, 11);
+            assert_eq!(found, 12);
             assert_eq!(newest, SCHEMA_VERSION);
         }
-        other => panic!("a v11 file must refuse UnknownSchema, got {other:?}"),
+        other => panic!("a v12 file must refuse UnknownSchema, got {other:?}"),
     }
 }
 
-/// A document carrying a group node under EACH rule saves at v10 and
+/// A document carrying a group node under EACH rule saves at v11 and
 /// reloads as itself — the new vocabulary crosses the wire, which is
 /// the half of a version bump that a refusal fixture cannot show.
 #[test]
-fn both_rules_round_trip_at_v10() {
+fn both_rules_round_trip_at_v11() {
     let mut r = corpus::Recorder::new();
     let p = r.insert(Node::Profile(desc(
         [0.0, 0.0, 0.0],
@@ -124,8 +127,8 @@ fn both_rules_round_trip_at_v10() {
         ],
     ));
     let text = save(&r.doc, &[]).expect("the document saves");
-    assert_eq!(text.lines().next(), Some("schema: 10"));
-    let back = load(&text).expect("a v10 file loads");
+    assert_eq!(text.lines().next(), Some("schema: 11"));
+    let back = load(&text).expect("a v11 file loads");
     assert_eq!(back.doc.node(stepped), r.doc.node(stepped));
     assert_eq!(back.doc.node(listed), r.doc.node(listed));
     // Bit-exact frames: a placement is data, and `-0.0` is a different
