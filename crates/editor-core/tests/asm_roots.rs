@@ -492,7 +492,7 @@ fn row6a_v5_refuses_too_old_with_the_regenerate_recourse() {
     // Moved twice since this row was written (ASM-2A's v7, then
     // LIB-LBRET's v8) — the repo's convention is that a bump updates
     // every pin it invalidates, so the number stays exact here.
-    assert_eq!(SCHEMA_VERSION, 8);
+    assert_eq!(SCHEMA_VERSION, 10);
     assert_eq!(V5.lines().next(), Some("schema: 5"));
     match load(V5) {
         Err(PersistError::SchemaTooOld {

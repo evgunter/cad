@@ -28,8 +28,8 @@ use editor_core::{PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
 const V7: &str = include_str!("golden/v7_golden.cad");
 
 #[test]
-fn schema_version_is_eight() {
-    assert_eq!(SCHEMA_VERSION, 8);
+fn schema_version_is_ten() {
+    assert_eq!(SCHEMA_VERSION, 10);
 }
 
 #[test]

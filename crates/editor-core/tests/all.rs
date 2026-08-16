@@ -148,6 +148,10 @@ mod m6_5_schema_v3;
 mod m6_5_selection_refusals;
 #[path = "m6_composed_node.rs"]
 mod m6_composed_node;
+#[path = "m9_1_declare_classes.rs"]
+mod m9_1_declare_classes;
+#[path = "m9_1_schema_v10.rs"]
+mod m9_1_schema_v10;
 #[path = "review_m4_pr1.rs"]
 mod review_m4_pr1;
 #[path = "review_m4_pr1_die.rs"]

@@ -29,8 +29,8 @@ use editor_core::{
 };
 use fixture::desc;
 
-const GOLDEN: &str = include_str!("golden/v8_golden.cad");
-const GOLDEN_PATH: &str = "tests/golden/v8_golden.cad";
+const GOLDEN: &str = include_str!("golden/v10_golden.cad");
+const GOLDEN_PATH: &str = "tests/golden/v10_golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
@@ -229,7 +229,7 @@ fn golden_bytes_are_frozen() {
     }
     assert_eq!(
         text, GOLDEN,
-        "schema-v8 wire bytes drifted from the committed golden — this is a FORMAT \
+        "schema-v10 wire bytes drifted from the committed golden — this is a FORMAT \
          CHANGE: it needs a ratified schema bump + migration step, never a re-bless in passing"
     );
 }
