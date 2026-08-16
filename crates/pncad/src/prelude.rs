@@ -149,11 +149,12 @@ pub use editor_core::StableName;
 // findings vocabulary, the detector, and the declare sugar (the
 // worked example is in `crate::select`'s module docs).
 pub use crate::select::{
-    ALL_SURFACE_KINDS, CapEnd, Cmp, ContactClass, CurveKind, CurveKindSet, DeclareError,
-    Denotation, EntityKind, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError,
-    MeridianEnd, NamePat, NameTable, OpGroup, Pose, ProfileEdgeRef, ProfileVertexRef,
-    ReadbackError, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag,
-    SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges,
-    all_faces, all_vertices, declare, declare_all, declare_node, denotation, edge_frame, edge_name,
-    face_frame, face_name, find_flush_candidates, select, select_where, vertex_position,
+    ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
+    CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL,
+    FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd, NamePat,
+    NameTable, OpGroup, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport,
+    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
+    SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, declare,
+    declare_all, declare_node, denotation, edge_frame, edge_name, face_frame, face_name,
+    find_flush_candidates, select, select_where, vertex_position,
 };

@@ -28,7 +28,7 @@ fn schema_version_is_current() {
     // updates every pin it invalidates, so the number stays exact
     // here. This file keeps pinning the v8 refusal fixture below,
     // which is what the row is actually about.
-    assert_eq!(SCHEMA_VERSION, 10);
+    assert_eq!(SCHEMA_VERSION, 11);
 }
 
 #[test]

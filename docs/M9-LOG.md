@@ -137,3 +137,23 @@ Board: M9-1 PR-2 implementing (schema v10 claim); M9-2 PR-2 next
 PR-1, already merged — PR-2's census door dispatches on the
 M9-1-PR-2 seam settling the recipe/LIB homes it consumes); then
 M9-0 → M9-3 → M9-5.
+
+## M9-1 MERGED (both PRs; #552 at 134f5fac, 2026-08-16) — declared contact has a vocabulary
+
+The milestone's foundation unit is done end-to-end: ContactClass
+and the finding vocabulary live LOWEST and re-export upward, the
+records carry their granularities, declarations carry their class
+everywhere (unrepresentable otherwise), the Tangent table follows
+C4's three lists exactly (the fix pass's structural insight: the
+first-order lever IS the second-order question), and schema v11
+persists it after a three-way race (9 RESPELL, 10 ASM-UPD, 11
+here). Three findings this unit leaves the project: main carried a
+genuine corpus coincidence lie the reinstated op-door pass now
+catches (#539, closed); real vocabulary drift hid behind
+deliberate PyO3 wildcards (the tripwire pin now ENUMERATES); and
+the schema race's one-line constant merged CLEANLY at 10-vs-10 —
+only the ledger prose collided, so the prose is load-bearing
+collision machinery, never to be trimmed. Dual #13 was the FIFTH
+qualifying sample (tally 5-of-6). Board: dual #16 running on the
+census door (#564 — a MAJOR there ENDS the dual experiment);
+then M9-0 → M9-3 spec → M9-5.
