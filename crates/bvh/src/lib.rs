@@ -1,8 +1,21 @@
 //! Deterministic AABB bounding-volume hierarchy (C10, PERF-PLAN §2.1).
 //!
-//! One tree, several duties: the boolean edge×face sweep's candidate
-//! generation (first consumer, M5 PR 8), SSI seeding and the C3
-//! exhaustiveness subdivision (PR 7's wiring), viewport picking later.
+//! One tree, several duties — **one of them wired so far**:
+//!
+//! - **Boolean edge×face sweep** candidate generation — LIVE since
+//!   M5 PR 8 (`topo::boolean::reduce`), and as of 2026-08-14 the only
+//!   `Bvh::build` call site in the workspace.
+//! - **SSI seeding / C3 exhaustiveness subdivision** — INTENDED, not
+//!   yet wired. `geom_brep::ssi::exhaust` still enumerates cells by
+//!   recursive bisection with a linear scan over tubes, and says so
+//!   ("Brute force, deliberately, for now"): this tree swaps in under
+//!   that module's already-merged differential suite when profiling
+//!   asks for it. Nothing in the C3 contract changes when it does.
+//! - **Viewport picking** — INTENDED, blocked on there being a GUI.
+//!
+//! Stated this way because the list used to read as a description of
+//! what the crate serves, and a reader could reasonably conclude SSI
+//! was already pruned by it. It is not.
 //!
 //! # The conservative-superset contract (load-bearing)
 //!
