@@ -9,9 +9,9 @@
 //! no longer exist). Every door is `#[doc(hidden)]`: this is compat
 //! plumbing, not surface.
 
-use geom_core::{Bounds, Decide, Point2};
+use geom_core::{Decide, Point2};
 
-use super::arc_fillet::{self, carrier_tangent};
+use super::arc_fillet::{self, ArcCarrierScalar, carrier_tangent};
 use super::family::{resolve_arc_arrival, resolve_arc_close};
 use super::program::{ArcData, ClosedLoop, Step, Target};
 use super::verbs::{Pending, PendingArc};
@@ -59,7 +59,7 @@ impl Open {
 /// step a compat `.fillet(r)` recorded becomes the `ArcFillet` step the
 /// fused entry verb records (its incoming spec is the carrier the
 /// retired `at_on` bound).
-fn re_arm<T: Decide + Bounds>(core: &mut Core<T>) -> Result<(), PathError<T>> {
+fn re_arm<T: ArcCarrierScalar>(core: &mut Core<T>) -> Result<(), PathError<T>> {
     let meta = core
         .pending_meta
         .as_mut()
@@ -130,7 +130,7 @@ fn attach_arrival<T: Decide>(core: &mut Core<T>, spec2: ArcData<T>) -> Result<()
     }
 }
 
-impl<T: Decide + Bounds> PartialPath<T, NoPos, NoAng> {
+impl<T: ArcCarrierScalar> PartialPath<T, NoPos, NoAng> {
     /// RETIRED spelling of `fillet_arc(r, Center { c, winding, p })` /
     /// `arc_fillet_arc(…, Center { c, winding, p })`: the arc-carrier
     /// fillet arrival.
