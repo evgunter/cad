@@ -36,11 +36,13 @@ fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
 fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
     use pncad::select::DeclareError as E;
     let message = match err {
-        E::NoFindings => "declare of NO findings: an empty Declare node records no                           intent and would only pretend something was declared"
+        E::NoFindings => "declare of NO findings: an empty Declare node records no intent \
+                          and would only pretend something was declared"
             .to_string(),
         E::Edit(inner) => inner.to_string(),
-        E::NoMintedId => "the Declare insert applied but minted no id (an apply                           contract violation)"
-            .to_string(),
+        E::NoMintedId => {
+            "the Declare insert applied but minted no id (an apply contract violation)".to_string()
+        }
     };
     typed_err(
         py,

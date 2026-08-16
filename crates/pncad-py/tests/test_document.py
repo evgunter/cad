@@ -247,10 +247,17 @@ class TestDetectDeclareDoors(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.declare_all([])
         self.assertEqual(caught.exception.variant, "no_findings")
+        # The human message is real prose, not a mangled literal
+        # (review MINOR-1: a doubled-space run shipped once because
+        # nothing pinned the text).
+        message = str(caught.exception)
+        self.assertIn("an empty Declare node records no intent", message)
+        self.assertNotIn("  ", message)
         self.assertEqual(len(doc), 0, "a refused declare inserts nothing")
         with self.assertRaises(EditError) as caught:
             Node.declare([])
         self.assertEqual(caught.exception.variant, "no_findings")
+        self.assertNotIn("  ", str(caught.exception))
 
     def test_detection_answers_empty_for_separated_and_unevaluated(self):
         # Separated in EVERY plane family: a pair sharing any plane —
