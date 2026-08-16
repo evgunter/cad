@@ -714,9 +714,18 @@ pub enum ClusterMaintenance {
         /// (the identity).
         absorbed_frame: Option<Frame>,
     },
-    /// A cluster split off and its new gauge's frame was RE-MINTED from
-    /// the solved pose, so every surviving instance's world pose is
-    /// unchanged.
+    /// A cluster split off and its new gauge's frame was RE-MINTED
+    /// from the solved pose.
+    ///
+    /// **The claim is GAUGE-exact** (review MINOR-1): the new gauge's
+    /// world pose is preserved BIT for bit, and every other member's
+    /// is preserved as a value, not as bits. Members are placed by
+    /// composition from the gauge, and the split re-associates that
+    /// composition — `(F ∘ rel_gauge) ∘ rel_member` where it used to
+    /// be `F ∘ (rel_gauge ∘ rel_member)` — so a deep member can move
+    /// by a rounding step. Stating this exactly is what makes rows 4b
+    /// and 4c assertable: they pin the gauge's bits, which is the
+    /// claim, rather than a bit-identity the arithmetic cannot offer.
     Split {
         /// The gauge of the cluster it separated from.
         from: RecipeNodeId,
@@ -726,7 +735,9 @@ pub enum ClusterMaintenance {
         frame: Option<Frame>,
     },
     /// The gauge instance died and the key moved to the next
-    /// representative, composing with the already-solved relative pose.
+    /// representative, composing with the already-solved relative
+    /// pose. GAUGE-exact, on [`ClusterMaintenance::Split`]'s terms and
+    /// for its reason.
     GaugeRewrite {
         /// The dead gauge.
         from: RecipeNodeId,
@@ -746,7 +757,9 @@ pub enum ClusterMaintenance {
 
 /// **The keying maintenance** (D-3): re-key `after`'s placement
 /// registry onto its cluster representatives, preserving every
-/// surviving cluster's GAUGE world pose, and report what it did.
+/// surviving cluster's GAUGE world pose BIT for bit (and every other
+/// member's as a value — see [`ClusterMaintenance::Split`]), and
+/// report what it did.
 ///
 /// The one invariant, from which all four acts follow: *a cluster's
 /// frame is the frame that leaves its gauge's world pose where the

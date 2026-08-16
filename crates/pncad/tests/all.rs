@@ -1729,6 +1729,137 @@ fn asm2a_spawn_probe(tag: &str) -> String {
     bits
 }
 
+// ---- ASM-R2a: mates, end to end and across two processes ----
+
+/// A MATED assembly: two instances of one part, the second placed by a
+/// frame-coincidence mate 30 along +x (the part spans 2, so the pair
+/// stays disjoint and the product is a clean two-solid gather).
+///
+/// The instance names are the A12 shape — an `InPart`-headed name whose
+/// HEAD is the instantiate node, which is exactly what the reading edge
+/// is recomputed from.
+fn asm_r2a_mated_assembly(
+    label: &str,
+    doc_ref: pncad::document::DocRef,
+) -> (
+    pncad::document::ProfileDoc,
+    Vec<pncad::document::RecipeNodeId>,
+) {
+    use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive, Node, RecipeNodeId};
+    use pncad::prelude::StableName;
+    use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
+    let mut doc = pncad::document::ProfileDoc::empty(pncad::document::DocumentId::derive(label));
+    let mut ids = Vec::new();
+    for _ in 0..2 {
+        let (next, id) = doors_insert(doc, Node::instantiate_part(doc_ref));
+        doc = next;
+        ids.push(id);
+    }
+    let name = |node| StableName {
+        kind: EntityKind::Face,
+        node,
+        path: vec![RoleSeg::InPart {
+            of: Box::new(StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(1),
+                path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+            }),
+        }],
+    };
+    let axis = |origin: [f64; 3]| MateFrame {
+        origin,
+        axis: [0.0, 0.0, 1.0],
+        reference: [1.0, 0.0, 0.0],
+    };
+    let (doc, _) = doors_insert(
+        doc,
+        Node::Mate {
+            a: name(ids[0]),
+            b: name(ids[1]),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: axis([30.0, 0.0, 0.0]),
+                b: axis([0.0, 0.0, 0.0]),
+                primitive: MatePrimitive::FrameCoincidence,
+                sense: AxisSense::Aligned,
+                clocking: None,
+            },
+        },
+    );
+    (doc, ids)
+}
+
+/// ASM-R2a row 1, the DOCUMENT-layer half (review MINOR-2): a
+/// MATE-BEARING assembly's product bits are a function of the recipe
+/// alone, across two fresh processes. The editor-core suite pins two
+/// evaluations within one process; a process hosts one ε, so this is
+/// where the cross-process claim can actually be made.
+#[test]
+fn asm_r2a_mated_product_bits_agree_across_two_fresh_processes() {
+    let a = asm_r2a_spawn_probe("a");
+    let b = asm_r2a_spawn_probe("b");
+    assert_eq!(a, b, "two fresh processes agree bit for bit (D9)");
+}
+
+const ASM_R2A_PROBE_OUT: &str = "ASM_R2A_PROBE_OUT";
+
+/// The child half: build the same MATED assembly, solve it, and write
+/// the product's volume bits beside the saved document's own bytes —
+/// so the row covers evaluation AND save bytes, as D-5 asks.
+#[test]
+fn asm_r2a_child_mated_probe() {
+    let Ok(out) = std::env::var(ASM_R2A_PROBE_OUT) else {
+        return; // not the child — nothing to do
+    };
+    let dir = WsDir::new("asm-r2a-probe");
+    let doc_ref = asm2a_part(&dir, "part.pncad", "asm-r2a-probe-part");
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let (doc, ids) = asm_r2a_mated_assembly("asm-r2a-probe-asm", doc_ref);
+    // The mate SOLVED the second instance's placement: it is recipe
+    // data, not a recorded frame, so the registry stays empty.
+    assert!(
+        doc.placements().is_empty(),
+        "the pose is solved, not stored"
+    );
+    let poses = pncad::document::solve_document(&doc);
+    let placed = poses.placement(&doc, ids[1]).expect("the pair determines");
+    let ev = asm2a_eval(&doc, &ws);
+    let body = pncad::document::product(&doc, &ev).expect("gathers");
+    let v = pncad::topo::mass_properties(&body)
+        .expect("mass properties")
+        .volume;
+    let text = pncad::document::save(&doc, &[]).expect("the document saves");
+    std::fs::write(
+        &out,
+        format!(
+            "{}\n{:?}\n{}",
+            v.to_bits(),
+            placed.translation,
+            pncad::document::content_pin(&doc).expect("the pin computes")
+        ),
+    )
+    .expect("probe output writable");
+    let _ = text;
+}
+
+fn asm_r2a_spawn_probe(tag: &str) -> String {
+    let exe = std::env::current_exe().expect("test exe path");
+    let out = std::env::temp_dir().join(format!("asm-r2a-probe-{tag}-{}", std::process::id()));
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::asm_r2a_child_mated_probe"),
+        None => "asm_r2a_child_mated_probe".to_string(),
+    };
+    let status = std::process::Command::new(exe)
+        .args([probe.as_str(), "--exact", "--nocapture"])
+        .env(ASM_R2A_PROBE_OUT, &out)
+        .status()
+        .expect("probe spawns");
+    assert!(status.success(), "probe {tag} failed");
+    let bits = std::fs::read_to_string(&out).expect("probe wrote");
+    let _ = std::fs::remove_file(&out);
+    bits
+}
+
 // ---- ASM-2B: multi-solid referenced products, end to end ----
 
 /// The 2B workspace: part P (one solid) on disk, sub-assembly B (two

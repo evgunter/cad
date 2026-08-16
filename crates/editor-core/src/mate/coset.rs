@@ -700,10 +700,17 @@ fn candidate_rotation(
             (_, Rotations::Fixed) => q2,
             (Rotations::About(a1), Rotations::About(a2)) => {
                 if parallel(a1, a2, band, arm)? {
-                    // Coaxial rotation constraints: the held representative
-                    // already satisfies its own, and whether it satisfies
-                    // the other is exactly the membership check's question.
-                    q1
+                    // PARALLEL rotation axes: the held side admits EVERY
+                    // rotation about its own axis, so the candidate's
+                    // clocking about that axis is free — and free means it
+                    // must be SOLVED, not inherited. Pinning it to the
+                    // held representative's clocking yields a pose that is
+                    // merely IN the held coset rather than a witness of
+                    // the intersection, and the (sound) membership check
+                    // then refuses an assemblable pair: review MAJOR-1's
+                    // two-pin pattern, inter-axis invariants matching but
+                    // the patterns clocked apart.
+                    clocking_about(held, added, a1) * q1
                 } else {
                     // Two distinct rotation axes. Write the unknown as
                     // `rot(a1, α)·Q1`; requiring it to fix a2 after the
@@ -732,6 +739,54 @@ fn candidate_rotation(
             }
         },
     )
+}
+
+/// **The free clocking about a shared axis, solved** (review MAJOR-1).
+///
+/// When both sides constrain rotation to one shared axis `u`, the
+/// candidate may be turned by any angle α about the HELD side's own
+/// axis and stay in the held coset — `rot(line(p₁,u), α)` is an
+/// element of every subgroup this arm sees. So α is a free parameter,
+/// and the added side's own axis-POSITION constraint is what fixes it.
+///
+/// The equation, in one line: the added side asks that its axis point
+/// `p₂` come back to itself (up to sliding along `u`), so the candidate
+/// must carry `w = R₁R₂⁻¹(p₂)` onto `p₂`. Turning about `(p₁,u)` moves
+/// `w` on a circle, so the condition is a planar rotation taking
+/// `(w−p₁)⊥` onto `(p₂−p₁)⊥` — one angle, closed form.
+///
+/// **Solvable exactly when the two radii agree**, which is the table's
+/// own "inter-axis displacement invariants match A vs B" predicate.
+/// This function does NOT decide that: `atan2` gives the direction
+/// change regardless, the radius mismatch survives into the candidate,
+/// and the membership check refuses it with the mismatch as the
+/// measured clash — the table's "an unsatisfiable candidate is empty,
+/// named", reached through the one gate rather than a second one.
+///
+/// Two arms need no angle: a side whose subgroup carries NO axis point
+/// states no position constraint (planar), and a held side with
+/// perpendicular translation freedom (planar again) can satisfy the
+/// added position constraint by TRANSLATING in stage two. Both return
+/// the identity, and `atan2(0, 0) = 0` makes the degenerate radii fall
+/// out the same way with no branch.
+fn clocking_about(held: Coset, added: Coset, u: Vec3<f64>) -> Mat3<f64> {
+    let (Some(p1), Some(p2)) = (axis_point(held.subgroup), axis_point(added.subgroup)) else {
+        return Mat3::identity();
+    };
+    let w = (held.representative * added.representative.inverse()).transform_point(p2);
+    let from = (w - p1).reject_from(u);
+    let to = (p2 - p1).reject_from(u);
+    Mat3::rotation_about(u, f64::atan2(from.cross(to).dot(u), from.dot(to)))
+}
+
+/// The point a subgroup's axis is pinned through, `None` for the
+/// point-free subgroups (whose membership states no position
+/// constraint at all).
+fn axis_point(g: Subgroup) -> Option<Point3<f64>> {
+    match g {
+        Subgroup::Cylindrical { point, .. } | Subgroup::Revolute { point, .. } => Some(point),
+        _ => None,
+    }
 }
 
 /// Stage two: the candidate's translation, with the rotation fixed.

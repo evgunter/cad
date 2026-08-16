@@ -555,6 +555,137 @@ fn row4d_a_no_mates_document_round_trips_identically_below_the_header() {
     );
 }
 
+// ---- Row 4e/4f: the cut is a union of WHOLE clusters (ASM-4 rider ii) ----
+
+/// Two clusters of two: `{i0,i1}` and `{i2,i3}`, each joined by one
+/// mate, each carrying a recorded frame on its gauge.
+fn two_clusters() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>) {
+    let (doc, ids, _) = assembly("asm-r2a-clusters", 4);
+    let mut doc = doc;
+    let mut mates = Vec::new();
+    for (a, b) in [(0, 1), (2, 3)] {
+        let (next, m) = mint(
+            doc,
+            DocEdit::InsertNode {
+                node: mate(
+                    ids[a],
+                    ids[b],
+                    MatePrimitive::FrameCoincidence,
+                    AxisSense::Aligned,
+                    frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+                    z_up(),
+                    None,
+                ),
+            },
+        );
+        doc = next;
+        mates.push(m);
+    }
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetPlacement {
+            node: ids[0],
+            frame: Frame::translation([3.0, 0.0, 0.0]),
+        },
+    );
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetPlacement {
+            node: ids[2],
+            frame: Frame::translation([7.0, 0.0, 0.0]),
+        },
+    );
+    (doc, ids, mates)
+}
+
+/// Row 4e — a cut of ONE WHOLE cluster hoists its frame onto the
+/// remainder instance and leaves the part unplaced. This is ASM-4's
+/// D-2 rider (ii) doing its job at a cluster the pre-mate predicate
+/// could not even spell: two instantiate nodes, one cluster.
+#[test]
+fn row4e_a_whole_cluster_cut_hoists_the_cluster_frame() {
+    use std::collections::BTreeSet;
+    let (doc, ids, mates) = two_clusters();
+    let cut = BTreeSet::from([ids[0], ids[1], mates[0]]);
+    let out = editor_core::split(&doc, &cut, editor_core::DocumentId::derive("asm-r2a-4e"))
+        .expect("a whole-cluster cut splits");
+    assert!(
+        out.part.placements().is_empty(),
+        "the part holds the cluster UNPLACED — its world pose belongs \
+         to the assembly"
+    );
+    let instance = *out
+        .remainder
+        .order()
+        .iter()
+        .find(|id| doc.node(**id).is_none())
+        .expect("the remainder gained an instance");
+    assert!(
+        out.remainder
+            .placement(instance)
+            .bit_eq(&Frame::translation([3.0, 0.0, 0.0])),
+        "the cluster's frame HOISTED onto the remainder instance"
+    );
+    assert!(
+        out.remainder
+            .placement(ids[2])
+            .bit_eq(&Frame::translation([7.0, 0.0, 0.0])),
+        "the untouched cluster keeps its own frame"
+    );
+}
+
+/// Row 4f — a cut that TEARS a cluster refuses typed, naming the
+/// cluster and the instance on the far side (review MAJOR-2).
+///
+/// A11 puts the frame on the cluster, so a torn cluster has one frame
+/// and two homes. Before this refusal landed, such a cut passed the
+/// hoist's cluster count (the torn cluster was FILTERED OUT of it, so
+/// a torn cluster looked like an absent one) and the torn frame —
+/// `[7,0,0]` here — silently vanished.
+#[test]
+fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
+    use std::collections::BTreeSet;
+    let (doc, ids, mates) = two_clusters();
+    // One whole cluster PLUS one instance torn out of the other.
+    let cut = BTreeSet::from([ids[0], ids[1], mates[0], ids[2]]);
+    match editor_core::split(&doc, &cut, editor_core::DocumentId::derive("asm-r2a-4f")) {
+        Err(editor_core::SplitError::TornCluster {
+            gauge,
+            instance,
+            gauge_is_cut,
+        }) => {
+            assert_eq!(gauge, ids[2], "the torn cluster's gauge is named");
+            assert_eq!(instance, ids[3], "so is the member left behind");
+            assert!(gauge_is_cut, "and which side each is on");
+        }
+        other => panic!("expected TornCluster, got {other:?}"),
+    }
+    // The message names the cluster, both sides, and the repair.
+    let message = editor_core::split(&doc, &cut, editor_core::DocumentId::derive("asm-r2a-4f2"))
+        .expect_err("refuses")
+        .to_string();
+    assert!(message.contains("tears the placement cluster"), "{message}");
+    assert!(message.contains("widen the cut"), "{message}");
+    // The tear is refused in the OTHER direction too: keeping the
+    // gauge and cutting the member is the same fault.
+    let other_way = BTreeSet::from([ids[0], ids[1], mates[0], ids[3]]);
+    match editor_core::split(
+        &doc,
+        &other_way,
+        editor_core::DocumentId::derive("asm-r2a-4f3"),
+    ) {
+        Err(editor_core::SplitError::TornCluster {
+            gauge,
+            instance,
+            gauge_is_cut,
+        }) => {
+            assert_eq!((gauge, instance), (ids[2], ids[3]));
+            assert!(!gauge_is_cut);
+        }
+        other => panic!("expected TornCluster, got {other:?}"),
+    }
+}
+
 // ---- Row 5: the closure enumeration, executed ----
 
 #[test]
@@ -647,6 +778,192 @@ fn row5_the_closure_set_is_closed_under_intersection() {
             );
         }
     }
+}
+
+// ---- Row 5b: the COSET level — invariant matches, not just types ----
+//
+// Row 5 enumerates SUBGROUP types. The table's other half is the
+// representative: entry 3's "inter-axis displacement invariants match
+// A vs B (decided) → prismatic, else empty". Those matches had no
+// direct rows, and that gap is exactly where review MAJOR-1 hid — the
+// candidate pinned the held representative's clocking instead of
+// solving the free angle about the shared axis, so an assemblable
+// two-pin pattern refused CONTRADICTORY. These rows are at the coset
+// level: same subgroup types, different representatives, different
+// verdicts.
+
+/// A pin: a coaxial mate whose two axes are authored at `a_at` on the
+/// A side and `b_at` on the B side, both along +z.
+fn pin(
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+    a_at: [f64; 3],
+    b_at: [f64; 3],
+) -> Node<editor_core::ProfileProgram> {
+    mate(
+        a,
+        b,
+        MatePrimitive::Coaxial,
+        AxisSense::Aligned,
+        frame(a_at, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+        frame(b_at, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+        None,
+    )
+}
+
+/// Two pins, inter-axis invariants MATCHING (both distances 1) but the
+/// B-side pattern clocked 90° round: the table's entry 3
+/// parallel-distinct row, which requires **prismatic**. Before the
+/// MAJOR-1 fix this refused `Contradictory { mate_member_point_on_axis,
+/// clash 1.414… }` — the candidate was in the held coset but was not a
+/// witness of the intersection.
+#[test]
+fn row5b_two_pins_clocked_apart_but_invariant_matched_fold_to_prismatic() {
+    let (doc, ids, _) = assembly("asm-r2a-row5b", 2);
+    let (doc, _) = mint(
+        doc,
+        DocEdit::InsertNode {
+            node: pin(ids[0], ids[1], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+        },
+    );
+    // A's second pin sits at +x; B's at +y — same radius, quarter turn.
+    let (doc, second) = mint(
+        doc,
+        DocEdit::InsertNode {
+            node: pin(ids[0], ids[1], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        },
+    );
+    let poses = solve_document(&doc);
+    let fault = poses
+        .fault(second)
+        .expect("a two-pin pair is UNDER")
+        .clone();
+    let editor_core::MateFault::Under { residual, .. } = &fault else {
+        panic!("expected UNDER (prismatic along the shared axis), got {fault:?}");
+    };
+    assert_eq!(residual.name(), "prismatic");
+    assert!(
+        fault.to_string().contains("translation along [0, 0, 1]"),
+        "the residual slides along the pins' shared axis: {fault}"
+    );
+}
+
+/// The same shape at the COSET door, so the witness itself is pinned:
+/// the folded representative must be the quarter turn that carries B's
+/// pattern onto A's, not the identity the held mate happened to state.
+#[test]
+fn row5b_the_folded_representative_is_the_solved_clocking() {
+    use editor_core::mate::coset::{Coset, Subgroup, intersect};
+    use geom_core::linalg::{Affine3, Mat3, Point3, Vec3};
+    use geom_core::predicate::Band;
+    let band = Band::linear().expect("a band");
+    let z = Vec3::new(0.0, 0.0, 1.0);
+    // Pin 1 pins the shared axis through the origin; pin 2's A-side
+    // axis is at +x while its representative carries B's at +y.
+    let held = Coset {
+        subgroup: Subgroup::Cylindrical {
+            point: Point3::origin(),
+            direction: z,
+        },
+        representative: Affine3::identity(),
+    };
+    let added = Coset {
+        subgroup: Subgroup::Cylindrical {
+            point: Point3::new(1.0, 0.0, 0.0),
+            direction: z,
+        },
+        representative: Affine3::from_parts(Mat3::identity(), Vec3::new(1.0, -1.0, 0.0)),
+    };
+    let out = intersect(held, added, band, 1.0).expect("the pair is assemblable");
+    assert_eq!(out.subgroup.name(), "prismatic");
+    let turned = out
+        .representative
+        .transform_point(Point3::new(0.0, 1.0, 0.0));
+    assert!(
+        (turned - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-12,
+        "the witness carries B's second pin onto A's: {turned:?}"
+    );
+}
+
+/// Invariants that do NOT match: A's pins are 1 apart, B's are 2. The
+/// table says empty, and the refusal must quote the MEASURED clash —
+/// the radius difference, 1.
+#[test]
+fn row5b_mismatched_inter_axis_invariants_refuse_contradictory() {
+    let (doc, ids, _) = assembly("asm-r2a-row5b-mismatch", 2);
+    let (doc, first) = mint(
+        doc,
+        DocEdit::InsertNode {
+            node: pin(ids[0], ids[1], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+        },
+    );
+    let (doc, second) = mint(
+        doc,
+        DocEdit::InsertNode {
+            node: pin(ids[0], ids[1], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]),
+        },
+    );
+    let poses = solve_document(&doc);
+    let fault = poses.fault(second).expect("the pair refuses").clone();
+    let editor_core::MateFault::Contradictory {
+        held,
+        added,
+        predicate,
+        clash,
+    } = &fault
+    else {
+        panic!("expected CONTRADICTORY, got {fault:?}");
+    };
+    assert_eq!((*held, *added), (first, second), "both mates are named");
+    assert_eq!(*predicate, "mate_member_point_on_axis");
+    assert!(
+        (clash.abs() - 1.0).abs() < 1e-9,
+        "the clash IS the inter-axis invariant difference (2 − 1): {clash}"
+    );
+}
+
+/// A rest plus two pins — A11 rule 1's own fully-determined territory,
+/// and the shape MAJOR-1 falsely refused. The plate seats at the rest
+/// and both pins land, so the fold is DETERMINED and the pose is the
+/// seating height.
+#[test]
+fn row5b_a_rest_and_two_pins_determine_the_plate() {
+    let (doc, ids, store) = assembly("asm-r2a-row5b-plate", 2);
+    let (doc, _) = mint(
+        doc,
+        DocEdit::InsertNode {
+            node: mate(
+                ids[0],
+                ids[1],
+                MatePrimitive::PlanarRest { offset: -1.0 },
+                AxisSense::Opposed,
+                frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+                frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
+                None,
+            ),
+        },
+    );
+    let (doc, _) = mint(
+        doc,
+        DocEdit::InsertNode {
+            node: pin(ids[0], ids[1], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+        },
+    );
+    let (doc, _) = mint(
+        doc,
+        DocEdit::InsertNode {
+            node: pin(ids[0], ids[1], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]),
+        },
+    );
+    let poses = solve_document(&doc);
+    assert_eq!(poses.fault(ids[1]), None, "rest + two pins determine");
+    let relative = poses.relative(ids[1]).expect("a solved pose");
+    assert!(
+        relative.bit_eq(&Frame::translation([0.0, 0.0, 2.0])),
+        "the plate seats at the rest, unturned (both patterns agree): {relative:?}"
+    );
+    let ev = run(&doc, &opts(store));
+    assert!(matches!(ev.result(ids[1]), Some(NodeResult::Ok(_))));
 }
 
 // ---- Row 6: the A12 partition consequences ----
