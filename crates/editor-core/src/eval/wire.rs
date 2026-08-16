@@ -802,7 +802,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
 }
 
 /// The refusal-menu lift (register R3, LIB-PYG5; SELECT-DESIGN §3d):
-/// a kernel [`BooleanError::UndeclaredCoincidence`] becomes
+/// a kernel [`topo::BooleanError::UndeclaredCoincidence`] becomes
 /// [`NodeErrorKind::UndeclaredContact`] carrying the raise site's
 /// face pair as the detector's own [`names::FlushFinding`] shape —
 /// keys resolved to StableNames through the OPERANDS' name tables,
