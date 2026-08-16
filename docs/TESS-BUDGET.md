@@ -209,7 +209,7 @@ and say WHY in the commit. A `vanished` finding is never re-baselined
 without reading it first: a scene the sweep stopped covering improves
 every total it used to appear in.
 
-## Open design question: the split schedule's aspect policy (2026-08-16)
+## The split schedule's aspect policy (RATIFIED 2026-08-16, PR #568)
 
 The #547 measurement located the dominant sizing slack (~4.1x,
 every NURBS wall) in `grid_steps`' AM-GM u/v decoupling. Fixing
@@ -235,5 +235,7 @@ fundamental form. The options:
   ordinary measurement + re-cut.
 - (iii) **Status quo AM-GM** — forgoes the dominant factor.
 
-Sign-off on (ii) with A = 16 opens the TESS-SPLIT unit (the
-sibling of TESS-SPAN, which proceeds independently).
+**RATIFIED: option (ii) with A = 16** (Evan's approval on the
+#568 thread, 2026-08-16, noting correctly that (ii) strictly
+generalizes both extremes — A is the dial). Opens the TESS-SPLIT
+unit, sequenced AFTER TESS-SPAN's merge (same sizing functions).
