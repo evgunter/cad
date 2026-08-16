@@ -102,19 +102,15 @@ use crate::names::role::{EntityKind, StableName};
 use crate::names::table::{EntityKey, EntityRef, Entry};
 use crate::node::{Node, RecipeNodeId};
 
-/// The contact class a declaration asserts (CONTACT-DESIGN C4).
+/// The contact class a declaration asserts (CONTACT-DESIGN C4) — a
+/// RE-EXPORT of the kernel's vocabulary, never a parallel enum.
 ///
-/// v1 carries [`Rest`](Self::Rest) — the coincident-plane class, the
-/// only demand-evidenced detector. `Tangent` and `Fit { gap }` are
-/// C4 vocabulary whose detectors have no demand yet; the enum is
-/// `#[non_exhaustive]` so they land additively when it arrives (the
-/// same reserved-not-built posture as convexity, GS-Q2).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum ContactClass {
-    /// Conformal contact: same carrier, gap ≡ 0 (planes, in v1).
-    Rest,
-}
+/// The type is defined in `topo` because the boolean's own contact
+/// refusals must carry the same words the detector produces
+/// (SELECT-DESIGN §3d, "one vocabulary end-to-end") and `topo` cannot
+/// depend on this crate. Everything above re-exports it; nothing
+/// redefines it.
+pub use topo::ContactClass;
 
 /// Which rung of the verify ladder decided a finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

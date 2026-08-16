@@ -107,7 +107,8 @@ use super::solid_contain::{
 use super::zip::zip_seam;
 use super::{
     BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts,
-    ContactRecords, Operand, SideCode, SweepStrategy, VfContact, VvContact,
+    ContactRecords, CurveContact, FacePairDeclaration, Operand, PatchContact, SideCode,
+    SweepStrategy, VfContact, VvContact,
 };
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
@@ -997,6 +998,14 @@ impl KeyView<'_> {
             Self::Absent => None,
         }
     }
+
+    fn edge(&self, e: EdgeKey) -> Option<EdgeKey> {
+        match self {
+            Self::Direct => Some(e),
+            Self::Graft(g) => g.edges.get(e).copied(),
+            Self::Absent => None,
+        }
+    }
 }
 
 /// The D5 descendant map (M3 PR 6a, PR 5 review R5): result-stage
@@ -1109,6 +1118,46 @@ pub(super) fn remap_contacts<T: Real>(
             out.b_on_a.push(VfContact { vertex, face });
         }
     }
+    // The curved granularities carry by FACE lineage — the descendant
+    // map, never re-derivation (C4's replay rule): merge absorption
+    // renames a face while the contact persists, which is exactly the
+    // rename the chase exists to follow. The WITNESS edge does not
+    // chase, because no edge descendant map exists: an edge dissolved
+    // by the zip is genuinely consumed, so its curve record drops
+    // under the same strict rule as a fused vertex's rests. Inventing
+    // an edge chase here would be a second lineage source of truth.
+    //
+    // The witness is looked up through the A-SIDE view, which is the
+    // convention and not an oversight: a `CurveContact`'s locus is a
+    // seam edge of the RESULT, and the result arena is A's clone
+    // (carve/clone preserve A's keys), so the A view is the identity
+    // map for exactly the edges that can carry one. A B-side witness
+    // would have to be grafted first and does not arise while nothing
+    // mints these records; when a producer lands it must mint the
+    // witness in result keys, and this convention is what it has to
+    // meet.
+    let live_edge = |view: &KeyView<'_>, e: EdgeKey| {
+        let k = view.edge(e)?;
+        body.get_edge(k).map(|_| k)
+    };
+    for c in &contacts.curves {
+        if let (Some(face_a), Some(face_b), Some(witness)) = (
+            face(&a_view, c.face_a),
+            face(&b_view, c.face_b),
+            live_edge(&a_view, c.witness),
+        ) {
+            out.curves.push(CurveContact {
+                face_a,
+                face_b,
+                witness,
+            });
+        }
+    }
+    for c in &contacts.patches {
+        if let (Some(face_a), Some(face_b)) = (face(&a_view, c.face_a), face(&b_view, c.face_b)) {
+            out.patches.push(PatchContact { face_a, face_b });
+        }
+    }
     out
 }
 
@@ -1132,7 +1181,7 @@ pub(super) fn declared_surface_pairs<T: Real>(
     decls
         .coincident_faces
         .iter()
-        .filter_map(|&(fa, fb)| {
+        .filter_map(|&FacePairDeclaration { a: fa, b: fb, .. }| {
             // A-clone surface keys ARE result keys (carve/clone
             // preserve them); B bridges through the graft.
             let ka = a.get_face(fa)?.surface;
@@ -1169,7 +1218,7 @@ pub(super) fn remap_carried<T: Real>(
     let face = |view: &KeyView<'_>, f: FaceKey| desc.live_face(body, view.face(f)?);
     let push_vv = |out: &mut ContactRecords, carried: &CarriedContacts, view: &KeyView<'_>| {
         for c in &carried.vv {
-            if let (Some(a), Some(b)) = (vert(view, c.a), vert(view, c.b))
+            if let (Some(a), Some(b)) = (vert(view, c.pair.a), vert(view, c.pair.b))
                 && a != b
                 && !out
                     .vv
@@ -1189,15 +1238,19 @@ pub(super) fn remap_carried<T: Real>(
             .any(|r| (r.vertex, r.face) == (v, f))
     };
     for c in &decls.carried_a.vf {
-        if let (Some(vertex), Some(fk)) = (vert_strict(a_view, c.vertex), face(a_view, c.face))
-            && !dup_vf(out, vertex, fk)
+        if let (Some(vertex), Some(fk)) = (
+            vert_strict(a_view, c.rest.vertex),
+            face(a_view, c.rest.face),
+        ) && !dup_vf(out, vertex, fk)
         {
             out.a_on_b.push(VfContact { vertex, face: fk });
         }
     }
     for c in &decls.carried_b.vf {
-        if let (Some(vertex), Some(fk)) = (vert_strict(b_view, c.vertex), face(b_view, c.face))
-            && !dup_vf(out, vertex, fk)
+        if let (Some(vertex), Some(fk)) = (
+            vert_strict(b_view, c.rest.vertex),
+            face(b_view, c.rest.face),
+        ) && !dup_vf(out, vertex, fk)
         {
             out.b_on_a.push(VfContact { vertex, face: fk });
         }
@@ -2114,6 +2167,7 @@ mod tests {
                 face: dead_face,
             }],
             b_on_a: vec![],
+            ..ContactRecords::default()
         };
         // Without the descendant row: the record drops (pre-D5 loss).
         let out = remap_contacts(
@@ -2144,6 +2198,7 @@ mod tests {
             }],
             a_on_b: vec![],
             b_on_a: vec![],
+            ..ContactRecords::default()
         };
         let mut desc = Descendants::default();
         desc.vertices.insert(dead_vertex, live_vertex);

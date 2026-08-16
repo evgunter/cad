@@ -1431,7 +1431,11 @@ G1 three-layer split (kernel / headless `editor-core` / interaction)
 and GQ1–GQ5 are ratified — GQ1's mechanism subsequently ratified in
 full as `docs/SOLVER-DESIGN.md` (#79), the selection-stability/
 naming doc as `docs/NAMING-DESIGN.md` (#74) — with GQ6/GQ7
-deliberately deferred to GUI time. The middle layer is real —
+deliberately deferred to GUI time, save GQ6's toolkit row: its
+mandated toolkit/viewport/picking/wasm re-survey was refreshed
+2026-08-16 in `docs/GQ6-RESURVEY.md`, and on it the toolkit is
+ratified as **egui, falling back to iced** (the other rows stay
+recommendations). The middle layer is real —
 `editor-core` ships, and GUI-DESIGN's freshness note carries the
 verified shipped-vs-absent inventory. (GQ4's
 assemblies-are-recipes-of-the-same-formalism commitment is restated
