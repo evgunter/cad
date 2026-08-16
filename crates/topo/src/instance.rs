@@ -210,6 +210,68 @@ pub fn graft_disjoint_all_keyed<T: geom_core::Decide>(
     })
 }
 
+/// Grafts every solid of `src` onto ALREADY-EXISTING destination
+/// solids, one target per source solid, so the source's shells join
+/// solids that are already there instead of minting new ones.
+///
+/// The same transplant as [`graft_disjoint_all_keyed`], with the one
+/// difference the caller's semantics ask for. Repeating a key in
+/// `targets` is legal and is the point: N placed copies of a
+/// single-solid prototype grafted onto the SAME target become one solid
+/// of N shells.
+///
+/// **Why this shape exists.** It is what a UNION of separated bodies
+/// already means in this kernel: the boolean pipeline's `combine` door
+/// transplants a disjoint operand's shells into the destination's
+/// EXISTING solid, so a chain of pairwise `Union`s over N separated
+/// bodies produces one solid of N shells — and the seamed boolean path
+/// accepts that result as an operand, while an N-SOLID body is refused
+/// (`setopfinish`'s single-solid gate). A group union that wants to
+/// feed a later boolean must therefore produce the representation the
+/// chain it replaces produced, entity for entity.
+///
+/// Validity remains the caller's, exactly as at the sibling doors: the
+/// shells must genuinely be disjoint, and nothing here checks it
+/// ([`crate::Separation`] is the door that certifies it). Touching or
+/// overlapping shells build a body the at-rest validator cannot catch
+/// (module docs, #382).
+///
+/// The returned bridge's `solids()` is `targets`, echoed — the same
+/// positional contract, so a caller re-keying per source solid needs no
+/// special case.
+///
+/// # Errors
+///
+/// Exactly [`graft_disjoint_all_keyed`]'s, plus `JoinDesync` when a
+/// target is not a live solid of `dst` or the arity does not match the
+/// source's solid count.
+pub fn graft_disjoint_all_onto_keyed<T: geom_core::Decide>(
+    dst: &mut Body<T>,
+    targets: &[SolidKey],
+    src: &Body<T>,
+) -> Result<GraftKeys, BooleanError> {
+    if targets.iter().any(|&k| dst.get_solid(k).is_none()) {
+        return Err(BooleanError::JoinDesync {
+            what: "graft destination solid is not live",
+        });
+    }
+    if src.solids().next().is_none() {
+        return Err(BooleanError::JoinDesync {
+            what: "graft source holds no solid to graft",
+        });
+    }
+    let map = crate::boolean::combine::graft_solids_with(
+        dst,
+        targets,
+        src,
+        crate::boolean::combine::Bridge::RemapKeys,
+    )?;
+    Ok(GraftKeys {
+        solids: targets.to_vec(),
+        map,
+    })
+}
+
 /// Direct rows for this door (R1 MINOR-2): the integration coverage
 /// lives in `step-import`, but the contract this module states —
 /// "nothing is fused, nothing is shared, nothing but the keys may

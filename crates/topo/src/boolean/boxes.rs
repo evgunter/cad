@@ -186,7 +186,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
 /// box is deliberately loose, the conservative direction). `Nurbs`
 /// carriers land on the poison box (never prunes) until a rung-3
 /// operand gate admits them with a control-hull box.
-pub(super) fn edge_box<T: Decide + Bounds>(
+pub(crate) fn edge_box<T: Decide + Bounds>(
     body: &Body<T>,
     edge: EdgeKey,
     pad: f64,

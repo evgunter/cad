@@ -207,7 +207,10 @@ pub use geom_brep::{
 pub use geom_curves::Curve3;
 pub use geom_surfaces::Surface;
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
-pub use instance::{GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed};
+pub use instance::{
+    GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed,
+    graft_disjoint_all_onto_keyed,
+};
 pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use pcurves::{PcurveMintError, mint_pcurves, pcurve_of};

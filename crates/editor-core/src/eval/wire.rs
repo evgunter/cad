@@ -1205,15 +1205,31 @@ fn wire_placed_union<T: Decide + geom_core::Bounds>(
         .certify(&maps)
         .map_err(|topo::PlacementsMeet { i, j }| NodeErrorKind::PlacementsUncertified { i, j })?;
     let mut fused = topo::Body::new();
-    let mut bridges = Vec::with_capacity(maps.len());
+    let mut bridges: Vec<topo::GraftKeys> = Vec::with_capacity(maps.len());
+    let mut targets: Vec<topo::SolidKey> = Vec::new();
     for (i, map) in maps.iter().enumerate() {
         let mut placed = transform_rigid(&body, map).map_err(NodeErrorKind::Transform)?;
         // N6 composition, per structural instance — the pattern node's
         // rule verbatim: distinct instances are distinct sources.
         compose_placed(&body, &mut placed, id, i as u32);
-        bridges.push(
-            topo::graft_disjoint_all_keyed(&mut fused, &placed).map_err(NodeErrorKind::Boolean)?,
-        );
+        // Placement 0 MINTS the destination solids (one per prototype
+        // solid, provenance carried); every later placement grafts ONTO
+        // those same solids, so the fused body has the prototype's own
+        // solid structure with N shells in each. That is what a union
+        // of separated bodies already means here — the pairwise
+        // `Boolean(Union)` chain this node replaces produces exactly
+        // that shape, which is also the only shape the seamed boolean
+        // path accepts as an operand.
+        let keys = if i == 0 {
+            let keys = topo::graft_disjoint_all_keyed(&mut fused, &placed)
+                .map_err(NodeErrorKind::Boolean)?;
+            targets = keys.solids().to_vec();
+            keys
+        } else {
+            topo::graft_disjoint_all_onto_keyed(&mut fused, &targets, &placed)
+                .map_err(NodeErrorKind::Boolean)?
+        };
+        bridges.push(keys);
     }
     // Instance(i) wrapping (A8/N1), re-keyed onto the ONE output body
     // through each instance's graft bridge.
