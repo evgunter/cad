@@ -625,10 +625,15 @@ fn solve_cluster<P>(
     relative.insert(gauge, Frame::IDENTITY);
     let mut poses: BTreeMap<RecipeNodeId, Affine3<f64>> = BTreeMap::new();
     poses.insert(gauge, Affine3::identity());
+    // Only THIS cluster's mates get a role here: a role written for
+    // another cluster's mate would race that cluster's own answer,
+    // and which one won would depend on document order.
     let mut roles: BTreeMap<RecipeNodeId, MateRole> = BTreeMap::new();
-    for mates in by_pair.values() {
-        for &mate in mates {
-            roles.insert(mate, MateRole::Declaring);
+    for (pair, mates) in by_pair {
+        if position.contains_key(&pair.0) {
+            for &mate in mates {
+                roles.insert(mate, MateRole::Declaring);
+            }
         }
     }
     let mut queue = VecDeque::from([gauge]);

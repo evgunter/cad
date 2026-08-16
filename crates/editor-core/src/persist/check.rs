@@ -358,7 +358,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             }
         }
         if let Node::Declare { pairs } = node {
-            for (a, b) in pairs {
+            for ((a, b), _) in pairs {
                 for n in derivation_nodes(a).iter().chain(derivation_nodes(b).iter()) {
                     check_id(*n)?;
                 }

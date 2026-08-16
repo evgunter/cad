@@ -408,37 +408,39 @@ impl core::fmt::Display for MateFault {
 
 impl core::error::Error for MateFault {}
 
-/// The wire spelling of [`ContactClass`] — stable lowercase strings,
-/// the same convention the kernel's declared-pairs wire uses, so a
-/// mate's class and a boolean's declaration read identically in a file.
+/// The wire spelling of a mate's [`ContactClass`] — the SAME stable
+/// strings a `Declare` pair's class uses
+/// ([`crate::node::declare_pairs_wire`]'s table, reused rather than
+/// re-spelled). One contact vocabulary, one spelling of it: a mate's
+/// `rest` and a declaration's `rest` are the same six bytes because
+/// they are the same table.
 ///
-/// The enum is `#[non_exhaustive]` and additive, so this module is
-/// where a class outside v1's vocabulary meets the file format: an
-/// unknown spelling refuses at the wire door NAMING the deferral,
-/// which is the same refusal [`MateFault::ClassNotAdmitted`] makes at
-/// the solve door. Two doors, one sentence.
+/// The enum is `#[non_exhaustive]` and additive, so this is where a
+/// class outside v1's vocabulary meets the file format. BOTH
+/// directions refuse — the serialize direction too, since a kernel
+/// newer than this writer can present a class with no spelling here
+/// and a guessed tag would be read back as a different class. The
+/// refusal quotes [`topo::FIT_DEFERRAL`] verbatim, which is the same
+/// sentence [`MateFault::ClassNotAdmitted`] says at the solve door.
 pub mod class_wire {
     use super::ContactClass;
+    use crate::node::declare_pairs_wire::{tag, untag};
     use serde::{Deserialize, Deserializer, Serializer};
 
     /// Serializes the class as its stable lowercase spelling.
     ///
     /// # Errors
     ///
-    /// A class with no v1 spelling (the additive future) refuses rather
-    /// than inventing one.
+    /// A class with no spelling in this build refuses rather than
+    /// inventing one.
     pub fn serialize<S: Serializer>(class: &ContactClass, ser: S) -> Result<S::Ok, S::Error> {
-        let spelling = match class {
-            ContactClass::Rest => "rest",
-            ContactClass::Tangent => "tangent",
-            other => {
-                return Err(serde::ser::Error::custom(format!(
-                    "contact class {} has no v1 wire spelling — {}",
-                    other.name(),
-                    topo::FIT_DEFERRAL
-                )));
-            }
-        };
+        let spelling = tag(*class).ok_or_else(|| {
+            serde::ser::Error::custom(format!(
+                "persist: this build has no wire spelling for the mate's contact class (a newer \
+                 kernel's vocabulary) — refusing to write a guessed tag. {}",
+                topo::FIT_DEFERRAL
+            ))
+        })?;
         ser.serialize_str(spelling)
     }
 
@@ -449,13 +451,11 @@ pub mod class_wire {
     /// An unknown spelling refuses typed, naming the deferral.
     pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<ContactClass, D::Error> {
         let spelling = String::deserialize(de)?;
-        match spelling.as_str() {
-            "rest" => Ok(ContactClass::Rest),
-            "tangent" => Ok(ContactClass::Tangent),
-            other => Err(serde::de::Error::custom(format!(
-                "unknown contact class `{other}` — v1 spells `rest` and `tangent`; {}",
+        untag(&spelling).ok_or_else(|| {
+            serde::de::Error::custom(format!(
+                "unknown contact class '{spelling}' — v1 mates spell `rest` and `tangent`; {}",
                 topo::FIT_DEFERRAL
-            ))),
-        }
+            ))
+        })
     }
 }

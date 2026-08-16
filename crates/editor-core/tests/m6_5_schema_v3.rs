@@ -25,9 +25,10 @@ fn schema_version_is_current() {
     // Bumped by the ASM-2A instantiate-part clean break (v7), by
     // LIB-LBRET's step-vocabulary growth (v8), by LIB-RESPELL's §2c
     // re-spell (v9), by ASM-UPD's `UpdateReference` edit arm (v10),
-    // and by ASM-R2a's `Node::Mate` arm (v11); this file keeps
-    // pinning the v3 refusal fixture below.
-    assert_eq!(SCHEMA_VERSION, 11);
+    // by M9-1 PR-2's declaration-class break (v11), and by ASM-R2a's
+    // `Node::Mate` arm (v12); this file keeps pinning the v3 refusal
+    // fixture below.
+    assert_eq!(SCHEMA_VERSION, 12);
 }
 
 #[test]

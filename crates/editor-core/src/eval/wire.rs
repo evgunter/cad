@@ -938,7 +938,7 @@ fn face_name<T: Decide>(
 /// than shared. See that function's docs for why, and change both
 /// together.
 fn resolve_declarations(
-    pairs: &[(names::StableName, names::StableName)],
+    pairs: &[((names::StableName, names::StableName), ContactClass)],
     doc: &crate::doc::Doc<ProfileProgram>,
     a_table: &NameTable,
     b_table: &NameTable,
@@ -1006,7 +1006,8 @@ fn resolve_declarations(
     };
 
     let mut out = BooleanDeclarations::none();
-    for (n1, n2) in pairs {
+    for ((n1, n2), class) in pairs {
+        let class = *class;
         let (o1, k1) = resolve_one(n1)?;
         let (o2, k2) = resolve_one(n2)?;
         let unsupported = || NodeErrorKind::DeclareUnsupportedPair {
@@ -1017,7 +1018,8 @@ fn resolve_declarations(
             // Cross-operand face pair: the coincident-plane intent.
             ((Operand::A, EntityKey::Face(fa)), (Operand::B, EntityKey::Face(fb)))
             | ((Operand::B, EntityKey::Face(fb)), (Operand::A, EntityKey::Face(fa))) => {
-                out.coincident_faces.push(FacePairDeclaration::rest(fa, fb));
+                out.coincident_faces
+                    .push(FacePairDeclaration::new(fa, fb, class));
             }
             // Same-operand carried contacts.
             ((oa, EntityKey::Vertex(va)), (ob, EntityKey::Vertex(vb))) if oa == ob => {
@@ -1025,15 +1027,12 @@ fn resolve_declarations(
                     Operand::A => &mut out.carried_a,
                     Operand::B => &mut out.carried_b,
                 };
-                // The class is a FIELD at every mint site: this door
-                // resolves today's class-less `Declare` payload, and
-                // the conformal class is what that payload has always
-                // meant. The recipe-side class rides in with the
-                // Declare payload change; the kernel type is already
-                // ready for it.
+                // The AUTHORED class, carried — not re-defaulted. The
+                // whole point of the payload change is that this door
+                // no longer has to guess.
                 c.vv.push(CarriedVv {
                     pair: VvContact { a: va, b: vb },
-                    class: ContactClass::Rest,
+                    class,
                 });
             }
             ((oa, EntityKey::Vertex(v)), (ob, EntityKey::Face(f)))
@@ -1046,7 +1045,7 @@ fn resolve_declarations(
                 };
                 c.vf.push(CarriedVf {
                     rest: VfContact { vertex: v, face: f },
-                    class: ContactClass::Rest,
+                    class,
                 });
             }
             _ => return Err(unsupported()),

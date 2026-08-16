@@ -103,12 +103,10 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
     // per-operand, so ONE Declare serves both operand orders).
     let (doc, decl) = insert(
         doc,
-        Node::Declare {
-            pairs: vec![(
-                fixture::fname(a, RoleSeg::Cap(CapEnd::Bottom)),
-                fixture::fname(b, RoleSeg::Cap(CapEnd::Bottom)),
-            )],
-        },
+        Node::declare_rest(vec![(
+            fixture::fname(a, RoleSeg::Cap(CapEnd::Bottom)),
+            fixture::fname(b, RoleSeg::Cap(CapEnd::Bottom)),
+        )]),
     );
     let (doc, s) = insert(
         doc,
@@ -731,12 +729,10 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
         // declared (the rotational variant maps the SAME names).
         let (doc, decl) = insert(
             doc,
-            Node::Declare {
-                pairs: vec![(
-                    fixture::fname(cube, RoleSeg::Cap(CapEnd::Top)),
-                    fixture::fname(pip, RoleSeg::Cap(CapEnd::Bottom)),
-                )],
-            },
+            Node::declare_rest(vec![(
+                fixture::fname(cube, RoleSeg::Cap(CapEnd::Top)),
+                fixture::fname(pip, RoleSeg::Cap(CapEnd::Bottom)),
+            )]),
         );
         let (doc, sub) = insert(
             doc,

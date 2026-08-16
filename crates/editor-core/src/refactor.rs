@@ -697,7 +697,7 @@ fn remap_node(
         Node::Declare { pairs } => Node::Declare {
             pairs: pairs
                 .iter()
-                .map(|(a, b)| Ok((nm(a)?, nm(b)?)))
+                .map(|((a, b), class)| Ok(((nm(a)?, nm(b)?), *class)))
                 .collect::<Result<_, RemapMiss>>()?,
         },
         Node::InstantiatePart { .. } => node.clone(),
@@ -734,7 +734,7 @@ fn node_param_refs(node: &Node<ProfileProgram>) -> BTreeSet<crate::doc::ParamNam
 /// rewrites, beside the appearance keys.
 fn payload_names(node: &Node<ProfileProgram>) -> Vec<&StableName> {
     match node {
-        Node::Declare { pairs } => pairs.iter().flat_map(|(a, b)| [a, b]).collect(),
+        Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a, b]).collect(),
         Node::Fillet { selection, .. } => selection.iter().collect(),
         _ => Vec::new(),
     }
