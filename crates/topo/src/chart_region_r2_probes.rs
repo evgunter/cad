@@ -321,7 +321,7 @@ fn probe_mutating_the_band_moves_the_sliver_row() {
         Ok(ChartOverlap::PositiveArea)
     ));
     let loose = Band::new(1e-6, 1e-5).unwrap();
-    assert!(matches!(overlap_of_regions(&a, &b, false, loose), Err(_)));
+    assert!(overlap_of_regions(&a, &b, false, loose).is_err());
 }
 
 /// The mean-width derivation, checked by hand on a known intersection.
