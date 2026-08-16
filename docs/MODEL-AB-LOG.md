@@ -911,3 +911,35 @@ FlushFinding's definite-only contract); DEV-2 ACCEPTED (the
 serde(with) bridge resolves the no-kernel-serde vs no-mirror-enum
 rule collision without breaking either; stable spellings, typed
 refusals both directions, content_tag in the defining crate).
+| RESPELL-PR1 | 2026-08-16 | the ratified §2c fillet family, kernel half: sealed verbs kernel (signature-purity axiom, E0609-proven), fused fillet/fillet_arc/arc_fillet/arc_fillet_arc/arc_to(spec), state-keyed ArcData matrix, ray-extension semantics (FilletCarrierUnsupported + ArcCarrierSpelling retired), step_vocabulary! table (enum-side projections), schema v9, docs §2/§2a/§2b/§3 rewritten | L / NUMERIC (pre-draw logged) | fable (block LIB-9 slot 2) | single (ordinal 41, reviewed 27ba1191→714de3ab extended) — APPROVE-WITH-FIXES 2/3/— (M1 SILENT: Center@OnArc shipped untested w/ tip-ignoring impl → ADJUDICATED INADMISSIBLE at the fix pass — the ratified Center@Directed value-match exclusion applies verbatim to a directed state; impl+arm DELETED, matrix text corrected, flagged for Evan's retroactive review; M2 reported: the table derives only enum-side projections → MEASURED 500-700 macro lines, Evan RULED follow-up (LIB-RESPELL-TABLE registered), §2c amended honestly; the reviewer also proved the real seal guarantee is signature purity not module unnameability — the doc now says so; differential + inadmissible-spellings + ray-extension + tag hygiene + v9 both-directions all executed; the straight-leg merge justified by the old spelling failing validate on base) | 1 silent (M1), rest reported (incl. the post-open demo-tour red: a separate-workspace enum-shape adaptation the crate rows missed, fixed in the bridge philosophy) | 4 | 4 | 4 | substantial ×2 rounds + the final reconciliation (three concurrent merges re-spelled into the unified vocabulary; v9 verified standing at merge); executor: implementer-inherited (2 limit kills + 1 session-restart kill annotated) | MERGED #531 35/35 at 3b3e5f41; §2c IS THE SURFACE — the fifteen-round conversation is code; PR-2 (corpus/Python + shim deletion) and PlacedUnion unblock | impl ~700k-cum (multi-kill, annotated) / review ~175k / fix ~85k-delta | wall fragmented across 3 kills + the CI outage |
+LIB-10 slots 2+4 dispatch (2026-08-16, the post-RESPELL wave):
+slot 2 = PLACEDUNION (the ratified A′ group boolean,
+docs/LIB-PLACEDUNION-SPEC.md; the #510 home-acceptance) = OPUS;
+pre-draw fields L / STRUCTURAL. Slot 4 = RESPELL-PR2 (the spec's
+PR-2 scope: corpus/demos/Python re-spell + shim deletion + the
+#433 adjudication) = OPUS; pre-draw fields L / STRUCTURAL
+(mechanical re-spell against the frozen PR-1 kernel). LIB-10
+consumed (fable, opus, opus, opus = PYG5, PLACEDUNION, G14,
+RESPELL-PR2).
+| ASM-UPD | 2026-08-16 | A13's pin-update door: DocEdit::UpdateReference (recorded/undoable/replayable, unresolved-at-edit-time), update_references elaboration + update_to_store w/ Workspace::current_pin, mixed_pins lint (reports, never gates), D-4 memo re-key evidence sharpened by an (id,pin)-keyed stub store; schema v10 (the v9 double-claim resolved by the deterministic rule — RESPELL kept 9; ledger records the twice-claimed 9) | M / STRUCTURAL (pre-logged at spec) | OPUS (block ASM-3 slot 2) | single (ordinal 46, frozen 1fe8c809, v4) — APPROVE-WITH-FIXES 0/1/2, rubric 5/4/5 (both shipped-guard mutations caught; reviewer's own staged fixture + warm-prior/nested/anti-masking memo attacks all failed to break it; all three deviations adjudicated honest BY EXECUTION incl. removing the AlreadyPinned guard to produce the un-appliable group; MIN-1 = the prior memo channel had no shipped warm-path row) | 0 silent (3 reported, all verified; the schema hazard self-flagged at delivery) | 5 | 4 | 5 | IMPLEMENTER-INHERITED (row5c/row5d warm-prior + nested rows, mutation-verified to be the ONLY red on a pin-feed deletion; AlreadyPinned Display asserted; the v9→v10 shift w/ header-only re-bless + both-direction refusal rows; two hygiene repairs: RESPELL's future-version literal now SCHEMA_VERSION+1-derived, two drifted pin names righted); NOTE-1 filed as #561, adopted by LIB | MERGED #549 32/32 at a13bfed2; THE UPDATE DOOR EXISTS — pins move only by recorded edits, staged states lint | impl ~194k + fix ~236k / review ~133k | impl ~0.6h + fix ~0.6h / review ~1.3h |
+R2-A dispatch note (2026-08-16): the M9-1-PR-2 gate LIFTED EARLY
+by Evan's ruling (in-session) — the dependency was ContactClass
+type identity, which PR-1 already merged; #552's fix-pass surface
+(re-export sugar, wire module, possible serde placement flip)
+cannot move R2-a's design. Implementer briefed to build against
+topo::ContactClass directly, absorb #552 at routine re-merges,
+and mint its own schema bump at main's next number (the live
+chain: v10 = ASM-UPD, v11 = M9-1 at its re-merge). Lane asm-r2a,
+branch asm/r2a-mate-solve, OPUS per the slot-1 draw. Review
+ordinal claims at review dispatch (note: the next third is 48 —
+the pending dual, tally 5-of-6).
+M9-2 PR-2 review ordinal fixed at dispatch (2026-08-16, PR #564
+open, frozen head a1b78954): claimed through 47 (M9-1 PR-2) + 1 =
+**48 → a third → DUAL (sample #16)**. FOURTH v4 dual block drawn:
+byte 88, parity 0 → **SAME-MODEL first** (fable+fable, concurrent
+same-head); the cross-model twin banks for ordinal 51. The unit's
+row (dual #14 on PR-1 + this dual + both fix passes) records at
+this PR's merge. STOPPING-RULE note: tally 5-of-6 — if EITHER
+reviewer here finds a MAJOR, this is the SIXTH qualifying dual:
+the dual-review experiment ENDS and Evan is notified explicitly
+per the v4 amendment.

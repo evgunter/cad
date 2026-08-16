@@ -35,6 +35,7 @@ pub mod program;
 pub mod refactor;
 pub mod resolve;
 pub mod roots;
+pub mod update;
 pub mod witness;
 
 pub use appearance::{
@@ -78,8 +79,8 @@ pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use placement::Frame;
 pub use product::{ProductError, product, product_named};
 pub use program::{
-    LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramRefusal, ProgramStep,
-    ProgramTarget, RecordedProgramError,
+    LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
+    ProgramStep, ProgramTarget, RecordedProgramError,
 };
 pub use refactor::{InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split};
 pub use resolve::{
@@ -95,6 +96,7 @@ pub use resolve::{
     diff_summaries, verdict_summary,
 };
 pub use roots::RootFault;
+pub use update::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
 pub use witness::{
     BifurcationKind, BranchCertification, BranchMarginEvidence, Implicated, WitnessAge,
     WitnessBifurcation, WitnessDatum,
