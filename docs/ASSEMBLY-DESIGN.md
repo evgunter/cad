@@ -13,8 +13,8 @@ it:
 | NAMING-DESIGN N1–N7 | Names are derivation paths; this doc discharges its scope exclusion "assembly pin representation" (A4) |
 | DESIGN.md banked flags | SE(3) witnesses budgeted, not assumed from sketch machinery; ε-disagreement across referenced documents is a typed error at the seam; pattern indices ride provenance explicitly; free-move/hide are display-layer state, never persisted (G3) |
 
-Decisions are **A1–A12**; open questions **AQ1–AQ7** (AQ3
-discharged by A11; AQ7 by A12). This doc schedules nothing; the implementation
+Decisions are **A1–A13**; open questions **AQ1–AQ7** (AQ3
+discharged by A11; AQ7 by A12; AQ2 by A13). This doc schedules nothing; the implementation
 ladder below names homes, and the program that works through it is
 `docs/ASM-PLAN.md` / `docs/ASM-LOG.md`. Chat/issue rulings
 incorporated: the scope ladder, materialized evaluation, and the
@@ -459,6 +459,33 @@ Named v1 losses, honest and banked by A1: cross-edge cancellation
 rung (c); loop CERTIFICATION beyond the C2 verification tables
 (e.g. in-band closures) escalates per C4 rather than resolving.
 
+## A13 — Update granularity (discharges AQ2)
+
+**(Sign-off 2026-08-16, PR #544.)** The Cargo.lock model's update
+door, four clauses:
+
+- **The primitive is per-reference**: `DocEdit::UpdateReference
+  { node, new_pin }` — recorded, undoable, naming its node. Two
+  pins of one document id in one assembly is representable and
+  sometimes intended state (staged migration), and the primitive
+  an update-all elaborates into must exist regardless.
+- **Whole-document update is an elaboration, never a second
+  primitive**: "update id X everywhere" records one
+  per-reference edit per site, atomically grouped the way
+  split/inline group theirs (purity = atomicity, the ASM-4
+  precedent).
+- **Competing pins surface as a lint, not a refusal**: mixed
+  (id → {pin₁, pin₂}) state is legal at the recipe level and
+  REPORTED by an expectation-check in the A5 connectedness-lint
+  mold, listing each id's pin multiplicity with the referencing
+  nodes. Refusal would make staged updates unauthorable;
+  silence would hide the most common mistake.
+- **Update triggers ordinary re-evaluation**; once R2-b lands, a
+  pin move on an instance with crossing declarations additionally
+  triggers mate re-verification (A4's "does it actually fit"
+  gate — the edit's contract, stated once). Disk-moved-pin-held
+  staleness is AQ5's capture question, out of this decision.
+
 ## Open questions
 
 - **AQ1 — the document store.** What a stable document id anchors
@@ -466,34 +493,7 @@ rung (c); loop CERTIFICATION beyond the C2 verification tables
   workspace manifest, registry-shaped). Gates import-as-assembly
   and any sharing story; does not gate rungs R1–R2 (single-store =
   the workspace).
-- **AQ2 — update granularity and conflict surfacing** under the
-  Cargo.lock model: whole-document pin bump only, or
-  per-reference; how competing updates in one assembly surface.
-  **Now pressing (R1 complete, 2026-08-16) — proposed resolution
-  (firm):** (1) The PRIMITIVE is per-reference:
-  `DocEdit::UpdateReference { node, new_pin }` — recorded,
-  undoable, naming its node; per-reference because two pins of
-  one document id in one assembly is representable-and-sometimes-
-  intended state (staged migration), and because the primitive
-  an "update all" can elaborate INTO must exist anyway (the
-  Cargo analogy holds end-to-end: `update -p` vs `update`, both
-  rewriting individual lock entries). (2) The whole-document
-  convenience is an elaboration, not a second primitive: "update
-  id X everywhere" records one per-reference edit per site,
-  atomically grouped the way split/inline group theirs (purity =
-  atomicity, the ASM-4 precedent). (3) **Competing pins surface
-  as a lint, not a refusal**: mixed (id → {pin₁, pin₂}) state is
-  legal at the recipe level (the recipe is honest about what it
-  references) and is REPORTED by an expectation-check in the A5
-  connectedness-lint mold, listing each id's pin multiplicity
-  with the referencing nodes. Refusing would make staged updates
-  unauthorable; silence would hide the most common mistake. (4)
-  Update triggers ordinary re-evaluation; once R2-b lands, a pin
-  move on an instance with crossing declarations additionally
-  triggers mate re-verification (A4's "does it actually fit"
-  gate — R2-b's row, cited here so the edit's contract is stated
-  once). Staleness in the other direction (disk moved, pin held)
-  is AQ5's capture question — explicitly out of AQ2's scope.
+- **AQ2 — DISCHARGED into A13** (sign-off 2026-08-16, PR #544).
 - **AQ3 — DISCHARGED into A11** (working session 2026-08-10).
 - **AQ4 — per-instance arguments.** v1 posture: an instance is pin
   + frame, nothing else — no per-instance parameters, no
