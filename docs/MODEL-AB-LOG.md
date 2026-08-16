@@ -817,3 +817,12 @@ disposition — A2 tied SectionEdge + B1 tied propagation + the
 fields M / STRUCTURAL. Third parallel lane (names/ territory,
 disjoint from RESPELL PR-1 and PYG5 per the fences). Slots 2
 (PlacedUnion, behind RESPELL PR-1's schema claim) and 4 bank.
+M9-1 review ordinal fixed at dispatch (2026-08-15, PR #524 open —
+the unit's PR-1, kernel scope; the orchestrator exercised the
+spec's early-round option): claimed through 38 + 1 = **39 → a
+third → DUAL (sample #13), SAME-MODEL (fable+fable) — the banked
+twin of the second v4 dual block (#405 parity draw)**. R1+R2
+concurrent same-head, frozen a557da3b. Pre-draw fields logged at
+spec time: L / MIXED→NUMERIC (docs/M9-1-SPEC.md; arm = block
+M8-15 slot 1). Unit row at PR-2's merge per the two-PR pattern;
+this dual's verdicts recorded there.
