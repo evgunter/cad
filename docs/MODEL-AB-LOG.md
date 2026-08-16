@@ -921,3 +921,7 @@ PR-2 scope: corpus/demos/Python re-spell + shim deletion + the
 (mechanical re-spell against the frozen PR-1 kernel). LIB-10
 consumed (fable, opus, opus, opus = PYG5, PLACEDUNION, G14,
 RESPELL-PR2).
+PLACEDUNION review ordinal fixed at dispatch (2026-08-16, PR
+#571 open, frozen head c2e4b5b3): claimed through 48 (M9-2 PR-2
+dual) + 1 = **49 → SINGLE** (51 next third, under the #572
+amendment's composition once merged). Reviewer fable.
