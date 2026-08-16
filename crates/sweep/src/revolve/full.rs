@@ -203,6 +203,9 @@ fn build_lamina<T: Decide>(
         shell: seed.shell,
         walls: vec![walls_c],
         rims: vec![rims_c],
+        // The lamina case is the no-axis-contact case: no profile
+        // vertex is on-axis, so there are no poles.
+        poles: vec![vec![None; n]],
         kind: RevolvedKind::Full {
             meridians: mer_c,
             pi_walls: vec![None; n],
@@ -278,6 +281,11 @@ fn build_wire<T: Decide>(
         hes.push(m.he_plus);
         prev = m;
     }
+    // The two poles, by construction: the wire's tips are the axis
+    // run's end vertices, pinned by the rotation, so each is ONE body
+    // vertex — the mvfs seed at wire vertex 0 and the last chain
+    // `mev`'s vertex at wire vertex k (`prev` is `first` when k = 1).
+    let (pole_near, pole_far) = (seed.vertex, prev.vertex);
 
     // ---- Phase 2: band 1 — sweep the wire by +π (struts are
     // half-period rims at interior vertices; walls carry the FULL
@@ -490,12 +498,19 @@ fn build_wire<T: Decide>(
         }
         pi_rims[s.canonical_vertex] = rims2[i];
     }
+    // Poles: the run's two end vertices. The run's INTERIOR vertices
+    // stay `None` — the omitted run took them with it, so no body
+    // vertex answers to them.
+    let mut poles_c = vec![None; n];
+    poles_c[segs[wvert(0)].canonical_vertex] = Some(pole_near);
+    poles_c[segs[wvert(k)].canonical_vertex] = Some(pole_far);
     Ok(Revolved {
         body,
         solid: seed.solid,
         shell: seed.shell,
         walls: vec![walls_c],
         rims: vec![rims_c],
+        poles: vec![poles_c],
         kind: RevolvedKind::Full {
             meridians: mer_c,
             pi_walls,

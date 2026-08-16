@@ -101,7 +101,7 @@ use core::fmt;
 use geom_brep::NewellError;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
 use profile::ValidatedProfile;
-use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey};
+use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
 
 /// The revolve axis: a line in **sketch coordinates** (module docs).
 /// The profile must lie in the closed half-plane `r ≥ 0`, where `r` is
@@ -154,6 +154,17 @@ pub struct Revolved<T: Real> {
     /// self-loops at the surviving meridian vertices), per loop, per
     /// canonical vertex (`None`: on-axis vertex).
     pub rims: Vec<Vec<Option<EdgeKey>>>,
+    /// Pole vertices, per loop, per canonical vertex: the ONE body
+    /// vertex an on-axis profile vertex revolves to (the rotation
+    /// fixes it, so every meridian chain meets there). `None` at
+    /// off-axis vertices — those have one copy per chain, addressed
+    /// through `rims` and the meridian chains — and at vertices
+    /// strictly INTERIOR to a full revolve's omitted axis run, which
+    /// that case deletes outright (no body entity exists to name).
+    /// That last case is reachable through THIS API only — a
+    /// multi-segment axis run needs collinear same-carrier joins,
+    /// which the recipe layer's program validation refuses (#101).
+    pub poles: Vec<Vec<Option<VertexKey>>>,
     /// The wedge caps and meridian edges — shaped by the case split.
     pub kind: RevolvedKind,
 }
