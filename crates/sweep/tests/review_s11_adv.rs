@@ -16,9 +16,12 @@ mod revolve_common;
 use core::f64::consts::PI;
 use profile::RawLoop;
 
-use geom_core::{Band, Point2, Point3, Tolerance};
+use geom_core::{Band, Point3, Tolerance};
 use geom_surfaces::Surface;
-use profile::{ArcSweep, FilletLegShape, Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{
+    ArcSide, ArcSweep, Center, Open, Profile, ProfileLoop, ProfileVertex, Radius, SketchPlane,
+    Start,
+};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
@@ -106,37 +109,46 @@ fn s3() -> f64 {
     3.0_f64.sqrt()
 }
 
-fn leg(cx: f64, cy: f64, sweep: ArcSweep) -> FilletLegShape<f64> {
-    FilletLegShape::Arc {
-        center: Point2::new(cx, cy),
-        sweep,
-    }
-}
-
-/// The S2 vesica eye-slot: both tips of the radius-2 vesica about
-/// (+-1, 0) rounded by arc-arc fillet_corner sugar.
+/// The S2 vesica eye-slot: the radius-2 vesica about (+-1, 0), both
+/// tips rounded, authored as ONE chain of fused arc-fillet verbs.
+///
+/// The entry rides the left circle at (1, 0); the first fused verb
+/// fillets the (0, s3) tip and arrives on the right circle at
+/// (-1, 0); from that on-carrier tip the second re-authors the same
+/// carrier as `Radius { r: 2, side: Left }` — its centre derived from
+/// the tip's own position and tangent, which reproduces (1, 0)
+/// exactly — fillets the (0, -s3) tip and closes on the left circle.
+/// Each carrier run is emitted by the verb that trims it, so the
+/// mid-arc points at (+-1, 0) are anchors, not vertices.
 fn eye_slot(radius: f64) -> ProfileLoop<f64> {
-    ProfileLoop::builder(p2(1.0, 0.0))
-        .fillet_corner(
-            leg(-1.0, 0.0, ArcSweep::Ccw),
-            p2(0.0, s3()),
-            leg(1.0, 0.0, ArcSweep::Ccw),
-            p2(-1.0, 0.0),
-            0.3,
-            Tolerance::get(),
-        )
-        .unwrap()
-        .arc_to_center(p2(-1.0, 0.0), p2(1.0, 0.0), ArcSweep::Ccw)
-        .fillet_corner(
-            leg(1.0, 0.0, ArcSweep::Ccw),
-            p2(0.0, -s3()),
-            leg(-1.0, 0.0, ArcSweep::Ccw),
-            p2(1.0, 0.0),
-            radius,
-            Tolerance::get(),
-        )
-        .unwrap()
-        .close_arc_center(p2(-1.0, 0.0), ArcSweep::Ccw)
+    Open.arc_fillet_arc(
+        Center {
+            c: p2(-1.0, 0.0),
+            winding: ArcSweep::Ccw,
+            p: p2(1.0, 0.0),
+        },
+        0.3,
+        Center {
+            c: p2(1.0, 0.0),
+            winding: ArcSweep::Ccw,
+            p: p2(-1.0, 0.0),
+        },
+    )
+    .unwrap()
+    .arc_fillet_arc(
+        Radius {
+            r: 2.0,
+            side: ArcSide::Left,
+        },
+        radius,
+        Center {
+            c: p2(-1.0, 0.0),
+            winding: ArcSweep::Ccw,
+            p: Start,
+        },
+    )
+    .unwrap()
+    .loop_
 }
 
 /// A2: extrude the eye slot as an OUTER region -> every wall convex,
