@@ -34,7 +34,9 @@ pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
 // node's operation, distinct from `topo::BooleanOp`, the kernel's.
 // The prelude carries the kernel's and cannot carry both under one
 // name, so this module is where document-layer code spells it.
-pub use editor_core::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
+pub use editor_core::{
+    Axis3, BooleanOp, Datum, Node, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId,
+};
 
 // Expressions and their text door.
 // `ParamEnv` joins them for LIB-SEL1: `select_where` takes one, so a

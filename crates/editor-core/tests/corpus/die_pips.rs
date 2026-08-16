@@ -181,7 +181,7 @@ pub fn document() -> CorpusDoc {
 /// The half-disc loop PROGRAM: the bulge-1 semicircle pole to pole,
 /// closed by its on-axis diameter — three steps, both vertices on the
 /// revolve axis.
-fn half_disc_program() -> LoopProgram {
+pub fn half_disc_program() -> LoopProgram {
     let lpt = |x: f64, y: f64| {
         [
             editor_core::Expr::literal(x, editor_core::Dimension::Length).unwrap(),

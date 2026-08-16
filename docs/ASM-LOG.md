@@ -230,3 +230,20 @@ unpinned) filed as #561 and adopted by LIB's bindings queue.
 Remaining pipeline: R2-A dispatches when M9-1 PR-2 merges (it
 shifts to schema 11); R2-B spec finalizes after that merge. Seam
 swept (asm-upd + asm-upd-r1).
+
+## MESH-PROBEGATE MERGED (#579, 2026-08-16); R2-a in re-review
+
+The side-lane pair Evan assigned is half landed: #558's module
+gate merged at the program's first 5/5/5 APPROVE (0 findings
+needing action — the reviewer's own plant, own merge-base build,
+own workflow read). #558 closed. Meanwhile R2-a drew the
+program's first NOT-MERGEABLE-AS-IS (ordinal 50, 2 MAJOR both
+executed-probe-demonstrated: the parallel-axes clocking solve
+gap falsely refusing assemblable two-pin patterns, and the
+torn-cluster silent frame drop); both implementer deviations
+UPHELD as spec amendments (committed); fix pass dispatched,
+re-verification required before merge. TESS-SPAN mid-flight
+(core commit pushed; sweep + baseline re-cut queued behind the
+slot mutex; one usage-window kill absorbed — all three fable
+agents resumed from transcripts). TESS-SPLIT specced, gated on
+TESS-SPAN. R2-b next after M9-2 PR-2 settles.

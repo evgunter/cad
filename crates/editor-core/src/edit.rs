@@ -9,7 +9,7 @@ use crate::doc::{Doc, DocParam, ParamName};
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::EntityKind;
-use crate::node::{Node, RecipeNodeId, SlotId, StableName};
+use crate::node::{Node, PlacementRuleFault, RecipeNodeId, SlotId, StableName};
 use crate::roots::RootFault;
 use crate::witness::{BranchCertification, WitnessDatum};
 
@@ -523,6 +523,24 @@ pub enum EditError {
         /// The offending target.
         node: RecipeNodeId,
     },
+    /// A placement-rule node whose rule and count slot would give two
+    /// answers to "how many placements" (GROUP-BOOLEAN-DESIGN): an
+    /// `Explicit` rule paired with a count slot, a stepped rule with
+    /// none — or a `Pattern` carrying an `Explicit` rule at all, since
+    /// its count is a non-optional field.
+    PlacementRuleMismatch {
+        /// The offending node.
+        node: RecipeNodeId,
+    },
+    /// A placement-rule node whose `Explicit` rule lists NO placements
+    /// (GROUP-BOOLEAN-DESIGN): the list IS the count, so an empty one
+    /// is the explicit rule's `count < 1` — refused for the reason a
+    /// stepped rule's zero is, rather than quietly denoting an empty
+    /// body.
+    EmptyPlacementList {
+        /// The offending node.
+        node: RecipeNodeId,
+    },
     /// An IMPROPER placement frame — determinant ≤ 0, i.e. a mirror
     /// (A6). Admitting one is gated on the equivariance audit R4 owns:
     /// until that lands, a mirrored placement is refused rather than
@@ -716,6 +734,17 @@ impl core::fmt::Display for EditError {
                 f,
                 "edit: node {} does not instantiate a part, so it has no placement cluster to \
                  place",
+                node.0
+            ),
+            Self::EmptyPlacementList { node } => write!(
+                f,
+                "edit: node {}'s placement list is empty — a group needs at least one placement",
+                node.0
+            ),
+            Self::PlacementRuleMismatch { node } => write!(
+                f,
+                "edit: node {}'s placement rule and count slot would answer \"how many \
+                 placements\" two different ways",
                 node.0
             ),
             Self::ImproperPlacement { node, determinant } => write!(
@@ -1336,6 +1365,30 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
     // invariant-violating states unreachable, and this is what says so
     // rather than assuming it.
     crate::roots::check(&new).map_err(EditError::Roots)?;
+    // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
+    // "how many placements" has exactly ONE spelling, an explicit rule
+    // lists at least one placement, and its frames meet the SAME A6/A11
+    // bar `SetPlacement` holds a cluster frame to — finite and proper.
+    // Checked over the whole document rather than per arm because a
+    // structural slot edit can reach a bad state from a node that was
+    // consistent before.
+    for (&node, n) in &new.nodes {
+        match n.placement_rule_fault() {
+            None => {}
+            Some(PlacementRuleFault::CountSpelling) => {
+                return Err(EditError::PlacementRuleMismatch { node });
+            }
+            Some(PlacementRuleFault::NoPlacements) => {
+                return Err(EditError::EmptyPlacementList { node });
+            }
+            Some(PlacementRuleFault::NonFiniteFrame { .. }) => {
+                return Err(EditError::NonFinitePlacement { node });
+            }
+            Some(PlacementRuleFault::ImproperFrame { determinant, .. }) => {
+                return Err(EditError::ImproperPlacement { node, determinant });
+            }
+        }
+    }
     Ok(Applied { doc: new, record })
 }
 

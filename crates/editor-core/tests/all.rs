@@ -50,6 +50,8 @@ mod lbret_schema_v8;
 mod lib_doors_node_result;
 #[path = "lib_g14_split_walls.rs"]
 mod lib_g14_split_walls;
+#[path = "lib_placedunion.rs"]
+mod lib_placedunion;
 #[path = "lib_sel1_geoselect.rs"]
 mod lib_sel1_geoselect;
 #[path = "lib_sel2_flush.rs"]
@@ -160,6 +162,8 @@ mod m9_1_schema_v11;
 mod m9_d1_r1_probes;
 #[path = "m9_d1_r2_probes.rs"]
 mod m9_d1_r2_probes;
+#[path = "placedunion_schema_v12.rs"]
+mod placedunion_schema_v12;
 #[path = "respell_schema_v9.rs"]
 mod respell_schema_v9;
 #[path = "review_m4_pr1.rs"]

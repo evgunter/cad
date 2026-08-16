@@ -263,9 +263,35 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// collide. All three meanings survive here: 9 the fillet-family
 /// re-spell, 10 the `UpdateReference` arm, 11 the declaration class.
 ///
+/// Version 12 is the **group boolean's vocabulary** (GROUP-BOOLEAN-
+/// DESIGN, ratified A′; LIB-PLACEDUNION): the node vocabulary gained
+/// `Node::PlacedUnion` — one prototype, a placement rule, ONE fused
+/// body out — and the rule vocabulary gained `PatternKind::Explicit`,
+/// a listed set of absolute frames. ONE vocabulary change, one version
+/// (the one-meaning-per-version rule): the node kind and the rule kind
+/// ship together because neither is expressible without the other at
+/// the die tour's twenty-one-pip site that motivated both.
+///
+/// A pre-release clean break, both directions, on the v3/v9 precedent:
+/// a v12 file's new variants are unknown to a v11 reader, and this
+/// reader has no v11-shaped meaning to migrate from, so v11 and below
+/// refuse TYPED with the regenerate recourse and the migration table
+/// stays empty.
+///
+/// **Why 12, and the lesson the v11 entry above predicted.** This unit
+/// claimed 10 at dispatch, moved to 11 when ASM-UPD merged with 10,
+/// and moved again to 12 when M9-1 PR-2 merged with 11 — and the
+/// SECOND shift is the one worth reading. Both branches had written
+/// `11`, so the constant merged CLEANLY: git raised no conflict on the
+/// line that matters, exactly as the paragraph above warned, and only
+/// an EXPLICIT read of main's constant at the final re-merge caught
+/// it. That is now the rule rather than an observation: at every
+/// re-merge, read the number on main and take the next one — never
+/// infer from the absence of a conflict that the claim still holds.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these ten.
-pub const SCHEMA_VERSION: u32 = 11;
+/// [`migration_step`] entry, or a ratified break like these eleven.
+pub const SCHEMA_VERSION: u32 = 12;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
