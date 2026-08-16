@@ -710,6 +710,7 @@ fn eps_in_scales_through_the_conversion_factor_and_the_override_wins() {
         &text,
         &ImportOptions {
             eps_in: Some(2.5e-7),
+            ..ImportOptions::default()
         },
     )
     .expect("imports under an override");

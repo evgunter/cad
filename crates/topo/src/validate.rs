@@ -2348,13 +2348,10 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
 /// A non-empty vector of every failure found: tiers 1–2 verbatim if
 /// any, else tier-3 local failures, else census/certification
 /// failures in deterministic sweep order.
-pub fn validate_pseudomanifold<T>(
+pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
-) -> Result<(), Vec<ValidationError>>
-where
-    T: crate::props::PropsQuadLane + crate::chart_region::ChartRegionLane,
-{
+) -> Result<(), Vec<ValidationError>> {
     validate_closed(body)?;
     let band = match Band::linear() {
         Ok(band) => band,

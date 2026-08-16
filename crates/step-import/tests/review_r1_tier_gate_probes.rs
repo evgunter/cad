@@ -345,6 +345,7 @@ fn r1_in_band_vertex_defect_refuses_loudly_at_adoption() {
         let doctored = perturb_corner_consistently(&src, delta);
         let options = ImportOptions {
             eps_in: Some(1000.0 * eps),
+            ..ImportOptions::default()
         };
         match import_step(&doctored, &options) {
             Ok(shipped) => panic!("delta {delta:e}: SHIPPED silently: {shipped:?}"),
@@ -599,36 +600,52 @@ fn r1_in_band_dihedral_wedge_never_ships_silently() {
     }
 }
 
-/// **R1 FINDING (C4): tier 3 vs empty-contact tier 3' is NOT vacuous
-/// on the committed corpus.** kiss_assembly is a touching two-solid
-/// assembly; the census (which 3' runs and tier 3 defers) sees the
-/// kiss as an UNDECLARED vertex-vertex contact at (1,1,1). The 3'(∅)
-/// gate would REFUSE the very body the shipped tier-3 gate passes —
-/// so "an empty-contact body's 3' ≡ 3" holds only on census-clean
-/// bodies, a precondition import does not check. The ruling's letter
-/// ("the 3' form where declared contacts exist") is followed; this
-/// pins the substantive residue.
+/// **The R1 finding, RETIRED AS PINNED (M9-2)**: the finding recorded
+/// that the shipped tier-3 gate passed the touching kiss the 3′(∅)
+/// form would refuse — the substantive residue of the #260 one-gate
+/// ruling. The shared gate is now the 3′ form over the import-side
+/// declaration channel (D7 step 4), so the residue is GONE in exactly
+/// the pinned direction: the kiss refuses UNDECLARED at import — the
+/// old pin's inversion, exact — and certifies WITH the declared
+/// corner, through the same `validate_pseudomanifold` a native
+/// declared-contact body runs.
 #[test]
-fn r1_finding_kiss_assembly_would_refuse_under_3prime_empty() {
+fn r1_finding_retired_kiss_refuses_undeclared_and_certifies_declared() {
     let text = fixture("../step-export/tests/fixtures/kiss_assembly.step");
-    let StepImport::Solid { body, .. } = import_step(&text, &ImportOptions::default()).unwrap()
-    else {
-        panic!("kiss_assembly must import as a solid");
+    // WITHOUT: the undeclared corner kiss is the census's finding.
+    let err = import_step(&text, &ImportOptions::default())
+        .expect_err("the undeclared kiss refuses at the shared 3′ gate");
+    let StepImportError::TierInvalid { errors, .. } = &err else {
+        panic!("expected the gate's refusal, got {err:?}");
     };
-    assert_eq!(
-        topo::validate_geometric(&body),
-        Ok(()),
-        "tier 3 passes (the shipped gate)"
-    );
-    let empty = topo::ContactRecords::default();
-    let errors = topo::validate_pseudomanifold(&body, &empty)
-        .expect_err("3'(empty) refuses the touching assembly");
     assert!(
         errors
             .iter()
             .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
-        "the difference is exactly the undeclared kiss: {errors:?}"
+        "the refusal is exactly the undeclared kiss: {errors:?}"
     );
+    // WITH: the declared corner certifies — same file, same gate.
+    let options = ImportOptions {
+        declared_contacts: vec![step_import::ImportContact::VertexRest {
+            at: [1.0, 1.0, 1.0],
+        }],
+        ..ImportOptions::default()
+    };
+    let StepImport::Solid { body, .. } = import_step(&text, &options).unwrap() else {
+        panic!("the declared kiss imports as a solid");
+    };
+    assert_eq!(body.solids().count(), 2, "both kissing solids ship");
+    // A wrong anchor is a typed refusal, never a silent drop.
+    let bad = ImportOptions {
+        declared_contacts: vec![step_import::ImportContact::VertexRest {
+            at: [9.0, 9.0, 9.0],
+        }],
+        ..ImportOptions::default()
+    };
+    match import_step(&text, &bad) {
+        Err(StepImportError::DeclarationUnresolved { found: 0, .. }) => {}
+        other => panic!("an unresolvable anchor must refuse typed, got {other:?}"),
+    }
 }
 
 /// D9 determinism: importing the same file twice yields byte-identical

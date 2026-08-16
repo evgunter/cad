@@ -41,7 +41,13 @@ fn declared_uncertainty_is_never_raised_to_a_floor() {
     }
     // And the explicit override, below and above the window.
     for over in [1e-15f64, 1e-3] {
-        match import_step(&base, &ImportOptions { eps_in: Some(over) }) {
+        match import_step(
+            &base,
+            &ImportOptions {
+                eps_in: Some(over),
+                ..ImportOptions::default()
+            },
+        ) {
             Ok(i) => {
                 println!("override {over:e} -> eps_in {:e}", i.eps_in());
                 assert_eq!(i.eps_in(), over, "the override must be verbatim");
