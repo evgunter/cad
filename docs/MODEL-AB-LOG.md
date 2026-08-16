@@ -933,6 +933,16 @@ chain: v10 = ASM-UPD, v11 = M9-1 at its re-merge). Lane asm-r2a,
 branch asm/r2a-mate-solve, OPUS per the slot-1 draw. Review
 ordinal claims at review dispatch (note: the next third is 48 —
 the pending dual, tally 5-of-6).
+M9-2 PR-2 review ordinal fixed at dispatch (2026-08-16, PR #564
+open, frozen head a1b78954): claimed through 47 (M9-1 PR-2) + 1 =
+**48 → a third → DUAL (sample #16)**. FOURTH v4 dual block drawn:
+byte 88, parity 0 → **SAME-MODEL first** (fable+fable, concurrent
+same-head); the cross-model twin banks for ordinal 51. The unit's
+row (dual #14 on PR-1 + this dual + both fix passes) records at
+this PR's merge. STOPPING-RULE note: tally 5-of-6 — if EITHER
+reviewer here finds a MAJOR, this is the SIXTH qualifying dual:
+the dual-review experiment ENDS and Evan is notified explicitly
+per the v4 amendment.
 MESH-PROBEGATE dispatch (2026-08-16): the #558 register-class
 residue, assigned to ASM by Evan in-session as a side-lane unit
 under the normal protocol. Block ASM-3 slot 3 = **OPUS** (the
