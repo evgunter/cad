@@ -469,6 +469,31 @@ rung (c); loop CERTIFICATION beyond the C2 verification tables
 - **AQ2 — update granularity and conflict surfacing** under the
   Cargo.lock model: whole-document pin bump only, or
   per-reference; how competing updates in one assembly surface.
+  **Now pressing (R1 complete, 2026-08-16) — proposed resolution
+  (firm):** (1) The PRIMITIVE is per-reference:
+  `DocEdit::UpdateReference { node, new_pin }` — recorded,
+  undoable, naming its node; per-reference because two pins of
+  one document id in one assembly is representable-and-sometimes-
+  intended state (staged migration), and because the primitive
+  an "update all" can elaborate INTO must exist anyway (the
+  Cargo analogy holds end-to-end: `update -p` vs `update`, both
+  rewriting individual lock entries). (2) The whole-document
+  convenience is an elaboration, not a second primitive: "update
+  id X everywhere" records one per-reference edit per site,
+  atomically grouped the way split/inline group theirs (purity =
+  atomicity, the ASM-4 precedent). (3) **Competing pins surface
+  as a lint, not a refusal**: mixed (id → {pin₁, pin₂}) state is
+  legal at the recipe level (the recipe is honest about what it
+  references) and is REPORTED by an expectation-check in the A5
+  connectedness-lint mold, listing each id's pin multiplicity
+  with the referencing nodes. Refusing would make staged updates
+  unauthorable; silence would hide the most common mistake. (4)
+  Update triggers ordinary re-evaluation; once R2-b lands, a pin
+  move on an instance with crossing declarations additionally
+  triggers mate re-verification (A4's "does it actually fit"
+  gate — R2-b's row, cited here so the edit's contract is stated
+  once). Staleness in the other direction (disk moved, pin held)
+  is AQ5's capture question — explicitly out of AQ2's scope.
 - **AQ3 — DISCHARGED into A11** (working session 2026-08-10).
 - **AQ4 — per-instance arguments.** v1 posture: an instance is pin
   + frame, nothing else — no per-instance parameters, no
