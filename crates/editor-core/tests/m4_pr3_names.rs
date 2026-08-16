@@ -8,7 +8,8 @@ mod fixture;
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
     MeridianEnd, NameTable, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
-    ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SplitHalf, StableName, evaluate,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SplitHalf, StableName,
+    evaluate,
 };
 use fixture::{ang, desc, insert, len};
 use geom_core::{Point3, Vec3};
@@ -169,10 +170,10 @@ fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let p2 = |x: f64, y: f64| [len(x), len(y)];
     let meridian = LoopProgram::Chain(vec![
         ProgramStep::At(p2(0.0, -1.0)),
-        ProgramStep::ArcTo {
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
             target: ProgramTarget::Point(p2(0.0, 1.0)),
-            bulge: fixture::scl(1.0),
-        },
+            b: fixture::scl(1.0),
+        }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let (doc, p) = insert(

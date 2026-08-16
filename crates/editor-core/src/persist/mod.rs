@@ -162,7 +162,7 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 ///
 /// Version 8 is **vocabulary growth** on the standing terms (LIB-LBRET;
 /// PATHS-DESIGN §2b's LB10 route 3, ratified on #386): the chain step
-/// vocabulary gained [`crate::ProgramStep::AtToward`], the straight
+/// vocabulary gained `ProgramStep::AtToward` (since retired by v9), the straight
 /// fillet arrival off an arc-carrier departure. The addition is
 /// forward-additive — a v7 file contains no `AtToward` and would load
 /// — but the reverse is what the version gate is FOR: a v8 file handed
@@ -181,9 +181,20 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// is ONE LINE, so the second merge resolves it CLEANLY to the same
 /// text while the two meanings silently collapse.
 ///
+/// Version 9 is the **§2c fillet-family re-spell** (PATHS-DESIGN §2c,
+/// ratified on #419; LIB-RESPELL PR-1): the chain step vocabulary
+/// RE-SPELLED — `AtOn`/`AtToward`/`CloseToOn`/`ArcVia`/`ArcCenter`
+/// retired, `ArcTo` re-shaped onto the one unified arc-spec record,
+/// and the fused verbs (`FilletArc`/`ArcFillet`/`ArcFilletArc`)
+/// added. A pre-release clean break, both directions: a v8 file's
+/// retired variants would die in serde under today's types, and a v9
+/// file's fused variants are unknown to a v8 reader — so v8 refuses
+/// TYPED at the gate with the regenerate recourse (the v3 precedent),
+/// and the migration table stays empty.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these seven.
-pub const SCHEMA_VERSION: u32 = 8;
+/// [`migration_step`] entry, or a ratified break like these eight.
+pub const SCHEMA_VERSION: u32 = 9;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]

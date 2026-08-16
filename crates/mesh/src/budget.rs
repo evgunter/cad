@@ -88,6 +88,13 @@ pub const DEV_SAMPLES: usize = 6;
 /// What the meter is armed for. Sizing columns are free (they are read
 /// off the sizing the lane already did); deviation costs a dense
 /// resampling of every emitted triangle.
+//
+// Gated with the rest of the ROW types (`NurbsBudget`, `FaceBudget`,
+// the CSV): only an armed meter has a mode to be in, and only the live
+// half produces rows, so none of this is data a shipped build has any
+// use for. What stays ungated is exactly what the tessellation lane's
+// shared call sites name — [`Chart`], [`Sizing`], [`DEV_SAMPLES`].
+#[cfg(feature = "budget")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
     /// Grids, counts, Hessian bounds, per-cell sizing — no resampling.
@@ -116,6 +123,7 @@ pub enum Chart {
     Nurbs,
 }
 
+#[cfg(feature = "budget")]
 impl Chart {
     /// The CSV token.
     pub fn tag(self) -> &'static str {
@@ -131,6 +139,7 @@ impl Chart {
 }
 
 /// The Hessian-sized lane's own columns (module docs).
+#[cfg(feature = "budget")]
 #[derive(Clone, Copy, Debug)]
 pub struct NurbsBudget {
     /// The trim box the grid spans: `u` extent.
@@ -198,6 +207,7 @@ pub(crate) struct Sizing {
 }
 
 /// One face's budget row.
+#[cfg(feature = "budget")]
 #[derive(Clone, Copy, Debug)]
 pub struct FaceBudget {
     /// The face's ordinal in the body's face arena (D9 order — stable
@@ -215,12 +225,14 @@ pub struct FaceBudget {
 
 /// The CSV header the sweep writes and `tools/tess-lint` reads. One
 /// definition, both sides.
+#[cfg(feature = "budget")]
 pub const CSV_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
                               muu,muv,mvv,cells,uniform_cells,opt_cells,span_cells,\
                               span_opt_cells,worst_cert,worst_dev,dev_samples";
 
 /// How many of [`CSV_HEADER`]'s columns are the NURBS lane's — every
 /// column after `triangles`, which is the last one every row fills.
+#[cfg(feature = "budget")]
 fn nurbs_column_count() -> usize {
     CSV_HEADER.split(',').count()
         - CSV_HEADER
@@ -230,6 +242,7 @@ fn nurbs_column_count() -> usize {
         - 1
 }
 
+#[cfg(feature = "budget")]
 impl FaceBudget {
     /// This row as CSV under `scene`, in [`CSV_HEADER`] order. NURBS
     /// columns are EMPTY (not zero) on a non-NURBS row — a zero there
@@ -440,6 +453,24 @@ mod live {
         });
     }
 
+    /// Opens one face, discarding any sizing left over from the
+    /// previous one.
+    ///
+    /// [`finish_face`] normally consumes the pending sizing, but a face
+    /// whose lane REFUSES never reaches it — `tessellate` propagates
+    /// the error with `?` from inside the dispatch loop — and the
+    /// leftover would then be attached to whichever face closed next,
+    /// reporting one face's grid under another face's name. Clearing on
+    /// entry makes each row depend only on its own face's fate, which
+    /// is the property a diagnostic has to have to be believed.
+    pub(crate) fn begin_face() {
+        STATE.with(|s| {
+            if let Some(st) = s.borrow_mut().as_mut() {
+                st.pending = None;
+            }
+        });
+    }
+
     /// Closes one face's row (called from the dispatcher, which is the one
     /// place that knows every lane's triangle count). A face whose lane
     /// noted nothing gets a row with empty sizing columns.
@@ -634,6 +665,9 @@ mod inert {
 
     /// No-op.
     pub(crate) fn reset_face_dev() {}
+
+    /// No-op.
+    pub(crate) fn begin_face() {}
 
     /// No-op.
     pub(crate) fn finish_face(_face: usize, _chart: Chart, _delta: f64, _triangles: usize) {}
