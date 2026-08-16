@@ -513,7 +513,11 @@ mod live {
         // The steps at aspect ratio `t = h_v / h_u`: the constraint is
         // homogeneous of degree 2 in h_u, so h_u falls straight out.
         let steps = |t: f64| -> (f64, f64) {
-            let q = mvv.mul_add(t * t, 2.0f64.mul_add(muv * t, muu));
+            // `powi(2)`, not `t * t`: the discipline the CI lint
+            // enforces tree-wide (memories/interval-square-poison.md).
+            // These are f64, so the two agree bit for bit — which is
+            // exactly why there is no reason to be the exception.
+            let q = mvv.mul_add(t.powi(2), 2.0f64.mul_add(muv * t, muu));
             let hu = if q > 0.0 {
                 (delta_s / q).sqrt()
             } else {
@@ -687,7 +691,7 @@ mod tests {
             // whole extent — that is what the certificate must be
             // checked at, not at ∞.
             let (hu, hv) = (hu.min(du), hv.min(dv));
-            let q = bound.muu * hu * hu + 2.0 * bound.muv * hu * hv + bound.mvv * hv * hv;
+            let q = bound.muu * hu.powi(2) + 2.0 * bound.muv * hu * hv + bound.mvv * hv.powi(2);
             assert!(
                 q <= delta_s * (1.0 + 1e-9),
                 "cheapest split violates the certificate: q={q:e} > delta_s={delta_s:e} \
