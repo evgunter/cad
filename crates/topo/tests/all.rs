@@ -81,6 +81,8 @@ mod m6_3_chart_completion;
 mod m9_1_contact_vocabulary;
 #[path = "m9_2_census_door.rs"]
 mod m9_2_census_door;
+#[path = "m9_2b_r2_probes.rs"]
+mod m9_2b_r2_probes;
 #[path = "merge_skip.rs"]
 mod merge_skip;
 #[path = "review_m1_pr5.rs"]
