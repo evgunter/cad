@@ -951,3 +951,13 @@ STRUCTURAL** (docs/MESH-PROBEGATE-SPEC.md — module-boundary
 gating on the #560 budget pattern; no numeric decisions).
 Crate-disjoint from the in-flight R2-A (editor-core). Row at
 merge; review ordinal claims at its dispatch.
+TESS-SPAN dispatch (2026-08-16): the #320 span half (as
+corrected by #547 — the recon at cad-work/tess-320-recon.md is
+the diagnosis of record: whole-patch sup ≈ 2.5x secondary; the
+4.1x AM-GM split factor waits on the aspect-policy design
+conversation). Block ASM-3 slot 4 = **FABLE** (the byte-207
+draw; block ASM-3 fully consumed: R2-A opus / ASM-UPD opus /
+PROBEGATE opus / TESS-SPAN fable). Pre-draw fields logged at
+spec time: **M-L / NUMERIC** (docs/TESS-SPAN-SPEC.md). Same-file
+overlap with the in-flight PROBEGATE declared (re-merge duty in
+both briefs). Row at merge.
