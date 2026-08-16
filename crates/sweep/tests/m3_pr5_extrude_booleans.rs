@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Point3, Tolerance, Vec3};
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{

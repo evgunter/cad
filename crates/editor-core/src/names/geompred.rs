@@ -22,7 +22,7 @@
 //!   the selector believes the recipe).
 //! - **DECIDED** — [`GeomPred::DatumDistance`] is a real numeric
 //!   comparison and therefore a `k_stats::decide` site with a named
-//!   `sel_*` predicate, an honest [`Margin`](geom_core::Margin) door,
+//!   `sel_*` predicate, an honest [`geom_core::Margin`] door,
 //!   and a typed refusal on an in-band candidate. It participates in
 //!   the K census exactly like a kernel site (GS-Q1 ruled (a): the
 //!   naming convention does the separating, not a second funnel).
@@ -342,7 +342,7 @@ pub enum GeomPred {
 
 /// Why [`select_where`](super::select_where) could not answer.
 ///
-/// The structural [`select`](super::select) is infallible; adding
+/// The structural [`select`](fn@super::select) is infallible; adding
 /// DECIDED predicates adds two honesty obligations it never had —
 /// an indeterminate margin must not silently include OR exclude a
 /// candidate, and a tied name whose candidates DISAGREE cannot be

@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Real, Tolerance};
+use profile::RawLoop;
 use profile::{ClosedLoop, Profile, ProfileLoop, ProfileVertex, SketchPlane};
 
 /// The run's tolerance (env-driven; the multi-ε matrix parameterizes
@@ -123,7 +124,7 @@ pub fn rounded_rect(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
 /// its two joints by construction) — the mixed declared/undeclared
 /// fixture (2 tangent joints of 7).
 pub fn bracket() -> ProfileLoop<f64> {
-    ProfileLoop::builder(Point2::new(0.0, 0.0))
+    profile::test_support::LoopBuilder::start(Point2::new(0.0, 0.0))
         .line_to(Point2::new(3.0, 0.0))
         .line_to(Point2::new(3.0, 1.0))
         .fillet(Point2::new(1.0, 1.0), Point2::new(1.0, 3.0), 0.5)

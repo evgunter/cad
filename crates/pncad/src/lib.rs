@@ -59,13 +59,18 @@
 //! cross-check the mesh against the exact measure, export. That
 //! ladder is what the guide teaches.
 //!
-//! # A ten-line example
+//! # A fifteen-line example
 //!
 //! ```
 //! use pncad::prelude::*;
 //!
-//! let square = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
-//! let profile = validated(SketchPlane::<f64>::xy(), vec![square])?;
+//! let square: ClosedLoop<f64> = Open
+//!     .at(p2(0.0, 0.0))
+//!     .line_to(p2(1.0, 0.0))?
+//!     .line_to(p2(1.0, 1.0))?
+//!     .line_to(p2(0.0, 1.0))?
+//!     .line_to(Start)?;
+//! let profile = validated(SketchPlane::<f64>::xy(), vec![square.into()])?;
 //! let body = extrude(&profile, Extrusion::Distance(real(1.0)))?;
 //! let props = mass_properties(&body.body)?;
 //! assert!((props.volume - 1.0).abs() < 1e-12);
@@ -97,9 +102,11 @@ pub use geom_curves;
 pub use geom_surfaces;
 /// Certified tessellation and the mesh validation cross-checks.
 pub use mesh;
-/// 2-D profile authoring: loops, vertices, sketch planes, the
-/// `LoopBuilder` sugar, and the validation tiers.
-pub use profile;
+// `profile` is NOT re-exported whole (LIB-RETTAIL, Evan's ruling on
+// #413): `pncad::profile::ProfileLoop::polygon` was the measured leak
+// of the raw authoring tier past the curated surface. `pub mod
+// profile` below is the narrowed replacement — the LB13 precedent,
+// applied to one nameability.
 /// The D6 API-boundary quantity layer (LIB-U8a): `Length`/`Angle`/
 /// `Count` newtypes, the unit table + constants (`25.0 * MM`), and
 /// the display formatter. NOTE: `quantity::Length` is the public
@@ -131,5 +138,6 @@ pub mod document;
 pub mod export;
 pub mod guide;
 pub mod prelude;
+pub mod profile;
 pub mod select;
 pub mod workspace;

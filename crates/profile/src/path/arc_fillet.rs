@@ -11,7 +11,8 @@
 //! carrier pair admits 0, 1 or 2 of them. Each derived corner is then
 //! the ratified S2 construction's input, and each yields its own
 //! surviving candidates, so the choice is over (corner, candidate)
-//! PAIRS. Ranking pairs is [`fillet_select::nearest_joint`], which
+//! PAIRS. Ranking pairs is [`crate::fillet_select::nearest_joint`],
+//! which
 //! reads the f64 diagnostic channel — a `Bounds` read.
 //!
 //! This module therefore takes a compound `Decide + Bounds`: it
@@ -45,7 +46,8 @@
 //!    anchor) and **reach** on the arrival side (behind its anchor) —
 //!    the linear `path_corner_advance` gates generalized to the angular
 //!    `path_corner_advance_arc` / `path_corner_reach_arc`;
-//! 3. run the ratified [`arc_fillet_trims`] at every surviving corner,
+//! 3. run the ratified [`crate::sugar::arc_fillet_trims`] at every
+//!    surviving corner,
 //!    with exactly the arguments the builder door would have passed had
 //!    the author written that corner by hand;
 //! 4. flatten the survivors in corner-then-candidate order and pick
@@ -58,15 +60,9 @@
 
 use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Tolerance, Vec2};
 
-use super::program::{ClosedLoop, Step};
-use super::{
-    ArcData, Core, Dir, FirstSeg, HasAng, HasPos, Incoming, NoAng, NoPos, Open, PartialPath,
-    PathError, PathNoCornerReason, PendingFillet, Plain, PosData, Start, Tip, in_state,
-    junction_check, linear_band,
-};
+use super::{ArcData, Dir, PathError, PathNoCornerReason};
 use crate::fillet_select::nearest_joint;
 use crate::k_stats::decide;
-use crate::sugar::bulge_from_center;
 use crate::sugar::{
     ArcFilletCandidate, ArcFilletOutcome, ArcSweep, ArcTrimRefusal, FilletLegShape,
     arc_fillet_trims, signed_swept,
@@ -379,6 +375,24 @@ fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> PathError<T>
         ArcTrimRefusal::NoCorner { reason, radius } => {
             no_corner(PathNoCornerReason::NoTangentCircle(reason), radius)
         }
+        // M8's conditioning gate. Deliberately NOT laundered into
+        // `NoCornerForFillet`: a corner and a tangent circle both exist
+        // here, and saying "no corner" about a corner that is right
+        // there would send the author looking for the wrong thing. The
+        // lever the message names is the one they can move.
+        ArcTrimRefusal::OffsetLeverTooShort {
+            leg,
+            carrier_radius,
+            offset_radius,
+            least_lever,
+            margin,
+        } => PathError::FilletOffsetLeverTooShort {
+            side: leg,
+            carrier_radius,
+            offset_radius,
+            least_lever,
+            margin,
+        },
         // §3c: the anchor-fit refusal now carries the CARRIER KIND, so
         // an arc side gets its angular story (`FilletLegCarrier::Arc`'s
         // `angular_margin`) instead of a bare linear setback that means
@@ -533,7 +547,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
 ///
 /// The radius is gated definitely positive on the same funnel predicate
 /// `arc_center` uses: an anchor at the centre names no tangent.
-fn carrier_tangent<T: Decide>(
+pub(crate) fn carrier_tangent<T: Decide>(
     p: Point2<T>,
     centre: Point2<T>,
     winding: ArcSweep,
@@ -553,26 +567,6 @@ fn carrier_tangent<T: Decide>(
     Ok(Dir::from_unit(Vec2::new(-v.y, v.x) * (turn / radius)))
 }
 
-/// The departure side of an opened fillet, as a [`FilletSide`]: the ray
-/// it consumed, or the arc carrier the departure tip was bound on.
-fn departure_side<T: Real>(pending: &PendingFillet<T>) -> FilletSide<T> {
-    FilletSide {
-        anchor: pending.origin,
-        carrier: match pending.carrier {
-            None => SideCarrier::Ray(pending.ang.unit),
-            Some((centre, winding)) => SideCarrier::Circle { centre, winding },
-        },
-    }
-}
-
-/// A circular arrival side about `centre`, anchored at `p`.
-fn arrival_side<T: Real>(p: Point2<T>, centre: Point2<T>, winding: ArcSweep) -> FilletSide<T> {
-    FilletSide {
-        anchor: p,
-        carrier: SideCarrier::Circle { centre, winding },
-    }
-}
-
 /// The scalar obligation the arc-carrier arrival binders impose, NAMED.
 ///
 /// `at_on` (the fillet-arrival form) and `to_on` run the S8 selection
@@ -586,219 +580,3 @@ fn arrival_side<T: Real>(p: Point2<T>, centre: Point2<T>, winding: ArcSweep) -> 
 pub trait ArcCarrierScalar: Decide + Bounds {}
 
 impl<T: Decide + Bounds> ArcCarrierScalar for T {}
-
-impl Open {
-    /// **G2 §3a** — the entry bound ON an arc carrier: binds the entry
-    /// POSITION to `p` and the entry DIRECTION to that carrier's
-    /// tangent there, in one act (`Open → Directed`).
-    ///
-    /// The direction is DERIVED, never authored: `p` plus a centre plus
-    /// a structural `winding` names the tangent exactly, and an author
-    /// who wrote the angle separately would be authoring a number
-    /// nobody measured (the §2a W5 argument, one level over). The
-    /// carrier is recorded on the tip, so the first side of the loop
-    /// runs along the circle and the `.fillet(r)` that follows fillets
-    /// against the CIRCLE rather than against its tangent line.
-    ///
-    /// `winding` is structural exactly as in `arc_center` — travel
-    /// sense, not a value to compare against.
-    ///
-    /// # Errors
-    ///
-    /// [`PathError::DegenerateArcCenter`] when `p` is at the centre (no
-    /// tangent exists), [`PathError::Escalated`] when that radius
-    /// cannot be classified.
-    pub fn at_on<T: Decide>(
-        self,
-        p: Point2<T>,
-        centre: Point2<T>,
-        winding: ArcSweep,
-    ) -> Result<PartialPath<T, HasPos<Plain>, HasAng>, PathError<T>> {
-        let band = linear_band()?;
-        let dir = carrier_tangent(p, centre, winding, band)?;
-        let mut core = Core::empty();
-        core.seed(p);
-        core.record(Step::AtOn { p, centre, winding });
-        core.start_ang = Some(dir);
-        Ok(in_state(
-            core,
-            Tip {
-                pos: Some(PosData {
-                    at: p,
-                    incoming: None,
-                    on: Some((centre, winding)),
-                }),
-                ang: Some(dir),
-                ang_by_tangent: false,
-            },
-        ))
-    }
-}
-
-impl<T: Decide + Bounds> PartialPath<T, NoPos, NoAng> {
-    /// **G2 §3a** — the arc-carrier fillet ARRIVAL: binds the open
-    /// arrival side's anchor to `p` AND its direction to the tangent of
-    /// the carrier about `centre` there, then resolves the fillet
-    /// EAGERLY, as every arrival binder does.
-    ///
-    /// This is `.at(p).angle(θ)`'s carrier sibling: one act, because on
-    /// a circle the anchor and the direction are not independent. The
-    /// tip it returns is Directed at `p` with the carrier recorded, so
-    /// the side runs ALONG the circle from the fillet's tangent point,
-    /// past `p`, into whatever trims it next — the carrier run is
-    /// emitted by that next trim (`.fillet(r)`) or by the close
-    /// (`.to_on(Start, …)`), exactly as a straight arrival's run is
-    /// emitted by the leg that ends it.
-    ///
-    /// # Errors
-    ///
-    /// [`PathError`] — no derived corner, an anchor the trim would eat
-    /// (with the arc side's angular margin), a degenerate carrier, or
-    /// an escalation.
-    pub fn at_on(
-        mut self,
-        p: Point2<T>,
-        centre: Point2<T>,
-        winding: ArcSweep,
-    ) -> Result<PartialPath<T, HasPos<Plain>, HasAng>, PathError<T>> {
-        self.core.record(Step::AtOn { p, centre, winding });
-        let band = linear_band()?;
-        let dir = carrier_tangent(p, centre, winding, band)?;
-        let pending = self
-            .core
-            .pending
-            .take()
-            .ok_or(PathError::OverdeterminedJunction {
-                site: "arc-carrier fillet arrival without an opened fillet",
-            })?;
-        let trims = resolve(
-            departure_side(&pending),
-            arrival_side(p, centre, winding),
-            pending.radius,
-            Tolerance::get(),
-        )?;
-        self.core.emit_fillet_in(&trims)?;
-        // The continuation rides the arrival carrier from `t2` by
-        // construction, so the joint there IS a constructed tangency —
-        // `ArrivalKind::Continues`' rule, unchanged.
-        self.core.emit_fillet_arc(&trims, true)?;
-        Ok(in_state(
-            self.core,
-            Tip {
-                pos: Some(PosData {
-                    at: p,
-                    incoming: None,
-                    on: Some((centre, winding)),
-                }),
-                ang: Some(dir),
-                ang_by_tangent: false,
-            },
-        ))
-    }
-}
-
-impl<T: Decide + Bounds> PartialPath<T, NoPos, NoAng> {
-    /// **G2 / LB6** — the arc-carrier arrival that CLOSES at the entry:
-    /// the arrival side runs on the carrier about `centre` and ends at
-    /// [`Start`], the entry vertex.
-    ///
-    /// This is the `Start`-targeting far-end form PATHS-DESIGN §2a item
-    /// 4 left "Open, deliberately", now with its case. It is NOT
-    /// `.to(Start)`, and the difference is structural rather than
-    /// stylistic:
-    ///
-    /// - `.to(Start)` is the SEAM FILLET. Side 1 and the arrival share
-    ///   one carrier through the entry, so the fillet arc becomes the
-    ///   closing segment and the entry vertex is RETRIMMED to the arc's
-    ///   end — it was never a junction, only a place the author started
-    ///   writing.
-    /// - `.to_on(Start, centre, winding)` closes on a DIFFERENT carrier.
-    ///   The entry vertex is then a genuine two-carrier junction (the
-    ///   rocker eye's sharp bottom tip is exactly this), so it is KEPT,
-    ///   the arrival's carrier run becomes the closing segment, and the
-    ///   seam's junction check runs there with both directions known —
-    ///   sharp, and refused if it is tangent or a cusp.
-    ///
-    /// The fillet itself sits at the OTHER end of the arrival side and
-    /// is resolved here, eagerly, like every arrival.
-    ///
-    /// # Errors
-    ///
-    /// [`PathError`] — the fillet's own refusals, plus the seam
-    /// junction check at the entry (§4 item 1).
-    pub fn to_on(
-        mut self,
-        target: Start,
-        centre: Point2<T>,
-        winding: ArcSweep,
-    ) -> Result<ClosedLoop<T>, PathError<T>> {
-        let Start = target;
-        self.core.record(Step::CloseToOn { centre, winding });
-        let start_pos = self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
-            site: "close before the entry position is bound",
-        })?;
-        let start_ang = self.core.start_ang.ok_or(PathError::UnderdeterminedLeg {
-            site: "close before the entry direction is bound",
-        })?;
-        let band = linear_band()?;
-        // The arrival's END tangent is the carrier's tangent at the
-        // entry point — the incoming half of the seam junction.
-        let end_ang = carrier_tangent(start_pos, centre, winding, band)?;
-        let pending = self
-            .core
-            .pending
-            .take()
-            .ok_or(PathError::OverdeterminedJunction {
-                site: "arc-carrier close without an opened fillet",
-            })?;
-        let trims = resolve(
-            departure_side(&pending),
-            arrival_side(start_pos, centre, winding),
-            pending.radius,
-            Tolerance::get(),
-        )?;
-        self.core.emit_fillet_in(&trims)?;
-        let radius = (start_pos - centre).norm_squared().sqrt();
-        if trims.fit_out == Sign::Positive {
-            // The arrival still has carrier run left: the fillet arc is
-            // an interior segment (its outgoing joint constructed
-            // tangent to that run), and the run itself closes the loop.
-            self.core.emit_fillet_arc(&trims, true)?;
-            let head = self.core.head()?;
-            let bulge = bulge_from_center(head, start_pos, centre, winding);
-            self.core.set_leaving(bulge, FirstSeg::Arc)?;
-            let chord = (start_pos - head).norm_squared().sqrt();
-            junction_check(
-                &Incoming {
-                    ang: end_ang,
-                    arm: radius.min(chord),
-                    carrier: Some(ArcData {
-                        center: centre,
-                        radius,
-                    }),
-                },
-                start_ang,
-                true,
-            )?;
-        } else {
-            // Exact fit: the trim reached the entry point, so the
-            // FILLET ARC is the whole arrival side and closes the loop.
-            // No vertex is emitted at `t2` — it is the entry vertex,
-            // which already exists and is kept (that is this door's
-            // whole point); the authored anchor is absorbed into the
-            // tangent point the fit gate just classified as coincident
-            // with it, exactly as the far-end anchor absorbs its own.
-            self.core.set_leaving(trims.bulge, FirstSeg::Arc)?;
-            junction_check(
-                &Incoming {
-                    ang: end_ang,
-                    arm: trims.arc.radius,
-                    carrier: Some(trims.arc),
-                },
-                start_ang,
-                true,
-            )?;
-        }
-        Ok(self.core.build())
-    }
-}

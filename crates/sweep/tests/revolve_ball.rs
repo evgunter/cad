@@ -19,6 +19,7 @@ mod revolve_common;
 
 use geom_brep::EdgeGeometry;
 use geom_surfaces::Surface;
+use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use revolve_common::*;
 use sweep::{Revolution, RevolvedKind, revolve};
@@ -81,6 +82,18 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     ));
     assert_eq!(t.walls[0][1], None);
     assert!(t.rims[0].iter().all(Option::is_none));
+    // Both poles are EXPORTED (M9-D1), in canonical vertex order —
+    // this body's only two vertices, south first.
+    let poles: Vec<_> = t.poles[0].iter().map(|p| p.expect("pole")).collect();
+    assert_eq!(poles.len(), 2);
+    assert_ne!(poles[0], poles[1]);
+    let py = |v| {
+        t.body
+            .get_point(t.body.get_vertex(v).unwrap().point)
+            .unwrap()
+            .y
+    };
+    assert!((py(poles[0]) + 1.0).abs() < 1e-12 && (py(poles[1]) - 1.0).abs() < 1e-12);
     // The π band: wall + conventional π meridian; no rims (no interior
     // wire vertices).
     assert!(pi_walls[0].is_some() && pi_walls[1].is_none());

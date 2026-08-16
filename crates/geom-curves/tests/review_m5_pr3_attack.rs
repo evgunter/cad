@@ -1,8 +1,11 @@
 //! ADVERSARIAL review battery for M5 PR 3 (reviewer-authored, scratch).
 //! F2 Dual kink convention, F3 rational derivatives vs finite
 //! differences, F4 removal-bound honesty on reviewer-planted lossy
-//! removals, F5 seeded knot-algebra invariance fuzz (SEED = 0x5EED_CAD5),
-//! F6 placeholder poison bit identity, F7 validation attacks.
+//! removals, F5 knot-algebra invariance fuzz, F6 placeholder poison bit
+//! identity, F7 validation attacks.
+//!
+//! The sweeps draw from `test_utils::fuzz` — a fresh seed per run, logged
+//! unconditionally, with every count a multiple of `CAD_FUZZ_EFFORT`.
 //!
 //! Tolerance derivations (stated per F5's assignment):
 //! - Central FD of eval, h = 1e-5: truncation ~ h^2|C'''|/6 ~ 1e-10·|C'''|,
@@ -22,32 +25,17 @@ use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
 // Promotion adaptation (mechanical): dropped an unused Real import.
 use geom_core::{Dual64, Point3};
 use geom_curves::{Curve3, NurbsCurve3};
-
-// ---------- deterministic RNG (report: SEED below) ----------
-const SEED: u64 = 0x5EED_CAD5;
-
-struct Rng(u64);
-impl Rng {
-    fn next(&mut self) -> u64 {
-        // xorshift64*
-        let mut x = self.0;
-        x ^= x >> 12;
-        x ^= x << 25;
-        x ^= x >> 27;
-        self.0 = x;
-        x.wrapping_mul(0x2545_F491_4F6C_DD1D)
-    }
-    fn f(&mut self) -> f64 {
-        (self.next() >> 11) as f64 / (1u64 << 53) as f64
-    }
-    fn range(&mut self, lo: f64, hi: f64) -> f64 {
-        lo + (hi - lo) * self.f()
-    }
-}
+use test_utils::fuzz;
 
 /// Random clamped curve: degree p, `interior` distinct interior knots
 /// (multiplicity 1), coords in [-10, 10], weights in [wlo, whi].
-fn random_curve(rng: &mut Rng, p: usize, interior: usize, wlo: f64, whi: f64) -> NurbsCurve3<f64> {
+fn random_curve(
+    rng: &mut fuzz::Rng,
+    p: usize,
+    interior: usize,
+    wlo: f64,
+    whi: f64,
+) -> NurbsCurve3<f64> {
     let mut ks: Vec<f64> = vec![0.0; p + 1];
     let mut mids: Vec<f64> = (0..interior).map(|_| rng.range(0.05, 0.95)).collect();
     mids.sort_by(f64::total_cmp);
@@ -158,14 +146,14 @@ fn f2_dual_at_c0_kink_takes_the_selected_span_derivative() {
 
 #[test]
 fn f3_deriv_and_deriv2_match_central_differences_fuzzed() {
-    let mut rng = Rng(SEED);
-    for case in 0..40 {
-        let p = 1 + (rng.next() as usize) % 5;
-        let interior = (rng.next() as usize) % 4;
+    let mut rng = fuzz::start("review_m5_pr3_attack::f3_deriv_vs_fd");
+    for case in 0..fuzz::scaled(5) {
+        let p = 1 + rng.below(5);
+        let interior = rng.below(4);
         let c = random_curve(&mut rng, p, interior, 0.2, 5.0);
         let cd = lift_dual(&c);
         let h = 1e-5;
-        for _ in 0..12 {
+        for _ in 0..fuzz::scaled(2) {
             let t = rng.range(2.0 * h, 1.0 - 2.0 * h);
             // Skip parameters too close to a knot (FD would straddle a
             // continuity drop — not a derivative-correctness question).
@@ -176,13 +164,15 @@ fn f3_deriv_and_deriv2_match_central_differences_fuzzed() {
             let fd = (c.eval(t + h) - c.eval(t - h)) / (2.0 * h);
             assert!(
                 sup3(d, fd) < 1e-4 * (1.0 + d.norm()),
-                "case {case}: deriv vs FD at t={t}: {d:?} vs {fd:?}"
+                "case {case}: deriv vs FD at t={t}: {d:?} vs {fd:?} — {}",
+                fuzz::replay()
             );
             let d2 = c.deriv2(t);
             let fd2 = (c.deriv(t + h) - c.deriv(t - h)) / (2.0 * h);
             assert!(
                 sup3(d2, fd2) < 1e-4 * (1.0 + d2.norm()),
-                "case {case}: deriv2 vs FD at t={t}: {d2:?} vs {fd2:?}"
+                "case {case}: deriv2 vs FD at t={t}: {d2:?} vs {fd2:?} — {}",
+                fuzz::replay()
             );
             // Dual channel agrees tightly with ders (both exact).
             let du = cd.eval(Dual64::variable(t));
@@ -195,11 +185,29 @@ fn f3_deriv_and_deriv2_match_central_differences_fuzzed() {
 
 // ---------- F4: removal bound honesty on reviewer-planted removals ----------
 
-fn removal_bound_case(c: &NurbsCurve3<f64>, u: f64, times: usize) {
-    let (hat, bound) = c.remove_knot(u, times).unwrap();
+/// Checks one removal's bound against the realized error. Returns
+/// `false` when the removal was honestly REFUSED with `WeightCollapse`,
+/// which random rational data reaches routinely — the callers count the
+/// checks that actually ran so the row cannot pass vacuously.
+///
+/// AUDIT FINDING (2026-08-13, on replacing this file's pinned seed with
+/// a varying one): arms (a) and (c) below used to `unwrap()` this
+/// removal, i.e. they assumed a random curve is always knot-removable.
+/// It is not — a fresh seed hits `WeightCollapse` on roughly a quarter
+/// of runs. Only arm (b) had the refusal arm, and the pinned seed
+/// happened to draw removable curves for (a) and (c) forever. The
+/// refusal is the shipped contract, so the test now accepts it
+/// everywhere and asserts on the count of real checks instead.
+fn removal_bound_case(c: &NurbsCurve3<f64>, u: f64, times: usize) -> bool {
+    let (hat, bound) = match c.remove_knot(u, times) {
+        Ok(x) => x,
+        Err(geom_core::spline::KnotAlgebraError::WeightCollapse { .. }) => return false,
+        Err(e) => panic!("unexpected refusal: {e:?} — {}", fuzz::replay()),
+    };
     let mut worst = 0.0f64;
-    for i in 0..=2000 {
-        let t = i as f64 / 2000.0;
+    let grid = fuzz::scaled(250);
+    for i in 0..=grid {
+        let t = i as f64 / grid as f64;
         let e = supp(c.eval(t), hat.eval(t));
         // sup-norm on coordinates <= euclidean norm, so coordinate sup
         // is the conservative side of |C - Chat|.
@@ -208,20 +216,39 @@ fn removal_bound_case(c: &NurbsCurve3<f64>, u: f64, times: usize) {
         }
         assert!(
             e <= bound + 1e-12,
-            "bound violated at t={t}: |C-Chat|={e:e} > bound={bound:e}"
+            "bound violated at t={t}: |C-Chat|={e:e} > bound={bound:e} — {}",
+            fuzz::replay()
         );
     }
     // Not vacuous: for a genuinely lossy removal the realized error is
     // nonzero; print-style diagnostics via assert message on failure.
-    assert!(bound.is_finite() && bound >= 0.0);
-    assert!(worst <= bound + 1e-12);
+    assert!(
+        bound.is_finite() && bound >= 0.0,
+        "removal bound {bound:e} is not a finite non-negative number — {}",
+        fuzz::replay()
+    );
+    assert!(
+        worst <= bound + 1e-12,
+        "realized error {worst:e} exceeds the bound {bound:e} — {}",
+        fuzz::replay()
+    );
+    true
 }
 
 #[test]
 fn f4_removal_bound_contains_realized_error_lossy_and_adversarial_weights() {
-    let mut rng = Rng(SEED ^ 0x0F4);
+    let mut rng = fuzz::start("review_m5_pr3_attack::f4_removal_bound");
+    // COVERAGE FLOOR: `WeightCollapse` is an honest refusal, so a run in
+    // which EVERY draw refused would assert nothing about the bound. The
+    // attempts below are a CAP; the tally must reach `WANTED`.
+    const WANTED: usize = 3;
+    let attempts = fuzz::scaled(8);
+    let mut checked = 0usize;
     // (a) plain lossy removal, mult-1 interior knot, random cubic.
-    for _ in 0..8 {
+    for _ in 0..attempts {
+        if checked >= WANTED {
+            break;
+        }
         let c = random_curve(&mut rng, 3, 3, 0.5, 2.0);
         let u = *c
             .knots()
@@ -229,11 +256,11 @@ fn f4_removal_bound_contains_realized_error_lossy_and_adversarial_weights() {
             .iter()
             .find(|k| **k > 0.0 && **k < 1.0)
             .unwrap();
-        removal_bound_case(&c, u, 1);
+        checked += usize::from(removal_bound_case(&c, u, 1));
     }
     // (b) adversarial weights spanning [1e-3, 1e3].
-    for _ in 0..8 {
-        let p = 2 + (rng.next() as usize) % 3;
+    for _ in 0..fuzz::scaled(1) {
+        let p = 2 + rng.below(3);
         let c0 = random_curve(&mut rng, p, 2, 1.0, 1.0);
         let n = c0.control().len();
         let weights: Vec<f64> = (0..n)
@@ -252,22 +279,17 @@ fn f4_removal_bound_contains_realized_error_lossy_and_adversarial_weights() {
             .iter()
             .find(|k| **k > 0.0 && **k < 1.0)
             .unwrap();
-        match c.remove_knot(u, 1) {
-            Ok(_) => removal_bound_case(&c, u, 1),
-            Err(e) => {
-                // WeightCollapse is an acceptable honest refusal here.
-                assert!(
-                    matches!(
-                        e,
-                        geom_core::spline::KnotAlgebraError::WeightCollapse { .. }
-                    ),
-                    "unexpected: {e:?}"
-                );
-            }
-        }
+        // WeightCollapse is the documented honest refusal on this
+        // deliberately adversarial weight ladder; `removal_bound_case`
+        // reports it rather than panicking.
+        checked += usize::from(removal_bound_case(&c, u, 1));
     }
     // (c) multi-pass: multiplicity-2 knot removed twice — bounds must add.
-    for _ in 0..6 {
+    let mut multi = 0usize;
+    for _ in 0..attempts {
+        if multi >= 1 {
+            break;
+        }
         let base = random_curve(&mut rng, 3, 2, 0.5, 2.0);
         let u = 0.437;
         let c = base.insert_knot(u, 2).unwrap();
@@ -276,19 +298,29 @@ fn f4_removal_bound_contains_realized_error_lossy_and_adversarial_weights() {
         let mid = ctrl.len() / 2;
         ctrl[mid] = ctrl[mid] + geom_core::Vec3::new(0.05, -0.03, 0.02);
         let c = NurbsCurve3::new(c.knots().clone(), ctrl, c.weights().to_vec()).unwrap();
-        removal_bound_case(&c, u, 2);
+        if removal_bound_case(&c, u, 2) {
+            multi += 1;
+            checked += 1;
+        }
     }
+    assert!(
+        checked >= WANTED && multi >= 1,
+        "every removal refused: only {checked} bounded removals ({multi} \
+         multi-pass) in {attempts} attempts per arm — the row asserted \
+         nothing about the bound — {}",
+        fuzz::replay()
+    );
 }
 
 // ---------- F5: knot-algebra invariance fuzz ----------
 
 #[test]
 fn f5_insert_refine_elevate_are_evaluation_invariant_fuzzed() {
-    let mut rng = Rng(SEED ^ 0x0F5);
+    let mut rng = fuzz::start("review_m5_pr3_attack::f5_knot_algebra");
     let tol = 1e-9;
-    for case in 0..30 {
-        let p = 1 + (rng.next() as usize) % 5;
-        let interior = (rng.next() as usize) % 3;
+    for case in 0..fuzz::scaled(4) {
+        let p = 1 + rng.below(5);
+        let interior = rng.below(3);
         let c = random_curve(&mut rng, p, interior, 0.2, 5.0);
         let mut variants: Vec<(String, NurbsCurve3<f64>)> = Vec::new();
         // insertion, single and to-multiplicity (budget = p).
@@ -322,12 +354,14 @@ fn f5_insert_refine_elevate_are_evaluation_invariant_fuzzed() {
                 supp(v.eval(1.0), c.eval(1.0)) < tol,
                 "case {case} {name}: end point moved"
             );
-            for i in 0..=200 {
-                let t = i as f64 / 200.0;
+            let grid = fuzz::scaled(25);
+            for i in 0..=grid {
+                let t = i as f64 / grid as f64;
                 let d = supp(c.eval(t), v.eval(t));
                 assert!(
                     d < tol,
-                    "case {case} {name}: invariance broke at t={t}: {d:e}"
+                    "case {case} {name}: invariance broke at t={t}: {d:e} — {}",
+                    fuzz::replay()
                 );
             }
         }
@@ -347,16 +381,32 @@ fn f5_insert_refine_elevate_are_evaluation_invariant_fuzzed() {
         };
         for kv in interior_vals {
             let h = 1e-9;
+            let dl = e1.deriv(kv - h);
+            let dr = e1.deriv(kv + h);
+            // AUDIT FINDING (2026-08-13, on replacing this file's pinned
+            // seed with a varying one): this jump test used to compare
+            // against a FIXED 1e-6. The interior knots are drawn
+            // uniformly, so two of them land arbitrarily close together,
+            // and a span of width ~1e-3 on coordinates of size 10 carries
+            // |C'| ~ 1e5 — over a 2h = 2e-9 probe that is a legitimate
+            // continuous change of ~1e-4, ten times the old threshold.
+            // Roughly one seed in 25 tripped it. The bound is now what a
+            // continuity claim actually says: the change across the probe
+            // is at most the local speed times its width.
+            let speed = dl.norm().max(dr.norm());
+            let jump_cap = 1e-9 + 4.0 * h * speed;
             assert!(
-                supp(e1.eval(kv - h), e1.eval(kv + h)) < 1e-6,
-                "case {case}: elevated curve discontinuous at {kv}"
+                supp(e1.eval(kv - h), e1.eval(kv + h)) <= jump_cap,
+                "case {case}: elevated curve discontinuous at {kv} (jump {:e} \
+                 exceeds {jump_cap:e} at local speed {speed:e}) — {}",
+                supp(e1.eval(kv - h), e1.eval(kv + h)),
+                fuzz::replay()
             );
             if c.knots().multiplicity_of(kv).map(|(m, _)| m).unwrap_or(0) < p {
-                let dl = e1.deriv(kv - h);
-                let dr = e1.deriv(kv + h);
                 assert!(
                     sup3(dl, dr) < 1e-4 * (1.0 + dl.norm()),
-                    "case {case}: C1 lost at {kv}"
+                    "case {case}: C1 lost at {kv} — {}",
+                    fuzz::replay()
                 );
             }
         }
@@ -470,9 +520,9 @@ fn f7_construction_attacks_all_typed_never_panic() {
 
 #[test]
 fn f7_find_span_fuzz_totality() {
-    let mut rng = Rng(SEED ^ 0x0F7);
-    for _ in 0..20 {
-        let p = 1 + (rng.next() as usize) % 5;
+    let mut rng = fuzz::start("review_m5_pr3_attack::f7_find_span");
+    for _ in 0..fuzz::scaled(3) {
+        let p = 1 + rng.below(5);
         let c = random_curve(&mut rng, p, 3, 0.5, 2.0);
         let kv = c.knots();
         for t in [
@@ -489,10 +539,11 @@ fn f7_find_span_fuzz_totality() {
             assert!(s >= kv.first_span() && s <= kv.last_span());
             assert!(
                 kv.span_is_nonempty(s),
-                "find_span returned an empty span for t={t}"
+                "find_span returned an empty span for t={t} — {}",
+                fuzz::replay()
             );
         }
-        for _ in 0..50 {
+        for _ in 0..fuzz::scaled(6) {
             let t = rng.range(-2.0, 3.0);
             let s = kv.find_span(t);
             assert!(kv.span_is_nonempty(s));
@@ -502,7 +553,8 @@ fn f7_find_span_fuzz_totality() {
                 let ks = kv.knots();
                 assert!(
                     ks[s] <= t && t < ks[s + 1],
-                    "half-open span contract broke at t={t}"
+                    "half-open span contract broke at t={t} — {}",
+                    fuzz::replay()
                 );
             }
         }
@@ -528,7 +580,7 @@ fn f7_find_span_fuzz_totality() {
 #[test]
 fn f7_algebra_refusals_typed() {
     use geom_core::spline::KnotAlgebraError as E;
-    let mut rng = Rng(SEED ^ 0x1F7);
+    let mut rng = fuzz::start("review_m5_pr3_attack::f7_algebra_refusals");
     let c = random_curve(&mut rng, 3, 1, 0.5, 2.0);
     for u in [0.0, 1.0, -0.5, 1.5, f64::NAN, f64::INFINITY] {
         assert!(

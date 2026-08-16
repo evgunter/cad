@@ -153,6 +153,88 @@ pub struct KnotVector {
     degree: usize,
 }
 
+/// A span index **proven** in range and nonempty for the knot vector it
+/// was drawn from, carrying the control-point window it selects.
+///
+/// Its fields are private and its only constructors are
+/// [`KnotVector::span`] (checked) and [`KnotVector::span_at`] (total),
+/// so "invalid span index" is not a representable state: evaluation
+/// needs no guard and has no poison-on-bad-index path. The window is
+/// computed once, at construction, so `span − degree` never appears at
+/// a use site and cannot underflow there.
+///
+/// **Not branded to its knot vector.** A `Span` from one `KnotVector`
+/// used with another of the same degree yields an in-range but wrong
+/// window; from a **longer** one it can index past the shorter vector's
+/// arrays entirely, and since the consumers' range guards are gone that
+/// is now a panic rather than the poison D4 asks for. Every consumer
+/// today draws the span from the same vector it evaluates, one
+/// statement apart.
+///
+/// Making it a type-level fact wants one of two shapes, neither paid
+/// for yet: the `Span` **holding** its vector (`Span<'a>` with a
+/// `&'a KnotVector`), which lets the entry points drop their own `kv`
+/// parameter so the mismatch is unrepresentable — at the cost of a
+/// lifetime on `Span`, [`super::SpanSet`] and `SpanLocate` — or an
+/// invariant-lifetime **brand**, which keeps the values plain but needs
+/// a scoped constructor. Both are design changes, not refactors.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Span {
+    index: usize,
+    first_control: usize,
+    degree: usize,
+}
+
+impl Span {
+    /// The span index itself (the `i` of `knots[i] ≤ t < knots[i+1]`).
+    pub fn index(self) -> usize {
+        self.index
+    }
+
+    /// The degree this span was validated against.
+    pub fn degree(self) -> usize {
+        self.degree
+    }
+
+    /// The **first** control point of the window — `index − degree`,
+    /// subtracted once at construction. This is what evaluation adds
+    /// its basis-row offset to, so no use site performs the
+    /// subtraction and none can underflow.
+    pub fn first_control(self) -> usize {
+        self.first_control
+    }
+
+    /// The inclusive control-point window the span selects:
+    /// `[index − degree, index]`, always `degree + 1` entries.
+    pub fn window(self) -> core::ops::RangeInclusive<usize> {
+        self.first_control..=self.first_control + self.degree
+    }
+
+    /// The window active on the net obtained by **differencing `order`
+    /// times**: `[index − degree, index − order]`, `degree + 1 − order`
+    /// entries. Each differencing drops the top index, so this is
+    /// [`Span::window`] shortened from the high end — the shape every
+    /// derivative-coefficient hull needs.
+    ///
+    /// `None` when `order > degree`: a degree-`p` span has no active
+    /// window on a net differenced more than `p` times, and that is a
+    /// case the caller must answer — typically with the same
+    /// `Option`/zero it already carries for the derived NET — rather
+    /// than index into. The subtraction is inside the invariant
+    /// (`order ≤ degree ≤ index`), so it cannot underflow here either.
+    pub fn derived_window(self, order: usize) -> Option<core::ops::RangeInclusive<usize>> {
+        (order <= self.degree).then(|| self.first_control..=self.index - order)
+    }
+
+    /// [`Span::derived_window`] at `order = 1`, **total**: a
+    /// [`KnotVector`] refuses degree 0 at construction, so every span
+    /// has `degree ≥ 1`, `index ≥ first_control + 1`, and the
+    /// once-differenced window is nonempty.
+    pub fn first_derived_window(self) -> core::ops::RangeInclusive<usize> {
+        self.first_control..=self.index - 1
+    }
+}
+
 impl KnotVector {
     /// Validates and wraps a clamped knot vector. See the type docs for
     /// the exact invariants.
@@ -259,30 +341,43 @@ impl KnotVector {
     /// garbage-out contract of `eval_in_span`), and **NaN returns the
     /// first span deterministically** (poison then propagates through
     /// the evaluation's arithmetic as a value, never a decision).
+    pub fn find_span(&self, t: f64) -> usize {
+        self.span_at(t).index()
+    }
+
+    /// The located span as an **offset above [`KnotVector::first_span`]**
+    /// — which, since `first_span() == degree`, is exactly the first
+    /// control point of the span's window. Searching in this coordinate
+    /// is what lets [`KnotVector::span_at`] build a [`Span`] with no
+    /// `index − degree` subtraction to underflow and no validity check
+    /// to discharge: the search starts at 0 and never leaves
+    /// `0..=span_count()`.
+    ///
+    /// Semantics are [`KnotVector::find_span`]'s, unchanged: same
+    /// comparisons in the same order against the same knots.
     // The `!(t > …)` guard is deliberate: the negated form routes NaN
     // to the first span (fn docs), where `t <= …` would be false for
     // NaN and fall through into the binary search with a broken
     // invariant.
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    pub fn find_span(&self, t: f64) -> usize {
-        let first = self.first_span();
-        let last = self.last_span();
+    fn span_offset(&self, t: f64) -> usize {
+        let (p, last) = (self.degree, self.span_count());
         // NaN and below-domain both fail this test → first span.
-        if !(t > self.knots[first]) {
-            return first;
+        if !(t > self.knots[p]) {
+            return 0;
         }
-        // Indexing justified: last + 1 = len − degree − 1 < len.
-        if t >= self.knots[last + 1] {
+        // Indexing justified: p + last + 1 = len − degree − 1 < len.
+        if t >= self.knots[p + last + 1] {
             return last;
         }
-        // Binary search over span indices [lo, hi] maintaining
-        // knots[lo] ≤ t < knots[hi + 1]; both bounds were just
+        // Binary search over span offsets [lo, hi] maintaining
+        // knots[p + lo] ≤ t < knots[p + hi + 1]; both bounds were just
         // established. Terminates: the window shrinks every step.
-        let (mut lo, mut hi) = (first, last);
+        let (mut lo, mut hi) = (0, last);
         while lo < hi {
             let mid = lo + (hi - lo).div_ceil(2);
-            // Indexing justified: first ≤ lo < mid ≤ hi ≤ last.
-            if t < self.knots[mid] {
+            // Indexing justified: 0 ≤ lo < mid ≤ hi ≤ last.
+            if t < self.knots[p + mid] {
                 hi = mid - 1;
             } else {
                 lo = mid;
@@ -291,12 +386,25 @@ impl KnotVector {
         lo
     }
 
+    /// The number of span offsets above the first: `last_span() −
+    /// first_span()`, i.e. `len − 2·degree − 2`. Non-negative by the
+    /// construction invariant `len ≥ 2(degree + 1)`.
+    fn span_count(&self) -> usize {
+        self.knots.len() - 2 * self.degree - 2
+    }
+
     /// The inclusive span range overlapped by `[lo, hi]`, each end
-    /// located by [`KnotVector::find_span`]'s tie-break. `lo ≤ hi` is
+    /// located by [`KnotVector::span_at`]'s tie-break. `lo ≤ hi` is
     /// the caller's contract ([`crate::Bounds`] brackets satisfy it);
-    /// NaN ends land on the first span per `find_span`.
-    pub fn span_range(&self, lo: f64, hi: f64) -> (usize, usize) {
-        (self.find_span(lo), self.find_span(hi))
+    /// NaN ends land on the first span per `span_at`.
+    ///
+    /// Both ends are [`Span`]s: locating is where span validity
+    /// originates, and `span_at` is total, so there is nothing for a
+    /// caller to re-check. Iterate the interior with
+    /// `first.index() + 1 ..= last.index()` and [`KnotVector::span`],
+    /// which refuses the empty spans in between.
+    pub fn span_range(&self, lo: f64, hi: f64) -> (Span, Span) {
+        (self.span_at(lo), self.span_at(hi))
     }
 
     /// Whether `span` is a **nonempty** span (`knots[span] <
@@ -309,6 +417,53 @@ impl KnotVector {
     /// discarding any parameter's span.
     pub fn span_is_nonempty(&self, span: usize) -> bool {
         span + 1 < self.knots.len() && self.knots[span] < self.knots[span + 1]
+    }
+
+    /// The validated [`Span`] at `index`, or `None` when the index is
+    /// out of range or names an **empty** span (interior knot
+    /// multiplicity). This and [`KnotVector::span_at`] are the only
+    /// ways to obtain a `Span`.
+    pub fn span(&self, index: usize) -> Option<Span> {
+        if index < self.first_span() || index > self.last_span() || !self.span_is_nonempty(index) {
+            return None;
+        }
+        // Justified once, here: `index >= first_span() == degree`, so
+        // the subtraction cannot underflow, and `index <= last_span()`
+        // puts `index + 1` inside the knot array. Every consumer of the
+        // resulting `Span` inherits both facts.
+        Some(Span {
+            index,
+            first_control: index - self.degree,
+            degree: self.degree,
+        })
+    }
+
+    /// [`KnotVector::find_span`] as a validated [`Span`] — total on all
+    /// of `f64` for exactly the reasons `find_span` is (see its docs:
+    /// out-of-domain clamps to an end span, NaN lands on the first).
+    pub fn span_at(&self, t: f64) -> Span {
+        // The search runs in window coordinates, so its result *is* the
+        // window's first control point: there is no subtraction to
+        // check and no `Option` to discharge. Nonemptiness comes from
+        // the same three exits `find_span` documents — the clamped ends
+        // are nonempty by the end-multiplicity invariant, and the
+        // search maintains `knots[i] ≤ t < knots[i + 1]` strictly.
+        let first_control = self.span_offset(t);
+        let index = first_control + self.degree;
+        // In-range is structural above; nonemptiness is still an
+        // argument, and it is the one the basis denominators rest on.
+        // Keep it a postcondition with teeth: an empty span here would
+        // otherwise divide by a zero knot difference and poison
+        // silently, where the `span()` route returned `None`.
+        debug_assert!(
+            self.span_is_nonempty(index),
+            "span_at located an empty span {index}"
+        );
+        Span {
+            index,
+            first_control,
+            degree: self.degree,
+        }
     }
 
     /// The multiplicity of the exact value `u` among the knots (exact
@@ -442,9 +597,13 @@ mod tests {
         assert_eq!(k.find_span(-1.0), 2);
         // NaN routes to the first span, deterministically.
         assert_eq!(k.find_span(f64::NAN), 2);
-        // Range form.
-        assert_eq!(k.span_range(0.5, 2.5), (2, 5));
-        assert_eq!(k.span_range(1.25, 1.75), (4, 4));
+        // Range form — validated ends, compared as the indices they name.
+        let range = |lo, hi| {
+            let (a, b): (Span, Span) = k.span_range(lo, hi);
+            (a.index(), b.index())
+        };
+        assert_eq!(range(0.5, 2.5), (2, 5));
+        assert_eq!(range(1.25, 1.75), (4, 4));
     }
 
     #[test]

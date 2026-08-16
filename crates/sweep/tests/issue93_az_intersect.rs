@@ -29,6 +29,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Decide, Point2, Point3, Tolerance, Vec3};
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::{
@@ -264,7 +265,9 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
     for &(fa, da) in &y_planes(&a) {
         for &(fb, db) in &y_planes(&z_flush) {
             if da == db {
-                decls.coincident_faces.push((fa, fb));
+                decls
+                    .coincident_faces
+                    .push(topo::FacePairDeclaration::rest(fa, fb));
             }
         }
     }

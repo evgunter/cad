@@ -31,7 +31,7 @@ use super::{ang, desc, insert, len, scl, step};
 /// headers); `m4_pr4_banked` pins both strategies side by side.
 fn run<T>(doc: &ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
 {
     evaluate::<T>(doc, prior, &CancelToken::new(), &EvalOptions::default())
 }
@@ -76,7 +76,7 @@ fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
 /// rows and scalars.
 pub fn diagnosis_corpus<T>() -> Vec<(&'static str, Resolution)>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
 {
     let mut out = Vec::new();
 
@@ -191,12 +191,10 @@ where
     let cap_b = name1(EntityKind::Face, db, RoleSeg::Cap(CapEnd::Top));
     let (docd, _) = insert(
         docd,
-        Node::Declare {
-            pairs: vec![(
-                name1(EntityKind::Face, da, RoleSeg::Cap(CapEnd::Top)),
-                cap_b.clone(),
-            )],
-        },
+        Node::declare_rest(vec![(
+            name1(EntityKind::Face, da, RoleSeg::Cap(CapEnd::Top)),
+            cap_b.clone(),
+        )]),
     );
     let (docd, _) = step(docd, DocEdit::DeleteNode { id: db });
     let evd = run::<T>(&docd, None);

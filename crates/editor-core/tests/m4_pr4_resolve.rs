@@ -299,7 +299,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
 
     // A one-node doc whose table we hand-build.
     let mut doc = ProfileDoc::empty_derived("m4_pr4_resolve");
-    let (d, node) = insert(doc, Node::Declare { pairs: vec![] });
+    let (d, node) = insert(doc, Node::declare_rest(vec![]));
     doc = d;
     let base = StableName {
         kind: EntityKind::Edge,
@@ -330,6 +330,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
         outcome: EvalOutcome::Completed,
         recomputed: 1,
         reused: 0,
+        part_evaluations: 0,
         appearance: editor_core::AppearanceResolution::default(),
     };
     let mut ranked = base.clone();
@@ -370,12 +371,7 @@ fn deleting_a_named_node_strands_names_as_node_gone() {
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let cap_a = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top));
     let cap_b = name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::Top));
-    let (doc, _decl) = insert(
-        doc,
-        Node::Declare {
-            pairs: vec![(cap_a, cap_b.clone())],
-        },
-    );
+    let (doc, _decl) = insert(doc, Node::declare_rest(vec![(cap_a, cap_b.clone())]));
     // b has no DAG dependents (Declare names are refs, not edges):
     // deletion is allowed and strands cap_b — N5's ratified dangling
     // semantics.
@@ -745,9 +741,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         apply_with_names(
             &doc,
             &DocEdit::InsertNode {
-                node: Node::Declare {
-                    pairs: vec![(cap_a.clone(), cap_b.clone())]
-                }
+                node: Node::declare_rest(vec![(cap_a.clone(), cap_b.clone())])
             },
             &ev,
         )
@@ -765,9 +759,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     let err = apply_with_names(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Declare {
-                pairs: vec![(cap_a.clone(), bogus.clone())],
-            },
+            node: Node::declare_rest(vec![(cap_a.clone(), bogus.clone())]),
         },
         &ev,
     )
@@ -785,9 +777,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         apply_with_names(
             &doc2,
             &DocEdit::InsertNode {
-                node: Node::Declare {
-                    pairs: vec![(cap_a, cap_c)]
-                }
+                node: Node::declare_rest(vec![(cap_a, cap_c)])
             },
             &ev, // stale: c not evaluated here
         )
@@ -1214,6 +1204,7 @@ fn one_node_eval(node: RecipeNodeId, t: NameTable) -> Evaluation<f64> {
         outcome: EvalOutcome::Completed,
         recomputed: 1,
         reused: 0,
+        part_evaluations: 0,
         appearance: editor_core::AppearanceResolution::default(),
     }
 }
@@ -1236,9 +1227,9 @@ fn qualifier_delta_yields_predicate_flip_without_any_flip_set_evidence() {
     // honest PredicateFlip derived from recorded data.
     let (doc, n) = insert(
         ProfileDoc::empty_derived("m4_pr4_resolve"),
-        Node::Declare { pairs: vec![] },
+        Node::declare_rest(vec![]),
     );
-    let (doc, m) = insert(doc, Node::Declare { pairs: vec![] });
+    let (doc, m) = insert(doc, Node::declare_rest(vec![]));
     let f = name1(EntityKind::Body, n, RoleSeg::OutputBody);
     let p = name1(EntityKind::Body, m, RoleSeg::OutputBody);
     let old_name = sideof_frag(n, &f, &p, editor_core::SideVerdict::Negative);

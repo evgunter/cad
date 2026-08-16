@@ -26,21 +26,30 @@
 //!
 //! # The posture the gather copies
 //!
-//! Bodies arrive through [`topo::graft_disjoint`] — the disjoint half
-//! of the boolean pipeline's combine door — one call per source solid,
-//! exactly as `step-import` materializes a STEP assembly's instances.
-//! Nothing is fused and no seam is implied; provenance rides through
+//! Bodies arrive through [`topo::graft_disjoint_all_keyed`] — the
+//! disjoint half of the boolean pipeline's combine door — one call per
+//! source BODY, exactly as `step-import` materializes a STEP
+//! assembly's instances. A source body carrying several solids (an
+//! instantiated sub-assembly) arrives as several solids of the product
+//! in its own solid order: that door is the N-solid one. Nothing is
+//! fused and no seam is implied; provenance rides through
 //! verbatim, so a pattern instance's `GeomSource::placed(node, i)`
 //! survives into the product, and the `Instance(i)` names the pattern
 //! minted keep addressing it through the evaluation's own name tables
 //! (the gather touches no table).
 //!
 //! Validation is the same F8/D7 shape as the import loop: each source
-//! solid is gated on its own when the product has more than one (with
-//! one, the per-solid and aggregate subjects are the same body and the
-//! call is skipped as an identity, never as an exemption), then the
-//! aggregate is gated. Disjoint multi-solid bodies are tier-3 legal;
-//! solids that overlap are a false body and tier 3 says so.
+//! body is gated on its own when the product holds more than one solid
+//! (with one, the per-solid and aggregate subjects are the same body
+//! and the call is skipped as an identity, never as an exemption), then the
+//! aggregate is gated. Disjoint multi-solid bodies are tier-3 legal.
+//! Know what the aggregate gate proves: tier 3 is a LOCAL battery
+//! (per-face, per-edge, per-edge–face-pair, plus one whole-body signed
+//! volume that SUMS), so solids that OVERLAP pass it undetected —
+//! inter-solid interference is not among its checks. Undeclared
+//! cross-instance contact is A5's hard error, interference fits are
+//! C6's recorded-gate-skips territory, and detection is planned as
+//! tier-3′ census growth (issue #382).
 
 use std::sync::Arc;
 
@@ -49,6 +58,7 @@ use topo::{Body, PropsQuadLane, ValidationError};
 
 use crate::doc::Doc;
 use crate::eval::{BooleanValue, Evaluation, NodeResult, SplitSide, ValuePayload};
+use crate::names::{EntityKey, EntityRef, Entry, NameTable, StableName};
 use crate::node::RecipeNodeId;
 
 /// Why [`product`] refused. Fail-loud and typed: a product is all of
@@ -60,6 +70,15 @@ pub enum ProductError {
     UnknownNode {
         /// The root that was asked for.
         node: RecipeNodeId,
+    },
+    /// Two roots' name rows would alias in the product table — the
+    /// same name twice, or two names on one aggregate entity. An
+    /// emission-level bug surfaced, never resolved by picking one.
+    Naming {
+        /// The root whose rows collided.
+        node: RecipeNodeId,
+        /// The colliding name.
+        name: Box<StableName>,
     },
     /// A root's node failed to evaluate (ask
     /// [`Evaluation::node_error`] for the typed cause).
@@ -77,18 +96,6 @@ pub enum ProductError {
     /// No root denotes a body — a profile-only or datum-only document
     /// has no product for a door that needs one.
     NoBodyRoots,
-    /// A body-denoting root's value is a MULTI-SOLID body, which the
-    /// kernel's graft door cannot take apart today
-    /// ([`topo::graft_disjoint`] admits single-solid sources only).
-    /// The flip condition is **ASM-2b**, which owns the multi-solid
-    /// graft: when that door lands, this arm becomes unreachable and
-    /// the loop grafts solid by solid.
-    MultiSolidRoot {
-        /// The root whose value carries several solids.
-        node: RecipeNodeId,
-        /// How many.
-        solids: usize,
-    },
     /// The kernel's disjoint-graft door refused a source body.
     Graft {
         /// The root whose body was being grafted.
@@ -96,16 +103,18 @@ pub enum ProductError {
         /// The kernel's own refusal.
         source: Box<topo::BooleanError>,
     },
-    /// A source solid failed the at-rest validity gate on its own
-    /// (only asked when the product has more than one solid).
+    /// A source body failed the at-rest validity gate on its own — a
+    /// multi-solid source is gated whole, as one body (only asked when
+    /// the product holds more than one solid).
     SolidInvalid {
         /// The root that contributed it.
         node: RecipeNodeId,
         /// Every failure the validator found.
         errors: Vec<ValidationError>,
     },
-    /// The gathered product failed the at-rest validity gate — solids
-    /// that overlap are a false body, and tier 3 says so.
+    /// The gathered product failed the at-rest validity gate — a
+    /// per-entity local verdict; inter-solid overlap is not among its
+    /// checks (module docs, issue #382).
     ProductInvalid {
         /// Every failure the validator found.
         errors: Vec<ValidationError>,
@@ -132,11 +141,10 @@ impl core::fmt::Display for ProductError {
                 "product: no product root denotes a body — this document \
                  has no body product",
             ),
-            Self::MultiSolidRoot { node, solids } => write!(
+            Self::Naming { node, name } => write!(
                 f,
-                "product: root {node:?} denotes a {solids}-solid body; \
-                 grafting a multi-solid source is ASM-2b's door, not \
-                 this one"
+                "product: root {}'s name {name:?} collides in the product's name table",
+                node.0
             ),
             Self::Graft { node, source } => {
                 write!(f, "product: grafting root {node:?} refused: {source:?}")
@@ -155,19 +163,33 @@ impl core::fmt::Display for ProductError {
 
 impl core::error::Error for ProductError {}
 
-/// The body-denoting sources one root contributes, in gather order
-/// (module docs). `None` for a root that denotes no body at all.
-fn sources_of<T: Decide>(payload: &ValuePayload<T>) -> Option<Vec<Arc<Body<T>>>> {
+/// The body-denoting sources one root contributes, in gather order,
+/// each tagged with the OUTPUT-BODY INDEX it occupies in the root's own
+/// value (module docs). That index is what a root's name table keys its
+/// rows by, so carrying it here is what lets [`product_named`] find the
+/// rows belonging to each grafted body. `None` for a root that denotes
+/// no body at all.
+fn sources_of<T: Decide>(payload: &ValuePayload<T>) -> Option<Vec<(u32, Arc<Body<T>>)>> {
     match payload {
-        ValuePayload::Body(body) => Some(vec![Arc::clone(body)]),
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => Some(vec![Arc::clone(body)]),
+        ValuePayload::Body(body) => Some(vec![(0, Arc::clone(body))]),
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => Some(vec![(0, Arc::clone(body))]),
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Vec::new()),
-        ValuePayload::Instances(bodies) => Some(bodies.clone()),
+        ValuePayload::Instances(bodies) => Some(
+            bodies
+                .iter()
+                .enumerate()
+                .map(|(i, body)| (u32::try_from(i).unwrap_or(u32::MAX), Arc::clone(body)))
+                .collect(),
+        ),
+        // Split's halves are output bodies 0 (above) and 1 (below);
+        // an EMPTY half contributes nothing but does not shift the
+        // other half's index — the index is the value's layout, not a
+        // position in this list.
         ValuePayload::Split { above, below } => Some(
-            [above, below]
+            [(0u32, above), (1u32, below)]
                 .into_iter()
-                .filter_map(|side| match side {
-                    SplitSide::Body(body) => Some(Arc::clone(body)),
+                .filter_map(|(ix, side)| match side {
+                    SplitSide::Body(body) => Some((ix, Arc::clone(body))),
                     SplitSide::Empty => None,
                 })
                 .collect(),
@@ -193,11 +215,38 @@ pub fn product<P, T: Decide + PropsQuadLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
 ) -> Result<Body<T>, ProductError> {
+    product_named(doc, evaluation).map(|(body, _)| body)
+}
+
+/// The document's product, with the product's own NAME TABLE: every
+/// gathered root's stable names, re-keyed onto the aggregate's entities
+/// (ASM-2A D-4).
+///
+/// One implementation serves both doors — [`product`] is this function
+/// with the table dropped — because a gather that named its entities
+/// differently from the gather that shipped them would be a second
+/// truth about what a document's product is.
+///
+/// The table carries FACE, EDGE and VERTEX rows. Body-kind rows are
+/// deliberately absent: a root's body name denotes THAT ROOT's body,
+/// and the product is not any root's body — it is the document's, a
+/// distinct entity whose naming belongs to whoever mints it (an
+/// instantiate node names its own placed body at itself).
+///
+/// # Errors
+///
+/// Every arm of [`ProductError`], including [`ProductError::Naming`]
+/// when two roots' rows would name one aggregate entity or collide on
+/// one name — an aliasing bug surfaced, never resolved silently.
+pub fn product_named<P, T: Decide + PropsQuadLane>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+) -> Result<(Body<T>, NameTable), ProductError> {
     // Pass 1: every root's value, refused whole. "No partial products"
     // means a FAILED root refuses even when a later root would have
     // supplied a body, so the whole list is read before anything is
     // grafted.
-    let mut sources: Vec<(RecipeNodeId, Arc<Body<T>>)> = Vec::new();
+    let mut sources: Vec<Source<T>> = Vec::new();
     let mut any_body_denoting = false;
     for &node in doc.roots() {
         let result = evaluation
@@ -217,16 +266,24 @@ pub fn product<P, T: Decide + PropsQuadLane>(
             continue;
         };
         any_body_denoting = true;
-        sources.extend(bodies.into_iter().map(|body| (node, body)));
+        sources.extend(
+            bodies
+                .into_iter()
+                .map(|(ix, body)| (node, ix, body, Arc::clone(&value.name_table))),
+        );
     }
     if !any_body_denoting {
         return Err(ProductError::NoBodyRoots);
     }
 
-    // Pass 2: the per-solid gate, asked only when the product holds
-    // more than one solid (the import loop's rule, verbatim).
-    if sources.len() > 1 {
-        for (node, body) in &sources {
+    // Pass 2: the per-source gate, asked only when the product holds
+    // more than one solid (the import loop's rule, verbatim). The count
+    // is over SOLIDS, not sources: one source may itself carry several
+    // (an instantiated sub-assembly), and it is the product's solid
+    // count the rule speaks about.
+    let total_solids: usize = sources.iter().map(|(_, _, b, _)| b.solids().count()).sum();
+    if total_solids > 1 {
+        for (node, _, body, _) in &sources {
             topo::validate_geometric(body.as_ref()).map_err(|errors| {
                 ProductError::SolidInvalid {
                     node: *node,
@@ -236,27 +293,74 @@ pub fn product<P, T: Decide + PropsQuadLane>(
         }
     }
 
-    // Pass 3: the graft, one call per source solid, in list order.
+    // Pass 3: the graft, one call per SOURCE BODY, in list order, each
+    // carrying its source's name rows across on the key bridge. A
+    // source holding N solids goes through as one call: the keyed graft
+    // is the N-solid door (#381), and its per-entity bridge is total
+    // over the source however many solids it spans, so the name carry
+    // is the same code for N as for 1.
     let mut aggregate = Body::new();
-    for (node, body) in &sources {
-        let solids = body.solids().count();
-        if solids > 1 {
-            return Err(ProductError::MultiSolidRoot {
-                node: *node,
-                solids,
-            });
-        }
-        if solids == 0 {
+    let mut names = NameTable::new();
+    for (node, ix, body, table) in &sources {
+        // An empty source contributes nothing; the graft door refuses a
+        // solidless body, so the skip is here rather than there.
+        if body.solids().next().is_none() {
             continue;
         }
-        topo::graft_disjoint(&mut aggregate, body.as_ref()).map_err(|source| {
-            ProductError::Graft {
-                node: *node,
-                source: Box::new(source),
-            }
-        })?;
+        let keys =
+            topo::graft_disjoint_all_keyed(&mut aggregate, body.as_ref()).map_err(|source| {
+                ProductError::Graft {
+                    node: *node,
+                    source: Box::new(source),
+                }
+            })?;
+        carry_names(&mut names, table, *ix, &keys)
+            .map_err(|name| ProductError::Naming { node: *node, name })?;
     }
     topo::validate_geometric(&aggregate)
         .map_err(|errors| ProductError::ProductInvalid { errors })?;
-    Ok(aggregate)
+    Ok((aggregate, names))
+}
+
+/// One body the gather will graft: which root contributed it, which
+/// OUTPUT-BODY index it occupies in that root's value (the index its
+/// name rows are keyed by), the body, and the root's name table.
+type Source<T> = (RecipeNodeId, u32, Arc<Body<T>>, Arc<NameTable>);
+
+/// Re-keys one grafted body's name rows onto the aggregate: the same
+/// stable names, pointing at the entities the graft minted. Body index
+/// on the product side is 0 — the product is ONE body.
+fn carry_names(
+    into: &mut NameTable,
+    from: &NameTable,
+    ix: u32,
+    keys: &topo::GraftKeys,
+) -> Result<(), Box<StableName>> {
+    let mapped = |key: EntityKey| -> Option<EntityKey> {
+        match key {
+            // See `product_named`: the product's own body is nobody's
+            // root body, so root body-rows do not carry.
+            EntityKey::Body => None,
+            EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
+            EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
+            EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
+        }
+    };
+    for (name, entry) in from.iter() {
+        let rows: Vec<EntityRef> = match entry {
+            Entry::Unique(e) => vec![*e],
+            Entry::Tied(es) => es.clone(),
+        };
+        let moved: Vec<EntityRef> = rows
+            .into_iter()
+            .filter(|e| e.body == ix)
+            .filter_map(|e| mapped(e.key).map(|key| EntityRef { body: 0, key }))
+            .collect();
+        match moved.len() {
+            0 => {}
+            1 => into.insert(name.clone(), moved[0]).map_err(|e| e.name)?,
+            _ => into.insert_tied(name.clone(), moved).map_err(|e| e.name)?,
+        }
+    }
+    Ok(())
 }

@@ -1,4 +1,4 @@
-# K report — the ambiguity constant K = 10 (M2 telemetry, with the M3/M4/M5 snapshots, the #89 close, and the M7 addendum)
+# K report — the ambiguity constant K = 10 (M2 telemetry, with the M3/M4/M5 snapshots, the #89 close, and the two M7 addenda)
 
 **Status: FINAL** (M2 PR 7 deliverable; orchestrator-finalized
 2026-07-21 after the adversarial review byte-reproduced the CSVs at all
@@ -921,7 +921,7 @@ corpus has now grown fine enough to prove it.
 
 **`k-lint (gate)` fails on a finding** (ruled by the project owner, PR
 #243). The CI row — hosted `.github/workflows/ci.yml`, local
-`scripts/ci-local.sh` — is red whenever any margin in a fresh sweep
+`local-scripts/ci-local.sh` — is red whenever any margin in a fresh sweep
 crowds a decision boundary; harness breakage still fails it in its own
 distinct voice, and the two exit codes differ (2 vs 1) so they can
 never be confused for one another.

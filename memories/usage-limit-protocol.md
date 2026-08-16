@@ -29,9 +29,9 @@ others. (Bonus finding, unfixed: the `mngr` CLI hangs indefinitely
 when run from an agent worktree — likely host-lock contention;
 verdict was derived from source + raw logs.)
 
-**The monitor**: `scripts/monitors/usage-watch.sh`. Session-start
+**The monitor**: `local-scripts/monitors/usage-watch.sh`. Session-start
 convention (Evan's arming-burden point, #349): `cp
-scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` then arm
+local-scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` then arm
 EVERY script in the installed dir as a persistent Monitor — glob
 the directory, do not maintain a named list, so new monitors get
 armed without instruction edits. Monitors stay separate SCRIPTS

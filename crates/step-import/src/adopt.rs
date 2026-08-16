@@ -616,7 +616,9 @@ fn adopt_edges(
 /// the one-wall seam case in M8).
 ///
 /// A NURBS-carried edge whose carrier BITWISE matches a described
-/// NURBS wall's own `u ∈ {0, 1}` boundary column
+/// NURBS wall's own boundary column — `u` at either end of the
+/// payload's KNOT domain, which is `{0, 1}` only for a chart the
+/// kernel built
 /// ([`geom_brep::boundary_iso_u`], a control-net copy) IS that column:
 /// the writer emitted the same bits twice, and no tolerance is spent
 /// deciding it. Two arrangements state the same thing:
@@ -633,9 +635,9 @@ fn adopt_edges(
 ///   self-description) — so without this rung such an edge reaches the
 ///   ladder with NO candidate at all.
 ///
-/// `u = 0` arms lead: each native seam is minted as its forward wall's
-/// `u = 0` boundary, so the first certifying candidate reproduces the
-/// native description exactly. Duplicates are impossible — the two
+/// START-column arms lead: each native seam is minted as its forward
+/// wall's start boundary, so the first certifying candidate reproduces
+/// the native description exactly. Duplicates are impossible — the two
 /// surface keys are visited once each — and the kernel's certify door
 /// still disposes of every candidate this offers.
 fn iso_curve_candidates(
@@ -660,11 +662,17 @@ fn iso_curve_candidates(
                 && let Ok(iso) = geom_brep::boundary_iso_u(wp.as_ref(), end)
                 && bitwise_iso_match(nurbs_carrier, &iso)
             {
+                // The column's `u` is the payload's own KNOT domain end
+                // (#327), never a `[0, 1]` literal: an imported chart
+                // carries the file's parameterization, where `u = 1` is
+                // an interior column — a description naming a locus the
+                // carrier is not on.
+                let (du0, du1) = wp.knots_u().domain();
                 candidates.push((
                     AdoptionCandidate::IsoCurve,
                     EdgeGeometry::IsoCurve {
                         surface: wall,
-                        u: if end { 1.0 } else { 0.0 },
+                        u: if end { du1 } else { du0 },
                         v0: spec.t0,
                         v1: spec.t1,
                     },

@@ -70,14 +70,54 @@ git history and the M-logs):**
   kill ONLY YOUR OWN PANE — never the session (the successor lives
   in it), never the other orchestrator's session.
 - **Session start**: install + arm the scripted monitor suite —
-  `cp scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` from
+  `cp local-scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` from
   an up-to-date checkout, then arm each as a persistent Monitor
   from the INSTALLED copies (checkouts switch refs). The
   github-away-channel script bakes in both reaction endpoints
   (issues + pulls — inline-comment 👍s live under the pulls
-  endpoint). Sign-off watchlist path:
-  `~/.local/share/cad-work/signoff-watchlist-m7.txt` (per the
-  sole-orchestrator wind-down). No usage-limit monitor (dropped,
+  endpoint) and, since 2026-08-12, polls both COMMENT feeds too
+  (issues/comments + pulls/comments): inline review comments used
+  to pass every filter and still never arrive, because only the
+  issues feed was fetched. **Comment filtering (Evan, 2026-08-11)**: the
+  away-channel REQUIRES routing env at arm time (fail-loud —
+  it exits 78 without it); per-comment events are scoped to your
+  own threads, new-issue/PR events stay repo-wide. Arm as:
+  `CAD_CHANNEL_SELF_TAG="(<ROLE> orchestrator)"
+  CAD_CHANNEL_BRANCH_PREFIXES=<prefixes> bash .../github-away-channel.sh`.
+  **Branch-prefix convention (an explicit rule, stated as the
+  CLEAN example — Evan, #396):** each program owns ONE short
+  prefix; every unit/lane branch goes under it and the
+  orchestrator branch is `<prefix>orchestrator`. For a program
+  with role tag `(FOO orchestrator)`: unit branches
+  `foo/<unit>`, orchestrator branch `foo/orchestrator`, armed
+  with `CAD_CHANNEL_BRANCH_PREFIXES=foo/` — one prefix, nothing
+  to enumerate. Programs whose live branches predate this
+  standardization arm with their actual prefix list (each
+  session records its own in its handoff; do not maintain a
+  central legacy registry here — it rots, as the seven-prefix
+  kernel-program entry demonstrated) and fold renames in at
+  natural seams; new programs use the clean shape from day one. **Canonical summons
+  keywords (Evan)**: `@ orchestrators` reaches everyone;
+  `@ lib` / `@ m8` / `@ asm` reach one (derived from the tag
+  automatically — no ADDRESSES env needed normally). Two
+  behavioral rules: (i) LEAD EVERY comment you post with your
+  role tag — the leading tag is BOTH the thread subscription
+  AND the self-suppression key (the away-channel drops comments
+  that lead with your own tag: your echoes, since nobody else
+  signs as you; mid-body mentions still summon); (ii) to
+  watch a thread your filter doesn't match, post
+  "(<ROLE> orchestrator) subscribing." on it — the tag in that
+  comment subscribes you from the next poll; (iii) SIGN ISSUE
+  BODIES with your tag when filing — the membership check reads
+  title+body+comments, so a signed filing auto-subscribes you to
+  its thread (and makes authorship visible across the shared
+  account). Sign-off watchlist: the script reads
+  `$CAD_SIGNOFF_WATCHLIST` or DEFAULTS to
+  `~/.local/share/cad-work/signoff-watchlist.txt` — append to the
+  file the ARMED monitor actually reads (2026-08-15: two
+  affordance 👍s went unwatched because entries went to the old
+  `-m7` file while the monitor, armed without the env, polled the
+  default; Evan noticed, not the channel). No usage-limit monitor (dropped,
   Evan 2026-07-23) — the stopping rule covers it.
 - **Channel to Evan**: questions go out via GitHub as
   design-conversation PRs (edit the doc to state the question,

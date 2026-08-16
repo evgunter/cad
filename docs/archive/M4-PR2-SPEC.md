@@ -127,7 +127,7 @@ unchanged.
 OUTPUT DISCIPLINE per convention (≤~150 lines/call; skeleton first;
 report ≤120 lines). Branch `ev/m4-2-eval` from origin/main (must
 include #81+#82, main ≥ `af5a94b`). Push after every commit. Gate:
-`scripts/gate.sh <merged sha>` as ONE synchronous foreground call
+`local-scripts/gate.sh <merged sha>` as ONE synchronous foreground call
 (600000ms timeout; on harness cutoff READ the output file, do not
 relaunch). NEVER export RUSTFLAGS (RUSTC_WRAPPER=sccache from first
 build is fine). Open the PR ("M4 PR 2: evaluation service — result

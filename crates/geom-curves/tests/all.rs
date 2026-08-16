@@ -32,6 +32,8 @@
 
 #[path = "boxes.rs"]
 mod boxes;
+#[path = "compose.rs"]
+mod compose;
 #[path = "curvo_oracle.rs"]
 mod curvo_oracle;
 #[path = "fit_certify.rs"]
@@ -62,6 +64,8 @@ mod review_m5_pr3_attack;
 mod review_m5_pr3_attack_interval;
 #[path = "review_m5_pr4_adversarial.rs"]
 mod review_m5_pr4_adversarial;
+#[path = "span_window_pairing.rs"]
+mod span_window_pairing;
 #[path = "split_at.rs"]
 mod split_at;
 

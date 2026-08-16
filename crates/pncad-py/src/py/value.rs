@@ -46,10 +46,11 @@ use pncad::topo;
 
 /// Raise `EvaluationError` with a stable `reason` tag.
 ///
-/// `kind` and `through` are ALWAYS present on the exception — `None`
-/// where the reason has no failing kind or poisoning ancestor — so
-/// stub-guided code can read them without an `AttributeError` trap
-/// (the R1/R2 NOTE on over-promising stubs).
+/// `kind`, `through` and `finding` are ALWAYS present on the
+/// exception — `None` where the reason has no failing kind, no
+/// poisoning ancestor, or no refusal-menu payload — so stub-guided
+/// code can read them without an `AttributeError` trap (the R1/R2
+/// NOTE on over-promising stubs).
 fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: NodeId) -> PyErr {
     let node = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -66,6 +67,7 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: Node
             ("node", node),
             ("kind", py.None().into_any()),
             ("through", py.None().into_any()),
+            ("finding", py.None().into_any()),
         ],
     )
 }
@@ -78,6 +80,20 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
         Err(failed) => return failed,
+    };
+    // The refusal MENU (register R3, LIB-PYG5): an undeclared-contact
+    // refusal carries its candidate declaration as a typed
+    // `FlushFinding` on the exception — the same value shape
+    // `Evaluation.find_flush_candidates` answers with, ready for
+    // `Node.declare`/`Doc.declare`. `None` on every other kind.
+    let finding = match &error.kind {
+        d::NodeErrorKind::UndeclaredContact { finding, .. } => {
+            match super::flush::FlushFinding((**finding).clone()).into_pyobject(py) {
+                Ok(bound) => bound.unbind().into_any(),
+                Err(failed) => return failed,
+            }
+        }
+        _ => py.None().into_any(),
     };
     typed_err(
         py,
@@ -96,6 +112,7 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
                     .into_any(),
             ),
             ("through", py.None().into_any()),
+            ("finding", finding),
         ],
     )
 }
@@ -114,6 +131,7 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
         ("reason", PyString::new(py, "poisoned").unbind().into_any()),
         ("node", node_obj),
         ("through", through_obj),
+        ("finding", py.None().into_any()),
     ];
     // The message is the root cause's `Display` prose (F6): the node
     // never ran, so the honest sentence names the ancestor's problem.
@@ -411,6 +429,13 @@ impl Value {
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Evaluation {
     inner: d::Evaluation<f64>,
+    /// The evaluated document's parameter bindings, captured at
+    /// `evaluate` — `select_where`'s decided atoms state their value
+    /// as an `Expr`, which cannot be evaluated without them. Captured
+    /// HERE because the answer must be as of the same document the
+    /// evaluation is of; threading the doc back in per query would
+    /// let the two drift.
+    params: d::ParamEnv<f64>,
 }
 
 #[pymethods]
@@ -464,8 +489,9 @@ impl Evaluation {
     ///
     /// The answer is the WHOLE kind, and each string is an OPAQUE
     /// identifier: its internal structure is not API (see
-    /// `doc::name_text`), so narrowing the set is a SELECTOR's job and
-    /// no selector crosses yet — the audit's G13.
+    /// `doc::name_text`), so narrowing the set is a SELECTOR's job —
+    /// [`Self::select`] and [`Self::select_where`] (LIB-PYSEL), which
+    /// answer in the same alphabet.
     ///
     /// Empty when the node has no value, no name table, or no edges.
     /// The fillet node is what refuses an EMPTY selection, so the
@@ -489,6 +515,95 @@ impl Evaluation {
     /// Usually one row; a split's two halves are the plural case.
     fn all_bodies(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<String>> {
         names(py, pncad::select::all_bodies(&self.inner, node.0))
+    }
+
+    /// **Materialize a STRUCTURAL selection**: every name of `node`'s
+    /// output matching `selector`'s role-path shape, as of THIS
+    /// evaluation — Rust's `select`, same contract as `all_edges`
+    /// (canonical order, the caller stores it, frozen thereafter).
+    ///
+    /// The answer is the same opaque texts the whole-kind
+    /// materializers speak, ready for `Node.fillet` unread: narrowing
+    /// happens through this door, never by parsing a name (the
+    /// ordinal-28 ruling — name text is an identifier, not a value).
+    ///
+    /// Infallible like `select`: empty when `node` has no value, no
+    /// name table, or nothing matches.
+    fn select(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        selector: &super::select::Selector,
+    ) -> PyResult<Vec<String>> {
+        names(py, pncad::select::select(&self.inner, node.0, &selector.0))
+    }
+
+    /// **Materialize a selection narrowed by GEOMETRY**: `selector`
+    /// narrows by name shape, then each survivor is resolved to its
+    /// entity in THIS evaluation and tested against the CONJUNCTION
+    /// `geom` — Rust's `select_where`, verb for verb. An empty `geom`
+    /// makes this exactly [`Self::select`]; run it twice and
+    /// concatenate for a geometric union.
+    ///
+    /// Same materializer contract and same opaque-text alphabet as
+    /// [`Self::select`] (the ordinal-28 ruling: the binding narrows,
+    /// your code never reads inside a name).
+    ///
+    /// Raises `SelectRefusal`, typed, where the Rust door refuses:
+    /// exact atoms are total and cannot refuse, but a DECIDED atom's
+    /// in-band margin (`reason="in_band"`), a tied name whose
+    /// candidates disagree (`"tied_disagrees"`), an unreadable
+    /// candidate (`"unreadable"`), a non-datum reference
+    /// (`"not_a_datum"`) all refuse rather than silently including or
+    /// dropping a candidate.
+    fn select_where(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        selector: &super::select::Selector,
+        geom: Vec<super::select::GeomPred>,
+    ) -> PyResult<Vec<String>> {
+        let atoms: Vec<pncad::select::GeomPred> = geom.into_iter().map(|g| g.0).collect();
+        match pncad::select::select_where(&self.inner, node.0, &selector.0, &atoms, &self.params) {
+            Ok(found) => names(py, found),
+            Err(refusal) => Err(super::select::select_refusal(py, &refusal)),
+        }
+    }
+
+    /// **The cross-body flush-plane candidates between `a`'s and
+    /// `b`'s outputs, as of THIS evaluation** — the detect arm of the
+    /// detect/declare protocol (SELECT-DESIGN §3; LIB-PYG5, audit
+    /// G5): the C4 verifier run in candidate-generation mode, so a
+    /// finding can never disagree with the boolean's own
+    /// verify-at-use.
+    ///
+    /// Findings come back in canonical order and are only ever
+    /// DEFINITE values — inspect them, then `Node.declare` /
+    /// `Doc.declare` / `Doc.declare_all` turn the inspected findings
+    /// into the `Declare` node `Node.boolean`'s `declare=` consumes.
+    /// Detection and declaration are separate doors ON PURPOSE (the
+    /// ruled no-fusion boundary). Like `select`, the query answers
+    /// EMPTY if either node has no value in this evaluation.
+    ///
+    /// Raises `SelectRefusal`, typed, exactly where the Rust door
+    /// refuses: a pair whose verify-door margin is inside the
+    /// ambiguity band (`reason="pair_in_band"` — neither reported nor
+    /// silently dropped), a tied name whose candidates disagree
+    /// (`"tied_disagrees"`), an unreadable name-table entry
+    /// (`"unreadable"`), a broken ambient tolerance (`"band"`).
+    fn find_flush_candidates(
+        &self,
+        py: Python<'_>,
+        a: &NodeId,
+        b: &NodeId,
+    ) -> PyResult<Vec<super::flush::FlushFinding>> {
+        match pncad::select::find_flush_candidates(&self.inner, a.0, b.0) {
+            Ok(findings) => Ok(findings
+                .into_iter()
+                .map(super::flush::FlushFinding)
+                .collect()),
+            Err(refusal) => Err(super::select::select_refusal(py, &refusal)),
+        }
     }
 
     /// How many nodes were recomputed rather than reused from the memo.
@@ -613,6 +728,7 @@ pub(crate) fn evaluate(doc: &super::doc::Doc) -> Evaluation {
             &d::CancelToken::new(),
             &d::EvalOptions::default(),
         ),
+        params: doc.inner.param_env::<f64>(),
     }
 }
 

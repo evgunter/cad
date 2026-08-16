@@ -94,21 +94,112 @@ fn face_extent<T: Decide>(
     }
 }
 
-/// The unique upstream name of an entity, refusing tied upstream
-/// entries (deferred — reported) and missing rows loudly.
+/// An entity's upstream name, plus whether the upstream entry is an N2
+/// TIE.
+///
+/// B1 (ratified, #512): a tie PROPAGATES — naming a tie is fine (N2);
+/// only *referencing* one is `Ambiguous`. This mirrors the three
+/// emitters that already do it (`name_pattern`, `name_in_part`,
+/// `graft_names`), so a tie anywhere in an operand table no longer
+/// refuses the whole downstream op.
+#[derive(Clone)]
+struct Upstream {
+    /// The operand-table name (identical for every tied candidate).
+    name: StableName,
+    /// True iff that name's entry is `Entry::Tied`.
+    tied: bool,
+}
+
+/// The upstream name of an entity. A MISSING row is still loud (the
+/// upstream tables are total by this same machinery), and so is a
+/// table whose two directions disagree — after B1, that is the ONE
+/// remaining condition genuinely needing a unique upstream, because no
+/// candidate list exists to propagate.
+///
+/// It has no executable test row ON PURPOSE, and the reason is a
+/// property rather than an omission: the condition is unconstructible
+/// through `NameTable`'s public API — `insert`/`insert_tied` write both
+/// directions together and there is no removal door, so no caller can
+/// reach a state where `name_of` answers and `lookup` does not. The
+/// LIB-G14 review confirmed this independently (MINOR-1) and recorded
+/// the prose as the faithful reading. The arm stays because the
+/// invariant is the emitter's to assert, not to assume.
 fn upstream_name(
     table: &NameTable,
     node: RecipeNodeId,
     e: super::table::EntityRef,
-) -> Result<StableName, NamingError> {
+) -> Result<Upstream, NamingError> {
     let name = table
         .name_of(&e)
         .ok_or(NamingError::MissingUpstream { node })?;
-    match table.lookup(name) {
-        Some(Entry::Unique(_)) => Ok(name.clone()),
-        _ => Err(NamingError::Emission {
-            what: "tied upstream entry through a downstream op — deferred (reported)",
-        }),
+    let tied = match table.lookup(name) {
+        Some(Entry::Unique(_)) => false,
+        Some(Entry::Tied(_)) => true,
+        None => {
+            return Err(NamingError::Emission {
+                what: "an operand name table's forward and reverse directions disagree",
+            });
+        }
+    };
+    Ok(Upstream {
+        name: name.clone(),
+        tied,
+    })
+}
+
+/// Rows deferred because their name descends from an N2 tie (B1) — or,
+/// for `SectionEdge`, because the op itself mints one (A2).
+///
+/// Upstream candidates that were equally admissible stay equally
+/// admissible downstream, so their same-named descendants MERGE into
+/// one entry at flush: `Tied` when ≥ 2 survive, narrowed back to
+/// `Unique` when exactly one does (the `graft_names` shape). Rows that
+/// do NOT descend from a tie keep going through `NameTable::insert`
+/// directly, so a genuine aliasing bug is still a typed `Duplicate` —
+/// and so is a tie-descended name colliding with a strict one, since
+/// the flush inserts into the same table.
+///
+/// Narrowing means a WRAPPED name can come out `Unique` here while the
+/// upstream name it wraps stays `Tied` (review NOTE-2). That is the
+/// ratified `graft_names` semantics, not laundering: the op genuinely
+/// separated the candidates, and the upstream table is untouched.
+#[derive(Default)]
+struct TieRows(BTreeMap<StableName, Vec<super::table::EntityRef>>);
+
+impl TieRows {
+    /// Defers one row.
+    fn push(&mut self, name: StableName, e: super::table::EntityRef) {
+        self.0.entry(name).or_default().push(e);
+    }
+
+    /// Drains the deferred rows into the table. Called at each stage
+    /// boundary, because later stages read the names earlier stages
+    /// wrote (the boolean vertex pass reads its incident EDGE names).
+    fn flush(&mut self, t: &mut NameTable) -> Result<(), NamingError> {
+        for (name, ents) in core::mem::take(&mut self.0) {
+            match ents.as_slice() {
+                [one] => t.insert(name, *one)?,
+                _ => t.insert_tied(name, ents)?,
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Inserts a downstream row: strict when its upstream name was unique,
+/// deferred into the tie lane when it descends from a tie (B1).
+fn put(
+    t: &mut NameTable,
+    tie: &mut TieRows,
+    from_tie: bool,
+    name: StableName,
+    e: super::table::EntityRef,
+) -> Result<(), NamingError> {
+    if from_tie {
+        tie.push(name, e);
+        Ok(())
+    } else {
+        Ok(t.insert(name, e)?)
     }
 }
 
@@ -222,9 +313,11 @@ pub(crate) fn name_split<T: Decide>(
         )?;
     }
 
+    let mut tie = TieRows::default();
     name_split_faces(
         node,
         &mut t,
+        &mut tie,
         &sides,
         &frag_rows,
         &section_keys,
@@ -234,9 +327,11 @@ pub(crate) fn name_split<T: Decide>(
         tool_normal,
         b,
     )?;
+    tie.flush(&mut t)?;
     name_split_edges_vertices(
         node,
         &mut t,
+        &mut tie,
         &sides,
         &frag_rows,
         &section_keys,
@@ -244,6 +339,7 @@ pub(crate) fn name_split<T: Decide>(
         target_node,
         target_table,
     )?;
+    tie.flush(&mut t)?;
 
     for s in &sides {
         super::emit::check_total(&t, s.body, s.ix)?;
@@ -257,6 +353,7 @@ pub(crate) fn name_split<T: Decide>(
 fn name_split_edges_vertices<T: Decide>(
     node: RecipeNodeId,
     t: &mut NameTable,
+    tie: &mut TieRows,
     sides: &[Side<'_, T>],
     frag_rows: &BTreeMap<FaceKey, FaceKey>,
     section_keys: &BTreeSet<FaceKey>,
@@ -288,12 +385,19 @@ fn name_split_edges_vertices<T: Decide>(
                 chord_faces.insert(mate_he.edge, other);
             }
         }
-        // Chord edges named by the operand face their section
-        // boundary runs across; per-(face) multiplicity ordered by
-        // completion adjacency is NOT available — multiple chords on
-        // one operand face use the same carrier order as face
-        // fragments. v1 corpus: one chord per (face, side); more is
-        // a typed refusal (reported).
+        // Chord edges named by the operand face their section boundary
+        // runs across. `SectionEdge{side, face}` carries only that
+        // face's name, so a section line that re-enters ONE operand
+        // face — an inner loop, or any non-convex face — would mint
+        // one name twice.
+        //
+        // A2 (ratified, #512): those chords become an N2 TIE rather
+        // than a refusal. They are equally admissible under the one
+        // name the vocabulary can spell; the selector layer narrows to
+        // a specific chord geometrically (`select_where`), which is
+        // the same disambiguation story ties have everywhere else. No
+        // ordering is invented: the chords bound one section face and
+        // have no covariant order-along direction of their own.
         let mut chords_by_face: BTreeMap<FaceKey, Vec<EdgeKey>> = BTreeMap::new();
         for (&e, &other) in &chord_faces {
             let root = chase(frag_rows, other);
@@ -304,22 +408,18 @@ fn name_split_edges_vertices<T: Decide>(
                 return Err(bug("section chord adjacent to a section face"));
             }
             let parent = upstream_name(target_table, target_node, ent(0, EntityKey::Face(root)))?;
-            if edges.len() > 1 {
-                return Err(bug(
-                    "multiple section chords across one operand face — deferred (reported)",
-                ));
+            let name = name1(
+                EntityKind::Edge,
+                node,
+                RoleSeg::SectionEdge {
+                    side: s.half,
+                    face: Box::new(parent.name),
+                },
+            );
+            let shared = parent.tied || edges.len() > 1;
+            for e in edges {
+                put(t, tie, shared, name.clone(), ent(s.ix, EntityKey::Edge(e)))?;
             }
-            t.insert(
-                name1(
-                    EntityKind::Edge,
-                    node,
-                    RoleSeg::SectionEdge {
-                        side: s.half,
-                        face: Box::new(parent),
-                    },
-                ),
-                ent(s.ix, EntityKey::Edge(edges[0])),
-            )?;
         }
         // Remaining edges: pass-through or crossing-cut fragments. A
         // kept-key first child looks like an intact operand edge in
@@ -355,8 +455,8 @@ fn name_split_edges_vertices<T: Decide>(
                 && !divided_edges.contains(&root)
             {
                 // Intact operand edge: pass-through.
-                let name = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(e)))?;
-                t.insert(name, ent(s.ix, EntityKey::Edge(e)))?;
+                let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(e)))?;
+                put(t, tie, up.tied, up.name, ent(s.ix, EntityKey::Edge(e)))?;
                 continue;
             }
             if target_table
@@ -366,13 +466,16 @@ fn name_split_edges_vertices<T: Decide>(
                 return Err(bug("edge descent reached no operand edge"));
             }
             let parent = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(root)))?;
-            t.insert(
+            put(
+                t,
+                tie,
+                parent.tied,
                 name1(
                     EntityKind::Edge,
                     node,
                     RoleSeg::SplitFragment {
                         side: s.half,
-                        parent: Box::new(parent),
+                        parent: Box::new(parent.name),
                     },
                 ),
                 ent(s.ix, EntityKey::Edge(e)),
@@ -392,8 +495,8 @@ fn name_split_edges_vertices<T: Decide>(
                     .name_of(&ent(0, EntityKey::Vertex(v)))
                     .is_some()
             {
-                let name = upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(v)))?;
-                t.insert(name, ent(s.ix, EntityKey::Vertex(v)))?;
+                let up = upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(v)))?;
+                put(t, tie, up.tied, up.name, ent(s.ix, EntityKey::Vertex(v)))?;
                 continue;
             }
             // Resolve the birth record — directly, or through the
@@ -411,7 +514,7 @@ fn name_split_edges_vertices<T: Decide>(
                     )),
                     _ => None,
                 });
-            let seg = if let Some(parent_edge) = parent_edge {
+            let (seg, from_tie) = if let Some(parent_edge) = parent_edge {
                 // Crossing vertex: minted where the plane crossed an
                 // operand edge's interior.
                 let parent = upstream_name(
@@ -419,10 +522,13 @@ fn name_split_edges_vertices<T: Decide>(
                     target_node,
                     ent(0, EntityKey::Edge(parent_edge)),
                 )?;
-                RoleSeg::CrossingVertex {
-                    side: s.half,
-                    edge: Box::new(parent),
-                }
+                (
+                    RoleSeg::CrossingVertex {
+                        side: s.half,
+                        edge: Box::new(parent.name),
+                    },
+                    parent.tied,
+                )
             } else if target_table
                 .name_of(&ent(0, EntityKey::Vertex(src)))
                 .is_some()
@@ -432,16 +538,22 @@ fn name_split_edges_vertices<T: Decide>(
                 // from the pair row, side from body membership (a
                 // recorded verdict).
                 let of = upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(src)))?;
-                RoleSeg::OnToolVertex {
-                    side: s.half,
-                    of: Box::new(of),
-                }
+                (
+                    RoleSeg::OnToolVertex {
+                        side: s.half,
+                        of: Box::new(of.name),
+                    },
+                    of.tied,
+                )
             } else {
                 return Err(bug(
                     "on-plane vertex with neither a SplitEdge record nor an operand identity",
                 ));
             };
-            t.insert(
+            put(
+                t,
+                tie,
+                from_tie,
                 name1(EntityKind::Vertex, node, seg),
                 ent(s.ix, EntityKey::Vertex(v)),
             )?;
@@ -512,7 +624,7 @@ pub(crate) fn name_boolean<T: Decide>(
             }),
         }
     };
-    let operand_face_name = |d: Descent| -> Result<StableName, NamingError> {
+    let operand_face_name = |d: Descent| -> Result<Upstream, NamingError> {
         match d {
             Descent::A(f) => upstream_name(a.table, a.node, ent(0, EntityKey::Face(f))),
             Descent::B(f) => upstream_name(b.table, b.node, ent(0, EntityKey::Face(f))),
@@ -527,6 +639,7 @@ pub(crate) fn name_boolean<T: Decide>(
     };
 
     // ---- Faces: merges first (N3), then descent groups. ----
+    let mut tie = TieRows::default();
     let mut handled: BTreeSet<FaceKey> = BTreeSet::new();
     // Kept face → constituent descents (M4 PR 5: the seam-edge walk
     // reads THROUGH a merged face to its mint-time operand identity).
@@ -537,10 +650,14 @@ pub(crate) fn name_boolean<T: Decide>(
         }
         let mut constituents = Vec::new();
         let mut descents = Vec::new();
+        // A merged name descends from a tie iff ANY constituent does.
+        let mut from_tie = false;
         for &c in core::iter::once(kept).chain(absorbed) {
             let d = descend_face(c)?;
             descents.push(d);
-            constituents.push(wrap(d, operand_face_name(d)?, EntityKind::Face));
+            let up = operand_face_name(d)?;
+            from_tie |= up.tied;
+            constituents.push(wrap(d, up.name, EntityKind::Face));
         }
         merged_descents.insert(*kept, descents);
         constituents.sort_unstable();
@@ -555,7 +672,10 @@ pub(crate) fn name_boolean<T: Decide>(
         // this refusal to a success if the disjoint-patch class ever
         // matters (REPORT'd, banked).
         constituents.dedup();
-        t.insert(
+        put(
+            &mut t,
+            &mut tie,
+            from_tie,
             name1(EntityKind::Face, node, RoleSeg::Merged(constituents)),
             ent(0, EntityKey::Face(*kept)),
         )?;
@@ -569,13 +689,22 @@ pub(crate) fn name_boolean<T: Decide>(
     }
     for (d, members) in groups {
         let root_name = operand_face_name(d)?;
-        let base = wrap(d, root_name, EntityKind::Face);
+        let from_tie = root_name.tied;
+        let base = wrap(d, root_name.name, EntityKind::Face);
         if members.len() == 1 {
-            t.insert(base, ent(0, EntityKey::Face(members[0])))?;
+            put(
+                &mut t,
+                &mut tie,
+                from_tie,
+                base,
+                ent(0, EntityKey::Face(members[0])),
+            )?;
             continue;
         }
         name_fragment_group(
             &mut t,
+            &mut tie,
+            from_tie,
             body,
             &base,
             &members,
@@ -586,10 +715,12 @@ pub(crate) fn name_boolean<T: Decide>(
             bnd,
         )?;
     }
+    tie.flush(&mut t)?;
 
     name_boolean_edges(
         node,
         &mut t,
+        &mut tie,
         body,
         naming,
         a,
@@ -603,9 +734,11 @@ pub(crate) fn name_boolean<T: Decide>(
         &merged_descents,
         bnd,
     )?;
+    tie.flush(&mut t)?;
     name_boolean_vertices(
         node,
         &mut t,
+        &mut tie,
         body,
         naming,
         &inv_vertices,
@@ -615,6 +748,7 @@ pub(crate) fn name_boolean<T: Decide>(
         &inc,
         bnd,
     )?;
+    tie.flush(&mut t)?;
 
     super::emit::check_total(&t, body, 0)?;
     Ok(Arc::new(t))
@@ -626,13 +760,15 @@ pub(crate) fn name_boolean<T: Decide>(
 #[allow(clippy::too_many_arguments)]
 fn name_fragment_group<T: Decide>(
     t: &mut NameTable,
+    tie: &mut TieRows,
+    from_tie: bool,
     body: &Body<T>,
     base: &StableName,
     members: &[FaceKey],
     seam_set: &BTreeSet<EdgeKey>,
     inc: &Incidence,
     descend_face: &impl Fn(FaceKey) -> Result<Descent, NamingError>,
-    operand_face_name: &impl Fn(Descent) -> Result<StableName, NamingError>,
+    operand_face_name: &impl Fn(Descent) -> Result<Upstream, NamingError>,
     bnd: geom_core::Band,
 ) -> Result<(), NamingError> {
     let bug = |what| NamingError::Emission { what };
@@ -654,7 +790,12 @@ fn name_fragment_group<T: Decide>(
             for &other in faces {
                 if other != m {
                     let d = descend_face(other)?;
-                    partners.entry(operand_face_name(d)?).or_insert(other);
+                    // The partner name is a discriminator LABEL here,
+                    // so a tied partner is admissible unchanged. Its
+                    // representative face is the first in BTreeMap
+                    // order (review NOTE-1): arbitrary among tied
+                    // candidates, never nondeterministic.
+                    partners.entry(operand_face_name(d)?.name).or_insert(other);
                 }
             }
         }
@@ -677,11 +818,12 @@ fn name_fragment_group<T: Decide>(
         let mut name = base.clone();
         name.path.push(RoleSeg::Fragment(Qualifier::SideOf(vector)));
         if faces.len() == 1 {
-            t.insert(name, ent(0, EntityKey::Face(faces[0])))?;
+            put(t, tie, from_tie, name, ent(0, EntityKey::Face(faces[0])))?;
         } else {
             // The N2 tie: equally-admissible symmetric candidates.
-            let ents = faces.iter().map(|&f| ent(0, EntityKey::Face(f))).collect();
-            t.insert_tied(name, ents)?;
+            for &f in &faces {
+                tie.push(name.clone(), ent(0, EntityKey::Face(f)));
+            }
         }
     }
     Ok(())
@@ -693,6 +835,7 @@ fn name_fragment_group<T: Decide>(
 fn name_boolean_edges<T: Decide>(
     node: RecipeNodeId,
     t: &mut NameTable,
+    tie: &mut TieRows,
     body: &Body<T>,
     naming: &topo::BooleanNaming,
     a: &OperandCtx<'_, T>,
@@ -702,7 +845,7 @@ fn name_boolean_edges<T: Decide>(
     seam_set: &BTreeSet<EdgeKey>,
     inc: &Incidence,
     descend_face: &impl Fn(FaceKey) -> Result<Descent, NamingError>,
-    operand_face_name: &impl Fn(Descent) -> Result<StableName, NamingError>,
+    operand_face_name: &impl Fn(Descent) -> Result<Upstream, NamingError>,
     merged_descents: &BTreeMap<FaceKey, Vec<Descent>>,
     bnd: geom_core::Band,
 ) -> Result<(), NamingError> {
@@ -716,7 +859,7 @@ fn name_boolean_edges<T: Decide>(
     // unique operand edge its two parent faces share — combinatorial
     // adjacency of emitted anchors, not matching. ----
     enum ChordKind {
-        Cross(StableName, StableName),
+        Cross(Upstream, Upstream),
         SameA(EdgeKey),
         SameB(EdgeKey),
     }
@@ -794,18 +937,30 @@ fn name_boolean_edges<T: Decide>(
             }
         })
     };
-    let seam_pair = |e: EdgeKey| -> Result<(StableName, StableName), NamingError> {
+    let seam_pair = |e: EdgeKey| -> Result<(Upstream, Upstream), NamingError> {
         match chord_kind(e)? {
             ChordKind::Cross(fa, fb) => Ok((fa, fb)),
             _ => Err(bug("seam edge between same-operand faces")),
         }
     };
-    let mut seam_groups: BTreeMap<(StableName, StableName), Vec<EdgeKey>> = BTreeMap::new();
+    // Group value: (descends-from-a-tie, edges). Two tied operand
+    // faces answer to ONE name, so their seam chords land in one
+    // group — the widening B1 asks for, not a collision.
+    let mut seam_groups: BTreeMap<(StableName, StableName), (bool, Vec<EdgeKey>)> = BTreeMap::new();
+    let mut add_seam = |fa: Upstream, fb: Upstream, e: EdgeKey| {
+        let from_tie = fa.tied || fb.tied;
+        let slot = seam_groups
+            .entry((fa.name, fb.name))
+            .or_insert((false, Vec::new()));
+        slot.0 |= from_tie;
+        slot.1.push(e);
+    };
     for &e in &naming.seam_edges {
         if body.get_edge(e).is_none() {
             continue; // consumed by the merge stage — historical row
         }
-        seam_groups.entry(seam_pair(e)?).or_default().push(e);
+        let (fa, fb) = seam_pair(e)?;
+        add_seam(fa, fb, e);
     }
 
     // ---- Operand-descended edges, grouped by (space, root). ----
@@ -865,7 +1020,7 @@ fn name_boolean_edges<T: Decide>(
         } else {
             match chord_kind(e)? {
                 ChordKind::Cross(fa, fb) => {
-                    seam_groups.entry((fa, fb)).or_default().push(e);
+                    add_seam(fa, fb, e);
                 }
                 ChordKind::SameA(k) => {
                     groups.entry(ERoot::A(k)).or_default().push(e);
@@ -876,7 +1031,7 @@ fn name_boolean_edges<T: Decide>(
             }
         }
     }
-    for ((fa, fb), edges) in seam_groups {
+    for ((fa, fb), (from_tie, edges)) in seam_groups {
         let base = name1(
             EntityKind::Edge,
             node,
@@ -886,7 +1041,7 @@ fn name_boolean_edges<T: Decide>(
             },
         );
         if edges.len() == 1 {
-            t.insert(base, ent(0, EntityKey::Edge(edges[0])))?;
+            put(t, tie, from_tie, base, ent(0, EntityKey::Edge(edges[0])))?;
             continue;
         }
         // Collinear chain: order along the pair's intersection line,
@@ -916,7 +1071,7 @@ fn name_boolean_edges<T: Decide>(
             .iter()
             .map(|&e| edge_extent(body, e, dir))
             .collect::<Result<Vec<_>, _>>()?;
-        insert_ranked_or_tied(t, base, &edges, &extents, bnd, |&e| {
+        insert_ranked_or_tied(t, tie, from_tie, base, &edges, &extents, bnd, |&e| {
             ent(0, EntityKey::Edge(e))
         })?;
     }
@@ -935,14 +1090,15 @@ fn name_boolean_edges<T: Decide>(
                 k,
             ),
         };
+        let from_tie = inner.tied;
         let seg = if wrap_a {
-            RoleSeg::FromA(Box::new(inner))
+            RoleSeg::FromA(Box::new(inner.name))
         } else {
-            RoleSeg::FromB(Box::new(inner))
+            RoleSeg::FromB(Box::new(inner.name))
         };
         let base = name1(EntityKind::Edge, node, seg);
         if edges.len() == 1 {
-            t.insert(base, ent(0, EntityKey::Edge(edges[0])))?;
+            put(t, tie, from_tie, base, ent(0, EntityKey::Edge(edges[0])))?;
             continue;
         }
         // Sub-edge chain: order along the parent edge's own oriented
@@ -952,7 +1108,7 @@ fn name_boolean_edges<T: Decide>(
             .iter()
             .map(|&e| edge_extent(body, e, dir))
             .collect::<Result<Vec<_>, _>>()?;
-        insert_ranked_or_tied(t, base, &edges, &extents, bnd, |&e| {
+        insert_ranked_or_tied(t, tie, from_tie, base, &edges, &extents, bnd, |&e| {
             ent(0, EntityKey::Edge(e))
         })?;
     }
@@ -967,6 +1123,7 @@ fn name_boolean_edges<T: Decide>(
 fn name_boolean_vertices<T: Decide>(
     node: RecipeNodeId,
     t: &mut NameTable,
+    tie: &mut TieRows,
     body: &Body<T>,
     naming: &topo::BooleanNaming,
     inv_vertices: &BTreeMap<VertexKey, VertexKey>,
@@ -987,28 +1144,36 @@ fn name_boolean_vertices<T: Decide>(
     }
     // The operand identity of one result-arena vertex key, if any:
     // A-space direct, or grafted B through the graft rows.
-    let operand_identity = |k: VertexKey| -> Result<Option<StableName>, NamingError> {
+    let operand_identity = |k: VertexKey| -> Result<Option<(StableName, bool)>, NamingError> {
         if let Some(&vb) = inv_vertices.get(&k) {
             if b.table.name_of(&ent(0, EntityKey::Vertex(vb))).is_some() {
                 let inner = upstream_name(b.table, b.node, ent(0, EntityKey::Vertex(vb)))?;
-                return Ok(Some(name1(
-                    EntityKind::Vertex,
-                    node,
-                    RoleSeg::FromB(Box::new(inner)),
+                return Ok(Some((
+                    name1(
+                        EntityKind::Vertex,
+                        node,
+                        RoleSeg::FromB(Box::new(inner.name)),
+                    ),
+                    inner.tied,
                 )));
             }
         } else if a.table.name_of(&ent(0, EntityKey::Vertex(k))).is_some() {
             let inner = upstream_name(a.table, a.node, ent(0, EntityKey::Vertex(k)))?;
-            return Ok(Some(name1(
-                EntityKind::Vertex,
-                node,
-                RoleSeg::FromA(Box::new(inner)),
+            return Ok(Some((
+                name1(
+                    EntityKind::Vertex,
+                    node,
+                    RoleSeg::FromA(Box::new(inner.name)),
+                ),
+                inner.tied,
             )));
         }
         Ok(None)
     };
-    // Candidate seam-vertex names, grouped for multiplicity.
-    let mut groups: BTreeMap<(StableName, StableName), Vec<VertexKey>> = BTreeMap::new();
+    // Candidate seam-vertex names, grouped for multiplicity: the key
+    // is the (A, B) parent pair, the value (descends-from-a-tie,
+    // vertices).
+    let mut groups: BTreeMap<(StableName, StableName), (bool, Vec<VertexKey>)> = BTreeMap::new();
     for (v, _) in body.vertices() {
         // Operand pass-downs: the kept key itself, then its dead
         // fusion partners (deterministic order: KEPT-KEY identity
@@ -1026,8 +1191,8 @@ fn name_boolean_vertices<T: Decide>(
                 }
             }
         }
-        if let Some(name) = identity {
-            t.insert(name, ent(0, EntityKey::Vertex(v)))?;
+        if let Some((name, from_tie)) = identity {
+            put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
             continue;
         }
         // Seam vertex: parents from incident edges' names.
@@ -1040,10 +1205,15 @@ fn name_boolean_vertices<T: Decide>(
         let mut a_faces: Vec<StableName> = Vec::new();
         let mut b_faces: Vec<StableName> = Vec::new();
         let mut seam_lines: Vec<(StableName, StableName)> = Vec::new();
+        // B1: a seam vertex reads its parentage off the incident EDGE
+        // names, so an edge name that is itself tied makes the vertex
+        // name tie-descended too.
+        let mut from_tie = false;
         for &e in edges {
             let Some(ename) = t.name_of(&ent(0, EntityKey::Edge(e))) else {
                 return Err(bug("seam vertex incident to an unnamed edge"));
             };
+            from_tie |= t.is_tied(ename);
             match ename.path.first() {
                 Some(RoleSeg::FromA(x)) => a_edges.push((**x).clone()),
                 Some(RoleSeg::FromB(x)) => b_edges.push((**x).clone()),
@@ -1083,12 +1253,16 @@ fn name_boolean_vertices<T: Decide>(
                 _ => (None, None),
             };
         let rc = &naming.reduction_contacts;
-        let partner_b_inner: Option<StableName> = va_key
+        let partner_b: Option<Upstream> = va_key
             .and_then(|k| rc.vv.iter().find(|r| r.a == k).map(|r| r.b))
             .and_then(|pb| upstream_name(b.table, b.node, ent(0, EntityKey::Vertex(pb))).ok());
-        let partner_a_inner: Option<StableName> = vb_key
+        let partner_a: Option<Upstream> = vb_key
             .and_then(|k| rc.vv.iter().find(|r| r.b == k).map(|r| r.a))
             .and_then(|pa| upstream_name(a.table, a.node, ent(0, EntityKey::Vertex(pa))).ok());
+        from_tie |= partner_b.as_ref().is_some_and(|u| u.tied);
+        from_tie |= partner_a.as_ref().is_some_and(|u| u.tied);
+        let partner_b_inner: Option<StableName> = partner_b.map(|u| u.name);
+        let partner_a_inner: Option<StableName> = partner_a.map(|u| u.name);
         a_faces.sort_unstable();
         a_faces.dedup();
         b_faces.sort_unstable();
@@ -1133,7 +1307,7 @@ fn name_boolean_vertices<T: Decide>(
                     node,
                     path: segs,
                 };
-                t.insert(name, ent(0, EntityKey::Vertex(v)))?;
+                put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
                 continue;
             }
             _ => {
@@ -1142,9 +1316,11 @@ fn name_boolean_vertices<T: Decide>(
                 ));
             }
         };
-        groups.entry(pair).or_default().push(v);
+        let slot = groups.entry(pair).or_insert((false, Vec::new()));
+        slot.0 |= from_tie;
+        slot.1.push(v);
     }
-    for ((pa, pb), verts) in groups {
+    for ((pa, pb), (from_tie, verts)) in groups {
         let base = name1(
             EntityKind::Vertex,
             node,
@@ -1154,18 +1330,16 @@ fn name_boolean_vertices<T: Decide>(
             },
         );
         if verts.len() == 1 {
-            t.insert(base, ent(0, EntityKey::Vertex(verts[0])))?;
+            put(t, tie, from_tie, base, ent(0, EntityKey::Vertex(verts[0])))?;
             continue;
         }
         // Same pair crossing more than once: order along the edge
         // parent's own carrier (prefer the A side).
         let carrier = resolve_edge_carrier(&pa, a).or_else(|| resolve_edge_carrier(&pb, b));
         let Some(dir) = carrier else {
-            let ents = verts
-                .iter()
-                .map(|&v| ent(0, EntityKey::Vertex(v)))
-                .collect();
-            t.insert_tied(base, ents)?;
+            for &v in &verts {
+                tie.push(base.clone(), ent(0, EntityKey::Vertex(v)));
+            }
             continue;
         };
         let extents = verts
@@ -1180,7 +1354,7 @@ fn name_boolean_vertices<T: Decide>(
                 Ok(Extent { min: tv, max: tv })
             })
             .collect::<Result<Vec<_>, NamingError>>()?;
-        insert_ranked_or_tied(t, base, &verts, &extents, bnd, |&v| {
+        insert_ranked_or_tied(t, tie, from_tie, base, &verts, &extents, bnd, |&v| {
             ent(0, EntityKey::Vertex(v))
         })?;
     }
@@ -1240,8 +1414,11 @@ fn edge_dir<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<Vec3<T>, NamingErro
 
 /// Inserts a same-name group ranked by order-along, or tied when
 /// genuinely unordered.
+#[allow(clippy::too_many_arguments)]
 fn insert_ranked_or_tied<T: Decide, K: Copy>(
     t: &mut NameTable,
+    tie: &mut TieRows,
+    from_tie: bool,
     base: StableName,
     keys: &[K],
     extents: &[Extent<T>],
@@ -1255,12 +1432,13 @@ fn insert_ranked_or_tied<T: Decide, K: Copy>(
                 let mut name = base.clone();
                 name.path
                     .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of }));
-                t.insert(name, to_ent(k))?;
+                put(t, tie, from_tie, name, to_ent(k))?;
             }
         }
         None => {
-            let ents = keys.iter().map(to_ent).collect();
-            t.insert_tied(base, ents)?;
+            for k in keys {
+                tie.push(base.clone(), to_ent(k));
+            }
         }
     }
     Ok(())
@@ -1273,6 +1451,7 @@ fn insert_ranked_or_tied<T: Decide, K: Copy>(
 fn name_split_faces<T: Decide>(
     node: RecipeNodeId,
     t: &mut NameTable,
+    tie: &mut TieRows,
     sides: &[Side<'_, T>],
     frag_rows: &BTreeMap<FaceKey, FaceKey>,
     section_keys: &BTreeSet<FaceKey>,
@@ -1296,8 +1475,8 @@ fn name_split_faces<T: Decide>(
             if root == f && !divided.contains(&root) {
                 // Uncut operand face: pass-through (N1: the split
                 // contributes no segment to survivors).
-                let name = upstream_name(target_table, target_node, ent(0, EntityKey::Face(f)))?;
-                t.insert(name, ent(s.ix, EntityKey::Face(f)))?;
+                let up = upstream_name(target_table, target_node, ent(0, EntityKey::Face(f)))?;
+                put(t, tie, up.tied, up.name, ent(s.ix, EntityKey::Face(f)))?;
             } else {
                 groups
                     .entry((root, s.ix))
@@ -1308,14 +1487,18 @@ fn name_split_faces<T: Decide>(
     }
     for ((root, _), members) in groups {
         let parent = upstream_name(target_table, target_node, ent(0, EntityKey::Face(root)))?;
+        let from_tie = parent.tied;
         let half = members[0].1;
         let base = RoleSeg::SplitFragment {
             side: half,
-            parent: Box::new(parent),
+            parent: Box::new(parent.name),
         };
         if members.len() == 1 {
             let (ix, _, f) = members[0];
-            t.insert(
+            put(
+                t,
+                tie,
+                from_tie,
                 name1(EntityKind::Face, node, base),
                 ent(ix, EntityKey::Face(f)),
             )?;
@@ -1350,16 +1533,15 @@ fn name_split_faces<T: Decide>(
                     let mut name = name1(EntityKind::Face, node, base.clone());
                     name.path
                         .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of }));
-                    t.insert(name, ent(m.0, EntityKey::Face(m.2)))?;
+                    put(t, tie, from_tie, name, ent(m.0, EntityKey::Face(m.2)))?;
                 }
             }
             None => {
                 // Genuine tie (N2): one name, all candidates marked.
-                let ents = members
-                    .iter()
-                    .map(|&(ix, _, f)| ent(ix, EntityKey::Face(f)))
-                    .collect();
-                t.insert_tied(name1(EntityKind::Face, node, base), ents)?;
+                let name = name1(EntityKind::Face, node, base);
+                for &(ix, _, f) in &members {
+                    tie.push(name.clone(), ent(ix, EntityKey::Face(f)));
+                }
             }
         }
     }
@@ -1384,6 +1566,7 @@ mod tests {
     use super::*;
     use crate::names::emit_sweep::name_extrude;
     use crate::node::RecipeNodeId;
+    use profile::RawLoop;
 
     #[test]
     fn merged_lane_names_kept_face_with_sorted_deduped_constituents() {

@@ -39,11 +39,21 @@
 //! were individually certified and gated — not a re-derivation of them.
 //!
 //! Validity is the caller's to establish, exactly as with `combine`:
-//! this is a raw transplant, and the at-rest validator is what says
-//! whether the result is a body. Two solids that OVERLAP are a false
-//! body and tier 3 says so; two that merely touch land in the
-//! tier-3-not-3′ gap (declared contact is the boolean pipeline's
-//! currency, and a disjoint graft declares none).
+//! this is a raw transplant, and the at-rest validator
+//! ([`validate_geometric`](crate::validate_geometric)) is what says
+//! whether the result is a body. Know what that gate proves: the
+//! structural tiers, then tier 3's LOCAL battery — every check reads
+//! one face, one edge, or one edge–face pair, and the one whole-body
+//! check (the +V signed volume) SUMS flux, so overlapping positive
+//! volumes only reinforce it. Two grafted solids share no edge, so no
+//! tier-3 check ever compares one against the other: solids that
+//! OVERLAP pass the gate undetected, and solids that merely touch land
+//! in the tier-3-not-3′ gap (declared contact is the boolean
+//! pipeline's currency, and a disjoint graft declares none).
+//! Cross-solid contact and interference are the assembly design's
+//! territory — undeclared touching is A5's hard error, interference
+//! fits live behind C6's recorded gate-skips — and detection is
+//! planned as tier-3′ census growth (issue #382).
 
 use crate::body::Body;
 use crate::boolean::BooleanError;
@@ -113,6 +123,62 @@ pub fn graft_disjoint_all<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
 ) -> Result<Vec<SolidKey>, BooleanError> {
+    Ok(graft_disjoint_all_keyed(dst, src)?.solids)
+}
+
+/// The source → destination key correspondence a graft established
+/// (ASM-2A D-4): which entity of `dst` each entity of `src` became.
+///
+/// A graft re-creates every transplanted entity under a FRESH key, so
+/// a caller holding per-entity data keyed by the SOURCE's arena — a
+/// name table above all — has no way to re-key it without this bridge.
+/// Solid keys ride in source solid order; the per-entity maps are total
+/// over the source's live faces, edges and vertices.
+///
+/// The fields stay private: the internal bridge is a slotmap
+/// `SecondaryMap`, and this door's contract is the LOOKUP, not the
+/// container.
+#[derive(Debug)]
+pub struct GraftKeys {
+    solids: Vec<SolidKey>,
+    map: crate::boolean::combine::GraftMap,
+}
+
+impl GraftKeys {
+    /// The grafted solids' destination keys, in the source's solid
+    /// order.
+    pub fn solids(&self) -> &[SolidKey] {
+        &self.solids
+    }
+
+    /// The destination face a source face became.
+    pub fn face(&self, src: crate::entity::FaceKey) -> Option<crate::entity::FaceKey> {
+        self.map.faces.get(src).copied()
+    }
+
+    /// The destination edge a source edge became.
+    pub fn edge(&self, src: crate::entity::EdgeKey) -> Option<crate::entity::EdgeKey> {
+        self.map.edges.get(src).copied()
+    }
+
+    /// The destination vertex a source vertex became.
+    pub fn vertex(&self, src: crate::entity::VertexKey) -> Option<crate::entity::VertexKey> {
+        self.map.vertices.get(src).copied()
+    }
+}
+
+/// [`graft_disjoint_all`] plus the source → destination key bridge
+/// (ASM-2A D-4): identical transplant, and the correspondence a caller
+/// needs to carry per-entity data (stable names) across the graft.
+///
+/// # Errors
+///
+/// Exactly [`graft_disjoint_all`]'s, including its spent-destination
+/// failure state.
+pub fn graft_disjoint_all_keyed<T: geom_core::Decide>(
+    dst: &mut Body<T>,
+    src: &Body<T>,
+) -> Result<GraftKeys, BooleanError> {
     let desync = || BooleanError::JoinDesync {
         what: "graft source is not a well-formed body: a solid without provenance",
     };
@@ -132,13 +198,16 @@ pub fn graft_disjoint_all<T: geom_core::Decide>(
         .into_iter()
         .map(|p| dst.add_solid(Solid { shells: Vec::new() }, p))
         .collect();
-    crate::boolean::combine::graft_solids_with(
+    let map = crate::boolean::combine::graft_solids_with(
         dst,
         &targets,
         src,
         crate::boolean::combine::Bridge::RemapKeys,
     )?;
-    Ok(targets)
+    Ok(GraftKeys {
+        solids: targets,
+        map,
+    })
 }
 
 /// Direct rows for this door (R1 MINOR-2): the integration coverage

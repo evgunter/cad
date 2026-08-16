@@ -19,7 +19,7 @@
 //!   ([`EulerOpError`], closed enum) — never panics (D9). Checks run in
 //!   the documented order per op, and the first failure is returned.
 //! - **Tier-1-valid input assumed.** The operators are specified on
-//!   euler-valid bodies (what [`crate::validate`] accepts). Corrupt
+//!   euler-valid bodies (what [`fn@crate::validate`] accepts). Corrupt
 //!   input is tolerated only to the D9 extent — no panic, no hang (the
 //!   bounded walks guarantee that), and a typed error where corruption
 //!   is cheaply detectable — but the *output* on corrupt input carries

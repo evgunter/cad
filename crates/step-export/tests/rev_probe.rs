@@ -1,87 +1,50 @@
 //! REVIEW-ONLY probes (review/m6-6). Not in the `all` aggregator.
+//!
+//! RETIRED 2026-08-13 ([[review-and-dependency-policy]]'s retirement
+//! licence — a row that asserts nothing is never a gate), each with the
+//! permanent row that now owns its claim:
+//!
+//! - `census_bits` printed each corpus body's volume/area bits. Its own
+//!   doc said its use was "compare across merge-base vs tip", i.e. a
+//!   differential a reviewer reads — not a gate. The volume claim is
+//!   owned by `kernel_sidecars::kernel_sidecar_fields_match_live_kernel`,
+//!   which asserts, over the SAME `common::fixture_corpus()`, the five
+//!   KERNEL_* census counts byte-equal to the live kernel and (at the
+//!   corpus ε) `KERNEL_VOLUME_MM3` / `KERNEL_VOLUME_PAD_MM3` byte-equal
+//!   to `fmt_real`'s output — the bit-exact round-trip, i.e. strictly
+//!   MORE than the bits this probe printed — with the cross-ε enclosure
+//!   overlap asserted on every other ε row.
+//! - `truth_table_full` printed the single-face flip verdict for every
+//!   face of every corpus body. `m6_6_sense_gate.rs` IS that table
+//!   asserted: its module docs call it "the pin matrix from the executed
+//!   substrate truth table", and it pins honest-green plus
+//!   `CurvedSenseInverted`-naming-the-flipped-face per surface kind AND
+//!   per sense direction (cylinder T→F and F→T, cone T→F and F→T,
+//!   rim-bearing sphere T→F and F→T, torus T→F), with the planar arm's
+//!   `LoopRoleInverted` control and the two documented residuals (the
+//!   rimless ball band, the conic-trimmed wall) pinned AS residuals.
+//! - `whole_body_inversion_die_pips_notched` printed the CSI/LRI counts
+//!   of whole-body inversions. `m6_6_sense_gate::whole_body_inversions_
+//!   refuse` asserts the refusal (`expect_err` + `CurvedSenseInverted`)
+//!   for washer/cone/donut/lily_lantern, with
+//!   `whole_body_inverted_ball_stays_negative_volume` and
+//!   `cut_cylinder_conic_trim_residual_stays_green` pinning the two
+//!   bodies whose inversion is deliberately NOT a CSI refusal.
+//!
+//! `review_pad_probe.rs` (`print_enclosures`) went the same way, to
+//! `kernel_sidecars.rs`'s byte-exact volume AND pad pins over the same
+//! fixtures.
+//!
+//! What remains here ASSERTS.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod common;
 
-use common::fixture_corpus;
 use geom_core::{Point2, Point3, Tolerance, Vec3};
 use geom_surfaces::Surface;
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ValidationError, validate_geometric};
-
-/// V1: exact volume/area bits for every corpus body (compare across
-/// merge-base vs tip, and across CAD_TOLERANCE_EPS values).
-#[test]
-fn census_bits() {
-    for (name, body) in fixture_corpus() {
-        match topo::mass_properties(&body) {
-            Ok(p) => println!(
-                "CENSUS {name} vol={:016x} area={:016x} ({} / {})",
-                p.volume.to_bits(),
-                p.surface_area.to_bits(),
-                p.volume,
-                p.surface_area
-            ),
-            Err(e) => println!("CENSUS {name} ERR {e:?}"),
-        }
-    }
-}
-
-fn kind_of(s: &Surface<f64>) -> &'static str {
-    match s {
-        Surface::Plane { .. } => "plane",
-        Surface::Cylinder { .. } => "cyl",
-        Surface::Cone { .. } => "cone",
-        Surface::Sphere { .. } => "sphere",
-        Surface::Torus { .. } => "torus",
-        Surface::Nurbs(_) => "nurbs",
-    }
-}
-
-fn verdict(body: &Body<f64>, flipped_face: FaceKey) -> String {
-    match validate_geometric(body) {
-        Ok(()) => "GREEN".into(),
-        Err(errs) => {
-            let named = errs.iter().any(
-                |e| matches!(e, ValidationError::CurvedSenseInverted { face } if *face == flipped_face),
-            );
-            let kinds: Vec<&str> = errs
-                .iter()
-                .map(|e| match e {
-                    ValidationError::CurvedSenseInverted { .. } => "CSI",
-                    ValidationError::LoopRoleInverted { .. } => "LRI",
-                    ValidationError::NegativeVolume => "NEGV",
-                    _ => "other",
-                })
-                .collect();
-            format!("{kinds:?} names_flipped={named}")
-        }
-    }
-}
-
-/// V2: the ENTIRE truth table re-executed on the tip — every face of
-/// every corpus body flipped one at a time.
-#[test]
-fn truth_table_full() {
-    for (name, body) in fixture_corpus() {
-        let honest = validate_geometric(&body).is_ok();
-        println!("TT {name} honest_green={honest}");
-        let faces: Vec<(FaceKey, String, bool)> = body
-            .faces()
-            .map(|(k, f)| {
-                let s = body.get_surface(f.surface).unwrap();
-                (k, kind_of(s).to_string(), f.sense)
-            })
-            .collect();
-        for (k, kind, sense) in faces {
-            let flipped = body.flipped_face_sense_for_tests(k).unwrap();
-            println!(
-                "TT {name} {kind} sense={sense} flip -> {}",
-                verdict(&flipped, k)
-            );
-        }
-    }
-}
 
 /// V2: the ball's curved arm is PROVABLY silent (Unencoded, not
 /// accidentally-agreeing): flipping EITHER single band stays green.
@@ -224,39 +187,5 @@ fn conic_trimmed_wall_flip_probe() {
         let v = validate_geometric(&flipped);
         let vol = topo::mass_properties(&flipped).map(|p| p.volume);
         println!("CONIC cut_cylinder wall sense={sense} flip -> {v:?} vol={vol:?}");
-    }
-}
-
-/// V2 rider on the substrate rows: whole-body inversion of die_pips
-/// and notched (planar LRI before; what now?).
-#[test]
-fn whole_body_inversion_die_pips_notched() {
-    for (name, body) in [
-        ("die_pips", common::die_pips()),
-        ("notched", common::notched()),
-        ("cut_cylinder", common::cut_cylinder()),
-        ("swept_elbow", common::swept_elbow()),
-        ("loft_prism", common::loft_prism()),
-    ] {
-        let keys: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
-        let inv = keys.iter().fold(body.clone(), |b, &k| {
-            b.flipped_face_sense_for_tests(k).unwrap()
-        });
-        match validate_geometric(&inv) {
-            Ok(()) => println!("INV {name}: GREEN"),
-            Err(errs) => {
-                let mut csi = 0;
-                let mut lri = 0;
-                let mut other = 0;
-                for e in &errs {
-                    match e {
-                        ValidationError::CurvedSenseInverted { .. } => csi += 1,
-                        ValidationError::LoopRoleInverted { .. } => lri += 1,
-                        _ => other += 1,
-                    }
-                }
-                println!("INV {name}: CSI={csi} LRI={lri} other={other}");
-            }
-        }
     }
 }

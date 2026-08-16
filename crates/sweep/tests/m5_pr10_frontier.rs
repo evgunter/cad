@@ -17,6 +17,7 @@
 
 use geom_core::{Affine3, Point2, Tolerance, Vec3};
 use geom_surfaces::Surface;
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::skin::{lift_surface, loft_geometry};
 use sweep::{Extrusion, extrude};

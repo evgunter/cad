@@ -1,8 +1,10 @@
 //! The PyO3 surface. Compiled only under the `python` feature.
 
 mod doc;
+mod flush;
 mod path;
 mod quantity;
+mod select;
 mod value;
 
 use pyo3::prelude::*;
@@ -94,6 +96,16 @@ pyo3::create_exception!(
      surface returns, raised where the verb was written. Carries \
      `variant`, the stable tag of the refusing arm."
 );
+pyo3::create_exception!(
+    pncad,
+    SelectRefusal,
+    PncadError,
+    "A selection query `select_where` could not answer — the same \
+     typed refusal the Rust door returns (an in-band decided margin, \
+     a tied name whose candidates disagree, a non-datum reference, \
+     ...). Carries `reason`, the stable tag of the refusing arm, plus \
+     the arm's payload as attributes (`None` where inapplicable)."
+);
 
 /// Raise the exception class [`ErrorClass`] names, with `fields`
 /// attached as instance attributes.
@@ -118,6 +130,7 @@ pub(crate) fn typed_err(
         ErrorClass::Export => ExportError::new_err(message),
         ErrorClass::StepImport => StepImportError::new_err(message),
         ErrorClass::Path => PathError::new_err(message),
+        ErrorClass::Select => SelectRefusal::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -155,10 +168,13 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ExportError", py.get_type::<ExportError>())?;
     m.add("StepImportError", py.get_type::<StepImportError>())?;
     m.add("PathError", py.get_type::<PathError>())?;
+    m.add("SelectRefusal", py.get_type::<SelectRefusal>())?;
 
     quantity::register(m)?;
     path::register(m)?;
     doc::register(m)?;
+    select::register(m)?;
+    flush::register(m)?;
     value::register(m)?;
 
     // Schema/provenance surface: the version the persistence doors

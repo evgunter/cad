@@ -15,7 +15,7 @@ L-numbering continues (counter at L7, unused since M0).
   writeups on green gate; genuine design forks wait for Evan.
 - Branches `ev/m4-<n>-<slug>`, merge commits only; OUTPUT DISCIPLINE
   header in every agent spec; push after EVERY commit.
-- Merge gate: `scripts/gate.sh <merged sha>` while hosted CI is down
+- Merge gate: `local-scripts/gate.sh <merged sha>` while hosted CI is down
   (keep ci.yml in sync); all topology-determining comparisons through
   Q1 trileans into `geom_core::k_stats`.
 - Evan's sequencing principle (recorded at #80 ratification): he
@@ -849,7 +849,7 @@ freecad fix, #90 issue-86 cascade fix (main `604e5dc`); #85
 CURVED-DESIGN RATIFIED. Policy changes, all logged above and in
 memories: hosted Actions = merge gate (gate.sh fallback, header
 updated 12e256b, cache deleted — disk 57G); monitor suite scripted
-in scripts/monitors/ (install to ~/.local/share/cad-work/monitors/,
+in local-scripts/monitors/ (install to ~/.local/share/cad-work/monitors/,
 arm 3 persistent Monitors at session start); hourly agent sweeps +
 disk watchdog standing; clone placement never-/tmp; push-per-unit.
 IN FLIGHT FOR SUCCESSOR: (1) PR 4 review — reviewer (static review
@@ -1882,7 +1882,7 @@ they bit: the #105 silent-wrong-volume, the #111 needle, the #120
 sick golden. A/B experiment: 10 rows complete in MODEL-AB-LOG
 (readout in memories/model-ab-experiment.md — no evidence the
 opus arm is worse; continues into M5). Standing state: monitors
-scripted in scripts/monitors/ (arm 3 at session start); sign-off
+scripted in local-scripts/monitors/ (arm 3 at session start); sign-off
 watchlist EMPTY; disk ~120G; matrix 18 rows; open non-blocking
 threads: Q9 (Evan), #104 (concept), interval adoption (GREEN-LIT,
 schedule anytime), CURVED post-ratification obligations

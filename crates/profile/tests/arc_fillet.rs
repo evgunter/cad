@@ -184,7 +184,17 @@ fn line_arc_internal_validates_with_declared_tangency() {
     assert_eq!(lp.vertices[1].pos.y, 0.0);
     // T2 sits on the leg carrier to rounding — tangency by construction.
     let t2 = lp.vertices[2].pos;
-    assert!((t2.x.powi(2) + t2.y.powi(2) - 4.0).abs() < 1e-15);
+    // The claim is that T2 lies on the carrier, so measure THAT — the
+    // radial residual — and not its square. |t|² − R² is 2R times the
+    // radial error, so on this R = 2 carrier the squared form silently
+    // asserts a quarter-ulp bound that no correctly-rounded construction
+    // can meet; it passed before only because the old scaling happened to
+    // cancel exactly here. The residual below is 1 ulp of 2.0.
+    assert!(
+        (t2.x.hypot(t2.y) - 2.0).abs() <= 2.0 * f64::EPSILON,
+        "T2 off the carrier by {:e}",
+        (t2.x.hypot(t2.y) - 2.0).abs()
+    );
     validates_with_declared_joints(lp, &[1, 2]);
 }
 
@@ -588,7 +598,7 @@ fn an_already_tangent_corner_asks_for_the_declaration_instead() {
         other => panic!("expected FilletCornerAlreadyTangent, got {other:?}"),
     }
     assert!(
-        err.to_string().contains("declare_tangent"),
+        err.to_string().contains("tangent_joints"),
         "recourse: {err}"
     );
 }
@@ -613,12 +623,12 @@ fn a_reverse_tangent_corner_is_named_as_a_cusp() {
     }
     // Review MINOR-2: a doubled-back corner has NO declaration door —
     // the material-wedge invariant refuses cusp wedges downstream, so
-    // advising `declare_tangent` here would only move the failure. The
+    // advising a tangency declaration here would only move the failure. The
     // reversed arm names the cusp class and #131 instead (PATHS-DESIGN
     // §4 item 1), and must not offer the smooth-tangent recourse.
     let text = err.to_string();
     assert!(
-        !text.contains("declare_tangent"),
+        !text.contains("declare the tangency"),
         "the cusp arm must not advise declaring tangency: {text}"
     );
     assert!(text.contains("cusp") && text.contains("#131"), "{text}");
@@ -787,7 +797,7 @@ fn fillet_corner_turn_trio() {
     // The escalation renders the SAME recourse as the definite refusal
     // (the two-tolerance discipline: one situation, one message).
     assert!(
-        err.to_string().contains("declare_tangent"),
+        err.to_string().contains("tangent_joints"),
         "recourse: {err}"
     );
 }
@@ -922,6 +932,24 @@ fn fillet_leg_reach_trio_definite_and_exact() {
 /// re-derived a quantity the shipped constructor derived differently,
 /// and every downstream differential fixture (the algebra's included)
 /// rests on these bits.
+///
+/// # Re-pinned once, deliberately (M8, `Leg::tangent_point`)
+///
+/// The literals moved exactly once since capture, when `tangent_point`
+/// began dividing the spoke by its MEASURED length instead of its
+/// nominal ρ. That is a change to the emitted geometry and so a D9
+/// event, not a silent drift, and the size of it is the evidence that it
+/// is the intended one: of the five corner classes below, **`arc_line`
+/// and `arc_arc_internal` did not move at all**, and the other three
+/// moved by **1, 2 and 4 ulps**. Well-conditioned corners are where the
+/// old and new scalings agree to rounding, and that is what these
+/// fixtures are.
+///
+/// The change buys, on ill-conditioned corners, up to 3.6e6x: a corner
+/// whose outgoing offset radius is 1.7e-7 used to emit a tangent point
+/// 1.2e-2 off its own carrier and a fillet radius 4.1e-3 wrong, and now
+/// emits 2.2e-16 and 1.2e-9. Re-pinning a handful of ulps to remove that
+/// is the trade; re-pinning for any smaller reason is not.
 /// A vertex's `(x, y, bulge)` raw f64 bits — the channel the pin below
 /// compares on, because "bit-identical" is the actual claim.
 type VertexBits = (u64, u64, u64);
@@ -944,10 +972,10 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
             line_arc_internal(0.5).expect("fits"),
             &[
                 (0, 0, 0),
-                (4609047870845172685, 0, 4602837688965596816),
+                (4609047870845172685, 0, 4602837688965596815),
                 (
-                    4611170888069347942,
-                    4604180019048437077,
+                    4611170888069347941,
+                    4604180019048437076,
                     4599397266714018680,
                 ),
                 (0, 4611686018427387904, 0),
@@ -958,10 +986,10 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
             line_arc_external(0.5).expect("fits"),
             &[
                 (0, 0, 0),
-                (4609820566382232627, 0, 13822769303568794487),
+                (4609820566382232627, 0, 13822769303568794489),
                 (
-                    4611814801016897894,
-                    13823048456275842389,
+                    4611814801016897895,
+                    13823048456275842388,
                     4599397266714018680,
                 ),
                 (4613937818241073152, 13830554455654793216, 0),
@@ -1011,17 +1039,18 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
                 (
                     4599676419421066584,
                     4609392389112809011,
-                    13826831122041030753,
+                    13826831122041030757,
                 ),
                 (
-                    4601392076421969632,
-                    4611310551952855325,
+                    4601392076421969630,
+                    4611310551952855327,
                     13826067637668438915,
                 ),
                 (4613937818241073152, 0, 0),
             ],
         ),
     ];
+
     for (name, lp, want) in &cases {
         assert_eq!(
             &dump(lp)[..],

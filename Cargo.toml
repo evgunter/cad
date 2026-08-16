@@ -29,6 +29,7 @@ members = [
     "crates/step-import",
     "crates/stl",
     "crates/sweep",
+    "crates/test-utils",
     "crates/topo",
 ]
 
@@ -166,5 +167,5 @@ opt-level = 2
 # move it (91.7s -> 37.4s -> 26.9s), and geom-core/geom-brep are edited
 # constantly (per-PR opt-2 recompiles = the #52 regression). The full
 # whole-graph win (suite 75s -> 4.9s) is available locally via
-# scripts/test-fast.sh where warm caches absorb the build cost. The
+# local-scripts/test-fast.sh where warm caches absorb the build cost. The
 # durable fix is spade bulk-loading (PERF-PLAN §2).

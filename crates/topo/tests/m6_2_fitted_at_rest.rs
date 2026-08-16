@@ -101,24 +101,22 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
     );
 }
 
-/// The re-derivation is not a formality: corrupt the stored cache's
-/// chart image and the at-rest pass refuses, typed.
-#[test]
-fn a_corrupted_fitted_cache_fails_the_at_rest_pass() {
-    let Some(mut built) = fixture::build::<f64>() else {
-        println!("SKIPPED: FitSampleBudget stand-down at this ε");
-        return;
-    };
-    let band = Band::linear().unwrap();
-    let foreign = fixture::foreign_cache(&built);
-    built.body.attach_pcurve(built.he_plus, foreign);
-    let findings = topo::pcurves::validate_pcurves(&built.body, band);
-    assert!(
-        !findings.is_empty(),
-        "a foreign arc's chart image must fail the re-derivation, not ride its own \
-         (perfectly true) stored bound"
-    );
-}
+// **RETIRED (2026-08-13 test-time audit):
+// `a_corrupted_fitted_cache_fails_the_at_rest_pass`.** It built this
+// file's cyl×sphere fixture at `f64`, attached `fixture::foreign_cache`
+// to `he_plus`, ran `validate_pcurves`, and asserted
+// `!findings.is_empty()` — the re-derivation is not a formality.
+//
+// The gate that owns that claim now is
+// `review_m6_2_probes::the_foreign_arc_cache_fails_on_the_map_residual\
+// _against_the_edges_carrier`: SAME fixture (`fixture::build::<f64>()`),
+// SAME corruption (`fixture::foreign_cache`), SAME half-edge, SAME
+// `validate_pcurves` call — and instead of "some finding", it requires
+// the finding to be `PcurveMintError::Certify` on `he_plus` carrying
+// `PcurveCertifyError::ResidualExceeded { check: PcurveCheck::\
+// MapResidual }`. A non-empty findings list is implied by that match
+// existing, so the retired row's assertion is a strict weakening of the
+// successor's. Nothing is lost.
 
 /// The `Dual` lane's refusing side, executed rather than assumed: a
 /// fitted cache cannot be certified where there is no bracket to reach
@@ -168,11 +166,37 @@ mod certified {
     use geom_core::{Band, Bounds, Interval};
 
     /// The same body, at the interval scalar: the C2 certificate is
-    /// DERIVED there, and every claim is a bracketing claim.
+    /// DERIVED there, every claim is a bracketing claim — **and it
+    /// DOMINATES the `f64` lane's.**
+    ///
+    /// # One interval build, one f64 build, every interval-lane claim
+    ///
+    /// The dominance claim was its own row (`the_interval_bounds_\
+    /// dominate_the_f64_ones`) until the test-cost audit. It built the
+    /// SAME two fixtures this row builds — `fixture::build::<Interval>()`
+    /// and `fixture::build::<f64>()`, both restricting the first quarter
+    /// of the one traced cylinder×sphere locus — and read the SAME
+    /// certificate off `he_plus`. Under nextest's process-per-test
+    /// isolation the `OnceLock` in `fixture/mod.rs` shares nothing
+    /// between test processes, so the split paid the trace twice over
+    /// and the `f64` assembly twice; the `f64` build folded in here is
+    /// the one the `OnceLock` was written for.
+    ///
+    /// What the split bought and a merged row cannot is failure
+    /// ISOLATION: a broken interval derivation and a broken cross-scalar
+    /// dominance now surface under one test id. So every assertion below
+    /// NAMES its property — `INTERVAL`, `ENCLOSURE`, `TUBE`, `AT-REST`,
+    /// `DOMINANCE`, `THIN` — and the message alone says which one broke.
+    /// Keep that discipline when adding assertions here.
     #[test]
-    fn the_fitted_certificate_is_derived_at_the_interval_scalar() {
+    fn the_fitted_certificate_is_derived_at_the_interval_scalar_and_dominates_f64() {
         let Some(built) = fixture::build::<Interval>() else {
-            println!("SKIPPED: FitSampleBudget stand-down at this ε");
+            println!(
+                "SKIPPED: the cylinder×sphere fixture stood down on the SSI door's typed \
+                 FitSampleBudget refusal at this ε — THIS RUN CONTRIBUTES NO INTERVAL-LANE \
+                 COVERAGE: neither the derived-at-Interval certificate nor its dominance \
+                 over the f64 lane was asserted"
+            );
             return;
         };
         let band = Band::linear().unwrap();
@@ -180,12 +204,19 @@ mod certified {
             .body
             .pcurve(built.he_plus)
             .expect("the interval body carries the cache");
-        assert!(matches!(cache.pcurve(), Pcurve::Fitted(_)));
+        assert!(
+            matches!(cache.pcurve(), Pcurve::Fitted(_)),
+            "INTERVAL: the stored chart image is the fitted (rung-3) variant"
+        );
         let cert = cache.certificate();
-        let ssi = cert
-            .ssi
-            .expect("the interval lane derives the SSI certificate — it is not an f64 shadow");
-        assert_eq!(cert.statement, EnvelopeStatement::OnLocusHull);
+        let ssi = cert.ssi.expect(
+            "INTERVAL: the interval lane derives the SSI certificate — it is not an f64 shadow",
+        );
+        assert_eq!(
+            cert.statement,
+            EnvelopeStatement::OnLocusHull,
+            "INTERVAL: an analytic chart's fitted envelope is the on-locus hull bound"
+        );
 
         // Enclosure-style, never equality: every certified quantity is
         // an enclosure whose UPPER end is what the band admitted, and
@@ -196,11 +227,17 @@ mod certified {
             ("on-locus max", ssi.on_locus_max),
             ("hull sup", ssi.hull_sup),
         ] {
-            assert!(v.lo() <= v.hi(), "{what}: a well-formed enclosure");
-            assert!(v.lo() >= 0.0, "{what}: a magnitude encloses no negatives");
+            assert!(
+                v.lo() <= v.hi(),
+                "ENCLOSURE {what}: a well-formed enclosure"
+            );
+            assert!(
+                v.lo() >= 0.0,
+                "ENCLOSURE {what}: a magnitude encloses no negatives"
+            );
             assert!(
                 v.hi() <= band.zero(),
-                "{what}: the whole enclosure is within ε"
+                "ENCLOSURE {what}: the whole enclosure is within ε"
             );
         }
         // The tube's margin is definitely positive at the interval
@@ -208,44 +245,43 @@ mod certified {
         // proof surviving the widening.
         assert!(
             ssi.tube_transversality.lo() > 0.0,
-            "the transversality margin's enclosure excludes zero"
+            "TUBE: the transversality margin's enclosure excludes zero"
         );
-        assert!(ssi.tube_boxes > 0);
+        assert!(ssi.tube_boxes > 0, "TUBE: a real box chain");
 
         // And the at-rest pass re-derives all of it at Interval.
         let findings = topo::pcurves::validate_pcurves(&built.body, band);
-        assert!(findings.is_empty(), "{findings:?}");
-    }
+        assert!(findings.is_empty(), "AT-REST: {findings:?}");
 
-    /// The interval certificate is not merely present but HONEST: its
-    /// bounds dominate the `f64` lane's, because the same computation
-    /// at the interval scalar can only widen.
-    ///
-    /// The quantity compared is deliberately `on_locus_max`, limb 1's
-    /// **evaluated** residual, and not `envelope`: the envelope is the
-    /// C9 ring's own `f64` hull bound lifted through `from_f64`, so it
-    /// is THIN at both scalars and a comparison of it would pass by
-    /// exact equality — a row with no teeth. `on_locus_max` is computed
-    /// by evaluating `implicit_residual` at the scalar, so the interval
-    /// lane genuinely widens it, and dominance there is a real claim
-    /// about the lift.
-    #[test]
-    fn the_interval_bounds_dominate_the_f64_ones() {
-        let (Some(iv), Some(fl)) = (fixture::build::<Interval>(), fixture::build::<f64>()) else {
-            println!("SKIPPED: FitSampleBudget stand-down at this ε");
-            return;
-        };
-        let ic = iv.body.pcurve(iv.he_plus).unwrap().certificate();
+        // ---- The cross-scalar half -----------------------------------
+        //
+        // The interval certificate is not merely present but HONEST: its
+        // bounds dominate the `f64` lane's, because the same computation
+        // at the interval scalar can only widen.
+        //
+        // The quantity compared is deliberately `on_locus_max`, limb 1's
+        // **evaluated** residual, and not `envelope`: the envelope is the
+        // C9 ring's own `f64` hull bound lifted through `from_f64`, so it
+        // is THIN at both scalars and a comparison of it would pass by
+        // exact equality — a row with no teeth. `on_locus_max` is computed
+        // by evaluating `implicit_residual` at the scalar, so the interval
+        // lane genuinely widens it, and dominance there is a real claim
+        // about the lift.
+        //
+        // INVARIANT: the `f64` build here shares the memoized trace with
+        // the interval one above, which is what makes this a claim about
+        // the LIFT and not about two independent traces agreeing — see
+        // `fixture/mod.rs`'s `branch_or_budget`. A row that ever wants
+        // two independent traces must call `trace_branch` and say why.
+        let fl = fixture::build::<f64>()
+            .expect("DOMINANCE: the f64 lane shares the memoized trace the interval lane used");
         let fc = fl.body.pcurve(fl.he_plus).unwrap().certificate();
-        let (i_ssi, f_ssi) = (
-            ic.ssi.expect("interval certificate"),
-            fc.ssi.expect("f64 certificate"),
-        );
+        let f_ssi = fc.ssi.expect("DOMINANCE: f64 certificate");
         assert!(
-            i_ssi.on_locus_max.hi() >= f_ssi.on_locus_max,
-            "the interval on-locus residual's upper end dominates the f64 one \
+            ssi.on_locus_max.hi() >= f_ssi.on_locus_max,
+            "DOMINANCE: the interval on-locus residual's upper end dominates the f64 one \
              ({} vs {})",
-            i_ssi.on_locus_max.hi(),
+            ssi.on_locus_max.hi(),
             f_ssi.on_locus_max
         );
         // The envelope is deliberately NOT compared across scalars.
@@ -261,9 +297,9 @@ mod certified {
         // asserted above, on the quantity that is genuinely evaluated
         // at the scalar.
         assert_eq!(
-            ic.envelope.lo(),
-            ic.envelope.hi(),
-            "the ring-derived bound is thin at the interval scalar"
+            cert.envelope.lo(),
+            cert.envelope.hi(),
+            "THIN: the ring-derived bound is thin at the interval scalar"
         );
     }
 }

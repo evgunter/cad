@@ -9,13 +9,27 @@ the guide's own executed blocks.
 from pncad import (
     ArcSweep,
     BooleanOp,
+    CapEnd,
+    Cmp,
+    ContactClass,
+    CurveKind,
     Doc,
+    EntityKind,
+    FlushFinding,
+    FlushRung,
+    GeomPred,
     Length,
+    NamePat,
     Node,
     NodeId,
     Open,
+    PlaneRelation,
+    SegPat,
+    SegTag,
+    Selector,
     SketchPlane,
     Start,
+    SurfaceKind,
     circle,
     deg,
     evaluate,
@@ -125,4 +139,68 @@ plane_origin: tuple[Length, Length, Length] = offset_frame.origin
 plane_normal: tuple[float, float, float] = offset_frame.normal
 same_plane: bool = offset_frame == SketchPlane.from_frame(
     offset_frame.origin, offset_frame.u, offset_frame.v
+)
+
+# LIB-PYSEL: the selector language, typed. The diecomposed filters —
+# the box edges by carrier kind, the pip rims by adjacent-surface
+# pair — feeding the fillet's selection with no name text read.
+edges: Selector = Selector.of(NamePat.of_kind(EntityKind.Edge))
+ev = evaluate(doc)
+straight: list[str] = ev.select_where(
+    lightened, edges, [GeomPred.curve_kind(CurveKind.Line)]
+)
+rims: list[str] = ev.select_where(
+    lightened,
+    edges,
+    [GeomPred.adjacent_kinds(SurfaceKind.Plane, [SurfaceKind.Sphere, SurfaceKind.Torus])],
+)
+narrowed_blend: NodeId = doc.insert(Node.fillet(lightened, 0.01 * m, straight))
+
+# The structural half: role-path shape, sides, sub-name prefixes, the
+# union — and `matches` on a materialized name, the binding reading
+# the text so your code never does.
+top_rim: Selector = Selector.of(
+    NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.RimEdge).side(CapEnd.Top))
+)
+from_a: NamePat = NamePat.any().seg(
+    SegPat.tag(SegTag.Seam).of([NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap))])
+)
+both: Selector = top_rim.or_(from_a)
+structural: list[str] = ev.select(lightened, both)
+hit: bool = both.matches(blend_edges[0])
+
+# The decided atom: a datum-relative position rule, its comparand a
+# Length, its comparison the sign trilean.
+near_cutter: GeomPred = GeomPred.datum_distance(cutter, Cmp.Approx, 0 * m)
+low_faces: list[str] = ev.select_where(
+    lightened,
+    Selector.of(NamePat.of_kind(EntityKind.Face)),
+    [GeomPred.surface_kind(SurfaceKind.Plane), near_cutter],
+)
+
+# §2b route 3: a STRAIGHT arrival off a departure bound on an arc
+# carrier — anchor and exact director in one act.
+carrier_corner = (
+    Open.at_on((5 * m, 0 * m), (0 * m, 0 * m), ArcSweep.Ccw)
+    .fillet(0.5 * m)
+    .at_toward((0 * m, 3 * m), -1.0, 0.0)
+    .line(3 * m)
+    .line_to(Start)
+)
+carrier_corner_vertices: int = carrier_corner.vertex_count
+
+# LIB-PYG5: the detect/declare protocol, typed end to end. Findings
+# are values; the declare doors consume THEM, not name text; the id
+# feeds the boolean's declare= input.
+findings: list[FlushFinding] = ev.find_flush_candidates(plate, lightened)
+first_relation: PlaneRelation = findings[0].relation
+first_class: ContactClass = findings[0].class_
+first_rung: FlushRung = findings[0].rung
+opaque_a: str = findings[0].a
+opaque_b: str = findings[0].b
+decl_one: NodeId = doc.declare(findings[0])
+decl_many: NodeId = doc.declare_all(findings)
+decl_node: NodeId = doc.insert(Node.declare(findings))
+glued: NodeId = doc.insert(
+    Node.boolean(BooleanOp.Union, plate, lightened, declare=decl_many)
 )

@@ -31,7 +31,7 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
    lands on main, the 10 GB / two-parallel-cargo-lanes ceiling is
    enforced by this log's slot line.
    **SUPERSEDED same night: PR #230 MERGED (2026-08-07 ~00:00)**
-   — `scripts/with-build-slot.sh`, machine-wide flock semaphore,
+   — `local-scripts/with-build-slot.sh`, machine-wide flock semaphore,
    WIDTH 1 (serial builds measured ~40% faster than 2-wide;
    PR #230 has the numbers). Both running implementers were
    messaged to wrap every cargo call in it; all future dispatch
@@ -414,6 +414,18 @@ satisfies V3 via resolved-bits convention.
   acceptable when the point IS the better authoring; specs should
   say which contract applies. Claimed byte-identity is still
   verified as claimed.
+  **Applied retroactively to #289 itself (2026-08-14).** The ruling
+  landed 57 minutes before that PR merged and was recorded as
+  forward policy, but #289's own deviation D3 — SEL1 deliverable 4's
+  acceptance MOVED off `demos/tour/src/diefillet.rs` to the corpus
+  `die_composed`, because the tour's die "cannot be a recipe at
+  byte-identity" — was left standing, with the byte-identity
+  argument in the demo's own doc comment. It is now discharged at
+  its origin site: the die is ONE recipe document and both surgery
+  blends are `select_where` calls, geometry unchanged in every
+  measured respect. The two library residuals the conversion raised
+  (the all-on-axis revolve-emitter refusal, and the missing group
+  union) are named in `docs/M8-LOG.md`.
 - **Lint-drift check** (#290): the pncad-py hand-restated [lints]
   table needs a drift test vs the workspace set — folded into the
   U9S review as a formal claim.
@@ -439,7 +451,12 @@ Beyond "docs update as the kernel grows," five categories:
   (the U1 closure-class, mild).
 - R3 (SEL2 follow-up): the UndeclaredContact refusal-menu WIRING
   (the finding payload into the boolean's refusal) — shape
-  recorded in the SEL2 report.
+  recorded in the SEL2 report. **DISCHARGED (LIB-PYG5)**: the raise
+  sites keep their (Operand, FaceKey) pair + decided relation,
+  editor-core lifts them through the operands' name tables into
+  `NodeErrorKind::UndeclaredContact { finding, diag }` — the
+  detector's own FlushFinding shape, no re-detection on the error
+  path; the menu crosses to Python as `EvaluationError.finding`.
 
 **B. Bindings-parity residuals (the north-star audit, executable):**
 G1-G11 ranked in the U10 report — the audit test FAILS as doors
@@ -525,6 +542,97 @@ Python), Count still unconsumed, tour scenes without closed-form
 oracles (finding 5), the DocParam __eq__ rider (from ordinal
 19), straight-run authoring noise (finding 7 — vocabulary
 evidence for a future design conversation, not a unit).
+
+**LBRET MERGED — G12 CLOSED, #377's retirement COMPLETE except
+RETIRE-TAIL (2026-08-12, #413 at the v8 head, ordinal-32:
+NOT-MERGEABLE-AS-IS → re-verified APPROVE — the v4 ladder's
+first LIB re-review round, and it caught a real latent defect:
+the memo content-key tag collision).** Audit 25/34; 9 NO rows
+remain (G2:6, G5:2, G14:1). Schema is v8 (the v7 double-claim
+with ASM-2A resolved; the dispatch-time-seam discipline is the
+standing fix). The #413 thread also produced the §2c
+fillet-family design conversation (PR #419, two rounds folded,
+awaiting Evan's 👍): capture-at-fillet, uniform arrival binders,
+radius-only arrival spec, ArcSpec staging — the §2b compound
+register dissolves at its re-spell unit.
+
+**Register addition (2026-08-12, Evan on #413): the LoopBuilder
+test-support shim carries a DELETION HORIZON** — the ~15 legacy
+test callers migrate to lattice/raw spellings and the shim
+deletes entirely (the twins' verification target becomes recorded
+fixtures at that point). Folded into the next housekeeping unit;
+this line is the register entry so it cannot silently persist.
+
+**RETTAIL IN FLIGHT (2026-08-12): the demotion + the bowtie
+re-home landed; the shim's deletion did NOT, and the reason is
+sequencing, not difficulty.** (1) `ProfileLoop::new`/`polygon`
+moved off the inherent impl onto `profile::RawLoop`, and
+`pncad`'s `pub use profile;` narrowed to a curated `pub mod
+profile` that omits the trait (LB13 precedent) — the measurement
+that forced it: inherent methods travel with a TYPE, and the
+ruling keeps the type nameable, so no amount of module narrowing
+alone excludes construction. `pncad::authoring::polygon` deleted;
+guide, crate docs, façade tests and every tour scene author
+through the lattice; an absence guard in `pncad/tests/all.rs`
+holds it. Residue flagged, not glossed: public fields mean a
+struct literal still constructs a loop wherever the type is
+nameable (private fields + accessors is a plain-data convention
+change, out of a housekeeping unit's fence). (2) The bowtie left
+the tour for `profile/tests/rejections.rs`, authoring through the
+lattice and refusing typed at validate — the K-probe's
+`finale_bowtie` refusal-sample row went with it (lily's wall
+probes remain that lane's refusal source). (3) The twins now
+verify against blessed recorded fixtures and no longer touch the
+shim; mutation-sensitivity proven (one ulp into
+`sugar::bulge_from_via` reddened two rows, reverted). (4) The
+NAMED GAP found BY the demotion (lily's lofted blade,
+`demos/tour/src/lily.rs::Section::outline`): at `shoulder = 0`
+three consecutive vertices are EXACTLY collinear by design (the
+4-tip and 8-corner sections must share one vertex budget for the
+loft's segment-to-segment matching), and the PATHS lattice
+REFUSES that junction at authoring — `JunctionTangent { margin:
+0.0 }` — while `Profile::validate` ACCEPTS it, since collinear
+line/line is carrier IDENTITY, legal undeclared. The two junction
+rules disagree on same-carrier continuation and the lattice is
+the stricter one. With raw construction off the presented
+surface, the only spelling left to the tour is the plain-data
+struct literal, which is what the scene now uses with the gap
+named in place. A same-carrier continuation verb is the fix and
+is vocabulary — a design item, not this unit's fence. Worth
+noting the demotion is what SURFACED it: the raw constructor had
+been swallowing the disagreement. (5) The
+shim SURVIVES: its remaining ~42 callers are all arc-leg fillet
+chains whose only lattice target is the §2b `at_on`/`to_on`
+family — the exact surface PATHS-DESIGN §2c redesigns (RATIFIED
+on #419, merged 2026-08-11; the re-spell UNIT has not run).
+Migrating them now buys a second migration at that unit, so the
+DELETION HORIZON re-points at the §2c unit and is recorded in
+`test_support.rs`'s header. Finding worth keeping: the shim's
+`fillet_corner` and the lattice's arc fillet both run the one
+ratified `sugar::arc_fillet_trims`, so on the fillet family it
+was never a second implementation — only a second door.
+
+**RULED (Evan, #413, 2026-08-12): raw ProfileLoop construction
+DEMOTES from the presented surface** ("yes we should demote
+ProfileLoop"; his framing: kernel vocabulary should be private,
+and the broken-on-purpose bowtie cannot justify a public
+authoring tier). One housekeeping unit (LIB-RETIRE-TAIL)
+combines: the demotion (construction out of prelude/curated
+surface; TYPES stay nameable for read-back/error payloads),
+bowtie re-homed to a validation-suite fixture, shim stragglers
+migrated, shim DELETED, SWITCH-fence sentence amended citing the
+ruling. Dispatches after #413 closes.
+
+**PYSEL MERGED — G13 CLOSED (2026-08-11, #393, ordinal-29
+APPROVE-WITH-FIXES 0/2/4).** The selector surface crosses to
+Python (trilean discipline intact, zero name-text parsing);
+diecomposed YES*→YES; audit 24→25 of 34; suite 118→128. Riders:
+the SegPat.matches drop upheld-and-stated (RoleSeg is name-text
+territory); the reviewer's ε-sliver in_band refusal row adopted;
+the pncad-py interval-passthrough CI wall fixed en route (the
+first pncad-py-only closure would have gone red without it).
+Remaining NO rows: G2 sweep/tube ×6 (U4), G5 ×2 (detect/declare
++ R3), G12 (LBRET in flight), G14 (kernel).
 
 **The #377 design conversation — RATIFIED (2026-08-11, Evan 👍
 on #386, after two follow-up rounds that strengthened the §V6
@@ -616,3 +724,13 @@ asymmetry, adopt as a rider on the next bindings unit; (b) the
 LB13 guard's blind spot (arena key in a new public FN SIGNATURE
 would not trip the pub-use scan) — recorded against register
 R-series as a known-scope caveat, exposure zero today.
+
+**RESPELL-TABLE registered (Evan's M2 ruling on #531,
+2026-08-16): the full four-projection transition table is the
+ratified end state, scheduled as a FOLLOW-UP unit** — the
+shipped PR-1 form (enum-side projections mechanical, typed
+methods hand-written, drift caught by the differential + smoke
+row) merges as the honest interim, with the §2c mechanism text
+amended to say so. The follow-up's measured cost: ~8 macro
+row-shapes, 500–700 macro lines, ~45 rustdoc-carrying methods
+into table syntax. Queues after PR-2 (same files).

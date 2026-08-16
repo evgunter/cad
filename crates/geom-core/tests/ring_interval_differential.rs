@@ -51,47 +51,40 @@
 
 use geom_core::RingInterval;
 use interval_transcendentals::DInterval;
+use test_utils::fuzz;
 
-/// `xorshift64*`; one seed, no threads, bit-reproducible.
-struct Rng(u64);
-
-impl Rng {
-    fn next(&mut self) -> u64 {
-        let mut x = self.0;
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
-        self.0 = x;
-        x.wrapping_mul(0x2545_f491_4f6c_dd1d)
-    }
-
-    fn finite(&mut self) -> f64 {
-        loop {
-            let x = f64::from_bits(self.next());
-            if x.is_finite() {
-                return x;
-            }
+fn finite(rng: &mut fuzz::Rng) -> f64 {
+    loop {
+        let x = f64::from_bits(rng.next_u64());
+        if x.is_finite() {
+            return x;
         }
     }
+}
 
-    /// A finite value in a moderate exponent window — the regime
-    /// certification actually runs in, where neither library is
-    /// distracted by overflow.
-    fn moderate(&mut self) -> f64 {
-        let m = self.next() & 0xf_ffff_ffff_ffff;
-        let e = (1023 + (self.next() % 121) as i32 - 60) as u64;
-        let s = self.next() & (1 << 63);
-        f64::from_bits(s | (e << 52) | m)
-    }
+/// A finite value in a moderate exponent window — the regime
+/// certification actually runs in, where neither library is distracted
+/// by overflow.
+fn moderate(rng: &mut fuzz::Rng) -> f64 {
+    let m = rng.next_u64() & 0xf_ffff_ffff_ffff;
+    let e = (1023 + (rng.next_u64() % 121) as i32 - 60) as u64;
+    let s = rng.next_u64() & (1 << 63);
+    f64::from_bits(s | (e << 52) | m)
+}
 
-    fn ordered(&mut self, moderate: bool) -> (f64, f64) {
-        let (a, b) = if moderate {
-            (self.moderate(), self.moderate())
-        } else {
-            (self.finite(), self.finite())
-        };
-        if a <= b { (a, b) } else { (b, a) }
-    }
+fn ordered(rng: &mut fuzz::Rng, moderate_window: bool) -> (f64, f64) {
+    let (a, b) = if moderate_window {
+        (moderate(rng), moderate(rng))
+    } else {
+        (finite(rng), finite(rng))
+    };
+    if a <= b { (a, b) } else { (b, a) }
+}
+
+/// Rounds per lane at EFFORT 1. The lane's own "ran too thin" floor is
+/// derived from this, so cutting depth can never silently gut the check.
+fn rounds() -> usize {
+    fuzz::scaled(37_500)
 }
 
 /// The monotone integer key of an `f64` (IEEE total order restricted to
@@ -157,9 +150,10 @@ impl Tally {
         }
         assert!(
             r.lo() <= ohi && olo <= r.hi(),
-            "{what}: ring [{:e}, {:e}] is disjoint from oracle [{olo:e}, {ohi:e}]",
+            "{what}: ring [{:e}, {:e}] is disjoint from oracle [{olo:e}, {ohi:e}] — {}",
             r.lo(),
-            r.hi()
+            r.hi(),
+            fuzz::replay()
         );
         // Containment, modulo the one characterised exception: the
         // ring's algebraic rules can only ever pull an endpoint to
@@ -173,13 +167,15 @@ impl Tally {
         // exact arithmetic and would catch a wrong zero here.
         assert!(
             !dominates || r.lo() <= olo || r.lo() == 0.0,
-            "{what}: ring lo {:e} is above oracle lo {olo:e} without the zero rule",
-            r.lo()
+            "{what}: ring lo {:e} is above oracle lo {olo:e} without the zero rule — {}",
+            r.lo(),
+            fuzz::replay()
         );
         assert!(
             !dominates || r.hi() >= ohi || r.hi() == 0.0,
-            "{what}: ring hi {:e} is below oracle hi {ohi:e} without the zero rule",
-            r.hi()
+            "{what}: ring hi {:e} is below oracle hi {ohi:e} without the zero rule — {}",
+            r.hi(),
+            fuzz::replay()
         );
         // Conservatism, reported not asserted: how many representable
         // steps of extra width the ring bought, over finite endpoints
@@ -221,12 +217,13 @@ impl Tally {
 
 #[test]
 fn ring_contains_dinterval_on_every_shared_op() {
-    let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+    let mut rng = fuzz::start("ring_interval_differential::dinterval");
+    let n = rounds();
     let mut t = Tally::default();
-    for round in 0..300_000u64 {
-        let moderate = round % 2 == 0;
-        let (alo, ahi) = rng.ordered(moderate);
-        let (blo, bhi) = rng.ordered(moderate);
+    for round in 0..n {
+        let moderate_window = round % 2 == 0;
+        let (alo, ahi) = ordered(&mut rng, moderate_window);
+        let (blo, bhi) = ordered(&mut rng, moderate_window);
         let r = RingInterval::from_bounds(alo, ahi);
         let s = RingInterval::from_bounds(blo, bhi);
         let d = DInterval::from_bounds(alo, ahi);
@@ -255,9 +252,15 @@ fn ring_contains_dinterval_on_every_shared_op() {
         }
     }
     t.report("DInterval");
+    // COVERAGE FLOOR, kept proportional to the round count: each round
+    // offers 11 comparisons and historically ~30% survived the skip
+    // filters (1M verdicts from 300k rounds). Three per round is that
+    // ratio with headroom; below it the lane is not comparing anything.
     assert!(
-        t.wider + t.identical + t.tighter > 1_000_000,
-        "lane ran too thin"
+        t.wider + t.identical + t.tighter > 3 * n as u64,
+        "lane ran too thin: {} verdicts over {n} rounds — {}",
+        t.wider + t.identical + t.tighter,
+        fuzz::replay()
     );
 }
 
@@ -266,12 +269,13 @@ fn ring_contains_dinterval_on_every_shared_op() {
 fn ring_contains_the_interval_scalar_on_every_shared_op() {
     use geom_core::{Bounds, Interval};
 
-    let mut rng = Rng(0x243f_6a88_85a3_08d3);
+    let mut rng = fuzz::start("ring_interval_differential::interval_scalar");
+    let n = rounds();
     let mut t = Tally::default();
-    for round in 0..300_000u64 {
-        let moderate = round % 2 == 0;
-        let (alo, ahi) = rng.ordered(moderate);
-        let (blo, bhi) = rng.ordered(moderate);
+    for round in 0..n {
+        let moderate_window = round % 2 == 0;
+        let (alo, ahi) = ordered(&mut rng, moderate_window);
+        let (blo, bhi) = ordered(&mut rng, moderate_window);
         let r = RingInterval::from_bounds(alo, ahi);
         let s = RingInterval::from_bounds(blo, bhi);
         let d = Interval::from_bounds(alo, ahi);
@@ -298,8 +302,12 @@ fn ring_contains_the_interval_scalar_on_every_shared_op() {
         }
     }
     t.report("Interval scalar");
+    // COVERAGE FLOOR, proportional to the round count (see the sibling
+    // lane's note).
     assert!(
-        t.wider + t.identical + t.tighter > 1_000_000,
-        "lane ran too thin"
+        t.wider + t.identical + t.tighter > 3 * n as u64,
+        "lane ran too thin: {} verdicts over {n} rounds — {}",
+        t.wider + t.identical + t.tighter,
+        fuzz::replay()
     );
 }

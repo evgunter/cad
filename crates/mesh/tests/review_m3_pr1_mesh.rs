@@ -6,6 +6,7 @@
 
 use geom_core::{Point2, Tolerance};
 use mesh::{TessellateError, tessellate};
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{Body, MevSite, NewVertexSide};

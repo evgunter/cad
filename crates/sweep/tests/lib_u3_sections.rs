@@ -24,6 +24,7 @@
 
 use geom_core::{Affine3, Point2, Vec3};
 use profile::ProfileError;
+use profile::RawLoop;
 use sweep::skin::SkinError;
 use sweep::{LoftError, ProfileLoop, ProfileVertex, Section, loft_body};
 

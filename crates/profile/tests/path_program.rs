@@ -6,26 +6,30 @@
 //! record→replay bit-identity over the WHOLE typed-surface corpus, not a
 //! sample. This suite adds what that blanket cannot express:
 //!
-//! - the four DEDICATED semantic rows §3d names by anchor — far-end
-//!   zero-fit declaration suppression, the seam fillet's retrim of
-//!   vertex 0, the G2 arrival family, and `circle`'s two-pole lowering;
-//! - the tour's authoring-site SHAPES, replicated here so the pin covers
-//!   them without touching `demos/` (the §3e fence);
+//! - the ONE census smoke row (LIB-RESPELL item 2): the §2c re-spell
+//!   made the typed surface and the replay driver call the SAME kernel
+//!   binders, so the V2 drift-proofing census — the dedicated semantic
+//!   rows, the tour shapes, the random-chain generator — became a
+//!   tautology and RETIRED onto `the_fused_family_records_and_replays`
+//!   below (the mapping: every retired row's (state, verb) pairs are a
+//!   subset of the arms that composite chain plus the differential and
+//!   property suites' blanket `pinned` exercise);
+//! - the fused-family recording shapes (steps keep authored data only)
+//!   and the retired doors' compat recording (they record the SAME
+//!   fused vocabulary);
 //! - the driver's own refusal surface: the Transition class (corrupt
 //!   file — no authoring surface can produce it) against the Path class
-//!   (legal at rest, geometry refuses under this binding);
-//! - a generator: random legal chains, recorded and replayed.
+//!   (legal at rest, geometry refuses under this binding).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
 
-use common::{assert_bit_identical, pinned};
+use common::pinned;
 use geom_core::{Point2, Tolerance};
 use profile::{
     ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, ReplayError, ReplayErrorKind, Start, Step,
     Target, TipState, Verb, replay,
 };
-use proptest::prelude::*;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -46,115 +50,6 @@ fn verbs(program: &[Step<f64>]) -> Vec<Verb> {
 // §3d — the four dedicated semantic rows
 // ------------------------------------------------------------------
 
-/// **Far-end zero-fit declaration suppression.** The exact-fit `.to(p)`
-/// branch emits no straight run and leaves the fillet arc's outgoing
-/// joint UNDECLARED. Nothing in the step vocabulary records that — it is
-/// a consequence of the binder — so the replay reproduces it only
-/// because the driver calls the binder. Pinned both ways: the joint set
-/// is identical, and it does NOT contain the arc's outgoing joint.
-#[test]
-fn far_end_zero_fit_suppression_survives_replay() {
-    let closed = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(3.0, 0.0))
-        .unwrap()
-        .line_to(p2(3.0, 1.0))
-        .unwrap()
-        .toward(-1.0, 0.0)
-        .unwrap()
-        .fillet(0.5)
-        .unwrap()
-        .toward(0.0, 1.0)
-        .unwrap()
-        .to(p2(1.0, 1.5))
-        .unwrap()
-        .line_to(p2(0.0, 3.0))
-        .unwrap()
-        .line_to(Start)
-        .unwrap();
-    assert_eq!(
-        verbs(&program_of(&closed)),
-        vec![
-            Verb::At,
-            Verb::LineTo,
-            Verb::LineTo,
-            Verb::Toward,
-            Verb::Fillet,
-            Verb::Toward,
-            Verb::FarEndTo,
-            Verb::LineTo,
-            Verb::LineTo,
-        ],
-        "the far-end anchor is its own verb, not an `.at` plus a leg"
-    );
-    let lowered = pinned(closed);
-    // The suppression itself: the exact fit absorbed the anchor, so the
-    // arc's outgoing joint carries no declaration.
-    assert!(
-        !lowered.tangent_joints.is_empty(),
-        "the fillet's INCOMING joint is still declared"
-    );
-    assert_eq!(
-        lowered.tangent_joints.len(),
-        1,
-        "exactly one declaration: the outgoing side was suppressed, and \
-         replaying the program must not resurrect it"
-    );
-    validate_ok(&lowered);
-}
-
-/// **The seam fillet retrims vertex 0.** `.to(Start)` makes the fillet
-/// arc the CLOSING segment and retrims the provisional entry vertex to
-/// that arc's end — vertex 0 is not where the author started writing.
-/// The program records only `CloseTo`; the retrim is the binder's, and
-/// the replay inherits it bit-for-bit.
-#[test]
-fn seam_fillet_retrim_of_vertex_zero_survives_replay() {
-    let (east, north) = (0.0_f64, std::f64::consts::FRAC_PI_2);
-    let (west, south) = (std::f64::consts::PI, -north);
-    let entry = p2(0.0, -1.0);
-    let closed = Open
-        .at(entry)
-        .angle(east)
-        .unwrap()
-        .fillet(0.25)
-        .unwrap()
-        .at(p2(1.0, 0.0))
-        .unwrap()
-        .angle(north)
-        .unwrap()
-        .fillet(0.25)
-        .unwrap()
-        .at(p2(0.0, 1.0))
-        .unwrap()
-        .angle(west)
-        .unwrap()
-        .fillet(0.25)
-        .unwrap()
-        .at(p2(-1.0, 0.0))
-        .unwrap()
-        .angle(south)
-        .unwrap()
-        .fillet(0.25)
-        .unwrap()
-        .to(Start)
-        .unwrap();
-    assert_eq!(
-        verbs(&program_of(&closed)).last().copied(),
-        Some(Verb::CloseTo)
-    );
-    let lowered = pinned(closed);
-    let v0 = lowered.vertices[0].pos;
-    assert!(
-        (v0 - entry).norm_squared().sqrt() > Tolerance::get().eps,
-        "vertex 0 must have been RETRIMMED off the authored entry point \
-         (got {v0:?}, entry {entry:?})"
-    );
-    assert_eq!(lowered.vertices.len(), 8);
-    assert_eq!(lowered.tangent_joints.len(), 8);
-    validate_ok(&lowered);
-}
-
 fn validate_ok(lp: &ProfileLoop<f64>) {
     use profile::{Profile, SketchPlane};
     Profile::new(SketchPlane::xy(), vec![lp.clone()])
@@ -162,15 +57,187 @@ fn validate_ok(lp: &ProfileLoop<f64>) {
         .expect("the replayed loop validates");
 }
 
-/// **The G2 arrival family**: the entry bound on a carrier
-/// (`Open.at_on`), the fillet arrival bound on a carrier
-/// (`PartialPath::at_on`), and the carrier close (`to_on`). All three
-/// derive a direction from the carrier rather than storing one, so the
-/// steps keep only `(p, centre, winding)` and the replay re-derives.
+/// **The census smoke row** — the one survivor of the V2 differential
+/// census (LIB-RESPELL item 2). One composite chain exercises the §2c
+/// family end to end: the fused ENTRY verb, an interior arc arrival
+/// (`OnArc`), the `Radius` re-derivation off it, straight arrivals via
+/// the uniform binders, a sharp `Sweep` leg, ray extension off a leg
+/// end, and a straight close. Its recorded program must replay to the
+/// SAME bits — which, now that both surfaces call one kernel, is the
+/// tautology the census retired into; this row smokes the plumbing
+/// (recording, driver arms, the state walk) rather than proving two
+/// implementations equivalent.
 #[test]
-fn g2_arrival_family_records_only_its_authored_carrier_data() {
-    // The rocker eye's shape: entry on the right lobe, one fillet, close
-    // on the left lobe (a genuine two-carrier junction at the tip).
+fn the_fused_family_records_and_replays_bit_identically() {
+    use profile::{ArcSide, Center, Radius, Sweep};
+    let closed = Open
+        .arc_fillet(
+            Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(5.0, 0.0),
+            },
+            0.5,
+        )
+        .unwrap()
+        .at(p2(0.0, 3.0))
+        .unwrap()
+        .toward(-1.0, 0.0)
+        .unwrap()
+        .line(3.0)
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    assert_eq!(
+        verbs(&program_of(&closed)),
+        vec![
+            Verb::ArcFillet,
+            Verb::At,
+            Verb::Toward,
+            Verb::Line,
+            Verb::LineTo
+        ]
+    );
+    // The steps kept authored data only: the fused step stores the
+    // carrier spec verbatim, the binders their own arguments.
+    match closed.program[0] {
+        Step::ArcFillet {
+            spec: profile::ArcData::Center { c, winding, target },
+            radius,
+        } => {
+            assert_eq!(c.x.to_bits(), 0.0_f64.to_bits());
+            assert_eq!(winding, ArcSweep::Ccw);
+            assert!(matches!(target, Target::Point(p) if p.x.to_bits() == 5.0_f64.to_bits()));
+            assert_eq!(radius.to_bits(), 0.5_f64.to_bits());
+        }
+        ref other => panic!("expected the fused ArcFillet step, got {other:?}"),
+    }
+    validate_ok(&pinned(closed));
+
+    // The wider walk: a Sweep leg, ray extension off its end, an
+    // interior Center arrival (OnArc), and the Radius continuation —
+    // recorded and replayed to the bit (`pinned` is the assertion).
+    let walk = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0)
+        .unwrap()
+        .arc_to(Sweep {
+            r: 2.0,
+            side: ArcSide::Left,
+            angle: 0.6,
+        })
+        .unwrap()
+        .fillet(0.2)
+        .unwrap()
+        .at(p2(4.0, 3.0))
+        .unwrap()
+        .toward(0.0, 1.0)
+        .unwrap()
+        .fillet_arc(
+            0.25,
+            Center {
+                c: p2(2.0, 6.0),
+                winding: ArcSweep::Ccw,
+                p: p2(2.0, 9.0),
+            },
+        )
+        .unwrap()
+        .arc_fillet(
+            Radius {
+                r: 3.0,
+                side: ArcSide::Left,
+            },
+            0.25,
+        )
+        .unwrap()
+        .at(p2(1.0, 4.0))
+        .unwrap()
+        .toward(0.0, -1.0)
+        .unwrap()
+        .line(3.0)
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    assert_eq!(
+        verbs(&program_of(&walk)),
+        vec![
+            Verb::At,
+            Verb::Angle,
+            Verb::ArcTo,
+            Verb::Fillet,
+            Verb::At,
+            Verb::Toward,
+            Verb::FilletArc,
+            Verb::ArcFillet,
+            Verb::At,
+            Verb::Toward,
+            Verb::Line,
+            Verb::LineTo
+        ]
+    );
+    validate_ok(&pinned(walk));
+}
+
+/// **The retired MID-CHAIN doors record the Radius@OnArc row** — the
+/// one admissible OnArc incoming after this unit's adjudication
+/// (`Center@OnArc` is excluded by the `Center@Directed` value-match
+/// doctrine; see `family::OnArcIncoming`). An
+/// `at_on … fillet … at_on … fillet … at_toward` chain comes out as
+/// [`ArcFilletArc` (entry `Center`), `ArcFillet` (`Radius` — the
+/// bridge derives `r = |anchor − centre|`), binders, legs] — and the
+/// geometry here is chosen VALUE-EXACT (axis-aligned anchor, integral
+/// radius) so the bridge's derived-radius recording replays to the
+/// same bits (`pinned` asserts it); the general ulp caveat is
+/// documented on the shim.
+#[test]
+fn retired_mid_chain_doors_record_the_radius_row() {
+    let closed = Open
+        .at_on(p2(5.0, 0.0), p2(0.0, 0.0), ArcSweep::Ccw)
+        .unwrap()
+        .fillet(0.5)
+        .unwrap()
+        .at_on(p2(0.0, 4.0), p2(0.0, 7.0), ArcSweep::Cw)
+        .unwrap()
+        .fillet(0.3)
+        .unwrap()
+        .at_toward(p2(-2.0, 2.0), 0.0, -1.0)
+        .unwrap()
+        .line(1.0)
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    assert_eq!(
+        verbs(&program_of(&closed)),
+        vec![
+            Verb::ArcFilletArc,
+            Verb::ArcFillet,
+            Verb::At,
+            Verb::Toward,
+            Verb::Line,
+            Verb::LineTo
+        ]
+    );
+    match closed.program[1] {
+        Step::ArcFillet {
+            spec: profile::ArcData::Radius { r, side },
+            radius,
+        } => {
+            assert_eq!(r.to_bits(), 3.0_f64.to_bits(), "derived |anchor − centre|");
+            assert_eq!(side, profile::ArcSide::Right, "Cw travel = centre right");
+            assert_eq!(radius.to_bits(), 0.3_f64.to_bits());
+        }
+        ref other => panic!("expected the Radius@OnArc fused step, got {other:?}"),
+    }
+    validate_ok(&pinned(closed));
+}
+
+/// **The retired doors record the fused vocabulary**: an
+/// `at_on … fillet … to_on` chain (the eye) comes out as ONE fused
+/// `ArcFilletArc` step — the compat shim's program surgery — and that
+/// program replays to the same bits. When the shim deletes (PR-2),
+/// this row moves onto the fused spelling it already asserts.
+#[test]
+fn retired_doors_record_the_fused_vocabulary() {
     let tip = 0.75f64.sqrt();
     let closed = Open
         .at_on(p2(0.0, -tip), p2(-0.5, 0.0), ArcSweep::Ccw)
@@ -179,63 +246,30 @@ fn g2_arrival_family_records_only_its_authored_carrier_data() {
         .unwrap()
         .to_on(Start, p2(0.5, 0.0), ArcSweep::Ccw)
         .unwrap();
-    assert_eq!(
-        verbs(&program_of(&closed)),
-        vec![Verb::AtOn, Verb::Fillet, Verb::CloseToOn]
-    );
+    assert_eq!(verbs(&program_of(&closed)), vec![Verb::ArcFilletArc]);
     match closed.program[0] {
-        Step::AtOn { p, centre, winding } => {
-            assert_eq!(p.x.to_bits(), 0.0_f64.to_bits());
-            assert_eq!(p.y.to_bits(), (-tip).to_bits());
-            assert_eq!(centre.x.to_bits(), (-0.5_f64).to_bits());
-            assert_eq!(winding, ArcSweep::Ccw);
+        Step::ArcFilletArc {
+            spec,
+            radius,
+            spec2,
+        } => {
+            assert!(matches!(
+                spec,
+                profile::ArcData::Center { target: Target::Point(p), .. }
+                    if p.y.to_bits() == (-tip).to_bits()
+            ));
+            assert_eq!(radius.to_bits(), 0.35_f64.to_bits());
+            assert!(matches!(
+                spec2,
+                profile::ArcData::Center {
+                    target: Target::Start,
+                    ..
+                }
+            ));
         }
-        ref other => panic!("expected AtOn, got {other:?}"),
+        ref other => panic!("expected the fused ArcFilletArc step, got {other:?}"),
     }
     validate_ok(&pinned(closed));
-
-    // The fillet-arrival `at_on` — the third member of the family. It is
-    // a MID-chain binder, so it has no closing verb of its own and no
-    // corpus chain ends on it; the driver arm is pinned instead by
-    // replaying the program that reaches it and reading the state the
-    // arm left the tip in (a Directed tip over a plain position).
-    let centre = p2(2.0, -2.0);
-    let radius = 8.0f64.sqrt();
-    let theta = std::f64::consts::FRAC_PI_4 + 0.9;
-    let anchor = p2(
-        centre.x + radius * theta.cos(),
-        centre.y + radius * theta.sin(),
-    );
-    Open.at(p2(0.0, 0.0))
-        .toward(1.0, 0.0)
-        .unwrap()
-        .fillet(0.3)
-        .unwrap()
-        .at_on(anchor, centre, ArcSweep::Ccw)
-        .expect("the typed surface accepts this arrival");
-    let program = vec![
-        Step::At(p2(0.0, 0.0)),
-        Step::Toward { dx: 1.0, dy: 0.0 },
-        Step::Fillet { radius: 0.3 },
-        Step::AtOn {
-            p: anchor,
-            centre,
-            winding: ArcSweep::Ccw,
-        },
-    ];
-    match replay(&program) {
-        Err(ReplayError {
-            step: 4,
-            kind:
-                ReplayErrorKind::Transition {
-                    state: TipState::DirectedPlain,
-                    verb: None,
-                },
-        }) => {}
-        other => panic!(
-            "the arrival `at_on` arm must run and leave a DirectedPlain tip              that the program then fails to close; got {other:?}"
-        ),
-    }
 }
 
 /// **`circle`'s two-pole lowering.** The primitive is a ONE-STEP
@@ -380,221 +414,6 @@ fn arc_continue_refuses_lines_and_off_carrier_targets() {
 // goes red on the first vertex it reaches.
 // ------------------------------------------------------------------
 
-/// A sharp equilateral triangle authored by turning: the departure of
-/// every leg after the first is the incoming tangent rotated by 2π/3.
-#[test]
-fn turn_off_a_straight_leg_replays_bit_identically() {
-    let third = std::f64::consts::TAU / 3.0;
-    let closed = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(2.0, 0.0))
-        .unwrap()
-        .turn(third)
-        .unwrap()
-        .line(2.0)
-        .unwrap()
-        .line_to(Start)
-        .unwrap();
-    assert_eq!(
-        verbs(&program_of(&closed)),
-        vec![Verb::At, Verb::LineTo, Verb::Turn, Verb::Line, Verb::LineTo],
-        "the turn is recorded as its own verb, storing only the authored δ"
-    );
-    match closed.program[2] {
-        Step::Turn(delta) => assert_eq!(delta.to_bits(), third.to_bits()),
-        ref other => panic!("expected Turn with its authored δ, got {other:?}"),
-    }
-    let lowered = pinned(closed);
-    // The turn really moved the departure: the apex sits off the x axis.
-    // (Under `.tangent()` the second leg would run straight on.)
-    assert!(
-        lowered.vertices.iter().any(|v| v.pos.y > 1.0),
-        "a 120° turn must lift the apex off the base"
-    );
-    validate_ok(&lowered);
-}
-
-/// `.turn(δ)` off an ARC leg end — the incoming tangent it rotates is
-/// the arc's END tangent, read from the leg's intrinsic data rather than
-/// from anything the author wrote. Nothing in the step records that
-/// tangent, so the replay reproduces it only by calling the same binder.
-#[test]
-fn turn_off_an_arc_leg_replays_bit_identically() {
-    let quarter = std::f64::consts::FRAC_PI_2;
-    let closed = Open
-        .at(p2(0.0, 0.0))
-        .arc_to(p2(2.0, 0.0), 0.4)
-        .unwrap()
-        .turn(quarter)
-        .unwrap()
-        .line(1.5)
-        .unwrap()
-        .line_to(Start)
-        .unwrap();
-    assert!(verbs(&program_of(&closed)).contains(&Verb::Turn));
-    validate_ok(&pinned(closed));
-}
-
-/// A turn that hands its Directed tip to the FILLET, so the turn's
-/// derived departure is what the corner construction consumes.
-#[test]
-fn turn_into_a_fillet_replays_bit_identically() {
-    let closed = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(3.0, 0.0))
-        .unwrap()
-        .turn(std::f64::consts::TAU / 3.0)
-        .unwrap()
-        .fillet(0.3)
-        .unwrap()
-        .at(p2(1.5, 2.0))
-        .unwrap()
-        .angle(std::f64::consts::PI)
-        .unwrap()
-        .line(1.5)
-        .unwrap()
-        .line_to(Start)
-        .unwrap();
-    assert!(verbs(&program_of(&closed)).contains(&Verb::Turn));
-    validate_ok(&pinned(closed));
-}
-
-// ------------------------------------------------------------------
-// The tour's authoring-site SHAPES
-//
-// §3d names "the tour authoring sites" as pin corpus; §3e fences PR-A
-// to crates/profile. The scenes' chain SHAPES are replicated here (the
-// tour files themselves only gained the mechanical `.into()` the
-// ClosedLoop pair forces), so every verb combination the tour authors
-// is recorded and replayed under this suite.
-// ------------------------------------------------------------------
-
-/// `paths::path_polygon` — the shape every polygonal scene funnels
-/// through: `at`, N × `line_to(point)`, `line_to(Start)`.
-#[test]
-fn tour_polygon_shape_replays() {
-    let pts = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.5), (0.7, 2.2), (0.0, 1.0)];
-    let (first, rest) = pts.split_first().unwrap();
-    let (second, rest) = rest.split_first().unwrap();
-    let mut tip = Open
-        .at(p2(first.0, first.1))
-        .line_to(p2(second.0, second.1))
-        .unwrap();
-    for q in rest {
-        tip = tip.line_to(p2(q.0, q.1)).unwrap();
-    }
-    let closed = tip.line_to(Start).unwrap();
-    assert_eq!(closed.program.len(), pts.len() + 1);
-    validate_ok(&pinned(closed));
-}
-
-/// `bodies::bracket` — the far-end anchor in a production chain
-/// (`toward` + `fillet` + `toward` + `.to(p)`), positive-fit branch.
-#[test]
-fn tour_bracket_shape_replays() {
-    let closed = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(3.0, 0.0))
-        .unwrap()
-        .line_to(p2(3.0, 1.0))
-        .unwrap()
-        .toward(-1.0, 0.0)
-        .unwrap()
-        .fillet(0.5)
-        .unwrap()
-        .toward(0.0, 1.0)
-        .unwrap()
-        .to(p2(1.0, 3.0))
-        .unwrap()
-        .line_to(p2(0.0, 3.0))
-        .unwrap()
-        .line_to(Start)
-        .unwrap();
-    validate_ok(&pinned(closed));
-}
-
-/// `bodies::vase` — `arc_via`'s through-point binding in a revolve
-/// profile. The via-point is stored VERBATIM; the bulge is re-derived.
-#[test]
-fn tour_vase_shape_replays_with_the_bulge_rederived() {
-    let closed = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(1.2, 0.0))
-        .unwrap()
-        .line_to(p2(1.2, 0.3))
-        .unwrap()
-        .arc_via(p2(1.3, 0.8), p2(0.5, 2.0))
-        .unwrap()
-        .line_to(p2(0.9, 2.5))
-        .unwrap()
-        .line_to(p2(0.0, 2.5))
-        .unwrap()
-        .line_to(Start)
-        .unwrap();
-    match closed.program[3] {
-        Step::ArcVia {
-            via,
-            target: Target::Point(t),
-        } => {
-            assert_eq!(via.x.to_bits(), 1.3_f64.to_bits());
-            assert_eq!(via.y.to_bits(), 0.8_f64.to_bits());
-            assert_eq!(t.x.to_bits(), 0.5_f64.to_bits());
-        }
-        ref other => panic!("expected ArcVia with an authored via, got {other:?}"),
-    }
-    validate_ok(&pinned(closed));
-}
-
-/// `lily::lantern` — `arc_center`'s centre+winding binding.
-#[test]
-fn tour_lantern_shape_replays_with_the_bulge_rederived() {
-    // The belly rides a globe whose centre is on the axis: the tip and
-    // the target are equidistant from it, which is what `arc_center`
-    // requires and what the scene authors.
-    let centre = p2(0.0, 1.1);
-    let closed = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(1.1, 1.1))
-        .unwrap()
-        .arc_center(centre, p2(0.0, 2.2), ArcSweep::Ccw)
-        .unwrap()
-        .line_to(Start)
-        .unwrap();
-    match closed.program[2] {
-        Step::ArcCenter {
-            centre,
-            winding: ArcSweep::Ccw,
-            ..
-        } => assert_eq!(centre.y.to_bits(), 1.1_f64.to_bits()),
-        ref other => panic!("expected ArcCenter with an authored centre, got {other:?}"),
-    }
-    validate_ok(&pinned(closed));
-}
-
-/// `diefillet::pip` — the semicircular pip: one authored-bulge arc leg
-/// and a straight seam.
-#[test]
-fn tour_pip_shape_replays() {
-    let closed = Open
-        .at(p2(0.0, -0.35))
-        .arc_to(p2(0.0, 0.35), 1.0)
-        .unwrap()
-        .line_to(Start)
-        .unwrap();
-    match closed.program[1] {
-        Step::ArcTo { bulge, .. } => assert_eq!(bulge.to_bits(), 1.0_f64.to_bits()),
-        ref other => panic!("expected ArcTo with its authored bulge, got {other:?}"),
-    }
-    validate_ok(&pinned(closed));
-}
-
-// ------------------------------------------------------------------
-// The driver's refusal surface: two classes, deliberately different
-// ------------------------------------------------------------------
-
-/// Asserts a program refuses as a LATTICE violation at `step`, from
-/// `state`, on `verb` (`None` = the program simply ended there).
-#[track_caller]
 fn assert_transition(program: &[Step<f64>], step: usize, state: TipState, verb: Option<Verb>) {
     match replay(program) {
         Err(ReplayError {
@@ -664,6 +483,52 @@ fn lattice_violations_refuse_as_the_transition_class() {
         1,
         TipState::PlainPoint,
         Some(Verb::Circle),
+    );
+    // §2c: an INADMISSIBLE (state, mode) pair is unrepresentable at the
+    // typed surface (a missing trait impl), so at the wire it is this
+    // same class. Sweep needs a tangent, which a bare Point lacks …
+    assert_transition(
+        &[
+            Step::At(a),
+            Step::ArcTo(profile::ArcData::Sweep {
+                r: 1.0,
+                side: profile::ArcSide::Left,
+                angle: 0.5,
+            }),
+        ],
+        1,
+        TipState::PlainPoint,
+        Some(Verb::ArcTo),
+    );
+    // … the entry fused verb admits Center alone (nothing else seeds) …
+    assert_transition(
+        &[Step::ArcFillet {
+            spec: profile::ArcData::Radius {
+                r: 1.0,
+                side: profile::ArcSide::Left,
+            },
+            radius: 0.25,
+        }],
+        0,
+        TipState::Entry,
+        Some(Verb::ArcFillet),
+    );
+    // … and Bulge is never an arrival (no chord exists there).
+    assert_transition(
+        &[
+            Step::At(a),
+            Step::Angle(0.0),
+            Step::FilletArc {
+                radius: 0.25,
+                spec: profile::ArcData::Bulge {
+                    target: Target::Point(p2(2.0, 2.0)),
+                    b: 0.5,
+                },
+            },
+        ],
+        2,
+        TipState::DirectedPlain,
+        Some(Verb::FilletArc),
     );
 }
 
@@ -759,142 +624,5 @@ fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
             kind: ReplayErrorKind::Path(PathError::NonpositiveFilletRadius { .. }),
         }) => {}
         other => panic!("a negative fillet radius must refuse typed, got {other:?}"),
-    }
-}
-
-// ------------------------------------------------------------------
-// The generator (§3d): random legal chains, recorded and replayed
-// ------------------------------------------------------------------
-
-/// A convex polygon on a circle of radius `r`, with per-vertex angular
-/// jitter — every vertex authored, every leg a `line_to`.
-fn convex_ring(n: usize, r: f64, jitter: &[f64]) -> Vec<Point2<f64>> {
-    (0..n)
-        .map(|i| {
-            let base = std::f64::consts::TAU * (i as f64) / (n as f64);
-            let th = base + jitter.get(i).copied().unwrap_or(0.0);
-            p2(r * th.cos(), r * th.sin())
-        })
-        .collect()
-}
-
-proptest! {
-    #![proptest_config(ProptestConfig::with_cases(96))]
-
-    /// Random sharp polygons: the recorded program replays bit-identical.
-    #[test]
-    fn random_polygon_chains_replay_bit_identically(
-        n in 3usize..9,
-        r in 0.5f64..4.0,
-        jitter in prop::collection::vec(-0.3f64..0.3, 3..9),
-    ) {
-        let pts = convex_ring(n, r, &jitter);
-        let mut tip = Open.at(pts[0]).line_to(pts[1]).unwrap();
-        for q in &pts[2..] {
-            tip = tip.line_to(*q).unwrap();
-        }
-        let closed = tip.line_to(Start).unwrap();
-        prop_assert_eq!(closed.program.len(), n + 1);
-        let replayed = replay(&closed.program).unwrap();
-        assert_bit_identical(&closed.loop_, &replayed);
-    }
-
-    /// Random ARC chains: every leg an authored-bulge arc, so the bulge
-    /// path through `arc_to` is exercised alongside the seam.
-    #[test]
-    fn random_arc_chains_replay_bit_identically(
-        n in 3usize..7,
-        r in 0.6f64..3.0,
-        bulge in -0.4f64..0.4,
-    ) {
-        let pts = convex_ring(n, r, &[]);
-        let mut tip = Open.at(pts[0]).arc_to(pts[1], bulge).unwrap();
-        for q in &pts[2..] {
-            tip = tip.arc_to(*q, bulge).unwrap();
-        }
-        let closed = tip.arc_to(Start, bulge).unwrap();
-        let replayed = replay(&closed.program).unwrap();
-        assert_bit_identical(&closed.loop_, &replayed);
-    }
-
-    /// Random FILLETED chains: the seam fillet, the interior fillets and
-    /// their derived corners all ride the driver.
-    #[test]
-    fn random_filleted_squares_replay_bit_identically(
-        half in 0.8f64..3.0,
-        frac in 0.05f64..0.4,
-    ) {
-        let r = half * frac;
-        let quarter = std::f64::consts::FRAC_PI_2;
-        let closed = Open
-            .at(p2(0.0, -half))
-            .angle(0.0)
-            .unwrap()
-            .fillet(r)
-            .unwrap()
-            .at(p2(half, 0.0))
-            .unwrap()
-            .angle(quarter)
-            .unwrap()
-            .fillet(r)
-            .unwrap()
-            .at(p2(0.0, half))
-            .unwrap()
-            .angle(2.0 * quarter)
-            .unwrap()
-            .fillet(r)
-            .unwrap()
-            .at(p2(-half, 0.0))
-            .unwrap()
-            .angle(-quarter)
-            .unwrap()
-            .fillet(r)
-            .unwrap()
-            .to(Start)
-            .unwrap();
-        let replayed = replay(&closed.program).unwrap();
-        assert_bit_identical(&closed.loop_, &replayed);
-    }
-
-    /// Random TURNS: a fan of legs, each departing at the previous leg's
-    /// end tangent rotated by an authored δ. Sweeps δ across both signs,
-    /// away from 0 and ±π (the two refusal classes).
-    #[test]
-    fn random_turn_chains_replay_bit_identically(
-        delta in 0.5f64..2.2,
-        sign in prop::bool::ANY,
-        len in 0.8f64..2.5,
-    ) {
-        let d = if sign { delta } else { -delta };
-        let closed = Open
-            .at(p2(0.0, 0.0))
-            .line_to(p2(2.0, 0.0))
-            .unwrap()
-            .turn(d)
-            .unwrap()
-            .line(len)
-            .unwrap()
-            .turn(d)
-            .unwrap()
-            .line(len)
-            .unwrap()
-            .line_to(Start)
-            .unwrap();
-        prop_assert!(verbs(&closed.program).contains(&Verb::Turn));
-        let replayed = replay(&closed.program).unwrap();
-        assert_bit_identical(&closed.loop_, &replayed);
-    }
-
-    /// Random circles: the one-step form, over the whole radius range.
-    #[test]
-    fn random_circles_replay_bit_identically(
-        cx in -5.0f64..5.0,
-        cy in -5.0f64..5.0,
-        r in 0.01f64..12.0,
-    ) {
-        let closed = profile::circle(p2(cx, cy), r).unwrap();
-        prop_assert_eq!(closed.program.len(), 1);
-        let replayed = replay(&closed.program).unwrap();
-        assert_bit_identical(&closed.loop_, &replayed);
     }
 }

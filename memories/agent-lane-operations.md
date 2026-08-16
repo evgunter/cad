@@ -1,6 +1,6 @@
 ---
 name: agent-lane-operations
-description: Consolidated agent-lane rules (2026-08-05, replacing six overlapping memories; build-slot locks added 2026-08-06) — lane creation via scripts/new-lane.sh, machine-wide build concurrency via scripts/with-build-slot.sh flock slots, disk budgets and cleanup via scripts/clean-lanes.sh + monitors, death recovery and resume-vs-fresh policy
+description: Consolidated agent-lane rules (2026-08-05, replacing six overlapping memories; build-slot locks added 2026-08-06) — lane creation via local-scripts/new-lane.sh, machine-wide build concurrency via local-scripts/with-build-slot.sh flock slots, disk budgets and cleanup via local-scripts/clean-lanes.sh + monitors, death recovery and resume-vs-fresh policy
 metadata:
   type: project
 ---
@@ -11,11 +11,27 @@ and resume-vs-fresh-subagent memories (full incident narratives:
 git history of those files, removed 2026-08-05). The rules, which
 the committed scripts now largely enforce:
 
+**Tooling split (2026-08-11).** `scripts/` = the six things HOSTED CI
+runs; `local-scripts/` = everything local (with-build-slot, ci-local,
+gate, test-fast, new-lane, clean-lanes, fmt-all, setup-build-env,
+hooks/, monitors/). Every workflow job does `rm -rf local-scripts`
+after checkout, so CI CANNOT depend on them — which is what lets
+ci-filter.py treat local-scripts/ changes as non-triggering (they used
+to force the full matrix). Existing lanes had the OLD hooks path
+cached in .git/config, so the rename silently disabled their pre-push
+fmt hook (git says NOTHING when core.hooksPath is missing) — it hit the
+build-perf lane itself. The with-build-slot.sh self-heal shim was
+RETIRED on schedule (2026-08-15, due 08-13); a dangling
+core.hooksPath now gets a loud WARNING naming the one-liner fix
+instead of silent repair. General lesson: a repo-relative path cached in per-clone git
+config is invisible to a repo-side rename — grep for `git config` when
+moving directories. See docs/LOCAL-BUILD-PERF.md §6.
+
 **Lane creation.** Working clones/worktrees NEVER go in the /tmp
 session scratchpad (session-derived, silently reaped) — use
 `~/.local/share/cad-work/<purpose>/` or the main checkout's
 `.claude/worktrees/` (isolation subagents). Create lanes with
-`scripts/new-lane.sh <lane> [branch]` — it sets `core.hooksPath`
+`local-scripts/new-lane.sh <lane> [branch]` — it sets `core.hooksPath`
 so the committed pre-push hook (fmt-all --check) is active; a
 hand-rolled `git clone` silently lacks it.
 
@@ -23,9 +39,9 @@ hand-rolled `git clone` silently lacks it.
 `CARGO_TARGET_DIR` across parallel builds (cargo's lock serializes
 them); `~/.cache/gmp-mpfr-sys` IS shared safely. Session start:
 arm `disk-watchdog.sh` (WARN <15G, CRITICAL <8G; install from repo
-`scripts/monitors/` to `~/.local/share/cad-work/monitors/`, run
+`local-scripts/monitors/` to `~/.local/share/cad-work/monitors/`, run
 the installed copies). Under pressure: remove finished lanes with
-`scripts/clean-lanes.sh [--dry-run]` (re-checks pushed/clean/
+`local-scripts/clean-lanes.sh [--dry-run]` (re-checks pushed/clean/
 no-stash before each rm and refuses loudly); NEVER touch a running
 gate's target; after a disk-full crash, purge torn binaries
 (ELF-magic scan) and treat pressure-window test results as
@@ -39,7 +55,7 @@ before cleaning its lane.
 soft two-lane convention and the cad-work/cargo-slots.txt
 registry).** 10 GB WSL2 ceiling (`.wslconfig`, confirmed
 2026-07-25). Heavy cargo operations are bounded machine-wide by
-`scripts/with-build-slot.sh` — flock slot files in
+`local-scripts/with-build-slot.sh` — flock slot files in
 `~/.local/share/cad-work/locks/`. flock releases on process death
 (even SIGKILL/OOM), so dead agents cannot leave stale locks.
 **Width is 1 (a mutex), measured not assumed** — the 2026-08-06
@@ -71,7 +87,13 @@ timed-out call" then STACKS duplicate waiters that each burn a
 slot turn when the mutex frees (5 deep observed). Re-issue means:
 kill your own previous waiter first (or use `-n`/`--express`);
 orchestrator sweeps should scan for same-command duplicate
-waiters per lane and cull all but the newest. **fd-inheritance lock leak
+waiters per lane and cull all but the newest. **Kill targets are
+identified by YOUR OWN recorded PIDs/job ids — NEVER by pgrep
+pattern-matching a lane name** (2026-08-11: an agent
+pattern-killed two shell PIDs, tripped the harness security
+policy, and still MISSED its actual zombie holder, which the
+orchestrator had to reap; pattern-matching both over- and
+under-kills). Record the PID when you launch; kill that. **fd-inheritance lock leak
 (2026-08-11, observed live)**: flock-releases-on-death is only true
 if no CHILD inherited the lock fd — a daemon spawned under a slot
 (sccache observed; any long-lived child qualifies) keeps the flock
@@ -80,7 +102,24 @@ misleading dead-holder file. Diagnose with
 `fuser -v locks/<slot>.lock` (shows the true fd holders); the fix
 is killing the inheriting process, and slot-wrapped commands
 should avoid spawning daemons (sccache/watchers) or close the fd
-(`flock -o` where supported). **Lane-takeover
+(`flock -o` where supported). sccache was briefly the machine
+rustc-wrapper on 2026-08-11 and needed exactly that guard; it was
+reverted the same day (docs/LOCAL-BUILD-PERF.md), so the guard went with
+it — if a cache/watcher daemon is ever added to the build path, pre-start
+it before with-build-slot.sh opens its fds. **Express-lane cost model
+is UNVERIFIED and suspect (2026-08-11)**: the same cold workspace build
+measured **69m23s** in one window and **3m08s** in another — same
+config, same tree, 182-197 crates both times, 22x apart. The slow
+window had express-lane jobs (clippy, `cargo test`, the python suite, a
+`pncad-py` build) running ALONGSIDE the main-slot build; the fast one
+did not. #269 sized the express lane off #230's "concurrency costs
+~40%", but #230 measured two BUILDS on a box that was never
+memory-tight, whereas 10 GB with full-DWARF link jobs can cross into
+swap, where the penalty is nonlinear. If build waits feel pathological,
+suspect express-lane overlap BEFORE compiler flags — config knobs moved
+single-digit percents here against a 22x environmental term. Needs a
+#230-style measurement (express job concurrent with a battery, memory
+sampled) before the lane is resized or kept. **Lane-takeover
 courtesy (2026-08-10)**: when the orchestrator operates in a
 possibly-alive agent's lane (pushing its parked commits, merging
 its PR, or handing the lane to a successor), MESSAGE the incumbent
@@ -97,7 +136,26 @@ before diagnosing a code bug.
 **Liveness.** Standing (Evan, 2026-07-24): check every running
 lane at least hourly — arm `hourly-checkin.sh`; lost
 wake-on-completion events are endemic, so nudge any lane idle
-without a final report.
+without a final report. **Transcript-mtime is NOT a liveness
+signal for long batteries (2026-08-11, observed live)**: an
+agent inside a blocking slot wait / long battery writes nothing
+for an hour while progressing normally, and a queued nudge only
+drains at its next tool round — "nudge queued, not delivered"
+therefore does NOT prove a wedge. Escalation order: nudge, then
+WAIT for at least one full battery-length window (60+ min) after
+the nudge before TaskStop; check the LANE (process table, lock
+holders via fuser, target/ mtimes) for signs of real progress
+first. A wrong TaskStop costs an interrupted battery whose rows
+must be re-run untrusted (one R2 review stopped mid-battery this
+way — the reply "mid-battery, progressing normally" surfaced
+with the kill).
+
+**Waiter self-test (2026-08-15, #511):** run a background waiter's
+detection expression ONCE in the foreground before arming it — a
+catch-all retry arm (`|| echo retry`) converts a permanent error
+into silent eternal waiting (observed: a jq filter using `||`,
+which jq does not have — `or` — errored every poll and the waiter
+never fired; Evan spotted the green PR before the monitor did).
 
 **Death recovery.** A dead subagent's transcript AND its isolation
 worktree (with uncommitted work) survive — `git worktree list`
@@ -127,6 +185,15 @@ sweep checks open PRs' mergeable state, not just lane activity.
 Binary/render conflicts are never hand-picked — take a side,
 regenerate through the pipeline, re-verify the reproducibility
 contract.
+**Shared-scratchpad hazard (2026-08-15, observed live):** the
+session scratchpad (/tmp/claude-1000/.../scratchpad/) is SHARED
+between concurrently running agents of one session — two fix
+passes crossed `pr.md` files and one agent briefly published the
+OTHER unit's body onto its PR via `gh pr edit --body-file`.
+PR/issue bodies and anything else to-be-published go to
+LANE-PRIVATE paths (~/.local/share/cad-work/<lane>-*.md), never
+the scratchpad; orchestrator briefs state this.
+
 **Substrate-output placement (lesson 2026-08-06):** clean-lanes
 on a substrate dir's PARENT deletes the inventory beside the
 lane (m6-5's inventory was lost this way; the implementer

@@ -107,6 +107,15 @@ pub struct Doc<P> {
     /// product's solid ORDER, which is therefore semantic. No
     /// duplicates; every entry is live.
     pub(crate) roots: Vec<RecipeNodeId>,
+    /// Cluster placement frames (ASSEMBLY-DESIGN A11, ASM-2A D-2):
+    /// document data keyed by the instantiate node whose singleton
+    /// cluster the frame places. A MISSING entry is the identity frame
+    /// — a legal, complete state — so the registry never needs a row
+    /// per instance, and zero-/multi-anchor states cannot be spelled.
+    /// Written only by the recorded `SetPlacement` edit; every key
+    /// names a live `InstantiatePart` node.
+    #[serde(with = "crate::persist::strict::placements")]
+    pub(crate) placements: BTreeMap<RecipeNodeId, crate::placement::Frame>,
     /// Document-level named parameters.
     #[serde(with = "crate::persist::strict::params")]
     pub(crate) params: BTreeMap<ParamName, DocParam>,
@@ -151,6 +160,7 @@ impl<P> Doc<P> {
             nodes: BTreeMap::new(),
             order: Vec::new(),
             roots: Vec::new(),
+            placements: BTreeMap::new(),
             params: BTreeMap::new(),
             epsilon: Tolerance::get().eps,
             witnesses: BTreeMap::new(),
@@ -185,6 +195,22 @@ impl<P> Doc<P> {
     /// document's product solids.
     pub fn roots(&self) -> &[RecipeNodeId] {
         &self.roots
+    }
+
+    /// The placement frame of `node`'s cluster (A11): the recorded
+    /// frame, or the identity when nothing is recorded — the missing
+    /// entry IS the identity, so this is total.
+    pub fn placement(&self, node: RecipeNodeId) -> crate::placement::Frame {
+        self.placements
+            .get(&node)
+            .copied()
+            .unwrap_or(crate::placement::Frame::IDENTITY)
+    }
+
+    /// The recorded placement rows, in node order. Rows absent here
+    /// are identity placements, not missing state.
+    pub fn placements(&self) -> &BTreeMap<RecipeNodeId, crate::placement::Frame> {
+        &self.placements
     }
 
     /// Number of live nodes.
@@ -284,6 +310,15 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
             && self.order == other.order
             && self.roots == other.roots
             && self.epsilon.to_bits() == other.epsilon.to_bits()
+            // Placement coordinates are floats: compare BY BITS, like
+            // every other float field here.
+            && self.placements.len() == other.placements.len()
+            && self.placements.iter().all(|(id, frame)| {
+                other
+                    .placements
+                    .get(id)
+                    .is_some_and(|theirs| frame.bit_eq(theirs))
+            })
             // Witness bytes are exact data (no float semantics to
             // conflate) — structural equality IS bit equality here.
             && self.witnesses == other.witnesses

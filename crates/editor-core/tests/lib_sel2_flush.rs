@@ -29,7 +29,7 @@ use editor_core::{
     NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SelectRefusal, ValuePayload, declare,
     declare_all, evaluate, find_flush_candidates,
 };
-use topo::{BooleanError, PlaneRelation, mass_properties};
+use topo::{PlaneRelation, mass_properties};
 
 use fixture::{desc, insert, len};
 
@@ -156,8 +156,9 @@ fn separated_and_unevaluated_answer_empty() {
 // ------------------------------------------------------------------
 
 /// The protocol end to end, against the SAME geometry: the undeclared
-/// union refuses `UndeclaredCoincidence` (the menu's declare arm is
-/// this module; the move-the-geometry arm is the recipe's); the
+/// union refuses with the typed MENU (`UndeclaredContact`, R3 — the
+/// declare arm is this module; the move-the-geometry arm is the
+/// recipe's); the
 /// declared union — declarations authored FROM the findings through
 /// the sugar — succeeds with the exact volume. Detect-then-declare
 /// cannot disagree with verify-at-use because both are the same doors.
@@ -176,21 +177,38 @@ fn detect_declare_boolean_round_trip() {
         },
     );
     let ev = eval(&undeclared);
-    match ev.nodes.get(&refused) {
-        Some(NodeResult::Failed(e)) => assert!(
-            matches!(
-                e.kind,
-                NodeErrorKind::Boolean(BooleanError::UndeclaredCoincidence { .. })
-            ),
-            "{e:?}"
-        ),
+    let menu = match ev.nodes.get(&refused) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            // R3 (LIB-PYG5): the refusal IS the menu — it carries the
+            // candidate declaration in the detector's own value shape,
+            // built from what the raise site held (no re-detection on
+            // the error path).
+            NodeErrorKind::UndeclaredContact { finding, diag } => {
+                // Exactly-on contact: the verifier's decided-zero
+                // encoding, on the verify door's own site.
+                assert!(
+                    matches!(diag.margin, geom_core::MarginDiag::Invalid),
+                    "{diag:?}"
+                );
+                assert_eq!(diag.predicate, Some("bool_plane_offset"));
+                (**finding).clone()
+            }
+            other => panic!("undeclared union must refuse with the menu, got {other:?}"),
+        },
         other => panic!("undeclared union must refuse, got {other:?}"),
-    }
+    };
 
     // The declare arm: findings (values, inspected above) → sugar →
     // Declare node → the boolean's declare input.
     let ev = eval(&doc);
     let findings = find_flush_candidates(&ev, base, top).unwrap();
+    // Menu/detector parity: the refusal named a pair the detector
+    // also reports, name for name, relation for relation — same
+    // doors underneath, so they cannot disagree.
+    assert!(
+        findings.contains(&menu),
+        "menu payload {menu:?} not among the detector's findings {findings:?}"
+    );
     let (doc, decl) = declare_all(&doc, &findings).unwrap();
     let (doc, union) = insert(
         doc,
@@ -272,7 +290,9 @@ fn declare_inserts_the_pair() {
     let findings = find_flush_candidates(&ev, base, top).unwrap();
     let (doc, decl) = declare(&doc, &findings[0]).unwrap();
     match doc.node(decl) {
-        Some(Node::Declare { pairs }) => assert_eq!(pairs, &[findings[0].pair.clone()]),
+        Some(Node::Declare { pairs }) => {
+            assert_eq!(pairs, &[(findings[0].pair.clone(), findings[0].class)])
+        }
         other => panic!("expected a Declare node, got {other:?}"),
     }
 }

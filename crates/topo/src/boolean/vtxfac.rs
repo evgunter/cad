@@ -141,7 +141,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         let id = super::PlaneIdentity {
             s1: g1.as_ref(),
             s2: g2.as_ref(),
-            declared: declared.contains(piercing, s.face, pierced_op, contact.face),
+            declared: declared.declares_rest(piercing, s.face, pierced_op, contact.face),
         };
         let rel = match super::oriented_plane_eq(&sector_plane, &plane, id, s.arm, band) {
             Ok(super::PlaneRelation::Distinct) => {
@@ -151,8 +151,12 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             }
             Ok(rel) => rel,
             Err(PlaneEqError::Escalated(diag)) => return Err(BooleanError::Escalated { diag }),
-            Err(PlaneEqError::Undeclared(diag)) => {
-                return Err(BooleanError::UndeclaredCoincidence { diag });
+            Err(PlaneEqError::Undeclared { diag, relation }) => {
+                return Err(BooleanError::UndeclaredCoincidence {
+                    diag,
+                    pair: [(piercing, s.face), (pierced_op, contact.face)],
+                    relation,
+                });
             }
             Err(PlaneEqError::Contradicted(diag)) => {
                 return Err(BooleanError::DeclarationContradicted { diag });

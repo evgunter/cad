@@ -10,6 +10,7 @@ mod common;
 
 use common::{axis_y, check_mesh_acceptance, p2, validated};
 use mesh::validate::signed_volume;
+use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use sweep::{Revolution, revolve};
 use topo::Body;

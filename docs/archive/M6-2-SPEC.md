@@ -109,7 +109,7 @@ acceptance obligation of that unit, not a follow-up to it."
   `geom-brep/src/ssi/*` requires extending the ratified
   compound-bound allowlist: the design paragraph in
   geom-core/src/real.rs:325-400 AND both allowlists
-  (ci.yml:155-170, scripts/ci-local.sh:133-156), naming the
+  (ci.yml:155-170, local-scripts/ci-local.sh:133-156), naming the
   exact files. This is authorized by this spec (precedented:
   PR 11/PR 12 extensions); document it as the spec-authorized
   extension it is. Prefer the narrowest file set that works.
@@ -175,6 +175,6 @@ Local: touched-crate suites (geom-brep, geom-surfaces, topo,
 sweep, editor-core, step-export) at default ε, PLUS the Interval
 lane rows for geom-brep/geom-surfaces/topo (the change is
 scalar-generic — the Interval lane is where the likely failures
-are), plus `scripts/ci-local.sh` discipline() once before the
+are), plus `local-scripts/ci-local.sh` discipline() once before the
 final push. Multi-ε and the rest of the matrix ride the hosted
 gate — hosted CI is the only gate.

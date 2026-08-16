@@ -11,6 +11,24 @@ publish = false
 
 [workspace]
 
+# The `k-probe` mode only (src/probe.rs + its dispatch in main.rs), which
+# rebuilds every scene at `geom_core::k_stats::Probe` to dump the margin
+# CSV for the K sweep. Opt-in because Probe is a `Real` instantiation:
+# carrying it unconditionally made every RELEASE RENDER of this tour
+# monomorphize the whole geometry stack a second time for a mode the
+# render lanes never invoke. `scripts/k_probe_sweep.sh` passes
+# `--features probe`; render.yml's tour job deliberately does not.
+#
+# The `tess-budget` mode (src/tessbudget.rs + its dispatch) is opt-in
+# for a different reason: `mesh::budget` is per-face telemetry gated at
+# its own module boundary, so the kernel a render build links carries
+# none of it. Same shape as `probe` above, no monomorphization
+# argument — the cost avoided is state in the tessellation lane, not
+# codegen. `scripts/tess_budget_sweep.sh` passes `--features budget`.
+[features]
+probe = ["pncad/probe"]
+budget = ["pncad/budget"]
+
 # ONE kernel dependency. The tour is the façade's acceptance corpus
 # (LIB-U1): eighteen scenes, every kernel type they touch reached
 # through `pncad::`, including the error payloads. It used to name
@@ -21,3 +39,30 @@ publish = false
 # so the entry is gone rather than commented.
 [dependencies]
 pncad = { path = "../../crates/pncad" }
+
+# The tour is the ONLY release build of the kernel in CI (the ten
+# nextest legs are opt-2 DEV builds — `CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL`
+# in ci.yml, which leaves cargo's dev default of debug-assertions ON, so
+# the fail-loud postconditions keep their teeth there). Cargo's release
+# default turns them OFF, so without this the eighteen scenes were the
+# one lane exercising the kernel with every `debug_assert` compiled out
+# — D9's operator postconditions, the Euler-vector arena deltas, the N6
+# bitwise-agreement check, all vacuous.
+#
+# Re-arming them here rather than dropping `--release` is deliberate:
+# this is a DETACHED workspace ([workspace] above), so the root
+# manifest's `[profile.dev.package]` opt-2 overrides for spade+mesh do
+# NOT reach it and a dev build would tessellate at opt 0. We want the
+# optimized codegen AND the assertions; they are independent knobs.
+# Scoped to this manifest, so the kernel workspace's own release profile
+# — and anything shipped from it — is untouched.
+#
+# `overflow-checks` is a SEPARATE knob, not a rider on debug-assertions:
+# cargo emits `-C overflow-checks=off` explicitly under release even with
+# `-C debug-assertions=on` (verified in `cargo build --release -v`). Dev
+# defaults both ON, so arming only the first would still leave this lane
+# checking less than the nextest legs do. Both, or the parity claim above
+# is false.
+[profile.release]
+debug-assertions = true
+overflow-checks = true

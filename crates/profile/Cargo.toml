@@ -13,11 +13,35 @@ workspace = true
 # `Interval` — exercised by the feature-gated test modules in CI's
 # interval lane.
 interval = ["geom-core/interval"]
+# Forwards geom-core's K-telemetry recording scalar so the
+# workspace-wide `--features probe` lane builds uniformly. Same shape
+# and same reason as the `interval` row above; see geom-core's manifest
+# for why Probe is opt-in (it is a `Real` instantiation, so it
+# monomorphizes every generic-over-`Real` body, and only the K
+# experiment consumes it).
+probe = ["geom-core/probe"]
+# The BANISHED raw builder (PROFILES-V2 §V6 amendment): `LoopBuilder`
+# is test-support, not API. Enabled only by this crate's own
+# dev-dependency below, so no downstream crate can see it. ON A
+# DELETION HORIZON — see src/test_support.rs's header for the one role
+# it still fills and what the deletion waits on (the §2c fillet
+# re-spell, PR #419).
+test-support = []
 
 [dependencies]
 geom-core = { path = "../geom-core" }
 
 [dev-dependencies]
+# Shared fuzz harness for this crate's randomized sweeps (one RNG, the
+# per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
+# named by [dev-dependencies] only, here and everywhere else — which is
+# what keeps it off every shipped build path.
+test-utils = { path = "../test-utils" }
+# Self dev-dependency: the ONE mechanism that lets `tests/` see the
+# `test-support` feature while the published surface never does. The
+# differential twins no longer need it (LIB-RETTAIL: their target is a
+# recorded fixture); the arc-leg fillet suites still do.
+profile = { path = ".", features = ["test-support"] }
 proptest = { workspace = true }
 # The promoted M2 PR 2 reviewer consumer suite
 # (tests/review_m2_pr2_consumers.rs) is the PR 4/PR 3 composition

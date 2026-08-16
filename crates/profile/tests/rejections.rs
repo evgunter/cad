@@ -8,7 +8,8 @@ use common::{
     arc_kisses_line, bowtie, chain, circle_h, near_tangent_hole, profile, rect, tangent_hole, tol,
 };
 use geom_core::MarginDiag;
-use profile::{ContactKind, EscalationSite, ProfileError, SegmentRef, SketchPlane};
+use geom_core::Point2;
+use profile::{ContactKind, EscalationSite, Open, ProfileError, SegmentRef, SketchPlane, Start};
 
 fn err(p: &profile::Profile<f64>) -> ProfileError {
     p.validate(tol()).expect_err("fixture must be rejected")
@@ -87,6 +88,43 @@ fn sliver_arc_bulge_escalates() {
         }
         other => panic!("expected escalation, got {other:?}"),
     }
+}
+
+/// **The re-homed fail-loud demo** (LIB-RETTAIL, Evan's ruling on
+/// #413). The tour's coda used to build this loop and print the
+/// refusal; a broken-on-purpose scene is not a use case, so the
+/// contract moved here, where it can be asserted instead of narrated.
+///
+/// The contract, exactly as the demo stated it: the chain **authors
+/// cleanly** — the PATHS lattice's junction checks are LOCAL, and all
+/// four of the bowtie's corners are definitely sharp, so nothing
+/// refuses at authoring time — and the **profile-level validator** is
+/// what catches the crossing, typed, before any sweep can run. That
+/// split is the whole point: a local check cannot see a global
+/// self-intersection, which is why the validate gate exists.
+///
+/// The tour's own coordinates (the 2x2 scaling), so the geometry that
+/// was demonstrated is the geometry that is pinned.
+#[test]
+fn the_bowtie_authors_cleanly_and_refuses_at_validation() {
+    let authored = Open
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(2.0, 2.0))
+        .and_then(|t| t.line_to(Point2::new(2.0, 0.0)))
+        .and_then(|t| t.line_to(Point2::new(0.0, 2.0)))
+        .and_then(|t| t.line_to(Start))
+        .expect("every corner is sharp: the lattice's LOCAL checks pass a bowtie");
+
+    let p = profile(vec![authored.into()]);
+    assert_eq!(
+        err(&p),
+        ProfileError::NonSimple {
+            first: sref(0, 0),
+            second: sref(0, 2),
+            kind: ContactKind::Crossing,
+        },
+        "the validate gate must refuse the crossing typed — never Ok, never a panic"
+    );
 }
 
 #[test]

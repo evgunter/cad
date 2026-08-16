@@ -112,6 +112,10 @@ mod m6_tube;
 mod m7_skin_integral;
 #[path = "m8_14_long_turn_sweep.rs"]
 mod m8_14_long_turn_sweep;
+#[path = "m9_d1_r1_probes.rs"]
+mod m9_d1_r1_probes;
+#[path = "m9_d1_r2_probes.rs"]
+mod m9_d1_r2_probes;
 #[path = "mass_props.rs"]
 mod mass_props;
 #[path = "mass_props_interval.rs"]
@@ -206,3 +210,12 @@ fn every_suite_file_is_aggregated() {
 
 #[path = "m8_3_rational_volume.rs"]
 mod m8_3_rational_volume;
+
+#[path = "m8_4_intersection_iso.rs"]
+mod m8_4_intersection_iso;
+
+#[path = "m9_2_chart_region_loft.rs"]
+mod m9_2_chart_region_loft;
+
+#[path = "review_probes_m8_4.rs"]
+mod review_probes_m8_4;

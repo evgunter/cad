@@ -46,9 +46,29 @@ cost — measured, not vibed ("with actual random numbers").
   implementers still correctly STOP-and-report it, and the ruling
   is recorded no-action in the A/B row.
 
-**Readouts (conclusions live in the log, not here):** M4-close
-(n=10) and M5-close (n=40, arms 15/15) both conclude NO EVIDENCE
-either arm produces more bugs or worse code — the M5 sample is
-large enough that a large effect would probably have shown; a small
-one would not. Post-M5 rows (M6/M7) continue under their own
-section header in the log. See [[orchestration-model]].
+- **Protocol v4 (Evan, 2026-08-11)** — four amendments, full text
+  in the log: (1) STOPPING RULE — the DUAL-REVIEW
+  experiment (only) ends at the 6th dual where ≥1 reviewer
+  found a MAJOR — the implementation A/B continues, and the recording
+  orchestrator MUST notify Evan explicitly (tally maintained in
+  the log; 3/6 at amendment time — the M8 long-turn dual verified in); (2) standardized 4-term
+  verdict ladder (APPROVE / APPROVE-WITH-FIXES /
+  NOT-MERGEABLE-AS-IS / REJECT; MERGEABLE+PASS retired; seam
+  noted — pre-v4 verdict strings not comparable; findings
+  reliable, labels noisy — weight findings); (3) half of duals
+  become cross-model pilots (R2 = opus) in randomized blocks of
+  two — every PR still gets a fable review; reviewer model
+  recorded per row; (4) implementer blocks are now size 4
+  {opus×3, fable}, byte mod 4, reject ≥252. Dual sample numbers
+  follow ORDINALS (#398-thread ratification, 2026-08-11:
+  ASM-2K@24 = #8, long-turn@27 = #9).
+
+**Readouts — deliberately NOT summarised here, and not in the log
+either** (standing rule, Evan 2026-08-11). Both files are read by
+orchestrators before dispatch, and a directional arm result creates
+expectancy effects on difficulty logging, adjudication and dispatch
+sequencing. Readouts live on branch `ev/ab-bayes-analysis` under
+`analysis/model-ab/` (report.html, DECISIONS.md, readouts-archive.md);
+**an orchestrator with a dispatch in flight should not read them.**
+Analysis methodology is likewise not orchestrator protocol. See
+[[orchestration-model]].

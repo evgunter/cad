@@ -919,7 +919,7 @@ pub fn apply_with_names<T: Decide>(
     match edit {
         DocEdit::InsertNode {
             node: Node::Declare { pairs },
-        } => names.extend(pairs.iter().flat_map(|(a, b)| [a, b])),
+        } => names.extend(pairs.iter().flat_map(|((a, b), _)| [a, b])),
         DocEdit::Rebind { to, .. } => names.push(to),
         _ => {}
     }
@@ -992,6 +992,17 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
             | RoleSeg::BandCross(n)
             | RoleSeg::BandCut(n)
             | RoleSeg::BandSlit(n) => visit(n, partners, f),
+            // ASM-2A: the DOCUMENT SEAM. An `InPart` argument is a name
+            // in ANOTHER document's id space — its `RecipeNodeId`s name
+            // that document's nodes, not this one's — so no local walk
+            // may descend into it. Every consumer of this walk reads
+            // `.node` as a local id: the persistence id check, the
+            // Rebind rewrite sites, the N7 suggestion machinery. Which
+            // document those ids belong to is the instantiate node's
+            // `doc_ref`, and a part-document edit that breaks a local
+            // name surfaces at the PART's own diagnosis, carried across
+            // as this node's typed refusal.
+            RoleSeg::InPart { .. } => {}
             RoleSeg::TrimEdge {
                 edge: a,
                 support: b,

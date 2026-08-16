@@ -8,6 +8,7 @@
 mod revolve_common;
 
 use core::f64::consts::FRAC_PI_2;
+use profile::RawLoop;
 
 use geom_core::Tolerance;
 use geom_core::{Point2, Vec2};

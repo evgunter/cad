@@ -34,7 +34,10 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathError::SameCarrierJunction { .. } => "same_carrier_junction",
         PathError::NoCornerForFillet { .. } => "no_corner_for_fillet",
         PathError::AnchorOutsideTrimmedExtent { .. } => "anchor_outside_trimmed_extent",
+        PathError::FilletOffsetLeverTooShort { .. } => "fillet_offset_lever_too_short",
         PathError::ArcCarrierSpelling { .. } => "arc_carrier_spelling",
+        PathError::SeamRetrimsArcFirstSide => "seam_retrims_arc_first_side",
+        PathError::DegenerateArcSpec { .. } => "degenerate_arc_spec",
         PathError::NonpositiveLeg { .. } => "nonpositive_leg",
         PathError::NonpositiveFilletRadius { .. } => "nonpositive_fillet_radius",
         PathError::NonpositiveCircleRadius { .. } => "nonpositive_circle_radius",
@@ -62,6 +65,30 @@ pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
         RecordedProgramError::Literal(inner) => expr_dimension_error_tag(inner),
         RecordedProgramError::SubdivisionCount(_) => "subdivision_count",
         RecordedProgramError::CarrierInChain => "carrier_in_chain",
+    }
+}
+
+/// The stable tag for a selection refusal (LIB-PYSEL: the
+/// `Evaluation.select_where` door).
+///
+/// `SelectRefusal` is `#[non_exhaustive]`, so unlike this module's
+/// other matches the wildcard arm is FORCED on this crate and the
+/// compile-time drift alarm is unavailable. Its replacement lives in
+/// `src/tests.rs`: a pin constructs the current arms and asserts each
+/// tag, so a kernel arm arriving without a tag here surfaces as
+/// `unclassified` in a red test rather than silently in Python.
+pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
+    use pncad::select::SelectRefusal as R;
+    match err {
+        R::InBand { .. } => "in_band",
+        R::TiedDisagrees { .. } => "tied_disagrees",
+        R::Unreadable { .. } => "unreadable",
+        R::NotADatum { .. } => "not_a_datum",
+        R::NotALength { .. } => "not_a_length",
+        R::PairInBand { .. } => "pair_in_band",
+        R::BadValue(_) => "bad_value",
+        R::Band => "band",
+        _ => "unclassified",
     }
 }
 
@@ -108,6 +135,11 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // not per wrapper: which invariant broke is what a caller
         // branches on.
         EditError::Roots(fault) => root_fault_tag(fault),
+        EditError::PlacementOnNonInstance { .. } => "placement_on_non_instance",
+        EditError::ImproperPlacement { .. } => "improper_placement",
+        EditError::NonFinitePlacement { .. } => "non_finite_placement",
+        EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
+        EditError::PinUnchanged { .. } => "pin_unchanged",
     }
 }
 
@@ -153,10 +185,57 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::DeclareResolve { .. } => "declare_resolve",
         NodeErrorKind::DeclareBothOperands { .. } => "declare_both_operands",
         NodeErrorKind::DeclareUnsupportedPair { .. } => "declare_unsupported_pair",
+        // The refusal MENU (register R3, LIB-PYG5): the boolean's
+        // undeclared-contact refusal carrying the candidate
+        // declaration; the `finding` payload crosses as a typed
+        // attribute beside this tag.
+        NodeErrorKind::UndeclaredContact { .. } => "undeclared_contact",
         NodeErrorKind::FilletSelectionResolve { .. } => "fillet_selection_resolve",
         NodeErrorKind::FilletSelectionKind { .. } => "fillet_selection_kind",
         NodeErrorKind::FilletSelectionEmpty => "fillet_selection_empty",
         NodeErrorKind::WitnessBifurcation { .. } => "witness_bifurcation",
+        // ASM-2A: the seam faults stay separable at the tag level —
+        // "the pin does not hold" and "the tolerances disagree" are
+        // different recourses, so they are different tags.
+        NodeErrorKind::Part { fault, .. } => part_fault_tag(fault),
+    }
+}
+
+/// The stable tag for a declare-sugar refusal (LIB-PYG5: the
+/// `Doc.declare`/`Doc.declare_all` doors over
+/// `editor_core::declare_all`). The `Edit` arm carries the document
+/// layer's own tag through rather than flattening it.
+pub fn declare_error_tag(err: &pncad::select::DeclareError) -> &'static str {
+    use pncad::select::DeclareError as E;
+    match err {
+        E::NoFindings => "no_findings",
+        E::Edit(inner) => edit_error_tag(inner),
+        E::NoMintedId => "no_minted_id",
+    }
+}
+
+/// The stable tag for an instantiation refusal (ASM-2A D-3).
+pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
+    use pncad::document::PartFault as F;
+    use pncad::document::ResolveFault as R;
+    match fault {
+        F::NoResolver => "part_no_resolver",
+        F::Unresolved {
+            fault: R::PinMismatch,
+            ..
+        } => "part_pin_mismatch",
+        F::Unresolved {
+            fault: R::EpsilonSeam,
+            ..
+        } => "part_epsilon_seam",
+        F::Unresolved {
+            fault: R::Unresolved,
+            ..
+        } => "part_unresolved",
+        F::PartRootFailed { .. } => "part_root_failed",
+        F::PartProduct { .. } => "part_product",
+        F::ReferenceCycle { .. } => "part_reference_cycle",
+        F::DepthExceeded => "part_depth_exceeded",
     }
 }
 
@@ -207,10 +286,10 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         E::RootFailed { .. } => "root_failed",
         E::RootPoisoned { .. } => "root_poisoned",
         E::NoBodyRoots => "no_body_roots",
-        E::MultiSolidRoot { .. } => "multi_solid_root",
         E::Graft { .. } => "graft_refused",
         E::SolidInvalid { .. } => "solid_invalid",
         E::ProductInvalid { .. } => "product_invalid",
+        E::Naming { .. } => "product_naming",
     }
 }
 

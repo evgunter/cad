@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Shared CI change filter — the SINGLE implementation of change
 classification, used by BOTH .github/workflows/ci.yml (its `filter` job is
-a thin YAML wrapper) and scripts/ci-local.sh. There is no second copy of
+a thin YAML wrapper) and local-scripts/ci-local.sh. There is no second copy of
 these rules anywhere; hosted and local runs are gated identically, and the
 synthetic-diff tests exercise the one script both of them call.
 
@@ -9,7 +9,10 @@ Three tiers (Evan's ask: "changing a core crate runs everything, adding a
 new crate only runs that new crate's tests" — dependency-AWARE, not naive
 per-crate):
 
-  TIER=docs     only *.md files and memories/ changed. Nothing builds; the
+  TIER=docs     only NON-TRIGGERING paths changed — *.md anywhere,
+                memories/, local-scripts/, .claude/ (the full list is
+                `_is_docs`, and every entry past the first two is a tree
+                hosted CI structurally cannot read). Nothing builds; the
                 `docs-only ok` marker job is the whole gate. (Floor
                 convention: floors apply to CODE PRs.)
   TIER=all      a workspace-level file changed — the change can move any
@@ -20,11 +23,11 @@ per-crate):
                 is a real build edge for `cargo test`).
 
 Classification is an ALLOWLIST, so it fails CLOSED by construction: a path
-is scopable only if it is a *.md/memories docs path or lives inside a known
-workspace member's directory. Anything unrecognised — a new top-level file,
-a new excluded workspace, a renamed crate dir — lands in TIER=all. Every
-error path (git failure, cargo-metadata failure, empty diff, a crates/
-subdirectory that is not a member) also lands in TIER=all.
+is scopable only if `_is_docs` recognises it as non-triggering or it lives
+inside a known workspace member's directory. Anything unrecognised — a new
+top-level file, a new excluded workspace, a renamed crate dir — is TIER=all.
+Every error path (git failure, cargo-metadata failure, empty diff, a
+crates/ subdirectory that is not a member) also lands in TIER=all.
 
 Why no third-party tool. `determinator` (guppy) is the obvious ecosystem
 answer and was evaluated: it is a LIBRARY with no binary (0.12.0, published
@@ -58,6 +61,7 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_STEP_EXPORT=true|false    step import (freecad) row
   RUN_PNCAD_PY=true|false       python suite (wheel + unittest) row
   RUN_INTERVAL_BACKEND=true|false   interval-transcendentals' own workspace
+  RUN_INTERVAL_ORACLE=true|false    its oracle-inari certification tier
   RUN_K_LINT=true|false         k-lint (gate) row
 """
 
@@ -69,12 +73,44 @@ import os
 import subprocess
 import sys
 
-# Files that are documentation and nothing else. Deliberately narrow: only
-# Markdown (anywhere) and the memories/ tree. No crate includes a .md file
-# into its docs (`include_str!` is unused), so a .md change cannot move a
-# doc-test.
+# Files that cannot move a hosted CI result.
+#
+# Documentation: deliberately narrow — only Markdown (anywhere) and the
+# memories/ tree. No crate includes a .md file into its docs (`include_str!`
+# is unused), so a .md change cannot move a doc-test.
+#
+# local-scripts/: the LOCAL half of the tooling split (2026-08-11). Hosted
+# CI cannot depend on anything in there, and that is enforced STRUCTURALLY
+# rather than by convention — every workflow job deletes the directory as
+# its first step after checkout, so a workflow that grew a reference to it
+# fails immediately and loudly instead of silently coupling the hosted gate
+# to a developer's machine. Scripts hosted CI DOES run stay in scripts/ and
+# keep forcing TIER=all, because a change to any of them can move a result.
+#
+# .claude/: agent session config (2026-08-15) — the SessionStart hook that
+# provisions a Claude Code on the web container, and the settings.json that
+# registers it. It is local-only tooling in exactly the sense above, just
+# for an agent's container rather than a developer's laptop: it runs when a
+# SESSION opens, never when a workflow does. It rides the SAME structural
+# guard, and deliberately so — the prune step that deletes local-scripts/
+# deletes this too, so the claim "hosted CI does not read .claude/" is
+# checked on every run rather than trusted. Before that guard existed, a
+# one-line hook edit cost a full 20-row gate including both render lanes.
+#
+# The distinction to keep hold of if this list grows again: a path belongs
+# here only when hosted CI CANNOT read it (proven by the prune), not merely
+# when it looks developer-ish. Anything hosted CI does read — scripts/,
+# .github/, .cargo/ — stays out and keeps forcing TIER=all.
+#
+# Still an allowlist, still fails closed: a new top-level directory, or a
+# new file directly under scripts/, is unrecognised and lands in TIER=all.
 def _is_docs(path: str) -> bool:
-    return path.startswith("memories/") or path.endswith(".md")
+    return (
+        path.startswith("memories/")
+        or path.endswith(".md")
+        or path.startswith("local-scripts/")
+        or path.startswith(".claude/")
+    )
 
 
 def _run(cmd: list[str], cwd: str) -> str:
@@ -219,7 +255,43 @@ JOB_ROOTS = {
 }
 
 
-def decorate(res: dict[str, str]) -> dict[str, str]:
+# The oracle-inari certification tier is the ONE job keyed on paths rather
+# than on TIER/PKGS, and it has to be.
+#
+# `interval-transcendentals` is its own workspace, so `classify`'s allowlist
+# sends every change under it to TIER=all — and TIER=all is the majority
+# verdict across merges, so `tier == "all"` (what RUN_INTERVAL_BACKEND uses)
+# would fire this on most of them. That is affordable for the backend's
+# oracle-free tier, which is seconds; it is not affordable here, because this
+# job builds GMP and MPFR from C source: 234s of the ~250s it costs, measured
+# on a hosted runner in #480, against 7s for the 4M certification cases
+# themselves.
+#
+# Keyed on the paths, it fires when the certified code or its dependency
+# pinning moves — 2 of the last 400 first-parent merges — for about eight
+# runner-minutes a year.
+ORACLE_PATHS: tuple[str, ...] = (
+    "interval-transcendentals/src/",
+    "interval-transcendentals/tests/",
+    "interval-transcendentals/Cargo.toml",
+    "interval-transcendentals/Cargo.lock",
+)
+
+
+def _touches_oracle(files: list[str] | None) -> bool:
+    # Fail CLOSED, like everything else here: if we could not resolve a file
+    # list at all, we cannot prove the certified code held still, so run it.
+    #
+    # An EMPTY list counts as unresolved, not as "nothing changed" — the same
+    # reading `classify` already takes of an empty diff, and for the same
+    # reason. Keeping the two consistent matters: otherwise the one input
+    # that makes `classify` shout would make this signal go quiet.
+    if not files:
+        return True
+    return any(f.startswith(ORACLE_PATHS) for f in files)
+
+
+def decorate(res: dict[str, str], files: list[str] | None = None) -> dict[str, str]:
     tier = res["TIER"]
     pkgs = set(p for p in res["PKGS"].split(",") if p)
     res["RUN_BUILD"] = "false" if tier == "docs" else "true"
@@ -234,6 +306,7 @@ def decorate(res: dict[str, str]) -> dict[str, str]:
     # appear in TIER=closure (any such change is TIER=all). Its job therefore
     # has nothing to verify in the closure tier.
     res["RUN_INTERVAL_BACKEND"] = "true" if tier == "all" else "false"
+    res["RUN_INTERVAL_ORACLE"] = "true" if _touches_oracle(files) else "false"
     # k-lint has no minimal root set: it is the only job that compiles
     # demos/tour (a path-dependent of NINE members) and tools/k-lint, and its
     # probe sweep records predicate margins from every kernel crate. Any
@@ -250,6 +323,10 @@ def main() -> int:
     args = ap.parse_args()
     root = _repo_root()
 
+    # `None` until a file list is actually in hand, so that a failure ANYWHERE
+    # below — including one that happens before `files` is ever bound — still
+    # reaches the path-keyed signals as "unknown", which they read as run.
+    files: list[str] | None = None
     try:
         if args.files:
             raw = sys.stdin.read() if args.files == "-" else open(args.files).read()
@@ -268,7 +345,13 @@ def main() -> int:
         print(f"ci-filter: falling back to TIER=all: {exc}", file=sys.stderr)
         res = _all_tier(root)
 
-    for key, val in decorate(res).items():
+    # `files` deliberately survives the `except` above. A Bail out of
+    # `classify` is the NORMAL route for this signal, not a breakdown:
+    # every interval-transcendentals path is workspace-level by the
+    # allowlist, so the very changes the oracle cares about arrive here as
+    # TIER=all with a perfectly good file list. Only a failure to resolve
+    # the diff at all leaves `files` None, and that is the case that runs.
+    for key, val in decorate(res, files).items():
         print(f"{key}={val}")
     return 0
 

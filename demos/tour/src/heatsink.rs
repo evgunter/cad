@@ -154,6 +154,10 @@ fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize) -> pncad::topo:
 /// shows (5 → 7 → 9, each re-eval fed the prior as memo), generic —
 /// the Probe sweep records the document-evaluation predicates AND the
 /// union chain at every count.
+/// Only `crate::probe` calls this, so it rides the `probe` feature with
+/// it — otherwise a default build trips `dead_code` under CI's
+/// `-D warnings`.
+#[cfg(feature = "probe")]
 pub(crate) fn probe_solids<S: Scalar>() -> Vec<pncad::topo::BooleanBody<S>> {
     let r = build_doc();
     let cancel = CancelToken::new();

@@ -38,11 +38,17 @@ for eps in 1e-6 1e-9 1e-12; do
   corpus="$outdir/.corpus-$eps.csv"
   demos="$outdir/.demos-$eps.csv"
   merged="$outdir/$prefix$eps.csv"
+  # `--features probe` on both halves: the recording scalar
+  # `geom_core::k_stats::Probe` is opt-in (see geom-core's manifest — it is
+  # a `Real` instantiation, so it monomorphizes every generic-over-`Real`
+  # body, and this sweep is its only consumer). Without the feature the
+  # corpus filter below matches nothing and the tour's `k-probe` mode
+  # refuses loudly; either way this script is the thing that must pass it.
   echo "=== k-probe sweep @ eps=$eps (corpus) ==="
   CAD_TOLERANCE_EPS=$eps CAD_K_REPORT_OUT="$corpus" \
-    cargo test -p editor-core --test all -- --ignored --nocapture m4_pr8_k_probe::
+    cargo test -p editor-core --features probe --test all -- --ignored --nocapture m4_pr8_k_probe::
   echo "=== k-probe sweep @ eps=$eps (demo scenes) ==="
-  (cd "$root/demos/tour" && CAD_TOLERANCE_EPS=$eps cargo run -- k-probe "$demos")
+  (cd "$root/demos/tour" && CAD_TOLERANCE_EPS=$eps cargo run --features probe -- k-probe "$demos")
   # One header, then both bodies — corpus first, demos second.
   cat "$corpus" > "$merged"
   tail -n +2 "$demos" >> "$merged"

@@ -19,13 +19,19 @@ Profile authoring is the PATHS lattice (`Open`, `PathOpen`,
 `Start`, `circle`, `circle_split`) plus the straight-segment shortcut
 `Node.polygon`; one loop or a list of them, on any sketch plane.
 
+Selection is materialize-then-store: the `Evaluation.all_*` doors
+answer a whole kind, and `Evaluation.select` / `select_where` narrow
+one — structurally (`Selector`, a union of `NamePat` role-path
+shapes) and geometrically (`GeomPred`: carrier kind, adjacent-surface
+kinds, datum distance). Every answer is opaque name TEXT, the one
+alphabet `Node.fillet` reads; narrowing happens through these doors,
+never by parsing a name.
+
 Deliberately ABSENT, and tracked as named gaps in
 `docs/guide/north-star-audit.md`: sweep and tube, tessellation and
-STL, the pattern node with its structural-parameter edit, the
-SELECTOR language (a stable name can be materialized and carried,
-never composed or filtered by carrier kind), and the detect/declare
-protocol that would build the `Node.declare` `Node.boolean`'s
-`declare=` consumes.
+STL, the pattern node with its structural-parameter edit, and the
+detect/declare protocol that would build the `Node.declare`
+`Node.boolean`'s `declare=` consumes.
 """
 
 from typing import Any, Final, Optional, overload
@@ -47,15 +53,24 @@ class EvaluationError(PncadError):
 
     `reason` is `unknown_node`, `wrong_kind`, `empty_boolean`,
     `node_failed`, or `poisoned`. `kind` (the `NodeErrorKind`'s
-    stable tag) and `through` (the nearest failed ancestor) are
-    always present, `None` where the reason has neither (LIB-DOORS
-    F3; attributes never go missing).
+    stable tag), `through` (the nearest failed ancestor) and
+    `finding` (the refusal-menu payload) are always present, `None`
+    where the reason has none (LIB-DOORS F3; attributes never go
+    missing).
+
+    `finding` is the boolean's refusal MENU (register R3, LIB-PYG5):
+    when `kind == "undeclared_contact"`, it carries the candidate
+    declaration as a typed `FlushFinding` — the same value
+    `Evaluation.find_flush_candidates` answers with, ready for
+    `Node.declare` / `Doc.declare`. The menu has exactly two arms:
+    declare that finding, or move the geometry.
     """
 
     reason: str
     node: NodeId
     kind: Optional[str]
     through: Optional[NodeId]
+    finding: Optional[FlushFinding]
 
 class ValidationError(PncadError):
     """A body failed a validator, or mass properties could not be taken."""
@@ -103,6 +118,28 @@ class PathError(PncadError):
     site of the verb that wrote it."""
 
     variant: str
+
+class SelectRefusal(PncadError):
+    """`Evaluation.select_where` could not answer — the Rust door's
+    own typed refusal, crossing under its own name.
+
+    `reason` is `in_band`, `tied_disagrees`, `unreadable`,
+    `not_a_datum`, `not_a_length`, `pair_in_band`, `bad_value`, or
+    `band`. The other attributes are the refusing arm's payload,
+    always present and `None` where inapplicable: `name` (the
+    candidate's opaque name text), `predicate` (the funnel site),
+    `matched`/`candidates` (a tied name's disagreement counts),
+    `datum` (the non-datum reference), `found` (what it evaluated to),
+    `dim` (a non-length comparand's dimension tag)."""
+
+    reason: str
+    name: Optional[str]
+    predicate: Optional[str]
+    matched: Optional[int]
+    candidates: Optional[int]
+    datum: Optional[NodeId]
+    found: Optional[str]
+    dim: Optional[str]
 
 # --- quantities -------------------------------------------------------
 # Canonical metres and radians underneath (GQ5). The arithmetic is
@@ -237,6 +274,12 @@ class PathOpen:
         p: tuple[Length, Length],
         centre: tuple[Length, Length],
         winding: ArcSweep,
+    ) -> PathDirected: ...
+    def at_toward(
+        self,
+        p: tuple[Length, Length],
+        dx: float,
+        dy: float,
     ) -> PathDirected: ...
     def to_on(
         self,
@@ -481,7 +524,20 @@ class Node:
     @staticmethod
     def boolean(
         op: BooleanOp, a: NodeId, b: NodeId, declare: Optional[NodeId] = None
-    ) -> Node: ...
+    ) -> Node:
+        """A Boolean of two upstream solids. `declare` names a
+        `Declare` node whose coincidence pairs this boolean consumes;
+        without one, operands that merely TOUCH refuse with the typed
+        menu (`EvaluationError`, `kind == "undeclared_contact"`,
+        `finding` attached) — the kernel never infers that two faces
+        are the same face."""
+
+    @staticmethod
+    def declare(findings: list[FlushFinding]) -> Node:
+        """The `Declare` node built from INSPECTED findings; its
+        inserted id feeds `Node.boolean`'s `declare=`. Nothing here
+        detects (the ruled no-fusion boundary), and an empty list
+        raises EditError (`no_findings`)."""
 
 class ParamName:
     """A document-level parameter name (guide §3.2). NOT an arena
@@ -533,6 +589,16 @@ class Doc:
     def __init__(self) -> None: ...
     def apply(self, edit: DocEdit) -> Optional[NodeId]: ...
     def insert(self, node: Node) -> NodeId: ...
+    def declare(self, finding: FlushFinding) -> NodeId:
+        """Insert a `Declare` node for ONE inspected finding and
+        return its id for `Node.boolean`'s `declare=` (the
+        detect/declare protocol's declare arm). Raises EditError,
+        typed."""
+
+    def declare_all(self, findings: list[FlushFinding]) -> NodeId:
+        """`declare` for a SET of findings in one `Declare` node —
+        arity, not fusion. An empty list raises EditError
+        (`no_findings`)."""
     @property
     def node_count(self) -> int: ...
     def order(self) -> list[NodeId]: ...
@@ -556,6 +622,220 @@ class Loaded:
 def load(text: str) -> Loaded:
     """Parse, validate, and replay a saved document. Raises
     PersistError, typed."""
+
+# --- selectors --------------------------------------------------------
+# The narrowing language (LIB-PYSEL, audit G13). Patterns and
+# predicates are VALUES built here and evaluated in Rust by
+# `Evaluation.select` / `select_where`; nothing on this side reads
+# geometry or name text. The builder verbs return NEW values (Rust's
+# consuming builders, crossed as immutable ones).
+
+class EntityKind:
+    """Which entity kind a name denotes."""
+
+    Body: Final[EntityKind]
+    Face: Final[EntityKind]
+    Edge: Final[EntityKind]
+    Vertex: Final[EntityKind]
+
+class SegTag:
+    """Which role-segment variant a `SegPat` names — one tag per
+    op-minted role, grouped by the op that mints it."""
+
+    OutputBody: Final[SegTag]
+    Cap: Final[SegTag]
+    Lateral: Final[SegTag]
+    RimEdge: Final[SegTag]
+    LateralEdge: Final[SegTag]
+    CapVertex: Final[SegTag]
+    Band: Final[SegTag]
+    BandRim: Final[SegTag]
+    BandRimPi: Final[SegTag]
+    BandPi: Final[SegTag]
+    Meridian: Final[SegTag]
+    MeridianVertex: Final[SegTag]
+    RevolveCap: Final[SegTag]
+    Pole: Final[SegTag]
+    AxisEdge: Final[SegTag]
+    FromA: Final[SegTag]
+    FromB: Final[SegTag]
+    Seam: Final[SegTag]
+    Merged: Final[SegTag]
+    Fragment: Final[SegTag]
+    SplitBody: Final[SegTag]
+    SectionFace: Final[SegTag]
+    SectionEdge: Final[SegTag]
+    SplitFragment: Final[SegTag]
+    CrossingVertex: Final[SegTag]
+    OnToolVertex: Final[SegTag]
+    FromTarget: Final[SegTag]
+    BlendFace: Final[SegTag]
+    CornerFace: Final[SegTag]
+    TrimEdge: Final[SegTag]
+    FootVertex: Final[SegTag]
+    CornerArc: Final[SegTag]
+    BandFace: Final[SegTag]
+    BandTrim: Final[SegTag]
+    BandFoot: Final[SegTag]
+    BandCross: Final[SegTag]
+    BandCut: Final[SegTag]
+    BandSlit: Final[SegTag]
+    Instance: Final[SegTag]
+    InPart: Final[SegTag]
+
+class OpGroup:
+    """The op group a role segment belongs to (`SegPat.group`)."""
+
+    Shared: Final[OpGroup]
+    Extrude: Final[OpGroup]
+    Revolve: Final[OpGroup]
+    Boolean: Final[OpGroup]
+    Split: Final[OpGroup]
+    Fillet: Final[OpGroup]
+    Pattern: Final[OpGroup]
+    InstantiatePart: Final[OpGroup]
+
+class CapEnd:
+    """An extrude/revolve cap end (`SegPat.side`)."""
+
+    Top: Final[CapEnd]
+    Bottom: Final[CapEnd]
+
+class MeridianEnd:
+    """A revolve meridian end (`SegPat.side`)."""
+
+    Start: Final[MeridianEnd]
+    End: Final[MeridianEnd]
+    Seam: Final[MeridianEnd]
+    Pi: Final[MeridianEnd]
+
+class SplitHalf:
+    """A split output half (`SegPat.side`)."""
+
+    Above: Final[SplitHalf]
+    Below: Final[SplitHalf]
+
+class RimSupport:
+    """Which support of a rim blend (`SegPat.side`)."""
+
+    Plane: Final[RimSupport]
+    Curved: Final[RimSupport]
+
+class CurveKind:
+    """Which curve variant an edge's certified carrier is — the EXACT
+    atom `GeomPred.curve_kind` matches on."""
+
+    Line: Final[CurveKind]
+    Circle: Final[CurveKind]
+    Ellipse: Final[CurveKind]
+    Nurbs: Final[CurveKind]
+
+class SurfaceKind:
+    """Which surface variant a face is (`GeomPred.surface_kind`,
+    `GeomPred.adjacent_kinds`)."""
+
+    Plane: Final[SurfaceKind]
+    Cylinder: Final[SurfaceKind]
+    Cone: Final[SurfaceKind]
+    Sphere: Final[SurfaceKind]
+    Torus: Final[SurfaceKind]
+    Nurbs: Final[SurfaceKind]
+
+class Cmp:
+    """The comparison `GeomPred.datum_distance` makes: the sign
+    trilean, never a bare float equality. A candidate whose margin
+    lands INSIDE the ε-band answers neither strict arm and refuses
+    (`SelectRefusal`, `reason="in_band"`)."""
+
+    Approx: Final[Cmp]
+    Greater: Final[Cmp]
+    Less: Final[Cmp]
+
+class SegPat:
+    """A pattern over ONE role segment: which variant, which side,
+    what its sub-name arguments look like."""
+
+    @staticmethod
+    def any() -> SegPat: ...
+    @staticmethod
+    def tag(tag: SegTag) -> SegPat: ...
+    @staticmethod
+    def group(group: OpGroup) -> SegPat: ...
+    def side(self, side: CapEnd | MeridianEnd | SplitHalf | RimSupport) -> SegPat: ...
+    def of(self, args: list[NamePat]) -> SegPat:
+        """Constrain the segment's sub-name arguments, positionally,
+        as a PREFIX."""
+
+class NamePat:
+    """A pattern over a whole stable name: entity kind, minting node,
+    and the exact shape of the role path."""
+
+    @staticmethod
+    def any() -> NamePat: ...
+    @staticmethod
+    def of_kind(kind: EntityKind) -> NamePat: ...
+    def node(self, node: NodeId) -> NamePat: ...
+    def path(self, path: list[SegPat]) -> NamePat: ...
+    def seg(self, seg: SegPat) -> NamePat: ...
+    def matches(self, name: str) -> bool:
+        """Whether a materialized name matches. `name` is the opaque
+        text a materializer answered with — the BINDING reads it (the
+        one licensed reader), your code never does."""
+
+class Selector:
+    """A UNION of name patterns — the STRUCTURAL selector language,
+    matched on name shape alone. Geometry is `select_where`'s second
+    stage, never a pattern field."""
+
+    @staticmethod
+    def of(pat: NamePat) -> Selector: ...
+    @staticmethod
+    def any_of(pats: list[NamePat]) -> Selector:
+        """The union of these patterns. An EMPTY selector matches
+        nothing."""
+
+    def or_(self, pat: NamePat) -> Selector:
+        """The union with one more pattern — Rust's `.or`; the
+        trailing underscore is the `inch` precedent (`or` is a Python
+        keyword)."""
+
+    def matches(self, name: str) -> bool: ...
+
+class GeomPred:
+    """One geometric atom; a `list[GeomPred]` is their CONJUNCTION.
+
+    The atoms split EXACT/DECIDED and the split is typed, not
+    flattened: the three kind atoms read the carrier's enum tag —
+    total, cannot refuse — while `datum_distance` is a real length
+    comparison through the margin funnel, whose in-band candidates
+    refuse as `SelectRefusal` rather than being silently included or
+    dropped."""
+
+    @staticmethod
+    def curve_kind(kinds: CurveKind | list[CurveKind]) -> GeomPred:
+        """EXACT: the edge's certified carrier is one of these kinds.
+        A list is a SET (one predicate says "a line or an arc"); an
+        empty list matches nothing."""
+
+    @staticmethod
+    def surface_kind(kinds: SurfaceKind | list[SurfaceKind]) -> GeomPred:
+        """EXACT: the face's surface is one of these kinds."""
+
+    @staticmethod
+    def adjacent_kinds(
+        a: SurfaceKind | list[SurfaceKind],
+        b: SurfaceKind | list[SurfaceKind],
+    ) -> GeomPred:
+        """EXACT: the two faces across an EDGE have kinds drawn one
+        from each set — UNORDERED, so `(Plane, Sphere)` matches a rim
+        whichever side carries which."""
+
+    @staticmethod
+    def datum_distance(datum: NodeId, cmp: Cmp, value: Length) -> GeomPred:
+        """DECIDED: the entity's distance to a datum node against a
+        stated `Length` — signed to a datum plane, unsigned to an axis
+        or point. The datum is a node reference like every other
+        input, which keeps the rule equivariant."""
 
 # --- values -----------------------------------------------------------
 
@@ -588,6 +868,60 @@ class Datum:
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
 
+# --- detect / declare (LIB-PYG5, audit G5) ---------------------------
+# The flush-contact protocol's value vocabulary. A finding is a
+# REPORT: `Evaluation.find_flush_candidates` answers with them, the
+# caller inspects, and `Node.declare` / `Doc.declare` /
+# `Doc.declare_all` turn inspected findings into the `Declare` node
+# `Node.boolean`'s `declare=` consumes. The same value rides the
+# boolean's refusal menu (`EvaluationError.finding`). Detection and
+# declaration are separate doors ON PURPOSE (no fused
+# detect-and-declare exists, by ruling).
+
+class PlaneRelation:
+    """The verify door's relation verdict: `SameOpposite` = resting
+    contact (opposed outward normals), `SameOriented` = flush walls
+    (the merge-stage flavor). `Distinct` exists as vocabulary; a
+    finding never carries it."""
+
+    SameOriented: Final[PlaneRelation]
+    SameOpposite: Final[PlaneRelation]
+    Distinct: Final[PlaneRelation]
+
+class ContactClass:
+    """The C4 contact class a declaration asserts. v1 carries `Rest`
+    (coincident planes) — the only demand-evidenced detector."""
+
+    Rest: Final[ContactClass]
+
+class FlushRung:
+    """Which rung of the verify ladder decided a finding:
+    `SharedSource` = syntactic recipe identity (zero numerics),
+    `DecidedCoincident` = the geometric trilean's coincident arm."""
+
+    SharedSource: Final[FlushRung]
+    DecidedCoincident: Final[FlushRung]
+
+class FlushFinding:
+    """One flush-plane finding: "this face pair would verify as
+    declared contact" — a VALUE to inspect and declare, never itself
+    a declaration. `a`/`b` are the pair's names in the same OPAQUE
+    text alphabet every materializer speaks (store them, hand them
+    back; never parse). `class_` spells `class` (a Python keyword)
+    with the `or_` trailing-underscore precedent."""
+
+    @property
+    def a(self) -> str: ...
+    @property
+    def b(self) -> str: ...
+    @property
+    def relation(self) -> PlaneRelation: ...
+    @property
+    def class_(self) -> ContactClass: ...
+    @property
+    def rung(self) -> FlushRung: ...
+    def __eq__(self, other: object) -> bool: ...
+
 class Value:
     """A node's successful value."""
 
@@ -612,13 +946,47 @@ class Evaluation:
         Each string is an OPAQUE identifier. Its internal structure is
         not API — it may change without notice — so the supported
         operations are equality, ordering, storage, and handing it back
-        to `Node.fillet`. Narrowing the set is a SELECTOR's job, and no
-        selector crosses yet (the audit's G13).
+        to `Node.fillet`. Narrowing the set is a SELECTOR's job:
+        `select` and `select_where`, which answer in this same
+        alphabet.
         """
 
     def all_faces(self, node: NodeId) -> list[str]: ...
     def all_vertices(self, node: NodeId) -> list[str]: ...
     def all_bodies(self, node: NodeId) -> list[str]: ...
+    def select(self, node: NodeId, selector: Selector) -> list[str]:
+        """Every name of `node`'s output matching `selector`'s
+        role-path shape, as of THIS evaluation — a materializer with
+        `all_edges`' exact contract (canonical order, the caller
+        stores it, frozen thereafter), answering in the same opaque
+        alphabet `Node.fillet` reads. Infallible: empty when nothing
+        matches."""
+
+    def select_where(
+        self,
+        node: NodeId,
+        selector: Selector,
+        geom: list[GeomPred],
+    ) -> list[str]:
+        """`select`, then filter the survivors by GEOMETRY: each is
+        resolved to its entity in THIS evaluation and tested against
+        the CONJUNCTION `geom`. An empty `geom` is exactly `select`;
+        run twice and concatenate for a union.
+
+        Raises `SelectRefusal`, typed, where the Rust door refuses:
+        exact atoms are total, but a decided atom's in-band margin, a
+        tied name whose candidates disagree, or an unreadable
+        candidate refuse rather than silently including or dropping
+        anything."""
+    def find_flush_candidates(self, a: NodeId, b: NodeId) -> list[FlushFinding]:
+        """The cross-body flush-plane candidates between `a`'s and
+        `b`'s outputs, as of THIS evaluation — the detect arm of the
+        detect/declare protocol, run by the C4 verifier itself (a
+        finding cannot disagree with the boolean's verify-at-use).
+        Findings are DEFINITE and canonically ordered; empty when
+        either node has no value. Raises `SelectRefusal`, typed
+        (`pair_in_band`, `tied_disagrees`, `unreadable`, `band`) —
+        an ambiguous pair is never silently included or dropped."""
     @property
     def recomputed(self) -> int: ...
     @property

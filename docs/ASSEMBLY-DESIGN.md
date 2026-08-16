@@ -13,13 +13,12 @@ it:
 | NAMING-DESIGN N1–N7 | Names are derivation paths; this doc discharges its scope exclusion "assembly pin representation" (A4) |
 | DESIGN.md banked flags | SE(3) witnesses budgeted, not assumed from sketch machinery; ε-disagreement across referenced documents is a typed error at the seam; pattern indices ride provenance explicitly; free-move/hide are display-layer state, never persisted (G3) |
 
-Decisions are **A1–A11**; open questions **AQ1–AQ6** (AQ3
-discharged by A11). Design-only:
-no unit here is scheduled by this doc; the implementation ladder
-names natural homes (M8's #317, M9's C7, M10's clearance) without
-claiming them. Chat/issue rulings incorporated: the scope ladder,
-materialized evaluation, and the key-identity relaxation are Evan's
-calls of 2026-08-09/10 (#328).
+Decisions are **A1–A13**; open questions **AQ1–AQ7** (AQ3
+discharged by A11; AQ7 by A12; AQ2 by A13). This doc schedules nothing; the implementation
+ladder below names homes, and the program that works through it is
+`docs/ASM-PLAN.md` / `docs/ASM-LOG.md`. Chat/issue rulings
+incorporated: the scope ladder, materialized evaluation, and the
+key-identity relaxation are Evan's calls of 2026-08-09/10 (#328).
 
 ## A1 — The scope ladder
 
@@ -263,7 +262,7 @@ Cheap to honor now, expensive to retrofit; each names its source:
 - **Handbook fits** (I3): `Fit { g₀ }` with g₀ from a versioned
   data source — the declaration shape already fits; provenance of
   g₀ is the open half.
-- **#317's record shape**: the M8 import-flatten unit must record
+- **#317's record shape**: the import-flatten unit must record
   the NAUO instance structure (which product, which placement, per
   instance) in the import record, so a flattened import can later
   be re-adopted as an assembly document without re-parsing. This is
@@ -460,6 +459,33 @@ Named v1 losses, honest and banked by A1: cross-edge cancellation
 rung (c); loop CERTIFICATION beyond the C2 verification tables
 (e.g. in-band closures) escalates per C4 rather than resolving.
 
+## A13 — Update granularity (discharges AQ2)
+
+**(Sign-off 2026-08-16, PR #544.)** The Cargo.lock model's update
+door, four clauses:
+
+- **The primitive is per-reference**: `DocEdit::UpdateReference
+  { node, new_pin }` — recorded, undoable, naming its node. Two
+  pins of one document id in one assembly is representable and
+  sometimes intended state (staged migration), and the primitive
+  an update-all elaborates into must exist regardless.
+- **Whole-document update is an elaboration, never a second
+  primitive**: "update id X everywhere" records one
+  per-reference edit per site, atomically grouped the way
+  split/inline group theirs (purity = atomicity, the ASM-4
+  precedent).
+- **Competing pins surface as a lint, not a refusal**: mixed
+  (id → {pin₁, pin₂}) state is legal at the recipe level and
+  REPORTED by an expectation-check in the A5 connectedness-lint
+  mold, listing each id's pin multiplicity with the referencing
+  nodes. Refusal would make staged updates unauthorable;
+  silence would hide the most common mistake.
+- **Update triggers ordinary re-evaluation**; once R2-b lands, a
+  pin move on an instance with crossing declarations additionally
+  triggers mate re-verification (A4's "does it actually fit"
+  gate — the edit's contract, stated once). Disk-moved-pin-held
+  staleness is AQ5's capture question, out of this decision.
+
 ## Open questions
 
 - **AQ1 — the document store.** What a stable document id anchors
@@ -467,9 +493,7 @@ rung (c); loop CERTIFICATION beyond the C2 verification tables
   workspace manifest, registry-shaped). Gates import-as-assembly
   and any sharing story; does not gate rungs R1–R2 (single-store =
   the workspace).
-- **AQ2 — update granularity and conflict surfacing** under the
-  Cargo.lock model: whole-document pin bump only, or
-  per-reference; how competing updates in one assembly surface.
+- **AQ2 — DISCHARGED into A13** (sign-off 2026-08-16, PR #544).
 - **AQ3 — DISCHARGED into A11** (working session 2026-08-10).
 - **AQ4 — per-instance arguments.** v1 posture: an instance is pin
   + frame, nothing else — no per-instance parameters, no
@@ -493,11 +517,47 @@ rung (c); loop CERTIFICATION beyond the C2 verification tables
   shape for value-equal-by-authoring carriers (peg/bore radii),
   and the recourse text steering designed clearance to
   `Fit { g₀ }`. Belongs with the C7-era verification-table specs.
+- **AQ7 — DISCHARGED into A12** (sign-off 2026-08-15, PR #522).
 
-## Implementation ladder (homes named, nothing scheduled)
+## A12 — Mate edges and roots (discharges AQ7)
 
-- **R0 (M8, already adopted)** — #317 import flattening, with the
-  A7 record shape as its one new obligation.
+**(Sign-off 2026-08-15, PR #522 — Option A.)** Ratified resolution
+of the A3/A9/A10 composition question the R2 census recon surfaced
+(a `Mate`'s stable-name references are not DAG edges under the
+shipped D3 carve-out, yet A9 defines relative freedom over the
+recipe DAG itself):
+
+- **Reading edges.** A `Mate` contributes edges of a second sort —
+  *reading edges* — to the instantiate nodes its references
+  resolve through (the head segment of each instance-qualified
+  name). Reading edges are RECOMPUTED from recipe data at need,
+  never stored beside it — the DAG stays the single structure
+  (A9's no-derived-graph simplification holds). A dangling head
+  (N5) contributes no edge until `Rebind`.
+- **Partitions.** A9's relative-freedom partition — and A11's
+  mate-connected placement clusters — run over ALL edges: mates
+  couple components, so G3's free-drag moves or refuses whole
+  mated clusters. A10's invariants, automatic maintenance, and
+  the product gather run over CONSUMING edges only: inserting a
+  mate consumes no root (no tip-transfer onto a bodiless node —
+  the instances' bodies keep gathering), and ancestor-freedom is
+  read over consuming paths.
+- **Mates are ordinary non-body roots (Option A).** Under
+  consuming-edge maintenance a mate is an isolated sink, so "no
+  consumers → root" applies unchanged and every A10 sentence
+  stays true as written: the mate joins the root list, denotes no
+  body, and the gather ignores it. The root-list noise concern is
+  presentational — a filter is cheap; A4's split handles a
+  crossing mate's root membership alongside the interface record
+  (spec'd in R2).
+
+## Implementation ladder
+
+Worked through by the ASM program (`docs/ASM-PLAN.md`); the live
+state is the ASM-LOG tail, never this list.
+
+- **R0 — DISCHARGED**: #317 import flattening, with the A7 record
+  shape as its one new obligation.
 - **R1 — the body graph**: `InstantiatePart` (pin + explicit
   frame) and `Pattern` nodes; materialized evaluation through
   `transform_rigid`; instance-qualified naming; pins and the

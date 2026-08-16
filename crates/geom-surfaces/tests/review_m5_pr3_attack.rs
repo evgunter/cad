@@ -1,38 +1,22 @@
 //! ADVERSARIAL review battery for M5 PR 3, surfaces
 //! (reviewer-authored, scratch): F3 jet vs central finite differences,
-//! F5 u- AND v-direction knot-algebra invariance fuzz (SEED =
-//! 0x5EED_5UF... 0x5EED_50F5), F4 grid removal-bound honesty in both
-//! directions. Tolerances as in the curve attack file (stated there).
+//! F5 u- AND v-direction knot-algebra invariance fuzz, F4 grid
+//! removal-bound honesty in both directions. Tolerances as in the curve
+//! attack file (stated there).
+//!
+//! The sweeps draw from `test_utils::fuzz` — a fresh seed per run, logged
+//! unconditionally, with every count a multiple of `CAD_FUZZ_EFFORT`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
 use geom_core::spline::KnotVector;
+use test_utils::fuzz;
 // Promotion adaptation (mechanical): dropped an unused Real import.
 use geom_core::{Point3, Vec3};
 use geom_surfaces::nurbs::NurbsSurface;
 
-const SEED: u64 = 0x5EED_50F5;
-
-struct Rng(u64);
-impl Rng {
-    fn next(&mut self) -> u64 {
-        let mut x = self.0;
-        x ^= x >> 12;
-        x ^= x << 25;
-        x ^= x >> 27;
-        self.0 = x;
-        x.wrapping_mul(0x2545_F491_4F6C_DD1D)
-    }
-    fn f(&mut self) -> f64 {
-        (self.next() >> 11) as f64 / (1u64 << 53) as f64
-    }
-    fn range(&mut self, lo: f64, hi: f64) -> f64 {
-        lo + (hi - lo) * self.f()
-    }
-}
-
-fn random_kv(rng: &mut Rng, p: usize, interior: usize) -> KnotVector {
+fn random_kv(rng: &mut fuzz::Rng, p: usize, interior: usize) -> KnotVector {
     let mut ks: Vec<f64> = vec![0.0; p + 1];
     let mut mids: Vec<f64> = (0..interior).map(|_| rng.range(0.1, 0.9)).collect();
     mids.sort_by(f64::total_cmp);
@@ -42,7 +26,13 @@ fn random_kv(rng: &mut Rng, p: usize, interior: usize) -> KnotVector {
     KnotVector::clamped(ks, p).unwrap()
 }
 
-fn random_surface(rng: &mut Rng, pu: usize, pv: usize, iu: usize, iv: usize) -> NurbsSurface<f64> {
+fn random_surface(
+    rng: &mut fuzz::Rng,
+    pu: usize,
+    pv: usize,
+    iu: usize,
+    iv: usize,
+) -> NurbsSurface<f64> {
     let ku = random_kv(rng, pu, iu);
     let kvv = random_kv(rng, pv, iv);
     let (nu, nv) = (ku.control_count(), kvv.control_count());
@@ -77,52 +67,61 @@ fn supv(a: Vec3<f64>, b: Vec3<f64>) -> f64 {
 /// at random interior parameters away from knots.
 #[test]
 fn f3_surface_jet_matches_central_differences() {
-    let mut rng = Rng(SEED);
-    for case in 0..15 {
-        let pu = 1 + (rng.next() as usize) % 4;
-        let pv = 1 + (rng.next() as usize) % 4;
+    let mut rng = fuzz::start("review_m5_pr3_attack_surfaces::f3_jet_vs_fd");
+    for case in 0..fuzz::scaled(2) {
+        let pu = 1 + rng.below(4);
+        let pv = 1 + rng.below(4);
         let s = random_surface(&mut rng, pu, pv, 2, 2);
         let h = 1e-5;
         let near_knot =
             |t: f64, kv: &KnotVector| kv.knots().iter().any(|k| (k - t).abs() < 10.0 * h);
-        for _ in 0..8 {
+        for _ in 0..fuzz::scaled(1) {
             let u = rng.range(0.05, 0.95);
             let v = rng.range(0.05, 0.95);
             if near_knot(u, s.knots_u()) || near_knot(v, s.knots_v()) {
                 continue;
             }
             let jet = s.ders(u, v);
-            assert!(supp(jet.point, s.eval(u, v)) < 1e-12, "jet point != eval");
+            assert!(
+                supp(jet.point, s.eval(u, v)) < 1e-12,
+                "jet point != eval — {}",
+                fuzz::replay()
+            );
             let fdu = (s.eval(u + h, v) - s.eval(u - h, v)) / (2.0 * h);
             let fdv = (s.eval(u, v + h) - s.eval(u, v - h)) / (2.0 * h);
             assert!(
                 supv(jet.du, fdu) < 1e-4 * (1.0 + jet.du.norm()),
-                "case {case}: Su vs FD at ({u},{v})"
+                "case {case}: Su vs FD at ({u},{v}) — {}",
+                fuzz::replay()
             );
             assert!(
                 supv(jet.dv, fdv) < 1e-4 * (1.0 + jet.dv.norm()),
-                "case {case}: Sv vs FD at ({u},{v})"
+                "case {case}: Sv vs FD at ({u},{v}) — {}",
+                fuzz::replay()
             );
             let fduu = (s.ders(u + h, v).du - s.ders(u - h, v).du) / (2.0 * h);
             let fdvv = (s.ders(u, v + h).dv - s.ders(u, v - h).dv) / (2.0 * h);
             let fduv = (s.ders(u, v + h).du - s.ders(u, v - h).du) / (2.0 * h);
             assert!(
                 supv(jet.duu, fduu) < 1e-3 * (1.0 + jet.duu.norm()),
-                "case {case}: Suu at ({u},{v}): {:?} vs {:?}",
+                "case {case}: Suu at ({u},{v}): {:?} vs {:?} — {}",
                 jet.duu,
-                fduu
+                fduu,
+                fuzz::replay()
             );
             assert!(
                 supv(jet.dvv, fdvv) < 1e-3 * (1.0 + jet.dvv.norm()),
-                "case {case}: Svv at ({u},{v}): {:?} vs {:?}",
+                "case {case}: Svv at ({u},{v}): {:?} vs {:?} — {}",
                 jet.dvv,
-                fdvv
+                fdvv,
+                fuzz::replay()
             );
             assert!(
                 supv(jet.duv, fduv) < 1e-3 * (1.0 + jet.duv.norm()),
-                "case {case}: Suv at ({u},{v}): {:?} vs {:?}",
+                "case {case}: Suv at ({u},{v}): {:?} vs {:?} — {}",
                 jet.duv,
-                fduv
+                fduv,
+                fuzz::replay()
             );
         }
     }
@@ -132,11 +131,11 @@ fn f3_surface_jet_matches_central_differences() {
 /// evaluation-invariant on a dense grid.
 #[test]
 fn f5_surface_knot_algebra_invariant_both_directions() {
-    let mut rng = Rng(SEED ^ 0xF5);
+    let mut rng = fuzz::start("review_m5_pr3_attack_surfaces::f5_knot_algebra");
     let tol = 1e-9;
-    for case in 0..10 {
-        let pu = 1 + (rng.next() as usize) % 3;
-        let pv = 1 + (rng.next() as usize) % 3;
+    for case in 0..fuzz::scaled(1) {
+        let pu = 1 + rng.below(3);
+        let pv = 1 + rng.below(3);
         let s = random_surface(&mut rng, pu, pv, 1, 1);
         let uu = rng.range(0.15, 0.85);
         let vv = rng.range(0.15, 0.85);
@@ -159,13 +158,15 @@ fn f5_surface_knot_algebra_invariant_both_directions() {
         assert_eq!(variants[4].1.knots_u().degree(), pu + 1);
         assert_eq!(variants[5].1.knots_v().degree(), pv + 1);
         for (name, w) in &variants {
-            for i in 0..=25 {
-                for j in 0..=25 {
-                    let (u, v) = (i as f64 / 25.0, j as f64 / 25.0);
+            let grid = fuzz::scaled(3);
+            for i in 0..=grid {
+                for j in 0..=grid {
+                    let (u, v) = (i as f64 / grid as f64, j as f64 / grid as f64);
                     let d = supp(s.eval(u, v), w.eval(u, v));
                     assert!(
                         d < tol,
-                        "case {case} {name}: invariance broke at ({u},{v}): {d:e}"
+                        "case {case} {name}: invariance broke at ({u},{v}): {d:e} — {}",
+                        fuzz::replay()
                     );
                 }
             }
@@ -177,11 +178,17 @@ fn f5_surface_knot_algebra_invariant_both_directions() {
 /// conjugation) v, on reviewer-planted lossy grids.
 #[test]
 fn f4_surface_removal_bound_honest_u_and_v() {
-    let mut rng = Rng(SEED ^ 0xF4);
+    let mut rng = fuzz::start("review_m5_pr3_attack_surfaces::f4_removal_bound");
+    // COVERAGE FLOOR: the row demands a QUOTA of three bounded removals
+    // per direction, so the loop count here is a CAP on the attempts, not
+    // a sweep size — cutting it by the usual /8 would make the quota
+    // unreachable. The loop breaks as soon as the quota is met, so the
+    // typical cost is three passes, not the cap.
+    const QUOTA: usize = 3;
     for dir_v in [false, true] {
         let mut successes = 0;
-        for _ in 0..12 {
-            if successes >= 3 {
+        for _ in 0..fuzz::scaled(12) {
+            if successes >= QUOTA {
                 break;
             }
             // Reviewer-planted lossy case: insert a knot exactly (bound
@@ -221,33 +228,38 @@ fn f4_surface_removal_bound_honest_u_and_v() {
             };
             successes += 1;
             let mut worst = 0.0f64;
-            for i in 0..=60 {
-                for j in 0..=60 {
-                    let (uu, vv) = (i as f64 / 60.0, j as f64 / 60.0);
+            let grid = fuzz::scaled(8);
+            for i in 0..=grid {
+                for j in 0..=grid {
+                    let (uu, vv) = (i as f64 / grid as f64, j as f64 / grid as f64);
                     let e = supp(s.eval(uu, vv), hat.eval(uu, vv));
                     if e > worst {
                         worst = e;
                     }
                     assert!(
                         e <= bound + 1e-12,
-                        "surface bound violated (dir_v={dir_v}) at ({uu},{vv}): {e:e} > {bound:e}"
+                        "surface bound violated (dir_v={dir_v}) at ({uu},{vv}): \
+                         {e:e} > {bound:e} — {}",
+                        fuzz::replay()
                     );
                 }
             }
-            assert!(bound.is_finite());
+            assert!(bound.is_finite(), "poisoned bound — {}", fuzz::replay());
             // Diagnostic honesty: bound should not be absurdly loose
             // when the removal is genuinely lossy (ratio sanity only,
             // not a hard contract): record via assert with huge slack.
             if worst > 1e-9 {
                 assert!(
                     bound / worst < 1e6,
-                    "bound uselessly loose: {bound:e} vs realized {worst:e}"
+                    "bound uselessly loose: {bound:e} vs realized {worst:e} — {}",
+                    fuzz::replay()
                 );
             }
         }
         assert!(
-            successes >= 3,
-            "quota not met (dir_v={dir_v}): only {successes} successful removals"
+            successes >= QUOTA,
+            "quota not met (dir_v={dir_v}): only {successes} successful removals — {}",
+            fuzz::replay()
         );
     }
 }

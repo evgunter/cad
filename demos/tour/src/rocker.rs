@@ -1,15 +1,15 @@
 //! The rocker plate — the tour's arc-leg fillet stop (M5 S2 + S8).
 //!
-//! Every corner of this part is authored with `LoopBuilder`'s fillet
-//! sugar, and between them they cover the whole corner taxonomy the S2
-//! unit opened: **arc×line** (hub → lower flank), **line×line** (the
+//! Every corner of this part is authored through the PATHS lattice's
+//! fillet doors, and between them they cover the whole corner taxonomy
+//! the S2 unit opened: **arc×line** (hub → lower flank), **line×line** (the
 //! keel knee), **line×arc** (flank → boss), **arc×line** again (boss →
 //! upper flank), **line×arc** (flank → hub), and — in the eye-shaped
 //! slot through the hub — **arc×arc**, at a corner where TWO tangent
 //! circles of the authored radius fit and the S8 rule picks the one
 //! nearest the corner the author wrote down.
 //!
-//! What the sugar buys, in one line: the fillet arc's tangent points
+//! What the fillet doors buy, in one line: the fillet arc's tangent points
 //! and bulge are CONSTRUCTED from the legs (offset carriers, closed
 //! form), so both junctions are tangent by construction and are
 //! DECLARED as such — and validation then verifies every declaration
@@ -24,21 +24,13 @@
 
 use pncad::geom_core::Tolerance;
 use pncad::profile::{
-    ArcSweep, FilletLegShape, LoopBuilder, Open, Profile, ProfileLoop, SegmentKind, SketchPlane,
-    Start, ValidatedProfile,
+    ArcSweep, Open, Profile, ProfileLoop, SegmentKind, SketchPlane, Start, ValidatedProfile,
 };
 use pncad::sweep::{Extrusion, extrude};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::p2;
-
-fn arc<S: Scalar>(cx: f64, cy: f64) -> FilletLegShape<S> {
-    FilletLegShape::Arc {
-        center: p2(cx, cy),
-        sweep: ArcSweep::Ccw,
-    }
-}
 
 /// Hub circle: centre (0, 0), R = 2.5 — the plate's big bearing boss.
 const HUB: (f64, f64, f64) = (0.0, 0.0, 2.5);
@@ -67,102 +59,80 @@ fn eye_fillet_center_y() -> f64 {
     0.3125f64.sqrt()
 }
 
-/// The plate outline, walked counterclockwise from the hub's west
-/// point — a start deliberately placed mid-arc, so the loop's first
-/// and last segments continue the SAME hub carrier (a same-carrier
-/// joint, which is not a tangency and needs no declaration).
+/// The plate outline, authored through the PATHS lattice: five fillets
+/// between the two circles and the three straight sides, walked
+/// counterclockwise from a point on the keel.
 ///
-/// Corner order: hub→keel (arc×line), the keel knee (line×line),
-/// keel→boss (line×arc), boss→upper flank (arc×line), flank→hub
-/// (line×arc). Every one of them is a fillet; not a single tangent
-/// point in this function was computed by hand.
+/// Corner order from the entry: keel→boss (line×arc), boss→upper flank
+/// (arc×line), flank→hub (line×arc), hub→lower flank (arc×line), and
+/// the keel knee (line×line), which is the SEAM. Every one of them is a
+/// fillet; not a single tangent point — and, since the migration, not a
+/// single CORNER — in this function was written down. What is authored
+/// is what the part is: two circles, three straight sides (each an
+/// on-path anchor plus its direction), and the blend radii.
 ///
-/// **Stays raw after LIB-G2 — two NAMED walls, both measured, neither
-/// an oversight** (LIB-LOG rulings LB5 and LB4; the eye migrated, this
-/// did not):
+/// **Topology, stated as the invariant it now is (LB5).** The outline
+/// has TEN vertices: five fillet arcs, each with a trim point ahead of
+/// it. The hub arc is ONE segment, and the seam sits on the keel, where
+/// `.to(Start)` retrims the entry anchor away. The raw spelling this
+/// replaced started mid-hub-arc and so carried an eleventh vertex — a
+/// same-carrier joint splitting the hub arc in two, hence one extra
+/// lateral face after extrusion. That vertex was the raw builder's
+/// seam, not the plate's shape, and the ratified LB5 disposition
+/// re-anchors it: the demo's point is the rocker's SHAPE.
 ///
-/// 1. **The mid-arc seam is authored topology (LB5).** The start sits
-///    mid-hub-arc, so the loop's first and last segments continue the
-///    SAME hub carrier. The algebra's seam fillet (`.to(Start)`)
-///    RETRIMS the entry vertex to the fillet arc's end, which would eat
-///    this vertex — one vertex, one lateral face after extrusion — and
-///    `.to_on(Start, …)` does not apply either, since it exists for a
-///    junction of two DIFFERENT carriers. PQ4 and §4 item 4 are right
-///    to refuse reproducing a same-carrier mid-arc junction; the
-///    vertex is intent, not an artifact.
-/// 2. **Line×circle derived corners are anchor-rounding-dependent
-///    (LB4).** Four of these five corners are arc↔line, and the derived
-///    corner then lands 0–4 ulps off the authored one depending on
-///    which on-path anchor the author names — unlike the eye's
-///    circle×circle corner, which the squared-radius form makes
-///    structurally exact. Migrating a site by hunting for an anchor
-///    whose rounding happens to cancel would be fitting the authoring
-///    to the fixture, which LB4 rules out. So these stay hand-authored
-///    until the derivation itself is exact, and this stop's exports
-///    stay byte-identical.
-///
-/// Both are v2-accumulator evidence, recorded in PATHS-DESIGN §2b.
+/// **Derived corners are not authored ones, to the ulp (LB4).** Four of
+/// these five corners are arc↔line, where the derived corner lands 0–4
+/// ulps off the point a hand author would have transcribed (only the
+/// eye's circle×circle corner is structurally exact, by the
+/// squared-radius rule). The contract here is #289's — the scene's
+/// oracle, verified at its own tolerances — never byte-identity with a
+/// previous spelling, and nothing in this file is fitted to make a
+/// rounding cancel.
 fn outline<S: Scalar>() -> ProfileLoop<S> {
-    let (hx, hy, _) = HUB;
-    let (bx, by, _) = BOSS;
-    let tol = Tolerance::get();
-    let start = p2::<S>(-2.5, 0.0);
-    LoopBuilder::start(start)
-        // hub → keel: the concave blend a web makes into its boss.
-        .fillet_corner(
-            arc(hx, hy),
-            p2(2.0, -1.5),
-            FilletLegShape::Line,
-            p2(4.0, -2.0),
-            S::from_f64(R_BLEND),
-            tol,
-        )
-        .expect("hub→keel blend fits")
-        // the keel knee: two straight legs — the line×line door the
-        // bracket has used since #101, reached through the same
-        // `fillet_corner` call as its arc-leg siblings (two straight
-        // legs delegate, so the geometry is bit-identical).
-        .fillet_corner(
-            FilletLegShape::Line,
-            p2(4.0, -2.0),
-            FilletLegShape::Line,
-            p2(6.1, -1.2),
-            S::from_f64(R_KNEE),
-            tol,
-        )
-        .expect("keel knee fillet fits")
-        // keel → boss.
-        .fillet_corner(
-            FilletLegShape::Line,
-            p2(6.1, -1.2),
-            arc(bx, by),
-            p2(6.1, 1.2),
-            S::from_f64(R_BLEND),
-            tol,
-        )
+    let (hx, hy, hr) = HUB;
+    let (bx, by, br) = BOSS;
+    let blend = S::from_f64(R_BLEND);
+    // The three straight sides, each as an on-path anchor and the
+    // direction it runs: the keel (entry, heading east into the boss),
+    // the upper flank (heading back west into the hub), the lower flank
+    // (heading east into the knee). Only the RATIO of a direction is
+    // read, so these are the sides' slopes, written exactly.
+    Open.at(p2::<S>(5.05, -1.6))
+        .toward(S::from_f64(2.1), S::from_f64(0.8))
+        .expect("the keel runs east")
+        // keel → boss: the arrival rides the boss circle, entering it at
+        // its east point.
+        .fillet(blend)
+        .expect("a definitely positive blend radius")
+        .at_on(p2(bx + br, by), p2(bx, by), ArcSweep::Ccw)
         .expect("keel→boss blend fits")
-        // boss → upper flank (the boss arc between the two corners is
-        // emitted by the constructors as the trimmed leg).
-        .fillet_corner(
-            arc(bx, by),
-            p2(6.1, 1.2),
-            FilletLegShape::Line,
-            p2(2.0, 1.5),
-            S::from_f64(R_BLEND),
-            tol,
-        )
+        // boss → upper flank: the departure is ON the boss carrier and
+        // the arrival is straight — the §2b route-3 door.
+        .fillet(blend)
+        .expect("a definitely positive blend radius")
+        .at_toward(p2(4.05, 1.35), S::from_f64(-4.1), S::from_f64(0.3))
         .expect("boss→flank blend fits")
-        // upper flank → hub, closing on the hub carrier.
-        .fillet_corner(
-            FilletLegShape::Line,
-            p2(2.0, 1.5),
-            arc(hx, hy),
-            start,
-            S::from_f64(R_BLEND),
-            tol,
-        )
+        // upper flank → hub: back onto the big circle, entered at its
+        // west point — the very point the raw spelling used as its seam,
+        // now an anchor and not a vertex.
+        .fillet(blend)
+        .expect("a definitely positive blend radius")
+        .at_on(p2(hx - hr, hy), p2(hx, hy), ArcSweep::Ccw)
         .expect("flank→hub blend fits")
-        .close_arc_center(p2(hx, hy), ArcSweep::Ccw)
+        // hub → lower flank: route 3 again, off the hub carrier.
+        .fillet(blend)
+        .expect("a definitely positive blend radius")
+        .at_toward(p2(3.0, -1.75), S::from_f64(2.0), S::from_f64(-0.5))
+        .expect("hub→keel blend fits")
+        // the keel knee, and the seam: two straight legs, so this is the
+        // line×line door the bracket has used since #101, closing onto
+        // side 1 through `Start`.
+        .fillet(S::from_f64(R_KNEE))
+        .expect("a definitely positive knee radius")
+        .to(Start)
+        .expect("keel knee fillet fits")
+        .into()
 }
 
 /// The eye slot through the hub: the lens of two R = 1 circles about
@@ -273,7 +243,7 @@ pub fn stops() -> Vec<Stop> {
                 arc x line (hub blend), line x line (keel knee), line x arc (boss \
                 blend), arc x line (boss exit), line x arc (hub return), and arc x \
                 arc at the eye slot's rounded tip",
-        ops: "LoopBuilder::fillet_corner on line/arc legs -> Profile::validate \
+        ops: "PATHS fillet doors on line/arc carriers -> Profile::validate \
               -> extrude(Distance), genus 1",
         delta: 5e-3,
         note: Some(note),

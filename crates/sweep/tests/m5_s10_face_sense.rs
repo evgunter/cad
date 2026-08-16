@@ -31,6 +31,7 @@
 mod revolve_common;
 
 use core::f64::consts::{FRAC_PI_8, PI};
+use profile::RawLoop;
 
 use geom_core::{Band, Point2, Point3, Tolerance};
 use geom_surfaces::Surface;

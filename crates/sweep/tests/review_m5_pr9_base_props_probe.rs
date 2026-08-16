@@ -5,6 +5,7 @@
 //! consistent dts and returns HALF the true du.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use geom_core::{Point2, Tolerance};
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
 

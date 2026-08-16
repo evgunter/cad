@@ -15,7 +15,7 @@ bit us.
 
 ```console
 $ cd demos/tour && cargo run --release -- ../out    # all 34 stops
-$ scripts/render-hosted.sh --lane kernel            # + montage images (hosted; see demos/README.md)
+$ local-scripts/render-hosted.sh                           # + montage images (installs CI's render; see demos/README.md)
 ```
 
 ```console
@@ -58,7 +58,7 @@ depends on `pncad` and **nothing else** — one line in its
 | scene(s) | module | demonstrates | pins |
 |---|---|---|---|
 | `bracket`, `plate`, `vase`, `sheave`, `chute` | `bodies.rs` | The four body ops on public API: polyline+fillet extrude, a genus-2 holed plate, full and partial revolves, plane+cylinder+cone+torus on one part | The bracket's inner corner is *constructive* (`fillet`), not a hand-rounded via point — the pre-#100 decimal sat inside the ε escalation band |
-| `rocker` | `rocker.rs` | The complete fillet-corner taxonomy: arc×line, line×line, line×arc, arc×arc, via `LoopBuilder::fillet_corner` | Nothing typed by hand; each declaration verified, `TangencyContradicted` on a lie. Branch choice read back with `readback::blend_arcs` |
+| `rocker` | `rocker.rs` | The complete fillet-corner taxonomy: arc×line, line×line, line×arc, arc×arc, through the PATHS fillet doors (`at_on`, `at_toward`, the line×line seam) | Not a corner typed by hand — every one is DERIVED from its two carriers; each declaration verified, `TangencyContradicted` on a lie. Branch choice read back with `readback::blend_arcs` |
 | `diefillet`, `diepips`, `diecomposed` | `diefillet.rs` | Rolling-ball `fillet_edges`; a 21-ball closed-group cut; M6 in-place composition surgery | Sequential pip cuts would present a trimmed sphere as an operand — refused typed. A tilted ball pole makes plane×sphere non-polar — refused typed |
 | `lily` (8 bodies) | `lily.rs` | `tube_along_arc` turtle chains, revolved sphere-zone lanterns, swept kite-section leaves | `wall_probes()` is a live record of kernel refusals (coincident-planar glue). Findings 9 and 13 named in place |
 | `tiltedcut` | `curvedcut.rs` | An exact `Curve3::Ellipse` section produced by `topo::split` | Three retire-on-closure frontier panics fired and were retired |
@@ -73,15 +73,17 @@ depends on `pncad` and **nothing else** — one line in its
 | `cutaway` | `cutaway.rs` | The first `topo::split`, on a boolean result, then `transform_rigid` | Split output carries no contacts, so it takes plain tier 3 — the 3/3′ rule in action |
 | `heatsink5/7/9` | `heatsink.rs` | The recipe layer via `pncad::document`: one document, structural-param edits, downstream-only recompute, stable `Instance(i)` names | **Named gap F4**: a Boolean node cannot consume a Pattern node's `Instances` payload, so the union step honestly lives outside the document |
 | — | `booleans.rs` | The declare door: `flush_declarations` building `BooleanDeclarations` for `union_with`/`intersect_with` | There is no `detect_*` in use anywhere: value equality never classifies |
-| — | `paths.rs` | The shared `path_polygon` helper — the tour's polygons said through the PATHS algebra | The lowering is byte-identical to the raw constructor; what it adds is authoring-time junction classification |
+| — | `paths.rs` | The shared `path_polygon` helper — the tour's polygons said through the PATHS algebra | Since LIB-RETTAIL it is the ONLY way the tour says a polygon: raw `ProfileLoop` construction is off the presented surface, and the tour's one dependency is `pncad` |
 | — | `probe.rs` | The K-telemetry sweep (`cargo run -- k-probe out.csv`) | One process per ε row |
 
-Two deliberate exceptions worth knowing. `bodies::finale_fail_loud`
-builds a bowtie loop and is refused by `Profile::validate` — it stays
-**permanently raw**, because the PATHS algebra's junction checks are
-local and would pass it, so only the profile-level validator catches
-it. And the `bracket` scene is retired from the montage in favour of
-`rocker`, which shows strictly more.
+One deliberate exception worth knowing: the `bracket` scene is retired
+from the montage in favour of `rocker`, which shows strictly more.
+
+Note also where the bowtie lives: not in the tour (a broken-on-purpose
+scene is not a use case — Evan's ruling on #413) but asserted in
+`crates/profile/tests/rejections.rs`. The chain AUTHORS through the
+lattice — the junction checks are local and all four corners are sharp
+— and `validate` refuses it with the exact typed error.
 
 ## The document corpus — `crates/editor-core/tests/corpus/`
 

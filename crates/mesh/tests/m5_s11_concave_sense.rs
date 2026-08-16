@@ -18,6 +18,7 @@
 mod common;
 
 use core::f64::consts::{FRAC_PI_8, PI};
+use profile::RawLoop;
 
 use common::*;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
@@ -29,11 +30,17 @@ use topo::Body;
 /// length (π/2)·√2 each, and two caps of area 3.
 fn notched() -> Body<f64> {
     let b = FRAC_PI_8.tan();
-    let lp = ProfileLoop::builder(p2(0.0, 0.0))
+    let lp = profile::Open
+        .at(p2(0.0, 0.0))
         .arc_to(p2(2.0, 0.0), b)
+        .unwrap()
         .line_to(p2(2.0, 1.5))
+        .unwrap()
         .arc_to(p2(0.0, 1.5), -b)
-        .close();
+        .unwrap()
+        .line_to(profile::Start)
+        .unwrap()
+        .loop_;
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(geom_core::Tolerance::get())
         .unwrap();

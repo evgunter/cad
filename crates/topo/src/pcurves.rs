@@ -387,17 +387,33 @@ fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
 /// - An [`geom_brep::EdgeGeometry::IsoCurve`] naming THIS face's
 ///   surface maps directly: `P(t) = (u, v0 + slope·(t − t0))`.
 /// - An `IsoCurve` naming the OTHER wall maps as this chart's own
-///   `u = 0` or `u = 1` boundary, the side selected by a definite
+///   `u = u₀` or `u = u₁` boundary, the side selected by a definite
 ///   endpoint residual (`pcurve_iso_side`) and then CERTIFIED by the
 ///   full iso lane — a wrong pick fails loudly, never silently.
 /// - A cap–wall rim over a LINE carrier (`MappedCurve::PlacedSegment`,
-///   Line segment) maps as `(u(t), v)` with `u` affine (`t0 ↦ 0`,
-///   `t1 ↦ 1` — the wall's u IS the segment parameter by construction)
-///   and `v ∈ {0, 1}` by the same endpoint selection.
+///   Line segment) maps as `(u(t), v)` with `u` affine
+///   (`t0 ↦ u₀`, `t1 ↦ u₁` — the wall's u IS the segment parameter by
+///   construction, up to the chart's own affine scale) and
+///   `v ∈ {v₀, v₁}` by the same endpoint selection.
+///
+/// **The chart's own domain, not the unit square (#327).** Every
+/// boundary above is the payload's KNOT domain end. A chart the kernel
+/// BUILT is normalized to `[0, 1]²`, so this reads the same values it
+/// always did; a chart the kernel IMPORTED carries the file's
+/// parameterization — dm1's cylinder wall is `u ∈ [0, 3√3]` — where
+/// `u = 1` is an interior column and every pick against it silently
+/// answers about the wrong locus.
 /// - A cap–wall rim over a CIRCLE carrier maps to the same boundary
 ///   line through the chart's own rational-quadratic parameter
 ///   ([`Pcurve::IsoArc`], M8-3). Both mapped description forms the
 ///   kernel mints for a circle reach it — see the arm's own note.
+/// - An [`geom_brep::EdgeGeometry::Intersection`] over a SPLINE carrier
+///   that lies on a boundary column maps as that column: the same iso
+///   line the `IsoCurve` arm mints, recovered from the carrier because
+///   the intrinsic description names no chart coordinate. The residency
+///   is a pick over the columns and the two `v` directions, definite or
+///   escalated; an interior or diagonal intersection locus has no
+///   boundary-row closed form and refuses typed.
 /// - Everything else on a NURBS chart refuses typed with the class
 ///   named.
 fn nurbs_iso_derive<T: Decide>(
@@ -413,13 +429,30 @@ fn nurbs_iso_derive<T: Decide>(
     };
     let (carrier, t0, t1) = half_edge_carrier(body, half_edge)?;
     let span = t1 - t0;
+    // The chart's OWN domain (doc above): `[0, 1]²` for a kernel-built
+    // patch, the file's parameterization for an imported one.
+    let (cu0, cu1, cv0, cv1) = match surface {
+        Surface::Nurbs(payload) => {
+            let (a, b) = payload.knots_u().domain();
+            let (c, d) = payload.knots_v().domain();
+            (
+                T::from_f64(a),
+                T::from_f64(b),
+                T::from_f64(c),
+                T::from_f64(d),
+            )
+        }
+        _ => (T::zero(), T::one(), T::zero(), T::one()),
+    };
     // A definite endpoint-side selection: which of the two candidate
     // chart values places the carrier's START on the surface. The
     // selection is structure (a two-way pick), the CHECK is the full
     // iso-lane certification that follows every derivation.
-    let side_pick = |eval_at: &dyn Fn(T) -> geom_core::Point3<T>| -> Result<T, PcurveMintError> {
+    let side_pick = |eval_at: &dyn Fn(T) -> geom_core::Point3<T>,
+                     cands: [T; 2]|
+     -> Result<T, PcurveMintError> {
         let start = carrier.eval(t0);
-        for cand in [T::zero(), T::one()] {
+        for cand in cands {
             match decide(
                 "pcurve_iso_side",
                 Margin::of(start.distance(eval_at(cand))),
@@ -452,7 +485,7 @@ fn nurbs_iso_derive<T: Decide>(
             } else {
                 // The other wall's side of the seam: this chart's own
                 // u-boundary, selected by the endpoint.
-                side_pick(&|cand| surface.eval(cand, v0))?
+                side_pick(&|cand| surface.eval(cand, v0), [cu0, cu1])?
             };
             Ok(Pcurve::IsoLine {
                 p0: Point2::new(x, p0y),
@@ -493,31 +526,163 @@ fn nurbs_iso_derive<T: Decide>(
             let spans = ku.knots().iter().filter(|k| **k > d0 && **k < d1).count() / 2 + 1;
             let breaks = uniform_breaks(spans)
                 .ok_or_else(|| refuse("an arc rim whose chart has no usable sub-arc structure"))?;
-            let v = side_pick(&|cand| surface.eval(T::zero(), cand))?;
-            Ok(Pcurve::IsoArc {
-                p0: Point2::new(T::zero(), v),
-                pd: Vec2::new(T::one(), T::zero()),
+            let v = side_pick(&|cand| surface.eval(cu0, cand), [cv0, cv1])?;
+            // **The u-DIRECTION pick (#327).** M8-3's arm assumed the
+            // rim's increasing carrier parameter runs with the chart's
+            // increasing `u` — true by construction for a wall the
+            // kernel BUILT, and false in general for one it IMPORTED:
+            // a promoted rim circle's `axis` is derived from the
+            // file's own NURBS winding, and a cylinder wall's two rims
+            // routinely wind oppositely in the file, so exactly one of
+            // them runs against the chart. Assuming `+u` there does not
+            // refuse — it mints a chart image that traverses the wall
+            // BACKWARDS, and the loop walk reports it as a chart
+            // discontinuity or a double-period closure, naming a
+            // symptom two steps from the cause.
+            //
+            // The pick is the `side_pick` idiom on the other axis: the
+            // two candidate images (`u: 0 → 1` and `u: 1 → 0`),
+            // evaluated at a fixed interior probe of the arc and
+            // metered against the carrier there. The start point
+            // cannot decide it — on a FULL-PERIOD rim the chart's two
+            // u-boundaries are the same 3-D point — so the probe sits
+            // at a quarter of the arc, where the two candidates are a
+            // half-period apart. A selection, checked: the full
+            // arc-rim certification still follows.
+            let probe_t = t0 + span * T::from_f64(0.25);
+            let probe = carrier.eval(probe_t);
+            let image = |p0x: T, sign: T| Pcurve::IsoArc {
+                p0: Point2::new(p0x, v),
+                pd: Vec2::new(sign, T::zero()),
                 t0,
                 angle: span,
-                breaks,
-            })
+                breaks: breaks.clone(),
+            };
+            // Escalations are DEFERRED per candidate (the loop walk's
+            // posture): an indeterminate first candidate must not rob
+            // the second of its turn.
+            let mut deferred: Option<Indeterminate> = None;
+            for (p0x, sign) in [(cu0, cu1 - cu0), (cu1, cu0 - cu1)] {
+                let cand = image(p0x, sign);
+                let uv = cand.eval(probe_t);
+                let gap = probe.distance(surface.eval(uv.x, uv.y));
+                match decide("pcurve_iso_arc_direction", Margin::of(gap), band) {
+                    Ok(Sign::Zero) => return Ok(cand),
+                    Ok(Sign::Positive | Sign::Negative) => {}
+                    Err(cause) => {
+                        if deferred.is_none() {
+                            deferred = Some(cause);
+                        }
+                    }
+                }
+            }
+            match deferred {
+                Some(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
+                None => Err(refuse(
+                    "an arc rim whose chart image runs in neither u direction — the \
+                     rim does not lie on this chart's boundary column",
+                )),
+            }
         }
         geom_brep::EdgeGeometry::MappedCurve(geom_brep::MappedCurve::PlacedSegment {
             segment: geom_brep::SketchSegment::Line { .. },
             ..
         }) => {
-            let plx = T::one() / span;
-            let p0x = T::zero() - t0 / span;
-            let v = side_pick(&|cand| surface.eval(p0x + plx * t0, cand))?;
+            let plx = (cu1 - cu0) / span;
+            let p0x = cu0 - (cu1 - cu0) * t0 / span;
+            let v = side_pick(&|cand| surface.eval(p0x + plx * t0, cand), [cv0, cv1])?;
             Ok(Pcurve::IsoLine {
                 p0: Point2::new(p0x, v),
                 pl: Vec2::new(plx, T::zero()),
             })
         }
+        // **The boundary-iso INTERSECTION arm.** The same wall–wall
+        // seam the `IsoCurve` arm maps, stated INTRINSICALLY: the locus
+        // is `S₁ ∩ S₂`, and where that locus IS this chart's own
+        // `u = u₀`/`u = u₁` boundary column its chart image is the same
+        // iso line. The description carries no chart coordinates at all
+        // — it names two surfaces and a witness — so the image is
+        // recovered from the CARRIER against the chart's own domain.
+        //
+        // Keyed on the carrier and on BOUNDARY RESIDENCY, never on the
+        // description form or the operand order: which of `s1`/`s2` is
+        // the plane is not a fact about the locus, and the same seam
+        // stated natively or restated foreign must mint the same image.
+        //
+        // The pick is ONE fixed schedule (D9): the chart's two boundary
+        // columns × the two directions the carrier can traverse the
+        // chart's `v`, each candidate image evaluated at an interior
+        // probe and metered against the carrier there in METRES. The
+        // start point cannot decide it alone — it fixes a chart CORNER,
+        // and a column and a direction both pass through one — so the
+        // probe sits a quarter span in, where the candidates separate.
+        // A SELECTION, checked: the full seam-class certification
+        // follows every derivation.
+        //
+        // **What the schedule selects is wider than what the seam class
+        // CERTIFIES, and deliberately so.** The certified inventory is
+        // FORWARD only: the class's parameter-map slack is metered
+        // against the identity map and its control hull against the
+        // boundary row's own ordering, so a carrier that traverses the
+        // chart's `v` backwards refuses at certification (the envelope)
+        // rather than charting. The backward candidates stay in the
+        // schedule because the honest answer for such a carrier is the
+        // image it actually has, judged by the certification — not a
+        // forward image that fits the class by construction and states
+        // the wrong traversal.
+        //
+        // An `Intersection` whose carrier traverses NEITHER boundary
+        // column under the chart's own parameterization refuses typed
+        // and permanently (C5).
+        geom_brep::EdgeGeometry::Intersection { .. } => {
+            if !matches!(carrier, geom_curves::Curve3::Nurbs(_)) {
+                return Err(refuse(
+                    "an Intersection carrier that is not a spline — the certified \
+                     boundary-column class compares the carrier against the chart's own \
+                     boundary ROW, which is a spline",
+                ));
+            }
+            let probe_t = t0 + span * T::from_f64(0.25);
+            let probe = carrier.eval(probe_t);
+            // Escalations are DEFERRED per candidate: an indeterminate
+            // first candidate must not rob the rest of their turn.
+            let mut deferred: Option<Indeterminate> = None;
+            for x in [cu0, cu1] {
+                for (v_at_t0, v_at_t1) in [(cv0, cv1), (cv1, cv0)] {
+                    let slope = (v_at_t1 - v_at_t0) / span;
+                    let cand = Pcurve::IsoLine {
+                        p0: Point2::new(x, v_at_t0 - slope * t0),
+                        pl: Vec2::new(T::zero(), slope),
+                    };
+                    let uv = cand.eval(probe_t);
+                    let gap = probe.distance(surface.eval(uv.x, uv.y));
+                    match decide("pcurve_iso_seam_column", Margin::of(gap), band) {
+                        Ok(Sign::Zero) => return Ok(cand),
+                        Ok(Sign::Positive | Sign::Negative) => {}
+                        Err(cause) => {
+                            if deferred.is_none() {
+                                deferred = Some(cause);
+                            }
+                        }
+                    }
+                }
+            }
+            match deferred {
+                Some(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
+                None => Err(refuse(
+                    "an Intersection carrier that traverses neither boundary column of this \
+                     chart under the chart's own parameterization: an INTERIOR or DIAGONAL \
+                     locus (the trimmed-NURBS/cut-loft pcurve lane is that unit's), or a \
+                     partial or reparameterized restatement of a column, which the \
+                     boundary-row closed form does not cover",
+                )),
+            }
+        }
         _ => Err(refuse(
             "no iso derivation for this description kind on a NURBS chart — only \
-             IsoCurve seams, Line cap rims and CIRCLE cap rims have exact chart images \
-             (the trimmed-NURBS pcurve lane is the cut-loft unit's)",
+             IsoCurve seams, boundary-iso Intersection seams, Line cap rims and CIRCLE \
+             cap rims have exact chart images (the trimmed-NURBS pcurve lane is the \
+             cut-loft unit's)",
         )),
     }
 }
@@ -565,6 +730,64 @@ fn azimuth_arm<T: Real>(surface: &Surface<T>, v: T) -> T {
         Surface::Cone { half_angle, .. } => (v * half_angle.sin()).abs(),
         _ => T::one(),
     }
+}
+
+/// The chart's **u period** — the whole-number shift the loop walk may
+/// apply to land a half-edge's entry on its predecessor's exit
+/// (`walk_loop`), and the wrap [`loop_closes`] allows.
+///
+/// **What each chart kind gets, exactly** (stated precisely because a
+/// review found the earlier wording claiming more than the code does):
+///
+/// * every NON-NURBS chart answers `τ`, the hardcoded value this
+///   function replaced — cylinder, cone, sphere, torus AND plane
+///   behave bit-identically to before. A plane's `u` is not an azimuth
+///   and no gap on one is ever a multiple of `τ`, so the branch is
+///   unreachable there rather than suppressed; the honest word is
+///   "unchanged", not "stricter";
+/// * a NURBS chart CLOSED in `u` — first and last control columns the
+///   same locus at the band — answers the payload's own u knot-domain
+///   length;
+/// * a NURBS chart NOT closed in `u` answers `None`: no shift offered,
+///   no wrapped closure accepted. That is a tightening, and the only
+///   one.
+///
+/// **The behaviour change on BUILT charts, called out.** A kernel-built
+/// chart is normalized to `[0, 1]²`, so a closed-in-u one now answers
+/// `Some(1.0)` where the old code used `τ`. `azimuth_arm` falls back to
+/// `1` for NURBS charts, so the pole-joint arm is reachable there, and
+/// a gap that used to floor to `ku = 0` against `τ` can now shift by a
+/// whole chart period. It is reachable only where the old path could
+/// not close the loop at all, and the joint's own `decide` still
+/// certifies the shifted entry — but it is a change, not an identity.
+///
+/// **Why a NURBS chart needs this (#327).** A full-period cylinder
+/// wall stated as ONE B-spline patch with a seam generator used twice
+/// is the shape every translator writes and the kernel's own band
+/// re-mint produces. Its loop walks the chart's whole u range and its
+/// seam edge takes the two u-boundary branches — exactly the analytic
+/// seam case, but at the chart's own period rather than `τ`. Without
+/// this the walk reports the wrap as a discontinuity: a symptom, not
+/// the cause.
+fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<T> {
+    let Surface::Nurbs(payload) = surface else {
+        return Some(T::tau());
+    };
+    let (u0, u1) = payload.knots_u().domain();
+    let (nu, nv) = payload.control_counts();
+    if nu < 2 || nv == 0 {
+        return None;
+    }
+    let control = payload.control();
+    for iv in 0..nv {
+        let a = control.get(iv)?;
+        let b = control.get((nu - 1) * nv + iv)?;
+        match decide("pcurve_chart_u_closed", Margin::of(a.distance(*b)), band) {
+            Ok(Sign::Zero) => {}
+            _ => return None,
+        }
+    }
+    Some(T::from_f64(u1 - u0))
 }
 
 /// The meridional (second-channel) lever arm where that channel is
@@ -638,10 +861,13 @@ fn loop_closes<T: Decide>(
     surface: &Surface<T>,
     start: geom_core::Point2<T>,
     end: geom_core::Point2<T>,
+    u_period: Option<T>,
     band: Band,
 ) -> bool {
     let arm = azimuth_arm(surface, start.y);
-    let tau = T::tau();
+    // A chart that does not wrap offers no period, and `wraps` below
+    // degenerates to the exact-closure test (`m ± 0`).
+    let tau = u_period.unwrap_or_else(T::zero);
     let zero = |name: &'static str, m: Margin<T>| matches!(decide(name, m, band), Ok(Sign::Zero));
     let wraps = |m: T, a: T, name: &'static str| {
         [m, m - tau, m + tau]
@@ -862,6 +1088,10 @@ fn walk_loop<T: Decide>(
         return Ok(());
     };
     let cycle = body.loop_cycle(first).ok_or(PcurveMintError::Corrupt)?;
+    // The chart's own u period (`chart_u_period`): `τ` on an analytic
+    // azimuth chart, the knot-domain length on a NURBS chart closed in
+    // u, and NO shift at all on a chart that does not wrap.
+    let u_period = chart_u_period(surface, band);
     let tau = T::tau();
     // The walk's running exit point, in chart coordinates.
     let mut prev_exit: Option<geom_core::Point2<T>> = None;
@@ -931,15 +1161,17 @@ fn walk_loop<T: Decide>(
                     let joint_arm = azimuth_arm(surface, prev.y);
                     let ku = match decide("pcurve_loop_pole_joint", Margin::of(joint_arm), band) {
                         Ok(Sign::Zero) | Err(_) => T::zero(),
-                        Ok(Sign::Positive | Sign::Negative) => {
-                            ((prev.x - raw.x) / tau + half).floor()
-                        }
+                        Ok(Sign::Positive | Sign::Negative) => match u_period {
+                            Some(p) => ((prev.x - raw.x) / p + half).floor(),
+                            None => T::zero(),
+                        },
                     };
                     // The impossible-rebuild arm (see
                     // `Pcurve::shift_branch`) surfaces as a
                     // corrupt-body finding rather than being swallowed
                     // into an unshifted branch.
-                    let Some(mut shifted) = cand.shift_branch(ku, tau) else {
+                    let Some(mut shifted) = cand.shift_branch(ku, u_period.unwrap_or_else(T::zero))
+                    else {
                         return Err(PcurveMintError::Corrupt);
                     };
                     if v_arm.is_some() {
@@ -1001,7 +1233,7 @@ fn walk_loop<T: Decide>(
     // wraps the periodic chart — the seam case, where the seam edge's
     // two half-edges take the two branches).
     if let (Some(start), Some(end)) = (first_entry, prev_exit)
-        && !loop_closes(surface, start, end, band)
+        && !loop_closes(surface, start, end, u_period, band)
     {
         return Err(PcurveMintError::LoopNotClosed { face });
     }
@@ -1170,7 +1402,7 @@ pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<
                 prev_exit = Some(cache.pcurve().eval(exit_t));
             }
             if let (Some(start), Some(end)) = (first_entry, prev_exit)
-                && !loop_closes(&surface, start, end, band)
+                && !loop_closes(&surface, start, end, chart_u_period(&surface, band), band)
             {
                 findings.push(PcurveMintError::LoopNotClosed { face: face_key });
             }

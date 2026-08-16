@@ -186,11 +186,31 @@ pub(crate) fn tessellate_trimmed(
             (ceil_count(u1 - u0, hu)?, ceil_count(v1 - v0, hv)?)
         }
     };
+    // BUDGET METER (dead in normal runs): what this grid cost, and what
+    // a per-cell-sized one would have (`crate::budget`, issue #320).
+    // Read off the sizing above — it changes nothing about it.
+    if let (Lane::Nurbs { bound }, Surface::Nurbs(payload)) = (&lane, surface) {
+        crate::budget::note_nurbs_sizing(
+            payload,
+            fk,
+            *bound,
+            crate::budget::Sizing {
+                u: (u0, u1),
+                v: (v0, v1),
+                nu,
+                nv,
+                delta_s: tol.delta_s,
+            },
+        )?;
+    }
 
     // Grid candidates (row-major, deterministic ids assigned on the
     // FINAL kept set so retries stay deterministic).
     let mut dropped: HashSet<(usize, usize)> = HashSet::new();
     'retry: for attempt in 0..=MAX_GRID_RETRIES {
+        // A retry rebuilds the emit pass from scratch, so the budget
+        // meter's per-face deviation samples start over with it.
+        crate::budget::reset_face_dev();
         let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
             ConstrainedDelaunayTriangulation::new();
         // Handle-index → (mesh id or grid slot, uv).
@@ -319,6 +339,27 @@ pub(crate) fn tessellate_trimmed(
             grid_ids.insert((i, j), id);
         }
         // Pass 2: emit and certify.
+        //
+        // The two sampling arms are decided ONCE per face, not per
+        // triangle: this loop runs a quarter of a million times on
+        // #320's leaf, and arming cannot change inside a face, so
+        // hoisting is observationally identical. It is what makes both
+        // meters cost exactly nothing per triangle when they are
+        // disarmed, which is every normal run.
+        //
+        // (Until the `NURBS_PROBE` back channel was removed this also
+        // hoisted an environment-variable read out of the loop; the
+        // arming is a thread-local now, so what is saved is smaller —
+        // the hoist stays because the reason it was right did not
+        // depend on which of the two it was reading.)
+        let probe = crate::probe_stats::armed();
+        let sample =
+            matches!(lane, Lane::Nurbs { .. }) && (probe || crate::budget::deviation_armed());
+        let samples_per_edge = if probe {
+            12usize
+        } else {
+            crate::budget::DEV_SAMPLES
+        };
         let mut triangles = Vec::new();
         let mut worst: f64 = 0.0;
         for f in cdt.inner_faces() {
@@ -356,8 +397,14 @@ pub(crate) fn tessellate_trimmed(
             // the NURBS certificate — dense barycentric samples of
             // |S(w) − Π(w)| must be dominated by cert + ε on EVERY
             // triangle, not in aggregate.
-            if matches!(lane, Lane::Nurbs { .. }) && crate::probe_stats::armed() {
-                let m = 12usize;
+            //
+            // The BUDGET METER shares this block (`crate::budget`,
+            // issue #320): same samples, same assertion, its own
+            // (cheaper) density when the probe is not itself armed —
+            // a quarter-million-triangle face resampled at 12 is 24M
+            // surface evaluations.
+            if sample {
+                let m = samples_per_edge;
                 for a in 0..=m {
                     for b in 0..=(m - a) {
                         #[allow(clippy::cast_precision_loss)]
@@ -382,7 +429,10 @@ pub(crate) fn tessellate_trimmed(
                              at uv=({u},{v}) tri uv {uv:?}",
                             tol.eps
                         );
-                        crate::probe_stats::record(d, bound + tol.eps);
+                        if probe {
+                            crate::probe_stats::record(d, bound + tol.eps);
+                        }
+                        crate::budget::note_dev(d);
                     }
                 }
             }
@@ -399,6 +449,7 @@ pub(crate) fn tessellate_trimmed(
                 requested: tol.delta,
             });
         }
+        crate::budget::note_worst_cert(worst);
         return Ok(triangles);
     }
     Err(TessellateError::Triangulation { face: fk })

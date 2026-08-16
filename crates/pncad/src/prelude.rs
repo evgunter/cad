@@ -13,7 +13,7 @@
 //! 1. **Numbers and frames** — points, vectors, transforms,
 //!    tolerance, the decision `Band`, and the f64-first constructors
 //!    from [`crate::authoring`] so no literal needs `from_f64`.
-//! 2. **Author a profile** — loops, sketch planes, `LoopBuilder`.
+//! 2. **Author a profile** — the PATHS lattice, loops, sketch planes.
 //! 3. **Build a body** — extrude, revolve, loft/sweep, fillet.
 //! 4. **Combine** — the Boolean operations and their declarations.
 //! 5. **Validate** — tiers 1→2→3, the ladder as the journey.
@@ -30,7 +30,7 @@
 //! surface exists to prevent.
 
 // --- 1. Numbers and frames ------------------------------------
-pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
+pub use crate::authoring::{p2, p3, real, v2, v3, validated};
 // `Band` is here because `fillet_edges` (group 3) takes one: a prelude
 // operation whose arguments are not prelude-constructible is a rung the
 // user cannot start from. The recipe is `Band::linear()` — the run's
@@ -53,9 +53,17 @@ pub use quantity::{
 };
 
 // --- 2. Profile authoring -------------------------------------
-pub use profile::{
-    ArcSweep, FilletLegShape, LoopBuilder, Profile, ProfileError, ProfileLoop, ProfileVertex,
-    SegmentKind, SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
+// NAMEABLE, NOT MINTABLE (LIB-RETTAIL, Evan's ruling on #413):
+// `ProfileLoop` and `ProfileVertex` stay here because read-back hands
+// them back, `ProfileError` payloads point into them, and `validated`
+// takes a `Vec<ProfileLoop>` — a prelude user must be able to name what
+// the ladder passes around. What left is the raw MINTING tier:
+// `ProfileLoop::new`/`polygon` now live on `profile::RawLoop`, which is
+// kernel vocabulary and is re-exported by neither this prelude nor
+// `crate::profile`. Loops are authored through the lattice below.
+pub use ::profile::{
+    ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
+    SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
 // The PATHS authoring algebra (LIB-U2), with the LIB-G1 vocabulary
 // growth: `circle` (the one-step closed-carrier program form) and the
@@ -66,7 +74,7 @@ pub use profile::{
 // declared-subdivision carrier the boss corpus authors with (the
 // `bossplate` scene's three-arc rim IS one), so `circle` alone left
 // half of the closed-carrier vocabulary a crate away.
-pub use profile::{
+pub use ::profile::{
     ArcCenterTarget, ArcTarget, ArcViaTarget, ClosedLoop, LineTarget, Open, PartialPath, PathError,
     Start, TangentArcTarget, circle, circle_split,
 };
@@ -125,8 +133,8 @@ pub use stl::{write_ascii, write_binary};
 pub use crate::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions, Evaluation,
     Expr, LoopProgram, Node, NodeError, ParamEnv, ParamName, ParseError, PatternKind,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RecordedProgramError, SlotId,
-    StepArg, ValuePayload, apply, evaluate, parse_expr,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedProgramError,
+    SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr,
 };
 pub use editor_core::StableName;
 
@@ -141,11 +149,12 @@ pub use editor_core::StableName;
 // findings vocabulary, the detector, and the declare sugar (the
 // worked example is in `crate::select`'s module docs).
 pub use crate::select::{
-    ALL_SURFACE_KINDS, CapEnd, Cmp, ContactClass, CurveKind, CurveKindSet, DeclareError,
-    Denotation, EntityKind, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError,
-    MeridianEnd, NamePat, NameTable, OpGroup, Pose, ProfileEdgeRef, ProfileVertexRef,
-    ReadbackError, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag,
-    SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges,
-    all_faces, all_vertices, declare, declare_all, declare_node, denotation, edge_frame, edge_name,
-    face_frame, face_name, find_flush_candidates, select, select_where, vertex_position,
+    ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
+    CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL,
+    FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd, NamePat,
+    NameTable, OpGroup, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport,
+    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
+    SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, declare,
+    declare_all, declare_node, denotation, edge_frame, edge_name, face_frame, face_name,
+    find_flush_candidates, select, select_where, vertex_position,
 };

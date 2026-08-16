@@ -13,7 +13,8 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
 use topo::{
-    Body, BooleanDeclarations, BooleanResult, CarriedContacts, GeomSource, VfContact, VvContact,
+    Body, BooleanDeclarations, BooleanResult, CarriedContacts, CarriedVf, CarriedVv, ContactClass,
+    FacePairDeclaration, GeomSource, VfContact, VvContact,
 };
 
 use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
@@ -30,6 +31,15 @@ type OpResult<T> = Result<(ValuePayload<T>, Arc<NameTable>), NodeErrorKind>;
 /// A bare payload (datum/profile lanes — empty tables).
 type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 
+/// The evaluation-wide context an op may need beyond its own inputs:
+/// the boolean candidate-generation switch, and the document seam.
+/// Bundled rather than passed one by one — an op's ARGUMENTS are its
+/// inputs and slots, and everything here is ambient to the run.
+pub(crate) struct OpEnv<'a, T: Decide> {
+    pub boolean_sweep: topo::SweepStrategy,
+    pub parts: &'a super::parts::PartCache<'a, T>,
+}
+
 /// Runs one node's op against its (already Ok) inputs and evaluated
 /// slots, emitting the node's name table alongside the payload.
 /// `profile_pre` is the profile node's f64 precompute (present exactly
@@ -42,10 +52,10 @@ pub(crate) fn run_op<T>(
     results: &Results<T>,
     vals: &SlotValues<T>,
     profile_pre: Option<&ProfilePre>,
-    boolean_sweep: topo::SweepStrategy,
+    env: &OpEnv<'_, T>,
 ) -> OpResult<T>
 where
-    T: Decide + super::ContentBits + geom_core::Bounds,
+    T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
 {
     match node {
         Node::Datum(d) => Ok((wire_datum(d, vals)?, names::empty())),
@@ -59,12 +69,62 @@ where
         } => wire_fillet(id, *target, selection, doc, results, vals),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results),
         Node::Boolean { op, a, b, declare } => {
-            wire_boolean(id, *op, *a, *b, *declare, doc, results, boolean_sweep)
+            wire_boolean(id, *op, *a, *b, *declare, doc, results, env.boolean_sweep)
         }
         Node::Transform { input, .. } => wire_transform(id, *input, results, vals),
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals),
         Node::Declare { pairs } => Ok((ValuePayload::Declarations(pairs.clone()), names::empty())),
+        Node::InstantiatePart { doc_ref, .. } => {
+            wire_instantiate_part(id, doc_ref, doc.placement(id), env)
+        }
     }
+}
+
+/// ASM-2A D-3: materialize an instance through the shipped doors.
+///
+/// Resolve (memoized per reference), take the referenced document's A10
+/// PRODUCT — what a document MEANS is its product, one rule everywhere
+/// — place it with the kernel's own `transform_rigid`, and hand back a
+/// body-denoting value. Nothing here is assembly-specific machinery:
+/// the placed body is an ordinary `Body` — one solid or N (a
+/// sub-assembly's product is multi-solid, and ONE rigid map carries all
+/// of its solids, because a rigid map of a body is a rigid map of every
+/// solid in it) — so the root gather and the export door consume it
+/// with no new arms, and the graft into the evaluating document's
+/// materialization is the gather's own (D-3's "graft into the
+/// evaluating document" IS `product`, because an instantiate node is a
+/// root of the assembly).
+fn wire_instantiate_part<T>(
+    id: RecipeNodeId,
+    doc_ref: &crate::ident::DocRef,
+    placement: crate::placement::Frame,
+    env: &OpEnv<'_, T>,
+) -> OpResult<T>
+where
+    T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+{
+    let part = env
+        .parts
+        .get(doc_ref)
+        .map_err(|fault| NodeErrorKind::Part {
+            doc_ref: *doc_ref,
+            fault,
+        })?;
+    // The identity fast-path is admitted only for a BIT-exact identity
+    // frame: any other value could round, and `transform_rigid` is what
+    // decides whether it stayed rigid.
+    let mut placed = if placement.is_identity_bits() {
+        (*part.body).clone()
+    } else {
+        transform_rigid(&part.body, &placement.affine::<T>()).map_err(NodeErrorKind::Transform)?
+    };
+    // N6 composition, the Transform precedent: `transform_rigid`
+    // cleared the source records, so each description is re-stamped
+    // with the part's own source wrapped by THIS placing node. Keys are
+    // stable across the op, and the identity path never cleared them.
+    compose_placed(&part.body, &mut placed, id, 0);
+    let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
+    Ok((ValuePayload::Body(Arc::new(placed)), table))
 }
 
 /// Stamps every UNSOURCED description of `body` with this node's
@@ -704,7 +764,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
         BooleanOp::Subtract => topo::BooleanOp::Subtract,
     };
     match topo::boolean_op_with(kernel_op, &body_a, &body_b, &kernel_decls, boolean_sweep)
-        .map_err(NodeErrorKind::Boolean)?
+        .map_err(|err| refusal_menu(results, a, b, err))?
     {
         BooleanResult::Empty => Ok((ValuePayload::Boolean(BooleanValue::Empty), names::empty())),
         BooleanResult::Body(bb) => {
@@ -742,6 +802,106 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
     }
 }
 
+/// The refusal-menu lift (register R3, LIB-PYG5; SELECT-DESIGN §3d):
+/// a kernel [`topo::BooleanError::UndeclaredCoincidence`] becomes
+/// [`NodeErrorKind::UndeclaredContact`] carrying the raise site's
+/// face pair as the detector's own [`names::FlushFinding`] shape —
+/// keys resolved to StableNames through the OPERANDS' name tables,
+/// the ladder's decided relation carried through. NOTHING is
+/// re-detected and no decide runs on this error path (the SEL2
+/// rejection of post-hoc re-detection stands); every other
+/// `BooleanError` wraps under [`NodeErrorKind::Boolean`] unaltered.
+///
+/// If either key resolves to no Face name — an emitter-coverage
+/// invariant break (`vocabulary_coverage_is_total` pins coverage),
+/// not an authoring state — the plain `Boolean` wrapping is
+/// preserved: the boolean's refusal is never masked by its own menu.
+fn refusal_menu<T: Decide>(
+    results: &Results<T>,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+    err: topo::BooleanError,
+) -> NodeErrorKind {
+    let topo::BooleanError::UndeclaredCoincidence {
+        diag,
+        pair,
+        relation,
+    } = err
+    else {
+        return NodeErrorKind::Boolean(err);
+    };
+    // The finding's contract orders the pair (a-side, b-side); the
+    // raise sites order it by discovery. Relation is orientation-
+    // symmetric, so the swap changes nothing else. A same-operand
+    // pair (the F7 gate) keeps its raise order — both names resolve
+    // in that one operand's table.
+    let ordered = if pair[0].0 == topo::Operand::B && pair[1].0 == topo::Operand::A {
+        [pair[1], pair[0]]
+    } else {
+        pair
+    };
+    let name_of = |(operand, face): (topo::Operand, topo::FaceKey)| {
+        let node = match operand {
+            topo::Operand::A => a,
+            topo::Operand::B => b,
+        };
+        face_name(value_of(results, node).ok()?, face)
+    };
+    let (Some(na), Some(nb)) = (name_of(ordered[0]), name_of(ordered[1])) else {
+        return NodeErrorKind::Boolean(topo::BooleanError::UndeclaredCoincidence {
+            diag,
+            pair,
+            relation,
+        });
+    };
+    NodeErrorKind::UndeclaredContact {
+        finding: Box::new(names::FlushFinding {
+            pair: (na, nb),
+            class: names::ContactClass::Rest,
+            evidence: names::FlushEvidence {
+                relation,
+                // Shared-source pairs never refuse Undeclared (rung 1
+                // answers Ok), so the deciding rung here is always the
+                // geometric one.
+                rung: names::FlushRung::DecidedCoincident,
+            },
+        }),
+        diag,
+    }
+}
+
+/// The reverse of a table lookup: the FACE name denoting `face` in
+/// one operand's value, or `None` (the caller's invariant-break
+/// fallback). A boolean operand is single-body (`body_operand`
+/// refused everything else), so within this value a face key
+/// identifies its entity without a body check; a `Tied` entry
+/// containing the key still DENOTES it (the tie is the table's
+/// fact). Ties or multiple denoting names resolve to the canonical
+/// least name — deterministic, and any denoting name identifies the
+/// pair for the declare arm.
+fn face_name<T: Decide>(
+    v: &super::NodeValue<T>,
+    face: topo::FaceKey,
+) -> Option<crate::names::StableName> {
+    use crate::names::{EntityKey, EntityKind, EntityRef, Entry};
+    let mut found: Option<&crate::names::StableName> = None;
+    for (name, entry) in v.name_table.iter() {
+        if name.kind != EntityKind::Face {
+            continue;
+        }
+        let refs: &[EntityRef] = match entry {
+            Entry::Unique(e) => core::slice::from_ref(e),
+            Entry::Tied(t) => t,
+        };
+        if refs.iter().any(|ent| ent.key == EntityKey::Face(face))
+            && found.is_none_or(|prev| name < prev)
+        {
+            found = Some(name);
+        }
+    }
+    found.cloned()
+}
+
 /// Resolves one Declare payload's name pairs against the two operand
 /// tables into the kernel's [`BooleanDeclarations`] (F5, M4 PR 5).
 ///
@@ -758,7 +918,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
 /// than shared. See that function's docs for why, and change both
 /// together.
 fn resolve_declarations(
-    pairs: &[(names::StableName, names::StableName)],
+    pairs: &[((names::StableName, names::StableName), ContactClass)],
     doc: &crate::doc::Doc<ProfileProgram>,
     a_table: &NameTable,
     b_table: &NameTable,
@@ -826,7 +986,8 @@ fn resolve_declarations(
     };
 
     let mut out = BooleanDeclarations::none();
-    for (n1, n2) in pairs {
+    for ((n1, n2), class) in pairs {
+        let class = *class;
         let (o1, k1) = resolve_one(n1)?;
         let (o2, k2) = resolve_one(n2)?;
         let unsupported = || NodeErrorKind::DeclareUnsupportedPair {
@@ -837,7 +998,8 @@ fn resolve_declarations(
             // Cross-operand face pair: the coincident-plane intent.
             ((Operand::A, EntityKey::Face(fa)), (Operand::B, EntityKey::Face(fb)))
             | ((Operand::B, EntityKey::Face(fb)), (Operand::A, EntityKey::Face(fa))) => {
-                out.coincident_faces.push((fa, fb));
+                out.coincident_faces
+                    .push(FacePairDeclaration::new(fa, fb, class));
             }
             // Same-operand carried contacts.
             ((oa, EntityKey::Vertex(va)), (ob, EntityKey::Vertex(vb))) if oa == ob => {
@@ -845,7 +1007,13 @@ fn resolve_declarations(
                     Operand::A => &mut out.carried_a,
                     Operand::B => &mut out.carried_b,
                 };
-                c.vv.push(VvContact { a: va, b: vb });
+                // The AUTHORED class, carried — not re-defaulted. The
+                // whole point of the payload change is that this door
+                // no longer has to guess.
+                c.vv.push(CarriedVv {
+                    pair: VvContact { a: va, b: vb },
+                    class,
+                });
             }
             ((oa, EntityKey::Vertex(v)), (ob, EntityKey::Face(f)))
             | ((ob, EntityKey::Face(f)), (oa, EntityKey::Vertex(v)))
@@ -855,7 +1023,10 @@ fn resolve_declarations(
                     Operand::A => &mut out.carried_a,
                     Operand::B => &mut out.carried_b,
                 };
-                c.vf.push(VfContact { vertex: v, face: f });
+                c.vf.push(CarriedVf {
+                    rest: VfContact { vertex: v, face: f },
+                    class,
+                });
             }
             _ => return Err(unsupported()),
         }

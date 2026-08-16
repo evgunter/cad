@@ -25,8 +25,9 @@ use crate::geometry;
 use crate::normalize;
 use crate::parse::{Instance, Record, StepFile, Value};
 use crate::recognize;
+use crate::recognize_curve;
 use crate::units::{self, UnitKind};
-use crate::{FaceCensus, NormalizationKind, StructureNormalization};
+use crate::{CurvePromotion, FaceCensus, NormalizationKind, StructureNormalization};
 
 /// A resolved `AXIS2_PLACEMENT_3D`: `(origin, axis, u_ref)` — the
 /// kernel frame, field for field.
@@ -43,6 +44,11 @@ pub(crate) struct Model {
     pub(crate) shape: Shape,
     /// The structure normalizations minted during resolution, as data.
     pub(crate) normalizations: Vec<StructureNormalization>,
+    /// The D7 stage-1 curve promotions (#327) applied during
+    /// resolution, by ascending curve entity id and deduplicated — a
+    /// carrier shared by several edges is read once per edge and is
+    /// ONE promotion.
+    pub(crate) curve_promotions: Vec<CurvePromotion>,
     /// **What the file asks to be MATERIALIZED**, in resolution order:
     /// one entry per placed instance of a solid (M8 instancing), or —
     /// for a file whose assembly places nothing — one unplaced entry
@@ -146,7 +152,7 @@ pub(crate) struct FaceSpec {
     /// cylinder/torus face whose two bounds each wrap the chart's full
     /// u period, with no seam generator between them. Tagged at
     /// [`Resolver::face`] and consumed at shell level by
-    /// [`crate::normalize::band_seam`], which re-mints the face as one
+    /// `normalize::band_seam`, which re-mints the face as one
     /// single-loop face joined by a minted seam generator (and clears
     /// the tag); a tagged face never reaches assembly.
     pub(crate) band: bool,
@@ -244,6 +250,10 @@ pub(crate) struct Resolver<'a> {
     /// The normalizations minted so far, carried out as data
     /// ([`crate::StructureNormalization`]) — never silent.
     normalizations: std::cell::RefCell<Vec<StructureNormalization>>,
+    /// The curve promotions fired so far, keyed by carrier entity id
+    /// so a carrier read once per incident edge records once
+    /// ([`crate::CurvePromotion`]) — never silent.
+    curve_promotions: std::cell::RefCell<BTreeMap<u64, CurvePromotion>>,
 }
 
 impl<'a> Resolver<'a> {
@@ -1112,7 +1122,26 @@ impl<'a> Resolver<'a> {
         })
     }
 
-    /// A validated kernel NURBS carrier from exact components.
+    /// A validated kernel NURBS carrier from exact components — and
+    /// the **D7 stage-1 CURVE recognition site** (#327).
+    ///
+    /// Every NURBS carrier the file states passes through here (the
+    /// `B_SPLINE_CURVE_WITH_KNOTS` arm, the `QUASI_UNIFORM_CURVE` arm,
+    /// and the `RATIONAL_B_SPLINE_CURVE` complex), and each is tested
+    /// for promotion to an analytic kind exactly as every NURBS
+    /// SURFACE is tested at [`Self::face`]. This is the right site for
+    /// the same reason that one is: it is upstream of everything that
+    /// asks a carrier what it IS — the adoption ladder's `MappedCurve`
+    /// rungs, `endpoint_params`' conic arm, the pcurve mint, the
+    /// re-export printer — so a promoted carrier is analytic
+    /// everywhere, with no second reading anywhere to disagree with
+    /// the first.
+    ///
+    /// Promotion is verified-not-trusted ([`crate::recognize_curve`]):
+    /// it fires iff the certificate holds at ε_in, the file's own form
+    /// flag is never consulted, and a carrier that certifies nowhere
+    /// stays NURBS silently. It is reported as data through
+    /// [`crate::CurvePromotion`].
     fn nurbs(
         &self,
         id: u64,
@@ -1121,7 +1150,34 @@ impl<'a> Resolver<'a> {
         weights: Vec<f64>,
     ) -> Result<Curve3<f64>, StepImportError> {
         NurbsCurve3::new(knots, control, weights)
-            .map(|payload| Curve3::Nurbs(std::sync::Arc::new(payload)))
+            .map(
+                |payload| match recognize_curve::recognize(&payload, self.eps_in) {
+                    recognize_curve::CurveRecognition::Promoted {
+                        curve,
+                        residual,
+                        kind,
+                    } => {
+                        self.curve_promotions.borrow_mut().insert(
+                            id,
+                            CurvePromotion {
+                                curve: id,
+                                kind,
+                                residual,
+                            },
+                        );
+                        curve
+                    }
+                    // Both non-promoting outcomes stay NURBS. The
+                    // ill-conditioned one has no escalation site for
+                    // curves (recognizer docs): no gate needs a curve
+                    // promotion in order to import at all, so the honest
+                    // answer is the same one a refuted carrier gets.
+                    recognize_curve::CurveRecognition::StaysNurbs
+                    | recognize_curve::CurveRecognition::IllConditioned { .. } => {
+                        Curve3::Nurbs(std::sync::Arc::new(payload))
+                    }
+                },
+            )
             .map_err(|_| StepImportError::MalformedRecord {
                 id,
                 expected: "a structurally valid B-spline (control/weight/knot counts \
@@ -3068,6 +3124,7 @@ fn unit_pass_resolver(file: &StepFile) -> Resolver<'_> {
         eps_in: 0.0,
         next_id: std::cell::Cell::new(0),
         normalizations: std::cell::RefCell::new(Vec::new()),
+        curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
     }
 }
 
@@ -3124,6 +3181,7 @@ pub(crate) fn resolve(
                 .saturating_add(1),
         ),
         normalizations: std::cell::RefCell::new(Vec::new()),
+        curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
     };
     let (shape, owners) = resolve_shape(&r, file)?;
     // The instance list is resolved for a SOLID model only: a
@@ -3140,6 +3198,7 @@ pub(crate) fn resolve(
             .ok_or(StepImportError::MissingUncertainty)?,
         shape,
         normalizations: r.normalizations.into_inner(),
+        curve_promotions: r.curve_promotions.into_inner().into_values().collect(),
     })
 }
 

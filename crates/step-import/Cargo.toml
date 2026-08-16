@@ -6,6 +6,7 @@
 # text; f64 is the honest carrier — M7-1 spec §3).
 [package]
 name = "step-import"
+autotests = false  # tests/all.rs aggregates every suite; see its header
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
@@ -18,6 +19,13 @@ workspace = true
 # interval` lane builds uniformly (the reader itself is f64-only; the
 # feature only propagates to dependencies).
 interval = ["topo/interval"]
+# Forwards geom-core's K-telemetry recording scalar so the
+# workspace-wide `--features probe` lane builds uniformly. Same shape
+# and same reason as the `interval` row above; see geom-core's manifest
+# for why Probe is opt-in (it is a `Real` instantiation, so it
+# monomorphizes every generic-over-`Real` body, and only the K
+# experiment consumes it).
+probe = ["topo/probe"]
 
 [dependencies]
 # The reader rebuilds finished kernel bodies: Euler-operator assembly
@@ -31,6 +39,11 @@ geom-surfaces = { path = "../geom-surfaces" }
 topo = { path = "../topo" }
 
 [dev-dependencies]
+# Shared fuzz harness for this crate's randomized sweeps (one RNG, the
+# per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
+# named by [dev-dependencies] only, here and everywhere else — which is
+# what keeps it off every shipped build path.
+test-utils = { path = "../test-utils" }
 # Round-trip oracle: the committed corpus fixtures are re-exported
 # through the writer and compared (fixed-point row). A normal
 # dependency per the M7-1 spec §0 (dev, reported): nothing in the
@@ -44,3 +57,11 @@ step-export = { path = "../step-export" }
 sweep = { path = "../sweep" }
 # review-probe only
 profile = { path = "../profile" }
+
+# The single aggregated test binary (see tests/all.rs header). `autotests
+# = false` above means this is the ONLY test target: a suite file not
+# `#[path]`-declared in all.rs does not compile and does not run, which
+# all.rs's own `every_suite_file_is_aggregated` catches.
+[[test]]
+name = "all"
+path = "tests/all.rs"

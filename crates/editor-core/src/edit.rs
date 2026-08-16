@@ -199,6 +199,47 @@ pub enum DocEdit<P> {
         /// The new root list, in product order.
         roots: Vec<RecipeNodeId>,
     },
+    /// Place an instance's cluster (A11; ASM-2A D-2). The target is
+    /// the instantiate node whose singleton cluster moves; the frame
+    /// replaces whatever was recorded (the identity, if nothing was).
+    /// Recorded and undoable like any other edit — undo restores the
+    /// prior registry state, including its ABSENCE.
+    SetPlacement {
+        /// The instantiate node whose cluster this frame places.
+        node: RecipeNodeId,
+        /// The cluster's new frame.
+        frame: crate::placement::Frame,
+    },
+    /// Move ONE instance's pin to a new version of the same document
+    /// (A13's per-reference primitive; ASM-UPD D-1). The id does not
+    /// move — A4 keeps identity and version distinct, and this edit
+    /// touches only the version half.
+    ///
+    /// **The A13 clause-4 contract, verbatim**: *Update triggers
+    /// ordinary re-evaluation; once R2-b lands, a pin move on an
+    /// instance with crossing declarations additionally triggers mate
+    /// re-verification (A4's "does it actually fit" gate — the edit's
+    /// contract, stated once). Disk-moved-pin-held staleness is AQ5's
+    /// capture question, out of this decision.* No R2-b machinery
+    /// exists here; the clause is stated so the later unit extends a
+    /// contract rather than inventing one.
+    ///
+    /// **The new pin is RECIPE DATA, not a resolution.** `apply` does
+    /// not reach across the document seam — it has no resolver and no
+    /// store — so a pin naming content that does not exist is accepted
+    /// here and refused at EVALUATION, through the seam vocabulary
+    /// that already names both pins ([`crate::ResolveFault::PinMismatch`]
+    /// / [`crate::ResolveFault::Unresolved`]). Checking at the edit
+    /// door would make the edit's meaning depend on which store was
+    /// mounted when it was recorded, which is exactly what a recorded,
+    /// replayable log must not carry.
+    UpdateReference {
+        /// The instantiate node whose pin moves.
+        node: RecipeNodeId,
+        /// The version this reference now names. Undo is keeping the
+        /// prior document, which still carries the prior pin.
+        new_pin: crate::ident::ContentPin,
+    },
 }
 
 /// Typed, specific edit refusal (spec D6: no stringly errors).
@@ -475,6 +516,47 @@ pub enum EditError {
     /// but checked after EVERY apply, so no door can produce an
     /// invariant-violating document.
     Roots(RootFault),
+    /// A placement aimed at a node that does not instantiate a part
+    /// (A11: a placement frame places a CLUSTER of instances, and
+    /// nothing else has one).
+    PlacementOnNonInstance {
+        /// The offending target.
+        node: RecipeNodeId,
+    },
+    /// An IMPROPER placement frame — determinant ≤ 0, i.e. a mirror
+    /// (A6). Admitting one is gated on the equivariance audit R4 owns:
+    /// until that lands, a mirrored placement is refused rather than
+    /// silently trusted to leave every orientation-sensitive predicate
+    /// and every outward normal intact.
+    ImproperPlacement {
+        /// The offending target.
+        node: RecipeNodeId,
+        /// The linear part's determinant.
+        determinant: f64,
+    },
+    /// A placement frame carrying a non-finite coordinate.
+    NonFinitePlacement {
+        /// The offending target.
+        node: RecipeNodeId,
+    },
+    /// A pin update aimed at a node that does not instantiate a part
+    /// (A13; ASM-UPD D-1 — the [`EditError::PlacementOnNonInstance`]
+    /// precedent: only a cross-document reference HAS a version).
+    UpdateOnNonInstance {
+        /// The offending target.
+        node: RecipeNodeId,
+    },
+    /// A pin update whose new pin is the one the reference already
+    /// names. The edit would record a step that changes nothing —
+    /// refused rather than written, so a log's presence of an update
+    /// always means a version actually moved (ASM-UPD D-1's fail-loud
+    /// rule).
+    PinUnchanged {
+        /// The reference that already names this pin.
+        node: RecipeNodeId,
+        /// The pin both sides carry.
+        pin: crate::ident::ContentPin,
+    },
 }
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
@@ -630,6 +712,34 @@ impl core::fmt::Display for EditError {
                 "edit: the rebind would land two values under metadata {key:?} on {name:?} — clear one first"
             ),
             Self::Roots(fault) => write!(f, "edit: {fault}"),
+            Self::PlacementOnNonInstance { node } => write!(
+                f,
+                "edit: node {} does not instantiate a part, so it has no placement cluster to \
+                 place",
+                node.0
+            ),
+            Self::ImproperPlacement { node, determinant } => write!(
+                f,
+                "edit: the placement frame for node {} is improper (determinant {determinant}); \
+                 mirrored placements are admitted only behind the equivariance audit, which is \
+                 R4's named prerequisite",
+                node.0
+            ),
+            Self::NonFinitePlacement { node } => write!(
+                f,
+                "edit: the placement frame for node {} carries a non-finite coordinate",
+                node.0
+            ),
+            Self::UpdateOnNonInstance { node } => write!(
+                f,
+                "edit: node {} does not instantiate a part, so it has no pinned version to update",
+                node.0
+            ),
+            Self::PinUnchanged { node, pin } => write!(
+                f,
+                "edit: node {} already pins {pin}, so this update would record no version move",
+                node.0
+            ),
         }
     }
 }
@@ -785,9 +895,10 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             for n in node.named_nodes() {
                 if !new.nodes.contains_key(&n) {
                     let name = match node {
-                        Node::Declare { pairs } => {
-                            pairs.iter().flat_map(|(a, b)| [a, b]).find(|x| x.node == n)
-                        }
+                        Node::Declare { pairs } => pairs
+                            .iter()
+                            .flat_map(|((a, b), _)| [a, b])
+                            .find(|x| x.node == n),
                         Node::Fillet { selection, .. } => selection.iter().find(|x| x.node == n),
                         _ => None,
                     };
@@ -835,6 +946,10 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // The node's witness (if any) dies with it — ids are
             // never reused, so the entry could never be read again.
             new.witnesses.remove(id);
+            // Same for its cluster's placement: the registry's keys
+            // name live instantiate nodes, an invariant the save
+            // validator re-checks.
+            new.placements.remove(id);
             // next_id is NOT decremented: ids are never reused (D3).
             EditRecord {
                 minted: None,
@@ -943,7 +1058,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             for node in new.nodes.values_mut() {
                 match node {
                     Node::Declare { pairs } => {
-                        for name in pairs.iter_mut().flat_map(|(a, b)| [a, b]) {
+                        for name in pairs.iter_mut().flat_map(|((a, b), _)| [a, b]) {
                             if name == from {
                                 *name = to.clone();
                                 declare_sites += 1;
@@ -1161,6 +1276,56 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // Structural: the root list decides which nodes the
             // document's product gathers, and in what order — the
             // product's combinatorial shape, not a continuous value.
+            EditRecord {
+                minted: None,
+                structural: true,
+            }
+        }
+        DocEdit::SetPlacement { node, frame } => {
+            if !matches!(new.nodes.get(node), Some(Node::InstantiatePart { .. })) {
+                return Err(EditError::PlacementOnNonInstance { node: *node });
+            }
+            if !frame.is_finite() {
+                return Err(EditError::NonFinitePlacement { node: *node });
+            }
+            let determinant = frame.determinant();
+            if determinant <= 0.0 {
+                return Err(EditError::ImproperPlacement {
+                    node: *node,
+                    determinant,
+                });
+            }
+            new.placements.insert(*node, *frame);
+            // Structural: a placement decides where the instance's
+            // material lands, so it is recipe shape, not a continuous
+            // slot value — and it moves the document's content pin.
+            EditRecord {
+                minted: None,
+                structural: true,
+            }
+        }
+        DocEdit::UpdateReference { node, new_pin } => {
+            // Three refusals, each naming its own subject — an unknown
+            // id and a live-but-wrong-kind node are different mistakes
+            // and must not collapse into one message.
+            let Some(target) = new.nodes.get_mut(node) else {
+                return Err(EditError::UnknownNode { id: *node });
+            };
+            let Node::InstantiatePart { doc_ref, .. } = target else {
+                return Err(EditError::UpdateOnNonInstance { node: *node });
+            };
+            if doc_ref.pin == *new_pin {
+                return Err(EditError::PinUnchanged {
+                    node: *node,
+                    pin: *new_pin,
+                });
+            }
+            // Only the version half moves: A4's document id answers
+            // "which part", and no update ever changes that answer.
+            doc_ref.pin = *new_pin;
+            // Structural: the pin decides WHICH content this instance
+            // materializes, so it is recipe shape, not a continuous
+            // slot value — and it moves this document's own pin.
             EditRecord {
                 minted: None,
                 structural: true,

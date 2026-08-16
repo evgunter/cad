@@ -260,6 +260,22 @@ pub enum SnapshotError {
     /// D-2): the same check `apply` runs, so a file can carry no root
     /// state the edit doors could not have produced.
     Roots(crate::roots::RootFault),
+    /// A placement row keyed by a node that is not a live
+    /// `InstantiatePart` (A11: only an instance's cluster has a frame).
+    PlacementSite {
+        /// The offending key.
+        node: RecipeNodeId,
+    },
+    /// A placement frame a file must not carry: non-finite, or
+    /// improper (determinant ≤ 0, the A6 mirror case R4 gates). The
+    /// edit door refuses both, so a file holding one is corrupt —
+    /// refused, never repaired.
+    PlacementFrame {
+        /// The offending key.
+        node: RecipeNodeId,
+        /// The linear part's determinant.
+        determinant: f64,
+    },
     /// An appearance metadata value violating the D7 producer
     /// convention (map with an integer `"v"`).
     MetadataUnversioned {
@@ -324,7 +340,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             }
         }
         if let Node::Declare { pairs } = node {
-            for (a, b) in pairs {
+            for ((a, b), _) in pairs {
                 for n in derivation_nodes(a).iter().chain(derivation_nodes(b).iter()) {
                     check_id(*n)?;
                 }
@@ -358,6 +374,19 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             return Err(SnapshotError::WitnessSite { node });
         }
     }
+    // The A11 placement registry (ASM-2A D-6): every key names a live
+    // instantiate node, and every frame is one the edit door would
+    // have accepted.
+    for (&node, frame) in &doc.placements {
+        check_id(node)?;
+        if !matches!(doc.nodes.get(&node), Some(Node::InstantiatePart { .. })) {
+            return Err(SnapshotError::PlacementSite { node });
+        }
+        let determinant = frame.determinant();
+        if !frame.is_finite() || determinant <= 0.0 {
+            return Err(SnapshotError::PlacementFrame { node, determinant });
+        }
+    }
     // The A10 root invariants (ASM-ROOTS D-2), run AFTER the node
     // walk so a file with dangling inputs is diagnosed as such rather
     // than as an incidental coverage failure.
@@ -384,7 +413,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramFault {
     /// A program slot's expression has the wrong dimension for its
-    /// role (V2's table, [`StepArg::dimension`]).
+    /// role (V2's table, [`crate::StepArg::dimension`]).
     SlotDimension {
         /// The offending slot.
         slot: SlotId,

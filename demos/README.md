@@ -25,16 +25,34 @@ AppImage — and byte-stability ("a clean re-render leaves `git status`
 clean") is defined against that producer. A locally-drawn frame carries
 this box's GL stack, **will** differ byte-wise, and must never be
 committed; the guard below and `check_render_provenance.py` enforce the
-commit side. One command does the whole thing — it checks
-your branch is pushed (the runner renders the *pushed* tree), triggers
-`.github/workflows/render.yml`, polls the run, and installs the
-artifacts back into the working tree at their committed paths, where you
-review and commit them the ordinary way:
+commit side.
+
+**Usually you do not need to render at all — CI already did.** Every CI
+run on a pushed branch renders all four lanes and gates them (ci.yml's
+`renders` job calls `render.yml`), so the frames for your tree already
+exist as artifacts on that run. Take them:
 
 ```sh
-scripts/render-hosted.sh                        # all four lanes, this branch
-scripts/render-hosted.sh --lane uv              # one lane
-scripts/render-hosted.sh --run 31402416551      # pull an existing run's artifacts
+local-scripts/render-hosted.sh                        # install what CI rendered
+local-scripts/render-hosted.sh --lane uv              # one lane of it
+```
+
+That is the default: it resolves your branch's newest CI run, downloads
+each lane's artifact, and installs it at its committed path, where you
+review and commit it the ordinary way. It works on a **failed** CI run
+too — a stale committed lane is exactly what makes the gate fail, and
+that run's artifact is what makes it current. The failing row prints the
+exact command, pinned to its own run:
+`local-scripts/render-hosted.sh --run <id> --lane <lane>`.
+
+**Render on demand only when CI has not covered it** — an unpushed
+branch, no CI run yet, or a deliberate re-render at a different scene
+budget. Dispatching when CI has already rendered the same tree renders
+it twice, which is why it is the flag rather than the default:
+
+```sh
+local-scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
+local-scripts/render-hosted.sh --run 31402416551      # take a specific run's artifacts
 ```
 
 The local entry points below **refuse to run** without an explicit
@@ -60,7 +78,7 @@ cd ..
 CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift
 ```
 
-in the environment they print a pointer at `scripts/render-hosted.sh`
+in the environment they print a pointer at `local-scripts/render-hosted.sh`
 and **exit nonzero**.
 
 The value is a sentence on purpose. `1` / `yes` / `true` are what
@@ -264,7 +282,7 @@ the filesystem level, and one silently reached a committed montage cell
   file. Both `render.sh` lanes run it after the stamp strip and
   **before** composing the montage, so a sheet is never composed from an
   uncertified cell set; it is also an always-run row in
-  `scripts/ci-local.sh` and a step in ci.yml's `discipline` job (stdlib
+  `local-scripts/ci-local.sh` and a step in ci.yml's `discipline` job (stdlib
   only — no venv, no FreeCAD). The wild-corpus lane (`renders-wild/`)
   runs under the same guard with INVERTED per-lane rules — there
   matplotlib is the primary renderer, and cells must carry the wild
@@ -365,7 +383,7 @@ keeps the same shape (grid, captions, provenance banner via
 `compose_montage.py`) under its own title and banner.
 
 ```sh
-scripts/render-hosted.sh --lane wild   # the default path (hosted; installs renders-wild/)
+local-scripts/render-hosted.sh --lane wild   # the default path (hosted; installs renders-wild/)
 
 # preview only — see "Preview mode: the local override"
 cd demos/wild
@@ -476,12 +494,12 @@ verbatim.
 
 | scene | what it shows |
 | --- | --- |
-| `bracket` | extrude of a polyline + tangent-arc profile (`LoopBuilder`, inner fillet); standalone render since the M6 curation pass |
+| `bracket` | extrude of a polyline + tangent-arc profile (the PATHS lattice, inner fillet); standalone render since the M6 curation pass |
 | `plate` | extrude with two circular holes — genus 2, ring loops in both caps |
 | `vase` | full revolve, axis-touching profile: sphere-zone belly + cone lip |
 | `sheave` | rope-groove sheave — full revolve of a polyline+arc profile: hub, web, **tapered (cone) rim shoulders**, semicircular groove whose OFF-axis arc sweeps a **ring-torus zone**; all four analytic wall kinds (plane/cylinder/cone/torus) on one part; genus 1; volume checked against the closed-form Pappus value |
 | `chute` | quarter-turn chute — a C-channel profile swept through a **270° partial revolve**; wedge caps showing the profile, curved trough; Pappus-exact volume |
-| `rocker` | **the M5 fillet sugar**: a rocker plate whose SIX corners are all authored by `LoopBuilder::fillet_corner` — arc×line, line×line, line×arc, arc×line, line×arc around the outline, and **arc×arc** at the eye slot's rounded tip, where two tangent circles of the authored radius fit and the S8 rule **picks the one nearest the authored corner** (asserted, and narrated with both centres); genus 1; montage panel (the sheet's profile-fillet cell since the M6 curation pass) |
+| `rocker` | **the M5 fillet construction**: a rocker plate whose SIX corners are all authored through the PATHS fillet doors — arc×line, line×line, line×arc, arc×line, line×arc around the outline, and **arc×arc** at the eye slot's rounded tip, where two tangent circles of the authored radius fit and the S8 rule **picks the one nearest the authored corner** (asserted, and narrated with both centres); genus 1; montage panel (the sheet's profile-fillet cell since the M6 curation pass) |
 | `tiltedcut` | **RENDERING (M5 PR 11, the milestone's demo moment)**: a cylinder cut by a tilted plane — the section edges carry an **exact `Curve3::Ellipse`** (a = r/cos φ, b = r, residual ~1e-16, PR 5 shape (i)); the cut walls tessellate **watertight** through the pcurve-driven trimmed lane, and the volume is a **certified quadrature enclosure** (± ~1e-6 m³) asserted to bracket πr²H/2 per half; montage panel |
 | `bossplate` | **the first curved boolean, visible (M5 PR 11)**: a three-arc cylindrical boss unioned into a plate (PR 9 shape (ii)) — the seam is three exact `Circle` arcs, V = 16 + π·0.25·0.6 on the nose, and the shared-chord assertion pins that the curved wall and the ringed top face consume ONE chord set per seam edge; montage panel
 | `tube_along_arc` | **the tube door, with its intent parameters on screen** (M6-3 Leg F, the Evan-ratified rider on the #175 thread): a ring-torus tube built from spine centre / axis / reference direction / major radius 2 / window `[0.25, 1.75]` rad / minor radius 0.5 — `sweep/tests/m6_tube.rs`'s wedge, constant for constant. The sheave's groove and the lily's stem tubes already carry torus walls, but both arrive by `revolve`, which RECONSTRUCTS the tube radius from the profile's bulge arcs (the lily drifts 3.9e-16; the review donut drifted 56 ulps). This door stores what it was given: the scene asserts `minor_radius.to_bits() == 0.5f64.to_bits()` on **both** half-tube walls, on the scene body itself. Deliberately a WINDOWED tube, not the full donut, so all three parameters are visible — the ring's radius, the pipe's radius, and the window as the gap its two planar wedge caps close. No semantic fork: census (2 walls + 2 caps), sense derivation, the `R > r > 0` convention and the pcurve mint are the revolve's own code; volume by Pappus π·r²·R·(t₁ − t₀). **Standalone since the montage-v2 curation** (Evan, #218 follow-up): the cell's content — bit-exact stored intent parameters — is interesting for how it works, not visually; without that context it reads as one more partial revolve |
@@ -498,6 +516,7 @@ verbatim.
 | `projectbox` | enclosure: cavity + 6 vent through-slots + 4 floor bosses + 4 pilot pockets — 15 sequential boolean nodes, the longest chain; square-only until M5 |
 | `cutaway` | **first `topo::split`**: the project box split by a tilted plane, halves translated apart — a machinist's section pair (replaces the void box translucency hack) |
 | `lily` | **the fairy lantern** (*Calochortus pulchellus*, the Mount Diablo globe lily) — the tour's first ORGANIC subject and a deliberate stress test: thirteen closed solids (three torus-segment stem tubes from `tube_along_arc`; one sphere-zone lantern with a conical mouth from `revolve(Full)`; the BUD, which is that same meridian said three times PARTIALLY — three 156° pre-tepals on three axes forming a narrow tripod about the bud's own, sharing the attachment so the tilt splays their tips, and rolled a quarter turn off their own radius so they nest chirally like a pinwheel; two keeled leaf blades from `sweep_body`; and four from `loft_body` — the long basal leaf and the three sepals), walked by a turtle so consecutive stem arcs are **G1 by construction**. The analytic bodies approximate nothing, and since the tube door that is a claim about STORED PARAMETERS as well as surface kind: the stem's `minor_radius` IS the authored 0.060 rather than the bulge-arc reconstruction 3.9e-16 below it. The six blades are the fitted pieces — a skin is a B-spline wall through exact spine points. The two SWEPT ones hold ONE width base to tip and never roll, because `sweep_body` takes one profile and derives its own frame; the four LOFTED ones do both, because `loft_body` takes the sections and the placements as separate lists, so the long leaf runs rectangle-at-the-stem to wide diamond to small diamond while turning 160° about its own spine (eased toward the tip), and the sepals stand TANGENT to the globe with the stand-off set to the section's own keel. Every blade section is straight lines and not the old crescent's arcs — a limit that has since EXPIRED: the skin lane refused a rational wall until #306 landed the span meter's rational arm (`m7_skin_integral`'s Pin 4 was written to flip when that happened, and has). Restoring the lanceolate arcs is outstanding work on this stop, gated on checking the QUADRATURE half of the rational bank, which #306 did not retire. Nothing is JOINED either — the stop is followed by **eight live wall probes** that attempt the joins and shapes a plant actually wants (glue the stem arcs, weld flower to stem, oblique-extrude a leaf out of its plane, stretch a bud into an ovoid, mirror a leaf, fillet the mouth rim, carve a tepal seam, graft the leaf's sheath onto its blade at a declared identical rectangle) and assert each typed refusal, panicking if one ever retires |
+| `klein` | **the Klein bottle** — the tour's non-orientable stop, and its densest wall list. A 2-manifold is not a body this kernel holds (D1 is manifold-and-solid-first), so the model is the honest 3-D stand-in: a THIN 3-manifold, wall 0.05 m, whose midsurface is the classic immersed Klein bottle. The **bulb** — neck, flaring body wall, the wide bottom rim the surface turns back on, and the straight tube coming back UP through that rim's hole — is ONE `revolve(Full)` of ONE meridian band, so cylinder/torus/cone/torus/cylinder + two annular caps are all exact and every blend is an ARC IN THE MERIDIAN rather than a rolling ball afterwards (which is the better construction for coaxial supports, and the one `fillet_edges` cannot make). The **top loop** is two thin elbows, `revolve(Partial)` of the annular section, 270° over the top and 90° turning back onto the axis — two arcs because ONE circle cannot be tangent to the bottle's axis at two different heights, which is geometry, not a kernel limit. The three bodies MEET on coincident annular faces (elbow↔elbow to 5e-16 m, loop↔neck bit-exactly — declared-REST numbers) and NONE of them can be joined: the boolean operand gate is per-face-kind and rejects any body carrying a cone or a torus, so the self-intersection an immersed Klein bottle must have is left un-trimmed too. Rendered SEE-THROUGH (the manifest's per-body `transparency`), from a camera deliberately out of the model's symmetry plane: the subject is what happens inside the bulb. Followed by **seven live wall probes**, two of which pin DEFECTS rather than absences — `fillet_edges` mis-metering every closed rim into a false `TangentialEdge` (#554, probed against the same corner on a partial revolve, which answers honestly), and `mesh::planar`'s banked sub-floor chart residue, "synthetic today" until this bulb's annular cap hit it (#555) |
 | `heatsink5/7/9` | **the M4 layer**: ONE recipe document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `LinearPattern`; each re-eval recomputes exactly 1 node and reuses 4 (counted in the caption); stable names survive the edits (135/135); the montage carries only the 9-fin panel |
 
 Five committed **shadow proofs** ride beside the montage panels
@@ -683,6 +702,19 @@ reason lands in `renders-freecad/<scene>.fail.txt` (full log under
 `out/freecad-logs/`) and `compose_montage.py` draws a labeled
 placeholder naming it, never a silent gap.
 
+### Transparency is a scene property, not a renderer setting
+
+`scenes.json` carries a per-body `transparency` (0–100, 0 = opaque),
+and both PNG lanes honour it: FreeCAD sets `ViewObject.Transparency`,
+the matplotlib fallback keeps backfaces (culling them is what a
+see-through body is *for*) and drops the edge strokes, which would
+otherwise double-darken every triangle boundary and read as a wire
+mesh. It lives in the manifest rather than in a renderer because it is
+a claim about the SHAPE: the `klein` bottle's subject is the neck
+crossing the body wall and running down inside it, which no opaque
+render shows at any camera. Every other scene emits `0` and takes the
+byte-identical path it always did.
+
 ### One process per scene, on a budget
 
 **Both** lanes run one `freecadcmd` process per scene, each under a
@@ -720,18 +752,32 @@ above), a wedge leaves the committed lane directory exactly as it was.
 ### Off-box: the hosted lanes
 
 **This is the default renderer**, not an alternative to a local pass.
-`.github/workflows/render.yml` runs the render lanes on GitHub runners,
-on demand (`workflow_dispatch` — no PR trigger, no schedule), and hands
-each one back as a run artifact.
+`.github/workflows/render.yml` runs the render lanes on GitHub runners
+and hands each one back as a run artifact. It has **two entry points
+over one pipeline**:
 
-`scripts/render-hosted.sh` is the front end, and the thing to use:
+* **as CI's render gate** (`workflow_call`) — ci.yml's `renders` job
+  calls it on every push that builds anything, renders all four lanes,
+  and **fails when a committed lane no longer matches**. This is where
+  your frames normally come from: the gate already rendered your tree.
+* **on demand** (`workflow_dispatch`) — for a tree CI has not seen, or a
+  re-render at a different scene budget.
+
+`local-scripts/render-hosted.sh` is the front end for both, and the thing to
+use:
 
 ```sh
-scripts/render-hosted.sh --lane all             # push check, dispatch, poll, install
-scripts/render-hosted.sh --lane wild --verify   # + prove the pull is byte-exact
-scripts/render-hosted.sh --run <id>             # pull an existing run, no re-render
-scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
+local-scripts/render-hosted.sh                        # install what CI already rendered
+local-scripts/render-hosted.sh --on-demand            # push check, dispatch, poll, install
+local-scripts/render-hosted.sh --lane wild --verify   # + prove the pull is byte-exact
+local-scripts/render-hosted.sh --run <id>             # take a specific run, no re-render
+local-scripts/render-hosted.sh --lane uv --no-install # leave the artifact in a temp dir
 ```
+
+Taking is the default and rendering is the flag, because dispatching
+when CI has already rendered the same tree renders it twice. When it
+takes a CI run it waits only on the render lanes, not on the twenty
+test shards around them.
 
 It **refuses** if your local HEAD is not what `origin/<branch>` points
 at — the runner checks out the pushed tree and cannot see local commits,
@@ -758,8 +804,13 @@ The raw commands, if you want them:
 
 ```sh
 gh workflow run render.yml -f ref=my-branch -f lanes=all
-gh run download <run-id> -n renders-kernel   # renders-freecad / renders-uv / renders-wild
+gh run download <run-id> -n renders-kernel -D /tmp/cells   # then copy over
 ```
+
+Note the `-D`: `gh run download` **refuses to overwrite existing
+files**, so pointing it straight at `demos/renders/` fails on the first
+cell — which is why the script (and the gate's failure message) stage
+into a temp directory and install from there.
 
 `lanes` selects `all` (default) or one of `kernel` / `freecad` / `uv` /
 `wild`. The tour is built **once** and handed to the lanes that read it
@@ -784,16 +835,25 @@ FreeCAD — the frames sitting in the gitignored preview tree while the
 artifact holds the committed cells unchanged. It is a structural check
 on the #221 routing invariant above, not a new rule.
 
-**Artifact-only, by construction.** No job commits or pushes, and the
-PNG lanes' pixels are *not* expected to match the committed cells
-byte-for-byte: those were drawn against a developer host's GL stack,
-these by llvmpipe on a runner image that drifts. Each lane reports its
-diff against the committed tree in the run summary as a measurement,
-never a gate. Making a hosted PNG lane the canonical producer would mean
-pinning the whole GL stack in a container image and re-baselining the
-committed cells in one commit — a design call, not a config tweak. (The
-UV lane carries no such caveat: it is renderer-free and reproducible
-off-box, which is why it is the one lane CI actually *gates*.)
+**Artifact-only, but no longer ungated.** No job commits or pushes — a
+failing lane hands over an artifact and the command that installs it,
+and committing stays a human's call. What *has* changed is that the
+committed cells are now checked. Byte-identity against the committed
+tree used to be meaningless, because those cells were drawn against a
+developer host's GL stack and these by llvmpipe on a runner; since the
+#338 canonical-producer ruling and its re-baseline, both sides are the
+hosted producer's output, and a repeat hosted render of one commit is
+byte-identical (measured across all 55 cells of both PNG lanes). So each
+lane's diff is a real finding, and ci.yml's `renders` job fails on it.
+
+The one caveat that survives is the runner image: its mesa bumps roughly
+monthly and re-rasterises the two PNG lanes when it does. That is the
+gate working — the committed cells are *meant* to track the canonical
+producer — and it costs one mechanical commit, which the failing row
+spells out. Pinning the GL stack in a container image would remove even
+that; it remains a design call, not a config tweak. (The UV lane carries
+no such caveat: it is renderer-free, and stays gated by `k-lint`'s own
+row rather than being re-gated here — one gate per obligation.)
 
 The **wild** lane carries no such caveat either, and is the more
 interesting case: it is FreeCAD-free by scope, so its cells are drawn by

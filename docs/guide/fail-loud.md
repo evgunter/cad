@@ -106,19 +106,28 @@ caught by `Profile::validate` — the door `validated` runs for you:
 use pncad::prelude::*;
 use pncad::profile::ProfileError;
 
-// A bowtie: the two diagonals cross. Every corner is locally fine.
-let bowtie = ProfileLoop::polygon([
-    p2(0.0, 0.0), p2(1.0, 1.0), p2(1.0, 0.0), p2(0.0, 1.0),
-]);
-let refused = validated(SketchPlane::<f64>::xy(), vec![bowtie]);
+// A bowtie: the two diagonals cross. Every corner is locally fine —
+// which is exactly why the lattice AUTHORS it without complaint.
+let bowtie: ClosedLoop<f64> = Open
+    .at(p2(0.0, 0.0))
+    .line_to(p2(1.0, 1.0))?
+    .line_to(p2(1.0, 0.0))?
+    .line_to(p2(0.0, 1.0))?
+    .line_to(Start)?;
+let refused = validated(SketchPlane::<f64>::xy(), vec![bowtie.into()]);
 
 assert!(matches!(refused, Err(ProfileError::NonSimple { .. })));
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-This is why `demos/tour/src/bodies.rs` keeps its `finale_fail_loud`
-bowtie authored through the **raw** constructor permanently: the
-algebra's checks are local and would pass it, so the scene exists to
-prove the profile-level validator catches what they cannot.
+Read the two steps: the chain **authors** — the algebra's junction
+checks are local, and all four corners are sharp — and then
+`validated` refuses it typed. A local check cannot see a global
+self-intersection; that is what the profile-level validator is for.
+The contract is pinned in the kernel's own suite
+(`crates/profile/tests/rejections.rs`), where it moved from the demo
+tour: a broken-on-purpose scene is not a use case (Evan's ruling on
+#413).
 
 ## 3. Contact: the refusal that defines this kernel
 
@@ -130,9 +139,11 @@ use pncad::prelude::*;
 use pncad::topo::BooleanError;
 # type E = Box<dyn std::error::Error>;
 # fn slab(z: (f64, f64)) -> Result<Body<f64>, E> {
-#     let rect = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+#     let rect: ClosedLoop<f64> = Open
+#         .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0))?
+#         .line_to(p2(1.0, 1.0))?.line_to(p2(0.0, 1.0))?.line_to(Start)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
 # }
 let lower = slab((0.0, 1.0))?;   // z from 0 to 1
 let upper = slab((1.0, 2.0))?;   // z from 1 to 2 — they meet exactly at z = 1
@@ -245,6 +256,69 @@ except EvaluationError as err:
     assert err.node == glued
 ```
 
+And for this particular refusal, the payload does better than say
+why: **the refusal is the menu**. An undeclared-contact refusal
+carries the candidate declaration itself — the face pair by stable
+name, with the relation the verifier decided — as a typed
+`FlushFinding` on the exception, so the recourse is in the error, not
+in a doc. The menu has exactly two arms: declare that finding, or
+move the geometry. Here is the whole conversation, end to end —
+author the undeclared boolean, read the typed menu, declare, succeed:
+
+```python
+from pncad import (
+    BooleanOp, ContactClass, Doc, EvaluationError, Node, PlaneRelation,
+    evaluate, mm,
+)
+
+
+def slab(doc, z0, z1):
+    profile = doc.insert(
+        Node.polygon(
+            [(0 * mm, 0 * mm), (10 * mm, 0 * mm), (10 * mm, 10 * mm), (0 * mm, 10 * mm)],
+            elevation=z0,
+        )
+    )
+    return doc.insert(Node.extrude(profile, z1 - z0))
+
+
+doc = Doc()
+lower = slab(doc, 0 * mm, 10 * mm)
+upper = slab(doc, 10 * mm, 20 * mm)   # they meet exactly at z = 10 mm
+naive = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
+
+# 1. The undeclared union refuses — with the typed menu attached.
+ev = evaluate(doc)
+try:
+    ev.value(naive)
+    raise AssertionError("the undeclared union must refuse")
+except EvaluationError as err:
+    assert err.kind == "undeclared_contact"
+    menu = err.finding                      # the candidate declaration
+    assert menu.relation == PlaneRelation.SameOpposite  # resting contact
+    assert menu.class_ == ContactClass.Rest
+
+# 2. The declare arm: detect, INSPECT, declare. The detector is the
+#    boolean's own verifier run in candidate-generation mode, so a
+#    finding can never disagree with verify-at-use — and the menu's
+#    finding is drawn from the same inventory.
+findings = ev.find_flush_candidates(lower, upper)
+assert menu in findings
+decl = doc.declare_all(findings)            # or doc.declare(menu)
+
+# 3. The SAME union, with the contact declared: verified and glued.
+glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper, declare=decl))
+body = evaluate(doc).value(glued).body()
+body.validate()
+# 10 × 10 × 20 mm³ — one block, watertight.
+assert abs(body.mass_properties().volume - 2e-6) < 1e-15
+```
+
+Notice what is *not* here: no `detect_and_declare`. Findings pass
+through your hands as values — that pause is the enforceable
+intent-recording property, and the declaration is still verified at
+use (a declaration the geometry contradicts refuses loudly).
+
 A node downstream of a failure is not itself broken — it is
 **poisoned**, and it says so, naming the node that actually failed:
 
@@ -293,8 +367,10 @@ symptom.
 ```
 use pncad::prelude::*;
 # type E = Box<dyn std::error::Error>;
-# let rect = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
-# let body = extrude(&validated(SketchPlane::<f64>::xy(), vec![rect])?, Extrusion::Distance(real(1.0)))?.body;
+# let rect: ClosedLoop<f64> = Open
+#     .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0))?
+#     .line_to(p2(1.0, 1.0))?.line_to(p2(0.0, 1.0))?.line_to(Start)?;
+# let body = extrude(&validated(SketchPlane::<f64>::xy(), vec![rect.into()])?, Extrusion::Distance(real(1.0)))?.body;
 match validate_geometric(&body) {
     Ok(()) => { /* the body is sound at tier 3 */ }
     Err(failures) => {

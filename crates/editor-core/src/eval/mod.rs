@@ -17,6 +17,9 @@
 
 mod anchor;
 mod memo;
+pub(crate) mod parts;
+
+pub use parts::PartFault;
 mod schedule;
 mod slots;
 mod wire;
@@ -33,7 +36,7 @@ use profile::ProfileError;
 use sweep::{ExtrudeError, RevolveError, SkinError};
 use topo::splitting::SplitError;
 use topo::transform::TransformError;
-use topo::{Body, BooleanError, BooleanResultKind, ContactRecords};
+use topo::{Body, BooleanError, BooleanResultKind, ContactClass, ContactRecords};
 
 use crate::appearance::{self, AppearanceResolution};
 use crate::doc::Doc;
@@ -66,6 +69,14 @@ pub struct Evaluation<T: Decide> {
     /// How many nodes were reused from the prior evaluation by
     /// content-key match.
     pub reused: usize,
+    /// How many REFERENCED documents this evaluation actually
+    /// evaluated across the document seam (ASM-2A D-3's sharing
+    /// evidence). N instances of one part contribute 1; a memo-hit
+    /// instance contributes 0, because it never asks; and a nested
+    /// crossing — a part that instantiates a part — contributes to
+    /// THIS count too, so the number is the whole run's seam traffic
+    /// rather than one level's.
+    pub part_evaluations: usize,
     /// The document's appearance store resolved against THIS
     /// evaluation's name tables (M4 PR 7): per node, entity →
     /// attributes, so a renderer/exporter consumes appearance without
@@ -237,9 +248,12 @@ pub enum ValuePayload<T: Decide> {
     /// A pattern's instances AS DATA (D3: patterns do not implicitly
     /// union; index `i` is the A8/N1 `Instance(i)` substrate).
     Instances(Vec<Arc<Body<T>>>),
-    /// A Declare node's pairs, passed through as data (D3; threading
-    /// into booleans is PR 5).
-    Declarations(Vec<(StableName, StableName)>),
+    /// A Declare node's pairs with their contact classes, passed
+    /// through as data (D3; the boolean consumes them at its
+    /// `declare` input). The class travels WITH its pair from
+    /// authoring to the kernel door — the one vocabulary end-to-end
+    /// (SELECT-DESIGN §3d).
+    Declarations(Vec<((StableName, StableName), ContactClass)>),
 }
 
 impl<T: Decide> ValuePayload<T> {
@@ -497,6 +511,31 @@ pub enum NodeErrorKind {
         /// Whether the names resolved in different operands.
         cross_operand: bool,
     },
+    /// The boolean refused an UNDECLARED contact (F6) and the raise
+    /// site identified the face pair — the refusal-menu payload
+    /// (SELECT-DESIGN §3d, register R3, LIB-PYG5). `finding` is the
+    /// SAME value shape the detector answers with: the pair's keys
+    /// resolved to StableNames through the OPERANDS' name tables, the
+    /// relation the coincidence ladder decided before refusing.
+    /// Nothing is re-detected on the error path — the payload is what
+    /// the raise site held. So the recourse is IN the error, and the
+    /// menu has exactly two arms (the #256 ruling applied to contact,
+    /// no absorb arm): declare this finding
+    /// ([`crate::names::declare`] / [`crate::node::Node::Declare`] →
+    /// the boolean's `declare` input), or move the geometry.
+    ///
+    /// Raised INSTEAD of wrapping the kernel's
+    /// `BooleanError::UndeclaredCoincidence` under
+    /// [`NodeErrorKind::Boolean`]; if either key fails to resolve to
+    /// a name (an emitter-coverage invariant break, not an authoring
+    /// state), the plain `Boolean` wrapping is preserved — the
+    /// boolean's refusal is never masked by its own menu.
+    UndeclaredContact {
+        /// The candidate declaration, in the detector's value shape.
+        finding: Box<crate::names::FlushFinding>,
+        /// The refusing predicate's diagnostics, unaltered.
+        diag: Indeterminate,
+    },
     /// A `Node::Fillet` selection name failed to resolve through the
     /// TARGET's name table (M6-5) — the same N5 typed trio as
     /// [`NodeErrorKind::DeclareResolve`], and for the same reason: a
@@ -527,6 +566,17 @@ pub enum NodeErrorKind {
     /// the M6 solver: the arm exists so the solver lands as logic,
     /// not a schema change.
     WitnessBifurcation(crate::witness::WitnessBifurcation),
+    /// An `InstantiatePart` node could not produce its part's placed
+    /// body (ASM-2A D-3). The reference names WHICH document was being
+    /// crossed to; the fault says what stopped it — including A4's pin
+    /// gate and A2's ε seam, observed here at evaluation rather than
+    /// assumed at authoring.
+    Part {
+        /// The reference that was being resolved.
+        doc_ref: crate::ident::DocRef,
+        /// Why it did not yield a part body.
+        fault: parts::PartFault,
+    },
 }
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
@@ -612,7 +662,10 @@ impl core::fmt::Display for NodeErrorKind {
             Self::UnschedulableCycle => {
                 f.write_str("the node is in, or downstream of, a dependency cycle")
             }
-            Self::Naming(_) => f.write_str("name emission failed"),
+            // #380: the payload is editor-core's OWN diagnostic, not a
+            // kernel refusal riding the variant — it has no other route
+            // to a human, so it is carried through rather than dropped.
+            Self::Naming(e) => write!(f, "name emission failed: {e}"),
             Self::DeclareResolve { .. } => {
                 f.write_str("a declared name failed to resolve through the operands' tables")
             }
@@ -623,6 +676,22 @@ impl core::fmt::Display for NodeErrorKind {
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
                 "declare pair {kinds:?} is outside the v1 threading vocabulary"
+            ),
+            Self::UndeclaredContact { finding, .. } => write!(
+                f,
+                "the Boolean refused an undeclared contact: a face pair of its operands \
+                 is {} without a shared source or declared intent — the refusal carries \
+                 the candidate declaration (the pair, by stable name, with its relation); \
+                 declare that finding and wire it into the Boolean's declare input, or \
+                 move the geometry",
+                match finding.evidence.relation {
+                    topo::PlaneRelation::SameOpposite =>
+                        "coincident with opposed orientations (resting contact)",
+                    topo::PlaneRelation::SameOriented =>
+                        "coincident with the same orientation (flush walls)",
+                    // Never constructed on a finding; rendered honestly anyway.
+                    topo::PlaneRelation::Distinct => "reported coincident",
+                }
             ),
             Self::FilletSelectionResolve { .. } => {
                 f.write_str("a fillet selection name failed to resolve")
@@ -635,6 +704,9 @@ impl core::fmt::Display for NodeErrorKind {
                 "the fillet selection is empty — an unfinished recipe, not the identity",
             ),
             Self::WitnessBifurcation(_) => f.write_str("the sketch's branch selection refused"),
+            Self::Part { doc_ref, fault } => {
+                write!(f, "instantiating {doc_ref}: {fault}")
+            }
         }
     }
 }
@@ -686,6 +758,23 @@ impl CancelToken {
     }
 }
 
+/// What a scalar must satisfy to be evaluated: decided predicates, the
+/// memo's content bits, the certification brackets the props lane
+/// needs, and `Send + Sync` for the rayon schedule. ONE name for the
+/// set, stated at the evaluation-service seam that owns it — so the
+/// modules below this one (`parts`) name the requirement rather than
+/// restate it, and the compound `Bounds` bound stays inside the seam
+/// the 2026-07-29 Bounds scope rule ratified.
+pub trait EvalScalar:
+    Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane
+{
+}
+
+impl<T> EvalScalar for T where
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane
+{
+}
+
 /// Evaluation options (spec D5/D6).
 #[derive(Debug, Clone)]
 pub struct EvalOptions {
@@ -709,6 +798,11 @@ pub struct EvalOptions {
     /// strategy (the diff engine always compares production runs).
     /// Production default: `Realized`.
     pub boolean_sweep: topo::SweepStrategy,
+    /// The document seam (ASM-2A D-3): how an `InstantiatePart` node
+    /// reaches the document it pins. `None` — the default — is a
+    /// kernel-only evaluation, in which every instantiate node refuses
+    /// typed rather than pretending a part is empty.
+    pub resolver: Option<Arc<dyn crate::part::PartResolver>>,
 }
 
 impl Default for EvalOptions {
@@ -717,6 +811,7 @@ impl Default for EvalOptions {
             epoch: Epoch::mint(),
             parallel: false,
             boolean_sweep: topo::SweepStrategy::Realized,
+            resolver: None,
         }
     }
 }
@@ -740,7 +835,38 @@ pub fn evaluate<T>(
     opts: &EvalOptions,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+{
+    evaluate_at_descent(doc, prior, cancel, opts, &[])
+}
+
+/// An instantiated document's own evaluation (ASM-2A D-3), one level
+/// deeper than its instantiator's. `chain` is the descent — every
+/// reference this run was reached through — which is what makes a
+/// cycle decidable at the seam. No prior: a referenced document is
+/// resolved fresh, and the memo that keeps THAT from costing anything
+/// is the part cache, one layer up.
+pub(crate) fn evaluate_nested<T>(
+    doc: &Doc<ProfileProgram>,
+    cancel: &CancelToken,
+    opts: &EvalOptions,
+    chain: &[crate::ident::DocRef],
+) -> Evaluation<T>
+where
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+{
+    evaluate_at_descent(doc, None, cancel, opts, chain)
+}
+
+fn evaluate_at_descent<T>(
+    doc: &Doc<ProfileProgram>,
+    prior: Option<&Evaluation<T>>,
+    cancel: &CancelToken,
+    opts: &EvalOptions,
+    chain: &[crate::ident::DocRef],
+) -> Evaluation<T>
+where
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
 {
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
@@ -751,6 +877,11 @@ where
         return refuse_tolerance_conflict(doc, sched, opts, process_eps);
     }
     let env = doc.param_env::<T>();
+    let parts = parts::PartCache::<T>::new(opts.resolver.as_ref(), chain, opts.boolean_sweep);
+    let op_env = wire::OpEnv {
+        boolean_sweep: opts.boolean_sweep,
+        parts: &parts,
+    };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
     let mut recomputed = 0usize;
     let mut reused = 0usize;
@@ -769,12 +900,7 @@ where
             use rayon::prelude::*;
             let results: Vec<(RecipeNodeId, NodeStep<T>)> = level
                 .par_iter()
-                .map(|&id| {
-                    (
-                        id,
-                        eval_node(doc, &env, id, &nodes, prior, opts.boolean_sweep),
-                    )
-                })
+                .map(|&id| (id, eval_node(doc, &env, id, &nodes, prior, &op_env)))
                 .collect();
             for (id, step) in results {
                 bookkeep(&step, &mut recomputed, &mut reused);
@@ -787,7 +913,7 @@ where
                 outcome = EvalOutcome::Canceled;
                 break;
             }
-            let step = eval_node(doc, &env, id, &nodes, prior, opts.boolean_sweep);
+            let step = eval_node(doc, &env, id, &nodes, prior, &op_env);
             bookkeep(&step, &mut recomputed, &mut reused);
             nodes.insert(id, step.result);
         }
@@ -837,6 +963,7 @@ where
         outcome,
         recomputed,
         reused,
+        part_evaluations: parts.evaluations(),
         appearance: resolved_appearance,
     }
 }
@@ -885,6 +1012,7 @@ where
         outcome: EvalOutcome::Completed,
         recomputed: 0,
         reused: 0,
+        part_evaluations: 0,
         appearance: resolved_appearance,
     }
 }
@@ -918,10 +1046,10 @@ fn eval_node<T>(
     id: RecipeNodeId,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&Evaluation<T>>,
-    boolean_sweep: topo::SweepStrategy,
+    op_env: &wire::OpEnv<'_, T>,
 ) -> NodeStep<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
 {
     let fail = |kind: NodeErrorKind| NodeStep {
         result: NodeResult::Failed(NodeError { node: id, kind }),
@@ -1001,6 +1129,7 @@ where
         resolved_program.as_deref(),
         &upstream_keys,
         doc.witness(id),
+        doc.placement(id),
     );
     let naming_key = naming_key(content_key, &upstream_naming);
 
@@ -1036,7 +1165,7 @@ where
         results,
         &slot_values,
         profile_pre.as_ref(),
-        boolean_sweep,
+        op_env,
     );
     let verdicts = geom_core::k_stats::take_verdict_log();
     match op {
@@ -1071,6 +1200,7 @@ fn content_key<T>(
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     upstream_keys: &[ContentKey],
     witness: Option<&crate::witness::WitnessDatum>,
+    placement: crate::placement::Frame,
 ) -> ContentKey
 where
     T: Decide + ContentBits,
@@ -1114,6 +1244,8 @@ where
         Node::Sweep { .. } => 16,
         // M5 PR 12.
         Node::Fillet { .. } => 17,
+        // ASM-2A.
+        Node::InstantiatePart { .. } => 18,
     };
     h.write_tag(tag);
     // Structural payloads beyond the tag: profile floats and Declare
@@ -1150,11 +1282,44 @@ where
                 None => h.write_tag(0),
             }
         }
+        // ASM-2A D-1/D-2: WHICH document (id + pin — the pin IS the
+        // referenced content, so nothing about the part needs hashing
+        // here) and WHERE its cluster sits. The placement is document
+        // data, not node data, which is exactly why it must feed the
+        // key: a `SetPlacement` moves this node's value and nothing
+        // else about the node changes. The interface record feeds
+        // nothing because it is PROVABLY empty (`InterfaceCrossing` is
+        // uninhabited); when R2 inhabits it, it must feed the key.
+        Node::InstantiatePart { doc_ref, .. } => {
+            h.write_u64((doc_ref.id.0 >> 64) as u64);
+            h.write_u64(doc_ref.id.0 as u64);
+            for chunk in doc_ref.pin.0.chunks(8) {
+                let mut byte8 = [0u8; 8];
+                byte8[..chunk.len()].copy_from_slice(chunk);
+                h.write_u64(u64::from_be_bytes(byte8));
+            }
+            for x in placement
+                .columns
+                .iter()
+                .flatten()
+                .chain(placement.translation.iter())
+            {
+                h.write_f64_bits(*x);
+            }
+        }
         Node::Declare { pairs } => {
             h.write_u64(pairs.len() as u64);
-            for (a, b) in pairs {
+            for ((a, b), class) in pairs {
                 feed_stable_name(&mut h, a);
                 feed_stable_name(&mut h, b);
+                // The CLASS is part of the node's identity: two
+                // declarations of the same pair under different
+                // classes are different nodes, and a memo keyed
+                // without it would serve a `Rest` answer to a
+                // `Tangent` question. Keys are process-internal, so
+                // this costs a one-time memo invalidation and no
+                // schema.
+                h.write_u64(class.content_tag());
             }
         }
         // The fillet SELECTION is recipe payload, not a slot: two
@@ -1222,7 +1387,7 @@ fn naming_key(content: ContentKey, upstream: &[(RecipeNodeId, NamingKey)]) -> Na
 /// under the float tag — (tag, payload) throughout, so structure can
 /// never alias float data (the retired token stream's rule, kept).
 fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
-    use profile::{ArcSweep, Step, Target};
+    use profile::{ArcData, ArcSide, ArcSweep, Step, Target};
     fn f(h: &mut KeyHasher, v: f64) {
         h.write_tag(2);
         h.write_u64(v.to_bits());
@@ -1243,23 +1408,67 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             ArcSweep::Cw => 7,
         });
     }
+    // Tags are append-only and NEVER reused (the tag-29 lesson): the
+    // §2c re-spell RETIRED 11 (AtOn), 19 (ArcVia), 20 (ArcCenter),
+    // 25 (CloseToOn) and 29 (AtToward) — those numbers stay dead —
+    // and appended 30–40 below. Verb identity is structure — two verbs
+    // sharing a tag could collide their digests within one run, which
+    // `switch_program_key`'s `verb_tags_are_structure` exists to
+    // forbid. Keys are process-internal, so no migration.
+    fn side(h: &mut KeyHasher, s: ArcSide) {
+        h.write_tag(match s {
+            ArcSide::Left => 36,
+            ArcSide::Right => 37,
+        });
+    }
+    fn spec(h: &mut KeyHasher, s: &ArcData<f64>) {
+        match s {
+            ArcData::Radius { r, side: sd } => {
+                h.write_tag(30);
+                f(h, *r);
+                side(h, *sd);
+            }
+            ArcData::Bulge { target: t, b } => {
+                h.write_tag(31);
+                target(h, t);
+                f(h, *b);
+            }
+            ArcData::Via { q, target: t } => {
+                h.write_tag(32);
+                f(h, q.x);
+                f(h, q.y);
+                target(h, t);
+            }
+            ArcData::Center {
+                c,
+                winding: w,
+                target: t,
+            } => {
+                h.write_tag(33);
+                f(h, c.x);
+                f(h, c.y);
+                winding(h, *w);
+                target(h, t);
+            }
+            ArcData::Sweep { r, side: sd, angle } => {
+                h.write_tag(34);
+                f(h, *r);
+                side(h, *sd);
+                f(h, *angle);
+            }
+            ArcData::ArcLen { r, side: sd, len } => {
+                h.write_tag(35);
+                f(h, *r);
+                side(h, *sd);
+                f(h, *len);
+            }
+        }
+    }
     match step {
         Step::At(p) => {
             h.write_tag(10);
             f(h, p.x);
             f(h, p.y);
-        }
-        Step::AtOn {
-            p,
-            centre,
-            winding: w,
-        } => {
-            h.write_tag(11);
-            f(h, p.x);
-            f(h, p.y);
-            f(h, centre.x);
-            f(h, centre.y);
-            winding(h, *w);
         }
         Step::Angle(theta) => {
             h.write_tag(12);
@@ -1283,27 +1492,9 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             h.write_tag(17);
             target(h, t);
         }
-        Step::ArcTo { target: t, bulge } => {
+        Step::ArcTo(data) => {
             h.write_tag(18);
-            target(h, t);
-            f(h, *bulge);
-        }
-        Step::ArcVia { via, target: t } => {
-            h.write_tag(19);
-            f(h, via.x);
-            f(h, via.y);
-            target(h, t);
-        }
-        Step::ArcCenter {
-            centre,
-            target: t,
-            winding: w,
-        } => {
-            h.write_tag(20);
-            f(h, centre.x);
-            f(h, centre.y);
-            target(h, t);
-            winding(h, *w);
+            spec(h, data);
         }
         Step::TangentArcTo(t) => {
             h.write_tag(21);
@@ -1318,18 +1509,32 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             h.write_tag(22);
             f(h, *radius);
         }
+        Step::FilletArc { radius, spec: sp } => {
+            h.write_tag(38);
+            f(h, *radius);
+            spec(h, sp);
+        }
+        Step::ArcFillet { spec: sp, radius } => {
+            h.write_tag(39);
+            spec(h, sp);
+            f(h, *radius);
+        }
+        Step::ArcFilletArc {
+            spec: sp,
+            radius,
+            spec2,
+        } => {
+            h.write_tag(40);
+            spec(h, sp);
+            f(h, *radius);
+            spec(h, spec2);
+        }
         Step::FarEndTo(p) => {
             h.write_tag(23);
             f(h, p.x);
             f(h, p.y);
         }
         Step::CloseTo => h.write_tag(24),
-        Step::CloseToOn { centre, winding: w } => {
-            h.write_tag(25);
-            f(h, centre.x);
-            f(h, centre.y);
-            winding(h, *w);
-        }
         Step::Circle { centre, radius } => {
             h.write_tag(26);
             f(h, centre.x);
@@ -1534,6 +1739,10 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         RoleSeg::OnToolVertex { side, of } => {
             h.write_tag(27);
             h.write_u64(half(*side));
+            feed_stable_name(h, of);
+        }
+        RoleSeg::InPart { of } => {
+            h.write_tag(40);
             feed_stable_name(h, of);
         }
         RoleSeg::Instance { i, of } => {

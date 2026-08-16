@@ -332,3 +332,57 @@ contract).
   above is the contract, the enums are implementation.
 - Which (if any) rebinding policies to ratify after v1 experience;
   the menu starts empty by decision.
+
+## The split-naming walls (2026-08-15 survey; the G14 disposition
+## — RATIFIED: Evan 👍 on #512, A2 + the B1 alignment)
+
+**EXECUTED (LIB-G14).** Both walls are down as ratified; the tenses
+below are the survey's and describe the state before the fix. One
+measured residue: A2's disambiguation clause reads "the selector
+layer already narrows ties geometrically, so a specific chord stays
+reachable via `select_where`". Measured, `select_where` is
+all-or-nothing PER NAME by its own GS-Q4 rule — a tie whose
+candidates disagree under a filter is `SelectRefusal::TiedDisagrees`,
+never a narrowing. The tie is reachable and honestly escalated;
+picking ONE chord needs a per-candidate narrowing door the SEL layer
+does not have. Filed, not worked around. The escalation is itself the
+evidence such a door would work: a `DatumDistance` atom separates the
+two cap chords 1-of-2 today (executed row), so what is missing is the
+door, not the signal.
+
+The LIB audit's "G14" turned out to be TWO disjoint M4-era
+deferrals (one logged sentence, M4-LOG:311), disentangled by
+measurement (cad-work/g14-survey.md; the conflation persisted
+because NamingError has no Display — #380 — so Python saw one
+opaque refusal):
+
+**Wall B — tied-upstream over-strictness: ALIGN TO RATIFIED
+(dominant argument, executed without a fork).** emit_topo's
+upstream_name (and name_boolean's shared guard) refuse the WHOLE
+op if ANY operand-table entry is Tied — even pass-through
+entities far from the tie. That is stricter than this doc's own
+ratified N2 text ("naming a tie is fine"), and three shipped
+emitters already do it right (name_pattern, name_in_part,
+graft_names propagate tied as tied). Disposition: propagate
+Entry::Tied through splits/booleans as tied (option B1); the
+refusal narrows to entities whose OWN name genuinely needs a
+unique upstream. This is alignment with ratified text plus
+precedent, not new design.
+
+**Wall A — chord multiplicity: THE FORK (Evan's call).**
+RoleSeg::SectionEdge{side, face} names a section chord only by
+the operand face it crosses, so a face crossed twice would mint
+one name twice — refused today ("multiple section chords across
+one operand face"), and it fires on boolean-free scenes (a plain
+L-shaped single-loop extrude). Options: A1 rank chords by
+order-along-the-section-line (deterministic, no new vocabulary;
+names shift if an edit adds a chord); A2 the chords become TIED
+SectionEdge entries (one tie story everywhere — B1's direction;
+the selector layer already narrows ties geometrically, so a
+specific chord stays reachable via select_where); A3 index by
+the minted section face (new coupling to face identity).
+RATIFIED: A2 — it reuses the ratified tie vocabulary instead
+of inventing an ordering, and composes with the SEL1 selector
+story for disambiguation. #380 (a Display for NamingError) rides
+the implementation unit as a mechanical fail-loud rider; it
+changes no disposition.

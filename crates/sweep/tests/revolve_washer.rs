@@ -10,6 +10,7 @@ mod revolve_common;
 use geom_brep::EdgeGeometry;
 use geom_surfaces::Surface;
 use profile::ProfileLoop;
+use profile::RawLoop;
 use revolve_common::*;
 use sweep::{Revolution, RevolvedKind, revolve};
 

@@ -22,7 +22,7 @@
 #   gh run download <run-id> -n renders-uv          # UV trim-loop sheet
 #   gh run download <run-id> -n renders-wild        # wild-corpus montage
 #
-# `scripts/render-hosted.sh` is the one-command front end for all of
+# `local-scripts/render-hosted.sh` is the one-command front end for all of
 # that (push check -> dispatch -> poll -> install the artifacts back
 # into the working tree at their committed paths), and is the path the
 # local entry points now point at: they refuse to run without an
@@ -40,29 +40,40 @@
 # render.sh's own #221 routing invariant: on fallback it touches nothing
 # under the committed lane and everything under renders-preview/.
 #
-# NOT A GATE, AND NOT THE COMMITTED LANES' PRODUCER. No job commits or
-# pushes; each REPORTS its diff against the committed tree in the run
-# summary and none fails over it. What that report means differs per
-# lane, and the difference is why the two PNG lanes cannot be promoted
-# the way the UV lane already has been:
+# TWO ENTRY POINTS, ONE PIPELINE. `workflow_dispatch` renders on demand
+# and hands back artifacts. `workflow_call` is ci.yml's render gate: the
+# SAME lanes over a PR's merge commit, failing when a committed lane no
+# longer matches what this code renders. One definition of how a lane
+# renders, so the gate cannot drift from the thing it gates — and the
+# artifacts a failing gate points you at are the ones it just produced,
+# so fixing it is a download, never a re-render.
 #
-#   * UV — pure stdlib Python over the tour's own SVGs, no renderer at
-#     all, so it IS reproducible on a runner. ci.yml's `k-lint` job
-#     already gates it (`uv sheet drift (demos)`); this job exists to
-#     HAND YOU THE SHEET on demand, not to check it.
-#   * wild — matplotlib's Agg rasterizer over the kernel's own
-#     tessellation of committed STEP fixtures, with pinned numpy /
-#     matplotlib and no GL anywhere in the path. Byte-reproducible
-#     off-box like the UV lane, and unlike it, PNGs — which makes it the
-#     lane render-hosted.sh round-trips to prove the artifact path
-#     preserves the provenance stamp chunks byte for byte.
-#   * kernel / FreeCAD — the committed cells were drawn against a
-#     developer host's GL stack, these are drawn by llvmpipe under Xvfb,
-#     and the runner image's mesa drifts month to month. Byte-identity
-#     is not expected and is not asserted. Promoting either lane to the
-#     canonical producer means pinning the whole GL stack in a container
-#     image and re-baselining the committed cells in one commit — a
-#     design call for Evan, not a side effect of this file.
+# WHY A GATE IS POSSIBLE NOW. It was not, when the committed cells came
+# from a developer's GL stack and these came from llvmpipe. Hosted is
+# the canonical producer since Evan's #338 ruling, and a repeat hosted
+# render of one commit is byte-identical — measured across all 55 cells
+# of both PNG lanes — so a diff is a real finding, and an ungated
+# committed artifact rots silently. What a diff MEANS still differs by
+# lane:
+#
+#   * kernel / FreeCAD — llvmpipe under Xvfb. Byte-identity holds
+#     against a repeat HOSTED render, which is exactly what the gate
+#     compares; it does NOT hold across GL stacks, which is why a local
+#     render stays preview-only. The runner image's mesa bumps roughly
+#     monthly and re-baselines both lanes when it does: that is the gate
+#     WORKING — the committed cells are meant to track the canonical
+#     producer — so the failure message names that cause alongside the
+#     ordinary one and hands over the same one-command fix for both.
+#   * wild — matplotlib Agg over the kernel's own tessellation of
+#     committed STEP fixtures, pinned, no GL anywhere in the path.
+#     Byte-reproducible on any box, so its diff is unambiguous and it
+#     carries no mesa exposure at all.
+#   * UV — renderer-free, and already gated by ci.yml's `uv sheet drift
+#     (demos)` row. Reported here, never re-gated: one gate per
+#     obligation.
+#
+# NO JOB COMMITS OR PUSHES, in either mode. A failing gate hands over an
+# artifact and a command; committing it stays a human's call.
 name: render (demos)
 
 on:
@@ -78,12 +89,25 @@ on:
         description: "FreeCAD per-scene wall-clock budget, seconds"
         required: false
         default: "300"
+      # 2, matching the runner's core count (2 cores / 7 GB, printed by
+      # the render step). Measured byte-identical to sequential across
+      # all 55 cells of both PNG lanes, at ~20% less wall clock, so the
+      # canonical producer runs this way and a dispatch matches it
+      # rather than quietly rendering under a different regime.
+      # render.sh's OWN default stays 1: it cannot know a developer
+      # box's core count, and this workflow can.
       render_jobs:
         description: "Scenes rendered concurrently per FreeCAD lane (1 = sequential)"
         required: false
-        default: "1"
+        default: "2"
       tour_cache:
         description: "Tour output: reuse the cache when sources are unchanged, or force a rebuild"
+        required: false
+        type: choice
+        default: use
+        options: [use, refresh]
+      wild_cache:
+        description: "Wild generator output: reuse the cache when sources are unchanged, or force a rebuild"
         required: false
         type: choice
         default: use
@@ -93,9 +117,48 @@ on:
         required: false
         default: ""
 
+  # ci.yml's render gate. Same inputs, plus the one that turns the
+  # lanes' drift reports into failures.
+  workflow_call:
+    inputs:
+      lanes:
+        type: string
+        required: false
+        default: all
+      scene_timeout:
+        type: string
+        required: false
+        default: "300"
+      render_jobs:
+        type: string
+        required: false
+        default: "2"
+      tour_cache:
+        type: string
+        required: false
+        default: use
+      wild_cache:
+        type: string
+        required: false
+        default: use
+      ref:
+        type: string
+        required: false
+        default: ""
+      gate:
+        description: "Fail the lane when its committed directory does not match this render"
+        type: boolean
+        required: false
+        default: false
+
 concurrency:
-  group: render-demos-${{ inputs.ref || github.ref }}
-  cancel-in-progress: false
+  # On demand, a render someone ASKED for is never cancelled — a second
+  # dispatch queues behind the first. As ci.yml's gate the opposite is
+  # right: a superseded push should take its render down with the rest
+  # of the CI run that owns it, which is why the two modes do not share
+  # a group.
+  group: render-demos-${{ inputs.gate && 'gate' || 'dispatch' }}-${{ inputs.ref || github.ref }}
+  cancel-in-progress: ${{ inputs.gate == true }}
 
 jobs:
   # Every lane reads demos/out (scenes.json + per-body STL/STEP + the UV
@@ -113,6 +176,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
 
       # THE TOUR'S OUTPUT IS CACHED ON ITS SOURCES' HASH, not rebuilt
       # per dispatch. Measured on run 31426382563: the step is ~94 s of
@@ -127,6 +201,14 @@ jobs:
       # crate, the lockfiles, the pinned toolchain), so a hit means the
       # same bytes a rebuild would have produced — the tour is
       # deterministic, which is what ci.yml's `uv sheet drift (demos)`
+      # DIRECTLY UNDER THE CHECKOUT, BEFORE ANY CARGO STEP. `hashFiles`
+      # globs the working tree, so a cargo step running first would put
+      # `demos/tour/target/` inside the `demos/tour/**` pattern and the
+      # key would describe build artifacts instead of sources. ci.yml's
+      # copy of this step was placed after a clippy row and computed a
+      # different hash for the same commit, in the same run — a
+      # permanent miss that still looked like a working cache.
+      #
       # gate asserts on every run. `tour_cache: refresh` forces the
       # rebuild anyway, for when you want that assertion re-earned
       # rather than assumed.
@@ -173,6 +255,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: actions/download-artifact@v4
         with:
           name: tour-out
@@ -258,6 +351,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
       - uses: actions/download-artifact@v4
         with:
           name: tour-out
@@ -386,6 +490,57 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # THE GATE. Deliberately NOT `always()`: it must only be reached
+      # when the pass itself succeeded, so a wedge fails as a wedge and
+      # is never re-reported as drift (the lane directory a failed pass
+      # leaves behind is the COMMITTED one, untouched — it would read as
+      # "no drift" and quietly pass).
+      #
+      # The fix named here installs the artifact this job just uploaded,
+      # on this very run, so it costs a download rather than another
+      # render. It goes through `render-hosted.sh` rather than a bare
+      # `gh run download`: that command REFUSES to overwrite existing
+      # files, so aimed straight at a populated lane directory — which
+      # is the only situation this message is ever printed in — it fails
+      # on the first cell. The script stages into a temp dir, installs
+      # over the lane, and runs the provenance guard on what landed.
+      - name: committed lane is current (gate)
+        if: ${{ inputs.gate }}
+        run: |
+          drift="$(git status --porcelain -- "demos/$LANE_DIR/")"
+          if [ -z "$drift" ]; then
+            echo "demos/$LANE_DIR/ matches this render."
+            exit 0
+          fi
+          fix="local-scripts/render-hosted.sh --run ${{ github.run_id }} --lane ${{ matrix.lane }}"
+          # The annotation is one line by necessity (workflow commands
+          # cannot carry newlines); the log above it is where the
+          # explanation fits.
+          cat <<EOF
+
+          ================================================================
+           demos/$LANE_DIR/ IS STALE — it is not what this code renders.
+
+           $drift
+
+           Two things cause this, and both are fixed the same way:
+             * the geometry changed and these cells need re-baselining;
+             * the runner image's mesa bumped and re-rasterised them —
+               expect that roughly monthly. The committed cells are meant
+               to track the canonical (hosted) producer, so that is this
+               gate working, not failing.
+
+           Fix it from THIS run — the command below installs the render
+           this job just uploaded, so nothing is rendered again:
+
+             $fix
+             git add demos/$LANE_DIR/ && git commit
+
+          ================================================================
+          EOF
+          echo "::error title=demos/$LANE_DIR is stale::Committed ${{ matrix.lane }} cells do not match this render. Fix from this run: $fix — then commit. (Geometry change, or a monthly mesa re-baseline; see the log above.)"
+          exit 1
+
   # THE WILD-CORPUS LANE. FreeCAD-free by ratified scope (its cells are
   # third-party STEP imported by `step-import` and tessellated by the
   # kernel, drawn by render.py — matplotlib is the PRIMARY renderer
@@ -396,7 +551,7 @@ jobs:
   # It is therefore the second lane that is genuinely BYTE-reproducible
   # off-box — Agg is a pure-CPU rasterizer with matplotlib's own bundled
   # fonts, and the venv's numpy/matplotlib are pinned by render-wild.sh
-  # — which is what lets scripts/render-hosted.sh use it as the
+  # — which is what lets local-scripts/render-hosted.sh use it as the
   # round-trip proof that the artifact path preserves the provenance
   # stamp chunks byte for byte.
   wild:
@@ -412,17 +567,79 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+
+      # THE GENERATOR'S OUTPUT IS CACHED ON ITS SOURCES' HASH, exactly
+      # like the tour's above and for the same measured reason:
+      # Swatinem/rust-cache evicts LOCAL crates from what it restores,
+      # and every kernel crate is a path dependency of this detached
+      # workspace — so a "full match" hit still recompiles the whole
+      # kernel graph every run. This lane was the last one with no
+      # output cache at all, which made it the only lane paying that
+      # cost unconditionally. Caching what the generator PRODUCES skips
+      # the compile and the import+tessellate both.
+      #
+      # DIRECTLY UNDER THE CHECKOUT, BEFORE ANY CARGO STEP — `hashFiles`
+      # globs the working tree, so a cargo step running first would fold
+      # `demos/wild/target/` into the key. See the tour's note: ci.yml's
+      # copy of that step was misplaced once and computed a permanent
+      # miss that still looked like a working cache.
+      #
+      # EXPLICIT SOURCE GLOBS, not `demos/wild/**` (the shape the tour
+      # can afford). The tour's output lives at `demos/out`, OUTSIDE the
+      # `demos/tour/**` it hashes; this generator writes to
+      # `demos/wild/out` — INSIDE the directory — so a `**` key would
+      # hash the very tree the restore populates and fold `target/` in
+      # besides. Naming src + the manifests keeps the key a function of
+      # sources only. The fixtures need no entry of their own: they live
+      # under `crates/step-import/tests/fixtures/wild/`, already covered
+      # by `crates/**`.
+      #
+      # Exact key, no `restore-keys`: a near-miss must MISS. A hit means
+      # every byte the generator reads is unchanged — kernel included —
+      # so the postconditions this lane now runs armed (the release
+      # profile in demos/wild/Cargo.toml) would fire or stay silent
+      # identically. The assertion is assumed rather than re-earned only
+      # when nothing it could assert about has moved; `wild_cache:
+      # refresh` forces the rebuild when you want it re-earned anyway.
+      - name: wild generator output cache
+        id: wild-cache
+        if: ${{ inputs.wild_cache != 'refresh' }}
+        uses: actions/cache@v4
+        with:
+          path: demos/wild/out
+          key: wild-out-v1-${{ hashFiles('crates/**', 'demos/wild/src/**', 'demos/wild/Cargo.toml', 'demos/wild/Cargo.lock', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
+
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.wild-cache.outputs.cache-hit != 'true'
       - uses: Swatinem/rust-cache@v2
+        if: steps.wild-cache.outputs.cache-hit != 'true'
         with:
           key: render-demos-wild
           workspaces: |
             .
             demos/wild
+      # Needed on BOTH paths: render-wild.sh builds the venv itself, so
+      # this is the renderer's dependency, not the generator's.
       - name: venv deps
         run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-venv
       - name: wild generator (import + tessellate + STL + scenes.json)
+        if: steps.wild-cache.outputs.cache-hit != 'true'
         run: cd demos/wild && cargo run --release -- out
+      - name: where the wild output came from
+        run: |
+          echo "wild generator output: ${{ steps.wild-cache.outputs.cache-hit == 'true' && 'restored from cache' || 'built' }}" \
+            >> "$GITHUB_STEP_SUMMARY"
       - name: render (demos/render-wild.sh)
         run: demos/render-wild.sh
       - uses: actions/upload-artifact@v4
@@ -448,3 +665,36 @@ jobs:
             git status --porcelain -- demos/renders-wild/ || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Same gate as the PNG lanes, minus their one excuse: no GL is
+      # involved anywhere in this lane, so a diff here is never a mesa
+      # re-baseline — it is a real pixel change or a determinism finding.
+      - name: committed lane is current (gate)
+        if: ${{ inputs.gate }}
+        run: |
+          drift="$(git status --porcelain -- demos/renders-wild/)"
+          if [ -z "$drift" ]; then
+            echo "demos/renders-wild/ matches this render."
+            exit 0
+          fi
+          fix="local-scripts/render-hosted.sh --run ${{ github.run_id }} --lane wild"
+          cat <<EOF
+
+          ================================================================
+           demos/renders-wild/ IS STALE — it is not what this code renders.
+
+           $drift
+
+           This lane is matplotlib Agg over the kernel's own tessellation,
+           pinned and GL-free, so it is byte-reproducible on any box: this
+           is a real pixel change or a determinism finding, never a
+           re-rasterisation. If the change is intended, install this run's
+           own render — nothing is rendered again:
+
+             $fix
+             git add demos/renders-wild/ && git commit
+
+          ================================================================
+          EOF
+          echo "::error title=demos/renders-wild is stale::Committed wild cells do not match this render (GL-free lane — a real pixel or determinism change). Fix from this run: $fix — then commit."
+          exit 1

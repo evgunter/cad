@@ -27,6 +27,7 @@
 
 use geom_brep::PropsError;
 use geom_core::{Affine3, Point2, Tolerance, Vec3};
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Section, loft_body};
 use topo::{MassProperties, MassPropsError};
@@ -119,15 +120,54 @@ fn stack(z: [f64; 3]) -> Vec<Affine3<f64>> {
 /// body assembles, its rational wall's arc rims mint and certify, and
 /// tier 3 admits it. Whether the volume itself certifies is the ε
 /// question above, pinned per posture.
+///
+/// # One body, one build, every property on it
+///
+/// The tier-3 verdict and the volume bracket were two separate tests
+/// until the test-cost audit. Both built THIS prism — the same three
+/// `arc_section(1.0)` sections on the same `stack([0.0, 1.0, 2.0])`,
+/// the same 2 samples — and both then ran the same rational
+/// quadrature over it. Under nextest's process-per-test isolation
+/// there is no cache between them, so every ε row paid that
+/// build-plus-quadrature twice (measured 21.4 s + 37.0 s at the
+/// default ε, 862 s + 837 s at ε=1e-12). The oracle side — one
+/// `extrude` and its closed-form props — costs ~0.03 s, so folding
+/// the bracket in here is free and the duplicate build is gone.
+///
+/// What the split bought and a merged row cannot is failure
+/// ISOLATION: a tier-3 break and an accuracy break now surface under
+/// one test id. So every assertion below NAMES its property —
+/// `TIER-1/2`, `TIER-3`, `ORACLE`, `ACCURACY`, `PAD CEILING` — and
+/// the message alone says which one broke. Keep that discipline when
+/// adding assertions here.
+///
+/// # The order below is load-bearing
+///
+/// `validate_closed` is asserted UNCONDITIONALLY, ahead of any
+/// quadrature. Structural tiers never touch quadrature, so the CHART
+/// map (rims mint and certify) is pinned at EVERY ε — including the ε
+/// rows where the volume honestly refuses on budget and this test
+/// returns early. That unconditional pin is the whole reason the
+/// tier-3 row was split out originally; it must never migrate under
+/// the `Certified` branch. Tier 3 itself runs the +V invariant, which
+/// CONSUMES the quadrature (a budget refusal there is an honest
+/// tier-3 refusal), so `validate_geometric` stays inside the
+/// `Certified` branch, exactly where it always was.
 #[test]
-fn arc_prism_volume_brackets_the_analytic_extrusion() {
+fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     let loft = loft_body::<f64>(
         &[arc_section(1.0), arc_section(1.0), arc_section(1.0)],
         &stack([0.0, 1.0, 2.0]),
         2,
     )
-    .expect("the arc prism lofts")
+    .expect("the arc prism lofts (the pcurve mint is inside the build)")
     .body;
+    // INVARIANT: tiers 1 and 2 admit the rational-wall body at EVERY
+    // ε. Structural tiers never touch quadrature: the body IS closed
+    // and its rational-wall pcurves are minted and certified, whatever
+    // the volume posture below turns out to be. Nothing may gate this
+    // line on that posture.
+    topo::validate_closed(&loft).expect("TIER-1/2: tiers 1/2 admit the rational-wall body");
     let got = topo::mass_properties(&loft);
     let posture = body_posture("arc prism", &got);
     eprintln!(
@@ -141,10 +181,17 @@ fn arc_prism_volume_brackets_the_analytic_extrusion() {
     if posture != EpsPosture::Certified {
         // The honest non-certifying postures still say the CHART map
         // landed: a body whose arc rims did not mint would have failed
-        // to build, long before any quadrature ran.
+        // to build, long before any quadrature ran — and the tier-1/2
+        // pin above has already fired on this row regardless.
         return;
     }
     let got = got.expect("certified");
+
+    // TIER 3: the +V invariant consumes the quadrature, so the verdict
+    // is pinned exactly where the quadrature certifies (a budget
+    // refusal here would be an honest tier-3 refusal, not a break).
+    topo::validate_geometric(&loft)
+        .expect("TIER-3: tier 3 certifies a rational-wall body (M8-3 flip of #288/#276)");
 
     // The oracle: the same solid through `extrude`, whose bulged wall
     // is an analytic cylinder (closed form, pad 0).
@@ -153,12 +200,15 @@ fn arc_prism_volume_brackets_the_analytic_extrusion() {
         .expect("the profile validates");
     let oracle = sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0)).expect("extrude");
     let want = topo::mass_properties(&oracle.body).expect("analytic mass properties");
-    assert_eq!(want.volume_pad, 0.0, "the oracle must be a closed form");
+    assert_eq!(
+        want.volume_pad, 0.0,
+        "ORACLE: the extrude oracle must be a closed form"
+    );
 
     // 1. ACCURACY: the certified enclosure contains the oracle.
     assert!(
         (got.volume - want.volume).abs() <= got.volume_pad,
-        "the rational enclosure must CONTAIN the analytic volume: \
+        "ACCURACY: the rational enclosure must CONTAIN the analytic volume: \
          got {} ± {}, oracle {}",
         got.volume,
         got.volume_pad,
@@ -171,7 +221,7 @@ fn arc_prism_volume_brackets_the_analytic_extrusion() {
     let ceiling = 2.0 * QUAD_TARGET_LEN_FACTOR * Tolerance::get().eps;
     assert!(
         got.volume_pad < ceiling,
-        "volume pad ceiling: {} vs {ceiling} (M8-3 measured {} at ε=1e-9)",
+        "PAD CEILING: volume pad {} vs {ceiling} (M8-3 measured {} at ε=1e-9)",
         got.volume_pad,
         ARC_PRISM_PAD_AT_DEFAULT_EPS,
     );
@@ -231,30 +281,4 @@ fn arc_loft_is_volume_computable_with_a_pinned_pad() {
         got.volume_pad,
         ARC_LOFT_PAD_AT_DEFAULT_EPS,
     );
-}
-
-/// **Tier 3 admits a rational-wall body** — the `#288`/`#276`
-/// construction flip, stated on its own so it is pinned even at an ε
-/// where the volume lands in the budget posture. Tier 3 runs the +V
-/// invariant, which consumes the quadrature; a budget refusal there
-/// is an honest tier-3 refusal, so this row pins the CHART map
-/// (rims mint and certify) at every ε and the tier-3 verdict only
-/// where the quadrature certifies.
-#[test]
-fn tier3_admits_the_rational_wall_body() {
-    let loft = loft_body::<f64>(
-        &[arc_section(1.0), arc_section(1.0), arc_section(1.0)],
-        &stack([0.0, 1.0, 2.0]),
-        2,
-    )
-    .expect("the arc prism lofts (the pcurve mint is inside the build)")
-    .body;
-    // Structural tiers never touch quadrature: the body IS closed and
-    // its rational-wall pcurves are minted and certified.
-    topo::validate_closed(&loft).expect("tier 1/2 admit the rational-wall body");
-    let out = topo::mass_properties(&loft);
-    if body_posture("arc prism (tier 3)", &out) == EpsPosture::Certified {
-        topo::validate_geometric(&loft)
-            .expect("tier 3 certifies a rational-wall body (M8-3 flip of #288/#276)");
-    }
 }

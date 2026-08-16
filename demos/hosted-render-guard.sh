@@ -20,7 +20,7 @@
 # reads as an admission in the shell history that produced the frames.
 #
 # THE RULE IS STRUCTURAL, NOT SNIFFED. CI does not get an exemption for
-# being CI: `render.yml`, `ci.yml` and `scripts/ci-local.sh` each set
+# being CI: `render.yml`, `ci.yml` and `local-scripts/ci-local.sh` each set
 # this variable in the file, at the step that renders. There is no
 # GITHUB_ACTIONS check here on purpose — a sniffed exemption is invisible
 # at the call site and grows silently (every new runner, every act-like
@@ -40,7 +40,7 @@ require_hosted_render() {
     if [ "$got" = "$CAD_RENDER_LOCAL_OVERRIDE_SENTENCE" ]; then
         echo "[$entry] LOCAL RENDER OVERRIDE in effect — this pass is PREVIEW ONLY." >&2
         echo "[$entry]   Frames it publishes carry THIS box's renderer/GL stack." >&2
-        echo "[$entry]   The hosted lanes (scripts/render-hosted.sh) are what the" >&2
+        echo "[$entry]   The hosted lanes (local-scripts/render-hosted.sh) are what the" >&2
         echo "[$entry]   committed tree is meant to be refreshed from." >&2
         return 0
     fi
@@ -49,9 +49,18 @@ require_hosted_render() {
         echo
         echo "REFUSING: renders are hosted now. $entry is not the default path."
         echo
-        echo "  scripts/render-hosted.sh --lane <kernel|freecad|uv|wild|all>"
+        echo "Your branch's CI run almost certainly rendered this already —"
+        echo "ci.yml renders and gates all four lanes on every push — so the"
+        echo "usual move is to install what it produced rather than render:"
         echo
-        echo "It triggers .github/workflows/render.yml on your PUSHED branch,"
+        echo "  local-scripts/render-hosted.sh"
+        echo
+        echo "If the branch has no CI run yet (not pushed, no PR), render on"
+        echo "demand instead:"
+        echo
+        echo "  local-scripts/render-hosted.sh --lane <kernel|freecad|uv|wild|all>"
+        echo
+        echo "That triggers .github/workflows/render.yml on your PUSHED branch,"
         echo "polls the run, and installs the artifacts back into the working"
         echo "tree at their committed paths — the frames you then review and"
         echo "commit. See demos/README.md, \"Off-box: the hosted lanes\"."

@@ -88,12 +88,14 @@
 //! below rely on exactly that.
 
 pub mod boxes;
+pub mod compose;
 pub mod fit;
 pub mod nurbs;
 pub mod projection;
 
 use std::sync::Arc;
 
+pub use compose::{ComposeError, SeamSide, compose_chain};
 pub use fit::{FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};

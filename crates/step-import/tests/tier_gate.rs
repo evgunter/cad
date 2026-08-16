@@ -11,11 +11,13 @@
 //! turns this suite red rather than quietly escaping the gate.
 //!
 //! Three things are asserted per file, at three tolerances (the file's
-//! own ε_in, and overrides 1e-6 / 1e-12):
+//! own ε_in, and overrides 1e-6 / 1e-12) — with ONE documented
+//! exception, `dm1-id-214.stp`, which is swept at its own ε_in only;
+//! see [`eps_in_rows_for`] for what that costs and what it buys:
 //!
 //! * **the disposition** — solid, wireframe, or a typed refusal with
-//!   its reason. 51 of the 53 files hold ONE disposition across the
-//!   whole matrix, and that constancy is the claim. The two that do
+//!   its reason. 51 of the 54 files hold ONE disposition across the
+//!   whole matrix, and that constancy is the claim. The three that do
 //!   not are marked `EpsSensitive` and pinned cell by cell in
 //!   [`EPS_ROWS`], each cell carrying the live signature of the
 //!   sub-reason that actually fires there — because a row that may
@@ -89,17 +91,54 @@ enum Disposition {
 const PINNED_AMBIENT: [f64; 3] = [geom_core::tolerance::DEFAULT_EPS, 1e-6, 1e-12];
 
 /// The `eps_in` overrides swept per ambient row, tagged as the failure
-/// messages name them.
+/// messages name them. **Index 0 is the default row** — the file's own
+/// declared ε_in, the one every corpus file is swept at
+/// unconditionally; [`eps_in_rows_for`] slices from here.
 const EPS_IN_ROWS: [(&str, Option<f64>); 3] =
     [("file", None), ("1e-6", Some(1e-6)), ("1e-12", Some(1e-12))];
 
-/// **The ε-row pins.** Two corpus files' dispositions are a function of
-/// the ambient ε, and hiding that behind one row per file would make
+/// The `eps_in` rows THIS file is swept at — the whole sweep for every
+/// corpus file but one.
+///
+/// **`dm1-id-214.stp` is swept at its own ε_in only** (the 2026-08-13
+/// test-time audit). dm1 is by far the most expensive import in the
+/// corpus, and importing it three times per ambient row was 74% of this
+/// test's entire cost — the other 53 files, across all three ε_in tags,
+/// together cost a small fraction of it.
+///
+/// **What that costs, said plainly:** the EXECUTED measurement that
+/// dm1's disposition is ε_in-invariant at each ambient band. Its nine
+/// cells in [`EPS_ROWS`] recorded the same disposition for all three
+/// ε_in tags at every band — "ε_in moves nothing, which is itself the
+/// measurement" — and three of those nine are what still runs. So the
+/// invariance is now a RECORDED finding (the reason is in the
+/// [`EPS_ROWS`] comment: recognition certifies this file's carriers
+/// with ~14 decades of margin, so no interpretation budget in this
+/// sweep can change what is promoted), not a re-executed one. If that
+/// margin argument is ever in doubt, restore the two dropped tags here
+/// and the completeness test will demand their cells back.
+///
+/// **What is NOT lost:** the AMBIENT sweep, which is where dm1 actually
+/// moves (rational-flux stall at the two fine bands, the `#389` ladder
+/// gap at 1e-6). All three ambient rows still import dm1 and still pin
+/// its disposition cell by cell.
+fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
+    if rel == DM1 {
+        &EPS_IN_ROWS[..1]
+    } else {
+        &EPS_IN_ROWS
+    }
+}
+
+/// **The ε-row pins.** Three corpus files' dispositions are a function
+/// of the ambient ε, and hiding that behind one row per file would make
 /// the suite either red for an honest reason or green for a wrong one.
 /// Each cell is `(file, ambient ε, eps_in row, disposition)`; the
 /// coverage test below holds this table to exactly one cell per
-/// (`EpsSensitive` file × [`PINNED_AMBIENT`] × [`EPS_IN_ROWS`]), so a
-/// pin can neither go missing nor rot unread.
+/// (`EpsSensitive` file × [`PINNED_AMBIENT`] × the ε_in rows that file
+/// is actually swept at, per [`eps_in_rows_for`]), and to nothing else,
+/// so a pin can neither go missing nor rot unread — and a cell for a
+/// combination that no longer runs is red, not silently unread.
 ///
 /// Both movements are the kernel deciding HONESTLY at the tolerance it
 /// was given, and the fragments below are each sub-reason's own live
@@ -121,7 +160,7 @@ const EPS_IN_ROWS: [(&str, Option<f64>); 3] =
 ///   the NIST inch translator prints ~12 significant digits, so the
 ///   file does not state itself to 1e-12 m, and the adoption ladder
 ///   says so by name instead of certifying a carrier it cannot.
-const EPS_ROWS: [(&str, f64, &str, Disposition); 18] = [
+const EPS_ROWS: [(&str, f64, &str, Disposition); 21] = [
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
     (FTC11, 1e-9, "file", Refused(SEAM_HALFPLANE_DEFINITE)),
     (FTC11, 1e-9, "1e-6", Refused(TANGENT_PLANES_COINCIDE)),
@@ -142,9 +181,35 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 18] = [
     (NIST09, 1e-12, "file", Refused(ENDPOINT_START_MAPPED_CURVE)),
     (NIST09, 1e-12, "1e-6", Refused(ENDPOINT_START_MAPPED_CURVE)),
     (NIST09, 1e-12, "1e-12", Refused(ENDPOINT_START_MAPPED_CURVE)),
+    // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
+    // The AMBIENT sweep only, at this file's own ε_in: two cells at the
+    // rational-flux stall, one at the ladder's `#389` gap.
+    //
+    // It was nine cells until the 2026-08-13 test-time audit — the six
+    // dropped ones were the `1e-6` and `1e-12` ε_in tags, and they all
+    // held the SAME disposition as the `file` tag beside them, at every
+    // band: ε_in moved nothing, which was itself the measurement
+    // (recognition certifies this file's carriers with ~14 decades of
+    // margin, so no interpretation budget in this sweep changes what is
+    // promoted). That measurement is now RECORDED here rather than
+    // re-executed every run; see [`eps_in_rows_for`] for what the
+    // three imports it cost were buying and what was given up.
+    (DM1, 1e-9, "file", Refused(RATIONAL_FLUX_STALL)),
+    (DM1, 1e-6, "file", Refused(LADDER_NO_DESCRIPTION)),
+    (DM1, 1e-12, "file", Refused(RATIONAL_FLUX_STALL)),
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
+const DM1: &str = "tests/fixtures/wild/stepcode/dm1-id-214.stp";
+/// dm1's fine-band sub-reason: the shared at-rest gate cannot compute
+/// the exact-B-rep volume of a RATIONAL cylinder wall — the banked
+/// rational-patch-flux lane, named specifically so the gate's preamble
+/// (which a tier-1/2 regression would also match) cannot stand in.
+const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure stalled at";
+/// dm1's coarse-band sub-reason: the ladder's own refusal on edge
+/// `#389`, a two-point `QUASI_UNIFORM_CURVE` polyline that stays NURBS
+/// and is offered zero candidates.
+const LADDER_NO_DESCRIPTION: &str = "edge #389: no intensional description certifies";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 
 /// The seam carrier's residual is DECIDEDLY outside the band.
@@ -169,7 +234,7 @@ const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gat
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 53] = [
+const CORPUS: [(&str, Disposition); 54] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
@@ -275,20 +340,39 @@ const CORPUS: [(&str, Disposition); 53] = [
         Refused("no intensional description certifies"),
     ),
     (
-        // **M8 instancing retired the placement half of this refusal.**
-        // dm1's seven occurrences of three component representations
-        // now materialize as seven placed instances; what refuses is
-        // strictly downstream of that, in the D7 adoption ladder, on
-        // the rims of the file's seven RATIONAL cylinders — which
-        // M7-6 honestly declined to promote to `Cylinder`, so their
-        // circular rims arrive as rational NURBS carriers between a
-        // promoted cap Plane and a stay-NURBS wall, a pair the ladder
-        // has no certificate for. Same shared fragment as
-        // `TAIL_TURBINE`'s row, same reason it is the right one: the
-        // preamble pins the class, and a drift to a parse error,
-        // crash, or Pass goes red.
-        "tests/fixtures/wild/stepcode/dm1-id-214.stp",
-        Refused("no intensional description certifies"),
+        // **Two halves of this refusal are now retired.** M8
+        // instancing took the placement half (dm1's seven occurrences
+        // of three component representations materialize as seven
+        // placed instances); #327 took the D7 half — the rims of the
+        // file's seven RATIONAL cylinders arrive as rational-quadratic
+        // NURBS carriers, stage-1 CURVE recognition certifies them as
+        // circles against an exact ring-composite bound and promotes
+        // them, and every edge of every instance adopts with its
+        // pcurve minted and certified.
+        //
+        // What is left is the SHARED AT-REST GATE on those same
+        // rational walls: the exact-B-rep volume's quadrature
+        // enclosure stalls short of its target — the banked
+        // rational-patch-flux lane, the lane a NATIVELY built
+        // rational-walled loft refuses on too. The fragment names that
+        // stall specifically rather than the gate's preamble, because
+        // the preamble would also match a tier-1/2 verdict, which
+        // would be a regression and not this lane.
+        //
+        // **ε-SENSITIVE since #327**, and the sweep is the reason to
+        // know it: at the two FINE ambient bands the frontier is the
+        // rational-flux stall above, but at ambient 1e-6 the ladder
+        // stops earlier, on edge `#389`. Retiring #685 is what made
+        // #389 reachable at all — it had been masked behind #685 at
+        // every band — so the coarse cell is a PRE-EXISTING gap newly
+        // exposed, not a movement of anything #327 built. Three cells
+        // in `EPS_ROWS`, one per ambient band: this is the ONE file the
+        // ε_in sweep no longer runs on (`eps_in_rows_for`, the
+        // 2026-08-13 audit), so its ε_in-invariance is recorded there
+        // rather than re-measured. The ambient sweep — the axis it
+        // MOVES on — is untouched.
+        DM1,
+        EpsSensitive,
     ),
     (
         "tests/fixtures/wild/stepcode/io1-cm-214.stp",
@@ -360,6 +444,19 @@ const CORPUS: [(&str, Disposition); 53] = [
     ),
     (
         "../step-export/tests/fixtures/nurbs_wireframe.step",
+        Wireframe,
+    ),
+    (
+        // The #327 reporting witness: a `GEOMETRIC_CURVE_SET` stating
+        // dm1's carrier form verbatim (degree 2, 7 points, weights
+        // `1, ½, …`, knots at multiples of √3, the 3×120°
+        // construction, r = 5 mm). It is here because the corpus table
+        // is the WHOLE corpus by construction — and its disposition is
+        // the same `Wireframe` every curve-set file gets: promotion
+        // changes the carrier's DESCRIPTION, never the file's
+        // disposition. `curve_promotion_report.rs` is what asserts the
+        // promotion itself.
+        "tests/fixtures/curveset_rational_circle.step",
         Wireframe,
     ),
     (
@@ -440,8 +537,16 @@ fn assert_typed_outcome(who: &str, got: Result<StepImport, StepImportError>) {
 
 /// The [`EPS_ROWS`] pins cover exactly the `EpsSensitive` files, at
 /// exactly the pinned ambient tolerances, with exactly one cell per
-/// `eps_in` row — so a marker cannot go unpinned and a pin cannot
-/// outlive the marker that reads it.
+/// `eps_in` row THAT FILE IS SWEPT AT — so a marker cannot go unpinned
+/// and a pin cannot outlive the marker that reads it.
+///
+/// The table is held EXHAUSTIVE in both directions, which is what keeps
+/// [`eps_in_rows_for`]'s exemption honest rather than a hole: every
+/// (file, ambient, tag) the sweep executes must have exactly one cell,
+/// AND the table's total size must be exactly the number of executed
+/// combinations — so a cell that goes missing is red, and so is a cell
+/// left behind for a tag that is no longer swept (which would otherwise
+/// sit there unread, claiming a measurement nothing performs).
 #[test]
 fn every_eps_sensitive_row_is_pinned_cell_by_cell() {
     let mut markers: Vec<&str> = CORPUS
@@ -457,12 +562,14 @@ fn every_eps_sensitive_row_is_pinned_cell_by_cell() {
         markers, pinned,
         "an EpsSensitive row with no cells, or cells for a file that is not EpsSensitive"
     );
+    let mut want_cells = 0;
     for file in &markers {
         for ambient in PINNED_AMBIENT {
-            for (tag, _) in EPS_IN_ROWS {
+            for (tag, _) in eps_in_rows_for(file) {
+                want_cells += 1;
                 let hits = EPS_ROWS
                     .iter()
-                    .filter(|(p, a, t, _)| p == file && *a == ambient && *t == tag)
+                    .filter(|(p, a, t, _)| p == file && *a == ambient && t == tag)
                     .count();
                 assert_eq!(
                     hits, 1,
@@ -471,6 +578,12 @@ fn every_eps_sensitive_row_is_pinned_cell_by_cell() {
             }
         }
     }
+    assert_eq!(
+        EPS_ROWS.len(),
+        want_cells,
+        "EPS_ROWS holds cells for (file, ambient, eps_in) combinations the sweep does \
+         not execute — a pin nothing reads is a measurement nobody makes"
+    );
 }
 
 /// What this row must do, or `None` when the ambient ε is off the
@@ -491,10 +604,12 @@ fn expected(rel: &str, row: Disposition, eps_tag: &str) -> Option<Disposition> {
 #[test]
 fn every_corpus_import_passes_the_shared_gate() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    for (eps_tag, eps_in) in EPS_IN_ROWS {
-        for (rel, row) in CORPUS {
-            let text = std::fs::read_to_string(root.join(rel))
-                .unwrap_or_else(|e| panic!("reading {rel}: {e}"));
+    // File-major, so each file is read once and each file's own ε_in
+    // sweep (see `eps_in_rows_for`) is visible at the loop head.
+    for (rel, row) in CORPUS {
+        let text = std::fs::read_to_string(root.join(rel))
+            .unwrap_or_else(|e| panic!("reading {rel}: {e}"));
+        for &(eps_tag, eps_in) in eps_in_rows_for(rel) {
             let options = ImportOptions { eps_in };
             let who = format!("{rel} @ eps {eps_tag}");
             let Some(want) = expected(rel, row, eps_tag) else {

@@ -109,6 +109,11 @@ strict_map_section!(
     "witness node"
 );
 strict_map_section!(
+    /// The A11 cluster-placement registry.
+    placements,
+    "placement node"
+);
+strict_map_section!(
     /// The document's free-form metadata map.
     doc_metadata,
     "document metadata"

@@ -64,15 +64,6 @@ pub enum ProgramTarget {
 pub enum ProgramStep {
     /// `.at(p)`.
     At([Expr; 2]),
-    /// **G2** `.at_on(p, centre, winding)`.
-    AtOn {
-        /// The anchor, on the carrier.
-        p: [Expr; 2],
-        /// The carrier's centre.
-        centre: [Expr; 2],
-        /// Travel sense (structural).
-        winding: ArcSweep,
-    },
     /// `.angle(θ)` (radians).
     Angle(Expr),
     /// **G1** `.toward(dx, dy)` — exact components, ratio-only.
@@ -90,46 +81,98 @@ pub enum ProgramStep {
     Line(Expr),
     /// `line_to(target)`.
     LineTo(ProgramTarget),
-    /// `arc_to(target, bulge)` — the bulge is AUTHORED data here.
-    ArcTo {
-        /// Where the leg ends.
-        target: ProgramTarget,
-        /// The authored bulge (M2 convention, Scalar).
-        bulge: Expr,
-    },
-    /// `arc_via(via, target)` — bulge derived at replay.
-    ArcVia {
-        /// A point the arc passes through.
-        via: [Expr; 2],
-        /// Where the leg ends.
-        target: ProgramTarget,
-    },
-    /// `arc_center(centre, target, winding)` — bulge derived at replay.
-    ArcCenter {
-        /// The arc's centre.
-        centre: [Expr; 2],
-        /// Where the leg ends.
-        target: ProgramTarget,
-        /// Travel sense (structural).
-        winding: ArcSweep,
-    },
+    /// `arc_to(spec)` — the sharp arc leg, every §2c mode in the one
+    /// unified spec record (derived quantities re-derived at replay).
+    ArcTo(ProgramArcData),
     /// `tangent_arc_to(target)`.
     TangentArcTo(ProgramTarget),
     /// `arc_continue(target)` — the declared-subdivision step
     /// (LIB-SWITCH §5-1): a STRUCTURAL vertex on the incoming carrier.
     ArcContinue([Expr; 2]),
-    /// `.fillet(r)`.
+    /// `.fillet(r)` — line incoming, line arrival.
     Fillet(Expr),
+    /// **§2c** `fillet_arc(r, spec)` — line incoming, arc arrival.
+    FilletArc {
+        /// The fillet radius.
+        radius: Expr,
+        /// The arc-arrival spec.
+        spec: ProgramArcData,
+    },
+    /// **§2c** `arc_fillet(spec, r)` — fused arc incoming, line arrival.
+    ArcFillet {
+        /// The fused incoming-arc spec.
+        spec: ProgramArcData,
+        /// The fillet radius.
+        radius: Expr,
+    },
+    /// **§2c** `arc_fillet_arc(spec, r, spec₂)` — fused arc incoming,
+    /// arc arrival.
+    ArcFilletArc {
+        /// The fused incoming-arc spec.
+        spec: ProgramArcData,
+        /// The fillet radius.
+        radius: Expr,
+        /// The arc-arrival spec.
+        spec2: ProgramArcData,
+    },
     /// **G1** `.to(anchor)` — the far-end anchor.
     FarEndTo([Expr; 2]),
     /// `.to(Start)` — the seam-fillet close (structural).
     CloseTo,
-    /// **G2** `.to_on(Start, centre, winding)`.
-    CloseToOn {
-        /// The arrival carrier's centre.
-        centre: [Expr; 2],
+}
+
+/// The document-layer mirror of [`profile::ArcData`] (§2c's unified
+/// arc-spec record): continuous fields [`Expr`], structural tags
+/// literal (`side`, `winding`, `Start`).
+#[derive(Debug, Clone, PartialEq)]
+pub enum ProgramArcData {
+    /// `Radius { r, side }` — arrival mode, centre derived.
+    Radius {
+        /// The carrier radius.
+        r: Expr,
+        /// Which side of the tangent the centre sits on (structural).
+        side: profile::ArcSide,
+    },
+    /// `Bulge { p, b }` — the bulge is AUTHORED data.
+    Bulge {
+        /// The authored endpoint.
+        target: ProgramTarget,
+        /// The authored bulge (M2 convention, Scalar).
+        b: Expr,
+    },
+    /// `Via { q, p }` — bulge derived at replay.
+    Via {
+        /// A point the arc passes through.
+        q: [Expr; 2],
+        /// The authored endpoint.
+        target: ProgramTarget,
+    },
+    /// `Center { c, winding, p }` — bulge derived at replay.
+    Center {
+        /// The carrier centre.
+        c: [Expr; 2],
         /// Travel sense (structural).
         winding: ArcSweep,
+        /// The authored anchor/endpoint (`Start` closes).
+        target: ProgramTarget,
+    },
+    /// `Sweep { r, side, angle }` — endpoint derived at replay.
+    Sweep {
+        /// The carrier radius.
+        r: Expr,
+        /// Which side the centre sits on (structural).
+        side: profile::ArcSide,
+        /// The swept central angle.
+        angle: Expr,
+    },
+    /// `ArcLen { r, side, len }` — endpoint derived at replay.
+    ArcLen {
+        /// The carrier radius.
+        r: Expr,
+        /// Which side the centre sits on (structural).
+        side: profile::ArcSide,
+        /// The arc length.
+        len: Expr,
     },
 }
 
@@ -307,12 +350,61 @@ fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
 
 /// The argument roles of one chain step, enumeration order = the
 /// step's own field order (deterministic; pinned by tests).
+/// The argument roles of one arc spec; `second` selects the arrival
+/// (spec₂) role twins so a fused step's two specs never collide.
+fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
+    use ProgramArcData as S;
+    use StepArg as A;
+    match (spec, second) {
+        (S::Radius { .. }, false) => out.push(A::CarrierRadius),
+        (S::Radius { .. }, true) => out.push(A::CarrierRadius2),
+        (S::Bulge { target, .. }, false) => {
+            target_slots(target, out);
+            out.push(A::Bulge);
+        }
+        // Bulge is never an arrival (§2c); a second-position Bulge is
+        // unrepresentable from the recording surface, but slot
+        // enumeration must stay total over the data type.
+        (S::Bulge { target, .. }, true) => {
+            target2_slots(target, out);
+            out.push(A::Bulge);
+        }
+        (S::Via { target, .. }, false) => {
+            out.extend([A::ViaX, A::ViaY]);
+            target_slots(target, out);
+        }
+        (S::Via { target, .. }, true) => {
+            out.extend([A::Via2X, A::Via2Y]);
+            target2_slots(target, out);
+        }
+        (S::Center { target, .. }, false) => {
+            out.extend([A::CenterX, A::CenterY]);
+            target_slots(target, out);
+        }
+        (S::Center { target, .. }, true) => {
+            out.extend([A::Center2X, A::Center2Y]);
+            target2_slots(target, out);
+        }
+        (S::Sweep { .. }, false) => out.extend([A::CarrierRadius, A::SweepVal]),
+        (S::Sweep { .. }, true) => out.extend([A::CarrierRadius2, A::SweepVal]),
+        (S::ArcLen { .. }, false) => out.extend([A::CarrierRadius, A::ArcLenVal]),
+        (S::ArcLen { .. }, true) => out.extend([A::CarrierRadius2, A::ArcLenVal]),
+    }
+}
+
+/// The spec₂ twin of [`target_slots`].
+fn target2_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
+    if let ProgramTarget::Point(_) = t {
+        out.push(StepArg::Target2X);
+        out.push(StepArg::Target2Y);
+    }
+}
+
 fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
     use ProgramStep as P;
     use StepArg as A;
     match step {
         P::At(_) | P::FarEndTo(_) => out.extend([A::PointX, A::PointY]),
-        P::AtOn { .. } => out.extend([A::PointX, A::PointY, A::CenterX, A::CenterY]),
         P::Angle(_) => out.push(A::AngleVal),
         P::Toward { .. } => out.extend([A::DirX, A::DirY]),
         P::Tangent | P::CloseTo => {}
@@ -320,27 +412,91 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
         P::Line(_) => out.push(A::Length),
         P::LineTo(t) | P::TangentArcTo(t) => target_slots(t, out),
         P::ArcContinue(_) => out.extend([A::TargetX, A::TargetY]),
-        P::ArcTo { target, .. } => {
-            target_slots(target, out);
-            out.push(A::Bulge);
-        }
-        P::ArcVia { via: _, target } => {
-            out.extend([A::ViaX, A::ViaY]);
-            target_slots(target, out);
-        }
-        P::ArcCenter { target, .. } => {
-            out.extend([A::CenterX, A::CenterY]);
-            target_slots(target, out);
-        }
+        P::ArcTo(spec) => spec_slots(spec, false, out),
         P::Fillet(_) => out.push(A::Radius),
-        P::CloseToOn { .. } => out.extend([A::CenterX, A::CenterY]),
+        P::FilletArc { spec, .. } => {
+            out.push(A::Radius);
+            spec_slots(spec, true, out);
+        }
+        P::ArcFillet { spec, .. } => {
+            spec_slots(spec, false, out);
+            out.push(A::Radius);
+        }
+        P::ArcFilletArc { spec, spec2, .. } => {
+            spec_slots(spec, false, out);
+            out.push(A::Radius);
+            spec_slots(spec2, true, out);
+        }
     }
+}
+
+/// Shared shape of the spec accessors — one table, two borrows.
+/// `second` mirrors [`spec_slots`]'s role-twin selection.
+macro_rules! spec_arg_access {
+    ($spec:expr, $arg:expr, $second:expr, $($ref_kw:tt)*) => {{
+        use ProgramArcData as S;
+        use StepArg as A;
+        match ($spec, $arg, $second) {
+            (S::Radius { r, .. }, A::CarrierRadius, false)
+            | (S::Radius { r, .. }, A::CarrierRadius2, true)
+            | (S::Sweep { r, .. }, A::CarrierRadius, false)
+            | (S::Sweep { r, .. }, A::CarrierRadius2, true)
+            | (S::ArcLen { r, .. }, A::CarrierRadius, false)
+            | (S::ArcLen { r, .. }, A::CarrierRadius2, true) => Some(r),
+            (S::Bulge { b, .. }, A::Bulge, _) => Some(b),
+            (S::Sweep { angle, .. }, A::SweepVal, _) => Some(angle),
+            (S::ArcLen { len, .. }, A::ArcLenVal, _) => Some(len),
+            (S::Via { q, .. }, A::ViaX, false) | (S::Via { q, .. }, A::Via2X, true) => {
+                Some($($ref_kw)* q[0])
+            }
+            (S::Via { q, .. }, A::ViaY, false) | (S::Via { q, .. }, A::Via2Y, true) => {
+                Some($($ref_kw)* q[1])
+            }
+            (S::Center { c, .. }, A::CenterX, false)
+            | (S::Center { c, .. }, A::Center2X, true) => Some($($ref_kw)* c[0]),
+            (S::Center { c, .. }, A::CenterY, false)
+            | (S::Center { c, .. }, A::Center2Y, true) => Some($($ref_kw)* c[1]),
+            (
+                S::Bulge { target: ProgramTarget::Point(p), .. },
+                A::TargetX,
+                false,
+            )
+            | (S::Bulge { target: ProgramTarget::Point(p), .. }, A::Target2X, true)
+            | (S::Via { target: ProgramTarget::Point(p), .. }, A::TargetX, false)
+            | (S::Via { target: ProgramTarget::Point(p), .. }, A::Target2X, true)
+            | (S::Center { target: ProgramTarget::Point(p), .. }, A::TargetX, false)
+            | (S::Center { target: ProgramTarget::Point(p), .. }, A::Target2X, true) => {
+                Some($($ref_kw)* p[0])
+            }
+            (
+                S::Bulge { target: ProgramTarget::Point(p), .. },
+                A::TargetY,
+                false,
+            )
+            | (S::Bulge { target: ProgramTarget::Point(p), .. }, A::Target2Y, true)
+            | (S::Via { target: ProgramTarget::Point(p), .. }, A::TargetY, false)
+            | (S::Via { target: ProgramTarget::Point(p), .. }, A::Target2Y, true)
+            | (S::Center { target: ProgramTarget::Point(p), .. }, A::TargetY, false)
+            | (S::Center { target: ProgramTarget::Point(p), .. }, A::Target2Y, true) => {
+                Some($($ref_kw)* p[1])
+            }
+            _ => None,
+        }
+    }};
+}
+
+fn spec_expr(spec: &ProgramArcData, arg: StepArg, second: bool) -> Option<&Expr> {
+    spec_arg_access!(spec, arg, second, &)
+}
+
+fn spec_expr_mut(spec: &mut ProgramArcData, arg: StepArg, second: bool) -> Option<&mut Expr> {
+    spec_arg_access!(spec, arg, second, &mut)
 }
 
 /// Shared shape of [`step_expr`]/[`step_expr_mut`] — one table, two
 /// borrows, via a macro so the (step, arg) pairing is written once.
 macro_rules! step_arg_access {
-    ($step:expr, $arg:expr, $($ref_kw:tt)*) => {{
+    ($step:expr, $arg:expr, $spec_fn:ident, $($ref_kw:tt)*) => {{
         use ProgramStep as P;
         use StepArg as A;
         match ($step, $arg) {
@@ -348,37 +504,28 @@ macro_rules! step_arg_access {
             (P::At(p), A::PointY) | (P::FarEndTo(p), A::PointY) => Some($($ref_kw)* p[1]),
             (P::ArcContinue(p), A::TargetX) => Some($($ref_kw)* p[0]),
             (P::ArcContinue(p), A::TargetY) => Some($($ref_kw)* p[1]),
-            (P::AtOn { p, .. }, A::PointX) => Some($($ref_kw)* p[0]),
-            (P::AtOn { p, .. }, A::PointY) => Some($($ref_kw)* p[1]),
-            (P::AtOn { centre, .. }, A::CenterX)
-            | (P::ArcCenter { centre, .. }, A::CenterX)
-            | (P::CloseToOn { centre, .. }, A::CenterX) => Some($($ref_kw)* centre[0]),
-            (P::AtOn { centre, .. }, A::CenterY)
-            | (P::ArcCenter { centre, .. }, A::CenterY)
-            | (P::CloseToOn { centre, .. }, A::CenterY) => Some($($ref_kw)* centre[1]),
             (P::Angle(e), A::AngleVal) => Some(e),
             (P::Toward { dx, .. }, A::DirX) => Some(dx),
             (P::Toward { dy, .. }, A::DirY) => Some(dy),
             (P::Turn(e), A::TurnVal) => Some(e),
             (P::Line(e), A::Length) => Some(e),
             (P::LineTo(ProgramTarget::Point(p)), A::TargetX)
-            | (P::TangentArcTo(ProgramTarget::Point(p)), A::TargetX)
-            | (P::ArcTo { target: ProgramTarget::Point(p), .. }, A::TargetX)
-            | (P::ArcVia { target: ProgramTarget::Point(p), .. }, A::TargetX)
-            | (P::ArcCenter { target: ProgramTarget::Point(p), .. }, A::TargetX) => {
-                Some($($ref_kw)* p[0])
-            }
+            | (P::TangentArcTo(ProgramTarget::Point(p)), A::TargetX) => Some($($ref_kw)* p[0]),
             (P::LineTo(ProgramTarget::Point(p)), A::TargetY)
-            | (P::TangentArcTo(ProgramTarget::Point(p)), A::TargetY)
-            | (P::ArcTo { target: ProgramTarget::Point(p), .. }, A::TargetY)
-            | (P::ArcVia { target: ProgramTarget::Point(p), .. }, A::TargetY)
-            | (P::ArcCenter { target: ProgramTarget::Point(p), .. }, A::TargetY) => {
-                Some($($ref_kw)* p[1])
+            | (P::TangentArcTo(ProgramTarget::Point(p)), A::TargetY) => Some($($ref_kw)* p[1]),
+            (P::ArcTo(spec), a) => $spec_fn(spec, a, false),
+            (P::Fillet(e), A::Radius)
+            | (P::FilletArc { radius: e, .. }, A::Radius)
+            | (P::ArcFillet { radius: e, .. }, A::Radius)
+            | (P::ArcFilletArc { radius: e, .. }, A::Radius) => Some(e),
+            (P::FilletArc { spec, .. }, a) => $spec_fn(spec, a, true),
+            (P::ArcFillet { spec, .. }, a) => $spec_fn(spec, a, false),
+            (P::ArcFilletArc { spec, spec2, .. }, a) => {
+                match $spec_fn(spec, a, false) {
+                    Some(e) => Some(e),
+                    None => $spec_fn(spec2, a, true),
+                }
             }
-            (P::ArcTo { bulge, .. }, A::Bulge) => Some(bulge),
-            (P::ArcVia { via, .. }, A::ViaX) => Some($($ref_kw)* via[0]),
-            (P::ArcVia { via, .. }, A::ViaY) => Some($($ref_kw)* via[1]),
-            (P::Fillet(e), A::Radius) => Some(e),
             _ => None,
         }
     }};
@@ -386,12 +533,12 @@ macro_rules! step_arg_access {
 
 /// The expression a (step, arg) pair addresses.
 fn step_expr(step: &ProgramStep, arg: StepArg) -> Option<&Expr> {
-    step_arg_access!(step, arg, &)
+    step_arg_access!(step, arg, spec_expr, &)
 }
 
 /// Mutable twin of [`step_expr`].
 fn step_expr_mut(step: &mut ProgramStep, arg: StepArg) -> Option<&mut Expr> {
-    step_arg_access!(step, arg, &mut)
+    step_arg_access!(step, arg, spec_expr_mut, &mut)
 }
 
 impl LoopProgram {
@@ -527,11 +674,6 @@ fn res_step(
     };
     Ok(match s {
         ProgramStep::At(p) => Step::At(pt(p, A::PointX, A::PointY)?),
-        ProgramStep::AtOn { p, centre, winding } => Step::AtOn {
-            p: pt(p, A::PointX, A::PointY)?,
-            centre: pt(centre, A::CenterX, A::CenterY)?,
-            winding: *winding,
-        },
         ProgramStep::Angle(e) => Step::Angle(res(e, env, loop_, i, A::AngleVal)?),
         ProgramStep::Toward { dx, dy } => Step::Toward {
             dx: res(dx, env, loop_, i, A::DirX)?,
@@ -541,33 +683,93 @@ fn res_step(
         ProgramStep::Turn(e) => Step::Turn(res(e, env, loop_, i, A::TurnVal)?),
         ProgramStep::Line(e) => Step::Line(res(e, env, loop_, i, A::Length)?),
         ProgramStep::LineTo(t) => Step::LineTo(res_target(t, env, loop_, i)?),
-        ProgramStep::ArcTo { target, bulge } => Step::ArcTo {
-            target: res_target(target, env, loop_, i)?,
-            bulge: res(bulge, env, loop_, i, A::Bulge)?,
-        },
-        ProgramStep::ArcVia { via, target } => Step::ArcVia {
-            via: pt(via, A::ViaX, A::ViaY)?,
-            target: res_target(target, env, loop_, i)?,
-        },
-        ProgramStep::ArcCenter {
-            centre,
-            target,
-            winding,
-        } => Step::ArcCenter {
-            centre: pt(centre, A::CenterX, A::CenterY)?,
-            target: res_target(target, env, loop_, i)?,
-            winding: *winding,
-        },
+        ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, env, loop_, i, false)?),
         ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, env, loop_, i)?),
         ProgramStep::ArcContinue(p) => Step::ArcContinue(pt(p, A::TargetX, A::TargetY)?),
         ProgramStep::Fillet(e) => Step::Fillet {
             radius: res(e, env, loop_, i, A::Radius)?,
         },
+        ProgramStep::FilletArc { radius, spec } => Step::FilletArc {
+            radius: res(radius, env, loop_, i, A::Radius)?,
+            spec: res_spec(spec, env, loop_, i, true)?,
+        },
+        ProgramStep::ArcFillet { spec, radius } => Step::ArcFillet {
+            spec: res_spec(spec, env, loop_, i, false)?,
+            radius: res(radius, env, loop_, i, A::Radius)?,
+        },
+        ProgramStep::ArcFilletArc {
+            spec,
+            radius,
+            spec2,
+        } => Step::ArcFilletArc {
+            spec: res_spec(spec, env, loop_, i, false)?,
+            radius: res(radius, env, loop_, i, A::Radius)?,
+            spec2: res_spec(spec2, env, loop_, i, true)?,
+        },
         ProgramStep::FarEndTo(p) => Step::FarEndTo(pt(p, A::PointX, A::PointY)?),
         ProgramStep::CloseTo => Step::CloseTo,
-        ProgramStep::CloseToOn { centre, winding } => Step::CloseToOn {
-            centre: pt(centre, A::CenterX, A::CenterY)?,
+    })
+}
+
+/// Resolves an arc spec to its scalar-valued mirror (`second` selects
+/// the spec₂ role twins, exactly as [`spec_slots`] enumerates them).
+fn res_spec(
+    spec: &ProgramArcData,
+    env: &ParamEnv<f64>,
+    loop_: u32,
+    i: u32,
+    second: bool,
+) -> Result<profile::ArcData<f64>, (SlotId, EvalError)> {
+    use StepArg as A;
+    let pick = |a: StepArg, b: StepArg| if second { b } else { a };
+    let pt2 =
+        |p: &[Expr; 2], ax: StepArg, ay: StepArg| -> Result<Point2<f64>, (SlotId, EvalError)> {
+            Ok(Point2::new(
+                res(&p[0], env, loop_, i, ax)?,
+                res(&p[1], env, loop_, i, ay)?,
+            ))
+        };
+    let tgt = |t: &ProgramTarget| -> Result<profile::Target<f64>, (SlotId, EvalError)> {
+        Ok(match t {
+            ProgramTarget::Start => profile::Target::Start,
+            ProgramTarget::Point(p) => profile::Target::Point(pt2(
+                p,
+                pick(A::TargetX, A::Target2X),
+                pick(A::TargetY, A::Target2Y),
+            )?),
+        })
+    };
+    Ok(match spec {
+        ProgramArcData::Radius { r, side } => profile::ArcData::Radius {
+            r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
+            side: *side,
+        },
+        ProgramArcData::Bulge { target, b } => profile::ArcData::Bulge {
+            target: tgt(target)?,
+            b: res(b, env, loop_, i, A::Bulge)?,
+        },
+        ProgramArcData::Via { q, target } => profile::ArcData::Via {
+            q: pt2(q, pick(A::ViaX, A::Via2X), pick(A::ViaY, A::Via2Y))?,
+            target: tgt(target)?,
+        },
+        ProgramArcData::Center { c, winding, target } => profile::ArcData::Center {
+            c: pt2(
+                c,
+                pick(A::CenterX, A::Center2X),
+                pick(A::CenterY, A::Center2Y),
+            )?,
             winding: *winding,
+            target: tgt(target)?,
+        },
+        ProgramArcData::Sweep { r, side, angle } => profile::ArcData::Sweep {
+            r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
+            side: *side,
+            angle: res(angle, env, loop_, i, A::SweepVal)?,
+        },
+        ProgramArcData::ArcLen { r, side, len } => profile::ArcData::ArcLen {
+            r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
+            side: *side,
+            len: res(len, env, loop_, i, A::ArcLenVal)?,
         },
     })
 }
@@ -752,22 +954,60 @@ fn target_bit_eq(a: &ProgramTarget, b: &ProgramTarget) -> bool {
     }
 }
 
+fn spec_bit_eq(a: &ProgramArcData, b: &ProgramArcData) -> bool {
+    use ProgramArcData as S;
+    match (a, b) {
+        (S::Radius { r: ra, side: sa }, S::Radius { r: rb, side: sb }) => ra.bit_eq(rb) && sa == sb,
+        (S::Bulge { target: ta, b: ba }, S::Bulge { target: tb, b: bb }) => {
+            target_bit_eq(ta, tb) && ba.bit_eq(bb)
+        }
+        (S::Via { q: qa, target: ta }, S::Via { q: qb, target: tb }) => {
+            pair_bit_eq(qa, qb) && target_bit_eq(ta, tb)
+        }
+        (
+            S::Center {
+                c: ca,
+                winding: wa,
+                target: ta,
+            },
+            S::Center {
+                c: cb,
+                winding: wb,
+                target: tb,
+            },
+        ) => pair_bit_eq(ca, cb) && wa == wb && target_bit_eq(ta, tb),
+        (
+            S::Sweep {
+                r: ra,
+                side: sa,
+                angle: aa,
+            },
+            S::Sweep {
+                r: rb,
+                side: sb,
+                angle: ab,
+            },
+        ) => ra.bit_eq(rb) && sa == sb && aa.bit_eq(ab),
+        (
+            S::ArcLen {
+                r: ra,
+                side: sa,
+                len: la,
+            },
+            S::ArcLen {
+                r: rb,
+                side: sb,
+                len: lb,
+            },
+        ) => ra.bit_eq(rb) && sa == sb && la.bit_eq(lb),
+        _ => false,
+    }
+}
+
 fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
     use ProgramStep as P;
     match (a, b) {
         (P::At(x), P::At(y)) | (P::FarEndTo(x), P::FarEndTo(y)) => pair_bit_eq(x, y),
-        (
-            P::AtOn {
-                p: pa,
-                centre: ca,
-                winding: wa,
-            },
-            P::AtOn {
-                p: pb,
-                centre: cb,
-                winding: wb,
-            },
-        ) => pair_bit_eq(pa, pb) && pair_bit_eq(ca, cb) && wa == wb,
         (P::Angle(x), P::Angle(y))
         | (P::Turn(x), P::Turn(y))
         | (P::Line(x), P::Line(y))
@@ -780,48 +1020,39 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
             target_bit_eq(x, y)
         }
         (P::ArcContinue(x), P::ArcContinue(y)) => pair_bit_eq(x, y),
+        (P::ArcTo(x), P::ArcTo(y)) => spec_bit_eq(x, y),
         (
-            P::ArcTo {
-                target: ta,
-                bulge: ba,
+            P::FilletArc {
+                radius: ra,
+                spec: sa,
             },
-            P::ArcTo {
-                target: tb,
-                bulge: bb,
+            P::FilletArc {
+                radius: rb,
+                spec: sb,
             },
-        ) => target_bit_eq(ta, tb) && ba.bit_eq(bb),
+        ) => ra.bit_eq(rb) && spec_bit_eq(sa, sb),
         (
-            P::ArcVia {
-                via: va,
-                target: ta,
+            P::ArcFillet {
+                spec: sa,
+                radius: ra,
             },
-            P::ArcVia {
-                via: vb,
-                target: tb,
+            P::ArcFillet {
+                spec: sb,
+                radius: rb,
             },
-        ) => pair_bit_eq(va, vb) && target_bit_eq(ta, tb),
+        ) => spec_bit_eq(sa, sb) && ra.bit_eq(rb),
         (
-            P::ArcCenter {
-                centre: ca,
-                target: ta,
-                winding: wa,
+            P::ArcFilletArc {
+                spec: sa,
+                radius: ra,
+                spec2: s2a,
             },
-            P::ArcCenter {
-                centre: cb,
-                target: tb,
-                winding: wb,
+            P::ArcFilletArc {
+                spec: sb,
+                radius: rb,
+                spec2: s2b,
             },
-        ) => pair_bit_eq(ca, cb) && target_bit_eq(ta, tb) && wa == wb,
-        (
-            P::CloseToOn {
-                centre: ca,
-                winding: wa,
-            },
-            P::CloseToOn {
-                centre: cb,
-                winding: wb,
-            },
-        ) => pair_bit_eq(ca, cb) && wa == wb,
+        ) => spec_bit_eq(sa, sb) && ra.bit_eq(rb) && spec_bit_eq(s2a, s2b),
         _ => false,
     }
 }
@@ -937,6 +1168,39 @@ impl core::fmt::Display for RecordedProgramError {
 
 impl core::error::Error for RecordedProgramError {}
 
+/// A recorded arc spec at literal arguments.
+fn spec_lit(spec: &profile::ArcData<f64>) -> Result<ProgramArcData, RecordedProgramError> {
+    Ok(match spec {
+        profile::ArcData::Radius { r, side } => ProgramArcData::Radius {
+            r: len_lit(*r)?,
+            side: *side,
+        },
+        profile::ArcData::Bulge { target, b } => ProgramArcData::Bulge {
+            target: target_lit(target)?,
+            b: scalar_lit(*b)?,
+        },
+        profile::ArcData::Via { q, target } => ProgramArcData::Via {
+            q: pt_lit(q)?,
+            target: target_lit(target)?,
+        },
+        profile::ArcData::Center { c, winding, target } => ProgramArcData::Center {
+            c: pt_lit(c)?,
+            winding: *winding,
+            target: target_lit(target)?,
+        },
+        profile::ArcData::Sweep { r, side, angle } => ProgramArcData::Sweep {
+            r: len_lit(*r)?,
+            side: *side,
+            angle: ang_lit(*angle)?,
+        },
+        profile::ArcData::ArcLen { r, side, len } => ProgramArcData::ArcLen {
+            r: len_lit(*r)?,
+            side: *side,
+            len: len_lit(*len)?,
+        },
+    })
+}
+
 impl LoopProgram {
     /// A literal polygon: `At(p0)`, `LineTo(p1)`, …, `LineTo(Start)` —
     /// the VQ5 expansion of the polygon builder, at literal points
@@ -1015,11 +1279,6 @@ impl LoopProgram {
         for step in steps {
             out.push(match step {
                 Step::At(p) => ProgramStep::At(pt_lit(p)?),
-                Step::AtOn { p, centre, winding } => ProgramStep::AtOn {
-                    p: pt_lit(p)?,
-                    centre: pt_lit(centre)?,
-                    winding: *winding,
-                },
                 Step::Angle(theta) => ProgramStep::Angle(ang_lit(*theta)?),
                 Step::Toward { dx, dy } => ProgramStep::Toward {
                     dx: scalar_lit(*dx)?,
@@ -1029,32 +1288,29 @@ impl LoopProgram {
                 Step::Turn(delta) => ProgramStep::Turn(ang_lit(*delta)?),
                 Step::Line(len) => ProgramStep::Line(len_lit(*len)?),
                 Step::LineTo(t) => ProgramStep::LineTo(target_lit(t)?),
-                Step::ArcTo { target, bulge } => ProgramStep::ArcTo {
-                    target: target_lit(target)?,
-                    bulge: scalar_lit(*bulge)?,
-                },
-                Step::ArcVia { via, target } => ProgramStep::ArcVia {
-                    via: pt_lit(via)?,
-                    target: target_lit(target)?,
-                },
-                Step::ArcCenter {
-                    centre,
-                    target,
-                    winding,
-                } => ProgramStep::ArcCenter {
-                    centre: pt_lit(centre)?,
-                    target: target_lit(target)?,
-                    winding: *winding,
-                },
+                Step::ArcTo(spec) => ProgramStep::ArcTo(spec_lit(spec)?),
                 Step::TangentArcTo(t) => ProgramStep::TangentArcTo(target_lit(t)?),
                 Step::ArcContinue(p) => ProgramStep::ArcContinue(pt_lit(p)?),
                 Step::Fillet { radius } => ProgramStep::Fillet(len_lit(*radius)?),
+                Step::FilletArc { radius, spec } => ProgramStep::FilletArc {
+                    radius: len_lit(*radius)?,
+                    spec: spec_lit(spec)?,
+                },
+                Step::ArcFillet { spec, radius } => ProgramStep::ArcFillet {
+                    spec: spec_lit(spec)?,
+                    radius: len_lit(*radius)?,
+                },
+                Step::ArcFilletArc {
+                    spec,
+                    radius,
+                    spec2,
+                } => ProgramStep::ArcFilletArc {
+                    spec: spec_lit(spec)?,
+                    radius: len_lit(*radius)?,
+                    spec2: spec_lit(spec2)?,
+                },
                 Step::FarEndTo(p) => ProgramStep::FarEndTo(pt_lit(p)?),
                 Step::CloseTo => ProgramStep::CloseTo,
-                Step::CloseToOn { centre, winding } => ProgramStep::CloseToOn {
-                    centre: pt_lit(centre)?,
-                    winding: *winding,
-                },
                 Step::Circle { .. } | Step::CircleSplit { .. } => {
                     return Err(RecordedProgramError::CarrierInChain);
                 }

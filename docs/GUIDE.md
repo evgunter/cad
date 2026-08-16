@@ -61,13 +61,13 @@ A first solid — an 80 × 40 × 8 mm plate, validated, measured:
 use pncad::prelude::*;
 
 let mm = |v: f64| (v * MM).meters();
-let rect = ProfileLoop::polygon([
-    p2(mm(0.0), mm(0.0)),
-    p2(mm(80.0), mm(0.0)),
-    p2(mm(80.0), mm(40.0)),
-    p2(mm(0.0), mm(40.0)),
-]);
-let profile = validated(SketchPlane::<f64>::xy(), vec![rect])?;
+let rect: ClosedLoop<f64> = Open
+    .at(p2(mm(0.0), mm(0.0)))
+    .line_to(p2(mm(80.0), mm(0.0)))?
+    .line_to(p2(mm(80.0), mm(40.0)))?
+    .line_to(p2(mm(0.0), mm(40.0)))?
+    .line_to(Start)?;
+let profile = validated(SketchPlane::<f64>::xy(), vec![rect.into()])?;
 let plate = extrude(&profile, Extrusion::Distance(real(mm(8.0))))?.body;
 validate_closed(&plate).expect("a closed solid");
 let props = mass_properties(&plate)?;
@@ -138,7 +138,7 @@ this section teaches — it is the shape of *using* this kernel:
 > **author → validate → measure → tessellate → cross-check → export**
 
 The tour's `run_body` (`demos/tour/src/main.rs`) is that ladder
-written once and applied to all 34 scenes. Nothing about it is
+written once and applied to every scene. Nothing about it is
 demo-specific; your own program should look like it.
 
 Two properties of the ladder are worth naming before we walk it.
@@ -178,10 +178,14 @@ only number that differs.
 
 ### 2.2 Author
 
-Profiles are closed loops on a sketch plane. The direct way to say a
-rectangle is `ProfileLoop::polygon`; the expressive way is the PATHS
-algebra, where you walk the outline and the type system tracks what
-the tip has bound:
+Profiles are closed loops on a sketch plane, and there is one way to
+say one: the PATHS algebra, where you walk the outline and the type
+system tracks what the tip has bound. (Raw `ProfileLoop` vertex tables
+are kernel vocabulary and not part of this surface — Evan's ruling on
+#413. The lattice is not merely the nicer spelling; it is the one that
+classifies each junction as you author it, so a corner that is
+accidentally tangent or reversed refuses here rather than at
+`validate`.)
 
 ```
 use pncad::prelude::*;
@@ -320,6 +324,52 @@ area = 0.040 * 0.030 - (0.006**2 - math.pi * 0.006**2 / 4)
 assert abs(ev.value(plate).body().mass_properties().volume - area * 0.008) < 1e-15
 ```
 
+**Corners between a line and a CIRCLE.** A fillet's two sides do not
+have to be straight. `at_on(p, centre, winding)` binds a side ON a
+carrier circle — the anchor plus the centre name the tangent there, so
+the direction is derived rather than authored — and `at_toward(p, dx,
+dy)` is its mirror: the STRAIGHT arrival off a departure that rides a
+circle. Between them the corner is again never written down; it is the
+ray-meets-circle intersection, and the gates discard the root the
+author's two anchors do not bracket.
+
+```
+use pncad::prelude::*;
+
+// Enter on the R = 5 circle at its east point, travelling
+// counterclockwise; round where that circle meets the line y = 3.
+let blended: ProfileLoop<f64> = Open
+    .at_on(p2(5.0, 0.0), p2(0.0, 0.0), ArcSweep::Ccw)?
+    .fillet(0.5)?                     // departure rides the CIRCLE
+    .at_toward(p2(0.0, 3.0), -1.0, 0.0)?  // arrival: the line y = 3, heading west
+    .line(3.0)?
+    .line_to(Start)?
+    .into();
+// The entry, the trim point on the circle, the arc's far tangent
+// point, and the straight side's end.
+assert_eq!(blended.vertices.len(), 4);
+# Ok::<(), pncad::profile::PathError<f64>>(())
+```
+
+The circle meets `y = 3` at `(±4, 3)`, and only one of those is the
+corner the author meant: the arrival is anchored at `(0, 3)` heading
+west, so it came from `(4, 3)` and never from `(−4, 3)`. That is a
+gate, not a nearest-point guess — and the same chain says the same
+thing in Python:
+
+```python
+from pncad import ArcSweep, Open, Start, m
+
+blended = (
+    Open.at_on((5 * m, 0 * m), (0 * m, 0 * m), ArcSweep.Ccw)
+    .fillet(0.5 * m)
+    .at_toward((0 * m, 3 * m), -1.0, 0.0)
+    .line(3 * m)
+    .line_to(Start)
+)
+assert blended.vertex_count == 4
+```
+
 **The plane is an argument, not an assumption.** A profile lives on a
 `SketchPlane` — a rigid frame `origin, u, v`, where sketch (x, y) maps
 to `origin + x·u + y·v`. The plane's NORMAL is `u × v`, and that is
@@ -410,13 +460,16 @@ use pncad::prelude::*;
 
 # type E = Box<dyn std::error::Error>;
 fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
-    let rect = ProfileLoop::polygon([
-        p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1),
-    ]);
+    let rect: ClosedLoop<f64> = Open
+        .at(p2(x.0, y.0))
+        .line_to(p2(x.1, y.0))?
+        .line_to(p2(x.1, y.1))?
+        .line_to(p2(x.0, y.1))?
+        .line_to(Start)?;
     let plane = SketchPlane::from_frame(
         p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0),
     );
-    let profile = validated(plane, vec![rect])?;
+    let profile = validated(plane, vec![rect.into()])?;
     Ok(extrude(&profile, Extrusion::Distance(real(z.1 - z.0)))?.body)
 }
 
@@ -451,9 +504,14 @@ first one wastes your time.
 use pncad::prelude::*;
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
-#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let rect: ClosedLoop<f64> = Open
+#         .at(p2(x.0, y.0))
+#         .line_to(p2(x.1, y.0))?
+#         .line_to(p2(x.1, y.1))?
+#         .line_to(p2(x.0, y.1))?
+#         .line_to(Start)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -490,9 +548,14 @@ body from `split` carries no contacts, so it takes plain tier 3.
 use pncad::prelude::*;
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
-#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let rect: ClosedLoop<f64> = Open
+#         .at(p2(x.0, y.0))
+#         .line_to(p2(x.1, y.0))?
+#         .line_to(p2(x.1, y.1))?
+#         .line_to(p2(x.0, y.1))?
+#         .line_to(Start)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -512,9 +575,14 @@ theorem on the real surfaces, not on a mesh:
 use pncad::prelude::*;
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
-#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let rect: ClosedLoop<f64> = Open
+#         .at(p2(x.0, y.0))
+#         .line_to(p2(x.1, y.0))?
+#         .line_to(p2(x.1, y.1))?
+#         .line_to(p2(x.0, y.1))?
+#         .line_to(Start)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -556,9 +624,14 @@ decision.
 use pncad::prelude::*;
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
-#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let rect: ClosedLoop<f64> = Open
+#         .at(p2(x.0, y.0))
+#         .line_to(p2(x.1, y.0))?
+#         .line_to(p2(x.1, y.1))?
+#         .line_to(p2(x.0, y.1))?
+#         .line_to(Start)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -589,9 +662,14 @@ use pncad::prelude::*;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
-#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let rect: ClosedLoop<f64> = Open
+#         .at(p2(x.0, y.0))
+#         .line_to(p2(x.1, y.0))?
+#         .line_to(p2(x.1, y.1))?
+#         .line_to(p2(x.0, y.1))?
+#         .line_to(Start)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -627,9 +705,14 @@ use pncad::prelude::*;
 use pncad::step_import::StepImport;
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
-#     let rect = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
+#     let rect: ClosedLoop<f64> = Open
+#         .at(p2(x.0, y.0))
+#         .line_to(p2(x.1, y.0))?
+#         .line_to(p2(x.1, y.1))?
+#         .line_to(p2(x.0, y.1))?
+#         .line_to(Start)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -822,9 +905,9 @@ encoding — the same value a saved document carries, modulo the
 whitespace `save` pretty-prints with — but its internal structure is
 NOT API: it may change without notice, so the supported operations
 are equality, ordering, storage, and handing it back. Narrowing a
-materialized set is a SELECTOR's job. Rust has one
-(`select_where` with `GeomPred`); Python does not yet, and that is a
-named gap — see the north-star audit's G13.
+materialized set is a SELECTOR's job: `Evaluation.select` and
+`Evaluation.select_where`, the same doors Rust narrows with — the
+next section runs them.
 
 ```python
 import math
@@ -866,6 +949,82 @@ try:
     raise AssertionError("an empty selection should not blend")
 except EvaluationError as refusal:
     assert refusal.kind == "fillet_selection_empty"
+```
+
+### Narrowing a selection: select, then fillet
+
+`all_edges` answers a whole kind, and on a boolean output that is
+more than one blend wants. The narrowing language is the same one
+Rust's selector section speaks, crossed verb for verb:
+`Evaluation.select` materializes by role-path SHAPE (`Selector`, a
+union of `NamePat`s — which op minted the entity, which role, which
+side), and `Evaluation.select_where` filters the survivors by
+GEOMETRY (`GeomPred` atoms: carrier kind, adjacent-surface kinds,
+datum-relative distance, in conjunction). Both answer in the same
+opaque alphabet the materializers speak, ready for `Node.fillet`
+unread — narrowing happens through the doors, never by parsing a
+name.
+
+The scene below is the composed die's shape in miniature: a cube
+with one spherical pip cut into its top face, then ONE fillet whose
+selection is said twice geometrically — the box edges by carrier
+kind, the pip rim by the plane/sphere pair across it. What is NOT
+selected is the point: the cavity's two meridian seams are sphere on
+BOTH sides (no dihedral wedge — unfilletable at any radius), and
+they match neither filter, so the refusal falls out of the geometry.
+
+```python
+import math
+
+from pncad import (
+    BooleanOp, CurveKind, Doc, EntityKind, GeomPred, NamePat, Node,
+    Open, Selector, SketchPlane, Start, SurfaceKind, evaluate, m, rad,
+)
+
+R, H = 0.09, 0.05  # the pip ball's radius; how deep it dips in
+
+doc = Doc()
+square = doc.insert(
+    Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)])
+)
+cube = doc.insert(Node.extrude(square, 1 * m))
+
+# A ball, revolved as two quarter arcs, sunk H into the top face.
+half = (
+    Open.at((0 * m, -R * m))
+    .arc_to((R * m, 0 * m), math.tan(math.pi / 8))
+    .arc_continue((0 * m, R * m))
+    .line_to(Start)
+)
+plane = SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0))
+axis = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=plane)), axis, (2 * math.pi) * rad))
+pip = doc.insert(
+    Node.transform(ball, (0.5 * m, 0.5 * m, (1.0 + R - H) * m), (0.0, 0.0, 1.0), 0 * rad)
+)
+pipped = doc.insert(Node.boolean(BooleanOp.Subtract, cube, pip))
+
+# The two filters, materialized off ONE evaluation and stored. A
+# list of atoms is a conjunction; a union is two calls concatenated.
+edges = Selector.of(NamePat.of_kind(EntityKind.Edge))
+ev = evaluate(doc)
+straight = ev.select_where(pipped, edges, [GeomPred.curve_kind(CurveKind.Line)])
+rims = ev.select_where(
+    pipped, edges, [GeomPred.adjacent_kinds(SurfaceKind.Plane, SurfaceKind.Sphere)]
+)
+assert len(straight) == 12  # the box edges the subtraction kept
+assert len(rims) == 2       # the pip rim is two arcs, not one circle
+
+# The excluded remainder, BY GEOMETRY: sphere-on-both-sides.
+meridians = ev.select_where(
+    pipped, edges, [GeomPred.adjacent_kinds(SurfaceKind.Sphere, SurfaceKind.Sphere)]
+)
+assert len(meridians) == 2 and len(ev.all_edges(pipped)) == 16
+
+# One fillet takes both selections — stored, frozen, never re-queried.
+blended = doc.insert(Node.fillet(pipped, 0.05 * m, straight + rims))
+body = evaluate(doc).value(blended).body()
+body.validate()
 ```
 
 ## 3. Parametric models

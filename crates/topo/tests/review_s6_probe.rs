@@ -19,9 +19,23 @@ fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
 }
 
-fn assert_unified(msg: &str) {
+/// The recourse a message must carry exactly once. Contact-tier
+/// findings carry the TWO-arm contact menu (SELECT-DESIGN §3d,
+/// ratified: declare the named class / move the geometry); every other
+/// site keeps the three-arm decidability sentence, whose "lower the
+/// tolerance" arm is meaningful there and meaningless at a contact.
+fn recourse_for(e: &ValidationError) -> &'static str {
+    match e {
+        ValidationError::UndeclaredContact { .. } | ValidationError::ContactContradicted { .. } => {
+            topo::CONTACT_RECOURSE
+        }
+        _ => COINCIDENCE_RECOURSE,
+    }
+}
+
+fn assert_unified(msg: &str, recourse: &str) {
     assert_eq!(
-        msg.matches(COINCIDENCE_RECOURSE).count(),
+        msg.matches(recourse).count(),
         1,
         "carrier must appear exactly once: {msg}"
     );
@@ -47,7 +61,7 @@ fn probe_boolean_coincidence_pair_e2e() {
         matches!(err, BooleanError::UndeclaredCoincidence { .. }),
         "{err:?}"
     );
-    assert_unified(&msg);
+    assert_unified(&msg, COINCIDENCE_RECOURSE);
 
     // In-band: corner gap of 3 eps (inside the sliver band).
     let eps = geom_core::Tolerance::get().eps;
@@ -57,7 +71,7 @@ fn probe_boolean_coincidence_pair_e2e() {
     let err = boolean_reduce(BooleanOp::Union, &a, &b).expect_err("in-band gap must escalate");
     let msg = err.to_string();
     eprintln!("[probe] boolean in-band:\n  {msg}\n");
-    assert_unified(&msg);
+    assert_unified(&msg, COINCIDENCE_RECOURSE);
     assert!(
         msg.contains("ambiguity band") || msg.contains("cannot be classified"),
         "margin payload must survive: {msg}"
@@ -98,12 +112,12 @@ fn probe_census_pair_e2e() {
                 ValidationError::UndeclaredContact { .. } => {
                     saw_contact = true;
                     eprintln!("[probe] census definite (delta={delta}):\n  {msg}\n");
-                    assert_unified(&msg);
+                    assert_unified(&msg, recourse_for(&e));
                 }
                 ValidationError::CensusEscalated { .. } => {
                     saw_escalated = true;
                     eprintln!("[probe] census escalated (delta={delta}):\n  {msg}\n");
-                    assert_unified(&msg);
+                    assert_unified(&msg, recourse_for(&e));
                     assert!(
                         msg.contains("ambiguity band") || msg.contains("cannot be classified"),
                         "margin payload must survive: {msg}"

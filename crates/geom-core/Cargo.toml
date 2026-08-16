@@ -17,6 +17,23 @@ workspace = true
 # (it did while the backend was `inari/gmp`), and no longer needs an
 # AVX+FMA floor of its own on x86-64.
 interval = ["dep:interval-transcendentals"]
+# K-telemetry recording scalar (`k_stats::Probe`), opt-in. Probe is a
+# `Real` instantiation like `Interval`, so every generic-over-`Real` body
+# monomorphizes at it — measured 2026-08-12 at 20.0% of geom-brep's LLVM
+# IR, 15.6% of topo's, and 5.0% of the workspace's test-binary symbols.
+# It exists only to collect margin distributions for the K experiment
+# (docs/K-REPORT.md, scripts/k_probe_sweep.sh), so before this gate the
+# python wheel, both demos and the release renders all shipped a
+# diagnostics scalar they never run. Same opt-in shape as `interval`.
+#
+# The funnel itself (`k_stats::decide`) is NOT gated: it is the path every
+# shipped decision takes, and it must be byte-identical with the feature
+# on and off (D9). Only `Probe`, the sample sink and their impls move.
+#
+# NOTE `docs/DESIGN.md` Q1 ratifies the instantiation set as `f64`,
+# `Interval`, `Dual<f64>`, `Dual<Interval>` — Probe is not in it, so this
+# gate reopens no ratified decision.
+probe = []
 
 [dependencies]
 libm = { workspace = true }
@@ -24,6 +41,11 @@ interval-transcendentals = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+# Shared fuzz harness for this crate's randomized sweeps (one RNG, the
+# per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
+# named by [dev-dependencies] only, here and everywhere else — which is
+# what keeps it off every shipped build path.
+test-utils = { path = "../test-utils" }
 # DEV-ONLY differential oracle for the M5 PR 2 interval ring (M5-PR2-SPEC
 # family 2). Since M5 PR 1 this crate is ALSO the `interval` feature's
 # backend (the optional dependency above) — the dev-entry is what makes it

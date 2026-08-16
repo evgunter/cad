@@ -3,7 +3,9 @@
 **Status: RATIFIED architecture (G1–G5 agreed; GQ1–GQ5 resolved,
 with the `editor-core` substrate shipped — the freshness note below
 is the verified shipped-vs-absent inventory; GQ6–GQ7 deferred to
-GUI time by design); the GUI layer itself remains unbuilt as
+GUI time by design — except GQ6's toolkit row, ratified 2026-08-16
+off the mandated re-survey in `docs/GQ6-RESURVEY.md`: **egui**, with
+iced as the named fallback); the GUI layer itself remains unbuilt as
 sequenced.** Companion to
 `DESIGN.md` (read that first; this doc never overrides D1–D9). GUI
 work is sequenced **after** "usable as a library" (DESIGN.md, Beyond
@@ -19,8 +21,9 @@ the M4 8c note):* the middle layer this doc banks on is REAL —
 `apply`, #81), the GQ2 per-node result DAG with descendants-only
 poisoning plus memoized incremental evaluation and cooperative
 cancelation (#83), one stable-name type with resolution/diagnosis/
-`Rebind` (#87/#96/#102), GQ3 persist-all-edits — now schema v3
-(v1 #112; clean breaks v2 at M5 PR 10, v3 at M6-5) — StableName-
+`Rebind` (#87/#96/#102), GQ3 persist-all-edits (schema v1 at #112,
+carried forward through a series of pre-release clean breaks; the
+live number is `persist::SCHEMA_VERSION`) — StableName-
 keyed appearance with the N3/N5 loss semantics (#92), the
 dimension-checked total expression AST (GQ5's restrictive
 dimension answer), and arena-key→stable-name hit inversion. Still
@@ -40,7 +43,7 @@ of the library product. D8 did the philosophical work already — *the
 recipe is data*; the extension is: **changes to the recipe are data
 too.**
 
-1. **Kernel** (M0–M8): `build(params) → solid`. Unchanged.
+1. **Kernel**: `build(params) → solid`. Unchanged.
 2. **`editor-core`** (headless, no rendering dependency; slotted into
    DESIGN.md's crate table between `model` and `viewer`):
    - **The document is a value**: recipe DAG (D8) + document metadata
@@ -151,7 +154,7 @@ requirement, not a solver one).
   here makes "preview disagreed with commit" conceptually impossible
   rather than merely tested-against.
 
-## GQ items (GQ1–GQ5 RATIFIED and shipped — kept as the rationale record; GQ6–GQ7 deliberately deferred to GUI time)
+## GQ items (GQ1–GQ5 RATIFIED and shipped — kept as the rationale record; GQ6's toolkit row RATIFIED 2026-08-16, its remaining rows and GQ7 deliberately deferred to GUI time)
 
 ### GQ1 (RATIFIED 2026-07-19 round 4): The solver/replay boundary — witness as authoritative branch selection
 
@@ -193,7 +196,7 @@ solver output demoted to witness; kernel certifies; interval replay
 runs interval-Newton **contraction seeded from the f64 witness**
 (existence/uniqueness in a box) instead of interval-solving from
 scratch. Mechanism details (contraction specifics, the margin
-predicate's exact form) are M4/M8 design work under this committed
+predicate's exact form) are M4/M10 design work under this committed
 direction. Concrete audit item: ezpz (Q3) must satisfy bit-identity
 (libm-only math, no hash-order effects) if its f64 path runs inside
 `build`. Mechanism note carried up from M2 PR 3's adversarial
@@ -209,7 +212,7 @@ W1–W9 — including the witness-aliasing answer this note demanded).
 `editor-core` carries the contract types (`WitnessDatum`,
 `BranchCertification`, `WitnessBifurcation`) and the
 `ReWitness`/`ReWitnessBulk` edits; the solver itself remains
-unbuilt as sequenced (M8).*
+unbuilt as sequenced (M10).*
 
 ### GQ2 (RATIFIED 2026-07-19 round 3): Partial-build semantics — per-node result DAG
 
@@ -243,8 +246,9 @@ discipline from the first persisted file; storage shape is
 *Shipped: snapshot + edit log is the on-disk format (`schema: n`
 header + JSON body); save verifies the log replays through `apply`
 before writing, and load replays it after. Schema v1 landed at M4
-PR 6, and the versioning discipline has since carried two ratified
-clean breaks (v2 at M5 PR 10, v3 at M6-5).*
+PR 6, and the versioning discipline has since carried a series of
+ratified pre-release clean breaks (LQ7a — no migration machinery
+before release).*
 
 ### GQ4 (RATIFIED 2026-07-19 round 5): Document scope — local refs + wrapper, assemblies in the same formalism
 
@@ -346,10 +350,44 @@ Both land in the library program (LIBRARY-DESIGN U8 — bindings are
 the first consumer of round-tripping `25 mm`), ahead of any GUI
 need.*
 
-### GQ6: Toolkit and platform (decide at GUI time; re-survey first)
+### GQ6: Toolkit and platform (toolkit RATIFIED 2026-08-16; the rest still decided at GUI time)
 
-Ecosystem snapshot 2026-07 (knowledge dated — re-survey before
-committing): the **substrate** is reusable, the **CAD-ness** is not
+**The mandated re-survey was performed 2026-08-16 →
+`docs/GQ6-RESURVEY.md`**, which supersedes the snapshot below as the
+factual record.
+
+**Toolkit (RATIFIED, Evan, 2026-08-16): egui — and if egui does not
+work out, iced.** A default with a named fallback, not a tie to be
+broken later by a bake-off. Deciding factors: egui tracks current
+wgpu (30) where iced 0.14 pins 27 and has not released since
+2025-12; the docking chrome a feature-tree + viewport + property
+panel needs on day one exists in egui's ecosystem and is thin in
+iced's; and rerun is a production existence proof of exactly our
+shape (egui panels + wgpu viewport). iced's MVU fit with G1 is real
+but is an argument about where the architecture *lives*, and G1's
+architecture already lives in `editor-core`, below any toolkit —
+which is also why the fallback is cheap: switching costs the
+interaction layer and nothing beneath it. The conditions that would
+trigger the fallback are written down in advance in the re-survey's
+§5.
+
+Two candidates left the slate for good: **Slint** (its only
+OSI-approved branch is GPL-3.0-only, which cannot ship in an
+MIT-OR-Apache-2.0 product; the royalty-free branch is a proprietary
+grant — and its renderers give a wgpu viewport no first-class seat)
+and **GPUI** (upstream states it lacks the resources to maintain it
+standalone). bevy remains listed but demoted.
+
+The other rows stay as the snapshot left them, with two corrections:
+Fornjot was archived 2026-06 and CADmium 2025-09, so "no CAD-ness to
+borrow" is now *stronger*; and the wasm row below is **wrong in our
+favor** — the whole kernel plus `editor-core` compiles to
+`wasm32-unknown-unknown` today, `--features interval` included
+(measured, not surveyed).
+
+Ecosystem snapshot 2026-07 (SUPERSEDED by the re-survey — kept as
+the record of what was believed when GQ6 was banked): the
+**substrate** is reusable, the **CAD-ness** is not
 (no sketcher, feature tree, or error UX exists to borrow, in Rust or
 license-compatible elsewhere). Candidates: **egui** (immediate-mode;
 `rerun` proves egui + wgpu viewport + panels at production scale) vs.
@@ -362,7 +400,9 @@ Picking: GPU ID-buffer pass for hover/click exactness + CPU ray-cast
 (`parry3d`, Apache-2.0) for snapping — both sit on the M2 PR 6
 back-references. Web/wasm is a live strategic option (Zoo and CADmium
 both chose it; pure-Rust `libm` means D9 accidentally made the f64
-lane wasm-friendly; the `interval` feature is not, per issue #4) —
+lane wasm-friendly; the `interval` feature is not, per issue #4
+— that last clause is FALSE as of the re-survey: #4 was met by
+removal at M5 PR 1 and the interval lane builds on wasm) —
 G1 is deliberately agnostic to it. `rerun` served as the
 zero-effort debug viewer through M5 (now closed); as of 2026-08 the
 demo/montage pipeline renders through FreeCAD offscreen, which is a
@@ -371,7 +411,10 @@ viewer commitment has been made.
 
 *(Snapshot explicitly dated: the toolkit, ezpz, and wasm rows are
 as of 2026-07 and nothing in this snapshot binds — the
-re-survey-first instruction is the decision.)*
+re-survey-first instruction was the decision. It was carried out
+on 2026-08-16 and the toolkit row is now settled on top of it; see
+`docs/GQ6-RESURVEY.md` for the current facts, the measured wasm
+result, and the conditions that would trigger the iced fallback.)*
 
 ### GQ7: Selection mechanics
 

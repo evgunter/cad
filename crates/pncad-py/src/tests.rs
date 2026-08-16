@@ -54,6 +54,105 @@ fn error_classes_name_the_python_hierarchy() {
     assert_eq!(ErrorClass::Export.class_name(), "ExportError");
     assert_eq!(ErrorClass::StepImport.class_name(), "StepImportError");
     assert_eq!(ErrorClass::Path.class_name(), "PathError");
+    assert_eq!(ErrorClass::Select.class_name(), "SelectRefusal");
+}
+
+/// LIB-PYSEL: `SelectRefusal` is `#[non_exhaustive]`, so the tag
+/// match cannot be the compile-time drift alarm the other tag
+/// functions are — this pin is the replacement. It constructs every
+/// arm whose payload the curated surface can build and asserts its
+/// tag, so a kernel arm arriving untagged surfaces as `unclassified`
+/// HERE rather than silently in Python. (`InBand`/`PairInBand`/
+/// `BadValue` carry funnel/expression internals with no public
+/// constructor; their tags are covered by the match itself.)
+#[test]
+fn select_refusal_tags_are_stable() {
+    use crate::tags::select_refusal_tag;
+    use pncad::document::{Dimension, RecipeNodeId};
+    use pncad::select::{EntityKind, InterrogateError, SelectRefusal};
+
+    let name = Box::new(pncad::prelude::StableName {
+        kind: EntityKind::Edge,
+        node: RecipeNodeId(0),
+        path: Vec::new(),
+    });
+    assert_eq!(
+        select_refusal_tag(&SelectRefusal::TiedDisagrees {
+            name: name.clone(),
+            matched: 1,
+            candidates: 2,
+        }),
+        "tied_disagrees"
+    );
+    assert_eq!(
+        select_refusal_tag(&SelectRefusal::Unreadable {
+            name,
+            error: InterrogateError::NoSuchName,
+        }),
+        "unreadable"
+    );
+    assert_eq!(
+        select_refusal_tag(&SelectRefusal::NotADatum {
+            datum: RecipeNodeId(0),
+            found: "body",
+        }),
+        "not_a_datum"
+    );
+    assert_eq!(
+        select_refusal_tag(&SelectRefusal::NotALength {
+            dim: Dimension::Angle,
+        }),
+        "not_a_length"
+    );
+    assert_eq!(select_refusal_tag(&SelectRefusal::Band), "band");
+}
+
+/// LIB-PYG5: `ContactClass` is `#[non_exhaustive]` kernel-side, so
+/// the Python mirror (`py/flush.rs`) is forced to carry a wildcard
+/// arm and the compile-time drift alarm is unavailable — an unknown
+/// class refuses typed (`unclassified`) at the crossing instead.
+///
+/// That forced wildcard has a cost this pin now pays: a wildcarded
+/// alarm cannot fire, so `Tangent` sat in the kernel for a whole PR
+/// while the mirror still spelled only `Rest` and nothing went red.
+/// So the pin ENUMERATES what the mirror claims to speak, one line
+/// per class, and a class added to the kernel without a line here is
+/// visible as an absence in a list rather than invisible behind a
+/// wildcard.
+///
+/// It is deliberately NOT a `_ => panic!()` over the kernel enum:
+/// that would red on every downstream build the moment the kernel
+/// reserved a class, which is precisely the coupling
+/// `#[non_exhaustive]` exists to prevent. The crossing's typed
+/// refusal is the safety property; this list is the reminder.
+#[test]
+fn the_contact_class_mirror_matches_the_kernel() {
+    let spoken = |class| match class {
+        pncad::select::ContactClass::Rest => "rest",
+        pncad::select::ContactClass::Tangent => "tangent",
+        _ => "unclassified",
+    };
+    assert_eq!(spoken(pncad::select::ContactClass::Rest), "rest");
+    assert_eq!(
+        spoken(pncad::select::ContactClass::Tangent),
+        "tangent",
+        "Tangent crossed into the mirror with M9-1; a class the binding \
+         cannot name refuses typed at the crossing instead"
+    );
+}
+
+/// LIB-PYG5: the declare-sugar refusal tags, exercised through the
+/// real doors on the default (no-Python) path. The `Edit` arm
+/// carries the document layer's own tag through.
+#[test]
+fn declare_error_tags_are_stable() {
+    use crate::tags::declare_error_tag;
+    use pncad::select::{DeclareError, declare_node};
+
+    let empty =
+        declare_node::<pncad::document::ProfileProgram>(&[]).expect_err("an empty declare refuses");
+    assert_eq!(declare_error_tag(&empty), "no_findings");
+    assert_eq!(declare_error_tag(&DeclareError::NoMintedId), "no_minted_id");
 }
 
 /// LIB-DOORS F5: the binding matches `Expr::literal`'s OWN refusals

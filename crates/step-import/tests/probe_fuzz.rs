@@ -23,6 +23,34 @@ const WILD: [&str; 13] = [
     "occ-oss/cq_red_cube_blue_cylinder.step",
 ];
 
+/// The corpus's most expensive import, by a wide margin.
+const DM1: &str = "stepcode/dm1-id-214.stp";
+
+/// [`WILD`] minus [`DM1`] — the corpus of
+/// [`reference_cycles_and_dangling_refs_never_panic`], and of that row
+/// only (2026-08-13 test-time audit).
+///
+/// **Why this row and not the others.** The truncation and
+/// entity-type-swap rows are cheap on dm1 because their mutants die
+/// early: a truncated file fails to parse, and a swapped keyword
+/// derails the reader before the geometry pass. The reference-cycle row
+/// is different — its per-ε-row profile tracked a single UNMUTATED dm1
+/// import almost exactly, which means one of dm1's cycle mutants leaves
+/// the reference graph resolvable and re-runs the whole geometry pass
+/// at full price. That geometry pass is not what this row is about: the
+/// property under test is a RESOLVER property (a cyclic or dangling
+/// reference must produce a `Result`, never a panic or a hang), and
+/// twelve wild files still exercise it, including the two other
+/// stepcode files and the NIST inch translator's output.
+///
+/// **What is lost:** no-panic on dm1's *mutated* reference graph
+/// specifically. dm1's unmutated import stays gated — `tier_gate.rs`
+/// pins its disposition at every ambient band — and dm1 remains in
+/// [`WILD`] for the truncation and swap rows.
+fn cycle_corpus() -> impl Iterator<Item = &'static str> {
+    WILD.into_iter().filter(|name| *name != DM1)
+}
+
 fn wild(name: &str) -> String {
     let path: PathBuf = [
         env!("CARGO_MANIFEST_DIR"),
@@ -103,7 +131,16 @@ fn entity_type_swaps_never_panic() {
 
 #[test]
 fn reference_cycles_and_dangling_refs_never_panic() {
-    for name in WILD {
+    // [`cycle_corpus`], not [`WILD`]: dm1 is excluded here alone, and
+    // that doc comment says why and what it costs. The count pins that
+    // the exclusion still bites — a renamed fixture would otherwise
+    // turn the filter into a silent no-op.
+    assert_eq!(
+        cycle_corpus().count(),
+        WILD.len() - 1,
+        "cycle_corpus must exclude exactly dm1 — is {DM1} still in WILD?"
+    );
+    for name in cycle_corpus() {
         let text = wild(name);
         // A self-referential placement and a self-referential unit.
         let mut mutations = Vec::new();

@@ -135,7 +135,7 @@ pub enum ReadbackError {
 ///
 /// ```
 /// use geom_core::Tolerance;
-/// use profile::{Profile, ProfileLoop, SketchPlane};
+/// use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 /// use sweep::{Extrusion, extrude, readback::face_pose};
 /// use geom_core::Point2;
 ///
@@ -214,7 +214,7 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
 ///
 /// ```
 /// use geom_core::{Point2, Tolerance};
-/// use profile::{Profile, ProfileLoop, SketchPlane};
+/// use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 /// use sweep::{Extrusion, extrude, readback::vertex_point};
 ///
 /// let square = ProfileLoop::polygon(
@@ -267,7 +267,7 @@ pub fn vertex_point<T: Real>(
 ///
 /// ```
 /// use geom_core::{Point2, Tolerance};
-/// use profile::{Profile, ProfileLoop, SketchPlane};
+/// use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 /// use sweep::{Extrusion, extrude, readback::edge_pose};
 ///
 /// let square = ProfileLoop::polygon(
@@ -354,7 +354,7 @@ pub struct WedgeFrames<T: Real> {
 ///
 /// ```
 /// use geom_core::{Point2, Tolerance};
-/// use profile::{Profile, ProfileLoop, SketchPlane};
+/// use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 /// use sweep::{Extrusion, extrude, readback::extruded_caps};
 ///
 /// let square = ProfileLoop::polygon(
@@ -392,6 +392,7 @@ pub fn extruded_caps<T: Real>(e: &Extruded<T>) -> Result<CapFrames<T>, ReadbackE
 ///
 /// ```
 /// use geom_core::{Affine3, Point2, Vec3};
+/// use profile::RawLoop;
 /// use sweep::{ProfileLoop, Section, loft_body, readback::lofted_caps};
 ///
 /// let quad = |pts: [(f64, f64); 4]| -> Section {
@@ -436,7 +437,7 @@ pub fn lofted_caps<T: Real>(l: &Lofted<T>) -> Result<CapFrames<T>, ReadbackError
 ///
 /// ```
 /// use geom_core::{Point2, Tolerance, Vec2};
-/// use profile::{Profile, ProfileLoop, SketchPlane};
+/// use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 /// use sweep::{Revolution, RevolveAxis, readback::revolved_caps, revolve};
 ///
 /// // A quarter tube: a small circle a distance 5 from the axis,
@@ -518,18 +519,26 @@ pub struct BlendArc<T: Real> {
 ///
 /// ```
 /// use geom_core::{Point2, Tolerance};
-/// use profile::{ArcSweep, Open, Profile, SegmentKind, SketchPlane, Start};
+/// use profile::{ArcSweep, Center, Open, Profile, SegmentKind, SketchPlane, Start};
 /// use sweep::readback::blend_arcs;
 ///
 /// // The tour rocker's eye slot: two R = 1 lobes meeting tip to tip,
 /// // the TOP tip filleted at R = 1/4, the bottom left sharp.
 /// let tip = 0.75f64.sqrt();
 /// let eye = Open
-///     .at_on(Point2::new(0.0, -tip), Point2::new(-0.5, 0.0), ArcSweep::Ccw)
-///     .expect("the bottom tip lies on the right lobe's carrier")
-///     .fillet(0.25)
-///     .expect("a definitely positive radius")
-///     .to_on(Start, Point2::new(0.5, 0.0), ArcSweep::Ccw)
+///     .arc_fillet_arc(
+///         Center {
+///             c: Point2::new(-0.5, 0.0),
+///             winding: ArcSweep::Ccw,
+///             p: Point2::new(0.0, -tip),
+///         },
+///         0.25,
+///         Center {
+///             c: Point2::new(0.5, 0.0),
+///             winding: ArcSweep::Ccw,
+///             p: Start,
+///         },
+///     )
 ///     .expect("the near candidate resolves the tip");
 /// let slot = Profile::new(SketchPlane::xy(), vec![eye.into()])
 ///     .validate(Tolerance::get())

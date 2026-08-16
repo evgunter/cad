@@ -1,11 +1,15 @@
 //! Accepting fixtures: closed-form profiles that must validate, with
 //! their canonical forms pinned (roles, traversal, starting vertex,
 //! classified segment kinds).
+//!
+//! The `Probe` instantiation smoke test lives in `validate_ok_probe.rs`,
+//! gated on the `probe` feature; everything here is f64 and runs in the
+//! default build.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
 
-use common::{annulus, circle_h, l_profile, lens, lift, profile, rect, rounded_rect, tol};
+use common::{annulus, circle_h, l_profile, lens, profile, rect, rounded_rect, tol};
 use geom_core::Sign;
 use profile::{LoopRole, SegmentKind, ValidatedProfile};
 
@@ -201,12 +205,4 @@ fn reversed_loop_validates_to_the_identical_canonical_form() {
         circle_h(0.0, 0.0, 1.0).reversed(),
     ]));
     assert_eq!(format!("{base:?}"), format!("{reversed:?}"));
-}
-
-#[test]
-fn generic_instantiation_smoke_probe() {
-    // The whole pipeline is generic over Decide: run it at the k-stats
-    // Probe scalar (delegating wrapper) as a second instantiation.
-    let p = lift::<profile::k_stats::Probe>(&annulus());
-    assert!(p.validate(tol()).is_ok());
 }

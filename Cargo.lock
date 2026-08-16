@@ -530,6 +530,7 @@ dependencies = [
  "geom-surfaces",
  "proptest",
  "slotmap",
+ "test-utils",
 ]
 
 [[package]]
@@ -540,6 +541,7 @@ dependencies = [
  "libm",
  "num-dual",
  "proptest",
+ "test-utils",
 ]
 
 [[package]]
@@ -551,6 +553,7 @@ dependencies = [
  "geom-core",
  "nalgebra 0.35.0",
  "proptest",
+ "test-utils",
 ]
 
 [[package]]
@@ -561,6 +564,7 @@ dependencies = [
  "geom-core",
  "geom-curves",
  "proptest",
+ "test-utils",
 ]
 
 [[package]]
@@ -1036,6 +1040,7 @@ dependencies = [
  "profile",
  "spade",
  "sweep",
+ "test-utils",
  "topo",
 ]
 
@@ -1325,7 +1330,9 @@ version = "0.0.0"
 dependencies = [
  "geom-core",
  "geom-curves",
+ "profile",
  "proptest",
+ "test-utils",
 ]
 
 [[package]]
@@ -1883,6 +1890,7 @@ dependencies = [
  "profile",
  "step-export",
  "sweep",
+ "test-utils",
  "topo",
 ]
 
@@ -1964,6 +1972,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "test-utils"
+version = "0.0.0"
+
+[[package]]
 name = "thiserror"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2034,6 +2046,7 @@ dependencies = [
  "slotmap",
  "step-export",
  "stl",
+ "test-utils",
  "topo",
 ]
 

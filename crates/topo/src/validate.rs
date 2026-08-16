@@ -244,6 +244,7 @@ use geom_surfaces::Surface;
 use slotmap::{Key, SecondaryMap};
 
 use crate::body::{Body, Walk};
+use crate::contact::DeclaredContact;
 use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
 
@@ -477,7 +478,7 @@ pub enum ValidationError {
     /// signed volume is itself winding-derived and therefore blind to
     /// a lone `sense` flip. (The analytic curved kinds get the same
     /// statement from this check's curved arm,
-    /// [`CurvedSenseInverted`] — M6-6.) `Zero` and escalated
+    /// [`Self::CurvedSenseInverted`] — M6-6.) `Zero` and escalated
     /// windings are exempt (the check-7 posture: an orientation probe,
     /// not a thinness gate — degenerate pillow fixtures stay legal and
     /// ε-tightening never flips valid → invalid; a genuinely
@@ -492,7 +493,7 @@ pub enum ValidationError {
     /// Tier 3 (check 6, curved arm — M6-6): a curved face's stored
     /// [`crate::Face::sense`] bit **definitely disagrees** with the
     /// material side its own boundary encodes — the
-    /// [`LoopRoleInverted`] sibling for the analytic curved kinds
+    /// [`Self::LoopRoleInverted`] sibling for the analytic curved kinds
     /// (cylinder, cone, rim-bearing sphere, torus). The face's two
     /// orientation encodings are the S10 `sense` bit and the stored
     /// outer-loop traversal (interior-left): the flux derivations read
@@ -566,6 +567,27 @@ pub enum ValidationError {
     StaleContactDeclaration {
         /// The unconfirmed declaration.
         declaration: StaleDeclaration,
+    },
+    /// Tier 3′ (C4): a declared contact meets DEFINITE counter-evidence
+    /// — the declaration is a lie where it meets the geometry.
+    ///
+    /// Distinct from [`Self::StaleContactDeclaration`], which is the
+    /// *absence* of a witness: this is the presence of a
+    /// contradiction, and it fires at the AT-REST gate as well as at
+    /// use, because a false `Rest` must never be silent once it meets
+    /// the zip (S1's deviation-2 strictness). Every definite verdict
+    /// wins over every declaration.
+    ContactContradicted {
+        /// The face pair and class that were declared.
+        declaration: DeclaredContact,
+        /// A debug rendering of the witnessing site.
+        witness: String,
+        /// The margin that decided, and its predicate — the named
+        /// number the message renders, never a bare "contradicted".
+        margin: Indeterminate,
+        /// Extra recourse steering when the counter-evidence has a
+        /// named remedy (AQ6's designed-clearance arm).
+        steer: Option<&'static str>,
     },
     /// Tier 3′: a census predicate escalated (sliver band or poison) —
     /// indeterminate coincidence geometry at rest is a defect (the
@@ -979,6 +1001,16 @@ pub enum StaleDeclaration {
         /// The record's face.
         face: FaceKey,
     },
+    /// A curve-granularity record whose faces or witness edge no
+    /// longer resolve — the locus that certified it is gone.
+    CurveLocus {
+        /// The record's A-side face.
+        face_a: FaceKey,
+        /// The record's B-side face.
+        face_b: FaceKey,
+        /// The record's witness edge.
+        witness: crate::entity::EdgeKey,
+    },
 }
 
 impl fmt::Display for ValidationError {
@@ -1073,12 +1105,33 @@ impl fmt::Display for ValidationError {
                 f,
                 "the exact-B-rep volume for the +V invariant could not be computed: {source}"
             ),
+            // The TWO-arm menu (SELECT-DESIGN §3d, ratified), not the
+            // three-arm decidability sentence: a contact refusal is
+            // about intent nobody recorded, and lowering ε cannot
+            // supply intent — it can only hide its absence.
             Self::UndeclaredContact { contact, witness } => write!(
                 f,
                 "tier-3′ census: undeclared contact {contact:?} at {witness} — \
                  touching must be backed by a declared-contact record, never \
                  blessed from discovery (F1/F2); {}",
-                geom_core::COINCIDENCE_RECOURSE
+                crate::contact::CONTACT_RECOURSE
+            ),
+            Self::ContactContradicted {
+                declaration,
+                witness,
+                margin,
+                steer,
+            } => write!(
+                f,
+                "tier-3′ census: the declared {} contact between faces {:?} and {:?} is \
+                 contradicted at {witness} by {} — every definite verdict wins over every \
+                 declaration (C4); {}{}",
+                declaration.class.name(),
+                declaration.a,
+                declaration.b,
+                margin.payload(),
+                crate::contact::CONTACT_RECOURSE,
+                steer.map(|s| format!(" — {s}")).unwrap_or_default(),
             ),
             Self::StaleContactDeclaration { declaration } => write!(
                 f,
@@ -4756,11 +4809,16 @@ mod tests {
             witness: "(0e0, 0e0, 0e0)".to_string(),
         };
         let msg = contact.to_string();
+        // The CONTACT tier carries the two-arm menu (SELECT-DESIGN
+        // §3d, ratified): declare the named class / move the geometry.
+        // The three-arm decidability sentence must not leak in — its
+        // "lower the tolerance" arm cannot supply missing intent.
         assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            msg.matches(crate::contact::CONTACT_RECOURSE).count(),
             1,
             "{msg}"
         );
+        assert!(!msg.contains("lower the tolerance"), "{msg}");
 
         let escalated = ValidationError::CensusEscalated {
             cause: Indeterminate {

@@ -47,7 +47,7 @@
 //! (PATHS-DESIGN §5): each verb resolves its geometry from its own
 //! arguments plus already-bound state, in closed form (no iteration
 //! anywhere), and emits [`ProfileLoop`] vertices exactly as the
-//! equivalent [`crate::LoopBuilder`] calls would — the line×line
+//! equivalent raw vertex-and-bulge chain would — the line×line
 //! fillet trim geometry is literally shared code
 //! (`sugar::line_line_fillet_trims`), so the two doors emit
 //! bit-identical fillet geometry. The #101 verify layer
@@ -61,7 +61,7 @@
 //! contract): a fillet's trim geometry is computed against the two
 //! sides' **anchors** (the incoming ray's origin and the arrival
 //! side's anchor), so `line_line_fillet_trims(origin, corner, anchor,
-//! r)` — matching a hand author's `LoopBuilder::fillet(corner, anchor,
+//! r)` — matching a hand author's raw `fillet(corner, anchor,
 //! r)` bit-for-bit whenever the ray origin is the chain head, which is
 //! every case except a side squeezed between two fillets (where the
 //! head is the previous trim point, mathematically on the same
@@ -111,17 +111,17 @@
 //!
 //! # Not in this lowering (v1 scope)
 //!
-//! NURBS legs (`nurbs_in_place`, `nurbs(curve)` and variants,
-//! `FilletCarrierUnsupported`) are specified by PATHS-DESIGN §2 but
-//! have **no representation in the v1 lowering target** (a
-//! [`ProfileLoop`] is a vertex+bulge chain; this crate deliberately
-//! depends on `geom-core` only) — they arrive with the v2
-//! profiles-as-programs representation (#104). Arc-arrival fillets are
-//! explicitly out of scope (§7), which with straight-only fillet
-//! carriers makes every v1 algebra fillet line×line. Mixed authoring
-//! is OUT (§6): a loop is authored either here or as a raw chain,
-//! never both; there is no path-concatenation operator — repeated
-//! motifs are builder functions over the one chain.
+//! NURBS legs (`nurbs_in_place`, `nurbs(curve)` and variants) are
+//! specified by PATHS-DESIGN §2 but have **no representation in the
+//! v1 lowering target** (a [`ProfileLoop`] is a vertex+bulge chain;
+//! this crate deliberately depends on `geom-core` only) — they arrive
+//! with the v2 profiles-as-programs representation (#104). There is no
+//! NURBS-adjacent fillet WALL waiting with them: bare `fillet(r)` is
+//! the uniform ray extension (§2c round 10), and `nurbs_fillet` is an
+//! absent verb. Mixed authoring is OUT (§6): a loop is authored
+//! either here or as a raw chain, never both; there is no
+//! path-concatenation operator — repeated motifs are builder
+//! functions over the one chain.
 //!
 //! # Example: the all-rounded square (4 anchors + 4 directions)
 //!
@@ -248,27 +248,46 @@
 //!     .fillet(0.5).unwrap().angle(1.0).unwrap().to(Start);
 //! ```
 //!
-//! **G2**: the carrier binders are ARRIVAL-side forms too. `.at_on`
-//! needs both slots empty (it binds both), so it is ill-typed on a tip
-//! whose position is already bound …
+//! **§2c**: the fused family's INADMISSIBLE (state, mode) pairs are
+//! missing trait impls. `Bulge` is never an arrival (no chord exists
+//! there) …
 //!
-//! ```compile_fail,E0599
+//! ```compile_fail,E0277
 //! use geom_core::Point2;
-//! use profile::{ArcSweep, Open};
-//! let p = Open.at(Point2::new(0.0, 0.0_f64))
-//!     .at_on(Point2::new(1.0, 0.0), Point2::new(0.0, 0.0), ArcSweep::Ccw);
+//! use profile::{Bulge, Open};
+//! let p = Open.at(Point2::new(0.0, 0.0_f64)).angle(0.0).unwrap()
+//!     .fillet_arc(0.25, Bulge { p: Point2::new(2.0, 2.0), b: 0.5 });
 //! ```
 //!
-//! … and `.to_on` is closing, so nothing continues from its result:
+//! … an [`OnArc`] tip's side runs ON its carrier, so the straight
+//! verbs do not exist on it (the fused verbs re-author the carrier
+//! from its binding bits) …
 //!
 //! ```compile_fail,E0599
 //! use geom_core::Point2;
-//! use profile::{ArcSweep, Open, Start};
-//! let done = Open.at_on(Point2::new(0.0, -1.0_f64), Point2::new(0.0, 0.0), ArcSweep::Ccw)
-//!     .unwrap()
-//!     .fillet(0.25)
-//!     .unwrap()
-//!     .to_on(Start, Point2::new(1.0, 0.0), ArcSweep::Ccw)
+//! use profile::{ArcSweep, Center, Open};
+//! let on_arc = Open.at(Point2::new(0.0, 0.0_f64)).angle(0.0).unwrap()
+//!     .fillet_arc(0.25, Center {
+//!         c: Point2::new(2.0, 2.0),
+//!         winding: ArcSweep::Ccw,
+//!         p: Point2::new(2.0, 4.0),
+//!     })
+//!     .unwrap();
+//! let off = on_arc.line(1.0);
+//! ```
+//!
+//! … and the arc-arrival CLOSE (`Center { p: Start }`) is a complete
+//! loop, so nothing continues from its result:
+//!
+//! ```compile_fail,E0599
+//! use geom_core::Point2;
+//! use profile::{ArcSweep, Center, Open, Start};
+//! let done = Open.at(Point2::new(0.0, 0.0_f64)).toward(1.0, 0.0).unwrap()
+//!     .fillet_arc(0.3, Center {
+//!         c: Point2::new(2.0, -2.0),
+//!         winding: ArcSweep::Ccw,
+//!         p: Start,
+//!     })
 //!     .unwrap();
 //! let more = done.line_to(Point2::new(1.0, 1.0));
 //! ```
@@ -288,12 +307,13 @@
 //! let again = path.line_to(Start);
 //! ```
 
+use crate::RawLoop;
 use core::marker::PhantomData;
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tolerance, Vec2};
 
 use crate::k_stats::decide;
-use crate::path::program::{ClosedLoop, Step, Target};
+use crate::path::program::{ArcData as ArcSpecData, ClosedLoop, Step, Target};
 use crate::sugar::{
     ArcSweep, LineFilletTrims, TrimRefusal, bulge_from_center, bulge_from_via,
     line_line_fillet_trims,
@@ -307,9 +327,19 @@ use crate::{ProfileLoop, ProfileVertex};
 /// see its docs for the ratified justification, and `path.rs` itself
 /// stays `Bounds`-free.
 pub(crate) mod arc_fillet;
+mod compat;
+mod family;
 pub mod program;
+pub(crate) mod verbs;
 
 pub use arc_fillet::ArcCarrierScalar;
+pub use family::{
+    ArrivalSpec, OnArc, OnArcIncoming, PointIncoming, RadiusArrival, RadiusArrivalAt,
+    RadiusArrivalDir, TangentIncoming, ViaArrival, ViaArrivalStart,
+};
+pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
+#[doc(hidden)]
+pub use verbs::{DirectedPoint, TangentArcLeg};
 
 // ------------------------------------------------------------------
 // Lattice markers (PATHS-DESIGN §5: one struct under type-level
@@ -445,7 +475,7 @@ pub enum PathNoCornerReason {
 
 /// Typed refusals of the authoring algebra — geometry the lattice
 /// cannot rule out, refused loudly (PATHS-DESIGN §3 "Refusals" and §4).
-/// The verify layer's own errors ([`ProfileError`]) still apply to the
+/// The verify layer's own errors ([`crate::ProfileError`]) still apply to the
 /// lowered loop at [`crate::Profile::validate`], unchanged.
 #[derive(Clone, Debug)]
 pub enum PathError<T: Real> {
@@ -532,20 +562,47 @@ pub enum PathError<T: Real> {
         /// currency as `setback`).
         available: T,
     },
-    /// **G2 §3d**: a side runs on an ARC CARRIER and the door reached
-    /// binds only straight ones. This variant RETIRES `SeamFilletOntoArc`
-    /// and `ArcArrivalFillet`, whose situations are no longer "out of
-    /// scope in v1" but simply spelled elsewhere: the carrier-aware
-    /// binder family `.at_on(p, centre, winding)` /
-    /// `.to_on(Start, centre, winding)` (`crate::path::arc_fillet`).
+    /// **M8**: the derived corner and a tangent circle of the requested
+    /// radius both exist, but the tangent point on one side cannot be
+    /// certified — that side's offset radius ρ = R − σ·τ·r, the lever
+    /// the tangent point is recovered over, is shorter than the least
+    /// lever the run's band supports at the corner's scale.
     ///
-    /// It is unreachable from any program that does not use that family
-    /// — a straight-carrier chain never sets a carrier to trip over —
-    /// so it names a SPELLING, always with the door that does the job.
+    /// The algebra's spelling of
+    /// [`crate::ProfileError::FilletOffsetLeverTooShort`]; the
+    /// derivation lives on `sugar::ArcCarrier::offset_circles`. The
+    /// situation is a fillet radius too close to that side's own
+    /// carrier radius, so the recourse is to move one of the two.
+    FilletOffsetLeverTooShort {
+        /// The side whose offset lever is short.
+        side: FilletLeg,
+        /// That side's carrier radius R, meters (scalar-typed payload).
+        carrier_radius: T,
+        /// Its signed offset radius ρ = R − σ·τ·r, meters.
+        offset_radius: T,
+        /// The least |ρ| the band supports here, meters.
+        least_lever: T,
+        /// The classified margin |ρ| − `least_lever`, meters.
+        margin: T,
+    },
+    /// **RETIRING (§2c)** — the §2b compound register's spelling
+    /// refusal, kept compiling only for the retired `at_on`/`to_on`/
+    /// `at_toward` compat doors until the consumer re-spell deletes
+    /// them. No §2c-family verb can construct it: under the axiom a
+    /// carrier-keyed refusal is unwritable (the kernel's pending states
+    /// carry no carrier to branch on).
+    #[doc(hidden)]
     ArcCarrierSpelling {
         /// What was reached, and what binds it instead.
         site: &'static str,
     },
+    /// A `.to(Start)` seam fillet reached a chain whose FIRST side is
+    /// an arc: the seam retrims the entry vertex, and retrimming the
+    /// start of an arc would slide it off its own carrier (LB5: a
+    /// mid-arc seam vertex is authored topology). Closing onto a
+    /// carrier while KEEPING the entry vertex is the arc-arrival close,
+    /// `fillet_arc(r, Center { c, winding, p: Start })`.
+    SeamRetrimsArcFirstSide,
     /// A leg length that is not definitely positive: a negative length
     /// would run the side BACKWARD, detaching the tip's anchored
     /// on-path points from the final path (§4 item 3's invariant,
@@ -572,6 +629,15 @@ pub enum PathError<T: Real> {
     NonpositiveCircleRadius {
         /// The refused radius, meters (scalar-typed payload).
         radius: T,
+    },
+    /// **§2c**: a fused/endpoint-free arc spec whose authored datum
+    /// names no arc — a zero bulge (the arc degenerates to its chord),
+    /// or a sweep angle / arc length that is not definitely positive.
+    /// Classified through the funnel (`path_arc_bulge` /
+    /// `path_arc_sweep`).
+    DegenerateArcSpec {
+        /// The refused authored datum (bulge, angle, or length).
+        value: T,
     },
     /// A [`circle_split`] subdivision count below 2: one vertex cannot
     /// carry a full turn (bulge = tan(θ/4) diverges at θ = 2π), so the
@@ -755,7 +821,35 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  {carrier} carrier: tangent setback {setback:?} m exceeds the {available:?} m \
                  the anchor pins — reduce the radius or move the anchor"
             ),
+            Self::FilletOffsetLeverTooShort {
+                side,
+                carrier_radius,
+                offset_radius,
+                least_lever,
+                margin,
+            } => write!(
+                f,
+                "the {side} side's offset lever rho {offset_radius:?} m (carrier radius \
+                 {carrier_radius:?} m) is shorter than the {least_lever:?} m this corner's \
+                 scale needs at the run's tolerance (margin {margin:?} m): the fillet's \
+                 tangent point is recovered by projecting its centre back onto that \
+                 carrier, and dividing by a lever that short cannot place the point within \
+                 tolerance — move the fillet radius away from that side's carrier radius, \
+                 or bring the corner's carriers closer together"
+            ),
             Self::ArcCarrierSpelling { site } => write!(f, "{site}"),
+            Self::DegenerateArcSpec { value } => write!(
+                f,
+                "this arc spec's authored datum ({value:?}) names no arc: a zero bulge \
+                 degenerates to the chord (author a line), and a sweep angle or arc length \
+                 must be definitely positive"
+            ),
+            Self::SeamRetrimsArcFirstSide => write!(
+                f,
+                "a seam fillet retrims the entry vertex, so it needs a straight first side; \
+                 to close onto an arc carrier and KEEP the entry vertex, use \
+                 fillet_arc(r, Center {{ c, winding, p: Start }})"
+            ),
             Self::NonpositiveLeg { length } => write!(
                 f,
                 "a leg must advance the tip by a definitely positive length (got {length:?} m): \
@@ -923,8 +1017,9 @@ struct TangentArcGeom<T: Real> {
 /// that genuinely needs a number. Every ray construction reads
 /// [`Dir::unit`]; nothing rebuilds a ray from [`Dir::ang`], so
 /// exactness survives every hop it can.
+#[doc(hidden)]
 #[derive(Clone, Copy, Debug)]
-struct Dir<T: Real> {
+pub struct Dir<T: Real> {
     /// The direction's angle, radians.
     ang: T,
     /// The unit ray — exact when the director authored components.
@@ -982,9 +1077,10 @@ struct Tip<T: Real> {
 struct PosData<T: Real> {
     at: Point2<T>,
     incoming: Option<Incoming<T>>,
-    /// **G2 §3a**: the ARC CARRIER this position was bound ON, when it
-    /// was bound by `.at_on(p, centre, winding)` — the symmetric
-    /// arrival bit to the departure side's [`Incoming::carrier`].
+    /// **RETIRING (§2b compat)**: the ARC CARRIER this position was
+    /// bound ON by a retired `at_on` door — the compat shim's buffer,
+    /// deleted with it at the consumer re-spell. The §2c family never
+    /// sets it (an OnArc tip is its own state).
     ///
     /// This is the widened *payload* of the position slot, not a new
     /// slot: §5's one-struct shape is unchanged (still `pos` and `ang`,
@@ -1005,41 +1101,39 @@ enum FirstSeg {
     Arc,
 }
 
-/// An opened fillet awaiting its arrival side (the `Open` state's
-/// runtime content): the consumed departure ray, the radius, and the
-/// ray-origin junction's book-keeping for the zero-fit knife edges.
+/// Chain-side bookkeeping for an opened fillet — the §4 item 4
+/// zero-fit knife-edge data. This is NOT part of the kernel's
+/// [`verbs::Pending`] state value: the kernel cannot name it, which is
+/// what keeps the verbs pure (§2c round 12).
 #[derive(Clone, Debug)]
-struct PendingFillet<T: Real> {
-    origin: Point2<T>,
-    ang: Dir<T>,
-    radius: T,
-    /// The ray was bound by `.tangent()` (its origin joint is already
-    /// declared).
+struct PendingMeta<T: Real> {
+    /// The ray was bound by `.tangent()` (or ray-extended off a leg
+    /// end): its origin joint is already declared.
     by_tangent: bool,
     /// The ray origin's incoming carrier, if the origin was a leg end.
     origin_incoming: Option<Incoming<T>>,
-    /// **G2 §3a**: the fillet's INCOMING side runs on this arc carrier
-    /// — set exactly when the departure tip was bound by `.at_on`.
-    ///
-    /// It is never inferred: a `.tangent()` departure off an arc leg
-    /// still fillets against the tangent LINE, as it always has, because
-    /// the carrier there is a value the author did not name. Authoring
-    /// the carrier is what makes the side circular.
-    carrier: Option<(Point2<T>, ArcSweep)>,
+    /// **RETIRING (§2b compat)**: the carrier a retired `at_on` door
+    /// bound the departure tip on. Only the retired arrival doors read
+    /// it; the §2c family never sets it, and the generic binders refuse
+    /// on it exactly as the register always did.
+    compat_carrier: Option<(Point2<T>, ArcSweep)>,
 }
 
 /// The accumulated lowering state: the vertex chain emitted so far
-/// (mirroring [`crate::LoopBuilder`]'s emission verb-for-verb), the
+/// (mirroring the raw chain builder's emission verb-for-verb), the
 /// declared joints, the entry pose (the [`Start`] value), and the
 /// pending fillet, if a side is open.
+#[doc(hidden)]
 #[derive(Clone, Debug)]
-struct Core<T: Real> {
+pub struct Core<T: Real> {
     verts: Vec<ProfileVertex<T>>,
     tangent: Vec<usize>,
     start_pos: Option<Point2<T>>,
     start_ang: Option<Dir<T>>,
     first_seg: FirstSeg,
-    pending: Option<PendingFillet<T>>,
+    pending: Option<verbs::Pending<T>>,
+    /// Chain-side knife-edge bookkeeping for `pending` (same lifetime).
+    pending_meta: Option<PendingMeta<T>>,
     /// The carrier of the last emitted segment when it is an arc.
     last_arc: Option<ArcData<T>>,
     /// **Profiles-as-programs (v2)**: the authoring verbs, recorded as
@@ -1057,6 +1151,7 @@ impl<T: Real> Core<T> {
             start_ang: None,
             first_seg: FirstSeg::NotYet,
             pending: None,
+            pending_meta: None,
             last_arc: None,
             program: Vec::new(),
         }
@@ -1078,7 +1173,7 @@ impl<T: Real> Core<T> {
     }
 
     /// Sets the bulge of the segment leaving the current last vertex —
-    /// exactly [`crate::LoopBuilder`]'s `set_leaving_bulge`, plus the
+    /// exactly the raw builder's `set_leaving_bulge`, plus the
     /// structural first-segment kind pin.
     fn set_leaving(&mut self, bulge: T, kind: FirstSeg) -> Result<(), PathError<T>> {
         if self.verts.len() == 1 && self.first_seg == FirstSeg::NotYet {
@@ -1095,7 +1190,7 @@ impl<T: Real> Core<T> {
         }
     }
 
-    /// Appends a straight segment to `p` (LoopBuilder `line_to`).
+    /// Appends a straight segment to `p` (the raw `line_to`).
     fn push_line(&mut self, p: Point2<T>) -> Result<(), PathError<T>> {
         self.set_leaving(T::zero(), FirstSeg::Line)?;
         self.verts.push(ProfileVertex {
@@ -1106,7 +1201,7 @@ impl<T: Real> Core<T> {
         Ok(())
     }
 
-    /// Appends an arc segment to `p` with `bulge` (LoopBuilder
+    /// Appends an arc segment to `p` with `bulge` (the raw
     /// `arc_to`), remembering the carrier for identity checks.
     fn push_arc(
         &mut self,
@@ -1134,7 +1229,7 @@ impl<T: Real> Core<T> {
     }
 
     /// Declares the joint at the current last vertex tangent
-    /// (LoopBuilder `declare_tangent`).
+    /// (the raw `declare_tangent`).
     fn declare_last(&mut self) {
         if let Some(last) = self.verts.len().checked_sub(1) {
             self.tangent.push(last);
@@ -1298,6 +1393,80 @@ fn fillet_arc_carrier<T: Real>(trims: &LineFilletTrims<T>, u2: Vec2<T>, radius: 
 }
 
 impl<T: Decide> Core<T> {
+    /// Takes the opened fillet and its chain-side bookkeeping together.
+    fn take_pending(
+        &mut self,
+        site: &'static str,
+    ) -> Result<(verbs::Pending<T>, PendingMeta<T>), PathError<T>> {
+        let pending = self
+            .pending
+            .take()
+            .ok_or(PathError::OverdeterminedJunction { site })?;
+        let meta = self.pending_meta.take().unwrap_or(PendingMeta {
+            by_tangent: false,
+            origin_incoming: None,
+            compat_carrier: None,
+        });
+        Ok((pending, meta))
+    }
+
+    /// Resolves a FUSED-incoming fillet (`Pending::Arc`) against a
+    /// STRAIGHT arrival (the generic binders' ray, the far-end anchor,
+    /// or the seam): the boundary machinery derives the corner from the
+    /// authored carrier × the arrival ray, and the chain applies the
+    /// emissions — the trimmed incoming run along its own carrier, then
+    /// the fillet arc (interior) or the closing retrim (seam).
+    fn resolve_arc_pending_ray_arrival(
+        &mut self,
+        arc: verbs::PendingArc<T>,
+        _meta: PendingMeta<T>,
+        arr_pos: Point2<T>,
+        arr_ang: Dir<T>,
+        kind: ArrivalKind,
+    ) -> Result<(ArcData<T>, Sign), PathError<T>> {
+        // The seam gate runs BEFORE resolution, exactly as the straight
+        // path's does: retrimming an arc first side is refused whatever
+        // the corner would have been.
+        if kind == ArrivalKind::Seam && self.first_seg != FirstSeg::Line {
+            return Err(PathError::SeamRetrimsArcFirstSide);
+        }
+        let incoming = arc_fillet::FilletSide {
+            anchor: arc.anchor,
+            carrier: arc_fillet::SideCarrier::Circle {
+                centre: arc.centre,
+                winding: arc.winding,
+            },
+        };
+        let arrival = arc_fillet::FilletSide {
+            anchor: arr_pos,
+            carrier: arc_fillet::SideCarrier::Ray(arr_ang.unit),
+        };
+        let trims = (arc.resolver)(incoming, arrival, arc.radius, Tolerance::get())?;
+        self.emit_fillet_in(&trims, false)?;
+        match kind {
+            ArrivalKind::Seam => {
+                // The fillet arc IS the closing segment; the entry
+                // vertex retrims to its end and joint 0 is the
+                // constructed seam tangency (the straight seam's rule).
+                self.set_leaving(trims.bulge, FirstSeg::Arc)?;
+                match self.verts.first_mut() {
+                    Some(v0) => v0.pos = trims.t2,
+                    None => {
+                        return Err(PathError::UnderdeterminedLeg {
+                            site: "seam fillet on an empty chain",
+                        });
+                    }
+                }
+                self.tangent.push(0);
+            }
+            ArrivalKind::Continues => self.emit_fillet_arc(&trims, true)?,
+            ArrivalKind::EndsAtAnchor => {
+                self.emit_fillet_arc(&trims, trims.fit_out == Sign::Positive)?;
+            }
+        }
+        Ok((trims.arc, trims.fit_out))
+    }
+
     /// Resolves an opened fillet the moment its arrival side is
     /// Directed (PATHS-DESIGN §2: the r-arc tangent to both carriers is
     /// inserted at their implicit virtual corner, trimming both).
@@ -1319,27 +1488,29 @@ impl<T: Decide> Core<T> {
         arr_ang: Dir<T>,
         kind: ArrivalKind,
     ) -> Result<(ArcData<T>, Sign), PathError<T>> {
-        let pending = self
-            .pending
-            .take()
-            .ok_or(PathError::OverdeterminedJunction {
-                site: "fillet resolution without an opened fillet",
-            })?;
-        // G2: this is the STRAIGHT-carrier resolution and stays exactly
-        // what it was, bracket-free, bit-for-bit. A departure bound on
-        // an arc carrier is resolved by the boundary module instead
-        // (`arc_fillet::resolve`, which reads the S8 channel), reached
-        // through the carrier-aware arrival binders; a straight arrival
-        // door cannot complete it, and says so.
-        if pending.carrier.is_some() {
+        let (pending, meta) = self.take_pending("fillet resolution without an opened fillet")?;
+        let pending = match pending {
+            verbs::Pending::Ray(ray) => ray,
+            // §2c: a fused verb AUTHORED the incoming arc, so a straight
+            // arrival completes it through the boundary machinery — the
+            // old carrier-keyed refusal is gone with the register.
+            verbs::Pending::Arc(arc) => {
+                return self.resolve_arc_pending_ray_arrival(arc, meta, arr_pos, arr_ang, kind);
+            }
+        };
+        // §2b compat: a departure bound on a carrier by the RETIRED
+        // `at_on` door still refuses the generic straight arrivals,
+        // exactly as the register did, until those doors delete.
+        if meta.compat_carrier.is_some() {
             return Err(PathError::ArcCarrierSpelling {
                 site: "a fillet departing on an arc carrier binds its arrival with \
-                       .at_on(p, centre, winding) or .to_on(Start, centre, winding) — a \
-                       straight-carrier arrival door cannot resolve it",
+                       .at_on(p, centre, winding), .at_toward(p, dx, dy) (a STRAIGHT \
+                       arrival — LB10 route 3) or .to_on(Start, centre, winding); the \
+                       generic straight-carrier arrival doors cannot resolve it",
             });
         }
         let band = linear_band()?;
-        let u1 = pending.ang.unit;
+        let u1 = pending.dir.unit;
         let u2 = arr_ang.unit;
         let w = arr_pos - pending.origin;
         let wn = w.norm_squared().sqrt();
@@ -1382,17 +1553,12 @@ impl<T: Decide> Core<T> {
         }
         // (3) a `.to(Start)` seam RETRIMS the entry vertex, so the
         // segment leaving it must be the straight side 1 — retrimming
-        // the start of an arc would slide that arc off its own carrier.
-        // G2 does not relax this (LB5: the rocker outline's mid-arc seam
-        // vertex is authored topology); it gives the case its own door,
-        // `.to_on(Start, centre, winding)`, which CLOSES on the entry's
-        // carrier and keeps the vertex instead of eating it.
+        // the start of an arc would slide that arc off its own carrier
+        // (LB5: a mid-arc seam vertex is authored topology). Closing
+        // onto a carrier and KEEPING the vertex is the arc-arrival
+        // close, `fillet_arc(r, Center { c, winding, p: Start })`.
         if kind == ArrivalKind::Seam && self.first_seg != FirstSeg::Line {
-            return Err(PathError::ArcCarrierSpelling {
-                site: "a seam fillet that retrims the entry vertex needs a straight first \
-                       side; to close onto an arc carrier and KEEP the entry vertex, use \
-                       .to_on(Start, centre, winding)",
-            });
+            return Err(PathError::SeamRetrimsArcFirstSide);
         }
         let corner = pending.origin + u1 * t_ray;
         // (4) the shared line×line closed form, anchored: head = the
@@ -1401,16 +1567,28 @@ impl<T: Decide> Core<T> {
             .map_err(map_fillet_err)?;
         let arc = fillet_arc_carrier(&trims, u2, pending.radius);
         // (5) incoming side emission: Positive fit emits the straight
-        // piece + declared joint (exactly LoopBuilder::fillet); Zero
+        // piece + declared joint (exactly the raw fillet's rule); Zero
         // fit springs the arc off the last vertex — if that joint
         // carries a declared flag (a `.tangent()` ray, or a previous
         // fillet's arc end), §4 item 4 refuses carrier identity there.
         if trims.fit_in == Sign::Positive {
-            self.push_line(trims.t1)?;
-            self.declare_last();
+            if meta.by_tangent
+                && meta
+                    .origin_incoming
+                    .as_ref()
+                    .is_some_and(|i| i.carrier.is_none())
+            {
+                // Ray extension of a STRAIGHT leg: extend the leg
+                // itself (see `extend_leg_to`); the joint declared at
+                // the leg's end is the leg→arc tangency.
+                self.extend_leg_to(trims.t1)?;
+            } else {
+                self.push_line(trims.t1)?;
+                self.declare_last();
+            }
         } else if self.last_declared() {
-            let adjacent = if pending.by_tangent {
-                pending.origin_incoming.as_ref().and_then(|inc| inc.carrier)
+            let adjacent = if meta.by_tangent {
+                meta.origin_incoming.as_ref().and_then(|inc| inc.carrier)
             } else {
                 self.last_arc
             };
@@ -1419,7 +1597,7 @@ impl<T: Decide> Core<T> {
             }
         }
         // (6) the arc. Interior: emitted, its outgoing joint declared
-        // (Positive fit: as LoopBuilder::fillet; Zero fit: the
+        // (Positive fit: as the raw fillet; Zero fit: the
         // continuation extends the arrival carrier tangentially by
         // construction, so the algebra declares what a hand author
         // must declare manually). Seam: the arc IS the closing
@@ -1462,9 +1640,14 @@ impl<T: Decide> Core<T> {
     /// reproduce the hand-authored loop to the bit. A `Zero` fit emits
     /// nothing and springs the arc off the last vertex, where §4 item 4
     /// refuses carrier identity against an already-declared neighbour.
-    fn emit_fillet_in(&mut self, t: &arc_fillet::ArcFilletTrims<T>) -> Result<(), PathError<T>> {
+    fn emit_fillet_in(
+        &mut self,
+        t: &arc_fillet::ArcFilletTrims<T>,
+        merge: bool,
+    ) -> Result<(), PathError<T>> {
         if t.fit_in == Sign::Positive {
             match t.in_arc {
+                None if merge => self.extend_leg_to(t.t1)?,
                 None => self.push_line(t.t1)?,
                 Some((centre, sweep)) => {
                     let head = self.head()?;
@@ -1480,13 +1663,36 @@ impl<T: Decide> Core<T> {
                     )?;
                 }
             }
-            self.declare_last();
+            if !(t.in_arc.is_none() && merge) {
+                self.declare_last();
+            }
         } else if self.last_declared()
             && let Some(adj) = self.last_arc
         {
             refuse_identical_carriers(&adj, &t.arc)?;
         }
         Ok(())
+    }
+
+    /// **§2c round 10 (ray extension after a STRAIGHT leg)**: the
+    /// surviving ray piece and the leg it extends share one carrier, so
+    /// emitting it as a separate segment would mint the collinear
+    /// neighbor §4 item 4 forbids — instead the leg's own end vertex
+    /// MOVES to the trim point (the §4 exemption, "extends one leg",
+    /// applied at emission). The leg's authored end stays on the final
+    /// path, interior to the extended segment, and the joint the
+    /// extension declared becomes the leg→fillet-arc tangency — exactly
+    /// what a hand author drawing the leg long would have written.
+    fn extend_leg_to(&mut self, t1: Point2<T>) -> Result<(), PathError<T>> {
+        match self.verts.last_mut() {
+            Some(v) => {
+                v.pos = t1;
+                Ok(())
+            }
+            None => Err(PathError::UnderdeterminedLeg {
+                site: "ray extension on an empty chain",
+            }),
+        }
     }
 
     /// **G2**: emits the fillet arc itself as a chain segment, declaring
@@ -1973,8 +2179,9 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         Ok((pos.at, ang))
     }
 
-    /// **G2**: refuses a verb that would leave the arc carrier this tip
-    /// was bound ON (`.at_on`), naming what to write instead.
+    /// **§2b compat**: refuses a verb that would leave the arc carrier
+    /// a retired `at_on` door bound this tip ON, naming what to write
+    /// instead (deleted with the compat shim).
     ///
     /// A carrier-bound tip's side runs ALONG its circle; the carrier run
     /// is emitted by whatever trims it (the next `.fillet(r)`'s
@@ -2055,13 +2262,15 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Ok(_) => return Err(PathError::NonpositiveFilletRadius { radius }),
             Err(source) => return Err(PathError::Escalated { source }),
         }
-        self.core.pending = Some(PendingFillet {
+        self.core.pending = Some(verbs::Pending::Ray(verbs::PendingRay {
             origin: at,
-            ang,
+            dir: ang,
             radius,
+        }));
+        self.core.pending_meta = Some(PendingMeta {
             by_tangent: self.tip.ang_by_tangent,
             origin_incoming: self.tip.pos.as_ref().and_then(|p| p.incoming),
-            carrier: self.tip.pos.as_ref().and_then(|p| p.on),
+            compat_carrier: self.tip.pos.as_ref().and_then(|p| p.on),
         });
         Ok(in_state(
             self.core,
@@ -2193,12 +2402,10 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     /// direction from chord + bulge, the M2 convention: b = tan(θ/4),
     /// start tangent = chord − θ/2). On a directed point the junction
     /// check runs on the arc's start tangent. `arc_to(Start, b)` is
-    /// the sharp arc seam. On a fillet arrival this refuses
-    /// [`PathError::ArcCarrierSpelling`] (G2): an arc arrival is not
-    /// out of scope any more, it is bound by its CARRIER —
-    /// `.at_on(p, centre, winding)` / `.to_on(Start, centre, winding)`
-    /// — rather than by an arc LEG from an already-bound arrival
-    /// point, and the refusal names that door.
+    /// the sharp arc seam. On a fillet arrival this refuses (§2c): an
+    /// arc arrival is bound by its CARRIER through the fused verbs'
+    /// arrival specs, never by an arc LEG from an already-bound
+    /// arrival point, and the refusal names that door.
     pub fn arc_to<Tgt: ArcTarget<T, F>>(self, target: Tgt, bulge: T) -> Tgt::Out {
         Tgt::arc_from(self, target, bulge)
     }
@@ -2216,7 +2423,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     /// bulge's input. The bulge is derived at lowering by the existing
     /// closed form [`crate::bulge_from_via`] (inscribed angle,
     /// tan(Δ/2)), never re-typed by the author; a hand chain's
-    /// `LoopBuilder::arc_to_via` feeds that same function the same three
+    /// the raw `arc_to_via` feeds that same function the same three
     /// points, so the two doors emit the same bits.
     ///
     /// Refusals beyond `arc_to`'s: a through-point within ε_input of
@@ -2246,7 +2453,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
     /// bug in the authoring, and the refusal says which two disagree.
     ///
     /// The bulge is derived at lowering by [`crate::bulge_from_center`],
-    /// bit-for-bit as `LoopBuilder::arc_to_center` derives it. Junction
+    /// bit-for-bit as the raw `arc_to_center` derives it. Junction
     /// semantics are `arc_to`'s; `arc_center(c, Start, w)` is the sharp
     /// arc seam. A centre within ε_input of an endpoint refuses
     /// [`PathError::DegenerateArcCenter`].
@@ -2630,10 +2837,10 @@ pub trait ArcTarget<T: Decide, F: Flavor>: sealed::Sealed {
 impl<T: Decide, F: Flavor> ArcTarget<T, F> for Point2<T> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
     fn arc_from(mut path: PartialPath<T, HasPos<F>, NoAng>, target: Self, bulge: T) -> Self::Out {
-        path.core.record(Step::ArcTo {
+        path.core.record(Step::ArcTo(ArcSpecData::Bulge {
             target: Target::Point(target),
-            bulge,
-        });
+            b: bulge,
+        }));
         path.arc_to_point(target, bulge)
     }
 }
@@ -2641,10 +2848,10 @@ impl<T: Decide, F: Flavor> ArcTarget<T, F> for Point2<T> {
 impl<T: Decide, F: Flavor> ArcTarget<T, F> for Start {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
     fn arc_from(mut path: PartialPath<T, HasPos<F>, NoAng>, _target: Self, bulge: T) -> Self::Out {
-        path.core.record(Step::ArcTo {
+        path.core.record(Step::ArcTo(ArcSpecData::Bulge {
             target: Target::Start,
-            bulge,
-        });
+            b: bulge,
+        }));
         path.arc_to_start(bulge)
     }
 }
@@ -2670,10 +2877,10 @@ impl<T: Decide, F: Flavor> ArcViaTarget<T, F> for Point2<T> {
         via: Point2<T>,
         target: Self,
     ) -> Self::Out {
-        path.core.record(Step::ArcVia {
-            via,
+        path.core.record(Step::ArcTo(ArcSpecData::Via {
+            q: via,
             target: Target::Point(target),
-        });
+        }));
         let bulge = path.arc_via_bulge(via, target)?;
         path.arc_to_point(target, bulge)
     }
@@ -2686,10 +2893,10 @@ impl<T: Decide, F: Flavor> ArcViaTarget<T, F> for Start {
         via: Point2<T>,
         _target: Self,
     ) -> Self::Out {
-        path.core.record(Step::ArcVia {
-            via,
+        path.core.record(Step::ArcTo(ArcSpecData::Via {
+            q: via,
             target: Target::Start,
-        });
+        }));
         let bulge = path.arc_via_bulge(via, path.start_target()?)?;
         path.arc_to_start(bulge)
     }
@@ -2718,11 +2925,11 @@ impl<T: Decide, F: Flavor> ArcCenterTarget<T, F> for Point2<T> {
         target: Self,
         winding: ArcSweep,
     ) -> Self::Out {
-        path.core.record(Step::ArcCenter {
-            centre: center,
-            target: Target::Point(target),
+        path.core.record(Step::ArcTo(ArcSpecData::Center {
+            c: center,
             winding,
-        });
+            target: Target::Point(target),
+        }));
         let bulge = path.arc_center_bulge(center, target, winding)?;
         path.arc_to_point(target, bulge)
     }
@@ -2736,11 +2943,11 @@ impl<T: Decide, F: Flavor> ArcCenterTarget<T, F> for Start {
         _target: Self,
         winding: ArcSweep,
     ) -> Self::Out {
-        path.core.record(Step::ArcCenter {
-            centre: center,
-            target: Target::Start,
+        path.core.record(Step::ArcTo(ArcSpecData::Center {
+            c: center,
             winding,
-        });
+            target: Target::Start,
+        }));
         let bulge = path.arc_center_bulge(center, path.start_target()?, winding)?;
         path.arc_to_start(bulge)
     }

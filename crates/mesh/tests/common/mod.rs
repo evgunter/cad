@@ -8,6 +8,7 @@ use geom_core::{Point2, Point3, Tolerance, Vec2};
 use geom_surfaces::Surface;
 use mesh::validate::{check_mesh, signed_volume};
 use mesh::{Mesh, tessellate};
+use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;

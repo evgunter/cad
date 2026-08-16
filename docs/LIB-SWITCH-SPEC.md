@@ -39,7 +39,7 @@ silent fixes.
 ## 0. Discipline (absolute)
 
 ≤~150 lines per tool call; chunked reads; skeleton-first writes.
-Every heavy cargo row `scripts/with-build-slot.sh -- cargo ...`,
+Every heavy cargo row `local-scripts/with-build-slot.sh -- cargo ...`,
 synchronous FOREGROUND, long timeouts (≤590000), one at a time;
 NEVER background or park. Clippy at default AND
 `--features interval`, plus the discipline greps, BEFORE each PR.
@@ -375,7 +375,16 @@ UNTOUCHED: the #101 verify layer and the validate ladder
 `LoopBuilder` (stays public, stays the kernel raw layer; kernel
 tour scenes stay as-authored, incl. the PERMANENTLY-raw bowtie,
 bodies.rs:403-418 — kernel-layer, never persisted, no schema
-seat); junction predicates and the k_stats funnel; downstream
+seat) **[AMENDED — LIB-RETTAIL, Evan's ruling on #413,
+2026-08-12: this clause is spent. `LoopBuilder` left the public
+surface at LIB-LBRET; raw `ProfileLoop` CONSTRUCTION left the
+presented surface here (the doors moved to the `RawLoop` trait,
+which `pncad` does not re-export); and the bowtie is neither
+permanent nor a tour scene — "the broken-on-purpose bowtie
+cannot justify a public authoring tier", so it re-homed to
+`crates/profile/tests/rejections.rs` with its fail-loud oracle
+intact. What still stands from the sentence: raw loops are
+kernel-layer, never persisted, and hold no schema seat.]**; junction predicates and the k_stats funnel; downstream
 ops consume ValidatedProfile only, never programs; PQ4 and the
 §6 rulings (circle is a program FORM, not a PQ4 relaxation — the
 flagged sentence stands); sugar/fillet_select internals; names/

@@ -1,4 +1,4 @@
-# SELECT-DESIGN (draft): geometric selectors, the detect/declare protocol, and the GQ7 re-homing
+# SELECT-DESIGN: geometric selectors, the detect/declare protocol, and the GQ7 re-homing
 
 Status: **RATIFIED** (design conversation PR #286, 2026-08-09:
 Evan approved the recommendations round 1; GS-Q3 AMENDED round 2 —
@@ -41,11 +41,12 @@ exact-vs-decided reframing signed off.
   without a ledger row in `docs/predicate-dimension-audit.md`; the
   census assertion pins the count.
 
-## 1. The predicate vocabulary (PROPOSED FIRM core; convexity OPEN)
+## 1. The predicate vocabulary
 
-**The demand evidence is the P10 alphabet** — the two demo filters
+**The demand evidence is the fillet-selection alphabet** — the two
+demo filters
 that stayed hand-written against the kernel body because U7 was
-structural-only (`demos/tour/src/diefillet.rs:203-244`), plus the P9
+structural-only (`demos/tour/src/diefillet.rs:203-244`), plus the
 flush helper's decision triple (`demos/tour/src/booleans.rs:60-118`):
 
 1. *carrier kind of an edge's curve* ("the straight edges of the
@@ -53,8 +54,8 @@ flush helper's decision triple (`demos/tour/src/booleans.rs:60-118`):
 2. *adjacent-surface-kind pair across an edge* ("the plane/sphere
    rims" — face kind on `he_plus`/`he_minus`);
 3. *flush-plane face pairing* (parallel + co/anti-oriented + zero
-   offset — the P9 triple, §3's detector);
-4. *convexity* — NOT actually used: P10's comment says the kind-pair
+   offset — the flush helper's triple, §3's detector);
+4. *convexity* — NOT actually used: the demo's comment says the kind-pair
    test "stands in for concave rim". Demand is inferred, not
    measured.
 5. *position* — no corpus site uses it; it is GQ7's "filter" language
@@ -80,13 +81,13 @@ DECIDED, and only the DECIDED half is a margins-discipline site.**
   detection (§3's three margins), position comparisons, and — if it
   ships — convexity. Each is a `k_stats::decide` site with a
   `Margin` comparand where the dimension is honest, a static name
-  (`sel_*` prefix proposed, mirroring the funnel's naming
-  convention), and a ledger row if any comparand cannot honestly be
+  (the `sel_*` prefix, mirroring the funnel's naming convention),
+  and a ledger row if any comparand cannot honestly be
   a length (the #214 standing rule applies to selector sites exactly
   as to kernel sites — public API is not a discount lane).
 
-**Position predicates (PROPOSED FIRM form, the equivariance-shaped
-part).** Raw world-coordinate filters ("z ≈ 1") violate the
+**Position predicates (the equivariance-shaped part).** Raw
+world-coordinate filters ("z ≈ 1") violate the
 intrinsic-quantities preference: they bake an absolute frame into a
 selection rule. The house-consistent form: position predicates are
 **relative to a referenced datum** — signed distance to a datum
@@ -99,7 +100,7 @@ genuine lengths (`Margin` doors, no ledger debt). The comparison
 vocabulary is the sign trilean against a stated value: `≈ v` /
 `> v` / `< v` at the document ε-band — never a bare float equality.
 
-**Convexity (OPEN — recommendation: defer out of v1).** No 3D
+**Convexity — RESERVED, NOT BUILT (GS-Q2).** No 3D
 edge-convexity predicate exists in the kernel (the only shipped
 convex/reflex classification is the 2D vertex-sector one in
 `boolean/sectors.rs`). A dihedral-sign predicate is a genuinely new
@@ -107,17 +108,17 @@ decided predicate: comparand design (the honest margin is not
 obviously a length — likely a flagged-lane ledger conversation),
 sample-point choice along the edge, behavior on smooth (tangent)
 edges, and an equivariance check. Demand evidence is the weakest of
-the alphabet (P10 got "concave rim" via kind-pairs). Recommend:
-ship kind, adjacent-kind-pair, and datum-relative position in v1;
-bank convexity with a named design note so the vocabulary slot is
-reserved (`GeomPred::Convex`/`Reflex` naming reserved, unbuilt).
+the alphabet (the demo got "concave rim" via kind-pairs). So v1
+ships kind, adjacent-kind-pair and datum-relative position, and
+convexity keeps only its vocabulary slot — `GeomPred::Convex` /
+`Reflex` named and unbuilt.
 
 **Verdict recording** — deferred to ledger GS-Q1 (§7); short form:
 selector decisions go through the same funnel, so K-census
 participation is automatic and desirable, and the N4 replay pins
 are unaffected because materializers run outside evaluation.
 
-## 2. The selector algebra extension (PROPOSED FIRM)
+## 2. The selector algebra extension
 
 **Shape: the structural `Selector` is unchanged; geometry is a
 FILTER at the materializer, not a new pattern leaf.**
@@ -190,9 +191,9 @@ door is where the S8 ladder precedent (intrinsic ordering, Tied on
 in-band ties, documented residual) would bind; recorded here so it
 is designed, not improvised.
 
-## 3. The detect / declare / menu protocol (PROPOSED FIRM shape; sugar arity OPEN)
+## 3. The detect / declare / menu protocol
 
-**The census finding this section retires (LB11)**: the P9 demo
+**The census finding this section retires (LB11)**: the demo
 helper `flush_declarations` infers declarations from values —
 C4's forbidden pattern, legal only as fixture code, and its three
 decision sites (`demo_flush_parallel` bare sine, `demo_flush_orient`
@@ -224,7 +225,7 @@ an in-band pair is refused into the result honestly
 `SelectRefusal` alternative), never silently dropped.
 
 **(b) Detector = the C4 verifier run in candidate-generation mode
-(PROPOSED FIRM — the anti-twin rule).** The detector does NOT get
+(the anti-twin rule).** The detector does NOT get
 its own predicate triple. C4's `Rest` verify table already names
 the ladder (the kind-generalized `oriented_plane_eq` — shipped,
 `topo/src/boolean/plane_eq.rs` — plus sense opposition and overlap);
@@ -242,11 +243,12 @@ minted for detection — the interpretation-discipline contract is
 { pairs }` exists; the sugar is a document-layer convenience that
 takes explicitly-passed pairs and appends/creates a Declare node
 wired into the consuming Boolean. Thin by design. The arity
-question is GS-Q3 — RULED (round 2, amended): the boundary is
-FUSION, not arity. Both `declare(finding)` and
+question is GS-Q3, RULED: the boundary is FUSION, not arity. Both
+`declare(finding)` and
 `declare_all(findings: Vec<FlushFinding>)` ship; what stays
-forbidden permanently is a fused detect-and-declare door (P9's
-original shape), because the enforceable intent-recording property
+forbidden permanently is a fused detect-and-declare door (the demo
+helper's original shape), because the enforceable intent-recording
+property
 is that findings pass through user-visible hands AS VALUES — an
 arity restriction is defeated by a two-line for-loop, while the
 no-fusion rule is structural. C4's verify-at-use backstops lies
@@ -263,13 +265,48 @@ renders the finding; the GUI renders the same finding as its
 declare-affordance dialog (§4's one-type rule at work).
 
 **What ships first**: flush/`Rest` planes is the whole v1 detector —
-it is the only demand-evidenced case (P9, the boolean test suites,
+it is the only demand-evidenced case (the flush helper, the boolean
+test suites,
 the M4 declarer), and `Rest`'s verify ladder is the most mature.
 `Tangent` and `Fit` findings reuse the same `FlushFinding`/
 `ContactClass` shape when their demand arrives; the type is built
 for that from day one (the `class` field, not a `flush: bool`).
 
-## 4. GQ7 re-homing (PROPOSED FIRM)
+**(e) Where the vocabulary lives, and what M9-1 changed.** The
+`ContactClass` this section names is the KERNEL's
+(`topo::contact::ContactClass`, M9-1 PR-1): the boolean's own
+`UndeclaredContact` / `ContactContradicted` refusals must carry the
+same words the detector produces, and `topo` cannot depend on
+`editor-core`, so the enum is defined lowest and re-exported upward
+through `editor_core::names::flush` → `editor_core` → `pncad::select`
+→ the prelude. There is no parallel enum at any level, and the same
+door re-exports the rest of the vocabulary a rendered refusal needs
+(`CONTACT_RECOURSE`, `FIT_DEFERRAL`, `ContactVerdict`,
+`ContactRefusal`, `DeclaredContact`) so a message quotes the kernel's
+sentence rather than paraphrasing it.
+
+M9-1 PR-2 closed the gap between (a) and (c): `Node::Declare`'s pairs
+each carry their class, so the class a finding reports is the class
+the declaration records and the class the boolean verifies against —
+one vocabulary end-to-end, now as data and not only as a type. Before
+that change `declare_node` dropped `finding.class` on the floor, which
+was invisible while `Rest` was the only class and would have become a
+silent mis-verification the moment a second one existed.
+
+**What the detector still does NOT do.** The `Tangent` arm of
+`find_flush_candidates` is not built. Detecting a tangency needs the
+contact LOCUS — the kernel's `Tangent` table verifies *along* a curve
+— and the detector holds two faces from two unevaluated-together
+bodies with no shared edge between them. Supplying the locus in closed
+form is possible for exactly the certified-lane configurations (a
+plane and a cylinder tangent along a ruling; parallel cylinders), and
+that is geometry, so it belongs beside `carrier_pair_relation` in the
+kernel rather than in the recipe layer. Recorded here as the named
+next step rather than approximated: a detector that reported tangency
+candidates without a locus would be reporting something the verifier
+cannot check.
+
+## 4. GQ7 re-homing
 
 Per Evan's LB7-note ruling ("a bunch of general-usefulness stuff
 got originally mentioned in GUI-DESIGN even though it's more
@@ -300,7 +337,7 @@ sketcher/tree design time):
   changes what is selected. Purely a GUI-state convention (display
   layer, G1 layer-3) — the library never sees it because…
 
-**The one-type rule (PROPOSED FIRM).** A GUI selection is the SAME
+**The one-type rule.** A GUI selection is the SAME
 value as a recipe reference: `Vec<StableName>` — the exact type the
 structural materializer returns, `Node::Fillet`'s selection stores,
 and `Node::Declare` pairs are built from. G3's "selection feeds the
@@ -330,18 +367,19 @@ free, but a plain `Expr` is correct either way — soft, not a gate.
 **Sizing** (house scale): the whole design is **L, staged as two
 PRs / one A/B unit**:
 - PR-1 (**M**): `GeomPred` + `select_where` + Tied/in-band refusals
-  + pncad doors + tour demo rework (P10's hand-written filters
+  + pncad doors + tour demo rework (the hand-written filters
   become the acceptance evidence — diefillet's two filters rewrite
   to one `select_where` call each).
 - PR-2 (**M**): `find_flush_candidates` on the C4 verify ladder +
   declare sugar + the `UndeclaredContact` menu carrying
-  `FlushFinding` + P9 demo rework. (If the verifier needs
+  `FlushFinding` + flush-helper demo rework. (If the verifier needs
   refactoring to expose candidate-generation mode, PR-2 leans L —
   the named spec risk.)
 
 ## 6. Out of scope, recorded
 
-- **P5's declared-offset** (derived table = base + stated deltas):
+- **The declared-offset relation** (derived table = base + stated
+  deltas, LIBRARY-DESIGN U6):
   expression-layer / Expr-shared-subtree territory, re-homed to
   post-SWITCH-E per LB11(c). Noted so this doc is the pointer trail.
 - **"Nearest/first entity" ordering selectors**: §2's recorded
@@ -351,77 +389,58 @@ PRs / one A/B unit**:
 - **Fixture twins**: the demo/test declarers stay as they are —
   LB11's ruling; the ledger rows continue to document them.
 
-## 7. Question ledger
+## 7. Question ledger — the rulings and their grounds
 
-**GS-Q1 — Do selector-predicate decisions enter the K census?**
-The funnel records automatically (one `Cell` write; `MarginSample`s
-at Probe; `Verdict` pushes only when a test installs a log).
-*Alternatives*: (a) selectors use `decide` verbatim — decisions are
-K-census participants; (b) a separate `sel_*` recording lane; (c)
-suppress recording for selector queries. *Recommendation: (a),
-with the naming convention doing the separation.* Selector margins
-are real topology-adjacent margins — their ε-band behavior is
-exactly what the K telemetry wants more of; a second funnel is
-machinery without a customer. The N4 replay concern dissolves on
-inspection: verdict logs are installed by tests around specific
-operations, and materializers run OUTSIDE evaluation, so no shipped
-pin sees selector verdicts unless a test asks to (and the `sel_*`
-prefix lets any consumer filter). The honest cost of (a): a
-selector query between two evaluations perturbs a thread-local
-verdict log spanning both — rule it as "logs bracket operations,
-not sessions", which is how every existing pin already uses them.
+**GS-Q1 — Selector-predicate decisions DO enter the K census**, via
+`decide` verbatim, with the `sel_*` naming convention doing the
+separation. Ground: selector margins are real topology-adjacent
+margins, and their ε-band behaviour is exactly what the K telemetry
+wants more of; a second funnel would be machinery without a
+customer. The N4 replay concern dissolves because verdict logs are
+installed by tests around specific operations and materializers run
+OUTSIDE evaluation, so no shipped pin sees selector verdicts unless
+a test asks. Honest cost, ruled acceptable: a selector query between
+two evaluations perturbs a thread-local verdict log spanning both —
+logs bracket operations, not sessions, which is how every existing
+pin already uses them.
 
-**GS-Q2 — Does convexity ship in v1?** No kernel predicate exists
-(checked: only the 2D vertex-sector convex/reflex classifier);
-comparand design is genuinely open (dihedral sign at a sample —
-likely flagged-lane, needs a ledger conversation); demand evidence
-is a comment, not a call site. *Alternatives*: build it now (the
-alphabet feels complete; fillet users say "concave edges") vs
-reserve the slot. *Recommendation: reserve, don't build.* The P10
-evidence shows kind-pairs covered the real case; a wrong margin
-design shipped into public API is much more expensive than a
-follow-up unit. Reserving the enum name keeps the door visibly
-open.
+**GS-Q2 — Convexity does NOT ship in v1: the slot is reserved, not
+built.** Ground: no kernel predicate exists (only the 2D
+vertex-sector convex/reflex classifier), comparand design is
+genuinely open (dihedral sign at a sample — likely flagged-lane),
+and the demand evidence is a comment rather than a call site, since
+the demo's kind-pairs covered the real case. A wrong margin design
+shipped into public API costs far more than a follow-up unit.
 
-**GS-Q3 — Detector findings vs LB7's "values never verdicts" line —
-and how much declare-sugar is legal?** The apparent tension: a
-detector RETURNS finding objects that look verdict-shaped. The
-resolution this draft takes: the line's real content is that values
-never become TOPOLOGY without a structural/declared rung — and the
-ladder itself blesses detection as "a diagnostic/affordance only".
-A `FlushFinding` is a value about values; only `Node::Declare`
-(explicit, recipe-recorded, verified-at-use) crosses the line, and
-C4 polices that crossing. **RULED (round-2 amendment): the
-boundary is FUSION, not arity.** Both `declare(finding)` and
-`declare_all(findings: Vec<FlushFinding>)` ship; a fused
-detect-and-declare door is forbidden permanently. The enforceable
-intent-recording property is that findings pass through
-user-visible hands AS VALUES (separate detect and declare calls,
-inspectable in between) — the per-finding-only alternative was
-considered and dropped because it is defeated by a two-line user
-loop, penalizing the legitimate many-pair case without preventing
-anything; C4's verify-at-use backstops lies either way.
+**GS-Q3 — The detect/declare boundary is FUSION, not arity.** The
+apparent tension is that a detector returns finding objects that
+look verdict-shaped; the resolution is that LB7's line forbids
+values becoming TOPOLOGY without a structural/declared rung, and the
+coincidence ladder itself blesses detection as "a diagnostic/
+affordance only". A `FlushFinding` is a value about values; only
+`Node::Declare` crosses the line, and C4 polices that crossing. So
+both `declare(finding)` and `declare_all(findings)` ship, and a
+fused detect-and-declare door is forbidden permanently: the
+enforceable property is that findings pass through user-visible
+hands AS VALUES. A per-finding-only restriction was considered and
+dropped — a two-line user loop defeats it, so it penalizes the
+legitimate many-pair case without preventing anything.
 
-**GS-Q4 — Tied-name × geometric-filter semantics.** §2 proposes the
-trilean (all-match include / none-match exclude / mixed refuse).
-*Alternative*: exclude Tied names from geometric selection entirely
-(simpler, but silently shrinks results — the staleness-shaped sin).
-*Recommendation: the trilean* — it is Q1's shape applied to
-name-level ambiguity, and mixed-tie refusal messages name the
-entities, which is actionable.
+**GS-Q4 — Tied names meet geometric filters as a trilean** (§2:
+all-match include / none-match exclude / mixed refuse). Ground: it
+is Q1's shape applied to name-level ambiguity, and mixed-tie
+refusals name the entities, which is actionable. Excluding Tied
+names outright was rejected as the staleness-shaped sin — it
+silently shrinks results.
 
-**GS-Q5 — Where does the ratified text live?** *Alternatives*: (a)
-a new `docs/SELECT-DESIGN.md` (this file, promoted); (b) a section
-in LIBRARY-DESIGN.md. *Recommendation: (a)* — three consumers
-(library, GUI, contact) already cross-reference it, matching the
-CONTACT-DESIGN precedent for a cross-cutting concern; LIBRARY-
-DESIGN stays the program/ladder doc.
+**GS-Q5 — The ratified text lives here**, as its own
+`docs/SELECT-DESIGN.md`, rather than as a LIBRARY-DESIGN section:
+three consumers (library, GUI, contact) cross-reference it, matching
+the CONTACT-DESIGN precedent for a cross-cutting concern, and
+LIBRARY-DESIGN stays the program/ladder doc.
 
-**GS-Q6 — Datum-relative-only position: too strict?** §1 forbids
-raw world-coordinate filters. A user with one part and no datum
-must reference the origin datum explicitly. *Alternative*: allow a
-world-frame convenience door. *Recommendation: keep datum-only* —
-the origin datum exists in every document, the explicitness is one
-argument, and the equivariance discipline says selection rules
-should not privilege a frame silently. Cheap to relax later;
-impossible to retract.
+**GS-Q6 — Position predicates stay datum-relative only**; no
+world-frame convenience door. Ground: the origin datum exists in
+every document so the explicitness costs one argument, and the
+equivariance discipline says selection rules must not privilege a
+frame silently. Cheap to relax later, impossible to retract.
