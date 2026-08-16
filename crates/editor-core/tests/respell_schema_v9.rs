@@ -23,10 +23,10 @@ const V8: &str = include_str!("golden/v8_golden.cad");
 
 #[test]
 fn schema_version_is_current() {
-    // Moved twice since this row was written (ASM-UPD's v10
-    // `UpdateReference` edit arm, then LIB-PLACEDUNION's v11 group
-    // boolean) — the convention is that a bump
-    // updates every pin it invalidates, so the number stays exact
+    // Moved three times since this row was written (ASM-UPD's v10
+    // `UpdateReference` edit arm, M9-1's v11 declaration class, then
+    // LIB-PLACEDUNION's v12 group boolean) — the convention is that a
+    // bump updates every pin it invalidates, so the number stays exact
     // here. This file keeps pinning the v8 refusal fixture below,
     // which is what the row is actually about.
     assert_eq!(SCHEMA_VERSION, 12);

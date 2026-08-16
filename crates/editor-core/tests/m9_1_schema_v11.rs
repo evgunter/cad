@@ -45,7 +45,9 @@ const V8: &str = include_str!("golden/v8_golden.cad");
 const V1: &str = include_str!("golden/v1_golden.cad");
 
 #[test]
-fn schema_version_is_eleven() {
+fn schema_version_is_current() {
+    // Named for the PROPERTY, not the number (the `lbret_schema_v8`
+    // precedent): M9-1's own bump was v11; LIB-PLACEDUNION took v12, and the number is exactly what keeps moving.
     assert_eq!(SCHEMA_VERSION, 12);
 }
 

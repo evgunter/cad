@@ -497,15 +497,17 @@ pub enum NodeErrorKind {
         /// The higher placement index.
         j: usize,
     },
-    /// A placement-rule node's rule and count slot disagree about how
-    /// many placements there are — an `Explicit` rule paired with a
-    /// count, or a stepped rule without one.
+    /// A placement-rule node's rule is unusable — the count spelled two
+    /// ways, an EMPTY explicit placement list, or a non-finite /
+    /// improper frame.
     ///
-    /// Unreachable through `apply` (the edit door refuses it there,
-    /// with the better diagnostics); kept as a typed evaluation
-    /// refusal so a hand-built document fails loudly instead of
-    /// picking one of the two answers.
-    PlacementRuleMismatch,
+    /// Unreachable through `apply` (the edit door refuses all four
+    /// there, with the better diagnostics) and through `load` (the
+    /// snapshot check re-refuses them); kept as a typed evaluation
+    /// refusal so a hand-built document fails loudly and BY NAME —
+    /// an empty list must not denote an empty body, and a poisoned
+    /// frame must not read as a separation failure.
+    PlacementRule(crate::node::PlacementRuleFault),
     /// The node is in (or downstream of) a dependency cycle — Kahn
     /// never released it (unreachable through `apply`, refused typed).
     UnschedulableCycle,
@@ -690,9 +692,23 @@ impl core::fmt::Display for NodeErrorKind {
                 "placements {i} and {j} are not certified disjoint — their conservative boxes meet, \
                  so the group union cannot be lowered through the disjoint-graft door"
             ),
-            Self::PlacementRuleMismatch => f.write_str(
-                "the placement rule and the count slot disagree about how many placements there are",
-            ),
+            Self::PlacementRule(fault) => match fault {
+                crate::node::PlacementRuleFault::CountSpelling => f.write_str(
+                    "the placement rule and the count slot disagree about how many placements \
+                     there are",
+                ),
+                crate::node::PlacementRuleFault::NoPlacements => f.write_str(
+                    "the placement list is empty — a group needs at least one placement, exactly \
+                     as a stepped rule needs a count of at least 1",
+                ),
+                crate::node::PlacementRuleFault::NonFiniteFrame { index } => {
+                    write!(f, "placement {index} has a non-finite coordinate")
+                }
+                crate::node::PlacementRuleFault::ImproperFrame { index, determinant } => write!(
+                    f,
+                    "placement {index} is improper (mirroring): determinant {determinant}"
+                ),
+            },
             Self::UnschedulableCycle => {
                 f.write_str("the node is in, or downstream of, a dependency cycle")
             }

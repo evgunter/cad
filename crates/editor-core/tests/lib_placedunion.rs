@@ -21,7 +21,7 @@ mod fixture;
 
 use editor_core::{
     BooleanOp, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload, apply,
+    PlacementRuleFault, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload, apply,
 };
 use fixture::{ang, desc, len, scl};
 
@@ -480,4 +480,250 @@ fn the_slot_surface_follows_the_rule() {
         },
     };
     assert_eq!(stepped.slots(), pattern.slots(), "one rule, one slot set");
+}
+
+/// **An EMPTY placement list is the explicit rule's `count < 1`** —
+/// refused, never a body with no solids in it (review MAJOR-1).
+///
+/// Three doors read ONE rule check ([`Node::placement_rule_fault`]):
+/// the edit gate refuses first with the best diagnostics, the snapshot
+/// check re-refuses on the wire, and `wire_placed_union` backstops a
+/// document that reached evaluation some other way. The rows below
+/// exercise the first two directly and the shared door itself, which
+/// is what the third reads.
+#[test]
+fn an_empty_placement_list_refuses_like_a_zero_count() {
+    let (doc, fin) = fin_only();
+    let empty: Node<editor_core::ProfileProgram> = Node::placed_union_at(fin, Vec::new());
+    assert_eq!(
+        empty.placement_rule_fault(),
+        Some(PlacementRuleFault::NoPlacements),
+        "the shared door names it — this is what eval backstops on"
+    );
+    assert!(matches!(
+        apply(&doc, &DocEdit::InsertNode { node: empty }),
+        Err(EditError::EmptyPlacementList { .. })
+    ));
+    // The stepped rule it mirrors refuses at eval the same way: an
+    // empty list and a zero count are the SAME statement.
+    let zero = apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::placed_union(
+                fin,
+                Expr::count(0),
+                PatternKind::Linear {
+                    direction: [scl(1.0), scl(0.0), scl(0.0)],
+                    spacing: len(2.0),
+                },
+            )
+            .expect("a stepped rule takes a count"),
+        },
+    )
+    .expect("a zero count is legal to WRITE; it refuses at evaluation");
+    let id = zero.record.minted.expect("minted");
+    match eval::<f64>(&zero.doc).nodes.get(&id) {
+        Some(NodeResult::Failed(e)) => assert!(matches!(
+            e.kind,
+            NodeErrorKind::NonPositiveCount { count: 0 }
+        )),
+        other => panic!("a zero count must refuse, got {other:?}"),
+    }
+}
+
+/// **A hand-edited file cannot smuggle an empty list past `load`** —
+/// the snapshot check re-refuses every rule the edit door would have,
+/// which is the A11 registry's own posture applied to the rule.
+#[test]
+fn the_wire_refuses_an_emptied_placement_list() {
+    let (doc, fin) = fin_only();
+    let one = apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::placed_union_at(fin, vec![Frame::IDENTITY]),
+        },
+    )
+    .expect("one placement is legal");
+    let text = editor_core::save(&one.doc, &[]).expect("saves");
+    // Empty the frame list on the wire, exactly as a hand edit would.
+    // Bracket-matched rather than "next `]`": a frame's own `columns`
+    // nest, so the naive scan would cut inside one and produce a parse
+    // error instead of the refusal under test.
+    let start = text
+        .find("\"Explicit\"")
+        .expect("the explicit rule is on the wire");
+    let open = text[start..].find('[').expect("its list") + start;
+    let mut depth = 0i32;
+    let mut close = open;
+    for (i, c) in text[open..].char_indices() {
+        match c {
+            '[' => depth += 1,
+            ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    close = open + i;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    assert!(close > open, "the frame list's brackets must match");
+    let tampered = format!("{}[]{}", &text[..open], &text[close + 1..]);
+    match editor_core::load(&tampered) {
+        Err(editor_core::PersistError::Snapshot(_)) => {}
+        other => panic!("an emptied placement list must refuse at load, got {other:?}"),
+    }
+}
+
+/// **Explicit frames meet the A6/A11 bar at the EDIT door** — the same
+/// finite-and-proper test `SetPlacement` applies to a cluster frame,
+/// and the same typed refusals (review MINOR-2). A non-finite frame no
+/// longer reads as a separation failure; it says what it is.
+#[test]
+fn placement_frames_are_held_to_the_cluster_frame_bar() {
+    let (doc, fin) = fin_only();
+    let with = |f: Frame| Node::<editor_core::ProfileProgram>::placed_union_at(fin, vec![f]);
+
+    let nan = Frame::translation([f64::NAN, 0.0, 0.0]);
+    assert_eq!(
+        with(nan).placement_rule_fault(),
+        Some(PlacementRuleFault::NonFiniteFrame { index: 0 }),
+        "named for what it is, not as an uncertified separation"
+    );
+    assert!(matches!(
+        apply(&doc, &DocEdit::InsertNode { node: with(nan) }),
+        Err(EditError::NonFinitePlacement { .. })
+    ));
+
+    // A mirror: the identity with one basis column negated (det = −1).
+    let mut mirror = Frame::IDENTITY;
+    mirror.columns[0] = [-1.0, 0.0, 0.0];
+    assert!(matches!(
+        with(mirror).placement_rule_fault(),
+        Some(PlacementRuleFault::ImproperFrame { index: 0, .. })
+    ));
+    assert!(matches!(
+        apply(&doc, &DocEdit::InsertNode { node: with(mirror) }),
+        Err(EditError::ImproperPlacement { determinant, .. }) if determinant < 0.0
+    ));
+
+    // A proper frame at the same site still goes through — the gate
+    // refuses the two states, not rotations in general.
+    let turned =
+        Frame::rotate_then_translate([0.0, 0.0, 1.0], std::f64::consts::FRAC_PI_2, [0.0; 3]);
+    assert_eq!(with(turned).placement_rule_fault(), None);
+    assert!(apply(&doc, &DocEdit::InsertNode { node: with(turned) }).is_ok());
+}
+
+/// **The Explicit path is bit-compatible with the chain too** — three
+/// ROTATED placements against the Transform + Union chain of the same
+/// placements (`Frame::rotate_then_translate` promises bit-identity
+/// with the Transform node's composition), on both mass oracles with
+/// `==` plus census. The shipped fin row covers only the Linear rule
+/// and only translations, so the onto-door claim was untested exactly
+/// where a rotation could have broken it.
+///
+/// Adopted from the LIB-PLACEDUNION review's probe
+/// `probe_explicit_group_equals_rotated_transform_chain` (reviewer's
+/// lane) — credit to the review.
+#[test]
+fn the_rotated_explicit_group_equals_the_transform_union_chain() {
+    use std::f64::consts::FRAC_PI_2;
+
+    let prototype = |mut r: corpus::Recorder| -> (ProfileDoc, RecipeNodeId) {
+        let p = r.insert(Node::Profile(desc(
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]],
+        )));
+        let solid = r.insert(Node::Extrude {
+            profile: p,
+            distance: len(1.0),
+        });
+        (r.doc, solid)
+    };
+    // (axis, angle, translation) — two genuine rotations about
+    // different axes, placed clear of each other.
+    let places: [([f64; 3], f64, [f64; 3]); 3] = [
+        ([0.0, 0.0, 1.0], 0.0, [0.0, 0.0, 0.0]),
+        ([0.0, 0.0, 1.0], FRAC_PI_2, [6.0, 0.0, 0.0]),
+        ([1.0, 0.0, 0.0], -FRAC_PI_2, [0.0, 6.0, 0.0]),
+    ];
+
+    let (gdoc, gsolid) = prototype(corpus::Recorder::new());
+    let grouped = apply(
+        &gdoc,
+        &DocEdit::InsertNode {
+            node: Node::placed_union_at(
+                gsolid,
+                places
+                    .iter()
+                    .map(|&(ax, an, t)| Frame::rotate_then_translate(ax, an, t))
+                    .collect(),
+            ),
+        },
+    )
+    .expect("insert the group");
+    let group = grouped.record.minted.expect("minted");
+
+    let (mut cdoc, csolid) = prototype(corpus::Recorder::new());
+    let mut acc: Option<RecipeNodeId> = None;
+    for &(ax, an, t) in &places {
+        let tr = apply(
+            &cdoc,
+            &DocEdit::InsertNode {
+                node: Node::Transform {
+                    input: csolid,
+                    translation: [len(t[0]), len(t[1]), len(t[2])],
+                    rotation_axis: [scl(ax[0]), scl(ax[1]), scl(ax[2])],
+                    rotation_angle: ang(an),
+                },
+            },
+        )
+        .expect("insert transform");
+        let placed = tr.record.minted.expect("minted");
+        cdoc = tr.doc;
+        acc = Some(match acc {
+            None => placed,
+            Some(a) => {
+                let u = apply(
+                    &cdoc,
+                    &DocEdit::InsertNode {
+                        node: Node::Boolean {
+                            op: BooleanOp::Union,
+                            a,
+                            b: placed,
+                            declare: None,
+                        },
+                    },
+                )
+                .expect("insert union");
+                let id = u.record.minted.expect("minted");
+                cdoc = u.doc;
+                id
+            }
+        });
+    }
+
+    let ev_g = eval::<f64>(&grouped.doc);
+    let ev_c = eval::<f64>(&cdoc);
+    assert!(failures(&ev_g).is_empty(), "{:?}", failures(&ev_g));
+    assert!(failures(&ev_c).is_empty(), "{:?}", failures(&ev_c));
+    let g = body_of(&ev_g, group);
+    let c = body_of(&ev_c, acc.expect("the chain's root"));
+    let (mg, mc) = (
+        topo::mass_properties(g).expect("group mass"),
+        topo::mass_properties(c).expect("chain mass"),
+    );
+    assert_eq!(mg.volume, mc.volume, "volume, bit for bit");
+    assert_eq!(mg.surface_area, mc.surface_area, "area, bit for bit");
+    assert_eq!(
+        (g.faces().count(), g.edges().count(), g.vertices().count()),
+        (c.faces().count(), c.edges().count(), c.vertices().count()),
+        "same census"
+    );
+    assert_eq!(g.solids().count(), c.solids().count(), "same solid count");
+    assert_eq!(g.shells().count(), c.shells().count(), "same shell count");
 }

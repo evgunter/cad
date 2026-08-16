@@ -73,7 +73,9 @@ where
         }
         Node::Transform { input, .. } => wire_transform(id, *input, results, vals),
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals),
-        Node::PlacedUnion { input, kind, .. } => wire_placed_union(id, *input, kind, results, vals),
+        Node::PlacedUnion { input, kind, .. } => {
+            wire_placed_union(id, *input, kind, node.placement_rule_fault(), results, vals)
+        }
         Node::Declare { pairs } => Ok((ValuePayload::Declarations(pairs.clone()), names::empty())),
         Node::InstantiatePart { doc_ref, .. } => {
             wire_instantiate_part(id, doc_ref, doc.placement(id), env)
@@ -1106,7 +1108,9 @@ fn stepped_map<T: Decide>(
         }
         // An explicit rule steps nothing: its frames ARE the maps, and
         // a caller that reached here read the rule wrong.
-        PatternKind::Explicit(_) => Err(NodeErrorKind::PlacementRuleMismatch),
+        PatternKind::Explicit(_) => Err(NodeErrorKind::PlacementRule(
+            crate::node::PlacementRuleFault::CountSpelling,
+        )),
     }
 }
 
@@ -1122,7 +1126,9 @@ fn wire_pattern<T: Decide>(
     // edit door refuses — this is the same refusal, reached only by a
     // hand-built document.
     if kind.placements().is_some() {
-        return Err(NodeErrorKind::PlacementRuleMismatch);
+        return Err(NodeErrorKind::PlacementRule(
+            crate::node::PlacementRuleFault::CountSpelling,
+        ));
     }
     let body = body_operand(results, input)?;
     let n = slots::count(vals, SlotId::Count).ok_or(NodeErrorKind::MissingSlot {
@@ -1181,9 +1187,20 @@ fn wire_placed_union<T: Decide + geom_core::Bounds>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
+    fault: Option<crate::node::PlacementRuleFault>,
     results: &Results<T>,
     vals: &SlotValues<T>,
 ) -> OpResult<T> {
+    // The rule gate, FIRST and through the node's own door — the same
+    // one `apply` and the snapshot check read, so an empty placement
+    // list, a non-finite frame or an improper one refuses HERE with its
+    // own name rather than downstream as a poison-box separation
+    // "failure" or a kernel rigidity refusal (review MAJOR-1/MINOR-2).
+    // Unreachable through `apply`; this is the hand-built-document
+    // backstop.
+    if let Some(fault) = fault {
+        return Err(NodeErrorKind::PlacementRule(fault));
+    }
     let body = body_operand(results, input)?;
     let maps: Vec<Affine3<T>> = match kind.placements() {
         Some(frames) => frames.iter().map(|f| f.affine::<T>()).collect(),

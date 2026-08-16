@@ -49,7 +49,7 @@
 //! everything, so poison refuses — it never certifies.
 
 use bvh::{Aabb, Bvh};
-use geom_core::{Affine3, Band, Bounds, Decide, Mat3, Vec3};
+use geom_core::{Affine3, Band, Bounds, Decide};
 
 use crate::body::Body;
 use crate::boolean::BooleanError;
@@ -224,26 +224,12 @@ fn certified_face_box<T: Decide + Bounds>(
 
 /// `M_i⁻¹ ∘ M_j` — placement `j` expressed in placement `i`'s frame.
 ///
-/// Composed through the affine door's own `inverse`/`transform_vec`, so
-/// the arithmetic is the kernel's, not a re-derivation. A non-invertible
-/// map yields non-finite coefficients, which propagate to a poison image
-/// box — poison overlaps everything, so it refuses (never certifies).
+/// Composed through the affine door's own `inverse` and `Mul`, so the
+/// arithmetic is the kernel's, not a re-derivation. A non-invertible map
+/// yields non-finite coefficients, which propagate to a poison image box
+/// — poison overlaps everything, so it refuses (never certifies).
 fn relative<T: Decide>(mi: &Affine3<T>, mj: &Affine3<T>) -> Affine3<T> {
-    let inv = mi.inverse();
-    let lin = Mat3::from_cols(
-        inv.transform_vec(mj.linear.c0),
-        inv.transform_vec(mj.linear.c1),
-        inv.transform_vec(mj.linear.c2),
-    );
-    let t = inv.transform_vec(mj.translation);
-    Affine3::from_parts(
-        lin,
-        Vec3::new(
-            t.x + inv.translation.x,
-            t.y + inv.translation.y,
-            t.z + inv.translation.z,
-        ),
-    )
+    mi.inverse() * *mj
 }
 
 /// The conservative axis-aligned image of `b` under `m`: a box CONTAINING

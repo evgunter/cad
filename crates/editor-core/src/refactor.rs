@@ -605,16 +605,6 @@ enum RemapMiss {
     Name(Box<StableName>),
 }
 
-/// Rewrites a node payload's id references — DAG inputs AND
-/// name-reference payloads — through `map`, for insertion into the
-/// other document. `InstantiatePart` crosses verbatim: its reference
-/// is a document seam, not a local id, and its interface record rides
-/// with it. The match is exhaustive so a future node kind must be
-/// classified here.
-///
-/// # Errors
-///
-/// The first [`RemapMiss`].
 /// Rewrites a placement rule's id references: the circular rule's datum
 /// axis is the only one the vocabulary carries (a linear rule is pure
 /// expressions, an explicit rule pure frames). Shared by both
@@ -636,6 +626,16 @@ fn remap_rule(
     })
 }
 
+/// Rewrites a node payload's id references — DAG inputs AND
+/// name-reference payloads — through `map`, for insertion into the
+/// other document. `InstantiatePart` crosses verbatim: its reference
+/// is a document seam, not a local id, and its interface record rides
+/// with it. The match is exhaustive so a future node kind must be
+/// classified here.
+///
+/// # Errors
+///
+/// The first [`RemapMiss`].
 fn remap_node(
     node: &Node<ProfileProgram>,
     map: &NodeMap,
