@@ -28,8 +28,10 @@ use editor_core::{PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
 const V7: &str = include_str!("golden/v7_golden.cad");
 
 #[test]
-fn schema_version_is_eight() {
-    assert_eq!(SCHEMA_VERSION, 8);
+fn schema_version_is_nine() {
+    // Bumped again by ASM-UPD's `UpdateReference` edit arm (v9); this
+    // file keeps pinning the v7 refusal fixture below.
+    assert_eq!(SCHEMA_VERSION, 9);
 }
 
 #[test]

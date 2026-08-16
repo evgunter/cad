@@ -40,6 +40,10 @@ mod asm2b_multisolid;
 mod asm4_split_inline;
 #[path = "asm_roots.rs"]
 mod asm_roots;
+#[path = "asm_upd_pin_update.rs"]
+mod asm_upd_pin_update;
+#[path = "asm_upd_schema_v9.rs"]
+mod asm_upd_schema_v9;
 #[path = "lbret_schema_v8.rs"]
 mod lbret_schema_v8;
 #[path = "lib_doors_node_result.rs"]

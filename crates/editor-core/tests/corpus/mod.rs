@@ -348,6 +348,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::ClearAppearanceMeta { .. } => "ClearAppearanceMeta",
         DocEdit::SetRoots { .. } => "SetRoots",
         DocEdit::SetPlacement { .. } => "SetPlacement",
+        DocEdit::UpdateReference { .. } => "UpdateReference",
     }
 }
 

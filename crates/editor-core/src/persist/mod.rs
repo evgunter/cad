@@ -181,9 +181,21 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// is ONE LINE, so the second merge resolves it CLEANLY to the same
 /// text while the two meanings silently collapse.
 ///
+/// Version 9 is **edit vocabulary growth** (ASSEMBLY-DESIGN A13,
+/// ratified #544; ASM-UPD D-1): [`crate::DocEdit`] gained the
+/// `UpdateReference` arm, the recorded per-reference pin move. The
+/// edit log is FILE data — a saved document carries its unreplayed
+/// edits — so a new arm is a new wire shape, exactly the case v8
+/// bumped for. Forward-additive again (a v8 file contains no
+/// `UpdateReference`), and again the gate buys the other direction: a
+/// v9 file handed to a v8 reader must refuse at the version door
+/// rather than reach serde and die on an unknown variant. A v8 file
+/// refuses TYPED with the regenerate recourse and the migration table
+/// stays empty.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these seven.
-pub const SCHEMA_VERSION: u32 = 8;
+/// [`migration_step`] entry, or a ratified break like these eight.
+pub const SCHEMA_VERSION: u32 = 9;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
