@@ -141,16 +141,47 @@
 //!
 //! # Performance (documented characteristic)
 //!
-//! Wall-clock is **quadratic in per-face point count** on the CDT
-//! insertion path (`spade` point location during sequential insertion;
-//! measured on a washer body: ~19 ms at δ = 1e-4, ~1.2 s at 1e-6, over
-//! 11 minutes at 1e-9). Point counts scale like 1/√δ per axis, so each
-//! 100× tightening of δ costs ~100× more triangles and ~10⁴× more CDT
-//! time. Fine-tolerance STL export (PR 7) should expect this; the
-//! [`TessellateError::ResolutionOverflow`] 2²⁴ cap bounds *allocation*,
-//! not wall-clock — a δ well inside the cap can still take hours. A
-//! bulk-loading or hierarchy-hinted insertion is the known remedy if a
-//! real use case needs it.
+//! Wall-clock on the CDT insertion path is **quadratic for faces whose
+//! boundary is two or more nested near-cocircular loops** — a planar
+//! face with a hole (washer, plate-with-hole, counterbore, boss∪plate,
+//! die pip) — and **near-linear otherwise**. Measured on a washer body:
+//! ~19 ms at δ = 1e-4, ~1.2 s at 1e-6, over 11 minutes at 1e-9. Point
+//! counts scale like 1/√δ per axis, so each 100× tightening of δ costs
+//! ~100× more triangles. Fine-tolerance STL export (PR 7) should expect
+//! this; the [`TessellateError::ResolutionOverflow`] 2²⁴ cap bounds
+//! *allocation*, not wall-clock — a δ well inside the cap can still
+//! take hours.
+//!
+//! Re-measured 2026-08-14 (`docs/PERF-SCAN-2026-08.md` finding 7b), in
+//! an isolated harness against the pinned `spade` that reproduces the
+//! washer figure above to within noise. Three corrections to what this
+//! section used to claim:
+//!
+//! - The blow-up is **not** general in per-face point count. A swept UV
+//!   rectangle (the cylinder/cone/sphere/torus/NURBS lanes) runs 66 049
+//!   points in ~101 ms; a single circular loop, 65 536 points in
+//!   ~144 ms. An annulus — two concentric loops — takes ~609 ms at
+//!   16 384 points and ~8.9 s at 65 536: 4× the points for 14.6× the
+//!   time. The washer's whole 1.2 s is its two planar annulus faces.
+//! - The old text derived "~10⁴× more CDT time" per 100× δ tightening.
+//!   Its own datapoints measure **63×** (1e-4 → 1e-6), not ~10⁴×.
+//! - Insertion order does not rescue it (outer-first 8.9 s, inner-first
+//!   5.6 s, interleaved 8.6 s), and neither does the hint generator:
+//!   `HierarchyHintGenerator<f64>` measured 39.26 s against the default
+//!   `LastUsedVertexHintGenerator`'s 39.05 s on a 131k-point annulus.
+//!   **The "hierarchy-hinted insertion" half of the remedy this section
+//!   used to name is a dead end** — the cost is the flip/legalization
+//!   cascade against a degenerate cocircular hull, not point location.
+//!
+//! **Bulk loading is the remedy that works**: `spade`'s `bulk_load_cdt`
+//! measures 257 ms against 8 914 ms on the 65 536-point annulus (~35×),
+//! and the gap grows with point count. It has NOT been adopted, and it
+//! must not be adopted against stock `spade` 2.15.1: that version's
+//! bulk loader iterates a `std::collections::HashSet` under the default
+//! randomly-seeded `RandomState` on its skipped-vertex/skipped-edge
+//! paths, which fire on cocircular input — exactly ours — and would let
+//! mesh bytes vary run to run, violating D9. Upstream a `Vec`/
+//! `BTreeSet` fix and `[patch.crates-io]` it first.
 //!
 //! # Scalar policy (judgment call, reported in the PR)
 //!
@@ -165,7 +196,17 @@
 //! `spade` wants f64 coordinates; D8 replay at other scalars reaches
 //! display through the f64 lane.
 
+// The tessellation budget meter (issue #320). PUBLIC only under its
+// own feature: with the feature off the module is the inert half —
+// `armed() -> false` plus a handful of no-op recorders the
+// tessellation lane calls unconditionally — which is nothing a caller
+// outside this crate can use, so a default build does not export it.
+// `pub` in both configurations would leave a permanently visible
+// surface on the kernel crate whose only consumer is a diagnostic.
+#[cfg(feature = "budget")]
 pub mod budget;
+#[cfg(not(feature = "budget"))]
+pub(crate) mod budget;
 pub mod cert;
 pub mod chords;
 mod curved;
@@ -202,11 +243,33 @@ pub mod probe_stats {
     pub fn arm(on: bool) {
         ARMED.with(|a| a.set(on));
     }
-    /// Is the falsifier armed? (Also true when the reviewer's original
-    /// `NURBS_PROBE` env var is set — the manual drive stays usable,
-    /// process-wide.)
+    /// Is the falsifier armed? **Explicit [`arm`] only.**
+    ///
+    /// This used to also answer true for a `NURBS_PROBE` environment
+    /// variable — the reviewer's original manual drive, kept as a
+    /// convenience after M8-5's MIN-1 made the suite self-arming. That
+    /// was a BACK CHANNEL INTO SHIPPED CODE and it is gone:
+    ///
+    /// * it was ambient and process-wide, so a variable in a
+    ///   deployment environment silently switched on a 91-sample
+    ///   resampling of every emitted triangle — measured at 7.9 s →
+    ///   19.8 s on the demo tour's release binary, same binary, same
+    ///   arguments, ~71M extra surface evaluations;
+    /// * and the sampling block asserts, so it also converted
+    ///   [`crate::tessellate()`]'s typed [`TessellateError`] contract
+    ///   into a PANIC — chosen by the environment rather than by the
+    ///   caller.
+    ///
+    /// Nothing in the tree read it (the suites use [`arm`]), so its
+    /// removal costs no coverage. The module is still `pub` and still
+    /// unconditionally compiled, which is the remaining exposure —
+    /// gating it the way [`crate::budget`] is gated is issue #558, and
+    /// the standing rule it came from is
+    /// `memories/telemetry-gating.md`.
+    ///
+    /// [`TessellateError`]: crate::types::TessellateError
     pub fn armed() -> bool {
-        ARMED.with(Cell::get) || std::env::var_os("NURBS_PROBE").is_some()
+        ARMED.with(Cell::get)
     }
     /// Record one sample: measured deviation `d` against its
     /// triangle's certificate `cert`.

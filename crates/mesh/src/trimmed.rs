@@ -341,12 +341,17 @@ pub(crate) fn tessellate_trimmed(
         // Pass 2: emit and certify.
         //
         // The two sampling arms are decided ONCE per face, not per
-        // triangle: `probe_stats::armed()` reads an environment
-        // variable, and this loop runs a quarter of a million times on
-        // #320's leaf. Arming cannot change inside a face, so hoisting
-        // is observationally identical — and it is what makes the
-        // budget meter cost exactly nothing per triangle when it is
+        // triangle: this loop runs a quarter of a million times on
+        // #320's leaf, and arming cannot change inside a face, so
+        // hoisting is observationally identical. It is what makes both
+        // meters cost exactly nothing per triangle when they are
         // disarmed, which is every normal run.
+        //
+        // (Until the `NURBS_PROBE` back channel was removed this also
+        // hoisted an environment-variable read out of the loop; the
+        // arming is a thread-local now, so what is saved is smaller —
+        // the hoist stays because the reason it was right did not
+        // depend on which of the two it was reading.)
         let probe = crate::probe_stats::armed();
         let sample =
             matches!(lane, Lane::Nurbs { .. }) && (probe || crate::budget::deviation_armed());

@@ -80,6 +80,10 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
     // Per-face dispatch, face-arena order.
     let mut patches = Vec::new();
     for (ordinal, (fk, face)) in body.faces().enumerate() {
+        // BUDGET METER (dead in normal runs): open this face's row, so
+        // a previous face that REFUSED cannot leave its sizing behind
+        // to be reported under this one's name (`crate::budget`).
+        crate::budget::begin_face();
         let surface = body
             .get_surface(face.surface)
             .ok_or(TessellateError::MissingEntity {

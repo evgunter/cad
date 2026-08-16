@@ -59,6 +59,30 @@ impl ContactClass {
             Self::Tangent => "Tangent",
         }
     }
+
+    /// A **stable, distinct** tag for content-addressing (the recipe
+    /// layer's memo keys).
+    ///
+    /// Lives here, not at the consumer, for one reason: the match is
+    /// exhaustive only inside this crate. `ContactClass` is
+    /// `#[non_exhaustive]`, so a downstream tag map needs a wildcard
+    /// arm — and a wildcard in a content-key feed is a silent
+    /// collision, two classes hashing alike. Written here, a new
+    /// variant is a compile error at the one place that must decide
+    /// its tag.
+    ///
+    /// Hand-assigned rather than a derived discriminant so the tags
+    /// survive variant REORDERING: inserting `Fit` between the two
+    /// must not re-key every existing declaration. Tags are
+    /// process-internal (never persisted — the wire spelling is the
+    /// recipe layer's own, and is a string), so growth is free, but an
+    /// existing tag must never be reused for a new meaning.
+    pub fn content_tag(self) -> u64 {
+        match self {
+            Self::Rest => 1,
+            Self::Tangent => 2,
+        }
+    }
 }
 
 /// **The two-arm recourse menu** for a contact refusal (SELECT-DESIGN

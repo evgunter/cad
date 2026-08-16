@@ -1400,18 +1400,7 @@ fn wall<T, E: core::fmt::Debug>(
     pinned: impl FnOnce(&E) -> bool,
     retire: &str,
 ) {
-    match outcome {
-        Err(e) if pinned(&e) => println!("   wall {n} — {what}: REFUSED TYPED, {e:?}"),
-        Err(e) => panic!(
-            "wall {n} ({what}) still refuses, but NOT with the refusal it pins \
-             ({e:?}) — the wall MOVED. Re-derive this probe AND its findings-list \
-             entry before trusting either."
-        ),
-        Ok(_) => panic!(
-            "wall {n} ({what}) NO LONGER REFUSES — the lily can now say this. \
-             Retire the probe and {retire}"
-        ),
-    }
+    crate::walls::wall("lily", n, what, outcome, pinned, retire);
 }
 
 /// The lily's frontier, run live: every shape the plant WANTED and the

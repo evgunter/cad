@@ -139,6 +139,18 @@ pub use editor_core::{
     SplitOutcome, inline, split,
 };
 
+// The pin-update door (ASM-UPD; ASSEMBLY-DESIGN A13). `DocEdit`'s
+// `UpdateReference` arm is the per-reference primitive;
+// `update_references` is the whole-document ELABORATION over it,
+// returning the ordinary edits and applying none of them (purity =
+// atomicity), and `UpdateError` is its typed refusal. `mixed_pins`
+// is A13 clause 3's multiplicity LINT — a report, never a gate:
+// one entry per referenced id carrying more than one pin
+// (`PinMultiplicity`), each pin listed with the nodes holding it
+// (`PinSites`). The store-facing convenience that computes the new
+// pin from disk is `workspace::update_to_store`.
+pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
+
 // The profile description node type and its document alias.
 pub use editor_core::{
     LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
