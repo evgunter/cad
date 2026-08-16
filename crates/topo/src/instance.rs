@@ -47,13 +47,18 @@
 //! check (the +V signed volume) SUMS flux, so overlapping positive
 //! volumes only reinforce it. Two grafted solids share no edge, so no
 //! tier-3 check ever compares one against the other: solids that
-//! OVERLAP pass the gate undetected, and solids that merely touch land
-//! in the tier-3-not-3′ gap (declared contact is the boolean
-//! pipeline's currency, and a disjoint graft declares none).
-//! Cross-solid contact and interference are the assembly design's
-//! territory — undeclared touching is A5's hard error, interference
-//! fits live behind C6's recorded gate-skips — and detection is
-//! planned as tier-3′ census growth (issue #382).
+//! OVERLAP or TOUCH pass `validate_geometric` undetected. The gate
+//! that DOES see them is the tier-3′ form
+//! ([`validate_pseudomanifold`](crate::validate_pseudomanifold)) —
+//! the census growth issue #382 planned, landed in M9-2: its
+//! quadratic sweeps are cross-solid by construction, so an
+//! inter-instance overlap surfaces as the undeclared-contact hard
+//! error naming the guilty pair (a proper pierce is categorically
+//! undeclarable), and an inter-instance TOUCH refuses undeclared /
+//! certifies declared through the same census arms as any boolean 3′
+//! body. A caller assembling instances at rest runs THAT gate with
+//! its declaration records; interference fits stay behind C6's
+//! recorded gate-skips (M10).
 
 use crate::body::Body;
 use crate::boolean::BooleanError;

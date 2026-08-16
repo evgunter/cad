@@ -5,10 +5,20 @@
 //! **Sweep shape**: quadratic all-pairs sweeps in arena order
 //! (vertex×vertex, vertex×edge, vertex×face, edge×face, edge×edge) —
 //! the boolean edge×face convention: correctness first, the BVH filter
-//! is PERF-PLAN's later 10×. Exact on the F5 planar corpus (`Line`
-//! carriers, `Plane` surfaces — the same inventory the M3 booleans
-//! that produce 3′ bodies enforce); any other entity refuses loudly
-//! ([`ValidationError::CensusUnsupported`]), never samples.
+//! is PERF-PLAN's later 10×. Exact on the F5 planar subset (`Line`
+//! carriers, `Plane` surfaces). **Since M9-2 the census ADMITS every
+//! carrier kind** and certifies the curved inventory through its
+//! face-granular arms: the conformal face-pair arm
+//! ([`sweep_conformal_patches`] — C2's structural rung over
+//! shared-carrier opposed-sense pairs, decided through the
+//! chart-region predicate), and the record certifiers (the jet
+//! schedule for `CurveContact`, chart-region overlap for
+//! `PatchContact`). The honest envelope, stated: undeclared curved
+//! TANGENT touching and curved transverse interference between
+//! DISTINCT carriers have no detection arm until the C9 exclusion
+//! ring lands (C2 step 1); declared instances of both certify. A
+//! record or candidate outside a certifier's lane refuses
+//! [`ValidationError::CensusUnsupported`], never samples.
 //!
 //! **Sense-invariant** (M5 S10 audit). Every use of a face's plane
 //! `normal` here is either an on-plane residual compared against
