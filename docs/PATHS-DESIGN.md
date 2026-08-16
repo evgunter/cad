@@ -186,9 +186,14 @@ authoring act.
   (endpoint-full from a Point, endpoint-free from a Directed tip)
   plus the two carrier-continuation rows: `Center{c, winding, p}`
   from the ENTRY (the entry bound ON a carrier — the retired
-  `at_on` entry, fused) and `Radius`/`Center` from an OnArc tip
-  (an interior arc arrival's directed point, whose carrier the
-  verb re-derives from the tip's own binding bits or re-states).
+  `at_on` entry, fused) and `Radius{r, side}` alone from an OnArc
+  tip (an interior arc arrival's directed point): the centre is
+  DERIVED from the tip's binding bits, so tangency holds by
+  construction. `Center@OnArc` is EXCLUDED by the same doctrine
+  as `Center@Directed` — the tip's direction is bound, so an
+  authored centre's derived tangent would have to value-match it,
+  and no direction remains for the centre to supply retroactively
+  (adjudicated at the re-spell unit; authored-once decides).
 - **Line arrivals** keep the uniform builder: `.at(p)` /
   `.angle(θ)` / `.toward(dx, dy)` in either order, the far-end
   `.to(p)`, and the seam `.to(Start)` (straight first side only —

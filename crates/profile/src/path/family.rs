@@ -17,8 +17,8 @@
 //! |---|---|---|---|
 //! | `Bulge{p,b}` | Point | Point | — (no chord) |
 //! | `Via{q,p}` | Point | Point | Directed anchor (director pending) |
-//! | `Center{c,w,p}` | Point | Entry, Point, OnArc | complete (resolves at the verb; `p: Start` closes) |
-//! | `Radius{r,side}` | — | OnArc (centre re-derived) | Directed anchor (binders pending) |
+//! | `Center{c,w,p}` | Point | Entry, Point | complete (resolves at the verb; `p: Start` closes) |
+//! | `Radius{r,side}` | — | OnArc (centre DERIVED from the tip's bits — the sole OnArc mode; `Center@OnArc` is excluded by the `Center@Directed` value-match doctrine) | Directed anchor (binders pending) |
 //! | `Sweep{r,side,angle}` | Directed | Directed | — |
 //! | `ArcLen{r,side,len}` | Directed | Directed | — |
 //!
@@ -740,8 +740,18 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
 
 /// A fused verb's INCOMING spec from an [`OnArc`] tip: the side already
 /// runs on a carrier the state cannot carry (§2c axiom), so the verb
-/// re-authors it — `Radius` re-derives the centre from the tip's own
-/// binding bits; `Center` re-states the authored centre.
+/// re-authors it from the tip's own binding bits. `Radius { r, side }`
+/// is the ONE admissible mode: the centre is DERIVED
+/// (`at + side·r·n̂(tangent)`), so tangency at the tip holds by
+/// construction and nothing is value-matched.
+///
+/// `Center` is EXCLUDED here by the same §2c round-6 doctrine that
+/// excludes `Center@Directed`: an OnArc tip's direction is BOUND
+/// (position + tangent), so an authored centre's derived tangent at
+/// the anchor would have to value-match it — and unlike the Point
+/// state there is no direction left for the centre to supply
+/// retroactively. Authored-once decides: the pair is a missing impl,
+/// unrepresentable.
 pub trait OnArcIncoming<T: ArcCarrierScalar> {
     #[doc(hidden)]
     fn side(
@@ -764,22 +774,6 @@ impl<T: ArcCarrierScalar> OnArcIncoming<T> for Radius<T> {
         ArcData::Radius {
             r: self.r,
             side: self.side,
-        }
-    }
-}
-
-impl<T: ArcCarrierScalar> OnArcIncoming<T> for Center<T, Point2<T>> {
-    fn side(
-        &self,
-        _dp: DirectedPoint<T>,
-    ) -> Result<(Point2<T>, Point2<T>, crate::sugar::ArcSweep), PathError<T>> {
-        Ok((self.p, self.c, self.winding))
-    }
-    fn to_wire(&self) -> ArcData<T> {
-        ArcData::Center {
-            c: self.c,
-            winding: self.winding,
-            target: Target::Point(self.p),
         }
     }
 }
@@ -978,9 +972,10 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         self.core.record(Step::ArcTo(spec.to_wire()));
         let (at, ang) = self.dep()?;
         self.refuse_off_carrier(
-            "a side bound on an arc carrier runs ALONG it: continue with .fillet(r), which \
-             trims the carrier run into the next corner, or close with \
-             .to_on(Start, centre, winding) — a tangent-departing leg would leave the carrier",
+            "a side bound on an arc carrier runs ALONG it: continue with arc_fillet(Radius { r, \
+             side }, r2), which trims the carrier run into the next corner, or close with \
+             fillet_arc(r2, Center { c, winding, p: Start }) — a tangent-departing leg would \
+             leave the carrier",
         )?;
         let leg = spec.leg(DirectedPoint { at, dir: ang })?;
         let carrier = SegArc {

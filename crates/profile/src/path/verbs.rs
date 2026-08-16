@@ -1,12 +1,15 @@
 //! **The sealed verbs kernel (PATHS-DESIGN §2c, round 12).**
 //!
 //! Every value here holds NOTHING but binding bits and verb-authored
-//! arguments, and every function is PURE over its parameters: no type
-//! in this module can name the chain's accumulator, so a verb that
-//! consults "what leg produced this point" is UNWRITABLE — the §2c
-//! axiom enforced by construction, not discipline. Re-introducing
-//! carrier-awareness would require widening a signature here, which is
-//! the loud reviewable act such a change should be.
+//! arguments, and every function is PURE over its parameters. The
+//! enforcement is SIGNATURE PURITY, stated precisely: the state types
+//! carry no carrier field (`pending.carrier` is E0609 — no such
+//! field), so a verb that consults "what leg produced this point" has
+//! nothing in scope to read, and re-introducing carrier-awareness
+//! requires WIDENING A SIGNATURE here — the loud reviewable act such a
+//! change should be. (Rust module visibility alone is NOT the seal:
+//! as a child of `path`, this module could name `super::Core`; it is
+//! the parameter types that make the old wall unwritable.)
 //!
 //! The chain (`path.rs`) threads these values through the verb
 //! functions and applies their EMISSIONS (append-leg / insert-arc /

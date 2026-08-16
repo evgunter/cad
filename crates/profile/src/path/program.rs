@@ -689,12 +689,10 @@ fn do_fused_on_arc<T: ArcCarrierScalar>(
     verb: Verb,
 ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
     match spec {
+        // `Radius` is the ONE admissible OnArc incoming (`Center` falls
+        // to the Center@Directed value-match exclusion — see
+        // `family::OnArcIncoming`).
         ArcData::Radius { r, side } => Ok(p.arc_fillet(super::Radius { r, side }, radius)?),
-        ArcData::Center {
-            c,
-            winding,
-            target: Target::Point(t),
-        } => Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius)?),
         _ => Err(ReplayErrorKind::Transition {
             state,
             verb: Some(verb),

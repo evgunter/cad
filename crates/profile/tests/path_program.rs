@@ -178,6 +178,59 @@ fn the_fused_family_records_and_replays_bit_identically() {
     validate_ok(&pinned(walk));
 }
 
+/// **The retired MID-CHAIN doors record the Radius@OnArc row** — the
+/// one admissible OnArc incoming after this unit's adjudication
+/// (`Center@OnArc` is excluded by the `Center@Directed` value-match
+/// doctrine; see `family::OnArcIncoming`). An
+/// `at_on … fillet … at_on … fillet … at_toward` chain comes out as
+/// [`ArcFilletArc` (entry `Center`), `ArcFillet` (`Radius` — the
+/// bridge derives `r = |anchor − centre|`), binders, legs] — and the
+/// geometry here is chosen VALUE-EXACT (axis-aligned anchor, integral
+/// radius) so the bridge's derived-radius recording replays to the
+/// same bits (`pinned` asserts it); the general ulp caveat is
+/// documented on the shim.
+#[test]
+fn retired_mid_chain_doors_record_the_radius_row() {
+    let closed = Open
+        .at_on(p2(5.0, 0.0), p2(0.0, 0.0), ArcSweep::Ccw)
+        .unwrap()
+        .fillet(0.5)
+        .unwrap()
+        .at_on(p2(0.0, 4.0), p2(0.0, 7.0), ArcSweep::Cw)
+        .unwrap()
+        .fillet(0.3)
+        .unwrap()
+        .at_toward(p2(-2.0, 2.0), 0.0, -1.0)
+        .unwrap()
+        .line(1.0)
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+    assert_eq!(
+        verbs(&program_of(&closed)),
+        vec![
+            Verb::ArcFilletArc,
+            Verb::ArcFillet,
+            Verb::At,
+            Verb::Toward,
+            Verb::Line,
+            Verb::LineTo
+        ]
+    );
+    match closed.program[1] {
+        Step::ArcFillet {
+            spec: profile::ArcData::Radius { r, side },
+            radius,
+        } => {
+            assert_eq!(r.to_bits(), 3.0_f64.to_bits(), "derived |anchor − centre|");
+            assert_eq!(side, profile::ArcSide::Right, "Cw travel = centre right");
+            assert_eq!(radius.to_bits(), 0.3_f64.to_bits());
+        }
+        ref other => panic!("expected the Radius@OnArc fused step, got {other:?}"),
+    }
+    validate_ok(&pinned(closed));
+}
+
 /// **The retired doors record the fused vocabulary**: an
 /// `at_on … fillet … to_on` chain (the eye) comes out as ONE fused
 /// `ArcFilletArc` step — the compat shim's program surgery — and that

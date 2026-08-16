@@ -56,9 +56,21 @@ impl Open {
 
 /// Re-arms a compat-carrier pending as the fused-verb state and
 /// rewrites the recorded program to the fused vocabulary: the `Fillet`
-/// step a compat `.fillet(r)` recorded becomes the `ArcFillet` step the
-/// fused entry verb records (its incoming spec is the carrier the
-/// retired `at_on` bound).
+/// step a compat `.fillet(r)` recorded becomes the `ArcFillet` step
+/// the fused verb records.
+///
+/// The incoming spec is state-keyed exactly as the admissibility
+/// matrix demands. At the ENTRY (the `Fillet` is the program's first
+/// step, because the entry `at_on` defers recording) the spec is
+/// `Center` — the authored centre, the admissible Entry row. MID-CHAIN
+/// (the replayed state is OnArc) the spec is `Radius { r, side }`, the
+/// one admissible OnArc row: `r = |anchor − centre|` is DERIVED here —
+/// a bridge-only exception to record-authored-data, honest because the
+/// author's old spelling authored the centre and this shim is deleted
+/// with its callers (PR-2). Replay re-derives the centre from the tip's
+/// bits, which can differ from the authored centre by ulps; nothing
+/// pins compat replay bits (direct execution keeps the authored centre
+/// below), and the program's own geometry is self-consistent.
 fn re_arm<T: ArcCarrierScalar>(core: &mut Core<T>) -> Result<(), PathError<T>> {
     let meta = core
         .pending_meta
@@ -81,14 +93,27 @@ fn re_arm<T: ArcCarrierScalar>(core: &mut Core<T>) -> Result<(), PathError<T>> {
         radius: ray.radius,
         resolver: arc_fillet::resolve::<T>,
     }));
+    let entry = core.program.len() == 1;
+    let spec = if entry {
+        ArcData::Center {
+            c: centre,
+            winding,
+            target: Target::Point(ray.origin),
+        }
+    } else {
+        let v = ray.origin - centre;
+        ArcData::Radius {
+            r: v.norm_squared().sqrt(),
+            side: match winding {
+                ArcSweep::Ccw => super::verbs::ArcSide::Left,
+                ArcSweep::Cw => super::verbs::ArcSide::Right,
+            },
+        }
+    };
     match core.program.last_mut() {
         Some(step @ Step::Fillet { .. }) => {
             *step = Step::ArcFillet {
-                spec: ArcData::Center {
-                    c: centre,
-                    winding,
-                    target: Target::Point(ray.origin),
-                },
+                spec,
                 radius: ray.radius,
             };
             Ok(())
