@@ -1330,6 +1330,7 @@ version = "0.0.0"
 dependencies = [
  "geom-core",
  "geom-curves",
+ "profile",
  "proptest",
  "test-utils",
 ]

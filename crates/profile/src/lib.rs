@@ -121,6 +121,11 @@ pub mod lift;
 pub mod path;
 mod seg;
 mod sugar;
+// PROFILES-V2 §V6 (amended, #377): the raw builder is test support, not
+// API. The feature is enabled ONLY by this crate's own dev-dependency,
+// so `tests/` sees it and no downstream crate can.
+#[cfg(feature = "test-support")]
+pub mod test_support;
 mod validate;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Real, Vec3};

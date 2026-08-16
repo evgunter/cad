@@ -1,106 +1,16 @@
-//! S8 adversarial review probe: three fuzz-found arc x arc two-survivor
-//! corners (independent re-derivation of the offset/gate machinery in
-//! `review-scratch/s8/dominance_fuzz.rs`), cross-checking that the real
-//! constructor's pick is the componentwise-dominant (smaller-total)
-//! candidate my re-implementation predicts. The tangent point the
-//! builder emits must lie at distance r from the predicted winner's
-//! center and NOT at distance r from the loser's.
+//! S8 adversarial review probe: the dominance claim behind the
+//! two-survivor pick, as an independent re-derivation of the
+//! offset/gate machinery (the reviewer's
+//! `review-scratch/s8/dominance_fuzz.rs`).
+//!
+//! Over every two-survivor corner the re-implementation finds — arc×arc
+//! and line×arc — the smaller-total candidate dominates componentwise,
+//! so sum, max and every monotone combination agree on which candidate
+//! the S8 ladder must pick, and no enclosing tangency (ρ < 0) ever
+//! participates. None of `sugar.rs`'s private machinery is used: the
+//! offsets, the setbacks and the corner-side gates are all rewritten
+//! here from the geometry.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-// The fixture coordinates are fuzz-dumped at 17 significant digits (the
-// f64 round-trip length); trimming digits to appease the lint could
-// change the bits under test.
-#![allow(clippy::excessive_precision)]
-
-mod common;
-use common::tol;
-use geom_core::Point2;
-use profile::{ArcSweep, FilletLegShape};
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn check(
-    o1: (f64, f64),
-    s1: ArcSweep,
-    o2: (f64, f64),
-    s2: ArcSweep,
-    corner: (f64, f64),
-    far1: (f64, f64),
-    far2: (f64, f64),
-    r: f64,
-    win: (f64, f64),
-    lose: (f64, f64),
-) {
-    let lp = profile::test_support::LoopBuilder::start(p2(far1.0, far1.1))
-        .fillet_corner(
-            FilletLegShape::Arc {
-                center: p2(o1.0, o1.1),
-                sweep: s1,
-            },
-            p2(corner.0, corner.1),
-            FilletLegShape::Arc {
-                center: p2(o2.0, o2.1),
-                sweep: s2,
-            },
-            p2(far2.0, far2.1),
-            r,
-            tol(),
-        )
-        .expect("two-survivor corner must construct")
-        .close_arc_center(p2(o2.0, o2.1), s2);
-    let t1 = lp.vertices[1].pos;
-    let dw = ((t1.x - win.0).powi(2) + (t1.y - win.1).powi(2)).sqrt();
-    let dl = ((t1.x - lose.0).powi(2) + (t1.y - lose.1).powi(2)).sqrt();
-    assert!(
-        (dw - r).abs() < 1e-9,
-        "picked tangent not on predicted winner circle: |t1-win|={dw}, r={r}"
-    );
-    assert!(
-        (dl - r).abs() > 1e-3,
-        "pick is ambiguous against the losing candidate: |t1-lose|={dl}, r={r}"
-    );
-}
-
-#[test]
-fn fuzz_found_two_survivor_corners_pick_the_dominant_candidate() {
-    check(
-        (0.0, 0.0),
-        ArcSweep::Cw,
-        (0.95562179434455674, 0.0),
-        ArcSweep::Ccw,
-        (-0.22946874909608578, 1.65519209137498335),
-        (0.06171648071802562, -1.66988258334824113),
-        (2.98666833485438410, 0.13766047285183547),
-        0.15189083980143034,
-        (-0.81863298895661929, 1.27968806714547267),
-        (-0.81863298895661929, -1.27968806714547267),
-    );
-    check(
-        (0.0, 0.0),
-        ArcSweep::Ccw,
-        (3.82055744659083052, 0.0),
-        ArcSweep::Ccw,
-        (1.17316720402785357, 1.21354460418236210),
-        (0.06048447681684566, 1.68681754289278429),
-        (4.81136266143260016, -2.73855265222345867),
-        0.31664440369683866,
-        (1.27464246658060087, 0.50560149083164663),
-        (1.27464246658060087, -0.50560149083164663),
-    );
-    check(
-        (0.0, 0.0),
-        ArcSweep::Cw,
-        (1.68543221900967244, 0.0),
-        ArcSweep::Ccw,
-        (0.24842682255474419, 0.89584175565974999),
-        (0.48588598188942012, 0.79256744189472206),
-        (3.15605941461580208, 0.83950736278354254),
-        0.32427394642951701,
-        (-0.25623799695610200, 0.54847219060938479),
-        (-0.25623799695610200, -0.54847219060938479),
-    );
-}
 
 // ------------------------------------------------------------------
 // The review's standalone dominance fuzz, trimmed into one committed

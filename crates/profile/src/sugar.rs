@@ -302,14 +302,17 @@ pub(crate) enum ArcFilletOutcome<T: Real> {
 /// A refusal from [`arc_fillet_trims`], carried at the scalar so the
 /// helper itself needs no bracket read (Bounds scope rule) — the
 /// [`TrimRefusal`] pattern, one level up: each door maps it into its own
-/// error vocabulary.
+/// error vocabulary, and the test-support twin does so with the
+/// `.lo()` diagnostics through its own mapper.
 ///
-/// Some payload fields are read by no mapper today: the algebra's
-/// mapper (`path::arc_fillet`) reports the margins it needs and leaves
-/// the rest. They stay because they are the CONSTRUCTION's
+/// Some payload fields are read only by the door that maps this into
+/// [`crate::validate::ProfileError`] — the banished raw builder, which
+/// lives behind `test-support` (PROFILES-V2 §V6). The algebra's own
+/// mapper (`path::arc_fillet`) reads the margins it reports and leaves
+/// the rest; the fields stay because they are the CONSTRUCTION's
 /// diagnostics, not one caller's.
 #[derive(Clone, Copy, Debug)]
-#[allow(dead_code)]
+#[cfg_attr(not(feature = "test-support"), allow(dead_code))]
 pub(crate) enum ArcTrimRefusal<T: Real> {
     /// `fillet_corner_arm` not Positive: no length scale, so the
     /// corner's angle means nothing. Both arms ride so the door can name
