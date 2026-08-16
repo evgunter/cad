@@ -124,10 +124,8 @@ fn a_wrong_class_declaration_refuses_instead_of_being_ignored() {
 /// rather than pointing at a variant that does not exist.
 #[test]
 fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
-    // Full-face stacked plates: the mate is a pure REST contact, so
-    // the declared-REST lane runs and verifies every declared pair.
-    let a = brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
-    let b = brick((0.0, 2.0), (0.0, 2.0), (1.0, 2.0));
+    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let b = brick((0.5, 1.5), (0.25, 1.25), (1.0, 2.0));
     let cap_of = |body: &Body<f64>, z: f64| -> topo::FaceKey {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
@@ -142,8 +140,9 @@ fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
     // The genuine contact stays declared (otherwise the op refuses at
     // the undeclared-coincidence door and never reaches the lie), and
     // A's z = 0 floor is ALSO declared flush with B's z = 2 ceiling:
-    // parallel, definitely offset by 2 m. The lane verifies every
-    // declared pair, so the lie meets geometry and refuses.
+    // parallel, definitely offset by 2 m. The op must never glue it —
+    // and must not stay silent about it just because the classifier
+    // never walks past a pair whose faces are 2 m apart.
     let mut decls = flush_declarations(&a, &b);
     decls
         .coincident_faces

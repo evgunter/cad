@@ -281,10 +281,12 @@ pub fn carrier_eq_verdict<T: Decide>(
 /// against, and inventing one would be a second source of truth.
 fn source_rung(id: PlaneIdentity<'_>, opposed: bool) -> Option<CarrierRelation> {
     let (s1, s2) = (id.s1?, id.s2?);
-    s1.same_base(s2).then_some(if opposed {
-        CarrierRelation::SameOpposite
-    } else {
-        CarrierRelation::SameOriented
+    s1.same_base(s2).then(|| {
+        if opposed {
+            CarrierRelation::SameOpposite
+        } else {
+            CarrierRelation::SameOriented
+        }
     })
 }
 
