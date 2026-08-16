@@ -66,6 +66,8 @@ mod m4_pr2_eval_interval;
 mod m4_pr2_wire;
 #[path = "m4_pr3_names.rs"]
 mod m4_pr3_names;
+#[path = "m9_d1_r1_probes.rs"]
+mod m9_d1_r1_probes;
 #[path = "m4_pr3_names_bool.rs"]
 mod m4_pr3_names_bool;
 #[path = "m4_pr3_names_ci.rs"]

@@ -154,6 +154,8 @@ mod review_s11_adv;
 mod review_s12_adv;
 #[path = "review_s6_probe.rs"]
 mod review_s6_probe;
+#[path = "m9_d1_r1_probes.rs"]
+mod m9_d1_r1_probes;
 #[path = "revolve_ball.rs"]
 mod revolve_ball;
 #[path = "revolve_cone.rs"]
