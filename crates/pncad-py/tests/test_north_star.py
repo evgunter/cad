@@ -19,6 +19,7 @@ from pncad import (
     ArcSide,
     ArcSweep,
     BooleanOp,
+    Bulge,
     Center,
     ContactClass,
     CurveKind,
@@ -940,7 +941,7 @@ class DieScene:
         )
         half = (
             Open.at((0 * m, -self.PIP_R * m))
-            .arc_to((self.PIP_R * m, 0 * m), math.tan(math.pi / 8))
+            .arc_to(Bulge((self.PIP_R * m, 0 * m), math.tan(math.pi / 8)))
             .arc_continue((0 * m, self.PIP_R * m))
             .line_to(Start)
         )
@@ -1670,6 +1671,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             .fillet(0.5 * m)
             .at((3 * m, 3 * m))
             .toward(0.0, 1.0)
+            .line(1 * m)
             .line_to(Start)
         )
         self.assertEqual(loop.vertex_count, 4)

@@ -31,7 +31,15 @@ STUB = Path(__file__).resolve().parent.parent / "pncad.pyi"
 
 
 def stub_names():
-    """Every top-level name the stub declares."""
+    """Every top-level name the stub declares.
+
+    Underscore-prefixed names are the stub's own PRIVATE spelling
+    machinery — the TypeVars and type aliases that let one overload
+    stand for a family — and are no more surface than a Rust type
+    alias inside a signature. The module cannot expose them, and a
+    checker never resolves them from outside, so they are excluded on
+    the same rule that excludes them from `module_names`.
+    """
     tree = ast.parse(STUB.read_text())
     names = set()
     for node in tree.body:
@@ -43,7 +51,11 @@ def stub_names():
             for target in node.targets:
                 if isinstance(target, ast.Name):
                     names.add(target.id)
-    return names
+    return {
+        name
+        for name in names
+        if not name.startswith("_") or name == "__build_info__"
+    }
 
 
 def module_names():

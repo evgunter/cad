@@ -159,18 +159,19 @@ class TestTheLatticeWalks(unittest.TestCase):
         # An on-carrier tip carries position and tangent and nothing
         # else, so the verb that continues it AUTHORS the carrier:
         # `Radius` re-derives the centre from those two bits, which is
-        # why tangency there needs nothing value-matched.
-        tip = math.sqrt(0.75)
-        loop = Open.arc_fillet_arc(
-            Center((-0.5 * m, 0 * m), ArcSweep.Ccw, (0 * m, -tip * m)),
-            0.25 * m,
-            Center((0.5 * m, 0 * m), ArcSweep.Ccw, (0 * m, tip * m)),
-        ).arc_fillet_arc(
-            Radius(1 * m, ArcSide.Left),
-            0.25 * m,
-            Center((-0.5 * m, 0 * m), ArcSweep.Ccw, Start),
+        # why tangency there needs nothing value-matched. Here the
+        # derived centre IS the authored boss centre, exactly.
+        loop = (
+            Open.at((5.05 * m, -1.6 * m))
+            .toward(2.1, 0.8)
+            .fillet_arc(0.5 * m, Center((7 * m, 0 * m), ArcSweep.Ccw, (8.5 * m, 0 * m)))
+            .arc_fillet(Radius(1.5 * m, ArcSide.Left), 0.5 * m)
+            .at((4.05 * m, 1.35 * m))
+            .toward(-4.1, 0.3)
+            .line(1 * m)
+            .line_to(Start)
         )
-        self.assertEqual(loop.vertex_count, 4)
+        self.assertEqual(loop.vertex_count, 6)
 
     def test_the_complete_loop_carrier_forms_are_one_step(self):
         self.assertEqual(circle(ORIGIN, 1 * m).step_count, 1)

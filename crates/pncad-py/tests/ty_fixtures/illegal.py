@@ -134,9 +134,8 @@ Open.at((0 * mm, 0 * mm)).arc_to(Sweep(1 * mm, ArcSide.Left, 90 * deg))  # ty: e
 
 # `Bulge` is chord-relative, so it is not an ARRIVAL mode: an arrival
 # has no chord yet.
-Open.at((0 * mm, 0 * mm)).toward(1.0, 0.0).fillet_arc(
-    1 * mm, Bulge((5 * mm, 5 * mm), 0.5)
-)  # ty: error
+_open_fillet = Open.at((0 * mm, 0 * mm)).toward(1.0, 0.0)
+_open_fillet.fillet_arc(1 * mm, Bulge((5 * mm, 5 * mm), 0.5))  # ty: error
 
 # LIB-PYG5. The declare doors take FINDINGS — values from the
 # detector — never name text or bare pairs; the detector takes node
