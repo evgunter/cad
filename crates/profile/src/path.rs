@@ -90,9 +90,11 @@
 //! - [`circle`] — the closed-carrier PROGRAM FORM. Not a chain: it
 //!   authors no seam, so PQ4 is untouched, and the conventional split
 //!   is its private lowering.
-//! - [`arc_via`](PartialPath::arc_via) — the arc through a point.
-//! - [`arc_center`](PartialPath::arc_center) — the arc about a centre,
-//!   with a structural winding; equidistance checked, never repaired.
+//! - the `Via { q, p }` and `Center { c, winding, p }` modes of
+//!   [`arc_to`](PartialPath::arc_to) — the arc through a point, and
+//!   the arc about a centre with a structural winding (equidistance
+//!   checked, never repaired). §2c unified them with `Bulge { p, b }`
+//!   into the one sharp arc leg.
 //! - `to(anchor)` on a bound arrival direction — the **far-end
 //!   anchor**: the arrival side ends AT its authored anchor, with no
 //!   synthetic mid-side point and no measured length.
@@ -201,21 +203,32 @@
 //! let p = Open.at(Point2::new(0.0_f64, 0.0)).toward(1.0, 0.0).unwrap().toward(0.0, 1.0);
 //! ```
 //!
-//! The new arc modes are legs from a Point, so they are ill-typed on a
-//! Directed tip (the departure is already bound):
+//! The endpoint-FULL modes are legs from a Point, so they are
+//! ill-typed on a Directed tip (the departure is already bound, and
+//! the mode would have to value-match it):
 //!
-//! ```compile_fail,E0599
+//! ```compile_fail
 //! use geom_core::Point2;
-//! use profile::Open;
+//! use profile::{Open, Via};
 //! let p = Open.at(Point2::new(0.0, 0.0)).angle(0.0).unwrap()
-//!     .arc_via(Point2::new(1.0, 1.0), Point2::new(2.0, 0.0));
+//!     .arc_to(Via { q: Point2::new(1.0, 1.0), p: Point2::new(2.0, 0.0) });
 //! ```
 //!
-//! ```compile_fail,E0599
+//! ```compile_fail
 //! use geom_core::Point2;
-//! use profile::{ArcSweep, Open};
+//! use profile::{ArcSweep, Center, Open};
 //! let p = Open.at(Point2::new(0.0, 0.0)).angle(0.0).unwrap()
-//!     .arc_center(Point2::new(1.0, 0.0), Point2::new(2.0, 0.0), ArcSweep::Ccw);
+//!     .arc_to(Center { c: Point2::new(1.0, 0.0), winding: ArcSweep::Ccw, p: Point2::new(2.0, 0.0) });
+//! ```
+//!
+//! and the endpoint-FREE pair is symmetrically ill-typed on a bare
+//! point, which has no departure tangent to sweep about:
+//!
+//! ```compile_fail
+//! use geom_core::Point2;
+//! use profile::{ArcSide, Open, Sweep};
+//! let p = Open.at(Point2::new(0.0_f64, 0.0))
+//!     .arc_to(Sweep { r: 1.0, side: ArcSide::Left, angle: 1.0 });
 //! ```
 //!
 //! `circle` is a complete-loop PROGRAM FORM, not a chain: there is no
@@ -674,7 +687,7 @@ pub enum PathError<T: Real> {
         /// The refused y component.
         dy: T,
     },
-    /// An `arc_via` through-point is within ε_input of the CHORD LINE:
+    /// A `Via` mode's through-point is within ε_input of the CHORD LINE:
     /// the three points name no arc. On the chord the construction
     /// degenerates to the straight segment; off the far end it
     /// degenerates to the same line traversed as a ±π turn (an
@@ -694,7 +707,7 @@ pub enum PathError<T: Real> {
         /// The chord length, meters.
         chord: T,
     },
-    /// An `arc_center` centre is not equidistant from the two
+    /// A `Center` mode's centre is not equidistant from the two
     /// endpoints: the authored data contradicts itself. Refused, never
     /// repaired — silently re-projecting the centre (or the endpoint)
     /// onto a fitted circle would move an AUTHORED point, which §4
@@ -706,7 +719,7 @@ pub enum PathError<T: Real> {
         /// |end − centre|, meters.
         end_radius: T,
     },
-    /// An `arc_center` centre is within ε_input of an endpoint: the
+    /// A `Center` mode's centre is within ε_input of an endpoint: the
     /// carrier has no radius, so the winding selects nothing.
     DegenerateArcCenter {
         /// The classified radius, meters.
@@ -2411,7 +2424,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         }
     }
 
-    /// [`arc_via`](Self::arc_via)'s derived bulge: the collinear gate
+    /// The `Via` mode's derived bulge: the collinear gate
     /// (the through-point's signed perpendicular offset from the chord
     /// LINE, meters — zero for on-chord and beyond-the-end alike, which
     /// is why one refusal covers the class), then the existing closed
@@ -2429,7 +2442,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         Ok(bulge_from_via(at, via, end))
     }
 
-    /// [`arc_center`](Self::arc_center)'s derived bulge: both radii
+    /// The `Center` mode's derived bulge: both radii
     /// gated definitely positive, then equidistance gated definitely
     /// ZERO (a definite mismatch refuses; an undecidable one escalates —
     /// neither is repaired), then the existing closed form.

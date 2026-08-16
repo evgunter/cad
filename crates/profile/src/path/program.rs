@@ -208,8 +208,8 @@ step_vocabulary! {
     #[doc = " `line_to(target)` — a straight leg to the target."]
     LineTo(Target<T>),
     #[doc = " `arc_to(spec)` — the sharp arc leg, every mode in the one"]
-    #[doc = " unified [`ArcData`] record (the retired `arc_to(p, b)` /"]
-    #[doc = " `arc_via` / `arc_center` doors record their modes here)."]
+    #[doc = " unified [`ArcData`] record; the mode the author wrote is"]
+    #[doc = " what is kept, because the VQ contracts rely on it."]
     ArcTo(ArcData<T>),
     #[doc = " `tangent_arc_to(target)` — the unique tangent arc to the target."]
     TangentArcTo(Target<T>),

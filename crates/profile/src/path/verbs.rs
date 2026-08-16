@@ -60,7 +60,7 @@ pub struct DirectedPoint<T: Real> {
 /// An opened fillet whose incoming side is the tangent RAY of the
 /// directed point it consumed (§2c round 10: bare `fillet` ⇔ ray
 /// extension, uniform across incomings). **No carrier field exists**:
-/// the old carrier-keyed wall (`ArcCarrierSpelling` at resolution) is
+/// the old carrier-keyed wall (a spelling refusal at resolution) is
 /// unwritable against this type.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PendingRay<T: Real> {
@@ -198,7 +198,7 @@ pub struct Via<T: Real, Tgt> {
 
 /// Mode `Center { c, winding, p }`: the arc about an authored centre.
 /// `Center@Point` supplies the direction retroactively (exactly what
-/// `at_on` was); `Center@Directed` is EXCLUDED — the bound direction
+/// the carrier-bound entry did); `Center@Directed` is EXCLUDED — the bound direction
 /// would have to value-match the derived tangent (§2c round 6).
 #[derive(Clone, Copy, Debug)]
 pub struct Center<T: Real, Tgt> {

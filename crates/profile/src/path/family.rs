@@ -152,7 +152,7 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
 }
 
 /// Resolves the open fillet against the ARC ARRIVAL that CLOSES at the
-/// entry (`p: Start` — the retired `to_on`'s semantics, verbatim): the
+/// entry (`p: Start`): the
 /// entry vertex is KEPT as a genuine two-carrier junction, the arrival
 /// carrier run (or the fillet arc itself, on an exact fit) becomes the
 /// closing segment, and the seam junction check runs with both
@@ -251,7 +251,7 @@ pub trait ArrivalSpec<T: ArcCarrierScalar> {
 
 /// `Center { c, winding, p }` with an INTERIOR anchor: complete at the
 /// verb (the anchor and the derived direction are one authored act —
-/// the retired `at_on` arrival, fused). The tip continues ON the
+/// the arrival's own carrier). The tip continues ON the
 /// carrier at `p`.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Point2<T>> {
     type Out = Result<OnArc<T>, PathError<T>>;
@@ -282,7 +282,7 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Point2<T>> {
 }
 
 /// `Center { c, winding, p: Start }`: the arc-arrival CLOSE (the
-/// retired `to_on`, fused): the entry vertex is KEPT as a genuine
+/// closing arrival): the entry vertex is KEPT as a genuine
 /// two-carrier junction and the seam junction check runs there.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Start> {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
@@ -671,7 +671,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
             PathError::DegenerateArcChord { chord: c }
         })?;
         // The collinear gate, then the existing closed form — the sharp
-        // `arc_via` leg's own derivation, verbatim.
+        // `Via` leg mode's own derivation, verbatim.
         let offset = chord_v.perp_dot(self.q - at) / chord;
         match crate::k_stats::decide("path_arc_via_offset", geom_core::Margin::of(offset), band) {
             Ok(geom_core::Sign::Zero) => return Err(PathError::ArcViaCollinear { offset }),
@@ -693,7 +693,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
 impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
     fn carrier(&self, at: Point2<T>) -> Result<PointCarrier<T>, PathError<T>> {
         let band = linear_band()?;
-        // The sharp `arc_center` leg's gates: both radii definitely
+        // The sharp `Center` leg mode's gates: both radii definitely
         // positive, equidistance definitely zero, chord non-degenerate.
         let r_tip = (at - self.c).norm_squared().sqrt();
         let r_end = (self.p - self.c).norm_squared().sqrt();
@@ -787,8 +787,9 @@ impl Open {
     /// the carrier's tangent there (derived, never authored) — and
     /// opens a fillet of `radius` off that carrier, line arrival.
     ///
-    /// This is the retired `Open.at_on(p, c, w).fillet(r)` pair, fused
-    /// into the one authoring act the axiom demands.
+    /// The entry's carrier and the fillet that trims it are ONE
+    /// authoring act, which is what the axiom demands: a fillet that
+    /// needs an arc carrier cannot learn it, so it authors it.
     pub fn arc_fillet<T: ArcCarrierScalar>(
         self,
         spec: Center<T, Point2<T>>,
