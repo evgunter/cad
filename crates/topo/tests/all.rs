@@ -77,10 +77,10 @@ mod m6_2_fitted_at_rest;
 #[path = "m6_3_chart_completion.rs"]
 mod m6_3_chart_completion;
 
-#[path = "m9_2_census_door.rs"]
-mod m9_2_census_door;
 #[path = "m9_1_contact_vocabulary.rs"]
 mod m9_1_contact_vocabulary;
+#[path = "m9_2_census_door.rs"]
+mod m9_2_census_door;
 #[path = "merge_skip.rs"]
 mod merge_skip;
 #[path = "review_m1_pr5.rs"]
