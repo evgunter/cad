@@ -152,6 +152,8 @@ mod m6_composed_node;
 mod m9_d1_r1_probes;
 #[path = "m9_d1_r2_probes.rs"]
 mod m9_d1_r2_probes;
+#[path = "respell_schema_v9.rs"]
+mod respell_schema_v9;
 #[path = "review_m4_pr1.rs"]
 mod review_m4_pr1;
 #[path = "review_m4_pr1_die.rs"]

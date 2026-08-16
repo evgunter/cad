@@ -133,8 +133,8 @@ pub use stl::{write_ascii, write_binary};
 pub use crate::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions, Evaluation,
     Expr, LoopProgram, Node, NodeError, ParamEnv, ParamName, ParseError, PatternKind,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RecordedProgramError, SlotId,
-    StepArg, ValuePayload, apply, evaluate, parse_expr,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedProgramError,
+    SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr,
 };
 pub use editor_core::StableName;
 
