@@ -19,6 +19,66 @@ coordinator; the rest carry the scanning agent's stated confidence.
 
 ---
 
+## 0a. Re-verification against main (2026-08-16)
+
+The scan ran against `870c7a9`. Main has moved 326 commits since, so
+every headline claim was re-checked after merging. **Line numbers below
+are as of the scan base unless a finding says otherwise; the claims, not
+the line numbers, are what was re-verified.** What changed:
+
+- **One item the scan under-read has been fixed upstream, and the
+  upstream measurement is a calibration warning.** The tessellation
+  scan flagged `probe_stats::armed()` being evaluated per emitted
+  triangle with a non-short-circuiting `env::var_os("NURBS_PROBE")`
+  lookup in the disarmed case, sized it at ~158 ns/call, and I ranked it
+  too low to make §1 at all. #562 (`feb60e7`) has since removed the back
+  channel, and measured it at **7.9 s → 19.8 s on the demo tour's
+  release binary — same binary, same arguments, ~71M extra surface
+  evaluations** — while noting it also converted `tessellate()`'s typed
+  `TessellateError` contract into a **panic** selected by the ambient
+  environment. It was a correctness bug as much as a performance one,
+  and this scan mis-sized it on both axes. `armed()` is now
+  `ARMED.with(Cell::get)`. Residual, tracked upstream as issue #558: the
+  module is still `pub` and unconditionally compiled; the standing rule
+  is `memories/telemetry-gating.md`.
+- **Everything else still holds**, re-checked in the merged tree:
+  finding 1 (`boxes.rs` untouched by main, still no `Nurbs` arm),
+  finding 2 (still no `benches/`, still no `criterion`), finding 3
+  (opt-2 still on `build-interval`, `interval-only-selection.py` still
+  present), finding 4 (`gate` still double-validates,
+  `boolean/ops.rs:1263-1265`), finding 7 (`mint_pcurves` still clears
+  the whole body, `pcurves.rs:934`), finding 13 (`join.rs:524` /
+  `546` / `583` / `774` / `822`), and the parallelism claim (still
+  exactly one `par_iter` in the workspace).
+- **§2's verdict defect still reproduces on merged main** — the probe
+  was re-run after the merge and returns the same `0` against `722`,
+  despite `eval/mod.rs` gaining 205 lines. The bracket is now at
+  `eval/mod.rs:1160` / `:1170`.
+- **The census grew** (open PR #564): `census_and_certify` now admits
+  every carrier kind and adds an O(curved faces²) conformal-patch
+  sweep. §5's negative result still holds — it is still reachable only
+  from `validate_pseudomanifold` (`validate.rs:2335`), which is not on
+  the rebuild path — but the cost behind that door is now larger.
+
+**Open PRs, checked for overlap.** Neither blocks this report.
+
+- **#571 (PlacedUnion)** touches `boolean/boxes.rs`, but only to widen
+  `sweep_pad` / `face_box` / `edge_box` from `pub(super)` to
+  `pub(crate)` for a new `topo::separation` module. It does not fix the
+  `Nurbs` gap. It does, however, **independently corroborate finding
+  1**: `separation.rs`'s own `certified_face_box` deliberately routes
+  `Cone`, `Torus` and `Nurbs` to the poison box, and its rationale says
+  the distinction matters because `face_box` "is written for the
+  boolean sweep, whose operand gate has already narrowed the surface
+  kinds it can meet. This door has no such gate." That premise is
+  exactly the stale claim finding 1 disproves — `gate_planar` admits
+  `Surface::Nurbs`. #571's own door is safe; the belief it records
+  about `face_box` is not. Expect a small textual conflict in the
+  `face_box` doc comment, which this branch rewrites.
+- **#564 (M9-2 census door)** touches `census.rs`, `validate.rs`,
+  `props.rs`. No finding depends on the lines it moves; see the census
+  note above.
+
 ## 0. Read this before the rankings: the measurement problem
 
 **This repo cannot currently demonstrate a speedup.** That is the
@@ -187,7 +247,7 @@ See §0. Effort M.
 
 #### 3. CI: `opt-level = 2` on the interval build outlived its justification **[verified]**
 
-`.github/workflows/ci.yml:766-777`. PR #449 put
+`.github/workflows/ci.yml:855-872` (scan base `:766-777`). PR #449 put
 `CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL: "2"` on both archive jobs on
 2026-08-12, justifying it for the interval job verbatim: *"This job is
 the run's critical path (its archive feeds the longest test leg in the
@@ -195,7 +255,7 @@ run) ... the interval lane's slowest leg was 828 s of pure execution,
 and opt-2 is aimed squarely at that."*
 
 **That leg no longer exists.** On 2026-08-13 — the next day — the
-interval-only-selection change (`ci.yml:875-908`,
+interval-only-selection change (`ci.yml:990-1065`,
 `scripts/interval-only-selection.py`) cut the interval legs to the 214
 tests the feature actually adds. Measured on run 31776906935, the four
 interval legs execute **3 s, 2 s, 3 s and 2 s — 10 seconds total** —
@@ -233,7 +293,8 @@ the verdict. Measure run 2.
 
 #### 4. The boolean gate runs tier-1 validation twice, in release **[verified]**
 
-`crates/topo/src/boolean/ops.rs:1209-1213`:
+`crates/topo/src/boolean/ops.rs:1263-1265` (as of the merge; `:1209-1213`
+at the scan base):
 
 ```rust
 pub(super) fn gate<T: Real>(body: &Body<T>) -> Result<(), BooleanError> {
@@ -335,11 +396,13 @@ width-1. Parallelism helps `die`'s independent pip subtrees and the
 
 #### 7. `mint_pcurves` re-certifies the entire body, on every operation **[verified]**
 
-`crates/topo/src/pcurves.rs:837-875` does `body.pcurves.clear()` and then
+`crates/topo/src/pcurves.rs:934` (scan base `:837-875`) does
+`body.pcurves.clear()` and then
 re-mints and re-certifies **every face in the body**, at `CERT_SAMPLES = 9`
 residual samples per boundary edge.
 
-It is called from **9 production sites across 5 crates**:
+It is called from **10 production call sites across 3 crates** (topo,
+sweep, step-import):
 `boolean/ops.rs:532`, `merge_faces.rs:536`, `splitting/mod.rs:632`,
 `transform.rs:424`, `sweep/fillet/surgery.rs:283`,
 `sweep/fillet/build.rs:938`, `sweep/loft.rs:532`,
@@ -744,7 +807,7 @@ Individually small, collectively systematic, all D9-safe:
   `CURRENT` is — a `cfg` there would make the funnel's code path differ
   between build configurations. Turning `probe` off does not and should
   not change it. The verdict log is a *production* feature (M4 PR 4 /
-  NAMING-DESIGN N5): `editor-core/src/eval/mod.rs:1113` brackets every
+  NAMING-DESIGN N5): `editor-core/src/eval/mod.rs:1160` brackets every
   node evaluation in one and retains the result on the node, so
   production genuinely records on the one path that asks to. What was
   actually wrong is **documentation**: the module header claimed
@@ -776,8 +839,9 @@ the outcomes.**
 ### 2.1 What it is
 
 `wire::run_op` returns `(payload, name_table)`. Verdicts are not in that
-tuple. They arrive by side effect: `editor-core/src/eval/mod.rs:1113`
-calls `k_stats::start_verdict_log()`, runs the op, and `:1123` calls
+tuple. They arrive by side effect: `editor-core/src/eval/mod.rs:1160`
+(scan base `:1113`) calls `k_stats::start_verdict_log()`, runs the op,
+and `:1170` calls
 `take_verdict_log()` — harvesting whatever any kernel predicate anywhere
 beneath pushed into a thread-local in `geom-core`. The harvest becomes
 `NodeValue::verdicts`, and `resolve::vdiff` turns it into
@@ -789,7 +853,7 @@ any signature between `k_stats::decide` and `vdiff` mentions verdicts.
 
 ### 2.2 Why "it holds today" is not good enough
 
-The correctness argument is a comment (`eval/mod.rs:1107-1112`): *"The
+The correctness argument is a comment (`eval/mod.rs:1154-1159`): *"The
 bracket is per-node and thread-confined (kernel ops are single-threaded;
 idiom-1 parallelism runs whole nodes on one worker each), so logs never
 interleave across nodes."* That invariant is true today. Nothing
@@ -832,15 +896,15 @@ verdicts and then leaves no log at all.
 `run_op`:
 
 ```
-eval_node(InstantiatePart)          eval/mod.rs:1113  start_verdict_log()
+eval_node(InstantiatePart)          eval/mod.rs:1160  start_verdict_log()
   └ wire::run_op
      └ parts::PartCache::part       eval/parts.rs:265
         └ resolve_and_evaluate      eval/parts.rs:270
            └ evaluate_nested        eval/parts.rs:302
               └ evaluate_at_descent eval/mod.rs:869    eval_node(inner)
-                                    eval/mod.rs:1113   start_verdict_log()  ← discards outer
-                                    eval/mod.rs:1123   take_verdict_log()   ← leaves None
-eval_node(InstantiatePart)          eval/mod.rs:1123  take_verdict_log() → None → empty
+                                    eval/mod.rs:1160   start_verdict_log()  ← discards outer
+                                    eval/mod.rs:1170   take_verdict_log()   ← leaves None
+eval_node(InstantiatePart)          eval/mod.rs:1170  take_verdict_log() → None → empty
 ```
 
 **Consequence:** an `InstantiatePart` node's `verdicts` is always empty.
@@ -1233,7 +1297,7 @@ names as a target: `par_iter()` into a pre-sized buffer emitting *local*
 grid ids, then a sequential fold in face-arena order assigning base
 offsets. Output is bit-identical. Two details: pick the first error in
 arena order (not first-to-fail) so refusals stay deterministic, and
-update `probe_stats`' thread-local comment at `lib.rs:182-190`, which
+update `probe_stats`' thread-local comment at `mesh/src/lib.rs:226`, which
 currently asserts "tessellation runs entirely on the calling thread".
 Effort M; ceiling is core count against face count.
 
