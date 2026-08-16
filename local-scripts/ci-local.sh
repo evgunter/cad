@@ -510,8 +510,12 @@ budget_meter() {
   cargo clippy -p mesh --all-targets --features budget -- -D warnings && \
     cargo test -p mesh --features budget
 }
+# `--sizing-only` mirrors ci.yml: the gate reads triangle counts and
+# the sizing columns, never `worst_dev`, so the default sweep's
+# per-triangle resampling (tens of millions of surface evaluations)
+# would be paid for nothing. Re-cutting the baseline drops the flag.
 tesslint_gate() {
-  scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv || return 1
+  scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only || return 1
   (cd tools/tess-lint && cargo run -- \
     ../../target/tess-budget-fresh.csv \
     --baseline ../../docs/tess-budget-data/tess-budget-baseline.csv)

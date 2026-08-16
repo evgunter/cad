@@ -165,7 +165,17 @@
 //! `spade` wants f64 coordinates; D8 replay at other scalars reaches
 //! display through the f64 lane.
 
+// The tessellation budget meter (issue #320). PUBLIC only under its
+// own feature: with the feature off the module is the inert half —
+// `armed() -> false` plus a handful of no-op recorders the
+// tessellation lane calls unconditionally — which is nothing a caller
+// outside this crate can use, so a default build does not export it.
+// `pub` in both configurations would leave a permanently visible
+// surface on the kernel crate whose only consumer is a diagnostic.
+#[cfg(feature = "budget")]
 pub mod budget;
+#[cfg(not(feature = "budget"))]
+pub(crate) mod budget;
 pub mod cert;
 pub mod chords;
 mod curved;
