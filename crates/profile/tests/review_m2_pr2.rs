@@ -37,8 +37,8 @@ use common::lift;
 use geom_core::{Point2, Sign};
 use profile::RawLoop;
 use profile::{
-    ArcSweep, ContactKind, LoopRole, ProfileError, ProfileLoop, SegmentKind, SegmentRef,
-    ValidatedProfile, bulge_from_via,
+    ArcSweep, ContactKind, LoopRole, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
+    SegmentRef, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -278,9 +278,15 @@ fn cocircular_partial_arc_overlap() {
     };
     let a = at(250.0);
     let b = at(290.0);
-    let riding = ProfileLoop::builder(a)
-        .arc_to_center(b, p2(1.0, 0.0), ArcSweep::Ccw)
-        .close();
+    // Two vertices: `a` leaves along the shared carrier to `b`, and `b`
+    // closes back on the straight chord.
+    let riding = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: a,
+            bulge: bulge_from_center(a, b, p2(1.0, 0.0), ArcSweep::Ccw),
+        },
+        ProfileVertex { pos: b, bulge: 0.0 },
+    ]);
     match err(&profile(vec![lens, riding])) {
         ProfileError::NonSimple {
             kind: ContactKind::Overlap,
@@ -324,20 +330,21 @@ fn near_tangent_join_escalates() {
         let l = std::f64::consts::SQRT_2;
         let ang = std::f64::consts::FRAC_PI_4 + phi;
         let end = p2(2.0 + l * ang.cos(), l * ang.sin());
-        let mut chain = ProfileLoop::builder(p2(0.0, 0.0)).line_to(p2(2.0, 0.0));
+        // Joint 1 is the line->arc join under test. At phi = 0 the
+        // vertical exit line x = end.x is tangent to the SAME carrier
+        // at the arc's end -- joint 2, a second tangent joint, declared
+        // under the same flag.
+        let mut lp = chain(&[
+            (0.0, 0.0, 0.0),
+            (2.0, 0.0, b),
+            (end.x, end.y, 0.0),
+            (end.x, 3.0, 0.0),
+            (0.0, 3.0, 0.0),
+        ]);
         if declare {
-            chain = chain.declare_tangent();
+            lp.tangent_joints = vec![1, 2];
         }
-        // At phi = 0 the vertical exit line x = end.x is tangent to
-        // the SAME carrier at the arc's end -- a second tangent joint;
-        // declared under the same flag.
-        let mut chain = chain.arc_to(end, b);
-        if declare {
-            chain = chain.declare_tangent();
-        }
-        profile(vec![
-            chain.line_to(p2(end.x, 3.0)).line_to(p2(0.0, 3.0)).close(),
-        ])
+        profile(vec![lp])
     };
     // phi = 0: exact carrier tangency at the shared vertex -> smooth
     // join, accepted when DECLARED (#101: tangency is declared intent,
@@ -514,7 +521,7 @@ fn near_full_arc_with_chord_closure_validates() {
     // CCW from a up over the top, around, to b: theta = 2pi - 2delta.
     let theta = std::f64::consts::TAU - 2.0 * delta;
     let bulge = (theta / 4.0).tan();
-    let lp = ProfileLoop::builder(a).arc_to(b, bulge).close();
+    let lp = chain(&[(a.x, a.y, bulge), (b.x, b.y, 0.0)]);
     let vp = ok(&profile(vec![lp]));
     // Canonical start is the lex-min vertex (bit-identical x tie on
     // cos(delta), broken by least y => b), so the arc is segment 1.
@@ -554,9 +561,7 @@ fn hair_thin_near_full_arc_is_refused_but_mislabeled() {
     let (s, c) = (delta.sin(), delta.cos());
     let theta = std::f64::consts::TAU - 2.0 * delta;
     let bulge = (theta / 4.0).tan();
-    let lp = ProfileLoop::builder(p2(c, s))
-        .arc_to(p2(c, -s), bulge)
-        .close();
+    let lp = chain(&[(c, s, bulge), (c, -s, 0.0)]);
     assert_eq!(
         err(&profile(vec![lp])),
         ProfileError::NearFullArc(sref(0, 0))

@@ -22,10 +22,104 @@
 //! | `Sweep{r,side,angle}` | Directed | Directed | — |
 //! | `ArcLen{r,side,len}` | Directed | Directed | — |
 //!
-//! "Point" legs/incomings ride the retired-name doors
-//! (`arc_to(target, bulge)` / `arc_via` / `arc_center`) until the
-//! consumer re-spell renames them onto `arc_to(spec)`; they already
-//! record the unified [`ArcData`] steps.
+//! # Examples (the §2c design conversation's own chains)
+//!
+//! **The fused entry, and the arrival that closes.** A lens: the entry
+//! side rides one circle, one fillet rounds the tip, and the arrival
+//! rides the other circle back to the entry — ONE authoring act,
+//! because an arc and the fillet that trims it are one decision.
+//!
+//! ```
+//! use geom_core::Point2;
+//! use profile::{ArcSweep, Center, Open, Start};
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let p = Point2::new;
+//! let tip = 0.75_f64.sqrt();
+//! let lens = Open.arc_fillet_arc(
+//!     Center { c: p(-0.5, 0.0), winding: ArcSweep::Ccw, p: p(0.0, -tip) },
+//!     0.25,
+//!     Center { c: p(0.5, 0.0), winding: ArcSweep::Ccw, p: Start },
+//! )?;
+//! assert_eq!(lens.program.len(), 1);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! **Line incoming, ARC arrival.** A quarter disc: a straight side, a
+//! fillet, and the carrier that closes it. The arrival's `Center` mode
+//! resolves at the verb, so `p: Start` closes there and then.
+//!
+//! ```
+//! use geom_core::Point2;
+//! use profile::{ArcSweep, Center, Open, Start};
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let p = Point2::new;
+//! let quarter = Open.at(p(0.0, 2.0))
+//!     .line_to(p(0.0, 0.0))?
+//!     .toward(1.0_f64, 0.0)?
+//!     .fillet_arc(0.5, Center { c: p(0.0, 0.0), winding: ArcSweep::Ccw, p: Start })?;
+//! assert_eq!(quarter.loop_.vertices.len(), 4);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! **The on-carrier tip re-authors its carrier.** An interior `Center`
+//! arrival leaves the tip ON that carrier, carrying position and
+//! tangent and nothing else — so the verb that continues it AUTHORS
+//! the carrier again, and `Radius { r, side }` is the one mode that
+//! can: its centre is DERIVED from those two bits, so tangency there
+//! holds by construction and nothing is value-matched.
+//!
+//! ```
+//! use geom_core::Point2;
+//! use profile::{ArcSide, ArcSweep, Center, Open, Radius, Start};
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let p = Point2::new;
+//! let boss = Open.at(p(5.05, -1.6))
+//!     .toward(2.1_f64, 0.8)?
+//!     // Onto the boss circle, blended.
+//!     .fillet_arc(0.5, Center { c: p(7.0, 0.0), winding: ArcSweep::Ccw, p: p(8.5, 0.0) })?
+//!     // Off it again: r = 1.5 and Left re-derive the centre (7, 0)
+//!     // from the tip's own position and tangent, exactly.
+//!     .arc_fillet(Radius { r: 1.5, side: ArcSide::Left }, 0.5)?
+//!     .at(p(4.05, 1.35))?
+//!     .toward(-4.1, 0.3)?
+//!     .line(1.0)?
+//!     .line_to(Start)?;
+//! assert!(boss.loop_.tangent_joints.len() >= 4);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! **Ray extension, and the endpoint-free legs.** A bare `fillet(r)`
+//! knows only the tangent ray its directed point defines, so after ANY
+//! leg its incoming side IS that ray — here off a sharp `Sweep` arc
+//! leg, whose endpoint the spec DERIVES rather than authors.
+//!
+//! ```
+//! use core::f64::consts::FRAC_PI_2;
+//! use geom_core::Point2;
+//! use profile::{ArcSide, Open, Start, Sweep};
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let p = Point2::new;
+//! let hook = Open.at(p(0.0, 0.0))
+//!     .toward(1.0_f64, 0.0)?
+//!     .arc_to(Sweep { r: 1.0, side: ArcSide::Left, angle: FRAC_PI_2 })?
+//!     .fillet(0.25)?
+//!     .at(p(0.0, 3.0))?
+//!     .toward(-1.0, 0.0)?
+//!     .line(1.0)?
+//!     .line_to(Start)?;
+//! assert_eq!(hook.loop_.vertices.len(), 5);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! Every row is spelled by ONE verb name per site: `arc_to(spec)` is
+//! the sharp arc leg from both the Point tip (`Bulge`/`Via`/`Center`,
+//! [`PointLeg`]) and the Directed tip (`Sweep`/`ArcLen`,
+//! [`TangentIncoming`]); the fused verbs take their incoming mode the
+//! same way. There are no retired-name doors left.
 
 use geom_core::{Point2, Real, Sign, Tolerance};
 
@@ -66,7 +160,8 @@ impl<T: Real> OnArc<T> {
 }
 
 // ------------------------------------------------------------------
-// Shared plumbing (pub(super) so the compat shim drives the same code).
+// Shared plumbing: `pub(super)` because the fused verbs here and the
+// chain doors in `path.rs` drive the ONE construction.
 // ------------------------------------------------------------------
 
 /// Opens a fillet with a RAY incoming from a directed pose (no step
@@ -91,7 +186,6 @@ pub(super) fn open_ray<T: geom_core::Decide>(
     core.pending_meta = Some(PendingMeta {
         by_tangent,
         origin_incoming,
-        compat_carrier: None,
     });
     Ok(())
 }
@@ -109,7 +203,6 @@ pub(super) fn open_arc<T: ArcCarrierScalar>(
     core.pending_meta = Some(PendingMeta {
         by_tangent: false,
         origin_incoming: None,
-        compat_carrier: None,
     });
     Ok(())
 }
@@ -153,7 +246,7 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
 }
 
 /// Resolves the open fillet against the ARC ARRIVAL that CLOSES at the
-/// entry (`p: Start` — the retired `to_on`'s semantics, verbatim): the
+/// entry (`p: Start`): the
 /// entry vertex is KEPT as a genuine two-carrier junction, the arrival
 /// carrier run (or the fillet arc itself, on an exact fit) becomes the
 /// closing segment, and the seam junction check runs with both
@@ -252,7 +345,7 @@ pub trait ArrivalSpec<T: ArcCarrierScalar> {
 
 /// `Center { c, winding, p }` with an INTERIOR anchor: complete at the
 /// verb (the anchor and the derived direction are one authored act —
-/// the retired `at_on` arrival, fused). The tip continues ON the
+/// the arrival's own carrier). The tip continues ON the
 /// carrier at `p`.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Point2<T>> {
     type Out = Result<OnArc<T>, PathError<T>>;
@@ -283,7 +376,7 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Point2<T>> {
 }
 
 /// `Center { c, winding, p: Start }`: the arc-arrival CLOSE (the
-/// retired `to_on`, fused): the entry vertex is KEPT as a genuine
+/// closing arrival): the entry vertex is KEPT as a genuine
 /// two-carrier junction and the seam junction check runs there.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Start> {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
@@ -672,7 +765,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
             PathError::DegenerateArcChord { chord: c }
         })?;
         // The collinear gate, then the existing closed form — the sharp
-        // `arc_via` leg's own derivation, verbatim.
+        // `Via` leg mode's own derivation, verbatim.
         let offset = chord_v.perp_dot(self.q - at) / chord;
         match crate::k_stats::decide("path_arc_via_offset", geom_core::Margin::of(offset), band) {
             Ok(geom_core::Sign::Zero) => return Err(PathError::ArcViaCollinear { offset }),
@@ -694,7 +787,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
 impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
     fn carrier(&self, at: Point2<T>) -> Result<PointCarrier<T>, PathError<T>> {
         let band = linear_band()?;
-        // The sharp `arc_center` leg's gates: both radii definitely
+        // The sharp `Center` leg mode's gates: both radii definitely
         // positive, equidistance definitely zero, chord non-degenerate.
         let r_tip = (at - self.c).norm_squared().sqrt();
         let r_end = (self.p - self.c).norm_squared().sqrt();
@@ -788,8 +881,9 @@ impl Open {
     /// the carrier's tangent there (derived, never authored) — and
     /// opens a fillet of `radius` off that carrier, line arrival.
     ///
-    /// This is the retired `Open.at_on(p, c, w).fillet(r)` pair, fused
-    /// into the one authoring act the axiom demands.
+    /// The entry's carrier and the fillet that trims it are ONE
+    /// authoring act, which is what the axiom demands: a fillet that
+    /// needs an arc carrier cannot learn it, so it authors it.
     pub fn arc_fillet<T: ArcCarrierScalar>(
         self,
         spec: Center<T, Point2<T>>,
@@ -971,12 +1065,6 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         self.core.record(Step::ArcTo(spec.to_wire()));
         let (at, ang) = self.dep()?;
-        self.refuse_off_carrier(
-            "a side bound on an arc carrier runs ALONG it: continue with arc_fillet(Radius { r, \
-             side }, r2), which trims the carrier run into the next corner, or close with \
-             fillet_arc(r2, Center { c, winding, p: Start }) — a tangent-departing leg would \
-             leave the carrier",
-        )?;
         let leg = spec.leg(DirectedPoint { at, dir: ang })?;
         let carrier = SegArc {
             center: leg.centre,
@@ -1182,5 +1270,133 @@ impl<T: ArcCarrierScalar> OnArc<T> {
             return S2::fail(e);
         }
         S2::apply(self.core, spec2)
+    }
+}
+
+// ------------------------------------------------------------------
+// The SHARP arc leg from a POINT tip: `arc_to(spec)` over the
+// endpoint-full modes (§2c rounds 5–9; PATHS-DESIGN §2 "Legs").
+// ------------------------------------------------------------------
+
+/// The sharp arc leg's spec from a POINT tip — the endpoint-full modes
+/// (`Bulge{p, b}`, `Via{q, p}`, `Center{c, winding, p}`), each carrying
+/// its own target because the endpoint-free modes made `p` non-uniform
+/// (§2c round 8). `Out` is the mode's own completion: a directed point
+/// for an interior target, the closed loop for [`Start`].
+///
+/// Admissibility is the state-keyed matrix: the endpoint-FREE pair
+/// (`Sweep`/`ArcLen`) has no impl here — from a bare point there is no
+/// departure tangent to sweep about, so that pair is unrepresentable
+/// rather than refused. It reaches `arc_to` from the Directed tip
+/// instead ([`TangentIncoming`]).
+/// SEALED, on the same rule as the lattice markers: the admissible
+/// (state, mode) pairs ARE the matrix, so a foreign impl would mint a
+/// row the doctrine does not have. The six mode types below are the
+/// whole implementor set.
+pub trait PointLeg<T: geom_core::Decide, F: Flavor>: super::sealed::Sealed {
+    /// The state the leg leaves the chain in.
+    type Out;
+    #[doc(hidden)]
+    fn leg_from(path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out;
+}
+
+impl<T, Tgt> super::sealed::Sealed for verbs::Bulge<T, Tgt> {}
+impl<T: Real, Tgt> super::sealed::Sealed for Via<T, Tgt> {}
+impl<T: Real, Tgt> super::sealed::Sealed for Center<T, Tgt> {}
+
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Point2<T>> {
+    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Bulge {
+            target: Target::Point(spec.p),
+            b: spec.b,
+        }));
+        path.arc_to_point(spec.p, spec.b)
+    }
+}
+
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Bulge {
+            target: Target::Start,
+            b: spec.b,
+        }));
+        path.arc_to_start(spec.b)
+    }
+}
+
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Point2<T>> {
+    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Via {
+            q: spec.q,
+            target: Target::Point(spec.p),
+        }));
+        let bulge = path.arc_via_bulge(spec.q, spec.p)?;
+        path.arc_to_point(spec.p, bulge)
+    }
+}
+
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Start> {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Via {
+            q: spec.q,
+            target: Target::Start,
+        }));
+        let bulge = path.arc_via_bulge(spec.q, path.start_target()?)?;
+        path.arc_to_start(bulge)
+    }
+}
+
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Point2<T>> {
+    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Center {
+            c: spec.c,
+            winding: spec.winding,
+            target: Target::Point(spec.p),
+        }));
+        let bulge = path.arc_center_bulge(spec.c, spec.p, spec.winding)?;
+        path.arc_to_point(spec.p, bulge)
+    }
+}
+
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Start> {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Center {
+            c: spec.c,
+            winding: spec.winding,
+            target: Target::Start,
+        }));
+        let bulge = path.arc_center_bulge(spec.c, path.start_target()?, spec.winding)?;
+        path.arc_to_start(bulge)
+    }
+}
+
+impl<T: geom_core::Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
+    /// **§2c**: the SHARP arc leg from a point tip — one verb over the
+    /// endpoint-full `ArcData` modes (`Bulge{p, b}` chord-relative,
+    /// `Via{q, p}` through a point, `Center{c, winding, p}` about a
+    /// centre). `p: Start` is the sharp arc seam.
+    ///
+    /// Each mode's authored data is stored VERBATIM and its bulge
+    /// derived by the one closed form the raw chain uses
+    /// ([`crate::bulge_from_via`] / [`crate::bulge_from_center`]), so
+    /// the doors emit the same bits. On a directed point the §4 item 1
+    /// junction check runs on the arc's START TANGENT.
+    ///
+    /// Refusals: a through-point within ε_input of the chord LINE
+    /// ([`PathError::ArcViaCollinear`] — the whole collinear class);
+    /// coincident endpoints ([`PathError::DegenerateArcChord`]); a
+    /// centre whose two radii disagree definitely
+    /// ([`PathError::ArcCenterNotEquidistant`] — checked, never
+    /// repaired: re-projecting would move an authored point, which §4
+    /// item 3 forbids) or sits within ε_input of an endpoint
+    /// ([`PathError::DegenerateArcCenter`]).
+    pub fn arc_to<S: PointLeg<T, F>>(self, spec: S) -> S::Out {
+        S::leg_from(self, spec)
     }
 }

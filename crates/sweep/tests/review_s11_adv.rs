@@ -16,9 +16,9 @@ mod revolve_common;
 use core::f64::consts::PI;
 use profile::RawLoop;
 
-use geom_core::{Band, Point2, Point3, Tolerance};
+use geom_core::{Band, Point3, Tolerance};
 use geom_surfaces::Surface;
-use profile::{ArcSweep, FilletLegShape, Profile, ProfileLoop, SketchPlane};
+use profile::{ArcSweep, Center, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
@@ -44,11 +44,24 @@ fn sense_of(body: &Body<f64>, f: FaceKey) -> bool {
 #[test]
 fn adv_mixed_convex_concave_hole() {
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(6.0, 0.0), p2(6.0, 6.0), p2(0.0, 6.0)]);
-    let hole = ProfileLoop::builder(p2(2.0, 2.0))
-        .arc_to(p2(4.0, 2.0), 0.5)
-        .line_to(p2(4.0, 4.0))
-        .arc_to(p2(2.0, 4.0), -0.5)
-        .close();
+    let hole = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(2.0, 2.0),
+            bulge: 0.5,
+        },
+        ProfileVertex {
+            pos: p2(4.0, 2.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(4.0, 4.0),
+            bulge: -0.5,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 4.0),
+            bulge: 0.0,
+        },
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(Tolerance::get())
         .unwrap();
@@ -93,37 +106,40 @@ fn s3() -> f64 {
     3.0_f64.sqrt()
 }
 
-fn leg(cx: f64, cy: f64, sweep: ArcSweep) -> FilletLegShape<f64> {
-    FilletLegShape::Arc {
-        center: Point2::new(cx, cy),
-        sweep,
-    }
-}
-
-/// The S2 vesica eye-slot: both tips of the radius-2 vesica about
-/// (+-1, 0) rounded by arc-arc fillet_corner sugar.
+/// The S2 vesica eye-slot: the radius-2 vesica about (+-1, 0), its
+/// top tip rounded by the fused arc-by-arc fillet.
+///
+/// The entry is the BOTTOM tip at (0, -s3) — a genuine two-carrier
+/// corner, which is what the loop's seam needs: one authoring act
+/// rides the left circle out of it, fillets the top tip, and comes
+/// back down the right circle to close on the entry vertex.
+///
+/// FINDING (recorded, not worked around): the fixture used to round
+/// BOTH tips, and the lattice cannot author that loop at all. Every
+/// junction of an all-blended vesica is a constructed tangency, so the
+/// entry vertex would have to sit mid-arc — a same-carrier seam, which
+/// the junction rule refuses as identity — and the seam-fillet escape
+/// is closed too, because retrimming an ARC first side would slide the
+/// entry off its own carrier (`SeamRetrimsArcFirstSide`). An
+/// all-blended loop needs one straight side to enter on; this one has
+/// none. The sharp tip below is the smallest faithful shape, and it
+/// still exercises the arc-by-arc corner the row is about.
 fn eye_slot(radius: f64) -> ProfileLoop<f64> {
-    ProfileLoop::builder(p2(1.0, 0.0))
-        .fillet_corner(
-            leg(-1.0, 0.0, ArcSweep::Ccw),
-            p2(0.0, s3()),
-            leg(1.0, 0.0, ArcSweep::Ccw),
-            p2(-1.0, 0.0),
-            0.3,
-            Tolerance::get(),
-        )
-        .unwrap()
-        .arc_to_center(p2(-1.0, 0.0), p2(1.0, 0.0), ArcSweep::Ccw)
-        .fillet_corner(
-            leg(1.0, 0.0, ArcSweep::Ccw),
-            p2(0.0, -s3()),
-            leg(-1.0, 0.0, ArcSweep::Ccw),
-            p2(1.0, 0.0),
-            radius,
-            Tolerance::get(),
-        )
-        .unwrap()
-        .close_arc_center(p2(-1.0, 0.0), ArcSweep::Ccw)
+    Open.arc_fillet_arc(
+        Center {
+            c: p2(-1.0, 0.0),
+            winding: ArcSweep::Ccw,
+            p: p2(0.0, -s3()),
+        },
+        radius,
+        Center {
+            c: p2(1.0, 0.0),
+            winding: ArcSweep::Ccw,
+            p: Start,
+        },
+    )
+    .unwrap()
+    .loop_
 }
 
 /// A2: extrude the eye slot as an OUTER region -> every wall convex,
@@ -178,13 +194,34 @@ fn adv_eye_slot_outer_and_hole_senses() {
 #[test]
 fn adv_asymmetric_downward_invariance() {
     let mk = || {
-        ProfileLoop::builder(p2(0.0, 0.0))
-            .line_to(p2(3.0, 0.0))
-            .arc_to(p2(3.0, 1.0), -0.4) // concave bite on the right edge
-            .line_to(p2(3.0, 2.0))
-            .arc_to(p2(1.0, 2.0), 0.7) // convex bulge on top, off-center
-            .line_to(p2(0.0, 2.0))
-            .close()
+        <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+            ProfileVertex {
+                pos: p2(0.0, 0.0),
+                bulge: 0.0,
+            },
+            // concave bite on the right edge
+            ProfileVertex {
+                pos: p2(3.0, 0.0),
+                bulge: -0.4,
+            },
+            ProfileVertex {
+                pos: p2(3.0, 1.0),
+                bulge: 0.0,
+            },
+            // convex bulge on top, off-center
+            ProfileVertex {
+                pos: p2(3.0, 2.0),
+                bulge: 0.7,
+            },
+            ProfileVertex {
+                pos: p2(1.0, 2.0),
+                bulge: 0.0,
+            },
+            ProfileVertex {
+                pos: p2(0.0, 2.0),
+                bulge: 0.0,
+            },
+        ])
     };
     let up = extrude(
         &Profile::new(SketchPlane::xy(), vec![mk()])
@@ -268,13 +305,34 @@ fn adv_reversed_authoring_revolve_same_senses() {
 /// traversal -> sense false; exact Pappus volume.
 #[test]
 fn adv_bore_groove_torus_band() {
-    let lp = ProfileLoop::builder(p2(1.0, 0.0))
-        .line_to(p2(2.0, 0.0))
-        .line_to(p2(2.0, 1.0))
-        .line_to(p2(1.0, 1.0))
-        .line_to(p2(1.0, 0.75))
-        .arc_to(p2(1.0, 0.25), -1.0)
-        .close();
+    // Only (1, 0.75) leaves on an arc: the semicircular groove cut
+    // into the bore.
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(1.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 1.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 1.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 0.75),
+            bulge: -1.0,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 0.25),
+            bulge: 0.0,
+        },
+    ]);
     let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(topo::validate::validate_geometric(&t.body), Ok(()));
