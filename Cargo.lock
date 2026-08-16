@@ -1870,6 +1870,7 @@ dependencies = [
  "geom-core",
  "geom-curves",
  "geom-surfaces",
+ "profile",
  "proptest",
  "ruststep",
  "sweep",

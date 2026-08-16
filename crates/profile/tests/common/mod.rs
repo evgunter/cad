@@ -11,7 +11,7 @@
 
 use geom_core::{Point2, Real, Tolerance};
 use profile::RawLoop;
-use profile::{ClosedLoop, Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{ClosedLoop, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start};
 
 /// The run's tolerance (env-driven; the multi-ε matrix parameterizes
 /// it).
@@ -120,18 +120,34 @@ pub fn rounded_rect(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
 }
 
 /// The demo bracket's filleted-corner shape: an L with one r = 0.5
-/// tangent fillet, authored through the constructive path (declares
+/// tangent fillet, authored through the PATHS algebra (which declares
 /// its two joints by construction) — the mixed declared/undeclared
 /// fixture (2 tangent joints of 7).
+///
+/// The fillet's corner is never authored: the incoming ray leaves
+/// (3, 1) toward −x, the arrival side runs +y and ends at its own
+/// anchor (1, 3), and the r = 0.5 arc is inserted at the carriers'
+/// intersection, trimming both to T₁ = (1.5, 1) and T₂ = (1, 1.5).
 pub fn bracket() -> ProfileLoop<f64> {
-    profile::test_support::LoopBuilder::start(Point2::new(0.0, 0.0))
+    let closed = Open
+        .at(Point2::new(0.0, 0.0))
         .line_to(Point2::new(3.0, 0.0))
+        .expect("bottom side")
         .line_to(Point2::new(3.0, 1.0))
-        .fillet(Point2::new(1.0, 1.0), Point2::new(1.0, 3.0), 0.5)
-        .expect("bracket fillet fits")
-        .line_to(Point2::new(1.0, 3.0))
+        .expect("right side")
+        .toward(-1.0, 0.0)
+        .expect("the incoming ray leaves (3, 1) toward −x")
+        .fillet(0.5)
+        .expect("r = 0.5 is a positive radius")
+        .toward(0.0, 1.0)
+        .expect("the arrival side runs +y")
+        .to(Point2::new(1.0, 3.0))
+        .expect("the bracket fillet fits both legs")
         .line_to(Point2::new(0.0, 3.0))
-        .close()
+        .expect("top side")
+        .line_to(Start)
+        .expect("the straight seam closes");
+    pinned(closed)
 }
 
 /// A lens (lune): a semicircular arc out and a shallower arc back —
