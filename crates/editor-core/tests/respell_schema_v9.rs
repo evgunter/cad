@@ -23,7 +23,7 @@ const V8: &str = include_str!("golden/v8_golden.cad");
 
 #[test]
 fn schema_version_is_nine() {
-    assert_eq!(SCHEMA_VERSION, 9);
+    assert_eq!(SCHEMA_VERSION, 10);
 }
 
 #[test]
@@ -64,12 +64,12 @@ fn the_refusal_names_the_regenerate_recourse() {
 /// unknown — the newest this build supports is named.
 #[test]
 fn a_future_version_refuses_unknown() {
-    let future = V8.replacen("schema: 8", "schema: 10", 1);
+    let future = V8.replacen("schema: 8", "schema: 11", 1);
     match load(&future) {
         Err(PersistError::UnknownSchema { found, newest }) => {
-            assert_eq!(found, 10);
+            assert_eq!(found, 11);
             assert_eq!(newest, SCHEMA_VERSION);
         }
-        other => panic!("a v10 file must refuse UnknownSchema, got {other:?}"),
+        other => panic!("a v11 file must refuse UnknownSchema, got {other:?}"),
     }
 }

@@ -26,7 +26,7 @@ fn schema_version_is_current() {
     // LIB-LBRET's step-vocabulary growth (v8), and by LIB-RESPELL's
     // §2c re-spell (v9); this file keeps pinning the v3 refusal
     // fixture below.
-    assert_eq!(SCHEMA_VERSION, 9);
+    assert_eq!(SCHEMA_VERSION, 10);
 }
 
 #[test]

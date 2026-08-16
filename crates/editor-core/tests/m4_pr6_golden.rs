@@ -30,8 +30,8 @@ use editor_core::{
 };
 use fixture::desc;
 
-const GOLDEN: &str = include_str!("golden/v9_golden.cad");
-const GOLDEN_PATH: &str = "tests/golden/v9_golden.cad";
+const GOLDEN: &str = include_str!("golden/v10_golden.cad");
+const GOLDEN_PATH: &str = "tests/golden/v10_golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing

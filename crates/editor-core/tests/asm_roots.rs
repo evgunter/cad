@@ -493,7 +493,7 @@ fn row6a_v5_refuses_too_old_with_the_regenerate_recourse() {
     // LIB-LBRET's v8, LIB-RESPELL's v9) — the repo's convention is
     // that a bump updates every pin it invalidates, so the number
     // stays exact here.
-    assert_eq!(SCHEMA_VERSION, 9);
+    assert_eq!(SCHEMA_VERSION, 10);
     assert_eq!(V5.lines().next(), Some("schema: 5"));
     match load(V5) {
         Err(PersistError::SchemaTooOld {

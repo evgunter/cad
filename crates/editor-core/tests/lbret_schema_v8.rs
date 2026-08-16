@@ -32,7 +32,7 @@ fn schema_version_is_eight() {
     // Moved once since this row was written (LIB-RESPELL's v9 §2c
     // re-spell) — the convention is that a bump updates every pin it
     // invalidates, so the number stays exact here.
-    assert_eq!(SCHEMA_VERSION, 9);
+    assert_eq!(SCHEMA_VERSION, 10);
 }
 
 #[test]
