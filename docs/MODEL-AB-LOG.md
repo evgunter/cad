@@ -844,3 +844,15 @@ ordinal 45. Pre-draw fields logged at spec time: PR-1 M / unit L /
 NUMERIC (docs/M9-2-SPEC.md; arm = block M8-15 position 2, fable).
 Unit row at PR-2's merge. NOTE: dispatched during the fleet
 nextest-shard CI incident — hosted re-run owed before merge.
+RESPELL PR-1 review ordinal fixed at dispatch (2026-08-15, PR
+#531 open): claimed through 40 (ASM-4) + 1 = **41 → SINGLE**
+(42 is the next third — dual block draws at its claim).
+Reviewer fable.
+G14 review ordinal fixed at dispatch (2026-08-16, PR #535 open):
+claimed through 42 (M9-2's dual) + 1 = **43 → SINGLE** (45 next
+dual). Reviewer fable. Fork banked for the fix-pass ruling: the
+ratified A2 clause's "selector narrows ties" claim is FALSE
+(GS-Q4 all-or-nothing) — disposition = amend the clause to
+reachable-not-narrowable + register the per-candidate SEL door
+as a named pickup (the smallest honest reading; commissioning
+the door is its own unit if a scene demands it).
