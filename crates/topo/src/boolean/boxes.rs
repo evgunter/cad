@@ -37,7 +37,7 @@ use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey, VertexKey};
 /// The sum is deliberately generous — a bigger pad only admits more
 /// candidates (conservative direction); it never changes any answer
 /// (the differential suite pins that).
-pub(super) fn sweep_pad(band: Band) -> f64 {
+pub(crate) fn sweep_pad(band: Band) -> f64 {
     band.escalate() + 2.0 * band.zero()
 }
 
@@ -56,7 +56,7 @@ fn corrupt(what: &'static str) -> BooleanError {
 /// only admits candidates — the conservative direction). Other curved
 /// kinds fall through to the vertex hull only if they reach here at
 /// all (the operand gate refuses them first).
-pub(super) fn face_box<T: Decide + Bounds>(
+pub(crate) fn face_box<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
     pad: f64,

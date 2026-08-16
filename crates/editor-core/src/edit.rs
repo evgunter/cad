@@ -493,6 +493,15 @@ pub enum EditError {
         /// The offending target.
         node: RecipeNodeId,
     },
+    /// A placement-rule node whose rule and count slot would give two
+    /// answers to "how many placements" (GROUP-BOOLEAN-DESIGN): an
+    /// `Explicit` rule paired with a count slot, a stepped rule with
+    /// none — or a `Pattern` carrying an `Explicit` rule at all, since
+    /// its count is a non-optional field.
+    PlacementRuleMismatch {
+        /// The offending node.
+        node: RecipeNodeId,
+    },
     /// An IMPROPER placement frame — determinant ≤ 0, i.e. a mirror
     /// (A6). Admitting one is gated on the equivariance audit R4 owns:
     /// until that lands, a mirrored placement is refused rather than
@@ -668,6 +677,12 @@ impl core::fmt::Display for EditError {
                 f,
                 "edit: node {} does not instantiate a part, so it has no placement cluster to \
                  place",
+                node.0
+            ),
+            Self::PlacementRuleMismatch { node } => write!(
+                f,
+                "edit: node {}'s placement rule and count slot would answer \"how many \
+                 placements\" two different ways",
                 node.0
             ),
             Self::ImproperPlacement { node, determinant } => write!(
@@ -1250,6 +1265,17 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
     // invariant-violating states unreachable, and this is what says so
     // rather than assuming it.
     crate::roots::check(&new).map_err(EditError::Roots)?;
+    // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
+    // "how many placements" must have exactly ONE spelling, so a rule
+    // that carries its own placements may not also carry a count slot,
+    // and a stepped rule may not lack one. Checked over the whole
+    // document rather than per arm because a structural slot edit can
+    // reach the state from a node that was consistent before.
+    for (&id, node) in &new.nodes {
+        if !node.placement_rule_consistent() {
+            return Err(EditError::PlacementRuleMismatch { node: id });
+        }
+    }
     Ok(Applied { doc: new, record })
 }
 

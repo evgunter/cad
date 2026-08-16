@@ -136,6 +136,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // branches on.
         EditError::Roots(fault) => root_fault_tag(fault),
         EditError::PlacementOnNonInstance { .. } => "placement_on_non_instance",
+        EditError::PlacementRuleMismatch { .. } => "placement_rule_mismatch",
         EditError::ImproperPlacement { .. } => "improper_placement",
         EditError::NonFinitePlacement { .. } => "non_finite_placement",
     }
@@ -178,6 +179,8 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::Escalated { .. } => "escalated",
         NodeErrorKind::AxisNotInSketchPlane { .. } => "axis_not_in_sketch_plane",
         NodeErrorKind::NonPositiveCount { .. } => "non_positive_count",
+        NodeErrorKind::PlacementsUncertified { .. } => "placements_uncertified",
+        NodeErrorKind::PlacementRuleMismatch => "placement_rule_mismatch",
         NodeErrorKind::UnschedulableCycle => "unschedulable_cycle",
         NodeErrorKind::Naming { .. } => "naming",
         NodeErrorKind::DeclareResolve { .. } => "declare_resolve",

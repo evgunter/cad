@@ -192,9 +192,24 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// TYPED at the gate with the regenerate recourse (the v3 precedent),
 /// and the migration table stays empty.
 ///
+/// Version 10 is the **group boolean's vocabulary** (GROUP-BOOLEAN-
+/// DESIGN, ratified A′; LIB-PLACEDUNION): the node vocabulary gained
+/// `Node::PlacedUnion` — one prototype, a placement rule, ONE fused
+/// body out — and the rule vocabulary gained `PatternKind::Explicit`,
+/// a listed set of absolute frames. ONE vocabulary change, one version
+/// (the one-meaning-per-version rule above): the node kind and the rule
+/// kind ship together because neither is expressible without the other
+/// at the die tour's twenty-one-pip site that motivated both.
+///
+/// A pre-release clean break, both directions, on the v3/v9 precedent:
+/// a v10 file's new variants are unknown to a v9 reader, and this
+/// reader has no v9-shaped meaning to migrate from, so a v9 file
+/// refuses TYPED at the gate with the regenerate recourse and the
+/// migration table stays empty.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these eight.
-pub const SCHEMA_VERSION: u32 = 9;
+/// [`migration_step`] entry, or a ratified break like these nine.
+pub const SCHEMA_VERSION: u32 = 10;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
