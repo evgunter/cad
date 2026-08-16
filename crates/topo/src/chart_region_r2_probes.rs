@@ -555,3 +555,31 @@ fn probe_seam_straddle_and_exact_full_wrap() {
     println!("in-band seam excess => {got:?}");
     assert!(matches!(got, Err(ChartRegionError::Escalated(_))));
 }
+
+/// The one theoretical false-`Empty`: `polygon_relation(a, b)` answering
+/// `None` (every A vertex on B's boundary) falls into the `_` arm and
+/// can reach `Ok(Empty)` via the b-side `Some(Out)`. Attempts to build
+/// a witness — every configuration refuses earlier, at the crossing
+/// rows — so the arm is unreachable in practice but undefended.
+#[test]
+fn probe_all_vertices_on_the_other_boundary_never_answers_empty() {
+    let b = face_of(rect(0.0, 0.0, 2.0, 2.0), &[]);
+    // (i) the inscribed diamond on B's edge midpoints.
+    let diamond = face_of(
+        vec![pt(1.0, 0.0), pt(2.0, 1.0), pt(1.0, 2.0), pt(0.0, 1.0)],
+        &[],
+    );
+    let got = overlap_of_regions(&diamond, &b, false, band());
+    println!("inscribed diamond => {got:?}");
+    assert!(!matches!(got, Ok(ChartOverlap::Empty)), "{got:?}");
+    // (ii) A ⊂ B sharing three whole edges.
+    let flush = face_of(rect(0.0, 0.0, 1.0, 2.0), &[]);
+    let got2 = overlap_of_regions(&flush, &b, false, band());
+    println!("three-edge-flush subset => {got2:?}");
+    assert!(!matches!(got2, Ok(ChartOverlap::Empty)), "{got2:?}");
+    // (iii) A ⊂ B touching B's boundary at one corner only.
+    let corner = face_of(rect(0.0, 0.0, 1.0, 1.0), &[]);
+    let got3 = overlap_of_regions(&corner, &b, false, band());
+    println!("corner-anchored subset => {got3:?}");
+    assert!(!matches!(got3, Ok(ChartOverlap::Empty)), "{got3:?}");
+}
