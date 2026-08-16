@@ -22,8 +22,12 @@ use editor_core::{PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
 const V8: &str = include_str!("golden/v8_golden.cad");
 
 #[test]
-fn schema_version_is_nine() {
-    assert_eq!(SCHEMA_VERSION, 9);
+fn schema_version_is_ten() {
+    // Moved once since this row was written (M9-1's v10 declaration
+    // class) — the convention is that a bump updates every pin it
+    // invalidates, so the number stays exact here while this file
+    // keeps pinning the v8 refusal below.
+    assert_eq!(SCHEMA_VERSION, 10);
 }
 
 #[test]
@@ -64,12 +68,17 @@ fn the_refusal_names_the_regenerate_recourse() {
 /// unknown — the newest this build supports is named.
 #[test]
 fn a_future_version_refuses_unknown() {
-    let future = V8.replacen("schema: 8", "schema: 10", 1);
+    // The "future" version is derived from SCHEMA_VERSION, not a
+    // literal: the literal 10 this row was written with became the
+    // CURRENT version when M9-1's declaration-class break landed, so
+    // the row was asserting that the present refuses as the future.
+    let next = SCHEMA_VERSION + 1;
+    let future = V8.replacen("schema: 8", &format!("schema: {next}"), 1);
     match load(&future) {
         Err(PersistError::UnknownSchema { found, newest }) => {
-            assert_eq!(found, 10);
+            assert_eq!(found, u64::from(next));
             assert_eq!(newest, SCHEMA_VERSION);
         }
-        other => panic!("a v10 file must refuse UnknownSchema, got {other:?}"),
+        other => panic!("a newer-than-current file must refuse UnknownSchema, got {other:?}"),
     }
 }
