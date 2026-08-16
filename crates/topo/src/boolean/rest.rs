@@ -669,8 +669,24 @@ pub fn tangent_locus<T: Decide>(
     let arm = T::one();
     let escalate = TangentLocusError::Escalated;
     match (a, b) {
-        (Surface::Plane { origin, normal, .. }, Surface::Cylinder { origin: co, axis, radius, .. })
-        | (Surface::Cylinder { origin: co, axis, radius, .. }, Surface::Plane { origin, normal, .. }) => {
+        (
+            Surface::Plane { origin, normal, .. },
+            Surface::Cylinder {
+                origin: co,
+                axis,
+                radius,
+                ..
+            },
+        )
+        | (
+            Surface::Cylinder {
+                origin: co,
+                axis,
+                radius,
+                ..
+            },
+            Surface::Plane { origin, normal, .. },
+        ) => {
             // Ruling tangency needs the axis IN the plane's direction
             // space: |axis · n̂| is the sine of the axis' elevation.
             match decide(
@@ -700,12 +716,8 @@ pub fn tangent_locus<T: Decide>(
                     return Err(TangentLocusError::NotTangent { apart: false });
                 }
             };
-            match decide(
-                "tangent_locus_gap",
-                Margin::of(h.abs() - *radius),
-                band,
-            )
-            .map_err(escalate)?
+            match decide("tangent_locus_gap", Margin::of(h.abs() - *radius), band)
+                .map_err(escalate)?
             {
                 Sign::Zero => Ok(TangentLocus::Line {
                     origin: *co - *normal * (side * *radius),
@@ -716,8 +728,18 @@ pub fn tangent_locus<T: Decide>(
             }
         }
         (
-            Surface::Cylinder { origin: o1, axis: a1, radius: r1, .. },
-            Surface::Cylinder { origin: o2, axis: a2, radius: r2, .. },
+            Surface::Cylinder {
+                origin: o1,
+                axis: a1,
+                radius: r1,
+                ..
+            },
+            Surface::Cylinder {
+                origin: o2,
+                axis: a2,
+                radius: r2,
+                ..
+            },
         ) => {
             match decide(
                 "tangent_locus_axis_parallel",
@@ -743,12 +765,8 @@ pub fn tangent_locus<T: Decide>(
             // External tangency first (|w| = r1 + r2): the common case
             // and the flush detector's; internal (|w| = |r1 − r2|)
             // second. Fixed probe order (D9).
-            match decide(
-                "tangent_locus_gap",
-                Margin::of(dist - (*r1 + *r2)),
-                band,
-            )
-            .map_err(escalate)?
+            match decide("tangent_locus_gap", Margin::of(dist - (*r1 + *r2)), band)
+                .map_err(escalate)?
             {
                 Sign::Zero => {
                     let w_hat = w.normalize();
@@ -793,12 +811,8 @@ pub fn tangent_locus<T: Decide>(
                     // |P−o2| = r2). The side is DECIDED, never an
                     // evaluation-lane comparison.
                     let w_hat = w.normalize();
-                    let sign = match decide(
-                        "tangent_locus_side",
-                        Margin::of(*r1 - *r2),
-                        band,
-                    )
-                    .map_err(escalate)?
+                    let sign = match decide("tangent_locus_side", Margin::of(*r1 - *r2), band)
+                        .map_err(escalate)?
                     {
                         Sign::Positive => T::one(),
                         Sign::Negative => T::zero() - T::one(),

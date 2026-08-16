@@ -377,10 +377,7 @@ fn sweep_vertex_vertex<T: Decide>(
             else {
                 continue;
             };
-            if zero
-                && !declared.vv.contains(&(ka, kb))
-                && !declared.vv_face_backed(geo, ka, kb)
-            {
+            if zero && !declared.vv.contains(&(ka, kb)) && !declared.vv_face_backed(geo, ka, kb) {
                 errors.push(ValidationError::UndeclaredContact {
                     contact: CensusContact::VertexVertex { a: ka, b: kb },
                     witness: witness(pa),
