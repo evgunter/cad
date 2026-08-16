@@ -53,7 +53,7 @@ pub use role::{
     RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,
 };
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
-pub use table::{EntityKey, EntityRef, Entry, NameTable};
+pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};
 
 /// **Every edge name of a node's output body, as of THIS evaluation**
 /// — the materializer for a whole-body fillet selection (M6-5, the
