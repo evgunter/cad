@@ -75,8 +75,8 @@
 //! Interval, and through BOTH sweep strategies.
 
 use editor_core::{
-    Axis3, BooleanOp, Datum, DocEdit, LoopProgram, Node, ProfileProgram, ProgramStep,
-    ProgramTarget, SlotId,
+    Axis3, BooleanOp, Datum, DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, SlotId,
 };
 use geom_core::{Point3, Vec3};
 use profile::SketchPlane;
@@ -190,10 +190,10 @@ fn half_disc_program() -> LoopProgram {
     };
     LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, -PIP_R)),
-        ProgramStep::ArcTo {
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
             target: ProgramTarget::Point(lpt(0.0, PIP_R)),
-            bulge: editor_core::Expr::literal(1.0, editor_core::Dimension::Scalar).unwrap(),
-        },
+            b: editor_core::Expr::literal(1.0, editor_core::Dimension::Scalar).unwrap(),
+        }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])
 }

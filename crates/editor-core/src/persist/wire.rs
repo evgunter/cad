@@ -197,6 +197,31 @@ impl WireWinding {
     }
 }
 
+/// A structural side tag (`profile::ArcSide`'s wire mirror).
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+enum WireSide {
+    /// Centre on the left of travel.
+    Left,
+    /// Centre on the right of travel.
+    Right,
+}
+
+impl WireSide {
+    fn from_side(s: profile::ArcSide) -> Self {
+        match s {
+            profile::ArcSide::Left => WireSide::Left,
+            profile::ArcSide::Right => WireSide::Right,
+        }
+    }
+    fn into_side(self) -> profile::ArcSide {
+        match self {
+            WireSide::Left => profile::ArcSide::Left,
+            WireSide::Right => profile::ArcSide::Right,
+        }
+    }
+}
+
 /// A step target on the wire (`Start` is structural).
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -230,24 +255,6 @@ impl WireTarget {
 enum WireStep {
     /// `.at(p)`.
     At([Expr; 2]),
-    /// `.at_on(p, centre, winding)`.
-    AtOn {
-        /// The anchor.
-        p: [Expr; 2],
-        /// The carrier centre.
-        centre: [Expr; 2],
-        /// Travel sense.
-        winding: WireWinding,
-    },
-    /// `.at_toward(p, dx, dy)` — the route-3 straight arrival.
-    AtToward {
-        /// The arrival anchor.
-        p: [Expr; 2],
-        /// x component.
-        dx: Expr,
-        /// y component.
-        dy: Expr,
-    },
     /// `.angle(θ)`.
     Angle(Expr),
     /// `.toward(dx, dy)`.
@@ -265,46 +272,163 @@ enum WireStep {
     Line(Expr),
     /// `line_to(target)`.
     LineTo(WireTarget),
-    /// `arc_to(target, bulge)`.
-    ArcTo {
-        /// Where the leg ends.
-        target: WireTarget,
-        /// The authored bulge.
-        bulge: Expr,
-    },
-    /// `arc_via(via, target)`.
-    ArcVia {
-        /// The through-point.
-        via: [Expr; 2],
-        /// Where the leg ends.
-        target: WireTarget,
-    },
-    /// `arc_center(centre, target, winding)`.
-    ArcCenter {
-        /// The carrier centre.
-        centre: [Expr; 2],
-        /// Where the leg ends.
-        target: WireTarget,
-        /// Travel sense.
-        winding: WireWinding,
-    },
+    /// `arc_to(spec)` — the unified §2c arc-spec record.
+    ArcTo(WireArcData),
     /// `tangent_arc_to(target)`.
     TangentArcTo(WireTarget),
     /// `arc_continue(target)` — the declared-subdivision step.
     ArcContinue([Expr; 2]),
     /// `.fillet(r)`.
     Fillet(Expr),
+    /// `fillet_arc(r, spec)`.
+    FilletArc {
+        /// The fillet radius.
+        radius: Expr,
+        /// The arc-arrival spec.
+        spec: WireArcData,
+    },
+    /// `arc_fillet(spec, r)`.
+    ArcFillet {
+        /// The fused incoming-arc spec.
+        spec: WireArcData,
+        /// The fillet radius.
+        radius: Expr,
+    },
+    /// `arc_fillet_arc(spec, r, spec₂)`.
+    ArcFilletArc {
+        /// The fused incoming-arc spec.
+        spec: WireArcData,
+        /// The fillet radius.
+        radius: Expr,
+        /// The arc-arrival spec.
+        spec2: WireArcData,
+    },
     /// `.to(anchor)`.
     FarEndTo([Expr; 2]),
     /// `.to(Start)`.
     CloseTo,
-    /// `.to_on(Start, centre, winding)`.
-    CloseToOn {
-        /// The arrival carrier centre.
-        centre: [Expr; 2],
+}
+
+/// An arc spec on the wire (`ProgramArcData`'s structural mirror).
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+enum WireArcData {
+    /// `Radius { r, side }`.
+    Radius {
+        /// The carrier radius.
+        r: Expr,
+        /// Which side of the tangent the centre sits on.
+        side: WireSide,
+    },
+    /// `Bulge { p, b }`.
+    Bulge {
+        /// The authored endpoint.
+        target: WireTarget,
+        /// The authored bulge.
+        b: Expr,
+    },
+    /// `Via { q, p }`.
+    Via {
+        /// The through-point.
+        q: [Expr; 2],
+        /// The authored endpoint.
+        target: WireTarget,
+    },
+    /// `Center { c, winding, p }`.
+    Center {
+        /// The carrier centre.
+        c: [Expr; 2],
         /// Travel sense.
         winding: WireWinding,
+        /// The authored anchor/endpoint.
+        target: WireTarget,
     },
+    /// `Sweep { r, side, angle }`.
+    Sweep {
+        /// The carrier radius.
+        r: Expr,
+        /// Which side the centre sits on.
+        side: WireSide,
+        /// The swept central angle.
+        angle: Expr,
+    },
+    /// `ArcLen { r, side, len }`.
+    ArcLen {
+        /// The carrier radius.
+        r: Expr,
+        /// Which side the centre sits on.
+        side: WireSide,
+        /// The arc length.
+        len: Expr,
+    },
+}
+
+impl WireArcData {
+    fn from_spec(s: &crate::program::ProgramArcData) -> Self {
+        use crate::program::ProgramArcData as S;
+        match s {
+            S::Radius { r, side } => WireArcData::Radius {
+                r: r.clone(),
+                side: WireSide::from_side(*side),
+            },
+            S::Bulge { target, b } => WireArcData::Bulge {
+                target: WireTarget::from_target(target),
+                b: b.clone(),
+            },
+            S::Via { q, target } => WireArcData::Via {
+                q: q.clone(),
+                target: WireTarget::from_target(target),
+            },
+            S::Center { c, winding, target } => WireArcData::Center {
+                c: c.clone(),
+                winding: WireWinding::from_sweep(*winding),
+                target: WireTarget::from_target(target),
+            },
+            S::Sweep { r, side, angle } => WireArcData::Sweep {
+                r: r.clone(),
+                side: WireSide::from_side(*side),
+                angle: angle.clone(),
+            },
+            S::ArcLen { r, side, len } => WireArcData::ArcLen {
+                r: r.clone(),
+                side: WireSide::from_side(*side),
+                len: len.clone(),
+            },
+        }
+    }
+
+    fn into_spec(self) -> crate::program::ProgramArcData {
+        use crate::program::ProgramArcData as S;
+        match self {
+            WireArcData::Radius { r, side } => S::Radius {
+                r,
+                side: side.into_side(),
+            },
+            WireArcData::Bulge { target, b } => S::Bulge {
+                target: target.into_target(),
+                b,
+            },
+            WireArcData::Via { q, target } => S::Via {
+                q,
+                target: target.into_target(),
+            },
+            WireArcData::Center { c, winding, target } => S::Center {
+                c,
+                winding: winding.into_sweep(),
+                target: target.into_target(),
+            },
+            WireArcData::Sweep { r, side, angle } => S::Sweep {
+                r,
+                side: side.into_side(),
+                angle,
+            },
+            WireArcData::ArcLen { r, side, len } => S::ArcLen {
+                r,
+                side: side.into_side(),
+                len,
+            },
+        }
+    }
 }
 
 impl WireStep {
@@ -312,16 +436,6 @@ impl WireStep {
         use ProgramStep as P;
         match s {
             P::At(p) => WireStep::At(p.clone()),
-            P::AtOn { p, centre, winding } => WireStep::AtOn {
-                p: p.clone(),
-                centre: centre.clone(),
-                winding: WireWinding::from_sweep(*winding),
-            },
-            P::AtToward { p, dx, dy } => WireStep::AtToward {
-                p: p.clone(),
-                dx: dx.clone(),
-                dy: dy.clone(),
-            },
             P::Angle(e) => WireStep::Angle(e.clone()),
             P::Toward { dx, dy } => WireStep::Toward {
                 dx: dx.clone(),
@@ -331,32 +445,29 @@ impl WireStep {
             P::Turn(e) => WireStep::Turn(e.clone()),
             P::Line(e) => WireStep::Line(e.clone()),
             P::LineTo(t) => WireStep::LineTo(WireTarget::from_target(t)),
-            P::ArcTo { target, bulge } => WireStep::ArcTo {
-                target: WireTarget::from_target(target),
-                bulge: bulge.clone(),
-            },
-            P::ArcVia { via, target } => WireStep::ArcVia {
-                via: via.clone(),
-                target: WireTarget::from_target(target),
-            },
-            P::ArcCenter {
-                centre,
-                target,
-                winding,
-            } => WireStep::ArcCenter {
-                centre: centre.clone(),
-                target: WireTarget::from_target(target),
-                winding: WireWinding::from_sweep(*winding),
-            },
+            P::ArcTo(spec) => WireStep::ArcTo(WireArcData::from_spec(spec)),
             P::TangentArcTo(t) => WireStep::TangentArcTo(WireTarget::from_target(t)),
             P::ArcContinue(p) => WireStep::ArcContinue(p.clone()),
             P::Fillet(e) => WireStep::Fillet(e.clone()),
+            P::FilletArc { radius, spec } => WireStep::FilletArc {
+                radius: radius.clone(),
+                spec: WireArcData::from_spec(spec),
+            },
+            P::ArcFillet { spec, radius } => WireStep::ArcFillet {
+                spec: WireArcData::from_spec(spec),
+                radius: radius.clone(),
+            },
+            P::ArcFilletArc {
+                spec,
+                radius,
+                spec2,
+            } => WireStep::ArcFilletArc {
+                spec: WireArcData::from_spec(spec),
+                radius: radius.clone(),
+                spec2: WireArcData::from_spec(spec2),
+            },
             P::FarEndTo(p) => WireStep::FarEndTo(p.clone()),
             P::CloseTo => WireStep::CloseTo,
-            P::CloseToOn { centre, winding } => WireStep::CloseToOn {
-                centre: centre.clone(),
-                winding: WireWinding::from_sweep(*winding),
-            },
         }
     }
 
@@ -364,44 +475,35 @@ impl WireStep {
         use ProgramStep as P;
         match self {
             WireStep::At(p) => P::At(p),
-            WireStep::AtOn { p, centre, winding } => P::AtOn {
-                p,
-                centre,
-                winding: winding.into_sweep(),
-            },
-            WireStep::AtToward { p, dx, dy } => P::AtToward { p, dx, dy },
             WireStep::Angle(e) => P::Angle(e),
             WireStep::Toward { dx, dy } => P::Toward { dx, dy },
             WireStep::Tangent => P::Tangent,
             WireStep::Turn(e) => P::Turn(e),
             WireStep::Line(e) => P::Line(e),
             WireStep::LineTo(t) => P::LineTo(t.into_target()),
-            WireStep::ArcTo { target, bulge } => P::ArcTo {
-                target: target.into_target(),
-                bulge,
-            },
-            WireStep::ArcVia { via, target } => P::ArcVia {
-                via,
-                target: target.into_target(),
-            },
-            WireStep::ArcCenter {
-                centre,
-                target,
-                winding,
-            } => P::ArcCenter {
-                centre,
-                target: target.into_target(),
-                winding: winding.into_sweep(),
-            },
+            WireStep::ArcTo(spec) => P::ArcTo(spec.into_spec()),
             WireStep::TangentArcTo(t) => P::TangentArcTo(t.into_target()),
             WireStep::ArcContinue(p) => P::ArcContinue(p),
             WireStep::Fillet(e) => P::Fillet(e),
+            WireStep::FilletArc { radius, spec } => P::FilletArc {
+                radius,
+                spec: spec.into_spec(),
+            },
+            WireStep::ArcFillet { spec, radius } => P::ArcFillet {
+                spec: spec.into_spec(),
+                radius,
+            },
+            WireStep::ArcFilletArc {
+                spec,
+                radius,
+                spec2,
+            } => P::ArcFilletArc {
+                spec: spec.into_spec(),
+                radius,
+                spec2: spec2.into_spec(),
+            },
             WireStep::FarEndTo(p) => P::FarEndTo(p),
             WireStep::CloseTo => P::CloseTo,
-            WireStep::CloseToOn { centre, winding } => P::CloseToOn {
-                centre,
-                winding: winding.into_sweep(),
-            },
         }
     }
 }
