@@ -26,7 +26,7 @@ use geom_core::{Affine3, Mat3, Real, Vec3};
 ///
 /// Rigidity is not a field invariant — it is a decided predicate, and
 /// the kernel's placement door
-/// ([`topo::transform_rigid`](topo::transform_rigid)) owns it. What the
+/// ([`topo::transform_rigid`]) owns it. What the
 /// edit door checks is the sign (see [`Frame::determinant`]).
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]

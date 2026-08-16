@@ -149,3 +149,50 @@ was main-owned (ci-local discipline allowlist drift at #421 —
 LIB notified on their thread). R1 remaining: ASM-4 ONLY
 (docs/ASM-4-SPEC.md, binding, ready to dispatch on block ASM-2
 slot 3 = fable). Handoff: issue #430. Seam swept.
+
+## Seam: new orchestrator; ASM-4 dispatched (2026-08-15)
+
+Session resumed off handoff #430 after the three-day gap (main's
+motion in between was all M8 — now CLOSED — and LIB; no ASM state
+moved). Orchestrator branch this session: mngr/cad-asm-2
+(away-channel armed with asm/, mngr/cad-asm-2,
+mngr/cad-assemblies-implement). Resolved with Evan at session
+start: the #414 resolver shape is SETTLED — his open half was
+`Arc<dyn>`, not `Option`; the alternatives walk (concrete/enum
+blocked by layering, generic infects every EvalOptions carrier
+for a once-per-cache-miss call, Box breaks Clone+sharing, &dyn
+adds a lifetime) is on the #414 thread; accepted per his
+accept-if-confident. ASM-4 dispatched (block ASM-2 slot 3, lane
+asm-4, branch asm/4-split-inline, spec binding). In parallel per
+Evan's go-ahead: the R2 census mini-recon (read-only) runs
+alongside; R2 spec finalization still waits on ASM-4's
+interface-record hook shape. Subscribed to #509 (M9 plan): the
+M8 orchestrator confirmed the seam — M9 BUILDS the A5 door, ASM
+consumes same-currency, R2's planar subset proceeds
+independently. Dual tally still 4-of-6 (samples #11/#12 both
+0-MAJOR, non-qualifying); next ordinal claim is 39 = the banked
+same-model dual, shared with LIB's pending PYG5 claim —
+main-is-authority at whoever dispatches first.
+
+## Seam: AQ7 raised and RATIFIED as A12 same-day (2026-08-15)
+
+Parallelization pass while ASM-4 implements (Evan's prompt): the
+recon's Mate-root wrinkle sharpened, on reading A9's ratified
+text, into a genuine three-way composition failure (A9 expects
+mate references to connect components; A3 makes them stable
+names; shipped D3 makes name refs non-edges) — raised as AQ7 on
+PR #522 with a firm proposal. Evan signed off within the hour
+(👍 + comment concurring against coverage-exemption): **A12
+ratified** — reading edges recomputed from name heads, A9/A11
+partition over ALL edges, A10 over CONSUMING edges only, mates
+ordinary non-body roots. AQ7 discharged; #522 merged. Also this
+pass: the R2-a coset intersection table written out in the draft
+(closure set {SE(3), planar, cylindrical, prismatic, revolute,
+trivial, empty}; decided case splits; verdict fold), with the
+pre-log flag that R2-a's case splits are decided numerics — the
+L/structural pre-log amends to numeric under #409's mixed rule
+AT SPEC TIME, before any draw reads it. #382's cheap half turned
+out already done (M8's #491), so nothing to parallelize there.
+R2 spec finalization now waits ONLY on ASM-4's interface-record
+hook. ASM-4 lane healthy at the last sweep (D-1 + hook committed,
+refactor.rs in progress).

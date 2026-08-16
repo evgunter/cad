@@ -11,7 +11,8 @@
 //! carrier pair admits 0, 1 or 2 of them. Each derived corner is then
 //! the ratified S2 construction's input, and each yields its own
 //! surviving candidates, so the choice is over (corner, candidate)
-//! PAIRS. Ranking pairs is [`fillet_select::nearest_joint`], which
+//! PAIRS. Ranking pairs is [`crate::fillet_select::nearest_joint`],
+//! which
 //! reads the f64 diagnostic channel — a `Bounds` read.
 //!
 //! This module therefore takes a compound `Decide + Bounds`: it
@@ -45,7 +46,8 @@
 //!    anchor) and **reach** on the arrival side (behind its anchor) —
 //!    the linear `path_corner_advance` gates generalized to the angular
 //!    `path_corner_advance_arc` / `path_corner_reach_arc`;
-//! 3. run the ratified [`arc_fillet_trims`] at every surviving corner,
+//! 3. run the ratified [`crate::sugar::arc_fillet_trims`] at every
+//!    surviving corner,
 //!    with exactly the arguments the builder door would have passed had
 //!    the author written that corner by hand;
 //! 4. flatten the survivors in corner-then-candidate order and pick

@@ -167,6 +167,15 @@ fn node_error_payload(e: &pncad::document::NodeErrorKind) {
     }
 }
 
+// #234: `DuplicateName` — the refusal of `NameTable::insert` — was the
+// closure property's second stated exception until `editor_core`
+// re-exported it at its root. Destructuring it by a `pncad::` path is
+// what "nameable" means here; the field's type is named too, so the
+// whole payload has a writable path and not just the outer struct.
+fn duplicate_name_payload(e: &pncad::select::DuplicateName) {
+    named::<&StableName>(&e.name);
+}
+
 // The display/export crates carry topo entity keys.
 fn tessellate_payload(e: &TessellateError) {
     if let TessellateError::UnsupportedSurface { face, .. } = e {
@@ -257,6 +266,7 @@ fn cross_crate_error_payloads_are_nameable_through_the_facade() {
     named(skin_payload as fn(&pncad::sweep::SkinError));
     named(fit_payload as fn(&pncad::geom_curves::FitError));
     named(node_error_payload as fn(&pncad::document::NodeErrorKind));
+    named(duplicate_name_payload as fn(&pncad::select::DuplicateName));
     named(tessellate_payload as fn(&TessellateError));
     named(step_export_payload as fn(&StepExportError));
     named(step_import_payload as fn(&StepImportError));

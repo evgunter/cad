@@ -498,6 +498,10 @@ run_row "render provenance (demos)"    render_provenance
 run_row "uv composer selftest (demos)" uv_composer_selftest
 run_row "rustfmt"                      cargo fmt --all --check
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
+# Rustdoc gate (#465): same script hosted calls, unscoped there and here
+# — it is a workspace-wide ratchet over a fixed crate set, not a
+# per-closure row. See scripts/doc-gate.sh for the flags and the list.
+run_row "rustdoc (gate)"               scripts/doc-gate.sh
 # ε battery {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
 # env rows straddle the compiled default — DEFAULT_EPS = 1e-9, geom-core/
 # src/tolerance.rs — three orders either side. Mirror of ci.yml's `test`
