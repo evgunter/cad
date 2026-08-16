@@ -22,6 +22,99 @@
 //! | `Sweep{r,side,angle}` | Directed | Directed | — |
 //! | `ArcLen{r,side,len}` | Directed | Directed | — |
 //!
+//! # Examples (the §2c design conversation's own chains)
+//!
+//! **The fused entry, and the arrival that closes.** A lens: the entry
+//! side rides one circle, one fillet rounds the tip, and the arrival
+//! rides the other circle back to the entry — ONE authoring act,
+//! because an arc and the fillet that trims it are one decision.
+//!
+//! ```
+//! use geom_core::Point2;
+//! use profile::{ArcSweep, Center, Open, Start};
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let p = Point2::new;
+//! let tip = 0.75_f64.sqrt();
+//! let lens = Open.arc_fillet_arc(
+//!     Center { c: p(-0.5, 0.0), winding: ArcSweep::Ccw, p: p(0.0, -tip) },
+//!     0.25,
+//!     Center { c: p(0.5, 0.0), winding: ArcSweep::Ccw, p: Start },
+//! )?;
+//! assert_eq!(lens.program.len(), 1);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! **Line incoming, ARC arrival.** A quarter disc: a straight side, a
+//! fillet, and the carrier that closes it. The arrival's `Center` mode
+//! resolves at the verb, so `p: Start` closes there and then.
+//!
+//! ```
+//! use geom_core::Point2;
+//! use profile::{ArcSweep, Center, Open, Start};
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let p = Point2::new;
+//! let quarter = Open.at(p(0.0, 2.0))
+//!     .line_to(p(0.0, 0.0))?
+//!     .toward(1.0_f64, 0.0)?
+//!     .fillet_arc(0.5, Center { c: p(0.0, 0.0), winding: ArcSweep::Ccw, p: Start })?;
+//! assert_eq!(quarter.loop_.vertices.len(), 4);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! **The on-carrier tip re-authors its carrier.** An interior `Center`
+//! arrival leaves the tip ON that carrier, carrying position and
+//! tangent and nothing else — so the verb that continues it AUTHORS
+//! the carrier again, and `Radius { r, side }` is the one mode that
+//! can: its centre is DERIVED from those two bits, so tangency there
+//! holds by construction and nothing is value-matched.
+//!
+//! ```
+//! use geom_core::Point2;
+//! use profile::{ArcSide, ArcSweep, Center, Open, Radius, Start};
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let p = Point2::new;
+//! let boss = Open.at(p(5.05, -1.6))
+//!     .toward(2.1_f64, 0.8)?
+//!     // Onto the boss circle, blended.
+//!     .fillet_arc(0.5, Center { c: p(7.0, 0.0), winding: ArcSweep::Ccw, p: p(8.5, 0.0) })?
+//!     // Off it again: r = 1.5 and Left re-derive the centre (7, 0)
+//!     // from the tip's own position and tangent, exactly.
+//!     .arc_fillet(Radius { r: 1.5, side: ArcSide::Left }, 0.5)?
+//!     .at(p(4.05, 1.35))?
+//!     .toward(-4.1, 0.3)?
+//!     .line(1.0)?
+//!     .line_to(Start)?;
+//! assert!(boss.loop_.tangent_joints.len() >= 4);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! **Ray extension, and the endpoint-free legs.** A bare `fillet(r)`
+//! knows only the tangent ray its directed point defines, so after ANY
+//! leg its incoming side IS that ray — here off a sharp `Sweep` arc
+//! leg, whose endpoint the spec DERIVES rather than authors.
+//!
+//! ```
+//! use core::f64::consts::FRAC_PI_2;
+//! use geom_core::Point2;
+//! use profile::{ArcSide, Open, Start, Sweep};
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let p = Point2::new;
+//! let hook = Open.at(p(0.0, 0.0))
+//!     .toward(1.0_f64, 0.0)?
+//!     .arc_to(Sweep { r: 1.0, side: ArcSide::Left, angle: FRAC_PI_2 })?
+//!     .fillet(0.25)?
+//!     .at(p(0.0, 3.0))?
+//!     .toward(-1.0, 0.0)?
+//!     .line(1.0)?
+//!     .line_to(Start)?;
+//! assert_eq!(hook.loop_.vertices.len(), 5);
+//! # Ok(())
+//! # }
+//! ```
+//!
 //! Every row is spelled by ONE verb name per site: `arc_to(spec)` is
 //! the sharp arc leg from both the Point tip (`Bulge`/`Via`/`Center`,
 //! [`PointLeg`]) and the Directed tip (`Sweep`/`ArcLen`,

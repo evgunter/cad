@@ -18,10 +18,7 @@ use profile::RawLoop;
 
 use geom_core::{Band, Point3, Tolerance};
 use geom_surfaces::Surface;
-use profile::{
-    ArcSide, ArcSweep, Center, Open, Profile, ProfileLoop, ProfileVertex, Radius, SketchPlane,
-    Start,
-};
+use profile::{ArcSweep, Center, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
@@ -109,40 +106,34 @@ fn s3() -> f64 {
     3.0_f64.sqrt()
 }
 
-/// The S2 vesica eye-slot: the radius-2 vesica about (+-1, 0), both
-/// tips rounded, authored as ONE chain of fused arc-fillet verbs.
+/// The S2 vesica eye-slot: the radius-2 vesica about (+-1, 0), its
+/// top tip rounded by the fused arc-by-arc fillet.
 ///
-/// The entry rides the left circle at (1, 0); the first fused verb
-/// fillets the (0, s3) tip and arrives on the right circle at
-/// (-1, 0); from that on-carrier tip the second re-authors the same
-/// carrier as `Radius { r: 2, side: Left }` — its centre derived from
-/// the tip's own position and tangent, which reproduces (1, 0)
-/// exactly — fillets the (0, -s3) tip and closes on the left circle.
-/// Each carrier run is emitted by the verb that trims it, so the
-/// mid-arc points at (+-1, 0) are anchors, not vertices.
+/// The entry is the BOTTOM tip at (0, -s3) — a genuine two-carrier
+/// corner, which is what the loop's seam needs: one authoring act
+/// rides the left circle out of it, fillets the top tip, and comes
+/// back down the right circle to close on the entry vertex.
+///
+/// FINDING (recorded, not worked around): the fixture used to round
+/// BOTH tips, and the lattice cannot author that loop at all. Every
+/// junction of an all-blended vesica is a constructed tangency, so the
+/// entry vertex would have to sit mid-arc — a same-carrier seam, which
+/// the junction rule refuses as identity — and the seam-fillet escape
+/// is closed too, because retrimming an ARC first side would slide the
+/// entry off its own carrier (`SeamRetrimsArcFirstSide`). An
+/// all-blended loop needs one straight side to enter on; this one has
+/// none. The sharp tip below is the smallest faithful shape, and it
+/// still exercises the arc-by-arc corner the row is about.
 fn eye_slot(radius: f64) -> ProfileLoop<f64> {
     Open.arc_fillet_arc(
         Center {
             c: p2(-1.0, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(1.0, 0.0),
-        },
-        0.3,
-        Center {
-            c: p2(1.0, 0.0),
-            winding: ArcSweep::Ccw,
-            p: p2(-1.0, 0.0),
-        },
-    )
-    .unwrap()
-    .arc_fillet_arc(
-        Radius {
-            r: 2.0,
-            side: ArcSide::Left,
+            p: p2(0.0, -s3()),
         },
         radius,
         Center {
-            c: p2(-1.0, 0.0),
+            c: p2(1.0, 0.0),
             winding: ArcSweep::Ccw,
             p: Start,
         },
