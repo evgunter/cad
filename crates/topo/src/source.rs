@@ -13,7 +13,7 @@
 //! converse is deliberately NOT claimed — equal bits without shared
 //! source stay unglued (the coincidence ladder's ratified rung (b)).
 //! The bit comparison survives only as the debug assertion
-//! [`debug_same_source_bits_agree`] behind the lookup.
+//! [`plane_bits_agree`] behind the lookup.
 //!
 //! **Layering**: the recipe vocabulary (node ids, expression paths)
 //! lives in `editor-core`, which depends on this crate — so the

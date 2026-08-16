@@ -1,5 +1,5 @@
 //! Sweep operations: solids from validated 2-D profiles (M2 PR 4:
-//! [`extrude`]; PR 5 adds revolve).
+//! [`fn@extrude`]; PR 5 adds revolve).
 //!
 //! This crate sits on top of the whole M2 stack: it consumes the
 //! `profile` crate's [`profile::ValidatedProfile`] (the only accepted

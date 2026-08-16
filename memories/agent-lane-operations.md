@@ -150,6 +150,13 @@ must be re-run untrusted (one R2 review stopped mid-battery this
 way — the reply "mid-battery, progressing normally" surfaced
 with the kill).
 
+**Waiter self-test (2026-08-15, #511):** run a background waiter's
+detection expression ONCE in the foreground before arming it — a
+catch-all retry arm (`|| echo retry`) converts a permanent error
+into silent eternal waiting (observed: a jq filter using `||`,
+which jq does not have — `or` — errored every poll and the waiter
+never fired; Evan spotted the green PR before the monitor did).
+
 **Death recovery.** A dead subagent's transcript AND its isolation
 worktree (with uncommitted work) survive — `git worktree list`
 from the main checkout, then SendMessage resumes it. Choose
