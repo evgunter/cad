@@ -168,7 +168,7 @@ pub(crate) fn census_and_certify<T: Decide + crate::chart_region::ChartRegionLan
     sweep_edge_face(body, &geo, &declared, band, &mut errors);
     sweep_edge_edge(&geo, &declared, band, &mut errors);
     sweep_conformal_patches(body, &geo, &declared, band, &mut errors);
-    sweep_cross_solid_backstop(body, &geo, band, &mut errors);
+    sweep_cross_solid_backstop(body, &geo, &declared, band, &mut errors);
     confirm_declarations(body, &geo, contacts, band, &mut errors);
     errors
 }
@@ -1023,9 +1023,21 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 /// contact classes either leave vertex/line/planar evidence the
 /// exact sweeps already examine, or are the pure-tangency class the
 /// envelope names as undetected until C9 (module docs).
+///
+/// **Jurisdiction, exactly** (a backstop refuses only what NO arm
+/// examines): same-`SurfaceKey` face pairs are the conformal arm's
+/// candidates and are skipped here; record-NAMED face pairs are the
+/// patch/curve certifier's (a cross-key record escalates loudly
+/// there — skipping it here loses no loudness); and a solid pair
+/// BRIDGED by any contact record (vv, v-on-f, curve, patch) is
+/// under the confirm pass's examination — its records either
+/// confirm (the declared touching class) or error as
+/// stale/contradicted, so the containment arm defers to that
+/// verdict rather than double-refusing a certified assembly.
 fn sweep_cross_solid_backstop<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
+    declared: &Declared,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) {
@@ -1097,6 +1109,16 @@ fn sweep_cross_solid_backstop<T: Decide>(
     }
     let mut reaches: Vec<Reach<T>> = Vec::new();
     for &f in &geo.curved_faces {
+        // A placeholder surface is "no description yet" (mid-surgery
+        // scaffolding): there is no geometry to be within reach OF,
+        // and a body carrying one never reaches 3′ (the tier-3 local
+        // battery refuses it first) — excluded from the backstop.
+        if matches!(
+            body.get_face(f).and_then(|d| body.surfaces.get(d.surface)),
+            Some(geom_surfaces::Surface::Nurbs(p)) if p.is_placeholder()
+        ) {
+            continue;
+        }
         let Some(solid) = solid_of(f) else { continue };
         let pts = face_points(f);
         let Some((lo, hi)) = hull(&pts) else { continue };
@@ -1116,10 +1138,43 @@ fn sweep_cross_solid_backstop<T: Decide>(
             verts,
         });
     }
+    // The record-bridged solid pairs (doc comment): any record
+    // linking a vertex/face of one solid to a vertex/face of another
+    // puts that PAIR under the confirm pass's jurisdiction.
+    let vertex_solid = |v: VertexKey| -> Option<SolidKey> {
+        geo.vertex_faces
+            .get(&v)
+            .and_then(|fs| fs.iter().next())
+            .and_then(|&f| solid_of(f))
+    };
+    let mut bridged: BTreeSet<(SolidKey, SolidKey)> = BTreeSet::new();
+    let mut bridge = |sa: Option<SolidKey>, sb: Option<SolidKey>| {
+        if let (Some(sa), Some(sb)) = (sa, sb) {
+            bridged.insert((sa, sb));
+            bridged.insert((sb, sa));
+        }
+    };
+    for &(va, vb) in &declared.vv {
+        bridge(vertex_solid(va), vertex_solid(vb));
+    }
+    for &(v, f) in &declared.vf {
+        bridge(vertex_solid(v), solid_of(f));
+    }
+    for &(fa, fb) in &declared.faces {
+        bridge(solid_of(fa), solid_of(fb));
+    }
+
     for (i, a) in reaches.iter().enumerate() {
         for b in &reaches[i + 1..] {
             if a.solid == b.solid || !a.verts.is_disjoint(&b.verts) {
                 continue; // same instance / structural adjacency
+            }
+            let same_key = body
+                .get_face(a.face)
+                .zip(body.get_face(b.face))
+                .is_some_and(|(da, db)| da.surface == db.surface);
+            if same_key || declared.faces.contains(&(a.face, b.face)) {
+                continue; // the conformal arm's / the certifier's pair
             }
             // Definite separation on ANY axis clears the pair: the
             // margin is the inter-hull gap minus both reach pads —
@@ -1169,6 +1224,9 @@ fn sweep_cross_solid_backstop<T: Decide>(
     let solids: Vec<_> = solid_boxes.iter().collect();
     for (i, &(&sa, (alo, ahi))) in solids.iter().enumerate() {
         for &(&sb, (blo, bhi)) in solids.iter().skip(i + 1) {
+            if bridged.contains(&(sa, sb)) {
+                continue; // under the confirm pass's jurisdiction
+            }
             for (outer, inner, olo, ohi, ilo, ihi) in
                 [(sa, sb, alo, ahi, blo, bhi), (sb, sa, blo, bhi, alo, ahi)]
             {
