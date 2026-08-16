@@ -100,3 +100,21 @@ Binding spec docs/M9-D1-SPEC.md; dispatch = block M8-15 position
 3 (OPUS, closing the block; next opens M9-16), S-M / STRUCTURAL
 pre-logged. Board: M9-1 (kernel) + M9-2a (predicate, fable @
 position 2) implementing; D1 dispatches on this spec's merge.
+
+## M9-2 PR-1 MERGED (#527 at b8fd8a95, 2026-08-16) — the predicate exists
+
+The chart-region overlap predicate landed through the FIRST M9-side
+cross-model dual (sample #14, ordinal 42, R1 fable 0/3/4 + R2 opus
+0/4/5+1silent, concurrent frozen cfe4616b): CONVERGED at zero
+MAJORs, and both independently found the same near-MAJOR — rung 2
+trusting GeomSource equality without a surface bit-check (R2
+executed a forged pair to a false PositiveArea). The union fix pass
+took all five items and exceeded U2's ask: the clip-walk crossing
+order is now CERTIFIED (new metered K row chart_region_cross_order
++ audit row) rather than comment-asserted; the forged-source class
+is red-then-green pinned. 52 chart_region rows at merge (19 shipped
++ 33 adopted probes). Unit row records at PR-2 per the two-PR
+pattern; PR-2 (the census door) dispatches after M9-1 PR-1's fix
+pass lands. Cross-model calibration point: comparable depth,
+converged findings, disjoint MINOR tails — the pattern of sample
+#12 repeating.
