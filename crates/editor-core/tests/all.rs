@@ -66,8 +66,6 @@ mod m4_pr2_eval_interval;
 mod m4_pr2_wire;
 #[path = "m4_pr3_names.rs"]
 mod m4_pr3_names;
-#[path = "m9_d1_r1_probes.rs"]
-mod m9_d1_r1_probes;
 #[path = "m4_pr3_names_bool.rs"]
 mod m4_pr3_names_bool;
 #[path = "m4_pr3_names_ci.rs"]
@@ -146,6 +144,8 @@ mod m6_5_schema_v3;
 mod m6_5_selection_refusals;
 #[path = "m6_composed_node.rs"]
 mod m6_composed_node;
+#[path = "m9_d1_r1_probes.rs"]
+mod m9_d1_r1_probes;
 #[path = "review_m4_pr1.rs"]
 mod review_m4_pr1;
 #[path = "review_m4_pr1_die.rs"]

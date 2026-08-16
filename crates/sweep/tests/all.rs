@@ -112,6 +112,8 @@ mod m6_tube;
 mod m7_skin_integral;
 #[path = "m8_14_long_turn_sweep.rs"]
 mod m8_14_long_turn_sweep;
+#[path = "m9_d1_r1_probes.rs"]
+mod m9_d1_r1_probes;
 #[path = "mass_props.rs"]
 mod mass_props;
 #[path = "mass_props_interval.rs"]
@@ -154,8 +156,6 @@ mod review_s11_adv;
 mod review_s12_adv;
 #[path = "review_s6_probe.rs"]
 mod review_s6_probe;
-#[path = "m9_d1_r1_probes.rs"]
-mod m9_d1_r1_probes;
 #[path = "revolve_ball.rs"]
 mod revolve_ball;
 #[path = "revolve_cone.rs"]

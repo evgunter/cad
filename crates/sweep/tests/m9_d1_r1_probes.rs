@@ -15,9 +15,9 @@ mod revolve_common;
 
 use core::f64::consts::FRAC_PI_2;
 
+use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use revolve_common::*;
 use sweep::{Revolution, Revolved, revolve};
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
 
 /// The ball meridian, authored CCW: (0,−1) —arc(bulge 1)→ (0,1)
 /// —axis line→ close. Canonical vertex 0 is (0,−1) (lex least).
@@ -65,8 +65,14 @@ fn assert_ball_poles(t: &Revolved<f64>) {
     assert_eq!(t.poles[0].len(), 2);
     // Canonical 0 = (0,−1) south, 1 = (0,1) north — authored ground
     // truth, the swap an off-by-one would fail.
-    assert!((pole_y(t, 0, 0) + 1.0).abs() < 1e-12, "canonical 0 is south");
-    assert!((pole_y(t, 0, 1) - 1.0).abs() < 1e-12, "canonical 1 is north");
+    assert!(
+        (pole_y(t, 0, 0) + 1.0).abs() < 1e-12,
+        "canonical 0 is south"
+    );
+    assert!(
+        (pole_y(t, 0, 1) - 1.0).abs() < 1e-12,
+        "canonical 1 is north"
+    );
     assert_ne!(t.poles[0][0], t.poles[0][1]);
 }
 
@@ -128,7 +134,10 @@ fn full_subdivided_axis_run_exports_tips_and_omits_the_interior() {
     assert_eq!(counts(&t.body), (2, 2, 2, 0));
     assert!((pole_y(&t, 0, 0) + 1.0).abs() < 1e-12);
     assert!((pole_y(&t, 0, 1) - 1.0).abs() < 1e-12);
-    assert_eq!(t.poles[0][2], None, "deleted interior run vertex must export None");
+    assert_eq!(
+        t.poles[0][2], None,
+        "deleted interior run vertex must export None"
+    );
 }
 
 /// The same profile PARTIALLY revolved keeps the interior axis vertex
@@ -149,7 +158,12 @@ fn partial_subdivided_axis_run_exports_all_three_poles() {
             bulge: 0.0,
         },
     ]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(FRAC_PI_2)).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Partial(FRAC_PI_2),
+    )
+    .unwrap();
     // Tiers 1-2 only (same pre-existing tier-3 wedge gap as above).
     assert_eq!(topo::validate(&t.body), Ok(()));
     assert_eq!(topo::validate_closed(&t.body), Ok(()));
@@ -183,7 +197,13 @@ fn full_mixed_profile_exports_poles_only_at_pinned_vertices() {
     assert_all_tiers(&t.body);
     // Canonical v0 = (0,0), v1 = (1,0), v2 = (0,1).
     assert!(pole_y(&t, 0, 0).abs() < 1e-12);
-    assert_eq!(t.poles[0][1], None, "off-axis vertex must not export a pole");
+    assert_eq!(
+        t.poles[0][1], None,
+        "off-axis vertex must not export a pole"
+    );
     assert!((pole_y(&t, 0, 2) - 1.0).abs() < 1e-12);
-    assert!(t.rims[0][1].is_some(), "off-axis vertex is addressed through its rim");
+    assert!(
+        t.rims[0][1].is_some(),
+        "off-axis vertex is addressed through its rim"
+    );
 }
