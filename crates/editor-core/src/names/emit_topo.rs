@@ -112,9 +112,18 @@ struct Upstream {
 
 /// The upstream name of an entity. A MISSING row is still loud (the
 /// upstream tables are total by this same machinery), and so is a
-/// table whose two directions disagree — the one condition that
-/// genuinely needs a unique upstream, because no candidate list exists
-/// to propagate.
+/// table whose two directions disagree — after B1, that is the ONE
+/// remaining condition genuinely needing a unique upstream, because no
+/// candidate list exists to propagate.
+///
+/// It has no executable test row ON PURPOSE, and the reason is a
+/// property rather than an omission: the condition is unconstructible
+/// through `NameTable`'s public API — `insert`/`insert_tied` write both
+/// directions together and there is no removal door, so no caller can
+/// reach a state where `name_of` answers and `lookup` does not. The
+/// LIB-G14 review confirmed this independently (MINOR-1) and recorded
+/// the prose as the faithful reading. The arm stays because the
+/// invariant is the emitter's to assert, not to assume.
 fn upstream_name(
     table: &NameTable,
     node: RecipeNodeId,
@@ -149,6 +158,11 @@ fn upstream_name(
 /// directly, so a genuine aliasing bug is still a typed `Duplicate` —
 /// and so is a tie-descended name colliding with a strict one, since
 /// the flush inserts into the same table.
+///
+/// Narrowing means a WRAPPED name can come out `Unique` here while the
+/// upstream name it wraps stays `Tied` (review NOTE-2). That is the
+/// ratified `graft_names` semantics, not laundering: the op genuinely
+/// separated the candidates, and the upstream table is untouched.
 #[derive(Default)]
 struct TieRows(BTreeMap<StableName, Vec<super::table::EntityRef>>);
 
@@ -777,7 +791,10 @@ fn name_fragment_group<T: Decide>(
                 if other != m {
                     let d = descend_face(other)?;
                     // The partner name is a discriminator LABEL here,
-                    // so a tied partner is admissible unchanged.
+                    // so a tied partner is admissible unchanged. Its
+                    // representative face is the first in BTreeMap
+                    // order (review NOTE-1): arbitrary among tied
+                    // candidates, never nondeterministic.
                     partners.entry(operand_face_name(d)?.name).or_insert(other);
                 }
             }

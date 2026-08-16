@@ -23,10 +23,10 @@
 mod fixture;
 
 use editor_core::{
-    BooleanOp, CancelToken, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions,
+    BooleanOp, CancelToken, Cmp, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions,
     Evaluation, GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, ParamEnv,
-    ProfileDoc, RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, SplitHalf, StableName, evaluate,
-    select, select_where,
+    ProfileDoc, RecipeNodeId, RoleSeg, SegPat, SegTag, SelectRefusal, Selector, SplitHalf,
+    StableName, evaluate, select, select_where,
 };
 
 use fixture::{desc, insert, len, scl};
@@ -194,6 +194,85 @@ fn boolean_over_a_tied_operand_names_and_keeps_the_tie() {
     }
 }
 
+/// The NARROWING arm of the flush — the other half of the ratified
+/// `graft_names` shape, and the one the propagation rows above cannot
+/// reach: when a downstream op kills all but ONE candidate of a tie,
+/// the survivor's name collapses back to `Entry::Unique` rather than
+/// staying a one-candidate "tie" (which `insert_tied` would refuse
+/// outright) or vanishing.
+///
+/// Adopted from the LIB-G14 review's lane-local probe
+/// `probe_a_tie_with_one_survivor_narrows_to_unique` (review MINOR-2:
+/// the arm shipped untested in the first cut).
+#[test]
+fn a_tie_with_one_surviving_candidate_narrows_back_to_unique() {
+    let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14"));
+    // Engulf the y-high prong region entirely: every candidate in
+    // y ∈ [2.5, 3] dies, the y ∈ [1, 1.5] one survives intact.
+    let (doc, c) = block(doc, (1.5, 4.5), (2.25, 3.25), 0.5, 3.0);
+    let (doc, sub2) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a: sub,
+            b: c,
+            declare: None,
+        },
+    );
+    let ev = run(&doc);
+    let up_ties = ties(table(&ev, sub));
+    assert!(!up_ties.is_empty(), "fixture lost its upstream tie");
+    let t = table(&ev, sub2);
+    for (tn, _) in &up_ties {
+        let descendants: Vec<(&StableName, &Entry)> = t
+            .iter()
+            .filter(|(n, _)| match n.path.first() {
+                Some(RoleSeg::FromA(inner)) => &**inner == *tn,
+                _ => false,
+            })
+            .collect();
+        assert_eq!(
+            descendants.len(),
+            1,
+            "expected exactly one descendant of {tn:?}, got {descendants:?}"
+        );
+        assert!(
+            matches!(descendants[0].1, Entry::Unique(_)),
+            "one survivor must narrow to Unique: {:?}",
+            descendants[0]
+        );
+    }
+}
+
+/// Ties are a candidate LIST, so their order is a determinism risk
+/// that unique names do not carry. `insert_tied` sorts and dedups and
+/// every table on the path is a `BTreeMap`; this pins that end to end,
+/// over both a propagated tie (B1) and a minted one (A2).
+///
+/// Adopted from the review's `probe_naming_is_deterministic_across_runs`.
+#[test]
+fn tie_bearing_name_tables_are_identical_across_evaluations() {
+    let builds: [fn() -> (ProfileDoc, RecipeNodeId); 2] = [
+        || {
+            let (doc, _, n) = l_split(ProfileDoc::empty_derived("lib_g14"));
+            (doc, n)
+        },
+        || {
+            let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14"));
+            let (doc, tool) = plane(doc, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
+            let (doc, split) = insert(doc, Node::Split { target: sub, tool });
+            (doc, split)
+        },
+    ];
+    for build in builds {
+        let (doc, n) = build();
+        let a = format!("{:?}", table(&run(&doc), n));
+        let b = format!("{:?}", table(&run(&doc), n));
+        assert_eq!(a, b, "naming differed across two evaluations");
+        assert!(a.contains("Tied"), "fixture should exercise ties");
+    }
+}
+
 // ---- Wall A (A2): two chords across one operand face TIE. ----
 
 /// The survey's boolean-free repro. An L-shaped SINGLE-loop extrude
@@ -273,7 +352,13 @@ fn l_shaped_extrude_cut_across_both_legs_names_with_tied_chords() {
 /// `SelectRefusal::TiedDisagrees`, by design, because a filter that
 /// half-selected a name would lie in one direction or the other.
 /// Picking a specific chord needs a per-candidate narrowing door in
-/// the SEL layer, which does not exist today.
+/// the SEL layer, which does not exist today. The second half of this
+/// row EXECUTES that escalation rather than asserting it in prose
+/// (adopted from the review's `probe_select_where_cannot_narrow_the_
+/// a2_tie`), which also settles the useful half of the question: the
+/// atom set CAN tell the two cap chords apart — that is precisely why
+/// it escalates — so a SEL narrowing door, when built, would have
+/// signal to work with (review NOTE-3).
 #[test]
 fn the_tied_chords_are_reachable_through_the_selector_layer() {
     let (doc, _, split) = l_split(ProfileDoc::empty_derived("lib_g14"));
@@ -300,6 +385,36 @@ fn the_tied_chords_are_reachable_through_the_selector_layer() {
     )
     .expect("an exact atom never refuses");
     assert_eq!(lines, plain, "the exact atom dropped a chord");
+
+    // A DECIDED atom that separates the two cap chords: the tie must
+    // ESCALATE, naming itself and its split, never half-select.
+    let (doc, datum) = plane(doc, [1.25, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let ev = run(&doc);
+    let refusal = select_where(
+        &ev,
+        split,
+        &sel,
+        &[GeomPred::DatumDistance {
+            datum,
+            cmp: Cmp::Greater,
+            value: len(0.1),
+        }],
+        &params,
+    )
+    .expect_err("a separating atom over a tie must refuse, not narrow");
+    let SelectRefusal::TiedDisagrees {
+        name,
+        matched,
+        candidates,
+    } = refusal
+    else {
+        panic!("expected TiedDisagrees, got {refusal:?}");
+    };
+    assert_eq!((matched, candidates), (1, 2));
+    assert!(matches!(
+        name.path.first(),
+        Some(RoleSeg::SectionEdge { .. })
+    ));
 }
 
 /// The retired refusal, from the outside: the L-split's chain names

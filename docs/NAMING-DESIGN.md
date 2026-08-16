@@ -345,7 +345,10 @@ all-or-nothing PER NAME by its own GS-Q4 rule — a tie whose
 candidates disagree under a filter is `SelectRefusal::TiedDisagrees`,
 never a narrowing. The tie is reachable and honestly escalated;
 picking ONE chord needs a per-candidate narrowing door the SEL layer
-does not have. Filed, not worked around.
+does not have. Filed, not worked around. The escalation is itself the
+evidence such a door would work: a `DatumDistance` atom separates the
+two cap chords 1-of-2 today (executed row), so what is missing is the
+door, not the signal.
 
 The LIB audit's "G14" turned out to be TWO disjoint M4-era
 deferrals (one logged sentence, M4-LOG:311), disentangled by
