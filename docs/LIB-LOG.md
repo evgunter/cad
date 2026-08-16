@@ -751,3 +751,40 @@ Honest boundary stated: privacy seals at the crate boundary;
 crates/profile's internals stay on the sealed-verbs discipline.
 Sequenced after RESPELL PR-2 (same surfaces). Also settles
 #431's open question — noted there.
+
+**DELETION-HORIZON REGISTER ENTRY NARROWED TO ONE NAMED VOCABULARY
+GAP (LIB-RESPELL PR-2, 2026-08-16) — it does NOT close, and the
+reason is the SURFACE, not the suites.** Of the shim's ~42 callers,
+all but one shape class migrated: the plain data fixtures in
+`sweep`/`step-export`/`mesh` to raw `RawLoop` vertex chains
+(bit-identical by construction, which those pinned fixtures need),
+and the line x line, arc x line and lens-shaped arc x arc corners to
+the §2c fused family. What does not move is **an arc x arc fillet
+corner whose two authored far points differ**, and it cannot: an ARC
+arrival always lands on the `OnArc` state, whose only continuations
+are the fused verbs — the carrier run from the fillet's second
+tangent point to the arrival anchor is emitted by whatever TRIMS it
+next, so a verb departing the carrier would silently drop that run.
+Exact consequence: an arc arrival may be followed by another fillet
+or by nothing (the `p: Start` close), never by a sharp continuation;
+so a single-fillet loop with an arc outgoing side must close on that
+same carrier, which requires the entry to lie on it — i.e. the far
+points to coincide. **REPORTED FOR A RULING** (vocabulary, out of the
+re-spell unit's fence): the candidate is an `OnArc` continuation that
+ends the carrier run at its anchor and yields an ordinary directed
+point — the shape §2b's `at_on` tip had and §2c dissolved. Surviving
+callers, all in `crates/profile/tests`: `review_s2.rs` (the S2
+blinded-review fuzz, which draws its two far points independently and
+carries an arc x arc coverage floor), `review_s8_probe.rs::check`,
+and two `arc_fillet.rs` fixtures. The same PR retired the three
+arc-leg name doors (`arc_to(p, b)` / `arc_via` / `arc_center`) onto
+the one `arc_to(spec)` verb and deleted the §2b compat trio
+(`at_on`/`to_on`/`at_toward`) with `PathError::ArcCarrierSpelling`;
+what survives of that refusal is not carrier-keyed and is named
+`ArcLegOnOpenFillet`. A SECOND instance of the same gap, found in
+`sweep`: an all-blended loop (every junction a constructed tangency)
+has no lattice entry either — the entry vertex would be a
+same-carrier seam, and the seam-fillet escape is closed by
+`SeamRetrimsArcFirstSide` when side 1 is an arc. The vesica eye-slot
+fixture was re-shaped to one sharp tip, with the finding recorded in
+place.

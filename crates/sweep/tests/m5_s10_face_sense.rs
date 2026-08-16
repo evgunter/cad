@@ -168,11 +168,12 @@ fn offcentre_flipped_ball_still_cancels() {
 #[test]
 fn assembly_flip_is_wrong_but_nonzero() {
     let ball = ball_at(0.0);
-    let lp = ProfileLoop::builder(p2(5.0, 0.0))
-        .line_to(p2(6.0, 0.0))
-        .line_to(p2(6.0, 2.0))
-        .line_to(p2(5.0, 2.0))
-        .close();
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
+        p2(5.0, 0.0),
+        p2(6.0, 0.0),
+        p2(6.0, 2.0),
+        p2(5.0, 2.0),
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .unwrap();
@@ -212,11 +213,12 @@ fn assembly_flip_is_wrong_but_nonzero() {
 /// naming that exact face.
 #[test]
 fn tier_three_refusal_is_surgical() {
-    let lp = ProfileLoop::builder(p2(0.0, 0.0))
-        .line_to(p2(2.0, 0.0))
-        .line_to(p2(2.0, 1.0))
-        .line_to(p2(0.0, 1.0))
-        .close();
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
+        p2(0.0, 0.0),
+        p2(2.0, 0.0),
+        p2(2.0, 1.0),
+        p2(0.0, 1.0),
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .unwrap();
@@ -250,11 +252,26 @@ fn tier_three_refusal_is_surgical() {
 /// a CONCAVE one (bowing into the region).
 fn mixed_turn_arcs() -> sweep::Extruded<f64> {
     let b = FRAC_PI_8.tan();
-    let lp = ProfileLoop::builder(p2(0.0, 0.0))
-        .arc_to(p2(2.0, 0.0), b)
-        .line_to(p2(2.0, 1.5))
-        .arc_to(p2(0.0, 1.5), -b)
-        .close();
+    // Leaving bulges: the bottom arc bows out (+b), the top one bows
+    // into the region (-b); the two sides are straight.
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(0.0, 0.0),
+            bulge: b,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 1.5),
+            bulge: -b,
+        },
+        ProfileVertex {
+            pos: p2(0.0, 1.5),
+            bulge: 0.0,
+        },
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .unwrap();
@@ -339,11 +356,12 @@ fn fixed_concave_arc_wall_sense_is_false() {
 /// Every point of it is genuinely OUTSIDE `mixed_turn_arcs` (the notch
 /// floor at `x = 1` is `y ≈ 1.0858`), so the two solids are disjoint.
 fn pellet() -> Body<f64> {
-    let lp = ProfileLoop::builder(p2(0.9, 1.25))
-        .line_to(p2(1.1, 1.25))
-        .line_to(p2(1.1, 1.35))
-        .line_to(p2(0.9, 1.35))
-        .close();
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
+        p2(0.9, 1.25),
+        p2(1.1, 1.25),
+        p2(1.1, 1.35),
+        p2(0.9, 1.35),
+    ]);
     let plane = SketchPlane::from_frame(
         Point3::new(0.0, 0.0, 0.3),
         geom_core::Vec3::new(1.0, 0.0, 0.0),

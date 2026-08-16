@@ -343,16 +343,15 @@ through the same funnel as the other sign gates.
 circle loops and chain loops freely. §6's mixed-authoring rule is read
 at LOOP granularity, as it always was: no loop is half raw.
 
-### 2. `arc_via(via, end)` — the arc through a point (now the
-### `Via { q, p }` mode of `arc_to(spec)` — §2c's unified family;
-### the standalone name is a retired-name door until the consumer
-### re-spell)
+### 2. The arc through a point — the `Via { q, p }` mode of
+### `arc_to(spec)` (§2c's unified family; the standalone `arc_via`
+### name is gone)
 
 **Consumes** a positioned tip, a through-point, and an endpoint.
 **Determines** the arc through those three points. A free arc: the
 junction semantics are `arc_to`'s exactly — on a directed point the §4
-item 1 check runs against the arc's start tangent; `arc_via(v, Start)`
-is a sharp arc seam. It is a LEG, not an arrival: an arc arrival binds
+item 1 check runs against the arc's start tangent;
+`arc_to(Via { q, p: Start })` is a sharp arc seam. It is a LEG, not an arrival: an arc arrival binds
 its carrier through the fused verbs' arrival specs (§2c), never as an
 arc leg from an already-bound arrival point.
 
@@ -370,10 +369,9 @@ the same statement (three collinear points name no arc) and the
 recourse is the same (move it off the chord, or author a line);
 coincident endpoints (`DegenerateArcChord`).
 
-### 3. `arc_center(center, end, winding)` — the arc about a centre
-### (now the `Center { c, winding, p }` mode of `arc_to(spec)` —
-### §2c's unified family; the standalone name is a retired-name
-### door until the consumer re-spell)
+### 3. The arc about a centre — the `Center { c, winding, p }` mode
+### of `arc_to(spec)` (§2c's unified family; the standalone
+### `arc_center` name is gone)
 
 **Consumes** a positioned tip, a centre, an endpoint, and a winding.
 **Determines** the arc from tip to end about that centre, with the
@@ -748,9 +746,11 @@ compatibility surface).
 | `tangent_arc_to(p)` | Directed → Point | the unique tangent arc |
 | `nurbs_reversed(curve)` / `nurbs_mirrored(curve)` | Directed → Point | structural variants of rigid placement |
 | `.turn(δ)` | directed point → Directed | `.angle(incoming + δ)`; `turn(0)` refuses → `.tangent()`; `turn(±π)` hits the reverse class |
-| **RETIRED-NAME DOORS** (delete with the consumer re-spell) | | |
-| `arc_to(p, bulge)` / `arc_via(via, p)` / `arc_center(c, p, w)` | Point → Point | record the unified `ArcData` steps; rename onto `arc_to(spec)` at the consumer re-spell |
-| `at_on` / `to_on` / `at_toward` | — | §2b compat shim over the §2c kernel rows (doc-hidden; identical bits; record the fused steps) |
+
+The retired-name doors (`arc_to(p, bulge)` / `arc_via` / `arc_center`
+as standalone verbs, and the §2b compat trio `at_on` / `to_on` /
+`at_toward`) are DELETED: the consumer re-spell moved every call site
+onto the rows above, so the surface has one spelling per act.
 
 All-rounded square (4 anchors + 4 directions; every mᵢ a real
 on-path point, e.g. a side midpoint):
@@ -802,6 +802,11 @@ the §2b register: `ArcCarrierSpelling` and the doctrine-level
 `FilletCarrierUnsupported` — under the §2c axiom a carrier-keyed
 refusal is unwritable (contact ON a carrier is the fused verb;
 bare `fillet` is ray extension; `nurbs_fillet` is an absent verb).
+What survives of the first is not carrier-keyed and so keeps its
+own name: `ArcLegOnOpenFillet`, a sharp arc LEG reached while a
+fillet is still open — the arrival's carrier is authored INSIDE
+`fillet_arc`/`arc_fillet_arc`, so a leg departing an
+already-positioned arrival point would claim that direction twice.
 Compile-time, from §2a: `circle`'s result is a loop, so no chain
 verb follows it; `.toward` is a second director exactly as
 `.angle` is; the far-end `.to(p)` needs the position slot empty
@@ -842,6 +847,22 @@ and the angle slot bound.
    `same_carrier: true` (identity, not tangency); the post-fillet
    continuation is exempt by construction — it extends the same
    leg rather than minting a collinear neighbor.
+
+**OPEN (#433) — the lattice and `validate` disagree about EXACT
+collinearity, and the disposition is Evan's.** A junction whose
+turn is exactly zero is, to invariant 1, tangent at any precision:
+the lattice refuses it and names `.tangent()` as the recourse.
+`validate` accepts the same three points as loop DATA, because a
+straight run subdivided at an interior vertex is well-formed
+geometry — it is what STEP import and raw authored loops routinely
+produce, and nothing there claims tangency. So the two rules are
+not measuring the same thing: one gates an AUTHORING act (what did
+you mean by this corner?), the other gates a DATA shape (is this
+loop well formed?). The three candidate dispositions are on the
+table — admit exact collinearity in the junction check, tighten
+`validate` to refuse it, or rule the divergence INTENTIONAL with
+the reason stated at both sites — and the unit that raised it
+proposes the third; until it is ruled, neither site changes.
 
 The #101 verify layer runs UNCHANGED on the lowered output — the
 algebra is upstream insurance; the flags remain the contract of

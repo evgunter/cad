@@ -67,7 +67,10 @@ pub use ::profile::{
 };
 // The PATHS authoring algebra (LIB-U2), with the LIB-G1 vocabulary
 // growth: `circle` (the one-step closed-carrier program form) and the
-// target traits the new arc binding modes dispatch through.
+// §2c spec modes the one `arc_to(spec)` leg and the fused fillet
+// family dispatch through (`Bulge`/`Via`/`Center`/`Radius`/`Sweep`/
+// `ArcLen` + the `ArcSide` bit), with the states an arc arrival can
+// leave the chain in.
 // `ClosedLoop` and `circle_split` joined this group in LIB-PYG1: a
 // closing verb RETURNS a `ClosedLoop`, so a prelude user could hold
 // the value and not name its type; and `circle_split` is the
@@ -75,8 +78,8 @@ pub use ::profile::{
 // `bossplate` scene's three-arc rim IS one), so `circle` alone left
 // half of the closed-carrier vocabulary a crate away.
 pub use ::profile::{
-    ArcCenterTarget, ArcTarget, ArcViaTarget, ClosedLoop, LineTarget, Open, PartialPath, PathError,
-    Start, TangentArcTarget, circle, circle_split,
+    ArcLen, ArcSide, Bulge, Center, ClosedLoop, LineTarget, OnArc, Open, PartialPath, PathError,
+    Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
 };
 
 // --- 3. The four body operations ------------------------------

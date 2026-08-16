@@ -24,7 +24,8 @@
 
 use pncad::geom_core::Tolerance;
 use pncad::profile::{
-    ArcSweep, Open, Profile, ProfileLoop, SegmentKind, SketchPlane, Start, ValidatedProfile,
+    ArcSide, ArcSweep, Center, Open, Profile, ProfileLoop, Radius, SegmentKind, SketchPlane, Start,
+    ValidatedProfile,
 };
 use pncad::sweep::{Extrusion, extrude};
 
@@ -101,30 +102,60 @@ fn outline<S: Scalar>() -> ProfileLoop<S> {
     Open.at(p2::<S>(5.05, -1.6))
         .toward(S::from_f64(2.1), S::from_f64(0.8))
         .expect("the keel runs east")
-        // keel → boss: the arrival rides the boss circle, entering it at
-        // its east point.
-        .fillet(blend)
-        .expect("a definitely positive blend radius")
-        .at_on(p2(bx + br, by), p2(bx, by), ArcSweep::Ccw)
+        // keel → boss: a straight incoming side, an ARC arrival that
+        // rides the boss circle and enters it at its east point — one
+        // fused verb, radius and arrival authored together.
+        .fillet_arc(
+            blend,
+            Center {
+                c: p2(bx, by),
+                winding: ArcSweep::Ccw,
+                p: p2(bx + br, by),
+            },
+        )
         .expect("keel→boss blend fits")
-        // boss → upper flank: the departure is ON the boss carrier and
-        // the arrival is straight — the §2b route-3 door.
-        .fillet(blend)
-        .expect("a definitely positive blend radius")
-        .at_toward(p2(4.05, 1.35), S::from_f64(-4.1), S::from_f64(0.3))
+        // boss → upper flank: the incoming side runs ON the boss
+        // carrier, so the verb re-authors it from the tip's own bits —
+        // the carrier radius and the side its centre sits on (left of
+        // travel is CCW) — and the arrival is straight.
+        .arc_fillet(
+            Radius {
+                r: S::from_f64(br),
+                side: ArcSide::Left,
+            },
+            blend,
+        )
         .expect("boss→flank blend fits")
+        .at(p2(4.05, 1.35))
+        .expect("the upper flank's anchor fits the blend")
+        .toward(S::from_f64(-4.1), S::from_f64(0.3))
+        .expect("the upper flank runs back west")
         // upper flank → hub: back onto the big circle, entered at its
         // west point — the very point the raw spelling used as its seam,
         // now an anchor and not a vertex.
-        .fillet(blend)
-        .expect("a definitely positive blend radius")
-        .at_on(p2(hx - hr, hy), p2(hx, hy), ArcSweep::Ccw)
+        .fillet_arc(
+            blend,
+            Center {
+                c: p2(hx, hy),
+                winding: ArcSweep::Ccw,
+                p: p2(hx - hr, hy),
+            },
+        )
         .expect("flank→hub blend fits")
-        // hub → lower flank: route 3 again, off the hub carrier.
-        .fillet(blend)
-        .expect("a definitely positive blend radius")
-        .at_toward(p2(3.0, -1.75), S::from_f64(2.0), S::from_f64(-0.5))
+        // hub → lower flank: arc incoming off the hub carrier, straight
+        // arrival, again in one verb.
+        .arc_fillet(
+            Radius {
+                r: S::from_f64(hr),
+                side: ArcSide::Left,
+            },
+            blend,
+        )
         .expect("hub→keel blend fits")
+        .at(p2(3.0, -1.75))
+        .expect("the lower flank's anchor fits the blend")
+        .toward(S::from_f64(2.0), S::from_f64(-0.5))
+        .expect("the lower flank runs east")
         // the keel knee, and the seam: two straight legs, so this is the
         // line×line door the bracket has used since #101, closing onto
         // side 1 through `Start`.
@@ -145,26 +176,36 @@ fn outline<S: Scalar>() -> ProfileLoop<S> {
 /// rival sat.
 ///
 /// **Authored through the PATHS algebra (LIB-G2 §4)** — the whole loop
-/// in three binders, and NEITHER tip is written down.
+/// is ONE fused verb, and NEITHER tip is written down.
 ///
-/// The entry is bound ON the right lobe (`at_on`: anchor + centre +
-/// winding, the tangent derived), the fillet opens, and `to_on` closes
-/// on the LEFT lobe through `Start`. The top corner is DERIVED as the
-/// two carriers' circle×circle intersection — the squared-radius form
-/// lands it bitwise on the `(0, √¾)` a hand author would type — and the
-/// bottom tip is kept, because `to_on` closes on a *different* carrier
-/// and that vertex is a genuine two-carrier junction (`to(Start)` would
-/// retrim it away). Bit-identity with the raw `fillet_corner` chain is
-/// pinned in `profile`'s differential suite.
+/// `arc_fillet_arc` states the corner's three parts in a single
+/// authoring act: the incoming side ON the right lobe (`Center`, so
+/// anchor + centre + winding, the tangent derived), the blend radius,
+/// and the arrival on the LEFT lobe closing through `Start`. The top
+/// corner is DERIVED as the two carriers' circle×circle intersection —
+/// the squared-radius form lands it bitwise on the `(0, √¾)` a hand
+/// author would type — and the bottom tip is kept, because the arrival
+/// closes on a *different* carrier and that vertex is a genuine
+/// two-carrier junction (`to(Start)` would retrim it away).
+/// Bit-identity with the raw `fillet_corner` chain is pinned in
+/// `profile`'s differential suite.
 fn eye<S: Scalar>() -> ProfileLoop<S> {
     let tip = eye_tip();
-    Open.at_on(p2(0.0, -tip), p2(-0.5, 0.0), ArcSweep::Ccw)
-        .expect("the eye's bottom tip lies on the right lobe's carrier")
-        .fillet(S::from_f64(R_EYE))
-        .expect("a definitely positive eye radius")
-        .to_on(Start, p2(0.5, 0.0), ArcSweep::Ccw)
-        .expect("the near candidate resolves the eye slot's tip")
-        .into()
+    Open.arc_fillet_arc(
+        Center {
+            c: p2(-0.5, 0.0),
+            winding: ArcSweep::Ccw,
+            p: p2(0.0, -tip),
+        },
+        S::from_f64(R_EYE),
+        Center {
+            c: p2(0.5, 0.0),
+            winding: ArcSweep::Ccw,
+            p: Start,
+        },
+    )
+    .expect("the near candidate resolves the eye slot's tip")
+    .into()
 }
 
 /// The validated rocker profile: outline + eye slot.

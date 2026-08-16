@@ -7,7 +7,7 @@
 
 use geom_core::{Point2, Point3, Tolerance, Vec3};
 use profile::RawLoop;
-use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult, BooleanResultKind, subtract, union};
 
@@ -190,7 +190,7 @@ pub fn donut() -> Body<f64> {
 /// `π[r²(a+b) − (a³+b³)/3] + π·h(R₂² + R₂ρ + ρ²)/3` with r = 0.44,
 /// a = 0.40, b = 0.36, R₂ = √(r²−b²), ρ = 0.09, h = 0.16.
 pub fn lily_lantern() -> Body<f64> {
-    use profile::{ArcSweep, Open, Start};
+    use profile::{ArcSweep, Center, Open, Start};
     use sweep::{Revolution, revolve};
     let (globe, top, mouth, lip_r, lip_drop): (f64, f64, f64, f64, f64) =
         (0.44, 0.40, 0.36, 0.09, 0.16);
@@ -202,11 +202,11 @@ pub fn lily_lantern() -> Body<f64> {
         .unwrap()
         // The belly, on the globe's own carrier: past the equator, so
         // the sweep is the CLOCKWISE (descending-angle) one.
-        .arc_center(
-            Point2::new(0.0, 0.0),
-            Point2::new(r_mouth, -mouth),
-            ArcSweep::Cw,
-        )
+        .arc_to(Center {
+            c: Point2::new(0.0, 0.0),
+            winding: ArcSweep::Cw,
+            p: Point2::new(r_mouth, -mouth),
+        })
         .unwrap()
         .line_to(Point2::new(lip_r, -mouth - lip_drop))
         .unwrap()
@@ -336,11 +336,26 @@ pub fn boss_union() -> Body<f64> {
 /// `same_sense = .F.` arm exists.
 pub fn notched() -> Body<f64> {
     let b = core::f64::consts::FRAC_PI_8.tan();
-    let lp = ProfileLoop::builder(Point2::new(0.0, 0.0))
-        .arc_to(Point2::new(2.0, 0.0), b)
-        .line_to(Point2::new(2.0, 1.5))
-        .arc_to(Point2::new(0.0, 1.5), -b)
-        .close();
+    // Leaving bulges: the bottom arc bows out (+b), the top one bows
+    // into the region (-b); the two sides are straight.
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: Point2::new(0.0, 0.0),
+            bulge: b,
+        },
+        ProfileVertex {
+            pos: Point2::new(2.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: Point2::new(2.0, 1.5),
+            bulge: -b,
+        },
+        ProfileVertex {
+            pos: Point2::new(0.0, 1.5),
+            bulge: 0.0,
+        },
+    ]);
     extrude(&validated(SketchPlane::xy(), lp), Extrusion::Distance(1.0))
         .unwrap()
         .body

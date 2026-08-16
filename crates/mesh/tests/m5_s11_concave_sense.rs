@@ -32,11 +32,14 @@ fn notched() -> Body<f64> {
     let b = FRAC_PI_8.tan();
     let lp = profile::Open
         .at(p2(0.0, 0.0))
-        .arc_to(p2(2.0, 0.0), b)
+        .arc_to(profile::Bulge { p: p2(2.0, 0.0), b })
         .unwrap()
         .line_to(p2(2.0, 1.5))
         .unwrap()
-        .arc_to(p2(0.0, 1.5), -b)
+        .arc_to(profile::Bulge {
+            p: p2(0.0, 1.5),
+            b: -b,
+        })
         .unwrap()
         .line_to(profile::Start)
         .unwrap()

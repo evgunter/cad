@@ -413,14 +413,31 @@ fn survives_reversal_maps_and_orientation() {
     let b = FRAC_PI_8.tan();
     // The quarter arc joins both neighbor lines tangentially (a
     // rounded step) -- declared per the #101 discipline.
-    let lp = ProfileLoop::builder(p2(0.0, 0.0))
-        .line_to(p2(2.0, 0.0))
-        .declare_tangent()
-        .arc_to(p2(2.5, 0.5), b)
-        .declare_tangent()
-        .line_to(p2(2.5, 1.5))
-        .line_to(p2(0.0, 1.0))
-        .close();
+    // Only (2,0) leaves on an arc; the two joints bracketing it are
+    // the declared tangencies.
+    let mut lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(0.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 0.0),
+            bulge: b,
+        },
+        ProfileVertex {
+            pos: p2(2.5, 0.5),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(2.5, 1.5),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(0.0, 1.0),
+            bulge: 0.0,
+        },
+    ]);
+    lp.tangent_joints = vec![1, 2];
     let vp = validated(vec![lp]);
     let canon: Vec<Point2<f64>> = vp.loops()[0].vertices().iter().map(|v| v.pos).collect();
     let n = canon.len();
@@ -644,11 +661,24 @@ fn survives_notched_circle_wrap_join_shares_the_key() {
     // (−1,0) → arc(quarter) → (0,−1) → line → (1,0) → line → (0,1)
     // → arc(quarter) → close. Carrier: unit circle at the origin.
     // Canonical start (−1,0) is the join of LAST arc and FIRST arc.
-    let lp = ProfileLoop::builder(p2(-1.0, 0.0))
-        .arc_to(p2(0.0, -1.0), q)
-        .line_to(p2(1.0, 0.0))
-        .line_to(p2(0.0, 1.0))
-        .close_with_bulge(q);
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(-1.0, 0.0),
+            bulge: q,
+        },
+        ProfileVertex {
+            pos: p2(0.0, -1.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(0.0, 1.0),
+            bulge: q,
+        },
+    ]);
     let vp = validated(vec![lp]);
     assert_eq!(vp.loops()[0].vertices()[0].pos.x, -1.0);
     let t = extrude(&vp, Extrusion::Distance(0.5)).unwrap();
@@ -700,11 +730,24 @@ fn fixed_wrap_cosurface_run_shares_one_key() {
     // (−1,0) → arc 180°→270° (quarter) → chord to 60° → arc 60°→120°
     // → arc 120°→180° (closing). Segments: [arc, line, arc, arc]; the
     // same-carrier run {2, 3, 0} crosses the canonical start (−1,0).
-    let lp = ProfileLoop::builder(p2(-1.0, 0.0))
-        .arc_to(p2(0.0, -1.0), quarter)
-        .line_to(p2(c60, s60))
-        .arc_to(p2(-c60, s60), sixth)
-        .close_with_bulge(sixth);
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(-1.0, 0.0),
+            bulge: quarter,
+        },
+        ProfileVertex {
+            pos: p2(0.0, -1.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(c60, s60),
+            bulge: sixth,
+        },
+        ProfileVertex {
+            pos: p2(-c60, s60),
+            bulge: sixth,
+        },
+    ]);
     let vp = validated(vec![lp]);
     assert_eq!(vp.loops()[0].vertices()[0].pos.x, -1.0);
     let t = extrude(&vp, Extrusion::Distance(0.5)).unwrap();
@@ -782,12 +825,28 @@ fn survives_near_cosurface_dies_typed_at_the_profile_gate() {
     // (−r1, r1); arc B leaves along circle 2 to (r2, r2). Close with
     // lines well away from the band.
     let b1 = (PI / 8.0).tan(); // quarter arcs
-    let lp = ProfileLoop::builder(p2(-r1, r1))
-        .arc_to(p2(0.0, 0.0), b1)
-        .arc_to(p2(r2, r2), b1)
-        .line_to(p2(r2, 1.2))
-        .line_to(p2(-r1, 1.2))
-        .close();
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(-r1, r1),
+            bulge: b1,
+        },
+        ProfileVertex {
+            pos: p2(0.0, 0.0),
+            bulge: b1,
+        },
+        ProfileVertex {
+            pos: p2(r2, r2),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(r2, 1.2),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(-r1, 1.2),
+            bulge: 0.0,
+        },
+    ]);
     let profile_result = Profile::new(SketchPlane::xy(), vec![lp]).validate(Tolerance::get());
     match profile_result {
         Err(_) => {} // typed at the profile gate — honest
@@ -860,11 +919,24 @@ fn survives_mixed_turn_arcs_cap_certifies() {
     let b = FRAC_PI_8.tan();
     // Square with a convex arc bottom and a CONCAVE arc top (bulge
     // −b: clockwise turn, bowing into the region).
-    let lp = ProfileLoop::builder(p2(0.0, 0.0))
-        .arc_to(p2(2.0, 0.0), b)
-        .line_to(p2(2.0, 1.5))
-        .arc_to(p2(0.0, 1.5), -b)
-        .close();
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(0.0, 0.0),
+            bulge: b,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 1.5),
+            bulge: -b,
+        },
+        ProfileVertex {
+            pos: p2(0.0, 1.5),
+            bulge: 0.0,
+        },
+    ]);
     let vp = validated(vec![lp]);
     let t = extrude(&vp, Extrusion::Distance(1.0)).unwrap();
     assert_all_tiers(&t.body);
@@ -1089,11 +1161,24 @@ fn survives_rebuild_byte_identity_zoo() {
         ),
         (circle_loop(0.0, 0.0, 0.5), vec![], -2.0),
         (
-            ProfileLoop::builder(p2(-1.0, 0.0))
-                .arc_to(p2(0.0, -1.0), b)
-                .line_to(p2(1.0, 0.0))
-                .line_to(p2(0.0, 1.0))
-                .close_with_bulge(b),
+            <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+                ProfileVertex {
+                    pos: p2(-1.0, 0.0),
+                    bulge: b,
+                },
+                ProfileVertex {
+                    pos: p2(0.0, -1.0),
+                    bulge: 0.0,
+                },
+                ProfileVertex {
+                    pos: p2(1.0, 0.0),
+                    bulge: 0.0,
+                },
+                ProfileVertex {
+                    pos: p2(0.0, 1.0),
+                    bulge: b,
+                },
+            ]),
             vec![],
             0.5,
         ),

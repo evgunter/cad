@@ -6,35 +6,41 @@
 //! amendment (issue #377) retired it as an authoring surface: it left
 //! the crate's published API entirely and survives here, behind the
 //! `test-support` feature that only this crate's own dev-dependency
-//! enables.
+//! enables. The horizon is now ONE named vocabulary gap wide (below),
+//! not a migration backlog.
 //!
-//! # What it is still here for, exactly (LIB-RETTAIL, 2026-08-12)
+//! # What it is still here for, exactly (LIB-RESPELL PR-2, 2026-08-16)
 //!
-//! NOT the differential twins any more. `tests/path_differential.rs`
-//! and `tests/path_property.rs` used to pin the lattice's lowering
-//! against this builder bit for bit, and that was the stated reason
-//! this file was not simply deleted. It no longer is: the twins verify
-//! against BLESSED RECORDED FIXTURES, which pin bit-identity exactly as
-//! hard. (The independence argument had also weakened on inspection —
-//! `fillet_corner` here and `path::arc_fillet` in the lattice both call
-//! the one ratified `sugar::arc_fillet_trims`, so on the fillet family
-//! this was never a second implementation of the geometry, only a
-//! second door onto it with a different error vocabulary.)
+//! ONE SHAPE CLASS, measured: **an arc x arc fillet corner whose two
+//! authored far points differ.** Everything else migrated to the §2c
+//! fused family at the consumer re-spell — the plain data fixtures to
+//! raw [`RawLoop`](crate::RawLoop) vertex chains, the line x line and
+//! arc x line corners to `fillet`/`fillet_arc`/`arc_fillet`, the
+//! lens-shaped arc x arc corners (far points equal) to
+//! `Open::arc_fillet_arc` with a `Center { p: Start }` arrival.
 //!
-//! What remains is ONE role, and it is a sequencing problem rather than
-//! a design one: the arc-leg fillet suites (`tests/arc_fillet.rs`,
-//! `tests/review_s2.rs`, `tests/declared_tangency.rs`,
-//! `tests/interval_lane.rs`, `tests/scalar_channels.rs`,
-//! `tests/review_s8_probe.rs`, `tests/common/mod.rs::bracket`, and the
-//! cross-crate fixtures in `sweep`/`step-export`) author their corners
-//! through `fillet`/`fillet_corner` here. Their only lattice target is
-//! the §2c arc-carrier fillet family — which is
-//! precisely the surface PATHS-DESIGN §2c redesigns (RATIFIED on #419,
-//! 2026-08-11; carrier-typed tips, uniform arrival binders, the compound
-//! register dissolved). The re-spell UNIT has not run yet, so migrating
-//! these callers now means migrating them again at it: the deletion
-//! rides the §2c re-spell. The plain (non-fillet) chains in those files
-//! carry no such constraint and are raw-data spellings away.
+//! Why the residue does not move (the reason is the SURFACE, not this
+//! suite): an ARC arrival always lands on the `OnArc` state, whose only
+//! continuations are the fused verbs — because the carrier run from the
+//! fillet's second tangent point to the arrival anchor is emitted by
+//! whatever TRIMS it next, so a verb that departed the carrier would
+//! silently drop that run. The consequence is exact: an arc arrival can
+//! be followed by another fillet, or by nothing (the `p: Start` close),
+//! and never by a sharp continuation. A single-fillet loop whose
+//! outgoing side is an arc must therefore close on that same arrival
+//! carrier — which needs the ENTRY to lie on it, i.e. the two far
+//! points to coincide. When they differ, the loop needs a sharp seam
+//! after an arc arrival, and no verb spells that.
+//!
+//! Closing this properly is a VOCABULARY question for PATHS-DESIGN §2c
+//! (an `OnArc` continuation that ends the carrier run at its anchor and
+//! yields an ordinary directed point — the shape §2b's `at_on` tip had
+//! and §2c dissolved), which is out of the re-spell unit's fence and is
+//! reported for a ruling. Until then the callers are
+//! `tests/review_s2.rs` (the S2 blinded-review fuzz, which draws its two
+//! far points independently and carries an arc x arc coverage floor),
+//! `tests/review_s8_probe.rs::check`, and two `tests/arc_fillet.rs`
+//! fixtures.
 //!
 //! What is NOT here, deliberately: raw [`crate::ProfileLoop`]
 //! DATA (`new`/`polygon`, now on the [`RawLoop`](crate::RawLoop) trait)
@@ -55,8 +61,8 @@ use crate::{ProfileLoop, ProfileVertex};
 
 impl<T: Real> ProfileLoop<T> {
     /// Starts a [`LoopBuilder`] at `start` — the raw chain door, kept
-    /// here (and only here) so the suites that predate the lattice
-    /// still spell their fixtures the way they were written.
+    /// here (and only here) for the one shape class the §2c lattice
+    /// cannot author (see this module's header).
     pub fn builder(start: Point2<T>) -> LoopBuilder<T> {
         LoopBuilder::start(start)
     }
