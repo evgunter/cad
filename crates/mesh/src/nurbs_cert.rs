@@ -443,14 +443,49 @@ impl NurbsCellGrid {
         self.bounds[ci * (self.v_cuts.len() - 1) + ri]
     }
 
-    /// The certified bound of the cell containing `(u, v)` — the
-    /// sizing consumer's lookup (the trimmed lane hands each clipped
-    /// cell's midpoint, which lies strictly inside one cell).
-    pub fn cell_bound_at(&self, u: f64, v: f64) -> NurbsFaceBound {
-        self.bound(
-            Self::cell_lo(&self.u_cuts, u),
-            Self::cell_lo(&self.v_cuts, v),
-        )
+    /// The SIZING bound of the cell containing `(u, v)` — the sizing
+    /// consumer's lookup (the trimmed lane hands each clipped cell's
+    /// midpoint, which lies strictly inside one cell): the
+    /// componentwise max of the cell's own certified bound and its
+    /// one-ring neighbours' (3×3 dilation).
+    ///
+    /// **Why the schedule dilates while the certificate does not**
+    /// (measured, not hypothesized — the pure per-cell schedule
+    /// refused `CertificateExceeded` on the #316 lily leaf): grid
+    /// lines on the cell boundaries put every GRID triangle inside
+    /// one cell, but near a trim boundary a region of the polygon can
+    /// cross a cell boundary where the shared line's candidates fall
+    /// outside the polygon — the CDT then bridges a coarse cell's
+    /// spacing into the fine neighbour, and a triangle sized by the
+    /// coarse bound genuinely deviates by the fine cell's curvature.
+    /// Sizing each cell against its neighbourhood's worst bound
+    /// restores the property the uniform schedule had (local spacing
+    /// everywhere respects the local curvature one cell around), so a
+    /// one-cell protrusion stays inside the budget. It is a
+    /// HEURISTIC, exactly as the whole schedule is (module docs: the
+    /// certificate is the guarantee) — the per-triangle certificate,
+    /// taken from the raw per-cell bounds, still refuses loudly if a
+    /// triangle reaches further. Steps only shrink under dilation, so
+    /// no certificate weakens; the cost against the pure per-cell
+    /// ideal is metered (`crate::budget`'s agreement column).
+    pub fn step_bound_at(&self, u: f64, v: f64) -> NurbsFaceBound {
+        let ci = Self::cell_lo(&self.u_cuts, u);
+        let ri = Self::cell_lo(&self.v_cuts, v);
+        let (cols, rows) = (self.u_cuts.len() - 1, self.v_cuts.len() - 1);
+        let mut m = NurbsFaceBound {
+            muu: 0.0,
+            muv: 0.0,
+            mvv: 0.0,
+        };
+        for c in ci.saturating_sub(1)..=(ci + 1).min(cols - 1) {
+            for r in ri.saturating_sub(1)..=(ri + 1).min(rows - 1) {
+                let b = self.bound(c, r);
+                m.muu = m.muu.max(b.muu);
+                m.muv = m.muv.max(b.muv);
+                m.mvv = m.mvv.max(b.mvv);
+            }
+        }
+        m
     }
 
     /// The index of the half-open cell `[cut_i, cut_{i+1})` containing

@@ -492,8 +492,10 @@ fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec
 
 /// The per-knot-span-cell candidates of the NURBS lane (TESS-SPAN):
 /// the trim box cut at every interior cell boundary, and each clipped
-/// cell divided by ITS OWN certified bound through the unchanged
-/// point-selection rule ([`crate::nurbs_cert::NurbsFaceBound::grid_steps`]).
+/// cell divided by its own certified bound — one-ring dilated, see
+/// [`crate::nurbs_cert::NurbsCellGrid::step_bound_at`] — through the
+/// unchanged point-selection rule
+/// ([`crate::nurbs_cert::NurbsFaceBound::grid_steps`]).
 /// Cell-boundary lines get points from BOTH adjacent cells' schedules
 /// (their union — the shared cut value is the same f64 from the same
 /// cut array, so the dedup merges the line itself). Points on the trim
@@ -531,7 +533,10 @@ fn per_cell_candidates(
     let mut grid_cells = 0usize;
     for &(va, vb) in &v_slabs {
         for &(ua, ub) in &u_slabs {
-            let bound = grid.cell_bound_at(0.5 * (ua + ub), 0.5 * (va + vb));
+            // One-ring-dilated sizing bound (`step_bound_at` docs) —
+            // the certificate below still reads the raw per-cell
+            // bounds.
+            let bound = grid.step_bound_at(0.5 * (ua + ub), 0.5 * (va + vb));
             let (hu, hv) = bound.grid_steps(delta_s);
             let nuc = ceil_count(ub - ua, hu)?;
             let nvc = ceil_count(vb - va, hv)?;

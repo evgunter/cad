@@ -414,6 +414,7 @@ mod live {
             delta_s,
         } = sizing;
         let cells = &nurbs_cell_bounds(payload, fk)?;
+        let cell_grid = crate::nurbs_cert::nurbs_cell_grid(payload, fk)?;
         let bound = crate::nurbs_cert::nurbs_face_bound(payload, fk)?;
         STATE.with(|s| {
             let mut s = s.borrow_mut();
@@ -423,7 +424,7 @@ mod live {
             // counterfactual (TESS-SPAN D-4): same steps, same ceil.
             let (phu, phv) = bound.grid_steps(delta_s);
             let (nu, nv) = (divisions(du, phu), divisions(dv, phv));
-            let (span_cells, span_opt_cells) = span_sized_cells(cells, u, v, delta_s);
+            let (span_cells, span_opt_cells) = span_sized_cells(cells, &cell_grid, u, v, delta_s);
             #[allow(clippy::cast_precision_loss)]
             let grid_cells = grid_cells as f64;
             st.pending = Some(NurbsBudget {
@@ -607,40 +608,50 @@ mod live {
         best
     }
 
-    /// What a per-cell-sized grid costs over the trim box: each cell
-    /// clipped to the box and sized by its OWN certified bound, rounded up
-    /// independently — the `ceil` per cell is a real cost of aligning grid
-    /// lines to cell boundaries, and it is charged here rather than
-    /// amortized away. Since TESS-SPAN this is the meter's INDEPENDENT
-    /// prediction of the shipped schedule (the agreement column's
-    /// denominator), deliberately its own arithmetic rather than a call
-    /// into the lane's, so the two can disagree loudly if either drifts.
+    /// What the per-cell-sized grid costs over the trim box: each cell
+    /// clipped to the box, rounded up independently — the `ceil` per
+    /// cell is a real cost of aligning grid lines to cell boundaries,
+    /// and it is charged here rather than amortized away. Since
+    /// TESS-SPAN this is the meter's INDEPENDENT prediction of the
+    /// shipped schedule (the agreement column's denominator),
+    /// deliberately its own arithmetic rather than a call into the
+    /// lane's, so the two can disagree loudly if either drifts.
     ///
-    /// Returns `(lane split, cheapest split)`: the same cells sized by
-    /// [`NurbsFaceBound::grid_steps`], and by [`best_split_cells`].
+    /// Returns `(lane, cheapest split)`: the lane prediction sizes
+    /// each clipped cell exactly as the shipped schedule does — the
+    /// one-ring-DILATED bound (`NurbsCellGrid::step_bound_at`, which
+    /// documents why the schedule dilates) through
+    /// [`NurbsFaceBound::grid_steps`]; the cheapest-split ideal keeps
+    /// each cell's own raw bound through [`best_split_cells`] — the
+    /// recoverable-slack denominator stays the pure per-cell ideal.
     ///
     /// **Why aligning the grid to the cells is enough**: with grid lines
-    /// on the cell boundaries, every triangle's UV box lies inside one
-    /// cell, so that cell's own certified bound is the one its certificate
-    /// uses. Cells are half-open — a knot is exactly where a C¹ surface's
-    /// second derivative jumps — but the shared boundary is measure-zero,
-    /// and the Taylor remainder the certificate is built on needs only an
-    /// a.e. bound. That is the same fact the shipped whole-patch assembly
-    /// already rests on at its own interior knots (`nurbs_cert` docs).
+    /// on the cell boundaries, every grid triangle's UV box lies inside
+    /// one cell, so that cell's own certified bound is the one its
+    /// certificate uses. Cells are half-open — a knot is exactly where
+    /// a C¹ surface's second derivative jumps — but the shared boundary
+    /// is measure-zero, and the Taylor remainder the certificate is
+    /// built on needs only an a.e. bound. That is the same fact the
+    /// shipped whole-patch assembly already rests on at its own
+    /// interior knots (`nurbs_cert` docs).
     pub(super) fn span_sized_cells(
         cells: &[CellBound],
+        grid: &crate::nurbs_cert::NurbsCellGrid,
         u: (f64, f64),
         v: (f64, f64),
         delta_s: f64,
     ) -> (f64, f64) {
         let (mut lane, mut opt) = (0.0, 0.0);
         for c in cells {
-            let du = c.u.1.min(u.1) - c.u.0.max(u.0);
-            let dv = c.v.1.min(v.1) - c.v.0.max(v.0);
+            let (u0, u1) = (c.u.0.max(u.0), c.u.1.min(u.1));
+            let (v0, v1) = (c.v.0.max(v.0), c.v.1.min(v.1));
+            let (du, dv) = (u1 - u0, v1 - v0);
             if !(du > 0.0 && dv > 0.0) {
                 continue; // cell outside the trim box
             }
-            let (hu, hv) = c.bound.grid_steps(delta_s);
+            let (hu, hv) = grid
+                .step_bound_at(0.5 * (u0 + u1), 0.5 * (v0 + v1))
+                .grid_steps(delta_s);
             lane += divisions(du, hu) * divisions(dv, hv);
             opt += best_split_cells(c.bound, du, dv, delta_s);
         }
