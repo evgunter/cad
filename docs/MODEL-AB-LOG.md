@@ -999,3 +999,11 @@ PLACEDUNION review ordinal fixed at dispatch (2026-08-16, PR
 #571 open, frozen head c2e4b5b3): claimed through 48 (M9-2 PR-2
 dual) + 1 = **49 → SINGLE** (51 next third, under the #572
 amendment's composition once merged). Reviewer fable.
+RESPELL PR-2 review ordinal fixed at dispatch (2026-08-16, PR
+#576 open, frozen head = the 35/35 head): claimed through 50
+(ASM-R2a) + 1 = **51 → a third → DUAL, CROSS-MODEL per the #572
+amendment (every dual cross-model until the 12-pair target)** —
+R1 fable + R2 OPUS, concurrent same-head. The unit's OnArc
+continuation gap goes to Evan as a design question at the fix
+pass (proposed, not built — the §2c completion the migration
+surfaced).
