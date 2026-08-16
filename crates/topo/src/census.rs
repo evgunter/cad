@@ -1191,3 +1191,247 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    //! The conformal face-pair arm and the patch-record certifier,
+    //! pinned at the census door itself: the fixtures are open
+    //! euler-built sheet scaffolds (the PR-1 chart fixtures'
+    //! pattern), below tier 3's closed-body bar — which is exactly
+    //! why these rows call [`census_and_certify`] directly. The
+    //! closed-body end-to-end rows live in the acceptance suites.
+    use super::*;
+    use crate::boolean::PatchContact;
+    use crate::entity::FaceKey;
+    use crate::euler::{FaceSurface, MefSite, MevSite};
+    use geom_core::Vec3;
+    use geom_surfaces::Surface;
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    fn cyl_surface() -> Surface<f64> {
+        Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    fn cyl_pt(u: f64, z: f64) -> Point3<f64> {
+        Point3::new(u.cos(), u.sin(), z)
+    }
+
+    /// An open cylinder-wall sheet `u ∈ [u0, u1] × z ∈ [z0, z1]` on
+    /// the shared key, with the wall face's sense set.
+    fn cyl_sheet(
+        body: &mut Body<f64>,
+        cyl: Option<crate::geometry::SurfaceKey>,
+        u0: f64,
+        u1: f64,
+        z0: f64,
+        z1: f64,
+        sense: bool,
+    ) -> (FaceKey, crate::geometry::SurfaceKey) {
+        use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+        use geom_curves::Curve3;
+        let (p00, p10, p11, p01) = (
+            cyl_pt(u0, z0),
+            cyl_pt(u1, z0),
+            cyl_pt(u1, z1),
+            cyl_pt(u0, z1),
+        );
+        let seed = body.mvfs(p00).unwrap();
+        let cyl = cyl.unwrap_or_else(|| body.add_surface(cyl_surface()));
+        let rim = |body: &mut Body<f64>, z: f64, ccw: bool| {
+            let plane = body.add_surface(Surface::Plane {
+                origin: Point3::new(0.0, 0.0, z),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            });
+            let (carrier, t0, t1) = if ccw {
+                (
+                    Curve3::Circle {
+                        center: Point3::new(0.0, 0.0, z),
+                        axis: Vec3::unit_z(),
+                        radius: 1.0,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    u0,
+                    u1,
+                )
+            } else {
+                (
+                    Curve3::Circle {
+                        center: Point3::new(0.0, 0.0, z),
+                        axis: Vec3::new(0.0, 0.0, -1.0),
+                        radius: 1.0,
+                        u_ref: Vec3::new(u1.cos(), u1.sin(), 0.0),
+                    },
+                    0.0,
+                    u1 - u0,
+                )
+            };
+            EdgeCurveSpec {
+                description: EdgeGeometry::Intersection {
+                    s1: cyl,
+                    s2: plane,
+                    witness: cyl_pt((u0 + u1) * 0.5, z),
+                },
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        let bottom = rim(body, z0, true);
+        let e_b = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p10,
+                bottom,
+            )
+            .unwrap();
+        let e_r = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: e_b.he_minus,
+                    he2: e_b.he_minus,
+                },
+                p11,
+            )
+            .unwrap();
+        let top = rim(body, z1, false);
+        let e_t = body
+            .mev(
+                MevSite::Fan {
+                    he1: e_r.he_minus,
+                    he2: e_r.he_minus,
+                },
+                p01,
+                top,
+            )
+            .unwrap();
+        let he = body
+            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
+            .unwrap();
+        let face = body
+            .mef(
+                MefSite::Chords {
+                    he1: he,
+                    he2: e_b.he_plus,
+                },
+                EdgeCurveSpec::line_between(p01, p00),
+                FaceSurface::Shared(cyl),
+            )
+            .unwrap()
+            .face;
+        body.set_face_sense(face, sense).unwrap();
+        (face, cyl)
+    }
+
+    /// Two overlapping opposed-sense wall sheets on one cylinder key.
+    fn conformal_pair() -> (Body<f64>, FaceKey, FaceKey) {
+        let mut body = Body::<f64>::new();
+        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, false);
+        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        (body, w1, w2)
+    }
+
+    #[test]
+    fn the_conformal_arm_finds_an_undeclared_pair_and_carries_the_finding() {
+        let (body, w1, w2) = conformal_pair();
+        let errors = census_and_certify(&body, &ContactRecords::default(), band());
+        let hit = errors
+            .iter()
+            .find_map(|e| match e {
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::ConformalPatch { finding },
+                    ..
+                } => Some(*finding),
+                _ => None,
+            })
+            .expect("the finding-carrying refusal: {errors:?}");
+        // The kernel finding names the pair and the class that would
+        // verify — the recourse is a quotable declaration.
+        let pair = (hit.pair.a.min(hit.pair.b), hit.pair.a.max(hit.pair.b));
+        assert_eq!(pair, (w1.min(w2), w1.max(w2)));
+        assert_eq!(hit.pair.class, crate::contact::ContactClass::Rest);
+        assert_eq!(hit.verdict, crate::contact::ContactVerdict::Definite);
+    }
+
+    #[test]
+    fn a_patch_record_backs_the_pair_and_confirms_through_both_doors() {
+        let (body, w1, w2) = conformal_pair();
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: w1,
+            face_b: w2,
+        });
+        let errors = census_and_certify(&body, &records, band());
+        assert!(
+            errors.is_empty(),
+            "the declared conformal patch certifies: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn a_disjoint_patch_record_is_stale_typed() {
+        let mut body = Body::<f64>::new();
+        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (w3, _) = cyl_sheet(&mut body, Some(cyl), 3.0, 4.0, 0.0, 1.0, false);
+        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: w1,
+            face_b: w3,
+        });
+        let errors = census_and_certify(&body, &records, band());
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
+            "overlap Empty ⇒ stale (C3's letter): {errors:?}"
+        );
+    }
+
+    #[test]
+    fn an_aligned_same_sense_patch_record_is_contradicted() {
+        // Same key, SAME sense: aligned coincidence is containment or
+        // flush material, never contact (C1) — the record lies.
+        let mut body = Body::<f64>::new();
+        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, true);
+        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: w1,
+            face_b: w2,
+        });
+        let errors = census_and_certify(&body, &records, band());
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
+            "{errors:?}"
+        );
+        // And the ARM stays quiet on the aligned pair: SameOriented
+        // is flush, not a conformal candidate.
+        let arm_only = census_and_certify(&body, &ContactRecords::default(), band());
+        assert!(
+            !arm_only.iter().any(|e| matches!(
+                e,
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::ConformalPatch { .. },
+                    ..
+                }
+            )),
+            "{arm_only:?}"
+        );
+    }
+}
