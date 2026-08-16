@@ -53,15 +53,24 @@ class EvaluationError(PncadError):
 
     `reason` is `unknown_node`, `wrong_kind`, `empty_boolean`,
     `node_failed`, or `poisoned`. `kind` (the `NodeErrorKind`'s
-    stable tag) and `through` (the nearest failed ancestor) are
-    always present, `None` where the reason has neither (LIB-DOORS
-    F3; attributes never go missing).
+    stable tag), `through` (the nearest failed ancestor) and
+    `finding` (the refusal-menu payload) are always present, `None`
+    where the reason has none (LIB-DOORS F3; attributes never go
+    missing).
+
+    `finding` is the boolean's refusal MENU (register R3, LIB-PYG5):
+    when `kind == "undeclared_contact"`, it carries the candidate
+    declaration as a typed `FlushFinding` — the same value
+    `Evaluation.find_flush_candidates` answers with, ready for
+    `Node.declare` / `Doc.declare`. The menu has exactly two arms:
+    declare that finding, or move the geometry.
     """
 
     reason: str
     node: NodeId
     kind: Optional[str]
     through: Optional[NodeId]
+    finding: Optional[FlushFinding]
 
 class ValidationError(PncadError):
     """A body failed a validator, or mass properties could not be taken."""
@@ -515,7 +524,20 @@ class Node:
     @staticmethod
     def boolean(
         op: BooleanOp, a: NodeId, b: NodeId, declare: Optional[NodeId] = None
-    ) -> Node: ...
+    ) -> Node:
+        """A Boolean of two upstream solids. `declare` names a
+        `Declare` node whose coincidence pairs this boolean consumes;
+        without one, operands that merely TOUCH refuse with the typed
+        menu (`EvaluationError`, `kind == "undeclared_contact"`,
+        `finding` attached) — the kernel never infers that two faces
+        are the same face."""
+
+    @staticmethod
+    def declare(findings: list[FlushFinding]) -> Node:
+        """The `Declare` node built from INSPECTED findings; its
+        inserted id feeds `Node.boolean`'s `declare=`. Nothing here
+        detects (the ruled no-fusion boundary), and an empty list
+        raises EditError (`no_findings`)."""
 
 class ParamName:
     """A document-level parameter name (guide §3.2). NOT an arena
@@ -567,6 +589,16 @@ class Doc:
     def __init__(self) -> None: ...
     def apply(self, edit: DocEdit) -> Optional[NodeId]: ...
     def insert(self, node: Node) -> NodeId: ...
+    def declare(self, finding: FlushFinding) -> NodeId:
+        """Insert a `Declare` node for ONE inspected finding and
+        return its id for `Node.boolean`'s `declare=` (the
+        detect/declare protocol's declare arm). Raises EditError,
+        typed."""
+
+    def declare_all(self, findings: list[FlushFinding]) -> NodeId:
+        """`declare` for a SET of findings in one `Declare` node —
+        arity, not fusion. An empty list raises EditError
+        (`no_findings`)."""
     @property
     def node_count(self) -> int: ...
     def order(self) -> list[NodeId]: ...
@@ -836,6 +868,60 @@ class Datum:
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
 
+# --- detect / declare (LIB-PYG5, audit G5) ---------------------------
+# The flush-contact protocol's value vocabulary. A finding is a
+# REPORT: `Evaluation.find_flush_candidates` answers with them, the
+# caller inspects, and `Node.declare` / `Doc.declare` /
+# `Doc.declare_all` turn inspected findings into the `Declare` node
+# `Node.boolean`'s `declare=` consumes. The same value rides the
+# boolean's refusal menu (`EvaluationError.finding`). Detection and
+# declaration are separate doors ON PURPOSE (no fused
+# detect-and-declare exists, by ruling).
+
+class PlaneRelation:
+    """The verify door's relation verdict: `SameOpposite` = resting
+    contact (opposed outward normals), `SameOriented` = flush walls
+    (the merge-stage flavor). `Distinct` exists as vocabulary; a
+    finding never carries it."""
+
+    SameOriented: Final[PlaneRelation]
+    SameOpposite: Final[PlaneRelation]
+    Distinct: Final[PlaneRelation]
+
+class ContactClass:
+    """The C4 contact class a declaration asserts. v1 carries `Rest`
+    (coincident planes) — the only demand-evidenced detector."""
+
+    Rest: Final[ContactClass]
+
+class FlushRung:
+    """Which rung of the verify ladder decided a finding:
+    `SharedSource` = syntactic recipe identity (zero numerics),
+    `DecidedCoincident` = the geometric trilean's coincident arm."""
+
+    SharedSource: Final[FlushRung]
+    DecidedCoincident: Final[FlushRung]
+
+class FlushFinding:
+    """One flush-plane finding: "this face pair would verify as
+    declared contact" — a VALUE to inspect and declare, never itself
+    a declaration. `a`/`b` are the pair's names in the same OPAQUE
+    text alphabet every materializer speaks (store them, hand them
+    back; never parse). `class_` spells `class` (a Python keyword)
+    with the `or_` trailing-underscore precedent."""
+
+    @property
+    def a(self) -> str: ...
+    @property
+    def b(self) -> str: ...
+    @property
+    def relation(self) -> PlaneRelation: ...
+    @property
+    def class_(self) -> ContactClass: ...
+    @property
+    def rung(self) -> FlushRung: ...
+    def __eq__(self, other: object) -> bool: ...
+
 class Value:
     """A node's successful value."""
 
@@ -892,6 +978,15 @@ class Evaluation:
         tied name whose candidates disagree, or an unreadable
         candidate refuse rather than silently including or dropping
         anything."""
+    def find_flush_candidates(self, a: NodeId, b: NodeId) -> list[FlushFinding]:
+        """The cross-body flush-plane candidates between `a`'s and
+        `b`'s outputs, as of THIS evaluation — the detect arm of the
+        detect/declare protocol, run by the C4 verifier itself (a
+        finding cannot disagree with the boolean's verify-at-use).
+        Findings are DEFINITE and canonically ordered; empty when
+        either node has no value. Raises `SelectRefusal`, typed
+        (`pair_in_band`, `tied_disagrees`, `unreadable`, `band`) —
+        an ambiguous pair is never silently included or dropped."""
     @property
     def recomputed(self) -> int: ...
     @property

@@ -46,7 +46,7 @@
 //! `sweep/tests/m6_surgery.rs` and the surgery's own corpus document
 //! is `die_composed`.
 //!
-//! # Two further REPORTED deviations
+//! # One further REPORTED deviation
 //!
 //! **(a) A per-pole master ball, not a rotated copy.** The sweep unit
 //! rotates one +Y-poled ball onto each face normal. `Node::Transform`
@@ -59,25 +59,6 @@
 //! exactly `0`. This is the discipline `tests/fixture/mod.rs` already
 //! records for the M4 die, applied to the chart instead of the volume
 //! oracle.
-//!
-//! **(b) The ball's meridian is split at the equator.** The sweep
-//! unit's ball is the two-vertex half-disc (one half-circle arc, one
-//! on-axis chord) revolved fully. That loop's every vertex is ON the
-//! axis, and the revolve NAME EMITTER refuses it typed — "revolve
-//! vertex resolution exceeded elimination (all-on-axis loop)": pole
-//! vertices resolve by elimination along the meridian chains, and a
-//! two-pole loop offers no off-axis anchor to eliminate from (the
-//! part-1 limitation `names::emit_sweep` reports, deferred, never
-//! guessed). So no sphere at all reaches a `Node::Revolve` until that
-//! emitter grows a discriminator. The document works within the
-//! frontier rather than around it: the meridian is authored as TWO
-//! quarter arcs meeting at an equator vertex, which is off-axis, sweeps
-//! a rim circle, and anchors the elimination. The cost is that the ball
-//! carries two band faces instead of one, and that the quarter arcs'
-//! circles are derived from `tan(π/8)` rather than being the one exact
-//! half-circle — both invisible here (the cut circle lies wholly inside
-//! ONE band; the document claims no exact pin) and both worth deleting
-//! the moment the emitter resolves two-pole loops.
 //!
 //! # No mass pin
 //!
@@ -140,16 +121,10 @@ pub fn document() -> CorpusDoc {
         origin: [len(0.0), len(0.0), len(0.0)],
         direction: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    // Two quarter arcs meeting at the OFF-AXIS equator vertex —
-    // deviation (b): the anchor the pole elimination needs. v4: the
-    // first quarter carries its AUTHORED bulge; the second is the
-    // DECLARED-SUBDIVISION step (LIB-SWITCH §5-1 fallback — measured:
-    // without the off-axis equator vertex the revolve emitter's
-    // two-pole elimination refuses, so the vertex is load-bearing).
-    // The second arc's bulge is now the tangent-chord derivation
-    // rather than the hand literal — a numbered W1-class deviation.
-    let quarter = std::f64::consts::FRAC_PI_8.tan();
-    let half_disc = half_disc_program(quarter);
+    // The sweep unit's own meridian: one exact half-circle from pole
+    // to pole, closed by the on-axis chord. Both vertices are ON the
+    // axis; the revolve names them from the sweep's pole export.
+    let half_disc = half_disc_program();
     let ball_p = r.insert(Node::Profile(ProfileProgram {
         // u = +X, v = +Z: the sketch's revolve axis lands on the world
         // +Z axis, which is the face normal.
@@ -203,10 +178,10 @@ pub fn document() -> CorpusDoc {
     }
 }
 
-/// The half-disc loop PROGRAM (module docs' deviation (b) + the v4
-/// declared-subdivision form): quarter arc with authored bulge, the
-/// equator subdivision via `arc_continue`, diameter close.
-fn half_disc_program(quarter: f64) -> LoopProgram {
+/// The half-disc loop PROGRAM: the bulge-1 semicircle pole to pole,
+/// closed by its on-axis diameter — three steps, both vertices on the
+/// revolve axis.
+fn half_disc_program() -> LoopProgram {
     let lpt = |x: f64, y: f64| {
         [
             editor_core::Expr::literal(x, editor_core::Dimension::Length).unwrap(),
@@ -216,10 +191,9 @@ fn half_disc_program(quarter: f64) -> LoopProgram {
     LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, -PIP_R)),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(lpt(PIP_R, 0.0)),
-            b: editor_core::Expr::literal(quarter, editor_core::Dimension::Scalar).unwrap(),
+            target: ProgramTarget::Point(lpt(0.0, PIP_R)),
+            b: editor_core::Expr::literal(1.0, editor_core::Dimension::Scalar).unwrap(),
         }),
-        ProgramStep::ArcContinue(lpt(0.0, PIP_R)),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])
 }

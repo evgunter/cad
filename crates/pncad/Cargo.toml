@@ -33,6 +33,11 @@ interval = [
     "sweep/interval",
     "topo/interval",
 ]
+# Forwards `mesh`'s tessellation-budget meter (issue #320) so
+# demos/tour can drive its `tess-budget` sweep. Only `mesh` has the
+# feature — it is per-face telemetry, not a scalar — so this row has
+# exactly one entry and stays that shape.
+budget = ["mesh/budget"]
 # Forwards geom-core's K-telemetry recording scalar so the
 # workspace-wide `--features probe` lane builds uniformly. Same shape
 # and same reason as the `interval` row above; see geom-core's manifest

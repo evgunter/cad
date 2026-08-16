@@ -175,7 +175,7 @@ pub fn tangent_certificate_lane<T: Real>(
 
 /// The span bounds for `carrier` over `[t0, t1]` at the 9-sample
 /// schedule (docs on [`TangentSpanBounds`]).
-pub(crate) fn tangent_span_bounds<T: Real>(
+pub fn tangent_span_bounds<T: Real>(
     s1: &Surface<T>,
     s2: &Surface<T>,
     carrier: &Curve3<T>,

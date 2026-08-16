@@ -196,3 +196,21 @@ out already done (M8's #491), so nothing to parallelize there.
 R2 spec finalization now waits ONLY on ASM-4's interface-record
 hook. ASM-4 lane healthy at the last sweep (D-1 + hook committed,
 refactor.rs in progress).
+
+## ASM-4 MERGED (#525, 2026-08-16) — R1 COMPLETE
+
+Split and inline are live, and with them R1 closes: assemblies
+author, evaluate, persist, split, and inline end-to-end. The unit
+survived a fully-executed review (0 MAJOR; 6/6 mutants killed;
+the reviewer's own 3-cluster probe found the one real nuance —
+non-adjacent cut roots collapse their interleaving onto the
+instance position, now stated in D-2's ratified amendment and
+pinned by test). D-2's per-cluster-instance text was adjudicated
+ACCEPT-AS-AMENDMENT (#540): one instance per split, hoist iff
+exactly one cluster, with the A12-cluster-keying rider pointed at
+R2-a. All nine refusal arms now tested naming their subjects. The
+#534 Actions-budget outage opened and resolved inside the seam
+(Evan restored; #366 precedent). Row at ordinal 40. Next: R2 spec
+finalization — every input is now in hand (interface-record hook
+shape, A12, the coset table, the census recon, the M9-1 seam) —
+then the R2-a dispatch. Seam sweep: lanes asm-4 + asm-4-r1.

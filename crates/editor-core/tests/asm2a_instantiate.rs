@@ -192,7 +192,7 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label));
     let mut ids = Vec::new();
     for r in refs {
-        let (next, id) = insert(doc, Node::InstantiatePart { doc_ref: *r });
+        let (next, id) = insert(doc, Node::instantiate_part(*r));
         doc = next;
         ids.push(id);
     }
@@ -751,7 +751,7 @@ fn row7_v7_round_trips_and_v6_refuses() {
         "the frame's bits survive"
     );
     assert!(
-        matches!(loaded.node(ids[0]), Some(Node::InstantiatePart { doc_ref: r }) if *r == doc_ref)
+        matches!(loaded.node(ids[0]), Some(Node::InstantiatePart { doc_ref: r, .. }) if *r == doc_ref)
     );
     assert_eq!(save(&loaded, &[]).expect("saves"), text, "byte-stable");
 
@@ -872,7 +872,7 @@ impl PartResolver for CyclicStore {
             (self.b, self.a)
         };
         let doc = ProfileDoc::empty(here.id);
-        let (doc, _) = insert(doc, Node::InstantiatePart { doc_ref: there });
+        let (doc, _) = insert(doc, Node::instantiate_part(there));
         Ok(doc)
     }
 }
@@ -936,7 +936,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
     let mut store = StubStore::default();
     let broken = {
         let doc = ProfileDoc::empty(DocumentId::derive("asm2a-broken-part"));
-        let (doc, _) = insert(doc, Node::InstantiatePart { doc_ref: missing });
+        let (doc, _) = insert(doc, Node::instantiate_part(missing));
         doc
     };
     let inner_root = broken.order()[0];
@@ -980,7 +980,7 @@ fn r1_part_evaluations_aggregates_through_nesting() {
     let p = store.insert(part("asm2a-nest-p", 0.0, 1.0));
     let sub = {
         let doc = ProfileDoc::empty(DocumentId::derive("asm2a-nest-b"));
-        let (doc, _) = insert(doc, Node::InstantiatePart { doc_ref: p });
+        let (doc, _) = insert(doc, Node::instantiate_part(p));
         doc
     };
     let b = store.insert(sub);

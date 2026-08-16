@@ -32,7 +32,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI, TAU};
+use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use pncad::document::{BooleanOp as NodeBooleanOp, BooleanValue};
 use pncad::prelude::{
@@ -133,38 +133,19 @@ fn placements() -> Vec<Placement> {
     out
 }
 
-/// The pip ball's meridian: two quarter arcs meeting at an OFF-AXIS
-/// equator vertex, the second arc a declared subdivision of the first.
-///
-/// **NAMED GAP (2026-08-14) — this is a workaround, and it is the
-/// library's to fix.** The natural meridian is the one the raw scene
-/// used to author: a single bulge-1 semicircle from pole to pole, with
-/// the on-axis diameter closing it. That loop's every vertex is ON the
-/// revolve axis, and the revolve NAME EMITTER refuses it typed —
-/// `"revolve vertex resolution exceeded elimination (all-on-axis
-/// loop)"` (`editor-core/src/names/emit_sweep.rs`): pole vertices
-/// resolve by ELIMINATION along the meridian chains, and a two-pole
-/// loop offers no off-axis anchor to eliminate from. So **no sphere
-/// reaches a `Node::Revolve` at all** until that emitter grows a
-/// discriminator, and any recipe that wants one pays this detour.
-///
-/// The cost, stated: the ball carries two band faces instead of one,
-/// and the quarter arcs' circles come from `tan(π/8)` rather than the
-/// one exact half-circle. Both are invisible in the die — the cut
-/// circle lies wholly inside ONE band, and the composed body's face,
-/// edge and vertex counts are unchanged (asserted in [`stops`]) — but
-/// they are a detour, not a design. `die_pips` pays the same one for
-/// the same reason; see `docs/M8-LOG.md`'s demo-raised residual entry.
-/// Delete this the moment the emitter resolves two-pole loops.
+/// The pip ball's meridian: one bulge-1 semicircle from pole to pole,
+/// closed by the on-axis diameter. Every vertex is ON the revolve
+/// axis, which is what a sphere's meridian IS — the revolve names its
+/// poles from the sweep's construction record (M9-D1), so the natural
+/// three-step program is what the document authors.
 fn half_disc() -> LoopProgram {
     let p = |x: f64, y: f64| [len(x), len(y)];
     LoopProgram::Chain(vec![
         ProgramStep::At(p(0.0, -PIP_R)),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(p(PIP_R, 0.0)),
-            b: scl(FRAC_PI_8.tan()),
+            target: ProgramTarget::Point(p(0.0, PIP_R)),
+            b: scl(1.0),
         }),
-        ProgramStep::ArcContinue(p(0.0, PIP_R)),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])
 }

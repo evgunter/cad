@@ -451,7 +451,12 @@ Beyond "docs update as the kernel grows," five categories:
   (the U1 closure-class, mild).
 - R3 (SEL2 follow-up): the UndeclaredContact refusal-menu WIRING
   (the finding payload into the boolean's refusal) — shape
-  recorded in the SEL2 report.
+  recorded in the SEL2 report. **DISCHARGED (LIB-PYG5)**: the raise
+  sites keep their (Operand, FaceKey) pair + decided relation,
+  editor-core lifts them through the operands' name tables into
+  `NodeErrorKind::UndeclaredContact { finding, diag }` — the
+  detector's own FlushFinding shape, no re-detection on the error
+  path; the menu crosses to Python as `EvaluationError.finding`.
 
 **B. Bindings-parity residuals (the north-star audit, executable):**
 G1-G11 ranked in the U10 report — the audit test FAILS as doors

@@ -260,6 +260,47 @@ pub enum Datum {
     },
 }
 
+/// One declaration crossing a split seam (ASM-4 D-2; ASSEMBLY-DESIGN
+/// A4: "the seam is the crossing declarations" — each entry is a
+/// (wrapped name, declaration) pair against the pinned document).
+///
+/// UNINHABITED in v1: no mate vocabulary exists yet, so no crossing
+/// declaration can be spelled — every [`InterfaceRecord`] is provably
+/// empty, which is why the record feeds no content key and never
+/// appears on the wire. R2 EXTENDS this enum with the mate-edge
+/// variants (rather than retrofitting a record type onto the node);
+/// making it inhabited is a format change that must feed the
+/// instantiate node's content key and ride a schema-version bump.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum InterfaceCrossing {}
+
+/// The interface record of an instantiate seam (ASM-4 D-2): the
+/// declarations that crossed the cut when the referenced document was
+/// split out. Ordinary node data — recorded by the split that minted
+/// the instance, carried by every instantiate node (empty when nothing
+/// crossed or the instance was authored directly).
+///
+/// An ABSENT record on the wire is the empty record (the A11
+/// placement-registry precedent: a missing entry is the identity, not
+/// a hole), so the empty state costs no bytes and moves no pin.
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InterfaceRecord {
+    /// The crossing declarations, in the deterministic order the split
+    /// collected them. Provably empty in v1 ([`InterfaceCrossing`] is
+    /// uninhabited).
+    pub crossings: Vec<InterfaceCrossing>,
+}
+
+impl InterfaceRecord {
+    /// Whether the record carries no crossings — the wire-presence
+    /// test (an empty record serializes as nothing at all).
+    pub fn is_empty(&self) -> bool {
+        self.crossings.is_empty()
+    }
+}
+
 /// A pattern's replication rule (F4: LinearPattern/CircularPattern;
 /// the count lives on [`Node::Pattern`] as the structural slot).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -491,6 +532,15 @@ pub enum Node<P> {
         /// — an edit to the referenced document never retargets this
         /// reference; moving the pin is its own recorded edit.
         doc_ref: crate::ident::DocRef,
+        /// The split seam's interface record (ASM-4 D-2): the
+        /// declarations that crossed the cut this instance was minted
+        /// by. Empty for directly-authored instances — and provably
+        /// empty in v1, since [`InterfaceCrossing`] is uninhabited
+        /// until R2's mates give a crossing something to say. Absent
+        /// from the wire while empty, so it feeds no content key and
+        /// moves no pin.
+        #[serde(default, skip_serializing_if = "InterfaceRecord::is_empty")]
+        interface: InterfaceRecord,
     },
 }
 
@@ -728,6 +778,18 @@ impl<P> Node<P> {
             // carries the same N5 carve-out (M6-5).
             Node::Fillet { selection, .. } => selection.iter().map(|n| n.node).collect(),
             _ => Vec::new(),
+        }
+    }
+
+    /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
+    /// record — the authoring constructor. A non-empty record is
+    /// mintable only by the refactoring that observed declarations
+    /// crossing a cut (none can in v1: [`InterfaceCrossing`] is
+    /// uninhabited).
+    pub fn instantiate_part(doc_ref: crate::ident::DocRef) -> Self {
+        Node::InstantiatePart {
+            doc_ref,
+            interface: InterfaceRecord::default(),
         }
     }
 

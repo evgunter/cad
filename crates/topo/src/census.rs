@@ -830,6 +830,7 @@ fn confirm_declarations<T: Decide>(
             Some(false) => errors.push(stale),
         }
     }
+    confirm_curve_and_patch_records(body, contacts, band, errors);
     for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
         let stale = ValidationError::StaleContactDeclaration {
             declaration: StaleDeclaration::VertexOnFace {
@@ -862,5 +863,88 @@ fn confirm_declarations<T: Decide>(
             Some(_) => errors.push(stale),
             None => {}
         }
+    }
+}
+
+/// The at-rest confirmation of the two CURVED granularities (C3), the
+/// other half of `confirm_declarations`.
+///
+/// A `CurveContact` is re-certified through the SAME jet door the use
+/// site runs (`contact_pair_verdict`, class `Tangent`, along the
+/// witness edge's own carrier) — the at-rest gate and the verify-at-use
+/// gate share the door rather than mirroring it, so a false contact
+/// cannot be silent at one and loud at the other. A `PatchContact` is
+/// refused typed: its chart-space area certifier does not exist yet,
+/// and blessing an uncertifiable record at rest is exactly the
+/// scan-to-bless the census bans.
+fn confirm_curve_and_patch_records<T: Decide>(
+    body: &Body<T>,
+    contacts: &ContactRecords,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
+    for c in &contacts.curves {
+        let stale = ValidationError::StaleContactDeclaration {
+            declaration: StaleDeclaration::CurveLocus {
+                face_a: c.face_a,
+                face_b: c.face_b,
+                witness: c.witness,
+            },
+        };
+        let carrier = body
+            .edges
+            .get(c.witness)
+            .and_then(|e| body.curves.get(e.curve))
+            .and_then(CurveGeom::certified);
+        let (Some(curve), true, true) = (
+            carrier,
+            body.get_face(c.face_a).is_some(),
+            body.get_face(c.face_b).is_some(),
+        ) else {
+            errors.push(stale);
+            continue;
+        };
+        let (t0, t1) = curve.params();
+        match crate::boolean::contact_pair_verdict(
+            body,
+            c.face_a,
+            body,
+            c.face_b,
+            crate::contact::ContactClass::Tangent,
+            Some((curve.carrier(), t0, t1)),
+            band,
+        ) {
+            Ok(_) => {}
+            Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
+                errors.push(ValidationError::ContactContradicted {
+                    declaration: crate::contact::DeclaredContact {
+                        a: c.face_a,
+                        b: c.face_b,
+                        class: crate::contact::ContactClass::Tangent,
+                    },
+                    witness: format!("{:?}", c.witness),
+                    margin: diag,
+                    steer,
+                });
+            }
+            Err(crate::contact::ContactRefusal::Escalated { diag })
+            | Err(crate::contact::ContactRefusal::Undeclared { diag }) => {
+                errors.push(ValidationError::CensusEscalated { cause: diag });
+            }
+            Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
+                errors.push(ValidationError::CensusUnsupported {
+                    entity: EntityId::Edge(c.witness),
+                });
+            }
+        }
+    }
+    for c in &contacts.patches {
+        // The stated posture (see `PatchContact`): no chart-space
+        // overlap predicate exists, so a patch record cannot be
+        // confirmed and is never blessed by default.
+        let _ = c;
+        errors.push(ValidationError::CensusUnsupported {
+            entity: EntityId::Face(c.face_a),
+        });
     }
 }

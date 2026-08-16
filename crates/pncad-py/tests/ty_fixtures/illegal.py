@@ -127,3 +127,11 @@ NamePat.any().kind = EntityKind.Edge  # ty: error
 # `at_toward` is the fillet ARRIVAL door: a plain point's angle slot is
 # bound by `.angle`/`.toward`, and there is no pending fillet to resolve.
 Open.at((0 * mm, 0 * mm)).at_toward((1 * mm, 0 * mm), 1.0, 0.0)  # ty: error
+
+# LIB-PYG5. The declare doors take FINDINGS — values from the
+# detector — never name text or bare pairs; the detector takes node
+# ids; a finding's fields are read-only projections of the report.
+doc.declare_all(["some-name-text", "another"])  # ty: error
+doc.declare("name-text")  # ty: error
+Node.declare([("a", "b")])  # ty: error
+evaluate(doc).find_flush_candidates(solid, "not-a-node")  # ty: error
