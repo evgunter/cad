@@ -164,6 +164,7 @@ mod review_m1_pr3;
 mod review_m1_pr4;
 #[cfg(test)]
 mod review_m1_pr5_internal;
+pub mod separation;
 #[cfg(test)]
 pub(crate) mod seqgen;
 pub mod source;
@@ -212,13 +213,17 @@ pub use geom_brep::{
 pub use geom_curves::Curve3;
 pub use geom_surfaces::Surface;
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
-pub use instance::{GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed};
+pub use instance::{
+    GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed,
+    graft_disjoint_all_onto_keyed,
+};
 pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use pcurves::{PcurveMintError, mint_pcurves, pcurve_of};
 pub use props::{MassProperties, MassPropsError, PropsQuadLane, mass_properties};
 pub use provenance::Provenance;
 pub use revert::RevertError;
+pub use separation::{PlacementsMeet, Separation};
 pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
 pub use split::SplitEdgeCreated;
 pub use splitting::{

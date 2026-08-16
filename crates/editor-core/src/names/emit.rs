@@ -196,6 +196,82 @@ pub(crate) fn name_pattern<T: geom_core::Real>(
     Ok(Arc::new(t))
 }
 
+/// Names a [`crate::node::Node::PlacedUnion`]'s ONE output body
+/// (GROUP-BOOLEAN-DESIGN, ratified A′).
+///
+/// The vocabulary does NOT grow: per-instance discrimination is
+/// [`name_pattern`]'s own `Instance(i)` wrapper, segment for segment,
+/// so "instance 7's cavity face" is the same one-row selector on a
+/// fused group as on an unfused pattern. What differs is the TARGET —
+/// a PlacedUnion emits one body, so every instance's rows land at body
+/// index 0, re-keyed through that instance's graft bridge (`bridges[i]`
+/// is the correspondence the graft of instance `i` established).
+///
+/// The BODY name is minted here rather than wrapped, for
+/// [`name_in_part`]'s reason: the fused body is not the body any
+/// instance-local name denotes, so it is this node's own output body,
+/// named like every other body-producing op's. The prototype's own
+/// body-kind rows therefore do not carry — they have nothing left to
+/// point at, exactly as the product gather rules.
+pub(crate) fn name_placed_union<T: geom_core::Real>(
+    node: RecipeNodeId,
+    master: &NameTable,
+    bridges: &[topo::GraftKeys],
+    fused: &Body<T>,
+) -> Result<Arc<NameTable>, NamingError> {
+    let mut t = NameTable::new();
+    t.insert(
+        name1(EntityKind::Body, node, super::role::RoleSeg::OutputBody),
+        ent(0, EntityKey::Body),
+    )?;
+    for (i, keys) in bridges.iter().enumerate() {
+        let iu = u32::try_from(i).map_err(|_| NamingError::Emission {
+            what: "placed-union instance index exceeds u32",
+        })?;
+        let mapped = |key: EntityKey| -> Option<EntityKey> {
+            match key {
+                EntityKey::Body => None,
+                EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
+                EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
+                EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
+            }
+        };
+        for (name, entry) in master.iter() {
+            let wrapped = StableName {
+                kind: name.kind,
+                node,
+                path: vec![super::role::RoleSeg::Instance {
+                    i: iu,
+                    of: Box::new(name.clone()),
+                }],
+            };
+            // The prototype's table is a single-output-body table
+            // (`body_operand` refuses multi-body inputs upstream), so a
+            // row at any other index is a bug — surfaced, not dropped.
+            let rows: Vec<EntityRef> = match entry {
+                super::table::Entry::Unique(e) => vec![*e],
+                super::table::Entry::Tied(es) => es.clone(),
+            };
+            if rows.iter().any(|e| e.body != 0) {
+                return Err(NamingError::Emission {
+                    what: "placed union of a multi-OUTPUT-BODY prototype — deferred (typed, R7); multi-SOLID prototypes are admitted",
+                });
+            }
+            let moved: Vec<EntityRef> = rows
+                .into_iter()
+                .filter_map(|e| mapped(e.key).map(|key| ent(0, key)))
+                .collect();
+            match moved.len() {
+                0 => {}
+                1 => t.insert(wrapped, moved[0])?,
+                _ => t.insert_tied(wrapped, moved)?,
+            }
+        }
+    }
+    check_total(&t, fused, 0)?;
+    Ok(Arc::new(t))
+}
+
 /// Wraps an instantiated part's product table under the instance
 /// (ASM-2A D-4: the GQ4 wrapper composed with N1–N7).
 ///

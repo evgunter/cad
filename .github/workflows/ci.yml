@@ -325,6 +325,7 @@ jobs:
             | grep -vE ':[0-9]+:\s*(//|///|//!)' \
             | cut -d: -f1 | sort -u \
             | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
+            | grep -vE '^crates/topo/src/separation\.rs$' \
             | grep -vE '^crates/topo/src/props\.rs$' \
             | grep -vE '^crates/topo/src/chart_region\.rs$' \
             | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \

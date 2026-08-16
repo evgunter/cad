@@ -375,6 +375,12 @@ pub trait Real:
 /// remains a [`Decide`](crate::predicate::Decide) call site; boxes
 /// only ever prune.
 ///
+/// (`topo::separation` — LIB-PLACEDUNION's placement certificate —
+/// falls under this same 2026-07-29 amendment rather than a new one:
+/// it is a certified box constructor beside its invariants plus a
+/// query driver over the C10 tree, decides no topology, and its boxes
+/// only ever refuse. It is on the CI allowlist for that reason.)
+///
 /// **Ratified extension (M5 PR 11, Evan's lane-split ruling):**
 /// `topo::props`'s certified-quadrature plumbing joins the compound
 /// allowlist. The quadrature lane simultaneously decides (its

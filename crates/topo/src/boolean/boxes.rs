@@ -37,7 +37,7 @@ use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey, VertexKey};
 /// The sum is deliberately generous — a bigger pad only admits more
 /// candidates (conservative direction); it never changes any answer
 /// (the differential suite pins that).
-pub(super) fn sweep_pad(band: Band) -> f64 {
+pub(crate) fn sweep_pad(band: Band) -> f64 {
     band.escalate() + 2.0 * band.zero()
 }
 
@@ -76,7 +76,15 @@ fn corrupt(what: &'static str) -> BooleanError {
 /// Subtract and Intersect); no corpus document exercises it, which is
 /// why it has not bitten. `tests/m5_pr8_bvh_diff.rs` cannot catch it —
 /// every scenario there is built from planar bricks.
-pub(super) fn face_box<T: Decide + Bounds>(
+/// LIB-PLACEDUNION note: [`crate::separation`] does NOT rely on this
+/// function's planar or curved fallthrough. Its `certified_face_box`
+/// takes the cylinder and sphere arms here (both whole-extent by
+/// construction), hulls the planar arm with the boundary EDGE boxes
+/// (a circular rim bulges past its vertices too), and hands every
+/// other surface kind — `Nurbs` included, for exactly the reason
+/// above — the poison box, so an uncertifiable prototype refuses
+/// instead of certifying wrongly.
+pub(crate) fn face_box<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
     pad: f64,
@@ -206,7 +214,7 @@ pub(super) fn face_box<T: Decide + Bounds>(
 /// box is deliberately loose, the conservative direction). `Nurbs`
 /// carriers land on the poison box (never prunes) until a rung-3
 /// operand gate admits them with a control-hull box.
-pub(super) fn edge_box<T: Decide + Bounds>(
+pub(crate) fn edge_box<T: Decide + Bounds>(
     body: &Body<T>,
     edge: EdgeKey,
     pad: f64,

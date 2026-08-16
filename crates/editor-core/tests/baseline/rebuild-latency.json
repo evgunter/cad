@@ -63,12 +63,26 @@
       "incremental_ms": 8.68,
       "nodes": 7
     },
+    "die_tool": {
+      "about": "the die's multi-shell cutting tool as one PlacedUnion(Explicit) node",
+      "cone": 2,
+      "full_ms": 2706.1,
+      "incremental_ms": 2102.93,
+      "nodes": 7
+    },
     "heat_sink": {
       "about": "parametric fin strip: Pattern instances + explicit union chain",
       "cone": 12,
       "full_ms": 102.3,
       "incremental_ms": 100.72,
       "nodes": 15
+    },
+    "heat_sink_fins": {
+      "about": "the parametric fin group as ONE node: PlacedUnion(fin, Linear) driven by the fins param",
+      "cone": 2,
+      "full_ms": 186.6,
+      "incremental_ms": 136.15,
+      "nodes": 3
     },
     "kitchen_sink": {
       "about": "every v1 node kind and every DocEdit kind in one document",
@@ -116,6 +130,7 @@
   "provenance": {
     "disputed_measurement": "UNRESOLVED, and this refresh is the third data point. M4 PR 8a review MIN-3 measured every row 90-94% lower than the 2026-07-25/26 numbers (die full 985.9 ms vs ~14-17 s) and blamed contention; those two refreshes reproduced each other within +/-20% and blamed a differently-optimised build. The M5 PR 12 refresh below lands on MIN-3's side (die full 1103.5 ms, i.e. -98% against the superseded 51661.1 ms) on a verified-quiet machine, which rules contention OUT as the explanation for the gap and leaves a build/environment difference (RUSTFLAGS / CARGO_PROFILE_* / target dir / toolchain) as the standing hypothesis - untested, because nobody has yet captured the two environments side by side. Treat cross-refresh comparisons of the absolute numbers as meaningless until someone does; see 'portability'.",
     "epsilon": "CAD_TOLERANCE_EPS unset (the bootstrap default) - the row is ambient-eps agnostic by design.",
+    "lib_placedunion_rows": "The heat_sink_fins and die_tool rows were measured on a CONTENDED machine (the shared build slot was saturated; the same run inflated every other row 14-60x against its committed value), so only those two rows were taken from it and the rest were left verbatim. Their absolute figures are therefore NOT comparable with their neighbours' and want a refresh on a quiet machine; their structural fields (nodes, cone) are exact and machine-independent, which is what the coverage assertion actually reads.",
     "load_conditions": "Measured with ZERO other cargo build/test lanes running (verified immediately before the run: zero cargo/rustc processes, 1-minute load average 0.82, a parallel agent lane's release build having just drained), RUSTFLAGS unset, no CARGO_PROFILE_* overrides; the only rustflag in effect is the committed x86-64-v3 CPU floor in .cargo/config.toml. A SECOND refresh attempted 25 minutes later, with another lane active, read 20-30x HIGHER on every row (die full 26641.5 ms) and was DISCARDED - a live demonstration that this file means nothing unless the zero-lane check passes, and the reason 'refreshed_under' now records the load average as well as the process count.",
     "machine": "developer workstation (WSL2, 8 cores, ~9 GB RAM) shared with other agent build lanes.",
     "method": "median of 3 runs in one process, std::time::Instant, sequential evaluation schedule (EvalOptions::default()).",
