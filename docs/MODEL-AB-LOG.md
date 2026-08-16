@@ -963,7 +963,21 @@ cannot move R2-a's design. Implementer briefed to build against
 topo::ContactClass directly, absorb #552 at routine re-merges,
 and mint its own schema bump at main's next number (the live
 chain: v10 = ASM-UPD, v11 = M9-1 at its re-merge). Lane asm-r2a,
-branch asm/r2a-mate-solve, OPUS per the slot-1 draw. Review
+branch asm/r2a-mate-solve, OPUS per the slot-1 draw.
+
+**ASM-R2a SCHEMA CLAIM: v12** (2026-08-16, PR #575 open) — the
+`Node::Mate` arm, new node vocabulary, the case v7 bumped for.
+Claimed as main's next number after reading main's ACTUAL constant
+by eye immediately before setting it (`git show
+origin/main:crates/editor-core/src/persist/mod.rs | grep
+SCHEMA_VERSION` → 11, M9-1 PR-2's declaration-class break, which
+merged while this branch was open; the unit had claimed 11 itself
+and shifted). This paragraph IS the tripwire the
+`schema-claim-discipline` memory asks for: any other in-flight
+branch claiming 12 collides HERE, because the constant will not —
+one line of identical text merges clean. Confirmed live on this
+branch's own re-merge with #552: the ledger prose conflicted, the
+constant did not. Review
 ordinal claims at review dispatch (note: the next third is 48 —
 the pending dual, tally 5-of-6).
 M9-2 PR-2 review ordinal fixed at dispatch (2026-08-16, PR #564
