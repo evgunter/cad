@@ -36,7 +36,7 @@ use profile::ProfileError;
 use sweep::{ExtrudeError, RevolveError, SkinError};
 use topo::splitting::SplitError;
 use topo::transform::TransformError;
-use topo::{Body, BooleanError, BooleanResultKind, ContactRecords};
+use topo::{Body, BooleanError, BooleanResultKind, ContactClass, ContactRecords};
 
 use crate::appearance::{self, AppearanceResolution};
 use crate::doc::Doc;
@@ -248,9 +248,12 @@ pub enum ValuePayload<T: Decide> {
     /// A pattern's instances AS DATA (D3: patterns do not implicitly
     /// union; index `i` is the A8/N1 `Instance(i)` substrate).
     Instances(Vec<Arc<Body<T>>>),
-    /// A Declare node's pairs, passed through as data (D3; threading
-    /// into booleans is PR 5).
-    Declarations(Vec<(StableName, StableName)>),
+    /// A Declare node's pairs with their contact classes, passed
+    /// through as data (D3; the boolean consumes them at its
+    /// `declare` input). The class travels WITH its pair from
+    /// authoring to the kernel door — the one vocabulary end-to-end
+    /// (SELECT-DESIGN §3d).
+    Declarations(Vec<((StableName, StableName), ContactClass)>),
 }
 
 impl<T: Decide> ValuePayload<T> {
@@ -1306,9 +1309,17 @@ where
         }
         Node::Declare { pairs } => {
             h.write_u64(pairs.len() as u64);
-            for (a, b) in pairs {
+            for ((a, b), class) in pairs {
                 feed_stable_name(&mut h, a);
                 feed_stable_name(&mut h, b);
+                // The CLASS is part of the node's identity: two
+                // declarations of the same pair under different
+                // classes are different nodes, and a memo keyed
+                // without it would serve a `Rest` answer to a
+                // `Tangent` question. Keys are process-internal, so
+                // this costs a one-time memo invalidation and no
+                // schema.
+                h.write_u64(class.content_tag());
             }
         }
         // The fillet SELECTION is recipe payload, not a slot: two

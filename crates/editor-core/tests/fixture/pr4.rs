@@ -191,12 +191,10 @@ where
     let cap_b = name1(EntityKind::Face, db, RoleSeg::Cap(CapEnd::Top));
     let (docd, _) = insert(
         docd,
-        Node::Declare {
-            pairs: vec![(
-                name1(EntityKind::Face, da, RoleSeg::Cap(CapEnd::Top)),
-                cap_b.clone(),
-            )],
-        },
+        Node::declare_rest(vec![(
+            name1(EntityKind::Face, da, RoleSeg::Cap(CapEnd::Top)),
+            cap_b.clone(),
+        )]),
     );
     let (docd, _) = step(docd, DocEdit::DeleteNode { id: db });
     let evd = run::<T>(&docd, None);

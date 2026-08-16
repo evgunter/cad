@@ -111,17 +111,34 @@ fn select_refusal_tags_are_stable() {
 /// the Python mirror (`py/flush.rs`) is forced to carry a wildcard
 /// arm and the compile-time drift alarm is unavailable — an unknown
 /// class refuses typed (`unclassified`) at the crossing instead.
-/// This pin is the pointer: it constructs the whole v1 vocabulary
-/// (exactly `Rest`) and asserts the tag the crossing would speak, so
-/// when Tangent/Fit land the mirror is the named place to grow.
+///
+/// That forced wildcard has a cost this pin now pays: a wildcarded
+/// alarm cannot fire, so `Tangent` sat in the kernel for a whole PR
+/// while the mirror still spelled only `Rest` and nothing went red.
+/// So the pin ENUMERATES what the mirror claims to speak, one line
+/// per class, and a class added to the kernel without a line here is
+/// visible as an absence in a list rather than invisible behind a
+/// wildcard.
+///
+/// It is deliberately NOT a `_ => panic!()` over the kernel enum:
+/// that would red on every downstream build the moment the kernel
+/// reserved a class, which is precisely the coupling
+/// `#[non_exhaustive]` exists to prevent. The crossing's typed
+/// refusal is the safety property; this list is the reminder.
 #[test]
-fn contact_class_rest_is_the_whole_v1_vocabulary() {
-    let class = pncad::select::ContactClass::Rest;
-    let tag = match class {
+fn the_contact_class_mirror_matches_the_kernel() {
+    let spoken = |class| match class {
         pncad::select::ContactClass::Rest => "rest",
+        pncad::select::ContactClass::Tangent => "tangent",
         _ => "unclassified",
     };
-    assert_eq!(tag, "rest");
+    assert_eq!(spoken(pncad::select::ContactClass::Rest), "rest");
+    assert_eq!(
+        spoken(pncad::select::ContactClass::Tangent),
+        "tangent",
+        "Tangent crossed into the mirror with M9-1; a class the binding \
+         cannot name refuses typed at the crossing instead"
+    );
 }
 
 /// LIB-PYG5: the declare-sugar refusal tags, exercised through the
