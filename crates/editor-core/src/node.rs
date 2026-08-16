@@ -3,6 +3,11 @@
 //! this data against the kernel ops.
 
 use crate::expr::{Dimension, Expr};
+// The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
+// PR-1). Imported, never redefined: the boolean's own refusals must
+// carry the same words this node authors, and `crate::names::flush`
+// owns the single upward re-export.
+use topo::ContactClass;
 
 /// A stable recipe-node identity (spec D3, NAMING-DESIGN N1's
 /// substrate): minted from `Doc`'s monotone counter at insertion,
@@ -512,8 +517,18 @@ pub enum Node<P> {
     /// delete would force cascade-or-pre-repair, worse than the
     /// typed-failure flow.
     Declare {
-        /// The declared-coincident name pairs.
-        pairs: Vec<(StableName, StableName)>,
+        /// The declared contact pairs, each with the CLASS it asserts
+        /// (CONTACT-DESIGN C4).
+        ///
+        /// The class rides every pair rather than a node-level
+        /// default: a declaration is "these two faces are in contact,
+        /// of THIS kind", and one `Declare` node may carry pairs of
+        /// different kinds. A class-less pair is unrepresentable —
+        /// there is no constructor that omits it and no default to
+        /// fall back to, because defaulting would let a `Tangent`
+        /// intent be verified against the conformal table.
+        #[serde(with = "declare_pairs_wire")]
+        pairs: Vec<((StableName, StableName), ContactClass)>,
     },
     /// An instance of another document's product (ASSEMBLY-DESIGN
     /// A2/A3, ASM-2A D-1): a LEAF — its material crosses the document
@@ -773,7 +788,10 @@ impl<P> Node<P> {
     /// a later delete may strand them, N5 semantics).
     pub fn named_nodes(&self) -> Vec<RecipeNodeId> {
         match self {
-            Node::Declare { pairs } => pairs.iter().flat_map(|(a, b)| [a.node, b.node]).collect(),
+            Node::Declare { pairs } => pairs
+                .iter()
+                .flat_map(|((a, b), _)| [a.node, b.node])
+                .collect(),
             // The fillet selection references names the same way, and
             // carries the same N5 carve-out (M6-5).
             Node::Fillet { selection, .. } => selection.iter().map(|n| n.node).collect(),
@@ -790,6 +808,20 @@ impl<P> Node<P> {
         Node::InstantiatePart {
             doc_ref,
             interface: InterfaceRecord::default(),
+        }
+    }
+
+    /// A `Declare` node whose every pair asserts the CONFORMAL class
+    /// — the class the class-less payload always meant.
+    ///
+    /// This NAMES `Rest` at the call site; it does not default it.
+    /// The difference matters: a reader of the call sees which of C4's
+    /// classes is being claimed, and a pair that means something else
+    /// cannot arrive here by omission. Mixed-class nodes build
+    /// [`Node::Declare`] directly.
+    pub fn declare_rest(pairs: Vec<(StableName, StableName)>) -> Self {
+        Node::Declare {
+            pairs: pairs.into_iter().map(|p| (p, ContactClass::Rest)).collect(),
         }
     }
 
@@ -831,5 +863,84 @@ impl<P: PartialEq> Node<P> {
                 (None, None) => true,
                 _ => false,
             })
+    }
+}
+
+/// The wire form of a [`Node::Declare`] payload's classes.
+///
+/// **Why this module exists instead of `#[derive(Serialize)]` on
+/// [`ContactClass`].** Two ratified rules meet here and both are kept:
+///
+/// - the kernel crates gain NO serde dependency (the F3/G1 layering
+///   rule, workspace `Cargo.toml`) — persistence is editor-core's job;
+/// - the contact vocabulary is ONE enum, defined lowest and
+///   re-exported upward, never a parallel enum (CONTACT-DESIGN C4's
+///   layering ruling, M9-1 PR-1) — so the mirror-enum pattern
+///   `BooleanOp` uses is not available for this type.
+///
+/// A `with` module satisfies both: the type stays `topo::ContactClass`
+/// everywhere, and only the BYTES are described here.
+///
+/// The wire spelling is a stable STRING, not a discriminant: a
+/// discriminant would silently re-map if `Fit` ever lands between the
+/// two variants, and the file would then read a different class than
+/// it was written with. Both directions refuse typed on a spelling
+/// this build does not know — including the SERIALIZE direction, which
+/// `ContactClass` being `#[non_exhaustive]` makes reachable: a class
+/// added in a newer kernel than this writer must never be written out
+/// under a guessed tag.
+mod declare_pairs_wire {
+    use super::{ContactClass, StableName};
+    use serde::de::Error as _;
+    use serde::ser::Error as _;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    /// The wire spelling of a class, or `None` if this build has no
+    /// name for it.
+    fn tag(class: ContactClass) -> Option<&'static str> {
+        match class {
+            ContactClass::Rest => Some("rest"),
+            ContactClass::Tangent => Some("tangent"),
+            // `ContactClass` is `#[non_exhaustive]`: a kernel newer
+            // than this writer can present a class with no spelling
+            // here. Refusing is the only honest answer — see the
+            // module docs.
+            _ => None,
+        }
+    }
+
+    fn untag(s: &str) -> Option<ContactClass> {
+        match s {
+            "rest" => Some(ContactClass::Rest),
+            "tangent" => Some(ContactClass::Tangent),
+            _ => None,
+        }
+    }
+
+    type Pairs = Vec<((StableName, StableName), ContactClass)>;
+
+    pub(super) fn serialize<S: Serializer>(pairs: &Pairs, ser: S) -> Result<S::Ok, S::Error> {
+        let mut out = Vec::with_capacity(pairs.len());
+        for ((a, b), class) in pairs {
+            let t = tag(*class).ok_or_else(|| {
+                S::Error::custom(
+                    "persist: this build has no wire spelling for the declared contact class \
+                     (a newer kernel's vocabulary) — refusing to write a guessed tag",
+                )
+            })?;
+            out.push(((a, b), t));
+        }
+        out.serialize(ser)
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Pairs, D::Error> {
+        let raw: Vec<((StableName, StableName), String)> = Vec::deserialize(de)?;
+        raw.into_iter()
+            .map(|(pair, t)| {
+                untag(&t)
+                    .map(|class| (pair, class))
+                    .ok_or_else(|| D::Error::custom(format!("unknown contact class '{t}'")))
+            })
+            .collect()
     }
 }

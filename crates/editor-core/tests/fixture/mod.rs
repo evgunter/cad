@@ -280,9 +280,10 @@ pub fn die() -> Die {
             // its OUTER cap — the flush one — is Bottom (on the
             // sketch plane, which IS the cube face's plane).
             let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Bottom));
-            let decl = r.insert(Node::Declare {
-                pairs: vec![(cube_face_names[face_idx].clone(), pip_cap)],
-            });
+            let decl = r.insert(Node::declare_rest(vec![(
+                cube_face_names[face_idx].clone(),
+                pip_cap,
+            )]));
             let sub = r.insert(Node::Boolean {
                 op: editor_core::BooleanOp::Subtract,
                 a: acc,
@@ -389,5 +390,5 @@ pub fn declare_x_offset_flush(
             fname(b_ext, RoleSeg::Cap(CapEnd::Top)),
         ),
     ];
-    insert(doc, Node::Declare { pairs })
+    insert(doc, Node::declare_rest(pairs))
 }

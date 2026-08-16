@@ -45,6 +45,7 @@ pub(crate) enum PlaneRelation {
 )]
 pub(crate) enum ContactClass {
     Rest,
+    Tangent,
 }
 
 /// Which rung of the verify ladder decided a finding.
@@ -86,16 +87,24 @@ pub(crate) fn plane_relation(rel: KPlaneRelation) -> PlaneRelation {
 
 /// Crossing helper: the kernel contact class as the Python mirror.
 ///
-/// `ContactClass` is `#[non_exhaustive]` kernel-side (Tangent/Fit are
-/// reserved, not built), so unlike the other mirrors the wildcard arm
-/// is FORCED on this crate and the compile-time drift alarm is
-/// unavailable; a kernel class this binding does not know refuses
-/// typed HERE rather than crossing mislabeled. The pin in
-/// `src/tests.rs` (`contact_class_rest_is_the_whole_v1_vocabulary`)
-/// is the alarm that a new class needs a real mirror.
+/// `ContactClass` is `#[non_exhaustive]` kernel-side, so unlike the
+/// other mirrors the wildcard arm is FORCED on this crate and the
+/// compile-time drift alarm is unavailable; a kernel class this
+/// binding does not know refuses typed HERE rather than crossing
+/// mislabeled. The wildcard is deliberate, not a missed arm — but it
+/// is also why growth has to be conscious, so the pin in
+/// `src/tests.rs` (`the_contact_class_mirror_matches_the_kernel`)
+/// enumerates the vocabulary this mirror claims to speak.
+///
+/// **`Tangent` grew here when M9-1 made it authorable** (PR-1 added
+/// the class, PR-2 made a recipe able to declare one). It arrived one
+/// PR later than the alarm intended, because a wildcarded pin cannot
+/// fire on its own — which is the standing cost of the forced
+/// wildcard and the reason the pin lists variants explicitly now.
 pub(crate) fn contact_class(py: Python<'_>, class: s::ContactClass) -> PyResult<ContactClass> {
     match class {
         s::ContactClass::Rest => Ok(ContactClass::Rest),
+        s::ContactClass::Tangent => Ok(ContactClass::Tangent),
         other => Err(crate::py::typed_err(
             py,
             crate::errors::ErrorClass::Select,

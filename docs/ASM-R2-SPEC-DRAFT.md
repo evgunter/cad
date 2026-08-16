@@ -212,3 +212,24 @@ includes Fit, so R2-a either restricts v1 Mate classes to
 Rest/Tangent-with-typed-refusal-on-Fit, or waits on Fit's landing;
 restriction is the draft's recommendation (matches the refusal
 posture everywhere else).
+
+## M9-2 PR-2 seam update (2026-08-16, PR #564)
+
+The recon's mismatch (a) inverts a second time, in R2-b's favor:
+M9-2 PR-2 ships the tier-3′ census growth — curved-carrier
+admission, the conformal face-pair arm (opposed-sense SurfaceKey
+sharing → UndeclaredContact carrying the kernel ContactFinding),
+the PatchContact certifier, the import-side declaration channel,
+and **#382 half-2 executed** — with R2-b's consumption points
+cited in-code (ASM-R2-SPEC-DRAFT:39-58 referenced from their
+spec). R2-b therefore does NOT build the census door; its cut
+narrows to the ASM-owned wiring: the contacts channel through
+product/instantiate (recon b — still real), declaration MINTING
+from solved mates into the product's record set, the F1
+assembly-level hard-error row (the kernel detection now exists —
+the row exercises it through a real two-instance touching
+assembly), the interface-record extension + split
+re-verification, and A13 clause 4's re-verification trigger.
+Finalize against M9-2 PR-2's LANDED shape (its review may move
+things); R2-b's difficulty pre-log likely drops M → S-M with the
+door gone, re-assess at spec time BEFORE the slot draw is read.

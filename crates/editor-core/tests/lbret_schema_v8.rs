@@ -28,11 +28,13 @@ use editor_core::{PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
 const V7: &str = include_str!("golden/v7_golden.cad");
 
 #[test]
-fn schema_version_is_eight() {
-    // Moved once since this row was written (LIB-RESPELL's v9 §2c
-    // re-spell) — the convention is that a bump updates every pin it
-    // invalidates, so the number stays exact here.
-    assert_eq!(SCHEMA_VERSION, 9);
+fn schema_version_is_current() {
+    // Moved twice since this row was written (LIB-RESPELL's v9 §2c
+    // re-spell, then ASM-UPD's v10 `UpdateReference` arm) — the
+    // convention is that a bump updates every pin it invalidates, so
+    // the number stays exact here. Named for the PROPERTY rather than
+    // the number, since the number is exactly what keeps moving.
+    assert_eq!(SCHEMA_VERSION, 11);
 }
 
 #[test]
