@@ -44,6 +44,8 @@ mod asm_roots;
 mod lbret_schema_v8;
 #[path = "lib_doors_node_result.rs"]
 mod lib_doors_node_result;
+#[path = "lib_g14_split_walls.rs"]
+mod lib_g14_split_walls;
 #[path = "lib_sel1_geoselect.rs"]
 mod lib_sel1_geoselect;
 #[path = "lib_sel2_flush.rs"]
