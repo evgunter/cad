@@ -1,6 +1,6 @@
 //! Tessellation: watertight triangle meshes from B-rep bodies (M2 PR 6).
 //!
-//! [`tessellate`] triangulates every face of a closed body into a
+//! [`fn@tessellate`] triangulates every face of a closed body into a
 //! [`Mesh`] whose triangles are certified to lie within a caller-chosen
 //! **chordal tolerance δ** of the exact analytic surfaces. Planar faces
 //! (rings included) go through constrained Delaunay triangulation (CDT,

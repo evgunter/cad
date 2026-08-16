@@ -26,7 +26,7 @@ use geom_core::{Affine3, Mat3, Real, Vec3};
 ///
 /// Rigidity is not a field invariant — it is a decided predicate, and
 /// the kernel's placement door
-/// ([`topo::transform_rigid`](topo::transform_rigid)) owns it. What the
+/// ([`topo::transform_rigid`]) owns it. What the
 /// edit door checks is the sign (see [`Frame::determinant`]).
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -121,6 +121,45 @@ impl Frame {
                 T::from_f64(self.translation[2]),
             ),
         )
+    }
+
+    /// The composition `self ∘ inner`: the frame that places by
+    /// `inner` first, then by `self` — inline's rule (ASM-4 D-3: the
+    /// instance's cluster frame composed onto the part's placements).
+    ///
+    /// A BIT-exact identity on either side returns the other operand
+    /// VERBATIM — the placing door's own fast-path rule, and what
+    /// makes the split/inline round trip exact: the frames a split
+    /// hoists or leaves behind compose back with zero arithmetic, so
+    /// D-4's bit-level volume identity never meets a rounding step.
+    /// The general product is plain f64 matrix arithmetic in a fixed
+    /// order (D9-deterministic, not claimed exact).
+    pub fn compose(&self, inner: &Frame) -> Frame {
+        if self.is_identity_bits() {
+            return *inner;
+        }
+        if inner.is_identity_bits() {
+            return *self;
+        }
+        let l = self.linear::<f64>() * inner.linear::<f64>();
+        let t = self.linear::<f64>()
+            * Vec3::new(
+                inner.translation[0],
+                inner.translation[1],
+                inner.translation[2],
+            );
+        Frame {
+            columns: [
+                [l.c0.x, l.c0.y, l.c0.z],
+                [l.c1.x, l.c1.y, l.c1.z],
+                [l.c2.x, l.c2.y, l.c2.z],
+            ],
+            translation: [
+                t.x + self.translation[0],
+                t.y + self.translation[1],
+                t.z + self.translation[2],
+            ],
+        }
     }
 
     /// Whether this frame is the stored identity, BY BITS — the

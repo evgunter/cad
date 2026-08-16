@@ -73,7 +73,7 @@ where
         Node::Transform { input, .. } => wire_transform(id, *input, results, vals),
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals),
         Node::Declare { pairs } => Ok((ValuePayload::Declarations(pairs.clone()), names::empty())),
-        Node::InstantiatePart { doc_ref } => {
+        Node::InstantiatePart { doc_ref, .. } => {
             wire_instantiate_part(id, doc_ref, doc.placement(id), env)
         }
     }

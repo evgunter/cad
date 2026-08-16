@@ -214,5 +214,8 @@ mod m8_3_rational_volume;
 #[path = "m8_4_intersection_iso.rs"]
 mod m8_4_intersection_iso;
 
+#[path = "m9_2_chart_region_loft.rs"]
+mod m9_2_chart_region_loft;
+
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;

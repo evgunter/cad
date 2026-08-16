@@ -13,7 +13,7 @@
 //! section faces are transients that die in the seam zip; a boolean
 //! intersection polygon is in general non-planar, so no honest plane
 //! exists to mint). Which promoted/remaining face is the IN copy is
-//! read from the [`NullFacePair::Boolean`] loop roles — the F3-chain
+//! read from the [`crate::null::NullFacePair::Boolean`] loop roles — the F3-chain
 //! derivation carried as data ("consistent orientation of null edges"
 //! is never consulted).
 //!

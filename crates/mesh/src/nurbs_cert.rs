@@ -67,7 +67,8 @@
 //! Taking sups componentwise over one knot-span cell:
 //!
 //! - `sup|Ã_kl|` — hull of the recentred homogeneous derivative
-//!   coefficients active on the cell ([`hull::derivative_coeffs`]
+//!   coefficients active on the cell
+//!   ([`geom_core::spline::hull::derivative_coeffs`]
 //!   iterated, exactly as the integral arm; recentring commutes with
 //!   knot differencing, `d(A − c·w) = dA − c·dw`);
 //! - `sup|S^c − c^c| ≤ max_active |P^c − c^c|` — the rational value

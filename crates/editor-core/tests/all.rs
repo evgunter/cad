@@ -36,6 +36,8 @@ mod asm1_identity_pins;
 mod asm2a_instantiate;
 #[path = "asm2b_multisolid.rs"]
 mod asm2b_multisolid;
+#[path = "asm4_split_inline.rs"]
+mod asm4_split_inline;
 #[path = "asm_roots.rs"]
 mod asm_roots;
 #[path = "lbret_schema_v8.rs"]

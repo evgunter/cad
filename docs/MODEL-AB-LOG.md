@@ -817,3 +817,56 @@ disposition — A2 tied SectionEdge + B1 tied propagation + the
 fields M / STRUCTURAL. Third parallel lane (names/ territory,
 disjoint from RESPELL PR-1 and PYG5 per the fences). Slots 2
 (PlacedUnion, behind RESPELL PR-1's schema claim) and 4 bank.
+M9-1 review ordinal fixed at dispatch (2026-08-15, PR #524 open —
+the unit's PR-1, kernel scope; the orchestrator exercised the
+spec's early-round option): claimed through 38 + 1 = **39 → a
+third → DUAL (sample #13), SAME-MODEL (fable+fable) — the banked
+twin of the second v4 dual block (#405 parity draw)**. R1+R2
+concurrent same-head, frozen a557da3b. Pre-draw fields logged at
+spec time: L / MIXED→NUMERIC (docs/M9-1-SPEC.md; arm = block
+M8-15 slot 1). Unit row at PR-2's merge per the two-PR pattern;
+this dual's verdicts recorded there.
+ASM-4 review ordinal fixed at dispatch (2026-08-15, PR #525 open,
+frozen head d34541e1): claimed through 39 (M9-1 PR-1's dual, #526
+— wall-clock priority among unpushed claims per the refined
+main-is-authority rule) + 1 = **40 → SINGLE** (42 is the next
+third — that dual block's draw happens at its claim). Reviewer
+fable, v4 ladder. Pre-draw fields logged at spec time: L /
+STRUCTURAL (docs/ASM-4-SPEC.md; arm = block ASM-2 slot 3, the
+block's last slot, completed as drawn). Row at merge.
+M9-2 PR-1 review ordinal fixed at dispatch (2026-08-15, PR #527
+open, frozen head per the claim): LIB's open #532 holds 41 by the
+wall-clock tiebreak (claims not yet on main) → claimed **42 → a
+third → DUAL (sample #14)**. THIRD v4 dual block drawn: byte 121,
+parity 1 → **CROSS-MODEL first** (the #405 mapping) — R1 fable +
+R2 OPUS concurrent same-head; the same-model twin banks for
+ordinal 45. Pre-draw fields logged at spec time: PR-1 M / unit L /
+NUMERIC (docs/M9-2-SPEC.md; arm = block M8-15 position 2, fable).
+Unit row at PR-2's merge. NOTE: dispatched during the fleet
+nextest-shard CI incident — hosted re-run owed before merge.
+RESPELL PR-1 review ordinal fixed at dispatch (2026-08-15, PR
+#531 open): claimed through 40 (ASM-4) + 1 = **41 → SINGLE**
+(42 is the next third — dual block draws at its claim).
+Reviewer fable.
+G14 review ordinal fixed at dispatch (2026-08-16, PR #535 open):
+claimed through 42 (M9-2's dual) + 1 = **43 → SINGLE** (45 next
+dual). Reviewer fable. Fork banked for the fix-pass ruling: the
+ratified A2 clause's "selector narrows ties" claim is FALSE
+(GS-Q4 all-or-nothing) — disposition = amend the clause to
+reachable-not-narrowable + register the per-candidate SEL door
+as a named pickup (the smallest honest reading; commissioning
+the door is its own unit if a scene demands it).
+PYG5 review ordinal fixed at dispatch (2026-08-16, PR #536 open):
+claimed through 43 (G14) + 1 = **44 → SINGLE** (45 next dual —
+the third dual block draws at its claim). Reviewer fable.
+M9-D1 review ordinal fixed at dispatch (2026-08-15, PR #530 open,
+frozen head 6affe027): claimed through 44 (PYG5) + 1 = **45 → a
+third → DUAL (sample #15), the SAME-MODEL twin** of the third v4
+dual block (byte 121: cross ran at 42, same banks here) — R1+R2
+both fable, concurrent same-head. Pre-draw fields logged at spec
+time: S-M / STRUCTURAL (docs/M9-D1-SPEC.md; arm = block M8-15
+position 3, the block's last slot — the next block opens M9-16).
+STOPPING-RULE note: tally 5-of-6; if this dual or the running
+sample #14 qualifies (≥1 reviewer MAJOR), that is the SIXTH — the
+dual-review experiment ends and Evan is notified explicitly.
+| ASM-4 | 2026-08-16 | split/inline (R1's closing unit): Workspace write side, editor_core::refactor split+inline as pure functions returning recorded edits, interface-record hook (uninhabited, skip-serialized, NO schema bump — pin preimage proven unchanged), Frame::compose w/ bit-exact fast paths; 8 split + 8 inline typed refusal vocabularies all naming subjects | L / STRUCTURAL (pre-logged at spec) | FABLE (block ASM-2 slot 3 — block complete as drawn) | single (ordinal 40, frozen d34541e1, v4) — APPROVE-WITH-FIXES 0/2/3, rubric 5/4/4 (reviewer executed everything: 6/6 targeted mutants killed incl. the wire-skip and roots-rule guards; own 3-cluster probe FOUND the root-order collapse MIN-1; row 6's two-fresh-process byte identity verified real; pin stability proven from the canonical-serde preimage + pre-PR golden; all three clippy lanes reviewer-run cold-clean; D-2 deviation adjudicated ACCEPT-AS-AMENDMENT — both implementer premises proven true on the spec text, ratified with the order-collapse + A12-cluster riders via #540) | 0 silent (6 reported, all verified honest; MIN-1 = a PR-body overclaim, corrected in the fix) | 5 | 4 | 4 | IMPLEMENTER-INHERITED (order-collapse invariant doc + the reviewer's exact probe shape pinned as a test; all NINE untested refusal arms constructed+tested incl. PartCarriesMetadata via wire injection; witness-copy + PartIdCollides invariant comments; body corrections) | MERGED #525 green (run 31921773824); the #534 Actions-budget outage opened AND resolved inside this seam (Evan restored; precedent #366); R1 COMPLETE | impl ~404k + fix ~396k / review ~163k | impl ~7.8h / review ~1.3h / fix ~0.4h |

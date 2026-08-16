@@ -453,6 +453,24 @@ pub trait Real:
 /// attach and validate doors take the lane as an injected function,
 /// so no `topo` API grows a bracket bound.
 ///
+/// **Extension (M9-2 PR-1, `docs/M9-2-SPEC.md` item 1 under the
+/// PR 11 precedent; retroactive Evan review per the self-merge
+/// convention):** `topo::chart_region` — the chart-region overlap
+/// predicate — joins the compound allowlist. It is the quadrature
+/// seam's class exactly: it simultaneously DECIDES (its
+/// `chart_region_*` funnel margins) and reads **exact-`f64`
+/// structure** through the bracket — the spec-mandated C6 inventory
+/// gate (a `Harmonic` trig channel is straight only when its bracket
+/// is a point at exactly `0.0`; the `props.rs` rectangle-trim read)
+/// plus the bit-identical-region fast path — so `T: Decide + Bounds`
+/// is its honest signature; a sole-bound form is unsatisfiable. No
+/// dual path exists to split TODAY: [`Dual`](crate::Dual) implements
+/// no `Bounds`, so the predicate is simply uninstantiable at dual
+/// scalars, and its first `Decide`-generic consumer (the M9-2 PR-2
+/// census arms) owes the `PropsQuadLane`-shape static lane with a
+/// refusing dual impl — stated here so the obligation is on the
+/// record before the consumer lands.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For

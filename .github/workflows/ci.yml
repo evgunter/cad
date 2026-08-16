@@ -284,6 +284,20 @@ jobs:
       # the same shape — `EdgeNurbsLane` splits f64/Probe/Interval
       # (certified) from `Dual` (typed refusal) — and it is what keeps
       # `Bounds` out of `topo`'s signatures.
+      # topo/src/chart_region.rs is M9-2 PR-1's chart-region overlap
+      # predicate (spec item 1; the PR 11 class, retroactive Evan
+      # review per the self-merge convention): it simultaneously
+      # DECIDES (its chart_region_* funnel margins) and reads
+      # exact-f64 STRUCTURE through the bracket — the C6 planar-trim
+      # inventory gate (a Harmonic trig channel is straight only when
+      # its bracket is a point at exactly 0.0, the props.rs
+      # rectangle-trim read) and the bit-identical-region fast path —
+      # so `Decide + Bounds` is its honest signature. No dual lane
+      # exists to split today (Bounds has no Dual impl, so the
+      # predicate is uninstantiable at duals); the PropsQuadLane-shape
+      # static lane is the stated obligation of its first
+      # Decide-generic consumer (M9-2 PR-2's census arms) — see the
+      # real.rs rule entry.
       # Sole-bound `T: Bounds`
       # (certification/driver code) is untouched by this check. A NEW
       # file writing a compound Bounds bound fails here until it is
@@ -312,6 +326,7 @@ jobs:
             | cut -d: -f1 | sort -u \
             | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
             | grep -vE '^crates/topo/src/props\.rs$' \
+            | grep -vE '^crates/topo/src/chart_region\.rs$' \
             | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
             | grep -vE '^crates/profile/src/test_support\.rs$' \
             | grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
