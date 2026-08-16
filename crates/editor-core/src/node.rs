@@ -93,6 +93,28 @@ pub enum StepArg {
     Bulge,
     /// A `circle_split` first-vertex phase (Angle).
     Phase,
+    /// **§2c** an arc spec's carrier radius (`Radius`/`Sweep`/`ArcLen`).
+    CarrierRadius,
+    /// **§2c** a `Sweep` spec's swept central angle.
+    SweepVal,
+    /// **§2c** an `ArcLen` spec's arc length.
+    ArcLenVal,
+    /// **§2c** a fused step's ARRIVAL-spec carrier centre x (the spec₂
+    /// role twin — a fused step carries two specs, so the arrival's
+    /// roles are distinct).
+    Center2X,
+    /// That centre's y.
+    Center2Y,
+    /// The arrival spec's through-point x.
+    Via2X,
+    /// That through-point's y.
+    Via2Y,
+    /// The arrival spec's target x.
+    Target2X,
+    /// That target's y.
+    Target2Y,
+    /// The arrival spec's carrier radius.
+    CarrierRadius2,
 }
 
 impl StepArg {
@@ -110,8 +132,17 @@ impl StepArg {
             | Self::CenterX
             | Self::CenterY
             | Self::Length
-            | Self::Radius => Dimension::Length,
-            Self::AngleVal | Self::TurnVal | Self::Phase => Dimension::Angle,
+            | Self::Radius
+            | Self::CarrierRadius
+            | Self::ArcLenVal
+            | Self::Center2X
+            | Self::Center2Y
+            | Self::Via2X
+            | Self::Via2Y
+            | Self::Target2X
+            | Self::Target2Y
+            | Self::CarrierRadius2 => Dimension::Length,
+            Self::AngleVal | Self::TurnVal | Self::Phase | Self::SweepVal => Dimension::Angle,
             Self::DirX | Self::DirY | Self::Bulge => Dimension::Scalar,
         }
     }

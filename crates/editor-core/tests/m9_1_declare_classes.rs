@@ -56,21 +56,36 @@ fn cap(node: RecipeNodeId, end: CapEnd) -> editor_core::StableName {
     fname(node, RoleSeg::Cap(end))
 }
 
-/// **The class-preservation row — red-then-green against the shipped
-/// drop.**
+/// **The class-preservation row.**
 ///
-/// `declare_node` used to build its pairs with `f.pair.clone()` and
-/// nothing else, so a finding's class reached the door and stopped
-/// there. The bug was invisible while `Rest` was the only class; the
-/// moment a second one exists it is a silent mis-verification, because
-/// the consuming boolean would re-default what the detector had
-/// already decided. This row fails on that implementation.
+/// `declare_node` used to build its pairs from `f.pair.clone()` alone,
+/// so a finding's class reached the door and stopped there. Invisible
+/// while `Rest` was the only class; a silent mis-verification the
+/// moment a second one exists, because the consuming boolean would
+/// re-default what the detector had already decided.
+///
+/// **Why the finding is synthetic.** An earlier version of this row
+/// only fed it real detector output, and the review found that it
+/// passed under a `declare_node` that re-defaults every class to
+/// `Rest` — the detector emits `Rest` today, so `Rest == Rest` proved
+/// nothing about PRESERVATION and only the type system stopped the
+/// literal old code. `FlushFinding`'s fields are public, so the row
+/// now hands the door a `Tangent` finding directly: the assertion
+/// carries the claim, and a re-defaulting implementation goes red on
+/// the class it did not preserve.
 #[test]
 fn declare_node_preserves_the_findings_class() {
     let (doc, a, b) = stacked();
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
-    let findings = find_flush_candidates(&ev, a, b).expect("the detector runs");
-    assert!(!findings.is_empty(), "the stack has a flush cap to find");
+    let detected = find_flush_candidates(&ev, a, b).expect("the detector runs");
+    assert!(!detected.is_empty(), "the stack has a flush cap to find");
+
+    // A finding the detector cannot mint today, carrying a class the
+    // door must not re-decide. Built from a real finding so only the
+    // class differs.
+    let mut tangent = detected[0].clone();
+    tangent.class = ContactClass::Tangent;
+    let findings = vec![detected[0].clone(), tangent];
 
     let node: Node<editor_core::ProfileProgram> =
         editor_core::declare_node(&findings).expect("findings declare");
@@ -85,6 +100,16 @@ fn declare_node_preserves_the_findings_class() {
             "and so does the CLASS — the detector's verdict is not re-decided downstream"
         );
     }
+    // The bite, stated as its own assertion: the two pairs name the
+    // SAME faces and differ only in class, so a door that dropped or
+    // re-defaulted the class would produce two identical entries.
+    assert_eq!(pairs[0].0, pairs[1].0, "same pair, by construction");
+    assert_ne!(
+        pairs[0].1, pairs[1].1,
+        "so the classes are the only thing distinguishing them — a re-defaulting \
+         declare_node collapses these two rows into one meaning"
+    );
+    assert_eq!(pairs[1].1, ContactClass::Tangent);
 }
 
 /// A hand-authored class is what the node holds: `Declare` is data,

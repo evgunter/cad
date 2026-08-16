@@ -10,8 +10,8 @@ mod fixture;
 
 use editor_core::{
     CancelToken, Datum, EntityKind, EvalOptions, Evaluation, LoopProgram, NameTable, Node,
-    ProfileDoc, ProfileProgram, ProfileVertexRef, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, StableName, evaluate,
+    ProfileDoc, ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, RoleSeg, StableName, evaluate,
 };
 use fixture::{ang, insert, len, scl};
 use geom_core::{Point3, Vec3};
@@ -98,10 +98,10 @@ fn subdivided_axis_run_is_refused_upstream_of_the_emitter() {
             ProgramStep::LineTo(ProgramTarget::Point(p2(0.0, 0.0))),
             ProgramStep::Tangent,
             ProgramStep::Line(len(1.0)),
-            ProgramStep::ArcTo {
+            ProgramStep::ArcTo(ProgramArcData::Bulge {
                 target: ProgramTarget::Start,
-                bulge: scl(1.0),
-            },
+                b: scl(1.0),
+            }),
         ])],
     });
     let err = doc.apply(&DocEdit::InsertNode { node }).unwrap_err();
@@ -123,10 +123,10 @@ fn full_mixed_profile_names_poles_and_anchors_the_off_axis_vertex() {
         vec![
             ProgramStep::At(p2(0.0, 0.0)),
             ProgramStep::LineTo(ProgramTarget::Point(p2(1.0, 0.0))),
-            ProgramStep::ArcTo {
+            ProgramStep::ArcTo(ProgramArcData::Bulge {
                 target: ProgramTarget::Point(p2(0.0, 1.0)),
-                bulge: scl(b),
-            },
+                b: scl(b),
+            }),
             ProgramStep::LineTo(ProgramTarget::Start),
         ],
         std::f64::consts::TAU,

@@ -29,6 +29,9 @@ const V7: &str = include_str!("golden/v7_golden.cad");
 
 #[test]
 fn schema_version_is_ten() {
+    // Moved once since this row was written (LIB-RESPELL's v9 §2c
+    // re-spell) — the convention is that a bump updates every pin it
+    // invalidates, so the number stays exact here.
     assert_eq!(SCHEMA_VERSION, 10);
 }
 

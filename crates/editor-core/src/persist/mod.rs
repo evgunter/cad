@@ -162,7 +162,7 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 ///
 /// Version 8 is **vocabulary growth** on the standing terms (LIB-LBRET;
 /// PATHS-DESIGN §2b's LB10 route 3, ratified on #386): the chain step
-/// vocabulary gained [`crate::ProgramStep::AtToward`], the straight
+/// vocabulary gained `ProgramStep::AtToward` (since retired by v9), the straight
 /// fillet arrival off an arc-carrier departure. The addition is
 /// forward-additive — a v7 file contains no `AtToward` and would load
 /// — but the reverse is what the version gate is FOR: a v8 file handed
@@ -180,6 +180,18 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// point of the gate. The reason it needed a human eye: the constant
 /// is ONE LINE, so the second merge resolves it CLEANLY to the same
 /// text while the two meanings silently collapse.
+///
+/// Version 9 is the **§2c fillet-family re-spell** (PATHS-DESIGN §2c,
+/// ratified on #419; LIB-RESPELL PR-1): the chain step vocabulary
+/// RE-SPELLED — `AtOn`/`AtToward`/`CloseToOn`/`ArcVia`/`ArcCenter`
+/// retired, `ArcTo` re-shaped onto the one unified arc-spec record,
+/// and the fused verbs (`FilletArc`/`ArcFillet`/`ArcFilletArc`)
+/// added. A pre-release clean break, both directions: a v8 file's
+/// retired variants would die in serde under today's types, and a v9
+/// file's fused variants are unknown to a v8 reader — so v8 refuses
+/// TYPED at the gate with the regenerate recourse (the v3 precedent),
+/// and the migration table stays empty.
+///
 ///
 /// **The persistence boundary for contact data, stated once** (C4,
 /// D9; the seam ASM-R2-SPEC-DRAFT:41-58 negotiates). DECLARATIONS
@@ -208,20 +220,29 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// structural or declared rung; a migration that authors the rung on
 /// the user's behalf is that path with extra steps. So v9 and below
 /// refuse TYPED with the regenerate recourse, exactly as v1–v8 do, and
-/// the migration table stays empty.
+/// the migration table stays empty. v9 is the version a real document
+/// in this lineage can now carry, so it is the fixture the refusal
+/// suite pins.
 ///
-/// **Why 10 and not 9.** LIB-RESPELL (#531) claimed 9 and was open
-/// with 9 in hand when this break was dispatched, so this unit takes
-/// the next free number rather than racing it. That is the standing
-/// resolution of the 7/8 double-claim recorded above, applied BEFORE
-/// the collision instead of after: two vocabulary changes never share
-/// one version, and the cheapest way to guarantee that is to read the
-/// open claims at dispatch and claim past them. If #531 lands after
-/// this one, 9 is simply never used — a gap in the sequence costs
-/// nothing, while a collision costs a human eye.
+/// **Why 10 and not 9, and how the race actually resolved.**
+/// LIB-RESPELL (#531) claimed 9 and was OPEN with 9 in hand when this
+/// break was dispatched, so this unit claimed past it rather than
+/// racing for the same number. That is the standing resolution of the
+/// 7/8 double-claim recorded above, applied BEFORE the collision
+/// instead of after: two vocabulary changes never share one version,
+/// and the cheapest way to guarantee that is to read the open claims
+/// at dispatch and claim past them.
+///
+/// It worked: #531 landed on main first, carrying v9 and its own
+/// goldens, and the re-merge conflicted ONLY on this constant and its
+/// fixtures — a conscious resolve with both meanings intact (v9 is
+/// the fillet-family re-spell above, v10 is the declaration class
+/// below), never a clean text merge that silently collapses two
+/// meanings into one number. That collapse is exactly what made 7/8
+/// need a human eye.
 ///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these eight.
+/// [`migration_step`] entry, or a ratified break like these nine.
 pub const SCHEMA_VERSION: u32 = 10;
 
 /// The serialized body under the header: snapshot + edit log (D1).
@@ -477,8 +498,9 @@ pub type MigrationStep = fn(serde_json::Value) -> Result<serde_json::Value, Migr
 /// ratified LQ7a clean break), 4 → 5 (ASM-1 D-6 — document identity)
 /// 5 → 6 (ASM-ROOTS D-1 — product roots) and 6 → 7 (ASM-2A D-6 —
 /// the instantiate node + A11 placements), 7 → 8 (LIB-LBRET — the
-/// `AtToward` chain step) and 9 → 10 (M9-1 — the declaration class)
-/// were all ratified clean breaks. The mechanism stays because it
+/// `AtToward` chain step), 8 → 9 (LIB-RESPELL — the §2c fillet family)
+/// and 9 → 10 (M9-1 — the declaration class) were all ratified clean
+/// breaks. The mechanism stays because it
 /// costs nothing and D6.3's forward-only rule is unchanged; a future
 /// format change that is NOT a break adds its `n => Some(step_n)` arm
 /// here.

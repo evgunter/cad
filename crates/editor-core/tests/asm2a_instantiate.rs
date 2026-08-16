@@ -722,8 +722,9 @@ fn row6_placement_is_part_of_the_content_key() {
 fn row7_v7_round_trips_and_v6_refuses() {
     // v7 was this unit's bump; LIB-LBRET's AtToward vocabulary took
     // v8 on top of it (the two units double-claimed 7 — see the
-    // SCHEMA_VERSION ledger). The row's subject is the round trip and
-    // the v6 refusal, both unaffected; only the number moved.
+    // SCHEMA_VERSION ledger) and LIB-RESPELL's §2c re-spell took v9.
+    // The row's subject is the round trip and the v6 refusal, both
+    // unaffected; only the number moved.
     assert_eq!(editor_core::SCHEMA_VERSION, 10);
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r7-part", 0.0, 1.0));

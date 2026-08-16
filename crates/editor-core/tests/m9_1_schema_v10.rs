@@ -3,7 +3,7 @@
 //! that refuses everything older.
 //!
 //! `Node::Declare`'s pairs each gained the contact class they assert,
-//! so a v8 pair (a bare name pair) and a v10 pair (a name pair plus a
+//! so a v9 pair (a bare name pair) and a v10 pair (a name pair plus a
 //! class) are different shapes at the wire in both directions. With
 //! `deny_unknown_fields` there is no forgiving read of either from the
 //! other.
@@ -19,9 +19,11 @@
 //!
 //! **Why 10 and not 9**: LIB-RESPELL (#531) held 9 and was open when
 //! this break was dispatched, so this unit claimed past it rather than
-//! racing. Two vocabulary changes never share one version; a gap in
-//! the sequence costs nothing, a collision costs a human eye (the 7/8
-//! double-claim recorded in `persist/mod.rs`).
+//! racing. #531 then merged first, and the re-merge conflicted only on
+//! the constant and its fixtures — a conscious resolve with both
+//! meanings intact, which is exactly what the 7/8 double-claim did NOT
+//! get (a one-line constant merges cleanly and collapses two meanings
+//! silently).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -32,8 +34,12 @@ use editor_core::{
 
 mod fixture;
 
-/// The prior live golden, kept as a REFUSAL fixture: v8 is what the
-/// build before this one wrote.
+/// The two prior live goldens, kept as REFUSAL fixtures. v9 is what
+/// the build immediately before this one wrote (LIB-RESPELL's §2c
+/// re-spell, merged while this branch was open); v8 is the one before
+/// that. Both refuse identically — the gate has no notion of "nearly
+/// current".
+const V9: &str = include_str!("golden/v9_golden.cad");
 const V8: &str = include_str!("golden/v8_golden.cad");
 /// The oldest fixture in the tree — the far end of the same gate.
 const V1: &str = include_str!("golden/v1_golden.cad");
@@ -41,6 +47,22 @@ const V1: &str = include_str!("golden/v1_golden.cad");
 #[test]
 fn schema_version_is_ten() {
     assert_eq!(SCHEMA_VERSION, 10);
+}
+
+#[test]
+fn v9_golden_refuses_too_old() {
+    assert_eq!(
+        V9.lines().next(),
+        Some("schema: 9"),
+        "the immediate-prior fixture must be the version it is named for"
+    );
+    match load(V9) {
+        Err(PersistError::SchemaTooOld { found, missing, .. }) => {
+            assert_eq!(found, 9);
+            assert_eq!(missing, 9);
+        }
+        other => panic!("v9 must refuse SchemaTooOld, got {other:?}"),
+    }
 }
 
 #[test]
@@ -220,10 +242,16 @@ fn block(
     )
 }
 
-/// PROBE (review m9-1-pr2-r1): a v9 header — the number LIB-RESPELL
-/// (#531) holds but has not merged — refuses `SchemaTooOld` naming 9
-/// as the first missing step, not a parse error: a hypothetical v9
-/// document gets the same typed recourse as v1..v8.
+/// The IMMEDIATE prior version refuses — and since LIB-RESPELL (#531)
+/// merged while this branch was open, that version is now v9 and a
+/// real v9 document exists in the tree (`golden/v9_golden.cad`).
+///
+/// This row arrived as a review probe against a HYPOTHETICAL v9 (the
+/// number was claimed but unmerged), which is why it reads a bare
+/// header rather than the golden; it is kept in that form on purpose,
+/// because a header-only document proves the gate runs before the
+/// body. The `v9_golden_refuses_too_old` row below is the same claim
+/// against the real file.
 #[test]
 fn probe_v9_header_refuses_too_old() {
     match load("schema: 9\n{}\n") {

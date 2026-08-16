@@ -37,6 +37,13 @@ two configurations from drifting. `arm`/`take` exist ONLY in the armed
 half, so a build without the feature fails to compile the sweep rather
 than writing an empty CSV.
 
+The module itself is `pub` only under the feature (`pub(crate)`
+otherwise, which is all the inert half needs), and so are the row types
+— `Mode`, `NurbsBudget`, `FaceBudget`, the CSV. A default build exports
+no part of the meter. What stays compiled either way is exactly what
+the shared call sites name: `Chart`, `Sizing`, `DEV_SAMPLES`, and the
+no-op recorders.
+
 The default `cargo test` therefore exercises the inert half; the armed
 half has its own CI row (`cargo test -p mesh --features budget`),
 mirrored in `local-scripts/ci-local.sh`.
@@ -48,10 +55,14 @@ sizing the lane already performed. Both run in ~4 s over the whole tour
 in release.
 
 The committed baseline is `docs/tess-budget-data/tess-budget-baseline.csv`
-(1025 face rows, cut at the head this document was written against). CI
-runs the sweep and gates on REGRESSION against it: a scene's mesh
+(1025 face rows, cut at the head this document was written against,
+WITH the resampling pass — its `worst_dev` column is where the
+total-slack figures below come from). CI runs the sweep
+`--sizing-only` and gates on REGRESSION against it: a scene's mesh
 growing, a face's sizing getting wastefuller, or a scene silently
-dropping out of the sweep.
+dropping out of the sweep. The gate reads triangle counts and the
+sizing columns only, so the resampling is a cost the gate has no use
+for; re-cutting the baseline drops the flag.
 
 ## What the four numbers mean
 
