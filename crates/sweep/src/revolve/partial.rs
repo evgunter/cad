@@ -85,6 +85,11 @@ pub(super) fn build_partial<T: Decide>(
         chain_spec(&outer[0], place, frame.n3, qs[0], qs[1 % n]),
     )?;
     hes.push(first.he_plus);
+    // The start chain's vertex per swept position (position j is the
+    // start of chain edge `hes[j]`): the mvfs seed, then each `mev`'s
+    // new vertex. On-axis positions are the wedge's poles — the
+    // rotation fixes them, so this ONE vertex serves both chains.
+    let mut chain_verts = vec![seed.vertex, first.vertex];
     let mut prev = first;
     for j in 2..n {
         let m = body.mev(
@@ -96,6 +101,7 @@ pub(super) fn build_partial<T: Decide>(
             chain_spec(&outer[j - 1], place, frame.n3, qs[j - 1], qs[j]),
         )?;
         hes.push(m.he_plus);
+        chain_verts.push(m.vertex);
         prev = m;
     }
     // Start cap plane: the mef face's loop runs the chain reversed;
@@ -124,6 +130,8 @@ pub(super) fn build_partial<T: Decide>(
     let start_surface = face_surface_key(&body, start_face)?;
     let mut bases = Vec::with_capacity(loops.len());
     bases.push(hes);
+    let mut verts = Vec::with_capacity(loops.len());
+    verts.push(chain_verts);
 
     // ---- Phase 2: holes (rings in the seed face + kfmrh into the
     // start cap; extrude's shape — hole vertices are never on-axis for
@@ -147,6 +155,14 @@ pub(super) fn build_partial<T: Decide>(
             chain_spec(&segs[0], place, frame.n3, hq[0], hq[1 % m]),
         )?;
         hole_hes.push(first.he_plus);
+        // Recorded for EVERY loop, holes included, though a validated
+        // profile's hole vertices are never on-axis (the phase note
+        // above), so the pole export reads none of these today. The
+        // uniformity is the point: the assembly stays one loop keyed
+        // on `pinned`, which is the real discriminator, and a hole
+        // that ever reached the axis would export its pole rather
+        // than silently lose it.
+        let mut hole_verts = vec![bridge.vertex, first.vertex];
         let mut prev = first;
         for j in 2..m {
             let mv = body.mev(
@@ -158,6 +174,7 @@ pub(super) fn build_partial<T: Decide>(
                 chain_spec(&segs[j - 1], place, frame.n3, hq[j - 1], hq[j]),
             )?;
             hole_hes.push(mv.he_plus);
+            hole_verts.push(mv.vertex);
             prev = mv;
         }
         let close = body.mef(
@@ -171,6 +188,7 @@ pub(super) fn build_partial<T: Decide>(
         hole_hes.push(close.he_plus);
         body.kfmrh(start_face, close.face)?;
         bases.push(hole_hes);
+        verts.push(hole_verts);
     }
 
     // ---- Phase 3: sweep each loop (struts, walls, latitude joins).
@@ -233,21 +251,29 @@ pub(super) fn build_partial<T: Decide>(
     let mut rims_c = Vec::with_capacity(loops.len());
     let mut start_mer = Vec::with_capacity(loops.len());
     let mut end_mer = Vec::with_capacity(loops.len());
+    let mut poles_c = Vec::with_capacity(loops.len());
     for (li, segs) in loops.iter().enumerate() {
         let n = segs.len();
         let mut wc = vec![None; n];
         let mut rc = vec![None; n];
         let mut sm = vec![None; n];
         let mut em = vec![None; n];
+        let mut pc = vec![None; n];
         for (j, s) in segs.iter().enumerate() {
             wc[s.canonical_segment] = walls_all[li][j];
             rc[s.canonical_vertex] = rims_all[li][j];
+            // A pinned vertex is fixed by the rotation, so its start-
+            // chain vertex IS the end chain's: the pole.
+            if classes[li].verts[j].pinned {
+                pc[s.canonical_vertex] = Some(verts[li][j]);
+            }
             let bottom = he_edge(&body, bases[li][j])?;
             sm[s.canonical_segment] = Some(bottom);
             em[s.canonical_segment] = Some(tops_all[li][j].unwrap_or(bottom));
         }
         walls_c.push(wc);
         rims_c.push(rc);
+        poles_c.push(pc);
         // Meridian chains are total per segment (`Option` only bridges
         // the fill loop above).
         start_mer.push(sm.into_iter().flatten().collect());
@@ -260,6 +286,7 @@ pub(super) fn build_partial<T: Decide>(
         shell: seed.shell,
         walls: walls_c,
         rims: rims_c,
+        poles: poles_c,
         kind: RevolvedKind::Partial {
             start_cap: start_face,
             end_cap: end_face,

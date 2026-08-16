@@ -63,7 +63,9 @@
 //! tests pin both directions on brick fixtures.
 
 pub(crate) mod boxes;
+pub mod carrier_eq;
 pub(crate) mod combine;
+pub mod contact_verify;
 mod contain;
 mod finish;
 pub(crate) mod insert;
@@ -84,6 +86,7 @@ use geom_core::{
 };
 
 use crate::body::Body;
+use crate::contact::ContactClass;
 use crate::entity::{EdgeKey, FaceKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
@@ -91,6 +94,7 @@ use crate::revert::RevertError;
 use crate::splitting::join::SplitJoinError;
 use crate::validate::ValidationError;
 
+pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
 pub use contain::{ContainError, FaceContainment, contfp};
 pub use join::CompletedPolygonPair;
 pub use ops::{
@@ -105,7 +109,8 @@ pub use reduce::{SweepStrategy, SweepTrace};
 // verify door — descriptions, oriented sources and the verification
 // arm in one function, shared by the REST lane's verify-at-use and
 // the detector's candidate-generation mode BY CONSTRUCTION.
-pub use rest::flush_pair_relation;
+pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
+pub use rest::{carrier_pair_relation, carrier_pair_verdict, face_carrier, flush_pair_relation};
 pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
 
 /// Which regularized boolean is being computed — threaded through the
@@ -174,10 +179,66 @@ pub struct VfContact {
     pub face: FaceKey,
 }
 
-/// The three ON-sets as **declared-contact records** (F1/F2): emitted
+/// A **certified curve touch** (C3): two faces meeting along the
+/// locus carried by `witness`.
+///
+/// `witness` is the seam EDGE whose carrier IS the contact locus, not
+/// a free point: the edge's own description already pins its witness
+/// at `carrier(mid)` (the S2 contract), so naming the edge inherits
+/// that pin instead of minting a second, unpinned one. Certification
+/// is per-locus — the jet schedule of CURVED-DESIGN C7 applied to the
+/// face pair along the carrier ([`tangent_pair_relation`]) — and its
+/// strength equals its skeleton: samples plus hull bounds, refusing
+/// typed outside the certifiable lane rather than sampling harder.
+/// Endpoints are bounded by vertex records or by the locus's own
+/// closure; a bound without a backing vertex record is
+/// `UndeclaredContact`, never inferred.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CurveContact {
+    /// The A-side face.
+    pub face_a: FaceKey,
+    /// The B-side face.
+    pub face_b: FaceKey,
+    /// The edge whose carrier is the witnessed locus.
+    pub witness: crate::entity::EdgeKey,
+}
+
+/// A **certified conformal patch** (C3): two faces meeting over a
+/// two-dimensional region.
+///
+/// **Not yet certifiable, stated as a posture rather than discovered
+/// as a gap.** The record's certification obligation is structural
+/// carrier identity (rung 2 or 3, never "value-equal") plus opposed
+/// senses plus region overlap **in the shared chart** with
+/// definitely-positive area. The third condition needs a trim-region
+/// overlap predicate in (u,v) that does not exist: the planar census's
+/// containment machinery run in chart space. Until it does, every
+/// door that would certify a `PatchContact` refuses
+/// [`crate::contact::ContactRefusal::NotCertifiable`] — the type is
+/// here so the vocabulary is complete and the obligation is written
+/// down, not so a caller can mint an unbacked blessing. An
+/// area-SAMPLED certifier is rejected outright: sampling can miss a
+/// trim hole and certify a contact that is not there.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PatchContact {
+    /// The A-side face.
+    pub face_a: FaceKey,
+    /// The B-side face.
+    pub face_b: FaceKey,
+}
+
+/// The ON-sets as **declared-contact records** (F1/F2): emitted
 /// by the pipeline as it discovers each contact — these are the future
 /// tier-3′ declarations. Deterministic discovery order, deduplicated.
-#[derive(Clone, Debug, Default)]
+///
+/// `PartialEq` is load-bearing, not a convenience: D9's bit-identical
+/// replay promises that a rerun reproduces the RECORDS bit-identically
+/// (C4's replay clause), and a replay row that can only compare naming
+/// is checking a shadow of that promise. Comparing records compares
+/// arena keys, which is exactly right here — replay reruns the same
+/// pipeline on the same input, so key identity is part of what
+/// determinism means.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ContactRecords {
     /// Coincident vertex pairs (`sonvv`).
     pub vv: Vec<VvContact>,
@@ -185,6 +246,11 @@ pub struct ContactRecords {
     pub a_on_b: Vec<VfContact>,
     /// Vertices of B on faces of A (`sonvb`).
     pub b_on_a: Vec<VfContact>,
+    /// Curve-granularity contacts (C3).
+    pub curves: Vec<CurveContact>,
+    /// Patch-granularity contacts (C3) — see [`PatchContact`] for the
+    /// not-yet-certifiable posture this list ships under.
+    pub patches: Vec<PatchContact>,
 }
 
 /// Operand-internal contact records carried by recipe intent (F5, M4
@@ -193,12 +259,38 @@ pub struct ContactRecords {
 /// data. Keys are that operand's; the op remaps survivors into result
 /// keys (same strict drop rule as discovered records: a record whose
 /// entity was consumed drops).
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CarriedContacts {
     /// Coincident vertex pairs within the operand.
-    pub vv: Vec<VvContact>,
+    pub vv: Vec<CarriedVv>,
     /// Vertex-on-face rests within the operand.
-    pub vf: Vec<VfContact>,
+    pub vf: Vec<CarriedVf>,
+}
+
+/// A carried vertex-vertex declaration: the pair AND the class it
+/// asserts.
+///
+/// The class is a FIELD, not an `Option` with a `Rest` default: a
+/// declaration without a class is unrepresentable, because defaulting
+/// it would let a `Tangent` intent silently re-enter an op as a
+/// conformal one — exactly the value-inferred coincidence C4's
+/// invariant forbids.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CarriedVv {
+    /// The coincident pair.
+    pub pair: VvContact,
+    /// The class the carried declaration asserts.
+    pub class: ContactClass,
+}
+
+/// A carried vertex-on-face declaration ([`CarriedVv`] for why the
+/// class is not defaultable).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CarriedVf {
+    /// The vertex-on-face rest.
+    pub rest: VfContact,
+    /// The class the carried declaration asserts.
+    pub class: ContactClass,
 }
 
 impl CarriedContacts {
@@ -216,14 +308,14 @@ impl CarriedContacts {
 /// Every key is validated at the op door (live, and planar for
 /// faces) — a dangling declaration is a typed refusal
 /// ([`BooleanError::InvalidDeclaration`]), never a silent drop.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BooleanDeclarations {
-    /// Cross-operand coincident-plane face pairs `(A face, B face)`:
-    /// classification treats each pair's planes as the same plane
-    /// (orientation decided, contradiction refused —
-    /// `plane_eq` rung 2), and the result's merge stage glues the
+    /// Cross-operand declared face pairs, each naming its class:
+    /// classification treats a `Rest` pair's carriers as the same
+    /// carrier (orientation decided, contradiction refused —
+    /// [`mod@carrier_eq`] rung 2), and the result's merge stage glues the
     /// pair's surviving coplanar-adjacent material (N3 `Merged`).
-    pub coincident_faces: Vec<(FaceKey, FaceKey)>,
+    pub coincident_faces: Vec<FacePairDeclaration>,
     /// Contacts carried within operand A.
     pub carried_a: CarriedContacts,
     /// Contacts carried within operand B.
@@ -242,29 +334,91 @@ impl BooleanDeclarations {
     }
 }
 
+/// One declared cross-operand face pair AND the class it asserts.
+///
+/// The class rides the pair rather than a parallel list because the
+/// two are one fact: "these faces are in contact, of THIS kind". A
+/// pair whose class had to be looked up elsewhere could be read
+/// without it, and reading a declaration without its class is how a
+/// `Tangent` intent gets verified against the conformal table.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FacePairDeclaration {
+    /// The A-operand face.
+    pub a: FaceKey,
+    /// The B-operand face.
+    pub b: FaceKey,
+    /// The asserted class.
+    pub class: ContactClass,
+}
+
+impl FacePairDeclaration {
+    /// A declared pair. There is no class-less constructor: the class
+    /// is an argument at every mint site, so "I forgot the class" is a
+    /// compile error rather than a silent `Rest`.
+    pub fn new(a: FaceKey, b: FaceKey, class: ContactClass) -> Self {
+        Self { a, b, class }
+    }
+
+    /// The `Rest` pair — the conformal class S1's planar declarations
+    /// have always meant, spelled out.
+    pub fn rest(a: FaceKey, b: FaceKey) -> Self {
+        Self::new(a, b, ContactClass::Rest)
+    }
+}
+
 /// The classification stages' symmetric declared-face-pair index
-/// (crate-internal): normalized `(A face, B face)` rows.
+/// (crate-internal): normalized `(A face, B face)` rows KEYED to their
+/// class.
+///
+/// A map, not a set: the classification stages must be able to ask
+/// "declared as WHAT", and a set can only answer "declared at all" —
+/// which is the same erasure the payload change exists to remove. A
+/// duplicate pair declared under two classes is a caller bug refused
+/// at the door by an EXPLICIT check in `validate_declarations`, so the
+/// last write here is never reached with disagreeing classes. (That
+/// check exists because this sentence was measured vacuous: it held
+/// only while every non-`Rest` class refused wholesale, and would have
+/// become silent last-write-wins the day the op grew a second class
+/// arm.)
 #[derive(Debug, Default)]
 pub(crate) struct DeclaredPairs {
-    set: std::collections::BTreeSet<(FaceKey, FaceKey)>,
+    map: std::collections::BTreeMap<(FaceKey, FaceKey), ContactClass>,
 }
 
 impl DeclaredPairs {
     pub(crate) fn build(decls: &BooleanDeclarations) -> Self {
         Self {
-            set: decls.coincident_faces.iter().copied().collect(),
+            map: decls
+                .coincident_faces
+                .iter()
+                .map(|d| ((d.a, d.b), d.class))
+                .collect(),
         }
     }
 
-    /// Whether the (operand-tagged) face pair is declared coincident.
-    /// Same-operand pairs are never declared here (operand-internal
-    /// coplanarity is the producing op's merge, not this op's).
-    pub(crate) fn contains(&self, o1: Operand, f1: FaceKey, o2: Operand, f2: FaceKey) -> bool {
+    /// The class the (operand-tagged) face pair is declared under, if
+    /// any. Same-operand pairs are never declared here
+    /// (operand-internal coplanarity is the producing op's merge, not
+    /// this op's).
+    pub(crate) fn class_of(
+        &self,
+        o1: Operand,
+        f1: FaceKey,
+        o2: Operand,
+        f2: FaceKey,
+    ) -> Option<ContactClass> {
         match (o1, o2) {
-            (Operand::A, Operand::B) => self.set.contains(&(f1, f2)),
-            (Operand::B, Operand::A) => self.set.contains(&(f2, f1)),
-            _ => false,
+            (Operand::A, Operand::B) => self.map.get(&(f1, f2)).copied(),
+            (Operand::B, Operand::A) => self.map.get(&(f2, f1)).copied(),
+            _ => None,
         }
+    }
+
+    /// Whether the pair is declared as the CONFORMAL class — the
+    /// question the classification stages actually ask (a `Tangent`
+    /// pair does not license same-carrier treatment).
+    pub(crate) fn declares_rest(&self, o1: Operand, f1: FaceKey, o2: Operand, f2: FaceKey) -> bool {
+        self.class_of(o1, f1, o2, f2) == Some(ContactClass::Rest)
     }
 }
 
@@ -477,6 +631,35 @@ pub enum BooleanError {
     DeclarationContradicted {
         /// The contradicting predicate's diagnostics.
         diag: Indeterminate,
+    },
+    /// A declared CONTACT meets definite counter-evidence at the op
+    /// (C4's verify-at-use): the pair, the class it claimed, and the
+    /// margin that decided.
+    ///
+    /// Beside [`Self::DeclarationContradicted`] rather than replacing
+    /// it: that variant is the classification ladder's refusal of a
+    /// coincidence claim, this one is the CONTACT tables' refusal of a
+    /// contact claim, and they carry different evidence. The same
+    /// finding fires at the at-rest gate as
+    /// `ValidationError::ContactContradicted` — one story, two gates.
+    ContactContradicted {
+        /// The face pair and class that were declared.
+        declaration: crate::contact::DeclaredContact,
+        /// The margin that decided, and its predicate.
+        margin: Indeterminate,
+        /// Extra recourse steering when the counter-evidence has a
+        /// named remedy (AQ6's designed-clearance arm).
+        steer: Option<&'static str>,
+    },
+    /// A declaration names a contact class this op's classification
+    /// does not implement (today: anything but
+    /// [`ContactClass::Rest`]). Refused at the door rather than
+    /// carried into stages that would ignore it — the vocabulary is
+    /// wider than this op's envelope, and the gap is typed, not
+    /// silent.
+    UnsupportedDeclarationClass {
+        /// The class that was declared.
+        class: ContactClass,
     },
     /// A [`BooleanDeclarations`] payload references an entity that
     /// does not resolve in its operand (stale/foreign key, or a
@@ -880,11 +1063,34 @@ impl core::fmt::Display for BooleanError {
                      {COINCIDENCE_RECOURSE}"
                 )
             }
+            Self::ContactContradicted {
+                declaration,
+                margin,
+                steer,
+            } => write!(
+                f,
+                "boolean op: the declared {} contact between faces {:?} and {:?} is \
+                 contradicted by {} — every definite verdict wins over every declaration \
+                 (C4); {}{}",
+                declaration.class.name(),
+                declaration.a,
+                declaration.b,
+                margin.payload(),
+                crate::contact::CONTACT_RECOURSE,
+                steer.map(|s| format!(" — {s}")).unwrap_or_default(),
+            ),
             Self::DeclarationContradicted { diag } => write!(
                 f,
                 "boolean op: a declared coincidence contradicts the geometry ({diag}) — the \
                  declared pair's planes are definitely distinct; fix the declaration or the \
                  geometry, the op never glues a lie"
+            ),
+            Self::UnsupportedDeclarationClass { class } => write!(
+                f,
+                "boolean op: a declared contact of class {} was threaded into an op whose \
+                 classification acts on Rest declarations only — the class is refused at \
+                 the door rather than ignored inside",
+                class.name()
             ),
             Self::InvalidDeclaration { operand, what } => write!(
                 f,
@@ -1117,6 +1323,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
 ) -> Result<BooleanReduction<T>, BooleanError> {
     let band = Band::linear()?;
     validate_declarations(a_operand, b_operand, decls)?;
+    verify_declared_contacts(a_operand, b_operand, decls, band)?;
     let declared = DeclaredPairs::build(decls);
     reduce::gate_planar(a_operand, Operand::A)?;
     reduce::gate_planar(b_operand, Operand::B)?;
@@ -1218,6 +1425,72 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
 /// operand, and declared faces must be planes. A dangling declaration
 /// is a caller bug refused before any classification runs — never a
 /// silent drop (F5's no-silent-drop contract).
+/// **C4's verify-at-use, at the door**: EVERY declared pair is checked
+/// against the geometry before the op runs — not only the pairs the
+/// classification happens to walk past.
+///
+/// This closes the gap C4 names by name: "a declaration that never
+/// meets geometry is a silent no-op at the op". A pair naming two
+/// faces that never come near each other is exactly that shape, and
+/// without this pass a lie is loud when the classifier trips over it
+/// and silent when it does not — which is the same lie either way.
+/// The review that found this also found the reason it had gone
+/// unnoticed for a milestone: the only other verify-at-use site is the
+/// REST lane, which runs on Union and only when the seam produces null
+/// pairs, so a Subtract with a false declaration was never verified at
+/// all.
+///
+/// Both Same± verdicts pass: this door verifies the CARRIER claim (the
+/// classification's own question), and aligned coincidence is the
+/// merge stage's legitimate flush-wall answer. Refusing containment is
+/// the contact record's job, one level up.
+fn verify_declared_contacts<T: Decide>(
+    a: &Body<T>,
+    b: &Body<T>,
+    decls: &BooleanDeclarations,
+    band: Band,
+) -> Result<(), BooleanError> {
+    for &FacePairDeclaration {
+        a: fa,
+        b: fb,
+        class,
+    } in &decls.coincident_faces
+    {
+        // A carrier kind the ladder cannot describe: `validate_
+        // declarations` has already had its say about which kinds this
+        // op accepts, so there is nothing left to add here.
+        let Some(outcome) = rest::carrier_pair_relation(a, fa, b, fb, true, band) else {
+            continue;
+        };
+        match outcome {
+            Ok(_) => {}
+            Err(carrier_eq::CarrierEqError::Contradicted(diag)) => {
+                return Err(BooleanError::ContactContradicted {
+                    declaration: crate::contact::DeclaredContact {
+                        a: fa,
+                        b: fb,
+                        class,
+                    },
+                    steer: contact_verify::fit_steer(&diag),
+                    margin: diag,
+                });
+            }
+            Err(carrier_eq::CarrierEqError::Escalated(diag)) => {
+                return Err(BooleanError::Escalated { diag });
+            }
+            // Unreachable with `declared: true`; refuse loudly anyway.
+            Err(carrier_eq::CarrierEqError::Undeclared { diag, relation }) => {
+                return Err(BooleanError::UndeclaredCoincidence {
+                    diag,
+                    pair: [(Operand::A, fa), (Operand::B, fb)],
+                    relation,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 fn validate_declarations<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
@@ -1234,12 +1507,44 @@ fn validate_declarations<T: Decide>(
             None => Err(bad(operand, "declared face lost its surface")),
         }
     };
-    for &(fa, fb) in &decls.coincident_faces {
+    for &FacePairDeclaration {
+        a: fa,
+        b: fb,
+        class,
+    } in &decls.coincident_faces
+    {
+        // The OP's envelope, not the vocabulary's: `carrier_eq` now
+        // verifies sphere and cylinder `Rest` pairs, but this op's
+        // classification stages are planar, and a declaration whose
+        // class the consuming stages cannot act on refuses at the door
+        // rather than being carried into stages that would silently
+        // ignore it. Its OWN variant, not `InvalidDeclaration`: a
+        // class the op does not implement is not a caller key bug, and
+        // it belongs to the declaration rather than to one operand, so
+        // there is no honest operand to tag it with.
+        if class != ContactClass::Rest {
+            return Err(BooleanError::UnsupportedDeclarationClass { class });
+        }
+        // A pair declared twice under DIFFERENT classes is a caller bug
+        // refused here — the check the `DeclaredPairs` map's
+        // last-write-wins build would otherwise resolve silently the
+        // day this op grows a second class arm.
+        if decls
+            .coincident_faces
+            .iter()
+            .any(|d| (d.a, d.b) == (fa, fb) && d.class != class)
+        {
+            return Err(bad(
+                Operand::A,
+                "one face pair is declared twice under different contact classes",
+            ));
+        }
         planar_face(a, fa, Operand::A)?;
         planar_face(b, fb, Operand::B)?;
     }
     let carried = |body: &Body<T>, c: &CarriedContacts, operand| -> Result<(), BooleanError> {
-        for pair in &c.vv {
+        for carried in &c.vv {
+            let pair = carried.pair;
             if body.get_vertex(pair.a).is_none() || body.get_vertex(pair.b).is_none() {
                 return Err(bad(operand, "carried v-v vertex key does not resolve"));
             }
@@ -1247,7 +1552,8 @@ fn validate_declarations<T: Decide>(
                 return Err(bad(operand, "carried v-v pair names one vertex twice"));
             }
         }
-        for rest in &c.vf {
+        for carried in &c.vf {
+            let rest = carried.rest;
             if body.get_vertex(rest.vertex).is_none() {
                 return Err(bad(operand, "carried v-on-f vertex key does not resolve"));
             }
