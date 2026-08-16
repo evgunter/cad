@@ -734,3 +734,19 @@ row) merges as the honest interim, with the §2c mechanism text
 amended to say so. The follow-up's measured cost: ~8 macro
 row-shapes, 500–700 macro lines, ~45 rustdoc-carrying methods
 into table syntax. Queues after PR-2 (same files).
+
+**DELETION-HORIZON REGISTER ENTRY CLOSED (LIB-RESPELL PR-2,
+2026-08-16): `profile::test_support` is GONE.** The shim's ~42
+surviving callers were all arc-leg fillet chains whose only
+lattice target was the surface §2c redesigned, so the horizon had
+re-pointed here; with the fused family landed they migrated to it
+(the fillet suites) or to raw `RawLoop` data (the plain data
+fixtures in `sweep`/`step-export`, which are pinned bit-for-bit
+and so must not move a bit). The `test-support` cargo feature and
+every dev-dependency that enabled it are deleted with the file —
+`ProfileLoop::builder` no longer exists at any visibility. The
+same PR retired the three arc-leg name doors (`arc_to(p, b)` /
+`arc_via` / `arc_center`) onto the one `arc_to(spec)` verb and
+deleted the §2b compat trio (`at_on`/`to_on`/`at_toward`) with
+`PathError::ArcCarrierSpelling`; what survives of that refusal is
+not carrier-keyed and is named `ArcLegOnOpenFillet`.
