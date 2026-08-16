@@ -59,6 +59,8 @@ pub use super::carrier_eq::CarrierRelation as PlaneRelation;
 
 /// Typed refusal of [`oriented_plane_eq`] — the plane spelling of the
 /// one carrier refusal (see [`PlaneRelation`] for why it is one type).
+/// Since LIB-PYG5 (R3) the `Undeclared` arm carries the RELATION the
+/// ladder decided before refusing — see the enum's own docs.
 pub use super::carrier_eq::CarrierEqError as PlaneEqError;
 
 /// The identity evidence for one oriented-plane comparison (M4 PR 5):
@@ -210,9 +212,12 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
     // orientation flip induces at the arm (rim-dimensional audit,
     // class (c); |cos| ≈ 1 here so the margin is ≈ ±arm, decisive).
     let sign_margin = Margin::levered(p1.normal.dot(p2.normal), arm);
-    let sigma = match decide("bool_plane_orient", sign_margin, band) {
-        Ok(Sign::Positive) => T::one(),
-        Ok(Sign::Negative) => -T::one(),
+    // `relation` rides beside σ: it is the orientation this decision
+    // just made definite, and the relation an `Undeclared` refusal
+    // names (only the offset's coincidence lacks intent there).
+    let (sigma, relation) = match decide("bool_plane_orient", sign_margin, band) {
+        Ok(Sign::Positive) => (T::one(), PlaneRelation::SameOriented),
+        Ok(Sign::Negative) => (-T::one(), PlaneRelation::SameOpposite),
         Ok(Sign::Zero) => {
             return Err(PlaneEqError::Escalated(Indeterminate {
                 margin: geom_core::MarginDiag::Invalid,
@@ -230,12 +235,15 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
         // Rung 4: geometrically the same plane, but neither identity
         // rung fired — undeclared coincidence, typed (rung (b): value
         // equality never glues).
-        Ok(Sign::Zero) => Err(PlaneEqError::Undeclared(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
-            band,
-            predicate: Some("bool_plane_offset"),
-        })),
-        Err(diag) => Err(PlaneEqError::Undeclared(diag)),
+        Ok(Sign::Zero) => Err(PlaneEqError::Undeclared {
+            diag: Indeterminate {
+                margin: geom_core::MarginDiag::Invalid,
+                band,
+                predicate: Some("bool_plane_offset"),
+            },
+            relation,
+        }),
+        Err(diag) => Err(PlaneEqError::Undeclared { diag, relation }),
     }
 }
 
@@ -378,7 +386,7 @@ mod tests {
         // the ratified rung (b), the M4 PR 5 narrowing).
         let other = GeomSource::minted(9, 3);
         let err = oriented_plane_eq(&p1, &p1.clone(), id(&s, &other), 1.0, band()).unwrap_err();
-        assert!(matches!(err, PlaneEqError::Undeclared(_)), "{err:?}");
+        assert!(matches!(err, PlaneEqError::Undeclared { .. }), "{err:?}");
     }
 
     /// The declared-pair rung (F5): intent + non-contradiction glues
@@ -444,7 +452,7 @@ mod tests {
         // Same plane to within a fraction of ε, described differently.
         let p2 = plane([0.0, 0.0, 5.0 + 0.25 * eps], [0.0, 0.0, 1.0]);
         let err = oriented_plane_eq(&p1, &p2, PlaneIdentity::NONE, 1.0, band()).unwrap_err();
-        assert!(matches!(err, PlaneEqError::Undeclared(_)), "{err:?}");
+        assert!(matches!(err, PlaneEqError::Undeclared { .. }), "{err:?}");
     }
 
     /// A near-miss in the sliver band escalates typed.
@@ -457,7 +465,7 @@ mod tests {
         let err = oriented_plane_eq(&p1, &p2, PlaneIdentity::NONE, 1.0, band()).unwrap_err();
         assert!(matches!(
             err,
-            PlaneEqError::Undeclared(_) | PlaneEqError::Escalated(_)
+            PlaneEqError::Undeclared { .. } | PlaneEqError::Escalated(_)
         ));
     }
 }

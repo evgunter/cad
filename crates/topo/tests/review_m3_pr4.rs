@@ -410,7 +410,7 @@ fn plane_eq_nan_and_negzero() {
     // PR 5 narrowing (equal bits without shared source stay unglued).
     let r = oriented_plane_eq(&q1, &q2, PlaneIdentity::NONE, 1.0, band);
     assert!(
-        matches!(r, Err(topo::PlaneEqError::Undeclared(_))),
+        matches!(r, Err(topo::PlaneEqError::Undeclared { .. })),
         "unsourced value-equal planes must refuse Undeclared, got {r:?}"
     );
 }

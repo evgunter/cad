@@ -1,6 +1,7 @@
 //! The PyO3 surface. Compiled only under the `python` feature.
 
 mod doc;
+mod flush;
 mod path;
 mod quantity;
 mod select;
@@ -173,6 +174,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     path::register(m)?;
     doc::register(m)?;
     select::register(m)?;
+    flush::register(m)?;
     value::register(m)?;
 
     // Schema/provenance surface: the version the persistence doors

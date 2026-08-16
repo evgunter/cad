@@ -183,7 +183,7 @@ fn rest_pair_verdict<T: Decide>(
             diag,
         }),
         Err(CarrierEqError::Escalated(diag)) => Err(ContactRefusal::Escalated { diag }),
-        Err(CarrierEqError::Undeclared(diag)) => Err(ContactRefusal::Undeclared { diag }),
+        Err(CarrierEqError::Undeclared { diag, .. }) => Err(ContactRefusal::Undeclared { diag }),
     }
 }
 
