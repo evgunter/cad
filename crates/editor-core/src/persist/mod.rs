@@ -36,7 +36,7 @@
 //! exactly D2's contract), parse errors carry line/column (D6.3's
 //! typed position info), map keys with integer newtypes work natively,
 //! and the format is universally diffable/greppable. Structural map
-//! keys (the appearance store's [`StableName`]s) serialize as pair
+//! keys (the appearance store's [`crate::StableName`]s) serialize as pair
 //! LISTS ([`pairs`]) — structural, not stringified.
 //!
 //! # What persists (spec D3)

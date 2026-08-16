@@ -889,7 +889,7 @@ pub struct PcurveCertificate<T: Real> {
 }
 
 /// **Which scalars can derive a fitted pcurve's certificate** — the
-/// static lane split, in the [`topo::props::PropsQuadLane`] shape (M5
+/// static lane split, in the `topo::props::PropsQuadLane` shape (M5
 /// PR 11's ratified pattern; `topo/src/props.rs`).
 ///
 /// A [`Pcurve::Fitted`] cache's between-samples obligation is a C9-ring
@@ -1553,7 +1553,7 @@ impl Winding {
 /// - **Plane chart**: the map is affine, so the pcurve's coefficients
 ///   map through one by one.
 /// - **Cylinder chart**: the azimuth channel is `α + β·t` with
-///   `β ∈ {−1, 0, +1}` (named by [`chart_winding`]). For `β = 0` the
+///   `β ∈ {−1, 0, +1}` (named by [`chart_windings`]). For `β = 0` the
 ///   radial vector is constant and folds into the constant term; for
 ///   `β = ±1` the angle-sum identity
 ///   `cos(α + βt) = cos α·cos t − β·sin α·sin t` puts the radial
@@ -1909,7 +1909,7 @@ fn param_rate_gate<T: Decide>(carrier: &Curve3<T>, band: Band) -> Result<T, Inde
 }
 
 /// Folds a residual into the running max and classifies it against the
-/// band (the [`crate::certify::check_residual`] idiom, one module over).
+/// band (the `certify::check_residual` idiom, one module over).
 fn check_residual<T: Decide>(
     name: &'static str,
     check: PcurveCheck,

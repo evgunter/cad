@@ -152,7 +152,7 @@ pub(crate) struct FaceSpec {
     /// cylinder/torus face whose two bounds each wrap the chart's full
     /// u period, with no seam generator between them. Tagged at
     /// [`Resolver::face`] and consumed at shell level by
-    /// [`crate::normalize::band_seam`], which re-mints the face as one
+    /// `normalize::band_seam`, which re-mints the face as one
     /// single-loop face joined by a minted seam generator (and clears
     /// the tag); a tagged face never reaches assembly.
     pub(crate) band: bool,
