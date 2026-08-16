@@ -256,3 +256,100 @@ fn parallel_cylinders_mint_the_external_and_internal_generators() {
         other => panic!("plane×plane has no tangent line: {other:?}"),
     }
 }
+
+// ---------------------------------------------------------------------
+// R1 review probes (m9-2b-r1)
+// ---------------------------------------------------------------------
+
+/// R1 probe (claim 3): the face-granularity backing rung is indexed
+/// from the RAW records, before confirmation — a bogus patch record
+/// naming the two interface faces silences the corner v-v findings.
+/// The two-directional certification must still refuse the body
+/// through the record's own confirmation; if this ever answers Ok the
+/// backing rung has silently glued a contact on an unconfirmed record.
+#[test]
+fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
+    let (body, _) = stacked();
+    // The two z = 1 planar faces (A's top, B's bottom).
+    let mut ifaces: Vec<_> = body
+        .faces()
+        .filter_map(|(k, f)| match body.get_surface(f.surface) {
+            Some(Surface::Plane { origin, .. }) if (origin.z - 1.0).abs() < 1e-9 => Some(k),
+            _ => None,
+        })
+        .collect();
+    ifaces.sort();
+    let [fa, fb] = ifaces[..] else {
+        panic!("exactly two z=1 faces, got {ifaces:?}");
+    };
+    let mut records = ContactRecords::default();
+    records.patches.push(topo::PatchContact {
+        face_a: fa,
+        face_b: fb,
+    });
+    let errors = validate_pseudomanifold(&body, &records)
+        .expect_err("an unconfirmed patch record must never bless the corners");
+    // The record DID back the four corner v-v events (no undeclared
+    // finding survives) — the refusal must come from the record's own
+    // confirmation instead.
+    assert!(
+        !errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+        "backing rung reached: {errors:?}"
+    );
+}
+
+/// R1 FINDING probe (claim 4): NESTED parallel cylinders with definite
+/// radial clearance (dist < |r1 - r2|, surfaces disjoint) answer
+/// `NotTangent { apart: false }` — the enum's doc says `false` means
+/// "definite crossing", but nothing crosses here: the surfaces are
+/// definitely APART (clearance |r1 - r2| - dist = 1.5 m). This pins
+/// the current (mislabeled) behaviour as a review finding.
+#[test]
+fn r1_probe_nested_clear_cylinders_are_reported_as_crossing() {
+    // r 1 strictly inside r 3, axes 0.5 apart: clearance 1.5 m.
+    match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(0.5, 3.0), band()) {
+        Err(TangentLocusError::NotTangent { apart }) => {
+            // Honest answer would be apart == true (definite
+            // clearance); the shipped answer is the mislabel.
+            assert!(
+                !apart,
+                "if this starts answering apart:true the finding is fixed"
+            );
+        }
+        other => panic!("nested clear cylinders are not tangent: {other:?}"),
+    }
+}
+
+/// R1 probe (claim 4): the tangent-locus gap row is METRE data — the
+/// mm twin of an in-band metre gap decides definitely, the metre
+/// fixture escalates (scale-covariant, never scale-invariant).
+#[test]
+fn r1_probe_tangent_locus_gap_row_is_scale_covariant() {
+    // Metre twin: cylinder r 1 at height 1 + 3e-9 above the plane —
+    // gap 3e-9, in Band{1e-9, 1e-8} ⇒ escalate.
+    let cyl_m = Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 1.0 + 3e-9),
+        axis: Vec3::unit_x(),
+        radius: 1.0,
+        u_ref: Vec3::unit_z(),
+    };
+    match tangent_locus(&plane_at(0.0), &cyl_m, band()) {
+        Err(TangentLocusError::Escalated(_)) => {}
+        other => panic!("metre twin gap 3e-9 must escalate: {other:?}"),
+    }
+    // mm twin (everything x 1e-3): gap 3e-12, decisively below the
+    // band ⇒ the tangency mints. A scale-invariant row would treat
+    // the twins identically.
+    let cyl_mm = Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 1e-3 + 3e-12),
+        axis: Vec3::unit_x(),
+        radius: 1e-3,
+        u_ref: Vec3::unit_z(),
+    };
+    match tangent_locus(&plane_at(0.0), &cyl_mm, band()) {
+        Ok(TangentLocus::Line { .. }) => {}
+        other => panic!("mm twin gap 3e-12 is decisively tangent: {other:?}"),
+    }
+}

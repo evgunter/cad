@@ -236,3 +236,168 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
         "the declared touching curved assembly validates at 3′"
     );
 }
+
+// ---------------------------------------------------------------------
+// R1 review probes (m9-2b-r1)
+// ---------------------------------------------------------------------
+
+/// The pin: three 120-degree arcs, radius 0.5 about (2, 2), struts at
+/// 60/180/300 degrees (all OFF the cradle's slab so no strut ever
+/// meets a cradle plane's region), sketched at z0, extruded by h.
+fn r1_pin(z0: f64, h: f64) -> Body<f64> {
+    let b120 = (core::f64::consts::PI / 6.0).tan();
+    let at = |deg: f64| {
+        let th = deg.to_radians();
+        p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
+    };
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex {
+            pos: at(60.0),
+            bulge: b120,
+        },
+        ProfileVertex {
+            pos: at(180.0),
+            bulge: b120,
+        },
+        ProfileVertex {
+            pos: at(300.0),
+            bulge: b120,
+        },
+    ]);
+    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let profile = Profile::new(plane, vec![lp])
+        .validate(Tolerance::get())
+        .unwrap();
+    extrude(&profile, Extrusion::Distance(h)).unwrap().body
+}
+
+/// The cradle: a slab with a 60-degree concave bite of radius 0.5
+/// about (2, 2) cut into its left wall — the bite wall is VALUE-EQUAL
+/// to the pin's wall carrier (same axis, same radius) with the
+/// opposed (concave) sense, but a DISTINCT SurfaceKey once the two
+/// instances share an arena.
+fn r1_cradle(bulge: f64) -> Body<f64> {
+    // Bite endpoints at +/-30 degrees: x = 2 + 0.5 cos 30, y = 2 +/- 0.25.
+    let xw = 2.0 + 0.5 * (30f64).to_radians().cos();
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex {
+            pos: p2(5.0, 1.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(5.0, 3.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(xw, 3.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(xw, 2.25),
+            bulge,
+        },
+        ProfileVertex {
+            pos: p2(xw, 1.75),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(xw, 1.0),
+            bulge: 0.0,
+        },
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tolerance::get())
+        .unwrap();
+    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+}
+
+/// **R1 probe (claim 1, the census evasion): a conformal curved touch
+/// between DISTINCT-KEY value-equal carriers.** The pin rests in the
+/// cradle's bite: a genuine 60-degree x 1.0 conformal patch contact
+/// between two instances — no coincident vertices, no line-edge
+/// events, no planar-face rests. The conformal arm groups by
+/// `SurfaceKey`, so the grafted pair is never a candidate; this probe
+/// pins the 3-prime answer. Ok(()) means an undeclared inter-instance
+/// TOUCH validated silently — a class the census module docs' stated
+/// envelope (undeclared curved TANGENCY + distinct-carrier
+/// interference) does not name, and which instance.rs's "an
+/// inter-instance TOUCH refuses undeclared" claims is refused.
+#[test]
+fn r1_probe_conformal_touch_between_instances_validates_silently() {
+    let b60 = (15f64).to_radians().tan(); // bulge of a 60-degree arc
+    let cradle = [b60, -b60]
+        .into_iter()
+        .map(r1_cradle)
+        .find(|b| {
+            topo::validate_geometric(b).is_ok()
+                && b.faces().any(|(_, f)| {
+                    matches!(
+                        b.get_surface(f.surface),
+                        Some(geom_surfaces::Surface::Cylinder { origin, radius, .. })
+                            if (origin.x - 2.0).abs() < 1e-9
+                                && (origin.y - 2.0).abs() < 1e-9
+                                && (radius - 0.5).abs() < 1e-9
+                    )
+                })
+        })
+        .expect("one bulge sign yields the valid bitten cradle");
+    // Pin taller than the cradle so no cap plane meets a cradle strut.
+    let pin = r1_pin(-0.2, 1.4);
+    assert_eq!(topo::validate_geometric(&pin), Ok(()), "pin is tier-3");
+    let mut body = cradle.clone();
+    topo::graft_disjoint(&mut body, &pin).unwrap();
+    assert_eq!(
+        topo::validate_geometric(&body),
+        Ok(()),
+        "tier 3 cannot see the touch (the #382 half-1 statement)"
+    );
+    let cyl_faces = |b: &Body<f64>| -> Vec<topo::FaceKey> {
+        b.faces()
+            .filter_map(|(k, f)| match b.get_surface(f.surface) {
+                Some(geom_surfaces::Surface::Cylinder { origin, radius, .. })
+                    if (origin.x - 2.0).abs() < 1e-9
+                        && (origin.y - 2.0).abs() < 1e-9
+                        && (radius - 0.5).abs() < 1e-9 =>
+                {
+                    Some(k)
+                }
+                _ => None,
+            })
+            .collect()
+    };
+    let faces = cyl_faces(&body);
+    assert_eq!(faces.len(), 4, "bite wall + three pin walls: {faces:?}");
+    match topo::validate_pseudomanifold(&body, &topo::ContactRecords::default()) {
+        Ok(()) => {
+            // THE FINDING, pinned: the undeclared conformal
+            // inter-instance touch validates silently at 3-prime.
+        }
+        Err(errs) => panic!(
+            "if this fires the census DID see the cross-key conformal touch \
+             and the probe's finding is void: {errs:?}"
+        ),
+    }
+    // The DECLARED direction: a patch record naming the cross-key
+    // pair cannot certify either — it escalates through the chart
+    // predicate's divergence posture (PR deviation 1) or refuses
+    // typed; either way the honest lane for this real assembly class
+    // does not exist yet.
+    let bite = faces[0];
+    let pin_wall = *faces.last().unwrap();
+    let mut records = topo::ContactRecords::default();
+    records.patches.push(topo::PatchContact {
+        face_a: bite,
+        face_b: pin_wall,
+    });
+    let errs = topo::validate_pseudomanifold(&body, &records)
+        .expect_err("the cross-key record cannot certify");
+    assert!(
+        errs.iter().any(|e| matches!(
+            e,
+            topo::ValidationError::CensusEscalated { .. }
+                | topo::ValidationError::CensusUnsupported { .. }
+                | topo::ValidationError::ContactContradicted { .. }
+        )),
+        "{errs:?}"
+    );
+}

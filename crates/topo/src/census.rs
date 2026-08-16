@@ -1410,6 +1410,94 @@ mod tests {
         );
     }
 
+    // ================= R1 review probes (m9-2b-r1) =================
+
+    /// R1 probe (claim 2): an IN-BAND sliver overlap must escalate at
+    /// BOTH doors — the conformal arm (undeclared direction) and the
+    /// patch-record certifier (declared direction) — never decide.
+    #[test]
+    fn r1_probe_in_band_sliver_overlap_escalates_both_directions() {
+        let mut body = Body::<f64>::new();
+        // Overlap region u ∈ [0.4, 1.4] × z ∈ [0.5, 0.5 + 5e-9]:
+        // mean width ≈ 5e-9 m, inside Band{1e-9, 1e-8}.
+        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 0.5 + 5e-9, true);
+        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.4, 1.4, 0.5, 1.0, false);
+        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        let arm = census_and_certify(&body, &ContactRecords::default(), band());
+        assert!(
+            arm.iter()
+                .any(|e| matches!(e, ValidationError::CensusEscalated { .. })),
+            "an in-band sliver must escalate at the arm: {arm:?}"
+        );
+        assert!(
+            !arm.iter().any(|e| matches!(
+                e,
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::ConformalPatch { .. },
+                    ..
+                }
+            )),
+            "an in-band sliver must never DECIDE undeclared: {arm:?}"
+        );
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: w1,
+            face_b: w2,
+        });
+        let cert = census_and_certify(&body, &records, band());
+        assert!(
+            cert.iter()
+                .any(|e| matches!(e, ValidationError::CensusEscalated { .. })),
+            "the record certifier must escalate in band: {cert:?}"
+        );
+        assert!(
+            !cert
+                .iter()
+                .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
+            "in-band is escalation, never stale: {cert:?}"
+        );
+    }
+
+    /// R1 probe (claim 1): a same-key pair AUTHORED one period apart
+    /// (u-windows on the "next branch") cannot slip the sweep — the
+    /// pcurve mint normalizes the branch, the windows overlap, and
+    /// the arm reports the undeclared conformal contact; the same
+    /// pair backed by its patch record certifies clean. (The probe
+    /// originally expected the seam-branch typed refusal here; the
+    /// mint normalizes first, so the refusal is unreachable from
+    /// euler-authored geometry — a stronger answer, pinned.)
+    #[test]
+    fn r1_probe_next_branch_windows_still_find_the_overlap() {
+        let tau = core::f64::consts::TAU;
+        let mut body = Body::<f64>::new();
+        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        // Same locus, next periodic branch; u-nested and z-nested so
+        // no strut/vertex coincidences muddy the face-pair question.
+        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.5 + tau, 1.2 + tau, 0.3, 0.7, false);
+        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        let arm = census_and_certify(&body, &ContactRecords::default(), band());
+        assert!(
+            arm.iter().any(|e| matches!(
+                e,
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::ConformalPatch { .. },
+                    ..
+                }
+            )),
+            "the next-branch authoring must not evade the arm: {arm:?}"
+        );
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: w1,
+            face_b: w2,
+        });
+        let cert = census_and_certify(&body, &records, band());
+        assert!(
+            cert.is_empty(),
+            "the backed next-branch pair certifies: {cert:?}"
+        );
+    }
+
     #[test]
     fn an_aligned_same_sense_patch_record_is_contradicted() {
         // Same key, SAME sense: aligned coincidence is containment or
