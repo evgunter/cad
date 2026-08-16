@@ -267,8 +267,8 @@ fn probe_patch_contact_is_never_certified_at_rest() {
         }],
         ..ContactRecords::default()
     };
-    let errs = validate_pseudomanifold(&body, &contacts)
-        .expect_err("a patch record cannot be confirmed");
+    let errs =
+        validate_pseudomanifold(&body, &contacts).expect_err("a patch record cannot be confirmed");
     assert!(
         errs.iter()
             .any(|e| matches!(e, ValidationError::CensusUnsupported { .. })),
@@ -356,14 +356,8 @@ fn probe_dev8_false_declaration_is_a_silent_noop_at_the_op() {
 fn probe_aq6_definite_beats_declaration_both_directions() {
     let a = sphere([0.0, 0.0, 0.0], 2.0, true);
     let b = sphere([0.0, 0.0, 0.0], 2.0, false);
-    let (rel, verdict) = topo::boolean::carrier_eq::carrier_eq_verdict(
-        &a,
-        &b,
-        declared(),
-        1.0,
-        band(),
-    )
-    .unwrap();
+    let (rel, verdict) =
+        topo::boolean::carrier_eq::carrier_eq_verdict(&a, &b, declared(), 1.0, band()).unwrap();
     assert_eq!(rel, CarrierRelation::SameOpposite);
     assert_eq!(
         verdict,
@@ -401,4 +395,3 @@ fn probe_declared_pair_direction_still_normalized() {
             .all(|d| d.class == ContactClass::Rest)
     );
 }
-

@@ -80,8 +80,6 @@ mod m6_3_chart_completion;
 mod m9_1_contact_vocabulary;
 #[path = "merge_skip.rs"]
 mod merge_skip;
-#[path = "review_m9_1_probes.rs"]
-mod review_m9_1_probes;
 #[path = "review_m1_pr5.rs"]
 mod review_m1_pr5;
 #[path = "review_m2_pr3.rs"]
@@ -114,6 +112,8 @@ mod review_m3_pr6;
 mod review_m4_pr2_transform;
 #[path = "review_m6_2_probes.rs"]
 mod review_m6_2_probes;
+#[path = "review_m9_1_probes.rs"]
+mod review_m9_1_probes;
 #[path = "review_s1_controls.rs"]
 mod review_s1_controls;
 #[path = "review_s1_probes.rs"]
