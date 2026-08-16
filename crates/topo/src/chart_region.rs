@@ -1154,6 +1154,11 @@ fn polygon_relation<T: Decide>(
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[path = "chart_region_r2_probes.rs"]
+mod r2_probes;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use geom_core::{Point3, Vec3};
