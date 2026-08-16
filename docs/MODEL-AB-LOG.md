@@ -999,3 +999,22 @@ PLACEDUNION review ordinal fixed at dispatch (2026-08-16, PR
 #571 open, frozen head c2e4b5b3): claimed through 48 (M9-2 PR-2
 dual) + 1 = **49 → SINGLE** (51 next third, under the #572
 amendment's composition once merged). Reviewer fable.
+TESS-SPLIT spec finalized (2026-08-16): the #320 split half
+under the RATIFIED aspect policy (#568: FFF cap A=16, Evan's
+comment + 👍). Pre-draw fields logged AT SPEC TIME: **M /
+NUMERIC** (docs/TESS-SPLIT-SPEC.md). **Dispatch GATED on
+TESS-SPAN's merge** (same sizing functions — sequenced, not
+parallel); block ASM-4's draw happens at that dispatch, slot 1 =
+TESS-SPLIT. The M9-5 lily-rebuild re-bless coupling (#569
+thread) rides the spec's row 8.
+ASM-R2A review ordinal fixed at dispatch (2026-08-16, PR #575
+open, frozen head 59d7bfda): claimed through 49 (PlacedUnion) + 1 =
+**50 → SINGLE** (51 is the next third — a CROSS-MODEL dual under
+the #572 amendment, whoever claims it). Reviewer fable, v4
+ladder. Pre-draw fields logged at spec time: L / NUMERIC
+(docs/ASM-R2A-SPEC.md; arm = block ASM-3 slot 1). Note for the
+row: the implementer's deviation 1 reports a SPEC-INTERNAL
+inconsistency (the binding coset table itself makes
+coaxial+planar(⊥) UNDER; acceptance row 1's DETERMINED claim was
+the spec author's error) — the reviewer adjudicates. Row at
+merge.
