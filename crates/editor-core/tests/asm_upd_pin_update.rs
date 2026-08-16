@@ -77,6 +77,14 @@ fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), opts)
 }
 
+/// An evaluation carrying a WARM prior — the incremental editing
+/// session, which is the only place a stale-serving bug can hide: a
+/// fresh evaluation rebuilds the part cache from nothing, so it cannot
+/// serve yesterday's geometry no matter how the node is keyed.
+fn run_warm(doc: &ProfileDoc, prior: &Evaluation<f64>, opts: &EvalOptions) -> Evaluation<f64> {
+    evaluate::<f64>(doc, Some(prior), &CancelToken::new(), opts)
+}
+
 // ---- Fixtures ----
 
 /// A one-solid part under `id`: a `side`-wide square extruded 1 tall.
@@ -362,6 +370,9 @@ fn row2b_no_such_reference_and_already_pinned_refuse_separately() {
         Err(UpdateError::AlreadyPinned { id, pin }) => {
             assert_eq!(id, x);
             assert_eq!(pin, x2);
+            let msg = UpdateError::AlreadyPinned { id, pin }.to_string();
+            assert!(msg.contains(&x.to_string()), "{msg}");
+            assert!(msg.contains(&x2.hex()), "{msg}");
         }
         other => panic!("a completed update must refuse AlreadyPinned, got {other:?}"),
     }
@@ -546,6 +557,112 @@ fn assembly_under(id: DocumentId, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNod
         ids.push(node);
     }
     (doc, ids)
+}
+
+/// Row 5c — the WARM channel, which is where "the old content is not
+/// served" can actually fail. Rows 5a/5b evaluate from cold, so the
+/// per-evaluation part cache alone decides their content; the
+/// cross-evaluation `prior` memo keys an instantiate node by a
+/// ContentKey that must FEED THE PIN, and only an
+/// evaluate → update → re-evaluate-with-the-prior session can observe
+/// that. The control comes first and proves the channel is live: an
+/// unchanged document re-evaluated over its own prior does no part
+/// work at all, so anything the update serves afterwards had to be
+/// re-keyed rather than replayed.
+#[test]
+fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
+    let id = DocumentId::derive("asm-upd-r5c-part");
+    let mut shelf = VersionShelf::default();
+    let r1 = shelf.shelve(part_version(id, 1.0));
+    let r2 = shelf.shelve(part_version(id, 2.0));
+    let opts = with_shelf(shelf);
+
+    let (doc, ids) = assembly("asm-upd-r5c-asm", &[r1, r1]);
+    let cold = run(&doc, &opts);
+    assert_eq!(cold.part_evaluations, 1, "the cold run warms the memo");
+
+    // Control: re-evaluating the SAME document over that prior does no
+    // part work. Without this the rows below would prove nothing — a
+    // prior that never serves instantiate nodes cannot serve a stale
+    // one either.
+    let control = run_warm(&doc, &cold, &opts);
+    assert_eq!(
+        control.part_evaluations, 0,
+        "the prior really does serve instantiate nodes"
+    );
+    let vol_control = volume(&product(&doc, &control).expect("gathers"));
+    assert!((vol_control - 2.0).abs() < 1e-9, "two v1 solids");
+
+    // One site updated, re-evaluated over the SAME warm prior: the
+    // moved reference is re-keyed and re-resolved, the untouched one
+    // is served from the prior, and the product is one solid of each.
+    let staged = doc
+        .apply(&DocEdit::UpdateReference {
+            node: ids[1],
+            new_pin: r2.pin,
+        })
+        .expect("the update applies")
+        .doc;
+    let warm_staged = run_warm(&staged, &cold, &opts);
+    assert_eq!(
+        warm_staged.part_evaluations, 1,
+        "only the moved reference does part work"
+    );
+    let vol_staged = volume(&product(&staged, &warm_staged).expect("gathers"));
+    assert!((vol_staged - 5.0).abs() < 1e-9, "v1 + v2: {vol_staged}");
+
+    // The second site moves over the STAGED prior: the old version is
+    // now named nowhere, and nothing serves it.
+    let done = staged
+        .apply(&DocEdit::UpdateReference {
+            node: ids[0],
+            new_pin: r2.pin,
+        })
+        .expect("the update applies")
+        .doc;
+    let warm_done = run_warm(&done, &warm_staged, &opts);
+    assert_eq!(warm_done.part_evaluations, 1, "one reference moved");
+    let vol_done = volume(&product(&done, &warm_done).expect("gathers"));
+    assert!((vol_done - 8.0).abs() < 1e-9, "two v2 solids: {vol_done}");
+}
+
+/// Row 5d — the warm channel in the NESTED case: the top document's
+/// reference moves to a sub-assembly version whose own inner reference
+/// changed, re-evaluated over a warm prior. The new geometry arrives
+/// through two seams without the top document ever naming the part.
+#[test]
+fn row5d_a_warm_prior_carries_a_nested_update_through_two_seams() {
+    let part_id = DocumentId::derive("asm-upd-r5d-part");
+    let sub_id = DocumentId::derive("asm-upd-r5d-sub");
+    let mut shelf = VersionShelf::default();
+    let p1 = shelf.shelve(part_version(part_id, 1.0));
+    let p2 = shelf.shelve(part_version(part_id, 2.0));
+    let (sub_v1, _) = assembly_under(sub_id, &[p1]);
+    let (sub_v2, _) = assembly_under(sub_id, &[p2]);
+    let s1 = shelf.shelve(sub_v1);
+    let s2 = shelf.shelve(sub_v2);
+    let opts = with_shelf(shelf);
+
+    let (top, ids) = assembly("asm-upd-r5d-top", &[s1]);
+    let cold = run(&top, &opts);
+    let control = run_warm(&top, &cold, &opts);
+    assert_eq!(
+        control.part_evaluations, 0,
+        "the nested prior serves the instantiate node too"
+    );
+    let vol_before = volume(&product(&top, &control).expect("gathers"));
+    assert!((vol_before - 1.0).abs() < 1e-9, "one v1 solid");
+
+    let updated = top
+        .apply(&DocEdit::UpdateReference {
+            node: ids[0],
+            new_pin: s2.pin,
+        })
+        .expect("the update applies")
+        .doc;
+    let warm = run_warm(&updated, &cold, &opts);
+    let vol_after = volume(&product(&updated, &warm).expect("gathers"));
+    assert!((vol_after - 4.0).abs() < 1e-9, "one v2 solid: {vol_after}");
 }
 
 // ---- Row 6: the assembly's own pin ----

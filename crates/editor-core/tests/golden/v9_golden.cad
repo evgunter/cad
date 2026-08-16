@@ -70,26 +70,28 @@ id: 7ddec231df0049f879136a2f7624647d
                 },
                 {
                   "ArcTo": {
-                    "target": {
-                      "Point": [
-                        {
-                          "Literal": {
-                            "value": 2.0,
-                            "dim": "Length"
+                    "Bulge": {
+                      "target": {
+                        "Point": [
+                          {
+                            "Literal": {
+                              "value": 2.0,
+                              "dim": "Length"
+                            }
+                          },
+                          {
+                            "Literal": {
+                              "value": 1.0,
+                              "dim": "Length"
+                            }
                           }
-                        },
-                        {
-                          "Literal": {
-                            "value": 1.0,
-                            "dim": "Length"
-                          }
+                        ]
+                      },
+                      "b": {
+                        "Literal": {
+                          "value": 0.25,
+                          "dim": "Scalar"
                         }
-                      ]
-                    },
-                    "bulge": {
-                      "Literal": {
-                        "value": 0.25,
-                        "dim": "Scalar"
                       }
                     }
                   }

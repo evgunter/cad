@@ -13,6 +13,7 @@ from pncad import (
     Doc,
     DocEdit,
     DocParam,
+    EditError,
     EvaluationError,
     Node,
     SketchPlane,
@@ -152,14 +153,28 @@ class TestEvaluation(unittest.TestCase):
             ev.value(cut)
         self.assertEqual(caught.exception.reason, "node_failed")
         self.assertEqual(caught.exception.node, cut)
-        # The NodeErrorKind's stable tag: the Boolean op refused.
-        self.assertEqual(caught.exception.kind, "boolean")
+        # Since register R3 (LIB-PYG5) the undeclared-contact refusal
+        # is the typed MENU: its own stable tag, and the candidate
+        # declaration attached as a `FlushFinding` value.
+        self.assertEqual(caught.exception.kind, "undeclared_contact")
         self.assertIsNone(caught.exception.through)
+        finding = caught.exception.finding
+        self.assertIsInstance(finding, pncad.FlushFinding)
+        # Both boxes rise from z=0: the shared bottom planes face the
+        # same way — the flush-wall (merge-stage) flavor.
+        self.assertEqual(finding.relation, pncad.PlaneRelation.SameOriented)
+        self.assertEqual(finding.class_, pncad.ContactClass.Rest)
+        self.assertEqual(finding.rung, pncad.FlushRung.DecidedCoincident)
+        # The pair's names speak the one opaque alphabet: each side is
+        # a FACE name of its own operand's evaluation.
+        self.assertIn(finding.a, ev.all_faces(outer))
+        self.assertIn(finding.b, ev.all_faces(inner))
         # F6 (reopened on review): the MESSAGE is prose stating the
-        # problem, not the kernel enum's Debug guts.
+        # problem and the two-armed recourse, not Debug guts.
         message = str(caught.exception)
-        self.assertIn("Boolean op refused", message)
-        for guts in ("UndeclaredCoincidence", "{", "NodeError"):
+        self.assertIn("Boolean refused an undeclared contact", message)
+        self.assertIn("declare that finding", message)
+        for guts in ("UndeclaredCoincidence", "UndeclaredContact", "{", "NodeError"):
             self.assertNotIn(guts, message)
 
     def test_a_poisoned_node_names_its_failed_ancestor(self):
@@ -174,9 +189,101 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(caught.exception.reason, "poisoned")
         self.assertEqual(caught.exception.node, downstream)
         self.assertEqual(caught.exception.through, cut)
-        # The root cause's tag rides along: the ancestor's Boolean.
-        self.assertEqual(caught.exception.kind, "boolean")
+        # The root cause's tag rides along: the ancestor's refusal.
+        self.assertEqual(caught.exception.kind, "undeclared_contact")
+        # The menu payload does NOT ride a poisoning — the recourse
+        # belongs to the node that refused; here it is None (attributes
+        # never go missing, LIB-DOORS F3).
+        self.assertIsNone(caught.exception.finding)
         self.assertIn("poisoned by failed ancestor", str(caught.exception))
+
+
+class TestDetectDeclareDoors(unittest.TestCase):
+    """LIB-PYG5 (G5): the detect/declare doors' own contracts —
+    positive paths through every spelling, adversarial args refused
+    typed. The scene-level flips live in `test_north_star.py`
+    (`TestTable`, `TestCrosslapGlued`); the guide's executed block is
+    the end-to-end menu recourse."""
+
+    def stacked(self):
+        doc = Doc()
+        lower = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        upper = slab(
+            doc, (0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), (1 * m, 1.5 * m)
+        )
+        return doc, lower, upper
+
+    def test_every_declare_spelling_feeds_the_boolean(self):
+        # One resting contact; three spellings of the declare arm,
+        # each wired into the SAME union, each at the exact volume
+        # 1 + 0.5^2 * 0.5 = 1.125 (dyadic).
+        for spelling in ("doc_declare", "doc_declare_all", "node_declare"):
+            with self.subTest(spelling=spelling):
+                doc, lower, upper = self.stacked()
+                ev = evaluate(doc)
+                findings = ev.find_flush_candidates(lower, upper)
+                self.assertEqual(len(findings), 1)
+                self.assertEqual(
+                    findings[0].relation, pncad.PlaneRelation.SameOpposite
+                )
+                if spelling == "doc_declare":
+                    decl = doc.declare(findings[0])
+                elif spelling == "doc_declare_all":
+                    decl = doc.declare_all(findings)
+                else:
+                    decl = doc.insert(Node.declare(findings))
+                glued = doc.insert(
+                    Node.boolean(BooleanOp.Union, lower, upper, declare=decl)
+                )
+                ev = evaluate(doc)
+                body = ev.value(glued).body()
+                body.validate()
+                self.assertEqual(body.mass_properties().volume, 1.125)
+
+    def test_declaring_nothing_refuses_typed_at_every_door(self):
+        # An empty Declare records no intent — refused, never inserted
+        # (`no_findings`), at the sugar AND at the node constructor.
+        doc = Doc()
+        with self.assertRaises(EditError) as caught:
+            doc.declare_all([])
+        self.assertEqual(caught.exception.variant, "no_findings")
+        # The human message is real prose, not a mangled literal
+        # (review MINOR-1: a doubled-space run shipped once because
+        # nothing pinned the text).
+        message = str(caught.exception)
+        self.assertIn("an empty Declare node records no intent", message)
+        self.assertNotIn("  ", message)
+        self.assertEqual(len(doc), 0, "a refused declare inserts nothing")
+        with self.assertRaises(EditError) as caught:
+            Node.declare([])
+        self.assertEqual(caught.exception.variant, "no_findings")
+        self.assertNotIn("  ", str(caught.exception))
+
+    def test_detection_answers_empty_for_separated_and_unevaluated(self):
+        # Separated in EVERY plane family: a pair sharing any plane —
+        # even with disjoint faces (two boxes side by side on one
+        # floor) — is honestly a finding, so "no findings" needs no
+        # shared carrier at all.
+        doc = Doc()
+        a = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        b = slab(doc, (3 * m, 4 * m), (5 * m, 6 * m), (2 * m, 3 * m))
+        ev = evaluate(doc)
+        self.assertEqual(ev.find_flush_candidates(a, b), [])
+        # A node the evaluation does not know: empty, like `select`.
+        c = slab(doc, (6 * m, 7 * m), (8 * m, 9 * m), (4 * m, 5 * m))
+        self.assertEqual(ev.find_flush_candidates(a, c), [])
+
+    def test_findings_are_values_with_opaque_names(self):
+        doc, lower, upper = self.stacked()
+        ev = evaluate(doc)
+        finding = ev.find_flush_candidates(lower, upper)[0]
+        # The names are the same alphabet the materializers speak.
+        self.assertIn(finding.a, ev.all_faces(lower))
+        self.assertIn(finding.b, ev.all_faces(upper))
+        self.assertEqual(finding.class_, pncad.ContactClass.Rest)
+        self.assertEqual(finding.rung, pncad.FlushRung.DecidedCoincident)
+        # Value semantics: re-detection answers an equal value.
+        self.assertEqual(finding, ev.find_flush_candidates(lower, upper)[0])
 
 
 class TestLiteralRefusals(unittest.TestCase):

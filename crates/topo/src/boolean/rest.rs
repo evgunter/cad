@@ -662,9 +662,13 @@ fn verify_declared_pairs<T: Decide>(
             Err(PlaneEqError::Escalated(diag)) => {
                 return Err(BooleanError::Escalated { diag });
             }
-            Err(PlaneEqError::Undeclared(diag)) => {
+            Err(PlaneEqError::Undeclared { diag, relation }) => {
                 // Unreachable with declared=true; refuse loudly anyway.
-                return Err(BooleanError::UndeclaredCoincidence { diag });
+                return Err(BooleanError::UndeclaredCoincidence {
+                    diag,
+                    pair: [(Operand::A, fa), (Operand::B, fb)],
+                    relation,
+                });
             }
         }
     }

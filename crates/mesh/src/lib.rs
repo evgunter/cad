@@ -165,6 +165,7 @@
 //! `spade` wants f64 coordinates; D8 replay at other scalars reaches
 //! display through the f64 lane.
 
+pub mod budget;
 pub mod cert;
 pub mod chords;
 mod curved;

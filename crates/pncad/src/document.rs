@@ -153,6 +153,6 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 
 // The profile description node type and its document alias.
 pub use editor_core::{
-    LoopProgram, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecordedProgramError,
-    StepArg,
+    LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecordedProgramError, StepArg,
 };

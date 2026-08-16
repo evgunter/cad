@@ -42,8 +42,8 @@ mod asm4_split_inline;
 mod asm_roots;
 #[path = "asm_upd_pin_update.rs"]
 mod asm_upd_pin_update;
-#[path = "asm_upd_schema_v9.rs"]
-mod asm_upd_schema_v9;
+#[path = "asm_upd_schema_v10.rs"]
+mod asm_upd_schema_v10;
 #[path = "lbret_schema_v8.rs"]
 mod lbret_schema_v8;
 #[path = "lib_doors_node_result.rs"]
@@ -156,6 +156,8 @@ mod m6_composed_node;
 mod m9_d1_r1_probes;
 #[path = "m9_d1_r2_probes.rs"]
 mod m9_d1_r2_probes;
+#[path = "respell_schema_v9.rs"]
+mod respell_schema_v9;
 #[path = "review_m4_pr1.rs"]
 mod review_m4_pr1;
 #[path = "review_m4_pr1_die.rs"]

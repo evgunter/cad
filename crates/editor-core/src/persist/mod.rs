@@ -162,7 +162,7 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 ///
 /// Version 8 is **vocabulary growth** on the standing terms (LIB-LBRET;
 /// PATHS-DESIGN §2b's LB10 route 3, ratified on #386): the chain step
-/// vocabulary gained [`crate::ProgramStep::AtToward`], the straight
+/// vocabulary gained `ProgramStep::AtToward` (since retired by v9), the straight
 /// fillet arrival off an arc-carrier departure. The addition is
 /// forward-additive — a v7 file contains no `AtToward` and would load
 /// — but the reverse is what the version gate is FOR: a v8 file handed
@@ -181,21 +181,42 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// is ONE LINE, so the second merge resolves it CLEANLY to the same
 /// text while the two meanings silently collapse.
 ///
-/// Version 9 is **edit vocabulary growth** (ASSEMBLY-DESIGN A13,
+/// Version 9 is the **§2c fillet-family re-spell** (PATHS-DESIGN §2c,
+/// ratified on #419; LIB-RESPELL PR-1): the chain step vocabulary
+/// RE-SPELLED — `AtOn`/`AtToward`/`CloseToOn`/`ArcVia`/`ArcCenter`
+/// retired, `ArcTo` re-shaped onto the one unified arc-spec record,
+/// and the fused verbs (`FilletArc`/`ArcFillet`/`ArcFilletArc`)
+/// added. A pre-release clean break, both directions: a v8 file's
+/// retired variants would die in serde under today's types, and a v9
+/// file's fused variants are unknown to a v8 reader — so v8 refuses
+/// TYPED at the gate with the regenerate recourse (the v3 precedent),
+/// and the migration table stays empty.
+///
+/// Version 10 is **edit vocabulary growth** (ASSEMBLY-DESIGN A13,
 /// ratified #544; ASM-UPD D-1): [`crate::DocEdit`] gained the
 /// `UpdateReference` arm, the recorded per-reference pin move. The
 /// edit log is FILE data — a saved document carries its unreplayed
 /// edits — so a new arm is a new wire shape, exactly the case v8
-/// bumped for. Forward-additive again (a v8 file contains no
-/// `UpdateReference`), and again the gate buys the other direction: a
-/// v9 file handed to a v8 reader must refuse at the version door
-/// rather than reach serde and die on an unknown variant. A v8 file
-/// refuses TYPED with the regenerate recourse and the migration table
-/// stays empty.
+/// bumped for one level over in the vocabulary. Forward-additive
+/// again (a v9 file contains no `UpdateReference`), and again the
+/// gate buys the other direction: a v10 file handed to a v9 reader
+/// must refuse at the version door rather than reach serde and die on
+/// an unknown variant. A v9 file refuses TYPED with the regenerate
+/// recourse and the migration table stays empty.
+///
+/// **9 was claimed twice, and this is the resolution** — the v7/v8
+/// collision again, and caught the same way. LIB-RESPELL (#531) and
+/// ASM-UPD (#549) each concluded 9 was theirs, each having re-merged
+/// main before the other's bump landed. RESPELL merged first, so v9
+/// is the re-spell and the `UpdateReference` arm takes 10. What made
+/// it visible this time rather than silent: the pattern is now in
+/// this ledger, so ASM-UPD flagged the hazard in its own PR body
+/// BEFORE the collision fired and re-checked the constant by eye at
+/// the merge — which is the discipline the v7/v8 entry asks for.
 ///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these eight.
-pub const SCHEMA_VERSION: u32 = 9;
+/// [`migration_step`] entry, or a ratified break like these nine.
+pub const SCHEMA_VERSION: u32 = 10;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
