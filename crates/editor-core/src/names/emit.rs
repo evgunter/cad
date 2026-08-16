@@ -697,10 +697,14 @@ mod display_tests {
                 vec!["11"],
             ),
             (
+                // A refusal that still EXISTS: LIB-G14 retired the
+                // tied-upstream one this row used to sample (ties
+                // propagate now), and a sample payload that greps to
+                // nothing would outlive its own subject.
                 NamingError::Emission {
-                    what: "tied upstream entry through a downstream op",
+                    what: "section face classified On",
                 },
-                vec!["tied upstream entry"],
+                vec!["section face classified On"],
             ),
             (
                 NamingError::Escalated {
