@@ -25,7 +25,7 @@
 //! "Point" legs/incomings ride the retired-name doors
 //! (`arc_to(target, bulge)` / `arc_via` / `arc_center`) until the
 //! consumer re-spell renames them onto `arc_to(spec)`; they already
-//! record the unified [`ArcData`](super::program::ArcData) steps.
+//! record the unified [`ArcData`] steps.
 
 use geom_core::{Point2, Real, Sign, Tolerance};
 

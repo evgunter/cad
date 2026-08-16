@@ -162,7 +162,7 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 ///
 /// Version 8 is **vocabulary growth** on the standing terms (LIB-LBRET;
 /// PATHS-DESIGN §2b's LB10 route 3, ratified on #386): the chain step
-/// vocabulary gained [`crate::ProgramStep::AtToward`], the straight
+/// vocabulary gained `ProgramStep::AtToward` (since retired by v9), the straight
 /// fillet arrival off an arc-carrier departure. The addition is
 /// forward-additive — a v7 file contains no `AtToward` and would load
 /// — but the reverse is what the version gate is FOR: a v8 file handed
