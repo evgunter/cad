@@ -37,9 +37,9 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI, TAU};
 use pncad::document::{BooleanOp as NodeBooleanOp, BooleanValue};
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions,
-    Evaluation, Expr, GeomPred, LoopProgram, NamePat, Node, Point3, ProfileProgram, ProgramStep,
-    ProgramTarget, RecipeNodeId, Selector, SketchPlane, SurfaceKind, SurfaceKindSet, ValuePayload,
-    Vec3, all_edges, apply, evaluate, select_where,
+    Evaluation, Expr, GeomPred, LoopProgram, NamePat, Node, Point3, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SketchPlane, SurfaceKind, SurfaceKindSet,
+    ValuePayload, Vec3, all_edges, apply, evaluate, select_where,
 };
 use pncad::topo::Body;
 
@@ -160,10 +160,10 @@ fn half_disc() -> LoopProgram {
     let p = |x: f64, y: f64| [len(x), len(y)];
     LoopProgram::Chain(vec![
         ProgramStep::At(p(0.0, -PIP_R)),
-        ProgramStep::ArcTo {
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
             target: ProgramTarget::Point(p(PIP_R, 0.0)),
-            bulge: scl(FRAC_PI_8.tan()),
-        },
+            b: scl(FRAC_PI_8.tan()),
+        }),
         ProgramStep::ArcContinue(p(0.0, PIP_R)),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])
