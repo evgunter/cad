@@ -42,7 +42,7 @@ fn the_checked_in_v11_file_is_really_v11() {
     assert_eq!(V11.lines().next(), Some("schema: 11"));
 }
 
-/// The break, demonstrated: a v9 file refuses TYPED at the version
+/// The break, demonstrated: a v11 file refuses TYPED at the version
 /// door, naming the version found, the version supported, and the step
 /// that does not exist.
 #[test]
@@ -56,11 +56,11 @@ fn v11_refuses_too_old() {
             assert_eq!(found, 11);
             assert_eq!(supported, SCHEMA_VERSION);
             assert_eq!(
-                missing, 10,
-                "the 10 → 11 step is the one that does not exist"
+                missing, 11,
+                "the 11 → 12 step is the one that does not exist"
             );
         }
-        other => panic!("v9 must refuse SchemaTooOld, got {other:?}"),
+        other => panic!("v11 must refuse SchemaTooOld, got {other:?}"),
     }
 }
 

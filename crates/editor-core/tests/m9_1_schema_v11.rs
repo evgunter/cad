@@ -163,16 +163,20 @@ fn too_old_beats_a_broken_body() {
     }
 }
 
-/// A saved document announces v11 in its header, and a v11 document
+/// A saved document announces the CURRENT version in its header, and a
+/// class-bearing document
 /// round-trips with its declaration CLASSES intact — the actual
 /// content of this break.
 #[test]
 fn a_declaration_round_trips_carrying_its_class() {
     let (doc, decl) = declaring_doc();
     let text = save(&doc, &[]).expect("saves");
-    assert_eq!(text.lines().next(), Some("schema: 11"));
+    assert_eq!(
+        text.lines().next(),
+        Some(format!("schema: {SCHEMA_VERSION}").as_str())
+    );
 
-    let back: ProfileDoc = load(&text).expect("v11 loads").doc;
+    let back: ProfileDoc = load(&text).expect("the current version loads").doc;
     let Some(Node::Declare { pairs }) = back.node(decl) else {
         panic!("the Declare node survives the round trip");
     };
