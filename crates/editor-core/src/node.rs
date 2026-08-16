@@ -871,7 +871,6 @@ impl<P> Node<P> {
         }
     }
 
-<<<<<<< HEAD
     /// Builds a [`Node::PlacedUnion`] with a PARAMETRIC rule (linear
     /// or circular) and its structural count.
     ///
@@ -914,7 +913,9 @@ impl<P> Node<P> {
             Node::Pattern { kind, .. } => kind.placements().is_none(),
             Node::PlacedUnion { count, kind, .. } => count.is_some() == kind.placements().is_none(),
             _ => true,
-=======
+        }
+    }
+
     /// A `Declare` node whose every pair asserts the CONFORMAL class
     /// — the class the class-less payload always meant.
     ///
@@ -926,7 +927,6 @@ impl<P> Node<P> {
     pub fn declare_rest(pairs: Vec<(StableName, StableName)>) -> Self {
         Node::Declare {
             pairs: pairs.into_iter().map(|p| (p, ContactClass::Rest)).collect(),
->>>>>>> origin/main
         }
     }
 
