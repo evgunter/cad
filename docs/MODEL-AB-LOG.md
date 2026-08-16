@@ -856,3 +856,6 @@ ratified A2 clause's "selector narrows ties" claim is FALSE
 reachable-not-narrowable + register the per-candidate SEL door
 as a named pickup (the smallest honest reading; commissioning
 the door is its own unit if a scene demands it).
+PYG5 review ordinal fixed at dispatch (2026-08-16, PR #536 open):
+claimed through 43 (G14) + 1 = **44 → SINGLE** (45 next dual —
+the third dual block draws at its claim). Reviewer fable.
