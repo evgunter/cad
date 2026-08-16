@@ -869,3 +869,20 @@ position 3, the block's last slot — the next block opens M9-16).
 STOPPING-RULE note: tally 5-of-6; if this dual or the running
 sample #14 qualifies (≥1 reviewer MAJOR), that is the SIXTH — the
 dual-review experiment ends and Evan is notified explicitly.
+| ASM-4 | 2026-08-16 | split/inline (R1's closing unit): Workspace write side, editor_core::refactor split+inline as pure functions returning recorded edits, interface-record hook (uninhabited, skip-serialized, NO schema bump — pin preimage proven unchanged), Frame::compose w/ bit-exact fast paths; 8 split + 8 inline typed refusal vocabularies all naming subjects | L / STRUCTURAL (pre-logged at spec) | FABLE (block ASM-2 slot 3 — block complete as drawn) | single (ordinal 40, frozen d34541e1, v4) — APPROVE-WITH-FIXES 0/2/3, rubric 5/4/4 (reviewer executed everything: 6/6 targeted mutants killed incl. the wire-skip and roots-rule guards; own 3-cluster probe FOUND the root-order collapse MIN-1; row 6's two-fresh-process byte identity verified real; pin stability proven from the canonical-serde preimage + pre-PR golden; all three clippy lanes reviewer-run cold-clean; D-2 deviation adjudicated ACCEPT-AS-AMENDMENT — both implementer premises proven true on the spec text, ratified with the order-collapse + A12-cluster riders via #540) | 0 silent (6 reported, all verified honest; MIN-1 = a PR-body overclaim, corrected in the fix) | 5 | 4 | 4 | IMPLEMENTER-INHERITED (order-collapse invariant doc + the reviewer's exact probe shape pinned as a test; all NINE untested refusal arms constructed+tested incl. PartCarriesMetadata via wire injection; witness-copy + PartIdCollides invariant comments; body corrections) | MERGED #525 green (run 31921773824); the #534 Actions-budget outage opened AND resolved inside this seam (Evan restored; precedent #366); R1 COMPLETE | impl ~404k + fix ~396k / review ~163k | impl ~7.8h / review ~1.3h / fix ~0.4h |
+Block ASM-3 draw (2026-08-16, post-R1): byte 207 (<252) mod 4 =
+3 = fable's position → **(opus, opus, opus, fable)**. Slot 1 =
+R2-A (the mate solve, docs/ASM-R2A-SPEC.md, binding) = **OPUS**;
+pre-draw fields logged AT SPEC TIME: **L / NUMERIC** (the draft's
+structural pre-log amended per #409's mixed rule BEFORE this
+draw — the coset case splits are decided numerics; amendment
+recorded in the spec header and the draft's pre-log flag).
+Dispatch GATED on M9-1 PR-2's merge (editor-core ContactClass —
+the #524 seam). Slots 2–4 bank (R2-B = the natural slot-2
+candidate; its own pre-log at its spec).
+ASM-UPD dispatch (2026-08-16): block ASM-3 slot 2 = **OPUS**
+(the byte-207 draw). Pre-draw fields logged at spec time:
+**M / STRUCTURAL** (docs/ASM-UPD-SPEC.md — edit vocabulary +
+elaboration + multiplicity lint, no numeric decisions). A13
+ratified (#544) is the binding design. Ungated; runs while R2-A
+(slot 1, opus) waits on M9-1 PR-2. Row at merge.

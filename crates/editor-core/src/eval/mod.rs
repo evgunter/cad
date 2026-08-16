@@ -1243,8 +1243,10 @@ where
         // here) and WHERE its cluster sits. The placement is document
         // data, not node data, which is exactly why it must feed the
         // key: a `SetPlacement` moves this node's value and nothing
-        // else about the node changes.
-        Node::InstantiatePart { doc_ref } => {
+        // else about the node changes. The interface record feeds
+        // nothing because it is PROVABLY empty (`InterfaceCrossing` is
+        // uninhabited); when R2 inhabits it, it must feed the key.
+        Node::InstantiatePart { doc_ref, .. } => {
             h.write_u64((doc_ref.id.0 >> 64) as u64);
             h.write_u64(doc_ref.id.0 as u64);
             for chunk in doc_ref.pin.0.chunks(8) {

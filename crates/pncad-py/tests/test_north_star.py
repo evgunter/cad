@@ -63,6 +63,37 @@ def slab(doc, x, y, z):
     return doc.insert(Node.extrude(profile, (z[1] - z[0]) * m))
 
 
+def projectbox(doc):
+    """Tour scene `projectbox` (demos/tour/src/projectbox.rs): 15 ops
+    over 16 boxes — cavity, six vent slots, four bosses, four pilot
+    pockets. Shared by the volume-oracle row and the `cutaway` row,
+    which splits exactly this body."""
+    body = slab(doc, (0, 3), (0, 2), (0, 1.5))
+    body = doc.insert(
+        Node.boolean(BooleanOp.Subtract, body, slab(doc, (0.25, 2.75), (0.25, 1.75), (0.25, 2.0)))
+    )
+    for x in [(0.5, 0.875), (1.3125, 1.6875), (2.125, 2.5)]:
+        for y in [(-0.25, 0.5), (1.5, 2.25)]:
+            body = doc.insert(
+                Node.boolean(BooleanOp.Subtract, body, slab(doc, x, y, (0.5, 1.25)))
+            )
+    bx = [(0.4375, 0.8125), (2.1875, 2.5625)]
+    by = [(0.4375, 0.8125), (1.1875, 1.5625)]
+    for x in bx:
+        for y in by:
+            body = doc.insert(
+                Node.boolean(BooleanOp.Union, body, slab(doc, x, y, (0.1875, 0.875)))
+            )
+    for x in bx:
+        for y in by:
+            px = (x[0] + 0.09375, x[1] - 0.09375)
+            py = (y[0] + 0.09375, y[1] - 0.09375)
+            body = doc.insert(
+                Node.boolean(BooleanOp.Subtract, body, slab(doc, px, py, (0.5625, 1.0625)))
+            )
+    return body
+
+
 def volume_of(doc, node):
     ev = evaluate(doc)
     assert ev.succeeded(node), "the scene evaluated"
@@ -136,29 +167,7 @@ class TestProjectbox(unittest.TestCase):
 
     def test_projectbox_matches_the_exact_dyadic_oracle(self):
         doc = Doc()
-        body = slab(doc, (0, 3), (0, 2), (0, 1.5))
-        body = doc.insert(
-            Node.boolean(BooleanOp.Subtract, body, slab(doc, (0.25, 2.75), (0.25, 1.75), (0.25, 2.0)))
-        )
-        for x in [(0.5, 0.875), (1.3125, 1.6875), (2.125, 2.5)]:
-            for y in [(-0.25, 0.5), (1.5, 2.25)]:
-                body = doc.insert(
-                    Node.boolean(BooleanOp.Subtract, body, slab(doc, x, y, (0.5, 1.25)))
-                )
-        bx = [(0.4375, 0.8125), (2.1875, 2.5625)]
-        by = [(0.4375, 0.8125), (1.1875, 1.5625)]
-        for x in bx:
-            for y in by:
-                body = doc.insert(
-                    Node.boolean(BooleanOp.Union, body, slab(doc, x, y, (0.1875, 0.875)))
-                )
-        for x in bx:
-            for y in by:
-                px = (x[0] + 0.09375, x[1] - 0.09375)
-                py = (y[0] + 0.09375, y[1] - 0.09375)
-                body = doc.insert(
-                    Node.boolean(BooleanOp.Subtract, body, slab(doc, px, py, (0.5625, 1.0625)))
-                )
+        body = projectbox(doc)
 
         # The scene's own running oracle, term for term:
         #   9 - 2.5*1.5*1.25                     the cavity
@@ -1410,13 +1419,24 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             [],
         )
 
-    def test_a_split_through_boolean_minted_faces_still_refuses(self):
-        """G14, the gap `cutaway` now waits on — measured, not
-        guessed. `Node.split` names a cut through PASS-THROUGH faces
-        fine; a cut that crosses a face the boolean itself minted
-        refuses in the naming emitter, so the tour's cutaway (a tilted
-        plane through the project box's cavity) has no document
-        spelling even though `topo::split` does the geometry."""
+    def test_a_split_whose_section_re_enters_one_face_now_names(self):
+        """G14, CLOSED (LIB-G14) — and the diagnosis this test used to
+        carry was WRONG, which is the more useful half of the finding.
+
+        The name said "through boolean-minted faces"; measurement
+        (cad-work/g14-survey.md) found TWO disjoint M4-era walls, and
+        the one this scene hits has nothing to do with booleans. A
+        split ACROSS boolean-minted faces named fine all along. What
+        refused was a section line that re-enters ONE operand face —
+        an inner loop, or any non-convex face — because
+        `RoleSeg::SectionEdge{side, face}` names a chord only by the
+        face it crosses, so a face crossed twice would mint one name
+        twice. The walls read as one refusal because `NamingError` had
+        no `Display` (#380).
+
+        Both are gone: the chords become an N2 TIE (A2, ratified on
+        #512), and a tied upstream entry PROPAGATES instead of
+        refusing the whole op (B1)."""
         doc = Doc()
         box = slab(doc, (0, 3), (0, 2), (0, 1.5))
         cavity = slab(doc, (0.25, 0.75), (0.25, 0.75), (0.25, 2.0))
@@ -1425,15 +1445,50 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         clear = doc.insert(Node.datum_plane((2.5 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0)))
         through = doc.insert(Node.datum_plane((0.5 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0)))
         ok = doc.insert(Node.split(hollow, clear))
-        refused = doc.insert(Node.split(hollow, through))
+        was_refused = doc.insert(Node.split(hollow, through))
 
         ev = evaluate(doc)
-        above, below = ev.value(ok).split()
+        for node in (ok, was_refused):
+            above, below = ev.value(node).split()
+            self.assertIsNotNone(above)
+            self.assertIsNotNone(below)
+
+    def test_the_cutaway_scene_has_a_document_spelling(self):
+        """Tour scene `cutaway` (demos/tour/src/cutaway.rs), audit row
+        31 — the row LIB-G14 flips.
+
+        The scene runs `topo::split` KERNEL-level on the 15-op boolean
+        project box with a tilted plane (normal (0.75, 0.1875, 1) — no
+        axis alignment, crossing cavity floor, bosses and vents), then
+        moves the halves apart. The geometry always worked; what did
+        not exist was the DOCUMENT spelling, because `Node.split` on
+        that boolean refused at name emission. Here is that spelling,
+        with the scene's exact plane, and the names it now mints."""
+        doc = Doc()
+        box = projectbox(doc)
+        tool = doc.insert(
+            Node.datum_plane((1.5 * m, 1.0 * m, 0.75 * m), (0.75, 0.1875, 1.0))
+        )
+        cut = doc.insert(Node.split(box, tool))
+
+        ev = evaluate(doc)
+        above, below = ev.value(cut).split()
         self.assertIsNotNone(above)
         self.assertIsNotNone(below)
-        with self.assertRaises(EvaluationError) as caught:
-            ev.value(refused)
-        self.assertEqual(caught.exception.kind, "naming")
+
+        # The split vocabulary is reachable from Python over the cut,
+        # which is what "names end to end" means here: the emitter is
+        # TOTAL, not merely non-refusing.
+        def count(kind, tag):
+            return len(
+                ev.select(cut, Selector.of(NamePat.of_kind(kind).seg(SegPat.tag(tag))))
+            )
+
+        self.assertEqual(count(EntityKind.Body, SegTag.SplitBody), 2)
+        self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 8)
+        self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 32)
+        self.assertEqual(count(EntityKind.Face, SegTag.SplitFragment), 32)
+        self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 48)
 
     def test_the_rocker_outline_is_authorable(self):
         """G12, CLOSED (LIB-LBRET) — the flip of the absence this test
