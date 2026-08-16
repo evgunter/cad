@@ -126,6 +126,7 @@ pub mod attach;
 pub mod body;
 pub mod boolean;
 pub(crate) mod census;
+pub mod chart_region;
 pub mod entity;
 pub mod euler;
 pub mod euler_kill;
@@ -188,6 +189,7 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
+pub use chart_region::{ChartOverlap, ChartRegionError, chart_region_overlap};
 pub use geom_brep::{
     CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, EdgeNurbsLane, Pcurve,
     PcurveCache, PcurveCertifyError,
