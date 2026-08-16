@@ -828,3 +828,487 @@ fn split_pair_round_trips_persistence_and_still_evaluates_identically() {
     assert_eq!(census(&body1), census(&body2));
     assert_eq!(volume_bits(&body1), volume_bits(&body2));
 }
+
+// ---- MIN-1 (review round 1): the root-interleaving collapse, pinned ----
+
+/// D-2 amendment rider (i), pinned: a non-adjacent multi-cluster cut's
+/// roots collapse onto the instance's root-list position, so the round
+/// trip restores the root SET and the spliced block's relative order
+/// but NOT the original interleaving — while the full D-4 identity
+/// (census, bit-equal volumes, whole-table name re-resolution) holds.
+#[test]
+fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
+    let mut store = StubStore::default();
+    let doc_ref = store.insert(part("asm4-min1-part", 0.0, 1.0));
+    // A plain component (dyadic-exact volume, disjoint from the
+    // instances) plus three singleton clusters.
+    let doc = ProfileDoc::empty(DocumentId::derive("asm4-min1"));
+    let (doc, p) = insert(
+        doc,
+        Node::Profile(desc(
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![square(5.0, 0.0, 0.5)],
+        )),
+    );
+    let (doc, e) = insert(
+        doc,
+        Node::Extrude {
+            profile: p,
+            distance: len(1.0),
+        },
+    );
+    let mut doc = doc;
+    let mut inst = Vec::new();
+    for dx in [10.0_f64, 20.0, 30.0] {
+        let (next, i) = insert(doc, Node::instantiate_part(doc_ref));
+        let (next, _) = step(
+            next,
+            DocEdit::SetPlacement {
+                node: i,
+                frame: editor_core::Frame::translation([dx, 0.0, 0.0]),
+            },
+        );
+        doc = next;
+        inst.push(i);
+    }
+    let (i0, i1, i2) = (inst[0], inst[1], inst[2]);
+    // The reviewer's probe shape: reordered list, cut roots
+    // NON-ADJACENT in it.
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetRoots {
+            roots: vec![e, i2, i0, i1],
+        },
+    );
+    let opts = with_resolver(store);
+    let ev1 = run(&doc, &opts);
+    let (body1, names1) = product_named(&doc, &ev1).expect("gathers");
+
+    let cut = BTreeSet::from([i1, i2]);
+    let out = split(&doc, &cut, DocumentId::derive("asm4-min1-new")).expect("legal");
+    assert_eq!(
+        out.remainder.roots(),
+        &[e, out.instance, i0],
+        "the cut roots collapse onto the FIRST cut root's position"
+    );
+    assert_eq!(
+        out.part.roots(),
+        &[out.node_map[&i2], out.node_map[&i1]],
+        "the part keeps the cut roots' host ROOT-LIST order"
+    );
+
+    let mut store2 = StubStore::default();
+    store2.insert(part("asm4-min1-part", 0.0, 1.0));
+    store2.insert(out.part.clone());
+    let inlined = inline(&out.remainder, out.instance, &store2).expect("inlines");
+    let back = |i: RecipeNodeId| inlined.node_map[&out.node_map[&i]];
+    // The pinned collapse: [e, i2, i0, i1] round-trips to
+    // [e, i2, i1, i0] (in correspondence) — the spliced block lands
+    // whole at the instance's position; the interleaving with i0 is
+    // NOT restored, and D-4 does not name it.
+    assert_eq!(
+        inlined.doc.roots(),
+        &[e, back(i2), back(i1), i0],
+        "the spliced block keeps its own order at the instance's position"
+    );
+    assert_ne!(
+        inlined.doc.roots(),
+        &[e, back(i2), i0, back(i1)],
+        "the original interleaving is genuinely not restored"
+    );
+
+    // The full D-4 identity holds regardless, round trip vs original.
+    let mut store3 = StubStore::default();
+    store3.insert(part("asm4-min1-part", 0.0, 1.0));
+    let ev3 = run(&inlined.doc, &with_resolver(store3));
+    let (body3, names3) = product_named(&inlined.doc, &ev3).expect("gathers");
+    assert_eq!(census(&body1), census(&body3));
+    assert_eq!(volume_bits(&body1), volume_bits(&body3));
+    for (name, _) in names1.iter() {
+        let expected = if name.node == i1 || name.node == i2 {
+            StableName {
+                kind: name.kind,
+                node: back(name.node),
+                path: name.path.clone(),
+            }
+        } else {
+            name.clone()
+        };
+        assert!(
+            names3.iter().any(|(n, _)| *n == expected),
+            "{name:?} re-resolves as {expected:?} after the round trip"
+        );
+    }
+    // And the moved frames ride verbatim, both hops.
+    assert!(
+        out.part
+            .placement(out.node_map[&i1])
+            .bit_eq(&doc.placement(i1)),
+        "the moved frame is verbatim in the part"
+    );
+    assert!(
+        inlined.doc.placement(back(i2)).bit_eq(&doc.placement(i2)),
+        "the round trip restores the frame bit for bit"
+    );
+}
+
+// ---- MIN-2 (review round 1): the untested refusal arms ----
+
+/// Split's three name-classification refusals: each constructs its
+/// case, asserts the typed arm, and asserts the message names its
+/// subject.
+#[test]
+fn split_name_refusals_fire_typed_and_name_their_subjects() {
+    use editor_core::EntityKind;
+    // BodyNameCrossesCut: appearance keyed by a cut instance's BODY
+    // name (product tables carry no root body rows, so the wrapped
+    // rewrite could never resolve).
+    let (_, doc, ids) = two_cluster_assembly("asm4-min2-body");
+    let body_name = StableName {
+        kind: EntityKind::Body,
+        node: ids[1],
+        path: vec![RoleSeg::OutputBody],
+    };
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetAppearance {
+            name: body_name.clone(),
+            attr: editor_core::Attr::Visibility(false),
+        },
+    );
+    match split(&doc, &BTreeSet::from([ids[1]]), DocumentId::derive("n")) {
+        Err(SplitError::BodyNameCrossesCut { name }) => {
+            assert_eq!(*name, body_name);
+            let msg = format!("{}", SplitError::BodyNameCrossesCut { name });
+            assert!(
+                msg.contains("OutputBody"),
+                "the message names the name: {msg}"
+            );
+            assert!(
+                msg.contains("body name"),
+                "the message states the class: {msg}"
+            );
+        }
+        other => panic!("expected BodyNameCrossesCut, got {other:?}"),
+    }
+
+    // NameStraddlesCut: a KEPT Declare's name derives from a kept node
+    // AND (through an embedded operand name) from a cut node.
+    let doc = part("asm4-min2-straddle-kept", 0.0, 1.0);
+    let kept_e = doc.order()[1];
+    let (doc, cut_p) = insert(
+        doc,
+        Node::Profile(desc(
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![square(10.0, 0.0, 0.5)],
+        )),
+    );
+    let (doc, cut_e) = insert(
+        doc,
+        Node::Extrude {
+            profile: cut_p,
+            distance: len(1.0),
+        },
+    );
+    let straddler = StableName {
+        kind: EntityKind::Edge,
+        node: kept_e,
+        path: vec![RoleSeg::FromA(Box::new(StableName {
+            kind: EntityKind::Edge,
+            node: cut_e,
+            path: vec![RoleSeg::OutputBody],
+        }))],
+    };
+    let partner = StableName {
+        kind: EntityKind::Edge,
+        node: kept_e,
+        path: vec![RoleSeg::OutputBody],
+    };
+    let (doc, _) = insert(
+        doc,
+        Node::Declare {
+            pairs: vec![(straddler.clone(), partner)],
+        },
+    );
+    match split(
+        &doc,
+        &BTreeSet::from([cut_p, cut_e]),
+        DocumentId::derive("n"),
+    ) {
+        Err(SplitError::NameStraddlesCut { name }) => {
+            assert_eq!(*name, straddler);
+            let msg = format!("{}", SplitError::NameStraddlesCut { name });
+            assert!(
+                msg.contains("both sides"),
+                "the message states the fault: {msg}"
+            );
+        }
+        other => panic!("expected NameStraddlesCut, got {other:?}"),
+    }
+
+    // PartNameReachesRemainder: a CUT Declare names a KEPT node's
+    // entity — the part document could not express the reference.
+    let doc = part("asm4-min2-reach-kept", 0.0, 1.0);
+    let kept_e = doc.order()[1];
+    let (doc, cut_p) = insert(
+        doc,
+        Node::Profile(desc(
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![square(10.0, 0.0, 0.5)],
+        )),
+    );
+    let (doc, cut_e) = insert(
+        doc,
+        Node::Extrude {
+            profile: cut_p,
+            distance: len(1.0),
+        },
+    );
+    let reaching = StableName {
+        kind: EntityKind::Edge,
+        node: kept_e,
+        path: vec![RoleSeg::OutputBody],
+    };
+    let cut_local = StableName {
+        kind: EntityKind::Edge,
+        node: cut_e,
+        path: vec![RoleSeg::OutputBody],
+    };
+    let (doc, decl) = insert(
+        doc,
+        Node::Declare {
+            pairs: vec![(cut_local, reaching.clone())],
+        },
+    );
+    match split(
+        &doc,
+        &BTreeSet::from([cut_p, cut_e, decl]),
+        DocumentId::derive("n"),
+    ) {
+        Err(SplitError::PartNameReachesRemainder { node, name }) => {
+            assert_eq!(node, decl);
+            assert_eq!(*name, reaching);
+            let msg = format!("{}", SplitError::PartNameReachesRemainder { node, name });
+            assert!(
+                msg.contains(&format!("node {}", decl.0)) && msg.contains("outside the cut"),
+                "the message names the site and the fault: {msg}"
+            );
+        }
+        other => panic!("expected PartNameReachesRemainder, got {other:?}"),
+    }
+}
+
+/// Inline's parameter, tolerance, and metadata refusals.
+#[test]
+fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
+    // ParamConflict: both documents declare "L", bit-different values.
+    let mut store = StubStore::default();
+    let part_doc = part("asm4-min2-param-part", 0.0, 1.0);
+    let (part_doc, _) = step(
+        part_doc,
+        DocEdit::SetDocParam {
+            name: ParamName::new("L"),
+            value: DocParam::Continuous {
+                dim: editor_core::Dimension::Length,
+                value: 2.0,
+            },
+        },
+    );
+    let doc_ref = store.insert(part_doc);
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-param-host"));
+    let (host, _) = step(
+        host,
+        DocEdit::SetDocParam {
+            name: ParamName::new("L"),
+            value: DocParam::Continuous {
+                dim: editor_core::Dimension::Length,
+                value: 1.0,
+            },
+        },
+    );
+    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    match inline(&host, inst, &store) {
+        Err(InlineError::ParamConflict { param }) => {
+            assert_eq!(param, ParamName::new("L"));
+            let msg = format!("{}", InlineError::ParamConflict { param });
+            assert!(
+                msg.contains("\"L\""),
+                "the message names the parameter: {msg}"
+            );
+        }
+        other => panic!("expected ParamConflict, got {other:?}"),
+    }
+
+    // EpsilonSeam: the referenced document records a different ε (the
+    // stub store, unlike the workspace, has no load door to refuse it
+    // earlier — the inline door is the backstop under test).
+    let mut store = StubStore::default();
+    let part_doc = part("asm4-min2-eps-part", 0.0, 1.0);
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-eps-host"));
+    let moved_eps = host.epsilon() * 0.5;
+    let (part_doc, _) = step(part_doc, DocEdit::SetTolerance { eps: moved_eps });
+    let doc_ref = store.insert(part_doc);
+    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    match inline(&host, inst, &store) {
+        Err(InlineError::EpsilonSeam { host_eps, part_eps }) => {
+            assert_eq!(host_eps.to_bits(), host.epsilon().to_bits());
+            assert_eq!(part_eps.to_bits(), moved_eps.to_bits());
+            let msg = format!("{}", InlineError::EpsilonSeam { host_eps, part_eps });
+            assert!(
+                msg.contains("tolerance"),
+                "the message states the seam: {msg}"
+            );
+        }
+        other => panic!("expected EpsilonSeam, got {other:?}"),
+    }
+
+    // PartCarriesMetadata: no edit arm writes document metadata, so
+    // the carrying document is authored through the wire (inject the
+    // key into a saved snapshot and load it back).
+    let mut store = StubStore::default();
+    let part_doc = part("asm4-min2-meta-part", 0.0, 1.0);
+    let text = save(&part_doc, &[]).expect("saves");
+    let injected = text.replace(
+        "\"metadata\": {}",
+        "\"metadata\": {\n    \"note\": \"x\"\n  }",
+    );
+    assert_ne!(text, injected, "the fixture's metadata key was found");
+    let carrying = load(&injected).expect("the carrying document loads").doc;
+    assert_eq!(carrying.metadata().len(), 1);
+    let doc_ref = store.insert(carrying);
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-meta-host"));
+    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    match inline(&host, inst, &store) {
+        Err(InlineError::PartCarriesMetadata { key }) => {
+            assert_eq!(key, "note");
+            let msg = format!("{}", InlineError::PartCarriesMetadata { key });
+            assert!(msg.contains("\"note\""), "the message names the key: {msg}");
+        }
+        other => panic!("expected PartCarriesMetadata, got {other:?}"),
+    }
+}
+
+/// Inline's name-shape refusals: the foreign derivation, the
+/// instance's own body name, and the stranded part-side reference.
+#[test]
+fn inline_name_refusals_fire_typed_and_name_their_subjects() {
+    use editor_core::EntityKind;
+    let mut store = StubStore::default();
+    let doc_ref = store.insert(part("asm4-min2-name-part", 0.0, 1.0));
+
+    // ForeignInstanceName: a host reference DERIVES from the instance
+    // but is not the bridge's own wrapped form.
+    let host = part("asm4-min2-name-host", 5.0, 1.0);
+    let kept_e = host.order()[1];
+    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let foreign = StableName {
+        kind: EntityKind::Face,
+        node: kept_e,
+        path: vec![RoleSeg::FromA(Box::new(wrap(
+            inst,
+            &StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(0),
+                path: vec![RoleSeg::OutputBody],
+            },
+        )))],
+    };
+    let (host, _) = step(
+        host,
+        DocEdit::SetAppearance {
+            name: foreign.clone(),
+            attr: editor_core::Attr::Visibility(false),
+        },
+    );
+    match inline(&host, inst, &store) {
+        Err(InlineError::ForeignInstanceName { name }) => {
+            assert_eq!(*name, foreign);
+            let msg = format!("{}", InlineError::ForeignInstanceName { name });
+            assert!(
+                msg.contains("InPart"),
+                "the message states the expected form: {msg}"
+            );
+        }
+        other => panic!("expected ForeignInstanceName, got {other:?}"),
+    }
+
+    // InstanceBodyNameReferenced: the instance's own output-body name
+    // has no spliced correspondent.
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-body-host"));
+    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let body_name = StableName {
+        kind: EntityKind::Body,
+        node: inst,
+        path: vec![RoleSeg::OutputBody],
+    };
+    let (host, _) = step(
+        host,
+        DocEdit::SetAppearance {
+            name: body_name.clone(),
+            attr: editor_core::Attr::Visibility(false),
+        },
+    );
+    match inline(&host, inst, &store) {
+        Err(InlineError::InstanceBodyNameReferenced { name }) => {
+            assert_eq!(*name, body_name);
+            let msg = format!("{}", InlineError::InstanceBodyNameReferenced { name });
+            assert!(
+                msg.contains("output body"),
+                "the message states the fault: {msg}"
+            );
+        }
+        other => panic!("expected InstanceBodyNameReferenced, got {other:?}"),
+    }
+
+    // StrandedPartName: the referenced document carries an N5-stranded
+    // Declare reference (its node deleted after authoring) — there is
+    // no node to remap it onto.
+    let mut store = StubStore::default();
+    let part_doc = part("asm4-min2-stranded-part", 0.0, 1.0);
+    let (part_doc, extra) = insert(
+        part_doc,
+        Node::Profile(desc(
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![square(10.0, 0.0, 0.5)],
+        )),
+    );
+    let stranded = StableName {
+        kind: EntityKind::Edge,
+        node: extra,
+        path: vec![RoleSeg::OutputBody],
+    };
+    let anchor = StableName {
+        kind: EntityKind::Edge,
+        node: part_doc.order()[1],
+        path: vec![RoleSeg::OutputBody],
+    };
+    let (part_doc, _) = insert(
+        part_doc,
+        Node::Declare {
+            pairs: vec![(stranded.clone(), anchor)],
+        },
+    );
+    let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
+    let doc_ref = store.insert(part_doc);
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-stranded-host"));
+    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    match inline(&host, inst, &store) {
+        Err(InlineError::StrandedPartName { name }) => {
+            assert_eq!(*name, stranded);
+            let msg = format!("{}", InlineError::StrandedPartName { name });
+            assert!(
+                msg.contains("no longer has"),
+                "the message states the fault: {msg}"
+            );
+        }
+        other => panic!("expected StrandedPartName, got {other:?}"),
+    }
+}

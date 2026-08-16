@@ -38,12 +38,20 @@
 //! [`crate::Frame::compose`]'s identity fast-paths give the inline
 //! round trip back the original frames with zero arithmetic.
 //!
-//! D-2's "an `InstantiatePart` node per cut-out cluster" is therefore
-//! implemented as ONE instance per split (reported deviation): each
+//! The remainder receives ONE `InstantiatePart` for the whole cut
+//! (the D-2 amendment, adjudicated at review ordinal 40): each
 //! remainder instance materializes the ENTIRE new document's product,
 //! so per-cluster instances of one pinned document would duplicate
 //! every other cluster's material N times. The single instance carries
-//! all cut clusters at their moved placements.
+//! all cut clusters at their moved placements. Consequence (amendment
+//! rider i): the cut roots COLLAPSE onto the instance's root-list
+//! position, so `inline(split(d))` restores the root SET and the
+//! spliced block's relative order but NOT the original interleaving of
+//! non-adjacent cut roots with kept roots — inline never sees the
+//! interleaving, which lives only in the pre-split list. That is
+//! within D-4's ratified identity (census, bit-equal volumes, name
+//! re-resolution; root order is unnamed there), and it is pinned by
+//! test rather than left implicit.
 //!
 //! # Names re-anchor across the seam (the bridge, both directions)
 //!
@@ -747,7 +755,11 @@ pub fn split(
     }
     // The new identity must be fresh: not the split document's own,
     // and not any document the cut references (a part pinning its own
-    // id would be an evaluation cycle by A4's rule).
+    // id would be an evaluation cycle by A4's rule). KEPT-node
+    // references to `part_id` pass this door by design: the remainder
+    // is not the new document, so no cycle arises, and the collision
+    // that does matter — two files claiming one id — is refused typed
+    // at `Workspace::create`'s duplicate-id door.
     if part_id == doc.id() {
         return Err(SplitError::PartIdCollides { id: part_id });
     }
@@ -920,6 +932,12 @@ pub fn split(
         })?;
         part_apply(&mut part, &mut part_edits, DocEdit::InsertNode { node })?;
     }
+    // Witness DATA copies VERBATIM while node ids remap: sound because
+    // a witness datum is sketch-self-relative — it selects among the
+    // owning profile's own solution branches and embeds no other
+    // node's identity, so there is no cross-id-space reference for the
+    // remap to miss. A future witness vocabulary that embeds foreign
+    // stable names must remap here or refuse.
     for (&old, &new) in &node_map {
         if let Some(witness) = doc.witness(old) {
             part_apply(
@@ -1223,6 +1241,10 @@ pub fn inline(
         })?;
         step(&mut current, &mut edits, DocEdit::InsertNode { node })?;
     }
+    // Witness data copies VERBATIM while ids remap — the same
+    // invariant as split's copy: a witness datum is sketch-self-
+    // relative and embeds no other node's identity (see split's
+    // witness loop).
     for (&old, &new) in &node_map {
         if let Some(witness) = part.witness(old) {
             step(
