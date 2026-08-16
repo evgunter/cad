@@ -1652,6 +1652,32 @@ jobs:
         run: |
           cargo clippy -p mesh --all-targets --features budget -- -D warnings
           cargo test -p mesh --features budget
+      # THE PER-TRIANGLE CERTIFICATE FALSIFIER (issue #558). Same shape
+      # as the meter row above, and here for a stronger reason: this is
+      # the row that runs
+      # `probe_review::z1_per_triangle_certificate_falsification`, the
+      # falsifier M8-5's review adopted (MIN-1) precisely so that "the
+      # hosted gate runs it unconditionally".
+      #
+      # #558 gated `mesh::probe_stats` at its module boundary, which
+      # moved that test out of the default `cargo test -p mesh` row and
+      # into this one. THE INTENT SURVIVES ONLY WHILE THIS ROW STAYS
+      # UNCONDITIONAL: k-lint runs "whenever anything builds at all"
+      # (job header above), so the falsifier still runs on every
+      # build-triggering change. Making this row conditional, or
+      # dropping it, stops the falsifier running — that reopens a
+      # ratified review outcome and must be said out loud.
+      #
+      # A SEPARATE ROW from the meter's rather than a folded-in
+      # `--features budget,probe-stats`: two features, two
+      # configurations, two clippy passes. The
+      # `unreachable!`-under-a-probe-feature class has bitten twice
+      # (M8-F67) precisely because a feature build had no clippy lane of
+      # its own and hosted clippy could not see it.
+      - name: mesh certificate falsifier (feature = probe-stats)
+        run: |
+          cargo clippy -p mesh --all-targets --features probe-stats -- -D warnings
+          cargo test -p mesh --features probe-stats
       # Drift gate for the committed UV sheet. The two PNG lanes cannot
       # be gated — they need FreeCAD, which this job does not have — so
       # this is the ONLY render lane CI can actually reproduce, and an
