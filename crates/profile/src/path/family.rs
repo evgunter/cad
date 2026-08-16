@@ -22,10 +22,11 @@
 //! | `Sweep{r,side,angle}` | Directed | Directed | — |
 //! | `ArcLen{r,side,len}` | Directed | Directed | — |
 //!
-//! "Point" legs/incomings ride the retired-name doors
-//! (`arc_to(target, bulge)` / `arc_via` / `arc_center`) until the
-//! consumer re-spell renames them onto `arc_to(spec)`; they already
-//! record the unified [`ArcData`] steps.
+//! Every row is spelled by ONE verb name per site: `arc_to(spec)` is
+//! the sharp arc leg from both the Point tip (`Bulge`/`Via`/`Center`,
+//! [`PointLeg`]) and the Directed tip (`Sweep`/`ArcLen`,
+//! [`TangentIncoming`]); the fused verbs take their incoming mode the
+//! same way. There are no retired-name doors left.
 
 use geom_core::{Point2, Real, Sign, Tolerance};
 
@@ -91,7 +92,6 @@ pub(super) fn open_ray<T: geom_core::Decide>(
     core.pending_meta = Some(PendingMeta {
         by_tangent,
         origin_incoming,
-        compat_carrier: None,
     });
     Ok(())
 }
@@ -109,7 +109,6 @@ pub(super) fn open_arc<T: ArcCarrierScalar>(
     core.pending_meta = Some(PendingMeta {
         by_tangent: false,
         origin_incoming: None,
-        compat_carrier: None,
     });
     Ok(())
 }
@@ -971,12 +970,6 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         self.core.record(Step::ArcTo(spec.to_wire()));
         let (at, ang) = self.dep()?;
-        self.refuse_off_carrier(
-            "a side bound on an arc carrier runs ALONG it: continue with arc_fillet(Radius { r, \
-             side }, r2), which trims the carrier run into the next corner, or close with \
-             fillet_arc(r2, Center { c, winding, p: Start }) — a tangent-departing leg would \
-             leave the carrier",
-        )?;
         let leg = spec.leg(DirectedPoint { at, dir: ang })?;
         let carrier = SegArc {
             center: leg.centre,
@@ -1182,5 +1175,125 @@ impl<T: ArcCarrierScalar> OnArc<T> {
             return S2::fail(e);
         }
         S2::apply(self.core, spec2)
+    }
+}
+
+// ------------------------------------------------------------------
+// The SHARP arc leg from a POINT tip: `arc_to(spec)` over the
+// endpoint-full modes (§2c rounds 5–9; PATHS-DESIGN §2 "Legs").
+// ------------------------------------------------------------------
+
+/// The sharp arc leg's spec from a POINT tip — the endpoint-full modes
+/// (`Bulge{p, b}`, `Via{q, p}`, `Center{c, winding, p}`), each carrying
+/// its own target because the endpoint-free modes made `p` non-uniform
+/// (§2c round 8). `Out` is the mode's own completion: a directed point
+/// for an interior target, the closed loop for [`Start`].
+///
+/// Admissibility is the state-keyed matrix: the endpoint-FREE pair
+/// (`Sweep`/`ArcLen`) has no impl here — from a bare point there is no
+/// departure tangent to sweep about, so that pair is unrepresentable
+/// rather than refused. It reaches `arc_to` from the Directed tip
+/// instead ([`TangentIncoming`]).
+pub trait PointLeg<T: geom_core::Decide, F: Flavor> {
+    /// The state the leg leaves the chain in.
+    type Out;
+    #[doc(hidden)]
+    fn leg_from(path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out;
+}
+
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Point2<T>> {
+    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Bulge {
+            target: Target::Point(spec.p),
+            b: spec.b,
+        }));
+        path.arc_to_point(spec.p, spec.b)
+    }
+}
+
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Bulge {
+            target: Target::Start,
+            b: spec.b,
+        }));
+        path.arc_to_start(spec.b)
+    }
+}
+
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Point2<T>> {
+    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Via {
+            q: spec.q,
+            target: Target::Point(spec.p),
+        }));
+        let bulge = path.arc_via_bulge(spec.q, spec.p)?;
+        path.arc_to_point(spec.p, bulge)
+    }
+}
+
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Start> {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Via {
+            q: spec.q,
+            target: Target::Start,
+        }));
+        let bulge = path.arc_via_bulge(spec.q, path.start_target()?)?;
+        path.arc_to_start(bulge)
+    }
+}
+
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Point2<T>> {
+    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Center {
+            c: spec.c,
+            winding: spec.winding,
+            target: Target::Point(spec.p),
+        }));
+        let bulge = path.arc_center_bulge(spec.c, spec.p, spec.winding)?;
+        path.arc_to_point(spec.p, bulge)
+    }
+}
+
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Start> {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Center {
+            c: spec.c,
+            winding: spec.winding,
+            target: Target::Start,
+        }));
+        let bulge = path.arc_center_bulge(spec.c, path.start_target()?, spec.winding)?;
+        path.arc_to_start(bulge)
+    }
+}
+
+impl<T: geom_core::Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
+    /// **§2c**: the SHARP arc leg from a point tip — one verb over the
+    /// endpoint-full `ArcData` modes (`Bulge{p, b}` chord-relative,
+    /// `Via{q, p}` through a point, `Center{c, winding, p}` about a
+    /// centre). `p: Start` is the sharp arc seam.
+    ///
+    /// Each mode's authored data is stored VERBATIM and its bulge
+    /// derived by the one closed form the raw chain uses
+    /// ([`crate::bulge_from_via`] / [`crate::bulge_from_center`]), so
+    /// the doors emit the same bits. On a directed point the §4 item 1
+    /// junction check runs on the arc's START TANGENT.
+    ///
+    /// Refusals: a through-point within ε_input of the chord LINE
+    /// ([`PathError::ArcViaCollinear`] — the whole collinear class);
+    /// coincident endpoints ([`PathError::DegenerateArcChord`]); a
+    /// centre whose two radii disagree definitely
+    /// ([`PathError::ArcCenterNotEquidistant`] — checked, never
+    /// repaired: re-projecting would move an authored point, which §4
+    /// item 3 forbids) or sits within ε_input of an endpoint
+    /// ([`PathError::DegenerateArcCenter`]).
+    pub fn arc_to<S: PointLeg<T, F>>(self, spec: S) -> S::Out {
+        S::leg_from(self, spec)
     }
 }
