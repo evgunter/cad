@@ -25,8 +25,8 @@
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
-    EntityKind, MateFrame, MatePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId,
-    REGENERATE_RECOURSE, RoleSeg, SCHEMA_VERSION, StableName, apply, load, save,
+    EntityKind, MateFrame, MatePrimitive, Node, PersistError, ProfileDoc, REGENERATE_RECOURSE,
+    RecipeNodeId, RoleSeg, SCHEMA_VERSION, StableName, apply, load, save,
 };
 
 /// The prior live golden, kept as the REFUSAL fixture: a break nobody
@@ -61,7 +61,10 @@ fn v11_refuses_too_old() {
         }) => {
             assert_eq!(found, 11);
             assert_eq!(supported, SCHEMA_VERSION);
-            assert_eq!(missing, 11, "the 11 → 12 step is the one that does not exist");
+            assert_eq!(
+                missing, 11,
+                "the 11 → 12 step is the one that does not exist"
+            );
         }
         other => panic!("v11 must refuse SchemaTooOld, got {other:?}"),
     }

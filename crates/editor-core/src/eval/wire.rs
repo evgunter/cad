@@ -79,10 +79,7 @@ where
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals),
         Node::Declare { pairs } => Ok((ValuePayload::Declarations(pairs.clone()), names::empty())),
         Node::InstantiatePart { doc_ref, .. } => {
-            let placement = env
-                .poses
-                .placement(doc, id)
-                .map_err(NodeErrorKind::Mate)?;
+            let placement = env.poses.placement(doc, id).map_err(NodeErrorKind::Mate)?;
             wire_instantiate_part(id, doc_ref, placement, env)
         }
         // A mate DENOTES NO BODY (A12): it evaluates to its role in
@@ -93,7 +90,11 @@ where
         Node::Mate { .. } => match env.poses.fault(id) {
             Some(fault) => Err(NodeErrorKind::Mate(Box::new(fault.clone()))),
             None => Ok((
-                ValuePayload::Mate(env.poses.role(id).unwrap_or(crate::mate::MateRole::Declaring)),
+                ValuePayload::Mate(
+                    env.poses
+                        .role(id)
+                        .unwrap_or(crate::mate::MateRole::Declaring),
+                ),
                 names::empty(),
             )),
         },

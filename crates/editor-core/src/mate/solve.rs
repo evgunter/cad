@@ -128,7 +128,12 @@ impl SolvedPoses {
         }
         let gauge = self.gauge.get(&instance).copied().unwrap_or(instance);
         let relative = self.relative.get(&instance).copied().unwrap_or_default();
-        Ok(doc.placements().get(&gauge).copied().unwrap_or_default().compose(&relative))
+        Ok(doc
+            .placements()
+            .get(&gauge)
+            .copied()
+            .unwrap_or_default()
+            .compose(&relative))
     }
 }
 
@@ -309,13 +314,8 @@ fn mate_coset(
 ) -> Result<Coset, Box<MateFault>> {
     let arm = alignment.lever_arm();
     let frame = |side: MateSide, f: &super::MateFrame| {
-        f.placement().map_err(|error| {
-            Box::new(MateFault::Frame {
-                mate,
-                side,
-                error,
-            })
-        })
+        f.placement()
+            .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
     };
     let fa = frame(MateSide::A, &alignment.a)?;
     let fb = frame(MateSide::B, &alignment.b)?;
@@ -408,7 +408,9 @@ fn invert(c: Coset) -> Coset {
         Subgroup::Se3 => Subgroup::Se3,
         Subgroup::Trivial => Subgroup::Trivial,
         Subgroup::Empty => Subgroup::Empty,
-        Subgroup::Planar { normal } => Subgroup::Planar { normal: dir(normal) },
+        Subgroup::Planar { normal } => Subgroup::Planar {
+            normal: dir(normal),
+        },
         Subgroup::Prismatic { direction } => Subgroup::Prismatic {
             direction: dir(direction),
         },
@@ -447,7 +449,13 @@ pub fn fold_pair<P>(
     let mut held_mate = None;
     let mut arm = 1.0_f64;
     for &mate in mates {
-        let Some(Node::Mate { a, b, class, alignment }) = doc.node(mate) else {
+        let Some(Node::Mate {
+            a,
+            b,
+            class,
+            alignment,
+        }) = doc.node(mate)
+        else {
             continue;
         };
         // v1 admits Rest and Tangent structurally; the class vocabulary
@@ -459,10 +467,7 @@ pub fn fold_pair<P>(
         let ha = head_of(doc, mate, MateSide::A, a).map_err(Box::new)?;
         let hb = head_of(doc, mate, MateSide::B, b).map_err(Box::new)?;
         if ha == hb {
-            return Err(Box::new(MateFault::SelfMate {
-                mate,
-                instance: ha,
-            }));
+            return Err(Box::new(MateFault::SelfMate { mate, instance: ha }));
         }
         arm = arm.max(alignment.lever_arm());
         let mut coset = mate_coset(mate, alignment, band)?;
@@ -575,7 +580,9 @@ pub fn solve_document<P>(doc: &Doc<P>) -> SolvedPoses {
                 // every mate holding it together.
                 for &instance in &cluster {
                     out.gauge.insert(instance, gauge);
-                    out.faults.entry(instance).or_insert_with(|| (*fault).clone());
+                    out.faults
+                        .entry(instance)
+                        .or_insert_with(|| (*fault).clone());
                 }
                 for (pair, mates) in &by_pair {
                     if cluster.contains(&pair.0) {
@@ -614,7 +621,10 @@ fn solve_cluster<P>(
     let position: BTreeMap<RecipeNodeId, usize> =
         cluster.iter().enumerate().map(|(i, &id)| (id, i)).collect();
     let mut neighbours: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
-    for (&(x, y), _) in by_pair.iter().filter(|((x, _), _)| position.contains_key(x)) {
+    for (&(x, y), _) in by_pair
+        .iter()
+        .filter(|((x, _), _)| position.contains_key(x))
+    {
         neighbours.entry(x).or_default().push(y);
         neighbours.entry(y).or_default().push(x);
     }

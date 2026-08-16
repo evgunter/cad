@@ -218,10 +218,7 @@ impl<P> Doc<P> {
     /// cluster-record maintenance writes through
     /// ([`crate::mate::solve::reconcile`]), so re-keying is a single
     /// observable act rather than a scatter of per-row edits.
-    pub(crate) fn set_placements(
-        &mut self,
-        rows: BTreeMap<RecipeNodeId, crate::placement::Frame>,
-    ) {
+    pub(crate) fn set_placements(&mut self, rows: BTreeMap<RecipeNodeId, crate::placement::Frame>) {
         self.placements = rows;
     }
 

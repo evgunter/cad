@@ -102,7 +102,11 @@ impl Frame {
             ],
             translation: [a.translation.x, a.translation.y, a.translation.z],
         };
-        if out.is_identity_bits() { Self::IDENTITY } else { out }
+        if out.is_identity_bits() {
+            Self::IDENTITY
+        } else {
+            out
+        }
     }
 
     /// Whether every stored coordinate is finite.

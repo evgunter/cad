@@ -98,11 +98,13 @@ fn point_eq(a: Point3<f64>, b: Point3<f64>) -> bool {
 impl PartialEq for Subgroup {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Se3, Self::Se3) | (Self::Trivial, Self::Trivial) | (Self::Empty, Self::Empty) => {
-                true
-            }
+            (Self::Se3, Self::Se3)
+            | (Self::Trivial, Self::Trivial)
+            | (Self::Empty, Self::Empty) => true,
             (Self::Planar { normal: a }, Self::Planar { normal: b })
-            | (Self::Prismatic { direction: a }, Self::Prismatic { direction: b }) => vec_eq(*a, *b),
+            | (Self::Prismatic { direction: a }, Self::Prismatic { direction: b }) => {
+                vec_eq(*a, *b)
+            }
             (
                 Self::Cylindrical {
                     point: pa,
@@ -130,11 +132,7 @@ impl PartialEq for Subgroup {
 
 impl PartialEq for Coset {
     fn eq(&self, other: &Self) -> bool {
-        let m = |x: &Affine3<f64>| {
-            [
-                x.linear.c0, x.linear.c1, x.linear.c2, x.translation,
-            ]
-        };
+        let m = |x: &Affine3<f64>| [x.linear.c0, x.linear.c1, x.linear.c2, x.translation];
         self.subgroup == other.subgroup
             && m(&self.representative)
                 .into_iter()
@@ -567,7 +565,12 @@ fn member_of(
     if matches!(g, Subgroup::Empty) {
         return Ok(Err(("mate_member_empty", f64::INFINITY)));
     }
-    let axis_fixed = |axis: Vec3<f64>| ("mate_member_axis_fixed", (x.linear * axis - axis).norm() * arm);
+    let axis_fixed = |axis: Vec3<f64>| {
+        (
+            "mate_member_axis_fixed",
+            (x.linear * axis - axis).norm() * arm,
+        )
+    };
     let checks: Vec<(&'static str, f64)> = match g {
         Subgroup::Se3 | Subgroup::Empty => Vec::new(),
         Subgroup::Trivial => vec![
@@ -589,7 +592,10 @@ fn member_of(
         ],
         Subgroup::Planar { normal } => vec![
             axis_fixed(normal),
-            ("mate_member_translation_in_plane", x.translation.dot(normal)),
+            (
+                "mate_member_translation_in_plane",
+                x.translation.dot(normal),
+            ),
         ],
         Subgroup::Cylindrical { point, direction } => vec![
             axis_fixed(direction),
@@ -682,46 +688,48 @@ fn candidate_rotation(
 ) -> Result<Mat3<f64>, FoldStop> {
     let q1 = held.representative.linear;
     let q2 = added.representative.linear;
-    Ok(match (held.subgroup.rotations(), added.subgroup.rotations()) {
-        (Rotations::Free, _) => q2,
-        (_, Rotations::Free) => q1,
-        // The tighter side forces the rotation; the looser side's
-        // violation, if any, surfaces at the membership check.
-        (Rotations::Fixed, _) => q1,
-        (_, Rotations::Fixed) => q2,
-        (Rotations::About(a1), Rotations::About(a2)) => {
-            if parallel(a1, a2, band, arm)? {
-                // Coaxial rotation constraints: the held representative
-                // already satisfies its own, and whether it satisfies
-                // the other is exactly the membership check's question.
-                q1
-            } else {
-                // Two distinct rotation axes. Write the unknown as
-                // `rot(a1, α)·Q1`; requiring it to fix a2 after the
-                // added side's representative is undone gives one
-                // equation in α, solvable iff the two vectors share
-                // their a1-component — the reachability predicate.
-                let m = q1 * q2.transpose();
-                let v = m * a2;
-                let reach = v.dot(a1) - a2.dot(a1);
-                if decide(
-                    "mate_rotation_two_axis_reachable",
-                    Margin::levered(reach, arm),
-                    band,
-                )? != Sign::Zero
-                {
-                    return Err(FoldStop::Clash {
-                        predicate: "mate_rotation_two_axis_reachable",
-                        margin: reach * arm,
-                    });
+    Ok(
+        match (held.subgroup.rotations(), added.subgroup.rotations()) {
+            (Rotations::Free, _) => q2,
+            (_, Rotations::Free) => q1,
+            // The tighter side forces the rotation; the looser side's
+            // violation, if any, surfaces at the membership check.
+            (Rotations::Fixed, _) => q1,
+            (_, Rotations::Fixed) => q2,
+            (Rotations::About(a1), Rotations::About(a2)) => {
+                if parallel(a1, a2, band, arm)? {
+                    // Coaxial rotation constraints: the held representative
+                    // already satisfies its own, and whether it satisfies
+                    // the other is exactly the membership check's question.
+                    q1
+                } else {
+                    // Two distinct rotation axes. Write the unknown as
+                    // `rot(a1, α)·Q1`; requiring it to fix a2 after the
+                    // added side's representative is undone gives one
+                    // equation in α, solvable iff the two vectors share
+                    // their a1-component — the reachability predicate.
+                    let m = q1 * q2.transpose();
+                    let v = m * a2;
+                    let reach = v.dot(a1) - a2.dot(a1);
+                    if decide(
+                        "mate_rotation_two_axis_reachable",
+                        Margin::levered(reach, arm),
+                        band,
+                    )? != Sign::Zero
+                    {
+                        return Err(FoldStop::Clash {
+                            predicate: "mate_rotation_two_axis_reachable",
+                            margin: reach * arm,
+                        });
+                    }
+                    let vp = v.reject_from(a1);
+                    let tp = a2.reject_from(a1);
+                    let alpha = f64::atan2(vp.cross(tp).dot(a1), vp.dot(tp));
+                    Mat3::rotation_about(a1, alpha) * q1
                 }
-                let vp = v.reject_from(a1);
-                let tp = a2.reject_from(a1);
-                let alpha = f64::atan2(vp.cross(tp).dot(a1), vp.dot(tp));
-                Mat3::rotation_about(a1, alpha) * q1
             }
-        }
-    })
+        },
+    )
 }
 
 /// Stage two: the candidate's translation, with the rotation fixed.

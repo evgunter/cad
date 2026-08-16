@@ -17,20 +17,17 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    Alignment, AxisSense, CancelToken, ClusterMaintenance, ContactClass, DocEdit,
-    DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive,
-    MateRole, Node, NodeErrorKind, NodeResult, PartResolver, ProfileDoc, RecipeNodeId,
-    ResolveFailure, ResolveFault, RoleSeg, StableName, apply, clusters, content_pin, evaluate,
-    load, product, relative_freedom_components, save, solve_document,
+    Alignment, AxisSense, CancelToken, ClusterMaintenance, ContactClass, DocEdit, DocRef,
+    DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive, MateRole,
+    Node, NodeErrorKind, NodeResult, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure,
+    ResolveFault, RoleSeg, StableName, apply, clusters, content_pin, evaluate, load, product,
+    relative_freedom_components, save, solve_document,
 };
 use fixture::{desc, insert, len, square, step};
 
 /// `step`, with the minted id unwrapped — every insert in this suite
 /// mints one.
-fn mint(
-    doc: ProfileDoc,
-    edit: DocEdit<editor_core::ProfileProgram>,
-) -> (ProfileDoc, RecipeNodeId) {
+fn mint(doc: ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let (doc, id) = step(doc, edit);
     (doc, id.expect("the insert minted an id"))
 }
@@ -262,7 +259,10 @@ fn row1_a_coaxial_clocked_rest_pair_is_determined_and_evaluates() {
         "the child sits at the seating height plus the standoff: {relative:?}"
     );
     assert!(
-        poses.relative(ids[0]).expect("the gauge").is_identity_bits(),
+        poses
+            .relative(ids[0])
+            .expect("the gauge")
+            .is_identity_bits(),
         "the gauge's own relative pose is the bit-exact identity"
     );
 
@@ -270,7 +270,9 @@ fn row1_a_coaxial_clocked_rest_pair_is_determined_and_evaluates() {
     let ev = run(&doc, &o);
     assert!(matches!(ev.result(ids[1]), Some(NodeResult::Ok(_))));
     let body = product(&doc, &ev).expect("the product gathers");
-    let volume = topo::mass_properties(&body).expect("mass properties").volume;
+    let volume = topo::mass_properties(&body)
+        .expect("mass properties")
+        .volume;
     assert!(
         (volume - 2.0).abs() < 1e-9,
         "two unit blocks, stacked, share only a face: {volume}"
@@ -484,7 +486,10 @@ fn row4b_a_mate_delete_splits_and_re_mints_from_the_solved_pose() {
          world pose is unchanged"
     );
     assert!(
-        applied.doc.placement(ids[0]).bit_eq(&Frame::translation([0.0, 0.0, 4.0])),
+        applied
+            .doc
+            .placement(ids[0])
+            .bit_eq(&Frame::translation([0.0, 0.0, 4.0])),
         "the surviving cluster keeps its frame verbatim"
     );
     assert!(before.bit_eq(&doc), "undo is the prior value, held exactly");
@@ -573,9 +578,8 @@ fn row5_the_closure_set_is_closed_under_intersection() {
         point: p,
         direction: d,
     };
-    let meet = |a, b| {
-        editor_core::mate::coset::intersect_subgroups(a, b, band, 1.0).expect("decided")
-    };
+    let meet =
+        |a, b| editor_core::mate::coset::intersect_subgroups(a, b, band, 1.0).expect("decided");
     // The universal rows: SE(3) is the identity, empty absorbs,
     // trivial is the zero.
     for g in [
@@ -589,7 +593,11 @@ fn row5_the_closure_set_is_closed_under_intersection() {
     ] {
         assert_eq!(meet(Subgroup::Se3, g), g, "X ∩ SE(3) = X");
         assert_eq!(meet(g, Subgroup::Se3), g, "unordered");
-        assert_eq!(meet(Subgroup::Empty, g), Subgroup::Empty, "X ∩ empty = empty");
+        assert_eq!(
+            meet(Subgroup::Empty, g),
+            Subgroup::Empty,
+            "X ∩ empty = empty"
+        );
         if !matches!(g, Subgroup::Empty) {
             assert_eq!(meet(Subgroup::Trivial, g), Subgroup::Trivial);
         }
@@ -955,7 +963,10 @@ fn row7d_an_in_band_case_split_escalates_typed() {
         Some("mate_axes_parallel"),
         "the escalation NAMES the predicate that could not decide"
     );
-    assert!(fault.to_string().contains("could not be decided"), "{fault}");
+    assert!(
+        fault.to_string().contains("could not be decided"),
+        "{fault}"
+    );
 }
 
 #[test]
