@@ -173,7 +173,7 @@ fn probe_cylinder_axis_near_tie_three_outcomes() {
     assert!(
         matches!(
             carrier_eq(&base, &near, PlaneIdentity::NONE, 1.0, band()),
-            Err(CarrierEqError::Undeclared(_))
+            Err(CarrierEqError::Undeclared { .. })
         ),
         "in-band, undeclared: refuses"
     );

@@ -76,7 +76,13 @@ fn require_same<T: Decide>(
         }),
         Ok(rel) => Ok(rel),
         Err(PlaneEqError::Escalated(diag)) => Err(BooleanError::Escalated { diag }),
-        Err(PlaneEqError::Undeclared(diag)) => Err(BooleanError::UndeclaredCoincidence { diag }),
+        Err(PlaneEqError::Undeclared { diag, relation }) => {
+            Err(BooleanError::UndeclaredCoincidence {
+                diag,
+                pair: [(o1, s1.face), (o2, s2.face)],
+                relation,
+            })
+        }
         Err(PlaneEqError::Contradicted(diag)) => {
             Err(BooleanError::DeclarationContradicted { diag })
         }

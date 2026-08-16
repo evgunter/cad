@@ -605,9 +605,25 @@ pub enum BooleanError {
     /// Two entities are geometrically coincident-or-near without a
     /// shared recipe source or declared intent backing the coincidence
     /// (F6/N6): near-coincidence NEVER silently becomes contact.
+    ///
+    /// Since LIB-PYG5 (register R3, SELECT-DESIGN §3d) the refusal
+    /// keeps what the raise site held: the face PAIR whose coincidence
+    /// lacked intent, each face tagged with its operand, plus the
+    /// orientation the ladder decided before refusing — so a document
+    /// layer can name the candidate declaration in the refusal itself
+    /// instead of re-running any decide on the error path.
     UndeclaredCoincidence {
         /// The escalation site's diagnostics.
         diag: Indeterminate,
+        /// The coincident face pair, each with the operand it lives
+        /// in. Cross-operand at the classification sites; both
+        /// entries share one operand at the F7 maximal-faces gate
+        /// (two faces of ONE body coinciding without shared source).
+        pair: [(Operand, FaceKey); 2],
+        /// The decided orientation ([`PlaneRelation::SameOriented`]
+        /// or [`PlaneRelation::SameOpposite`], never `Distinct`) —
+        /// the relation a declaration of this pair would assert.
+        relation: PlaneRelation,
     },
     /// A declared coincidence contradicts the geometry (the declared
     /// pair's planes are definitely distinct) — the recipe's intent
@@ -1016,7 +1032,7 @@ impl core::fmt::Display for BooleanError {
                 "boolean_reduce: predicate escalated ({diag}); the operand pair is \
                  ill-conditioned at this tolerance — never resolved by snapping"
             ),
-            Self::UndeclaredCoincidence { diag } => {
+            Self::UndeclaredCoincidence { diag, .. } => {
                 f.write_str(
                     "boolean_reduce: geometric coincidence (exact or within tolerance) without \
                      a shared recipe source or declared intent (",
@@ -1463,8 +1479,12 @@ fn verify_declared_contacts<T: Decide>(
                 return Err(BooleanError::Escalated { diag });
             }
             // Unreachable with `declared: true`; refuse loudly anyway.
-            Err(carrier_eq::CarrierEqError::Undeclared(diag)) => {
-                return Err(BooleanError::UndeclaredCoincidence { diag });
+            Err(carrier_eq::CarrierEqError::Undeclared { diag, relation }) => {
+                return Err(BooleanError::UndeclaredCoincidence {
+                    diag,
+                    pair: [(Operand::A, fa), (Operand::B, fb)],
+                    relation,
+                });
             }
         }
     }
@@ -1575,8 +1595,20 @@ mod tests {
         // The undeclared arm, in BOTH sub-shapes rung 4 produces: the
         // exactly-on refusal (Invalid margin, as synthesized) and the
         // in-band refusal (Value margin) — one message, one recourse.
+        // Payload for the R3 fields: a null-key pair (the message
+        // renders neither keys nor relation — the typed payload is
+        // the document layer's to name).
+        let pair = [
+            (Operand::A, FaceKey::default()),
+            (Operand::B, FaceKey::default()),
+        ];
         for margin in [MarginDiag::Invalid, MarginDiag::Value(5e-9)] {
-            let msg = BooleanError::UndeclaredCoincidence { diag: diag(margin) }.to_string();
+            let msg = BooleanError::UndeclaredCoincidence {
+                diag: diag(margin),
+                pair,
+                relation: PlaneRelation::SameOpposite,
+            }
+            .to_string();
             assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
         }
         // The synthesized-Invalid definite arm renders the honest
@@ -1584,6 +1616,8 @@ mod tests {
         // MAJOR-1).
         let msg = BooleanError::UndeclaredCoincidence {
             diag: diag(MarginDiag::Invalid),
+            pair,
+            relation: PlaneRelation::SameOpposite,
         }
         .to_string();
         assert!(msg.contains("exactly zero"), "{msg}");
