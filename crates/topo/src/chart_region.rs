@@ -1867,7 +1867,7 @@ mod tests {
         // exact ellipse carrier, charted onto the cylinder: the
         // sinusoid Harmonic (pa's v channel = 0.4·cos t).
         let k: f64 = 0.4;
-        let major_len = (1.0 + k * k).sqrt();
+        let major_len = (1.0 + k.powi(2)).sqrt();
         let ellipse = Curve3::Ellipse {
             center: Point3::origin(),
             axis: Vec3::new(-k, 0.0, 1.0).normalize(),
