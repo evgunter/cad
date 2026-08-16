@@ -11,8 +11,8 @@ use geom_core::{Band, Point3, Vec3};
 use topo::boolean::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
 use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::boolean::plane_eq::PlaneIdentity;
-use topo::contact::{ContactRefusal, ContactVerdict};
-use topo::{Body, BooleanResult, ContactRecords, Surface, ValidationError, union_with};
+use topo::contact::ContactRefusal;
+use topo::{BooleanResult, ContactRecords, Surface, ValidationError, union_with};
 
 fn band() -> Band {
     Band::linear().unwrap()
