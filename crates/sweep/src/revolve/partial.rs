@@ -155,6 +155,13 @@ pub(super) fn build_partial<T: Decide>(
             chain_spec(&segs[0], place, frame.n3, hq[0], hq[1 % m]),
         )?;
         hole_hes.push(first.he_plus);
+        // Recorded for EVERY loop, holes included, though a validated
+        // profile's hole vertices are never on-axis (the phase note
+        // above), so the pole export reads none of these today. The
+        // uniformity is the point: the assembly stays one loop keyed
+        // on `pinned`, which is the real discriminator, and a hole
+        // that ever reached the axis would export its pole rather
+        // than silently lose it.
         let mut hole_verts = vec![bridge.vertex, first.vertex];
         let mut prev = first;
         for j in 2..m {

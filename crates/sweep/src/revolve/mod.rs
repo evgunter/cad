@@ -161,6 +161,9 @@ pub struct Revolved<T: Real> {
     /// through `rims` and the meridian chains — and at vertices
     /// strictly INTERIOR to a full revolve's omitted axis run, which
     /// that case deletes outright (no body entity exists to name).
+    /// That last case is reachable through THIS API only — a
+    /// multi-segment axis run needs collinear same-carrier joins,
+    /// which the recipe layer's program validation refuses (#101).
     pub poles: Vec<Vec<Option<VertexKey>>>,
     /// The wedge caps and meridian edges — shaped by the case split.
     pub kind: RevolvedKind,

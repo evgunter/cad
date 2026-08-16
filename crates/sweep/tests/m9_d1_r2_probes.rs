@@ -81,9 +81,10 @@ fn partial_wedge_pole_export_is_direction_safe_both_signs() {
         let lo = canon_index(&vp, 0, p2(0.0, 0.5));
         let hi = canon_index(&vp, 0, p2(0.0, 2.5));
         let t = revolve(&vp, axis_y(), Revolution::Partial(theta)).unwrap();
-        // Tiers 1-2 only: the wedge CAP is volume-uncomputable
-        // (props_band_coplanar), a mass-props scope limit orthogonal
-        // to the pole export.
+        // Tiers 1-2 only: a band face with NO rims and non-coplanar
+        // meridians is volume-uncomputable (props_band_coplanar), a
+        // mass-props scope limit orthogonal to the pole export —
+        // issue #542. Tier 3 goes in here when that class computes.
         assert_eq!(validate(&t.body), Ok(()));
         assert_eq!(validate_closed(&t.body), Ok(()));
         assert_pole_at(&t, 0, lo, p2(0.0, 0.5));
@@ -176,9 +177,10 @@ fn partial_with_hole_exports_outer_poles_and_no_hole_poles() {
         let lo = canon_index(&vp, 0, p2(0.0, -2.0));
         let hi = canon_index(&vp, 0, p2(0.0, 2.0));
         let t = revolve(&vp, axis_y(), Revolution::Partial(theta)).unwrap();
-        // Tiers 1-2 only: the wedge CAP is volume-uncomputable
-        // (props_band_coplanar), a mass-props scope limit orthogonal
-        // to the pole export.
+        // Tiers 1-2 only: a band face with NO rims and non-coplanar
+        // meridians is volume-uncomputable (props_band_coplanar), a
+        // mass-props scope limit orthogonal to the pole export —
+        // issue #542. Tier 3 goes in here when that class computes.
         assert_eq!(validate(&t.body), Ok(()));
         assert_eq!(validate_closed(&t.body), Ok(()));
         assert_pole_at(&t, 0, lo, p2(0.0, -2.0));
