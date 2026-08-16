@@ -4,6 +4,7 @@
 //! full case deletes it, the partial keeps it as a third pole) and a
 //! MIXED on/off-axis dome. Every row stands on `check_total`: a
 //! silently mis-named or unnamed vertex cannot pass.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod fixture;
 
