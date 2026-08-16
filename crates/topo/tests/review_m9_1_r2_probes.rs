@@ -269,8 +269,15 @@ fn probe_census_gate_contradicts_curve_and_refuses_patch() {
 }
 
 /// PROBE 8 (claim 2, verdict honesty): an in-band GAP under a declared
-/// tangency is Bridged, never Definite — the declaration is doing the
-/// work and the trilean must say so.
+/// tangency is never Definite.
+///
+/// FIXED (M9-1 fix pass, F1). The probe originally asserted `Bridged`
+/// and passed, which is what made the defect visible from this side
+/// too: a gap is an on-surface RESIDUAL margin, and C4 puts
+/// locus-on-both-surfaces on the must-verify-DEFINITE list, not in the
+/// bridged residue (which is in-band κ_rel alone). So the honest
+/// third outcome is `Escalated`. Red-then-green: this assertion read
+/// `assert_eq!(v, ContactVerdict::Bridged)` when the probe was written.
 #[test]
 fn probe_in_band_gap_is_bridged_not_definite() {
     let cyl = Surface::Cylinder {
@@ -281,9 +288,12 @@ fn probe_in_band_gap_is_bridged_not_definite() {
     };
     let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     let locus = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
-    let v = tangent_locus_relation(&cyl, true, &flat, true, &locus, -1.0, 1.0, true, band())
-        .expect("an in-band gap under a declaration verifies");
-    assert_eq!(v, ContactVerdict::Bridged, "the declaration did the work");
+    let refusal = tangent_locus_relation(&cyl, true, &flat, true, &locus, -1.0, 1.0, true, band())
+        .expect_err("an in-band gap is not a residue any declaration may bridge");
+    assert!(
+        matches!(refusal, ContactRefusal::Escalated { .. }),
+        "in-band gap must escalate: {refusal:?}"
+    );
 }
 
 /// PROBE 9 (claim 2, resolution envelope): sweep a real gap from 1 pm

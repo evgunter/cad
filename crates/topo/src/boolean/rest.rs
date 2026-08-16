@@ -650,11 +650,10 @@ fn verify_declared_pairs<T: Decide>(
                 // and steers to the class that would fit when the
                 // counter-evidence is a separation (AQ6).
                 return Err(BooleanError::ContactContradicted {
-                    declaration: crate::contact::ContactFinding {
+                    declaration: crate::contact::DeclaredContact {
                         a: fa,
                         b: fb,
                         class: ContactClass::Rest,
-                        verdict: crate::contact::ContactVerdict::Definite,
                     },
                     steer: super::contact_verify::fit_steer(&diag),
                     margin: diag,

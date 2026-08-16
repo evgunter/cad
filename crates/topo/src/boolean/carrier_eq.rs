@@ -341,6 +341,13 @@ fn data_rungs<T: Decide>(
     // Rung 4: coincident-or-near with no identity rung — near
     // coincidence NEVER silently becomes contact, and bit-equal data
     // without a shared source stays unglued.
+    //
+    // The predicate named is the first IN-BAND margin when there is
+    // one (that is the margin the reader wants). When every datum
+    // decided definitely zero there is no such margin, and the
+    // fallback names the kind's FIRST datum rather than inventing a
+    // predicate name no `decide` call ever used — an invented name
+    // would read as a measurement that never happened.
     Err(CarrierEqError::Undeclared(any_in_band.unwrap_or(
         Indeterminate {
             margin: geom_core::MarginDiag::Invalid,
@@ -493,6 +500,57 @@ mod tests {
                 assert_eq!(d.predicate, Some("carrier_cyl_axis_offset"));
             }
             other => panic!("expected Contradicted, got {other:?}"),
+        }
+    }
+
+    /// ε-row on the cylinder's own margins, three outcomes at one
+    /// geometry — the row the sphere already had, owed to every new
+    /// margin. The radius datum carries it: sub-band, the declaration
+    /// bridges and the undeclared pair refuses; definite, it
+    /// contradicts.
+    #[test]
+    fn cylinder_radius_epsilon_row_three_outcomes() {
+        let a = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0, true);
+        let in_band = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0 + 1e-12, false);
+        assert!(
+            matches!(
+                carrier_eq(&a, &in_band, PlaneIdentity::NONE, 1.0, band()),
+                Err(CarrierEqError::Undeclared(_))
+            ),
+            "in-band, undeclared: refuses"
+        );
+        assert_eq!(
+            carrier_eq(&a, &in_band, declared(), 1.0, band()).unwrap(),
+            CarrierRelation::SameOpposite,
+            "in-band, declared: the bridged residue"
+        );
+        let definite = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.001, false);
+        match carrier_eq(&a, &definite, declared(), 1.0, band()).unwrap_err() {
+            CarrierEqError::Contradicted(d) => {
+                assert_eq!(d.predicate, Some("carrier_cyl_radius"));
+            }
+            other => panic!("expected Contradicted, got {other:?}"),
+        }
+    }
+
+    /// The cylinder's ANGULAR margin is metered at its named lever
+    /// arm, which is the arm the caller passes: a tilt that is
+    /// indecisive over a 1 m consumption extent is definite over a
+    /// 1000 km one. Same geometry, two arms, two honest answers.
+    #[test]
+    fn cylinder_axis_tilt_is_decided_at_the_lever_arm() {
+        let a = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0, true);
+        let tilted = cyl([0.0, 0.0, 0.0], [1e-11, 0.0, 1.0], 3.0, false);
+        assert_eq!(
+            carrier_eq(&a, &tilted, declared(), 1.0, band()).unwrap(),
+            CarrierRelation::SameOpposite,
+            "at a 1 m arm the tilt is below the band: the declaration stands"
+        );
+        match carrier_eq(&a, &tilted, declared(), 1e6, band()).unwrap_err() {
+            CarrierEqError::Contradicted(d) => {
+                assert_eq!(d.predicate, Some("carrier_cyl_axis_parallel"));
+            }
+            other => panic!("expected Contradicted at the long arm, got {other:?}"),
         }
     }
 

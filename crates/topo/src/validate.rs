@@ -244,7 +244,7 @@ use geom_surfaces::Surface;
 use slotmap::{Key, SecondaryMap};
 
 use crate::body::{Body, Walk};
-use crate::contact::ContactFinding;
+use crate::contact::DeclaredContact;
 use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
 
@@ -579,7 +579,7 @@ pub enum ValidationError {
     /// wins over every declaration.
     ContactContradicted {
         /// The face pair and class that were declared.
-        declaration: ContactFinding,
+        declaration: DeclaredContact,
         /// A debug rendering of the witnessing site.
         witness: String,
         /// The margin that decided, and its predicate — the named

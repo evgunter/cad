@@ -315,22 +315,17 @@ fn declared_rung<T: Decide>(
                 ContactVerdict::Definite
             },
         )),
-        // In-band: the declaration bridges exactly this.
-        Err(_) => {
-            bridged = true;
-            Ok((
-                if same_orient {
-                    PlaneRelation::SameOriented
-                } else {
-                    PlaneRelation::SameOpposite
-                },
-                if bridged {
-                    ContactVerdict::Bridged
-                } else {
-                    ContactVerdict::Definite
-                },
-            ))
-        }
+        // In-band: the declaration bridges exactly this, so the
+        // verdict is Bridged regardless of what the parallelism arm
+        // already found (`bridged` can only have been true).
+        Err(_) => Ok((
+            if same_orient {
+                PlaneRelation::SameOriented
+            } else {
+                PlaneRelation::SameOpposite
+            },
+            ContactVerdict::Bridged,
+        )),
     }
 }
 

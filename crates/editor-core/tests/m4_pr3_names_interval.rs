@@ -12,7 +12,7 @@ use editor_core::{
     BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
     evaluate,
 };
-use fixture::{declare_x_offset_flush, desc, fname, insert, len, scl, wall};
+use fixture::{declare_x_offset_flush, desc, insert, len, scl, wall};
 use geom_core::Interval;
 
 fn block(
@@ -57,17 +57,21 @@ fn corpus() -> ProfileDoc {
         },
     );
     let (doc, c) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    // The slot spans z ∈ [0.5, 1.5]: it PROTRUDES through c's top cap
+    // (z = 1.0) rather than resting in its plane, so the pair is not a
+    // coincidence and carries no declaration — the same shape as the
+    // f64 twin (`m4_pr3_names_bool.rs`'s slot subtract).
+    //
+    // It used to carry one, with a comment claiming "the slot's top
+    // cap lies IN c's top plane" — arithmetically false by 0.5 m. The
+    // declaration survived a milestone because nothing verified it:
+    // the boolean's only verify-at-use site was the REST lane, which
+    // is Union-only, and this op is a Subtract. The op-door pass
+    // (`boolean::verify_declared_contacts`) now checks every declared
+    // pair, which is what surfaced this. Coverage is not lost: `decl_u`
+    // above still exercises the declared-boolean naming path with a
+    // declaration that is TRUE.
     let (doc, slot) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
-    // The slot's top cap lies IN c's top plane — declared (M4 PR 5).
-    let (doc, decl_s) = insert(
-        doc,
-        Node::Declare {
-            pairs: vec![(
-                fname(c, editor_core::RoleSeg::Cap(editor_core::CapEnd::Top)),
-                fname(slot, editor_core::RoleSeg::Cap(editor_core::CapEnd::Top)),
-            )],
-        },
-    );
     let _ = wall; // shared helper import parity with the f64 lane
     let (doc, _sub) = insert(
         doc,
@@ -75,7 +79,7 @@ fn corpus() -> ProfileDoc {
             op: BooleanOp::Subtract,
             a: c,
             b: slot,
-            declare: Some(decl_s),
+            declare: None,
         },
     );
     let (doc, d) = block(doc, (4.0, 6.0), (0.0, 2.0), 0.0, 2.0);

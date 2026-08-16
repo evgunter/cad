@@ -184,7 +184,8 @@ pub use boolean::{
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{PlantedDegradation, sweep_traces, sweep_traces_with_pad};
 pub use contact::{
-    CONTACT_RECOURSE, ContactClass, ContactFinding, ContactRefusal, ContactVerdict, FIT_DEFERRAL,
+    CONTACT_RECOURSE, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
+    DeclaredContact, FIT_DEFERRAL,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,

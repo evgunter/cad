@@ -14,8 +14,8 @@ use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::boolean::plane_eq::PlaneIdentity;
 use topo::{
     Body, CarrierDesc, CarrierEqError, CarrierRelation, ContactClass, ContactRecords,
-    ContactVerdict, CurveContact, FacePairDeclaration, PatchContact, ValidationError, carrier_eq,
-    validate_pseudomanifold,
+    ContactRefusal, ContactVerdict, CurveContact, FacePairDeclaration, PatchContact,
+    ValidationError, carrier_eq, validate_pseudomanifold,
 };
 
 fn band() -> Band {
@@ -202,13 +202,33 @@ fn probe_tangent_bridges_inband_residual_beyond_the_stated_residue() {
     // A genuine (authored) gap of 3 eps: in the sliver band, so not
     // definite separation — but also NOT the #175 kappa_rel residue.
     let gapped = plane_s([0.0, 0.0, 3.0 * eps], [0.0, 0.0, 1.0]);
-    let got = tangent_locus_relation(&up, true, &gapped, false, &xline(), -1.0, 1.0, true, band())
-        .unwrap();
-    assert_eq!(
-        got,
-        ContactVerdict::Bridged,
-        "head behaviour: the in-band RESIDUAL is bridged (the docs claim it is must-verify-DEFINITE)"
+    // FIXED (M9-1 fix pass, F1). This probe found the defect and now
+    // pins the fix: an in-band on-surface residual is on C4's
+    // must-verify-DEFINITE list, so it is neither verified, nor
+    // bridged, nor contradicted — it ESCALATES, declaration or not.
+    // Red-then-green: this assertion read `Bridged` when the probe was
+    // written.
+    let refusal =
+        tangent_locus_relation(&up, true, &gapped, false, &xline(), -1.0, 1.0, true, band())
+            .expect_err("an in-band residual is not something a declaration may bridge");
+    assert!(
+        matches!(refusal, ContactRefusal::Escalated { .. }),
+        "in-band residual must escalate, not bridge: {refusal:?}"
     );
+    // The declaration changes nothing here — that is the point.
+    let undeclared = tangent_locus_relation(
+        &up,
+        true,
+        &gapped,
+        false,
+        &xline(),
+        -1.0,
+        1.0,
+        false,
+        band(),
+    )
+    .expect_err("undeclared, the same in-band residual escalates");
+    assert!(matches!(undeclared, ContactRefusal::Escalated { .. }));
 }
 
 /// CLAIM 4 — the at-rest gate fires `ValidationError::ContactContradicted`:

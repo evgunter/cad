@@ -917,11 +917,10 @@ fn confirm_curve_and_patch_records<T: Decide>(
             Ok(_) => {}
             Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
                 errors.push(ValidationError::ContactContradicted {
-                    declaration: crate::contact::ContactFinding {
+                    declaration: crate::contact::DeclaredContact {
                         a: c.face_a,
                         b: c.face_b,
                         class: crate::contact::ContactClass::Tangent,
-                        verdict: crate::contact::ContactVerdict::Definite,
                     },
                     witness: format!("{:?}", c.witness),
                     margin: diag,

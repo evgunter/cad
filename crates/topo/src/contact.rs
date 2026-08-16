@@ -141,21 +141,37 @@ pub enum ContactRefusal {
     },
 }
 
-/// **The kernel contact finding** — "this face pair would verify as
-/// this class, on this evidence" (SELECT-DESIGN §3a: a VALUE, never
-/// itself a declaration).
+/// **A contact CLAIM**: this face pair, asserted to be in contact of
+/// this class. What a declaration says, and what a refusal quotes back.
 ///
 /// Key-based because it is the kernel's currency; the recipe layer's
-/// name-based finding wraps this one and carries the SAME class and
-/// verdict (G1: names cross the boundary, keys never do).
+/// name-based form carries the same class (G1: names cross the
+/// boundary, keys never do).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ContactFinding {
+pub struct DeclaredContact {
     /// The A-side face.
     pub a: FaceKey,
     /// The B-side face.
     pub b: FaceKey,
-    /// The class the pair would verify as.
+    /// The class the pair is claimed to be in contact of.
     pub class: ContactClass,
+}
+
+/// **The kernel contact finding** — "this face pair would verify as
+/// this class, on this evidence" (SELECT-DESIGN §3a: a VALUE, never
+/// itself a declaration).
+///
+/// A finding is a [`DeclaredContact`] PLUS the verdict that decided
+/// it, by composition rather than by repeating the fields: the claim
+/// and the evidence for it are different things, and a refusal carries
+/// only the claim. Keeping the verdict off the claim is what stops the
+/// pun the two failure gates would otherwise make — a contradiction
+/// has no verification verdict to report, and it must not borrow
+/// `Definite` to mean "the counter-evidence was definite".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ContactFinding {
+    /// What was claimed.
+    pub pair: DeclaredContact,
     /// The verdict the verify door reported. A finding is only ever
     /// minted on [`ContactVerdict::Definite`] — a bridged pair needs a
     /// declaration, so it cannot be evidence FOR one.

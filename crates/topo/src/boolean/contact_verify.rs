@@ -31,22 +31,33 @@
 //! neutral meridian points have both spines' curvature projections
 //! vanishing, so demanding jet-determinacy everywhere would make
 //! every such chain undeclarable at exactly two points — #175
-//! finding 1, reproduced with extra steps. The declaration carries
-//! the non-crossing intent across exactly those samples and nothing
-//! further: normal opposition and on-surface residual are still
-//! must-verify-DEFINITE at every sample, so the weakening is confined
-//! to the second-order margin.
+//! finding 1, reproduced with extra steps.
+//!
+//! **The residue is that margin and NOTHING else**, which is a claim
+//! about code and is enforced by its shape: the on-surface residual
+//! and the opposed-senses test return `Escalated` from an in-band
+//! margin whether or not a declaration is in hand, and so does the
+//! first-order parallelism test — those three are C4's
+//! must-verify-DEFINITE list, and a list you may bridge is not a
+//! must-verify list. Only the second-order arm consults `declared`.
+//! In-band there is therefore a THIRD outcome, not a widened second
+//! one: verified / bridged-by-declaration / escalated, with
+//! contradiction sitting across all four arms.
 //!
 //! **What this lane does NOT check, named** (C4's "definite crossing
 //! (II_rel definitely indefinite)"): crossing is decided here only
 //! through the transverse `κ_rel` the jet computes along the locus
 //! tangent's perpendicular. A full second-fundamental-form
 //! indefiniteness test over all tangent directions needs machinery
-//! that does not exist yet; the honest consequence is that a
-//! declared tangency whose relative shape operator is indefinite in a
-//! direction the jet does not sample is BRIDGED rather than
-//! contradicted. This is a known weakening of the contradiction list,
-//! not of the must-verify list.
+//! that does not exist yet. The honest consequence, stated in the
+//! direction the code actually takes: a declared tangency whose
+//! relative shape operator is indefinite only in a direction the jet
+//! does not sample passes every arm this lane runs, so it comes back
+//! `Definite` — not `Bridged`, which would at least record that
+//! intent was doing work. Nothing here is weakened *by* the
+//! declaration; the contradiction list is simply narrower than C4's,
+//! and a configuration outside the sampled direction is missed rather
+//! than bridged.
 
 use geom_brep::{
     CERT_SAMPLES, sample_param, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
@@ -190,8 +201,12 @@ fn rest_pair_verdict<T: Decide>(
 ///   nonzero), definite normal independence (`sin θ` definitely
 ///   nonzero at that arm), or aligned normals (containment, not
 ///   tangency);
-/// - **bridges** (declared only): in-band `sin θ`, and the entire
-///   second-order margin including exact `κ_rel` zeros (module docs).
+/// - **bridges** (declared only): the second-order margin and ONLY it
+///   — in-band `κ_rel`, and exact zeros at isolated neutral points
+///   (module docs, the #175 clause);
+/// - **escalates**: an in-band margin on ANY must-verify arm
+///   (residual, opposition, first-order parallelism), declared or not,
+///   and the second-order residue when undeclared.
 ///
 /// The span bounds between samples come from the same
 /// `tangent_span_bounds` the edge certifier uses, so the hull
@@ -287,6 +302,14 @@ pub fn tangent_locus_relation<T: Decide>(
         })?;
     let sa = if sense1 { T::one() } else { -T::one() };
     let sb = if sense2 { T::one() } else { -T::one() };
+    // The locus's honest spatial extent, capping every lever arm the
+    // schedule uses — the same `edge_extent` cap the edge certifier
+    // applies (`certify.rs`'s tangent arm), shared rather than
+    // mirrored. Without it a planar carrier's curvature lever arm is
+    // `f64::MAX` and every angular margin reads definite at a lever no
+    // configuration is consumed over.
+    let chord = carrier.eval(t0).distance(carrier.eval(t1));
+    let extent = geom_brep::edge_extent(carrier, t0, t1, chord);
     let mut bridged = false;
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
@@ -310,12 +333,12 @@ pub fn tangent_locus_relation<T: Decide>(
                     });
                 }
                 Ok(Sign::Zero | Sign::Negative) => {}
-                Err(diag) => {
-                    if !declared {
-                        return Err(ContactRefusal::Escalated { diag });
-                    }
-                    bridged = true;
-                }
+                // MUST-VERIFY-DEFINITE (C4): "the locus on both
+                // surfaces within ε". An in-band residual is neither
+                // verified nor contradicted, and it is NOT the bridged
+                // residue — that list holds in-band κ_rel and nothing
+                // else. So it escalates, declared or not.
+                Err(diag) => return Err(ContactRefusal::Escalated { diag }),
             }
         }
         let jet = tangent_jet(s1, s2, p, tau);
@@ -325,7 +348,9 @@ pub fn tangent_locus_relation<T: Decide>(
         // (the C1 lemma, one dimension down from C3's patch clause).
         let n1: Vec3<T> = geom_brep::implicit_gradient(s1, p).normalize() * sa;
         let n2: Vec3<T> = geom_brep::implicit_gradient(s2, p).normalize() * sb;
-        let arm = geom_brep::curvature_lever_arm(s1, p).min(geom_brep::curvature_lever_arm(s2, p));
+        let arm = geom_brep::curvature_lever_arm(s1, p)
+            .min(geom_brep::curvature_lever_arm(s2, p))
+            .min(extent);
         match crate::validate::decide(
             "contact_tangent_opposed",
             Margin::levered(n1.dot(n2), arm),
@@ -355,21 +380,40 @@ pub fn tangent_locus_relation<T: Decide>(
                     steer: None,
                 });
             }
-            Err(diag) => {
-                if !declared {
-                    return Err(ContactRefusal::Escalated { diag });
-                }
-                bridged = true;
-            }
+            // MUST-VERIFY-DEFINITE, same reasoning as the residual
+            // arm: opposed senses are on C4's first list, not its
+            // third.
+            Err(diag) => return Err(ContactRefusal::Escalated { diag }),
         }
-        // (3) First-order tangency: normal parallelism within the
-        // derived angle at lever arm 1/κ_rel (C7 verbatim — the same
-        // `levered_inv` the edge certifier uses).
-        match crate::validate::decide(
-            "contact_tangent_parallel",
-            Margin::levered_inv(jet.sin_theta, jet.kappa_rel.abs()),
-            band,
-        ) {
+        // (3) and (4) are decided TOGETHER because C7's first-order
+        // threshold is derived FROM the second-order margin: the lever
+        // arm of the normal-parallelism test is 1/κ_rel, so whether
+        // that lever exists is exactly the second-order question. The
+        // second-order margin is therefore computed first and ACTED ON
+        // last — computing it early must not let it refuse before the
+        // first-order test (which can contradict) has spoken.
+        let so = Margin::sagitta(jet.kappa_rel.abs() - bounds.kappa_drift, arm);
+        let second_order_definite =
+            match crate::validate::decide("contact_tangent_second_order", so, band) {
+                Ok(Sign::Positive) => Some(true),
+                // An exact zero is the #175 neutral point: definite,
+                // and definitely NOT a usable lever.
+                Ok(Sign::Zero | Sign::Negative) => Some(false),
+                Err(_) => None,
+            };
+        // (3) First-order tangency. With a definite κ_rel the lever is
+        // C7's own 1/κ_rel (`levered_inv`, verbatim what the edge
+        // certifier uses). Without one the derived angle is unbounded,
+        // which would make the test vacuous, so the margin falls back
+        // to the ordinary angular door: the defect metered at the
+        // extent over which the verdict is consumed. Both spellings
+        // answer the same question and carry the same predicate name.
+        let parallel = if second_order_definite == Some(true) {
+            Margin::levered_inv(jet.sin_theta, jet.kappa_rel.abs())
+        } else {
+            Margin::levered(jet.sin_theta, arm)
+        };
+        match crate::validate::decide("contact_tangent_parallel", parallel, band) {
             Ok(Sign::Positive | Sign::Negative) => {
                 return Err(ContactRefusal::Contradicted {
                     diag: Indeterminate {
@@ -381,22 +425,19 @@ pub fn tangent_locus_relation<T: Decide>(
                 });
             }
             Ok(Sign::Zero) => {}
-            Err(diag) => {
-                if !declared {
-                    return Err(ContactRefusal::Escalated { diag });
-                }
-                bridged = true;
-            }
+            // First-order tangency is must-verify-DEFINITE (C4's first
+            // list): an in-band angular defect escalates, declared or
+            // not.
+            Err(diag) => return Err(ContactRefusal::Escalated { diag }),
         }
-        // (4) The second-order margin — THE bridged residue (module
-        // docs, the #175 clause). Definitely positive is the jet
-        // certificate's own verdict; anything else (in-band, or an
-        // exact zero at an isolated neutral point) is what the
-        // declaration carries, and what a detector refuses.
-        let so = Margin::sagitta(jet.kappa_rel.abs() - bounds.kappa_drift, arm);
-        match crate::validate::decide("contact_tangent_second_order", so, band) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) => {
+        // (4) The second-order margin — THE bridged residue, and the
+        // ONLY one (module docs, the #175 clause). Definitely positive
+        // is the jet certificate's own verdict; an in-band κ_rel or an
+        // exact zero at an isolated neutral point is what a
+        // declaration carries and what a detector refuses.
+        match second_order_definite {
+            Some(true) => {}
+            residue => {
                 if !declared {
                     return Err(ContactRefusal::Escalated {
                         diag: Indeterminate {
@@ -406,12 +447,7 @@ pub fn tangent_locus_relation<T: Decide>(
                         },
                     });
                 }
-                bridged = true;
-            }
-            Err(diag) => {
-                if !declared {
-                    return Err(ContactRefusal::Escalated { diag });
-                }
+                let _ = residue;
                 bridged = true;
             }
         }
@@ -533,6 +569,15 @@ mod tests {
     /// their relative curvature is EXACTLY zero everywhere — the
     /// degenerate limit of the G1 tube chain's neutral meridian
     /// points. The jet certificate is honestly indeterminate there.
+    ///
+    /// The fixture is the DEGENERATE LIMIT of that class, not an
+    /// instance of it: two coincident planes have κ_rel ≡ 0 at every
+    /// sample, where a G1 tube chain has it at two isolated points.
+    /// The clause is therefore pinned by proxy — the arm under test
+    /// (a definite-zero second-order margin, bridged only under a
+    /// declaration) is the same arm either way, and this fixture needs
+    /// no tube-chain constructor to reach it. A real chain row belongs
+    /// with the first constructor that mints one.
     ///
     /// Three outcomes at one geometry, which is the whole point:
     /// DECLARED it BRIDGES (intent carries the non-crossing claim

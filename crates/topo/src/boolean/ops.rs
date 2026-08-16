@@ -1126,6 +1126,16 @@ pub(super) fn remap_contacts<T: Real>(
     // by the zip is genuinely consumed, so its curve record drops
     // under the same strict rule as a fused vertex's rests. Inventing
     // an edge chase here would be a second lineage source of truth.
+    //
+    // The witness is looked up through the A-SIDE view, which is the
+    // convention and not an oversight: a `CurveContact`'s locus is a
+    // seam edge of the RESULT, and the result arena is A's clone
+    // (carve/clone preserve A's keys), so the A view is the identity
+    // map for exactly the edges that can carry one. A B-side witness
+    // would have to be grafted first and does not arise while nothing
+    // mints these records; when a producer lands it must mint the
+    // witness in result keys, and this convention is what it has to
+    // meet.
     let live_edge = |view: &KeyView<'_>, e: EdgeKey| {
         let k = view.edge(e)?;
         body.get_edge(k).map(|_| k)

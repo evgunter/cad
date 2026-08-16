@@ -374,8 +374,12 @@ impl FacePairDeclaration {
 /// "declared as WHAT", and a set can only answer "declared at all" —
 /// which is the same erasure the payload change exists to remove. A
 /// duplicate pair declared under two classes is a caller bug refused
-/// at the door (`validate_declarations`), so the last write here is
-/// never reached with disagreeing classes.
+/// at the door by an EXPLICIT check in `validate_declarations`, so the
+/// last write here is never reached with disagreeing classes. (That
+/// check exists because this sentence was measured vacuous: it held
+/// only while every non-`Rest` class refused wholesale, and would have
+/// become silent last-write-wins the day the op grew a second class
+/// arm.)
 #[derive(Debug, Default)]
 pub(crate) struct DeclaredPairs {
     map: std::collections::BTreeMap<(FaceKey, FaceKey), ContactClass>,
@@ -624,12 +628,22 @@ pub enum BooleanError {
     /// `ValidationError::ContactContradicted` — one story, two gates.
     ContactContradicted {
         /// The face pair and class that were declared.
-        declaration: crate::contact::ContactFinding,
+        declaration: crate::contact::DeclaredContact,
         /// The margin that decided, and its predicate.
         margin: Indeterminate,
         /// Extra recourse steering when the counter-evidence has a
         /// named remedy (AQ6's designed-clearance arm).
         steer: Option<&'static str>,
+    },
+    /// A declaration names a contact class this op's classification
+    /// does not implement (today: anything but
+    /// [`ContactClass::Rest`]). Refused at the door rather than
+    /// carried into stages that would ignore it — the vocabulary is
+    /// wider than this op's envelope, and the gap is typed, not
+    /// silent.
+    UnsupportedDeclarationClass {
+        /// The class that was declared.
+        class: ContactClass,
     },
     /// A [`BooleanDeclarations`] payload references an entity that
     /// does not resolve in its operand (stale/foreign key, or a
@@ -1055,6 +1069,13 @@ impl core::fmt::Display for BooleanError {
                  declared pair's planes are definitely distinct; fix the declaration or the \
                  geometry, the op never glues a lie"
             ),
+            Self::UnsupportedDeclarationClass { class } => write!(
+                f,
+                "boolean op: a declared contact of class {} was threaded into an op whose \
+                 classification acts on Rest declarations only — the class is refused at \
+                 the door rather than ignored inside",
+                class.name()
+            ),
             Self::InvalidDeclaration { operand, what } => write!(
                 f,
                 "boolean op: invalid declaration payload on operand {operand:?}: {what}"
@@ -1286,6 +1307,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
 ) -> Result<BooleanReduction<T>, BooleanError> {
     let band = Band::linear()?;
     validate_declarations(a_operand, b_operand, decls)?;
+    verify_declared_contacts(a_operand, b_operand, decls, band)?;
     let declared = DeclaredPairs::build(decls);
     reduce::gate_planar(a_operand, Operand::A)?;
     reduce::gate_planar(b_operand, Operand::B)?;
@@ -1387,19 +1409,68 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
 /// operand, and declared faces must be planes. A dangling declaration
 /// is a caller bug refused before any classification runs — never a
 /// silent drop (F5's no-silent-drop contract).
-// **A declaration that never meets geometry is still a silent no-op
-// here** (C4 names this gap; closing it is NOT this unit's change).
-//
-// An op-door pass that verified every declared pair through the
-// carrier ladder was written and reverted: it fires on an existing
-// green recipe corpus (`m4_pr3_names_interval`'s declared cap pair),
-// which means either that corpus carries a lie the classifier has
-// always stepped over, or the door needs an operand view the reduction
-// applies later. Either answer is a finding worth having deliberately
-// rather than as a side effect of this unit, so it is recorded here
-// and left for the reviewer. What DOES fire today: every declared pair
-// the classification or the REST lane actually walks past is verified
-// at use, and contradiction there is `BooleanError::ContactContradicted`.
+/// **C4's verify-at-use, at the door**: EVERY declared pair is checked
+/// against the geometry before the op runs — not only the pairs the
+/// classification happens to walk past.
+///
+/// This closes the gap C4 names by name: "a declaration that never
+/// meets geometry is a silent no-op at the op". A pair naming two
+/// faces that never come near each other is exactly that shape, and
+/// without this pass a lie is loud when the classifier trips over it
+/// and silent when it does not — which is the same lie either way.
+/// The review that found this also found the reason it had gone
+/// unnoticed for a milestone: the only other verify-at-use site is the
+/// REST lane, which runs on Union and only when the seam produces null
+/// pairs, so a Subtract with a false declaration was never verified at
+/// all.
+///
+/// Both Same± verdicts pass: this door verifies the CARRIER claim (the
+/// classification's own question), and aligned coincidence is the
+/// merge stage's legitimate flush-wall answer. Refusing containment is
+/// the contact record's job, one level up.
+fn verify_declared_contacts<T: Decide>(
+    a: &Body<T>,
+    b: &Body<T>,
+    decls: &BooleanDeclarations,
+    band: Band,
+) -> Result<(), BooleanError> {
+    for &FacePairDeclaration {
+        a: fa,
+        b: fb,
+        class,
+    } in &decls.coincident_faces
+    {
+        // A carrier kind the ladder cannot describe: `validate_
+        // declarations` has already had its say about which kinds this
+        // op accepts, so there is nothing left to add here.
+        let Some(outcome) = rest::carrier_pair_relation(a, fa, b, fb, true, band) else {
+            continue;
+        };
+        match outcome {
+            Ok(_) => {}
+            Err(carrier_eq::CarrierEqError::Contradicted(diag)) => {
+                return Err(BooleanError::ContactContradicted {
+                    declaration: crate::contact::DeclaredContact {
+                        a: fa,
+                        b: fb,
+                        class,
+                    },
+                    steer: contact_verify::fit_steer(&diag),
+                    margin: diag,
+                });
+            }
+            Err(carrier_eq::CarrierEqError::Escalated(diag)) => {
+                return Err(BooleanError::Escalated { diag });
+            }
+            // Unreachable with `declared: true`; refuse loudly anyway.
+            Err(carrier_eq::CarrierEqError::Undeclared(diag)) => {
+                return Err(BooleanError::UndeclaredCoincidence { diag });
+            }
+        }
+    }
+    Ok(())
+}
+
 fn validate_declarations<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
@@ -1425,13 +1496,27 @@ fn validate_declarations<T: Decide>(
         // The OP's envelope, not the vocabulary's: `carrier_eq` now
         // verifies sphere and cylinder `Rest` pairs, but this op's
         // classification stages are planar, and a declaration whose
-        // class or carrier kind the consuming stages cannot act on
-        // refuses at the door rather than being carried into stages
-        // that would silently ignore it.
+        // class the consuming stages cannot act on refuses at the door
+        // rather than being carried into stages that would silently
+        // ignore it. Its OWN variant, not `InvalidDeclaration`: a
+        // class the op does not implement is not a caller key bug, and
+        // it belongs to the declaration rather than to one operand, so
+        // there is no honest operand to tag it with.
         if class != ContactClass::Rest {
+            return Err(BooleanError::UnsupportedDeclarationClass { class });
+        }
+        // A pair declared twice under DIFFERENT classes is a caller bug
+        // refused here — the check the `DeclaredPairs` map's
+        // last-write-wins build would otherwise resolve silently the
+        // day this op grows a second class arm.
+        if decls
+            .coincident_faces
+            .iter()
+            .any(|d| (d.a, d.b) == (fa, fb) && d.class != class)
+        {
             return Err(bad(
                 Operand::A,
-                "the boolean op's classification acts on Rest declarations only;                  other classes refuse at the door rather than being ignored",
+                "one face pair is declared twice under different contact classes",
             ));
         }
         planar_face(a, fa, Operand::A)?;

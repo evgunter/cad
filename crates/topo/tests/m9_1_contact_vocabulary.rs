@@ -105,12 +105,17 @@ fn a_wrong_class_declaration_refuses_instead_of_being_ignored() {
         .expect_err("a class the stages cannot act on must refuse at the door");
     let msg = err.to_string();
     assert!(
-        matches!(err, BooleanError::InvalidDeclaration { .. }),
+        matches!(
+            err,
+            BooleanError::UnsupportedDeclarationClass {
+                class: ContactClass::Tangent
+            }
+        ),
         "{err:?}"
     );
     assert!(
-        msg.contains("Rest"),
-        "the refusal names the class it acts on: {msg}"
+        msg.contains("Tangent") && msg.contains("Rest"),
+        "the refusal names both the class asked for and the class it acts on: {msg}"
     );
 }
 
