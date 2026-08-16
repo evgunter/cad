@@ -357,10 +357,13 @@ fn point_on_line(
 /// **The subgroup half of the binding table**: `G ∩ G′`, every case
 /// split decided through the funnel.
 ///
-/// Unordered by construction — the function canonicalizes the pair's
-/// order and the table's entries are stated once each. `arm` is the
-/// lever the angular splits turn on (D4 ¶1: an angle decides only
-/// through the displacement it induces at a named length).
+/// Unordered as the table is: every entry states BOTH orders as one
+/// arm, which is also what makes the match EXHAUSTIVE without a
+/// catch-all — a new closure element would fail to compile here rather
+/// than fall into a silent default, which is the enumeration's whole
+/// point. `arm` is the lever the angular splits turn on (D4 ¶1: an
+/// angle decides only through the displacement it induces at a named
+/// length).
 ///
 /// # Errors
 ///
@@ -373,22 +376,15 @@ pub fn intersect_subgroups(
     arm: f64,
 ) -> Result<Subgroup, Indeterminate> {
     use Subgroup::{Cylindrical, Empty, Planar, Prismatic, Revolute, Se3, Trivial};
-    // The unordered entries, stated once: empty absorbs, SE(3) is the
-    // identity, trivial is the zero.
-    match (g1, g2) {
-        (Empty, _) | (_, Empty) => return Ok(Empty),
-        (Se3, other) | (other, Se3) => return Ok(other),
-        (Trivial, _) | (_, Trivial) => return Ok(Trivial),
-        _ => {}
-    }
-    // Canonical order so each remaining pair appears exactly once.
-    let (g1, g2) = if rank(g1) <= rank(g2) {
-        (g1, g2)
-    } else {
-        (g2, g1)
-    };
     Ok(match (g1, g2) {
-        // 1. planar ∩ planar — the V-block row.
+        // The universal entries: empty absorbs, SE(3) is the identity,
+        // trivial is the zero. Stated first, and between them they
+        // cover every tuple touching those three — so what remains
+        // below is exactly the four proper families.
+        (Empty, _) | (_, Empty) => Empty,
+        (Se3, other) | (other, Se3) => other,
+        (Trivial, _) | (_, Trivial) => Trivial,
+        // 1. planar ∩ planar — the flush merge and the V-block.
         (Planar { normal: n1 }, Planar { normal: n2 }) => {
             if parallel(n1, n2, band, arm)? {
                 Planar { normal: n1 }
@@ -398,14 +394,21 @@ pub fn intersect_subgroups(
                 }
             }
         }
-        // 2. planar ∩ cylindrical — pin-in-hole, slot, and the
-        //    generic angle that kills both freedoms.
+        // 2. planar ∩ cylindrical — pin-in-hole, slot, and the generic
+        //    angle that kills both freedoms.
         (
             Planar { normal: n },
             Cylindrical {
                 point: p,
                 direction: u,
             },
+        )
+        | (
+            Cylindrical {
+                point: p,
+                direction: u,
+            },
+            Planar { normal: n },
         ) => {
             if parallel(u, n, band, arm)? {
                 Revolute {
@@ -418,7 +421,7 @@ pub fn intersect_subgroups(
                 Trivial
             }
         }
-        // 4. planar ∩ prismatic.
+        // 3. planar ∩ prismatic.
         (Planar { normal: n }, Prismatic { direction: d })
         | (Prismatic { direction: d }, Planar { normal: n }) => {
             if perpendicular(d, n, band, arm)? {
@@ -427,13 +430,20 @@ pub fn intersect_subgroups(
                 Trivial
             }
         }
-        // 5. planar ∩ revolute.
+        // 4. planar ∩ revolute.
         (
             Planar { normal: n },
             Revolute {
                 point: p,
                 direction: u,
             },
+        )
+        | (
+            Revolute {
+                point: p,
+                direction: u,
+            },
+            Planar { normal: n },
         ) => {
             if parallel(u, n, band, arm)? {
                 Revolute {
@@ -444,8 +454,8 @@ pub fn intersect_subgroups(
                 Trivial
             }
         }
-        // 3. cylindrical ∩ cylindrical — same line, parallel, or
-        //    concurrent/skew.
+        // 5. cylindrical ∩ cylindrical — same line, parallel-distinct,
+        //    or concurrent/skew.
         (
             Cylindrical {
                 point: p1,
@@ -481,18 +491,28 @@ pub fn intersect_subgroups(
         // 7. cylindrical ∩ revolute.
         (
             Cylindrical {
-                point: p1,
-                direction: u1,
+                point: pc,
+                direction: uc,
             },
             Revolute {
-                point: p2,
-                direction: u2,
+                point: pr,
+                direction: ur,
+            },
+        )
+        | (
+            Revolute {
+                point: pr,
+                direction: ur,
+            },
+            Cylindrical {
+                point: pc,
+                direction: uc,
             },
         ) => {
-            if parallel(u1, u2, band, arm)? && point_on_line(p2, p1, u1, band)? {
+            if parallel(uc, ur, band, arm)? && point_on_line(pr, pc, uc, band)? {
                 Revolute {
-                    point: p2,
-                    direction: u2,
+                    point: pr,
+                    direction: ur,
                 }
             } else {
                 Trivial
@@ -528,25 +548,7 @@ pub fn intersect_subgroups(
                 Trivial
             }
         }
-        // Exhaustive by the canonical order plus the early returns; a
-        // NEW closure element must be classified above or this fires,
-        // which is the point of not writing a silent wildcard result.
-        (a, b) => unreachable!("uncovered closure pair {} ∩ {}", a.name(), b.name()),
     })
-}
-
-/// The canonical ordering rank, so each unordered table entry is
-/// written once.
-fn rank(g: Subgroup) -> u8 {
-    match g {
-        Subgroup::Se3 => 0,
-        Subgroup::Planar { .. } => 1,
-        Subgroup::Cylindrical { .. } => 2,
-        Subgroup::Prismatic { .. } => 3,
-        Subgroup::Revolute { .. } => 4,
-        Subgroup::Trivial => 5,
-        Subgroup::Empty => 6,
-    }
 }
 
 // ---- Membership: the decided predicate the representative meets ----
