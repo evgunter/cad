@@ -197,7 +197,8 @@ pub(crate) fn tessellate_trimmed(
             (uniform_candidates((u0, u1), (v0, v1), nu, nv), None)
         }
         Lane::Nurbs { ref grid } => {
-            let (cand, cells) = per_cell_candidates(grid, (u0, u1), (v0, v1), tol.delta_s)?;
+            let (cand, cells) =
+                per_cell_candidates(grid, &polygon, (u0, u1), (v0, v1), tol.delta_s)?;
             (cand, Some(cells))
         }
     };
@@ -512,8 +513,31 @@ fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec
 /// per axis of the cells its box covers — and the per-triangle
 /// certificate, checked from those same cells, remains the guarantee
 /// exactly as before.
+///
+/// # Boundary anchors (the alignment the uniform schedule had for free)
+///
+/// The pre-TESS-SPAN lane was accidentally protected against tall
+/// anisotropic BOUNDARY slivers: the chord pass sizes edge chords from
+/// the same whole-patch steps the old grid used, so a full-width iso
+/// rim's chord points sat EXACTLY on the grid columns, and every
+/// boundary vertex had a lattice point one row above it. Per-cell
+/// sizing breaks that phase alignment by construction, and the
+/// certificate promptly caught the consequence on the #316 lily leaf
+/// (measured): a rim vertex BETWEEN two columns of a 12:1-anisotropic
+/// grid admits an empty circumcircle reaching ~half a column spacing
+/// upward — a Delaunay-legal sliver spanning ~6 rows, whose honest
+/// per-cell certificate exceeds δ. The cure is not alignment (arcs and
+/// trim curves never had it) but ANCHORS: under/beside every boundary
+/// polygon vertex, extra candidates at the local row/column spacing,
+/// deep enough to block a circumcircle that would otherwise clear the
+/// neighbouring column/row — `⌈spacing_u / (2·spacing_v)⌉` rows down a
+/// column and vice versa, each axis only when that slab actually has
+/// interior lines to misalign against (`n ≥ 2`). Anchor points falling
+/// on constraints are handled by the same retry ladder as any other
+/// candidate; the certificate remains the guarantee.
 fn per_cell_candidates(
     grid: &NurbsCellGrid,
+    polygon: &[(f64, f64, u32)],
     u: (f64, f64),
     v: (f64, f64),
     delta_s: f64,
@@ -531,6 +555,10 @@ fn per_cell_candidates(
     let v_slabs = slabs(grid.v_cuts(), v.0, v.1);
     let mut cand: Vec<(f64, f64)> = Vec::new();
     let mut grid_cells = 0usize;
+    // Per (v-slab, u-slab): the realised counts and spacings, kept for
+    // the boundary-anchor pass below.
+    let mut slab_grid: Vec<(usize, usize, f64, f64)> =
+        Vec::with_capacity(u_slabs.len() * v_slabs.len());
     for &(va, vb) in &v_slabs {
         for &(ua, ub) in &u_slabs {
             // One-ring-dilated sizing bound (`step_bound_at` docs) —
@@ -541,6 +569,8 @@ fn per_cell_candidates(
             let nuc = ceil_count(ub - ua, hu)?;
             let nvc = ceil_count(vb - va, hv)?;
             grid_cells += nuc * nvc;
+            #[allow(clippy::cast_precision_loss)]
+            slab_grid.push((nuc, nvc, (ub - ua) / nuc as f64, (vb - va) / nvc as f64));
             // Slab-boundary indices reproduce the cut values EXACTLY
             // (never through the lerp, whose rounding would put two
             // almost-coincident lines an ulp apart on a shared
@@ -568,6 +598,52 @@ fn per_cell_candidates(
                         continue;
                     }
                     cand.push((uu, vv));
+                }
+            }
+        }
+    }
+    // Boundary anchors (function docs): a column of points below/above
+    // and a row beside each polygon vertex, at that vertex's slab
+    // spacing, reaching half the OTHER axis' spacing.
+    let slab_of = |slabs: &[(f64, f64)], x: f64| -> usize {
+        slabs
+            .partition_point(|&(a, _)| a <= x)
+            .saturating_sub(1)
+            .min(slabs.len().saturating_sub(1))
+    };
+    for &(ub, vb, _) in polygon {
+        let (si, sj) = (slab_of(&u_slabs, ub), slab_of(&v_slabs, vb));
+        let (nuc, nvc, su, sv) = slab_grid[sj * u_slabs.len() + si];
+        // Column under/over the vertex — only when the slab has
+        // interior COLUMNS to be out of phase with, and never from a
+        // vertex ON a vertical box edge (the column would lie along
+        // the rail constraint and be dropped by the retry ladder).
+        if nuc >= 2 && sv.is_finite() && sv > 0.0 && ub > u.0 && ub < u.1 {
+            let depth = (su / (2.0 * sv)).ceil();
+            if depth.is_finite() {
+                let mut j = 1.0;
+                while j <= depth {
+                    for vv in [vb + j * sv, vb - j * sv] {
+                        if vv > v.0 && vv < v.1 {
+                            cand.push((ub, vv));
+                        }
+                    }
+                    j += 1.0;
+                }
+            }
+        }
+        // Row beside the vertex — the transposed case.
+        if nvc >= 2 && su.is_finite() && su > 0.0 && vb > v.0 && vb < v.1 {
+            let depth = (sv / (2.0 * su)).ceil();
+            if depth.is_finite() {
+                let mut i = 1.0;
+                while i <= depth {
+                    for uu in [ub + i * su, ub - i * su] {
+                        if uu > u.0 && uu < u.1 {
+                            cand.push((uu, vb));
+                        }
+                    }
+                    i += 1.0;
                 }
             }
         }
