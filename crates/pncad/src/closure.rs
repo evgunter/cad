@@ -32,28 +32,28 @@
 //! read and its variant payloads classified. This list has been
 //! through two passes: a first, `pub use`-driven sweep, and a second
 //! after review found the first one incomplete. The types the first
-//! pass missed are marked **[2]**, and they are instructive — each was
+//! pass missed are marked **\[2\]**, and they are instructive — each was
 //! missed for a *structural* reason worth naming, because the same
 //! reason will hide the next one:
 //!
-//! - `topo::boolean::ContainError` **[2]** — re-exported by its own
+//! - `topo::boolean::ContainError` **\[2\]** — re-exported by its own
 //!   crate's `boolean` module but NOT lifted to the crate root, while
 //!   its neighbours in the same `pub use` line are. A root-level scan
 //!   walks straight past it. It carries a cross-crate
 //!   `geom_core::Indeterminate`: exactly the audited class.
-//! - `geom_curves::EllipseInvalid` **[2]** — defined directly in its
+//! - `geom_curves::EllipseInvalid` **\[2\]** — defined directly in its
 //!   crate's root module with no `pub use` line at all, so a scan
 //!   driven by re-export statements never sees it. Also carries
 //!   `geom_core::Indeterminate`.
-//! - `mesh::validate::MeshError` **[2]** — lives below the crate root;
+//! - `mesh::validate::MeshError` **\[2\]** — lives below the crate root;
 //!   `mesh::MeshError` does not resolve.
-//! - `geom_surfaces::SurfaceProjectionInconclusive` **[2]** — the
+//! - `geom_surfaces::SurfaceProjectionInconclusive` **\[2\]** — the
 //!   first pass recorded "geom_surfaces defines no error type", which
 //!   was simply wrong.
 //! - `geom_core::Indeterminate`, `geom_core::ToleranceEnvErrorKind`,
 //!   `step_import::{AdoptionAttempt, AdoptionCandidate}`,
 //!   `editor_core::ResolutionFailure`,
-//!   `editor_core::persist::MigrationError` **[2]** — public error or
+//!   `editor_core::persist::MigrationError` **\[2\]** — public error or
 //!   error-carrying types the first pass did not enumerate.
 //!
 //! The audited types, by crate (module path given where the type is
@@ -64,29 +64,29 @@
 //!   `SplitReduceError`, `SplitJoinError`, `SplitFinishError`,
 //!   `SplitError`, `PointInSolidError`, `PointInLoopError`,
 //!   `PlaneEqError`, `MergeCoplanarError`, `RevertError`,
-//!   `SourceAttachError`, `boolean::ContainError` **[2]**
+//!   `SourceAttachError`, `boolean::ContainError` **\[2\]**
 //! - `sweep`: `ExtrudeError`, `RevolveError`, `LoftError`,
 //!   `SkinError`, `TubeError`, `fillet::FilletError`
 //! - `geom_brep`: `CertifyError`, `PcurveCertifyError`, `PropsError`,
 //!   `NewellError`, `SsiError`, `SectionError`, `PcurveError`
 //! - `geom_core`: `BandError`, `SplineError`, `ToleranceError`,
-//!   `ToleranceEnvError`, `ToleranceEnvErrorKind` **[2]**,
-//!   `Indeterminate` **[2]**, `spline::KnotAlgebraError`,
+//!   `ToleranceEnvError`, `ToleranceEnvErrorKind` **\[2\]**,
+//!   `Indeterminate` **\[2\]**, `spline::KnotAlgebraError`,
 //!   `spline::ComposeError`, `linalg::lsq::LsqError`
 //! - `geom_curves`: `FitError`, `ProjectionInconclusive`,
-//!   `EllipseInvalid` **[2]**
-//! - `geom_surfaces`: `SurfaceProjectionInconclusive` **[2]**
+//!   `EllipseInvalid` **\[2\]**
+//! - `geom_surfaces`: `SurfaceProjectionInconclusive` **\[2\]**
 //! - `profile`: `ProfileError`
-//! - `mesh`: `TessellateError`, `validate::MeshError` **[2]**
+//! - `mesh`: `TessellateError`, `validate::MeshError` **\[2\]**
 //! - `stl`: `StlError`
 //! - `step_export`: `StepExportError`
-//! - `step_import`: `StepImportError`, `AdoptionAttempt` **[2]**,
-//!   `AdoptionCandidate` **[2]**
+//! - `step_import`: `StepImportError`, `AdoptionAttempt` **\[2\]**,
+//!   `AdoptionCandidate` **\[2\]**
 //! - `editor_core`: `NodeError`/`NodeErrorKind`, `EditError`,
 //!   `NamingError`, `DuplicateName`, `ResolveError`, `HitTestError`, `EvalError`,
 //!   `DimensionError`, `PersistError`, `SnapshotError`, `MetaError`,
-//!   `MetaVersionError`, `ResolutionFailure` **[2]**,
-//!   `persist::MigrationError` **[2]**
+//!   `MetaVersionError`, `ResolutionFailure` **\[2\]**,
+//!   `persist::MigrationError` **\[2\]**
 //!
 //! **Result: the property holds, with one stated exception (below),
 //! and it required zero kernel edits.** The `SurfaceKind` leak was
