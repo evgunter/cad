@@ -163,12 +163,7 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
     // certified 3' pass.
     let (doc_declared, mover) = block(doc, (1.5, 2.5), (1.5, 2.5), 1.5, 1.0);
     let (va, vb) = kiss_vertex_names(a, b, base);
-    let (doc_declared, decl) = insert(
-        doc_declared,
-        Node::Declare {
-            pairs: vec![(va, vb)],
-        },
-    );
+    let (doc_declared, decl) = insert(doc_declared, Node::declare_rest(vec![(va, vb)]));
     let (doc_declared, u2) = insert(
         doc_declared,
         Node::Boolean {
@@ -301,9 +296,10 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
     let (doc, b2) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
     let (doc, decl) = insert(
         doc,
-        Node::Declare {
-            pairs: vec![(floor1.clone(), fname(b2, RoleSeg::Cap(CapEnd::Bottom)))],
-        },
+        Node::declare_rest(vec![(
+            floor1.clone(),
+            fname(b2, RoleSeg::Cap(CapEnd::Bottom)),
+        )]),
     );
     let (doc, s2) = insert(
         doc,
@@ -390,9 +386,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     ghost.path = vec![RoleSeg::Cap(CapEnd::Top), RoleSeg::Cap(CapEnd::Top)]; // …not any more
     let (doc, decl) = insert(
         base.clone(),
-        Node::Declare {
-            pairs: vec![(ghost, fname(b, RoleSeg::Cap(CapEnd::Top)))],
-        },
+        Node::declare_rest(vec![(ghost, fname(b, RoleSeg::Cap(CapEnd::Top)))]),
     );
     let (doc, u) = boolean_with(doc, decl);
     let k = failed_kind(&run(&doc), u);
@@ -423,12 +417,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
             },
         ),
     );
-    let (doc, decl) = insert(
-        base.clone(),
-        Node::Declare {
-            pairs: vec![(va, vb)],
-        },
-    );
+    let (doc, decl) = insert(base.clone(), Node::declare_rest(vec![(va, vb)]));
     let (doc, u) = boolean_with(doc, decl);
     let k = failed_kind(&run(&doc), u);
     assert!(k.contains("DeclareUnsupportedPair"), "{k}");
@@ -446,18 +435,16 @@ fn skipped_declared_merge_recipe_door_is_tier3_green() {
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 1.25), 0.0, 1.0);
     let (doc, decl) = insert(
         doc,
-        Node::Declare {
-            pairs: vec![
-                (
-                    fname(a, RoleSeg::Cap(CapEnd::Top)),
-                    fname(b, RoleSeg::Cap(CapEnd::Top)),
-                ),
-                (
-                    fname(a, RoleSeg::Cap(CapEnd::Bottom)),
-                    fname(b, RoleSeg::Cap(CapEnd::Bottom)),
-                ),
-            ],
-        },
+        Node::declare_rest(vec![
+            (
+                fname(a, RoleSeg::Cap(CapEnd::Top)),
+                fname(b, RoleSeg::Cap(CapEnd::Top)),
+            ),
+            (
+                fname(a, RoleSeg::Cap(CapEnd::Bottom)),
+                fname(b, RoleSeg::Cap(CapEnd::Bottom)),
+            ),
+        ]),
     );
     let (doc, u) = insert(
         doc,
@@ -517,9 +504,7 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
     let cap = fname(a, RoleSeg::Cap(CapEnd::Top));
     let (doc, decl) = insert(
         doc,
-        Node::Declare {
-            pairs: vec![(cap.clone(), fname(a, RoleSeg::Cap(CapEnd::Bottom)))],
-        },
+        Node::declare_rest(vec![(cap.clone(), fname(a, RoleSeg::Cap(CapEnd::Bottom)))]),
     );
     let (doc, u) = insert(
         doc,
@@ -543,12 +528,10 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
     let (doc, c) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, decl) = insert(
         doc,
-        Node::Declare {
-            pairs: vec![(
-                fname(c, RoleSeg::Cap(CapEnd::Top)),
-                fname(b, RoleSeg::Cap(CapEnd::Top)),
-            )],
-        },
+        Node::declare_rest(vec![(
+            fname(c, RoleSeg::Cap(CapEnd::Top)),
+            fname(b, RoleSeg::Cap(CapEnd::Top)),
+        )]),
     );
     let (doc, u) = insert(
         doc,
@@ -617,9 +600,7 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
     let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
     let (doc, decl) = insert(
         doc,
-        Node::Declare {
-            pairs: vec![(tied.clone(), fname(mate, RoleSeg::Cap(CapEnd::Top)))],
-        },
+        Node::declare_rest(vec![(tied.clone(), fname(mate, RoleSeg::Cap(CapEnd::Top)))]),
     );
     let (doc, u2) = insert(
         doc,
@@ -681,9 +662,7 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
     let (doc, b1) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, decl) = insert(
         doc,
-        Node::Declare {
-            pairs: vec![(floor2, fname(b1, RoleSeg::Cap(CapEnd::Bottom)))],
-        },
+        Node::declare_rest(vec![(floor2, fname(b1, RoleSeg::Cap(CapEnd::Bottom)))]),
     );
     let (doc, s2) = insert(
         doc,

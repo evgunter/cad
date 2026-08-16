@@ -272,7 +272,9 @@ fn declare_inserts_the_pair() {
     let findings = find_flush_candidates(&ev, base, top).unwrap();
     let (doc, decl) = declare(&doc, &findings[0]).unwrap();
     match doc.node(decl) {
-        Some(Node::Declare { pairs }) => assert_eq!(pairs, &[findings[0].pair.clone()]),
+        Some(Node::Declare { pairs }) => {
+            assert_eq!(pairs, &[(findings[0].pair.clone(), findings[0].class)])
+        }
         other => panic!("expected a Declare node, got {other:?}"),
     }
 }

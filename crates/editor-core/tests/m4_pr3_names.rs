@@ -482,12 +482,7 @@ fn declare_pairs_resolve_in_the_named_nodes_tables() {
         name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top)),
         name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::Bottom)),
     );
-    let (doc, _decl) = insert(
-        doc,
-        Node::Declare {
-            pairs: vec![pair.clone()],
-        },
-    );
+    let (doc, _decl) = insert(doc, Node::declare_rest(vec![pair.clone()]));
     let ev = run(&doc);
     for name in [&pair.0, &pair.1] {
         let t = table(&ev, name.node);

@@ -837,9 +837,10 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             for n in node.named_nodes() {
                 if !new.nodes.contains_key(&n) {
                     let name = match node {
-                        Node::Declare { pairs } => {
-                            pairs.iter().flat_map(|(a, b)| [a, b]).find(|x| x.node == n)
-                        }
+                        Node::Declare { pairs } => pairs
+                            .iter()
+                            .flat_map(|((a, b), _)| [a, b])
+                            .find(|x| x.node == n),
                         Node::Fillet { selection, .. } => selection.iter().find(|x| x.node == n),
                         _ => None,
                     };
@@ -999,7 +1000,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             for node in new.nodes.values_mut() {
                 match node {
                     Node::Declare { pairs } => {
-                        for name in pairs.iter_mut().flat_map(|(a, b)| [a, b]) {
+                        for name in pairs.iter_mut().flat_map(|((a, b), _)| [a, b]) {
                             if name == from {
                                 *name = to.clone();
                                 declare_sites += 1;

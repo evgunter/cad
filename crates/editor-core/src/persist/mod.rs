@@ -181,9 +181,48 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// is ONE LINE, so the second merge resolves it CLEANLY to the same
 /// text while the two meanings silently collapse.
 ///
+/// **The persistence boundary for contact data, stated once** (C4,
+/// D9; the seam ASM-R2-SPEC-DRAFT:41-58 negotiates). DECLARATIONS
+/// persist — they are recipe data on the consuming node, exactly like
+/// any other authored payload, and that is what this version's break
+/// is about. RECORDS never persist: a body's verified contact records
+/// are re-derived by replay (D9), so nothing here writes a
+/// `ContactRecords`. ASM-4's interface record stores DECLARATIONS for
+/// the same reason — crossing declarations ARE the seam, so the split
+/// populates them and the re-verification gate re-checks them against
+/// solved geometry; it does not store the records that gate produces.
+///
+/// Version 10 is the **declaration-class clean break** (M9-1 spec
+/// PR-2; CONTACT-DESIGN C4, ratified #178): [`crate::Node::Declare`]'s
+/// pairs each gained the [`topo::ContactClass`] they assert, so a
+/// declaration now says WHAT kind of contact it claims instead of
+/// leaving the consuming boolean to assume the conformal one. With
+/// `deny_unknown_fields` and a changed tuple arity, a v8 pair is not a
+/// v10 pair at the wire, either direction.
+///
+/// A migration COULD write `rest` into every v8 pair — that is what
+/// they meant — but it would be inventing the one datum the break
+/// exists to stop being assumed, and it would do so silently on files
+/// whose author never made the choice. C4's invariant is that no path
+/// exists from "the numbers look equal" to a glued contact without a
+/// structural or declared rung; a migration that authors the rung on
+/// the user's behalf is that path with extra steps. So v9 and below
+/// refuse TYPED with the regenerate recourse, exactly as v1–v8 do, and
+/// the migration table stays empty.
+///
+/// **Why 10 and not 9.** LIB-RESPELL (#531) claimed 9 and was open
+/// with 9 in hand when this break was dispatched, so this unit takes
+/// the next free number rather than racing it. That is the standing
+/// resolution of the 7/8 double-claim recorded above, applied BEFORE
+/// the collision instead of after: two vocabulary changes never share
+/// one version, and the cheapest way to guarantee that is to read the
+/// open claims at dispatch and claim past them. If #531 lands after
+/// this one, 9 is simply never used — a gap in the sequence costs
+/// nothing, while a collision costs a human eye.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these seven.
-pub const SCHEMA_VERSION: u32 = 8;
+/// [`migration_step`] entry, or a ratified break like these eight.
+pub const SCHEMA_VERSION: u32 = 10;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -437,10 +476,12 @@ pub type MigrationStep = fn(serde_json::Value) -> Result<serde_json::Value, Migr
 /// (M6-5, ruled #217), 3 → 4 (LIB-SWITCH §4h — profiles as programs,
 /// ratified LQ7a clean break), 4 → 5 (ASM-1 D-6 — document identity)
 /// 5 → 6 (ASM-ROOTS D-1 — product roots) and 6 → 7 (ASM-2A D-6 —
-/// the instantiate node + A11 placements) were all ratified clean
-/// breaks. The mechanism stays because it costs nothing and D6.3's
-/// forward-only rule is unchanged; a future format change that is NOT
-/// a break adds its `n => Some(step_n)` arm here.
+/// the instantiate node + A11 placements), 7 → 8 (LIB-LBRET — the
+/// `AtToward` chain step) and 9 → 10 (M9-1 — the declaration class)
+/// were all ratified clean breaks. The mechanism stays because it
+/// costs nothing and D6.3's forward-only rule is unchanged; a future
+/// format change that is NOT a break adds its `n => Some(step_n)` arm
+/// here.
 fn migration_step(from_version: u32) -> Option<MigrationStep> {
     /// `(from_version, step)` pairs — the whole chain, one line each.
     const TABLE: &[(u32, MigrationStep)] = &[];
