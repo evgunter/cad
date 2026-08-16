@@ -817,3 +817,7 @@ disposition — A2 tied SectionEdge + B1 tied propagation + the
 fields M / STRUCTURAL. Third parallel lane (names/ territory,
 disjoint from RESPELL PR-1 and PYG5 per the fences). Slots 2
 (PlacedUnion, behind RESPELL PR-1's schema claim) and 4 bank.
+RESPELL PR-1 review ordinal fixed at dispatch (2026-08-15, PR
+#531 open): claimed through 40 (ASM-4) + 1 = **41 → SINGLE**
+(42 is the next third — dual block draws at its claim).
+Reviewer fable.
