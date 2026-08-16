@@ -55,6 +55,7 @@ pub mod tangent;
 
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, edge_extent,
+    sample_param,
 };
 pub use dihedral::{DihedralClass, classify_dihedral};
 pub use edge_geometry::{EdgeGeometry, MappedCurve, SketchSegment};
@@ -85,4 +86,6 @@ pub use ssi::{
     SsiError, SsiLimb, SsiOperand, SsiOutcome, StepperMode, certify_rung3, cylinder_sphere_ssi,
     idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
 };
-pub use tangent::{TangentJet, tangent_certificate_lane, tangent_jet};
+pub use tangent::{
+    TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
+};
