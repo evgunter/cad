@@ -525,9 +525,11 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
             c,
             winding,
             target: Target::Point(t),
-        } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_to(Center { c, winding, p: t })?,
-        ))),
+        } => Ok(Applied::Tip(DynTip::DirectedPoint(p.arc_to(Center {
+            c,
+            winding,
+            p: t,
+        })?))),
         ArcData::Center {
             c,
             winding,
