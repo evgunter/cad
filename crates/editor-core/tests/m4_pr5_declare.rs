@@ -208,12 +208,11 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
     );
     let ev = run(&doc_undeclared);
     match ev.nodes.get(&u) {
+        // Since R3 (LIB-PYG5) the undeclared-coincidence refusal
+        // surfaces as the typed refusal-menu variant, finding attached.
         Some(NodeResult::Failed(e)) => assert!(
-            matches!(
-                e.kind,
-                NodeErrorKind::Boolean(topo::BooleanError::UndeclaredCoincidence { .. })
-            ),
-            "expected UndeclaredCoincidence, got {:?}",
+            matches!(e.kind, NodeErrorKind::UndeclaredContact { .. }),
+            "expected the UndeclaredContact menu, got {:?}",
             e.kind
         ),
         other => panic!("undeclared flush union must fail, got {other:?}"),

@@ -100,3 +100,22 @@ Binding spec docs/M9-D1-SPEC.md; dispatch = block M8-15 position
 3 (OPUS, closing the block; next opens M9-16), S-M / STRUCTURAL
 pre-logged. Board: M9-1 (kernel) + M9-2a (predicate, fable @
 position 2) implementing; D1 dispatches on this spec's merge.
+
+## M9-D1 MERGED (#530, 2026-08-16) — the natural meridian revolves
+
+The D1 candidate is done: the sweep exports its poles as a
+construction fact, the emitter looks them up, and no recipe pays
+the tan(π/8) detour again — both workarounds and the twin deleted
+with the authored fourteen surviving verbatim. Dual sample #15
+(same-model, ordinal 45) came back the milestone's cleanest —
+CONVERGED APPROVE at 0/0/3 + 0/1/3 with rubric 5/5/5 — and still
+earned its keep: R2 caught the θ<0 coverage hole exactly where the
+spec's rejected direction-inference shape would have hidden, and
+the union build caught a lint defect in R1's own probe file.
+Residual #542 filed (the wedge VolumeUncomputable class). Block
+M8-15 is CONSUMED; the next implementer block opens as M9-16.
+Board: M9-1 PR-2 implementing (schema v10 claim); M9-2 PR-2 next
+(after M9-1 PR-2's vocabulary lands... correction: after M9-1
+PR-1, already merged — PR-2's census door dispatches on the
+M9-1-PR-2 seam settling the recipe/LIB homes it consumes); then
+M9-0 → M9-3 → M9-5.

@@ -764,7 +764,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
         BooleanOp::Subtract => topo::BooleanOp::Subtract,
     };
     match topo::boolean_op_with(kernel_op, &body_a, &body_b, &kernel_decls, boolean_sweep)
-        .map_err(NodeErrorKind::Boolean)?
+        .map_err(|err| refusal_menu(results, a, b, err))?
     {
         BooleanResult::Empty => Ok((ValuePayload::Boolean(BooleanValue::Empty), names::empty())),
         BooleanResult::Body(bb) => {
@@ -800,6 +800,106 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
             ))
         }
     }
+}
+
+/// The refusal-menu lift (register R3, LIB-PYG5; SELECT-DESIGN §3d):
+/// a kernel [`topo::BooleanError::UndeclaredCoincidence`] becomes
+/// [`NodeErrorKind::UndeclaredContact`] carrying the raise site's
+/// face pair as the detector's own [`names::FlushFinding`] shape —
+/// keys resolved to StableNames through the OPERANDS' name tables,
+/// the ladder's decided relation carried through. NOTHING is
+/// re-detected and no decide runs on this error path (the SEL2
+/// rejection of post-hoc re-detection stands); every other
+/// `BooleanError` wraps under [`NodeErrorKind::Boolean`] unaltered.
+///
+/// If either key resolves to no Face name — an emitter-coverage
+/// invariant break (`vocabulary_coverage_is_total` pins coverage),
+/// not an authoring state — the plain `Boolean` wrapping is
+/// preserved: the boolean's refusal is never masked by its own menu.
+fn refusal_menu<T: Decide>(
+    results: &Results<T>,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+    err: topo::BooleanError,
+) -> NodeErrorKind {
+    let topo::BooleanError::UndeclaredCoincidence {
+        diag,
+        pair,
+        relation,
+    } = err
+    else {
+        return NodeErrorKind::Boolean(err);
+    };
+    // The finding's contract orders the pair (a-side, b-side); the
+    // raise sites order it by discovery. Relation is orientation-
+    // symmetric, so the swap changes nothing else. A same-operand
+    // pair (the F7 gate) keeps its raise order — both names resolve
+    // in that one operand's table.
+    let ordered = if pair[0].0 == topo::Operand::B && pair[1].0 == topo::Operand::A {
+        [pair[1], pair[0]]
+    } else {
+        pair
+    };
+    let name_of = |(operand, face): (topo::Operand, topo::FaceKey)| {
+        let node = match operand {
+            topo::Operand::A => a,
+            topo::Operand::B => b,
+        };
+        face_name(value_of(results, node).ok()?, face)
+    };
+    let (Some(na), Some(nb)) = (name_of(ordered[0]), name_of(ordered[1])) else {
+        return NodeErrorKind::Boolean(topo::BooleanError::UndeclaredCoincidence {
+            diag,
+            pair,
+            relation,
+        });
+    };
+    NodeErrorKind::UndeclaredContact {
+        finding: Box::new(names::FlushFinding {
+            pair: (na, nb),
+            class: names::ContactClass::Rest,
+            evidence: names::FlushEvidence {
+                relation,
+                // Shared-source pairs never refuse Undeclared (rung 1
+                // answers Ok), so the deciding rung here is always the
+                // geometric one.
+                rung: names::FlushRung::DecidedCoincident,
+            },
+        }),
+        diag,
+    }
+}
+
+/// The reverse of a table lookup: the FACE name denoting `face` in
+/// one operand's value, or `None` (the caller's invariant-break
+/// fallback). A boolean operand is single-body (`body_operand`
+/// refused everything else), so within this value a face key
+/// identifies its entity without a body check; a `Tied` entry
+/// containing the key still DENOTES it (the tie is the table's
+/// fact). Ties or multiple denoting names resolve to the canonical
+/// least name — deterministic, and any denoting name identifies the
+/// pair for the declare arm.
+fn face_name<T: Decide>(
+    v: &super::NodeValue<T>,
+    face: topo::FaceKey,
+) -> Option<crate::names::StableName> {
+    use crate::names::{EntityKey, EntityKind, EntityRef, Entry};
+    let mut found: Option<&crate::names::StableName> = None;
+    for (name, entry) in v.name_table.iter() {
+        if name.kind != EntityKind::Face {
+            continue;
+        }
+        let refs: &[EntityRef] = match entry {
+            Entry::Unique(e) => core::slice::from_ref(e),
+            Entry::Tied(t) => t,
+        };
+        if refs.iter().any(|ent| ent.key == EntityKey::Face(face))
+            && found.is_none_or(|prev| name < prev)
+        {
+            found = Some(name);
+        }
+    }
+    found.cloned()
 }
 
 /// Resolves one Declare payload's name pairs against the two operand

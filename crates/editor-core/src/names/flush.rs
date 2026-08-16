@@ -336,13 +336,15 @@ fn tied_disagrees<T: Decide>(
 /// Everything — descriptions, oriented sources, AND the verification
 /// arm — comes from [`flush_pair_relation`], the one door the REST
 /// lane's verify-at-use site also calls (shared BY CONSTRUCTION;
-/// #304 review MINOR-1 retired the hand-mirrored arm). The FIRST call
-/// runs `declared: false` — its `Undeclared` refusal with the
+/// #304 review MINOR-1 retired the hand-mirrored arm). ONE call, in
+/// `declared: false` mode: its `Undeclared` refusal with the
 /// verifier's definite-zero encoding ([`MarginDiag::Invalid`]) is
-/// precisely "would verify if declared"; the SECOND call (same door,
-/// same inputs, `declared: true`) then reports the orientation the
-/// declared rung will decide at use. Deterministic, so the two calls
-/// cannot disagree.
+/// precisely "would verify if declared", and since LIB-PYG5 the
+/// refusal itself carries the orientation the ladder decided — the
+/// same `bool_plane_orient` verdict the declared rung re-decides
+/// deterministically at use, so the carried relation and the
+/// verify-at-use verdict cannot disagree (this retired the second,
+/// `declared: true` call this arm used to make).
 fn probe<T: Decide>(
     ba: &Body<T>,
     fa: FaceKey,
@@ -358,24 +360,19 @@ fn probe<T: Decide>(
         Ok(PlaneRelation::Distinct) => Ok(None),
         // Rung 1 fired: same recipe source, exact verdict.
         Ok(rel) => Ok(Some((rel, FlushRung::SharedSource))),
-        Err(PlaneEqError::Undeclared(diag)) => {
+        Err(PlaneEqError::Undeclared { diag, relation }) => {
             if matches!(diag.margin, MarginDiag::Invalid) {
                 // The verifier's definite-zero-offset encoding (module
-                // docs, residuals): the pair would verify if declared.
-                // Ask the declared rung which orientation it will
-                // verify with at use.
-                match flush_pair_relation(ba, fa, bb, fb, true, band) {
-                    Some(Ok(rel @ (PlaneRelation::SameOriented | PlaneRelation::SameOpposite))) => {
-                        Ok(Some((rel, FlushRung::DecidedCoincident)))
+                // docs, residuals): the pair would verify if declared,
+                // with the orientation the refusal itself carries.
+                match relation {
+                    PlaneRelation::SameOriented | PlaneRelation::SameOpposite => {
+                        Ok(Some((relation, FlushRung::DecidedCoincident)))
                     }
-                    // Unreachable by construction (the undeclared call
-                    // already decided coincident); typed, never silent.
-                    Some(Ok(PlaneRelation::Distinct)) | None => Err(diag),
-                    Some(Err(
-                        PlaneEqError::Undeclared(d)
-                        | PlaneEqError::Escalated(d)
-                        | PlaneEqError::Contradicted(d),
-                    )) => Err(d),
+                    // Unreachable by the variant's contract (an
+                    // Undeclared refusal never carries `Distinct`);
+                    // typed, never silent.
+                    PlaneRelation::Distinct => Err(diag),
                 }
             } else {
                 // In-band coincidence: not definite, not droppable.

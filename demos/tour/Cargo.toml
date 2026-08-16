@@ -18,8 +18,16 @@ publish = false
 # monomorphize the whole geometry stack a second time for a mode the
 # render lanes never invoke. `scripts/k_probe_sweep.sh` passes
 # `--features probe`; render.yml's tour job deliberately does not.
+#
+# The `tess-budget` mode (src/tessbudget.rs + its dispatch) is opt-in
+# for a different reason: `mesh::budget` is per-face telemetry gated at
+# its own module boundary, so the kernel a render build links carries
+# none of it. Same shape as `probe` above, no monomorphization
+# argument — the cost avoided is state in the tessellation lane, not
+# codegen. `scripts/tess_budget_sweep.sh` passes `--features budget`.
 [features]
 probe = ["pncad/probe"]
+budget = ["pncad/budget"]
 
 # ONE kernel dependency. The tour is the façade's acceptance corpus
 # (LIB-U1): eighteen scenes, every kernel type they touch reached
