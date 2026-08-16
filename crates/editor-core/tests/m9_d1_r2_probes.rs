@@ -11,8 +11,8 @@ mod fixture;
 
 use editor_core::{
     CancelToken, Datum, EntityKind, EvalOptions, Evaluation, LoopProgram, NameTable, Node,
-    ProfileDoc, ProfileProgram, ProfileVertexRef, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, StableName, evaluate,
+    ProfileDoc, ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, RoleSeg, StableName, evaluate,
 };
 use fixture::{ang, insert, len};
 use geom_core::{Point3, Vec3};
@@ -74,10 +74,10 @@ fn semicircle(r: f64) -> LoopProgram {
     let p2 = |x: f64, y: f64| [len(x), len(y)];
     LoopProgram::Chain(vec![
         ProgramStep::At(p2(0.0, -r)),
-        ProgramStep::ArcTo {
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
             target: ProgramTarget::Point(p2(0.0, r)),
-            bulge: fixture::scl(1.0),
-        },
+            b: fixture::scl(1.0),
+        }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])
 }

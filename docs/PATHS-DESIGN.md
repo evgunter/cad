@@ -592,6 +592,19 @@ measures no compile-time cost and reads cleaner in situ.
 Mechanism details (row/table syntax, emission vocabulary, module
 seam) to the re-spell unit's spec.
 
+**Shipped form (LIB-RESPELL PR-1, ruled by Evan on #531):** the
+one declaration (`step_vocabulary!`) derives the THREE enum-side
+projections — Step variant, Verb tag, `Step::verb()` — while the
+typed methods and driver arms remain hand-written single
+implementations (each arm calls the one typed binder; a deleted
+row breaks both at compile; arm drift is over-strict-only, pinned
+by the blanket replay differential and the census smoke row).
+This is WEAKER than the four-projection invariant above and is
+accepted as the merge state; **the full derivation remains the
+ratified end state**, scheduled as its own follow-up unit
+(LIB-RESPELL-TABLE), with the measured cost estimate in the PR-1
+lane report.
+
 **The family (line is the unmarked middle-position default):**
 
 - `fillet(r)` — line incoming, line arrival. The plain directed
