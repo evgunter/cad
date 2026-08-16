@@ -325,13 +325,18 @@ fn probe_records_partialeq_bites_on_mutation() {
     }
 }
 
-/// DEVIATION 8 — the C4 "silent no-op at the op" gap, LIVE on this
-/// head: the m4_pr3_names_interval corpus's shape (block top z = 1,
-/// slot top z = 1.5) declared as Rest sails through the subtract
-/// without the lie ever meeting a verifier — and the carrier ladder,
-/// asked directly, contradicts it at bool_plane_offset. The reverted
-/// op-door pass was RIGHT to fire; the corpus carries a false
-/// declaration.
+/// DEVIATION 8 — the C4 "silent no-op at the op" gap, CLOSED (M9-1 fix
+/// pass, F2; issue #539).
+///
+/// The fixture is the `m4_pr3_names_interval` corpus's shape (block top
+/// z = 1, slot top z = 1.5) declared as `Rest`. When this probe was
+/// written the subtract SUCCEEDED — the lie never met a verifier,
+/// because the only verify-at-use site was the REST lane, which is
+/// Union-only — while the carrier ladder, asked directly, contradicted
+/// it at `bool_plane_offset`. Red-then-green: the assertion below read
+/// `out.is_ok()` then; the op-door pass now refuses the same
+/// declaration before any classification runs, and the corpus that
+/// carried this shape no longer declares it.
 #[test]
 fn probe_dev8_false_declaration_is_a_silent_noop_at_the_op() {
     let c = brick((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
@@ -360,12 +365,22 @@ fn probe_dev8_false_declaration_is_a_silent_noop_at_the_op() {
         matches!(verdict, Err(CarrierEqError::Contradicted(_))),
         "the declared caps are definitely offset: {verdict:?}"
     );
-    // And yet the op succeeds silently — C4's named gap, live.
-    let out = topo::subtract_with(&c, &slot, &decls);
-    assert!(
-        out.is_ok(),
-        "head behaviour: the false declaration is a silent no-op at the op: {out:?}"
-    );
+    // And the op refuses it too, at the door, naming the same margin —
+    // the gap is closed, and the two sites agree because they share a
+    // ladder rather than mirroring one.
+    let err = topo::subtract_with(&c, &slot, &decls)
+        .expect_err("a false declaration is no longer a silent no-op at the op");
+    match &err {
+        topo::BooleanError::ContactContradicted {
+            declaration,
+            margin,
+            ..
+        } => {
+            assert_eq!(declaration.class, ContactClass::Rest);
+            assert_eq!(margin.predicate, Some("bool_plane_offset"));
+        }
+        other => panic!("expected ContactContradicted, got {other:?}"),
+    }
 }
 
 /// CLAIM 7 / AQ6 — the definite verdict beats the declaration in BOTH
