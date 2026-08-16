@@ -780,9 +780,6 @@ impl<P> Node<P> {
         }
     }
 
-    /// Builds a [`Node::Fillet`] with a CANONICAL selection (sorted,
-    /// deduplicated) — the one construction door, so a recipe's bits
-    /// do not depend on the order a user clicked in.
     /// A `Declare` node whose every pair asserts the CONFORMAL class
     /// — the class the class-less payload always meant.
     ///
@@ -797,6 +794,9 @@ impl<P> Node<P> {
         }
     }
 
+    /// Builds a [`Node::Fillet`] with a CANONICAL selection (sorted,
+    /// deduplicated) — the one construction door, so a recipe's bits
+    /// do not depend on the order a user clicked in.
     pub fn fillet(target: RecipeNodeId, radius: Expr, selection: Vec<StableName>) -> Self {
         let mut selection = selection;
         selection.sort();
