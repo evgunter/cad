@@ -22,12 +22,13 @@ use editor_core::{PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
 const V8: &str = include_str!("golden/v8_golden.cad");
 
 #[test]
-fn schema_version_is_ten() {
-    // Moved once since this row was written (M9-1's v10 declaration
-    // class) — the convention is that a bump updates every pin it
-    // invalidates, so the number stays exact here while this file
-    // keeps pinning the v8 refusal below.
-    assert_eq!(SCHEMA_VERSION, 10);
+fn schema_version_is_current() {
+    // Moved once since this row was written (ASM-UPD's v10
+    // `UpdateReference` edit arm) — the convention is that a bump
+    // updates every pin it invalidates, so the number stays exact
+    // here. This file keeps pinning the v8 refusal fixture below,
+    // which is what the row is actually about.
+    assert_eq!(SCHEMA_VERSION, 11);
 }
 
 #[test]
@@ -66,19 +67,21 @@ fn the_refusal_names_the_regenerate_recourse() {
 
 /// The other direction: a file claiming a FUTURE version refuses as
 /// unknown — the newest this build supports is named.
+///
+/// The version is computed from [`SCHEMA_VERSION`], never spelled as
+/// a literal: this row was written when 10 was the future, and
+/// ASM-UPD's v10 bump made that same literal the PRESENT — the row
+/// went red naming a real drift. Derived, it tracks every bump for
+/// free (the `m5_pr10_schema_v2` precedent).
 #[test]
 fn a_future_version_refuses_unknown() {
-    // The "future" version is derived from SCHEMA_VERSION, not a
-    // literal: the literal 10 this row was written with became the
-    // CURRENT version when M9-1's declaration-class break landed, so
-    // the row was asserting that the present refuses as the future.
-    let next = SCHEMA_VERSION + 1;
-    let future = V8.replacen("schema: 8", &format!("schema: {next}"), 1);
+    let ahead = u64::from(SCHEMA_VERSION) + 1;
+    let future = V8.replacen("schema: 8", &format!("schema: {ahead}"), 1);
     match load(&future) {
         Err(PersistError::UnknownSchema { found, newest }) => {
-            assert_eq!(found, u64::from(next));
+            assert_eq!(found, ahead);
             assert_eq!(newest, SCHEMA_VERSION);
         }
-        other => panic!("a newer-than-current file must refuse UnknownSchema, got {other:?}"),
+        other => panic!("a v{ahead} file must refuse UnknownSchema, got {other:?}"),
     }
 }

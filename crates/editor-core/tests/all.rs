@@ -40,6 +40,10 @@ mod asm2b_multisolid;
 mod asm4_split_inline;
 #[path = "asm_roots.rs"]
 mod asm_roots;
+#[path = "asm_upd_pin_update.rs"]
+mod asm_upd_pin_update;
+#[path = "asm_upd_schema_v10.rs"]
+mod asm_upd_schema_v10;
 #[path = "lbret_schema_v8.rs"]
 mod lbret_schema_v8;
 #[path = "lib_doors_node_result.rs"]
@@ -150,8 +154,8 @@ mod m6_5_selection_refusals;
 mod m6_composed_node;
 #[path = "m9_1_declare_classes.rs"]
 mod m9_1_declare_classes;
-#[path = "m9_1_schema_v10.rs"]
-mod m9_1_schema_v10;
+#[path = "m9_1_schema_v11.rs"]
+mod m9_1_schema_v11;
 #[path = "m9_d1_r1_probes.rs"]
 mod m9_d1_r1_probes;
 #[path = "m9_d1_r2_probes.rs"]

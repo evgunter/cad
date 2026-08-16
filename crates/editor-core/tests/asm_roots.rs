@@ -490,10 +490,10 @@ fn minting_nodes(body: &topo::Body<f64>, solid: topo::SolidKey) -> Vec<u64> {
 #[test]
 fn row6a_v5_refuses_too_old_with_the_regenerate_recourse() {
     // Moved three times since this row was written (ASM-2A's v7,
-    // LIB-LBRET's v8, LIB-RESPELL's v9) — the repo's convention is
-    // that a bump updates every pin it invalidates, so the number
-    // stays exact here.
-    assert_eq!(SCHEMA_VERSION, 10);
+    // LIB-LBRET's v8, LIB-RESPELL's v9, ASM-UPD's v10) — the repo's
+    // convention is that a bump updates every pin it invalidates, so
+    // the number stays exact here.
+    assert_eq!(SCHEMA_VERSION, 11);
     assert_eq!(V5.lines().next(), Some("schema: 5"));
     match load(V5) {
         Err(PersistError::SchemaTooOld {

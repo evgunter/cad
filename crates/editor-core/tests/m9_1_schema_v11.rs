@@ -1,9 +1,9 @@
 //! **The declaration-class clean break** (M9-1 spec PR-2;
-//! CONTACT-DESIGN C4, ratified #178) — schema **v10**, and the gate
+//! CONTACT-DESIGN C4, ratified #178) — schema **v11**, and the gate
 //! that refuses everything older.
 //!
 //! `Node::Declare`'s pairs each gained the contact class they assert,
-//! so a v9 pair (a bare name pair) and a v10 pair (a name pair plus a
+//! so a v10 pair (a bare name pair) and a v11 pair (a name pair plus a
 //! class) are different shapes at the wire in both directions. With
 //! `deny_unknown_fields` there is no forgiving read of either from the
 //! other.
@@ -17,13 +17,12 @@
 //! that authors the rung on the user's behalf is that path with extra
 //! steps. So older files refuse TYPED with the regenerate recourse.
 //!
-//! **Why 10 and not 9**: LIB-RESPELL (#531) held 9 and was open when
-//! this break was dispatched, so this unit claimed past it rather than
-//! racing. #531 then merged first, and the re-merge conflicted only on
-//! the constant and its fixtures — a conscious resolve with both
-//! meanings intact, which is exactly what the 7/8 double-claim did NOT
-//! get (a one-line constant merges cleanly and collapses two meanings
-//! silently).
+//! **Why 11**: this unit claimed 10 at dispatch (LIB-RESPELL held 9
+//! and was open), then #531 merged with 9 and ASM-UPD merged with 10
+//! while this branch was open, so the claim moved twice. Each shift
+//! was a conscious resolve; see the `persist/mod.rs` ledger, including
+//! what the second re-merge showed — both sides had written `10`, so
+//! the CONSTANT merged cleanly and only the prose collision caught it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -34,28 +33,45 @@ use editor_core::{
 
 mod fixture;
 
-/// The two prior live goldens, kept as REFUSAL fixtures. v9 is what
-/// the build immediately before this one wrote (LIB-RESPELL's §2c
-/// re-spell, merged while this branch was open); v8 is the one before
-/// that. Both refuse identically — the gate has no notion of "nearly
-/// current".
+/// The prior live goldens, kept as REFUSAL fixtures. v10 is what the
+/// build immediately before this one wrote (ASM-UPD's
+/// `UpdateReference` arm); v9 and v8 are the two before that. All
+/// refuse identically — the gate has no notion of "nearly current",
+/// which is the property that makes the version door decidable.
+const V10: &str = include_str!("golden/v10_golden.cad");
 const V9: &str = include_str!("golden/v9_golden.cad");
 const V8: &str = include_str!("golden/v8_golden.cad");
 /// The oldest fixture in the tree — the far end of the same gate.
 const V1: &str = include_str!("golden/v1_golden.cad");
 
 #[test]
-fn schema_version_is_ten() {
-    assert_eq!(SCHEMA_VERSION, 10);
+fn schema_version_is_eleven() {
+    assert_eq!(SCHEMA_VERSION, 11);
 }
 
+/// The IMMEDIATE prior version refuses, from the real file. Named
+/// separately from the v8/v1 rows because it is the one a user is
+/// actually likely to be holding.
 #[test]
-fn v9_golden_refuses_too_old() {
+fn v10_golden_refuses_too_old() {
     assert_eq!(
-        V9.lines().next(),
-        Some("schema: 9"),
+        V10.lines().next(),
+        Some("schema: 10"),
         "the immediate-prior fixture must be the version it is named for"
     );
+    match load(V10) {
+        Err(PersistError::SchemaTooOld { found, missing, .. }) => {
+            assert_eq!(found, 10);
+            assert_eq!(missing, 10);
+        }
+        other => panic!("v10 must refuse SchemaTooOld, got {other:?}"),
+    }
+}
+
+/// And so does the version before it, from ITS real file.
+#[test]
+fn v9_golden_refuses_too_old() {
+    assert_eq!(V9.lines().next(), Some("schema: 9"));
     match load(V9) {
         Err(PersistError::SchemaTooOld { found, missing, .. }) => {
             assert_eq!(found, 9);
@@ -147,16 +163,16 @@ fn too_old_beats_a_broken_body() {
     }
 }
 
-/// A saved document announces v10 in its header, and a v10 document
+/// A saved document announces v11 in its header, and a v11 document
 /// round-trips with its declaration CLASSES intact — the actual
 /// content of this break.
 #[test]
 fn a_declaration_round_trips_carrying_its_class() {
     let (doc, decl) = declaring_doc();
     let text = save(&doc, &[]).expect("saves");
-    assert_eq!(text.lines().next(), Some("schema: 10"));
+    assert_eq!(text.lines().next(), Some("schema: 11"));
 
-    let back: ProfileDoc = load(&text).expect("v10 loads").doc;
+    let back: ProfileDoc = load(&text).expect("v11 loads").doc;
     let Some(Node::Declare { pairs }) = back.node(decl) else {
         panic!("the Declare node survives the round trip");
     };

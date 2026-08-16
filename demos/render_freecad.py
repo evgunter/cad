@@ -161,6 +161,13 @@ def import_bodies(doc, scenes, outdir, use_step):
             for obj in new:
                 if hasattr(obj.ViewObject, "ShapeColor"):
                     obj.ViewObject.ShapeColor = tuple(body["color"])
+                # Scene-carried transparency (0 = opaque). Set only
+                # when asked, so every pre-existing cell's view
+                # properties are untouched.
+                if body.get("transparency") and hasattr(
+                    obj.ViewObject, "Transparency"
+                ):
+                    obj.ViewObject.Transparency = int(body["transparency"])
                 obj.ViewObject.Visibility = False
             objs.extend(new)
         by_scene[scene["name"]] = objs

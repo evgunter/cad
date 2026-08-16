@@ -192,6 +192,28 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// TYPED at the gate with the regenerate recourse (the v3 precedent),
 /// and the migration table stays empty.
 ///
+/// Version 10 is **edit vocabulary growth** (ASSEMBLY-DESIGN A13,
+/// ratified #544; ASM-UPD D-1): [`crate::DocEdit`] gained the
+/// `UpdateReference` arm, the recorded per-reference pin move. The
+/// edit log is FILE data — a saved document carries its unreplayed
+/// edits — so a new arm is a new wire shape, exactly the case v8
+/// bumped for one level over in the vocabulary. Forward-additive
+/// again (a v9 file contains no `UpdateReference`), and again the
+/// gate buys the other direction: a v10 file handed to a v9 reader
+/// must refuse at the version door rather than reach serde and die on
+/// an unknown variant. A v9 file refuses TYPED with the regenerate
+/// recourse and the migration table stays empty.
+///
+/// **9 was claimed twice, and this is the resolution** — the v7/v8
+/// collision again, and caught the same way. LIB-RESPELL (#531) and
+/// ASM-UPD (#549) each concluded 9 was theirs, each having re-merged
+/// main before the other's bump landed. RESPELL merged first, so v9
+/// is the re-spell and the `UpdateReference` arm takes 10. What made
+/// it visible this time rather than silent: the pattern is now in
+/// this ledger, so ASM-UPD flagged the hazard in its own PR body
+/// BEFORE the collision fired and re-checked the constant by eye at
+/// the merge — which is the discipline the v7/v8 entry asks for.
+///
 ///
 /// **The persistence boundary for contact data, stated once** (C4,
 /// D9; the seam ASM-R2-SPEC-DRAFT:41-58 negotiates). DECLARATIONS
@@ -204,46 +226,46 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// populates them and the re-verification gate re-checks them against
 /// solved geometry; it does not store the records that gate produces.
 ///
-/// Version 10 is the **declaration-class clean break** (M9-1 spec
+/// Version 11 is the **declaration-class clean break** (M9-1 spec
 /// PR-2; CONTACT-DESIGN C4, ratified #178): [`crate::Node::Declare`]'s
 /// pairs each gained the [`topo::ContactClass`] they assert, so a
 /// declaration now says WHAT kind of contact it claims instead of
 /// leaving the consuming boolean to assume the conformal one. With
-/// `deny_unknown_fields` and a changed tuple arity, a v8 pair is not a
-/// v10 pair at the wire, either direction.
+/// `deny_unknown_fields` and a changed tuple arity, a v10 pair is not
+/// a v11 pair at the wire, either direction.
 ///
-/// A migration COULD write `rest` into every v8 pair — that is what
+/// A migration COULD write `rest` into every v10 pair — that is what
 /// they meant — but it would be inventing the one datum the break
 /// exists to stop being assumed, and it would do so silently on files
 /// whose author never made the choice. C4's invariant is that no path
 /// exists from "the numbers look equal" to a glued contact without a
 /// structural or declared rung; a migration that authors the rung on
-/// the user's behalf is that path with extra steps. So v9 and below
-/// refuse TYPED with the regenerate recourse, exactly as v1–v8 do, and
-/// the migration table stays empty. v9 is the version a real document
+/// the user's behalf is that path with extra steps. So v10 and below
+/// refuse TYPED with the regenerate recourse, exactly as v1–v9 do, and
+/// the migration table stays empty. v10 is the version a real document
 /// in this lineage can now carry, so it is the fixture the refusal
 /// suite pins.
 ///
-/// **Why 10 and not 9, and how the race actually resolved.**
-/// LIB-RESPELL (#531) claimed 9 and was OPEN with 9 in hand when this
-/// break was dispatched, so this unit claimed past it rather than
-/// racing for the same number. That is the standing resolution of the
-/// 7/8 double-claim recorded above, applied BEFORE the collision
-/// instead of after: two vocabulary changes never share one version,
-/// and the cheapest way to guarantee that is to read the open claims
-/// at dispatch and claim past them.
+/// **Why 11: the race, run twice, resolved consciously both times.**
+/// This unit claimed 10 at dispatch because LIB-RESPELL (#531) was
+/// OPEN holding 9 — claim PAST the open holders rather than race them,
+/// the standing resolution of the 7/8 double-claim above. Then #531
+/// merged with 9, and ASM-UPD (#549) merged with 10 while this branch
+/// was still open, so the claim moved again, to 11.
 ///
-/// It worked: #531 landed on main first, carrying v9 and its own
-/// goldens, and the re-merge conflicted ONLY on this constant and its
-/// fixtures — a conscious resolve with both meanings intact (v9 is
-/// the fillet-family re-spell above, v10 is the declaration class
-/// below), never a clean text merge that silently collapses two
-/// meanings into one number. That collapse is exactly what made 7/8
-/// need a human eye.
+/// Both shifts cost one conscious resolve each and nothing else, which
+/// is the whole argument for the discipline. Note what the SECOND
+/// re-merge did on its own: the constant is one line and both sides
+/// had already written `10`, so git merged it CLEANLY — the paragraph
+/// conflict above is the only thing that stopped two breaks sharing a
+/// version in silence. That is the 7/8 failure mode reproduced
+/// exactly, and caught only because the ledger prose is long enough to
+/// collide. All three meanings survive here: 9 the fillet-family
+/// re-spell, 10 the `UpdateReference` arm, 11 the declaration class.
 ///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these nine.
-pub const SCHEMA_VERSION: u32 = 10;
+/// [`migration_step`] entry, or a ratified break like these ten.
+pub const SCHEMA_VERSION: u32 = 11;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -498,8 +520,9 @@ pub type MigrationStep = fn(serde_json::Value) -> Result<serde_json::Value, Migr
 /// ratified LQ7a clean break), 4 → 5 (ASM-1 D-6 — document identity)
 /// 5 → 6 (ASM-ROOTS D-1 — product roots) and 6 → 7 (ASM-2A D-6 —
 /// the instantiate node + A11 placements), 7 → 8 (LIB-LBRET — the
-/// `AtToward` chain step), 8 → 9 (LIB-RESPELL — the §2c fillet family)
-/// and 9 → 10 (M9-1 — the declaration class) were all ratified clean
+/// `AtToward` chain step), 8 → 9 (LIB-RESPELL — the §2c fillet
+/// family), 9 → 10 (ASM-UPD — the `UpdateReference` edit arm) and
+/// 10 → 11 (M9-1 — the declaration class) were all ratified clean
 /// breaks. The mechanism stays because it
 /// costs nothing and D6.3's forward-only rule is unchanged; a future
 /// format change that is NOT a break adds its `n => Some(step_n)` arm
