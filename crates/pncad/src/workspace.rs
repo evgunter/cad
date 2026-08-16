@@ -14,15 +14,25 @@
 //! reproducible value (ASSEMBLY-DESIGN A4's Cargo.lock semantics), so
 //! an out-of-date pin is surfaced, never silently retargeted.
 //!
-//! No write side lives here: creating files stays
-//! [`crate::document::save`] + `std::fs` at the callers.
+//! The write side is MINIMAL (ASM-4 D-1): exactly what the split/
+//! inline refactorings need — [`Workspace::create`] mints a new save
+//! file from a `Doc` (the id is the caller's, per ASM-1 D-1:
+//! [`DocumentId::derive`] for deterministic callers,
+//! [`random_document_id`] for interactive authoring), and
+//! [`Workspace::resave`] rewrites an existing document's file by id.
+//! Duplicate-id refusal is unchanged, and there is no general mutation
+//! API: split and inline are the only intended writers. Both write the
+//! CURRENT state as a snapshot with an empty log (history is not
+//! state; the refactoring's own record is its returned edit lists).
+//!
+//! [`DocumentId::derive`]: crate::document::DocumentId::derive
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::document::{
     ContentPin, DocRef, DocumentId, PartResolver, PersistError, ProfileDoc, ResolveFailure,
-    ResolveFault, content_pin, header_document_id, load,
+    ResolveFault, content_pin, header_document_id, load, save,
 };
 
 /// Mints a fresh random [`DocumentId`] from OS randomness — the
@@ -121,6 +131,15 @@ pub enum WorkspaceError {
         /// The pin the document actually hashes to.
         found: ContentPin,
     },
+    /// The document refused to serialize for a workspace write (the
+    /// same shared validator every save runs) — surfaced before any
+    /// file is touched, so a refused write leaves the store unchanged.
+    Save {
+        /// The document that would not save.
+        id: DocumentId,
+        /// The typed persistence refusal (boxed, as in `Header`).
+        error: Box<PersistError>,
+    },
     /// The OS entropy source refused ([`random_document_id`]).
     RandomnessUnavailable {
         /// The source's message.
@@ -166,6 +185,9 @@ impl core::fmt::Display for WorkspaceError {
                  {wanted} but the document hashes to {found} — {PIN_MISMATCH_RECOURSE}",
                 path.display()
             ),
+            Self::Save { id, error } => {
+                write!(f, "workspace: document {id} refused to save: {error}")
+            }
             Self::RandomnessUnavailable { message } => {
                 write!(f, "workspace: OS randomness unavailable: {message}")
             }
@@ -292,6 +314,67 @@ impl Workspace {
             });
         }
         Ok(loaded.doc)
+    }
+
+    /// Creates a new save file for `doc` in the workspace (ASM-4 D-1:
+    /// split's write side) and returns its path. The file is named
+    /// `{id}.pncad` — a pure function of the identity, so two split
+    /// runs write byte-identical stores (D9). A duplicate id refuses
+    /// exactly as the scan does, naming the file that already claims
+    /// it; nothing is written on any refusal.
+    ///
+    /// # Errors
+    ///
+    /// [`WorkspaceError::DuplicateId`] (the store's uniqueness
+    /// invariant — `second` names the path this create would have
+    /// written), [`WorkspaceError::Save`] for a document the shared
+    /// validator refuses, [`WorkspaceError::Io`] naming the file.
+    pub fn create(&mut self, doc: &ProfileDoc) -> Result<PathBuf, WorkspaceError> {
+        let id = doc.id();
+        let path = self.root.join(format!("{id}.pncad"));
+        if let Some(first) = self.by_id.get(&id) {
+            return Err(WorkspaceError::DuplicateId {
+                id,
+                first: first.clone(),
+                second: path,
+            });
+        }
+        let text = save(doc, &[]).map_err(|error| WorkspaceError::Save {
+            id,
+            error: Box::new(error),
+        })?;
+        std::fs::write(&path, text).map_err(|e| WorkspaceError::Io {
+            path: path.clone(),
+            message: e.to_string(),
+        })?;
+        self.by_id.insert(id, path.clone());
+        Ok(path)
+    }
+
+    /// Rewrites the save file of an EXISTING document with `doc`'s
+    /// current state (ASM-4 D-1: the remainder's write side). The id
+    /// must already be in the store — this door never creates — and
+    /// the file keeps its scanned path, so references by id stay
+    /// valid while the content (and therefore the pin) moves.
+    ///
+    /// # Errors
+    ///
+    /// [`WorkspaceError::UnknownId`] for an id the scan never saw,
+    /// [`WorkspaceError::Save`], [`WorkspaceError::Io`].
+    pub fn resave(&mut self, doc: &ProfileDoc) -> Result<PathBuf, WorkspaceError> {
+        let id = doc.id();
+        let Some(path) = self.by_id.get(&id).cloned() else {
+            return Err(WorkspaceError::UnknownId { id });
+        };
+        let text = save(doc, &[]).map_err(|error| WorkspaceError::Save {
+            id,
+            error: Box::new(error),
+        })?;
+        std::fs::write(&path, text).map_err(|e| WorkspaceError::Io {
+            path: path.clone(),
+            message: e.to_string(),
+        })?;
+        Ok(path)
     }
 }
 
