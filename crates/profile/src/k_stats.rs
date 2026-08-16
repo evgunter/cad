@@ -1,7 +1,8 @@
 //! Margin-statistics collection — since M2 PR 7 a **re-export** of the
 //! unified recorder in [`geom_core::k_stats`].
 //!
-//! The recording machinery (the [`MarginSample`] sink, the [`Probe`]
+//! The recording machinery (the [`geom_core::k_stats::MarginSample`]
+//! sink, the [`geom_core::k_stats::Probe`]
 //! scalar, and the [`decide`] funnel) started life in this crate (M2
 //! PR 2's K-experiment hook) and moved to `geom-core` next to
 //! `Band`/`Decide`/the K configuration when PR 7 wired every crate's

@@ -101,14 +101,14 @@
 //! `Dual<Interval>` inherits the enclosure semantics, Indeterminate ⇒
 //! subdivision included. Consistently with [`Real`], there is no `signum`.
 //!
-//! # No [`Bounds`] for duals
+//! # No [`crate::Bounds`] for duals
 //!
 //! `crate::real::Bounds` is deliberately **not** implemented: a dual's
 //! bracket would have to certify the derivative enclosure too (what would
 //! `lo()` mean — of the value? the pair?), and certification of derivative
 //! enclosures is an M6 design question (tolerance stackups). Until then,
 //! driver code that needs the channels reads the public fields — the same
-//! restricted driver/certification scope as [`Bounds`] itself (L7).
+//! restricted driver/certification scope as [`crate::Bounds`] itself (L7).
 //!
 //! # Multi-parameter gradients
 //!
