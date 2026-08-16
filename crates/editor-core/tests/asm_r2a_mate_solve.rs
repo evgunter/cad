@@ -151,6 +151,18 @@ fn mate(
     }
 }
 
+/// Whether two frames agree to `tol` in every stored coordinate — for
+/// poses that come out of a closed form through the transcendentals,
+/// where the claim is the VALUE and bit-equality is not on offer.
+fn near(a: Frame, b: Frame, tol: f64) -> bool {
+    a.columns
+        .iter()
+        .flatten()
+        .chain(a.translation.iter())
+        .zip(b.columns.iter().flatten().chain(b.translation.iter()))
+        .all(|(x, y)| (x - y).abs() <= tol)
+}
+
 fn z_up() -> MateFrame {
     frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
@@ -958,8 +970,17 @@ fn row5b_a_rest_and_two_pins_determine_the_plate() {
     let poses = solve_document(&doc);
     assert_eq!(poses.fault(ids[1]), None, "rest + two pins determine");
     let relative = poses.relative(ids[1]).expect("a solved pose");
+    // VALUE-exact, not bit-exact, and the difference is the point: this
+    // pose comes out of the clocking solve (`atan2` then
+    // `rotation_about`), where row 1's came out of the forced-rotation
+    // arm with no trigonometry in it. A closed form through the
+    // transcendentals leaves a rounding step — here the residue of
+    // turning the rest's half-turn back, sin(π) ≈ 1.2e-16 off the
+    // identity. D9 is untouched: the same expression yields the same
+    // bits on every run, which is what determinism asks for, and the
+    // pncad cross-process row proves it across processes.
     assert!(
-        relative.bit_eq(&Frame::translation([0.0, 0.0, 2.0])),
+        near(relative, Frame::translation([0.0, 0.0, 2.0]), 1e-12),
         "the plate seats at the rest, unturned (both patterns agree): {relative:?}"
     );
     let ev = run(&doc, &opts(store));
