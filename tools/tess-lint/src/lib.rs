@@ -4,34 +4,43 @@
 //!
 //! # 1. The report: where does the mesh actually go, and why
 //!
-//! Per scene and per face: triangles, and the slack factors that say
-//! how many of them the deviation budget actually needed. The factors
-//! are ratios of GRID CELL COUNTS, all four of them counted over the
-//! same trim box with the same `ceil` discipline, so they are directly
-//! comparable:
+//! Per scene and per face: triangles, and the factors that say how
+//! many of them the deviation budget actually needed. The factors are
+//! ratios of GRID CELL COUNTS, all counted over the same trim box with
+//! the same `ceil` discipline, so they are directly comparable.
 //!
-//! * **split** = `uniform_cells / opt_cells` — the shipped grid against
-//!   the cheapest grid the SAME whole-patch bound admits. The
-//!   certificate is `muu·h_u² + 2·muv·h_u·h_v + mvv·h_v² ≤ δ_s`, an
-//!   ellipse's interior; the shipped schedule reaches it through the
-//!   decoupling `2·a_u·a_v ≤ a_u² + a_v²`, which lands on a point of
-//!   that ellipse rather than its cheapest one. Anisotropic walls (a
-//!   ruled direction: `muu ≈ 0` with `muv > 0`) pay the most.
-//! * **span** = `uniform_cells / span_cells` — the shipped grid against
-//!   one sized per knot-span cell from that cell's own certified
-//!   bound. This is #320's hypothesis, metered.
-//! * **both** = `uniform_cells / span_opt_cells` — the two together,
-//!   which is NOT their product.
+//! **Re-derived at TESS-SPAN** (the #320 span promotion): the shipped
+//! grid is per-knot-span-cell-sized now, recorded as `grid_cells`;
+//! the retired whole-patch-sup schedule rides along as the
+//! COUNTERFACTUAL `patch_cells` column so the held gain stays a
+//! number; `span_cells` is the meter's independent per-cell
+//! prediction of the shipped schedule.
+//!
+//! * **held** = `patch_cells / grid_cells` — the span gain TESS-SPAN
+//!   holds over whole-patch sizing. A regression toward whole-patch
+//!   sizing drives it toward 1.0 (and fires the gate through
+//!   `recoverable`, below).
+//! * **agree** = `grid_cells / span_cells` — ~1.00 by construction:
+//!   the lane's actual schedule against the meter's independent
+//!   prediction. Drift means the shipped sizing and the analysis no
+//!   longer describe the same grid.
+//! * **split** = `grid_cells / span_opt_cells` — what is still
+//!   recoverable by picking a cheaper point on each cell's
+//!   constraint ellipse `muu·h_u² + 2·muv·h_u·h_v + mvv·h_v² ≤ δ_s`;
+//!   the shipped schedule still reaches it through the decoupling
+//!   `2·a_u·a_v ≤ a_u² + a_v²` (the split unit's open question).
+//!   Anisotropic walls (a ruled direction: `muu ≈ 0` with `muv > 0`)
+//!   pay the most.
 //! * **total** = `delta / worst_dev` — the deviation budget that went
 //!   unspent, when the sweep ran with `--deviation`. A softer number
-//!   than the three above: `worst_dev` is sampled (so it under-reports
+//!   than the ones above: `worst_dev` is sampled (so it under-reports
 //!   deviation and over-reports slack) and the `h² ↔ 1/h²` scaling that
 //!   turns it into a triangle count is a first-order extrapolation.
 //!
-//! Every one of the first three is **realizable without weakening any
-//! certificate**: each counts a grid whose every cell satisfies the
-//! same per-triangle bound the shipped lane checks. They are what a
-//! sizing change could recover, not what a looser tolerance could.
+//! `held` and `split` are **realizable without weakening any
+//! certificate** (held IS realized — the shipped lane holds it):
+//! each counts a grid whose every cell satisfies the same
+//! per-triangle bound the shipped lane checks.
 //!
 //! One caveat on `split`, because the number is otherwise too
 //! flattering: the cheapest point on the constraint curve is a STRIP
@@ -52,10 +61,13 @@
 //!
 //! 1. **Triangle-count growth** — a scene's mesh grew by more than
 //!    [`GROWTH_TOLERANCE`]. Tessellation cost is invisible in a diff.
-//! 2. **Slack growth** — a face's recoverable slack (`both`) grew by
-//!    more than [`GROWTH_TOLERANCE`]: the sizing schedule got MORE
-//!    wasteful, which a triangle count alone can hide (a smaller,
-//!    flatter face can regress in slack while shrinking).
+//! 2. **Slack growth** — a face's recoverable slack
+//!    (`grid_cells / span_opt_cells`) grew by more than
+//!    [`GROWTH_TOLERANCE`]: the sizing schedule got MORE wasteful,
+//!    which a triangle count alone can hide (a smaller, flatter face
+//!    can regress in slack while shrinking). Since TESS-SPAN this is
+//!    also the tripwire for a silent revert to whole-patch sizing —
+//!    `grid_cells` would jump by the held span factor.
 //! 3. **Scene disappeared** — a baseline scene the fresh sweep has no
 //!    row for. Silent coverage loss reads as an improvement in every
 //!    total, so it is a finding, not a footnote.
@@ -92,11 +104,16 @@ pub struct Row {
 /// The NURBS lane's sizing columns (`mesh::budget::NurbsBudget`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Nurbs {
-    /// The grid the lane used, as a cell count.
-    pub uniform_cells: f64,
+    /// The grid the lane actually built (TESS-SPAN: per-cell-sized),
+    /// as a cell count.
+    pub grid_cells: f64,
+    /// The retired whole-patch-sup schedule's cell count — the
+    /// counterfactual column.
+    pub patch_cells: f64,
     /// Cheapest uniform grid the same whole-patch bound admits.
     pub opt_cells: f64,
-    /// Per-knot-span-cell sizing at the lane's own split.
+    /// The meter's independent per-cell prediction of the shipped
+    /// schedule.
     pub span_cells: f64,
     /// Per-cell sizing at the cheapest split.
     pub span_opt_cells: f64,
@@ -107,20 +124,22 @@ pub struct Nurbs {
 }
 
 impl Row {
-    /// `uniform_cells / opt_cells` — the split factor, or `None` off
+    /// `patch_cells / grid_cells` — the held span gain, or `None` off
     /// the Hessian-sized lane.
-    pub fn split_slack(&self) -> Option<f64> {
-        self.nurbs.map(|n| ratio(n.uniform_cells, n.opt_cells))
+    pub fn span_held(&self) -> Option<f64> {
+        self.nurbs.map(|n| ratio(n.patch_cells, n.grid_cells))
     }
 
-    /// `uniform_cells / span_cells` — the span factor.
-    pub fn span_slack(&self) -> Option<f64> {
-        self.nurbs.map(|n| ratio(n.uniform_cells, n.span_cells))
+    /// `grid_cells / span_cells` — the lane-vs-meter agreement,
+    /// ~1.0 by construction.
+    pub fn agreement(&self) -> Option<f64> {
+        self.nurbs.map(|n| ratio(n.grid_cells, n.span_cells))
     }
 
-    /// `uniform_cells / span_opt_cells` — both, together.
+    /// `grid_cells / span_opt_cells` — the recoverable slack (the
+    /// gate's per-face ratio).
     pub fn recoverable(&self) -> Option<f64> {
-        self.nurbs.map(|n| ratio(n.uniform_cells, n.span_opt_cells))
+        self.nurbs.map(|n| ratio(n.grid_cells, n.span_opt_cells))
     }
 
     /// `delta / worst_dev` — the unspent deviation budget, `None`
@@ -160,8 +179,8 @@ pub struct ParseError {
 /// there is no shared constant to import, and a drifting sweep must
 /// fail as harness breakage rather than parse into wrong columns.
 pub const EXPECTED_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
-                                   muu,muv,mvv,cells,uniform_cells,opt_cells,span_cells,\
-                                   span_opt_cells,worst_cert,worst_dev,dev_samples";
+                                   muu,muv,mvv,cells,grid_cells,patch_cells,opt_cells,\
+                                   span_cells,span_opt_cells,worst_cert,worst_dev,dev_samples";
 
 /// Parses a budget CSV.
 ///
@@ -209,7 +228,7 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
         };
         // The sizing columns are empty on every non-NURBS chart. All
         // present or all absent — a half-filled row is drift.
-        let sizing: Vec<&str> = vec![f[15], f[16], f[17], f[18], f[19], f[20]];
+        let sizing: Vec<&str> = vec![f[15], f[16], f[17], f[18], f[19], f[20], f[21]];
         let nurbs = if sizing.iter().all(|s| s.is_empty()) {
             None
         } else if sizing.iter().any(|s| s.is_empty()) {
@@ -219,12 +238,13 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
             });
         } else {
             Some(Nurbs {
-                uniform_cells: num(15, "uniform_cells")?,
-                opt_cells: num(16, "opt_cells")?,
-                span_cells: num(17, "span_cells")?,
-                span_opt_cells: num(18, "span_opt_cells")?,
-                worst_cert: num(19, "worst_cert")?,
-                worst_dev: num(20, "worst_dev")?,
+                grid_cells: num(15, "grid_cells")?,
+                patch_cells: num(16, "patch_cells")?,
+                opt_cells: num(17, "opt_cells")?,
+                span_cells: num(18, "span_cells")?,
+                span_opt_cells: num(19, "span_opt_cells")?,
+                worst_cert: num(20, "worst_cert")?,
+                worst_dev: num(21, "worst_dev")?,
             })
         };
         rows.push(Row {
@@ -249,11 +269,13 @@ pub struct SceneTotals {
     pub triangles: usize,
     /// Triangles on Hessian-sized faces only.
     pub nurbs_triangles: usize,
-    /// Grid cells the shipped sizing used, summed.
-    pub uniform_cells: f64,
+    /// Grid cells the shipped (per-cell) sizing used, summed.
+    pub grid_cells: f64,
+    /// The whole-patch counterfactual's cells, summed.
+    pub patch_cells: f64,
     /// Cheapest same-bound uniform grids, summed.
     pub opt_cells: f64,
-    /// Per-cell-sized grids at the lane's split, summed.
+    /// The meter's per-cell predictions, summed.
     pub span_cells: f64,
     /// Per-cell-sized grids at the cheapest split, summed.
     pub span_opt_cells: f64,
@@ -266,19 +288,21 @@ pub struct SceneTotals {
 }
 
 impl SceneTotals {
-    /// The scene's recoverable factor: both effects, together.
+    /// The scene's recoverable factor (the shipped grid against
+    /// per-cell sizing at the cheapest split).
     pub fn recoverable(&self) -> f64 {
-        ratio(self.uniform_cells, self.span_opt_cells)
+        ratio(self.grid_cells, self.span_opt_cells)
     }
 
-    /// The scene's split factor.
-    pub fn split_slack(&self) -> f64 {
-        ratio(self.uniform_cells, self.opt_cells)
+    /// The scene's held span gain (the whole-patch counterfactual
+    /// against the shipped grid).
+    pub fn span_held(&self) -> f64 {
+        ratio(self.patch_cells, self.grid_cells)
     }
 
-    /// The scene's span factor.
-    pub fn span_slack(&self) -> f64 {
-        ratio(self.uniform_cells, self.span_cells)
+    /// The scene's lane-vs-meter agreement (~1.0 by construction).
+    pub fn agreement(&self) -> f64 {
+        ratio(self.grid_cells, self.span_cells)
     }
 
     /// The scene's total slack: its resampled triangles against the
@@ -311,7 +335,8 @@ pub fn totals(rows: &[Row]) -> Vec<(String, SceneTotals)> {
         t.triangles += r.triangles;
         if let Some(n) = r.nurbs {
             t.nurbs_triangles += r.triangles;
-            t.uniform_cells += n.uniform_cells;
+            t.grid_cells += n.grid_cells;
+            t.patch_cells += n.patch_cells;
             t.opt_cells += n.opt_cells;
             t.span_cells += n.span_cells;
             t.span_opt_cells += n.span_opt_cells;
@@ -446,9 +471,9 @@ mod tests {
     fn csv(tris: usize, span_opt: f64) -> String {
         format!(
             "{EXPECTED_HEADER}\n\
-             s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,\n\
-             s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,10,20,1e0,1e0,1e0,4,\
-             2e2,5e1,1e2,{span_opt:e},1e-4,5e-5,99\n"
+             s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,,\n\
+             s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,4,\
+             1e2,2e2,5e1,1e2,{span_opt:e},1e-4,5e-5,99\n"
         )
     }
 
@@ -458,11 +483,12 @@ mod tests {
         assert_eq!(rows.len(), 2);
         assert!(rows[0].nurbs.is_none(), "a plane row carries no sizing");
         let n = rows[1].nurbs.unwrap();
-        assert!((n.uniform_cells - 200.0).abs() < 1e-9);
-        // 200 / 50, 200 / 100, 200 / 25, and delta / worst_dev.
-        assert!((rows[1].split_slack().unwrap() - 4.0).abs() < 1e-9);
-        assert!((rows[1].span_slack().unwrap() - 2.0).abs() < 1e-9);
-        assert!((rows[1].recoverable().unwrap() - 8.0).abs() < 1e-9);
+        assert!((n.grid_cells - 100.0).abs() < 1e-9);
+        assert!((n.patch_cells - 200.0).abs() < 1e-9);
+        // 200 / 100, 100 / 100, 100 / 25, and delta / worst_dev.
+        assert!((rows[1].span_held().unwrap() - 2.0).abs() < 1e-9);
+        assert!((rows[1].agreement().unwrap() - 1.0).abs() < 1e-9);
+        assert!((rows[1].recoverable().unwrap() - 4.0).abs() < 1e-9);
         assert!((rows[1].total_slack().unwrap() - 40.0).abs() < 1e-9);
     }
 
@@ -515,7 +541,7 @@ mod tests {
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].kind, Kind::Slack);
         assert_eq!(f[0].face, Some(1));
-        assert!((f[0].was - 8.0).abs() < 1e-9 && (f[0].now - 20.0).abs() < 1e-9);
+        assert!((f[0].was - 4.0).abs() < 1e-9 && (f[0].now - 10.0).abs() < 1e-9);
     }
 
     #[test]
@@ -541,7 +567,8 @@ mod tests {
     fn a_half_filled_sizing_row_is_harness_breakage() {
         let bad = format!(
             "{EXPECTED_HEADER}\n\
-             s/b,1,nurbs,2e-3,9,0e0,1e0,0e0,1e0,10,20,1e0,1e0,1e0,4,2e2,,1e2,2.5e1,1e-4,5e-5,99\n"
+             s/b,1,nurbs,2e-3,9,0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,4,1e2,,5e1,1e2,2.5e1,\
+             1e-4,5e-5,99\n"
         );
         let e = parse(&bad).unwrap_err();
         assert!(e.text.contains("partially filled"), "{}", e.text);
@@ -554,6 +581,6 @@ mod tests {
         assert_eq!(rows[1].total_slack(), None);
         // …and the cell-count factors are unaffected: they never
         // needed the resampling pass.
-        assert!((rows[1].recoverable().unwrap() - 8.0).abs() < 1e-9);
+        assert!((rows[1].recoverable().unwrap() - 4.0).abs() < 1e-9);
     }
 }

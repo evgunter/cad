@@ -78,14 +78,27 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
     assert!(!walls.is_empty(), "the loft's walls are NURBS faces");
     for n in &walls {
         // Every comparison grid is counted over the same box, so the
-        // shipped one can never be the cheapest by construction —
+        // counterfactual can never be the cheapest by construction —
         // but it must never come out CHEAPER than the optimum either,
         // which would mean the comparison is not a comparison.
         assert!(
-            n.opt_cells <= n.uniform_cells && n.span_opt_cells <= n.span_cells,
+            n.opt_cells <= n.patch_cells && n.span_opt_cells <= n.span_cells,
             "a cheaper schedule cannot cost more: {n:?}"
         );
-        assert!(n.uniform_cells > 0.0 && n.span_opt_cells > 0.0, "{n:?}");
+        assert!(n.grid_cells > 0.0 && n.span_opt_cells > 0.0, "{n:?}");
+        // TESS-SPAN: the shipped grid IS per-cell-sized, so the lane's
+        // actual cell count and the meter's independent prediction
+        // agree (a one-cell margin per ulp-level trim-box overhang the
+        // two arithmetics clip differently).
+        assert!(
+            (n.grid_cells - n.span_cells).abs() <= 0.01 * n.span_cells + 1.0,
+            "the shipped schedule and the meter's per-cell prediction disagree: {n:?}"
+        );
+        // (No `grid_cells <= patch_cells` assertion on purpose: the
+        // per-cell schedule pays a `ceil` per cell, and a face with
+        // many near-empty cells can honestly cost a few cells MORE
+        // than the whole-patch grid — #547 measured exactly that on
+        // the swept blades, span 0.9x.)
         assert!(
             n.worst_cert.is_finite() && n.worst_cert > 0.0,
             "the face's worst certificate is recorded: {n:?}"

@@ -1,11 +1,15 @@
 # The tessellation budget — measuring over-tessellation (issue #320)
 
-**Status: measurement complete, no fix applied.** #320 asked whether
-the NURBS-wall grid sizing is "honestly tight … or systematically
-over-conservative", and asked for measurement first. This is the
-measurement, the instrument that produced it, and what the numbers say
-a fix would have to do. The shipped certificate path is unchanged: the
-work here is an instrument beside it, not a change to it.
+**Status: measurement complete; the SPAN half is FIXED (TESS-SPAN,
+docs/TESS-SPAN-SPEC.md).** #320 asked whether the NURBS-wall grid
+sizing is "honestly tight … or systematically over-conservative", and
+asked for measurement first. This document is that measurement, the
+instrument that produced it, and what the numbers said a fix would
+have to do — kept as the pre-fix record. Since TESS-SPAN the shipped
+schedule sizes each knot-span cell from its own certified bound, so
+the `span` factor below is REALIZED and the meter's columns were
+re-derived ("The columns after TESS-SPAN", below); the SPLIT factor
+remains open on the aspect-policy question.
 
 ## The instrument
 
@@ -64,7 +68,35 @@ dropping out of the sweep. The gate reads triangle counts and the
 sizing columns only, so the resampling is a cost the gate has no use
 for; re-cutting the baseline drops the flag.
 
-## What the four numbers mean
+## The columns after TESS-SPAN
+
+TESS-SPAN moved the shipped schedule onto the per-cell sizing this
+document measured, which would have blinded a meter whose "shipped
+grid" column was defined as the whole-patch product. The CSV was
+re-derived (spec D-4) so BOTH regression kinds stay visible:
+
+* `grid_cells` — the grid the lane ACTUALLY built (per-cell), read off
+  the sizing hand-off. The gate's numerator.
+* `patch_cells` (with `nu`, `nv`, `muu`, `muv`, `mvv`) — the retired
+  whole-patch-sup schedule, recomputed by the meter as a
+  COUNTERFACTUAL. `patch_cells / grid_cells` is the **held** span
+  gain; a silent revert to whole-patch sizing multiplies `grid_cells`
+  by it, which fires the triangle gate and the slack gate both.
+* `span_cells` — the meter's own per-cell prediction, computed through
+  `nurbs_cell_bounds` independently of the lane's arithmetic.
+  `grid_cells / span_cells` is the **agreement** column, ~1.00 by
+  construction; drift means lane and analysis no longer describe the
+  same grid.
+* `opt_cells`, `span_opt_cells` — as before (cheapest split under the
+  whole-patch bound / per cell). `grid_cells / span_opt_cells` is the
+  gate's per-face recoverable-slack ratio, now measuring the split
+  factor alone.
+
+The report prints `held / agree / split / total`; `tess-lint`'s gate
+rules are unchanged in shape (triangle growth, per-face recoverable
+slack growth, vanished scenes).
+
+## What the four numbers meant (pre-fix record)
 
 All four are ratios of GRID CELL COUNTS over the same trim box with the
 same `ceil` discipline, so they compare directly.

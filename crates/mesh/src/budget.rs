@@ -20,24 +20,38 @@
 //! measurement changes no mesh: the recorded quantities are read off
 //! the sizing the lane already performed.
 //!
-//! # The three slack factors
+//! # The slack factors (re-derived at TESS-SPAN)
 //!
 //! Per face the meter records what the lane used (the grid, the
 //! triangle count, the whole-patch Hessian bound) and what it could
 //! have used. The lint arithmetic is deliberately kept OUT of the
 //! kernel — the row carries measurements, `tools/tess-lint` names the
-//! findings — but the decomposition the fields are chosen for is:
+//! findings.
+//!
+//! **TESS-SPAN moved the shipped schedule onto per-knot-span-cell
+//! sizing**, so the columns were re-derived to keep both regression
+//! kinds visible (spec D-4). The shipped grid is now `grid_cells`,
+//! read off the sizing the lane actually ran; `patch_cells` is the
+//! retired whole-patch-sup schedule kept as a COUNTERFACTUAL column
+//! (the live half recomputes it from `nurbs_face_bound`), so the gain
+//! the promotion holds stays a number and a silent revert to
+//! whole-patch sizing cannot hide; `span_cells` is the meter's OWN
+//! per-cell prediction of the shipped schedule, computed through
+//! `nurbs_cell_bounds` independently of the lane's arithmetic.
 //!
 //! | factor | ratio | what it says |
 //! |---|---|---|
-//! | **split slack** | `uniform_cells / opt_cells` | grid cells bought by picking the wrong point on the certificate's own constraint curve. The `2·a_u·a_v ≤ a_u² + a_v²` decoupling that sizes the shipped grid is an upper bound, and a wall that is ruled in one direction pays for it. Certified identically — but see the anisotropy caveat below. |
-//! | **span slack** | `uniform_cells / span_cells` | grid cells bought by sizing the WHOLE patch from its worst cell. Recoverable with no loss of certification: every cell's own bound certifies the triangles inside it. |
+//! | **span held** | `patch_cells / grid_cells` | the gain TESS-SPAN holds over whole-patch-sup sizing. Falls toward 1.0 if the shipped schedule regresses toward the patch sup. |
+//! | **agreement** | `grid_cells / span_cells` | ~1.0 by construction — the lane's schedule against the meter's independent per-cell prediction. Drift means the shipped sizing and the analysis no longer describe the same grid. |
+//! | **split slack** | `grid_cells / span_opt_cells` | grid cells still recoverable by picking a cheaper point on each cell's constraint ellipse. The `2·a_u·a_v ≤ a_u² + a_v²` decoupling is unchanged by TESS-SPAN (the aspect-policy question is the split unit's), and a ruled wall still pays for it — see the anisotropy caveat below. |
 //! | **budget slack** | `delta / worst_cert` | the sizing heuristic's headroom — two-cells-per-axis budgeting, the `ceil`, and trim boxes smaller than a full grid cell. |
-//! | **certificate slack** | `worst_cert / worst_dev` | how far the Hessian interpolation bound sits above the deviation actually attained. Irreducible in part (a bound must dominate), inflated by whole-patch sups. |
+//! | **certificate slack** | `worst_cert / worst_dev` | how far the Hessian interpolation bound sits above the deviation actually attained. Irreducible in part (a bound must dominate). |
 //!
-//! The first two are not independent, so `span_opt_cells` reports them
-//! TAKEN TOGETHER rather than leaving a reader to multiply factors that
-//! do not compose.
+//! `opt_cells` (cheapest split under the WHOLE-PATCH bound) rides
+//! along with the counterfactual for continuity with the #547
+//! measurement; `span_opt_cells` (per-cell sizing AND the cheapest
+//! split per cell) is the recoverable-slack denominator the gate
+//! compares.
 //!
 //! **The anisotropy caveat on split slack, stated because the number
 //! is otherwise too flattering**: the cheapest point on the constraint
@@ -65,9 +79,9 @@
 //! signal, never a bound. `worst_dev` is likewise a SAMPLED sup
 //! (barycentric samples per triangle, [`DEV_SAMPLES`] per edge), so it
 //! under-reports the true deviation and therefore over-reports the
-//! available saving. The span-slack factor carries no such caveat: it
-//! is computed from certified per-cell bounds and the lane's own
-//! `grid_steps` schedule, with each cell's `ceil` paid honestly.
+//! available saving. The counted-grid columns carry no such caveat:
+//! they are computed from certified bounds and the lane's own
+//! `grid_steps` rule, with each cell's `ceil` paid honestly.
 //!
 //! # What is measured for which chart
 //!
@@ -146,11 +160,15 @@ pub struct NurbsBudget {
     pub u: (f64, f64),
     /// The trim box the grid spans: `v` extent.
     pub v: (f64, f64),
-    /// Grid divisions the lane used, `u` then `v`.
-    pub nu: usize,
-    /// Grid divisions the lane used, `v`.
-    pub nv: usize,
-    /// `sup ‖S_uu‖` of the whole-patch bound the grid was sized from.
+    /// COUNTERFACTUAL since TESS-SPAN: the grid divisions the retired
+    /// whole-patch-sup schedule would use over the trim box, `u`
+    /// direction (f64 — computed by the meter's `divisions`, no longer
+    /// a count the lane held).
+    pub nu: f64,
+    /// The whole-patch counterfactual's `v` divisions.
+    pub nv: f64,
+    /// `sup ‖S_uu‖` of the whole-patch bound (the counterfactual's
+    /// input; still the chord pass's boundary schedule).
     pub muu: f64,
     /// `sup ‖S_uv‖` of that bound.
     pub muv: f64,
@@ -160,13 +178,19 @@ pub struct NurbsBudget {
     /// integral arm, refined cells for the rational one —
     /// `nurbs_cell_bounds`).
     pub cells: usize,
-    /// `nu · nv` — the uniform grid's cell count over the trim box.
-    pub uniform_cells: f64,
+    /// The grid the lane ACTUALLY built (TESS-SPAN: per-cell sizing),
+    /// as a cell count read off the sizing hand-off.
+    pub grid_cells: f64,
+    /// `nu · nv` — the whole-patch counterfactual's cell count (the
+    /// pre-TESS-SPAN `uniform_cells` column, kept so the held span
+    /// gain stays a number — module docs).
+    pub patch_cells: f64,
     /// The cheapest uniform grid the SAME whole-patch bound admits,
-    /// over the same box (module docs: the split-slack denominator).
+    /// over the same box (rides with the counterfactual).
     pub opt_cells: f64,
-    /// What a per-cell-sized grid over the SAME box would cost, each
-    /// cell's `ceil` paid (module docs: the span-slack denominator).
+    /// The meter's OWN per-cell-sized prediction of the shipped grid,
+    /// each cell's `ceil` paid — computed independently of the lane's
+    /// arithmetic (module docs: the agreement denominator).
     pub span_cells: f64,
     /// Per-cell sizing AND the cheapest split in each cell — the two
     /// recoverable factors together, which is not their product.
@@ -183,10 +207,11 @@ pub struct NurbsBudget {
 
 /// What the NURBS lane sized, handed to the meter in one piece.
 ///
-/// A struct rather than six positional parameters: the meter's
+/// A struct rather than loose positional parameters: the meter's
 /// hand-off is the one place the lane's whole sizing decision crosses
-/// a module boundary, and `(u, v, nu, nv, delta_s)` as loose arguments
-/// is a swap waiting to happen between two `(f64, f64)` pairs.
+/// a module boundary, and `(u, v, grid_cells, delta_s)` as loose
+/// arguments is a swap waiting to happen between two `(f64, f64)`
+/// pairs.
 ///
 /// The lane BUILDS one either way — the call site is shared — and the
 /// inert half then reads none of its fields, which is honest dead code
@@ -198,10 +223,9 @@ pub(crate) struct Sizing {
     pub u: (f64, f64),
     /// The trim box's `v` extent.
     pub v: (f64, f64),
-    /// Grid divisions in `u`.
-    pub nu: usize,
-    /// Grid divisions in `v`.
-    pub nv: usize,
+    /// Grid cells the per-cell schedule actually built (`Σ nuc·nvc`
+    /// over the clipped cells — TESS-SPAN).
+    pub grid_cells: usize,
     /// The per-face deviation target the grid was sized against.
     pub delta_s: f64,
 }
@@ -227,8 +251,8 @@ pub struct FaceBudget {
 /// definition, both sides.
 #[cfg(feature = "budget")]
 pub const CSV_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
-                              muu,muv,mvv,cells,uniform_cells,opt_cells,span_cells,\
-                              span_opt_cells,worst_cert,worst_dev,dev_samples";
+                              muu,muv,mvv,cells,grid_cells,patch_cells,opt_cells,\
+                              span_cells,span_opt_cells,worst_cert,worst_dev,dev_samples";
 
 /// How many of [`CSV_HEADER`]'s columns are the NURBS lane's — every
 /// column after `triangles`, which is the last one every row fills.
@@ -263,8 +287,8 @@ impl FaceBudget {
             // the two arms disagree about the row's width.
             None => format!("{head}{}", ",".repeat(nurbs_column_count())),
             Some(n) => format!(
-                "{head},{:e},{:e},{:e},{:e},{},{},{:e},{:e},{:e},{},\
-                 {:e},{:e},{:e},{:e},{:e},{:e},{}",
+                "{head},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{},\
+                 {:e},{:e},{:e},{:e},{:e},{:e},{:e},{}",
                 n.u.0,
                 n.u.1,
                 n.v.0,
@@ -275,7 +299,8 @@ impl FaceBudget {
                 n.muv,
                 n.mvv,
                 n.cells,
-                n.uniform_cells,
+                n.grid_cells,
+                n.patch_cells,
                 n.opt_cells,
                 n.span_cells,
                 n.span_opt_cells,
@@ -358,22 +383,25 @@ mod live {
     }
 
     /// The NURBS lane's sizing hand-off, called once per face before
-    /// the grid is built: computes the per-cell comparison (module
-    /// docs) and holds it until [`finish_face`] closes the row.
+    /// the grid is built: computes the per-cell prediction and the
+    /// whole-patch counterfactual (module docs) and holds them until
+    /// [`finish_face`] closes the row.
     ///
-    /// The per-cell assembly is called from HERE rather than from the
-    /// lane, so that everything it needs — `nurbs_cell_bounds` and the
-    /// comparison arithmetic below — compiles only in this half. The
-    /// lane's call site is one line and identical in both.
+    /// Both analysis arms — `nurbs_cell_bounds` for the prediction and
+    /// `nurbs_face_bound` for the counterfactual — are called from
+    /// HERE rather than from the lane, so that everything the meter
+    /// needs compiles only in this half; since TESS-SPAN the lane
+    /// itself never computes the whole-patch bound. The lane's call
+    /// site is one line and identical in both halves.
     ///
     /// # Errors
     ///
-    /// As `nurbs_cell_bounds` — the same gates the face bound itself
-    /// passed, so a face that tessellates cannot fail here.
+    /// As `nurbs_cell_bounds`/`nurbs_face_bound` — the same gates the
+    /// lane's own cell grid passed, so a face that tessellates cannot
+    /// fail here.
     pub(crate) fn note_nurbs_sizing(
         payload: &NurbsSurface<f64>,
         fk: FaceKey,
-        bound: NurbsFaceBound,
         sizing: Sizing,
     ) -> Result<(), TessellateError> {
         if !armed() {
@@ -382,18 +410,22 @@ mod live {
         let Sizing {
             u,
             v,
-            nu,
-            nv,
+            grid_cells,
             delta_s,
         } = sizing;
         let cells = &nurbs_cell_bounds(payload, fk)?;
+        let bound = crate::nurbs_cert::nurbs_face_bound(payload, fk)?;
         STATE.with(|s| {
             let mut s = s.borrow_mut();
             let Some(st) = s.as_mut() else { return };
-            #[allow(clippy::cast_precision_loss)]
-            let uniform_cells = nu as f64 * nv as f64;
             let (du, dv) = (u.1 - u.0, v.1 - v.0);
+            // The retired whole-patch schedule, re-run as the
+            // counterfactual (TESS-SPAN D-4): same steps, same ceil.
+            let (phu, phv) = bound.grid_steps(delta_s);
+            let (nu, nv) = (divisions(du, phu), divisions(dv, phv));
             let (span_cells, span_opt_cells) = span_sized_cells(cells, u, v, delta_s);
+            #[allow(clippy::cast_precision_loss)]
+            let grid_cells = grid_cells as f64;
             st.pending = Some(NurbsBudget {
                 u,
                 v,
@@ -403,7 +435,8 @@ mod live {
                 muv: bound.muv,
                 mvv: bound.mvv,
                 cells: cells.len(),
-                uniform_cells,
+                grid_cells,
+                patch_cells: nu * nv,
                 opt_cells: best_split_cells(bound, du, dv, delta_s),
                 span_cells,
                 span_opt_cells,
@@ -574,11 +607,14 @@ mod live {
         best
     }
 
-    /// What a per-cell-sized grid would cost over the trim box: each cell
+    /// What a per-cell-sized grid costs over the trim box: each cell
     /// clipped to the box and sized by its OWN certified bound, rounded up
     /// independently — the `ceil` per cell is a real cost of aligning grid
     /// lines to cell boundaries, and it is charged here rather than
-    /// amortized away.
+    /// amortized away. Since TESS-SPAN this is the meter's INDEPENDENT
+    /// prediction of the shipped schedule (the agreement column's
+    /// denominator), deliberately its own arithmetic rather than a call
+    /// into the lane's, so the two can disagree loudly if either drifts.
     ///
     /// Returns `(lane split, cheapest split)`: the same cells sized by
     /// [`NurbsFaceBound::grid_steps`], and by [`best_split_cells`].
@@ -627,7 +663,6 @@ mod inert {
     use topo::FaceKey;
 
     use super::{Chart, Sizing};
-    use crate::nurbs_cert::NurbsFaceBound;
     use crate::types::TessellateError;
 
     /// Always false: the meter is not in this build.
@@ -651,7 +686,6 @@ mod inert {
     pub(crate) fn note_nurbs_sizing(
         _payload: &NurbsSurface<f64>,
         _fk: FaceKey,
-        _bound: NurbsFaceBound,
         _sizing: Sizing,
     ) -> Result<(), TessellateError> {
         Ok(())
@@ -800,13 +834,14 @@ mod tests {
             nurbs: Some(NurbsBudget {
                 u: (0.0, 1.0),
                 v: (0.0, 1.0),
-                nu: 4,
-                nv: 5,
+                nu: 4.0,
+                nv: 5.0,
                 muu: 1.0,
                 muv: 2.0,
                 mvv: 3.0,
                 cells: 6,
-                uniform_cells: 20.0,
+                grid_cells: 12.0,
+                patch_cells: 20.0,
                 opt_cells: 10.0,
                 span_cells: 12.0,
                 span_opt_cells: 8.0,

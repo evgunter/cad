@@ -47,8 +47,16 @@
 //! rebuilds (deterministic, ≤ [`MAX_GRID_RETRIES`] rounds, then a
 //! typed [`TessellateError::Triangulation`]) — dropping a grid point
 //! only coarsens triangles, and the per-triangle certificates remain
-//! the guarantee; a BOUNDARY point as intermediate is a self-touching
-//! trim loop, refused typed
+//! the guarantee. Since TESS-SPAN the NURBS lane's grid is
+//! NON-UNIFORM (per-knot-span-cell lines), and the ladder is argued
+//! for it explicitly: candidates are generated, DEDUPLICATED by
+//! location, and frozen before the first attempt, and a drop removes
+//! a candidate INDEX — so a cell-boundary point minted by two
+//! adjacent cells is one candidate, one drop actually removes the
+//! offending location, every retry strictly shrinks the candidate
+//! set, and the ≤ [`MAX_GRID_RETRIES`] bound terminates exactly as it
+//! did for the uniform grid. A BOUNDARY point as intermediate is a
+//! self-touching trim loop, refused typed
 //! ([`TessellateError::SelfTouchingTrimLoop`]). That refusal has no
 //! at-rest fixture on purpose: split sections and boolean seams mint
 //! simple loops, and hand-building a self-touching one at the mesh
@@ -69,7 +77,7 @@ use topo::{Body, EdgeKey, FaceKey};
 use crate::cert;
 use crate::chords::{ceil_count, sagitta_angle};
 use crate::curved::Tol;
-use crate::nurbs_cert::{NurbsFaceBound, nurbs_face_bound};
+use crate::nurbs_cert::{NurbsCellGrid, nurbs_cell_grid};
 use crate::planar::{classify_faces, edge_key, shoelace2};
 use crate::types::TessellateError;
 
@@ -88,8 +96,9 @@ enum Lane {
         radius: f64,
     },
     /// The M7 trimmed-NURBS lane (closed-form pcurve images, Hessian
-    /// interpolation certificate — `crate::nurbs_cert`).
-    Nurbs { bound: NurbsFaceBound },
+    /// interpolation certificate — `crate::nurbs_cert`; since
+    /// TESS-SPAN sized and certified per knot-span cell).
+    Nurbs { grid: NurbsCellGrid },
 }
 
 /// Does this face's outer loop carry a non-iso trim carrier (conic or
@@ -148,7 +157,7 @@ pub(crate) fn tessellate_trimmed(
                 return Err(TessellateError::UnsupportedSurface { face: fk });
             }
             Lane::Nurbs {
-                bound: nurbs_face_bound(payload, fk)?,
+                grid: nurbs_cell_grid(payload, fk)?,
             }
         }
         _ => return Err(trim_frontier(body, fk, face.outer)?),
@@ -167,8 +176,12 @@ pub(crate) fn tessellate_trimmed(
 
     // Grid sizing (heuristic; the certificates are the guarantee —
     // crate docs): cylinder — sagitta-tight in u, rows every r·hu
-    // metres in v; NURBS — the Hessian-budget steps (`nurbs_cert`),
-    // shared with the chord pass's boundary tightening.
+    // metres in v, a uniform grid over the trim box; NURBS — the
+    // Hessian-budget steps (`nurbs_cert`) applied PER KNOT-SPAN CELL
+    // from each cell's own certified bound (TESS-SPAN), grid lines on
+    // the cell boundaries. The chord pass's boundary tightening keeps
+    // the whole-patch steps (the reported D-2 choice — `nurbs_cert`
+    // module docs).
     let (mut u0, mut u1, mut v0, mut v1) = (f64::MAX, f64::MIN, f64::MAX, f64::MIN);
     for &(u, v, _) in &polygon {
         u0 = u0.min(u);
@@ -176,48 +189,53 @@ pub(crate) fn tessellate_trimmed(
         v0 = v0.min(v);
         v1 = v1.max(v);
     }
-    let (nu, nv) = match lane {
+    let (candidates, nurbs_grid_cells) = match lane {
         Lane::Cylinder { radius, .. } => {
             let hu = sagitta_angle(tol.delta_s, radius);
-            (ceil_count(u1 - u0, hu)?, ceil_count(v1 - v0, radius * hu)?)
+            let nu = ceil_count(u1 - u0, hu)?;
+            let nv = ceil_count(v1 - v0, radius * hu)?;
+            (uniform_candidates((u0, u1), (v0, v1), nu, nv), None)
         }
-        Lane::Nurbs { ref bound } => {
-            let (hu, hv) = bound.grid_steps(tol.delta_s);
-            (ceil_count(u1 - u0, hu)?, ceil_count(v1 - v0, hv)?)
+        Lane::Nurbs { ref grid } => {
+            let (cand, cells) = per_cell_candidates(grid, (u0, u1), (v0, v1), tol.delta_s)?;
+            (cand, Some(cells))
         }
     };
-    // BUDGET METER (dead in normal runs): what this grid cost, and what
-    // a per-cell-sized one would have (`crate::budget`, issue #320).
-    // Read off the sizing above — it changes nothing about it.
-    if let (Lane::Nurbs { bound }, Surface::Nurbs(payload)) = (&lane, surface) {
+    // BUDGET METER (dead in normal runs): what this grid cost, and the
+    // schedules the same certificates admit (`crate::budget`, issue
+    // #320 / TESS-SPAN). Read off the sizing above — it changes
+    // nothing about it.
+    if let (Some(grid_cells), Surface::Nurbs(payload)) = (nurbs_grid_cells, surface) {
         crate::budget::note_nurbs_sizing(
             payload,
             fk,
-            *bound,
             crate::budget::Sizing {
                 u: (u0, u1),
                 v: (v0, v1),
-                nu,
-                nv,
+                grid_cells,
                 delta_s: tol.delta_s,
             },
         )?;
     }
 
-    // Grid candidates (row-major, deterministic ids assigned on the
-    // FINAL kept set so retries stay deterministic).
-    let mut dropped: HashSet<(usize, usize)> = HashSet::new();
+    // Grid candidates are a fixed, deduplicated, (v, u)-sorted list
+    // computed ONCE (above the retry loop): mesh ids mint row-major on
+    // the FINAL kept set, and a retry drops candidates by INDEX — with
+    // per-cell generation a cell-boundary line is shared by adjacent
+    // cells, and dropping a location rather than one cell's copy of it
+    // is what keeps the retry ladder strictly shrinking (module docs).
+    let mut dropped: HashSet<usize> = HashSet::new();
     'retry: for attempt in 0..=MAX_GRID_RETRIES {
         // A retry rebuilds the emit pass from scratch, so the budget
         // meter's per-face deviation samples start over with it.
         crate::budget::reset_face_dev();
         let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
             ConstrainedDelaunayTriangulation::new();
-        // Handle-index → (mesh id or grid slot, uv).
+        // Handle-index → (mesh id or grid candidate index, uv).
         #[derive(Clone, Copy)]
         enum Slot {
             Boundary(u32),
-            Grid { i: usize, j: usize },
+            Grid(usize),
         }
         let mut meta: Vec<(f64, f64, Slot)> = Vec::new();
         let mut handles = Vec::with_capacity(polygon.len());
@@ -230,21 +248,15 @@ pub(crate) fn tessellate_trimmed(
             }
             handles.push(h);
         }
-        for j in 1..nv {
-            for i in 1..nu {
-                if dropped.contains(&(i, j)) {
-                    continue;
-                }
-                #[allow(clippy::cast_precision_loss)]
-                let u = u0 + (u1 - u0) * (i as f64 / nu as f64);
-                #[allow(clippy::cast_precision_loss)]
-                let v = v0 + (v1 - v0) * (j as f64 / nv as f64);
-                let h = cdt
-                    .insert(SpadePoint::new(u, v))
-                    .map_err(|_| TessellateError::Triangulation { face: fk })?;
-                if h.index() == meta.len() {
-                    meta.push((u, v, Slot::Grid { i, j }));
-                }
+        for (k, &(u, v)) in candidates.iter().enumerate() {
+            if dropped.contains(&k) {
+                continue;
+            }
+            let h = cdt
+                .insert(SpadePoint::new(u, v))
+                .map_err(|_| TessellateError::Triangulation { face: fk })?;
+            if h.index() == meta.len() {
+                meta.push((u, v, Slot::Grid(k)));
             }
         }
 
@@ -282,8 +294,8 @@ pub(crate) fn tessellate_trimmed(
                         }
                         let idx = h.index();
                         match meta[idx].2 {
-                            Slot::Grid { i, j } => {
-                                dropped.insert((i, j));
+                            Slot::Grid(k) => {
+                                dropped.insert(k);
                                 split_offender = true;
                             }
                             Slot::Boundary(_) => {
@@ -311,32 +323,30 @@ pub(crate) fn tessellate_trimmed(
             let poly2: Vec<[f64; 2]> = polygon.iter().map(|&(u, v, _)| [u, v]).collect();
             shoelace2(&poly2) < 0.0
         };
-        // Pass 1: which grid slots the kept triangles use; mint their
-        // mesh ids in row-major (j, i) order (the crate's determinism
-        // contract for interior grid points).
-        let mut used: Vec<(usize, usize)> = Vec::new();
+        // Pass 1: which grid candidates the kept triangles use; mint
+        // their mesh ids in candidate order — the candidate list is
+        // (v, u)-sorted, so this IS the crate's row-major determinism
+        // contract for interior grid points, on the final kept set.
+        let mut used: Vec<usize> = Vec::new();
         for f in cdt.inner_faces() {
             if !inside[f.fix().index()] {
                 continue;
             }
             for vtx in f.vertices() {
-                if let (_, _, Slot::Grid { i, j }) = meta[vtx.fix().index()] {
-                    used.push((j, i));
+                if let (_, _, Slot::Grid(k)) = meta[vtx.fix().index()] {
+                    used.push(k);
                 }
             }
         }
         used.sort_unstable();
         used.dedup();
-        let mut grid_ids: HashMap<(usize, usize), u32> = HashMap::new();
-        for &(j, i) in &used {
-            #[allow(clippy::cast_precision_loss)]
-            let u = u0 + (u1 - u0) * (i as f64 / nu as f64);
-            #[allow(clippy::cast_precision_loss)]
-            let v = v0 + (v1 - v0) * (j as f64 / nv as f64);
+        let mut grid_ids: HashMap<usize, u32> = HashMap::new();
+        for &k in &used {
+            let (u, v) = candidates[k];
             #[allow(clippy::cast_possible_truncation)]
             let id = positions.len() as u32;
             positions.push(surface.eval(u, v));
-            grid_ids.insert((i, j), id);
+            grid_ids.insert(k, id);
         }
         // Pass 2: emit and certify.
         //
@@ -374,7 +384,7 @@ pub(crate) fn tessellate_trimmed(
                 uv[k] = [u, v];
                 ids[k] = match slot {
                     Slot::Boundary(id) => id,
-                    Slot::Grid { i, j } => grid_ids[&(i, j)],
+                    Slot::Grid(c) => grid_ids[&c],
                 };
             }
             if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
@@ -391,7 +401,11 @@ pub(crate) fn tessellate_trimmed(
                     axis,
                     radius,
                 } => cert::cert_cylinder(origin, axis, radius, tri),
-                Lane::Nurbs { ref bound } => bound.cert(uv),
+                // TESS-SPAN: the certificate of the cell(s) covering
+                // the triangle's UV box — for a grid triangle, the one
+                // cell containing it (`NurbsCellGrid::cert` argues the
+                // half-open boundary case).
+                Lane::Nurbs { ref grid } => grid.cert(uv),
             };
             // REVIEW PROBE (env-gated): per-triangle falsification of
             // the NURBS certificate — dense barycentric samples of
@@ -453,6 +467,116 @@ pub(crate) fn tessellate_trimmed(
         return Ok(triangles);
     }
     Err(TessellateError::Triangulation { face: fk })
+}
+
+/// The uniform interior grid candidates of the cylinder lane: the trim
+/// box divided `nu × nv`, interior points only (the box boundary is at
+/// or outside the trim polygon), in the historical arithmetic —
+/// positions are bit-identical to the pre-TESS-SPAN grid. Already
+/// generated in (v, u) row-major order; sorted anyway so both lanes
+/// hand the retry loop the same invariant.
+fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec<(f64, f64)> {
+    let mut cand = Vec::new();
+    for j in 1..nv {
+        for i in 1..nu {
+            #[allow(clippy::cast_precision_loss)]
+            let uu = u.0 + (u.1 - u.0) * (i as f64 / nu as f64);
+            #[allow(clippy::cast_precision_loss)]
+            let vv = v.0 + (v.1 - v.0) * (j as f64 / nv as f64);
+            cand.push((uu, vv));
+        }
+    }
+    sort_candidates(&mut cand);
+    cand
+}
+
+/// The per-knot-span-cell candidates of the NURBS lane (TESS-SPAN):
+/// the trim box cut at every interior cell boundary, and each clipped
+/// cell divided by ITS OWN certified bound through the unchanged
+/// point-selection rule ([`crate::nurbs_cert::NurbsFaceBound::grid_steps`]).
+/// Cell-boundary lines get points from BOTH adjacent cells' schedules
+/// (their union — the shared cut value is the same f64 from the same
+/// cut array, so the dedup merges the line itself). Points on the trim
+/// box boundary are excluded exactly as the uniform grid excludes its
+/// `i = 0, nu` indices.
+///
+/// Also returns the grid-cell count `Σ nuc·nvc` over the clipped cells
+/// — the budget meter's `grid_cells` column, read off the sizing that
+/// actually ran.
+///
+/// The two-grid-cells-per-triangle-axis budget survives per cell: the
+/// spacing within a cell is that cell's own `(h_u, h_v)`, so a
+/// Delaunay triangle among these candidates spans at most ~2 spacings
+/// per axis of the cells its box covers — and the per-triangle
+/// certificate, checked from those same cells, remains the guarantee
+/// exactly as before.
+fn per_cell_candidates(
+    grid: &NurbsCellGrid,
+    u: (f64, f64),
+    v: (f64, f64),
+    delta_s: f64,
+) -> Result<(Vec<(f64, f64)>, usize), TessellateError> {
+    // The trim box cut at interior cell boundaries. Each slab remembers
+    // its cell index via a midpoint lookup — the midpoint is strictly
+    // inside one cell because no interior cut crosses a slab.
+    let slabs = |cuts: &[f64], lo: f64, hi: f64| -> Vec<(f64, f64)> {
+        let mut edges = vec![lo];
+        edges.extend(cuts.iter().copied().filter(|c| *c > lo && *c < hi));
+        edges.push(hi);
+        edges.windows(2).map(|w| (w[0], w[1])).collect()
+    };
+    let u_slabs = slabs(grid.u_cuts(), u.0, u.1);
+    let v_slabs = slabs(grid.v_cuts(), v.0, v.1);
+    let mut cand: Vec<(f64, f64)> = Vec::new();
+    let mut grid_cells = 0usize;
+    for &(va, vb) in &v_slabs {
+        for &(ua, ub) in &u_slabs {
+            let bound = grid.cell_bound_at(0.5 * (ua + ub), 0.5 * (va + vb));
+            let (hu, hv) = bound.grid_steps(delta_s);
+            let nuc = ceil_count(ub - ua, hu)?;
+            let nvc = ceil_count(vb - va, hv)?;
+            grid_cells += nuc * nvc;
+            // Slab-boundary indices reproduce the cut values EXACTLY
+            // (never through the lerp, whose rounding would put two
+            // almost-coincident lines an ulp apart on a shared
+            // boundary).
+            let at = |lo: f64, hi: f64, i: usize, n: usize| -> f64 {
+                if i == 0 {
+                    lo
+                } else if i == n {
+                    hi
+                } else {
+                    #[allow(clippy::cast_precision_loss)]
+                    {
+                        lo + (hi - lo) * (i as f64 / n as f64)
+                    }
+                }
+            };
+            for j in 0..=nvc {
+                let vv = at(va, vb, j, nvc);
+                if !(vv > v.0 && vv < v.1) {
+                    continue;
+                }
+                for i in 0..=nuc {
+                    let uu = at(ua, ub, i, nuc);
+                    if !(uu > u.0 && uu < u.1) {
+                        continue;
+                    }
+                    cand.push((uu, vv));
+                }
+            }
+        }
+    }
+    sort_candidates(&mut cand);
+    cand.dedup();
+    Ok((cand, grid_cells))
+}
+
+/// Row-major candidate order: by `v`, then `u` (total order — the
+/// values are finite by construction, and `total_cmp` keeps the sort
+/// deterministic without a partial-compare unwrap).
+fn sort_candidates(cand: &mut [(f64, f64)]) {
+    cand.sort_unstable_by(|a, b| a.1.total_cmp(&b.1).then(a.0.total_cmp(&b.0)));
 }
 
 /// The typed frontier refusal for a trimmed face on a chart whose
