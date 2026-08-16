@@ -811,7 +811,7 @@ fn resolve_declarations(
                         continue;
                     };
                     let d2 = (p.x - at[0]).powi(2) + (p.y - at[1]).powi(2) + (p.z - at[2]).powi(2);
-                    if d2 <= eps_in * eps_in {
+                    if d2 <= eps_in.powi(2) {
                         hits.push(vk);
                     }
                 }
