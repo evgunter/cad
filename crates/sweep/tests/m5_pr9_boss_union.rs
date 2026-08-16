@@ -311,19 +311,17 @@ fn r1_cradle(bulge: f64) -> Body<f64> {
     extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
 }
 
-/// **R1 probe (claim 1, the census evasion): a conformal curved touch
-/// between DISTINCT-KEY value-equal carriers.** The pin rests in the
-/// cradle's bite: a genuine 60-degree x 1.0 conformal patch contact
-/// between two instances — no coincident vertices, no line-edge
-/// events, no planar-face rests. The conformal arm groups by
-/// `SurfaceKey`, so the grafted pair is never a candidate; this probe
-/// pins the 3-prime answer. Ok(()) means an undeclared inter-instance
-/// TOUCH validated silently — a class the census module docs' stated
-/// envelope (undeclared curved TANGENCY + distinct-carrier
-/// interference) does not name, and which instance.rs's "an
-/// inter-instance TOUCH refuses undeclared" claims is refused.
+/// **R1 probe (claim 1), FIXED by the union pass (F1): a conformal
+/// curved touch between DISTINCT-KEY value-equal carriers.** The pin
+/// rests in the cradle's bite: a genuine 60-degree x 1.0 conformal
+/// patch contact between two instances — no coincident vertices, no
+/// line-edge events, no planar-face rests, so no exact sweep and no
+/// same-key conformal arm can see it. Pre-fix this probe pinned the
+/// silent Ok(()) (the R1 review's core finding); the conservative
+/// loudness backstop now refuses the pair as UNDECIDABLE, naming the
+/// C9-ring class.
 #[test]
-fn r1_probe_conformal_touch_between_instances_validates_silently() {
+fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
     let b60 = (15f64).to_radians().tan(); // bulge of a 60-degree arc
     let cradle = [b60, -b60]
         .into_iter()
@@ -367,16 +365,17 @@ fn r1_probe_conformal_touch_between_instances_validates_silently() {
     };
     let faces = cyl_faces(&body);
     assert_eq!(faces.len(), 4, "bite wall + three pin walls: {faces:?}");
-    match topo::validate_pseudomanifold(&body, &topo::ContactRecords::default()) {
-        Ok(()) => {
-            // THE FINDING, pinned: the undeclared conformal
-            // inter-instance touch validates silently at 3-prime.
-        }
-        Err(errs) => panic!(
-            "if this fires the census DID see the cross-key conformal touch \
-             and the probe's finding is void: {errs:?}"
-        ),
-    }
+    // The union fix (F1): the conservative loudness backstop refuses
+    // the cross-solid curved pair as UNDECIDABLE — the C9-ring class,
+    // named — instead of validating silently. (Pre-fix this probe
+    // pinned the silent Ok(()) the R1 review found.)
+    let errs = topo::validate_pseudomanifold(&body, &topo::ContactRecords::default())
+        .expect_err("the cross-solid curved proximity refuses loudly");
+    assert!(
+        errs.iter()
+            .any(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
+        "the backstop names the undecidable pair: {errs:?}"
+    );
     // The DECLARED direction: a patch record naming the cross-key
     // pair cannot certify either — it escalates through the chart
     // predicate's divergence posture (PR deviation 1) or refuses

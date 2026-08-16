@@ -611,6 +611,25 @@ pub enum ValidationError {
         /// The unsupported entity.
         entity: EntityId,
     },
+    /// Tier 3′ (M9-2 union fix, the conservative loudness backstop):
+    /// a cross-solid candidate pair the census can neither examine
+    /// nor definitely clear — refused loudly as UNDECIDABLE instead
+    /// of silently not looked at (A5's letter: decide or refuse,
+    /// never silently not-examine). Two classes fire it today: a
+    /// cross-solid curved face pair within reach of each other (the
+    /// C9-ring conformal-rest/proximity class — the exclusion ring
+    /// is the certified excluder this backstop stands in for), and
+    /// one instance's extent box contained in another's (C6's
+    /// interference class — representable only through recorded
+    /// gate-skips, which do not exist yet).
+    CensusUndecidable {
+        /// One side of the pair the census cannot clear.
+        a: EntityId,
+        /// The other side.
+        b: EntityId,
+        /// The not-yet-supported class, named.
+        what: &'static str,
+    },
     /// An entity holds a topology key that does not resolve in its arena.
     /// Reported once per occurrence (a parent listing the same dangling
     /// key twice yields two errors).
@@ -1174,6 +1193,14 @@ impl fmt::Display for ValidationError {
                  extension is the named follow-up). Refused rather than \
                  sampled; declare and certify through a supported lane, or \
                  separate the geometry"
+            ),
+            Self::CensusUndecidable { a, b, what } => write!(
+                f,
+                "tier-3′ census: the pair {a} / {b} cannot be examined or definitely \
+                 cleared by any census arm ({what}) — refused as undecidable rather \
+                 than silently not looked at; separate the bodies, or wait for the \
+                 named lane (the C9 exclusion ring for curved proximity; C6's \
+                 recorded gate-skips for declared interference)"
             ),
             Self::DanglingTopology { from, to } => {
                 write!(f, "{from} references {to}, which does not resolve")

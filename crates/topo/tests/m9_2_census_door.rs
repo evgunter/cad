@@ -300,23 +300,18 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
     );
 }
 
-/// R1 FINDING probe (claim 4): NESTED parallel cylinders with definite
-/// radial clearance (dist < |r1 - r2|, surfaces disjoint) answer
-/// `NotTangent { apart: false }` — the enum's doc says `false` means
-/// "definite crossing", but nothing crosses here: the surfaces are
-/// definitely APART (clearance |r1 - r2| - dist = 1.5 m). This pins
-/// the current (mislabeled) behaviour as a review finding.
+/// R1 FINDING probe (claim 4), FIXED (union fix F3): NESTED parallel
+/// cylinders with definite radial clearance (dist < |r1 - r2|,
+/// surfaces disjoint, clearance |r1 - r2| - dist = 1.5 m) answer
+/// `NotTangent { apart: true }` — the definite-clearance side, as the
+/// enum documents. (Pre-fix this probe pinned the `apart: false`
+/// "crossing" mislabel the R1 review found.)
 #[test]
-fn r1_probe_nested_clear_cylinders_are_reported_as_crossing() {
+fn r1_probe_nested_clear_cylinders_are_definitely_apart() {
     // r 1 strictly inside r 3, axes 0.5 apart: clearance 1.5 m.
     match tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(0.5, 3.0), band()) {
         Err(TangentLocusError::NotTangent { apart }) => {
-            // Honest answer would be apart == true (definite
-            // clearance); the shipped answer is the mislabel.
-            assert!(
-                !apart,
-                "if this starts answering apart:true the finding is fixed"
-            );
+            assert!(apart, "nested surfaces are definitely APART");
         }
         other => panic!("nested clear cylinders are not tangent: {other:?}"),
     }

@@ -39,12 +39,17 @@ fn probe_nested_instance_overlap_at_three_prime() {
     let inner = cube_scaled_at(1.0, 1.5, 1.5, 1.5);
     let body = assembly(&outer, &inner);
     let verdict = validate_pseudomanifold(&body, &ContactRecords::default());
-    // OBSERVED: record it either way; the assert pins the outcome.
+    // The union fix (F1): the containment arm of the loudness
+    // backstop refuses the nested instance pair as UNDECIDABLE —
+    // C6's interference class, named — instead of validating
+    // silently. (Pre-fix this probe pinned the silent Ok(()) the R2
+    // review found.)
     println!("nested overlap verdict: {verdict:?}");
-    assert_eq!(
-        verdict,
-        Ok(()),
-        "REVIEW FINDING if this fails: the gate DOES see nested overlap"
+    let errs = verdict.expect_err("nested instance extents refuse loudly");
+    assert!(
+        errs.iter()
+            .any(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
+        "the backstop names the contained pair: {errs:?}"
     );
 }
 
@@ -98,20 +103,16 @@ fn cyl_at(cy: f64, r: f64) -> Surface<f64> {
     }
 }
 
-/// PROBE (claim 4): NESTED parallel cylinders (axis offset 0.5 <
-/// |r1 - r2| = 2): the surfaces definitely do NOT intersect (minimum
-/// surface-to-surface distance 1.5), yet `tangent_locus` answers
-/// `NotTangent { apart: false }` — documented as "definite crossing".
-/// The probe pins the mislabel.
+/// PROBE (claim 4), FIXED (union fix F3): NESTED parallel cylinders
+/// (axis offset 0.5 < |r1 - r2| = 2, minimum surface distance 1.5)
+/// answer `NotTangent { apart: true }` — the definite-clearance side.
+/// (Pre-fix this probe pinned the "crossing" mislabel.)
 #[test]
-fn probe_tangent_locus_nested_cylinders_labeled_crossing() {
+fn probe_tangent_locus_nested_cylinders_are_apart() {
     match tangent_locus(&cyl_at(0.0, 1.0), &cyl_at(0.5, 3.0), band()) {
         Err(TangentLocusError::NotTangent { apart }) => {
             println!("nested cylinders: apart = {apart}");
-            assert!(
-                !apart,
-                "if this fails the mislabel was fixed: nested surfaces are APART"
-            );
+            assert!(apart, "nested surfaces are definitely APART");
         }
         other => panic!("nested pair must be NotTangent, got {other:?}"),
     }
@@ -151,5 +152,33 @@ fn probe_tangent_locus_rows_are_metre_dimensioned() {
             assert!(origin.z.abs() < 1e-9, "{origin:?}");
         }
         other => panic!("1000x tangency must mint: {other:?}"),
+    }
+}
+
+/// F4 (union fix): the backstop rows are METRE data — scaling the
+/// geometry alone (the gate's band is the ambient metre band) leaves
+/// the DEFINITE verdicts standing at mm and km scale: a nested pair
+/// refuses undecidable, a far-separated pair stays clean, at every
+/// scale. A scale-invariant (dimensionless) margin would flip one.
+#[test]
+fn the_backstop_rows_are_metre_dimensioned() {
+    for s in [1e-3, 1.0, 1e3] {
+        let outer = cube_scaled_at(4.0 * s, 0.0, 0.0, 0.0);
+        let inner = cube_scaled_at(s, 1.5 * s, 1.5 * s, 1.5 * s);
+        let nested = assembly(&outer, &inner);
+        let errs = validate_pseudomanifold(&nested, &ContactRecords::default())
+            .expect_err("nested refuses at every scale");
+        assert!(
+            errs.iter()
+                .any(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
+            "scale {s}: {errs:?}"
+        );
+        let far = cube_scaled_at(s, 10.0 * s, 0.0, 0.0);
+        let apart = assembly(&outer, &far);
+        assert_eq!(
+            validate_pseudomanifold(&apart, &ContactRecords::default()),
+            Ok(()),
+            "scale {s}: separated instances stay clean"
+        );
     }
 }

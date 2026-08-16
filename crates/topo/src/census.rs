@@ -7,17 +7,35 @@
 //! the boolean edge×face convention: correctness first, the BVH filter
 //! is PERF-PLAN's later 10×. Exact on the F5 planar subset (`Line`
 //! carriers, `Plane` surfaces). **Since M9-2 the census ADMITS every
-//! carrier kind** and certifies the curved inventory through its
-//! face-granular arms: the conformal face-pair arm
-//! ([`sweep_conformal_patches`] — C2's structural rung over
-//! shared-carrier opposed-sense pairs, decided through the
-//! chart-region predicate), and the record certifiers (the jet
-//! schedule for `CurveContact`, chart-region overlap for
-//! `PatchContact`). The honest envelope, stated: undeclared curved
-//! TANGENT touching and curved transverse interference between
-//! DISTINCT carriers have no detection arm until the C9 exclusion
-//! ring lands (C2 step 1); declared instances of both certify. A
-//! record or candidate outside a certifier's lane refuses
+//! carrier kind**, and its reach is exactly this, stated class by
+//! class (the union fix's truth pass):
+//!
+//! - **Examined and decided**: everything with vertex/line/planar
+//!   evidence (the exact sweeps); same-key opposed-sense curved
+//!   pairs (the conformal arm, [`sweep_conformal_patches`], through
+//!   the chart-region predicate); declared curve/patch records (the
+//!   jet schedule; the patch certifier). A proper pierce
+//!   (`EdgeFacePierce`) is CATEGORICALLY undeclarable — 3′ allows
+//!   touching, never crossing; the recourse is separating the
+//!   bodies or making the crossing a boolean's working state.
+//! - **Refused as UNDECIDABLE** (the conservative loudness backstop,
+//!   [`sweep_cross_solid_backstop`]): cross-solid curved face pairs
+//!   within reach (the reviewed value-equal conformal-cradle and
+//!   boss-in-hole classes — the C9-ring conformal-rest class; a
+//!   cross-key `PatchContact` on such a pair ESCALATES through the
+//!   chart predicate's divergence posture, so this class can today
+//!   be neither certified nor silently passed), and one instance's
+//!   extent box contained in another's (the reviewed nested-instance
+//!   class — C6's interference, representable only through recorded
+//!   gate-skips that do not exist yet).
+//! - **Genuinely undetected until C9/C6**: pure curved TANGENCY with
+//!   no vertex evidence between a curved and a planar face or
+//!   between separated-carrier curved faces the backstop's reach
+//!   filter clears; and SAME-solid distinct-key curved pairs (the
+//!   backstop is cross-solid — a single solid's own curved faces
+//!   are its constructor's obligations). Named, not sampled.
+//!
+//! A record or candidate outside a certifier's lane refuses
 //! [`ValidationError::CensusUnsupported`], never samples.
 //!
 //! **Sense-invariant** (M5 S10 audit). Every use of a face's plane
@@ -142,10 +160,7 @@ pub(crate) fn census_and_certify<T: Decide + crate::chart_region::ChartRegionLan
     band: Band,
 ) -> Vec<ValidationError> {
     let mut errors = Vec::new();
-    let geo = match snapshot(body) {
-        Ok(geo) => geo,
-        Err(errs) => return errs,
-    };
+    let geo = snapshot(body);
     let declared = Declared::index(contacts);
     sweep_vertex_vertex(&geo, &declared, band, &mut errors);
     sweep_vertex_edge(&geo, band, &mut errors);
@@ -153,6 +168,7 @@ pub(crate) fn census_and_certify<T: Decide + crate::chart_region::ChartRegionLan
     sweep_edge_face(body, &geo, &declared, band, &mut errors);
     sweep_edge_edge(&geo, &declared, band, &mut errors);
     sweep_conformal_patches(body, &geo, &declared, band, &mut errors);
+    sweep_cross_solid_backstop(body, &geo, band, &mut errors);
     confirm_declarations(body, &geo, contacts, band, &mut errors);
     errors
 }
@@ -224,9 +240,9 @@ impl Declared {
 /// face-granular arms (M9-2 — the census ADMITS every carrier kind;
 /// the blanket exact-on-planar refusal retired with the census arms
 /// that replaced it, and what each arm can and cannot certify is the
-/// module-docs envelope, stated rather than sampled).
-fn snapshot<T: Decide>(body: &Body<T>) -> Result<Geo<T>, Vec<ValidationError>> {
-    let refusals = Vec::new();
+/// module-docs envelope, stated rather than sampled). Total: every
+/// entity lands in exactly one bucket, so there is no refusal path.
+fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     let verts: Vec<(VertexKey, Point3<T>)> = body
         .vertices
         .iter()
@@ -244,7 +260,6 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Result<Geo<T>, Vec<ValidationError>> {
             // A curved-carrier edge is outside the exact sweeps; its
             // contact obligations ride the face-granular records
             // (CurveContact's confirm pass) — no blanket refusal.
-            let _ = key;
             continue;
         }
         let ends = || -> Option<EdgeGeo<T>> {
@@ -318,18 +333,14 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Result<Geo<T>, Vec<ValidationError>> {
             });
         }
     }
-    if refusals.is_empty() {
-        let vmap = verts.iter().copied().collect();
-        Ok(Geo {
-            verts,
-            edges,
-            faces,
-            vmap,
-            curved_faces,
-            vertex_faces,
-        })
-    } else {
-        Err(refusals)
+    let vmap = verts.iter().copied().collect();
+    Geo {
+        verts,
+        edges,
+        faces,
+        vmap,
+        curved_faces,
+        vertex_faces,
     }
 }
 
@@ -901,13 +912,13 @@ fn ee_bound_backed<T: Decide>(
 ///   ONE body the structural rung IS key identity; value-equal
 ///   independent descriptions do not glue (the ladder), and the
 ///   declared rung's face pairs are the confirm pass's business.
-/// - **What stays outside** (the honest envelope, unchanged in kind
-///   from the F5 census's own): undeclared curved TANGENT touching
-///   and curved transverse interference between DISTINCT carriers
-///   have no detection arm until the C9 exclusion ring lands — the
-///   same statement CONTACT-DESIGN C2 step 1 names as the missing
-///   first step. Declared instances of both classes are certified
-///   (the confirm pass); discovery is not weakened, it is stated.
+/// - **What stays outside this arm** (module docs carry the full
+///   envelope): distinct-key pairs. Cross-solid ones are caught by
+///   the conservative loudness backstop
+///   ([`sweep_cross_solid_backstop`] — refused undecidable, never
+///   silently passed); same-solid distinct-key pairs and pure
+///   tangency classes are the named residue until the C9 exclusion
+///   ring lands (CONTACT-DESIGN C2 step 1's missing first step).
 ///
 /// A definitely-positive overlap is a FINDING — the kernel
 /// vocabulary's [`crate::contact::ContactFinding`], carried on the
@@ -977,6 +988,228 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                             entity: EntityId::Face(fa),
                         });
                     }
+                }
+            }
+        }
+    }
+}
+
+/// **The conservative loudness backstop** (M9-2 union fix F1): the
+/// census must DECIDE or REFUSE — it must never silently not-examine
+/// (A5's letter). Two cross-solid candidate classes have no examining
+/// arm yet, and both fire a typed [`ValidationError::CensusUndecidable`]
+/// here instead of passing silently:
+///
+/// 1. **Curved proximity** (the C9-ring conformal-rest class): a pair
+///    of curved faces from DIFFERENT solids, not vertex-adjacent,
+///    whose reach boxes cannot be definitely separated. Distinct-key
+///    value-equal carriers in conformal rest (the reviewed cradle
+///    witness) and value-equal walls at gap zero (boss-in-hole) land
+///    here; the certified excluder this stands in for is the C9
+///    exclusion ring. The reach box is the face's boundary-vertex
+///    hull padded by a per-kind bulge bound (cylinder/sphere: the
+///    radius; torus: the minor radius; cone/NURBS: the hull's own
+///    half-diagonal — crude, and crude in the LOUD direction).
+/// 2. **Instance containment** (C6's interference class): one solid's
+///    vertex-extent box contained in another's — a nested placement
+///    makes no boundary event at all (the reviewed nested-cube
+///    witness), and interference is representable only through C6's
+///    recorded gate-skips, which do not exist yet.
+///
+/// Both arms clear a pair ONLY on a definitely-positive separation
+/// margin (`census_backstop_gap` / `census_backstop_containment` —
+/// metre coordinate differences); anything weaker refuses. Planar ×
+/// planar and curved × planar pairs are NOT backstopped: their
+/// contact classes either leave vertex/line/planar evidence the
+/// exact sweeps already examine, or are the pure-tangency class the
+/// envelope names as undetected until C9 (module docs).
+fn sweep_cross_solid_backstop<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
+    use crate::entity::{FaceKey as FK, ShellKey, SolidKey};
+    if body.solids().count() < 2 {
+        return; // single-solid bodies have no cross-solid pairs
+    }
+    let solid_of = |f: FK| -> Option<SolidKey> {
+        let shell: ShellKey = body.get_face(f)?.shell;
+        Some(body.get_shell(shell)?.solid)
+    };
+    // Boundary-vertex hull of a face (every loop), as raw points.
+    let face_points = |f: FK| -> Vec<Point3<T>> {
+        let mut out = Vec::new();
+        let Some(face) = body.get_face(f) else {
+            return out;
+        };
+        for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+            let Some(loop_) = body.loops.get(lk) else {
+                continue;
+            };
+            let LoopBoundary::Cycle { first } = loop_.boundary else {
+                continue;
+            };
+            let Some(cycle) = body.loop_cycle(first) else {
+                continue;
+            };
+            for he in cycle {
+                if let Some(hd) = body.half_edges.get(he)
+                    && let Some(v) = body.vertices.get(hd.start)
+                    && let Some(p) = body.points.get(v.point)
+                {
+                    out.push(*p);
+                }
+            }
+        }
+        out
+    };
+    let hull = |pts: &[Point3<T>]| -> Option<(Point3<T>, Point3<T>)> {
+        let mut it = pts.iter();
+        let first = *it.next()?;
+        let (mut lo, mut hi) = (first, first);
+        for p in it {
+            lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
+            hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
+        }
+        Some((lo, hi))
+    };
+    // Per-kind bulge pad (doc comment): how far the face can reach
+    // beyond its boundary-vertex hull.
+    let pad_of = |f: FK, lo: Point3<T>, hi: Point3<T>| -> T {
+        let half = T::from_f64(0.5);
+        match body.get_face(f).and_then(|d| body.surfaces.get(d.surface)) {
+            Some(geom_surfaces::Surface::Cylinder { radius, .. })
+            | Some(geom_surfaces::Surface::Sphere { radius, .. }) => *radius,
+            Some(geom_surfaces::Surface::Torus { minor_radius, .. }) => *minor_radius,
+            _ => (hi - lo).norm() * half,
+        }
+    };
+
+    // Arm 1: cross-solid curved-curved proximity.
+    struct Reach<T: Real> {
+        face: crate::entity::FaceKey,
+        solid: crate::entity::SolidKey,
+        lo: Point3<T>,
+        hi: Point3<T>,
+        pad: T,
+        verts: BTreeSet<VertexKey>,
+    }
+    let mut reaches: Vec<Reach<T>> = Vec::new();
+    for &f in &geo.curved_faces {
+        let Some(solid) = solid_of(f) else { continue };
+        let pts = face_points(f);
+        let Some((lo, hi)) = hull(&pts) else { continue };
+        let verts = geo
+            .vertex_faces
+            .iter()
+            .filter(|(_, fs)| fs.contains(&f))
+            .map(|(&v, _)| v)
+            .collect();
+        let pad = pad_of(f, lo, hi);
+        reaches.push(Reach {
+            face: f,
+            solid,
+            lo,
+            hi,
+            pad,
+            verts,
+        });
+    }
+    for (i, a) in reaches.iter().enumerate() {
+        for b in &reaches[i + 1..] {
+            if a.solid == b.solid || !a.verts.is_disjoint(&b.verts) {
+                continue; // same instance / structural adjacency
+            }
+            // Definite separation on ANY axis clears the pair: the
+            // margin is the inter-hull gap minus both reach pads —
+            // a metre coordinate difference (audit row).
+            let pads = a.pad + b.pad;
+            let mut cleared = false;
+            for (alo, ahi, blo, bhi) in [
+                (a.lo.x, a.hi.x, b.lo.x, b.hi.x),
+                (a.lo.y, a.hi.y, b.lo.y, b.hi.y),
+                (a.lo.z, a.hi.z, b.lo.z, b.hi.z),
+            ] {
+                let gap = (blo - ahi).max(alo - bhi) - pads;
+                if matches!(
+                    decide("census_backstop_gap", Margin::of(gap), band),
+                    Ok(Sign::Positive)
+                ) {
+                    cleared = true;
+                    break;
+                }
+            }
+            if !cleared {
+                errors.push(ValidationError::CensusUndecidable {
+                    a: EntityId::Face(a.face),
+                    b: EntityId::Face(b.face),
+                    what: "cross-solid curved faces within reach — the conformal-rest / \
+                           proximity class the C9 exclusion ring will examine",
+                });
+            }
+        }
+    }
+
+    // Arm 2: instance containment (vertex-extent boxes per solid).
+    let mut solid_boxes: std::collections::BTreeMap<SolidKey, (Point3<T>, Point3<T>)> =
+        std::collections::BTreeMap::new();
+    for (f, _) in body.faces.iter() {
+        let Some(solid) = solid_of(f) else { continue };
+        let pts = face_points(f);
+        let Some((lo, hi)) = hull(&pts) else { continue };
+        solid_boxes
+            .entry(solid)
+            .and_modify(|(l, h)| {
+                *l = Point3::new(l.x.min(lo.x), l.y.min(lo.y), l.z.min(lo.z));
+                *h = Point3::new(h.x.max(hi.x), h.y.max(hi.y), h.z.max(hi.z));
+            })
+            .or_insert((lo, hi));
+    }
+    let solids: Vec<_> = solid_boxes.iter().collect();
+    for (i, &(&sa, (alo, ahi))) in solids.iter().enumerate() {
+        for &(&sb, (blo, bhi)) in solids.iter().skip(i + 1) {
+            for (outer, inner, olo, ohi, ilo, ihi) in
+                [(sa, sb, alo, ahi, blo, bhi), (sb, sa, blo, bhi, alo, ahi)]
+            {
+                // Containment of `inner` in `outer`: all six extent
+                // margins definitely positive ⇒ the interference
+                // class; ANY definitely negative ⇒ clear; anything
+                // weaker (a boundary-flush box) refuses too — only a
+                // definite verdict clears (conservative direction).
+                let margins = [
+                    ilo.x - olo.x,
+                    ohi.x - ihi.x,
+                    ilo.y - olo.y,
+                    ohi.y - ihi.y,
+                    ilo.z - olo.z,
+                    ohi.z - ihi.z,
+                ];
+                let mut cleared = false;
+                let mut all_positive = true;
+                for m in margins {
+                    match decide("census_backstop_containment", Margin::of(m), band) {
+                        Ok(Sign::Positive) => {}
+                        Ok(Sign::Negative) => {
+                            cleared = true;
+                            all_positive = false;
+                            break;
+                        }
+                        _ => all_positive = false,
+                    }
+                }
+                if !cleared {
+                    errors.push(ValidationError::CensusUndecidable {
+                        a: EntityId::Solid(outer),
+                        b: EntityId::Solid(inner),
+                        what: if all_positive {
+                            "one instance's extent box inside another's — C6's \
+                             interference class (recorded gate-skips do not exist yet)"
+                        } else {
+                            "instance extent boxes not definitely separable from \
+                             containment — the same C6 interference class, in band"
+                        },
+                    });
                 }
             }
         }

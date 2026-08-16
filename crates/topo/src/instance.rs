@@ -48,17 +48,22 @@
 //! volumes only reinforce it. Two grafted solids share no edge, so no
 //! tier-3 check ever compares one against the other: solids that
 //! OVERLAP or TOUCH pass `validate_geometric` undetected. The gate
-//! that DOES see them is the tier-3′ form
+//! with cross-solid reach is the tier-3′ form
 //! ([`validate_pseudomanifold`](crate::validate_pseudomanifold)) —
-//! the census growth issue #382 planned, landed in M9-2: its
-//! quadratic sweeps are cross-solid by construction, so an
-//! inter-instance overlap surfaces as the undeclared-contact hard
-//! error naming the guilty pair (a proper pierce is categorically
-//! undeclarable), and an inter-instance TOUCH refuses undeclared /
-//! certifies declared through the same census arms as any boolean 3′
-//! body. A caller assembling instances at rest runs THAT gate with
-//! its declaration records; interference fits stay behind C6's
-//! recorded gate-skips (M10).
+//! the census growth issue #382 planned, landed in M9-2 — and its
+//! reach is stated exactly (the census module docs carry the full
+//! class-by-class envelope): an overlap or touch that leaves
+//! vertex/line/planar boundary evidence surfaces as the
+//! undeclared-contact hard error naming the guilty pair (a proper
+//! pierce is categorically undeclarable) and certifies where
+//! declared; cross-solid curved proximity and one instance's extents
+//! nested inside another's REFUSE as `CensusUndecidable` — the
+//! conservative loudness backstop for the classes no arm can examine
+//! yet (the C9-ring conformal-rest class; C6's interference class,
+//! representable only through recorded gate-skips that do not exist
+//! yet). Nothing in the touching/overlap space validates silently; a
+//! caller assembling instances at rest runs THAT gate with its
+//! declaration records.
 
 use crate::body::Body;
 use crate::boolean::BooleanError;

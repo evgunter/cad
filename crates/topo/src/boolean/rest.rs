@@ -828,7 +828,15 @@ pub fn tangent_locus<T: Decide>(
                         dir: *a1,
                     })
                 }
-                Sign::Positive => Err(TangentLocusError::NotTangent { apart: false }),
+                // dist < |r1 − r2|: one cylinder NESTED strictly
+                // inside the other — the surfaces definitely do NOT
+                // meet (their minimum distance is |r1 − r2| − dist,
+                // definitely positive here): APART, not crossing
+                // (union fix F3 — the pre-fix arm labeled this
+                // definite clearance a crossing).
+                Sign::Positive => Err(TangentLocusError::NotTangent { apart: true }),
+                // |r1 − r2| < dist < r1 + r2 (the external row already
+                // refused the ≥ side): the surfaces definitely cross.
                 Sign::Negative => Err(TangentLocusError::NotTangent { apart: false }),
             }
         }

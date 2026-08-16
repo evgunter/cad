@@ -39,10 +39,13 @@
 //!
 //! **Scope** (R1 MINOR-1, RESOLVED in M9-2): the aggregate gate is
 //! now the tier-3′ form over the import-side declaration channel
-//! (D7 step 4 executed) — an imported assembly whose parts TOUCH
-//! refuses UNDECLARED and certifies WITH the declaration, the same
-//! census a native declared-contact body runs; `kiss_assembly`'s row
-//! below and `review_r1_tier_gate_probes.rs` pin both directions.
+//! (D7 step 4 executed) — an imported assembly whose parts touch
+//! with vertex/line/planar boundary evidence refuses UNDECLARED and
+//! certifies WITH the declaration (`kiss_assembly`'s row below and
+//! `review_r1_tier_gate_probes.rs` pin both directions); cross-solid
+//! curved proximity and nested instance extents refuse UNDECIDABLE
+//! (the census's conservative backstop); the full class-by-class
+//! reach is the census module docs' envelope statement.
 //!
 //! **Measured (M7-7), at the ambient default:** no committed corpus
 //! file fails the gate. 44 solids pass, 8 files refuse for reasons that predate this
