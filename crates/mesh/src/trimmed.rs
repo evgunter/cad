@@ -55,7 +55,28 @@
 //! adjacent cells is one candidate, one drop actually removes the
 //! offending location, every retry strictly shrinks the candidate
 //! set, and the ≤ [`MAX_GRID_RETRIES`] bound terminates exactly as it
-//! did for the uniform grid. A BOUNDARY point as intermediate is a
+//! did for the uniform grid.
+//!
+//! The same loop carries TESS-SPAN's second arm, **certificate-driven
+//! refinement**: after the emit pass, any NURBS triangle whose
+//! certificate exceeds the per-face sizing target δ_s queues its UV
+//! centroid as a new candidate and the attempt rebuilds. This is what
+//! makes the per-cell schedule honest without a sliver taxonomy — the
+//! uniform schedule was accidentally phase-aligned with the chord
+//! pass's boundary points (both sized from the same whole-patch
+//! steps), and per-cell sizing gives that up, so an anisotropic grid
+//! can admit Delaunay-legal boundary slivers spanning several rows
+//! (measured on the #316 leaf; a local anchor-point cure only
+//! relocates the empty circumcircle). Splitting each offender at its
+//! centroid (strictly interior to the polygon by construction) shrinks
+//! the offending certificate quadratically round over round; an
+//! attempt that still certifies above δ after the shared round budget
+//! refuses typed ([`TessellateError::CertificateExceeded`]) — the
+//! certificate, as everywhere, is the guarantee. Positions are staged
+//! per attempt and committed only on acceptance, so a refining retry
+//! leaks no vertices into the shared arena.
+//!
+//! A BOUNDARY point as intermediate is a
 //! self-touching trim loop, refused typed
 //! ([`TessellateError::SelfTouchingTrimLoop`]). That refusal has no
 //! at-rest fixture on purpose: split sections and boolean seams mint
@@ -189,7 +210,7 @@ pub(crate) fn tessellate_trimmed(
         v0 = v0.min(v);
         v1 = v1.max(v);
     }
-    let (candidates, nurbs_grid_cells) = match lane {
+    let (mut candidates, nurbs_grid_cells) = match lane {
         Lane::Cylinder { radius, .. } => {
             let hu = sagitta_angle(tol.delta_s, radius);
             let nu = ceil_count(u1 - u0, hu)?;
@@ -197,8 +218,7 @@ pub(crate) fn tessellate_trimmed(
             (uniform_candidates((u0, u1), (v0, v1), nu, nv), None)
         }
         Lane::Nurbs { ref grid } => {
-            let (cand, cells) =
-                per_cell_candidates(grid, &polygon, (u0, u1), (v0, v1), tol.delta_s)?;
+            let (cand, cells) = per_cell_candidates(grid, (u0, u1), (v0, v1), tol.delta_s)?;
             (cand, Some(cells))
         }
     };
@@ -325,9 +345,13 @@ pub(crate) fn tessellate_trimmed(
             shoelace2(&poly2) < 0.0
         };
         // Pass 1: which grid candidates the kept triangles use; mint
-        // their mesh ids in candidate order — the candidate list is
-        // (v, u)-sorted, so this IS the crate's row-major determinism
-        // contract for interior grid points, on the final kept set.
+        // their mesh ids in (v, u) row-major order over the FINAL kept
+        // set — sorted by coordinates, not by candidate index, so
+        // refinement candidates appended by a later round (below) keep
+        // the same determinism contract. Positions are staged locally
+        // and committed only when this attempt is ACCEPTED: a
+        // refinement retry discards the attempt, and half an attempt's
+        // vertices must not leak into the shared arena.
         let mut used: Vec<usize> = Vec::new();
         for f in cdt.inner_faces() {
             if !inside[f.fix().index()] {
@@ -339,16 +363,31 @@ pub(crate) fn tessellate_trimmed(
                 }
             }
         }
-        used.sort_unstable();
+        used.sort_unstable_by(|&a, &b| {
+            let ((ua, va), (ub, vb)) = (candidates[a], candidates[b]);
+            va.total_cmp(&vb).then(ua.total_cmp(&ub))
+        });
         used.dedup();
+        let base = positions.len();
+        let mut staged: Vec<Point3<f64>> = Vec::with_capacity(used.len());
         let mut grid_ids: HashMap<usize, u32> = HashMap::new();
         for &k in &used {
             let (u, v) = candidates[k];
             #[allow(clippy::cast_possible_truncation)]
-            let id = positions.len() as u32;
-            positions.push(surface.eval(u, v));
+            let id = (base + staged.len()) as u32;
+            staged.push(surface.eval(u, v));
             grid_ids.insert(k, id);
         }
+        // A mesh id minted by an earlier face reads from the shared
+        // arena; one staged by THIS attempt reads locally.
+        let vertex = |id: u32| -> Point3<f64> {
+            let id = id as usize;
+            if id < base {
+                positions[id]
+            } else {
+                staged[id - base]
+            }
+        };
         // Pass 2: emit and certify.
         //
         // The two sampling arms are decided ONCE per face, not per
@@ -373,6 +412,12 @@ pub(crate) fn tessellate_trimmed(
         };
         let mut triangles = Vec::new();
         let mut worst: f64 = 0.0;
+        // CERT-DRIVEN REFINEMENT (TESS-SPAN; module docs): NURBS
+        // triangles certifying above the per-face sizing target get
+        // their UV centroid queued as a new candidate for the next
+        // round.
+        let mut refine: Vec<(f64, f64)> = Vec::new();
+        let refine_lane = matches!(lane, Lane::Nurbs { .. });
         for f in cdt.inner_faces() {
             if !inside[f.fix().index()] {
                 continue;
@@ -391,11 +436,7 @@ pub(crate) fn tessellate_trimmed(
             if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
                 continue; // boundary-degenerate sliver
             }
-            let tri = [
-                positions[ids[0] as usize],
-                positions[ids[1] as usize],
-                positions[ids[2] as usize],
-            ];
+            let tri = [vertex(ids[0]), vertex(ids[1]), vertex(ids[2])];
             let bound = match lane {
                 Lane::Cylinder {
                     origin,
@@ -455,7 +496,25 @@ pub(crate) fn tessellate_trimmed(
             if bound.is_nan() || worst.is_nan() || bound > worst {
                 worst = bound;
             }
+            if refine_lane && bound > tol.delta_s {
+                refine.push((
+                    (uv[0][0] + uv[1][0] + uv[2][0]) / 3.0,
+                    (uv[0][1] + uv[1][1] + uv[2][1]) / 3.0,
+                ));
+            }
             triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
+        }
+        // Refinement retry (module docs): a centroid is strictly
+        // interior to its kept triangle, hence inside the trim polygon;
+        // splitting every offending triangle strictly shrinks the empty
+        // region its circumcircle spanned, so the offending certificate
+        // falls quadratically round over round. Appending keeps every
+        // existing candidate index (the `dropped` set stays valid); a
+        // refinement point landing exactly on a constraint is caught by
+        // the same intermediate-vertex classification as any candidate.
+        if !refine.is_empty() && !worst.is_nan() && attempt < MAX_GRID_RETRIES {
+            candidates.extend(refine);
+            continue 'retry;
         }
         if worst.is_nan() || worst > tol.delta {
             return Err(TessellateError::CertificateExceeded {
@@ -465,6 +524,7 @@ pub(crate) fn tessellate_trimmed(
             });
         }
         crate::budget::note_worst_cert(worst);
+        positions.extend(staged);
         return Ok(triangles);
     }
     Err(TessellateError::Triangulation { face: fk })
@@ -514,7 +574,7 @@ fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec
 /// certificate, checked from those same cells, remains the guarantee
 /// exactly as before.
 ///
-/// # Boundary anchors (the alignment the uniform schedule had for free)
+/// # Why a schedule alone cannot finish the job (the refinement ladder)
 ///
 /// The pre-TESS-SPAN lane was accidentally protected against tall
 /// anisotropic BOUNDARY slivers: the chord pass sizes edge chords from
@@ -526,18 +586,13 @@ fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec
 /// (measured): a rim vertex BETWEEN two columns of a 12:1-anisotropic
 /// grid admits an empty circumcircle reaching ~half a column spacing
 /// upward — a Delaunay-legal sliver spanning ~6 rows, whose honest
-/// per-cell certificate exceeds δ. The cure is not alignment (arcs and
-/// trim curves never had it) but ANCHORS: under/beside every boundary
-/// polygon vertex, extra candidates at the local row/column spacing,
-/// deep enough to block a circumcircle that would otherwise clear the
-/// neighbouring column/row — `⌈spacing_u / (2·spacing_v)⌉` rows down a
-/// column and vice versa, each axis only when that slab actually has
-/// interior lines to misalign against (`n ≥ 2`). Anchor points falling
-/// on constraints are handled by the same retry ladder as any other
-/// candidate; the certificate remains the guarantee.
+/// per-cell certificate exceeds δ. Local "anchor" points under such
+/// vertices only RELOCATE the sliver (the anchor column's own top is
+/// again an unaligned point mid-cell — measured too). The cure is the
+/// certificate-driven refinement ladder in [`tessellate_trimmed`]'s
+/// retry loop, which needs no sliver taxonomy at all.
 fn per_cell_candidates(
     grid: &NurbsCellGrid,
-    polygon: &[(f64, f64, u32)],
     u: (f64, f64),
     v: (f64, f64),
     delta_s: f64,
@@ -555,10 +610,6 @@ fn per_cell_candidates(
     let v_slabs = slabs(grid.v_cuts(), v.0, v.1);
     let mut cand: Vec<(f64, f64)> = Vec::new();
     let mut grid_cells = 0usize;
-    // Per (v-slab, u-slab): the realised counts and spacings, kept for
-    // the boundary-anchor pass below.
-    let mut slab_grid: Vec<(usize, usize, f64, f64)> =
-        Vec::with_capacity(u_slabs.len() * v_slabs.len());
     for &(va, vb) in &v_slabs {
         for &(ua, ub) in &u_slabs {
             // One-ring-dilated sizing bound (`step_bound_at` docs) —
@@ -569,8 +620,6 @@ fn per_cell_candidates(
             let nuc = ceil_count(ub - ua, hu)?;
             let nvc = ceil_count(vb - va, hv)?;
             grid_cells += nuc * nvc;
-            #[allow(clippy::cast_precision_loss)]
-            slab_grid.push((nuc, nvc, (ub - ua) / nuc as f64, (vb - va) / nvc as f64));
             // Slab-boundary indices reproduce the cut values EXACTLY
             // (never through the lerp, whose rounding would put two
             // almost-coincident lines an ulp apart on a shared
@@ -598,52 +647,6 @@ fn per_cell_candidates(
                         continue;
                     }
                     cand.push((uu, vv));
-                }
-            }
-        }
-    }
-    // Boundary anchors (function docs): a column of points below/above
-    // and a row beside each polygon vertex, at that vertex's slab
-    // spacing, reaching half the OTHER axis' spacing.
-    let slab_of = |slabs: &[(f64, f64)], x: f64| -> usize {
-        slabs
-            .partition_point(|&(a, _)| a <= x)
-            .saturating_sub(1)
-            .min(slabs.len().saturating_sub(1))
-    };
-    for &(ub, vb, _) in polygon {
-        let (si, sj) = (slab_of(&u_slabs, ub), slab_of(&v_slabs, vb));
-        let (nuc, nvc, su, sv) = slab_grid[sj * u_slabs.len() + si];
-        // Column under/over the vertex — only when the slab has
-        // interior COLUMNS to be out of phase with, and never from a
-        // vertex ON a vertical box edge (the column would lie along
-        // the rail constraint and be dropped by the retry ladder).
-        if nuc >= 2 && sv.is_finite() && sv > 0.0 && ub > u.0 && ub < u.1 {
-            let depth = (su / (2.0 * sv)).ceil();
-            if depth.is_finite() {
-                let mut j = 1.0;
-                while j <= depth {
-                    for vv in [vb + j * sv, vb - j * sv] {
-                        if vv > v.0 && vv < v.1 {
-                            cand.push((ub, vv));
-                        }
-                    }
-                    j += 1.0;
-                }
-            }
-        }
-        // Row beside the vertex — the transposed case.
-        if nvc >= 2 && su.is_finite() && su > 0.0 && vb > v.0 && vb < v.1 {
-            let depth = (sv / (2.0 * su)).ceil();
-            if depth.is_finite() {
-                let mut i = 1.0;
-                while i <= depth {
-                    for uu in [ub + i * su, ub - i * su] {
-                        if uu > u.0 && uu < u.1 {
-                            cand.push((uu, vb));
-                        }
-                    }
-                    i += 1.0;
                 }
             }
         }
