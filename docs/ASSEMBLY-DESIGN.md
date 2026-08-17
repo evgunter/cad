@@ -538,8 +538,11 @@ door, four clauses:
   from a wall into a gate with a named door. Alternative: leave
   A4 vacuous-by-composition and drop the record (rejected: the
   re-verification machinery is R2-b's most valuable artifact and
-  pin-move re-verification already uses it). Ruling wanted; the
-  conversion door would be a small follow-on unit.
+  pin-move re-verification already uses it). The conversion
+  door is a small follow-on unit (ASM-XSPLIT); its spec binds the
+  construction-time refusals (non-crossing passed mate,
+  unresolvable reference, mate-not-in-document) so only fit
+  defers to evaluation.
 - **AQ6 — cross-document `Rest` verification detail**: the trilean
   shape for value-equal-by-authoring carriers (peg/bore radii),
   and the recourse text steering designed clearance to
