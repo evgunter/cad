@@ -58,10 +58,19 @@ variant is the silent-dispatch-trap shape D3 forbids):
   the graft door's declared-disjoint boundary (#382's asterisk)
   and is the fail-loud reading of "identical objects make
   non-overlap easier".
-- **Lowering**: the certified-disjoint N-solid case goes through
-  the existing `graft_disjoint_all_keyed` door in one call — no
-  new kernel op, no new kernel naming record; `BooleanNaming`
-  stays two-operand where seams actually happen.
+- **Lowering (corrected per the #571 design-owner adjudication)**:
+  the certified-disjoint case goes through
+  `graft_disjoint_all_onto_keyed` in one call — the door that
+  reproduces the pairwise chain's one-solid/N-shell UNION shape,
+  so the result stays a legal boolean operand. (This sentence
+  originally named `graft_disjoint_all_keyed`, the pre-existing
+  N-ary door; its N-SOLID output is ASM's instancing currency,
+  which `setopfinish` correctly refuses as an operand — relaxing
+  that refusal would have been the real fork, weakening a gate
+  every pairwise consumer relies on. The added door is the
+  faithful elaboration of the ratified union semantics.) No new
+  kernel naming record; `BooleanNaming` stays two-operand where
+  seams actually happen.
 - **Evaluation**: new content-key node tag (next free verified at
   implementation time), memo key covers the rule + placements,
   deterministic order = placement order (D9).
