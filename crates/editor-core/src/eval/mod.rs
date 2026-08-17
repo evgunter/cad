@@ -194,6 +194,14 @@ pub struct NodeValue<T: Decide> {
     /// (body, arena key). Rides the value, so memo reuse transfers
     /// names with geometry (the content key is the proof).
     pub name_table: Arc<NameTable>,
+    /// The DECLARED CONTACT RECORDS the node's output body 0 carries
+    /// (ASM-R2b D-1's contacts channel; [`crate::eval::wire::OpOut`]
+    /// states the invariant). Empty for every op but instantiate — a
+    /// boolean's records ride its payload, and
+    /// [`crate::product::sources_of`] is where the two homes
+    /// reconcile. Rides the value, so memo reuse transfers
+    /// declarations with the geometry they are keyed into.
+    pub contacts: Arc<topo::ContactRecords>,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision the node's op made, in decision order, recorded
     /// through the one `k_stats` funnel. Scalar-independent data —
@@ -617,6 +625,20 @@ pub enum NodeErrorKind {
     /// pose. The fault names its own subject — the pair, the residual
     /// subgroup, the failed predicate and its measured clash.
     Mate(Box<crate::mate::MateFault>),
+    /// A crossing declaration on this instance no longer resolves
+    /// against the pinned part (ASM-R2b D-4/D-5; A4's "does it
+    /// actually fit", A13 clause 4). The seam asserted a contact at a
+    /// part entity the pinned document's product does not name — the
+    /// swap is refused, never accepted with the declaration quietly
+    /// dropped.
+    CrossingUnverified {
+        /// The instance carrying the record.
+        instance: RecipeNodeId,
+        /// The mate whose crossing it is.
+        mate: RecipeNodeId,
+        /// The part-side reference that did not resolve.
+        name: Box<crate::names::StableName>,
+    },
 }
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
@@ -639,6 +661,17 @@ impl core::fmt::Display for NodeErrorKind {
                 "internal: canonical loop {loop_} failed to match back to a program loop"
             ),
             Self::Mate(fault) => write!(f, "the mate solve refused: {fault}"),
+            Self::CrossingUnverified {
+                instance,
+                mate,
+                name,
+            } => write!(
+                f,
+                "instance {}'s seam declaration from mate {} names {name:?}, which \
+                 the pinned part's product does not name — the crossing does not \
+                 re-verify against this version of the part",
+                instance.0, mate.0
+            ),
             Self::Extrude(_) => f.write_str("the extrude op refused"),
             Self::Revolve(_) => f.write_str("the revolve op refused"),
             Self::Split(_) => f.write_str("the split op refused"),
@@ -1239,10 +1272,11 @@ where
     );
     let verdicts = geom_core::k_stats::take_verdict_log();
     match op {
-        Ok((payload, name_table)) => NodeStep {
+        Ok(out) => NodeStep {
             result: NodeResult::Ok(NodeValue {
-                payload,
-                name_table,
+                payload: out.payload,
+                name_table: out.names,
+                contacts: out.contacts,
                 verdicts: Arc::new(verdicts),
                 witness: WitnessSlot {},
                 content_key,
@@ -1372,10 +1406,15 @@ where
         // here) and WHERE its cluster sits. The placement is document
         // data, not node data, which is exactly why it must feed the
         // key: a `SetPlacement` moves this node's value and nothing
-        // else about the node changes. The interface record feeds
-        // nothing because it is PROVABLY empty (`InterfaceCrossing` is
-        // uninhabited); when R2 inhabits it, it must feed the key.
-        Node::InstantiatePart { doc_ref, .. } => {
+        // else about the node changes. The INTERFACE RECORD feeds the
+        // key too (ASM-R2b D-4 discharging ASM-4's hook obligation):
+        // it is inhabited now, it is on-wire data, and evaluation
+        // re-verifies the crossings it holds — so a crossing edit
+        // must move this node's value rather than hit the memo on the
+        // pre-edit answer.
+        Node::InstantiatePart {
+            doc_ref, interface, ..
+        } => {
             h.write_u64((doc_ref.id.0 >> 64) as u64);
             h.write_u64(doc_ref.id.0 as u64);
             for chunk in doc_ref.pin.0.chunks(8) {
@@ -1402,6 +1441,19 @@ where
                 }
                 None => h.write_tag(0),
             }
+            h.write_u64(interface.crossings.len() as u64);
+            for crossing in &interface.crossings {
+                let crate::node::InterfaceCrossing::Mate {
+                    mate,
+                    class,
+                    outer,
+                    inner,
+                } = crossing;
+                h.write_u64(u64::from(mate.0));
+                h.write_tag(contact_class_tag(*class));
+                feed_stable_name(&mut h, outer);
+                feed_stable_name(&mut h, inner);
+            }
         }
         // A mate's own key is its references, its class and its
         // alignment: the recipe payload that decides what it says.
@@ -1413,11 +1465,7 @@ where
         } => {
             feed_stable_name(&mut h, a);
             feed_stable_name(&mut h, b);
-            h.write_tag(match class {
-                topo::ContactClass::Rest => 1,
-                topo::ContactClass::Tangent => 2,
-                _ => 0,
-            });
+            h.write_tag(contact_class_tag(*class));
             feed_alignment(&mut h, alignment);
         }
         Node::Declare { pairs } => {
@@ -1725,6 +1773,18 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
         {
             h.write_f64_bits(*x);
         }
+    }
+}
+
+/// The key tag of a contact class. One function, so a mate's own key
+/// and the crossing record that quotes its class cannot drift apart —
+/// they must agree, or a crossing edit and the mate edit that caused
+/// it would key inconsistently.
+fn contact_class_tag(class: topo::ContactClass) -> u8 {
+    match class {
+        topo::ContactClass::Rest => 1,
+        topo::ContactClass::Tangent => 2,
+        _ => 0,
     }
 }
 

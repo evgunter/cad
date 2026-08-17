@@ -25,9 +25,46 @@ use crate::node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, Slot
 use crate::program::ProfileProgram;
 
 type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
-/// An op's product: the payload plus its eagerly-emitted name table
-/// (N4 — emission lives HERE in the wire layer, spec D4).
-type OpResult<T> = Result<(ValuePayload<T>, Arc<NameTable>), NodeErrorKind>;
+
+/// An op's product: the payload, its eagerly-emitted name table (N4 —
+/// emission lives HERE in the wire layer, spec D4), and the DECLARED
+/// CONTACT RECORDS the value carries (ASM-R2b D-1).
+///
+/// # The contacts channel (D-1)
+///
+/// Declared records are keyed in the op's OUTPUT BODY 0 arena. Exactly
+/// one op family fills the field: [`wire_instantiate_part`], which
+/// carries the referenced part's own records across the document seam.
+/// A boolean's records ride its payload instead
+/// ([`BooleanValue::Body::contacts`], the `BooleanBody` contract that
+/// predates this channel) — [`crate::product::sources_of`] is the one
+/// place the two homes reconcile, so nothing downstream has to know
+/// which op put records where.
+///
+/// **Invariant**: a multi-output op (`Split`, `Pattern`) never fills
+/// this field — "output body 0" would be a lie for its other bodies.
+/// Nothing today has records to carry through such an op, and the day
+/// something does, the channel grows a per-output shape rather than
+/// silently mis-keying.
+pub(crate) struct OpOut<T: Decide> {
+    pub payload: ValuePayload<T>,
+    pub names: Arc<NameTable>,
+    pub contacts: Arc<topo::ContactRecords>,
+}
+
+impl<T: Decide> OpOut<T> {
+    /// An op that declares no contact — every op but instantiate (see
+    /// the type docs for why a boolean is not an exception).
+    fn plain(payload: ValuePayload<T>, names: Arc<NameTable>) -> Self {
+        Self {
+            payload,
+            names,
+            contacts: Arc::new(topo::ContactRecords::default()),
+        }
+    }
+}
+
+type OpResult<T> = Result<OpOut<T>, NodeErrorKind>;
 /// A bare payload (datum/profile lanes — empty tables).
 type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 
@@ -62,8 +99,8 @@ where
     T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
 {
     match node {
-        Node::Datum(d) => Ok((wire_datum(d, vals)?, names::empty())),
-        Node::Profile(_) => Ok((wire_profile(profile_pre)?, names::empty())),
+        Node::Datum(d) => Ok(OpOut::plain(wire_datum(d, vals)?, names::empty())),
+        Node::Profile(_) => Ok(OpOut::plain(wire_profile(profile_pre)?, names::empty())),
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals),
         Node::Revolve { profile, axis, .. } => wire_revolve(id, *profile, *axis, results, vals),
         Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals),
@@ -80,10 +117,15 @@ where
         Node::PlacedUnion { input, kind, .. } => {
             wire_placed_union(id, *input, kind, node.placement_rule_fault(), results, vals)
         }
-        Node::Declare { pairs } => Ok((ValuePayload::Declarations(pairs.clone()), names::empty())),
-        Node::InstantiatePart { doc_ref, .. } => {
+        Node::Declare { pairs } => Ok(OpOut::plain(
+            ValuePayload::Declarations(pairs.clone()),
+            names::empty(),
+        )),
+        Node::InstantiatePart {
+            doc_ref, interface, ..
+        } => {
             let placement = env.poses.placement(doc, id).map_err(NodeErrorKind::Mate)?;
-            wire_instantiate_part(id, doc_ref, placement, env)
+            wire_instantiate_part(id, doc_ref, interface, placement, env)
         }
         // A mate DENOTES NO BODY (A12): it evaluates to its role in
         // the solve, which the product gather skips exactly as it
@@ -92,7 +134,7 @@ where
         // names the mate that is wrong.
         Node::Mate { .. } => match env.poses.fault(id) {
             Some(fault) => Err(NodeErrorKind::Mate(Box::new(fault.clone()))),
-            None => Ok((
+            None => Ok(OpOut::plain(
                 ValuePayload::Mate(
                     env.poses
                         .role(id)
@@ -121,6 +163,7 @@ where
 fn wire_instantiate_part<T>(
     id: RecipeNodeId,
     doc_ref: &crate::ident::DocRef,
+    interface: &crate::node::InterfaceRecord,
     placement: crate::placement::Frame,
     env: &OpEnv<'_, T>,
 ) -> OpResult<T>
@@ -134,6 +177,28 @@ where
             doc_ref: *doc_ref,
             fault,
         })?;
+    // ASM-R2b D-4/D-5 — A4's "does it actually fit", at the level this
+    // node can answer it. Every crossing declaration names an entity
+    // of the PART's product; the pinned document is whatever the pin
+    // currently says, so a pin move (A13 clause 4) that changed the
+    // part's contact face reaches here as a crossing whose reference
+    // no longer resolves. INVARIANT: the check runs on every
+    // evaluation, not only at the moving edit — an edit-time-only gate
+    // would bless a document loaded from disk with a hand-moved pin.
+    // The GEOMETRIC half of the fit gate is the assembly's at-rest
+    // door (`crate::assembly::assemble`), which certifies the mate's
+    // declaration against the placed faces; this is the structural
+    // half, and it is the half that names the crossing.
+    for crossing in &interface.crossings {
+        let crate::node::InterfaceCrossing::Mate { mate, inner, .. } = crossing;
+        if part.names.lookup(inner).is_none() {
+            return Err(NodeErrorKind::CrossingUnverified {
+                instance: id,
+                mate: *mate,
+                name: Box::new(inner.clone()),
+            });
+        }
+    }
     // The identity fast-path is admitted only for a BIT-exact identity
     // frame: any other value could round, and `transform_rigid` is what
     // decides whether it stayed rigid.
@@ -148,7 +213,18 @@ where
     // stable across the op, and the identity path never cleared them.
     compose_placed(&part.body, &mut placed, id, 0);
     let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
-    Ok((ValuePayload::Body(Arc::new(placed)), table))
+    // ASM-R2b D-1: the part's OWN declared contacts survive
+    // instantiation. INVARIANT — the records ride the placement
+    // UNCHANGED, because `transform_rigid` is key-stable (its own
+    // contract, the same one `compose_placed` above depends on) and the
+    // identity fast path clones keys verbatim. Re-deriving them from
+    // the placed geometry is exactly the scan-to-bless move F1 bans;
+    // the declaration is inherited, never rediscovered.
+    Ok(OpOut {
+        payload: ValuePayload::Body(Arc::new(placed)),
+        names: table,
+        contacts: Arc::clone(&part.contacts),
+    })
 }
 
 /// Stamps every UNSOURCED description of `body` with this node's
@@ -420,7 +496,10 @@ fn wire_extrude<T: Decide>(
     let table = names::name_extrude(id, &built).map_err(NodeErrorKind::Naming)?;
     let table = anchored(table, &vp.naming)?;
     stamp_minted(&mut built.body, id);
-    Ok((ValuePayload::Body(Arc::new(built.body)), table))
+    Ok(OpOut::plain(
+        ValuePayload::Body(Arc::new(built.body)),
+        table,
+    ))
 }
 
 fn wire_revolve<T: Decide>(
@@ -520,7 +599,10 @@ fn wire_revolve<T: Decide>(
     let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
     let table = anchored(table, &vp.naming)?;
     stamp_minted(&mut built.body, id);
-    Ok((ValuePayload::Body(Arc::new(built.body)), table))
+    Ok(OpOut::plain(
+        ValuePayload::Body(Arc::new(built.body)),
+        table,
+    ))
 }
 
 /// **Constant-radius rolling-ball fillets on a SELECTION of the
@@ -593,7 +675,7 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
     // the supports' pass-through descriptions keep the source they
     // arrived with.
     stamp_minted(&mut out, id);
-    Ok((ValuePayload::Body(Arc::new(out)), table))
+    Ok(OpOut::plain(ValuePayload::Body(Arc::new(out)), table))
 }
 
 /// Resolves a fillet's edge selection against the target's name table
@@ -745,7 +827,7 @@ fn wire_split<T: Decide>(
         *normal,
     )
     .map_err(NodeErrorKind::Naming)?;
-    Ok((ValuePayload::Split { above, below }, table))
+    Ok(OpOut::plain(ValuePayload::Split { above, below }, table))
 }
 
 // `Bounds` rides along for the boolean lane only (M5 PR 8): the sweep's
@@ -790,7 +872,10 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
     match topo::boolean_op_with(kernel_op, &body_a, &body_b, &kernel_decls, boolean_sweep)
         .map_err(|err| refusal_menu(results, a, b, err))?
     {
-        BooleanResult::Empty => Ok((ValuePayload::Boolean(BooleanValue::Empty), names::empty())),
+        BooleanResult::Empty => Ok(OpOut::plain(
+            ValuePayload::Boolean(BooleanValue::Empty),
+            names::empty(),
+        )),
         BooleanResult::Body(bb) => {
             let a_table = Arc::clone(&value_of(results, a)?.name_table);
             let b_table = Arc::clone(&value_of(results, b)?.name_table);
@@ -814,7 +899,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds>(
             // Seam chords / minted descriptions get THIS node's
             // sources; everything carried keeps its own (D1).
             stamp_minted(&mut body, id);
-            Ok((
+            Ok(OpOut::plain(
                 ValuePayload::Boolean(BooleanValue::Body {
                     body: Arc::new(body),
                     kind: bb.kind,
@@ -1088,7 +1173,7 @@ fn wire_transform<T: Decide>(
     // N1 derivation-path semantics (the name still points at the
     // MINTING node; the placement is recipe context, not identity).
     let table = Arc::clone(&value_of(results, input)?.name_table);
-    Ok((ValuePayload::Body(Arc::new(placed)), table))
+    Ok(OpOut::plain(ValuePayload::Body(Arc::new(placed)), table))
 }
 
 /// The rigid map of placement `i` under a STEPPED rule (linear or
@@ -1176,7 +1261,7 @@ fn wire_pattern<T: Decide>(
     // instance keys equal master keys.
     let master = Arc::clone(&value_of(results, input)?.name_table);
     let table = names::name_pattern(id, &master, n, &instances).map_err(NodeErrorKind::Naming)?;
-    Ok((ValuePayload::Instances(instances), table))
+    Ok(OpOut::plain(ValuePayload::Instances(instances), table))
 }
 
 /// The group boolean (GROUP-BOOLEAN-DESIGN, ratified A′): one
@@ -1273,7 +1358,7 @@ fn wire_placed_union<T: Decide + geom_core::Bounds>(
     let master = Arc::clone(&value_of(results, input)?.name_table);
     let table =
         names::name_placed_union(id, &master, &bridges, &fused).map_err(NodeErrorKind::Naming)?;
-    Ok((ValuePayload::Body(Arc::new(fused)), table))
+    Ok(OpOut::plain(ValuePayload::Body(Arc::new(fused)), table))
 }
 
 // ---------------------------------------------------------------------
@@ -1422,7 +1507,10 @@ fn wire_loft<T: Decide>(
     let table = names::name_loft(id, &built).map_err(NodeErrorKind::Naming)?;
     let table = anchored(table, &first_naming)?;
     stamp_minted(&mut built.body, id);
-    Ok((ValuePayload::Body(Arc::new(built.body)), table))
+    Ok(OpOut::plain(
+        ValuePayload::Body(Arc::new(built.body)),
+        table,
+    ))
 }
 
 /// The Sweep node (M5 PR 10 fix pass, review MAJOR-1: ONE honest

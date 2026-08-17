@@ -54,11 +54,14 @@ use crate::part::{PartResolver, ResolveFault};
 /// reaching it means the descent chain was long, not that it looped.
 pub(crate) const MAX_DEPTH: usize = 1024;
 
-/// A resolved part: the referenced document's product, and the product
-/// entities' part-local stable names.
+/// A resolved part: the referenced document's product, the product
+/// entities' part-local stable names, and the product's DECLARED
+/// CONTACT RECORDS (ASM-R2b D-1 — a part's own declarations cross the
+/// document seam with its geometry, in the same keys).
 pub(crate) struct PartValue<T: Decide> {
     pub body: Arc<Body<T>>,
     pub names: Arc<NameTable>,
+    pub contacts: Arc<topo::ContactRecords>,
 }
 
 impl<T: Decide> Clone for PartValue<T> {
@@ -66,6 +69,7 @@ impl<T: Decide> Clone for PartValue<T> {
         Self {
             body: Arc::clone(&self.body),
             names: Arc::clone(&self.names),
+            contacts: Arc::clone(&self.contacts),
         }
     }
 }
@@ -315,11 +319,12 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // placing path maps all N as one body and the gather grafts
         // them as N, so a narrower rule at this door would be a second
         // truth about what instantiating a document means.
-        let (body, names) = crate::product::product_named(&doc, &evaluation)
+        let product = crate::product::product_recorded(&doc, &evaluation)
             .map_err(|e| product_fault(&e, &evaluation))?;
         Ok(PartValue {
-            body: Arc::new(body),
-            names: Arc::new(names),
+            body: Arc::new(product.body),
+            names: Arc::new(product.names),
+            contacts: Arc::new(product.contacts),
         })
     }
 }
