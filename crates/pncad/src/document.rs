@@ -34,7 +34,9 @@ pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
 // node's operation, distinct from `topo::BooleanOp`, the kernel's.
 // The prelude carries the kernel's and cannot carry both under one
 // name, so this module is where document-layer code spells it.
-pub use editor_core::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
+pub use editor_core::{
+    Axis3, BooleanOp, Datum, Node, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId,
+};
 
 // Expressions and their text door.
 // `ParamEnv` joins them for LIB-SEL1: `select_where` takes one, so a
@@ -121,6 +123,19 @@ pub use editor_core::{ProductError, RootFault, product};
 // are minted from.
 pub use editor_core::{
     Frame, PartFault, PartResolver, ResolveFailure, ResolveFault, product_named,
+};
+
+// Mates (ASM-R2a; ASSEMBLY-DESIGN A3/A11/A12): the declaration node's
+// authored payload (`Alignment` over two `MateFrame`s, a
+// `MatePrimitive`, an `AxisSense`), the solve's per-node outcome
+// (`SolvedPoses`, `MateRole`, the residual `Subgroup`), the recorded
+// cluster-record maintenance (`ClusterMaintenance`), and `MateFault`
+// — the typed refusal every door carries, the way `RootFault` is
+// carried above.
+pub use editor_core::{
+    Alignment, AxisSense, ClusterMaintenance, MateFault, MateFrame, MatePrimitive, MateRole,
+    MateSide, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, reading_edges,
+    relative_freedom_components, solve_document,
 };
 
 // Split and inline (ASM-4; ASSEMBLY-DESIGN A4): the first-class

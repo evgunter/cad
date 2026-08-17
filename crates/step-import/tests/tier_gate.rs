@@ -37,13 +37,15 @@
 //!   `kiss_assembly` — so the solid counts are also the standing
 //!   evidence that the per-solid pass runs on real corpus geometry.
 //!
-//! **Scope, stated honestly** (R1 MINOR-1): the gate is tier 3, and on
-//! a body with no declared contacts the tier-3′ form is strictly
-//! stronger — it runs the coincidence census too. Imports declare no
-//! contacts, so an imported assembly whose parts TOUCH is checked less
-//! than its native twin; `kiss_assembly` is exactly that body, and
-//! `review_r1_tier_gate_probes.rs` pins the difference. Banked with
-//! the M8 contact program (D7 step 4), not silently absorbed here.
+//! **Scope** (R1 MINOR-1, RESOLVED in M9-2): the aggregate gate is
+//! now the tier-3′ form over the import-side declaration channel
+//! (D7 step 4 executed) — an imported assembly whose parts touch
+//! with vertex/line/planar boundary evidence refuses UNDECLARED and
+//! certifies WITH the declaration (`kiss_assembly`'s row below and
+//! `review_r1_tier_gate_probes.rs` pin both directions); cross-solid
+//! curved proximity and nested instance extents refuse UNDECIDABLE
+//! (the census's conservative backstop); the full class-by-class
+//! reach is the census module docs' envelope statement.
 //!
 //! **Measured (M7-7), at the ambient default:** no committed corpus
 //! file fails the gate. 44 solids pass, 8 files refuse for reasons that predate this
@@ -423,8 +425,13 @@ const CORPUS: [(&str, Disposition); 54] = [
         Pass(1, 1, 26, 48, 24),
     ),
     (
+        // The touching two-solid assembly: since M9-2 the shared gate
+        // is the tier-3′ form, so the UNDECLARED corner kiss refuses
+        // typed here — and certifies WITH the import-side declaration
+        // (the WITH/WITHOUT pair is pinned in
+        // review_r1_tier_gate_probes.rs, the retired R1 finding).
         "../step-export/tests/fixtures/kiss_assembly.step",
-        Pass(2, 2, 22, 48, 32),
+        Refused("undeclared contact"),
     ),
     (
         "../step-export/tests/fixtures/lily_lantern.step",
@@ -610,7 +617,10 @@ fn every_corpus_import_passes_the_shared_gate() {
         let text = std::fs::read_to_string(root.join(rel))
             .unwrap_or_else(|e| panic!("reading {rel}: {e}"));
         for &(eps_tag, eps_in) in eps_in_rows_for(rel) {
-            let options = ImportOptions { eps_in };
+            let options = ImportOptions {
+                eps_in,
+                ..ImportOptions::default()
+            };
             let who = format!("{rel} @ eps {eps_tag}");
             let Some(want) = expected(rel, row, eps_tag) else {
                 // Off the pinned ambient matrix. The disposition of an
@@ -698,10 +708,15 @@ fn exactly_one_validation_call_site_in_the_reader() {
             }
         }
     }
+    // Two doors since M9-2, still zero opinions: the per-solid
+    // tier-3 door (`gate`) and the aggregate tier-3′ door (`gate3`,
+    // which consumes the import-side declaration channel). Anything
+    // beyond these two is validation logic growing in the reader.
     assert_eq!(
         sites.len(),
-        1,
-        "the reader must call the kernel's at-rest validator exactly once: {sites:?}"
+        2,
+        "the reader must call the kernel's at-rest validators at exactly the two \
+         named doors (per-solid tier 3, aggregate tier 3′): {sites:?}"
     );
 }
 

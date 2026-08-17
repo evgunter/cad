@@ -93,6 +93,7 @@ fn the_reported_promotion_is_the_carrier_that_ships() {
 fn below_its_own_residual_nothing_is_promoted_and_nothing_is_reported() {
     let options = ImportOptions {
         eps_in: Some(1e-18),
+        ..ImportOptions::default()
     };
     let import = import_step(&fixture(), &options).expect("the curve set still imports");
     assert!(

@@ -248,24 +248,44 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     // MappedCurve struts.
     let b = FRAC_PI_8.tan();
     // All eight joints are exact tangencies -- declared (#101), one
-    // declaration per joint including the closing arc's two.
-    let lp = ProfileLoop::builder(p2(0.25, 0.0))
-        .declare_tangent()
-        .line_to(p2(0.75, 0.0))
-        .declare_tangent()
-        .arc_to(p2(1.0, 0.25), b)
-        .declare_tangent()
-        .line_to(p2(1.0, 0.75))
-        .declare_tangent()
-        .arc_to(p2(0.75, 1.0), b)
-        .declare_tangent()
-        .line_to(p2(0.25, 1.0))
-        .declare_tangent()
-        .arc_to(p2(0.0, 0.75), b)
-        .declare_tangent()
-        .line_to(p2(0.0, 0.25))
-        .declare_tangent()
-        .close_with_bulge(b);
+    // declaration per joint including the closing arc's two. Each
+    // vertex carries the bulge of the segment LEAVING it: the four
+    // straight legs leave with 0, the four quarter-arcs with b.
+    let mut lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(0.25, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(0.75, 0.0),
+            bulge: b,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 0.25),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 0.75),
+            bulge: b,
+        },
+        ProfileVertex {
+            pos: p2(0.75, 1.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(0.25, 1.0),
+            bulge: b,
+        },
+        ProfileVertex {
+            pos: p2(0.0, 0.75),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(0.0, 0.25),
+            bulge: b,
+        },
+    ]);
+    lp.tangent_joints = vec![0, 1, 2, 3, 4, 5, 6, 7];
     let t = extrude(&validated(vec![lp]), Extrusion::Distance(0.5)).unwrap();
     assert_all_tiers(&t.body);
     let (v, e, f, r) = counts(&t.body);
@@ -350,9 +370,18 @@ fn d_profile_mixes_plane_and_cylinder_corners() {
     // (c continued) The D: one chord + one semicircular arc; both
     // joins are 90° corners, so both struts upgrade to plane×cylinder
     // Intersections.
-    let lp = ProfileLoop::builder(p2(-1.0, 0.0))
-        .line_to(p2(1.0, 0.0))
-        .close_with_bulge(1.0);
+    // The chord leaves (-1,0) straight; the closing semicircle leaves
+    // (1,0) with bulge 1.
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(-1.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 0.0),
+            bulge: 1.0,
+        },
+    ]);
     let t = extrude(&validated(vec![lp]), Extrusion::Distance(1.0)).unwrap();
     assert_all_tiers(&t.body);
     let (v, e, f, r) = counts(&t.body);

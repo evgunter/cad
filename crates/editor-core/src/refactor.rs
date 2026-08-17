@@ -24,8 +24,13 @@
 //!
 //! # Placements move with the cut (A11), one frame is hoisted
 //!
-//! When the cut is EXACTLY one placement cluster (v1: one instantiate
-//! node), its frame is HOISTED: the part document holds the copy
+//! The cut must be a union of WHOLE placement clusters — a torn
+//! cluster refuses [`SplitError::TornCluster`], because A11 puts the
+//! frame on the cluster and a torn one has one frame and two homes.
+//! When the cut is EXACTLY one placement cluster — its instances and
+//! the mates holding them together, nothing else (ASM-4 D-2 rider ii,
+//! re-keyed by ASM-R2a now that mates make a cluster multi-node) — its
+//! frame is HOISTED: the part document holds the copy
 //! unplaced (identity) and the remainder's new instance is placed at
 //! the cluster's old frame — D-2's "placed at the cluster's old
 //! frame", and the shape a reusable part wants (its world pose belongs
@@ -132,6 +137,28 @@ pub enum SplitError {
         /// Whether the CONSUMER is the cut-side endpoint.
         consumer_is_cut: bool,
     },
+    /// The cut TEARS a placement cluster: some of the cluster's
+    /// instances are cut and some are kept (ASM-R2a; review MAJOR-2).
+    ///
+    /// A11 puts the frame on the CLUSTER, so a torn cluster has one
+    /// frame and two homes; splitting it would have to invent which
+    /// side keeps it and re-mint the other from a relative pose that
+    /// now crosses a document seam — machinery no ratified rule
+    /// supplies. The cut must be a union of WHOLE clusters, which is
+    /// what this module's docs have promised since ASM-4 and what
+    /// mates made checkable. Refused naming the cluster and the
+    /// instance on the far side of the tear; the repair is to widen
+    /// the cut to the whole cluster, or to delete the mates that hold
+    /// it together first.
+    TornCluster {
+        /// The cluster's gauge (its document-order-first instance).
+        gauge: RecipeNodeId,
+        /// The first member, in document order, on the opposite side
+        /// of the cut from the gauge.
+        instance: RecipeNodeId,
+        /// Whether the GAUGE is the cut-side endpoint.
+        gauge_is_cut: bool,
+    },
     /// A cut node references a document parameter that a kept node
     /// also references. The parameter can move or stay, but it cannot
     /// silently become two parameters with one name (D-2's "no silent
@@ -199,6 +226,25 @@ impl core::fmt::Display for SplitError {
             Self::EmptyCut => f.write_str("split: the cut set is empty"),
             Self::UnknownCutNode { id } => {
                 write!(f, "split: cut entry {} is not a live node", id.0)
+            }
+            Self::TornCluster {
+                gauge,
+                instance,
+                gauge_is_cut,
+            } => {
+                let (cut, kept) = if *gauge_is_cut {
+                    (gauge.0, instance.0)
+                } else {
+                    (instance.0, gauge.0)
+                };
+                write!(
+                    f,
+                    "split: the cut tears the placement cluster gauged at node {} (node {cut} is \
+                     cut, node {kept} is kept) — A11 puts the frame on the cluster, so the cut \
+                     must be a union of WHOLE clusters; widen the cut, or delete the mates \
+                     holding the cluster together first",
+                    gauge.0
+                )
             }
             Self::PartIdCollides { id } => write!(
                 f,
@@ -605,6 +651,27 @@ enum RemapMiss {
     Name(Box<StableName>),
 }
 
+/// Rewrites a placement rule's id references: the circular rule's datum
+/// axis is the only one the vocabulary carries (a linear rule is pure
+/// expressions, an explicit rule pure frames). Shared by both
+/// placement-rule nodes so their seam behavior cannot drift apart.
+///
+/// # Errors
+///
+/// The first [`RemapMiss`].
+fn remap_rule(
+    kind: &PatternKind,
+    id: &impl Fn(RecipeNodeId) -> Result<RecipeNodeId, RemapMiss>,
+) -> Result<PatternKind, RemapMiss> {
+    Ok(match kind {
+        PatternKind::Linear { .. } | PatternKind::Explicit(_) => kind.clone(),
+        PatternKind::Circular { axis, step } => PatternKind::Circular {
+            axis: id(*axis)?,
+            step: step.clone(),
+        },
+    })
+}
+
 /// Rewrites a node payload's id references — DAG inputs AND
 /// name-reference payloads — through `map`, for insertion into the
 /// other document. `InstantiatePart` crosses verbatim: its reference
@@ -686,21 +753,34 @@ fn remap_node(
         Node::Pattern { input, count, kind } => Node::Pattern {
             input: id(*input)?,
             count: count.clone(),
-            kind: match kind {
-                PatternKind::Linear { .. } => kind.clone(),
-                PatternKind::Circular { axis, step } => PatternKind::Circular {
-                    axis: id(*axis)?,
-                    step: step.clone(),
-                },
-            },
+            kind: remap_rule(kind, &id)?,
+        },
+        Node::PlacedUnion { input, count, kind } => Node::PlacedUnion {
+            input: id(*input)?,
+            count: count.clone(),
+            kind: remap_rule(kind, &id)?,
         },
         Node::Declare { pairs } => Node::Declare {
             pairs: pairs
                 .iter()
-                .map(|(a, b)| Ok((nm(a)?, nm(b)?)))
+                .map(|((a, b), class)| Ok(((nm(a)?, nm(b)?), *class)))
                 .collect::<Result<_, RemapMiss>>()?,
         },
         Node::InstantiatePart { .. } => node.clone(),
+        // A mate's references cross the cut like any other name
+        // reference: both heads remap, or the cut severed the mate and
+        // the remap MISSES loudly.
+        Node::Mate {
+            a,
+            b,
+            class,
+            alignment,
+        } => Node::Mate {
+            a: nm(a)?,
+            b: nm(b)?,
+            class: *class,
+            alignment: *alignment,
+        },
     })
 }
 
@@ -720,7 +800,7 @@ fn node_param_refs(node: &Node<ProfileProgram>) -> BTreeSet<crate::doc::ParamNam
 /// rewrites, beside the appearance keys.
 fn payload_names(node: &Node<ProfileProgram>) -> Vec<&StableName> {
     match node {
-        Node::Declare { pairs } => pairs.iter().flat_map(|(a, b)| [a, b]).collect(),
+        Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a, b]).collect(),
         Node::Fillet { selection, .. } => selection.iter().collect(),
         _ => Vec::new(),
     }
@@ -786,15 +866,61 @@ pub fn split(
             }
         }
     }
-    // The hoisted-frame case: the cut is exactly one placement cluster
-    // (v1: one instantiate node — module docs).
-    let hoisted = match cut.iter().next() {
-        Some(&only)
-            if cut.len() == 1 && matches!(doc.node(only), Some(Node::InstantiatePart { .. })) =>
-        {
-            Some(only)
+    // A11's cluster precondition, checked FOR REAL now that mates can
+    // make a cluster multi-node (this module's docs have promised the
+    // re-check since ASM-4; review MAJOR-2 found it missing). Run
+    // beside the severed-edge check, before anything moves: a torn
+    // cluster is a refusal, not a case the hoist below silently
+    // declines to handle.
+    for members in crate::mate::clusters(doc) {
+        let Some(&gauge) = members.first() else {
+            continue;
+        };
+        let gauge_is_cut = cut.contains(&gauge);
+        if let Some(&instance) = members.iter().find(|id| cut.contains(id) != gauge_is_cut) {
+            return Err(SplitError::TornCluster {
+                gauge,
+                instance,
+                gauge_is_cut,
+            });
         }
-        _ => None,
+    }
+    // The hoisted-frame case: the cut is exactly one placement CLUSTER
+    // (ASM-4's D-2 amendment, rider ii — re-keyed here now that A12's
+    // mates make a cluster multi-node; the pre-mate reading, "exactly
+    // one instantiate node", is the singleton case of this one).
+    //
+    // Two conditions, and each says something the frame move needs:
+    // the cut's instances all belong to ONE cluster (else there is no
+    // single frame to hoist), and the cut carries nothing but that
+    // cluster and the mates holding it together (else the part
+    // document owns material the hoisted frame does not place).
+    //
+    // WHOLENESS is not a third condition here — the torn-cluster
+    // precondition above already refused every partial cluster, so a
+    // cluster reached by the cut is entirely inside it. That is the
+    // load-bearing difference from the shape this predicate had before
+    // the review: it used to FILTER torn clusters out of the count,
+    // which made a torn cluster look like an absent one and let the
+    // hoist proceed while the torn frame was dropped (MAJOR-2).
+    let hoisted = {
+        let cut_instances: Vec<RecipeNodeId> = cut
+            .iter()
+            .copied()
+            .filter(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
+            .collect();
+        let gauges: BTreeSet<RecipeNodeId> = crate::mate::clusters(doc)
+            .into_iter()
+            .filter(|members| members.iter().any(|m| cut_instances.contains(m)))
+            .filter_map(|members| members.first().copied())
+            .collect();
+        let only_cluster_and_its_mates = cut.iter().all(|&id| {
+            cut_instances.contains(&id) || matches!(doc.node(id), Some(Node::Mate { .. }))
+        });
+        match gauges.iter().next() {
+            Some(&gauge) if gauges.len() == 1 && only_cluster_and_its_mates => Some(gauge),
+            _ => None,
+        }
     };
     // Parameters: referenced by cut nodes → copied into the part;
     // referenced by BOTH sides → refused (no silent sharing). The

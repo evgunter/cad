@@ -36,7 +36,7 @@ use profile::ProfileError;
 use sweep::{ExtrudeError, RevolveError, SkinError};
 use topo::splitting::SplitError;
 use topo::transform::TransformError;
-use topo::{Body, BooleanError, BooleanResultKind, ContactRecords};
+use topo::{Body, BooleanError, BooleanResultKind, ContactClass, ContactRecords};
 
 use crate::appearance::{self, AppearanceResolution};
 use crate::doc::Doc;
@@ -248,9 +248,18 @@ pub enum ValuePayload<T: Decide> {
     /// A pattern's instances AS DATA (D3: patterns do not implicitly
     /// union; index `i` is the A8/N1 `Instance(i)` substrate).
     Instances(Vec<Arc<Body<T>>>),
-    /// A Declare node's pairs, passed through as data (D3; threading
-    /// into booleans is PR 5).
-    Declarations(Vec<(StableName, StableName)>),
+    /// A Declare node's pairs with their contact classes, passed
+    /// through as data (D3; the boolean consumes them at its
+    /// `declare` input). The class travels WITH its pair from
+    /// authoring to the kernel door — the one vocabulary end-to-end
+    /// (SELECT-DESIGN §3d).
+    Declarations(Vec<((StableName, StableName), ContactClass)>),
+    /// A Mate node's ROLE in the solve (A11 rule 4; ASM-R2a D-1): a
+    /// tree mate determined its child, a non-tree mate declared and
+    /// solved nothing. Not body-denoting, so the product gather skips
+    /// it exactly as it skips a `Declare` — which is what "an ordinary
+    /// non-body root" means in code.
+    Mate(crate::mate::MateRole),
 }
 
 impl<T: Decide> ValuePayload<T> {
@@ -264,6 +273,7 @@ impl<T: Decide> ValuePayload<T> {
             Self::Split { .. } => "split",
             Self::Instances(_) => "instances",
             Self::Declarations(_) => "declarations",
+            Self::Mate(_) => "mate",
         }
     }
 }
@@ -477,6 +487,34 @@ pub enum NodeErrorKind {
         /// The evaluated count.
         count: i64,
     },
+    /// A [`crate::node::Node::PlacedUnion`]'s placements could not be
+    /// CERTIFIED disjoint (GROUP-BOOLEAN-DESIGN, ratified A′): the two
+    /// named copies' conservative boxes meet.
+    ///
+    /// The certificate is sufficient-not-necessary, so this refusal
+    /// covers two situations and does not distinguish them: placements
+    /// that genuinely interfere, and placements that are genuinely
+    /// disjoint but too close for a box test. Budget-class, refinable
+    /// by a sharper predicate later — never a silent maybe, because
+    /// the graft door the union lowers through asserts nothing about
+    /// its operands (#382).
+    PlacementsUncertified {
+        /// The lower placement index.
+        i: usize,
+        /// The higher placement index.
+        j: usize,
+    },
+    /// A placement-rule node's rule is unusable — the count spelled two
+    /// ways, an EMPTY explicit placement list, or a non-finite /
+    /// improper frame.
+    ///
+    /// Unreachable through `apply` (the edit door refuses all four
+    /// there, with the better diagnostics) and through `load` (the
+    /// snapshot check re-refuses them); kept as a typed evaluation
+    /// refusal so a hand-built document fails loudly and BY NAME —
+    /// an empty list must not denote an empty body, and a poisoned
+    /// frame must not read as a separation failure.
+    PlacementRule(crate::node::PlacementRuleFault),
     /// The node is in (or downstream of) a dependency cycle — Kahn
     /// never released it (unreachable through `apply`, refused typed).
     UnschedulableCycle,
@@ -574,6 +612,11 @@ pub enum NodeErrorKind {
         /// Why it did not yield a part body.
         fault: parts::PartFault,
     },
+    /// The mate solve refused for this node (ASM-R2a D-4): the mate
+    /// itself, or an instance whose cluster the refusal left without a
+    /// pose. The fault names its own subject — the pair, the residual
+    /// subgroup, the failed predicate and its measured clash.
+    Mate(Box<crate::mate::MateFault>),
 }
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
@@ -595,6 +638,7 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "internal: canonical loop {loop_} failed to match back to a program loop"
             ),
+            Self::Mate(fault) => write!(f, "the mate solve refused: {fault}"),
             Self::Extrude(_) => f.write_str("the extrude op refused"),
             Self::Revolve(_) => f.write_str("the revolve op refused"),
             Self::Split(_) => f.write_str("the split op refused"),
@@ -656,6 +700,28 @@ impl core::fmt::Display for NodeErrorKind {
             Self::NonPositiveCount { count } => {
                 write!(f, "pattern count {count} is not at least 1")
             }
+            Self::PlacementsUncertified { i, j } => write!(
+                f,
+                "placements {i} and {j} are not certified disjoint — their conservative boxes meet, \
+                 so the group union cannot be lowered through the disjoint-graft door"
+            ),
+            Self::PlacementRule(fault) => match fault {
+                crate::node::PlacementRuleFault::CountSpelling => f.write_str(
+                    "the placement rule and the count slot disagree about how many placements \
+                     there are",
+                ),
+                crate::node::PlacementRuleFault::NoPlacements => f.write_str(
+                    "the placement list is empty — a group needs at least one placement, exactly \
+                     as a stepped rule needs a count of at least 1",
+                ),
+                crate::node::PlacementRuleFault::NonFiniteFrame { index } => {
+                    write!(f, "placement {index} has a non-finite coordinate")
+                }
+                crate::node::PlacementRuleFault::ImproperFrame { index, determinant } => write!(
+                    f,
+                    "placement {index} is improper (mirroring): determinant {determinant}"
+                ),
+            },
             Self::UnschedulableCycle => {
                 f.write_str("the node is in, or downstream of, a dependency cycle")
             }
@@ -875,9 +941,16 @@ where
     }
     let env = doc.param_env::<T>();
     let parts = parts::PartCache::<T>::new(opts.resolver.as_ref(), chain, opts.boolean_sweep);
+    // The mate solve is a WHOLE-DOCUMENT computation over recipe data
+    // (A11): one spanning tree per cluster, folded once, read by every
+    // instance and every mate below. Running it here rather than per
+    // node is not an optimization — a per-node solve would be a second
+    // answer to "where does this cluster sit".
+    let poses = crate::mate::solve_document(doc);
     let op_env = wire::OpEnv {
         boolean_sweep: opts.boolean_sweep,
         parts: &parts,
+        poses: &poses,
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
     let mut recomputed = 0usize;
@@ -1126,7 +1199,7 @@ where
         resolved_program.as_deref(),
         &upstream_keys,
         doc.witness(id),
-        doc.placement(id),
+        op_env.poses.placement(doc, id).ok(),
     );
     let naming_key = naming_key(content_key, &upstream_naming);
 
@@ -1197,7 +1270,7 @@ fn content_key<T>(
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     upstream_keys: &[ContentKey],
     witness: Option<&crate::witness::WitnessDatum>,
-    placement: crate::placement::Frame,
+    placement: Option<crate::placement::Frame>,
 ) -> ContentKey
 where
     T: Decide + ContentBits,
@@ -1232,6 +1305,9 @@ where
         Node::Pattern { kind, .. } => match kind {
             PatternKind::Linear { .. } => 12,
             PatternKind::Circular { .. } => 13,
+            // Verified next-free at LIB-PLACEDUNION (the tag-29
+            // lesson: an EXISTING tag never gains a new meaning).
+            PatternKind::Explicit(_) => 19,
         },
         Node::Declare { .. } => 14,
         // M5 PR 10: new tags append — the key's tag space is
@@ -1243,6 +1319,18 @@ where
         Node::Fillet { .. } => 17,
         // ASM-2A.
         Node::InstantiatePart { .. } => 18,
+        // LIB-PLACEDUNION (19 is `Pattern`'s explicit rule, above):
+        // the group boolean, one tag per placement rule, so a rule
+        // change moves the key even when every slot value holds.
+        Node::PlacedUnion { kind, .. } => match kind {
+            PatternKind::Linear { .. } => 20,
+            PatternKind::Circular { .. } => 21,
+            PatternKind::Explicit(_) => 22,
+        },
+        // ASM-R2a. Tags APPEND — an existing one must never be reused
+        // for a new meaning (M5 PR 10's rule), so the mate takes the
+        // next free number rather than the one its unit first wrote.
+        Node::Mate { .. } => 23,
     };
     h.write_tag(tag);
     // Structural payloads beyond the tag: profile floats and Declare
@@ -1295,20 +1383,73 @@ where
                 byte8[..chunk.len()].copy_from_slice(chunk);
                 h.write_u64(u64::from_be_bytes(byte8));
             }
-            for x in placement
-                .columns
-                .iter()
-                .flatten()
-                .chain(placement.translation.iter())
-            {
-                h.write_f64_bits(*x);
+            // The SOLVED placement (ASM-R2a D-5): a mate edit that
+            // moves this instance's pose moves its key, and a cluster
+            // that refuses to solve keys DISTINCTLY from any pose —
+            // otherwise a repaired document could hit the memo on a
+            // stale success.
+            match placement {
+                Some(frame) => {
+                    h.write_tag(1);
+                    for x in frame
+                        .columns
+                        .iter()
+                        .flatten()
+                        .chain(frame.translation.iter())
+                    {
+                        h.write_f64_bits(*x);
+                    }
+                }
+                None => h.write_tag(0),
             }
+        }
+        // A mate's own key is its references, its class and its
+        // alignment: the recipe payload that decides what it says.
+        Node::Mate {
+            a,
+            b,
+            class,
+            alignment,
+        } => {
+            feed_stable_name(&mut h, a);
+            feed_stable_name(&mut h, b);
+            h.write_tag(match class {
+                topo::ContactClass::Rest => 1,
+                topo::ContactClass::Tangent => 2,
+                _ => 0,
+            });
+            feed_alignment(&mut h, alignment);
         }
         Node::Declare { pairs } => {
             h.write_u64(pairs.len() as u64);
-            for (a, b) in pairs {
+            for ((a, b), class) in pairs {
                 feed_stable_name(&mut h, a);
                 feed_stable_name(&mut h, b);
+                // The CLASS is part of the node's identity: two
+                // declarations of the same pair under different
+                // classes are different nodes, and a memo keyed
+                // without it would serve a `Rest` answer to a
+                // `Tangent` question. Keys are process-internal, so
+                // this costs a one-time memo invalidation and no
+                // schema.
+                h.write_u64(class.content_tag());
+            }
+        }
+        // LIB-PLACEDUNION: an `Explicit` rule's FRAMES are recipe
+        // payload, not slots (the list is the count, D8-structural),
+        // so they must feed the key by hand or an edited placement
+        // would recompute nothing. Bits, in placement order (D9) —
+        // `0.0` and `-0.0` are different placements to this key,
+        // exactly as they are to `bit_eq`.
+        Node::Pattern { kind, .. } | Node::PlacedUnion { kind, .. } => {
+            if let Some(frames) = kind.placements() {
+                h.write_u64(frames.len() as u64);
+                for x in frames
+                    .iter()
+                    .flat_map(|f| f.columns.iter().flatten().chain(f.translation.iter()))
+                {
+                    h.write_f64_bits(*x);
+                }
             }
         }
         // The fillet SELECTION is recipe payload, not a slot: two
@@ -1546,6 +1687,43 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             h.write_tag(3);
             h.write_u64(*n as u64);
             f(h, *phase);
+        }
+    }
+}
+
+/// Feeds a mate's alignment datum: the structural choices as tags, the
+/// authored coordinates as bits — the same (tag, payload) convention
+/// every other structural payload uses here.
+fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
+    use crate::mate::{AxisSense, MatePrimitive};
+    h.write_tag(match a.primitive {
+        MatePrimitive::FrameCoincidence => 1,
+        MatePrimitive::Coaxial => 2,
+        MatePrimitive::PlanarRest { .. } => 3,
+        MatePrimitive::Clocking => 4,
+    });
+    if let MatePrimitive::PlanarRest { offset } = a.primitive {
+        h.write_f64_bits(offset);
+    }
+    h.write_tag(match a.sense {
+        AxisSense::Aligned => 1,
+        AxisSense::Opposed => 2,
+    });
+    match a.clocking {
+        Some(theta) => {
+            h.write_tag(1);
+            h.write_f64_bits(theta);
+        }
+        None => h.write_tag(0),
+    }
+    for frame in [&a.a, &a.b] {
+        for x in frame
+            .origin
+            .iter()
+            .chain(frame.axis.iter())
+            .chain(frame.reference.iter())
+        {
+            h.write_f64_bits(*x);
         }
     }
 }

@@ -357,7 +357,12 @@ pub(crate) fn loop_edges<T: Decide>(
 /// pointwise-identical lane bound through every tier-3 signature and
 /// every generic body helper in the workspace, which would have bought
 /// no additional honesty — the refusing side is the same scalar.
-pub trait PropsQuadLane: Decide + geom_brep::PcurveFittedLane + geom_brep::EdgeNurbsLane {
+pub trait PropsQuadLane:
+    Decide
+    + geom_brep::PcurveFittedLane
+    + geom_brep::EdgeNurbsLane
+    + crate::chart_region::ChartRegionLane
+{
     /// The certified flux/area enclosures of a conic-trimmed cylinder
     /// face, or `None` when this scalar has no certified lane.
     ///

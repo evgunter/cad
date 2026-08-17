@@ -32,7 +32,7 @@ mod certified {
     use geom_core::{Affine3, Band, Bounds, Interval, Point2, Real, Tolerance, Vec2, Vec3};
     use geom_curves::Curve3;
     use geom_surfaces::Surface;
-    use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
     use sweep::fillet::build::fillet_edges;
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
@@ -64,11 +64,12 @@ mod certified {
     }
 
     fn cube() -> Body<Interval> {
-        let lp = ProfileLoop::builder(p2(0.0, 0.0))
-            .line_to(p2(DIE_L, 0.0))
-            .line_to(p2(DIE_L, DIE_L))
-            .line_to(p2(0.0, DIE_L))
-            .close();
+        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
+            p2(0.0, 0.0),
+            p2(DIE_L, 0.0),
+            p2(DIE_L, DIE_L),
+            p2(0.0, DIE_L),
+        ]);
         extrude(&validated(vec![lp]), Extrusion::Distance(iv(DIE_L)))
             .unwrap()
             .body
@@ -82,9 +83,18 @@ mod certified {
     /// hair off the pole is an approximation where an exact placement
     /// is available).
     fn pip_ball() -> Body<Interval> {
-        let lp = ProfileLoop::builder(p2(0.0, -PIP_R))
-            .arc_to(p2(0.0, PIP_R), iv(1.0))
-            .close();
+        // The half-disc lamina: a semicircle out of the south pole and
+        // the straight diameter back.
+        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
+            ProfileVertex {
+                pos: p2(0.0, -PIP_R),
+                bulge: iv(1.0),
+            },
+            ProfileVertex {
+                pos: p2(0.0, PIP_R),
+                bulge: iv(0.0),
+            },
+        ]);
         let profile = Profile::new(
             SketchPlane::from_frame(
                 geom_core::Point3::new(iv(0.0), iv(0.0), iv(0.0)),

@@ -8,10 +8,10 @@
 mod fixture;
 
 use editor_core::{
-    BifurcationKind, BranchCertification, BranchMarginEvidence, CancelToken, CapEnd, Diagnosis,
-    DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Implicated, Node, ProfileDoc,
-    RecipeNodeId, Resolution, RoleSeg, RunCtx, StableName, WitnessAge, WitnessBifurcation,
-    WitnessDatum, evaluate, resolve,
+    BifurcationKind, BranchCertification, BranchMarginEvidence, CancelToken, CapEnd, ContactClass,
+    Diagnosis, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Implicated, Node,
+    ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx, StableName, WitnessAge,
+    WitnessBifurcation, WitnessDatum, evaluate, resolve,
 };
 use fixture::{desc, insert, len, step};
 
@@ -65,12 +65,7 @@ fn three() -> Three {
     let (doc, _, a) = block(doc, (0.0, 1.0), (0.0, 1.0));
     let (doc, _, b) = block(doc, (2.0, 3.0), (0.0, 1.0));
     let (doc, _, c) = block(doc, (4.0, 5.0), (0.0, 1.0));
-    let (doc, decl) = insert(
-        doc,
-        Node::Declare {
-            pairs: vec![(cap(a), cap(b))],
-        },
-    );
+    let (doc, decl) = insert(doc, Node::declare_rest(vec![(cap(a), cap(b))]));
     Three { doc, a, b, c, decl }
 }
 
@@ -90,7 +85,7 @@ fn rebind_rewrites_declare_sites_one_shot() {
     let Some(Node::Declare { pairs }) = applied.doc.node(t.decl) else {
         panic!("declare survives");
     };
-    assert_eq!(pairs, &vec![(cap(t.a), cap(t.c))]);
+    assert_eq!(pairs, &vec![((cap(t.a), cap(t.c)), ContactClass::Rest)]);
     // One-shot: no alias table — a SECOND rebind of the same source
     // now finds no references (the site says cap(c) already).
     assert_eq!(
@@ -107,7 +102,7 @@ fn rebind_rewrites_declare_sites_one_shot() {
     let Some(Node::Declare { pairs }) = t.doc.node(t.decl) else {
         panic!()
     };
-    assert_eq!(pairs, &vec![(cap(t.a), cap(t.b))]);
+    assert_eq!(pairs, &vec![((cap(t.a), cap(t.b)), ContactClass::Rest)]);
 }
 
 #[test]
@@ -133,7 +128,7 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
     let Some(Node::Declare { pairs }) = doc.node(t.decl) else {
         panic!()
     };
-    assert_eq!(pairs, &vec![(cap(t.a), cap(t.c))]);
+    assert_eq!(pairs, &vec![((cap(t.a), cap(t.c)), ContactClass::Rest)]);
     assert!(matches!(
         resolve(
             RunCtx {

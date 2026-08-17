@@ -1,0 +1,144 @@
+//! Corpus document **die_tool** — the die tour's cutting tool as ONE
+//! node.
+//!
+//! The tour's `diefillet` stop states the gap in a comment: assembling
+//! a multi-shell cutting tool from N placed balls costs N−1 pairwise
+//! `Boolean(Union)` nodes, and the FIRST ball's cavity faces come out
+//! N−1 `FromA`/`FromB` segments deep. The group discipline itself is
+//! load-bearing there — cutting the pips one at a time would present a
+//! body already carrying a TRIMMED sphere face as the next operand,
+//! which S13 refuses — so the tool is not optional, only expensive.
+//!
+//! `PlacedUnion(ball, Explicit(frames))` is the same tool said once:
+//! one prototype ball, one listed frame per pip, one body out. Every
+//! cavity face is then `Instance(i)` of a ball-local name — ONE
+//! segment, whatever the pip count.
+//!
+//! Six pips here, one per face, rather than the tour's twenty-one: the
+//! subject is the tool's SHAPE, not the pip layout, and the corpus pays
+//! evaluation cost at every ε row, under Interval, and through both
+//! sweep strategies. Six is the smallest set that exercises all six
+//! face rotations — including the `±π/2` and `π` ones the tour
+//! authors — and leaves the pips 0.764 m apart centre to centre against
+//! a 0.09 m radius, comfortably certifiable.
+//!
+//! Vocabulary: Profile, Datum (Axis), Revolve, PlacedUnion (Explicit),
+//! Boolean (Subtract), `InsertNode`, `SetParam`.
+//!
+//! # No mass pin
+//!
+//! `die_pips`' reason verbatim: the oracle is `L³ − 6 · cap(R, H)` with
+//! `cap(r, h) = π h²(3r − h)/3`, π-valued and so not dyadic, while
+//! [`MassPin`](super::MassPin) asserts with `==`. What this document
+//! pins is validity and the census; `lib_placedunion.rs` pins the tool
+//! against the pairwise Transform + Union chain it replaces.
+
+use editor_core::{BooleanOp, Datum, DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};
+use geom_core::{Point3, Vec3};
+use profile::SketchPlane;
+
+use super::super::fixture::{ang, len, scl};
+use super::die_pips::{DIE_L, PIP_H, PIP_R, half_disc_program};
+use super::{CorpusDoc, Recorder};
+
+/// The pip ball's centre coordinate along its face normal, in the
+/// cube's `[0, L]³` frame (`die_pips`' derivation verbatim: the face
+/// plane, plus the `R − H` the centre stands outside it so the cavity
+/// is a cap of height exactly `H`).
+const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
+
+/// The six face-centre placements, in the tour's own order and with
+/// the tour's own authored rotations: each carries the master ball's
+/// `+Z` pole onto the face normal it is cut by, so every chart stays
+/// polar to the plane that cuts it.
+///
+/// Every angle is `0`, `±π/2` or `π` about a coordinate axis — the
+/// placement is DATA, not a runtime `cross`/`acos` branch, which is
+/// exactly what an explicit rule is for.
+fn placements() -> Vec<Frame> {
+    use std::f64::consts::{FRAC_PI_2, PI};
+    let h = DIE_L / 2.0;
+    let lo = DIE_L - PIP_C; // the −normal faces' centre coordinate
+    let x = [1.0, 0.0, 0.0];
+    let y = [0.0, 1.0, 0.0];
+    let z = [0.0, 0.0, 1.0];
+    [
+        (z, 0.0, [h, h, PIP_C]),
+        (x, PI, [h, h, lo]),
+        (y, FRAC_PI_2, [PIP_C, h, h]),
+        (y, -FRAC_PI_2, [lo, h, h]),
+        (x, -FRAC_PI_2, [h, PIP_C, h]),
+        (x, FRAC_PI_2, [h, lo, h]),
+    ]
+    .into_iter()
+    .map(|(axis, angle, t)| Frame::rotate_then_translate(axis, angle, t))
+    .collect()
+}
+
+/// The one-node-tool corpus document.
+pub fn document() -> CorpusDoc {
+    let mut r = Recorder::new();
+
+    // ---- the sharp cube, [0, L]³ ----
+    let square = LoopProgram::polygon([(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)])
+        .expect("the die's square");
+    let cube_p = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![square],
+    }));
+    let cube = r.insert(Node::Extrude {
+        profile: cube_p,
+        distance: len(DIE_L),
+    });
+
+    // ---- the master ball, poled along +Z (`die_pips`' construction) ----
+    let axis = r.insert(Node::Datum(Datum::Axis {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        direction: [scl(0.0), scl(0.0), scl(1.0)],
+    }));
+    let ball_p = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::from_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
+        loops: vec![half_disc_program()],
+    }));
+    let ball = r.insert(Node::Revolve {
+        profile: ball_p,
+        axis,
+        angle: ang(std::f64::consts::TAU),
+    });
+
+    // ---- the whole cutting tool, in ONE node ----
+    let tool = r.insert(Node::placed_union_at(ball, placements()));
+    let pipped = r.insert(Node::Boolean {
+        op: BooleanOp::Subtract,
+        a: cube,
+        b: tool,
+        declare: None,
+    });
+
+    CorpusDoc {
+        name: "die_tool",
+        about: "the die's multi-shell cutting tool as one PlacedUnion(Explicit) node",
+        edits: r.edits,
+        doc: r.doc,
+        result: Some(pipped),
+        // π-valued spherical caps are not dyadic — see the module docs.
+        pin: None,
+        // D2's incremental probe: the cube's extrude distance, which
+        // moves ONLY the +Z face (every pip frame is absolute). The
+        // ball and the whole tool are reused; the cube and the cut
+        // recompute — the memoization claim the group must not break.
+        // At 1.03125 the +Z pip still cuts a proper cap (the plane
+        // sits 0.00875 below the ball's centre, leaving cap height
+        // 0.08125 < 2R); every other pip is untouched.
+        bump: DocEdit::SetParam {
+            node: cube,
+            slot: SlotId::Distance,
+            expr: len(1.03125),
+        },
+        bump_root: cube,
+    }
+}

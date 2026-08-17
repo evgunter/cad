@@ -40,7 +40,7 @@ mod certified {
 
     use geom_core::{Affine3, Bounds, Interval, Point2, Real, Tolerance, Vec2, Vec3};
     use geom_surfaces::Surface;
-    use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
     use topo::{Body, mass_properties};
 
@@ -61,11 +61,12 @@ mod certified {
     const R: f64 = 0.35;
 
     fn plate() -> Body<Interval> {
-        let lp = ProfileLoop::builder(p2(0.0, 0.0))
-            .line_to(p2(3.0, 0.0))
-            .line_to(p2(3.0, 3.0))
-            .line_to(p2(0.0, 3.0))
-            .close();
+        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
+            p2(0.0, 0.0),
+            p2(3.0, 0.0),
+            p2(3.0, 3.0),
+            p2(0.0, 3.0),
+        ]);
         extrude(&validated(vec![lp]), Extrusion::Distance(iv(0.8)))
             .unwrap()
             .body
@@ -79,10 +80,13 @@ mod certified {
             let th = theta * i as f64;
             p2(1.2 + R * th.cos(), 1.7 + R * th.sin())
         };
-        let lp = ProfileLoop::builder(at(0))
-            .arc_to(at(1), bulge)
-            .arc_to(at(2), bulge)
-            .close_with_bulge(bulge);
+        // Three equal 120° arcs: every vertex leaves with the same
+        // bulge, the third one closing the circle.
+        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
+            ProfileVertex { pos: at(0), bulge },
+            ProfileVertex { pos: at(1), bulge },
+            ProfileVertex { pos: at(2), bulge },
+        ]);
         let plane = SketchPlane::from_frame(
             geom_core::Point3::new(iv(0.0), iv(0.0), iv(z0)),
             Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
@@ -97,13 +101,34 @@ mod certified {
     /// A 3 × 3 × 1 plate with a concave semicircular notch on its `x = 3`
     /// wall — S11's `sense: false` arc wall at the certified scalar.
     fn notched() -> Body<Interval> {
-        let lp = ProfileLoop::builder(p2(0.0, 0.0))
-            .line_to(p2(3.0, 0.0))
-            .line_to(p2(3.0, 1.0))
-            .arc_to(p2(3.0, 2.0), iv(-1.0))
-            .line_to(p2(3.0, 3.0))
-            .line_to(p2(0.0, 3.0))
-            .close();
+        // Only (3, 1) leaves on an arc: the semicircular notch bowing
+        // into the plate.
+        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
+            ProfileVertex {
+                pos: p2(0.0, 0.0),
+                bulge: iv(0.0),
+            },
+            ProfileVertex {
+                pos: p2(3.0, 0.0),
+                bulge: iv(0.0),
+            },
+            ProfileVertex {
+                pos: p2(3.0, 1.0),
+                bulge: iv(-1.0),
+            },
+            ProfileVertex {
+                pos: p2(3.0, 2.0),
+                bulge: iv(0.0),
+            },
+            ProfileVertex {
+                pos: p2(3.0, 3.0),
+                bulge: iv(0.0),
+            },
+            ProfileVertex {
+                pos: p2(0.0, 3.0),
+                bulge: iv(0.0),
+            },
+        ]);
         extrude(&validated(vec![lp]), Extrusion::Distance(iv(1.0)))
             .unwrap()
             .body
@@ -187,11 +212,12 @@ mod certified {
     #[test]
     fn interval_split_of_a_reversed_wall_inherits_the_bit() {
         let a = notched();
-        let lp = ProfileLoop::builder(p2(2.0, 0.5))
-            .line_to(p2(4.0, 0.5))
-            .line_to(p2(4.0, 2.5))
-            .line_to(p2(2.0, 2.5))
-            .close();
+        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
+            p2(2.0, 0.5),
+            p2(4.0, 0.5),
+            p2(4.0, 2.5),
+            p2(2.0, 2.5),
+        ]);
         let plane = SketchPlane::from_frame(
             geom_core::Point3::new(iv(0.0), iv(0.0), iv(0.3)),
             Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
@@ -232,9 +258,18 @@ mod certified {
     /// mint arcs whose volume enclosure contains the closed form.
     #[test]
     fn interval_sphere_subtract_decides_definitely_after_the_recut() {
-        let lp = ProfileLoop::builder(p2(0.0, -1.0))
-            .arc_to(p2(0.0, 1.0), iv(1.0))
-            .close();
+        // The half-disc lamina: a semicircle out of (0, -1) and the
+        // straight diameter back.
+        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
+            ProfileVertex {
+                pos: p2(0.0, -1.0),
+                bulge: iv(1.0),
+            },
+            ProfileVertex {
+                pos: p2(0.0, 1.0),
+                bulge: iv(0.0),
+            },
+        ]);
         let axis = RevolveAxis {
             origin: p2(0.0, 0.0),
             dir: Vec2::new(iv(0.0), iv(1.0)),

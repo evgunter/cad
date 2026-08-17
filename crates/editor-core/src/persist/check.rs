@@ -276,6 +276,33 @@ pub enum SnapshotError {
         /// The linear part's determinant.
         determinant: f64,
     },
+    /// A placement row keyed by an instance that is NOT its cluster's
+    /// gauge (ASM-R2a D-3). A11 puts the frame on the cluster, and the
+    /// cluster's key is its document-order-first instance; any other
+    /// key would place a member instead of the cluster, which is the
+    /// multi-anchor state A11 makes unrepresentable.
+    PlacementNotGauge {
+        /// The offending key.
+        node: RecipeNodeId,
+        /// The gauge that should have carried the row.
+        gauge: RecipeNodeId,
+    },
+    /// A mate's alignment datum carries a non-finite coordinate. The
+    /// edit door refuses it, so a file holding one is corrupt: no
+    /// predicate could decide anything about it.
+    MateAlignment {
+        /// The offending mate.
+        node: RecipeNodeId,
+    },
+    /// A placement-rule node carrying a rule the edit door would have
+    /// refused (GROUP-BOOLEAN-DESIGN): the count spelled two ways, an
+    /// empty explicit list, or a non-finite / improper frame.
+    PlacementRule {
+        /// The offending node.
+        node: RecipeNodeId,
+        /// What is wrong with it.
+        fault: crate::node::PlacementRuleFault,
+    },
     /// An appearance metadata value violating the D7 producer
     /// convention (map with an integer `"v"`).
     MetadataUnversioned {
@@ -340,7 +367,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             }
         }
         if let Node::Declare { pairs } = node {
-            for (a, b) in pairs {
+            for ((a, b), _) in pairs {
                 for n in derivation_nodes(a).iter().chain(derivation_nodes(b).iter()) {
                     check_id(*n)?;
                 }
@@ -361,6 +388,14 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             if selection.windows(2).any(|w| w[0] >= w[1]) {
                 return Err(SnapshotError::FilletSelectionNotCanonical { node: id });
             }
+        }
+        // The placement RULE (GROUP-BOOLEAN-DESIGN), re-checked for the
+        // same reason the A11 registry is below: a saved file is DATA,
+        // and every rule on the wire must be one the edit door would
+        // have accepted — one spelling of the count, at least one
+        // placement, and frames that are finite and proper.
+        if let Some(fault) = node.placement_rule_fault() {
+            return Err(SnapshotError::PlacementRule { node: id, fault });
         }
     }
     for name in doc.appearance.keys() {
@@ -385,6 +420,19 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         let determinant = frame.determinant();
         if !frame.is_finite() || determinant <= 0.0 {
             return Err(SnapshotError::PlacementFrame { node, determinant });
+        }
+        let gauge = crate::mate::gauge_of(doc, node);
+        if gauge != node {
+            return Err(SnapshotError::PlacementNotGauge { node, gauge });
+        }
+    }
+    // ASM-R2a D-1: a mate's alignment is authored numbers a predicate
+    // must be able to decide on.
+    for (&node, n) in &doc.nodes {
+        if let Node::Mate { alignment, .. } = n
+            && !alignment.is_finite()
+        {
+            return Err(SnapshotError::MateAlignment { node });
         }
     }
     // The A10 root invariants (ASM-ROOTS D-2), run AFTER the node

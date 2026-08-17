@@ -4,7 +4,7 @@
 //! fixpoint is BLIND to format drift: rename a field and save/load
 //! stay self-consistent while every existing v1 file breaks. This row
 //! pins the frozen wire shape to CHECKED-IN BYTES
-//! (`tests/golden/v10_golden.cad`): the fixture document must save to
+//! (`tests/golden/v13_golden.cad`): the fixture document must save to
 //! exactly those bytes, and the bytes must load. Any change to either
 //! is a format change and demands a ratified schema bump + migration
 //! step — re-bless ONLY then (run with `M4_PR6_BLESS_GOLDEN=1` to
@@ -30,8 +30,8 @@ use editor_core::{
 };
 use fixture::desc;
 
-const GOLDEN: &str = include_str!("golden/v10_golden.cad");
-const GOLDEN_PATH: &str = "tests/golden/v10_golden.cad";
+const GOLDEN: &str = include_str!("golden/v13_golden.cad");
+const GOLDEN_PATH: &str = "tests/golden/v13_golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
@@ -230,7 +230,7 @@ fn golden_bytes_are_frozen() {
     }
     assert_eq!(
         text, GOLDEN,
-        "schema-v8 wire bytes drifted from the committed golden — this is a FORMAT \
+        "schema-v11 wire bytes drifted from the committed golden — this is a FORMAT \
          CHANGE: it needs a ratified schema bump + migration step, never a re-bless in passing"
     );
 }

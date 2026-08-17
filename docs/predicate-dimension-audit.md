@@ -236,6 +236,10 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | chart_region.rs (M9-2) | chart_region_cross_order | same-edge crossing-pair advance-fraction difference (dimensionless) × the edge's own length — the crossing points' separation along the boundary (the clip walk's order certificate, union fix U2) | m | OK (new in M9-2 fix pass) |
 | chart_region.rs (M9-2) | chart_region_orientation / chart_region_area | signed loop shoelace 2A (m²) / perimeter — the loop's (resp. intersection region's) mean width, the split_section_area derivation in chart space | m | OK (new in M9-2) |
 | chart_region.rs (M9-2) | chart_region_seam_span | azimuth-span excess over one period (rad) × the chart's azimuth arm r | m | OK (new in M9-2) |
+| boolean/rest.rs (M9-2 PR-2) | tangent_locus_axis_parallel | sin(axis, plane / axis, axis) × the 1 m verification arm (carrier_pair_relation's own) | m | OK (new in M9-2 PR-2) |
+| boolean/rest.rs (M9-2 PR-2) | tangent_locus_gap / tangent_locus_side | axis-to-plane (or axis-to-axis) distance minus radius sum/difference; signed height / radius difference — all metre data of the carriers | m | OK (new in M9-2 PR-2) |
+| census.rs (M9-2 PR-2 fix pass) | census_backstop_gap | per-axis gap between two faces' SOUND reach boxes (plane hull ⊕ boundary-arc radius; cylinder axial span ⊕ radius; sphere ball — coordinate differences and radii, metres); only a DEFINITE positive clears the pair | m | OK (new in the union fix; boxes tightened to the face_box construction in the delta) |
+| census.rs (M9-2 PR-2 fix pass) | census_backstop_containment | per-axis extent margin between two solids' vertex hulls (coordinate differences — metres); containment = all six definitely positive, clearance = any definitely negative | m | OK (new in the union fix) |
 
 Funnel bypasses found: **boolean/ops.rs:634/649** (`sign_within`
 called directly on volume margins — was FLAG F3, **FIXED**: the gates

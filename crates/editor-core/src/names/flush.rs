@@ -112,6 +112,17 @@ use crate::node::{Node, RecipeNodeId};
 /// redefines it.
 pub use topo::ContactClass;
 
+/// The rest of the kernel contact vocabulary, re-exported at the same
+/// door and for the same reason (see [`ContactClass`]): a refusal the
+/// recipe layer renders must quote the kernel's own sentence, not a
+/// paraphrase that can drift from it.
+///
+/// [`FIT_DEFERRAL`] in particular is quoted VERBATIM wherever a
+/// designed clearance is steered toward `Fit` — including by the
+/// assembly layer's mate verification — so there is exactly one place
+/// the deferral is worded.
+pub use topo::{CONTACT_RECOURSE, ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL};
+
 /// Which rung of the verify ladder decided a finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FlushRung {
@@ -406,7 +417,13 @@ pub fn declare_node<P>(findings: &[FlushFinding]) -> Result<Node<P>, DeclareErro
         return Err(DeclareError::NoFindings);
     }
     Ok(Node::Declare {
-        pairs: findings.iter().map(|f| f.pair.clone()).collect(),
+        // The finding's CLASS travels with its pair. Dropping it here
+        // was a live bug for as long as the class existed: the node
+        // then meant "declare this pair" with no record of WHAT was
+        // declared, and the consuming boolean re-defaulted it to the
+        // conformal class — so a `Tangent` finding, declared, would
+        // have been verified against the `Rest` table.
+        pairs: findings.iter().map(|f| (f.pair.clone(), f.class)).collect(),
     })
 }
 

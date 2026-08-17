@@ -426,20 +426,18 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     );
     let target = ids[0];
     let declare = |node| Edit::InsertNode {
-        node: Node::Declare {
-            pairs: vec![(
-                StableName {
-                    kind: EntityKind::Face,
-                    node,
-                    path: vec![],
-                },
-                StableName {
-                    kind: EntityKind::Face,
-                    node,
-                    path: vec![],
-                },
-            )],
-        },
+        node: Node::declare_rest(vec![(
+            StableName {
+                kind: EntityKind::Face,
+                node,
+                path: vec![],
+            },
+            StableName {
+                kind: EntityKind::Face,
+                node,
+                path: vec![],
+            },
+        )]),
     };
     let a = doc.apply(&declare(target)).unwrap();
     let declare_id = a.record.minted.unwrap();
@@ -450,7 +448,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     // The Declare survives, holding a stale id.
     match after.doc.node(declare_id).unwrap() {
         Node::Declare { pairs } => {
-            assert_eq!(pairs[0].0.node, target, "stale RecipeNodeId held");
+            assert_eq!(pairs[0].0.0.node, target, "stale RecipeNodeId held");
         }
         n => panic!("expected Declare, got {n:?}"),
     }
@@ -816,7 +814,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     let a3 = a2
         .doc
         .apply(&Edit::InsertNode {
-            node: Node::Declare { pairs: vec![] },
+            node: Node::declare_rest(vec![]),
         })
         .unwrap();
     assert!(a3.record.structural, "Declare insert flags structural");

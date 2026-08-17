@@ -38,6 +38,10 @@ type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 pub(crate) struct OpEnv<'a, T: Decide> {
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::PartCache<'a, T>,
+    /// The document's mate solve, run once per evaluation (ASM-R2a
+    /// D-5): every instance's pose relative to its cluster gauge, and
+    /// every mate's role.
+    pub poses: &'a crate::mate::SolvedPoses,
 }
 
 /// Runs one node's op against its (already Ok) inputs and evaluated
@@ -73,10 +77,30 @@ where
         }
         Node::Transform { input, .. } => wire_transform(id, *input, results, vals),
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals),
+        Node::PlacedUnion { input, kind, .. } => {
+            wire_placed_union(id, *input, kind, node.placement_rule_fault(), results, vals)
+        }
         Node::Declare { pairs } => Ok((ValuePayload::Declarations(pairs.clone()), names::empty())),
         Node::InstantiatePart { doc_ref, .. } => {
-            wire_instantiate_part(id, doc_ref, doc.placement(id), env)
+            let placement = env.poses.placement(doc, id).map_err(NodeErrorKind::Mate)?;
+            wire_instantiate_part(id, doc_ref, placement, env)
         }
+        // A mate DENOTES NO BODY (A12): it evaluates to its role in
+        // the solve, which the product gather skips exactly as it
+        // skips a `Declare`. A refusing mate fails typed here rather
+        // than at the instance it would have placed, so the message
+        // names the mate that is wrong.
+        Node::Mate { .. } => match env.poses.fault(id) {
+            Some(fault) => Err(NodeErrorKind::Mate(Box::new(fault.clone()))),
+            None => Ok((
+                ValuePayload::Mate(
+                    env.poses
+                        .role(id)
+                        .unwrap_or(crate::mate::MateRole::Declaring),
+                ),
+                names::empty(),
+            )),
+        },
     }
 }
 
@@ -918,7 +942,7 @@ fn face_name<T: Decide>(
 /// than shared. See that function's docs for why, and change both
 /// together.
 fn resolve_declarations(
-    pairs: &[(names::StableName, names::StableName)],
+    pairs: &[((names::StableName, names::StableName), ContactClass)],
     doc: &crate::doc::Doc<ProfileProgram>,
     a_table: &NameTable,
     b_table: &NameTable,
@@ -986,7 +1010,8 @@ fn resolve_declarations(
     };
 
     let mut out = BooleanDeclarations::none();
-    for (n1, n2) in pairs {
+    for ((n1, n2), class) in pairs {
+        let class = *class;
         let (o1, k1) = resolve_one(n1)?;
         let (o2, k2) = resolve_one(n2)?;
         let unsupported = || NodeErrorKind::DeclareUnsupportedPair {
@@ -997,7 +1022,8 @@ fn resolve_declarations(
             // Cross-operand face pair: the coincident-plane intent.
             ((Operand::A, EntityKey::Face(fa)), (Operand::B, EntityKey::Face(fb)))
             | ((Operand::B, EntityKey::Face(fb)), (Operand::A, EntityKey::Face(fa))) => {
-                out.coincident_faces.push(FacePairDeclaration::rest(fa, fb));
+                out.coincident_faces
+                    .push(FacePairDeclaration::new(fa, fb, class));
             }
             // Same-operand carried contacts.
             ((oa, EntityKey::Vertex(va)), (ob, EntityKey::Vertex(vb))) if oa == ob => {
@@ -1005,15 +1031,12 @@ fn resolve_declarations(
                     Operand::A => &mut out.carried_a,
                     Operand::B => &mut out.carried_b,
                 };
-                // The class is a FIELD at every mint site: this door
-                // resolves today's class-less `Declare` payload, and
-                // the conformal class is what that payload has always
-                // meant. The recipe-side class rides in with the
-                // Declare payload change; the kernel type is already
-                // ready for it.
+                // The AUTHORED class, carried — not re-defaulted. The
+                // whole point of the payload change is that this door
+                // no longer has to guess.
                 c.vv.push(CarriedVv {
                     pair: VvContact { a: va, b: vb },
-                    class: ContactClass::Rest,
+                    class,
                 });
             }
             ((oa, EntityKey::Vertex(v)), (ob, EntityKey::Face(f)))
@@ -1026,7 +1049,7 @@ fn resolve_declarations(
                 };
                 c.vf.push(CarriedVf {
                     rest: VfContact { vertex: v, face: f },
-                    class: ContactClass::Rest,
+                    class,
                 });
             }
             _ => return Err(unsupported()),
@@ -1068,6 +1091,50 @@ fn wire_transform<T: Decide>(
     Ok((ValuePayload::Body(Arc::new(placed)), table))
 }
 
+/// The rigid map of placement `i` under a STEPPED rule (linear or
+/// circular) — the one derivation both placement-rule nodes read, so a
+/// pattern and a placed union of the same rule place their copies bit
+/// for bit alike.
+///
+/// Index 0 is the identity by construction (`i = 0` scales the step to
+/// zero), which is why both callers may take the prototype VERBATIM as
+/// instance 0 rather than mapping it. `i as f64` is exact far beyond
+/// any representable pattern (2^53). Slot reads stay INSIDE this
+/// function so a rule's operands are demanded exactly when a step
+/// actually uses them.
+fn stepped_map<T: Decide>(
+    kind: &PatternKind,
+    i: i64,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+) -> Result<Affine3<T>, NodeErrorKind> {
+    let step = T::from_f64(i as f64);
+    match kind {
+        PatternKind::Linear { .. } => {
+            let dir = unit(need_vec3(vals, SlotId::Direction)?, "pattern direction")?;
+            let spacing = need_scalar(vals, SlotId::Spacing)?;
+            Ok(Affine3::translation(dir * (spacing * step)))
+        }
+        PatternKind::Circular { axis, .. } => {
+            let av = value_of(results, *axis)?;
+            let ValuePayload::Datum(DatumValue::Axis { origin, dir }) = &av.payload else {
+                return Err(NodeErrorKind::WrongOperand {
+                    input: *axis,
+                    expected: "datum axis",
+                    found: av.payload.kind_name(),
+                });
+            };
+            let angle = need_scalar(vals, SlotId::Step)?;
+            Ok(Affine3::rotation_about_axis(*origin, *dir, angle * step))
+        }
+        // An explicit rule steps nothing: its frames ARE the maps, and
+        // a caller that reached here read the rule wrong.
+        PatternKind::Explicit(_) => Err(NodeErrorKind::PlacementRule(
+            crate::node::PlacementRuleFault::CountSpelling,
+        )),
+    }
+}
+
 fn wire_pattern<T: Decide>(
     id: RecipeNodeId,
     input: RecipeNodeId,
@@ -1075,6 +1142,15 @@ fn wire_pattern<T: Decide>(
     results: &Results<T>,
     vals: &SlotValues<T>,
 ) -> OpResult<T> {
+    // A pattern's count is its structural SLOT; an explicit placement
+    // list would be a second answer to the same question, which the
+    // edit door refuses — this is the same refusal, reached only by a
+    // hand-built document.
+    if kind.placements().is_some() {
+        return Err(NodeErrorKind::PlacementRule(
+            crate::node::PlacementRuleFault::CountSpelling,
+        ));
+    }
     let body = body_operand(results, input)?;
     let n = slots::count(vals, SlotId::Count).ok_or(NodeErrorKind::MissingSlot {
         slot: SlotId::Count,
@@ -1084,30 +1160,10 @@ fn wire_pattern<T: Decide>(
     }
     let mut instances = Vec::new();
     // Instance 0 is the input body itself (identity placement, no op
-    // re-run); `i as f64` is exact far beyond any representable
-    // pattern (2^53).
+    // re-run — `stepped_map` at i = 0 IS the identity).
     instances.push(Arc::clone(&body));
     for i in 1..n {
-        let step = T::from_f64(i as f64);
-        let map = match kind {
-            PatternKind::Linear { .. } => {
-                let dir = unit(need_vec3(vals, SlotId::Direction)?, "pattern direction")?;
-                let spacing = need_scalar(vals, SlotId::Spacing)?;
-                Affine3::translation(dir * (spacing * step))
-            }
-            PatternKind::Circular { axis, .. } => {
-                let av = value_of(results, *axis)?;
-                let ValuePayload::Datum(DatumValue::Axis { origin, dir }) = &av.payload else {
-                    return Err(NodeErrorKind::WrongOperand {
-                        input: *axis,
-                        expected: "datum axis",
-                        found: av.payload.kind_name(),
-                    });
-                };
-                let angle = need_scalar(vals, SlotId::Step)?;
-                Affine3::rotation_about_axis(*origin, *dir, angle * step)
-            }
-        };
+        let map = stepped_map(kind, i, results, vals)?;
         let mut placed = transform_rigid(&body, &map).map_err(NodeErrorKind::Transform)?;
         // N6 composition, per structural instance (`Placed { node,
         // instance: i, .. }`): distinct instances are distinct
@@ -1121,6 +1177,103 @@ fn wire_pattern<T: Decide>(
     let master = Arc::clone(&value_of(results, input)?.name_table);
     let table = names::name_pattern(id, &master, n, &instances).map_err(NodeErrorKind::Naming)?;
     Ok((ValuePayload::Instances(instances), table))
+}
+
+/// The group boolean (GROUP-BOOLEAN-DESIGN, ratified A′): one
+/// prototype, a placement rule, ONE body out.
+///
+/// Three steps, in this order and no other:
+///
+/// 1. **The maps**, in placement order (D9) — a stepped rule's per-index
+///    map ([`stepped_map`], shared with the pattern node), or the
+///    listed frames verbatim.
+/// 2. **The certificate**, BEFORE anything is built: one
+///    [`topo::Separation`] over the prototype, queried per placement
+///    pair. Disjointness is certified, never declared — the graft door
+///    this lowers through asserts nothing about its operands (#382),
+///    so an unproved arrangement refuses typed rather than shipping a
+///    body whose solids may interpenetrate. Nothing is placed until
+///    the certificate holds, so a refusal costs one tree, not N
+///    transformed bodies.
+/// 3. **The lowering**: `graft_disjoint_all_keyed` per placed copy, in
+///    placement order, into one aggregate. No new kernel op and no new
+///    kernel naming record — `BooleanNaming` stays two-operand,
+///    because no seam happens here.
+///
+/// Every placement is MAPPED, including index 0 — unlike the pattern
+/// node, which may hand back the prototype verbatim for its identity
+/// instance, a placed union has no reason to special-case a map that an
+/// explicit rule need not make the identity.
+fn wire_placed_union<T: Decide + geom_core::Bounds>(
+    id: RecipeNodeId,
+    input: RecipeNodeId,
+    kind: &PatternKind,
+    fault: Option<crate::node::PlacementRuleFault>,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+) -> OpResult<T> {
+    // The rule gate, FIRST and through the node's own door — the same
+    // one `apply` and the snapshot check read, so an empty placement
+    // list, a non-finite frame or an improper one refuses HERE with its
+    // own name rather than downstream as a poison-box separation
+    // "failure" or a kernel rigidity refusal (review MAJOR-1/MINOR-2).
+    // Unreachable through `apply`; this is the hand-built-document
+    // backstop.
+    if let Some(fault) = fault {
+        return Err(NodeErrorKind::PlacementRule(fault));
+    }
+    let body = body_operand(results, input)?;
+    let maps: Vec<Affine3<T>> = match kind.placements() {
+        Some(frames) => frames.iter().map(|f| f.affine::<T>()).collect(),
+        None => {
+            let n = slots::count(vals, SlotId::Count).ok_or(NodeErrorKind::MissingSlot {
+                slot: SlotId::Count,
+            })?;
+            if n < 1 {
+                return Err(NodeErrorKind::NonPositiveCount { count: n });
+            }
+            (0..n)
+                .map(|i| stepped_map(kind, i, results, vals))
+                .collect::<Result<_, _>>()?
+        }
+    };
+    topo::Separation::of(body.as_ref())
+        .map_err(NodeErrorKind::Boolean)?
+        .certify(&maps)
+        .map_err(|topo::PlacementsMeet { i, j }| NodeErrorKind::PlacementsUncertified { i, j })?;
+    let mut fused = topo::Body::new();
+    let mut bridges: Vec<topo::GraftKeys> = Vec::with_capacity(maps.len());
+    let mut targets: Vec<topo::SolidKey> = Vec::new();
+    for (i, map) in maps.iter().enumerate() {
+        let mut placed = transform_rigid(&body, map).map_err(NodeErrorKind::Transform)?;
+        // N6 composition, per structural instance — the pattern node's
+        // rule verbatim: distinct instances are distinct sources.
+        compose_placed(&body, &mut placed, id, i as u32);
+        // Placement 0 MINTS the destination solids (one per prototype
+        // solid, provenance carried); every later placement grafts ONTO
+        // those same solids, so the fused body has the prototype's own
+        // solid structure with N shells in each. That is what a union
+        // of separated bodies already means here — the pairwise
+        // `Boolean(Union)` chain this node replaces produces exactly
+        // that shape, which is also the only shape the seamed boolean
+        // path accepts as an operand.
+        let keys = if i == 0 {
+            let keys = topo::graft_disjoint_all_keyed(&mut fused, &placed)
+                .map_err(NodeErrorKind::Boolean)?;
+            targets = keys.solids().to_vec();
+            keys
+        } else {
+            topo::graft_disjoint_all_onto_keyed(&mut fused, &targets, &placed)
+                .map_err(NodeErrorKind::Boolean)?
+        };
+        bridges.push(keys);
+    }
+    // Instance(i) wrapping (A8/N1), re-keyed onto the ONE output body
+    // through each instance's graft bridge.
+    let master = Arc::clone(&value_of(results, input)?.name_table);
+    let table =
+        names::name_placed_union(id, &master, &bridges, &fused).map_err(NodeErrorKind::Naming)?;
+    Ok((ValuePayload::Body(Arc::new(fused)), table))
 }
 
 // ---------------------------------------------------------------------

@@ -289,10 +289,15 @@ fn probe_patch_contact_is_never_certified_at_rest() {
     };
     let errs =
         validate_pseudomanifold(&body, &contacts).expect_err("a patch record cannot be confirmed");
+    // Since M9-2 the certifier EXISTS: two arbitrary brick faces are
+    // DISTINCT carriers, so the fabricated record is CONTRADICTED —
+    // the probe's real claim (a fabricated patch never blesses)
+    // survives with the honest refusal upgraded from
+    // not-yet-certifiable to contradicted.
     assert!(
         errs.iter()
-            .any(|e| matches!(e, ValidationError::CensusUnsupported { .. })),
-        "the stated not-yet-certifiable posture must refuse typed: {errs:?}"
+            .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
+        "a fabricated patch record must refuse typed: {errs:?}"
     );
 }
 

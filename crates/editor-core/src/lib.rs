@@ -23,6 +23,7 @@ pub mod edit;
 pub mod eval;
 pub mod expr;
 pub mod ident;
+pub mod mate;
 pub mod meta;
 pub mod names;
 pub mod node;
@@ -54,20 +55,25 @@ pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
 };
 pub use ident::{ContentPin, DocRef, DocumentId};
+pub use mate::{
+    Alignment, AxisSense, ClusterMaintenance, Coset, MateFault, MateFrame, MatePrimitive, MateRole,
+    MateSide, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, reading_edges,
+    relative_freedom_components, solve_document,
+};
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
-    ALL_SURFACE_KINDS, CapEnd, Cmp, ContactClass, CurveKind, CurveKindSet, DeclareError,
-    Denotation, DuplicateName, EntityKey, EntityKind, EntityRef, Entry, FlushEvidence,
-    FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd, NamePat, NameTable,
-    NamingError, OpGroup, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath,
-    RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict,
-    SplitHalf, StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    declare, declare_all, declare_node, denotation, edge_frame, face_frame, find_flush_candidates,
-    select, select_where, vertex_position,
+    ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
+    CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
+    EntityKind, EntityRef, Entry, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
+    InterrogateError, MeridianEnd, NamePat, NameTable, NamingError, OpGroup, ProfileEdgeRef,
+    ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag,
+    SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName, SurfaceKindSet, TagPat,
+    all_bodies, all_edges, all_faces, all_vertices, declare, declare_all, declare_node, denotation,
+    edge_frame, face_frame, find_flush_candidates, select, select_where, vertex_position,
 };
 pub use node::{
-    Axis3, BooleanOp, Datum, InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId,
-    SlotId, StepArg,
+    Axis3, BooleanOp, Datum, InterfaceCrossing, InterfaceRecord, Node, PatternKind,
+    PlacementRuleFault, RecipeNodeId, SlotId, StepArg,
 };
 pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};

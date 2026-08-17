@@ -1028,12 +1028,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         node: kept_e,
         path: vec![RoleSeg::OutputBody],
     };
-    let (doc, _) = insert(
-        doc,
-        Node::Declare {
-            pairs: vec![(straddler.clone(), partner)],
-        },
-    );
+    let (doc, _) = insert(doc, Node::declare_rest(vec![(straddler.clone(), partner)]));
     match split(
         &doc,
         &BTreeSet::from([cut_p, cut_e]),
@@ -1080,12 +1075,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         node: cut_e,
         path: vec![RoleSeg::OutputBody],
     };
-    let (doc, decl) = insert(
-        doc,
-        Node::Declare {
-            pairs: vec![(cut_local, reaching.clone())],
-        },
-    );
+    let (doc, decl) = insert(doc, Node::declare_rest(vec![(cut_local, reaching.clone())]));
     match split(
         &doc,
         &BTreeSet::from([cut_p, cut_e, decl]),
@@ -1292,9 +1282,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     };
     let (part_doc, _) = insert(
         part_doc,
-        Node::Declare {
-            pairs: vec![(stranded.clone(), anchor)],
-        },
+        Node::declare_rest(vec![(stranded.clone(), anchor)]),
     );
     let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
     let doc_ref = store.insert(part_doc);

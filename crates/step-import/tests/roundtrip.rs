@@ -119,7 +119,21 @@ fn fixed_point() {
         let (body1, _) = import_body(name);
         let export1 = step_export::step_string(&body1, &options)
             .unwrap_or_else(|e| panic!("{name}: re-export 1: {e}"));
-        let reimport = step_import::import_step(&export1, &step_import::ImportOptions::default())
+        // STEP has no native contact concept, so export DROPS the
+        // kiss declaration (the honest C6 posture) and the re-import
+        // must re-attach it — the recipe is the save format; the STEP
+        // file never was.
+        let reimport_options = if name.contains("kiss_assembly") {
+            step_import::ImportOptions {
+                declared_contacts: vec![step_import::ImportContact::VertexRest {
+                    at: [1.0, 1.0, 1.0],
+                }],
+                ..step_import::ImportOptions::default()
+            }
+        } else {
+            step_import::ImportOptions::default()
+        };
+        let reimport = step_import::import_step(&export1, &reimport_options)
             .unwrap_or_else(|e| panic!("{name}: re-import: {e}"));
         let step_import::StepImport::Solid { body: body2, .. } = reimport else {
             panic!("{name}: re-import lost the solid");

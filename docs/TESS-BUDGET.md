@@ -240,3 +240,34 @@ scripts/tess_budget_sweep.sh docs/tess-budget-data/tess-budget-baseline.csv
 and say WHY in the commit. A `vanished` finding is never re-baselined
 without reading it first: a scene the sweep stopped covering improves
 every total it used to appear in.
+
+## The split schedule's aspect policy (RATIFIED 2026-08-16, PR #568)
+
+The #547 measurement located the dominant sizing slack (~4.1x,
+every NURBS wall) in `grid_steps`' AM-GM u/v decoupling. Fixing
+it means choosing a different point on the same certified ellipse
+— and the unconstrained optimum is a degenerate STRIP (leaf_a f2:
+70×328 today, 1×4905 at the optimum; parameter aspect ~5·10³).
+Nothing downstream (render normals, sliver-sensitive consumers)
+has been polled on strips, and an honest aspect cap cannot use
+parameter aspect (parameter ≠ 3-D shape) — it needs the first
+fundamental form. The options:
+
+- (i) **Unconstrained optimum** — max cell recovery, degenerate
+  strips. REJECTED in this proposal: mesh quality is a consumer
+  contract we have not renegotiated.
+- (ii) **RECOMMENDED: FFF-aspect cap at a named constant** —
+  choose the ellipse point minimizing cells subject to the 3-D
+  aspect (from the first fundamental form at the cell's Hessian
+  sample points) not exceeding **A = 16**: one octave beyond the
+  4–8 range typical quality bounds tolerate, capturing most of
+  the measured 4.1x on ruled walls (where the honest optimum is
+  mildly anisotropic, not a strip). A is a spec-time constant
+  with its reasoning at the definition site; re-tunable by
+  ordinary measurement + re-cut.
+- (iii) **Status quo AM-GM** — forgoes the dominant factor.
+
+**RATIFIED: option (ii) with A = 16** (Evan's approval on the
+#568 thread, 2026-08-16, noting correctly that (ii) strictly
+generalizes both extremes — A is the dial). Opens the TESS-SPLIT
+unit, sequenced AFTER TESS-SPAN's merge (same sizing functions).

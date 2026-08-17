@@ -734,3 +734,123 @@ row) merges as the honest interim, with the §2c mechanism text
 amended to say so. The follow-up's measured cost: ~8 macro
 row-shapes, 500–700 macro lines, ~45 rustdoc-carrying methods
 into table syntax. Queues after PR-2 (same files).
+
+**RULED (Evan, in-chat 2026-08-16): ProfileLoop SEALS — private
+fields + read accessors.** His lean confirmed after analysis:
+sealing makes the PATHS-channel funnel the only compilable route
+at every crate boundary (a downstream struct literal becomes
+uncompilable; the type stays nameable and readable), and shrinks
+#433 to a kernel-internal consistency question. Registered as
+**LIB-SEAL** (small): fields private on ProfileLoop/
+ProfileVertex, read accessors (or a read-only view) for the
+sweep/topo/editor-core consumers, the serde CANNOT-MINT proof
+(grep + the wire.rs-style argument — the stored form is the
+program, replayed; raw-loop deserialization must be shown
+absent), closure-test rows proving the accessor set complete.
+Honest boundary stated: privacy seals at the crate boundary;
+crates/profile's internals stay on the sealed-verbs discipline.
+Sequenced after RESPELL PR-2 (same surfaces). Also settles
+#431's open question — noted there.
+
+**DELETION-HORIZON REGISTER ENTRY NARROWED TO ONE NAMED VOCABULARY
+GAP (LIB-RESPELL PR-2, 2026-08-16) — it does NOT close, and the
+reason is the SURFACE, not the suites.** Of the shim's ~42 callers,
+all but one shape class migrated: the plain data fixtures in
+`sweep`/`step-export`/`mesh` to raw `RawLoop` vertex chains
+(bit-identical by construction, which those pinned fixtures need),
+and the line x line, arc x line and lens-shaped arc x arc corners to
+the §2c fused family. What does not move is **an arc x arc fillet
+corner whose two authored far points differ**, and it cannot: an ARC
+arrival always lands on the `OnArc` state, whose only continuations
+are the fused verbs — the carrier run from the fillet's second
+tangent point to the arrival anchor is emitted by whatever TRIMS it
+next, so a verb departing the carrier would silently drop that run.
+Exact consequence: an arc arrival may be followed by another fillet
+or by nothing (the `p: Start` close), never by a sharp continuation;
+so a single-fillet loop with an arc outgoing side must close on that
+same carrier, which requires the entry to lie on it — i.e. the far
+points to coincide. **REPORTED FOR A RULING** (vocabulary, out of the
+re-spell unit's fence): the candidate is an `OnArc` continuation that
+ends the carrier run at its anchor and yields an ordinary directed
+point — the shape §2b's `at_on` tip had and §2c dissolved. Surviving
+callers, all in `crates/profile/tests`: `review_s2.rs` (the S2
+blinded-review fuzz, which draws its two far points independently and
+carries an arc x arc coverage floor), `review_s8_probe.rs::check`,
+and two `arc_fillet.rs` fixtures. The same PR retired the three
+arc-leg name doors (`arc_to(p, b)` / `arc_via` / `arc_center`) onto
+the one `arc_to(spec)` verb and deleted the §2b compat trio
+(`at_on`/`to_on`/`at_toward`) with `PathError::ArcCarrierSpelling`;
+what survives of that refusal is not carrier-keyed and is named
+`ArcLegOnOpenFillet`. A SECOND instance of the same gap, found in
+`sweep`: an all-blended loop (every junction a constructed tangency)
+has no lattice entry either — the entry vertex would be a
+same-carrier seam, and the seam-fillet escape is closed by
+`SeamRetrimsArcFirstSide` when side 1 is an arc. The vesica eye-slot
+fixture was re-shaped to one sharp tip, with the finding recorded in
+place.
+
+**LIB-SEAL DISPATCHED (2026-08-16, block LIB-11 slot 1)**: spec
+docs/LIB-SEAL-SPEC.md cut from a full workspace census (452
+literal sites, ~93% test fixtures; 2 production scalar-lift
+sites; zero persistence impact — no serde anywhere near the
+types, wire.rs's cannot-mint statement re-proven as a unit
+deliverable). Lane lib-seal, branch lib/seal. Settles #431's
+open question at merge.
+
+**OnArc RE-OPENED as a design conversation (Evan, in-chat
+2026-08-16)**: the #576 §3 proposal (an OnArc continuation verb)
+is NOT ruled; Evan's pushback — the ratified direction is the §2c
+axiom's state vocabulary (everything depends on only the final
+directed point), under which OnArc should be IMPOSSIBLE, not
+grown. Direction under analysis: dissolve OnArc — arc arrivals
+emit to a hard anchor and land on an ordinary directed point,
+uniform with line-arrival semantics (emitted legs never
+retro-trimmed; corner ahead or refuse). SEQUENCING CONSEQUENCE:
+RESPELL-TABLE must NOT run until this is ruled — the table would
+bake the OnArc rows into macro form.
+
+**RULED (Evan, in-chat 2026-08-16): OnArc DISSOLVES — and the
+ratification is DELEGATED**: "if there's no additional caveats
+and we can just go forward with the deletion then no need to wait
+for my approval." Operative reading: the §2c revision (arc
+arrivals emit to a hard anchor and land on an ordinary directed
+point; arc-extension joins ray-extension as the fused incoming
+story; OnArc/OnArcIncoming/Radius@OnArc/TipState::OnArc/PathOnArc
+all delete; #576 §3's continuation-verb proposal RETIRED — the
+state deletes instead) self-merges with its full writeup IF the
+in-flight blast-radius census shows every affected spelling gets
+an honest refusal-with-recourse or mechanical migration; any
+genuine wall (a shipped shape with no honest spelling after
+dissolution) re-escalates before merge. The mismatched-r
+Radius@OnArc emission hole (bulge_from_center unguarded — found
+in-chat) is recorded as a defect the dissolution deletes
+structurally; the unit pins it with an executed probe first.
+Sequencing: the revision PR rides now; the implementation unit
+dispatches AFTER LIB-SEAL merges (same crate, overlapping test
+files); RESPELL-TABLE stays gated behind the dissolution landing.
+
+**OnArc DISSOLUTION RATIFIED BY DELEGATION (2026-08-16) — census
+clean, amendment merged, LIB-ONARC registered.** The blast-radius
+census (full report banked in this entry's PR) found the
+structural fact that settles the delegation's condition: the fit
+gate ALREADY refuses a trim that would eat a side's authored
+anchor (`AnchorOutsideTrimmedExtent`, arc_fillet.rs:353-390 the
+live proof), so trim-before-anchor was never a shipped shape —
+every constructing OnArc chain in the repo (7 Rust sites: the
+family.rs doctest, rocker boss/hub, path_program ×2,
+path_property ×3; 3 Python matrix rows; zero on-disk fixtures
+with fused steps; zero ty fixtures) is same-carrier with its trim
+at/after the anchor and re-emits the IDENTICAL final vertex chain
+under dissolution. No caveats → PATHS-DESIGN §2c gains the
+dissolution amendment (OnArc retires; arc extension joins ray
+extension; the #576 §3 continuation-verb proposal RETIRED; the
+mismatched-r emission hole deleted structurally; all-blended
+entry explicitly NOT addressed — stays a named gap).
+**LIB-ONARC** (docs/LIB-ONARC-SPEC.md, M / STRUCTURAL) executes
+it: probe-first on the mismatched-r hole, emission moves to the
+arrival verb, arc extension, full surface deletion incl. Python
+PathOnArc, bit-identity pinned per census site, shim DELETES
+(#377 completes at its merge). Dispatches after LIB-SEAL merges
+(same crate, overlapping tests); RESPELL-TABLE stays gated behind
+it. Draw at dispatch (LIB-11 slots 2-4 banked: opus, fable,
+opus remaining).

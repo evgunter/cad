@@ -47,9 +47,16 @@ pub use ::profile::{k_stats, lift, path};
 
 // The lattice: authoring states, targets, the closed-carrier verbs.
 pub use ::profile::{
-    ArcCarrierScalar, ArcCenterTarget, ArcTarget, ArcViaTarget, ClosedLoop, LineTarget, Open,
-    PartialPath, PathError, ReplayError, ReplayErrorKind, Start, Step, TangentArcTarget, Target,
-    TipState, Verb, circle, circle_split, replay,
+    ArcCarrierScalar, ArcData, ArcLen, ArcSide, Bulge, Center, ClosedLoop, LineTarget, OnArc, Open,
+    PartialPath, PathError, PointLeg, Radius, ReplayError, ReplayErrorKind, Start, Step, Sweep,
+    TangentArcTarget, Target, TipState, Verb, Via, circle, circle_split, replay,
+};
+// The §2c family's traits and arrival builders: the admissibility
+// matrix (one impl per admissible (state, mode) pair) and the states a
+// spec that leaves binders free completes through.
+pub use ::profile::path::{
+    ArrivalSpec, OnArcIncoming, PointIncoming, RadiusArrival, RadiusArrivalAt, RadiusArrivalDir,
+    TangentIncoming, ViaArrival, ViaArrivalStart,
 };
 
 // The data types (nameable, not mintable) and the bulge sugar that

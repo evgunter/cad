@@ -214,9 +214,98 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// BEFORE the collision fired and re-checked the constant by eye at
 /// the merge — which is the discipline the v7/v8 entry asks for.
 ///
+///
+/// **The persistence boundary for contact data, stated once** (C4,
+/// D9; the seam ASM-R2-SPEC-DRAFT:41-58 negotiates). DECLARATIONS
+/// persist — they are recipe data on the consuming node, exactly like
+/// any other authored payload, and that is what this version's break
+/// is about. RECORDS never persist: a body's verified contact records
+/// are re-derived by replay (D9), so nothing here writes a
+/// `ContactRecords`. ASM-4's interface record stores DECLARATIONS for
+/// the same reason — crossing declarations ARE the seam, so the split
+/// populates them and the re-verification gate re-checks them against
+/// solved geometry; it does not store the records that gate produces.
+///
+/// Version 11 is the **declaration-class clean break** (M9-1 spec
+/// PR-2; CONTACT-DESIGN C4, ratified #178): [`crate::Node::Declare`]'s
+/// pairs each gained the [`topo::ContactClass`] they assert, so a
+/// declaration now says WHAT kind of contact it claims instead of
+/// leaving the consuming boolean to assume the conformal one. With
+/// `deny_unknown_fields` and a changed tuple arity, a v10 pair is not
+/// a v11 pair at the wire, either direction.
+///
+/// A migration COULD write `rest` into every v10 pair — that is what
+/// they meant — but it would be inventing the one datum the break
+/// exists to stop being assumed, and it would do so silently on files
+/// whose author never made the choice. C4's invariant is that no path
+/// exists from "the numbers look equal" to a glued contact without a
+/// structural or declared rung; a migration that authors the rung on
+/// the user's behalf is that path with extra steps. So v10 and below
+/// refuse TYPED with the regenerate recourse, exactly as v1–v9 do, and
+/// the migration table stays empty. v10 is the version a real document
+/// in this lineage can now carry, so it is the fixture the refusal
+/// suite pins.
+///
+/// **Why 11: the race, run twice, resolved consciously both times.**
+/// This unit claimed 10 at dispatch because LIB-RESPELL (#531) was
+/// OPEN holding 9 — claim PAST the open holders rather than race them,
+/// the standing resolution of the 7/8 double-claim above. Then #531
+/// merged with 9, and ASM-UPD (#549) merged with 10 while this branch
+/// was still open, so the claim moved again, to 11.
+///
+/// Both shifts cost one conscious resolve each and nothing else, which
+/// is the whole argument for the discipline. Note what the SECOND
+/// re-merge did on its own: the constant is one line and both sides
+/// had already written `10`, so git merged it CLEANLY — the paragraph
+/// conflict above is the only thing that stopped two breaks sharing a
+/// version in silence. That is the 7/8 failure mode reproduced
+/// exactly, and caught only because the ledger prose is long enough to
+/// collide. All three meanings survive here: 9 the fillet-family
+/// re-spell, 10 the `UpdateReference` arm, 11 the declaration class.
+/// Version 13 is **node vocabulary growth** (ASSEMBLY-DESIGN
+/// A3/A12, ratified #522; ASM-R2a D-1): [`crate::Node`] gained the
+/// `Mate` variant — the mate's two instance-qualified references, its
+/// declared [`topo::ContactClass`], and its alignment datum, all file
+/// data. A new node arm is the case v7 bumped for, and v2/v3/v8 before
+/// it: forward-additive (a v12 file contains no `Mate`), while the
+/// gate buys the direction that fails badly — a v13 file handed to a
+/// v12 reader must refuse at the version door rather than reach serde
+/// and die on an unknown variant. A v12 file refuses TYPED with the
+/// regenerate recourse and the migration table stays empty.
+///
+/// The mate's class rides the SAME stable spellings v11 gave
+/// `Declare`'s pairs (`declare_pairs_wire`'s table, reused rather
+/// than re-spelled): one contact vocabulary, one wire spelling of it.
+/// A class outside v1's admitted `Rest`/`Tangent` refuses at that door
+/// naming [`topo::FIT_DEFERRAL`] verbatim — the same sentence the
+/// solve door says.
+///
+/// The A11 placement registry did NOT force this bump, and that is
+/// worth stating: its keys generalized from per-instance to
+/// per-cluster-REPRESENTATIVE, a change of MEANING with no change of
+/// shape — a mate-less document's registry is the same map with the
+/// same keys, because every singleton cluster's gauge is its own
+/// instance. The bump is the node arm's alone.
+///
+/// **Why 13: the same-number race, run TWICE on one branch, and what
+/// it costs.** This unit claimed 11 at its own bump, moved to 12 when
+/// M9-1 PR-2 merged with 11, and moved to 13 when LIB-PLACEDUNION
+/// merged with 12. BOTH shifts were caught the same way and only that
+/// way: an explicit read of main's constant at the re-merge
+/// (`git show origin/main:crates/editor-core/src/persist/mod.rs |
+/// grep SCHEMA_VERSION`). Neither produced a merge conflict on the
+/// constant — both sides had written the identical line, so git
+/// merged it silently, exactly as the v11 and v12 entries above
+/// predicted. Three consecutive units have now reproduced that
+/// failure mode; the discipline (`memories/schema-claim-discipline`)
+/// is that the CLAIM lives as prose in `docs/MODEL-AB-LOG.md`, where
+/// it collides, and the number is re-read by eye at every re-merge.
+/// A gap in the sequence would cost nothing; a collision costs a
+/// human eye.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these nine.
-pub const SCHEMA_VERSION: u32 = 10;
+/// [`migration_step`] entry, or a ratified break like these twelve.
+pub const SCHEMA_VERSION: u32 = 13;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -470,10 +559,14 @@ pub type MigrationStep = fn(serde_json::Value) -> Result<serde_json::Value, Migr
 /// (M6-5, ruled #217), 3 → 4 (LIB-SWITCH §4h — profiles as programs,
 /// ratified LQ7a clean break), 4 → 5 (ASM-1 D-6 — document identity)
 /// 5 → 6 (ASM-ROOTS D-1 — product roots) and 6 → 7 (ASM-2A D-6 —
-/// the instantiate node + A11 placements) were all ratified clean
-/// breaks. The mechanism stays because it costs nothing and D6.3's
-/// forward-only rule is unchanged; a future format change that is NOT
-/// a break adds its `n => Some(step_n)` arm here.
+/// the instantiate node + A11 placements), 7 → 8 (LIB-LBRET — the
+/// `AtToward` chain step), 8 → 9 (LIB-RESPELL — the §2c fillet
+/// family), 9 → 10 (ASM-UPD — the `UpdateReference` edit arm) and
+/// 10 → 11 (M9-1 — the declaration class) were all ratified clean
+/// breaks. The mechanism stays because it
+/// costs nothing and D6.3's forward-only rule is unchanged; a future
+/// format change that is NOT a break adds its `n => Some(step_n)` arm
+/// here.
 fn migration_step(from_version: u32) -> Option<MigrationStep> {
     /// `(from_version, step)` pairs — the whole chain, one line each.
     const TABLE: &[(u32, MigrationStep)] = &[];
@@ -591,8 +684,9 @@ pub fn load(text: &str) -> Result<Loaded, PersistError> {
     let mut doc = body.snapshot.clone();
     let mut records = Vec::with_capacity(body.edits.len());
     for (index, edit) in body.edits.iter().enumerate() {
-        let Applied { doc: next, record } =
-            apply(&doc, edit).map_err(|error| PersistError::EditReplay { index, error })?;
+        let Applied {
+            doc: next, record, ..
+        } = apply(&doc, edit).map_err(|error| PersistError::EditReplay { index, error })?;
         doc = next;
         records.push(record);
     }

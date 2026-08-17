@@ -688,15 +688,25 @@ mod inert {
     use crate::types::TessellateError;
 
     /// Always false: the meter is not in this build.
-    pub fn armed() -> bool {
+    ///
+    /// INVARIANT: `const fn`, so "folds away" is a fact the compiler
+    /// holds at every call site rather than a hope about inlining —
+    /// checked by the static assertion below (#558's shape, adopted
+    /// here so the standing telemetry rule is enforced for BOTH gated
+    /// instruments and not just the newer one).
+    pub const fn armed() -> bool {
         false
     }
 
     /// Always false — and it is what removes the trimmed lane's
     /// per-triangle resampling block from a shipped build.
-    pub fn deviation_armed() -> bool {
+    pub const fn deviation_armed() -> bool {
         false
     }
+
+    /// The gate, proved at COMPILE TIME: this item fails to build if
+    /// either stub above ever stops folding to `false`.
+    const _: () = assert!(!armed() && !deviation_armed());
 
     /// No-op (see the module docs). Keeps the `Result` so the lane's
     /// single call site is identical in both halves — and so the `?`

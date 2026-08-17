@@ -270,13 +270,20 @@ fn eps_in_declared_and_overridable() {
         &text,
         &ImportOptions {
             eps_in: Some(2.5e-7),
+            ..ImportOptions::default()
         },
     )
     .expect("imports under an override");
     assert_eq!(overridden.eps_in(), 2.5e-7, "the per-call override wins");
     // An invalid override refuses typed before any parsing.
-    let err = import_step(&text, &ImportOptions { eps_in: Some(0.0) })
-        .expect_err("a non-positive override refuses");
+    let err = import_step(
+        &text,
+        &ImportOptions {
+            eps_in: Some(0.0),
+            ..ImportOptions::default()
+        },
+    )
+    .expect_err("a non-positive override refuses");
     assert!(matches!(
         err,
         StepImportError::InvalidEpsOverride { value } if value == 0.0
