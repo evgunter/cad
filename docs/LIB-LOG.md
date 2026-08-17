@@ -788,3 +788,23 @@ same-carrier seam, and the seam-fillet escape is closed by
 `SeamRetrimsArcFirstSide` when side 1 is an arc. The vesica eye-slot
 fixture was re-shaped to one sharp tip, with the finding recorded in
 place.
+
+**LIB-SEAL DISPATCHED (2026-08-16, block LIB-11 slot 1)**: spec
+docs/LIB-SEAL-SPEC.md cut from a full workspace census (452
+literal sites, ~93% test fixtures; 2 production scalar-lift
+sites; zero persistence impact — no serde anywhere near the
+types, wire.rs's cannot-mint statement re-proven as a unit
+deliverable). Lane lib-seal, branch lib/seal. Settles #431's
+open question at merge.
+
+**OnArc RE-OPENED as a design conversation (Evan, in-chat
+2026-08-16)**: the #576 §3 proposal (an OnArc continuation verb)
+is NOT ruled; Evan's pushback — the ratified direction is the §2c
+axiom's state vocabulary (everything depends on only the final
+directed point), under which OnArc should be IMPOSSIBLE, not
+grown. Direction under analysis: dissolve OnArc — arc arrivals
+emit to a hard anchor and land on an ordinary directed point,
+uniform with line-arrival semantics (emitted legs never
+retro-trimmed; corner ahead or refuse). SEQUENCING CONSEQUENCE:
+RESPELL-TABLE must NOT run until this is ruled — the table would
+bake the OnArc rows into macro form.
