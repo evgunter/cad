@@ -132,13 +132,7 @@ fn dual_with_seeded_derivatives_still_decides_by_value_only() {
                 profile::ProfileLoop::new(
                     lp.vertices
                         .iter()
-                        .map(|v| profile::ProfileVertex {
-                            pos: geom_core::Point2::new(
-                                Dual::new(v.pos.x, f64::NAN),
-                                Dual::new(v.pos.y, f64::NAN),
-                            ),
-                            bulge: Dual::new(v.bulge, f64::NAN),
-                        })
+                        .map(|v| profile::ProfileVertex::new(geom_core::Point2::new( Dual::new(v.pos.x, f64::NAN), Dual::new(v.pos.y, f64::NAN), ), Dual::new(v.bulge, f64::NAN)))
                         .collect(),
                 )
             })

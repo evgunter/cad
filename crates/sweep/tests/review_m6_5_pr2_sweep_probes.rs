@@ -26,10 +26,7 @@ fn box_at(x0: f64, l: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
         [(x0, 0.0), (x0 + l, 0.0), (x0 + l, l), (x0, l)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: Point2::new(x, y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])

@@ -19,14 +19,8 @@ use sweep::{Revolution, RevolveAxis, revolve};
 /// The four acceptance shapes as (profile loops, revolution).
 fn shapes() -> Vec<(Vec<ProfileLoop<f64>>, Revolution<f64>)> {
     let half_disc = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -1.0), 1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     let triangle = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
     let washer = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
@@ -66,10 +60,7 @@ fn dual_value_channel_matches_f64_bitwise() {
         ProfileLoop::new(
             lp.vertices
                 .iter()
-                .map(|v| ProfileVertex {
-                    pos: Point2::new(Dual::constant(v.pos.x), Dual::constant(v.pos.y)),
-                    bulge: Dual::constant(v.bulge),
-                })
+                .map(|v| ProfileVertex::new(Point2::new(Dual::constant(v.pos.x), Dual::constant(v.pos.y)), Dual::constant(v.bulge)))
                 .collect(),
         )
     };

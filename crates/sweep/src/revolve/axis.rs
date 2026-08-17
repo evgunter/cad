@@ -561,14 +561,8 @@ mod tests {
         let at = |phi: f64| Point2::new(cx + r * phi.cos(), r * phi.sin());
         let span = phi_b - phi_a; // counterclockwise, radians
         let lp = ProfileLoop::new(vec![
-            ProfileVertex {
-                pos: at(phi_a),
-                bulge: (span / 4.0).tan(),
-            },
-            ProfileVertex {
-                pos: at(phi_b),
-                bulge: 0.0,
-            },
+            ProfileVertex::new(at(phi_a), (span / 4.0).tan()),
+            ProfileVertex::new(at(phi_b), 0.0),
         ]);
         Profile::new(SketchPlane::xy(), vec![lp])
             .validate(Tolerance::get())

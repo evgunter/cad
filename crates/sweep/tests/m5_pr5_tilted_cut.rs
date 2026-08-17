@@ -30,14 +30,8 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// wall faces share ONE cylinder surface (the cosurface run).
 fn disc() -> ValidatedProfile<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(-0.5, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.5, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(-0.5, 0.0), 1.0),
+        ProfileVertex::new(p2(0.5, 0.0), 1.0),
     ]);
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -268,14 +262,8 @@ mod interval {
     fn tilted_cut_at_interval_encloses_zero_residuals() {
         let iv = <Interval as Real>::from_f64;
         let lp = ProfileLoop::new(vec![
-            ProfileVertex {
-                pos: Point2::new(iv(-0.5), iv(0.0)),
-                bulge: iv(1.0),
-            },
-            ProfileVertex {
-                pos: Point2::new(iv(0.5), iv(0.0)),
-                bulge: iv(1.0),
-            },
+            ProfileVertex::new(Point2::new(iv(-0.5), iv(0.0)), iv(1.0)),
+            ProfileVertex::new(Point2::new(iv(0.5), iv(0.0)), iv(1.0)),
         ]);
         let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
             .validate(Tolerance::get())
@@ -659,14 +647,8 @@ fn even_crossing_belly_cut_at_interval() {
     use geom_core::{Bounds, Interval, Real};
     let iv = <Interval as Real>::from_f64;
     let lp = profile::ProfileLoop::new(vec![
-        profile::ProfileVertex {
-            pos: Point2::new(iv(-0.5), iv(0.0)),
-            bulge: iv(1.0),
-        },
-        profile::ProfileVertex {
-            pos: Point2::new(iv(0.5), iv(0.0)),
-            bulge: iv(1.0),
-        },
+        profile::ProfileVertex::new(Point2::new(iv(-0.5), iv(0.0)), iv(1.0)),
+        profile::ProfileVertex::new(Point2::new(iv(0.5), iv(0.0)), iv(1.0)),
     ]);
     let vp = profile::Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tolerance::get())

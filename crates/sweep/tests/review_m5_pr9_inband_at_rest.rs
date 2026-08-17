@@ -26,26 +26,11 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
     let s = r_fillet / 0.25;
     let b = (std::f64::consts::PI / 8.0).tan();
     let mut lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(s, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(s, 0.75 * s),
-            bulge: b,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.75 * s, s),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.0, s),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
+        ProfileVertex::new(Point2::new(s, 0.0), 0.0),
+        ProfileVertex::new(Point2::new(s, 0.75 * s), b),
+        ProfileVertex::new(Point2::new(0.75 * s, s), 0.0),
+        ProfileVertex::new(Point2::new(0.0, s), 0.0),
     ]);
     lp.tangent_joints = vec![2, 3];
     let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tolerance::get()) {

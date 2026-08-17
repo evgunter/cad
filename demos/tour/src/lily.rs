@@ -117,6 +117,10 @@ use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, ProfileVertex, SketchPlane, Via};
+// The named gap below (`section_loops`): the raw loop door is kernel
+// vocabulary, off the façade, so the one scene that needs it names the
+// kernel crate directly.
+use profile::RawLoop;
 use pncad::sweep::fillet::FilletError;
 use pncad::sweep::readback::{WedgeFrames, revolved_caps};
 use pncad::sweep::{
@@ -674,28 +678,25 @@ impl Section {
         // So the two junction rules disagree on same-carrier continuation,
         // and the lattice is the stricter one — a library finding, not a
         // demo defect. Until the lattice gains a same-carrier continuation
-        // verb (vocabulary, out of this unit's fence), the only spelling
-        // left on the presented surface is the plain-data one: `ProfileLoop`
-        // is public-field data, so a struct literal still constructs one.
-        // That residue is exactly what LIB-RETTAIL's demotion could not
-        // close, and this is it being used in anger.
-        let v = |(x, y): (f64, f64)| ProfileVertex {
-            pos: Point2::new(x, y),
-            bulge: 0.0,
-        };
-        vec![ProfileLoop {
-            vertices: vec![
-                v(right),
-                v(shoulder(right, ridge)),
-                v(ridge),
-                v(shoulder(ridge, left)),
-                v(left),
-                v(shoulder(left, keel)),
-                v(keel),
-                v(shoulder(keel, right)),
-            ],
-            tangent_joints: Vec::new(),
-        }]
+        // verb (vocabulary, out of this unit's fence), the PRESENTED
+        // surface has no spelling for this loop at all: `ProfileLoop`'s
+        // fields are sealed, so the only route left is the kernel's raw
+        // door, `profile::RawLoop`, which `pncad::profile` deliberately
+        // omits. That is why this crate carries a second kernel
+        // dependency — the tour reaches around its own façade here, and
+        // the gap is loud in the dependency graph instead of hidden in a
+        // struct literal.
+        let v = |(x, y): (f64, f64)| ProfileVertex::new(Point2::new(x, y), 0.0);
+        vec![RawLoop::new(vec![
+            v(right),
+            v(shoulder(right, ridge)),
+            v(ridge),
+            v(shoulder(ridge, left)),
+            v(left),
+            v(shoulder(left, keel)),
+            v(keel),
+            v(shoulder(keel, right)),
+        ])]
     }
 
     /// Linear blend, field by field.

@@ -32,16 +32,14 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
         SketchPlane::xy(),
         p.loops
             .iter()
-            .map(|lp| ProfileLoop {
-                vertices: lp
-                    .vertices
-                    .iter()
-                    .map(|v| ProfileVertex {
-                        pos: Point2::new(T::from_f64(v.pos.x), T::from_f64(v.pos.y)),
-                        bulge: T::from_f64(v.bulge),
-                    })
-                    .collect(),
-                tangent_joints: lp.tangent_joints.clone(),
+            .map(|lp| {
+                ProfileLoop::new(
+                    lp.vertices()
+                        .iter()
+                        .map(|v| ProfileVertex::new(Point2::new(T::from_f64(v.pos().x), T::from_f64(v.pos().y)), T::from_f64(v.bulge())))
+                        .collect(),
+                )
+                .with_tangent_joints(lp.tangent_joints().to_vec())
             })
             .collect(),
     )
@@ -51,10 +49,7 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
 pub fn chain(vs: &[(f64, f64, f64)]) -> ProfileLoop<f64> {
     ProfileLoop::new(
         vs.iter()
-            .map(|&(x, y, bulge)| ProfileVertex {
-                pos: Point2::new(x, y),
-                bulge,
-            })
+            .map(|&(x, y, bulge)| ProfileVertex::new(Point2::new(x, y), bulge))
             .collect(),
     )
 }

@@ -281,11 +281,8 @@ fn cocircular_partial_arc_overlap() {
     // Two vertices: `a` leaves along the shared carrier to `b`, and `b`
     // closes back on the straight chord.
     let riding = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex {
-            pos: a,
-            bulge: bulge_from_center(a, b, p2(1.0, 0.0), ArcSweep::Ccw),
-        },
-        ProfileVertex { pos: b, bulge: 0.0 },
+        ProfileVertex::new(a, bulge_from_center(a, b, p2(1.0, 0.0), ArcSweep::Ccw)),
+        ProfileVertex::new(b, 0.0),
     ]);
     match err(&profile(vec![lens, riding])) {
         ProfileError::NonSimple {

@@ -149,26 +149,143 @@ pub use validate::{
 /// bulge semantics).
 #[derive(Clone, Copy, Debug)]
 pub struct ProfileVertex<T: Real> {
+    pos: Point2<T>,
+    bulge: T,
+}
+
+impl<T: Real> ProfileVertex<T> {
+    /// A vertex: a position plus the bulge of the segment leaving it.
+    ///
+    /// **What the privacy on this type does and does not claim.**
+    /// Vertex *values* stay mintable wherever the type is nameable —
+    /// this door is unconditional and every field reads back, exactly
+    /// as for [`Point2`]. Privacy here buys representation freedom, not
+    /// mint-prevention. The funnel claim is about LOOPS: outside this
+    /// crate a [`ProfileLoop`] cannot be spelled from a vertex table,
+    /// because the only raw loop door is [`RawLoop`] and that trait is
+    /// off the presented surface. A caller holding a bag of vertices
+    /// has nothing to put them in.
+    pub fn new(pos: Point2<T>, bulge: T) -> Self {
+        Self { pos, bulge }
+    }
+
     /// The vertex position in sketch-plane coordinates (meters).
-    pub pos: Point2<T>,
+    pub fn pos(&self) -> Point2<T> {
+        self.pos
+    }
+
     /// The bulge b = tan(θ/4) of the segment from this vertex to the
     /// next (0 ⇒ line; sign per the crate docs — positive sweeps
     /// counterclockwise). The last vertex's bulge belongs to the
     /// implicit closing segment.
-    pub bulge: T,
+    pub fn bulge(&self) -> T {
+        self.bulge
+    }
 }
 
 /// A closed loop: a vertex chain, closed by construction (the last
 /// vertex's segment returns to the first — see the crate docs).
 ///
-/// Plain data with public fields (conventions are carried by data, D2);
-/// nothing is checked at construction — [`Profile::validate`] is the
-/// gate.
+/// Plain data — conventions are carried by data (D2), and nothing is
+/// checked at construction: [`Profile::validate`] is the gate.
+///
+/// **Sealed at the crate boundary.** The fields are private and read
+/// back through [`vertices`](Self::vertices) /
+/// [`tangent_joints`](Self::tangent_joints), so outside this crate the
+/// only compilable route to a loop is a door: the [`path`] lattice (the
+/// presented channel) or [`RawLoop`] (kernel vocabulary, omitted from
+/// the façade). Naming the type, reading it, and matching on error
+/// payloads all still work; spelling one from a vertex table does not.
+/// The seal is a CRATE boundary, not a module one — `crates/profile`'s
+/// own internals construct loops directly and stay on the sealed-verbs
+/// discipline instead.
 #[derive(Clone, Debug)]
 pub struct ProfileLoop<T: Real> {
     /// The vertex chain, in traversal order (either winding — winding
     /// is invisible, see the crate docs).
-    pub vertices: Vec<ProfileVertex<T>>,
+    vertices: Vec<ProfileVertex<T>>,
+    /// Declared-tangent joints, as vertex indices — see
+    /// [`ProfileLoop::tangent_joints`] for the normative semantics.
+    tangent_joints: Vec<usize>,
+}
+
+/// The raw loop-minting doors — **kernel vocabulary, off the presented
+/// surface** (Evan's ruling on #413, executed by LIB-RETTAIL).
+///
+/// The invariant this trait exists to hold: a caller who can NAME
+/// [`ProfileLoop`] cannot thereby MINT one from a vertex table. Inherent
+/// methods travel with their type, so as long as `new`/`polygon` were
+/// inherent, every surface that made the type nameable — and the type
+/// must stay nameable, since read-back, error payloads and
+/// [`ValidatedLoop`] all hand one back — re-exported the authoring tier
+/// with it. Trait methods travel with the TRAIT instead: the façade's
+/// curated `pncad::profile` module omits `RawLoop`, and a downstream
+/// caller who never imports it has no `ProfileLoop::polygon` in scope.
+///
+/// Authoring goes through [`path`] (the PATHS lattice), which classifies
+/// junctions at authoring time and declares tangency by construction.
+/// This trait is what the kernel's own crates and their fixtures use to
+/// spell a vertex table directly.
+///
+/// The seal is what makes that invariant total: [`ProfileLoop`]'s
+/// fields are private, so outside this crate there is no struct-literal
+/// route around the trait — a downstream `ProfileLoop { .. }` does not
+/// compile (E0451, under test).
+pub trait RawLoop<T: Real>: Sized {
+    /// Builds a loop from a vertex chain, with no declared-tangent
+    /// joints — add them with [`with_tangent_joints`](Self::with_tangent_joints),
+    /// or author the loop through [`path`], which declares by
+    /// construction.
+    fn new(vertices: Vec<ProfileVertex<T>>) -> Self;
+
+    /// Builds a loop of straight segments through the given points (all
+    /// bulges zero) — polygon sugar.
+    fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self;
+
+    /// The same loop with its **declared-tangent joints** set to the
+    /// given vertex indices (see
+    /// [`ProfileLoop::tangent_joints`](ProfileLoop::tangent_joints) for
+    /// what a declaration means and how validation verifies it).
+    ///
+    /// Declaring by hand is the explicit hand-authoring/persistence
+    /// form; `.fillet(r)` on the [`path`] lattice declares by
+    /// construction and is the authoring path.
+    fn with_tangent_joints(self, tangent_joints: Vec<usize>) -> Self;
+}
+
+impl<T: Real> RawLoop<T> for ProfileLoop<T> {
+    fn new(vertices: Vec<ProfileVertex<T>>) -> Self {
+        Self {
+            vertices,
+            tangent_joints: Vec::new(),
+        }
+    }
+
+    fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self {
+        <Self as RawLoop<T>>::new(
+            points
+                .into_iter()
+                .map(|pos| ProfileVertex {
+                    pos,
+                    bulge: T::zero(),
+                })
+                .collect(),
+        )
+    }
+
+    fn with_tangent_joints(mut self, tangent_joints: Vec<usize>) -> Self {
+        self.tangent_joints = tangent_joints;
+        self
+    }
+}
+
+impl<T: Real> ProfileLoop<T> {
+    /// The vertex chain, in traversal order (either winding —
+    /// winding is invisible, see the crate docs).
+    pub fn vertices(&self) -> &[ProfileVertex<T>] {
+        &self.vertices
+    }
+
     /// **Declared-tangent joints** (the #101 discipline): vertex
     /// indices whose *joint* — the junction between the segment
     /// arriving at that vertex and the segment leaving it — is declared
@@ -196,70 +313,15 @@ pub struct ProfileLoop<T: Real> {
     ///
     /// The PATHS lattice's `.fillet(r)` ([`path`]) is the authoring
     /// path (it computes tangent geometry exactly and declares by
-    /// construction); this field is the explicit
-    /// hand-authoring/persistence form.
+    /// construction); [`RawLoop::with_tangent_joints`] is the
+    /// explicit hand-authoring/persistence form.
     ///
     /// [`ProfileError::TangencyContradicted`]: validate::ProfileError::TangencyContradicted
     /// [`ProfileError::UndeclaredTangency`]: validate::ProfileError::UndeclaredTangency
-    pub tangent_joints: Vec<usize>,
-}
-
-/// The raw loop-minting doors — **kernel vocabulary, off the presented
-/// surface** (Evan's ruling on #413, executed by LIB-RETTAIL).
-///
-/// The invariant this trait exists to hold: a caller who can NAME
-/// [`ProfileLoop`] cannot thereby MINT one from a vertex table. Inherent
-/// methods travel with their type, so as long as `new`/`polygon` were
-/// inherent, every surface that made the type nameable — and the type
-/// must stay nameable, since read-back, error payloads and
-/// [`ValidatedLoop`] all hand one back — re-exported the authoring tier
-/// with it. Trait methods travel with the TRAIT instead: the façade's
-/// curated `pncad::profile` module omits `RawLoop`, and a downstream
-/// caller who never imports it has no `ProfileLoop::polygon` in scope.
-///
-/// Authoring goes through [`path`] (the PATHS lattice), which classifies
-/// junctions at authoring time and declares tangency by construction.
-/// This trait is what the kernel's own crates and their fixtures use to
-/// spell a vertex table directly.
-///
-/// RESIDUE, stated so it is not mistaken for a seal: `ProfileLoop` is
-/// plain data with public fields, so `ProfileLoop { vertices,
-/// tangent_joints }` remains constructible wherever the type is
-/// nameable. Closing that would mean private fields and accessors — a
-/// change to the plain-data convention, not a housekeeping edit.
-pub trait RawLoop<T: Real>: Sized {
-    /// Builds a loop from a vertex chain (no declared-tangent joints;
-    /// set [`ProfileLoop::tangent_joints`] for those, or author the loop
-    /// through [`path`], which declares by construction).
-    fn new(vertices: Vec<ProfileVertex<T>>) -> Self;
-
-    /// Builds a loop of straight segments through the given points (all
-    /// bulges zero) — polygon sugar.
-    fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self;
-}
-
-impl<T: Real> RawLoop<T> for ProfileLoop<T> {
-    fn new(vertices: Vec<ProfileVertex<T>>) -> Self {
-        Self {
-            vertices,
-            tangent_joints: Vec::new(),
-        }
+    pub fn tangent_joints(&self) -> &[usize] {
+        &self.tangent_joints
     }
 
-    fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self {
-        <Self as RawLoop<T>>::new(
-            points
-                .into_iter()
-                .map(|pos| ProfileVertex {
-                    pos,
-                    bulge: T::zero(),
-                })
-                .collect(),
-        )
-    }
-}
-
-impl<T: Real> ProfileLoop<T> {
     /// The reversed chain: the same locus traversed the other way.
     ///
     /// Reindexing: the reversed chain visits `v0, v(n−1), v(n−2), …,

@@ -23,10 +23,7 @@ pub fn quad(pts: [(f64, f64); 4]) -> Section {
 /// `s` — three lines and one bulge-0.25 arc, so the skin exercises
 /// the rational lane.
 pub fn chain(s: f64) -> Section {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex {
-        pos: Point2::new(x * s, y * s),
-        bulge,
-    };
+    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x * s, y * s), bulge);
     vec![ProfileLoop::new(vec![
         v(0.0, 0.0, 0.0),
         v(2.0, 0.0, 0.25),

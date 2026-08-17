@@ -111,14 +111,8 @@ pub fn ball() -> Body<f64> {
     use profile::ProfileVertex;
     use sweep::{Revolution, revolve};
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(Point2::new(0.0, -1.0), 1.0),
+        ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -154,14 +148,8 @@ pub fn donut() -> Body<f64> {
     use profile::ProfileVertex;
     use sweep::{Revolution, revolve};
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(2.0, -0.5),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(2.0, 0.5),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(Point2::new(2.0, -0.5), 1.0),
+        ProfileVertex::new(Point2::new(2.0, 0.5), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -252,14 +240,8 @@ pub fn cut_cylinder() -> Body<f64> {
     use profile::ProfileVertex;
     use topo::splitting::{SplitPart, SplitPlane, split};
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(-1.0, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(1.0, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(Point2::new(-1.0, 0.0), 1.0),
+        ProfileVertex::new(Point2::new(1.0, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -303,18 +285,9 @@ pub fn boss_union() -> Body<f64> {
         Point2::new(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let boss_loop = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(0.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(120.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(240.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(0.0), b120),
+        ProfileVertex::new(at(120.0), b120),
+        ProfileVertex::new(at(240.0), b120),
     ]);
     let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
     let boss_profile = Profile::new(sketch, vec![boss_loop])
@@ -339,22 +312,10 @@ pub fn notched() -> Body<f64> {
     // Leaving bulges: the bottom arc bows out (+b), the top one bows
     // into the region (-b); the two sides are straight.
     let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex {
-            pos: Point2::new(0.0, 0.0),
-            bulge: b,
-        },
-        ProfileVertex {
-            pos: Point2::new(2.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(2.0, 1.5),
-            bulge: -b,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.0, 1.5),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(Point2::new(0.0, 0.0), b),
+        ProfileVertex::new(Point2::new(2.0, 0.0), 0.0),
+        ProfileVertex::new(Point2::new(2.0, 1.5), -b),
+        ProfileVertex::new(Point2::new(0.0, 1.5), 0.0),
     ]);
     extrude(&validated(SketchPlane::xy(), lp), Extrusion::Distance(1.0))
         .unwrap()
@@ -395,7 +356,7 @@ pub fn two_stub_complement() -> Body<f64> {
     };
     let boss_loop = ProfileLoop::new(
         (0..3)
-            .map(|i| ProfileVertex { pos: at(i), bulge })
+            .map(|i| ProfileVertex::new(at(i), bulge))
             .collect(),
     );
     let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
@@ -581,14 +542,8 @@ pub fn die_pips() -> Body<f64> {
     // A radius-PIP_R ball at the origin, poles on the sketch axis.
     let unit_ball = || -> Body<f64> {
         let lp = ProfileLoop::new(vec![
-            ProfileVertex {
-                pos: Point2::new(0.0, -PIP_R),
-                bulge: 1.0,
-            },
-            ProfileVertex {
-                pos: Point2::new(0.0, PIP_R),
-                bulge: 0.0,
-            },
+            ProfileVertex::new(Point2::new(0.0, -PIP_R), 1.0),
+            ProfileVertex::new(Point2::new(0.0, PIP_R), 0.0),
         ]);
         let vp = Profile::new(SketchPlane::xy(), vec![lp])
             .validate(Tolerance::get())

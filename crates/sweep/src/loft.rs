@@ -222,17 +222,13 @@ fn end_profile<T: Decide>(
 ) -> Result<ValidatedProfile<T>, LoftError> {
     let loops = section
         .iter()
-        .map(|lp| ProfileLoop {
-            vertices: lp
-                .vertices
+        .map(|lp| ProfileLoop::new(
+            lp.vertices()
                 .iter()
-                .map(|v| ProfileVertex {
-                    pos: geom_core::Point2::new(T::from_f64(v.pos.x), T::from_f64(v.pos.y)),
-                    bulge: T::from_f64(v.bulge),
-                })
+                .map(|v| ProfileVertex::new(geom_core::Point2::new(T::from_f64(v.pos().x), T::from_f64(v.pos().y)), T::from_f64(v.bulge())))
                 .collect(),
-            tangent_joints: lp.tangent_joints.clone(),
-        })
+        )
+        .with_tangent_joints(lp.tangent_joints().to_vec()))
         .collect();
     Profile::new(SketchPlane::new(lift_affine(place)), loops)
         .validate(geom_core::Tolerance::get())

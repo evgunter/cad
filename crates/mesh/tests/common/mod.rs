@@ -74,7 +74,7 @@ pub fn holed_prism() -> Body<f64> {
 pub fn rounded_prism() -> Body<f64> {
     let b = (core::f64::consts::FRAC_PI_8).tan();
     let r = 0.5;
-    let v = |pos: Point2<f64>, bulge: f64| ProfileVertex { pos, bulge };
+    let v = |pos: Point2<f64>, bulge: f64| ProfileVertex::new(pos, bulge);
     let mut lp = ProfileLoop::new(vec![
         v(p2(r, 0.0), 0.0),
         v(p2(2.0 - r, 0.0), b),
@@ -96,14 +96,8 @@ pub fn rounded_prism() -> Body<f64> {
 /// The ball: unit half-disc revolved fully (two-band sphere, poles).
 pub fn ball() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -1.0), 1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
         .unwrap()
@@ -133,14 +127,8 @@ pub fn washer() -> Body<f64> {
 /// `Seam`.
 pub fn donut() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(2.0, -0.5),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(2.0, 0.5),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(2.0, -0.5), 1.0),
+        ProfileVertex::new(p2(2.0, 0.5), 1.0),
     ]);
     revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
         .unwrap()

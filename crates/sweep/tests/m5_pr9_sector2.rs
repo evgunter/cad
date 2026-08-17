@@ -33,14 +33,8 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// surface, with meridian ruling edges at (±0.5, 0).
 fn cylinder_body() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(-0.5, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.5, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(-0.5, 0.0), 1.0),
+        ProfileVertex::new(p2(0.5, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -123,26 +117,11 @@ fn filleted_block() -> Body<f64> {
     // (1, 0.75) to (0.75, 1), bulge tan(π/8) (a CCW quarter arc).
     let b = (std::f64::consts::PI / 8.0).tan();
     let mut lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.75),
-            bulge: b,
-        },
-        ProfileVertex {
-            pos: p2(0.75, 1.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+        ProfileVertex::new(p2(1.0, 0.0), 0.0),
+        ProfileVertex::new(p2(1.0, 0.75), b),
+        ProfileVertex::new(p2(0.75, 1.0), 0.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     // The tangency is authored, so it is DECLARED (the #101
     // discipline): joints 3 (arc→line) and 2 (line→arc).

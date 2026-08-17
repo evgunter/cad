@@ -21,22 +21,10 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// The plate: a 4×4×1 block, z ∈ [0, 1].
 fn plate() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(4.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(4.0, 4.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 4.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+        ProfileVertex::new(p2(4.0, 0.0), 0.0),
+        ProfileVertex::new(p2(4.0, 4.0), 0.0),
+        ProfileVertex::new(p2(0.0, 4.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -59,18 +47,9 @@ fn boss() -> Body<f64> {
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(0.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(120.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(240.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(0.0), b120),
+        ProfileVertex::new(at(120.0), b120),
+        ProfileVertex::new(at(240.0), b120),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
     let profile = Profile::new(plane, vec![lp])

@@ -85,10 +85,7 @@ fn recorded(name: &str, algebra: &ProfileLoop<f64>) -> ProfileLoop<f64> {
     let mut lp = ProfileLoop::new(
         table
             .iter()
-            .map(|&[x, y, bulge]| profile::ProfileVertex {
-                pos: p2(x, y),
-                bulge,
-            })
+            .map(|&[x, y, bulge]| profile::ProfileVertex::new(p2(x, y), bulge))
             .collect(),
     );
     lp.tangent_joints = joints.to_vec();
@@ -585,14 +582,8 @@ fn circle_matches_the_raw_corpus_convention() {
         let algebra = profile::circle(p2(cx, cy), r).unwrap();
         let algebra = pinned(algebra);
         let hand = ProfileLoop::new(vec![
-            profile::ProfileVertex {
-                pos: p2(cx + r, cy),
-                bulge: 1.0,
-            },
-            profile::ProfileVertex {
-                pos: p2(cx - r, cy),
-                bulge: 1.0,
-            },
+            profile::ProfileVertex::new(p2(cx + r, cy), 1.0),
+            profile::ProfileVertex::new(p2(cx - r, cy), 1.0),
         ]);
         assert_loops_identical(&algebra, &hand);
         assert_validate_identically(&algebra, &hand);

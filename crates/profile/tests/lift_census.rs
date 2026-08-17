@@ -266,10 +266,7 @@ fn refusal(loop_: &ProfileLoop<f64>) -> Option<LiftRefusal> {
 }
 
 fn vert(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex {
-        pos: Point2::new(x, y),
-        bulge,
-    }
+    ProfileVertex::new(Point2::new(x, y), bulge)
 }
 
 #[test]

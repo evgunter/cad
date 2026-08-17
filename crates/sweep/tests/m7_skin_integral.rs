@@ -346,14 +346,8 @@ fn the_swept_bodys_seam_carriers_meter_positively() {
 /// does not.
 fn circle_section(r: f64) -> Section {
     vec![sweep::ProfileLoop::new(vec![
-        sweep::ProfileVertex {
-            pos: Point2::new(-r, 0.0),
-            bulge: 1.0,
-        },
-        sweep::ProfileVertex {
-            pos: Point2::new(r, 0.0),
-            bulge: 1.0,
-        },
+        sweep::ProfileVertex::new(Point2::new(-r, 0.0), 1.0),
+        sweep::ProfileVertex::new(Point2::new(r, 0.0), 1.0),
     ])]
 }
 
