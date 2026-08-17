@@ -60,14 +60,14 @@ fn v12_refuses_too_old() {
             supported,
             missing,
         }) => {
-            assert_eq!(found, 11);
+            assert_eq!(found, 12);
             assert_eq!(supported, SCHEMA_VERSION);
             assert_eq!(
-                missing, 11,
-                "the 11 → 12 step is the one that does not exist"
+                missing, 12,
+                "the 12 → 13 step is the one that does not exist"
             );
         }
-        other => panic!("v11 must refuse SchemaTooOld, got {other:?}"),
+        other => panic!("v12 must refuse SchemaTooOld, got {other:?}"),
     }
 }
 
