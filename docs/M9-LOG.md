@@ -157,3 +157,19 @@ collision machinery, never to be trimmed. Dual #13 was the FIFTH
 qualifying sample (tally 5-of-6). Board: dual #16 running on the
 census door (#564 — a MAJOR there ENDS the dual experiment);
 then M9-0 → M9-3 spec → M9-5.
+
+## M9-2 MERGED (#564 at 0b0185c8, 2026-08-17) — the A5 door exists; SWITCH SEAM
+
+The census door landed through the project's sixth NOT-MERGEABLE
+arc: dual #16's converged silent-validation MAJORs → the
+conservative loudness backstop → the delta round's ball-cap
+witness → the F5 curved×planar extension with per-kind sound
+boxes (the stop-and-report fired on a wild-corpus false-positive
+and was resolved by the reviewer's own pre-named refinement) →
+delta-APPROVE. #382 CLOSED; kiss and boss_union retired by their
+own texts; instance.rs's "nothing validates silently" is
+exhaustively true. Owed one-liner (successor): the reflex-arc
+plane-pad lemma scope + final-probes adoption (row NOTE).
+ORCHESTRATOR SWITCH at this seam per Evan: remaining slate =
+M9-0 → M9-3 (spec from scratch, block M9-16 draw) → M9-5 (after
+TESS-SPAN) → exit walk. Handoff: handoff-prompt-m9b.md.
