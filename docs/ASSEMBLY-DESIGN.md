@@ -513,6 +513,36 @@ door, four clauses:
 - **AQ5 — in-context capture semantics**: the captured-context
   object's pin/update behavior (what exactly is captured; when it
   goes stale; how staleness surfaces).
+- **AQ8 — the crossing record's reachability (R2-b finding,
+  2026-08-17; the A4/A11 composition gap).** Ratified A4 says
+  "every mate edge crossing the cut becomes the interface
+  record"; ratified A11 rule 2 makes a mate JOIN its two
+  instances into one placement cluster; and R2-a's ratified
+  precondition (TornCluster) refuses any cut that is not a union
+  of whole clusters. Composed: a mate that would cross a cut also
+  welds its endpoints into one cluster, so the cut that would
+  sever it is refused — "crossing mate" and "legal split" are
+  mutually exclusive, and A4's interface record is UNREACHABLE
+  through split as ratified. R2-b shipped the collector as
+  specified (it inhabits the record, feeds the content key, and
+  re-verifies at evaluation — all machinery real and tested); the
+  rows pin the actual behavior in both directions. **Proposed
+  resolution (firm): amend A4's sentence to name the honest
+  mechanism instead of the impossible one** — the interface
+  record is populated by the DELIBERATE act: splitting a mated
+  cluster is legal exactly when the caller passes the mates
+  crossing the cut to be CONVERTED (each severed mate's
+  declaration moves into the interface record; the remainder's
+  instance re-verifies it against the new part — A4's "does it
+  actually fit" gate, exactly as shipped), turning TornCluster
+  from a wall into a gate with a named door. Alternative: leave
+  A4 vacuous-by-composition and drop the record (rejected: the
+  re-verification machinery is R2-b's most valuable artifact and
+  pin-move re-verification already uses it). The conversion
+  door is a small follow-on unit (ASM-XSPLIT); its spec binds the
+  construction-time refusals (non-crossing passed mate,
+  unresolvable reference, mate-not-in-document) so only fit
+  defers to evaluation.
 - **AQ6 — cross-document `Rest` verification detail**: the trilean
   shape for value-equal-by-authoring carriers (peg/bore radii),
   and the recourse text steering designed clearance to
