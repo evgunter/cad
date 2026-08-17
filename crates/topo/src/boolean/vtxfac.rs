@@ -116,9 +116,13 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             Err(diag) => return Err(BooleanError::Escalated { diag }),
         }
         // A CURVED sector whose local normal is plane-parallel at the
-        // pierce point is a tangent (touching) contact — the M5
-        // envelope's typed frontier (C7/OQ5: no curved coplanar-lump
-        // arm exists; touching curved configurations refuse).
+        // pierce point is a tangent (touching) contact — the typed
+        // frontier CONTACT-DESIGN C7 item 1 names for THIS wall: no
+        // curved coplanar-lump arm exists, so touching curved
+        // configurations refuse. The recourse is a declared
+        // Tangent/Rest contact (vocabulary CONTACT-DESIGN C4), under
+        // which classification descends to CURVED-DESIGN C7's sector
+        // trilean instead of refusing.
         let Some(sector_plane) = face_plane(piercing_body, s.face) else {
             let kind = piercing_body
                 .get_face(s.face)
