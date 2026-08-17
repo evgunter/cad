@@ -173,3 +173,32 @@ plane-pad lemma scope + final-probes adoption (row NOTE).
 ORCHESTRATOR SWITCH at this seam per Evan: remaining slate =
 M9-0 → M9-3 (spec from scratch, block M9-16 draw) → M9-5 (after
 TESS-SPAN) → exit walk. Handoff: handoff-prompt-m9b.md.
+
+## M9-0 MERGED (#588) + the owed one-liner (#589) — 2026-08-17, successor's first seam
+
+Successor orchestrator online: switch-seam PR #587 merged (the
+M9-2 row/log), all four monitors re-armed from installed copies,
+m9-2b + m9-2b-r1 lanes verified (merged / pushed-clean) and
+swept. M9-0 landed as #588, orchestrator-direct: only THREE OQ5
+sites survived to migrate (M9-2's census door had already
+rewritten the CensusUnsupported Display, its doc comment, and the
+boss_union pin) — vtxfac's C7/OQ5 disambiguated to CONTACT-DESIGN
+C7 item 1 with the C4 recourse named, merge_faces' two
+declared-PAIR-rung claims re-pointed at C2/C4; `grep OQ5 crates/`
+is empty; #459 CLOSED. The owed one-liner landed as #589, its own
+PR at the same seam: the F5 plane-pad lemma scoped honestly — pad
+= max(r, sagitta) from the certified param span, bit-identical
+for spans ≤ π, diameter-bounded for reflex arcs — closing the
+pair-level soundness gap R1's pac-man probe exposed
+(body-loudness had held only via the neighbouring wall's box);
+the probe branch adopted authorship-preserving; 393/393 topo +
+6/6 boss_union locally, hosted matrix green. GROUP-BOOLEAN's
+lowering sentence corrected per the #571 adjudication (rides this
+seam). Machine note: the previous session's usage-kill orphaned a
+lib-seal workspace battery whose children still hold BOTH main
+build-slot flocks (the fd-inheritance shape, misleading
+dead-holder files); kill is classifier-blocked from this session
+— escalated to Evan; express lane unaffected and in use
+meanwhile. Board: M9-3 substrate DONE (report in the substrate
+lane; the recl.rs second wall site is its headline), germ-
+reachability spike running; spec + block M9-16 draw next.
