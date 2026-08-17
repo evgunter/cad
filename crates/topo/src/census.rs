@@ -1104,10 +1104,14 @@ fn sweep_cross_solid_backstop<T: Decide>(
     // falsely refused the corpus's cube-beside-cylinder file):
     //
     // - Plane: the boundary-vertex hull, padded by the largest
-    //   boundary-arc radius (a straight edge lies in the hull; a
-    //   circular/elliptic arc bulges at most its radius/semi-major
-    //   from its chord; the face interior lies in the hull of its
-    //   boundary). A planar face with any OTHER curved boundary kind
+    //   boundary-arc bulge (a straight edge lies in the hull; an arc
+    //   deviates from its chord by at most its sagitta
+    //   r·(1 − cos(θ/2)), with the semi-major standing in for r on
+    //   elliptic arcs — ≤ r only for spans ≤ π, up to the DIAMETER
+    //   for a reflex span, so the pad is max(r, sagitta): the radius
+    //   floor keeps sub-π pads unchanged and the sagitta term covers
+    //   reflex arcs. The face interior lies in the hull of its
+    //   boundary.) A planar face with any OTHER curved boundary kind
     //   has no cheap sound pad — `None`.
     // - Cylinder: boundary vertices' axial span, swept along the
     //   axis and widened by the radius in every component — sound
@@ -1131,13 +1135,18 @@ fn sweep_cross_solid_backstop<T: Decide>(
             for he in body.loop_cycle(first)? {
                 let ek = body.half_edges.get(he)?.edge;
                 let curve = body.edges.get(ek).and_then(|e| body.curves.get(e.curve));
-                match curve
-                    .and_then(CurveGeom::certified)
-                    .map(geom_brep::EdgeCurve::carrier)
-                {
-                    Some(geom_curves::Curve3::Line { .. }) => {}
-                    Some(geom_curves::Curve3::Circle { radius, .. }) => pad = pad.max(*radius),
-                    Some(geom_curves::Curve3::Ellipse { major, .. }) => pad = pad.max(*major),
+                let ec = curve.and_then(CurveGeom::certified)?;
+                // max(r, sagitta) — sound for every span (doc above);
+                // cos is even, so the param order cannot flip the sign.
+                let bulge = |r: T| {
+                    let (t0, t1) = ec.params();
+                    let half = (t1 - t0) * T::from_f64(0.5);
+                    r.max(r * (T::one() - half.cos()))
+                };
+                match ec.carrier() {
+                    geom_curves::Curve3::Line { .. } => {}
+                    geom_curves::Curve3::Circle { radius, .. } => pad = pad.max(bulge(*radius)),
+                    geom_curves::Curve3::Ellipse { major, .. } => pad = pad.max(bulge(*major)),
                     _ => return None,
                 }
             }
