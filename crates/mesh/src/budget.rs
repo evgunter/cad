@@ -416,6 +416,8 @@ mod live {
         let cells = &nurbs_cell_bounds(payload, fk)?;
         let cell_grid = crate::nurbs_cert::nurbs_cell_grid(payload, fk)?;
         let bound = crate::nurbs_cert::nurbs_face_bound(payload, fk)?;
+        let (span_cells, span_opt_cells) =
+            span_sized_cells(cells, &cell_grid, bound, u, v, delta_s)?;
         STATE.with(|s| {
             let mut s = s.borrow_mut();
             let Some(st) = s.as_mut() else { return };
@@ -424,11 +426,6 @@ mod live {
             // counterfactual (TESS-SPAN D-4): same steps, same ceil.
             let (phu, phv) = bound.grid_steps(delta_s);
             let (nu, nv) = (divisions(du, phu), divisions(dv, phv));
-            let (span_cells, span_opt_cells) =
-                match span_sized_cells(cells, &cell_grid, bound, u, v, delta_s) {
-                    Ok(x) => x,
-                    Err(_) => (f64::NAN, f64::NAN),
-                };
             #[allow(clippy::cast_precision_loss)]
             let grid_cells = grid_cells as f64;
             st.pending = Some(NurbsBudget {

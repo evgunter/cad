@@ -431,7 +431,6 @@ pub(crate) fn tessellate_trimmed(
         // their UV centroid queued as a new candidate for the next
         // round.
         let mut refine: Vec<(f64, f64)> = Vec::new();
-        let mut worst_uv = [[0.0f64; 2]; 3]; // TEMP DEBUG
         let refine_lane = matches!(lane, Lane::Nurbs { .. });
         for f in cdt.inner_faces() {
             if !inside[f.fix().index()] {
@@ -510,7 +509,6 @@ pub(crate) fn tessellate_trimmed(
             // Sticky-NaN accumulation (the curved lane's rule).
             if bound.is_nan() || worst.is_nan() || bound > worst {
                 worst = bound;
-                worst_uv = uv; // TEMP DEBUG
             }
             if refine_lane && bound > tol.delta {
                 refine.push((
@@ -538,23 +536,6 @@ pub(crate) fn tessellate_trimmed(
             continue 'retry;
         }
         if worst.is_nan() || worst > tol.delta {
-            // TEMP DEBUG
-            eprintln!(
-                "DEBUG cert-exceeded {fk:?}: worst {worst:e} uv {worst_uv:?} attempt {attempt} \
-                 dropped {} cand {}",
-                dropped.len(),
-                candidates.len()
-            );
-            if let Lane::Nurbs { ref grid, .. } = lane {
-                eprintln!("DEBUG grid {grid:?}"); // TEMP DEBUG
-            }
-            // TEMP DEBUG: boundary points near the offender
-            let (bu, bv) = (worst_uv[0][0], worst_uv[0][1]);
-            for &(pu, pv, id) in &polygon {
-                if (pu - bu).abs() < 0.06 && (pv - bv).abs() < 0.06 {
-                    eprintln!("DEBUG poly ({pu}, {pv}) id {id}");
-                }
-            }
             return Err(TessellateError::CertificateExceeded {
                 face: fk,
                 bound: worst,
