@@ -1449,7 +1449,7 @@ where
                     outer,
                     inner,
                 } = crossing;
-                h.write_u64(u64::from(mate.0));
+                h.write_u64(mate.0);
                 h.write_tag(contact_class_tag(*class));
                 feed_stable_name(&mut h, outer);
                 feed_stable_name(&mut h, inner);

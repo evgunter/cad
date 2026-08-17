@@ -499,7 +499,7 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     // unit apart, definitely.
     let (doc, ids, mate, store) = stacked("asm-r2b-row4", 2.0);
     let ev = run(&doc, &opts(store));
-    let err = assemble(&doc, &ev).err().expect("a gapped Rest refuses");
+    let err = assemble(&doc, &ev).expect_err("a gapped Rest refuses");
     let AssemblyError::AtRest { findings } = &err else {
         panic!("expected the at-rest verdict, got {err}");
     };
