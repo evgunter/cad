@@ -550,7 +550,8 @@ constraint on everything else here, for three compounding reasons:
 - The M5/M10 triggers this doc sets for itself ("if the corpus shows
   CDT dominance", "if certification wall-times demand it") are
   **unfireable**, because the only corpus timing artifact —
-  `crates/editor-core/tests/baseline/rebuild-latency.json` — largely
+  `crates/editor-core/tests/baseline/rebuild-latency.json` as it stood
+  before the 2026-08-17 split described below — largely
   disqualifies itself in its own provenance: three refreshes disagree
   by 90–98% with contention ruled out, the `die_composed` row is
   explicitly "not a datum", and the whole file is a dev-profile
@@ -561,9 +562,18 @@ constraint on everything else here, for three compounding reasons:
   produced the report's largest result (35×) precisely because its
   author built a harness. That is this item's argument in miniature.
 
-**So item 1 is now the first thing to do, not the last** — together
-with re-refreshing the latency baseline from hosted CI so the
-environment is captured rather than hypothesized. Until then,
+**So item 1 is now the first thing to do, not the last.** The second
+half of that ask — capturing the environment rather than hypothesizing
+it — landed 2026-08-17: hosted CI is the canonical producer of the
+rebuild-latency numbers, `docs/perf-data/rebuild-latency/` accumulates
+one entry per merge to `main`, and every entry carries the build
+environment (runner, nproc, memory, toolchain, RUSTFLAGS,
+`CARGO_PROFILE_*`, debug-assertions, ε). That does not un-disqualify
+the three historical workstation refreshes, and it is not the criterion
+harness item 1 asks for — it is a reporting lane, still ungated — but
+the corpus timings are comparable across merges now, which is the
+precondition the M5/M10 triggers above were missing. Until item 1
+itself lands,
 `docs/k-report-data/`'s predicate decision counts are the better
 evidence base: exact, deterministic, machine-independent, and immune to
 both the profile and contention problems (1 792 926 decisions in the

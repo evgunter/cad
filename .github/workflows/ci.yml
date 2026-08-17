@@ -1468,18 +1468,50 @@ jobs:
 
   # M4 PR 8a spec D2 (M4-PLAN F8): rebuild-latency REPORTING. This job
   # prints a per-document table (full rebuild + incremental recompute,
-  # median of 3) and diffs it against the committed baseline
-  # crates/editor-core/tests/baseline/rebuild-latency.json. It is
-  # DELIBERATELY NOT A GATE on any timing number — instrumentation, not
-  # a contract; PERF-PLAN stays advisory. The only assertions inside are
-  # the counted-reuse ones (cone complement), which are arithmetic, not
-  # wall clock. The table lands in the job LOG (no artifact upload: the
-  # numbers are advisory and the baseline JSON is the durable record).
+  # median of 5) and diffs it against the newest entry in the timing
+  # history, docs/perf-data/rebuild-latency/. It is DELIBERATELY NOT A
+  # GATE on any timing number — instrumentation, not a contract;
+  # PERF-PLAN stays advisory. The assertions inside are the
+  # ε-independent structural ones (counted reuse, and the corpus
+  # manifest's nodes/cone pins), which are arithmetic, not wall clock.
+  #
+  # THIS JOB IS THE CANONICAL PRODUCER of those numbers (2026-08-17).
+  # It used to be a developer workstation, via a CAD_LATENCY_BASELINE_
+  # REFRESH env var and a hand-committed baseline, and that arrangement
+  # disqualified itself: three refreshes disagreed by 90-98% on every
+  # row with contention ruled out, so docs/PERF-SCAN-2026-08.md §0 had
+  # to label every absolute-millisecond claim in the repo provisional.
+  # A runner is not a quiet box, but it is a REPRODUCIBLE box class,
+  # which is the property the workstation numbers lacked — and every
+  # entry now records its own environment block, so two entries that
+  # disagree can be compared rather than argued about. Same ruling
+  # render.yml carries for renders (#338: hosted is canonical).
+  #
+  # TWO OUTPUTS, DIFFERENT AUDIENCES:
+  #   * an ARTIFACT on every run (including PRs) — the numbers for the
+  #     change in front of you, downloadable without waiting for a
+  #     merge;
+  #   * a COMMITTED history entry on pushes to main ONLY — the durable
+  #     trend. Artifacts expire at 90 days; a question like "when did
+  #     die_composed get slower" outlives that, and the git history is
+  #     the only place in this repo that answers it.
+  #
+  # WHY MAIN ONLY. On a PR branch the entry would be that PR's own
+  # measurement, so the PR's `vs base` column would diff against
+  # itself and report nothing — the reporting row would structurally
+  # stop reporting. Writing only on main keeps every PR's diff honest
+  # (vs main's last hosted measurement) at the cost of nothing.
   rebuild-latency:
     name: rebuild latency (reporting)
     runs-on: ubuntu-latest
     needs: filter
     if: needs.filter.outputs.run_editor_core == 'true'
+    permissions:
+      # Only for the history commit below, and only on main. Every
+      # other job in this workflow runs on the default read-only token;
+      # this is the one that writes, so it says so here rather than
+      # widening the whole workflow.
+      contents: write
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1496,13 +1528,90 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # `--ignored`: the test is `#[ignore]`d so the ε matrix stops
-      # paying for it 5× (it is reporting, and its two assertions are a
-      # strict subset of the corpus row's — see the rustdoc on
-      # `rebuild_latency_table`). THIS job is the one that runs it, so
-      # the flag is what keeps the table alive. Same idiom as
-      # scripts/k_probe_sweep.sh.
+      # paying for it 5× (it is reporting, and its green-document and
+      # counted-reuse assertions are a strict subset of the corpus
+      # row's — see the rustdoc on `rebuild_latency_table`). THIS job is
+      # the one that runs it, so the flag is what keeps the table alive.
+      # Same idiom as scripts/k_probe_sweep.sh.
+      #
+      # CAD_LATENCY_EMIT writes the measurement OUTSIDE the working
+      # tree, into RUNNER_TEMP. The test only ever writes the file it
+      # is told to; naming it and deciding whether it joins the history
+      # is this workflow's call, never the test's — so a local run with
+      # the var set cannot touch a committed path.
       - name: per-document full-rebuild + incremental-recompute table
         run: "cargo test -p editor-core --test all -- --ignored --nocapture m4_pr8_latency::"
+        env:
+          CAD_LATENCY_EMIT: ${{ runner.temp }}/rebuild-latency.json
+          CAD_LATENCY_COMMIT: ${{ github.sha }}
+          CAD_LATENCY_RUNNER: ${{ runner.os }}/${{ runner.arch }} ubuntu-latest
+      # Every run, PRs included. `if: always()` because the measurement
+      # is emitted BEFORE the structural assertions run: when a pin
+      # fails, this artifact is exactly what the next reader wants.
+      - name: upload measurement (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rebuild-latency-${{ github.sha }}
+          path: ${{ runner.temp }}/rebuild-latency.json
+          if-no-files-found: warn
+      # THE AUTO-COMMIT. Main pushes only; see the header.
+      #
+      # NO RECURSION, TWO WAYS. Pushes made with the default
+      # GITHUB_TOKEN do not trigger workflow runs — that is GitHub's
+      # built-in guard and is what actually stops the loop here — and
+      # the commit subject carries [skip ci] as belt-and-braces in case
+      # this ever moves to a different token.
+      #
+      # DELIBERATELY NOT ADDED TO ci-filter.py's `_is_docs`. That
+      # allowlist is for paths hosted CI CANNOT read — the claim is
+      # proven by the prune step that deletes them — and CI does read
+      # this one (m4_pr8_latency.rs takes its `vs base` from the newest
+      # entry). So a hand-committed history file classifies TIER=all,
+      # which is the allowlist failing closed exactly as designed. The
+      # auto-commit below never reaches the filter at all, per the
+      # recursion note above.
+      #
+      # APPEND-ONLY, SO THE RACE IS NOT A CONFLICT. The filename
+      # carries this run's commit sha, so no two runs write the same
+      # path and no merge is ever needed. If main moved while we were
+      # measuring, the push is rejected; the retry re-syncs to the new
+      # main and re-lands the SAME new file on top. That re-commits an
+      # unpushed local commit — it never rewrites published history,
+      # which is what the repo's merge-only rule is about.
+      - name: commit measurement to the timing history (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          MEASUREMENT: ${{ runner.temp }}/rebuild-latency.json
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test -f "$MEASUREMENT" || { echo "no measurement emitted"; exit 1; }
+          # <epoch>-<short-sha>.json — lexicographic sort == chronological.
+          stamp="$(date -u +%s)"
+          name="${stamp}-${SHA:0:7}.json"
+          dest="docs/perf-data/rebuild-latency/${name}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            # Re-sync to main. This also restores the local-only trees
+            # the prune step deleted, so the commit below can only ever
+            # contain the one new file.
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p docs/perf-data/rebuild-latency
+            cp "$MEASUREMENT" "$dest"
+            git add "$dest"
+            git commit -m "perf(ci): rebuild-latency measurement for ${SHA:0:7} [skip ci]"
+            if git push origin HEAD:main; then
+              echo "committed ${dest}"
+              exit 0
+            fi
+            echo "push rejected (main moved); retry ${attempt}"
+            sleep $((attempt * 4))
+          done
+          echo "could not land the measurement after 4 attempts" >&2
+          exit 1
 
   # M4 PR 8a spec D1: the Band 4 corpus as a NAMED row (it also runs
   # inside the workspace rows; naming it keeps the milestone's
