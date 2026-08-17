@@ -808,3 +808,23 @@ uniform with line-arrival semantics (emitted legs never
 retro-trimmed; corner ahead or refuse). SEQUENCING CONSEQUENCE:
 RESPELL-TABLE must NOT run until this is ruled — the table would
 bake the OnArc rows into macro form.
+
+**RULED (Evan, in-chat 2026-08-16): OnArc DISSOLVES — and the
+ratification is DELEGATED**: "if there's no additional caveats
+and we can just go forward with the deletion then no need to wait
+for my approval." Operative reading: the §2c revision (arc
+arrivals emit to a hard anchor and land on an ordinary directed
+point; arc-extension joins ray-extension as the fused incoming
+story; OnArc/OnArcIncoming/Radius@OnArc/TipState::OnArc/PathOnArc
+all delete; #576 §3's continuation-verb proposal RETIRED — the
+state deletes instead) self-merges with its full writeup IF the
+in-flight blast-radius census shows every affected spelling gets
+an honest refusal-with-recourse or mechanical migration; any
+genuine wall (a shipped shape with no honest spelling after
+dissolution) re-escalates before merge. The mismatched-r
+Radius@OnArc emission hole (bulge_from_center unguarded — found
+in-chat) is recorded as a defect the dissolution deletes
+structurally; the unit pins it with an executed probe first.
+Sequencing: the revision PR rides now; the implementation unit
+dispatches AFTER LIB-SEAL merges (same crate, overlapping test
+files); RESPELL-TABLE stays gated behind the dissolution landing.
