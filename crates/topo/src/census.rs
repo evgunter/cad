@@ -19,21 +19,24 @@
 //!   touching, never crossing; the recourse is separating the
 //!   bodies or making the crossing a boolean's working state.
 //! - **Refused as UNDECIDABLE** (the conservative loudness backstop,
-//!   [`sweep_cross_solid_backstop`]): cross-solid curved face pairs
-//!   within reach (the reviewed value-equal conformal-cradle and
-//!   boss-in-hole classes — the C9-ring conformal-rest class; a
-//!   cross-key `PatchContact` on such a pair ESCALATES through the
-//!   chart predicate's divergence posture, so this class can today
-//!   be neither certified nor silently passed), and one instance's
-//!   extent box contained in another's (the reviewed nested-instance
-//!   class — C6's interference, representable only through recorded
-//!   gate-skips that do not exist yet).
-//! - **Genuinely undetected until C9/C6**: pure curved TANGENCY with
-//!   no vertex evidence between a curved and a planar face or
-//!   between separated-carrier curved faces the backstop's reach
-//!   filter clears; and SAME-solid distinct-key curved pairs (the
-//!   backstop is cross-solid — a single solid's own curved faces
-//!   are its constructor's obligations). Named, not sampled.
+//!   [`sweep_cross_solid_backstop`]): cross-solid face pairs with a
+//!   curved side within reach — curved × curved (the conformal
+//!   cradle, boss-in-hole) and curved × planar (the embedded ball
+//!   cap, F5) — including EVERY pair with a cone/torus/NURBS side
+//!   (no sound cheap reach bound exists: refused without a distance
+//!   test); a cross-key `PatchContact` on such a pair ESCALATES
+//!   through the chart predicate's divergence posture, so the class
+//!   can today be neither certified nor silently passed. And one
+//!   instance's extent box contained in another's (the
+//!   nested-instance class — C6's interference, representable only
+//!   through recorded gate-skips that do not exist yet).
+//! - **Genuinely undetected until C9/C6**: SAME-solid distinct-key
+//!   curved pairs only (the backstop is cross-solid — a single
+//!   solid's own curved faces are its constructor's obligations).
+//!   Cross-solid pairs the reach filter CLEARS are cleared soundly
+//!   (the pads are sound bounds for the kinds that take the test),
+//!   so clearance is a genuine no-touch certificate, not a skip.
+//!   Named, not sampled.
 //!
 //! A record or candidate outside a certifier's lane refuses
 //! [`ValidationError::CensusUnsupported`], never samples.
@@ -1000,16 +1003,22 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 /// arm yet, and both fire a typed [`ValidationError::CensusUndecidable`]
 /// here instead of passing silently:
 ///
-/// 1. **Curved proximity** (the C9-ring conformal-rest class): a pair
-///    of curved faces from DIFFERENT solids, not vertex-adjacent,
-///    whose reach boxes cannot be definitely separated. Distinct-key
-///    value-equal carriers in conformal rest (the reviewed cradle
-///    witness) and value-equal walls at gap zero (boss-in-hole) land
-///    here; the certified excluder this stands in for is the C9
+/// 1. **Proximity** (the C9-ring conformal-rest / partial-embedding
+///    class): a pair of faces from DIFFERENT solids, at least one
+///    curved (F5: curved × planar included — a revolved cap embedded
+///    in a plate's slab leaves no vertex/line/planar evidence), not
+///    vertex-adjacent, whose reach boxes cannot be definitely
+///    separated. Distinct-key value-equal carriers in conformal rest
+///    (the cradle witness), value-equal walls at gap zero
+///    (boss-in-hole), and the embedded ball cap (the delta witness)
+///    land here; the certified excluder this stands in for is the C9
 ///    exclusion ring. The reach box is the face's boundary-vertex
-///    hull padded by a per-kind bulge bound (cylinder/sphere: the
-///    radius; torus: the minor radius; cone/NURBS: the hull's own
-///    half-diagonal — crude, and crude in the LOUD direction).
+///    hull padded by a SOUND per-kind bulge bound (plane: zero;
+///    cylinder/sphere: the radius — see `pad_of`'s derivations);
+///    cone/torus/NURBS have no sound cheap bound and their pairs
+///    refuse WITHOUT a distance test (the `separation.rs` poison
+///    posture). A planar face vf-NAMED by the other solid's records
+///    defers to the confirm pass (the declared boss-on-plate class).
 /// 2. **Instance containment** (C6's interference class): one solid's
 ///    vertex-extent box contained in another's — a nested placement
 ///    makes no boundary event at all (the reviewed nested-cube
@@ -1019,10 +1028,10 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 /// Both arms clear a pair ONLY on a definitely-positive separation
 /// margin (`census_backstop_gap` / `census_backstop_containment` —
 /// metre coordinate differences); anything weaker refuses. Planar ×
-/// planar and curved × planar pairs are NOT backstopped: their
-/// contact classes either leave vertex/line/planar evidence the
-/// exact sweeps already examine, or are the pure-tangency class the
-/// envelope names as undetected until C9 (module docs).
+/// planar pairs are NOT backstopped: a solid bounded by planes has
+/// straight edges at its face junctions, so planar-only overlap and
+/// touch always leave the vertex/line/planar evidence the exact
+/// sweeps examine.
 ///
 /// **Jurisdiction, exactly** (a backstop refuses only what NO arm
 /// examines): same-`SurfaceKey` face pairs are the conformal arm's
@@ -1088,27 +1097,64 @@ fn sweep_cross_solid_backstop<T: Decide>(
     };
     // Per-kind bulge pad (doc comment): how far the face can reach
     // beyond its boundary-vertex hull.
-    let pad_of = |f: FK, lo: Point3<T>, hi: Point3<T>| -> T {
-        let half = T::from_f64(0.5);
+    // The reach pad: how far a face can extend beyond its
+    // boundary-vertex hull, SOUND per kind (F5 delta ruling):
+    //
+    // - Plane: exactly zero (the face lies in the hull of its
+    //   boundary; boundary line segments lie in the vertex hull).
+    // - Cylinder: the radius. A cylinder is RULED, so every interior
+    //   point lies on a ruling segment between boundary points, and a
+    //   boundary arc of radius r bulges at most r from its chord —
+    //   face ⊂ vertex-hull ⊕ r.
+    // - Sphere: the radius. Every surface point is within r of the
+    //   CENTER, and the center lies in the vertex hull of any
+    //   boundary that spans it (seam meridians hold the poles, whose
+    //   chord passes through the center) — face ⊂ vertex-hull ⊕ r.
+    //   A boundary NOT spanning the center still satisfies the bound:
+    //   any surface point is within 2r of any boundary vertex and
+    //   within r of the center's projection… the conservative
+    //   statement actually used is |P − c| = r with c in the hull of
+    //   the pole-bearing seam; sphere faces the kernel mints carry
+    //   their seam (revolve/import), so the argument applies to the
+    //   minted inventory.
+    // - Cone / Torus / described NURBS: NO cheap sound constant
+    //   exists (a torus spine can lie far from a sparse vertex hull;
+    //   a fitted patch can bulge arbitrarily past its boundary) —
+    //   `None`, and the pair REFUSES without a distance test, the
+    //   same posture as `separation.rs`'s poisoned boxes for these
+    //   kinds: refuse to claim a reach rather than under-claim one.
+    let pad_of = |f: FK| -> Option<T> {
         match body.get_face(f).and_then(|d| body.surfaces.get(d.surface)) {
+            Some(geom_surfaces::Surface::Plane { .. }) => Some(T::zero()),
             Some(geom_surfaces::Surface::Cylinder { radius, .. })
-            | Some(geom_surfaces::Surface::Sphere { radius, .. }) => *radius,
-            Some(geom_surfaces::Surface::Torus { minor_radius, .. }) => *minor_radius,
-            _ => (hi - lo).norm() * half,
+            | Some(geom_surfaces::Surface::Sphere { radius, .. }) => Some(*radius),
+            _ => None,
         }
     };
 
-    // Arm 1: cross-solid curved-curved proximity.
+    // Arm 1: cross-solid proximity — curved × curved AND (F5) curved
+    // × planar; planar × planar pairs stay with the exact sweeps
+    // (planar-only solids meet along line/vertex evidence: a solid
+    // bounded by planes has straight edges at its face junctions).
     struct Reach<T: Real> {
         face: crate::entity::FaceKey,
         solid: crate::entity::SolidKey,
         lo: Point3<T>,
         hi: Point3<T>,
-        pad: T,
+        /// `None`: a kind with no sound cheap pad (pad_of docs) —
+        /// its pairs refuse without a distance test.
+        pad: Option<T>,
         verts: BTreeSet<VertexKey>,
+        planar: bool,
     }
     let mut reaches: Vec<Reach<T>> = Vec::new();
-    for &f in &geo.curved_faces {
+    let planar_keys: Vec<FaceKey> = geo.faces.iter().map(|f| f.key).collect();
+    for (&f, planar) in geo
+        .curved_faces
+        .iter()
+        .map(|f| (f, false))
+        .chain(planar_keys.iter().map(|f| (f, true)))
+    {
         // A placeholder surface is "no description yet" (mid-surgery
         // scaffolding): there is no geometry to be within reach OF,
         // and a body carrying one never reaches 3′ (the tier-3 local
@@ -1128,7 +1174,7 @@ fn sweep_cross_solid_backstop<T: Decide>(
             .filter(|(_, fs)| fs.contains(&f))
             .map(|(&v, _)| v)
             .collect();
-        let pad = pad_of(f, lo, hi);
+        let pad = pad_of(f);
         reaches.push(Reach {
             face: f,
             solid,
@@ -1136,6 +1182,7 @@ fn sweep_cross_solid_backstop<T: Decide>(
             hi,
             pad,
             verts,
+            planar,
         });
     }
     // The record-bridged solid pairs (doc comment): any record
@@ -1164,10 +1211,25 @@ fn sweep_cross_solid_backstop<T: Decide>(
         bridge(solid_of(fa), solid_of(fb));
     }
 
+    // The vf-record deferral for the curved × planar arm (F5): a
+    // planar face NAMED by a v-on-f record whose vertex belongs to
+    // the other solid is the declared interface the confirm pass and
+    // the exact sweeps examine (the boss-on-plate acceptance class) —
+    // its curved neighbours defer to that verdict; a bogus record
+    // still errors there as stale, so nothing blesses silently.
+    let planar_face_bridged = |f_planar: FK, other: SolidKey| -> bool {
+        declared
+            .vf
+            .iter()
+            .any(|&(v, vf)| vf == f_planar && vertex_solid(v) == Some(other))
+    };
     for (i, a) in reaches.iter().enumerate() {
         for b in &reaches[i + 1..] {
             if a.solid == b.solid || !a.verts.is_disjoint(&b.verts) {
                 continue; // same instance / structural adjacency
+            }
+            if a.planar && b.planar {
+                continue; // line/vertex evidence — the exact sweeps' pair
             }
             let same_key = body
                 .get_face(a.face)
@@ -1176,10 +1238,27 @@ fn sweep_cross_solid_backstop<T: Decide>(
             if same_key || declared.faces.contains(&(a.face, b.face)) {
                 continue; // the conformal arm's / the certifier's pair
             }
+            let vf_deferred = (a.planar && planar_face_bridged(a.face, b.solid))
+                || (b.planar && planar_face_bridged(b.face, a.solid));
+            if vf_deferred {
+                continue; // the declared interface — confirm pass's pair
+            }
+            // A kind with no sound reach pad refuses without a
+            // distance test (pad_of docs — the loud direction).
+            let (Some(pa), Some(pb)) = (a.pad, b.pad) else {
+                errors.push(ValidationError::CensusUndecidable {
+                    a: EntityId::Face(a.face),
+                    b: EntityId::Face(b.face),
+                    what: "a cross-solid face pair with a carrier kind that has no \
+                           sound cheap reach bound (cone/torus/NURBS) — the C9 \
+                           exclusion ring is the certified excluder",
+                });
+                continue;
+            };
             // Definite separation on ANY axis clears the pair: the
             // margin is the inter-hull gap minus both reach pads —
             // a metre coordinate difference (audit row).
-            let pads = a.pad + b.pad;
+            let pads = pa + pb;
             let mut cleared = false;
             for (alo, ahi, blo, bhi) in [
                 (a.lo.x, a.hi.x, b.lo.x, b.hi.x),
@@ -1199,8 +1278,9 @@ fn sweep_cross_solid_backstop<T: Decide>(
                 errors.push(ValidationError::CensusUndecidable {
                     a: EntityId::Face(a.face),
                     b: EntityId::Face(b.face),
-                    what: "cross-solid curved faces within reach — the conformal-rest / \
-                           proximity class the C9 exclusion ring will examine",
+                    what: "cross-solid faces within reach (curved against curved or \
+                           planar) — the conformal-rest / proximity / partial-embedding \
+                           class the C9 exclusion ring will examine",
                 });
             }
         }

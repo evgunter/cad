@@ -56,12 +56,15 @@
 //! vertex/line/planar boundary evidence surfaces as the
 //! undeclared-contact hard error naming the guilty pair (a proper
 //! pierce is categorically undeclarable) and certifies where
-//! declared; cross-solid curved proximity and one instance's extents
-//! nested inside another's REFUSE as `CensusUndecidable` — the
-//! conservative loudness backstop for the classes no arm can examine
-//! yet (the C9-ring conformal-rest class; C6's interference class,
-//! representable only through recorded gate-skips that do not exist
-//! yet). Nothing in the touching/overlap space validates silently; a
+//! declared; cross-solid proximity with a curved side (against a
+//! curved OR planar partner, F5) and one instance's extents nested
+//! inside another's REFUSE as `CensusUndecidable` — the conservative
+//! loudness backstop for the classes no arm can examine yet (the
+//! C9-ring conformal-rest / partial-embedding class; C6's
+//! interference class, representable only through recorded
+//! gate-skips that do not exist yet). Planar-only solids always meet
+//! along line/vertex evidence the sweeps examine, so nothing in the
+//! inter-instance touching/overlap space validates silently; a
 //! caller assembling instances at rest runs THAT gate with its
 //! declaration records.
 
