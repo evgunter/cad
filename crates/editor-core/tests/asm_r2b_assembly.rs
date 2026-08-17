@@ -27,8 +27,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ContactClass, ContentPin, DocEdit,
-    DocRef, DocumentId, EntityKey, EntityKind, EntityRef, Entry, EvalOptions, Evaluation,
+    Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocRef,
+    DocumentId, EntityKey, EntityKind, EntityRef, Entry, EvalOptions, Evaluation,
     InterfaceCrossing, MateFrame, MatePrimitive, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
     ResolveFailure, ResolveFault, RoleSeg, StableName, assemble, content_pin, evaluate, inline,
     product_recorded, split,
