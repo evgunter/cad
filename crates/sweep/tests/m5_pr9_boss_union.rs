@@ -427,14 +427,10 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
         p2(th.cos(), th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(135.0),
-            bulge: 0.0, // chord from 135 to 225 (straight)
-        },
-        ProfileVertex {
-            pos: at(225.0),
-            bulge: b270, // the 270-degree arc from 225 around to 135
-        },
+        // chord from 135 to 225 (straight)
+        ProfileVertex::new(at(135.0), 0.0),
+        // the 270-degree arc from 225 around to 135
+        ProfileVertex::new(at(225.0), b270),
     ]);
     let pac = extrude(
         &Profile::new(SketchPlane::xy(), vec![lp])
@@ -451,14 +447,8 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
     // the +x half of the disc is beyond hull + pad on no axis... the
     // probe asks the gate, not the box).
     let ball_lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -0.3),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 0.3),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -0.3), 1.0),
+        ProfileVertex::new(p2(0.0, 0.3), 0.0),
     ]);
     let axis = sweep::RevolveAxis {
         origin: p2(0.0, 0.0),
