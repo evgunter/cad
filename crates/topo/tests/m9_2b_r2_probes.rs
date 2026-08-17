@@ -48,7 +48,7 @@ fn probe_nested_instance_overlap_at_three_prime() {
     let errs = verdict.expect_err("nested instance extents refuse loudly");
     assert!(
         errs.iter()
-            .any(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
+            .any(|e| matches!(e, ValidationError::CensusUndecidable { .. })),
         "the backstop names the contained pair: {errs:?}"
     );
 }
@@ -69,14 +69,14 @@ fn probe_bogus_planar_patch_record_never_silently_blesses() {
     let mut top = None;
     let mut bottom = None;
     for (k, f) in body.faces() {
-        if let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) {
-            if (origin.z - 1.0).abs() < 1e-12 {
-                let out = if f.sense { *normal } else { -*normal };
-                if out.z > 0.5 {
-                    top = Some(k);
-                } else if out.z < -0.5 {
-                    bottom = Some(k);
-                }
+        if let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface)
+            && (origin.z - 1.0).abs() < 1e-12
+        {
+            let out = if f.sense { *normal } else { -*normal };
+            if out.z > 0.5 {
+                top = Some(k);
+            } else if out.z < -0.5 {
+                bottom = Some(k);
             }
         }
     }
@@ -170,7 +170,7 @@ fn the_backstop_rows_are_metre_dimensioned() {
             .expect_err("nested refuses at every scale");
         assert!(
             errs.iter()
-                .any(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
+                .any(|e| matches!(e, ValidationError::CensusUndecidable { .. })),
             "scale {s}: {errs:?}"
         );
         let far = cube_scaled_at(s, 10.0 * s, 0.0, 0.0);
