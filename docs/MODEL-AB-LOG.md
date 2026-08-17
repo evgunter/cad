@@ -1109,3 +1109,12 @@ OPUS, concurrent same-head, v4 ladder, blinded to each other.
 Pre-draw fields logged at spec time: M-L / NUMERIC
 (docs/TESS-SPAN-SPEC.md; arm = block ASM-3 slot 4 = fable). Row
 at merge.
+LIB-SEAL review ordinal fixed at dispatch (2026-08-17, PR #596
+open, frozen head 5aaef93f): claimed through 54 (TESS-SPAN's
+cross-model dual) + 1 = **55 → SINGLE** (57 is the next third —
+cross-model per #572). Reviewer fable, v4 ladder. Pre-draw
+fields were logged at spec time: S-M / STRUCTURAL
+(docs/LIB-SEAL-SPEC.md; arm = block LIB-11 slot 1). Implementer
+report: 6 deviations ALL reported (D1 structural — the tour's
+direct profile dependency for lily's #433-gap loop — goes to the
+reviewer as an adjudication claim). Row at merge.
