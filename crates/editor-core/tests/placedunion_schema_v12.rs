@@ -33,8 +33,13 @@ use fixture::{desc, len, scl};
 const V11: &str = include_str!("golden/v11_golden.cad");
 
 #[test]
-fn schema_version_is_twelve() {
-    assert_eq!(SCHEMA_VERSION, 12);
+fn schema_version_is_current() {
+    // Moved once since this row was written (ASM-R2a's v13
+    // `Node::Mate` arm) — the convention is that a bump updates every
+    // pin it invalidates, so the number stays exact here. Named for
+    // the PROPERTY rather than the number, since the number is exactly
+    // what keeps moving.
+    assert_eq!(SCHEMA_VERSION, 13);
 }
 
 #[test]
@@ -78,13 +83,17 @@ fn the_refusal_names_the_regenerate_recourse() {
 /// unknown — the newest this build supports is named.
 #[test]
 fn a_future_version_refuses_unknown() {
-    let future = V11.replacen("schema: 11", "schema: 13", 1);
+    // Derived from the constant, never a literal: the number this row
+    // needs is "one past the newest", and the newest keeps moving
+    // (ASM-R2a took v13 after this row was written).
+    let next = SCHEMA_VERSION + 1;
+    let future = V11.replacen("schema: 11", &format!("schema: {next}"), 1);
     match load(&future) {
         Err(PersistError::UnknownSchema { found, newest }) => {
-            assert_eq!(found, 13);
+            assert_eq!(found, u64::from(next));
             assert_eq!(newest, SCHEMA_VERSION);
         }
-        other => panic!("a v13 file must refuse UnknownSchema, got {other:?}"),
+        other => panic!("a future-version file must refuse UnknownSchema, got {other:?}"),
     }
 }
 
@@ -127,8 +136,12 @@ fn both_rules_round_trip_at_v12() {
         ],
     ));
     let text = save(&r.doc, &[]).expect("the document saves");
-    assert_eq!(text.lines().next(), Some("schema: 12"));
-    let back = load(&text).expect("a v12 file loads");
+    assert_eq!(
+        text.lines().next(),
+        Some(format!("schema: {SCHEMA_VERSION}").as_str()),
+        "a fresh save carries the CURRENT version, whatever bumped it last"
+    );
+    let back = load(&text).expect("the current version loads");
     assert_eq!(back.doc.node(stepped), r.doc.node(stepped));
     assert_eq!(back.doc.node(listed), r.doc.node(listed));
     // Bit-exact frames: a placement is data, and `-0.0` is a different

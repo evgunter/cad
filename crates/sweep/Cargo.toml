@@ -44,12 +44,6 @@ profile = { path = "../profile" }
 topo = { path = "../topo", features = ["sweep-testing"] }
 
 [dev-dependencies]
-# The banished raw builder (PROFILES-V2 §V6, #377): these suites'
-# fixtures predate the PATHS lattice and are pinned bit-for-bit, so they
-# keep spelling them with `LoopBuilder` — which lives behind `profile`'s
-# test-support feature and is reachable ONLY from a dev-dependency like
-# this one. Nothing in any `src/` sees it.
-profile = { path = "../profile", features = ["test-support"] }
 # Watertightness backstop for the fillet acceptance row (M5 PR 12): the
 # rounded die is tessellated and `mesh::validate::check_mesh`ed. `mesh`
 # dev-depends on `sweep` in turn; cargo permits cycles that run through

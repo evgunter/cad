@@ -23,6 +23,7 @@ pub mod edit;
 pub mod eval;
 pub mod expr;
 pub mod ident;
+pub mod mate;
 pub mod meta;
 pub mod names;
 pub mod node;
@@ -54,6 +55,11 @@ pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
 };
 pub use ident::{ContentPin, DocRef, DocumentId};
+pub use mate::{
+    Alignment, AxisSense, ClusterMaintenance, Coset, MateFault, MateFrame, MatePrimitive, MateRole,
+    MateSide, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, reading_edges,
+    relative_freedom_components, solve_document,
+};
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,

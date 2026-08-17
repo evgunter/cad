@@ -326,5 +326,8 @@ pub(crate) fn output_body<T: Decide>(
         ValuePayload::Datum(_) => none("datum"),
         ValuePayload::Profile(_) => none("profile"),
         ValuePayload::Declarations(_) => none("declarations"),
+        // A12: a mate denotes no body. Interrogating one for geometry
+        // is the same category error as interrogating a declaration.
+        ValuePayload::Mate(_) => none("mate"),
     }
 }

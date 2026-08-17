@@ -31,11 +31,12 @@ const V7: &str = include_str!("golden/v7_golden.cad");
 fn schema_version_is_current() {
     // Moved four times since this row was written (LIB-RESPELL's v9
     // §2c re-spell, ASM-UPD's v10 `UpdateReference` arm, M9-1's v11
-    // declaration class, then LIB-PLACEDUNION's v12 group boolean) —
-    // the convention is that a bump updates every pin it invalidates,
-    // so the number stays exact here. Named for the PROPERTY rather
-    // than the number, since the number is exactly what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 12);
+    // declaration class, LIB-PLACEDUNION's v12 group boolean, then
+    // ASM-R2a's v13 `Node::Mate` arm) — the convention is that a bump
+    // updates every pin it invalidates, so the number stays exact
+    // here. Named for the PROPERTY rather than the number, since the
+    // number is exactly what keeps moving.
+    assert_eq!(SCHEMA_VERSION, 13);
 }
 
 #[test]

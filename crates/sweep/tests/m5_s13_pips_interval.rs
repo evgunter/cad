@@ -30,7 +30,7 @@ mod certified {
     use core::f64::consts::PI;
 
     use geom_core::{Affine3, Bounds, Interval, Point2, Real, Tolerance, Vec2, Vec3};
-    use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
     use topo::{Body, mass_properties};
 
@@ -50,11 +50,12 @@ mod certified {
 
     /// The 4 × 4 × 1 slab of the finding row.
     fn slab() -> Body<Interval> {
-        let lp = ProfileLoop::builder(p2(0.0, 0.0))
-            .line_to(p2(4.0, 0.0))
-            .line_to(p2(4.0, 4.0))
-            .line_to(p2(0.0, 4.0))
-            .close();
+        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
+            p2(0.0, 0.0),
+            p2(4.0, 0.0),
+            p2(4.0, 4.0),
+            p2(0.0, 4.0),
+        ]);
         extrude(&validated(vec![lp]), Extrusion::Distance(iv(1.0)))
             .unwrap()
             .body
@@ -63,9 +64,18 @@ mod certified {
     /// A radius-`r` ball at `centre` (horizontal polar axis — the §1
     /// re-cut's own chart shape).
     fn ball_at(r: f64, centre: Vec3<Interval>) -> Body<Interval> {
-        let lp = ProfileLoop::builder(p2(0.0, -r))
-            .arc_to(p2(0.0, r), iv(1.0))
-            .close();
+        // The half-disc lamina: a semicircle out of the south pole and
+        // the straight diameter back.
+        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
+            ProfileVertex {
+                pos: p2(0.0, -r),
+                bulge: iv(1.0),
+            },
+            ProfileVertex {
+                pos: p2(0.0, r),
+                bulge: iv(0.0),
+            },
+        ]);
         let axis = RevolveAxis {
             origin: p2(0.0, 0.0),
             dir: Vec2::new(iv(0.0), iv(1.0)),

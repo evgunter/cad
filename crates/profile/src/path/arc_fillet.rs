@@ -72,14 +72,14 @@ use crate::validate::FilletLegCarrier;
 /// A fillet side's carrier, as the algebra binds it: a straight ray, or
 /// a circle about a centre with a structural winding.
 ///
-/// The circular spelling is what `.at_on`/`.to_on` bind; the radius is
+/// The circular spelling is what a `Center`-mode side binds; the radius is
 /// never authored — it is `|anchor − centre|`, carried squared.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum SideCarrier<T: Real> {
     /// The line through the side's anchor along this **unit** ray.
     Ray(Vec2<T>),
     /// The circle through the side's anchor about `centre`, swept
-    /// `winding` (structural, as in `arc_center`).
+    /// `winding` (structural, as in the `Center` mode).
     Circle {
         /// The carrier circle's centre.
         centre: Point2<T>,
@@ -531,7 +531,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
 }
 
 // ------------------------------------------------------------------
-// The carrier-aware binder family (§3a; LB6 for `.to_on`).
+// The carrier-aware binder family (§3a; LB6 for the closing arrival).
 //
 // These doors live HERE, not in `path.rs`, for the reason the module
 // docs give: resolving an arc-carrier fillet reaches the lifted ladder,
@@ -541,12 +541,12 @@ pub(crate) fn resolve<T: Decide + Bounds>(
 // ------------------------------------------------------------------
 
 /// The carrier's unit tangent at `p`, in the travel sense `winding`
-/// names — the DERIVED direction an `.at_on`/`.to_on` binding puts in
+/// names — the DERIVED direction a `Center`-mode binding puts in
 /// the angle slot. Written as `Leg::at_corner` writes it (τ·(P−O)⟂/R),
 /// so the two doors agree at the bit.
 ///
 /// The radius is gated definitely positive on the same funnel predicate
-/// `arc_center` uses: an anchor at the centre names no tangent.
+/// the `Center` leg mode uses: an anchor at the centre names no tangent.
 pub(crate) fn carrier_tangent<T: Decide>(
     p: Point2<T>,
     centre: Point2<T>,
@@ -569,7 +569,7 @@ pub(crate) fn carrier_tangent<T: Decide>(
 
 /// The scalar obligation the arc-carrier arrival binders impose, NAMED.
 ///
-/// `at_on` (the fillet-arrival form) and `to_on` run the S8 selection
+/// The interior arc arrival and the closing one both run the S8 selection
 /// ladder, so they are `Decide + Bounds` honestly — the compound bound
 /// this file is allowlisted for. The replay driver
 /// ([`super::program::replay`]) must be able to call them, so its own

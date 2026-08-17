@@ -59,20 +59,21 @@ pub enum BooleanOp {
 )]
 #[serde(deny_unknown_fields)]
 pub enum StepArg {
-    /// An authored on-path point's x (`at`, `at_on`, the far-end `to`).
+    /// An authored on-path point's x (`at`, an arc spec's anchor, the
+    /// far-end `to`).
     PointX,
     /// That point's y.
     PointY,
-    /// A leg target's x (`line_to`, `arc_to`, `arc_via`, `arc_center`,
+    /// A leg target's x (`line_to`, `arc_to`'s endpoint-full modes,
     /// `tangent_arc_to` — the `Point` target form).
     TargetX,
     /// That target's y.
     TargetY,
-    /// An `arc_via` through-point's x.
+    /// A `Via` mode's through-point x.
     ViaX,
     /// That through-point's y.
     ViaY,
-    /// A carrier centre's x (`at_on`, `arc_center`, `to_on`, `circle`,
+    /// A carrier centre's x (the `Center` mode, `circle`,
     /// `circle_split`).
     CenterX,
     /// That centre's y.
@@ -645,6 +646,42 @@ pub enum Node<P> {
         #[serde(default, skip_serializing_if = "InterfaceRecord::is_empty")]
         interface: InterfaceRecord,
     },
+    /// A **mate** between two instances (ASSEMBLY-DESIGN A3/A12;
+    /// ASM-R2a D-1): one node carrying BOTH the placement constraint
+    /// and the contact declaration, so there is no second vocabulary
+    /// to keep synced.
+    ///
+    /// **A leaf.** `a`/`b` are instance-qualified stable references,
+    /// and name references are not DAG edges — the shipped D3
+    /// carve-out `Declare` established — so [`Node::inputs`] is empty
+    /// and inserting a mate transfers no root. A12 adds *reading*
+    /// edges on top: the instantiate node each reference's head
+    /// resolves through, RECOMPUTED at need
+    /// ([`crate::mate::reading_edges`]) and never stored. A9's
+    /// relative-freedom partition and A11's placement clusters read
+    /// consuming ∪ reading edges; A10's invariants, maintenance and
+    /// product gather read consuming edges only. Under consuming edges
+    /// a mate is an isolated sink, so it is an ordinary NON-BODY root:
+    /// listed like any other, denoting no body, ignored by the gather.
+    /// A dangling head is N5's ratified semantics — no edge until
+    /// `Rebind`, and the solve refuses typed naming it.
+    Mate {
+        /// The `a` reference: an entity of one instance's product.
+        a: StableName,
+        /// The `b` reference: an entity of the other's.
+        b: StableName,
+        /// The declared contact class — the KERNEL vocabulary (M9-1),
+        /// re-exported rather than re-minted, so a mate's declaration
+        /// is already the currency the boolean wrapper's records
+        /// speak. v1 admits `Rest`/`Tangent`; a class outside that
+        /// refuses typed at both the wire and the solve door, naming
+        /// the deferral.
+        #[serde(with = "crate::mate::class_wire")]
+        class: crate::mate::ContactClass,
+        /// Which frames coincide, with which axis senses, at which
+        /// clocking (A3's alignment datum).
+        alignment: crate::mate::Alignment,
+    },
 }
 
 impl Axis3 {
@@ -715,6 +752,9 @@ impl<P> Node<P> {
             Node::Datum(_)
             | Node::Profile(_)
             | Node::Declare { .. }
+            // A mate is a leaf: its references are NAMES, not edges
+            // (A12's reading edges are recomputed, never stored here).
+            | Node::Mate { .. }
             | Node::InstantiatePart { .. } => Vec::new(),
             Node::Extrude { profile, .. } => vec![*profile],
             Node::Revolve { profile, axis, .. } => vec![*profile, *axis],
@@ -769,6 +809,9 @@ impl<P> Node<P> {
             Node::Split { .. }
             | Node::Boolean { .. }
             | Node::Declare { .. }
+            // A11: the alignment datum is authored geometry, not a
+            // continuous slot — a mate has no expression to drive.
+            | Node::Mate { .. }
             | Node::InstantiatePart { .. } => Vec::new(),
             Node::Extrude { .. } => vec![SlotId::Distance],
             Node::Fillet { .. } => vec![SlotId::Radius],
@@ -881,6 +924,10 @@ impl<P> Node<P> {
                 .iter()
                 .flat_map(|((a, b), _)| [a.node, b.node])
                 .collect(),
+            // A12: a mate's two heads carry the SAME carve-out — the
+            // edit door checks they exist, a later delete may strand
+            // them (N5), and `Rebind` is the one repair.
+            Node::Mate { a, b, .. } => vec![a.node, b.node],
             // The fillet selection references names the same way, and
             // carries the same N5 carve-out (M6-5).
             Node::Fillet { selection, .. } => selection.iter().map(|n| n.node).collect(),
@@ -1051,15 +1098,17 @@ impl<P: PartialEq> Node<P> {
 /// `ContactClass` being `#[non_exhaustive]` makes reachable: a class
 /// added in a newer kernel than this writer must never be written out
 /// under a guessed tag.
-mod declare_pairs_wire {
+pub(crate) mod declare_pairs_wire {
     use super::{ContactClass, StableName};
     use serde::de::Error as _;
     use serde::ser::Error as _;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     /// The wire spelling of a class, or `None` if this build has no
-    /// name for it.
-    fn tag(class: ContactClass) -> Option<&'static str> {
+    /// name for it. `pub(crate)` because the MATE node's class field
+    /// spells its class the same way (ASM-R2a D-1) — one contact
+    /// vocabulary, one wire spelling of it, one table.
+    pub(crate) fn tag(class: ContactClass) -> Option<&'static str> {
         match class {
             ContactClass::Rest => Some("rest"),
             ContactClass::Tangent => Some("tangent"),
@@ -1071,7 +1120,9 @@ mod declare_pairs_wire {
         }
     }
 
-    fn untag(s: &str) -> Option<ContactClass> {
+    /// The inverse of [`tag`], shared with the mate node's class field
+    /// for the same reason.
+    pub(crate) fn untag(s: &str) -> Option<ContactClass> {
         match s {
             "rest" => Some(ContactClass::Rest),
             "tangent" => Some(ContactClass::Tangent),

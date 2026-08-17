@@ -38,6 +38,10 @@ mod asm2a_instantiate;
 mod asm2b_multisolid;
 #[path = "asm4_split_inline.rs"]
 mod asm4_split_inline;
+#[path = "asm_r2a_mate_solve.rs"]
+mod asm_r2a_mate_solve;
+#[path = "asm_r2a_schema_v13.rs"]
+mod asm_r2a_schema_v13;
 #[path = "asm_roots.rs"]
 mod asm_roots;
 #[path = "asm_upd_pin_update.rs"]

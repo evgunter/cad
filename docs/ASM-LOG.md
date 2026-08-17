@@ -247,3 +247,21 @@ re-verification required before merge. TESS-SPAN mid-flight
 slot mutex; one usage-window kill absorbed — all three fable
 agents resumed from transcripts). TESS-SPLIT specced, gated on
 TESS-SPAN. R2-b next after M9-2 PR-2 settles.
+
+## ASM-R2A MERGED (#575, 2026-08-16) — mates solve constructively
+
+R2-a landed through the ladder's full designed path: NMAI (2
+executed-probe MAJORs — the parallel-axes clocking gap and the
+torn-cluster frame drop) → substantial implementer-inherited fix
+→ delta re-review APPROVE with the original probes passing and
+the new rows mutation-verified. Both implementer deviations were
+UPHELD as spec amendments (the spec's own row 1 was unsatisfiable
+under its binding table; D-3's wording contradicted ratified A11
+rule 2). Schema landed v13 after TWO mid-flight shifts, each
+caught only by the by-eye constant read — the discipline memory
+is sharpened accordingly (prose is a tripwire, not a guarantee).
+The constructive-solve boundary is now executable: mate chains
+place clusters, UNDER/CONTRADICTORY refuse naming subgroup and
+clash, Δc ≡ 0 by construction. Seam sweep next (asm-r2a +
+asm-r2a-r1). Remaining: TESS-SPAN (sweep + re-cut in flight) →
+TESS-SPLIT; R2-b spec finalization once M9-2 PR-2 settles.

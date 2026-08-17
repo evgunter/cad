@@ -66,11 +66,26 @@ fn wall_senses(body: &Body<f64>, walls: &[Option<FaceKey>]) -> Vec<Option<bool>>
 /// segments have equal area and the region's area is EXACTLY 3.
 fn notched() -> sweep::Extruded<f64> {
     let b = FRAC_PI_8.tan();
-    let lp = ProfileLoop::builder(p2(0.0, 0.0))
-        .arc_to(p2(2.0, 0.0), b)
-        .line_to(p2(2.0, 1.5))
-        .arc_to(p2(0.0, 1.5), -b)
-        .close();
+    // Leaving bulges: the bottom arc bows out (+b), the top one bows
+    // into the region (-b); the two sides are straight.
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(0.0, 0.0),
+            bulge: b,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 1.5),
+            bulge: -b,
+        },
+        ProfileVertex {
+            pos: p2(0.0, 1.5),
+            bulge: 0.0,
+        },
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .unwrap();
@@ -115,11 +130,26 @@ fn notched_body_validates_meters_and_carries_one_reversed_wall() {
 #[test]
 fn downward_extrusion_keeps_the_same_senses() {
     let b = FRAC_PI_8.tan();
-    let lp = ProfileLoop::builder(p2(0.0, 0.0))
-        .arc_to(p2(2.0, 0.0), b)
-        .line_to(p2(2.0, 1.5))
-        .arc_to(p2(0.0, 1.5), -b)
-        .close();
+    // Leaving bulges: the bottom arc bows out (+b), the top one bows
+    // into the region (-b); the two sides are straight.
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(0.0, 0.0),
+            bulge: b,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 1.5),
+            bulge: -b,
+        },
+        ProfileVertex {
+            pos: p2(0.0, 1.5),
+            bulge: 0.0,
+        },
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .unwrap();
@@ -327,12 +357,30 @@ fn countersink_cone_wall_mints_sense_false() {
 #[test]
 fn dimple_sphere_wall_mints_sense_false() {
     let b = FRAC_PI_8.tan();
-    let lp = ProfileLoop::builder(p2(0.0, 0.0))
-        .line_to(p2(1.0, 0.0))
-        .line_to(p2(1.0, 2.0))
-        .line_to(p2(0.5, 2.0))
-        .arc_to(p2(0.0, 1.5), -b)
-        .close();
+    // Leaving bulges: three straight legs, then the dimple arc (-b)
+    // from (0.5, 2) to the axis; the closing leg is straight.
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(0.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 2.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(0.5, 2.0),
+            bulge: -b,
+        },
+        ProfileVertex {
+            pos: p2(0.0, 1.5),
+            bulge: 0.0,
+        },
+    ]);
     let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(topo::validate::validate_geometric(&t.body), Ok(()));
@@ -368,11 +416,25 @@ fn dimple_sphere_wall_mints_sense_false() {
 #[test]
 fn notched_ring_torus_band_mints_sense_false() {
     let b = FRAC_PI_8.tan();
-    let lp = ProfileLoop::builder(p2(1.0, 0.0))
-        .arc_to(p2(3.0, 0.0), b)
-        .line_to(p2(3.0, 1.5))
-        .arc_to(p2(1.0, 1.5), -b)
-        .close();
+    // The notched profile shifted to x ∈ [1, 3]: same leaving bulges.
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: p2(1.0, 0.0),
+            bulge: b,
+        },
+        ProfileVertex {
+            pos: p2(3.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(3.0, 1.5),
+            bulge: -b,
+        },
+        ProfileVertex {
+            pos: p2(1.0, 1.5),
+            bulge: 0.0,
+        },
+    ]);
     let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(topo::validate::validate_geometric(&t.body), Ok(()));

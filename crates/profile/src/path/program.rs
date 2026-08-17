@@ -58,8 +58,8 @@
 use geom_core::{Decide, Point2, Real};
 
 use super::{
-    ArcCarrierScalar, Flavor, HasAng, HasPos, NoAng, NoPos, Open, PartialPath, PathError, Plain,
-    Start, WithIncoming,
+    ArcCarrierScalar, Bulge, Center, Flavor, HasAng, HasPos, NoAng, NoPos, Open, PartialPath,
+    PathError, Plain, Start, Via, WithIncoming,
 };
 use crate::ProfileLoop;
 use crate::sugar::ArcSweep;
@@ -87,9 +87,9 @@ pub enum Target<T: Real> {
 /// authored mode, exactly as the surface's standalone spec types
 /// authored it (record-as-you-lower keeps the mode; the VQ contracts
 /// rely on that distinctness). The typed surface consumes the
-/// standalone types ([`Radius`](super::Radius), [`Bulge`](super::Bulge),
-/// [`Via`](super::Via), [`Center`](super::Center),
-/// [`Sweep`](super::Sweep), [`ArcLen`](super::ArcLen)) through the
+/// standalone types ([`Radius`](super::Radius), [`Bulge`], [`Via`],
+/// [`Center`], [`Sweep`](super::Sweep), [`ArcLen`](super::ArcLen))
+/// through the
 /// state-keyed trait matrix; the wire and the replay driver match THIS
 /// enum exhaustively, which is the round-9 forcing argument for the
 /// whole family shipping at once.
@@ -208,8 +208,8 @@ step_vocabulary! {
     #[doc = " `line_to(target)` — a straight leg to the target."]
     LineTo(Target<T>),
     #[doc = " `arc_to(spec)` — the sharp arc leg, every mode in the one"]
-    #[doc = " unified [`ArcData`] record (the retired `arc_to(p, b)` /"]
-    #[doc = " `arc_via` / `arc_center` doors record their modes here)."]
+    #[doc = " unified [`ArcData`] record; the mode the author wrote is"]
+    #[doc = " what is kept, because the VQ contracts rely on it."]
     ArcTo(ArcData<T>),
     #[doc = " `tangent_arc_to(target)` — the unique tangent arc to the target."]
     TangentArcTo(Target<T>),
@@ -493,8 +493,8 @@ fn do_line_to<T: Decide, F: Flavor>(
 }
 
 /// The sharp arc leg's mode dispatch: the endpoint-full modes from a
-/// Point tip (through the retired-name doors, which ARE these rows'
-/// surface until the consumer re-spell renames them).
+/// Point tip — one row per admissible (state, mode) pair of the §2c
+/// matrix, each calling the one typed `arc_to(spec)` binder.
 fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
     p: PartialPath<T, HasPos<F>, NoAng>,
     spec: ArcData<T>,
@@ -504,31 +504,44 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
         ArcData::Bulge {
             target: Target::Point(q),
             b,
-        } => Ok(Applied::Tip(DynTip::DirectedPoint(p.arc_to(q, b)?))),
+        } => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(Bulge { p: q, b })?,
+        ))),
         ArcData::Bulge {
             target: Target::Start,
             b,
-        } => Ok(Applied::Closed(p.arc_to(Start, b)?.loop_)),
+        } => Ok(Applied::Closed(p.arc_to(Bulge { p: Start, b })?.loop_)),
         ArcData::Via {
             q,
-            target: Target::Point(t),
-        } => Ok(Applied::Tip(DynTip::DirectedPoint(p.arc_via(q, t)?))),
-        ArcData::Via {
-            q,
-            target: Target::Start,
-        } => Ok(Applied::Closed(p.arc_via(q, Start)?.loop_)),
-        ArcData::Center {
-            c,
-            winding,
             target: Target::Point(t),
         } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_center(c, t, winding)?,
+            p.arc_to(Via { q, p: t })?,
         ))),
+        ArcData::Via {
+            q,
+            target: Target::Start,
+        } => Ok(Applied::Closed(p.arc_to(Via { q, p: Start })?.loop_)),
+        ArcData::Center {
+            c,
+            winding,
+            target: Target::Point(t),
+        } => Ok(Applied::Tip(DynTip::DirectedPoint(p.arc_to(Center {
+            c,
+            winding,
+            p: t,
+        })?))),
         ArcData::Center {
             c,
             winding,
             target: Target::Start,
-        } => Ok(Applied::Closed(p.arc_center(c, Start, winding)?.loop_)),
+        } => Ok(Applied::Closed(
+            p.arc_to(Center {
+                c,
+                winding,
+                p: Start,
+            })?
+            .loop_,
+        )),
         ArcData::Radius { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => {
             violation(state, Verb::ArcTo)
         }

@@ -20,10 +20,13 @@ claims.
 **How to apply (the discipline, both halves):**
 - **Claim loudly at dispatch**: the number + reasoning goes in the
   SCHEMA_VERSION doc comment AND as claim prose in the shared
-  ledger (docs/MODEL-AB-LOG.md). The ledger prose is what actually
-  collides and forces the resolve — it caught the live incident;
-  the constant did not.
-- **Check by eye at final re-merge, as an explicit step**: read
+  ledger (docs/MODEL-AB-LOG.md) — pushed to MAIN at claim time,
+  not parked on the branch. The prose caught the #552 incident;
+  BUT (sharper, #575's v12→v13 shift): prose appended in
+  different ledger regions does NOT conflict either — prose is a
+  tripwire, never a guarantee.
+- **Check by eye at final re-merge, as an explicit step — the
+  ONLY reliable guard**: read
   main's ACTUAL constant immediately before setting yours
   (`git show origin/main:<persist file> | grep SCHEMA_VERSION`),
   take main's next number, and state in the PR body that the check

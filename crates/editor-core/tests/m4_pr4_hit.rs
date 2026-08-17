@@ -40,9 +40,10 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
             .enumerate()
             .map(|(i, b)| (u32::try_from(i).unwrap(), &**b))
             .collect(),
-        ValuePayload::Datum(_) | ValuePayload::Profile(_) | ValuePayload::Declarations(_) => {
-            vec![]
-        }
+        ValuePayload::Datum(_)
+        | ValuePayload::Profile(_)
+        | ValuePayload::Declarations(_)
+        | ValuePayload::Mate(_) => vec![],
     }
 }
 
