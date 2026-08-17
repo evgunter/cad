@@ -26,15 +26,23 @@
 //! narrowing answers, and it is the LB13 precedent: a curated module in
 //! place of a whole-crate re-export, aimed at one nameability.)
 //!
-//! RESIDUE, stated rather than glossed: `ProfileLoop` and
-//! `ProfileVertex` are plain data with public fields, so
-//! `ProfileLoop { vertices, tangent_joints }` still type-checks
-//! wherever the type is nameable. Sealing that means private fields
-//! plus accessors, which is a change to the plain-data convention and
-//! not a housekeeping edit. What this module removes is the *authoring
-//! tier*: the named, documented, prelude-carried way to mint a loop
-//! from a coordinate table without the lattice's junction
-//! classification.
+//! What this module removes is the *authoring tier*: the named,
+//! documented, prelude-carried way to mint a loop from a coordinate
+//! table without the lattice's junction classification. The COMPILER
+//! is what makes the removal total — `ProfileLoop`'s fields are
+//! private, so a struct literal is an E0451 privacy error in every
+//! crate but `profile` itself (pinned by a `compile_fail` doctest on
+//! the type). Naming the type, reading it through its accessors, and
+//! matching on error payloads that carry it are all untouched; the two
+//! surfaces are complementary, and the funnel is the pair.
+//!
+//! Stated honestly, because it is a crate boundary and not a module
+//! one: `profile`'s own internals build loops directly and hold the
+//! invariant by their sealed-verbs discipline, not by privacy. And a
+//! consumer willing to depend on `profile` directly still reaches
+//! `RawLoop` — the door is off the PRESENTED surface, not out of
+//! existence. `demos/tour` does exactly that, in one scene, on purpose
+//! (its manifest says why).
 //!
 //! Authoring goes through the lattice: [`Open`], [`Start`], the
 //! binders, [`circle`], [`circle_split`].

@@ -199,6 +199,34 @@ impl<T: Real> ProfileVertex<T> {
 /// The seal is a CRATE boundary, not a module one — `crates/profile`'s
 /// own internals construct loops directly and stay on the sealed-verbs
 /// discipline instead.
+///
+/// A doctest is a separate crate, so these two blocks are the seal
+/// executed at the boundary it claims. A struct literal is a PRIVACY
+/// error, not a missing-import one:
+///
+/// ```compile_fail,E0451
+/// use profile::{ProfileLoop, ProfileVertex};
+/// let _: ProfileLoop<f64> = ProfileLoop {
+///     vertices: Vec::<ProfileVertex<f64>>::new(),
+///     tangent_joints: Vec::new(),
+/// };
+/// ```
+///
+/// The doors compile, in the same position:
+///
+/// ```
+/// use geom_core::Point2;
+/// use profile::{ProfileLoop, RawLoop};
+///
+/// let square: ProfileLoop<f64> = RawLoop::polygon([
+///     Point2::new(0.0, 0.0),
+///     Point2::new(1.0, 0.0),
+///     Point2::new(1.0, 1.0),
+///     Point2::new(0.0, 1.0),
+/// ]);
+/// assert_eq!(square.vertices().len(), 4);
+/// assert!(square.tangent_joints().is_empty());
+/// ```
 #[derive(Clone, Debug)]
 pub struct ProfileLoop<T: Real> {
     /// The vertex chain, in traversal order (either winding — winding

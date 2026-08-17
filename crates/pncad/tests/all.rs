@@ -646,13 +646,20 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
 /// 3. Any construction call — `ProfileLoop::new` / `ProfileLoop::polygon`
 ///    — written in façade source (comments excluded), which would mean
 ///    the façade itself still authors through the retired tier.
+/// 4. Any `ProfileLoop`/`ProfileVertex` STRUCT LITERAL in façade
+///    source. This row's declared blind spot until the seal landed:
+///    the fields were public, so a literal type-checked wherever the
+///    type was nameable, and the type must stay nameable. The fields
+///    are private now and the compiler refuses a literal out of crate
+///    (E0451, pinned by a `compile_fail` doctest on `ProfileLoop`), so
+///    this pattern is belt-and-braces — a façade module that ever
+///    reached for one would be reaching for a construction route that
+///    is no longer supposed to exist at all.
 ///
-/// What this CANNOT see, stated so it is not over-trusted: the struct
-/// literal. `ProfileLoop` is plain data with public fields, so
-/// `ProfileLoop { vertices, tangent_joints }` type-checks wherever the
-/// type is nameable, and the type must stay nameable. This guard is
-/// about the AUTHORING TIER — the named, documented, prelude-carried
-/// way to mint a loop from a coordinate table — not about a seal.
+/// The guard is about the AUTHORING TIER — the named, documented,
+/// prelude-carried way to mint a loop from a coordinate table. The seal
+/// is what makes that tier the only one; the two are complementary, and
+/// neither alone is the claim.
 #[test]
 fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
     const SOURCES: [(&str, &str); 10] = [
@@ -674,6 +681,8 @@ fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
     let minting = [
         ["ProfileLoop::", "new("].concat(),
         ["ProfileLoop::", "polygon("].concat(),
+        ["ProfileLoop ", "{"].concat(),
+        ["ProfileVertex ", "{"].concat(),
     ];
 
     let mut violations: Vec<String> = Vec::new();
