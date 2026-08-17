@@ -442,6 +442,12 @@ type Source0<T> = (u32, Arc<Body<T>>, Arc<ContactRecords>);
 /// The bridge is total over a source it grafted, so a missing image is
 /// a bridge bug, not a dropped declaration: it refuses typed rather
 /// than silently weakening the at-rest gate the records feed.
+///
+/// [`ProductError::ContactLineage`] is therefore DEFENSIVE and has no
+/// test: no public API can reach it without first breaking the graft's
+/// own key-bridge contract. Stated rather than left to be discovered —
+/// an arm that cannot be exercised is worth knowing about, and the
+/// alternative (dropping the record) is the failure this guards.
 fn carry_contacts(
     into: &mut ContactRecords,
     from: &ContactRecords,

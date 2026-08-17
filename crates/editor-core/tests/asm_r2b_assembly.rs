@@ -5,19 +5,39 @@
 //! One assertion per acceptance row, each comment stating the
 //! INVARIANT the row pins rather than the mechanics it exercises.
 //!
-//! # What the kernel currently certifies, and what it does not
+//! # The F1 declared direction does NOT go green — the honest boundary
 //!
-//! Row 3's DECLARED direction is written against the invariant that is
-//! true today and stays true: a minted declaration means the gate does
-//! not report the pair as an UNDECLARED contact, and any refusal that
-//! remains is the census's own typed carrier-inventory passthrough.
-//! On main a face-granularity `PatchContact` is not certifiable at all
-//! (`topo::census`'s patch arm answers `CensusUnsupported`
-//! unconditionally), so "remains" is non-empty; with M9-2 PR-2's
-//! conformal arm and patch certifier it is empty and the gate returns
-//! `Ok(())`. Both satisfy the rows below, which is the point — the
-//! assertions name the ASM-owned invariant, not the kernel's current
-//! reach.
+//! **Stated as executed, not as hoped.** The spec's F1 sentence says a
+//! declared planar Rest between two touching instances VALIDATES. It
+//! does not, in this tree, with M9-2 PR-2 (#564) merged. The root
+//! cause is structural and is worth naming precisely, because it is
+//! not the surface KIND:
+//!
+//! The patch certifier runs two doors. **Door 1** — `carrier_pair_verdict`
+//! through the Rest ladder — PASSES for the assembled pair: two planes
+//! with opposed senses at a decided-zero offset is exactly what it
+//! certifies. **Door 2** — `chart_region_overlap` — gates first on
+//! `same_chart`, which demands STRUCTURAL chart identity: a shared
+//! `SurfaceKey` within one body, or the same `GeomSource` across
+//! bodies. Two instances of one part can satisfy neither by
+//! construction: the disjoint graft mints fresh surface keys, and
+//! `compose_placed` stamps each instance's descriptions with its OWN
+//! placing node. So Door 2 answers `ChartDivergence`, which the
+//! certifier maps to `CensusUnsupported { entity: Face(..) }`.
+//!
+//! In other words the census's face-granularity certifier is built for
+//! pairs that arise INSIDE one body (a boolean's seam), and an
+//! assembly's touching faces are cross-instance by definition. The
+//! declared direction therefore ends in the typed carrier-inventory
+//! passthrough — loudly, never a silent bless — and closing it needs a
+//! cross-instance chart rung in the census. Raised with M9 on the PR;
+//! reported as a deviation rather than absorbed.
+//!
+//! What the rows below DO pin, exactly: the declaration is what
+//! suppresses the F1 `UndeclaredContact` refusal (row 3), and the
+//! residual verdict is PINNED by kind and count (`row3_b`) so this
+//! boundary can never move — in either direction — without a test
+//! going red and being re-blessed deliberately.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -465,14 +485,21 @@ fn row3_a_an_undeclared_touching_pair_is_the_hard_error() {
 
 /// INVARIANT (the scan-to-bless ban, DECLARED direction): the same
 /// geometry WITH the mate's declaration minted is no longer an
-/// undeclared contact — the declaration is what suppresses the F1
-/// refusal, and nothing else does. Whatever refusal remains is the
-/// census's own typed carrier-inventory passthrough (module docs:
-/// certifying a face-granularity patch is the kernel's reach, not
-/// this layer's).
+/// UNDECLARED contact — the declaration is what suppresses the F1
+/// refusal, and nothing else does.
+///
+/// **And the residual verdict is PINNED, exactly** (review MAJOR-1).
+/// The declared direction does not reach `Ok(())`: the certifier's
+/// chart-identity door cannot see two instances as one chart (module
+/// docs), so it answers the typed carrier-inventory passthrough. That
+/// is a real boundary, so it is pinned by KIND and COUNT rather than
+/// described by a `.all()` that an empty vector would satisfy
+/// vacuously. If the census grows a cross-instance chart rung this row
+/// goes RED and must be re-blessed deliberately — which is the only
+/// way a boundary claim stays honest as the kernel moves.
 #[test]
 fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
-    let (doc, _, _, store) = stacked("asm-r2b-row3b", 1.0);
+    let (doc, _, mate, store) = stacked("asm-r2b-row3b", 1.0);
     let ev = run(&doc, &opts(store));
     let result = assemble(&doc, &ev);
     let errs = findings(&result);
@@ -480,11 +507,67 @@ fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
         !errs.iter().any(|e| e.contains("UndeclaredContact")),
         "the minted declaration backs the touching pair: {errs:?}"
     );
-    assert!(
-        errs.iter().all(|e| e.contains("CensusUnsupported")),
-        "any remaining refusal is the typed carrier-inventory \
-         passthrough, never a silent bless: {errs:?}"
+    // The pin: exactly one residual finding, of exactly this kind,
+    // attributed to exactly this mate. Not "all of them are X" — a
+    // vacuous truth over an empty vector is how a weakened row hides.
+    let AssemblyError::AtRest { findings } = result
+        .as_ref()
+        .err()
+        .expect("the declared pair does NOT validate today — see the module docs")
+    else {
+        panic!("expected the at-rest verdict, got {:?}", result.err());
+    };
+    assert_eq!(
+        findings.len(),
+        1,
+        "exactly one residual finding: {:?}",
+        errs
     );
+    assert!(
+        errs[0].contains("CensusUnsupported"),
+        "and it is the typed carrier-inventory passthrough — the \
+         certifier's chart-identity door, never a silent bless: {errs:?}"
+    );
+    assert_eq!(
+        findings[0].mate.as_ref().map(|m| m.mate),
+        Some(mate),
+        "attributed to the mate whose declaration was examined"
+    );
+}
+
+/// INVARIANT (spec row 4's in-band clause; C4's escalation rail): a
+/// declared Rest whose gap is AUTHORED INTO THE BAND is neither
+/// certified nor contradicted — it escalates TYPED, and the escalation
+/// carries the kernel's predicate name.
+///
+/// The seat is 1.0 + 3e-9 against the committed `Band { 1e-9, 1e-8 }`:
+/// definitely inside the band, so the plane-offset predicate is
+/// Indeterminate and the certifier's first door escalates before the
+/// chart door is ever reached. (Adopted from the review's probe.)
+#[test]
+fn row4_b_an_in_band_authored_gap_escalates_typed_and_predicate_named() {
+    let (doc, _, mate, store) = stacked("asm-r2b-row4b", 1.0 + 3e-9);
+    let ev = run(&doc, &opts(store));
+    let result = assemble(&doc, &ev);
+    let errs = findings(&result);
+    assert!(
+        errs.iter().any(|e| e.contains("CensusEscalated")),
+        "an in-band declared gap is the Err(Indeterminate) rail, not a \
+         verdict either way: {errs:?}"
+    );
+    assert!(
+        errs.iter().any(|e| e.contains("predicate")),
+        "and the escalation names the PREDICATE that could not decide: \
+         {errs:?}"
+    );
+    // It is still the assembly's typed refusal, and this row is about
+    // the ESCALATION, so the mate need not be attributable: an
+    // escalation names a predicate, not a declaration.
+    assert!(
+        matches!(result, Err(AssemblyError::AtRest { .. })),
+        "the escalation surfaces through the assembly gate"
+    );
+    let _ = mate;
 }
 
 // ---- Row 4: a definite mismatch names its mate ----
@@ -531,28 +614,40 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
 
 // ---- Rows 5 and 6: the crossing record ----
 //
-// **A finding, pinned rather than papered over.** ASM-R2b D-4 says
-// split populates the record "for every mate whose ends land on
-// opposite sides of the cut". No such cut exists today: a mate's two
-// ends are two instances, a mate joins them into ONE placement
-// cluster by A11 rule 2, and ASM-R2a's ratified cut precondition
+// **A finding, pinned rather than papered over — SCOPED to mate
+// EDGES** (review MAJOR-2 corrected an earlier over-claim here).
+//
+// A4 speaks of "every mate EDGE crossing the cut", and an edge exists
+// only when BOTH of a mate's heads are live instances (A12: `head_of`
+// requires `Node::InstantiatePart`). For such a PROPER mate edge the
+// crossing is unreachable, and that is verified in both directions
+// below: the mate joins its two instances into ONE placement cluster
+// (A11 rule 2, role-blind), and ASM-R2a's ratified precondition
 // refuses any cut that is not a union of WHOLE clusters
-// (`SplitError::TornCluster`). So opposite sides of a cut and the
-// same cluster are mutually exclusive, and `split` mints an EMPTY
-// record for every cut it accepts. A4's sentence and A11's cut rule
-// are in tension; the resolution is a design ruling, not an
-// implementer's choice, so the rows below pin what is TRUE — split's
-// collector, the refusal that makes it vacuous, and every other
-// reachable path through the now-inhabited record (it is public data
-// through `Node::instantiate_part_with`, on the wire, keyed, and
-// re-verified at evaluation).
+// (`SplitError::TornCluster`). Opposite sides of a cut and the same
+// cluster are mutually exclusive. A4's sentence and A11's cut rule are
+// in tension for proper edges; resolving it is a design ruling, not an
+// implementer's choice.
+//
+// **The collector is WIDER than A4's edge**, and that is the corrected
+// claim: `split`'s predicate is over name-derivation sides, so a mate
+// with a DANGLING head — one reference naming non-instance geometry,
+// or a node id that is not in the document — contributes no cluster
+// edge, leaves its instance a singleton, and DOES mint a populated
+// crossing record through a cut the precondition accepts. `row5_d`
+// pins that behaviour as it stands. Whether such a mate should mint,
+// be skipped, or refuse the split is **pending Evan's ruling on the
+// AQ8 thread** — the row names it as current behaviour, not as
+// settled semantics.
 
-/// INVARIANT (the tension, executable): cutting ONE instance of a
-/// mated pair refuses `TornCluster` — which is exactly why no mate
-/// can cross a cut — and the whole-cluster cut that IS accepted
-/// carries both of the mate's ends, so its record is empty.
+/// INVARIANT (the A4-vs-A11 tension for a PROPER MATE EDGE,
+/// executable): cutting ONE instance of a mated pair refuses
+/// `TornCluster` — which is exactly why a mate EDGE cannot cross a cut
+/// — and the whole-cluster cut that IS accepted carries both of the
+/// mate's ends, so its record is empty. Scoped to edges: the wider
+/// collector is `row5_d`'s subject.
 #[test]
-fn row5_a_no_mate_can_cross_a_cut_today_and_split_says_so_both_ways() {
+fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     let (doc, ids, _, store) = stacked("asm-r2b-row5", 1.0);
 
     // One instance alone: the cut tears the cluster.
@@ -565,7 +660,7 @@ fn row5_a_no_mate_can_cross_a_cut_today_and_split_says_so_both_ways() {
     assert!(
         matches!(torn, editor_core::SplitError::TornCluster { .. }),
         "the ratified whole-cluster precondition is what makes a \
-         crossing unreachable: {torn:?}"
+         mate EDGE's crossing unreachable: {torn:?}"
     );
 
     // The whole cluster: accepted, and nothing crosses.
@@ -580,7 +675,8 @@ fn row5_a_no_mate_can_cross_a_cut_today_and_split_says_so_both_ways() {
     };
     assert!(
         interface.is_empty(),
-        "both ends moved together, so no declaration crossed: {:?}",
+        "both ends of the EDGE moved together, so no declaration \
+         crossed: {:?}",
         interface.crossings
     );
     let _ = store;
@@ -696,6 +792,156 @@ fn row5_c_inline_dissolves_the_crossing_record() {
     assert!(
         !back.doc.order().is_empty(),
         "the part's recipe is spliced in"
+    );
+}
+
+/// CURRENT BEHAVIOUR, pinned — **semantics pending Evan's AQ8 ruling**
+/// (review MAJOR-2). A mate one of whose references names NON-INSTANCE
+/// geometry has no A12 reading edge (`head_of` requires an
+/// instantiate node), so it joins no placement cluster; its instance
+/// stays a singleton, a cut of that instance alone is a whole-cluster
+/// cut, and the split ACCEPTS — minting a populated crossing record,
+/// because the collector's predicate is over name-derivation sides and
+/// is therefore WIDER than A4's "mate edge".
+///
+/// This row asserts what the code does, and says so in its name. It is
+/// deliberately NOT an invariant claim: whether such a mate should
+/// mint (current), be skipped (A4's letter — no edge, no crossing), or
+/// refuse the split is the AQ8 addendum's to decide. When it is ruled,
+/// this row is the one that changes.
+#[test]
+fn row5_d_a_dangling_head_mate_currently_mints_a_crossing_pending_aq8() {
+    let mut store = StubStore::default();
+    let doc_ref = store.insert(cube_part("asm-r2b-row5d-part"));
+    let (doc, instance) = insert(
+        ProfileDoc::empty(DocumentId::derive("asm-r2b-row5d")),
+        Node::instantiate_part(doc_ref),
+    );
+    // Local geometry in the SAME document — not an instance, so the
+    // mate's `b` head is dangling in A12's sense.
+    let (doc, local) = block(doc, (0.0, 1.0), (0.0, 1.0), 5.0, 1.0);
+    let mut node = rest_mate(instance, instance, 1.0);
+    if let Node::Mate { b, .. } = &mut node {
+        *b = StableName {
+            kind: EntityKind::Face,
+            node: local,
+            path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+        };
+    }
+    let (doc, mate) = step(doc, DocEdit::InsertNode { node });
+    let mate = mate.expect("the mate mints");
+
+    // The instance is a singleton cluster (no reading edge), so a cut
+    // of it alone is whole-cluster and the precondition accepts.
+    let out = split(
+        &doc,
+        &[instance].into_iter().collect(),
+        DocumentId::derive("asm-r2b-row5d-split"),
+    )
+    .expect("a singleton-cluster cut splits");
+    let Some(Node::InstantiatePart { interface, .. }) = out.remainder.node(out.instance) else {
+        panic!("the split minted an instance");
+    };
+    assert_eq!(
+        interface.crossings.len(),
+        1,
+        "CURRENT behaviour: the collector mints for a dangling-head \
+         mate — wider than A4's edge, pending AQ8: {:?}",
+        interface.crossings
+    );
+    let InterfaceCrossing::Mate {
+        mate: crossed,
+        outer,
+        ..
+    } = &interface.crossings[0];
+    assert_eq!(*crossed, mate, "the crossing names the mate it came from");
+    assert_eq!(
+        outer.node, local,
+        "and the remainder-side reference is the non-instance head"
+    );
+}
+
+/// INVARIANT (spec row 5's "a pin update that CHANGES the part's
+/// contact face", the geometric half; review MINOR-2): a pin move that
+/// leaves the recipe's node layout alone but MOVES the contact face is
+/// invisible to the instance's own structural re-verification — the
+/// name still resolves — and is caught by the AT-REST DOOR, which is
+/// where a geometric question belongs.
+///
+/// Both halves stated together so the boundary is not a gap: `row5_b`
+/// pins the structural half at the wire, and this row pins the
+/// geometric half at `assemble`. An in-document mate is what makes the
+/// second reachable; a crossing declaration on a WIRE record has no
+/// geometric gate today, which is the honest limit of D-5 and is
+/// stated in `wire_instantiate_part`'s own docs.
+#[test]
+fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
+    let part_id = DocumentId::derive("asm-r2b-row5e-part");
+    let mut store = StubStore::default();
+    let doc_ref = store.insert({
+        let (d, _) = block(ProfileDoc::empty(part_id), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+        d
+    });
+    let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-row5e"));
+    let mut ids = Vec::new();
+    for _ in 0..2 {
+        let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
+        doc = next;
+        ids.push(id);
+    }
+    let (doc, mate) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: rest_mate(ids[0], ids[1], 1.0),
+        },
+    );
+    let mate = mate.expect("the mate mints");
+
+    // Pre-move: the declared pair touches, so the ONLY finding is the
+    // chart-identity boundary (row3_b's pin) — no contradiction.
+    let ev = run(&doc, &opts(store.clone()));
+    let before = findings(&assemble(&doc, &ev));
+    assert!(
+        !before.iter().any(|e| e.contains("ContactContradicted")),
+        "pre-move the declaration is not contradicted: {before:?}"
+    );
+
+    // The move: SAME node layout, different geometry — the cube is
+    // half as tall, so its top cap is at z = 0.5 while the mate still
+    // seats the second instance's bottom at z = 1.
+    let (shorter, _) = block(ProfileDoc::empty(part_id), (0.0, 1.0), (0.0, 1.0), 0.0, 0.5);
+    let new_pin = content_pin(&shorter).expect("the pin computes");
+    store.docs.insert(part_id, shorter);
+    let moved = editor_core::apply(
+        &doc,
+        &DocEdit::UpdateReference {
+            node: ids[0],
+            new_pin,
+        },
+    )
+    .expect("the pin moves")
+    .doc;
+    let moved = editor_core::apply(
+        &moved,
+        &DocEdit::UpdateReference {
+            node: ids[1],
+            new_pin,
+        },
+    )
+    .expect("the pin moves")
+    .doc;
+
+    let ev2 = run(&moved, &opts(store));
+    let err = assemble(&moved, &ev2).expect_err("the moved geometry no longer fits");
+    let AssemblyError::AtRest { findings } = &err else {
+        panic!("expected the at-rest verdict, got {err}");
+    };
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.mate.as_ref().is_some_and(|m| m.mate == mate)),
+        "the at-rest door catches the geometry change and NAMES the \
+         mate whose declaration it broke: {findings:?}"
     );
 }
 

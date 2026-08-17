@@ -1122,6 +1122,22 @@ pub fn split(
     // nothing about the seam); a mate with both ends outside never
     // touched the cut. Collected in the pre-split document's node
     // order, which is what makes the record D9-deterministic.
+    //
+    // **This predicate is WIDER than A4's "mate edge", deliberately
+    // noted rather than silently relied on.** A4 speaks of edges, and
+    // an A12 reading edge exists only when BOTH heads are live
+    // instances. For a PROPER mate edge no accepted cut can put the
+    // ends on opposite sides at all — the mate joins its instances
+    // into one placement cluster and the whole-cluster precondition
+    // below refuses to tear it — so the only crossings this loop ever
+    // mints today are for mates with a DANGLING head (a reference to
+    // non-instance geometry, or to a node not in the document), whose
+    // instance is a singleton cluster. Whether such a mate should mint
+    // a crossing (what happens now — the declaration does name both
+    // sides), be skipped (A4's letter: no edge, no crossing), or
+    // refuse the split is PENDING Evan's AQ8-addendum ruling; the
+    // behaviour is pinned by `row5_d` in editor-core's ASM-R2b suite
+    // so the ruling changes one row and one arm.
     let mut crossings: Vec<InterfaceCrossing> = Vec::new();
     for &id in doc.order() {
         if cut.contains(&id) {

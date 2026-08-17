@@ -37,9 +37,22 @@
 //! zipped the instances together, which is exactly what "at rest, not
 //! a boolean" means). So a Tangent mate refuses typed at the mint door
 //! naming the deferral, rather than minting a record with an invented
-//! witness. Where the census inventory cannot certify a carrier kind
-//! it refuses typed too, and that refusal passes straight through
-//! here — stated, never swallowed.
+//! witness.
+//!
+//! **And the declared direction does not reach `Ok(())` today.** The
+//! census's patch certifier gates on STRUCTURAL chart identity — a
+//! shared `SurfaceKey` within one body, or the same `GeomSource`
+//! across bodies. Two instances of one part satisfy neither by
+//! construction (the disjoint graft mints fresh keys; each instance's
+//! descriptions are stamped with its own placing node), so a declared
+//! cross-instance pair that Door 1 certifies still ends at the chart
+//! door's typed refusal, surfacing as `CensusUnsupported`. That is the
+//! honest boundary: the certifier is built for pairs arising INSIDE
+//! one body, and an assembly's contacts are cross-instance by
+//! definition. It passes straight through here — stated, never
+//! swallowed — and closing it is a cross-instance chart rung in the
+//! census, not work this layer can do. The declaration still does its
+//! job: it is what suppresses the F1 `UndeclaredContact` refusal.
 
 use geom_core::Decide;
 use topo::{ContactRecords, FaceKey, PatchContact, PropsQuadLane, ValidationError};

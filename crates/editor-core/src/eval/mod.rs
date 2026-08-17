@@ -1780,6 +1780,13 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
 /// and the crossing record that quotes its class cannot drift apart —
 /// they must agree, or a crossing edit and the mate edit that caused
 /// it would key inconsistently.
+///
+/// The `_` arm is forced by `ContactClass`'s `#[non_exhaustive]`, and
+/// it is a KNOWN sharp edge: a third class landing (`Fit { gap }`) and
+/// a fourth would both key as 0 and could collide in the memo. Every
+/// class this crate can NAME has its own tag, so the collision needs
+/// two unnamed classes to exist at once — but when `Fit` lands, its
+/// tag lands here with it rather than riding the wildcard.
 fn contact_class_tag(class: topo::ContactClass) -> u8 {
     match class {
         topo::ContactClass::Rest => 1,
