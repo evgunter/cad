@@ -1100,3 +1100,12 @@ A4/A11 crossing-record finding goes to Evan as a design
 conversation in parallel (the reviewer verifies the shipped
 collector against what IS ratified; the tension's resolution is
 not the review's to make). Row at merge.
+TESS-SPAN review ordinal fixed at dispatch (2026-08-17, PR #594
+open, frozen head 212443bd): claimed through 53 (ASM-R2B) + 1 = **54 →
+a third → DUAL (sample #17), CROSS-MODEL** (the #572 composition:
+every dual cross-model until the 12-pair target; pairs complete
+so far: #10, #12, #14, #16 — this is the fifth). R1 fable + R2
+OPUS, concurrent same-head, v4 ladder, blinded to each other.
+Pre-draw fields logged at spec time: M-L / NUMERIC
+(docs/TESS-SPAN-SPEC.md; arm = block ASM-3 slot 4 = fable). Row
+at merge.
