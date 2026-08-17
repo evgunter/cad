@@ -134,6 +134,19 @@ pub enum StepImportError {
         /// The rejected value.
         value: f64,
     },
+    /// A position-anchored import declaration
+    /// ([`crate::ImportContact`]) did not resolve to exactly the
+    /// entities its kind names on the assembled body (M9-2, D7 step
+    /// 4): a declaration that cannot be pinned to real entities is a
+    /// typed refusal, never a silent drop — the same posture as the
+    /// boolean door's dangling-declaration refusal.
+    DeclarationUnresolved {
+        /// The anchor position that failed to resolve.
+        at: [f64; 3],
+        /// How many candidate vertices were found within the gate
+        /// band (a vertex-rest anchor needs exactly two).
+        found: usize,
+    },
     /// A real token failed to parse as an f64.
     MalformedReal {
         /// The entity instance carrying the token.
@@ -318,6 +331,13 @@ impl fmt::Display for StepImportError {
             Self::InvalidEpsOverride { value } => write!(
                 f,
                 "step import: ε_in override {value} is not finite and strictly positive"
+            ),
+            Self::DeclarationUnresolved { at, found } => write!(
+                f,
+                "step import: the declared contact anchored at {at:?} resolved to {found} \
+                 coincident vertices on the assembled body (a vertex-rest anchor needs \
+                 exactly two) — fix the anchor or remove the declaration; unresolved \
+                 intent never silently drops"
             ),
             Self::MalformedReal { id, token } => write!(
                 f,

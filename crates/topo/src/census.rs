@@ -5,10 +5,41 @@
 //! **Sweep shape**: quadratic all-pairs sweeps in arena order
 //! (vertex×vertex, vertex×edge, vertex×face, edge×face, edge×edge) —
 //! the boolean edge×face convention: correctness first, the BVH filter
-//! is PERF-PLAN's later 10×. Exact on the F5 planar corpus (`Line`
-//! carriers, `Plane` surfaces — the same inventory the M3 booleans
-//! that produce 3′ bodies enforce); any other entity refuses loudly
-//! ([`ValidationError::CensusUnsupported`]), never samples.
+//! is PERF-PLAN's later 10×. Exact on the F5 planar subset (`Line`
+//! carriers, `Plane` surfaces). **Since M9-2 the census ADMITS every
+//! carrier kind**, and its reach is exactly this, stated class by
+//! class (the union fix's truth pass):
+//!
+//! - **Examined and decided**: everything with vertex/line/planar
+//!   evidence (the exact sweeps); same-key opposed-sense curved
+//!   pairs (the conformal arm, [`sweep_conformal_patches`], through
+//!   the chart-region predicate); declared curve/patch records (the
+//!   jet schedule; the patch certifier). A proper pierce
+//!   (`EdgeFacePierce`) is CATEGORICALLY undeclarable — 3′ allows
+//!   touching, never crossing; the recourse is separating the
+//!   bodies or making the crossing a boolean's working state.
+//! - **Refused as UNDECIDABLE** (the conservative loudness backstop,
+//!   [`sweep_cross_solid_backstop`]): cross-solid face pairs with a
+//!   curved side within reach — curved × curved (the conformal
+//!   cradle, boss-in-hole) and curved × planar (the embedded ball
+//!   cap, F5) — including EVERY pair with a cone/torus/NURBS side
+//!   (no sound cheap reach bound exists: refused without a distance
+//!   test); a cross-key `PatchContact` on such a pair ESCALATES
+//!   through the chart predicate's divergence posture, so the class
+//!   can today be neither certified nor silently passed. And one
+//!   instance's extent box contained in another's (the
+//!   nested-instance class — C6's interference, representable only
+//!   through recorded gate-skips that do not exist yet).
+//! - **Genuinely undetected until C9/C6**: SAME-solid distinct-key
+//!   curved pairs only (the backstop is cross-solid — a single
+//!   solid's own curved faces are its constructor's obligations).
+//!   Cross-solid pairs the reach filter CLEARS are cleared soundly
+//!   (the pads are sound bounds for the kinds that take the test),
+//!   so clearance is a genuine no-touch certificate, not a skip.
+//!   Named, not sampled.
+//!
+//! A record or candidate outside a certifier's lane refuses
+//! [`ValidationError::CensusUnsupported`], never samples.
 //!
 //! **Sense-invariant** (M5 S10 audit). Every use of a face's plane
 //! `normal` here is either an on-plane residual compared against
@@ -105,35 +136,42 @@ struct FaceGeo<T: Real> {
     boundary: BTreeSet<VertexKey>,
 }
 
-/// The census snapshot: every entity's exact geometry, or the typed
-/// refusal for entities outside the planar inventory.
+/// The census snapshot: the exact planar geometry the vertex-granular
+/// sweeps read, plus the curved inventory the face-granular arms own
+/// (M9-2: the census admits every carrier kind; what changes per kind
+/// is WHICH arm can certify it — module docs).
 struct Geo<T: Real> {
     verts: Vec<(VertexKey, Point3<T>)>,
     edges: Vec<EdgeGeo<T>>,
     faces: Vec<FaceGeo<T>>,
     /// Key → position (the sweeps' random-access view of `verts`).
     vmap: std::collections::BTreeMap<VertexKey, Point3<T>>,
+    /// Faces on non-`Plane` carriers — outside the exact planar
+    /// sweeps, inside the conformal face-pair arm.
+    curved_faces: Vec<FaceKey>,
+    /// Vertex → the faces whose boundary holds it (EVERY face, curved
+    /// included) — the face-granularity backing rung's incidence.
+    vertex_faces: std::collections::BTreeMap<VertexKey, BTreeSet<FaceKey>>,
 }
 
 /// Runs the census and the two-direction certification diff (module
 /// docs); returns every failure in deterministic sweep order. Assumes
 /// tiers 1–3-local already passed (the caller gates).
-pub(crate) fn census_and_certify<T: Decide>(
+pub(crate) fn census_and_certify<T: Decide + crate::chart_region::ChartRegionLane>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
 ) -> Vec<ValidationError> {
     let mut errors = Vec::new();
-    let geo = match snapshot(body) {
-        Ok(geo) => geo,
-        Err(errs) => return errs,
-    };
+    let geo = snapshot(body);
     let declared = Declared::index(contacts);
     sweep_vertex_vertex(&geo, &declared, band, &mut errors);
     sweep_vertex_edge(&geo, band, &mut errors);
     sweep_vertex_face(body, &geo, &declared, band, &mut errors);
     sweep_edge_face(body, &geo, &declared, band, &mut errors);
     sweep_edge_edge(&geo, &declared, band, &mut errors);
+    sweep_conformal_patches(body, &geo, &declared, band, &mut errors);
+    sweep_cross_solid_backstop(body, &geo, &declared, band, &mut errors);
     confirm_declarations(body, &geo, contacts, band, &mut errors);
     errors
 }
@@ -146,6 +184,15 @@ pub(crate) fn census_and_certify<T: Decide>(
 struct Declared {
     vv: BTreeSet<(VertexKey, VertexKey)>,
     vf: BTreeSet<(VertexKey, FaceKey)>,
+    /// Face-granularity keys (M9-2): the face pairs the body's
+    /// curve/patch records name, both orientations. A face-pair
+    /// record backs the vertex-granular events SUBORDINATE to it —
+    /// a boundary vertex of one declared face resting on the other,
+    /// the coincident vertex pairs and segment bounds along their
+    /// interface — exactly as a v-v/v-f declaration backs its own
+    /// event; the record's own geometric confirmation is the confirm
+    /// pass's (two-directional, as ever).
+    faces: BTreeSet<(FaceKey, FaceKey)>,
 }
 
 impl Declared {
@@ -159,14 +206,46 @@ impl Declared {
         for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
             vf.insert((c.vertex, c.face));
         }
-        Self { vv, vf }
+        let mut faces = BTreeSet::new();
+        for (a, b) in contacts
+            .curves
+            .iter()
+            .map(|c| (c.face_a, c.face_b))
+            .chain(contacts.patches.iter().map(|c| (c.face_a, c.face_b)))
+        {
+            faces.insert((a, b));
+            faces.insert((b, a));
+        }
+        Self { vv, vf, faces }
+    }
+
+    /// The face rung for a v-v event: some declared face pair holds
+    /// `a` on one boundary and `b` on the other.
+    fn vv_face_backed(&self, geo: &Geo<impl Real>, a: VertexKey, b: VertexKey) -> bool {
+        let (Some(fa), Some(fb)) = (geo.vertex_faces.get(&a), geo.vertex_faces.get(&b)) else {
+            return false;
+        };
+        fa.iter()
+            .any(|&ga| fb.iter().any(|&gb| self.faces.contains(&(ga, gb))))
+    }
+
+    /// The face rung for a v-on-f event: some declared face pair
+    /// holds `v` on its boundary and names `f` as the other side.
+    fn vf_face_backed(&self, geo: &Geo<impl Real>, v: VertexKey, f: FaceKey) -> bool {
+        geo.vertex_faces
+            .get(&v)
+            .is_some_and(|gs| gs.iter().any(|&g| self.faces.contains(&(g, f))))
     }
 }
 
-/// Builds the exact geometry snapshot, or the typed refusals for
-/// entities outside the planar inventory (all of them, deterministic).
-fn snapshot<T: Decide>(body: &Body<T>) -> Result<Geo<T>, Vec<ValidationError>> {
-    let mut refusals = Vec::new();
+/// Builds the geometry snapshot: exact planar entities for the
+/// vertex-granular sweeps, curved entities routed to the
+/// face-granular arms (M9-2 — the census ADMITS every carrier kind;
+/// the blanket exact-on-planar refusal retired with the census arms
+/// that replaced it, and what each arm can and cannot certify is the
+/// module-docs envelope, stated rather than sampled). Total: every
+/// entity lands in exactly one bucket, so there is no refusal path.
+fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     let verts: Vec<(VertexKey, Point3<T>)> = body
         .vertices
         .iter()
@@ -181,9 +260,9 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Result<Geo<T>, Vec<ValidationError>> {
             .map(geom_brep::EdgeCurve::carrier)
             .is_some_and(|c| matches!(c, geom_curves::Curve3::Line { .. }));
         if !line {
-            refusals.push(ValidationError::CensusUnsupported {
-                entity: EntityId::Edge(key),
-            });
+            // A curved-carrier edge is outside the exact sweeps; its
+            // contact obligations ride the face-granular records
+            // (CurveContact's confirm pass) — no blanket refusal.
             continue;
         }
         let ends = || -> Option<EdgeGeo<T>> {
@@ -214,14 +293,16 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Result<Geo<T>, Vec<ValidationError>> {
         }
     }
     let mut faces = Vec::new();
+    let mut curved_faces = Vec::new();
+    let mut vertex_faces: std::collections::BTreeMap<VertexKey, BTreeSet<FaceKey>> =
+        std::collections::BTreeMap::new();
     for (key, face) in body.faces.iter() {
-        let Some(&geom_surfaces::Surface::Plane { origin, normal, .. }) =
-            body.surfaces.get(face.surface)
-        else {
-            refusals.push(ValidationError::CensusUnsupported {
-                entity: EntityId::Face(key),
-            });
-            continue;
+        let plane = match body.surfaces.get(face.surface) {
+            Some(&geom_surfaces::Surface::Plane { origin, normal, .. }) => Some((origin, normal)),
+            _ => {
+                curved_faces.push(key);
+                None
+            }
         };
         let mut boundary = BTreeSet::new();
         for &lk in core::iter::once(&face.outer).chain(&face.rings) {
@@ -240,23 +321,29 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Result<Geo<T>, Vec<ValidationError>> {
                 }
             }
         }
-        faces.push(FaceGeo {
-            key,
-            origin,
-            normal,
-            boundary,
-        });
+        // Incidence for the face-granularity backing rung — EVERY
+        // face, curved included (a curved declared face's boundary
+        // vertices are exactly the ones its record must back).
+        for &v in &boundary {
+            vertex_faces.entry(v).or_default().insert(key);
+        }
+        if let Some((origin, normal)) = plane {
+            faces.push(FaceGeo {
+                key,
+                origin,
+                normal,
+                boundary,
+            });
+        }
     }
-    if refusals.is_empty() {
-        let vmap = verts.iter().copied().collect();
-        Ok(Geo {
-            verts,
-            edges,
-            faces,
-            vmap,
-        })
-    } else {
-        Err(refusals)
+    let vmap = verts.iter().copied().collect();
+    Geo {
+        verts,
+        edges,
+        faces,
+        vmap,
+        curved_faces,
+        vertex_faces,
     }
 }
 
@@ -314,7 +401,7 @@ fn sweep_vertex_vertex<T: Decide>(
             else {
                 continue;
             };
-            if zero && !declared.vv.contains(&(ka, kb)) {
+            if zero && !declared.vv.contains(&(ka, kb)) && !declared.vv_face_backed(geo, ka, kb) {
                 errors.push(ValidationError::UndeclaredContact {
                     contact: CensusContact::VertexVertex { a: ka, b: kb },
                     witness: witness(pa),
@@ -431,6 +518,7 @@ fn sweep_vertex_face<T: Decide>(
             // escalations (pushed) need nothing more here.
             if contain(body, f, q, band, errors) == Some(FaceContainment::In)
                 && !declared.vf.contains(&(vk, f.key))
+                && !declared.vf_face_backed(geo, vk, f.key)
             {
                 errors.push(ValidationError::UndeclaredContact {
                     contact: CensusContact::VertexOnFace {
@@ -499,7 +587,10 @@ fn ef_bound_backed<T: Decide>(
     let Some(ve) = edge_vertex_at(e, s, band, errors) else {
         return false; // interior bound: the v-on-e lane already fired
     };
-    if declared.vf.contains(&(ve, f.key)) || f.boundary.contains(&ve) {
+    if declared.vf.contains(&(ve, f.key))
+        || f.boundary.contains(&ve)
+        || declared.vf_face_backed(geo, ve, f.key)
+    {
         return true;
     }
     let q = e.p0 + e.dir * s;
@@ -681,7 +772,7 @@ fn sweep_edge_edge<T: Decide>(
                 errors,
             ) {
                 Some(false) => ee_crossing_lane(ea, eb, ncross, band, errors),
-                Some(true) => ee_collinear_lane(ea, eb, declared, band, errors),
+                Some(true) => ee_collinear_lane(ea, eb, geo, declared, band, errors),
                 None => {}
             }
         }
@@ -734,6 +825,7 @@ fn ee_crossing_lane<T: Decide>(
 fn ee_collinear_lane<T: Decide>(
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
+    geo: &Geo<T>,
     declared: &Declared,
     band: Band,
     errors: &mut Vec<ValidationError>,
@@ -767,8 +859,8 @@ fn ee_collinear_lane<T: Decide>(
             return;
         }
     }
-    let backed = ee_bound_backed(ea, eb, lo, declared, band, errors)
-        && ee_bound_backed(ea, eb, hi, declared, band, errors);
+    let backed = ee_bound_backed(ea, eb, lo, geo, declared, band, errors)
+        && ee_bound_backed(ea, eb, hi, geo, declared, band, errors);
     if !backed {
         let half = T::from_f64(0.5);
         errors.push(ValidationError::UndeclaredContact {
@@ -788,6 +880,7 @@ fn ee_bound_backed<T: Decide>(
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
     s: T,
+    geo: &Geo<T>,
     declared: &Declared,
     band: Band,
     errors: &mut Vec<ValidationError>,
@@ -800,13 +893,526 @@ fn ee_bound_backed<T: Decide>(
     let Some(vb) = edge_vertex_at(eb, sb, band, errors) else {
         return false;
     };
-    va == vb || declared.vv.contains(&(va, vb))
+    va == vb || declared.vv.contains(&(va, vb)) || declared.vv_face_backed(geo, va, vb)
+}
+
+/// **The conformal face-pair arm** (M9-2, C2's structural rung run as
+/// a census sweep): for every pair of CURVED faces sharing one
+/// `SurfaceKey` with OPPOSED senses — the only configuration that is
+/// conformal contact (C1: aligned coincidence is containment/flush,
+/// `SameOriented`, and is not contact) — the trim regions' overlap is
+/// decided in the shared chart through the PR-1 predicate.
+///
+/// Scope, stated exactly:
+///
+/// - **Curved faces only.** Planar conformal interfaces are already
+///   fully evidenced at vertex granularity by the exact sweeps (their
+///   every boundary event is a v-v/v-f/segment finding those passes
+///   report and records back), so the face-pair arm exists for the
+///   inventory the exact sweeps cannot read.
+/// - **Shared key only.** C2's identity lemma makes every true
+///   conformal contact same-carrier for analytic kinds, and within
+///   ONE body the structural rung IS key identity; value-equal
+///   independent descriptions do not glue (the ladder), and the
+///   declared rung's face pairs are the confirm pass's business.
+/// - **What stays outside this arm** (module docs carry the full
+///   envelope): distinct-key pairs. Cross-solid ones are caught by
+///   the conservative loudness backstop
+///   ([`sweep_cross_solid_backstop`] — refused undecidable, never
+///   silently passed); same-solid distinct-key pairs and pure
+///   tangency classes are the named residue until the C9 exclusion
+///   ring lands (CONTACT-DESIGN C2 step 1's missing first step).
+///
+/// A definitely-positive overlap is a FINDING — the kernel
+/// vocabulary's [`crate::contact::ContactFinding`], carried on the
+/// refusal so the recourse can quote exactly what would verify —
+/// and, unbacked by a face-granularity record, refuses as
+/// `UndeclaredContact` (discovery is never declaration, F1).
+fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    declared: &Declared,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
+    use crate::geometry::SurfaceKey;
+    // Group the curved faces by carrier key (arena order, D9).
+    let mut by_key: std::collections::BTreeMap<SurfaceKey, Vec<FaceKey>> =
+        std::collections::BTreeMap::new();
+    for &f in &geo.curved_faces {
+        if let Some(face) = body.get_face(f) {
+            by_key.entry(face.surface).or_default().push(f);
+        }
+    }
+    for group in by_key.values() {
+        for (i, &fa) in group.iter().enumerate() {
+            for &fb in &group[i + 1..] {
+                let (Some(da), Some(db)) = (body.get_face(fa), body.get_face(fb)) else {
+                    continue;
+                };
+                if da.sense == db.sense {
+                    continue; // SameOriented: flush material, not contact (C1)
+                }
+                match T::chart_overlap(body, fa, body, fb, band) {
+                    None => {
+                        // No bracket lane at this scalar (dual): the
+                        // pair cannot be decided — typed, never silent.
+                        errors.push(ValidationError::CensusUnsupported {
+                            entity: EntityId::Face(fa),
+                        });
+                    }
+                    Some(Ok(crate::chart_region::ChartOverlap::Empty)) => {}
+                    Some(Ok(crate::chart_region::ChartOverlap::PositiveArea)) => {
+                        if !declared.faces.contains(&(fa, fb)) {
+                            let finding = crate::contact::ContactFinding {
+                                pair: crate::contact::DeclaredContact {
+                                    a: fa,
+                                    b: fb,
+                                    class: crate::contact::ContactClass::Rest,
+                                },
+                                verdict: crate::contact::ContactVerdict::Definite,
+                            };
+                            errors.push(ValidationError::UndeclaredContact {
+                                contact: CensusContact::ConformalPatch { finding },
+                                witness: format!("{fa:?}~{fb:?}"),
+                            });
+                        }
+                    }
+                    Some(Err(crate::chart_region::ChartRegionError::Escalated(cause))) => {
+                        errors.push(ValidationError::CensusEscalated { cause });
+                    }
+                    Some(Err(_)) => {
+                        // Typed predicate refusals (unbounded arms, seam
+                        // branches, non-planar trims, touching
+                        // boundaries): the pair is outside the certified
+                        // overlap lane — refused as unsupported
+                        // inventory, never skipped silently.
+                        errors.push(ValidationError::CensusUnsupported {
+                            entity: EntityId::Face(fa),
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// **The conservative loudness backstop** (M9-2 union fix F1): the
+/// census must DECIDE or REFUSE — it must never silently not-examine
+/// (A5's letter). Two cross-solid candidate classes have no examining
+/// arm yet, and both fire a typed [`ValidationError::CensusUndecidable`]
+/// here instead of passing silently:
+///
+/// 1. **Proximity** (the C9-ring conformal-rest / partial-embedding
+///    class): a pair of faces from DIFFERENT solids, at least one
+///    curved (F5: curved × planar included — a revolved cap embedded
+///    in a plate's slab leaves no vertex/line/planar evidence), not
+///    vertex-adjacent, whose reach boxes cannot be definitely
+///    separated. Distinct-key value-equal carriers in conformal rest
+///    (the cradle witness), value-equal walls at gap zero
+///    (boss-in-hole), and the embedded ball cap (the delta witness)
+///    land here; the certified excluder this stands in for is the C9
+///    exclusion ring. The reach boxes are SOUND per-kind supersets
+///    (`reach_box` — the `boolean::boxes::face_box` construction:
+///    plane hull ⊕ largest boundary-arc radius, cylinder axial span
+///    ⊕ radius, the sphere's whole ball); cone/torus/NURBS have no
+///    sound cheap box and their pairs refuse WITHOUT a distance test
+///    (the `separation.rs` poison posture). A planar face vf-NAMED
+///    by the other solid's records defers to the confirm pass (the
+///    declared boss-on-plate class).
+/// 2. **Instance containment** (C6's interference class): one solid's
+///    vertex-extent box contained in another's — a nested placement
+///    makes no boundary event at all (the reviewed nested-cube
+///    witness), and interference is representable only through C6's
+///    recorded gate-skips, which do not exist yet.
+///
+/// Both arms clear a pair ONLY on a definitely-positive separation
+/// margin (`census_backstop_gap` / `census_backstop_containment` —
+/// metre coordinate differences); anything weaker refuses. Planar ×
+/// planar pairs are NOT backstopped: a solid bounded by planes has
+/// straight edges at its face junctions, so planar-only overlap and
+/// touch always leave the vertex/line/planar evidence the exact
+/// sweeps examine.
+///
+/// **Jurisdiction, exactly** (a backstop refuses only what NO arm
+/// examines): same-`SurfaceKey` face pairs are the conformal arm's
+/// candidates and are skipped here; record-NAMED face pairs are the
+/// patch/curve certifier's (a cross-key record escalates loudly
+/// there — skipping it here loses no loudness); and a solid pair
+/// BRIDGED by any contact record (vv, v-on-f, curve, patch) is
+/// under the confirm pass's examination — its records either
+/// confirm (the declared touching class) or error as
+/// stale/contradicted, so the containment arm defers to that
+/// verdict rather than double-refusing a certified assembly.
+fn sweep_cross_solid_backstop<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    declared: &Declared,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
+    use crate::entity::{FaceKey as FK, ShellKey, SolidKey};
+    if body.solids().count() < 2 {
+        return; // single-solid bodies have no cross-solid pairs
+    }
+    let solid_of = |f: FK| -> Option<SolidKey> {
+        let shell: ShellKey = body.get_face(f)?.shell;
+        Some(body.get_shell(shell)?.solid)
+    };
+    // Boundary-vertex hull of a face (every loop), as raw points.
+    let face_points = |f: FK| -> Vec<Point3<T>> {
+        let mut out = Vec::new();
+        let Some(face) = body.get_face(f) else {
+            return out;
+        };
+        for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+            let Some(loop_) = body.loops.get(lk) else {
+                continue;
+            };
+            let LoopBoundary::Cycle { first } = loop_.boundary else {
+                continue;
+            };
+            let Some(cycle) = body.loop_cycle(first) else {
+                continue;
+            };
+            for he in cycle {
+                if let Some(hd) = body.half_edges.get(he)
+                    && let Some(v) = body.vertices.get(hd.start)
+                    && let Some(p) = body.points.get(v.point)
+                {
+                    out.push(*p);
+                }
+            }
+        }
+        out
+    };
+    let hull = |pts: &[Point3<T>]| -> Option<(Point3<T>, Point3<T>)> {
+        let mut it = pts.iter();
+        let first = *it.next()?;
+        let (mut lo, mut hi) = (first, first);
+        for p in it {
+            lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
+            hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
+        }
+        Some((lo, hi))
+    };
+    // Per-kind bulge pad (doc comment): how far the face can reach
+    // beyond its boundary-vertex hull.
+    // The per-kind SOUND reach box (F5 delta refinement — the
+    // `boolean::boxes::face_box` construction re-derived in the
+    // evaluation lane, after the isotropic vertex-hull+pad filter
+    // falsely refused the corpus's cube-beside-cylinder file):
+    //
+    // - Plane: the boundary-vertex hull, padded by the largest
+    //   boundary-arc radius (a straight edge lies in the hull; a
+    //   circular/elliptic arc bulges at most its radius/semi-major
+    //   from its chord; the face interior lies in the hull of its
+    //   boundary). A planar face with any OTHER curved boundary kind
+    //   has no cheap sound pad — `None`.
+    // - Cylinder: boundary vertices' axial span, swept along the
+    //   axis and widened by the radius in every component — sound
+    //   because the surface is ruled (interior points lie on ruling
+    //   segments between boundary points, so the axial extent is the
+    //   boundary's) and every surface point is within r of the axis.
+    // - Sphere: the whole ball, center ± r — every surface point is
+    //   within r of the center (the S13 `face_box` posture).
+    // - Cone / Torus / described NURBS: no cheap sound box — `None`,
+    //   and the pair REFUSES without a distance test (the
+    //   `separation.rs` poison posture: refuse to claim a reach
+    //   rather than under-claim one).
+    let plane_arc_pad = |f: FK| -> Option<T> {
+        let face = body.get_face(f)?;
+        let mut pad = T::zero();
+        for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+            let l = body.loops.get(lk)?;
+            let LoopBoundary::Cycle { first } = l.boundary else {
+                continue;
+            };
+            for he in body.loop_cycle(first)? {
+                let ek = body.half_edges.get(he)?.edge;
+                let curve = body.edges.get(ek).and_then(|e| body.curves.get(e.curve));
+                match curve
+                    .and_then(CurveGeom::certified)
+                    .map(geom_brep::EdgeCurve::carrier)
+                {
+                    Some(geom_curves::Curve3::Line { .. }) => {}
+                    Some(geom_curves::Curve3::Circle { radius, .. }) => pad = pad.max(*radius),
+                    Some(geom_curves::Curve3::Ellipse { major, .. }) => pad = pad.max(*major),
+                    _ => return None,
+                }
+            }
+        }
+        Some(pad)
+    };
+    let reach_box = |f: FK, pts: &[Point3<T>]| -> Option<(Point3<T>, Point3<T>)> {
+        match body.get_face(f).and_then(|d| body.surfaces.get(d.surface)) {
+            Some(geom_surfaces::Surface::Plane { .. }) => {
+                let (lo, hi) = hull(pts)?;
+                let p = plane_arc_pad(f)?;
+                Some((
+                    Point3::new(lo.x - p, lo.y - p, lo.z - p),
+                    Point3::new(hi.x + p, hi.y + p, hi.z + p),
+                ))
+            }
+            Some(geom_surfaces::Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            }) => {
+                let mut it = pts.iter();
+                let first = it.next()?;
+                let h0 = (*first - *origin).dot(*axis);
+                let (mut h_min, mut h_max) = (h0, h0);
+                for p in it {
+                    let h = (*p - *origin).dot(*axis);
+                    h_min = h_min.min(h);
+                    h_max = h_max.max(h);
+                }
+                let a = *origin + *axis * h_min;
+                let b = *origin + *axis * h_max;
+                let r = *radius;
+                Some((
+                    Point3::new(a.x.min(b.x) - r, a.y.min(b.y) - r, a.z.min(b.z) - r),
+                    Point3::new(a.x.max(b.x) + r, a.y.max(b.y) + r, a.z.max(b.z) + r),
+                ))
+            }
+            Some(geom_surfaces::Surface::Sphere { center, radius, .. }) => {
+                let r = *radius;
+                Some((
+                    Point3::new(center.x - r, center.y - r, center.z - r),
+                    Point3::new(center.x + r, center.y + r, center.z + r),
+                ))
+            }
+            _ => None,
+        }
+    };
+
+    // Arm 1: cross-solid proximity — curved × curved AND (F5) curved
+    // × planar; planar × planar pairs stay with the exact sweeps
+    // (planar-only solids meet along line/vertex evidence: a solid
+    // bounded by planes has straight edges at its face junctions).
+    struct Reach<T: Real> {
+        face: crate::entity::FaceKey,
+        solid: crate::entity::SolidKey,
+        /// The sound reach box (`reach_box` docs), or `None` for a
+        /// kind with no cheap sound box — its pairs refuse without a
+        /// distance test.
+        boxed: Option<(Point3<T>, Point3<T>)>,
+        verts: BTreeSet<VertexKey>,
+        planar: bool,
+    }
+    let mut reaches: Vec<Reach<T>> = Vec::new();
+    let planar_keys: Vec<FaceKey> = geo.faces.iter().map(|f| f.key).collect();
+    for (&f, planar) in geo
+        .curved_faces
+        .iter()
+        .map(|f| (f, false))
+        .chain(planar_keys.iter().map(|f| (f, true)))
+    {
+        // A placeholder surface is "no description yet" (mid-surgery
+        // scaffolding): there is no geometry to be within reach OF,
+        // and a body carrying one never reaches 3′ (the tier-3 local
+        // battery refuses it first) — excluded from the backstop.
+        if matches!(
+            body.get_face(f).and_then(|d| body.surfaces.get(d.surface)),
+            Some(geom_surfaces::Surface::Nurbs(p)) if p.is_placeholder()
+        ) {
+            continue;
+        }
+        let Some(solid) = solid_of(f) else { continue };
+        let pts = face_points(f);
+        if pts.is_empty() {
+            continue;
+        }
+        let verts = geo
+            .vertex_faces
+            .iter()
+            .filter(|(_, fs)| fs.contains(&f))
+            .map(|(&v, _)| v)
+            .collect();
+        let boxed = reach_box(f, &pts);
+        reaches.push(Reach {
+            face: f,
+            solid,
+            boxed,
+            verts,
+            planar,
+        });
+    }
+    // The record-bridged solid pairs (doc comment): any record
+    // linking a vertex/face of one solid to a vertex/face of another
+    // puts that PAIR under the confirm pass's jurisdiction.
+    let vertex_solid = |v: VertexKey| -> Option<SolidKey> {
+        geo.vertex_faces
+            .get(&v)
+            .and_then(|fs| fs.iter().next())
+            .and_then(|&f| solid_of(f))
+    };
+    let mut bridged: BTreeSet<(SolidKey, SolidKey)> = BTreeSet::new();
+    let mut bridge = |sa: Option<SolidKey>, sb: Option<SolidKey>| {
+        if let (Some(sa), Some(sb)) = (sa, sb) {
+            bridged.insert((sa, sb));
+            bridged.insert((sb, sa));
+        }
+    };
+    for &(va, vb) in &declared.vv {
+        bridge(vertex_solid(va), vertex_solid(vb));
+    }
+    for &(v, f) in &declared.vf {
+        bridge(vertex_solid(v), solid_of(f));
+    }
+    for &(fa, fb) in &declared.faces {
+        bridge(solid_of(fa), solid_of(fb));
+    }
+
+    // The vf-record deferral for the curved × planar arm (F5): a
+    // planar face NAMED by a v-on-f record whose vertex belongs to
+    // the other solid is the declared interface the confirm pass and
+    // the exact sweeps examine (the boss-on-plate acceptance class) —
+    // its curved neighbours defer to that verdict; a bogus record
+    // still errors there as stale, so nothing blesses silently.
+    let planar_face_bridged = |f_planar: FK, other: SolidKey| -> bool {
+        declared
+            .vf
+            .iter()
+            .any(|&(v, vf)| vf == f_planar && vertex_solid(v) == Some(other))
+    };
+    for (i, a) in reaches.iter().enumerate() {
+        for b in &reaches[i + 1..] {
+            if a.solid == b.solid || !a.verts.is_disjoint(&b.verts) {
+                continue; // same instance / structural adjacency
+            }
+            if a.planar && b.planar {
+                continue; // line/vertex evidence — the exact sweeps' pair
+            }
+            let same_key = body
+                .get_face(a.face)
+                .zip(body.get_face(b.face))
+                .is_some_and(|(da, db)| da.surface == db.surface);
+            if same_key || declared.faces.contains(&(a.face, b.face)) {
+                continue; // the conformal arm's / the certifier's pair
+            }
+            let vf_deferred = (a.planar && planar_face_bridged(a.face, b.solid))
+                || (b.planar && planar_face_bridged(b.face, a.solid));
+            if vf_deferred {
+                continue; // the declared interface — confirm pass's pair
+            }
+            // A kind with no sound reach box refuses without a
+            // distance test (reach_box docs — the loud direction).
+            let (Some((alo, ahi)), Some((blo, bhi))) = (a.boxed, b.boxed) else {
+                errors.push(ValidationError::CensusUndecidable {
+                    a: EntityId::Face(a.face),
+                    b: EntityId::Face(b.face),
+                    what: "a cross-solid face pair with a carrier kind that has no \
+                           sound cheap reach bound (cone/torus/NURBS, or a planar \
+                           face with a non-conic curved boundary) — the C9 \
+                           exclusion ring is the certified excluder",
+                });
+                continue;
+            };
+            // Definite separation on ANY axis clears the pair: the
+            // margin is the gap between the sound reach boxes — a
+            // metre coordinate difference (audit row).
+            let mut cleared = false;
+            for (alo, ahi, blo, bhi) in [
+                (alo.x, ahi.x, blo.x, bhi.x),
+                (alo.y, ahi.y, blo.y, bhi.y),
+                (alo.z, ahi.z, blo.z, bhi.z),
+            ] {
+                let gap = (blo - ahi).max(alo - bhi);
+                if matches!(
+                    decide("census_backstop_gap", Margin::of(gap), band),
+                    Ok(Sign::Positive)
+                ) {
+                    cleared = true;
+                    break;
+                }
+            }
+            if !cleared {
+                errors.push(ValidationError::CensusUndecidable {
+                    a: EntityId::Face(a.face),
+                    b: EntityId::Face(b.face),
+                    what: "cross-solid faces within reach (curved against curved or \
+                           planar) — the conformal-rest / proximity / partial-embedding \
+                           class the C9 exclusion ring will examine",
+                });
+            }
+        }
+    }
+
+    // Arm 2: instance containment (vertex-extent boxes per solid).
+    let mut solid_boxes: std::collections::BTreeMap<SolidKey, (Point3<T>, Point3<T>)> =
+        std::collections::BTreeMap::new();
+    for (f, _) in body.faces.iter() {
+        let Some(solid) = solid_of(f) else { continue };
+        let pts = face_points(f);
+        let Some((lo, hi)) = hull(&pts) else { continue };
+        solid_boxes
+            .entry(solid)
+            .and_modify(|(l, h)| {
+                *l = Point3::new(l.x.min(lo.x), l.y.min(lo.y), l.z.min(lo.z));
+                *h = Point3::new(h.x.max(hi.x), h.y.max(hi.y), h.z.max(hi.z));
+            })
+            .or_insert((lo, hi));
+    }
+    let solids: Vec<_> = solid_boxes.iter().collect();
+    for (i, &(&sa, (alo, ahi))) in solids.iter().enumerate() {
+        for &(&sb, (blo, bhi)) in solids.iter().skip(i + 1) {
+            if bridged.contains(&(sa, sb)) {
+                continue; // under the confirm pass's jurisdiction
+            }
+            for (outer, inner, olo, ohi, ilo, ihi) in
+                [(sa, sb, alo, ahi, blo, bhi), (sb, sa, blo, bhi, alo, ahi)]
+            {
+                // Containment of `inner` in `outer`: all six extent
+                // margins definitely positive ⇒ the interference
+                // class; ANY definitely negative ⇒ clear; anything
+                // weaker (a boundary-flush box) refuses too — only a
+                // definite verdict clears (conservative direction).
+                let margins = [
+                    ilo.x - olo.x,
+                    ohi.x - ihi.x,
+                    ilo.y - olo.y,
+                    ohi.y - ihi.y,
+                    ilo.z - olo.z,
+                    ohi.z - ihi.z,
+                ];
+                let mut cleared = false;
+                let mut all_positive = true;
+                for m in margins {
+                    match decide("census_backstop_containment", Margin::of(m), band) {
+                        Ok(Sign::Positive) => {}
+                        Ok(Sign::Negative) => {
+                            cleared = true;
+                            all_positive = false;
+                            break;
+                        }
+                        _ => all_positive = false,
+                    }
+                }
+                if !cleared {
+                    errors.push(ValidationError::CensusUndecidable {
+                        a: EntityId::Solid(outer),
+                        b: EntityId::Solid(inner),
+                        what: if all_positive {
+                            "one instance's extent box inside another's — C6's \
+                             interference class (recorded gate-skips do not exist yet)"
+                        } else {
+                            "instance extent boxes not definitely separable from \
+                             containment — the same C6 interference class, in band"
+                        },
+                    });
+                }
+            }
+        }
+    }
 }
 
 /// The confirmation direction of the certification diff: every
 /// declaration must have a geometric witness — dead keys, equal keys,
 /// and coincidence-free records are stale, typed.
-fn confirm_declarations<T: Decide>(
+fn confirm_declarations<T: Decide + crate::chart_region::ChartRegionLane>(
     body: &Body<T>,
     geo: &Geo<T>,
     contacts: &ContactRecords,
@@ -873,11 +1479,24 @@ fn confirm_declarations<T: Decide>(
 /// site runs (`contact_pair_verdict`, class `Tangent`, along the
 /// witness edge's own carrier) — the at-rest gate and the verify-at-use
 /// gate share the door rather than mirroring it, so a false contact
-/// cannot be silent at one and loud at the other. A `PatchContact` is
-/// refused typed: its chart-space area certifier does not exist yet,
-/// and blessing an uncertifiable record at rest is exactly the
-/// scan-to-bless the census bans.
-fn confirm_curve_and_patch_records<T: Decide>(
+/// cannot be silent at one and loud at the other. A `PatchContact`
+/// (M9-2: the certifier the record's docs promised) confirms through
+/// the SAME two doors its certification obligation names: the `Rest`
+/// carrier/sense door (`contact_pair_verdict` — carrier identity
+/// through the kind ladder with the record standing as the
+/// declaration, senses opposed, aligned coincidence contradicted) and
+/// the chart-region overlap predicate (region overlap in the shared
+/// chart with definitely-positive area). Overlap `Empty` ⇒ the record
+/// is STALE (C3's letter); an in-band overlap escalates; a pair the
+/// predicate refuses typed (no exact-constant-arm chart, seam-branch
+/// divergence, non-planar trims) is unsupported inventory — refused,
+/// never sampled, never blessed.
+///
+/// ASM R2-b consumes exactly this pass (ASM-R2-SPEC-DRAFT:39-58): a
+/// mate's declaration lands in the product body's `ContactRecords` —
+/// the boolean 3′ currency, same type, no adapter — and THIS is the
+/// at-rest evidence door those records certify through.
+fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionLane>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
@@ -939,12 +1558,404 @@ fn confirm_curve_and_patch_records<T: Decide>(
         }
     }
     for c in &contacts.patches {
-        // The stated posture (see `PatchContact`): no chart-space
-        // overlap predicate exists, so a patch record cannot be
-        // confirmed and is never blessed by default.
-        let _ = c;
-        errors.push(ValidationError::CensusUnsupported {
-            entity: EntityId::Face(c.face_a),
+        let stale = ValidationError::StaleContactDeclaration {
+            declaration: StaleDeclaration::Patch {
+                face_a: c.face_a,
+                face_b: c.face_b,
+            },
+        };
+        if body.get_face(c.face_a).is_none() || body.get_face(c.face_b).is_none() {
+            errors.push(stale);
+            continue;
+        }
+        // Door 1 — carrier identity + opposed senses, the record
+        // standing as its own declaration (C3: rung 2/3, never
+        // value-equal; aligned coincidence contradicts).
+        match crate::boolean::contact_pair_verdict(
+            body,
+            c.face_a,
+            body,
+            c.face_b,
+            crate::contact::ContactClass::Rest,
+            None,
+            band,
+        ) {
+            Ok(_) => {}
+            Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
+                errors.push(ValidationError::ContactContradicted {
+                    declaration: crate::contact::DeclaredContact {
+                        a: c.face_a,
+                        b: c.face_b,
+                        class: crate::contact::ContactClass::Rest,
+                    },
+                    witness: format!("{:?}~{:?}", c.face_a, c.face_b),
+                    margin: diag,
+                    steer,
+                });
+                continue;
+            }
+            Err(crate::contact::ContactRefusal::Escalated { diag })
+            | Err(crate::contact::ContactRefusal::Undeclared { diag }) => {
+                errors.push(ValidationError::CensusEscalated { cause: diag });
+                continue;
+            }
+            Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
+                errors.push(ValidationError::CensusUnsupported {
+                    entity: EntityId::Face(c.face_a),
+                });
+                continue;
+            }
+        }
+        // Door 2 — region overlap in the shared chart, definitely
+        // positive (the PR-1 predicate through the per-scalar lane).
+        match T::chart_overlap(body, c.face_a, body, c.face_b, band) {
+            None => {
+                errors.push(ValidationError::CensusUnsupported {
+                    entity: EntityId::Face(c.face_a),
+                });
+            }
+            Some(Ok(crate::chart_region::ChartOverlap::PositiveArea)) => {}
+            Some(Ok(crate::chart_region::ChartOverlap::Empty)) => errors.push(stale),
+            Some(Err(crate::chart_region::ChartRegionError::Escalated(cause))) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+            }
+            Some(Err(_)) => {
+                errors.push(ValidationError::CensusUnsupported {
+                    entity: EntityId::Face(c.face_a),
+                });
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    //! The conformal face-pair arm and the patch-record certifier,
+    //! pinned at the census door itself: the fixtures are open
+    //! euler-built sheet scaffolds (the PR-1 chart fixtures'
+    //! pattern), below tier 3's closed-body bar — which is exactly
+    //! why these rows call [`census_and_certify`] directly. The
+    //! closed-body end-to-end rows live in the acceptance suites.
+    use super::*;
+    use crate::boolean::PatchContact;
+    use crate::entity::FaceKey;
+    use crate::euler::{FaceSurface, MefSite, MevSite};
+    use geom_core::Vec3;
+    use geom_surfaces::Surface;
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    fn cyl_surface() -> Surface<f64> {
+        Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    fn cyl_pt(u: f64, z: f64) -> Point3<f64> {
+        Point3::new(u.cos(), u.sin(), z)
+    }
+
+    /// An open cylinder-wall sheet `u ∈ [u0, u1] × z ∈ [z0, z1]` on
+    /// the shared key, with the wall face's sense set.
+    fn cyl_sheet(
+        body: &mut Body<f64>,
+        cyl: Option<crate::geometry::SurfaceKey>,
+        u0: f64,
+        u1: f64,
+        z0: f64,
+        z1: f64,
+        sense: bool,
+    ) -> (FaceKey, crate::geometry::SurfaceKey) {
+        use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+        use geom_curves::Curve3;
+        let (p00, p10, p11, p01) = (
+            cyl_pt(u0, z0),
+            cyl_pt(u1, z0),
+            cyl_pt(u1, z1),
+            cyl_pt(u0, z1),
+        );
+        let seed = body.mvfs(p00).unwrap();
+        let cyl = cyl.unwrap_or_else(|| body.add_surface(cyl_surface()));
+        let rim = |body: &mut Body<f64>, z: f64, ccw: bool| {
+            let plane = body.add_surface(Surface::Plane {
+                origin: Point3::new(0.0, 0.0, z),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            });
+            let (carrier, t0, t1) = if ccw {
+                (
+                    Curve3::Circle {
+                        center: Point3::new(0.0, 0.0, z),
+                        axis: Vec3::unit_z(),
+                        radius: 1.0,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    u0,
+                    u1,
+                )
+            } else {
+                (
+                    Curve3::Circle {
+                        center: Point3::new(0.0, 0.0, z),
+                        axis: Vec3::new(0.0, 0.0, -1.0),
+                        radius: 1.0,
+                        u_ref: Vec3::new(u1.cos(), u1.sin(), 0.0),
+                    },
+                    0.0,
+                    u1 - u0,
+                )
+            };
+            EdgeCurveSpec {
+                description: EdgeGeometry::Intersection {
+                    s1: cyl,
+                    s2: plane,
+                    witness: cyl_pt((u0 + u1) * 0.5, z),
+                },
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        let bottom = rim(body, z0, true);
+        let e_b = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p10,
+                bottom,
+            )
+            .unwrap();
+        let e_r = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: e_b.he_minus,
+                    he2: e_b.he_minus,
+                },
+                p11,
+            )
+            .unwrap();
+        let top = rim(body, z1, false);
+        let e_t = body
+            .mev(
+                MevSite::Fan {
+                    he1: e_r.he_minus,
+                    he2: e_r.he_minus,
+                },
+                p01,
+                top,
+            )
+            .unwrap();
+        let he = body
+            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
+            .unwrap();
+        let face = body
+            .mef(
+                MefSite::Chords {
+                    he1: he,
+                    he2: e_b.he_plus,
+                },
+                EdgeCurveSpec::line_between(p01, p00),
+                FaceSurface::Shared(cyl),
+            )
+            .unwrap()
+            .face;
+        body.set_face_sense(face, sense).unwrap();
+        (face, cyl)
+    }
+
+    /// Two overlapping opposed-sense wall sheets on one cylinder key.
+    fn conformal_pair() -> (Body<f64>, FaceKey, FaceKey) {
+        let mut body = Body::<f64>::new();
+        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, false);
+        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        (body, w1, w2)
+    }
+
+    #[test]
+    fn the_conformal_arm_finds_an_undeclared_pair_and_carries_the_finding() {
+        let (body, w1, w2) = conformal_pair();
+        let errors = census_and_certify(&body, &ContactRecords::default(), band());
+        let hit = errors
+            .iter()
+            .find_map(|e| match e {
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::ConformalPatch { finding },
+                    ..
+                } => Some(*finding),
+                _ => None,
+            })
+            .expect("the finding-carrying refusal: {errors:?}");
+        // The kernel finding names the pair and the class that would
+        // verify — the recourse is a quotable declaration.
+        let pair = (hit.pair.a.min(hit.pair.b), hit.pair.a.max(hit.pair.b));
+        assert_eq!(pair, (w1.min(w2), w1.max(w2)));
+        assert_eq!(hit.pair.class, crate::contact::ContactClass::Rest);
+        assert_eq!(hit.verdict, crate::contact::ContactVerdict::Definite);
+    }
+
+    #[test]
+    fn a_patch_record_backs_the_pair_and_confirms_through_both_doors() {
+        let (body, w1, w2) = conformal_pair();
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: w1,
+            face_b: w2,
         });
+        let errors = census_and_certify(&body, &records, band());
+        assert!(
+            errors.is_empty(),
+            "the declared conformal patch certifies: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn a_disjoint_patch_record_is_stale_typed() {
+        let mut body = Body::<f64>::new();
+        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (w3, _) = cyl_sheet(&mut body, Some(cyl), 3.0, 4.0, 0.0, 1.0, false);
+        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: w1,
+            face_b: w3,
+        });
+        let errors = census_and_certify(&body, &records, band());
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
+            "overlap Empty ⇒ stale (C3's letter): {errors:?}"
+        );
+    }
+
+    // ================= R1 review probes (m9-2b-r1) =================
+
+    /// R1 probe (claim 2): an IN-BAND sliver overlap must escalate at
+    /// BOTH doors — the conformal arm (undeclared direction) and the
+    /// patch-record certifier (declared direction) — never decide.
+    #[test]
+    fn r1_probe_in_band_sliver_overlap_escalates_both_directions() {
+        let mut body = Body::<f64>::new();
+        // Overlap region u ∈ [0.4, 1.4] × z ∈ [0.5, 0.5 + 5e-9]:
+        // mean width ≈ 5e-9 m, inside Band{1e-9, 1e-8}.
+        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 0.5 + 5e-9, true);
+        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.4, 1.4, 0.5, 1.0, false);
+        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        let arm = census_and_certify(&body, &ContactRecords::default(), band());
+        assert!(
+            arm.iter()
+                .any(|e| matches!(e, ValidationError::CensusEscalated { .. })),
+            "an in-band sliver must escalate at the arm: {arm:?}"
+        );
+        assert!(
+            !arm.iter().any(|e| matches!(
+                e,
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::ConformalPatch { .. },
+                    ..
+                }
+            )),
+            "an in-band sliver must never DECIDE undeclared: {arm:?}"
+        );
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: w1,
+            face_b: w2,
+        });
+        let cert = census_and_certify(&body, &records, band());
+        assert!(
+            cert.iter()
+                .any(|e| matches!(e, ValidationError::CensusEscalated { .. })),
+            "the record certifier must escalate in band: {cert:?}"
+        );
+        assert!(
+            !cert
+                .iter()
+                .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
+            "in-band is escalation, never stale: {cert:?}"
+        );
+    }
+
+    /// R1 probe (claim 1): a same-key pair AUTHORED one period apart
+    /// (u-windows on the "next branch") cannot slip the sweep — the
+    /// pcurve mint normalizes the branch, the windows overlap, and
+    /// the arm reports the undeclared conformal contact; the same
+    /// pair backed by its patch record certifies clean. (The probe
+    /// originally expected the seam-branch typed refusal here; the
+    /// mint normalizes first, so the refusal is unreachable from
+    /// euler-authored geometry — a stronger answer, pinned.)
+    #[test]
+    fn r1_probe_next_branch_windows_still_find_the_overlap() {
+        let tau = core::f64::consts::TAU;
+        let mut body = Body::<f64>::new();
+        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        // Same locus, next periodic branch; u-nested and z-nested so
+        // no strut/vertex coincidences muddy the face-pair question.
+        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.5 + tau, 1.2 + tau, 0.3, 0.7, false);
+        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        let arm = census_and_certify(&body, &ContactRecords::default(), band());
+        assert!(
+            arm.iter().any(|e| matches!(
+                e,
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::ConformalPatch { .. },
+                    ..
+                }
+            )),
+            "the next-branch authoring must not evade the arm: {arm:?}"
+        );
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: w1,
+            face_b: w2,
+        });
+        let cert = census_and_certify(&body, &records, band());
+        assert!(
+            cert.is_empty(),
+            "the backed next-branch pair certifies: {cert:?}"
+        );
+    }
+
+    #[test]
+    fn an_aligned_same_sense_patch_record_is_contradicted() {
+        // Same key, SAME sense: aligned coincidence is containment or
+        // flush material, never contact (C1) — the record lies.
+        let mut body = Body::<f64>::new();
+        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, true);
+        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: w1,
+            face_b: w2,
+        });
+        let errors = census_and_certify(&body, &records, band());
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
+            "{errors:?}"
+        );
+        // And the ARM stays quiet on the aligned pair: SameOriented
+        // is flush, not a conformal candidate.
+        let arm_only = census_and_certify(&body, &ContactRecords::default(), band());
+        assert!(
+            !arm_only.iter().any(|e| matches!(
+                e,
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::ConformalPatch { .. },
+                    ..
+                }
+            )),
+            "{arm_only:?}"
+        );
     }
 }

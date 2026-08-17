@@ -594,6 +594,259 @@ pub fn carrier_pair_verdict<T: Decide>(
     ))
 }
 
+/// **The certified-lane tangent LOCUS** (M9-2, the M9-1 PR-2 DEV-1
+/// ruling): the closed-form contact line of a tangent carrier pair,
+/// for exactly the configurations whose locus IS closed-form — a
+/// plane and a cylinder tangent along a ruling, and two PARALLEL
+/// cylinders tangent along the line between closest generators.
+///
+/// This is GEOMETRY, and it lives beside [`carrier_pair_relation`]
+/// because its consumers are that door's: the LIB flush detector's
+/// `Tangent` arm (its named follow-up — a tangency finding without a
+/// locus is one the verifier cannot check, so the detector waits on
+/// THIS helper) and any at-rest verification that must mint the
+/// witness a `Tangent` declaration is verified along.
+#[derive(Clone, Copy, Debug)]
+pub enum TangentLocus<T: geom_core::Real> {
+    /// The tangent line: `origin + t·dir`, `dir` unit (both certified
+    /// carriers are ruled along it).
+    Line {
+        /// A point on the locus.
+        origin: geom_core::Point3<T>,
+        /// The locus direction (the shared ruling / axis direction).
+        dir: geom_core::Vec3<T>,
+    },
+}
+
+/// Typed refusal of [`tangent_locus`] (closed enum, D3 style).
+#[derive(Debug)]
+pub enum TangentLocusError {
+    /// A margin landed in the sliver band.
+    Escalated(geom_core::Indeterminate),
+    /// The pair is definitely NOT tangent: `apart` distinguishes the
+    /// definite-clearance side from the definite-crossing side.
+    NotTangent {
+        /// `true`: definite clearance; `false`: definite crossing.
+        apart: bool,
+    },
+    /// The configuration is outside the closed-form lane (kinds other
+    /// than plane×cylinder / parallel cylinders, or a non-parallel
+    /// axis relation): the demanded set IS the certifiable set — no
+    /// sampled locus, ever.
+    Unsupported {
+        /// Why the configuration has no closed-form locus.
+        what: &'static str,
+    },
+}
+
+/// The closed-form tangent locus of two carriers (see
+/// [`TangentLocus`]). Kind dispatch is structural; every numeric
+/// decision is a named three-outcome row:
+///
+/// - `tangent_locus_axis_parallel` — the axis/plane (or axis/axis)
+///   angular deviation `|d × n̂|` (a sine of unit vectors) levered by
+///   the **1 m verification arm** ([`carrier_pair_relation`]'s own,
+///   living here and nowhere else): tangency along an unbounded
+///   ruling is a carrier-level claim, metered at the same arm the
+///   carrier ladder meters its parallelism rungs.
+/// - `tangent_locus_gap` — the metre gap at the tangency: for
+///   plane×cylinder the axis-to-plane distance minus the radius; for
+///   parallel cylinders the axis-to-axis distance minus `r1 + r2`
+///   (external) falling back to `|r1 − r2|` (internal). Zero ⇒
+///   tangent (the locus mints); Positive ⇒ definitely apart;
+///   Negative ⇒ definitely crossing.
+///
+/// # Errors
+///
+/// [`TangentLocusError`] — escalation, definite non-tangency, or a
+/// configuration outside the closed-form lane.
+pub fn tangent_locus<T: Decide>(
+    a: &geom_surfaces::Surface<T>,
+    b: &geom_surfaces::Surface<T>,
+    band: Band,
+) -> Result<TangentLocus<T>, TangentLocusError> {
+    use geom_surfaces::Surface;
+    let arm = T::one();
+    let escalate = TangentLocusError::Escalated;
+    match (a, b) {
+        (
+            Surface::Plane { origin, normal, .. },
+            Surface::Cylinder {
+                origin: co,
+                axis,
+                radius,
+                ..
+            },
+        )
+        | (
+            Surface::Cylinder {
+                origin: co,
+                axis,
+                radius,
+                ..
+            },
+            Surface::Plane { origin, normal, .. },
+        ) => {
+            // Ruling tangency needs the axis IN the plane's direction
+            // space: |axis · n̂| is the sine of the axis' elevation.
+            match decide(
+                "tangent_locus_axis_parallel",
+                Margin::levered(axis.dot(*normal).abs(), arm),
+                band,
+            )
+            .map_err(escalate)?
+            {
+                Sign::Zero => {}
+                _ => {
+                    return Err(TangentLocusError::Unsupported {
+                        what: "plane×cylinder tangency is closed-form only along a ruling — \
+                               the axis must lie in the plane's direction space",
+                    });
+                }
+            }
+            // Signed axis-to-plane height; its SIGN picks the tangent
+            // generator, its magnitude minus r is the tangency gap.
+            let h = (*co - *origin).dot(*normal);
+            let side = match decide("tangent_locus_side", Margin::of(h), band).map_err(escalate)? {
+                Sign::Positive => T::one(),
+                Sign::Negative => T::zero() - T::one(),
+                Sign::Zero => {
+                    // Axis ON the plane: the cylinder definitely
+                    // crosses (both sides pierce).
+                    return Err(TangentLocusError::NotTangent { apart: false });
+                }
+            };
+            match decide("tangent_locus_gap", Margin::of(h.abs() - *radius), band)
+                .map_err(escalate)?
+            {
+                Sign::Zero => Ok(TangentLocus::Line {
+                    origin: *co - *normal * (side * *radius),
+                    dir: *axis,
+                }),
+                Sign::Positive => Err(TangentLocusError::NotTangent { apart: true }),
+                Sign::Negative => Err(TangentLocusError::NotTangent { apart: false }),
+            }
+        }
+        (
+            Surface::Cylinder {
+                origin: o1,
+                axis: a1,
+                radius: r1,
+                ..
+            },
+            Surface::Cylinder {
+                origin: o2,
+                axis: a2,
+                radius: r2,
+                ..
+            },
+        ) => {
+            match decide(
+                "tangent_locus_axis_parallel",
+                Margin::levered(a1.cross(*a2).norm(), arm),
+                band,
+            )
+            .map_err(escalate)?
+            {
+                Sign::Zero => {}
+                _ => {
+                    return Err(TangentLocusError::Unsupported {
+                        what: "cylinder×cylinder tangency is closed-form only for PARALLEL \
+                               axes (the generator line); skew/crossing axes are outside \
+                               the lane",
+                    });
+                }
+            }
+            // Perpendicular axis-to-axis offset (the axis LINE datum,
+            // the carrier ladder's own construction).
+            let delta = *o2 - *o1;
+            let w = delta - *a1 * delta.dot(*a1);
+            let dist = w.norm();
+            // External tangency first (|w| = r1 + r2): the common case
+            // and the flush detector's; internal (|w| = |r1 − r2|)
+            // second. Fixed probe order (D9).
+            match decide("tangent_locus_gap", Margin::of(dist - (*r1 + *r2)), band)
+                .map_err(escalate)?
+            {
+                Sign::Zero => {
+                    let w_hat = w.normalize();
+                    return Ok(TangentLocus::Line {
+                        origin: *o1 + w_hat * *r1,
+                        dir: *a1,
+                    });
+                }
+                Sign::Positive => return Err(TangentLocusError::NotTangent { apart: true }),
+                Sign::Negative => {}
+            }
+            match decide(
+                "tangent_locus_gap",
+                Margin::of((*r1 - *r2).abs() - dist),
+                band,
+            )
+            .map_err(escalate)?
+            {
+                Sign::Zero => {
+                    // Internal tangency: the smaller cylinder rests
+                    // inside the larger; the generator sits on the
+                    // offset direction at the LARGER radius from the
+                    // larger axis. With coaxial axes (dist in the
+                    // zero band AND radii in the zero band) the locus
+                    // direction is ill-posed — refuse typed.
+                    match decide("tangent_locus_side", Margin::of(dist), band).map_err(escalate)? {
+                        Sign::Positive => {}
+                        _ => {
+                            return Err(TangentLocusError::Unsupported {
+                                what: "coaxial equal-radius cylinders have no isolated \
+                                       tangent generator (conformal contact is Rest, \
+                                       not Tangent)",
+                            });
+                        }
+                    }
+                    // Which cylinder contains which decides the
+                    // generator's side (derived: with ŵ = o1→o2 and
+                    // |w| = |r1 − r2|, the touch point is
+                    // P = o1 + ŵ·r1 when r1 > r2 — c2 inside c1 —
+                    // and P = o1 − ŵ·r1 when r1 < r2, both from
+                    // collinearity of P, o1, o2 with |P−o1| = r1,
+                    // |P−o2| = r2). The side is DECIDED, never an
+                    // evaluation-lane comparison.
+                    let w_hat = w.normalize();
+                    let sign = match decide("tangent_locus_side", Margin::of(*r1 - *r2), band)
+                        .map_err(escalate)?
+                    {
+                        Sign::Positive => T::one(),
+                        Sign::Negative => T::zero() - T::one(),
+                        Sign::Zero => {
+                            return Err(TangentLocusError::Unsupported {
+                                what: "equal-radius internal tangency contradicts the \
+                                       definite axis offset — no closed-form generator",
+                            });
+                        }
+                    };
+                    Ok(TangentLocus::Line {
+                        origin: *o1 + w_hat * (sign * *r1),
+                        dir: *a1,
+                    })
+                }
+                // dist < |r1 − r2|: one cylinder NESTED strictly
+                // inside the other — the surfaces definitely do NOT
+                // meet (their minimum distance is |r1 − r2| − dist,
+                // definitely positive here): APART, not crossing
+                // (union fix F3 — the pre-fix arm labeled this
+                // definite clearance a crossing).
+                Sign::Positive => Err(TangentLocusError::NotTangent { apart: true }),
+                // |r1 − r2| < dist < r1 + r2 (the external row already
+                // refused the ≥ side): the surfaces definitely cross.
+                Sign::Negative => Err(TangentLocusError::NotTangent { apart: false }),
+            }
+        }
+        _ => Err(TangentLocusError::Unsupported {
+            what: "the closed-form tangent-locus lane holds plane×cylinder and parallel \
+                   cylinder pairs only (the DEV-1 certified set)",
+        }),
+    }
+}
+
 /// Verifies every declared face pair through the declared rung and
 /// returns the opposite-oriented (REST-contact) surface sets per
 /// operand. A definitely-distinct declared pair is the typed

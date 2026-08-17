@@ -1337,6 +1337,7 @@ fn eps_in_is_the_scaled_declaration_and_the_override_wins() {
             &text,
             &ImportOptions {
                 eps_in: Some(2.5e-8),
+                ..ImportOptions::default()
             },
         )
         .unwrap_or_else(|e| panic!("{name}: {e}"));

@@ -45,7 +45,19 @@ fn promotions(
 }
 
 fn solid(text: &str, who: &str) -> (topo::Body<f64>, Vec<(u64, PromotedKind, f64)>) {
-    match import_step(text, &ImportOptions::default()) {
+    let options = if who.contains("kiss") {
+        // The corner kiss is declared through the M9-2 import channel
+        // (D7 step 4); undeclared it refuses at the shared 3′ gate.
+        ImportOptions {
+            declared_contacts: vec![step_import::ImportContact::VertexRest {
+                at: [1.0, 1.0, 1.0],
+            }],
+            ..ImportOptions::default()
+        }
+    } else {
+        ImportOptions::default()
+    };
+    match import_step(text, &options) {
         Ok(StepImport::Solid {
             body,
             normalizations,

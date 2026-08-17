@@ -261,11 +261,24 @@ fn probe_census_gate_contradicts_curve_and_refuses_patch() {
             .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
         "the census must CONTRADICT the false curve tangency: {errors:?}"
     );
+    // Since M9-2 the patch certifier EXISTS: a self-pair record's
+    // senses are trivially aligned, and aligned coincidence is
+    // containment, not contact — the record is CONTRADICTED (the
+    // Rest-class refusal), which supersedes this probe's original
+    // not-yet-certifiable expectation without weakening it: the
+    // fabricated record still cannot bless.
     assert!(
-        errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::CensusUnsupported { .. })),
-        "the patch record must refuse typed (not-yet-certifiable): {errors:?}"
+        errors.iter().any(|e| matches!(
+            e,
+            ValidationError::ContactContradicted {
+                declaration: topo::DeclaredContact {
+                    class: topo::ContactClass::Rest,
+                    ..
+                },
+                ..
+            }
+        )),
+        "the fabricated patch record must be contradicted: {errors:?}"
     );
     assert!(
         !errors.is_empty(),

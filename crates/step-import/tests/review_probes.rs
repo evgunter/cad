@@ -12,7 +12,19 @@ fn import_text(text: &str) -> Result<StepImport, StepImportError> {
 }
 
 fn solid(text: &str, what: &str) -> topo::Body<f64> {
-    match import_text(text).unwrap_or_else(|e| panic!("{what}: {e}")) {
+    let options = if what.contains("kiss") {
+        // The corner kiss is declared through the M9-2 import channel
+        // (D7 step 4); undeclared it refuses at the shared 3′ gate.
+        ImportOptions {
+            declared_contacts: vec![step_import::ImportContact::VertexRest {
+                at: [1.0, 1.0, 1.0],
+            }],
+            ..ImportOptions::default()
+        }
+    } else {
+        ImportOptions::default()
+    };
+    match import_step(text, &options).unwrap_or_else(|e| panic!("{what}: {e}")) {
         StepImport::Solid { body, .. } => body,
         StepImport::Wireframe { .. } => panic!("{what}: wireframe"),
     }
@@ -524,8 +536,14 @@ fn e5_closed_forms() {
 fn h8_eps_in_not_consumed() {
     let text = fixture("cube", "step");
     for eps in [1e-30, 1.0] {
-        let import = import_step(&text, &ImportOptions { eps_in: Some(eps) })
-            .unwrap_or_else(|e| panic!("eps_in {eps} must not affect certification: {e}"));
+        let import = import_step(
+            &text,
+            &ImportOptions {
+                eps_in: Some(eps),
+                ..ImportOptions::default()
+            },
+        )
+        .unwrap_or_else(|e| panic!("eps_in {eps} must not affect certification: {e}"));
         let StepImport::Solid { body, eps_in, .. } = import else {
             panic!("wireframe?")
         };
