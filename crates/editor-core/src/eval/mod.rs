@@ -198,7 +198,7 @@ pub struct NodeValue<T: Decide> {
     /// (ASM-R2b D-1's contacts channel; [`crate::eval::wire::OpOut`]
     /// states the invariant). Empty for every op but instantiate — a
     /// boolean's records ride its payload, and
-    /// [`crate::product::sources_of`] is where the two homes
+    /// `product::sources_of` is where the two homes
     /// reconcile. Rides the value, so memo reuse transfers
     /// declarations with the geometry they are keyed into.
     pub contacts: Arc<topo::ContactRecords>,

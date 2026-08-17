@@ -37,7 +37,7 @@ type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
 /// carries the referenced part's own records across the document seam.
 /// A boolean's records ride its payload instead
 /// ([`BooleanValue::Body::contacts`], the `BooleanBody` contract that
-/// predates this channel) — [`crate::product::sources_of`] is the one
+/// predates this channel) — `product::sources_of` is the one
 /// place the two homes reconcile, so nothing downstream has to know
 /// which op put records where.
 ///
