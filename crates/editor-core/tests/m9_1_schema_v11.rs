@@ -45,8 +45,11 @@ const V8: &str = include_str!("golden/v8_golden.cad");
 const V1: &str = include_str!("golden/v1_golden.cad");
 
 #[test]
-fn schema_version_is_eleven() {
-    assert_eq!(SCHEMA_VERSION, 11);
+fn schema_version_is_current() {
+    // Named for the PROPERTY, not the number (the `lbret_schema_v8`
+    // precedent): M9-1's own bump was v11; LIB-PLACEDUNION took v12
+    // and ASM-R2a v13, and the number is exactly what keeps moving.
+    assert_eq!(SCHEMA_VERSION, 13);
 }
 
 /// The IMMEDIATE prior version refuses, from the real file. Named
@@ -163,16 +166,19 @@ fn too_old_beats_a_broken_body() {
     }
 }
 
-/// A saved document announces v11 in its header, and a v11 document
-/// round-trips with its declaration CLASSES intact — the actual
-/// content of this break.
+/// A saved document announces the CURRENT version in its header, and a
+/// class-bearing document round-trips with its declaration CLASSES
+/// intact — the actual content of this break.
 #[test]
 fn a_declaration_round_trips_carrying_its_class() {
     let (doc, decl) = declaring_doc();
     let text = save(&doc, &[]).expect("saves");
-    assert_eq!(text.lines().next(), Some("schema: 11"));
+    assert_eq!(
+        text.lines().next(),
+        Some(format!("schema: {SCHEMA_VERSION}").as_str())
+    );
 
-    let back: ProfileDoc = load(&text).expect("v11 loads").doc;
+    let back: ProfileDoc = load(&text).expect("the current version loads").doc;
     let Some(Node::Declare { pairs }) = back.node(decl) else {
         panic!("the Declare node survives the round trip");
     };

@@ -325,12 +325,15 @@ assert abs(ev.value(plate).body().mass_properties().volume - area * 0.008) < 1e-
 ```
 
 **Corners between a line and a CIRCLE.** A fillet's two sides do not
-have to be straight. `at_on(p, centre, winding)` binds a side ON a
-carrier circle — the anchor plus the centre name the tangent there, so
-the direction is derived rather than authored — and `at_toward(p, dx,
-dy)` is its mirror: the STRAIGHT arrival off a departure that rides a
-circle. Between them the corner is again never written down; it is the
-ray-meets-circle intersection, and the gates discard the root the
+have to be straight, and a side that rides a carrier is authored in
+the SAME act as the fillet: `arc_fillet(spec, r)` gives the corner an
+arc INCOMING side, `fillet_arc(r, spec)` gives it an arc ARRIVAL, and
+`arc_fillet_arc(spec, r, spec2)` does both. The spec is the binding
+mode: `Center { c, winding, p }` names the centre, the travel sense
+and the anchor, so the tangent there is derived rather than authored.
+A straight side stays straight, bound by the ordinary `.at(p)` and
+`.toward(dx, dy)`. Either way the corner is never written down; it is
+the ray-meets-circle intersection, and the gates discard the root the
 author's two anchors do not bracket.
 
 ```
@@ -339,9 +342,13 @@ use pncad::prelude::*;
 // Enter on the R = 5 circle at its east point, travelling
 // counterclockwise; round where that circle meets the line y = 3.
 let blended: ProfileLoop<f64> = Open
-    .at_on(p2(5.0, 0.0), p2(0.0, 0.0), ArcSweep::Ccw)?
-    .fillet(0.5)?                     // departure rides the CIRCLE
-    .at_toward(p2(0.0, 3.0), -1.0, 0.0)?  // arrival: the line y = 3, heading west
+    // incoming side rides the CIRCLE; fillet radius in the same act
+    .arc_fillet(
+        Center { c: p2(0.0, 0.0), winding: ArcSweep::Ccw, p: p2(5.0, 0.0) },
+        0.5,
+    )?
+    .at(p2(0.0, 3.0))?          // arrival: the line y = 3 ...
+    .toward(-1.0, 0.0)?         // ... heading west
     .line(3.0)?
     .line_to(Start)?
     .into();
@@ -358,12 +365,12 @@ gate, not a nearest-point guess — and the same chain says the same
 thing in Python:
 
 ```python
-from pncad import ArcSweep, Open, Start, m
+from pncad import ArcSweep, Center, Open, Start, m
 
 blended = (
-    Open.at_on((5 * m, 0 * m), (0 * m, 0 * m), ArcSweep.Ccw)
-    .fillet(0.5 * m)
-    .at_toward((0 * m, 3 * m), -1.0, 0.0)
+    Open.arc_fillet(Center((0 * m, 0 * m), ArcSweep.Ccw, (5 * m, 0 * m)), 0.5 * m)
+    .at((0 * m, 3 * m))
+    .toward(-1.0, 0.0)
     .line(3 * m)
     .line_to(Start)
 )
@@ -977,8 +984,9 @@ they match neither filter, so the refusal falls out of the geometry.
 import math
 
 from pncad import (
-    BooleanOp, CurveKind, Doc, EntityKind, GeomPred, NamePat, Node,
-    Open, Selector, SketchPlane, Start, SurfaceKind, evaluate, m, rad,
+    BooleanOp, Bulge, CurveKind, Doc, EntityKind, GeomPred, NamePat,
+    Node, Open, Selector, SketchPlane, Start, SurfaceKind, evaluate, m,
+    rad,
 )
 
 R, H = 0.09, 0.05  # the pip ball's radius; how deep it dips in
@@ -992,7 +1000,7 @@ cube = doc.insert(Node.extrude(square, 1 * m))
 # A ball, revolved as two quarter arcs, sunk H into the top face.
 half = (
     Open.at((0 * m, -R * m))
-    .arc_to((R * m, 0 * m), math.tan(math.pi / 8))
+    .arc_to(Bulge((R * m, 0 * m), math.tan(math.pi / 8)))
     .arc_continue((0 * m, R * m))
     .line_to(Start)
 )

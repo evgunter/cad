@@ -393,16 +393,28 @@ pub(crate) fn tessellate_trimmed(
                 } => cert::cert_cylinder(origin, axis, radius, tri),
                 Lane::Nurbs { ref bound } => bound.cert(uv),
             };
-            // REVIEW PROBE (env-gated): per-triangle falsification of
-            // the NURBS certificate — dense barycentric samples of
-            // |S(w) − Π(w)| must be dominated by cert + ε on EVERY
-            // triangle, not in aggregate.
+            // REVIEW PROBE: per-triangle falsification of the NURBS
+            // certificate — dense barycentric samples of |S(w) − Π(w)|
+            // must be dominated by cert + ε on EVERY triangle, not in
+            // aggregate.
             //
             // The BUDGET METER shares this block (`crate::budget`,
             // issue #320): same samples, same assertion, its own
             // (cheaper) density when the probe is not itself armed —
             // a quarter-million-triangle face resampled at 12 is 24M
             // surface evaluations.
+            //
+            // INVARIANT (issue #558): this whole block is ABSENT from a
+            // default build, and there is deliberately no `#[cfg]` here
+            // saying so. `sample` is built from two module-gated
+            // `armed()` calls; with neither feature on, both are
+            // `const fn`s returning `false` in their modules' inert
+            // halves, so `sample` is a compile-time constant `false`
+            // and the block — including the `assert!` below, which
+            // would otherwise convert `tessellate`'s typed error
+            // contract into a panic — is deleted outright. Do not
+            // convert this to a `#[cfg]`: one lane in one version,
+            // shared by every configuration, is the whole point.
             if sample {
                 let m = samples_per_edge;
                 for a in 0..=m {

@@ -232,7 +232,10 @@ fn cocircular_tangent_arc_is_same_carrier() {
     // constructed arc is the incoming carrier itself.
     let arc_end = Open
         .at(p2(-1.0, 0.0))
-        .arc_to(p2(1.0, 0.0), 1.0)
+        .arc_to(Bulge {
+            p: p2(1.0, 0.0),
+            b: 1.0,
+        })
         .unwrap()
         .tangent();
     assert!(matches!(
@@ -273,17 +276,22 @@ fn trim_eating_an_anchor_refuses_typed() {
     ));
 }
 
-/// **G2**: `ArcArrivalFillet` is RETIRED — an arc arrival is no longer
-/// "out of scope in v1", it is spelled by the carrier binder. The door
-/// that used to refuse it now names the door that does the job.
+/// **§2c**: an arc ARRIVAL is authored with the fillet that trims it,
+/// so a sharp arc LEG off an arrival anchor while a fillet is still open
+/// is refused, and the refusal names the fused verbs that do the job.
 #[test]
-fn an_arc_leg_from_a_bound_arrival_names_the_carrier_binder() {
+fn an_arc_leg_on_an_open_fillet_names_the_fused_verbs() {
     let arrival = bent_tip().fillet(0.5).unwrap().at(p2(4.0, 2.0)).unwrap();
-    let err = arrival.arc_to(p2(5.0, 3.0), 0.4).unwrap_err();
-    assert!(matches!(err, PathError::ArcCarrierSpelling { .. }));
+    let err = arrival
+        .arc_to(Bulge {
+            p: p2(5.0, 3.0),
+            b: 0.4,
+        })
+        .unwrap_err();
+    assert!(matches!(err, PathError::ArcLegOnOpenFillet { .. }));
     assert!(
-        err.to_string().contains(".at_on(p, centre, winding)"),
-        "the refusal must name the door that binds an arc arrival: {err}"
+        err.to_string().contains("fillet_arc(r, spec)"),
+        "the refusal must name the verbs that author an arc arrival: {err}"
     );
 }
 
@@ -300,7 +308,10 @@ fn a_seam_fillet_onto_an_arc_first_side_names_the_closing_door() {
     // its own carrier.
     let tip = Open
         .at(p2(0.0, 0.0))
-        .arc_to(p2(4.0, 0.0), 0.3)
+        .arc_to(Bulge {
+            p: p2(4.0, 0.0),
+            b: 0.3,
+        })
         .unwrap()
         .angle(2.0)
         .unwrap()
@@ -462,7 +473,10 @@ fn circle_primitive_leaves_pq4_refusing_for_chains() {
     // still refused.
     let refused = Open
         .at(p2(1.0, 0.0))
-        .arc_to(p2(-1.0, 0.0), 1.0)
+        .arc_to(Bulge {
+            p: p2(-1.0, 0.0),
+            b: 1.0,
+        })
         .unwrap()
         .tangent()
         .tangent_arc_to(Start);
@@ -476,10 +490,10 @@ fn circle_primitive_leaves_pq4_refusing_for_chains() {
 /// through-point sits on the chord, beyond its far end, or on an
 /// endpoint (all three are "on the chord line").
 #[test]
-fn arc_via_refuses_the_whole_collinear_class() {
+fn the_via_mode_refuses_the_whole_collinear_class() {
     let (a, b) = (p2(0.0, 0.0), p2(2.0, 0.0));
     for via in [p2(1.0, 0.0), p2(3.0, 0.0), p2(-1.0, 0.0), p2(0.0, 0.0)] {
-        let refused = Open.at(a).arc_via(via, b);
+        let refused = Open.at(a).arc_to(Via { q: via, p: b });
         assert!(
             matches!(refused, Err(PathError::ArcViaCollinear { .. })),
             "via {via:?} on the chord line must refuse"
@@ -493,12 +507,18 @@ fn arc_via_refuses_the_whole_collinear_class() {
 fn arc_modes_refuse_a_degenerate_chord() {
     let a = p2(1.0, 0.0);
     assert!(matches!(
-        Open.at(a).arc_via(p2(0.0, 1.0), a),
+        Open.at(a).arc_to(Via {
+            q: p2(0.0, 1.0),
+            p: a
+        }),
         Err(PathError::DegenerateArcChord { .. })
     ));
     assert!(matches!(
-        Open.at(a)
-            .arc_center(p2(0.0, 0.0), a, profile::ArcSweep::Ccw),
+        Open.at(a).arc_to(Center {
+            c: p2(0.0, 0.0),
+            winding: profile::ArcSweep::Ccw,
+            p: a
+        }),
         Err(PathError::DegenerateArcChord { .. })
     ));
 }
@@ -507,10 +527,12 @@ fn arc_modes_refuse_a_degenerate_chord() {
 /// typed. Nothing is re-projected: the refusal reports both radii and
 /// leaves all three authored points where the author put them.
 #[test]
-fn arc_center_refuses_a_definite_equidistance_mismatch() {
-    let refused =
-        Open.at(p2(1.0, 0.0))
-            .arc_center(p2(0.0, 0.0), p2(0.0, 2.0), profile::ArcSweep::Ccw);
+fn the_center_mode_refuses_a_definite_equidistance_mismatch() {
+    let refused = Open.at(p2(1.0, 0.0)).arc_to(Center {
+        c: p2(0.0, 0.0),
+        winding: profile::ArcSweep::Ccw,
+        p: p2(0.0, 2.0),
+    });
     match refused {
         Err(PathError::ArcCenterNotEquidistant {
             tip_radius,
@@ -523,8 +545,11 @@ fn arc_center_refuses_a_definite_equidistance_mismatch() {
     }
     // A centre on an endpoint has no radius for the winding to select.
     assert!(matches!(
-        Open.at(p2(1.0, 0.0))
-            .arc_center(p2(1.0, 0.0), p2(0.0, 1.0), profile::ArcSweep::Ccw),
+        Open.at(p2(1.0, 0.0)).arc_to(Center {
+            c: p2(1.0, 0.0),
+            winding: profile::ArcSweep::Ccw,
+            p: p2(0.0, 1.0),
+        }),
         Err(PathError::DegenerateArcCenter { .. })
     ));
 }
@@ -533,11 +558,15 @@ fn arc_center_refuses_a_definite_equidistance_mismatch() {
 /// endpoints land on the path verbatim (the §4 item 3 invariant, on the
 /// mode that takes a point which is NOT on the path).
 #[test]
-fn arc_center_stores_its_authored_endpoints_verbatim() {
+fn the_center_mode_stores_its_authored_endpoints_verbatim() {
     let (a, c, b) = (p2(3.0, 0.0), p2(0.0, 0.0), p2(0.0, 3.0));
     let lowered = Open
         .at(a)
-        .arc_center(c, b, profile::ArcSweep::Ccw)
+        .arc_to(Center {
+            c,
+            winding: profile::ArcSweep::Ccw,
+            p: b,
+        })
         .unwrap()
         .line_to(c)
         .unwrap()
@@ -735,17 +764,22 @@ fn the_new_funnel_gates_escalate_in_band() {
         "sub-band director norm must escalate"
     );
 
-    // arc_center: an equidistance mismatch in the band.
-    let refused =
-        Open.at(p2(1.0, 0.0))
-            .arc_center(p2(0.0, 0.0), p2(0.0, 1.0 + band), profile::ArcSweep::Ccw);
+    // arc_to(Center { .. }): an equidistance mismatch in the band.
+    let refused = Open.at(p2(1.0, 0.0)).arc_to(Center {
+        c: p2(0.0, 0.0),
+        winding: profile::ArcSweep::Ccw,
+        p: p2(0.0, 1.0 + band),
+    });
     assert!(
         matches!(refused, Err(PathError::Escalated { .. })),
         "in-band equidistance mismatch must escalate, got {refused:?}"
     );
 
-    // arc_via: a through-point in the band off the chord line.
-    let refused = Open.at(p2(0.0, 0.0)).arc_via(p2(1.0, band), p2(2.0, 0.0));
+    // arc_to(Via { .. }): a through-point in the band off the chord line.
+    let refused = Open.at(p2(0.0, 0.0)).arc_to(Via {
+        q: p2(1.0, band),
+        p: p2(2.0, 0.0),
+    });
     assert!(
         matches!(refused, Err(PathError::Escalated { .. })),
         "in-band via offset must escalate, got {refused:?}"
@@ -768,24 +802,37 @@ fn the_new_funnel_gates_decide_outside_the_band() {
     ));
 
     assert!(matches!(
-        Open.at(p2(1.0, 0.0))
-            .arc_center(p2(0.0, 0.0), p2(0.0, 1.0 + big), profile::ArcSweep::Ccw),
+        Open.at(p2(1.0, 0.0)).arc_to(Center {
+            c: p2(0.0, 0.0),
+            winding: profile::ArcSweep::Ccw,
+            p: p2(0.0, 1.0 + big),
+        }),
         Err(PathError::ArcCenterNotEquidistant { .. })
     ));
     assert!(
         Open.at(p2(1.0, 0.0))
-            .arc_center(p2(0.0, 0.0), p2(0.0, 1.0 + tiny), profile::ArcSweep::Ccw)
+            .arc_to(Center {
+                c: p2(0.0, 0.0),
+                winding: profile::ArcSweep::Ccw,
+                p: p2(0.0, 1.0 + tiny),
+            })
             .is_ok(),
         "a sub-epsilon radius difference is definitely equidistant"
     );
 
     assert!(
         Open.at(p2(0.0, 0.0))
-            .arc_via(p2(1.0, big), p2(2.0, 0.0))
+            .arc_to(Via {
+                q: p2(1.0, big),
+                p: p2(2.0, 0.0),
+            })
             .is_ok()
     );
     assert!(matches!(
-        Open.at(p2(0.0, 0.0)).arc_via(p2(1.0, tiny), p2(2.0, 0.0)),
+        Open.at(p2(0.0, 0.0)).arc_to(Via {
+            q: p2(1.0, tiny),
+            p: p2(2.0, 0.0),
+        }),
         Err(PathError::ArcViaCollinear { .. })
     ));
 }
@@ -798,10 +845,20 @@ fn the_new_funnel_gates_decide_outside_the_band() {
 /// radius: entry on the right lobe, one fillet, close on the left.
 fn lens(r: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let tip = 0.75f64.sqrt();
-    Open.at_on(p2(0.0, -tip), p2(-0.5, 0.0), profile::ArcSweep::Ccw)?
-        .fillet(r)?
-        .to_on(Start, p2(0.5, 0.0), profile::ArcSweep::Ccw)
-        .map(pinned)
+    Open.arc_fillet_arc(
+        Center {
+            c: p2(-0.5, 0.0),
+            winding: profile::ArcSweep::Ccw,
+            p: p2(0.0, -tip),
+        },
+        r,
+        Center {
+            c: p2(0.5, 0.0),
+            winding: profile::ArcSweep::Ccw,
+            p: Start,
+        },
+    )
+    .map(pinned)
 }
 
 /// The eye program lowers, validates, and puts every AUTHORED point on
@@ -872,18 +929,26 @@ fn an_oversized_carrier_fillet_refuses_with_the_arc_sides_angular_story() {
 /// Carriers that never meet name their own reason — distinct from the
 /// tangency knife edge, which still reports `CarriersParallel`.
 ///
-/// Note this needs `.at_on`, not `.to_on`: a `to_on` close anchors BOTH
-/// carriers at the entry point, so they always share it and can never
-/// be disjoint. Independent anchors are what make the case reachable.
+/// Note this needs an INTERIOR arrival anchor, not `p: Start`: a
+/// closing arrival anchors BOTH carriers at the entry point, so they
+/// always share it and can never be disjoint. Independent anchors are
+/// what make the case reachable.
 #[test]
 fn carriers_that_do_not_meet_refuse_typed() {
     // Two unit circles 10 m apart: disjoint, no corner anywhere.
-    let refused = Open
-        .at_on(p2(1.0, 0.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
-        .unwrap()
-        .fillet(0.25)
-        .unwrap()
-        .at_on(p2(11.0, 0.0), p2(10.0, 0.0), profile::ArcSweep::Ccw);
+    let refused = Open.arc_fillet_arc(
+        Center {
+            c: p2(0.0, 0.0),
+            winding: profile::ArcSweep::Ccw,
+            p: p2(1.0, 0.0),
+        },
+        0.25,
+        Center {
+            c: p2(10.0, 0.0),
+            winding: profile::ArcSweep::Ccw,
+            p: p2(11.0, 0.0),
+        },
+    );
     assert!(
         matches!(
             refused,
@@ -896,29 +961,22 @@ fn carriers_that_do_not_meet_refuse_typed() {
     );
 }
 
-/// An anchor at its own carrier's centre names no tangent, so the
-/// binder refuses before any fillet can be authored against it.
+/// An anchor at its own carrier's centre names no tangent, so the fused
+/// entry verb refuses before any fillet is opened against it.
 #[test]
 fn a_carrier_anchor_at_the_centre_refuses_typed() {
-    let refused = Open.at_on(p2(0.0, 0.0), p2(0.0, 0.0), profile::ArcSweep::Ccw);
+    let refused = Open.arc_fillet(
+        Center {
+            c: p2(0.0, 0.0),
+            winding: profile::ArcSweep::Ccw,
+            p: p2(0.0, 0.0),
+        },
+        0.25,
+    );
     assert!(
         matches!(refused, Err(PathError::DegenerateArcCenter { .. })),
         "expected DegenerateArcCenter, got {refused:?}"
     );
-}
-
-/// A side bound on a carrier RUNS ALONG IT: verbs that would leave the
-/// carrier refuse, naming the ones that do not.
-#[test]
-fn leaving_a_bound_carrier_refuses_and_names_the_door() {
-    let tip = Open
-        .at_on(p2(0.0, -1.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
-        .unwrap();
-    let err = tip.clone().line(1.0).unwrap_err();
-    assert!(matches!(err, PathError::ArcCarrierSpelling { .. }));
-    assert!(err.to_string().contains(".fillet(r)"), "{err}");
-    let err = tip.tangent_arc_to(p2(1.0, 1.0)).unwrap_err();
-    assert!(matches!(err, PathError::ArcCarrierSpelling { .. }));
 }
 
 /// **G1 NOTE-2's lesson, applied to G2's new gates**: an undecidable
@@ -934,16 +992,19 @@ fn the_new_arc_carrier_gates_escalate_in_band() {
     // path_carrier_meet: two unit circles whose centres sit `band`
     // FURTHER apart than 2 — externally tangent to within the band, so
     // whether they cross at all cannot be classified here.
-    let refused = Open
-        .at_on(p2(1.0, 0.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
-        .unwrap()
-        .fillet(0.25)
-        .unwrap()
-        .at_on(
-            p2(1.0 + band, 0.0),
-            p2(2.0 + band, 0.0),
-            profile::ArcSweep::Ccw,
-        );
+    let refused = Open.arc_fillet_arc(
+        Center {
+            c: p2(0.0, 0.0),
+            winding: profile::ArcSweep::Ccw,
+            p: p2(1.0, 0.0),
+        },
+        0.25,
+        Center {
+            c: p2(2.0 + band, 0.0),
+            winding: profile::ArcSweep::Ccw,
+            p: p2(1.0 + band, 0.0),
+        },
+    );
     let Err(PathError::Escalated { source }) = refused else {
         panic!("in-band carrier separation must escalate, got {refused:?}");
     };
@@ -958,13 +1019,14 @@ fn the_new_arc_carrier_gates_escalate_in_band() {
     let r = 8.0f64.sqrt();
     let theta = std::f64::consts::FRAC_PI_4 + band / r;
     let anchor = p2(centre.x + r * theta.cos(), centre.y + r * theta.sin());
-    let refused = Open
-        .at(p2(0.0, 0.0))
-        .toward(1.0, 0.0)
-        .unwrap()
-        .fillet(0.3)
-        .unwrap()
-        .at_on(anchor, centre, profile::ArcSweep::Ccw);
+    let refused = Open.at(p2(0.0, 0.0)).toward(1.0, 0.0).unwrap().fillet_arc(
+        0.3,
+        Center {
+            c: centre,
+            winding: profile::ArcSweep::Ccw,
+            p: anchor,
+        },
+    );
     let Err(PathError::Escalated { source }) = refused else {
         panic!("an in-band angular reach must escalate, got {refused:?}");
     };
@@ -985,22 +1047,28 @@ fn the_new_arc_carrier_gates_decide_outside_the_band() {
         Open.at(p2(0.0, 0.0))
             .toward(1.0, 0.0)
             .unwrap()
-            .fillet(0.3)
-            .unwrap()
-            .at_on(anchor, centre, profile::ArcSweep::Ccw)
+            .fillet_arc(
+                0.3,
+                Center {
+                    c: centre,
+                    winding: profile::ArcSweep::Ccw,
+                    p: anchor,
+                },
+            )
             .is_ok(),
         "a decided angular reach must resolve"
     );
     // Well BEHIND the corner: decided the other way, typed refusal.
     let theta = std::f64::consts::FRAC_PI_4 - 0.4;
     let anchor = p2(centre.x + r * theta.cos(), centre.y + r * theta.sin());
-    let refused = Open
-        .at(p2(0.0, 0.0))
-        .toward(1.0, 0.0)
-        .unwrap()
-        .fillet(0.3)
-        .unwrap()
-        .at_on(anchor, centre, profile::ArcSweep::Ccw);
+    let refused = Open.at(p2(0.0, 0.0)).toward(1.0, 0.0).unwrap().fillet_arc(
+        0.3,
+        Center {
+            c: centre,
+            winding: profile::ArcSweep::Ccw,
+            p: anchor,
+        },
+    );
     assert!(
         matches!(refused, Err(PathError::NoCornerForFillet { .. })),
         "a decided-behind arrival anchor must refuse typed, got {refused:?}"
@@ -1030,12 +1098,19 @@ fn the_angular_advance_gate_escalates_in_band() {
     // The circle on the P–Q diameter passes through both by
     // construction, so `far` is an exact anchor for it.
     let centre = p2((near.x + far.x) / 2.0, (near.y + far.y) / 2.0);
-    let refused = Open
-        .at_on(p2(1.0, 0.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
-        .unwrap()
-        .fillet(0.1)
-        .unwrap()
-        .at_on(far, centre, profile::ArcSweep::Ccw);
+    let refused = Open.arc_fillet_arc(
+        Center {
+            c: p2(0.0, 0.0),
+            winding: profile::ArcSweep::Ccw,
+            p: p2(1.0, 0.0),
+        },
+        0.1,
+        Center {
+            c: centre,
+            winding: profile::ArcSweep::Ccw,
+            p: far,
+        },
+    );
     // Assert WHICH gate escalated: an escalation from `path_carrier_meet`
     // would satisfy a bare `Escalated` match while leaving the angular
     // advance gate as untested as before.
@@ -1049,79 +1124,37 @@ fn the_angular_advance_gate_escalates_in_band() {
     );
 }
 
-/// **MINOR-3 (review)**: pins the LB10 wall itself.
-///
-/// A fillet whose DEPARTURE runs on an arc carrier cannot be completed
-/// by a straight-carrier arrival door — the lifted ladder reads the S8
-/// diagnostic channel, so its `Bounds` bound propagates to every caller,
-/// and the ratified discipline confines that bound to the arc-fillet
-/// boundary module, which `.at`/`.angle`/`.toward` are not part of.
-///
-/// The PR body, the unit report and PATHS-DESIGN §2b all lean on this
-/// refusal being typed and on it naming the doors that DO work, so it
-/// is pinned here in BOTH binder orders rather than left to prose. It
-/// is unreachable from any chain authored before the carrier binders
-/// existed: the guard reads `pending.carrier`, which only `.at_on`
-/// ever sets.
-#[test]
-fn a_straight_arrival_off_an_arc_departure_refuses_naming_the_carrier_doors() {
-    let arc_departure = || {
-        Open.at_on(p2(1.0, 0.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
-            .unwrap()
-            .fillet(0.25)
-            .unwrap()
-    };
-    let check = |err: PathError<f64>| {
-        assert!(
-            matches!(err, PathError::ArcCarrierSpelling { .. }),
-            "expected the spelling refusal, got {err:?}"
-        );
-        let msg = err.to_string();
-        assert!(
-            msg.contains(".at_on(p, centre, winding)")
-                && msg.contains(".to_on(Start, centre, winding)"),
-            "the refusal must name BOTH doors that resolve it: {msg}"
-        );
-    };
-    // Position first, then the director.
-    let err = arc_departure()
-        .at(p2(0.0, 2.0))
-        .unwrap()
-        .angle(0.0)
-        .unwrap_err();
-    check(err);
-    // Director first, then the position — the same wall, other order.
-    let err = arc_departure()
-        .angle(0.0)
-        .unwrap()
-        .at(p2(0.0, 2.0))
-        .unwrap_err();
-    check(err);
-}
-
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     /// **LB10 route 3**: whatever the arrival's height and the fillet's
-    /// radius, `.at_toward` puts the arrival side EXACTLY on the ray the
-    /// author named — the trim point rides `y = h`, the anchor lies on
-    /// the trimmed side (strictly between the trim point and the leg's
-    /// far end), and the lowered loop validates.
+    /// radius, a STRAIGHT arrival off an ARC departure puts the arrival
+    /// side EXACTLY on the ray `.at(p).toward(dx, dy)` names — the trim
+    /// point rides `y = h`, the anchor lies on the trimmed side
+    /// (strictly between the trim point and the leg's far end), and the
+    /// lowered loop validates.
     ///
     /// The anchor is never emitted as a vertex: it anchors the side, and
     /// the side's run is emitted by the leg that ends it. That is the
     /// straight-arrival rule, unchanged by the carrier on the departure.
     #[test]
-    fn at_toward_puts_its_arrival_on_the_authored_ray(
+    fn a_straight_arrival_off_an_arc_departure_rides_the_authored_ray(
         h in 1.0f64..4.0,
         r in 0.1f64..0.6,
     ) {
         let lowered = Open
-            .at_on(p2(5.0, 0.0), p2(0.0, 0.0), profile::ArcSweep::Ccw)
+            .arc_fillet(
+                Center {
+                    c: p2(0.0, 0.0),
+                    winding: profile::ArcSweep::Ccw,
+                    p: p2(5.0, 0.0),
+                },
+                r,
+            )
             .unwrap()
-            .fillet(r)
+            .at(p2(0.0, h))
             .unwrap()
-            .at_toward(p2(0.0, h), -1.0, 0.0)
+            .toward(-1.0, 0.0)
             .unwrap()
             .line(3.0)
             .unwrap()

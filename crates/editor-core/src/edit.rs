@@ -9,7 +9,7 @@ use crate::doc::{Doc, DocParam, ParamName};
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::EntityKind;
-use crate::node::{Node, RecipeNodeId, SlotId, StableName};
+use crate::node::{Node, PlacementRuleFault, RecipeNodeId, SlotId, StableName};
 use crate::roots::RootFault;
 use crate::witness::{BranchCertification, WitnessDatum};
 
@@ -523,6 +523,24 @@ pub enum EditError {
         /// The offending target.
         node: RecipeNodeId,
     },
+    /// A placement-rule node whose rule and count slot would give two
+    /// answers to "how many placements" (GROUP-BOOLEAN-DESIGN): an
+    /// `Explicit` rule paired with a count slot, a stepped rule with
+    /// none — or a `Pattern` carrying an `Explicit` rule at all, since
+    /// its count is a non-optional field.
+    PlacementRuleMismatch {
+        /// The offending node.
+        node: RecipeNodeId,
+    },
+    /// A placement-rule node whose `Explicit` rule lists NO placements
+    /// (GROUP-BOOLEAN-DESIGN): the list IS the count, so an empty one
+    /// is the explicit rule's `count < 1` — refused for the reason a
+    /// stepped rule's zero is, rather than quietly denoting an empty
+    /// body.
+    EmptyPlacementList {
+        /// The offending node.
+        node: RecipeNodeId,
+    },
     /// An IMPROPER placement frame — determinant ≤ 0, i.e. a mirror
     /// (A6). Admitting one is gated on the equivariance audit R4 owns:
     /// until that lands, a mirrored placement is refused rather than
@@ -537,6 +555,13 @@ pub enum EditError {
     /// A placement frame carrying a non-finite coordinate.
     NonFinitePlacement {
         /// The offending target.
+        node: RecipeNodeId,
+    },
+    /// A mate's alignment datum carries a non-finite coordinate. The
+    /// placement registry's own rule, one level out: an authored frame
+    /// nothing can decide about never enters the document.
+    NonFiniteAlignment {
+        /// The mate being inserted.
         node: RecipeNodeId,
     },
     /// A pin update aimed at a node that does not instantiate a part
@@ -718,6 +743,17 @@ impl core::fmt::Display for EditError {
                  place",
                 node.0
             ),
+            Self::EmptyPlacementList { node } => write!(
+                f,
+                "edit: node {}'s placement list is empty — a group needs at least one placement",
+                node.0
+            ),
+            Self::PlacementRuleMismatch { node } => write!(
+                f,
+                "edit: node {}'s placement rule and count slot would answer \"how many \
+                 placements\" two different ways",
+                node.0
+            ),
             Self::ImproperPlacement { node, determinant } => write!(
                 f,
                 "edit: the placement frame for node {} is improper (determinant {determinant}); \
@@ -728,6 +764,11 @@ impl core::fmt::Display for EditError {
             Self::NonFinitePlacement { node } => write!(
                 f,
                 "edit: the placement frame for node {} carries a non-finite coordinate",
+                node.0
+            ),
+            Self::NonFiniteAlignment { node } => write!(
+                f,
+                "edit: the mate at node {} carries a non-finite alignment coordinate",
                 node.0
             ),
             Self::UpdateOnNonInstance { node } => write!(
@@ -769,6 +810,18 @@ pub struct Applied<P> {
     pub doc: Doc<P>,
     /// What the edit did.
     pub record: EditRecord,
+    /// **The A11 cluster-record maintenance** this edit performed
+    /// (ASM-R2a D-3): the joins, splits, gauge rewrites and drops the
+    /// mate graph's motion forced on the placement registry.
+    ///
+    /// It rides the accepted edit rather than being a second edit of
+    /// its own — the A10 root-list precedent, verbatim: automatic
+    /// maintenance is the invariant's own bookkeeping, deterministic
+    /// from the edit, so a replay reproduces it and undo (keeping the
+    /// prior document value) restores it exactly. What the record
+    /// adds is VISIBILITY: an absorbed cluster's frame is consumed
+    /// here, where a caller can read what was consumed.
+    pub maintenance: Vec<crate::mate::ClusterMaintenance>,
 }
 
 /// Validate one expression's document-parameter refs against the
@@ -879,6 +932,10 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
     edit: &DocEdit<P>,
 ) -> Result<Applied<P>, EditError> {
     let mut new = doc.clone();
+    // A11's cluster records follow the mate graph automatically. The
+    // edits that can move it are exactly those that change the
+    // instance set, the mate set, or a mate's heads.
+    let mut reconcile = false;
     let record = match edit {
         DocEdit::InsertNode { node } => {
             for input in node.inputs() {
@@ -908,6 +965,11 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                 }
             }
             let id = RecipeNodeId(new.next_id);
+            if let Node::Mate { alignment, .. } = node
+                && !alignment.is_finite()
+            {
+                return Err(EditError::NonFiniteAlignment { node: id });
+            }
             check_node_slots(&new, id, node)?;
             // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
             // program entering the document resolves + replays +
@@ -922,6 +984,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             new.order.push(id);
             check_acyclic(&new)?;
             crate::roots::on_insert(&mut new, id, &node.inputs());
+            reconcile = true;
             EditRecord {
                 minted: Some(id),
                 structural: true,
@@ -943,6 +1006,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             new.nodes.remove(id);
             new.order.retain(|&n| n != *id);
             crate::roots::on_delete(&mut new, *id, &inputs);
+            reconcile = true;
             // The node's witness (if any) dies with it — ids are
             // never reused, so the entry could never be read again.
             new.witnesses.remove(id);
@@ -1122,6 +1186,9 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             if declare_sites + appearance_sites == 0 {
                 return Err(EditError::RebindNoReferences { name: from.clone() });
             }
+            // A rebound mate head moves a reading edge, and a reading
+            // edge is what a cluster is made of.
+            reconcile = true;
             EditRecord {
                 minted: None,
                 // Declare payloads or fillet selections changed:
@@ -1295,7 +1362,11 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                     determinant,
                 });
             }
-            new.placements.insert(*node, *frame);
+            // A11: the record keys on the cluster, never the
+            // instance. A singleton cluster's gauge IS the instance,
+            // so a mate-less document's registry is unchanged.
+            let gauge = crate::mate::gauge_of(&new, *node);
+            new.placements.insert(gauge, *frame);
             // Structural: a placement decides where the instance's
             // material lands, so it is recipe shape, not a continuous
             // slot value — and it moves the document's content pin.
@@ -1336,7 +1407,40 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
     // invariant-violating states unreachable, and this is what says so
     // rather than assuming it.
     crate::roots::check(&new).map_err(EditError::Roots)?;
-    Ok(Applied { doc: new, record })
+    // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
+    // "how many placements" has exactly ONE spelling, an explicit rule
+    // lists at least one placement, and its frames meet the SAME A6/A11
+    // bar `SetPlacement` holds a cluster frame to — finite and proper.
+    // Checked over the whole document rather than per arm because a
+    // structural slot edit can reach a bad state from a node that was
+    // consistent before.
+    for (&node, n) in &new.nodes {
+        match n.placement_rule_fault() {
+            None => {}
+            Some(PlacementRuleFault::CountSpelling) => {
+                return Err(EditError::PlacementRuleMismatch { node });
+            }
+            Some(PlacementRuleFault::NoPlacements) => {
+                return Err(EditError::EmptyPlacementList { node });
+            }
+            Some(PlacementRuleFault::NonFiniteFrame { .. }) => {
+                return Err(EditError::NonFinitePlacement { node });
+            }
+            Some(PlacementRuleFault::ImproperFrame { determinant, .. }) => {
+                return Err(EditError::ImproperPlacement { node, determinant });
+            }
+        }
+    }
+    let maintenance = if reconcile {
+        crate::mate::solve::reconcile(doc, &mut new)
+    } else {
+        Vec::new()
+    };
+    Ok(Applied {
+        doc: new,
+        record,
+        maintenance,
+    })
 }
 
 /// A witness edit's site check: the node is live and sketch-bearing

@@ -1,10 +1,26 @@
-//! S8 adversarial review probe: three fuzz-found arc x arc two-survivor
-//! corners (independent re-derivation of the offset/gate machinery in
-//! `review-scratch/s8/dominance_fuzz.rs`), cross-checking that the real
-//! constructor's pick is the componentwise-dominant (smaller-total)
-//! candidate my re-implementation predicts. The tangent point the
-//! builder emits must lie at distance r from the predicted winner's
-//! center and NOT at distance r from the loser's.
+//! S8 adversarial review probe, in two halves that check each other.
+//!
+//! 1. **Against the real constructor**: three fuzz-found arc×arc
+//!    two-survivor corners, each built through the arc-carrier fillet
+//!    door, asserting the emitted tangent point lies at distance r from
+//!    the componentwise-dominant candidate's centre and NOT from the
+//!    loser's. This is the only row that pins the S8 PICK against
+//!    kernel code; the fuzz below re-derives the prediction but never
+//!    calls it.
+//! 2. **The standalone dominance fuzz**: an independent re-derivation
+//!    of the offset/gate machinery (the reviewer's
+//!    `review-scratch/s8/dominance_fuzz.rs`). Over every two-survivor
+//!    corner it finds — arc×arc and line×arc — the smaller-total
+//!    candidate dominates componentwise, so sum, max and every monotone
+//!    combination agree on which candidate the S8 ladder must pick, and
+//!    no enclosing tangency (ρ < 0) ever participates. None of
+//!    `sugar.rs`'s private machinery is used.
+//!
+//! Half 1's three corners have DISTINCT far points, which is exactly
+//! the shape class the §2c surface cannot author (an arc arrival lands
+//! on `OnArc`, whose only continuations are the fused verbs — see
+//! `test_support`'s header), so it is authored through the surviving
+//! raw builder for as long as that gap stands.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 // The fixture coordinates are fuzz-dumped at 17 significant digits (the
 // f64 round-trip length); trimming digits to appease the lint could

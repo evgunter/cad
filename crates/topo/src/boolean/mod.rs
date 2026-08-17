@@ -110,7 +110,10 @@ pub use reduce::{SweepStrategy, SweepTrace};
 // arm in one function, shared by the REST lane's verify-at-use and
 // the detector's candidate-generation mode BY CONSTRUCTION.
 pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
-pub use rest::{carrier_pair_relation, carrier_pair_verdict, face_carrier, flush_pair_relation};
+pub use rest::{
+    TangentLocus, TangentLocusError, carrier_pair_relation, carrier_pair_verdict, face_carrier,
+    flush_pair_relation, tangent_locus,
+};
 pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
 
 /// Which regularized boolean is being computed — threaded through the

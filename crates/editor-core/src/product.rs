@@ -194,7 +194,12 @@ fn sources_of<T: Decide>(payload: &ValuePayload<T>) -> Option<Vec<(u32, Arc<Body
                 })
                 .collect(),
         ),
-        ValuePayload::Datum(_) | ValuePayload::Profile(_) | ValuePayload::Declarations(_) => None,
+        // A12: the gather IGNORES a mate — it is a non-body root, and
+        // "ignored by the gather" is exactly this arm.
+        ValuePayload::Datum(_)
+        | ValuePayload::Profile(_)
+        | ValuePayload::Declarations(_)
+        | ValuePayload::Mate(_) => None,
     }
 }
 

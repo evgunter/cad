@@ -143,6 +143,39 @@ amended:
      variance data; its R1-0-MAJOR/R2-2-MAJOR divergence is
      same-model calibration signal, and NO cross-model dual has
      run before the v4 pilots.)
+     **STOPPING RULE AMENDED (2026-08-16, third readout; Evan
+     authorised the update in-chat, conditional on the
+     projection showing six would not suffice — it does not).**
+     Three parts:
+     (a) **Tally correction: 5 of 6, not 4.** Sample #13 (M9-1
+     PR-1, R1 2 MAJ / R2 1 MAJ) also qualifies and had not been
+     folded in.
+     (b) **The same-model variance stream STOPS at 6 as
+     originally written — deliberately NOT extended.** The
+     projection (off-file, `analysis/model-ab/projection.py`)
+     shows the reviewer-noise estimate converging as 1/sqrt(n):
+     at six qualifying pairs its 95% bound still admits an
+     arm-interval widening of up to ~70%, and even thirty pairs
+     would only bring that to ~20%. More same-model pairs
+     therefore change no decision — the more so because the
+     negative-binomial arm fit already absorbs overdispersion
+     using every row rather than a handful of pairs, and because
+     reviewer noise that is independent of the implementer arm
+     (which is exactly what blinding guarantees) cannot bias the
+     arm contrast at all. It only widens it.
+     (c) **NEW pre-registered target, replacing the extension:
+     TWELVE cross-model dual pairs.** All cross-model pairs
+     count, not only MAJOR-bearing ones — a systematic
+     reviewer-model difference shows up in MINOR/NOTE yield too,
+     and those are plentiful. Twelve resolves such a difference
+     to about 1.23x; four pairs only to 1.44x. Complete so far:
+     #10, #12, with #14 pending. **Until the target is met,
+     EVERY dual is cross-model** — v4 item 3's {same-model,
+     cross-model} block alternation is suspended. This is
+     cost-neutral: the every-3rd dual frequency is unchanged,
+     the budget is only re-pointed. The orchestrator recording
+     the twelfth cross-model pair notifies Evan explicitly, as
+     above.
      **Sample numbering follows ORDINALS** (ratified in the
      #398 thread, 2026-08-11, all three programs concurring —
      resolving the concurrent-dispatch collision in which two
@@ -930,7 +963,28 @@ cannot move R2-a's design. Implementer briefed to build against
 topo::ContactClass directly, absorb #552 at routine re-merges,
 and mint its own schema bump at main's next number (the live
 chain: v10 = ASM-UPD, v11 = M9-1 at its re-merge). Lane asm-r2a,
-branch asm/r2a-mate-solve, OPUS per the slot-1 draw. Review
+branch asm/r2a-mate-solve, OPUS per the slot-1 draw.
+
+**ASM-R2a SCHEMA CLAIM: v13** (2026-08-16, PR #575 open) — the
+`Node::Mate` arm, new node vocabulary, the case v7 bumped for.
+Claimed as main's next number after reading main's ACTUAL constant
+by eye immediately before setting it (`git show
+origin/main:crates/editor-core/src/persist/mod.rs | grep
+SCHEMA_VERSION`). This paragraph IS the tripwire the
+`schema-claim-discipline` memory asks for: any other in-flight
+branch claiming 13 collides HERE, because the constant will not —
+one line of identical text merges clean.
+
+**The claim moved TWICE on this one branch, and both times only the
+by-eye read caught it.** 11 → 12 when M9-1 PR-2 (#552) merged with
+11; 12 → 13 when LIB-PLACEDUNION (#571) merged with 12. In the
+first, the ledger prose conflicted and the constant did not — the
+memory's own case. In the SECOND, nothing conflicted at all: this
+branch's paragraph was newer than #571's ledger edit, so the two
+prose blocks merged cleanly TOO, and the collision was visible only
+in the constant read. Recorded as the sharper lesson: prose is a
+tripwire, not a guarantee — the explicit read at every re-merge is
+the thing that actually holds. Review
 ordinal claims at review dispatch (note: the next third is 48 —
 the pending dual, tally 5-of-6).
 M9-2 PR-2 review ordinal fixed at dispatch (2026-08-16, PR #564
@@ -962,3 +1016,76 @@ spec time: **M-L / NUMERIC** (docs/TESS-SPAN-SPEC.md). Same-file
 overlap with the in-flight PROBEGATE declared (re-merge duty in
 both briefs). Row at merge.
 | M9-1 | 2026-08-16 | contact vocabulary end-to-end (two-PR unit): PR-1 kernel — ContactClass{Rest,Tangent} + the finding vocabulary defined LOWEST (topo/contact.rs, re-exported upward), CurveContact/PatchContact granularities, class-keyed DeclaredPairs + carried channels (class-less unrepresentable), the kind-generalized carrier_eq ladder, the C4 Tangent table over the jet lane, failure modes at BOTH gates, AQ6 trilean + Fit-deferral recourse; PR-2 recipe/LIB/schema — class through Declare/resolve/content-key, declare_node preservation, kernel-rooted re-exports, serde(with) bridge (DEV-2 ruling), schema v11 (shifted twice in the race: RESPELL took 9, ASM-UPD 10) | L / MIXED→NUMERIC (pre-draw logged at spec) | OPUS (block M8-15 slot 1) | PR-1: **DUAL (sample #13, ordinal 39, same-model fable+fable, frozen a557da3b)** — R1 AWF 2/5/3, R2 AWF 1/5/3, rubric 4/4/4 both; CONVERGED where it mattered: BOTH independently proved the reverted op-door pass RIGHT and main's corpus carrying a genuine 0.5 m coincidence lie (R2's sharper mechanism: green only because verify-at-use was Union-only and the op a Subtract) — a QUALIFYING dual (tally → 5-of-6); productively divergent on the Tangent bridge (R1 measured in-band residual/opposition bridging; C4's three-list structure adjudicated it ESCALATE — the substantive fix). PR-2: single (ordinal 47, fable, frozen dc9dbdee) — AWF 0/4/2, 0 silent; headline = the preservation row couldn't distinguish the dropping code (detector Rest-only); DEV-4 RULED (door refusal ≠ contradiction) | PR-1: 1 understated (the R1 coverage claim) + 2 low-stakes silent; PR-2: 0 silent, 2 PR-body factual errors review-caught | 4 | 4 | 4 | BOTH IMPLEMENTER-INHERITED. PR-1 fix: the C4-lists Tangent rework (arms 3/4 decided together — the first-order lever IS the second-order question; a reachable 0/0 NaN the old code silently bridged, fixed), #539 filed + corpus lie fixed + op-door pass REINSTATED red-then-green, both probe suites adopted, 3 adopted rows' literal ε gaps re-derived band-relative. PR-2 fix: the preservation row bites (synthetic Tangent finding, RED under mutant), the tripwire truth-pass found REAL drift behind deliberate wildcards (Tangent missing from the PyO3 mirror — arm added, pin rewritten to enumerate), v10→v11 shift executing the race rule — WITH the process find: the one-line constant merged CLEANLY at 10-vs-10, the ledger PROSE was the only collision (the v7/v8 mode reproduced; prose = load-bearing machinery, recorded) | PR-1 MERGED #524 35/1 at cfd2fb57→24d11220 (merge 7f5a6c63); PR-2 MERGED #552 34/2 at 8d85634d (merge 134f5fac); DECLARED CONTACT HAS A VOCABULARY: Rest/Tangent authored, verified, persisted, refused typed at every seam; ASM R2 consumes it as-is | impl ~335k + fix1 ~245k + pr2 ~285k + fix2 ~120k / R1 ~150k / R2 ~130k / pr2-R ~115k | impl ~7h + fix1 ~4h + pr2 ~5h + fix2 ~1.7h / R1 ~2h / R2 ~3.2h / pr2-R ~1.8h (slot-queue dominated throughout) |
+PLACEDUNION review ordinal fixed at dispatch (2026-08-16, PR
+#571 open, frozen head c2e4b5b3): claimed through 48 (M9-2 PR-2
+dual) + 1 = **49 → SINGLE** (51 next third, under the #572
+amendment's composition once merged). Reviewer fable.
+TESS-SPLIT spec finalized (2026-08-16): the #320 split half
+under the RATIFIED aspect policy (#568: FFF cap A=16, Evan's
+comment + 👍). Pre-draw fields logged AT SPEC TIME: **M /
+NUMERIC** (docs/TESS-SPLIT-SPEC.md). **Dispatch GATED on
+TESS-SPAN's merge** (same sizing functions — sequenced, not
+parallel); block ASM-4's draw happens at that dispatch, slot 1 =
+TESS-SPLIT. The M9-5 lily-rebuild re-bless coupling (#569
+thread) rides the spec's row 8.
+ASM-R2A review ordinal fixed at dispatch (2026-08-16, PR #575
+open, frozen head 59d7bfda): claimed through 49 (PlacedUnion) + 1 =
+**50 → SINGLE** (51 is the next third — a CROSS-MODEL dual under
+the #572 amendment, whoever claims it). Reviewer fable, v4
+ladder. Pre-draw fields logged at spec time: L / NUMERIC
+(docs/ASM-R2A-SPEC.md; arm = block ASM-3 slot 1). Note for the
+row: the implementer's deviation 1 reports a SPEC-INTERNAL
+inconsistency (the binding coset table itself makes
+coaxial+planar(⊥) UNDER; acceptance row 1's DETERMINED claim was
+the spec author's error) — the reviewer adjudicates. Row at
+merge.
+MESH-PROBEGATE review ordinal fixed at dispatch (2026-08-16, PR
+#579 open, frozen head bf037c08): claimed through 51 (RESPELL PR-2's
+cross-model dual, #578) + 1 = **52 → SINGLE** (54 is the next
+third). Reviewer fable, v4 ladder. Pre-draw fields logged at
+spec time: S-M / STRUCTURAL (docs/MESH-PROBEGATE-SPEC.md; arm =
+block ASM-3 slot 3). Row at merge.
+| MESH-PROBEGATE | 2026-08-16 | #558 executed: probe_stats live/inert module split on the budget pattern (armed() = pub const fn false + build-enforced const assert; arm/take absent from default builds; zero #[cfg] in the tessellation lane); feature ruling probe-stats (join-budget rejected on the release-artifact evidence, probe rename rejected on blast radius, NAME CAUTION in both manifest entries); the MIN-1 falsifier preserved by an unconditional k-lint CI row; budget.rs inert half hardened to the same const shape (reported addition) | S-M / STRUCTURAL (pre-logged at spec) | OPUS (block ASM-3 slot 3) | single (ordinal 52, frozen bf037c08, v4) — **APPROVE 0/0/2, rubric 5/5/5** (reviewer reproduced the compile-error close both halves; own 2.5× cert plant RED under probe-stats + GREEN default with the block ABSENT; CI-row unconditionality read from the workflow source; 11/11 STLs byte-identical on the reviewer's own merge-base build; both static asserts mutation-proven E0080; all 4 clippy lanes clean; NOTEs: the "six manifests" undercount actually STRENGTHENS the ruling at 15, falsifier floor ~2×) | 0 silent (5 reported incl. the budget.rs hardening; all verified) | 5 | 5 | 5 | NONE (both NOTEs informational; no fix pass) | MERGED #579 35/35; #558 CLOSED — shipped builds carry no falsifier, the hosted gate still runs it | impl ~183k / review ~91k | impl ~5h wall / review ~1.5h (one usage-window resume) |
+RESPELL PR-2 review ordinal fixed at dispatch (2026-08-16, PR
+#576 open, frozen head = the 35/35 head): claimed through 50
+(ASM-R2a) + 1 = **51 → a third → DUAL, CROSS-MODEL per the #572
+amendment (every dual cross-model until the 12-pair target)** —
+R1 fable + R2 OPUS, concurrent same-head. The unit's OnArc
+continuation gap goes to Evan as a design question at the fix
+pass (proposed, not built — the §2c completion the migration
+surfaced).
+| PLACEDUNION | 2026-08-16 | the ratified A′ group boolean: Node::PlacedUnion (one prototype + PatternKind rule incl. Explicit(Vec<Frame>), ONE body out, Instance{i} naming), topo::Separation certified disjointness (BVH, both refusal postures), the graft_disjoint_all_onto_keyed door (design-owner RATIFIED on-thread — the union semantics demand one-solid/N-shell; ASM's existing door untouched per their consumption contract), corpus payoffs heat_sink_fins + die_tool, schema v12 (the merged-clean trap caught by explicit read) | L / STRUCTURAL (pre-draw logged) | OPUS (block LIB-10 slot 2; the #510 home-acceptance) | single (ordinal 49, frozen c2e4b5b3) — APPROVE-WITH-FIXES 1/several/— (MAJOR = Explicit(vec![]) silently evaluating to an empty body — the fail-loud violation, caught by the reviewer's probe; soundness probed and HELD at hairline/touch/1e-12 gaps; the ratified door proven a thin wrapper over pre-existing graft_solids_with with the existing door byte-untouched; the reviewer authored a rotated Explicit bit-compat twin the PR lacked; the Bounds-allowlist terminal-grant adjudicated in-class w/ the design-owner's conservative-direction ack) | 5 silent vs 10 reported (doc honesty 3/5 — the version-pin misattributions + doc mis-attachment class) | 4 | 4 | 3 | moderate (the shared placement_rule_fault door — edit gate + snapshot + eval backstop all read it; Explicit frames meet the A6/A11 bar at the EDIT door w/ honest labels; reviewer's twin ADOPTED credited) ; executor: implementer-inherited | MERGED #571 35/35 at 3931d68b; THE GROUP BOOLEAN EXISTS — G8's wall halves (fins move into the document; the BASE union's multi-solid-operand boolean = the named residual gap); the Python/audit slice queued | impl ~450k-cum / review ~204k (~4h slot-queue annotated) / fix ~85k-delta | wall multi-day across the outages |
+| RESPELL-PR2 | 2026-08-16 | the §2c consumer half: arc_to unified over ArcData (old doors deleted, PointLeg impls verbatim), the §2b compat trio + machinery DELETED, Python re-spell (6 value classes + ArcSide + PathOnArc + 5 arrival builders, ty-checked matrix), #419 chains as doctests, shim NARROWED to the measured OnArc gap | L / STRUCTURAL (pre-draw logged) | OPUS (block LIB-10 slot 4) | **DUAL (ordinal 51, CROSS-MODEL per #572 — R1 fable, R2 opus, frozen 4d8a8635)**: R1 A-W-F; R2 A-W-F 2/5/2. CONVERGED on the headline (review_s8_probe's kernel-facing rows deleted yet cited as surviving in four texts — the record-truthfulness class); R2-unique complementary MAJOR: PointLeg claimed sealed but foreign-implementable (proven by compiling an external impl); both independently proved the OnArc gap genuine by construction (E0599 ×5; dir() exactly the two fused verbs) and adjudicated the shim-narrowing honest; R1's differential mutation flipped exactly the 2 Via rows | 2 silent at delivery (the probe-row deletion missing from the inventory; the stale-citation cluster), rest reported | 4/— | 3/4 | 3/— | moderate (probe rows RESTORED on the surviving shim — the ruling: restore beats correcting four texts; PointLeg sealed w/ E0277 pin; figures re-measured at head; deletion census completed as deviations 5–6; 17 doctests re-pinned to true codes) ; executor: implementer-inherited | MERGED #576 35/35; THE §2c ARC IS COMPLETE except the OnArc continuation (Evan's ruling pending) — one arc verb, the compat register gone, the shim narrowed to one measured class; #433 proposal rides the PR body | impl ~470k-cum / R1 ~240k / R2 ~194k / fix ~87k-delta | wall multi-day, slot-contention annotated throughout |
+Block LIB-11 draw (2026-08-16): byte 42 (<252) mod 4 = 2 =
+fable's position → (opus, opus, fable, opus). Slot 1 = LIB-SEAL
+(the ProfileLoop seal ruled in-chat 2026-08-16;
+docs/LIB-SEAL-SPEC.md) = OPUS. Pre-draw fields logged at spec
+time: **S-M / STRUCTURAL** (privacy + accessors + a ~452-site
+mechanical literal migration, zero geometry decisions; census in
+the spec). Lane lib-seal, branch lib/seal. Review ordinal claims
+at review dispatch. Slots 2-4 bank.
+Schema-claim row-sync (2026-08-16, at the R2-a fix-pass seam):
+**v13 = ASM-R2a** (PR #575; shifted 12→13 when PLACEDUNION took
+12 mid-pass). The claim paragraph had landed only on the PR — 
+synced to main here per the discipline. SHARPER LESSON recorded:
+this time the LEDGER PROSE did not conflict either (the two
+claims appended in different regions) — the by-eye constant read
+at final re-merge is the ONLY reliable guard; prose is a
+tripwire, not a guarantee. PlacedUnion's future-version row had
+baked the literal 13 and went red on the shift; repaired in #575
+(the second occurrence of the RESPELL literal class — the
+SCHEMA_VERSION+1 derivation is now the norm both places).
+| ASM-R2A | 2026-08-16 | the mate solve: Node::Mate leaf (kernel ContactClass, shared wire table), A12 reading edges + partitions (roots.rs UNCHANGED — sink-set theorem needed no carve-out), cluster-gauge placement re-key w/ Applied-carried maintenance, the coset algebra (7-subgroup closure, decided case splits, uniform construct-and-check representative), solve-once-per-eval through OpEnv, hoist rider ii, schema v13 (shifted TWICE: 11→12 at M9-1, 12→13 at PlacedUnion — both caught ONLY by the by-eye read) | L / NUMERIC (pre-logged at spec) | OPUS (block ASM-3 slot 1) | single (ordinal 50, frozen 59d7bfda, v4) — **NOT-MERGEABLE-AS-IS 2/2/3 → delta re-review APPROVE** (the ladder's designed path: MAJOR-1 = parallel-axes clocking never solved, assemblable two-pin patterns falsely CONTRADICTORY incl. A11's own determined plate — reviewer probe-demonstrated, fix = closed-form clocking solve with the probes shipped as rows; MAJOR-2 = torn-cluster cut silently dropped the torn frame — typed TornCluster refusal landed; reviewer re-derived all 10 coset arms by hand, 3 mutations caught, ran all three clippy lanes locally closing the implementer's slot-starved gap, proved the v12 by-eye claim from git history; round 2: original probes pass, degenerate pin-on-axis honest, mutation turns new rows red) | 0 silent (6 reported; both deviations UPHELD as spec amendments — row 1 was unsatisfiable under the binding table, D-3's wording conflicted with ratified A11 rule 2 itself) | 5 | 3→4 | 4 | IMPLEMENTER-INHERITED, substantial (clocking_about + rows; TornCluster + rows; gauge-exact rewording; the mated cross-process D9 row; TWO schema shifts w/ future-version literal repairs both times) | MERGED #575 32/32 at 31c01cb6; MATES SOLVE — R2-a complete, the constructive-solve boundary is executable | impl ~492k + fix ~552k / review ~244k + delta ~284k | impl ~5h + gaps / review ~4h + delta ~1.5h (2 usage-window kills absorbed across the unit) |
+Block ASM-4 draw (2026-08-17, at the R2-B dispatch — the block's
+first): byte 228 (<252) mod 4 = 0 = fable's position → **(fable,
+opus, opus, opus)**. Slot 1 = TESS-SPLIT (the standing ledger
+commitment) = FABLE, still GATED on TESS-SPAN's merge. Slot 2 =
+**R2-B (docs/ASM-R2B-SPEC.md, binding) = OPUS**, dispatching NOW
+— the M9-2 PR-2 gate LIFTED EARLY by Evan's ruling (the R2-a
+precedent: the consumed shapes are delivered and review-frozen;
+the fix pass absorbs at routine re-merges). Pre-draw fields
+logged at spec time: **M / STRUCTURAL** (re-assessed from the
+draft's numeric-predicate guess per its own flag: the unit mints
+and wires; every decided predicate it exercises is M9-1/M9-2's,
+called as-is — no new numeric decision; reasoning in the spec
+header). Slots 3-4 bank. Row at merge.

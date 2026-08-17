@@ -16,8 +16,11 @@ import unittest
 from pathlib import Path
 
 from pncad import (
+    ArcSide,
     ArcSweep,
     BooleanOp,
+    Bulge,
+    Center,
     ContactClass,
     CurveKind,
     Doc,
@@ -33,12 +36,14 @@ from pncad import (
     ParamName,
     PathError,
     PlaneRelation,
+    Radius,
     SegPat,
     SegTag,
     Selector,
     SketchPlane,
     Start,
     SurfaceKind,
+    Via,
     circle,
     circle_split,
     deg,
@@ -230,7 +235,7 @@ class TestPlateParam(unittest.TestCase):
 
     FIXTURE = (
         Path(__file__).resolve().parents[3]
-        / "crates" / "pncad" / "tests" / "plate_param.v11.pncad"
+        / "crates" / "pncad" / "tests" / "plate_param.v13.pncad"
     )
 
     def plate(self):
@@ -340,7 +345,7 @@ class TestVase(unittest.TestCase):
             Open.at((0 * m, 0 * m))
             .line_to((1.2 * m, 0 * m))
             .line_to((1.2 * m, 0.3 * m))
-            .arc_via((1.3 * m, 0.8 * m), (0.5 * m, 2.0 * m))
+            .arc_to(Via((1.3 * m, 0.8 * m), (0.5 * m, 2.0 * m)))
             .line_to((0.9 * m, 2.5 * m))
             .line_to((0 * m, 2.5 * m))
             .line_to(Start)
@@ -368,7 +373,7 @@ class TestSheave(unittest.TestCase):
         for x, y in [(0.9, 0.0), (0.9, 0.25), (1.6, 0.25), (1.6, 0.0),
                      (2.0, 0.0), (2.1, 0.2)]:
             tip = tip.line_to((x * m, y * m))
-        tip = tip.arc_via((1.8 * m, 0.5 * m), (2.1 * m, 0.8 * m))  # r = 0.3 groove
+        tip = tip.arc_to(Via((1.8 * m, 0.5 * m), (2.1 * m, 0.8 * m)))  # groove
         for x, y in [(2.0, 1.0), (1.6, 1.0), (1.6, 0.75), (0.9, 0.75),
                      (0.9, 1.0), (0.4, 1.0)]:
             tip = tip.line_to((x * m, y * m))
@@ -936,7 +941,7 @@ class DieScene:
         )
         half = (
             Open.at((0 * m, -self.PIP_R * m))
-            .arc_to((self.PIP_R * m, 0 * m), math.tan(math.pi / 8))
+            .arc_to(Bulge((self.PIP_R * m, 0 * m), math.tan(math.pi / 8)))
             .arc_continue((0 * m, self.PIP_R * m))
             .line_to(Start)
         )
@@ -1174,10 +1179,12 @@ class TestRocker(unittest.TestCase):
     straight sides, plus the eye slot's arc-by-arc tip.
 
     G12's row, and the last one the PATHS surface owed. Two of the
-    outline's five corners are a STRAIGHT arrival off an ARC departure
-    (`at_toward`, §2b route 3); two are the carrier-bound arrival
-    (`at_on`); the keel knee is the line-by-line seam. Not one corner
-    is written down — every one is DERIVED from the two carriers.
+    outline's five corners arrive ON a carrier the fillet verb itself
+    authors (`fillet_arc` with the `Center` mode); two DEPART one the
+    verb re-authors from the tip's own bits (`arc_fillet` with the
+    `Radius` mode) and arrive straight; the keel knee is the
+    line-by-line seam. Not one corner is written down — every one is
+    DERIVED from the two carriers.
 
     Oracle, the scene's own and exact: the eye is a HOLE, so the
     rocker's volume is the outline's prism less the eye's, and the
@@ -1194,14 +1201,14 @@ class TestRocker(unittest.TestCase):
         return (
             Open.at((5.05 * m, -1.6 * m))
             .toward(2.1, 0.8)
-            .fillet(self.BLEND)
-            .at_on((8.5 * m, 0 * m), self.BOSS_C, ArcSweep.Ccw)
-            .fillet(self.BLEND)
-            .at_toward((4.05 * m, 1.35 * m), -4.1, 0.3)
-            .fillet(self.BLEND)
-            .at_on((-2.5 * m, 0 * m), self.HUB_C, ArcSweep.Ccw)
-            .fillet(self.BLEND)
-            .at_toward((3.0 * m, -1.75 * m), 2.0, -0.5)
+            .fillet_arc(self.BLEND, Center(self.BOSS_C, ArcSweep.Ccw, (8.5 * m, 0 * m)))
+            .arc_fillet(Radius(self.BOSS_R * m, ArcSide.Left), self.BLEND)
+            .at((4.05 * m, 1.35 * m))
+            .toward(-4.1, 0.3)
+            .fillet_arc(self.BLEND, Center(self.HUB_C, ArcSweep.Ccw, (-2.5 * m, 0 * m)))
+            .arc_fillet(Radius(self.HUB_R * m, ArcSide.Left), self.BLEND)
+            .at((3.0 * m, -1.75 * m))
+            .toward(2.0, -0.5)
             .fillet(self.KNEE)
             .to(Start)
         )
@@ -1209,9 +1216,11 @@ class TestRocker(unittest.TestCase):
     def eye(self):
         tip = math.sqrt(0.75)
         return (
-            Open.at_on((0 * m, -tip * m), (-0.5 * m, 0 * m), ArcSweep.Ccw)
-            .fillet(self.EYE)
-            .to_on(Start, (0.5 * m, 0 * m), ArcSweep.Ccw)
+            Open.arc_fillet_arc(
+                Center((-0.5 * m, 0 * m), ArcSweep.Ccw, (0 * m, -tip * m)),
+                self.EYE,
+                Center((0.5 * m, 0 * m), ArcSweep.Ccw, Start),
+            )
         )
 
     def prism(self, doc, loops):
@@ -1645,25 +1654,27 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 48)
 
     def test_the_rocker_outline_is_authorable(self):
-        """G12, CLOSED (LIB-LBRET) — the flip of the absence this test
-        used to pin.
+        """G12, CLOSED — the flip of the absence this test used to pin.
 
         The wall was PATHS-DESIGN §2b's third: a STRAIGHT arrival off
         an ARC departure was refused, so the rocker's arc-to-line
-        corners could not migrate to the lattice in Rust either. Route
-        3 (ratified on #386) gives that arrival its own door,
-        `at_toward`, and `TestRocker` is the scene-scale positive
-        form. What still refuses is the door's own fence: `at_toward`
-        on a STRAIGHT departure, which is the generic `.at().toward()`
-        pair's business."""
-        with self.assertRaises(PathError) as caught:
-            (
-                Open.at((0 * m, 0 * m))
-                .toward(1.0, 0.0)
-                .fillet(0.5 * m)
-                .at_toward((3 * m, 3 * m), 0.0, 1.0)
-            )
-        self.assertEqual(caught.exception.variant, "arc_carrier_spelling")
+        corners could not migrate to the lattice in Rust either.
+        `TestRocker` is the scene-scale positive form. What remains
+        here is the smallest statement of the §2c axiom that replaced
+        the wall: a fillet knows only the tangent ray its directed
+        point defines, so there is no carrier for its arrival to be
+        keyed on and NO spelling refusal — the same `.at().toward()`
+        pair completes the arrival whatever the departure rode."""
+        loop = (
+            Open.at((0 * m, 0 * m))
+            .toward(1.0, 0.0)
+            .fillet(0.5 * m)
+            .at((3 * m, 3 * m))
+            .toward(0.0, 1.0)
+            .line(1 * m)
+            .line_to(Start)
+        )
+        self.assertEqual(loop.vertex_count, 4)
 
     def test_a_plural_payload_cannot_feed_a_boolean(self):
         """G8, measured rather than assumed. The heatsink's shape is a

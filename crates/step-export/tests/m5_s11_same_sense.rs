@@ -30,7 +30,7 @@ mod common;
 use core::f64::consts::FRAC_PI_8;
 
 use geom_core::{Point2, Tolerance};
-use profile::{Profile, ProfileLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use step_export::{StepOptions, step_string};
 use sweep::{Extrusion, extrude};
 
@@ -87,11 +87,26 @@ fn flipped_face_emits_exactly_one_f_flag() {
 #[test]
 fn notched_body_exports_with_exactly_one_reversed_cylinder_wall() {
     let b = FRAC_PI_8.tan();
-    let lp = ProfileLoop::builder(Point2::new(0.0, 0.0))
-        .arc_to(Point2::new(2.0, 0.0), b)
-        .line_to(Point2::new(2.0, 1.5))
-        .arc_to(Point2::new(0.0, 1.5), -b)
-        .close();
+    // Leaving bulges: the bottom arc bows out (+b), the top one bows
+    // into the region (-b); the two sides are straight.
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex {
+            pos: Point2::new(0.0, 0.0),
+            bulge: b,
+        },
+        ProfileVertex {
+            pos: Point2::new(2.0, 0.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: Point2::new(2.0, 1.5),
+            bulge: -b,
+        },
+        ProfileVertex {
+            pos: Point2::new(0.0, 1.5),
+            bulge: 0.0,
+        },
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .unwrap();
