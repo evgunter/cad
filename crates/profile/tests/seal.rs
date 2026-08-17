@@ -105,9 +105,9 @@ fn neither_type_can_be_deserialized() {
         "pub struct ProfileLoop<T: Real>",
     ];
     for decl in seal_offsets {
-        let at = src
-            .find(decl)
-            .unwrap_or_else(|| panic!("{decl} is still declared in lib.rs"));
+        let at = src.find(decl);
+        assert!(at.is_some(), "{decl} is still declared in lib.rs");
+        let at = at.unwrap_or(0);
         // The attributes and docs attached to a declaration are the
         // 40 lines above it; a derive on the type would be in there.
         let head: String = src[..at]
