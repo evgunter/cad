@@ -17,7 +17,7 @@
 //! is deferred to the unit that binds the complete surface.
 
 use pncad::document::{
-    DimensionError, EditError, NodeErrorKind, PersistError, PlacementRuleFault,
+    DimensionError, EditError, MateFault, NodeErrorKind, PersistError, PlacementRuleFault,
     RecordedProgramError, RootFault,
 };
 use pncad::profile::PathError;
@@ -143,6 +143,10 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::NonFinitePlacement { .. } => "non_finite_placement",
         EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
         EditError::PinUnchanged { .. } => "pin_unchanged",
+        // ASM-R2a: a mate's alignment is authored geometry, so the
+        // non-finite refusal is the placement one's sibling and tags
+        // beside it.
+        EditError::NonFiniteAlignment { .. } => "non_finite_alignment",
     }
 }
 
@@ -210,6 +214,29 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         // "the pin does not hold" and "the tolerances disagree" are
         // different recourses, so they are different tags.
         NodeErrorKind::Part { fault, .. } => part_fault_tag(fault),
+        // ASM-R2a: the mate solve's refusals tag per FAULT, the way
+        // the root invariants do — UNDER, CONTRADICTORY and a
+        // dangling head carry different recourses, so a caller
+        // branches on which one fired, not on "a mate failed".
+        NodeErrorKind::Mate(fault) => mate_fault_tag(fault),
+    }
+}
+
+/// The stable tag for a mate-solve refusal (ASM-R2a D-4). Each arm is
+/// a different recourse: add the complementary mate, delete one of the
+/// clashing pair, rebind the stranded head, author the missing
+/// primitive, or move the geometry out of the band.
+pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
+    match fault {
+        MateFault::Frame { .. } => "mate_frame_degenerate",
+        MateFault::ClassNotAdmitted { .. } => "mate_class_not_admitted",
+        MateFault::TableLacks { .. } => "mate_table_lacks",
+        MateFault::Indeterminate { .. } => "mate_indeterminate",
+        MateFault::Band { .. } => "mate_band",
+        MateFault::Contradictory { .. } => "mate_contradictory",
+        MateFault::Under { .. } => "mate_under",
+        MateFault::DanglingHead { .. } => "mate_dangling_head",
+        MateFault::SelfMate { .. } => "mate_self",
     }
 }
 

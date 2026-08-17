@@ -125,6 +125,19 @@ pub use editor_core::{
     Frame, PartFault, PartResolver, ResolveFailure, ResolveFault, product_named,
 };
 
+// Mates (ASM-R2a; ASSEMBLY-DESIGN A3/A11/A12): the declaration node's
+// authored payload (`Alignment` over two `MateFrame`s, a
+// `MatePrimitive`, an `AxisSense`), the solve's per-node outcome
+// (`SolvedPoses`, `MateRole`, the residual `Subgroup`), the recorded
+// cluster-record maintenance (`ClusterMaintenance`), and `MateFault`
+// — the typed refusal every door carries, the way `RootFault` is
+// carried above.
+pub use editor_core::{
+    Alignment, AxisSense, ClusterMaintenance, MateFault, MateFrame, MatePrimitive, MateRole,
+    MateSide, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, reading_edges,
+    relative_freedom_components, solve_document,
+};
+
 // Split and inline (ASM-4; ASSEMBLY-DESIGN A4): the first-class
 // recorded refactorings. `split` cuts a closed node set out into a new
 // document (identity supplied by the caller — `DocumentId::derive` or

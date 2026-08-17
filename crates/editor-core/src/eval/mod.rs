@@ -254,6 +254,12 @@ pub enum ValuePayload<T: Decide> {
     /// authoring to the kernel door — the one vocabulary end-to-end
     /// (SELECT-DESIGN §3d).
     Declarations(Vec<((StableName, StableName), ContactClass)>),
+    /// A Mate node's ROLE in the solve (A11 rule 4; ASM-R2a D-1): a
+    /// tree mate determined its child, a non-tree mate declared and
+    /// solved nothing. Not body-denoting, so the product gather skips
+    /// it exactly as it skips a `Declare` — which is what "an ordinary
+    /// non-body root" means in code.
+    Mate(crate::mate::MateRole),
 }
 
 impl<T: Decide> ValuePayload<T> {
@@ -267,6 +273,7 @@ impl<T: Decide> ValuePayload<T> {
             Self::Split { .. } => "split",
             Self::Instances(_) => "instances",
             Self::Declarations(_) => "declarations",
+            Self::Mate(_) => "mate",
         }
     }
 }
@@ -605,6 +612,11 @@ pub enum NodeErrorKind {
         /// Why it did not yield a part body.
         fault: parts::PartFault,
     },
+    /// The mate solve refused for this node (ASM-R2a D-4): the mate
+    /// itself, or an instance whose cluster the refusal left without a
+    /// pose. The fault names its own subject — the pair, the residual
+    /// subgroup, the failed predicate and its measured clash.
+    Mate(Box<crate::mate::MateFault>),
 }
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
@@ -626,6 +638,7 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "internal: canonical loop {loop_} failed to match back to a program loop"
             ),
+            Self::Mate(fault) => write!(f, "the mate solve refused: {fault}"),
             Self::Extrude(_) => f.write_str("the extrude op refused"),
             Self::Revolve(_) => f.write_str("the revolve op refused"),
             Self::Split(_) => f.write_str("the split op refused"),
@@ -928,9 +941,16 @@ where
     }
     let env = doc.param_env::<T>();
     let parts = parts::PartCache::<T>::new(opts.resolver.as_ref(), chain, opts.boolean_sweep);
+    // The mate solve is a WHOLE-DOCUMENT computation over recipe data
+    // (A11): one spanning tree per cluster, folded once, read by every
+    // instance and every mate below. Running it here rather than per
+    // node is not an optimization — a per-node solve would be a second
+    // answer to "where does this cluster sit".
+    let poses = crate::mate::solve_document(doc);
     let op_env = wire::OpEnv {
         boolean_sweep: opts.boolean_sweep,
         parts: &parts,
+        poses: &poses,
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
     let mut recomputed = 0usize;
@@ -1179,7 +1199,7 @@ where
         resolved_program.as_deref(),
         &upstream_keys,
         doc.witness(id),
-        doc.placement(id),
+        op_env.poses.placement(doc, id).ok(),
     );
     let naming_key = naming_key(content_key, &upstream_naming);
 
@@ -1250,7 +1270,7 @@ fn content_key<T>(
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     upstream_keys: &[ContentKey],
     witness: Option<&crate::witness::WitnessDatum>,
-    placement: crate::placement::Frame,
+    placement: Option<crate::placement::Frame>,
 ) -> ContentKey
 where
     T: Decide + ContentBits,
@@ -1307,6 +1327,10 @@ where
             PatternKind::Circular { .. } => 21,
             PatternKind::Explicit(_) => 22,
         },
+        // ASM-R2a. Tags APPEND — an existing one must never be reused
+        // for a new meaning (M5 PR 10's rule), so the mate takes the
+        // next free number rather than the one its unit first wrote.
+        Node::Mate { .. } => 23,
     };
     h.write_tag(tag);
     // Structural payloads beyond the tag: profile floats and Declare
@@ -1359,14 +1383,42 @@ where
                 byte8[..chunk.len()].copy_from_slice(chunk);
                 h.write_u64(u64::from_be_bytes(byte8));
             }
-            for x in placement
-                .columns
-                .iter()
-                .flatten()
-                .chain(placement.translation.iter())
-            {
-                h.write_f64_bits(*x);
+            // The SOLVED placement (ASM-R2a D-5): a mate edit that
+            // moves this instance's pose moves its key, and a cluster
+            // that refuses to solve keys DISTINCTLY from any pose —
+            // otherwise a repaired document could hit the memo on a
+            // stale success.
+            match placement {
+                Some(frame) => {
+                    h.write_tag(1);
+                    for x in frame
+                        .columns
+                        .iter()
+                        .flatten()
+                        .chain(frame.translation.iter())
+                    {
+                        h.write_f64_bits(*x);
+                    }
+                }
+                None => h.write_tag(0),
             }
+        }
+        // A mate's own key is its references, its class and its
+        // alignment: the recipe payload that decides what it says.
+        Node::Mate {
+            a,
+            b,
+            class,
+            alignment,
+        } => {
+            feed_stable_name(&mut h, a);
+            feed_stable_name(&mut h, b);
+            h.write_tag(match class {
+                topo::ContactClass::Rest => 1,
+                topo::ContactClass::Tangent => 2,
+                _ => 0,
+            });
+            feed_alignment(&mut h, alignment);
         }
         Node::Declare { pairs } => {
             h.write_u64(pairs.len() as u64);
@@ -1635,6 +1687,43 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             h.write_tag(3);
             h.write_u64(*n as u64);
             f(h, *phase);
+        }
+    }
+}
+
+/// Feeds a mate's alignment datum: the structural choices as tags, the
+/// authored coordinates as bits — the same (tag, payload) convention
+/// every other structural payload uses here.
+fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
+    use crate::mate::{AxisSense, MatePrimitive};
+    h.write_tag(match a.primitive {
+        MatePrimitive::FrameCoincidence => 1,
+        MatePrimitive::Coaxial => 2,
+        MatePrimitive::PlanarRest { .. } => 3,
+        MatePrimitive::Clocking => 4,
+    });
+    if let MatePrimitive::PlanarRest { offset } = a.primitive {
+        h.write_f64_bits(offset);
+    }
+    h.write_tag(match a.sense {
+        AxisSense::Aligned => 1,
+        AxisSense::Opposed => 2,
+    });
+    match a.clocking {
+        Some(theta) => {
+            h.write_tag(1);
+            h.write_f64_bits(theta);
+        }
+        None => h.write_tag(0),
+    }
+    for frame in [&a.a, &a.b] {
+        for x in frame
+            .origin
+            .iter()
+            .chain(frame.axis.iter())
+            .chain(frame.reference.iter())
+        {
+            h.write_f64_bits(*x);
         }
     }
 }

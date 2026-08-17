@@ -333,6 +333,7 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Declare { .. }
+        | Node::Mate { .. }
         | Node::InstantiatePart { .. } => Vec::new(),
     }
 }
@@ -353,6 +354,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
         Node::Declare { .. } => "Declare",
+        Node::Mate { .. } => "Mate",
         Node::InstantiatePart { .. } => "InstantiatePart",
     }
 }

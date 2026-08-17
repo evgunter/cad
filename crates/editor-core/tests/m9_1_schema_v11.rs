@@ -47,8 +47,9 @@ const V1: &str = include_str!("golden/v1_golden.cad");
 #[test]
 fn schema_version_is_current() {
     // Named for the PROPERTY, not the number (the `lbret_schema_v8`
-    // precedent): M9-1's own bump was v11; LIB-PLACEDUNION took v12, and the number is exactly what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 12);
+    // precedent): M9-1's own bump was v11; LIB-PLACEDUNION took v12
+    // and ASM-R2a v13, and the number is exactly what keeps moving.
+    assert_eq!(SCHEMA_VERSION, 13);
 }
 
 /// The IMMEDIATE prior version refuses, from the real file. Named
@@ -166,9 +167,8 @@ fn too_old_beats_a_broken_body() {
 }
 
 /// A saved document announces the CURRENT version in its header, and a
-/// class-bearing document
-/// round-trips with its declaration CLASSES intact — the actual
-/// content of this break.
+/// class-bearing document round-trips with its declaration CLASSES
+/// intact — the actual content of this break.
 #[test]
 fn a_declaration_round_trips_carrying_its_class() {
     let (doc, decl) = declaring_doc();
