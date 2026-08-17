@@ -168,11 +168,7 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
 /// top cap, at `offset` (0 = touching; negative lifts `b` clear —
 /// the offset runs along the TARGET frame's own axis, which the
 /// opposed sense has already flipped, per ASM-R2a's row 1).
-fn rest_mate(
-    a: RecipeNodeId,
-    b: RecipeNodeId,
-    offset: f64,
-) -> Node<editor_core::ProfileProgram> {
+fn rest_mate(a: RecipeNodeId, b: RecipeNodeId, offset: f64) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
         a: in_part(a, CapEnd::Top),
         b: in_part(b, CapEnd::Bottom),
@@ -189,10 +185,7 @@ fn rest_mate(
 
 /// Two instances of the unit cube, plus the seating mate at `offset`.
 /// Returns (document, instance ids, mate id, store).
-fn stacked(
-    label: &str,
-    offset: f64,
-) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId, StubStore) {
+fn stacked(label: &str, offset: f64) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId, StubStore) {
     let mut store = StubStore::default();
     let doc_ref = store.insert(cube_part(&format!("{label}-part")));
     let mut doc = ProfileDoc::empty(DocumentId::derive(label));
@@ -483,7 +476,10 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     assert_eq!(named.mate, mate, "the MATE NODE is named");
     assert_eq!(
         (named.a, named.b),
-        (in_part(ids[0], CapEnd::Top), in_part(ids[1], CapEnd::Bottom)),
+        (
+            in_part(ids[0], CapEnd::Top),
+            in_part(ids[1], CapEnd::Bottom)
+        ),
         "both references are named"
     );
     assert!(
@@ -511,8 +507,8 @@ fn row5_a_split_populates_the_crossing_record_and_inline_dissolves_it() {
     let (doc, ids, mate, store) = stacked("asm-r2b-row5", 0.0);
     // Cut out instance 1: the mate's `b` end goes, its `a` end stays.
     let cut = [ids[1]].into_iter().collect();
-    let out = split(&doc, &cut, DocumentId::derive("asm-r2b-row5-split"))
-        .expect("the split succeeds");
+    let out =
+        split(&doc, &cut, DocumentId::derive("asm-r2b-row5-split")).expect("the split succeeds");
     let Some(Node::InstantiatePart { interface, .. }) = out.remainder.node(out.instance) else {
         panic!("the split minted an instance");
     };
@@ -536,8 +532,7 @@ fn row5_a_split_populates_the_crossing_record_and_inline_dissolves_it() {
         "the remainder-side reference is unchanged"
     );
     assert_eq!(
-        inner.node,
-        out.node_map[&ids[1]],
+        inner.node, out.node_map[&ids[1]],
         "the part-side reference is spelled in the PART's own ids"
     );
 
@@ -623,8 +618,8 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
 fn row6_a_crossing_record_edit_moves_the_content_key() {
     let (doc, ids, _, store) = stacked("asm-r2b-row6", 0.0);
     let cut = [ids[1]].into_iter().collect();
-    let out = split(&doc, &cut, DocumentId::derive("asm-r2b-row6-split"))
-        .expect("the split succeeds");
+    let out =
+        split(&doc, &cut, DocumentId::derive("asm-r2b-row6-split")).expect("the split succeeds");
     let mut store = store;
     store.insert(out.part.clone());
 
@@ -644,7 +639,9 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
             },
             other => other.clone(),
         };
-        emptied = editor_core::apply(&emptied, &e).expect("the split's edits replay").doc;
+        emptied = editor_core::apply(&emptied, &e)
+            .expect("the split's edits replay")
+            .doc;
     }
     assert!(
         matches!(

@@ -159,7 +159,7 @@ fn an_empty_record_stays_absent_from_the_wire() {
     );
 }
 
-/// The content-key half of ASM-4's obligation is pinned in
-/// `asm_r2b_assembly` (`row6_a_crossing_record_edit_moves_the_content_key`),
-/// where a resolver exists so both documents' instantiate nodes
-/// actually evaluate and their keys are observable.
+// The content-key half of ASM-4's obligation is pinned in
+// `asm_r2b_assembly` (`row6_a_crossing_record_edit_moves_the_content_key`),
+// where a resolver exists so both documents' instantiate nodes actually
+// evaluate and their keys are observable.
