@@ -597,21 +597,38 @@ pub enum ValidationError {
         /// The classifier's diagnostic.
         cause: Indeterminate,
     },
-    /// Tier 3′: the census met an entity outside its exact planar
-    /// inventory (non-`Line` carrier / non-`Plane` surface). The
-    /// census stays **exact-on-planar through M5** (C12.4, OQ5 as
-    /// decided): the curved coincidence census — coincident-cylinder
-    /// classes, tangency contacts as declared records (C7's regime) —
-    /// is a coincidence-ladder design of its own, deferred to its own
-    /// design doc. Consequence, stated honestly: M5's curved booleans
-    /// produce tier-3 transverse, NON-touching results; a curved
-    /// boolean result that TOUCHES refuses typed at this 3′ gate —
-    /// the M5 envelope's frontier, exactly as boundary-on-boundary
-    /// seams were M3's. Meeting curved geometry here refuses loudly
-    /// rather than sampling.
+    /// Tier 3′: an entity or record outside the census's CERTIFIABLE
+    /// inventory (M9-2 — the blanket exact-on-planar refusal retired
+    /// with the census arms that replaced it). The census admits
+    /// every carrier kind; this refusal now names the residue: a
+    /// record or conformal candidate whose certifier lane refuses
+    /// typed (no exact-constant-arm chart, seam-branch divergence,
+    /// non-planar trims, a carrier kind outside the Rest ladder, a
+    /// scalar with no bracket lane). Refused loudly rather than
+    /// sampled, exactly as before — only the inventory statement
+    /// moved.
     CensusUnsupported {
         /// The unsupported entity.
         entity: EntityId,
+    },
+    /// Tier 3′ (M9-2 union fix, the conservative loudness backstop):
+    /// a cross-solid candidate pair the census can neither examine
+    /// nor definitely clear — refused loudly as UNDECIDABLE instead
+    /// of silently not looked at (A5's letter: decide or refuse,
+    /// never silently not-examine). Two classes fire it today: a
+    /// cross-solid curved face pair within reach of each other (the
+    /// C9-ring conformal-rest/proximity class — the exclusion ring
+    /// is the certified excluder this backstop stands in for), and
+    /// one instance's extent box contained in another's (C6's
+    /// interference class — representable only through recorded
+    /// gate-skips, which do not exist yet).
+    CensusUndecidable {
+        /// One side of the pair the census cannot clear.
+        a: EntityId,
+        /// The other side.
+        b: EntityId,
+        /// The not-yet-supported class, named.
+        what: &'static str,
     },
     /// An entity holds a topology key that does not resolve in its arena.
     /// Reported once per occurrence (a parent listing the same dangling
@@ -981,6 +998,17 @@ pub enum CensusContact {
         /// The face.
         face: FaceKey,
     },
+    /// Two curved faces on ONE carrier with opposed senses whose trim
+    /// regions definitely overlap in the shared chart (M9-2's
+    /// conformal face-pair arm) — carried as the kernel contact
+    /// FINDING, so the refusal quotes exactly the declaration that
+    /// would verify (M9-1's layering ruling: one vocabulary
+    /// end-to-end).
+    ConformalPatch {
+        /// What was found: the face pair, its class (`Rest`), and the
+        /// definite verdict the arm's doors reported.
+        finding: crate::contact::ContactFinding,
+    },
 }
 
 /// A declared contact the census could not confirm (tier 3′).
@@ -1010,6 +1038,15 @@ pub enum StaleDeclaration {
         face_b: FaceKey,
         /// The record's witness edge.
         witness: crate::entity::EdgeKey,
+    },
+    /// A patch-granularity record whose faces are dead or whose trim
+    /// regions definitely no longer overlap in the shared chart
+    /// (overlap Empty ⇒ stale, C3's letter).
+    Patch {
+        /// The record's A-side face.
+        face_a: FaceKey,
+        /// The record's B-side face.
+        face_b: FaceKey,
     },
 }
 
@@ -1148,14 +1185,22 @@ impl fmt::Display for ValidationError {
             ),
             Self::CensusUnsupported { entity } => write!(
                 f,
-                "tier-3′ census: {entity} is outside the exact planar census \
-                 inventory — the census stays exact-on-planar through M5 (C12.4; \
-                 OQ5: the curved coincidence census is its own deferred design). \
-                 M5 curved booleans produce tier-3 transverse, non-touching \
-                 results; a touching curved result refuses HERE by design (the \
-                 C7 tangency/coincidence classes have no census records yet) — \
-                 separate the operands or declare the contact once the curved \
-                 census lands"
+                "tier-3′ census: {entity} is outside the census's certifiable \
+                 inventory — the census admits every carrier kind (M9-2), but \
+                 this record or conformal candidate has no certifier lane \
+                 (exact-constant-arm charts, the Rest carrier ladder and the \
+                 jet schedule are the certified set; the inf-stretch-bounds \
+                 extension is the named follow-up). Refused rather than \
+                 sampled; declare and certify through a supported lane, or \
+                 separate the geometry"
+            ),
+            Self::CensusUndecidable { a, b, what } => write!(
+                f,
+                "tier-3′ census: the pair {a} / {b} cannot be examined or definitely \
+                 cleared by any census arm ({what}) — refused as undecidable rather \
+                 than silently not looked at; separate the bodies, or wait for the \
+                 named lane (the C9 exclusion ring for curved proximity; C6's \
+                 recorded gate-skips for declared interference)"
             ),
             Self::DanglingTopology { from, to } => {
                 write!(f, "{from} references {to}, which does not resolve")
@@ -2315,6 +2360,15 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
 ///
 /// With `contacts` empty the census must find nothing, and 3′ ≡ tier 3
 /// plus the census actually run (pinned by the acceptance suite).
+///
+/// Since M9-2 the census reaches beyond the exact planar sweeps: the
+/// conformal face-pair arm (shared-carrier opposed-sense curved pairs
+/// through the chart-region predicate), face-granularity backing from
+/// curve/patch records, and the record certifiers (jet schedule for
+/// `CurveContact`, chart-region overlap for `PatchContact`). ASM R2-b
+/// consumes THIS gate (ASM-R2-SPEC-DRAFT:39-58): mate declarations
+/// land in the product body's [`crate::boolean::ContactRecords`] —
+/// same currency, no adapter — and validate here.
 ///
 /// # Errors
 ///

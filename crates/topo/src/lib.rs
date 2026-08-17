@@ -183,9 +183,10 @@ pub use boolean::{
     CurveContact, FaceContainment, FacePairDeclaration, NullEdgePairRecord, Operand, OperandKeys,
     PairSite, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity,
     PlaneRelation, PointInSolidError, SideCode, SolidContainment, SweepStrategy, SweepTrace,
-    VfContact, VvContact, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq,
-    contfp, face_carrier, flush_pair_relation, intersect, intersect_with, oriented_plane_eq,
-    point_in_solid, subtract, subtract_with, tangent_pair_relation, union, union_with,
+    TangentLocus, TangentLocusError, VfContact, VvContact, boolean_op_with, boolean_reduce,
+    boolean_reduce_declared, carrier_eq, contfp, face_carrier, flush_pair_relation, intersect,
+    intersect_with, oriented_plane_eq, point_in_solid, subtract, subtract_with, tangent_locus,
+    tangent_pair_relation, union, union_with,
 };
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
@@ -205,7 +206,7 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
-pub use chart_region::{ChartOverlap, ChartRegionError, chart_region_overlap};
+pub use chart_region::{ChartOverlap, ChartRegionError, ChartRegionLane, chart_region_overlap};
 pub use geom_brep::{
     CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, EdgeNurbsLane, Pcurve,
     PcurveCache, PcurveCertifyError,

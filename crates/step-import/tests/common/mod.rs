@@ -137,8 +137,21 @@ pub fn census(body: &Body<f64>) -> (usize, usize, usize, usize, usize) {
 /// suites' entry point for files that must import).
 pub fn import_fixture(name: &str) -> step_import::StepImport {
     let text = fixture(name, "step");
-    step_import::import_step(&text, &step_import::ImportOptions::default())
-        .unwrap_or_else(|e| panic!("importing {name}: {e}"))
+    let options = if name.contains("kiss_assembly") {
+        step_import::ImportOptions {
+            // The corpus's one touching assembly: its corner kiss at
+            // (1, 1, 1) is DECLARED through the M9-2 import-side channel
+            // (D7 step 4) — the shared tier-3′ gate then certifies the
+            // touch instead of refusing it undeclared.
+            declared_contacts: vec![step_import::ImportContact::VertexRest {
+                at: [1.0, 1.0, 1.0],
+            }],
+            ..step_import::ImportOptions::default()
+        }
+    } else {
+        step_import::ImportOptions::default()
+    };
+    step_import::import_step(&text, &options).unwrap_or_else(|e| panic!("importing {name}: {e}"))
 }
 
 /// The imported solid body, panicking on a wireframe disposition.

@@ -441,6 +441,35 @@ pub struct ImportOptions {
     /// the file's declaration. Must be finite and strictly positive
     /// when given ([`StepImportError::InvalidEpsOverride`]).
     pub eps_in: Option<f64>,
+    /// **The import-side declaration channel** (M9-2, D7 step 4's
+    /// residue): contact declarations the adopting CALLER attaches to
+    /// this import, resolved against the assembled body and certified
+    /// by the SAME tier-3′ gate a native declared-contact body runs —
+    /// there is no import-only validity path (the #276/#260 one-gate
+    /// ruling). A file has no arena keys to declare with, so the
+    /// channel is POSITION-anchored; an anchor that does not resolve
+    /// is [`StepImportError::DeclarationUnresolved`], never dropped.
+    pub declared_contacts: Vec<ImportContact>,
+}
+
+/// One position-anchored import declaration (module docs at
+/// [`ImportOptions::declared_contacts`]).
+///
+/// The kernel-side currency these resolve INTO is
+/// [`topo::ContactRecords`] — the boolean 3′ records, same type, no
+/// adapter. The vertex-rest anchor is the shipped arm (the touching-
+/// assembly class the corpus holds); face-granularity anchors extend
+/// here when their first import consumer lands, through the same
+/// resolve-or-refuse posture.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ImportContact {
+    /// Two vertices of the assembled body coincide at `at` and are
+    /// declared at REST: resolves to the exactly-two vertices within
+    /// the gate band of the anchor and mints their `VvContact`.
+    VertexRest {
+        /// The anchor position (model metres).
+        at: [f64; 3],
+    },
 }
 
 /// A successful import: what the file's shape representation supports.
@@ -706,17 +735,22 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
             // mapped geometry, so no tier-3 verdict is a function of
             // the placement — and it costs nothing in honesty.
             //
-            // Tier 3, not the 3′ form: the tier-3′ census gate is the
-            // currency of DECLARED-contact bodies (`BooleanBody`), and
-            // an imported body declares none. **Scope, stated
-            // honestly**: 3′ on an empty contact record is tier 3 plus
-            // the census actually run, which is strictly stronger, so
-            // an imported assembly whose parts TOUCH is checked less
-            // than its native twin — the touch is neither declared nor
-            // discovered here (F1 forbids scan-to-bless). Import-side
-            // declared contacts are banked with the M8 contact
-            // program (D7 step 4).
-            gate(&body, None)?;
+            // **The 3′ form, with the import-side declaration
+            // channel resolved** (M9-2, D7 step 4 executed): the
+            // aggregate body is held to `validate_pseudomanifold` —
+            // the SAME gate a native declared-contact body runs,
+            // against exactly the records the adopting caller's
+            // declarations resolve to (empty when none were given).
+            // Consequence, stated plainly: an imported assembly whose
+            // parts TOUCH now refuses UNDECLARED at this gate — the
+            // census discovers the touch and F1 forbids blessing it —
+            // and certifies WITH the declaration; the tier-3-only
+            // under-checking the M7-7 review pinned is retired. The
+            // per-solid gates above stay tier 3: contact is an
+            // aggregate-body fact, and the aggregate census sweeps
+            // every entity of every instance.
+            let records = resolve_declarations(&body, &options.declared_contacts, eps_in)?;
+            gate3(&body, &records)?;
             Ok(StepImport::Solid {
                 body,
                 eps_in,
@@ -743,4 +777,53 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
 /// grown an opinion.
 fn gate(body: &topo::Body<f64>, solid: Option<u64>) -> Result<(), StepImportError> {
     topo::validate_geometric(body).map_err(|errors| StepImportError::TierInvalid { solid, errors })
+}
+
+/// The aggregate subject's gate: the tier-3′ form over the resolved
+/// declaration records — the same function a native declared-contact
+/// body's caller runs, with the same no-opinion contract as [`gate`].
+fn gate3(body: &topo::Body<f64>, records: &topo::ContactRecords) -> Result<(), StepImportError> {
+    topo::validate_pseudomanifold(body, records).map_err(|errors| StepImportError::TierInvalid {
+        solid: None,
+        errors,
+    })
+}
+
+/// Resolves the position-anchored import declarations against the
+/// assembled body into the kernel's contact-record currency
+/// ([`ImportContact`] docs). Resolution is exact-arithmetic proximity
+/// at ε_in (the import's own input tolerance — anchors are FILE-side
+/// data, so they resolve at the file's tolerance, not the kernel
+/// band): an anchor with anything other than exactly two coincident
+/// vertices refuses typed.
+fn resolve_declarations(
+    body: &topo::Body<f64>,
+    contacts: &[ImportContact],
+    eps_in: f64,
+) -> Result<topo::ContactRecords, StepImportError> {
+    let mut records = topo::ContactRecords::default();
+    for c in contacts {
+        match *c {
+            ImportContact::VertexRest { at } => {
+                let mut hits = Vec::new();
+                for (vk, v) in body.vertices() {
+                    let Some(p) = body.get_point(v.point) else {
+                        continue;
+                    };
+                    let d2 = (p.x - at[0]).powi(2) + (p.y - at[1]).powi(2) + (p.z - at[2]).powi(2);
+                    if d2 <= eps_in.powi(2) {
+                        hits.push(vk);
+                    }
+                }
+                let [a, b] = hits[..] else {
+                    return Err(StepImportError::DeclarationUnresolved {
+                        at,
+                        found: hits.len(),
+                    });
+                };
+                records.vv.push(topo::VvContact { a, b });
+            }
+        }
+    }
+    Ok(records)
 }
