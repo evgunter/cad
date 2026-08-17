@@ -329,13 +329,30 @@ pub(crate) fn nurbs_cell_bounds(
         .collect())
 }
 
-/// The realized-anisotropy line beyond which a band's lattice cannot
-/// tolerate off-lattice points ([`NurbsCellGrid::band_schedule`]
-/// derives the sliver certificate `(aspect² + 1)/8 · δ_s` and what
-/// happens at the line). 5.0: bands at or under it were measured to
-/// hold their certificates across the tour, and the #316 leaf's
-/// 12:1 band plus the split-shadow interfaces sat above it — the
-/// classes the patch-count snap exists for.
+/// The realized-anisotropy line beyond which a band snaps to the
+/// patch column count ([`NurbsCellGrid::band_schedule`] derives the
+/// sliver certificate `(aspect² + 1)/8 · δ_s` and what happens at the
+/// line).
+///
+/// **5.0 is a MEASURED constant, not a derived one** (dual review of
+/// PR #594, MAJ-3): the sliver formula's own "certifies under δ" line
+/// is `aspect ≤ √15 ≈ 3.87` — in the gap `(3.87, 5]` a worst-case
+/// off-lattice sliver can certify up to ~1.6·δ, and what holds the
+/// lane there is measured margin (worst tour face certificate
+/// 0.60·δ) plus the typed [`TessellateError::CertificateExceeded`]
+/// refusal as the backstop — a bad mesh is unrepresentable either
+/// way; the constant only trades snap cost against refusal risk.
+/// Measured at 5.0: the tour's certificates hold with the refinement
+/// arm cold, and the #316 leaf's 12:1 band and the split-shadow
+/// interfaces (the classes the snap exists for) sit above the line —
+/// dropping to the derived 3.87 was measured to cost a large share of
+/// the span gain for margin the tour does not need. Malignity is
+/// judged on REALIZED spacings (`s_u/s_v`, post-`ceil`, up to ~2x the
+/// ideal-step aspect near one-step bands), so the line is applied to
+/// the lattice that actually exists; moving the test from the ideal
+/// step to the realized one cost +3.0% of the tour's cells (leaf_a
+/// 3.35x → 3.10x, still over the acceptance line) for correctly
+/// snapping the near-one-step bands the ideal-step test missed.
 pub(crate) const SAFE_ASPECT: f64 = 5.0;
 
 /// One v-band of the shipped schedule ([`NurbsCellGrid::band_schedule`]).
@@ -541,9 +558,11 @@ impl NurbsCellGrid {
     /// the chord pass's schedule, so a full-width iso rim on a malign
     /// band lands its chord points ON the columns as before
     /// (`chords::nurbs_tighten`, the D-2 whole-patch arm). Benign
-    /// interfaces keep their own counts: a foreign point's sliver
-    /// certifies under δ there, and the refinement ladder backstops
-    /// the rest.
+    /// interfaces keep their own counts: below the derived
+    /// `√15 ≈ 3.87` line a foreign point's sliver certifies under δ
+    /// outright; in the measured `(3.87, SAFE_ASPECT]` gap the tour's
+    /// margin holds it (SAFE_ASPECT docs) and the certificate refusal
+    /// plus the refinement ladder backstop the rest.
     ///
     /// # Errors
     ///
@@ -573,9 +592,17 @@ impl NurbsCellGrid {
                 .grid_steps(delta_s);
             let nuc = crate::chords::ceil_count(du, hu)?;
             let nvc = crate::chords::ceil_count(vb - va, hv)?;
+            // Malignity is judged on the REALIZED spacings `s_u/s_v`,
+            // not the pre-`ceil` ideal steps: the lattice a sliver
+            // lives in has rows every `s_v = (vb−va)/nvc ≤ h_v`, so
+            // testing against `h_v` under-estimates the aspect by up
+            // to ~2x whenever a band's extent barely exceeds one step
+            // (R2's review fixture, pinned in the tests below).
             #[allow(clippy::cast_precision_loss)]
             let su = du / nuc as f64;
-            malign.push(nuc >= 2 && hv.is_finite() && su > SAFE_ASPECT * hv);
+            #[allow(clippy::cast_precision_loss)]
+            let sv = (vb - va) / nvc as f64;
+            malign.push(nuc >= 2 && sv.is_finite() && sv > 0.0 && su > SAFE_ASPECT * sv);
             bands.push(BandDivisions { va, vb, nuc, nvc });
         }
         for (i, b) in bands.iter_mut().enumerate() {
@@ -625,9 +652,17 @@ impl NurbsCellGrid {
     /// componentwise max over the covered cells dominates the second
     /// partials a.e. on the whole box. This is the same fact the
     /// whole-patch assembly has always rested on at its own interior
-    /// knots. (The componentwise max, not the max of the per-cell
-    /// certificates: the remainder integral crosses cells, so each
-    /// second partial needs a single sup valid over the whole box.)
+    /// knots. (The componentwise max is the CONSERVATIVE choice of two
+    /// sound bounds: the max of the per-cell certificates also bounds
+    /// the remainder — pointwise, the integrand is the local cell's
+    /// form at the fixed direction, so the max of the per-cell forms
+    /// dominates it along every segment, with the same constant — and
+    /// is strictly tighter on straddling boxes (dual review of PR
+    /// #594, settled by derivation and dense numeric sup). The shipped
+    /// semantics is the componentwise sup, pinned bit-for-bit by
+    /// `cert_is_pinned_to_the_componentwise_sup`; adopting the tighter
+    /// bound is possible future work, worth little — straddlers are
+    /// boundary fans only.)
     ///
     /// For the common case — the trimmed lane places its grid lines on
     /// the cell boundaries, so a grid triangle's box lies inside ONE
@@ -1719,11 +1754,122 @@ mod tests {
         }
     }
 
+    /// **The shipped `cert` semantics, pinned bit-for-bit** (R1 MIN-2 /
+    /// R2 MAJ-1 of the PR #594 dual review): the certificate of a
+    /// straddling box IS the componentwise sup over covered cells fed
+    /// through [`NurbsFaceBound::cert`] — asserted with exact values on
+    /// an asymmetric fixture (one band `muu`-dominated, one
+    /// `mvv`-dominated) where the max-of-per-cell-certificates
+    /// alternative is strictly smaller, so substituting it goes RED
+    /// here. The review settled by derivation and by dense numeric sup
+    /// that max-of-cells is ALSO sound (per-segment form bound, same
+    /// constant) — the shipped choice is the more conservative of two
+    /// sound bounds, and THIS test pins which one ships.
+    #[test]
+    fn cert_is_pinned_to_the_componentwise_sup() {
+        let mk = |muu: f64, mvv: f64| NurbsFaceBound { muu, muv: 0.0, mvv };
+        let cells = [
+            CellBound {
+                u: (0.0, 1.0),
+                v: (0.0, 0.3),
+                bound: mk(8.0, 0.0),
+            },
+            CellBound {
+                u: (0.0, 1.0),
+                v: (0.3, 0.7),
+                bound: mk(0.5, 0.5),
+            },
+            CellBound {
+                u: (0.0, 1.0),
+                v: (0.7, 1.0),
+                bound: mk(0.0, 8.0),
+            },
+        ];
+        let grid = NurbsCellGrid::from_cells(&cells);
+        // Straddles all three bands.
+        let uv = [[0.1, 0.05], [0.9, 0.05], [0.5, 0.95]];
+        let expected = mk(8.0, 8.0).cert(uv);
+        assert_eq!(
+            grid.cert(uv).to_bits(),
+            expected.to_bits(),
+            "shipped cert must BE the componentwise-sup bound, exactly"
+        );
+        let max_of_cells = cells
+            .iter()
+            .map(|c| c.bound.cert(uv))
+            .fold(0.0f64, f64::max);
+        assert!(
+            expected > 1.5 * max_of_cells,
+            "fixture must separate the semantics (componentwise {expected:e} vs \
+             max-of-cells {max_of_cells:e}) or this test cannot catch a substitution"
+        );
+    }
+
+    /// **`band_schedule` judges malignity on REALIZED spacings** (R2
+    /// MAJ-2's executed fixture, adopted): a band whose extent barely
+    /// exceeds one ideal step has `s_v = extent/nvc` down to ~half of
+    /// `h_v`, so testing `s_u` against `SAFE_ASPECT·h_v` under-detects
+    /// by up to ~2x. This fixture measures 4.79 against the ideal step
+    /// (benign — the pre-fix test left `nuc = 11`) but 9.09 realized
+    /// (malign): the band and its neighbour must snap to the patch
+    /// column count, and the snap only ever adds columns.
+    #[test]
+    fn band_schedule_snaps_on_realized_aspect() {
+        let cells = [
+            CellBound {
+                u: (0.0, 1.0),
+                v: (0.0, 0.02),
+                bound: NurbsFaceBound {
+                    muu: 0.1108,
+                    muv: 0.0,
+                    mvv: 2.77,
+                },
+            },
+            CellBound {
+                u: (0.0, 1.0),
+                v: (0.02, 1.0),
+                bound: NurbsFaceBound {
+                    muu: 0.1,
+                    muv: 0.0,
+                    mvv: 0.1,
+                },
+            },
+        ];
+        let grid = NurbsCellGrid::from_cells(&cells);
+        let patch = NurbsFaceBound {
+            muu: 2.0,
+            muv: 0.0,
+            mvv: 2.77,
+        };
+        let delta_s = 2e-3;
+        let bands = grid
+            .band_schedule(patch, (0.0, 1.0), (0.0, 1.0), delta_s)
+            .expect("schedules");
+        assert_eq!(bands.len(), 2);
+        // Band 0's own schedule: h_u ≈ 0.0950 → nuc 11; h_v ≈ 0.0190
+        // with extent 0.02 → nvc 2, s_v = 0.01, s_u = 1/11 ≈ 0.0909:
+        // realized aspect 9.09 > SAFE_ASPECT while 5·h_v = 0.095 >
+        // s_u would have read it benign. Patch h_u ≈ 0.02236 → 45.
+        assert_eq!(bands[0].nvc, 2, "the fixture's nvc must be 2: {bands:?}");
+        assert_eq!(
+            bands[0].nuc, 45,
+            "the malign band snaps to the patch column count: {bands:?}"
+        );
+        assert_eq!(
+            bands[1].nuc, 45,
+            "the malign band's neighbour snaps too: {bands:?}"
+        );
+        // The snap only ever ADDS columns: both own counts were below.
+        assert!(bands[1].nvc >= 1);
+    }
+
     /// The shipped cell-grid lookup ([`NurbsCellGrid::cert`]): a box
     /// inside one cell certifies at exactly that cell's own bound; a
     /// box crossing a knot line certifies at the componentwise sup
-    /// over the cells it covers — never the (unsound) max of per-cell
-    /// certificates, and never more than the whole-patch certificate.
+    /// over the cells it covers (the SHIPPED semantics — pinned
+    /// exactly, against the tighter max-of-cells alternative, by
+    /// `cert_is_pinned_to_the_componentwise_sup` above), and never
+    /// more than the whole-patch certificate.
     #[test]
     fn cell_grid_cert_is_the_covered_cells_componentwise_sup() {
         for (name, s) in [("wavy", wavy()), ("wavy_rational", wavy_rational())] {

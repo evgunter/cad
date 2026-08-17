@@ -86,13 +86,14 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
             "a cheaper schedule cannot cost more: {n:?}"
         );
         assert!(n.grid_cells > 0.0 && n.span_opt_cells > 0.0, "{n:?}");
-        // TESS-SPAN: the shipped grid IS per-cell-sized, so the lane's
-        // actual cell count and the meter's independent prediction
-        // agree (a one-cell margin per ulp-level trim-box overhang the
-        // two arithmetics clip differently).
+        // TESS-SPAN: `span_cells` sums the SAME band_schedule the lane
+        // consumes, so this asserts the lane REALISED the schedule
+        // (candidate generation, dedup, counting) — not an independent
+        // re-derivation (mesh::budget module docs name what guards the
+        // schedule itself).
         assert!(
             (n.grid_cells - n.span_cells).abs() <= 0.01 * n.span_cells + 1.0,
-            "the shipped schedule and the meter's per-cell prediction disagree: {n:?}"
+            "the lane's realised cell count and the schedule's sum disagree: {n:?}"
         );
         // (No `grid_cells <= patch_cells` assertion on purpose: the
         // per-cell schedule pays a `ceil` per cell, and a face with

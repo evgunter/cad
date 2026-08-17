@@ -13,17 +13,21 @@
 //! grid is per-knot-span-cell-sized now, recorded as `grid_cells`;
 //! the retired whole-patch-sup schedule rides along as the
 //! COUNTERFACTUAL `patch_cells` column so the held gain stays a
-//! number; `span_cells` is the meter's independent per-cell
-//! prediction of the shipped schedule.
+//! number; `span_cells` is the shipped schedule's cell count summed
+//! through the SAME derivation the lane consumes (`band_schedule` —
+//! the agreement column verifies the lane's realisation of it, not an
+//! independent re-derivation; what guards the schedule itself is the
+//! per-triangle certificate refusal, this gate's growth rules, and
+//! the committed render cells).
 //!
 //! * **held** = `patch_cells / grid_cells` — the span gain TESS-SPAN
 //!   holds over whole-patch sizing. A regression toward whole-patch
 //!   sizing drives it toward 1.0 (and fires the gate through
 //!   `recoverable`, below).
-//! * **agree** = `grid_cells / span_cells` — ~1.00 by construction:
-//!   the lane's actual schedule against the meter's independent
-//!   prediction. Drift means the shipped sizing and the analysis no
-//!   longer describe the same grid.
+//! * **agree** = `grid_cells / span_cells` — 1.00 by construction:
+//!   the lane's realised cell count against the same schedule's sum.
+//!   Drift means candidate generation/dedup/counting no longer
+//!   realise the schedule.
 //! * **split** = `grid_cells / span_opt_cells` — what is still
 //!   recoverable by picking a cheaper point on each cell's
 //!   constraint ellipse `muu·h_u² + 2·muv·h_u·h_v + mvv·h_v² ≤ δ_s`;
@@ -112,8 +116,8 @@ pub struct Nurbs {
     pub patch_cells: f64,
     /// Cheapest uniform grid the same whole-patch bound admits.
     pub opt_cells: f64,
-    /// The meter's independent per-cell prediction of the shipped
-    /// schedule.
+    /// The shipped schedule's cell count, summed through the same
+    /// derivation the lane consumes (the agreement denominator).
     pub span_cells: f64,
     /// Per-cell sizing at the cheapest split.
     pub span_opt_cells: f64,

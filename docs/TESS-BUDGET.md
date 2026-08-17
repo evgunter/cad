@@ -82,15 +82,28 @@ re-derived (spec D-4) so BOTH regression kinds stay visible:
   COUNTERFACTUAL. `patch_cells / grid_cells` is the **held** span
   gain; a silent revert to whole-patch sizing multiplies `grid_cells`
   by it, which fires the triangle gate and the slack gate both.
-* `span_cells` — the meter's own per-cell prediction, computed through
-  `nurbs_cell_bounds` independently of the lane's arithmetic.
-  `grid_cells / span_cells` is the **agreement** column, ~1.00 by
-  construction; drift means lane and analysis no longer describe the
-  same grid.
+* `span_cells` — the shipped schedule's cell count, summed through
+  the SAME `band_schedule` derivation the lane consumes.
+  `grid_cells / span_cells` is the **agreement** column, 1.00 by
+  construction; it verifies the lane's REALISATION of the schedule
+  (candidate generation, dedup, counting), not an independent
+  re-derivation.
 * `opt_cells`, `span_opt_cells` — as before (cheapest split under the
   whole-patch bound / per cell). `grid_cells / span_opt_cells` is the
-  gate's per-face recoverable-slack ratio, now measuring the split
-  factor alone.
+  gate's per-face recoverable-slack ratio, now carrying the split
+  factor PLUS the banding and malign-snap forfeits, summed.
+
+What guards `band_schedule` itself, since the agreement column shares
+its derivation: (i) the per-triangle certificate — `NurbsCellGrid::cert`
+reads the raw per-cell bounds independent of the schedule, so an
+undersizing bug ends in refinement then a typed refusal, and is
+falsified per-triangle under the probe features; (ii) this gate's
+growth rules against the committed baseline; (iii) the committed
+render cells. The stated blind spot: a schedule bug that makes the
+grid COARSER while still certifying is invisible to the growth-only
+gate and to `agree` — accepted because the certificate is the
+guarantee, and recorded here so nobody mistakes `agree = 1.00` for
+more than it is.
 
 The report prints `held / agree / split / total`; `tess-lint`'s gate
 rules are unchanged in shape (triangle growth, per-face recoverable

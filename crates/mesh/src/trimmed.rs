@@ -50,7 +50,8 @@
 //! the guarantee. Since TESS-SPAN the NURBS lane's grid is
 //! NON-UNIFORM (per-knot-span-cell lines), and the ladder is argued
 //! for it explicitly: candidates are generated, DEDUPLICATED by
-//! location, and frozen before the first attempt, and a drop removes
+//! location before the first attempt (the refinement arm may APPEND
+//! later rounds' candidates — indices only grow), and a drop removes
 //! a candidate INDEX — so a cell-boundary point minted by two
 //! adjacent cells is one candidate, one drop actually removes the
 //! offending location, every retry strictly shrinks the candidate
@@ -602,7 +603,11 @@ fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec
 ///
 /// Also returns the grid-cell count `Σ nuc·nvc` over the bands — the
 /// budget meter's `grid_cells` column, read off the sizing that
-/// actually ran.
+/// actually ran. A STATED approximation (dual-review MIN): a shared
+/// cut line carries the union of both bands' column points, so the
+/// point set is slightly denser than any one band's `nuc` accounts
+/// for — `grid_cells` counts schedule CELLS, the triangle count
+/// carries the realised total, and the gate compares both.
 fn per_cell_candidates(
     grid: &NurbsCellGrid,
     patch: &NurbsFaceBound,

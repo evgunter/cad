@@ -35,14 +35,22 @@
 //! retired whole-patch-sup schedule kept as a COUNTERFACTUAL column
 //! (the live half recomputes it from `nurbs_face_bound`), so the gain
 //! the promotion holds stays a number and a silent revert to
-//! whole-patch sizing cannot hide; `span_cells` is the meter's OWN
-//! per-cell prediction of the shipped schedule, computed through
-//! `nurbs_cell_bounds` independently of the lane's arithmetic.
+//! whole-patch sizing cannot hide; `span_cells` is the schedule's
+//! cell count summed through the SAME `band_schedule` derivation the
+//! lane consumes — so the agreement column verifies the lane's
+//! REALISATION of the schedule (candidate generation, dedup,
+//! counting), not an independent re-derivation. What actually guards
+//! `band_schedule` itself: the per-triangle certificate (which reads
+//! the raw per-cell bounds and turns an undersizing bug into a typed
+//! refusal), the diff-gate on growth, and the committed render cells.
+//! The stated blind spot: a schedule bug that makes the grid COARSER
+//! while still certifying is invisible to the growth-only gate and to
+//! `agree` (docs/TESS-BUDGET.md records it).
 //!
 //! | factor | ratio | what it says |
 //! |---|---|---|
 //! | **span held** | `patch_cells / grid_cells` | the gain TESS-SPAN holds over whole-patch-sup sizing. Falls toward 1.0 if the shipped schedule regresses toward the patch sup. |
-//! | **agreement** | `grid_cells / span_cells` | ~1.0 by construction — the lane's schedule against the meter's independent per-cell prediction. Drift means the shipped sizing and the analysis no longer describe the same grid. |
+//! | **agreement** | `grid_cells / span_cells` | 1.0 by construction — the lane's realised cell count against the same schedule's sum. Drift means candidate generation/dedup/counting no longer realise the schedule. |
 //! | **split slack** | `grid_cells / span_opt_cells` | grid cells still recoverable by picking a cheaper point on each cell's constraint ellipse. The `2·a_u·a_v ≤ a_u² + a_v²` decoupling is unchanged by TESS-SPAN (the aspect-policy question is the split unit's), and a ruled wall still pays for it — see the anisotropy caveat below. |
 //! | **budget slack** | `delta / worst_cert` | the sizing heuristic's headroom — two-cells-per-axis budgeting, the `ceil`, and trim boxes smaller than a full grid cell. |
 //! | **certificate slack** | `worst_cert / worst_dev` | how far the Hessian interpolation bound sits above the deviation actually attained. Irreducible in part (a bound must dominate). |
@@ -188,9 +196,10 @@ pub struct NurbsBudget {
     /// The cheapest uniform grid the SAME whole-patch bound admits,
     /// over the same box (rides with the counterfactual).
     pub opt_cells: f64,
-    /// The meter's OWN per-cell-sized prediction of the shipped grid,
-    /// each cell's `ceil` paid — computed independently of the lane's
-    /// arithmetic (module docs: the agreement denominator).
+    /// The schedule's cell count summed through the SAME
+    /// `band_schedule` derivation the lane consumes (module docs: the
+    /// agreement denominator verifies realisation, not an independent
+    /// re-derivation).
     pub span_cells: f64,
     /// Per-cell sizing AND the cheapest split in each cell — the two
     /// recoverable factors together, which is not their product.
@@ -609,17 +618,17 @@ mod live {
         best
     }
 
-    /// The meter's INDEPENDENT prediction of the shipped grid and the
-    /// pure per-cell ideal, over the trim box.
+    /// The shipped schedule's cell count and the pure per-cell ideal,
+    /// over the trim box.
     ///
     /// Returns `(lane, cheapest split)`:
     ///
-    /// * `lane` models the SHIPPED per-band tensor schedule exactly —
-    ///   per v-band `nuc × nvc` from the band bound
-    ///   (`NurbsCellGrid::row_bound`, which documents the banding),
-    ///   each band's `ceil` paid. Deliberately its own arithmetic
-    ///   rather than a call into the lane's, so the two can disagree
-    ///   loudly if either drifts (the agreement column).
+    /// * `lane` sums the SAME [`NurbsCellGrid::band_schedule`] the
+    ///   lane consumes — deliberately one derivation, so the agreement
+    ///   column verifies the lane's REALISATION of it (candidate
+    ///   generation, dedup, counting), and a bug in `band_schedule`
+    ///   itself is caught elsewhere (module docs: certificate refusal,
+    ///   growth gate, committed render cells).
     /// * `opt` keeps each cell's own RAW bound through
     ///   [`best_split_cells`], clipped to the box with the `ceil` paid
     ///   per cell — the pure per-cell-and-cheapest-split ideal, which

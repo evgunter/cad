@@ -178,8 +178,8 @@ fn main() {
         }
         println!(
             "\n  held = the whole-patch-sup counterfactual against the shipped per-cell grid \
-             (the TESS-SPAN gain);\n  agree = shipped grid vs the meter's independent per-cell \
-             prediction (~1.00 by construction);\n  split = what a cheaper split point per cell \
+             (the TESS-SPAN gain);\n  agree = the lane's realised cell count vs the same \
+             schedule's sum (1.00 by construction);\n  split = what a cheaper split point per cell \
              would still recover (a strip-shaped upper bound);\n  total = triangles against \
              what their ATTAINED deviation needed (an estimate: a sampled sup,\n  extrapolated \
              through deviation ~ h^2 — the others are counted grids)"
