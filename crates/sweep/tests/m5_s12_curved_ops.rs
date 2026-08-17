@@ -96,11 +96,7 @@ fn boss(n: usize, z0: f64, len: f64) -> Body<f64> {
         let th = theta * i as f64;
         p2(1.2 + R * th.cos(), 1.7 + R * th.sin())
     };
-    let lp = ProfileLoop::new(
-        (0..n)
-            .map(|i| ProfileVertex::new(at(i), bulge))
-            .collect(),
-    );
+    let lp = ProfileLoop::new((0..n).map(|i| ProfileVertex::new(at(i), bulge)).collect());
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tolerance::get())

@@ -235,13 +235,23 @@ pub fn embed_profile<T: geom_core::Real>(p: &Profile<f64>) -> Profile<T> {
     let loops = p
         .loops
         .iter()
-        .map(|lp| ProfileLoop::new(
-            lp.vertices()
-                .iter()
-                .map(|vx| profile::ProfileVertex::new(geom_core::Point2::new(T::from_f64(vx.pos().x), T::from_f64(vx.pos().y)), T::from_f64(vx.bulge())))
-                .collect(),
-        )
-        .with_tangent_joints(lp.tangent_joints().to_vec()))
+        .map(|lp| {
+            ProfileLoop::new(
+                lp.vertices()
+                    .iter()
+                    .map(|vx| {
+                        profile::ProfileVertex::new(
+                            geom_core::Point2::new(
+                                T::from_f64(vx.pos().x),
+                                T::from_f64(vx.pos().y),
+                            ),
+                            T::from_f64(vx.bulge()),
+                        )
+                    })
+                    .collect(),
+            )
+            .with_tangent_joints(lp.tangent_joints().to_vec())
+        })
         .collect();
     Profile::new(profile::SketchPlane::new(placement), loops)
 }

@@ -44,11 +44,7 @@ fn boss(n: usize, z0: f64, len: f64) -> Body<f64> {
         let th = theta * i as f64;
         p2(1.2 + 0.35 * th.cos(), 1.7 + 0.35 * th.sin())
     };
-    let lp = ProfileLoop::new(
-        (0..n)
-            .map(|i| ProfileVertex::new(at(i), bulge))
-            .collect(),
-    );
+    let lp = ProfileLoop::new((0..n).map(|i| ProfileVertex::new(at(i), bulge)).collect());
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tolerance::get())
@@ -311,11 +307,7 @@ fn a_boss_overhanging_the_plate_edge_hits_the_curved_pierce_frontier() {
         let th = theta * i as f64;
         p2(0.0 + 0.35 * th.cos(), 1.5 + 0.35 * th.sin())
     };
-    let lp = ProfileLoop::new(
-        (0..3)
-            .map(|i| ProfileVertex::new(at(i), bulge))
-            .collect(),
-    );
+    let lp = ProfileLoop::new((0..3).map(|i| ProfileVertex::new(at(i), bulge)).collect());
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tolerance::get())

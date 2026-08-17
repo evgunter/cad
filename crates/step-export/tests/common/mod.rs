@@ -354,11 +354,7 @@ pub fn two_stub_complement() -> Body<f64> {
         let th = 2.0 * PI / 3.0 * i as f64;
         Point2::new(1.2 + r * th.cos(), 1.7 + r * th.sin())
     };
-    let boss_loop = ProfileLoop::new(
-        (0..3)
-            .map(|i| ProfileVertex::new(at(i), bulge))
-            .collect(),
-    );
+    let boss_loop = ProfileLoop::new((0..3).map(|i| ProfileVertex::new(at(i), bulge)).collect());
     let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
     let boss = extrude(
         &Profile::new(sketch, vec![boss_loop])

@@ -36,7 +36,12 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
                 ProfileLoop::new(
                     lp.vertices()
                         .iter()
-                        .map(|v| ProfileVertex::new(Point2::new(T::from_f64(v.pos().x), T::from_f64(v.pos().y)), T::from_f64(v.bulge())))
+                        .map(|v| {
+                            ProfileVertex::new(
+                                Point2::new(T::from_f64(v.pos().x), T::from_f64(v.pos().y)),
+                                T::from_f64(v.bulge()),
+                            )
+                        })
                         .collect(),
                 )
                 .with_tangent_joints(lp.tangent_joints().to_vec())

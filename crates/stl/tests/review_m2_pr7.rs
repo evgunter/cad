@@ -409,7 +409,10 @@ fn consumer_e2e_vase_and_bracket() {
         ProfileVertex::new(geom_core::Point2::new(0.0, 0.0), 0.0),
         ProfileVertex::new(geom_core::Point2::new(0.8, 0.0), 0.0),
         // quarter-arc belly
-        ProfileVertex::new(geom_core::Point2::new(0.8, 0.4), (core::f64::consts::PI / 8.0).tan()),
+        ProfileVertex::new(
+            geom_core::Point2::new(0.8, 0.4),
+            (core::f64::consts::PI / 8.0).tan(),
+        ),
         ProfileVertex::new(geom_core::Point2::new(1.2, 0.8), 0.0),
         ProfileVertex::new(geom_core::Point2::new(1.2, 1.4), 0.0),
         ProfileVertex::new(geom_core::Point2::new(0.0, 1.4), 0.0),

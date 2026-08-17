@@ -206,7 +206,10 @@ fn dome() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
         ProfileVertex::new(p2(0.0, -1.0), t(a1)),
         ProfileVertex::new(p2(a1.sin(), -a1.cos()), t(a1)),
-        ProfileVertex::new(p2((2.0 * a1).sin(), -(2.0 * a1).cos()), t(core::f64::consts::PI - 2.0 * a1)),
+        ProfileVertex::new(
+            p2((2.0 * a1).sin(), -(2.0 * a1).cos()),
+            t(core::f64::consts::PI - 2.0 * a1),
+        ),
         ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     revolve(&validated(vec![lp]), axis_y(), Revolution::Full)

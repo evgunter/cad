@@ -15,7 +15,12 @@ fn rotated(lp: &ProfileLoop<f64>, r: usize) -> ProfileLoop<f64> {
     let n = lp.vertices().len();
     ProfileLoop::new((0..n).map(|k| lp.vertices()[(r + k) % n]).collect())
         // Declared joints follow their vertex through the reindexing.
-        .with_tangent_joints(lp.tangent_joints().iter().map(|&j| (j + n - r) % n).collect())
+        .with_tangent_joints(
+            lp.tangent_joints()
+                .iter()
+                .map(|&j| (j + n - r) % n)
+                .collect(),
+        )
 }
 
 /// Translates a loop rigidly (fixture plumbing).
@@ -23,7 +28,12 @@ fn translated(lp: &ProfileLoop<f64>, dx: f64, dy: f64) -> ProfileLoop<f64> {
     ProfileLoop::new(
         lp.vertices()
             .iter()
-            .map(|v| profile::ProfileVertex::new(geom_core::Point2::new(v.pos().x + dx, v.pos().y + dy), v.bulge()))
+            .map(|v| {
+                profile::ProfileVertex::new(
+                    geom_core::Point2::new(v.pos().x + dx, v.pos().y + dy),
+                    v.bulge(),
+                )
+            })
             .collect(),
     )
     .with_tangent_joints(lp.tangent_joints().to_vec())

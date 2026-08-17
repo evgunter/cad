@@ -120,7 +120,6 @@ use pncad::profile::{ArcSweep, Center, ProfileLoop, ProfileVertex, SketchPlane, 
 // The named gap below (`section_loops`): the raw loop door is kernel
 // vocabulary, off the façade, so the one scene that needs it names the
 // kernel crate directly.
-use profile::RawLoop;
 use pncad::sweep::fillet::FilletError;
 use pncad::sweep::readback::{WedgeFrames, revolved_caps};
 use pncad::sweep::{
@@ -128,6 +127,7 @@ use pncad::sweep::{
     sweep_body, tube_along_arc,
 };
 use pncad::topo::{Body, BooleanError, BooleanOp, Operand, TransformError};
+use profile::RawLoop;
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
