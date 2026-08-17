@@ -867,11 +867,11 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         .resolve(&ParamEnv::<f64>::default(), 0)
         .expect("literal arguments resolve");
     let replayed = pncad::profile::replay(&steps).expect("the lifted program replays");
-    assert_eq!(replayed.vertices.len(), authored.loop_.vertices.len());
-    for (got, want) in replayed.vertices.iter().zip(&authored.loop_.vertices) {
-        assert_eq!(got.pos.x.to_bits(), want.pos.x.to_bits());
-        assert_eq!(got.pos.y.to_bits(), want.pos.y.to_bits());
-        assert_eq!(got.bulge.to_bits(), want.bulge.to_bits());
+    assert_eq!(replayed.vertices().len(), authored.loop_.vertices().len());
+    for (got, want) in replayed.vertices().iter().zip(authored.loop_.vertices()) {
+        assert_eq!(got.pos().x.to_bits(), want.pos().x.to_bits());
+        assert_eq!(got.pos().y.to_bits(), want.pos().y.to_bits());
+        assert_eq!(got.bulge().to_bits(), want.bulge().to_bits());
     }
 
     // And it evaluates as a document node.

@@ -32,7 +32,7 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
         ProfileVertex::new(Point2::new(0.75 * s, s), 0.0),
         ProfileVertex::new(Point2::new(0.0, s), 0.0),
     ]);
-    lp.tangent_joints = vec![2, 3];
+    lp = lp.with_tangent_joints(vec![2, 3]);
     let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tolerance::get()) {
         Ok(p) => p,
         Err(e) => {

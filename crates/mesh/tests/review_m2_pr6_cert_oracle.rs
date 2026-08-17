@@ -157,7 +157,8 @@ fn tall_thin_bar() -> Body<f64> {
         v(0.0, r, b),
     ]);
     // All eight joints are exact corner-arc/side tangencies (#101).
-    lp.tangent_joints = (0..lp.vertices.len()).collect();
+    let n = lp.vertices().len();
+    lp = lp.with_tangent_joints((0..n).collect());
     extrude(&validated(vec![lp]), Extrusion::Distance(25.0))
         .unwrap()
         .body
@@ -192,7 +193,7 @@ fn silo() -> Body<f64> {
     ]);
     // The dome cap leaves the cylinder wall tangentially at (1, 1) --
     // intended smooth cap, declared (#101).
-    lp.tangent_joints = vec![2];
+    lp = lp.with_tangent_joints(vec![2]);
     revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
         .unwrap()
         .body

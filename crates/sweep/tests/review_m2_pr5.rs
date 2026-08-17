@@ -1412,7 +1412,7 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     // The cylinder-sphere tangency this test is ABOUT is declared
     // (#101): the discipline gates the profile door; the D2 split and
     // tier-3 acceptance downstream are what the test pins.
-    lp.tangent_joints = vec![2];
+    lp = lp.with_tangent_joints(vec![2]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full).unwrap();
     assert_all_tiers(&t.body);

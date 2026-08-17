@@ -87,7 +87,8 @@ pub fn rounded_prism() -> Body<f64> {
     ]);
     // Every joint is an exact quarter-arc/side tangency -- declared
     // (the #101 discipline).
-    lp.tangent_joints = (0..lp.vertices.len()).collect();
+    let n = lp.vertices().len();
+    lp = lp.with_tangent_joints((0..n).collect());
     extrude(&validated(vec![lp]), Extrusion::Distance(1.0))
         .unwrap()
         .body

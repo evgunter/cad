@@ -288,7 +288,7 @@ fn structural_walls_are_named() {
 
     // A declared index that names no vertex.
     let mut stray = rect(0.0, 0.0, 1.0, 1.0);
-    stray.tangent_joints = vec![9];
+    stray = stray.with_tangent_joints(vec![9]);
     assert_eq!(
         refusal(&stray),
         Some(LiftRefusal::JointIndexOutOfRange {
@@ -311,7 +311,7 @@ fn structural_walls_are_named() {
         vert(1.0, 1.0, 0.0),
         vert(0.0, 1.0, 0.0),
     ]);
-    closing_line.tangent_joints = vec![2];
+    closing_line = closing_line.with_tangent_joints(vec![2]);
     assert_eq!(
         refusal(&closing_line),
         Some(LiftRefusal::DeclaredJointBeforeClosingLine { joint: 2 })

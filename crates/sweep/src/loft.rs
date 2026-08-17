@@ -57,7 +57,9 @@ use geom_core::{
 };
 use geom_curves::Curve3;
 use geom_surfaces::{NurbsSurface, Surface};
-use profile::{Profile, ProfileError, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{
+    Profile, ProfileError, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile,
+};
 use topo::{
     Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite,
     PcurveMintError, ShellKey, SolidKey,

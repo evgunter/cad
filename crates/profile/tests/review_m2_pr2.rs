@@ -143,14 +143,14 @@ fn one_ulp_lex_min_tie_is_deterministic() {
     let x_hi = 1.0f64.next_up(); // 1 + 2^-52
     let base = ProfileLoop::polygon([p2(x_lo, 0.0), p2(3.0, 0.0), p2(3.0, 2.0), p2(x_hi, 2.0)]);
     let canon = ok(&profile(vec![base.clone()]));
-    let v0 = canon.loops()[0].vertices()[0].pos;
+    let v0 = canon.loops()[0].vertices()[0].pos();
     assert_eq!(v0.x.to_bits(), x_lo.to_bits(), "lex-min must be x = 1.0");
     for r in 0..4 {
         for reversed in [false, true] {
-            let n = base.vertices.len();
+            let n = base.vertices().len();
             let rotated = ProfileLoop::new(
                 (0..n)
-                    .map(|k| base.vertices[(r + k) % n])
+                    .map(|k| base.vertices()[(r + k) % n])
                     .collect::<Vec<_>>(),
             );
             let lp = if reversed {
@@ -174,14 +174,14 @@ fn one_ulp_lex_min_tie_is_deterministic() {
 fn origin_centered_square_canonicalizes_uniquely() {
     let base = ProfileLoop::polygon([p2(-1.0, -1.0), p2(1.0, -1.0), p2(1.0, 1.0), p2(-1.0, 1.0)]);
     let canon = ok(&profile(vec![base.clone()]));
-    let v0 = canon.loops()[0].vertices()[0].pos;
+    let v0 = canon.loops()[0].vertices()[0].pos();
     assert_eq!((v0.x, v0.y), (-1.0, -1.0));
     for r in 0..4 {
         for reversed in [false, true] {
-            let n = base.vertices.len();
+            let n = base.vertices().len();
             let rotated = ProfileLoop::new(
                 (0..n)
-                    .map(|k| base.vertices[(r + k) % n])
+                    .map(|k| base.vertices()[(r + k) % n])
                     .collect::<Vec<_>>(),
             );
             let lp = if reversed {
@@ -339,7 +339,7 @@ fn near_tangent_join_escalates() {
             (0.0, 3.0, 0.0),
         ]);
         if declare {
-            lp.tangent_joints = vec![1, 2];
+            lp = lp.with_tangent_joints(vec![1, 2]);
         }
         profile(vec![lp])
     };
@@ -478,7 +478,7 @@ fn far_from_origin_rectangle_and_l_profile_validate() {
     let r = rect(big, big, 2.0, 1.0);
     let vp = ok(&profile(vec![r]));
     assert_eq!(vp.loops()[0].role(), LoopRole::Outer);
-    let v0 = vp.loops()[0].vertices()[0].pos;
+    let v0 = vp.loops()[0].vertices()[0].pos();
     assert_eq!((v0.x, v0.y), (big, big));
     // With a hole (ray casting + orientation of both loops far away).
     let vp = ok(&profile(vec![

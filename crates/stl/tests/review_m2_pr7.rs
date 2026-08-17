@@ -419,7 +419,7 @@ fn consumer_e2e_vase_and_bracket() {
     ]);
     // The sphere belly blends tangentially into the neck cylinder at
     // (1.2, 0.8) -- intended smooth blend, declared (#101).
-    vase_profile.tangent_joints = vec![3];
+    vase_profile = vase_profile.with_tangent_joints(vec![3]);
     let vase = revolve(
         &common::validated(vec![vase_profile]),
         common::axis_y(),

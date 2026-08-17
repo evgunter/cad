@@ -99,7 +99,7 @@ fn silo_profile() -> ProfileLoop<f64> {
     ]);
     // The dome cap leaves the cylinder wall tangentially at (1, 1) --
     // intended smooth cap, declared (#101).
-    lp.tangent_joints = vec![2];
+    lp = lp.with_tangent_joints(vec![2]);
     lp
 }
 

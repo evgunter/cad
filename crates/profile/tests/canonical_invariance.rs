@@ -6,7 +6,7 @@
 mod common;
 
 use common::{annulus, bracket, circle_h, l_profile, lens, profile, rect, rounded_rect, tol};
-use profile::{Profile, ProfileLoop};
+use profile::{Profile, ProfileLoop, RawLoop};
 use proptest::prelude::*;
 
 /// Rotates a loop's starting vertex by `r` (a pure reindexing — the
@@ -79,7 +79,7 @@ proptest! {
                     .iter()
                     .enumerate()
                     .map(|(i, lp)| {
-                        let r = rot[i % rot.len()] % lp.vertices.len();
+                        let r = rot[i % rot.len()] % lp.vertices().len();
                         let turned = rotated(lp, r);
                         if rev[i % rev.len()] {
                             turned.reversed()
@@ -112,10 +112,10 @@ proptest! {
             &verts.iter().map(|&(x, y, b)| (x, y, b)).collect::<Vec<_>>(),
         );
         let back = lp.reversed().reversed();
-        for (a, b) in lp.vertices.iter().zip(back.vertices.iter()) {
-            prop_assert_eq!(a.pos.x.to_bits(), b.pos.x.to_bits());
-            prop_assert_eq!(a.pos.y.to_bits(), b.pos.y.to_bits());
-            prop_assert_eq!(a.bulge.to_bits(), b.bulge.to_bits());
+        for (a, b) in lp.vertices().iter().zip(back.vertices().iter()) {
+            prop_assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits());
+            prop_assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits());
+            prop_assert_eq!(a.bulge().to_bits(), b.bulge().to_bits());
         }
     }
 }

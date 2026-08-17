@@ -255,7 +255,7 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
         ProfileVertex::new(p2(0.0, 0.75), 0.0),
         ProfileVertex::new(p2(0.0, 0.25), b),
     ]);
-    lp.tangent_joints = vec![0, 1, 2, 3, 4, 5, 6, 7];
+    lp = lp.with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
     let t = extrude(&validated(vec![lp]), Extrusion::Distance(0.5)).unwrap();
     assert_all_tiers(&t.body);
     let (v, e, f, r) = counts(&t.body);
@@ -546,12 +546,12 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
     use geom_core::{Dual, Dual64};
     let lift = |lp: &ProfileLoop<f64>| -> ProfileLoop<Dual64> {
         ProfileLoop::new(
-            lp.vertices
+            lp.vertices()
                 .iter()
                 .map(|v| {
                     ProfileVertex::new(
-                        Point2::new(Dual::constant(v.pos.x), Dual::constant(v.pos.y)),
-                        Dual::constant(v.bulge),
+                        Point2::new(Dual::constant(v.pos().x), Dual::constant(v.pos().y)),
+                        Dual::constant(v.bulge()),
                     )
                 })
                 .collect(),

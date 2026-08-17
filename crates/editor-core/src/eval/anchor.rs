@@ -30,7 +30,7 @@
 //! the offset, and the bulge sign pins the orientation parity (which
 //! positions alone cannot decide at n = 2 — see `derive_naming`).
 
-use profile::{Profile, ProfileLoop, ValidatedProfile};
+use profile::{Profile, ProfileLoop, RawLoop, ValidatedProfile};
 
 use crate::names::{Entry, NameTable, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName};
 
@@ -153,7 +153,7 @@ pub fn derive_naming(
         let cv = vl.vertices();
         let mut found = None;
         'progs: for (pi, pl) in program_loops.iter().enumerate() {
-            let pv = &pl.vertices;
+            let pv = &pl.vertices();
             let n = pv.len();
             if n != cv.len() || n == 0 {
                 continue;
@@ -180,16 +180,17 @@ pub fn derive_naming(
                             (offset + k) % n
                         }
                     };
-                    let positions_ok = (0..n).all(|k| bits(&cv[k].pos) == bits(&pv[vmap(k)].pos));
+                    let positions_ok =
+                        (0..n).all(|k| bits(&cv[k].pos()) == bits(&pv[vmap(k)].pos()));
                     if !positions_ok {
                         continue;
                     }
                     // Bulges: verbatim under rotation, negated under
                     // reversal — bit-exact either way.
                     let bulges_ok = (0..n).all(|k| {
-                        let pb = pv[smap(k)].bulge;
+                        let pb = pv[smap(k)].bulge();
                         let want = if reversed { -pb } else { pb };
-                        cv[k].bulge.to_bits() == want.to_bits()
+                        cv[k].bulge().to_bits() == want.to_bits()
                     });
                     if !bulges_ok {
                         continue;
@@ -199,7 +200,7 @@ pub fn derive_naming(
                     let mut mapped: Vec<usize> =
                         vl.tangent_joints().iter().map(|&j| vmap(j)).collect();
                     mapped.sort_unstable();
-                    let mut prog_joints = pl.tangent_joints.clone();
+                    let mut prog_joints = pl.tangent_joints().to_vec();
                     prog_joints.sort_unstable();
                     prog_joints.dedup();
                     if mapped != prog_joints {

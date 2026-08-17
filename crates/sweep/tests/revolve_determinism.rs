@@ -58,12 +58,12 @@ fn dual_value_channel_matches_f64_bitwise() {
     use geom_core::{Dual, Dual64};
     let lift = |lp: &ProfileLoop<f64>| -> ProfileLoop<Dual64> {
         ProfileLoop::new(
-            lp.vertices
+            lp.vertices()
                 .iter()
                 .map(|v| {
                     ProfileVertex::new(
-                        Point2::new(Dual::constant(v.pos.x), Dual::constant(v.pos.y)),
-                        Dual::constant(v.bulge),
+                        Point2::new(Dual::constant(v.pos().x), Dual::constant(v.pos().y)),
+                        Dual::constant(v.bulge()),
                     )
                 })
                 .collect(),

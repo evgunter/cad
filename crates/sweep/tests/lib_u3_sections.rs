@@ -45,7 +45,7 @@ fn tangent_bite(declared: bool) -> Section {
         v(0.0, 2.0, 0.0),
     ]);
     if declared {
-        lp.tangent_joints = vec![1, 2];
+        lp = lp.with_tangent_joints(vec![1, 2]);
     }
     vec![lp]
 }

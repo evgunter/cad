@@ -125,7 +125,7 @@ fn filleted_block() -> Body<f64> {
     ]);
     // The tangency is authored, so it is DECLARED (the #101
     // discipline): joints 3 (arc→line) and 2 (line→arc).
-    lp.tangent_joints = vec![2, 3];
+    lp = lp.with_tangent_joints(vec![2, 3]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
         .unwrap();
