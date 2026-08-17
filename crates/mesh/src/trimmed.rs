@@ -59,19 +59,20 @@
 //!
 //! The same loop carries TESS-SPAN's second arm, **certificate-driven
 //! refinement**: after the emit pass, any NURBS triangle whose
-//! certificate exceeds the per-face sizing target δ_s queues its UV
-//! centroid as a new candidate and the attempt rebuilds. This is what
-//! makes the per-cell schedule honest without a sliver taxonomy — the
+//! certificate exceeds δ — one that would otherwise refuse — queues
+//! its UV centroid as a new candidate and the attempt rebuilds. This
+//! is deliberately a LAST-RESORT backstop, not the sliver cure: the
 //! uniform schedule was accidentally phase-aligned with the chord
 //! pass's boundary points (both sized from the same whole-patch
-//! steps), and per-cell sizing gives that up, so an anisotropic grid
-//! can admit Delaunay-legal boundary slivers spanning several rows
-//! (measured on the #316 leaf; a local anchor-point cure only
-//! relocates the empty circumcircle). Splitting each offender at its
-//! centroid (strictly interior to the polygon by construction) shrinks
-//! the offending certificate quadratically round over round; an
-//! attempt that still certifies above δ after the shared round budget
-//! refuses typed ([`TessellateError::CertificateExceeded`]) — the
+//! steps), per-band sizing gives that up, and an anisotropic lattice
+//! strip admits a Delaunay-legal sliver beside ANY off-lattice point
+//! — including a refinement centroid or an anchor column's top, each
+//! measured on the #316 leaf to re-admit the empty circumcircle
+//! beside itself. The load-bearing cure is the schedule's
+//! malign-band alignment
+//! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`]); an attempt
+//! that still certifies above δ after the shared round budget refuses
+//! typed ([`TessellateError::CertificateExceeded`]) — the
 //! certificate, as everywhere, is the guarantee. Positions are staged
 //! per attempt and committed only on acceptance, so a refining retry
 //! leaks no vertices into the shared arena.
@@ -103,7 +104,11 @@ use crate::planar::{classify_faces, edge_key, shoelace2};
 use crate::types::TessellateError;
 
 /// Retry budget for the grid-on-constraint rebuild (module docs).
-const MAX_GRID_RETRIES: usize = 4;
+// 6 since TESS-SPAN (was 4): the same round budget now carries the
+// certificate-driven refinement retries beside the grid-on-constraint
+// drops (module docs); the bound stays what it always was — the
+// typed-refusal backstop, not a tuning knob.
+const MAX_GRID_RETRIES: usize = 6;
 
 /// The per-chart data of the two constructing lanes (module docs):
 /// which certificate each emitted triangle checks, and which pcurve
@@ -118,9 +123,9 @@ enum Lane {
     },
     /// The M7 trimmed-NURBS lane (closed-form pcurve images, Hessian
     /// interpolation certificate — `crate::nurbs_cert`; since
-    /// TESS-SPAN certified per knot-span cell, v-rows sized per band,
-    /// u-columns kept on the whole-patch schedule the chord pass
-    /// shares).
+    /// TESS-SPAN certified per knot-span cell and sized per v-band,
+    /// the whole-patch bound kept beside the cell grid for the
+    /// malign-band column snap and the chord pass's shared schedule).
     Nurbs {
         grid: NurbsCellGrid,
         patch: NurbsFaceBound,
@@ -426,6 +431,7 @@ pub(crate) fn tessellate_trimmed(
         // their UV centroid queued as a new candidate for the next
         // round.
         let mut refine: Vec<(f64, f64)> = Vec::new();
+        let mut worst_uv = [[0.0f64; 2]; 3]; // TEMP DEBUG
         let refine_lane = matches!(lane, Lane::Nurbs { .. });
         for f in cdt.inner_faces() {
             if !inside[f.fix().index()] {
@@ -504,8 +510,9 @@ pub(crate) fn tessellate_trimmed(
             // Sticky-NaN accumulation (the curved lane's rule).
             if bound.is_nan() || worst.is_nan() || bound > worst {
                 worst = bound;
+                worst_uv = uv; // TEMP DEBUG
             }
-            if refine_lane && bound > tol.delta_s {
+            if refine_lane && bound > tol.delta {
                 refine.push((
                     (uv[0][0] + uv[1][0] + uv[2][0]) / 3.0,
                     (uv[0][1] + uv[1][1] + uv[2][1]) / 3.0,
@@ -515,17 +522,39 @@ pub(crate) fn tessellate_trimmed(
         }
         // Refinement retry (module docs): a centroid is strictly
         // interior to its kept triangle, hence inside the trim polygon;
-        // splitting every offending triangle strictly shrinks the empty
-        // region its circumcircle spanned, so the offending certificate
-        // falls quadratically round over round. Appending keeps every
-        // existing candidate index (the `dropped` set stays valid); a
-        // refinement point landing exactly on a constraint is caught by
-        // the same intermediate-vertex classification as any candidate.
+        // splitting an offending triangle shrinks the empty region its
+        // circumcircle spanned. Fires only for a triangle that would
+        // otherwise REFUSE (bound > δ) — a RARE backstop: the schedule's
+        // malign-band alignment (`band_schedule`) is the load-bearing
+        // sliver cure, because an unaligned insertion cannot converge
+        // against a wide anisotropic strip (measured — anchors and
+        // centroids each re-admit the empty circle beside themselves).
+        // Appending keeps every existing candidate index (the `dropped`
+        // set stays valid); a refinement point landing exactly on a
+        // constraint is caught by the same intermediate-vertex
+        // classification as any candidate.
         if !refine.is_empty() && !worst.is_nan() && attempt < MAX_GRID_RETRIES {
             candidates.extend(refine);
             continue 'retry;
         }
         if worst.is_nan() || worst > tol.delta {
+            // TEMP DEBUG
+            eprintln!(
+                "DEBUG cert-exceeded {fk:?}: worst {worst:e} uv {worst_uv:?} attempt {attempt} \
+                 dropped {} cand {}",
+                dropped.len(),
+                candidates.len()
+            );
+            if let Lane::Nurbs { ref grid, .. } = lane {
+                eprintln!("DEBUG grid {grid:?}"); // TEMP DEBUG
+            }
+            // TEMP DEBUG: boundary points near the offender
+            let (bu, bv) = (worst_uv[0][0], worst_uv[0][1]);
+            for &(pu, pv, id) in &polygon {
+                if (pu - bu).abs() < 0.06 && (pv - bv).abs() < 0.06 {
+                    eprintln!("DEBUG poly ({pu}, {pv}) id {id}");
+                }
+            }
             return Err(TessellateError::CertificateExceeded {
                 face: fk,
                 bound: worst,
@@ -560,53 +589,27 @@ fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec
     cand
 }
 
-/// The NURBS lane's interior grid candidates (TESS-SPAN): a TENSOR
-/// grid of **whole-patch-scheduled u-columns × per-v-band rows**.
+/// The NURBS lane's interior grid candidates (TESS-SPAN): a
+/// **per-v-band tensor** from the ONE shipped schedule derivation,
+/// [`crate::nurbs_cert::NurbsCellGrid::band_schedule`] — per-band
+/// `nuc × nvc` through the unchanged point-selection rule, with
+/// malign bands and their neighbours snapped to the whole-patch
+/// column count (the alignment argument lives there).
 ///
-/// * Columns: the historical whole-patch schedule, in the historical
-///   arithmetic (`u0 + (u1-u0)·i/nu`). Deliberately NOT per-cell: the
-///   chord pass sizes every adjacent edge's chords from the same
-///   whole-patch steps, so full-width iso rims' chord points sit
-///   exactly ON these columns — the phase alignment that keeps
-///   anisotropic boundary slivers certified (see "why the columns
-///   stay global", below). The u direction's per-cell share of the
-///   span slack is forfeited and metered.
-/// * Rows: per v-band from the band's own certified bound
-///   ([`crate::nurbs_cert::NurbsCellGrid::row_bound`] — band max
-///   across `u`, dilated one band each way) through the unchanged
-///   point-selection rule
-///   ([`crate::nurbs_cert::NurbsFaceBound::grid_steps`]); rows land
-///   exactly on the band cuts (never through the lerp, whose rounding
-///   would put two almost-coincident lines an ulp apart on a shared
-///   boundary), so a grid triangle sits inside one band and its
-///   certificate is that band's cells'. Points on the trim box
-///   boundary are excluded exactly as the uniform grid excludes its
-///   `i = 0, nu` indices.
+/// * Row lines land exactly on the band cuts (never through the lerp,
+///   whose rounding would put two almost-coincident lines an ulp
+///   apart on a shared boundary), so a grid triangle sits inside one
+///   band and its certificate is that band's cells'. A cut line gets
+///   points from BOTH adjacent bands' column schedules (their union —
+///   the shared cut value is the same f64 either side, so the dedup
+///   merges the line itself; snapped neighbours contribute the SAME
+///   columns, which is the point).
+/// * Points on the trim box boundary are excluded exactly as the
+///   uniform grid excluded its `i = 0, nu` indices.
 ///
-/// Also returns the grid-cell count `nu · Σ nvc` over the v-bands —
-/// the budget meter's `grid_cells` column, read off the sizing that
+/// Also returns the grid-cell count `Σ nuc·nvc` over the bands — the
+/// budget meter's `grid_cells` column, read off the sizing that
 /// actually ran.
-///
-/// # Why the columns stay global (measured, twice)
-///
-/// The pre-TESS-SPAN lane was accidentally protected against tall
-/// anisotropic BOUNDARY slivers by exactly this alignment: on the
-/// #316 lily leaf (u-ruled walls, ~12:1 grid anisotropy, rim chords
-/// at `k/29`), re-sizing the columns per cell put rim vertices
-/// BETWEEN columns, and a boundary vertex mid-strip admits an empty
-/// circumcircle reaching ~half a column spacing upward — a
-/// Delaunay-legal sliver spanning ~6 rows whose honest per-cell
-/// certificate exceeded δ (4.4e-3 vs 2e-3). Local cures fail
-/// structurally: anchor points under the vertex only relocate the
-/// empty circle to the anchor column's own unaligned top (measured),
-/// and centroid refinement mints fresh unaligned points the same way
-/// — any point of an anisotropic lattice strip that is not on a
-/// column re-admits the sliver above itself. Keeping the columns on
-/// the chord pass's schedule removes the unaligned points at the
-/// source; the certificate-driven refinement ladder in
-/// [`tessellate_trimmed`]'s retry loop remains as the backstop for
-/// what alignment cannot promise (arc rims never had it — the class
-/// the old lane already shipped).
 fn per_cell_candidates(
     grid: &NurbsCellGrid,
     patch: &NurbsFaceBound,
@@ -614,53 +617,33 @@ fn per_cell_candidates(
     v: (f64, f64),
     delta_s: f64,
 ) -> Result<(Vec<(f64, f64)>, usize), TessellateError> {
-    let (phu, _) = patch.grid_steps(delta_s);
-    let nu = ceil_count(u.1 - u.0, phu)?;
-    // The trim box cut at interior band boundaries. Each v-slab's
-    // band is found by its midpoint — strictly inside one band, since
-    // no interior cut crosses a slab.
-    let mut edges = vec![v.0];
-    edges.extend(
-        grid.v_cuts()
-            .iter()
-            .copied()
-            .filter(|c| *c > v.0 && *c < v.1),
-    );
-    edges.push(v.1);
-    let mut rows: Vec<f64> = Vec::new();
+    let mut cand: Vec<(f64, f64)> = Vec::new();
     let mut grid_cells = 0usize;
-    for w in edges.windows(2) {
-        let (va, vb) = (w[0], w[1]);
-        let (_, hv) = grid
-            .row_bound(grid.row_of(0.5 * (va + vb)))
-            .grid_steps(delta_s);
-        let nvc = ceil_count(vb - va, hv)?;
-        grid_cells += nu * nvc;
+    for b in grid.band_schedule(*patch, u, v, delta_s)? {
+        grid_cells += b.nuc * b.nvc;
         // Band-boundary indices reproduce the cut values EXACTLY.
-        for j in 0..=nvc {
-            let vv = if j == 0 {
-                va
-            } else if j == nvc {
-                vb
+        let at = |lo: f64, hi: f64, i: usize, n: usize| -> f64 {
+            if i == 0 {
+                lo
+            } else if i == n {
+                hi
             } else {
                 #[allow(clippy::cast_precision_loss)]
                 {
-                    va + (vb - va) * (j as f64 / nvc as f64)
+                    lo + (hi - lo) * (i as f64 / n as f64)
                 }
-            };
-            if vv > v.0 && vv < v.1 {
-                rows.push(vv);
             }
-        }
-    }
-    rows.sort_unstable_by(f64::total_cmp);
-    rows.dedup();
-    let mut cand: Vec<(f64, f64)> = Vec::with_capacity(rows.len() * nu.saturating_sub(1));
-    for &vv in &rows {
-        for i in 1..nu {
-            #[allow(clippy::cast_precision_loss)]
-            let uu = u.0 + (u.1 - u.0) * (i as f64 / nu as f64);
-            cand.push((uu, vv));
+        };
+        for j in 0..=b.nvc {
+            let vv = at(b.va, b.vb, j, b.nvc);
+            if !(vv > v.0 && vv < v.1) {
+                continue;
+            }
+            for i in 1..b.nuc {
+                #[allow(clippy::cast_precision_loss)]
+                let uu = u.0 + (u.1 - u.0) * (i as f64 / b.nuc as f64);
+                cand.push((uu, vv));
+            }
         }
     }
     sort_candidates(&mut cand);

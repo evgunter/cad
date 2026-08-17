@@ -425,7 +425,10 @@ mod live {
             let (phu, phv) = bound.grid_steps(delta_s);
             let (nu, nv) = (divisions(du, phu), divisions(dv, phv));
             let (span_cells, span_opt_cells) =
-                span_sized_cells(cells, &cell_grid, bound, u, v, delta_s);
+                match span_sized_cells(cells, &cell_grid, bound, u, v, delta_s) {
+                    Ok(x) => x,
+                    Err(_) => (f64::NAN, f64::NAN),
+                };
             #[allow(clippy::cast_precision_loss)]
             let grid_cells = grid_cells as f64;
             st.pending = Some(NurbsBudget {
@@ -614,19 +617,17 @@ mod live {
     ///
     /// Returns `(lane, cheapest split)`:
     ///
-    /// * `lane` models the SHIPPED tensor schedule exactly —
-    ///   whole-patch u-columns times per-v-band rows from the dilated
-    ///   band bound (`NurbsCellGrid::row_bound`, which documents why),
+    /// * `lane` models the SHIPPED per-band tensor schedule exactly —
+    ///   per v-band `nuc × nvc` from the band bound
+    ///   (`NurbsCellGrid::row_bound`, which documents the banding),
     ///   each band's `ceil` paid. Deliberately its own arithmetic
     ///   rather than a call into the lane's, so the two can disagree
     ///   loudly if either drifts (the agreement column).
     /// * `opt` keeps each cell's own RAW bound through
     ///   [`best_split_cells`], clipped to the box with the `ceil` paid
     ///   per cell — the pure per-cell-and-cheapest-split ideal, which
-    ///   is the recoverable-slack denominator. It deliberately still
-    ///   counts the u-direction's per-cell share (the shipped columns
-    ///   forfeit it for chord-phase alignment — `crate::trimmed`), so
-    ///   that forfeit stays visible as recoverable slack.
+    ///   is the recoverable-slack denominator; the banding's
+    ///   max-across-u cost stays visible in it.
     ///
     /// **Why aligning rows to the band cuts is enough for the
     /// certificate**: with rows on the band boundaries, every grid
@@ -645,28 +646,19 @@ mod live {
         u: (f64, f64),
         v: (f64, f64),
         delta_s: f64,
-    ) -> (f64, f64) {
-        // The shipped schedule, re-derived: patch columns x banded rows.
-        let (phu, _) = patch.grid_steps(delta_s);
-        let nu = divisions(u.1 - u.0, phu);
-        let mut rows = 0.0;
-        let mut prev = v.0;
-        for &c in grid.v_cuts() {
-            if c > v.0 && c < v.1 {
-                let (_, hv) = grid
-                    .row_bound(grid.row_of(0.5 * (prev + c)))
-                    .grid_steps(delta_s);
-                rows += divisions(c - prev, hv);
-                prev = c;
+    ) -> Result<(f64, f64), TessellateError> {
+        // The shipped schedule — the ONE derivation the lane also
+        // consumes (`NurbsCellGrid::band_schedule`), so the agreement
+        // column verifies the lane's REALISATION of the schedule
+        // (candidate generation, dedup, counting) rather than
+        // re-deriving the arithmetic.
+        let mut lane = 0.0;
+        for b in grid.band_schedule(patch, u, v, delta_s)? {
+            #[allow(clippy::cast_precision_loss)]
+            {
+                lane += (b.nuc * b.nvc) as f64;
             }
         }
-        if v.1 > prev {
-            let (_, hv) = grid
-                .row_bound(grid.row_of(0.5 * (prev + v.1)))
-                .grid_steps(delta_s);
-            rows += divisions(v.1 - prev, hv);
-        }
-        let lane = nu * rows;
         // The pure per-cell ideal at the cheapest split per cell.
         let mut opt = 0.0;
         for c in cells {
@@ -677,7 +669,7 @@ mod live {
             }
             opt += best_split_cells(c.bound, du, dv, delta_s);
         }
-        (lane, opt)
+        Ok((lane, opt))
     }
 }
 

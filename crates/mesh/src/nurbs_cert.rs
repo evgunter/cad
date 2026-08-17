@@ -329,6 +329,28 @@ pub(crate) fn nurbs_cell_bounds(
         .collect())
 }
 
+/// The realized-anisotropy line beyond which a band's lattice cannot
+/// tolerate off-lattice points ([`NurbsCellGrid::band_schedule`]
+/// derives the sliver certificate `(aspect² + 1)/8 · δ_s` and what
+/// happens at the line). 5.0: bands at or under it were measured to
+/// hold their certificates across the tour, and the #316 leaf's
+/// 12:1 band plus the split-shadow interfaces sat above it — the
+/// classes the patch-count snap exists for.
+pub(crate) const SAFE_ASPECT: f64 = 5.0;
+
+/// One v-band of the shipped schedule ([`NurbsCellGrid::band_schedule`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BandDivisions {
+    /// The band's clipped v-extent, low end.
+    pub va: f64,
+    /// The band's clipped v-extent, high end.
+    pub vb: f64,
+    /// Column divisions.
+    pub nuc: usize,
+    /// Row divisions.
+    pub nvc: usize,
+}
+
 /// **The shipped per-cell certificate table** (TESS-SPAN): one face's
 /// [`nurbs_cell_bounds`] assembled into a tensor lookup — sorted cell
 /// boundary values per direction, and each cell's own certified
@@ -442,7 +464,10 @@ impl NurbsCellGrid {
         &self.u_cuts
     }
 
-    /// Cell boundary values in `v`.
+    /// Cell boundary values in `v`. As [`Self::u_cuts`]: the schedule
+    /// consumers go through [`Self::band_schedule`] now, so only the
+    /// tests read this.
+    #[cfg(test)]
     pub fn v_cuts(&self) -> &[f64] {
         &self.v_cuts
     }
@@ -454,38 +479,28 @@ impl NurbsCellGrid {
 
     /// The SIZING bound of the v-band `ri` (the ROW schedule's
     /// input): the componentwise max over the band's cells across all
-    /// of `u`, dilated one band each way.
-    ///
-    /// **Why rows are banded and dilated while the certificate is
-    /// not** (measured, not hypothesized — see `crate::trimmed`'s
-    /// module docs for the sliver mechanics): the shipped schedule is
-    /// a TENSOR grid whose u-columns keep the whole-patch schedule
-    /// (phase-aligned with the chord pass's boundary points, which is
-    /// what makes anisotropic boundary slivers certify) and whose
-    /// v-rows are per-knot-span-band. A row line runs the full trim
-    /// box, so its spacing answers to the band's WORST cell; the ±1
-    /// dilation keeps a triangle protruding one band past a cut
-    /// inside its budget. It is a HEURISTIC, exactly as the whole
+    /// of `u`. A row line runs the full trim box, so its spacing
+    /// answers to the band's WORST cell — and to nothing more: rows
+    /// land exactly on the band cuts, so a grid triangle never
+    /// crosses a band (a ±1-band dilation was measured to cost ~a
+    /// third of the span gain for insurance the refinement ladder
+    /// already provides). It is a HEURISTIC, exactly as the whole
     /// schedule is (module docs: the certificate is the guarantee) —
     /// the per-triangle certificate, taken from the raw per-cell
-    /// bounds, still refuses loudly if a triangle reaches further.
-    /// Steps only shrink under banding/dilation against the band's
-    /// own cells, so no certificate weakens; the cost against the
-    /// pure per-cell ideal is metered (`crate::budget`).
+    /// bounds of every covered cell, still refuses loudly if a
+    /// triangle reaches further.
     pub fn row_bound(&self, ri: usize) -> NurbsFaceBound {
-        let (cols, rows) = (self.u_cuts.len() - 1, self.v_cuts.len() - 1);
+        let cols = self.u_cuts.len() - 1;
         let mut m = NurbsFaceBound {
             muu: 0.0,
             muv: 0.0,
             mvv: 0.0,
         };
-        for r in ri.saturating_sub(1)..=(ri + 1).min(rows - 1) {
-            for c in 0..cols {
-                let b = self.bound(c, r);
-                m.muu = m.muu.max(b.muu);
-                m.muv = m.muv.max(b.muv);
-                m.mvv = m.mvv.max(b.mvv);
-            }
+        for c in 0..cols {
+            let b = self.bound(c, ri);
+            m.muu = m.muu.max(b.muu);
+            m.muv = m.muv.max(b.muv);
+            m.mvv = m.mvv.max(b.mvv);
         }
         m
     }
@@ -493,6 +508,85 @@ impl NurbsCellGrid {
     /// The v-band index containing `v` (clamped as [`Self::cell_lo`]).
     pub fn row_of(&self, v: f64) -> usize {
         Self::cell_lo(&self.v_cuts, v)
+    }
+
+    /// **The shipped band schedule** (TESS-SPAN): the trim box cut at
+    /// interior band boundaries, each band's `(nuc, nvc)` divisions —
+    /// one derivation consumed by BOTH the trimmed lane's candidate
+    /// generation and the budget meter's prediction, so the two
+    /// cannot drift.
+    ///
+    /// Per band: `nvc` from the band bound's own `h_v`; `nuc` from
+    /// the band bound's own `h_u` — EXCEPT that a MALIGN band
+    /// (subdividing in `u`, realized aspect `s_u/h_v` beyond
+    /// [`SAFE_ASPECT`]) and its immediate neighbours take the
+    /// whole-patch column count instead. The point selection inside
+    /// `grid_steps` is untouched either way (TESS-SPAN's binding
+    /// constraint); only WHICH bound feeds it changes, and the patch
+    /// count only ever adds columns.
+    ///
+    /// **Why (measured, three times over)**: any point of an
+    /// anisotropic lattice strip that is not ON a column admits an
+    /// empty circumcircle reaching up to a full column spacing past
+    /// it — a Delaunay-legal sliver whose certificate is
+    /// ~`(aspect² + 1)/8 · δ_s`, malign beyond ~aspect 4. Band
+    /// interfaces deliver exactly such points (the neighbour band's
+    /// columns sit on the shared cut line), and no local insertion
+    /// cures it (anchors and centroids each re-admit the circle
+    /// beside themselves — both measured on the #316 leaf). Snapping
+    /// a malign band AND its neighbours to the patch count makes
+    /// those interfaces coincide column-for-column — the phase
+    /// alignment the uniform schedule had everywhere, restored
+    /// exactly where it is load-bearing — and the patch count is also
+    /// the chord pass's schedule, so a full-width iso rim on a malign
+    /// band lands its chord points ON the columns as before
+    /// (`chords::nurbs_tighten`, the D-2 whole-patch arm). Benign
+    /// interfaces keep their own counts: a foreign point's sliver
+    /// certifies under δ there, and the refinement ladder backstops
+    /// the rest.
+    ///
+    /// # Errors
+    ///
+    /// [`TessellateError::ResolutionOverflow`] via
+    /// [`crate::chords::ceil_count`], as the uniform schedule.
+    pub fn band_schedule(
+        &self,
+        patch: NurbsFaceBound,
+        u: (f64, f64),
+        v: (f64, f64),
+        delta_s: f64,
+    ) -> Result<Vec<BandDivisions>, TessellateError> {
+        let du = u.1 - u.0;
+        let mut edges = vec![v.0];
+        edges.extend(self.v_cuts.iter().copied().filter(|c| *c > v.0 && *c < v.1));
+        edges.push(v.1);
+        let (phu, _) = patch.grid_steps(delta_s);
+        let patch_nuc = crate::chords::ceil_count(du, phu)?;
+        let mut bands = Vec::with_capacity(edges.len().saturating_sub(1));
+        let mut malign = Vec::with_capacity(edges.len().saturating_sub(1));
+        for w in edges.windows(2) {
+            let (va, vb) = (w[0], w[1]);
+            // The band is found by the slab midpoint — strictly inside
+            // one band, since no interior cut crosses a slab.
+            let (hu, hv) = self
+                .row_bound(self.row_of(0.5 * (va + vb)))
+                .grid_steps(delta_s);
+            let nuc = crate::chords::ceil_count(du, hu)?;
+            let nvc = crate::chords::ceil_count(vb - va, hv)?;
+            #[allow(clippy::cast_precision_loss)]
+            let su = du / nuc as f64;
+            malign.push(nuc >= 2 && hv.is_finite() && su > SAFE_ASPECT * hv);
+            bands.push(BandDivisions { va, vb, nuc, nvc });
+        }
+        for (i, b) in bands.iter_mut().enumerate() {
+            let near_malign = malign[i]
+                || (i > 0 && malign[i - 1])
+                || malign.get(i + 1).copied().unwrap_or(false);
+            if near_malign {
+                b.nuc = b.nuc.max(patch_nuc);
+            }
+        }
+        Ok(bands)
     }
 
     /// The index of the half-open cell `[cut_i, cut_{i+1})` containing
