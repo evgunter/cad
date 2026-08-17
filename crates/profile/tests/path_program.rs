@@ -14,9 +14,9 @@
 //!   below (the mapping: every retired row's (state, verb) pairs are a
 //!   subset of the arms that composite chain plus the differential and
 //!   property suites' blanket `pinned` exercise);
-//! - the fused-family recording shapes (steps keep authored data only)
-//!   and the retired doors' compat recording (they record the SAME
-//!   fused vocabulary);
+//! - the fused-family recording shapes: every §2c chain — entry fused
+//!   verb, mid-chain `Radius@OnArc`, the arc-arrival close — records the
+//!   ONE fused vocabulary, and its steps keep authored data only;
 //! - the driver's own refusal surface: the Transition class (corrupt
 //!   file — no authoring surface can produce it) against the Path class
 //!   (legal at rest, geometry refuses under this binding).
@@ -178,29 +178,46 @@ fn the_fused_family_records_and_replays_bit_identically() {
     validate_ok(&pinned(walk));
 }
 
-/// **The retired MID-CHAIN doors record the Radius@OnArc row** — the
-/// one admissible OnArc incoming after this unit's adjudication
-/// (`Center@OnArc` is excluded by the `Center@Directed` value-match
-/// doctrine; see `family::OnArcIncoming`). An
-/// `at_on … fillet … at_on … fillet … at_toward` chain comes out as
-/// [`ArcFilletArc` (entry `Center`), `ArcFillet` (`Radius` — the
-/// bridge derives `r = |anchor − centre|`), binders, legs] — and the
-/// geometry here is chosen VALUE-EXACT (axis-aligned anchor, integral
-/// radius) so the bridge's derived-radius recording replays to the
-/// same bits (`pinned` asserts it); the general ulp caveat is
-/// documented on the shim.
+/// **The MID-CHAIN Radius@OnArc row** — the one admissible OnArc
+/// incoming after this unit's adjudication (`Center@OnArc` is excluded
+/// by the `Center@Directed` value-match doctrine; see
+/// `family::OnArcIncoming`). An entry fused verb with an interior
+/// `Center` arrival, continued off the resulting `OnArc` tip by
+/// `arc_fillet(Radius { .. })` and its binders, comes out as
+/// [`ArcFilletArc` (entry `Center`), `ArcFillet` (`Radius`), binders,
+/// legs]; the `Radius` names the carrier the `OnArc` tip already runs
+/// on (`r = |anchor − centre| = 3`, centre right of Cw travel), so the
+/// recorded program and the typed elaboration are the same geometry and
+/// replay to the same bits (`pinned` asserts it).
 #[test]
-fn retired_mid_chain_doors_record_the_radius_row() {
+fn the_mid_chain_radius_row_records_and_replays() {
+    use profile::{ArcSide, Center, Radius};
     let closed = Open
-        .at_on(p2(5.0, 0.0), p2(0.0, 0.0), ArcSweep::Ccw)
+        .arc_fillet_arc(
+            Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(5.0, 0.0),
+            },
+            0.5,
+            Center {
+                c: p2(0.0, 7.0),
+                winding: ArcSweep::Cw,
+                p: p2(0.0, 4.0),
+            },
+        )
         .unwrap()
-        .fillet(0.5)
+        .arc_fillet(
+            Radius {
+                r: 3.0,
+                side: ArcSide::Right,
+            },
+            0.3,
+        )
         .unwrap()
-        .at_on(p2(0.0, 4.0), p2(0.0, 7.0), ArcSweep::Cw)
+        .at(p2(-2.0, 2.0))
         .unwrap()
-        .fillet(0.3)
-        .unwrap()
-        .at_toward(p2(-2.0, 2.0), 0.0, -1.0)
+        .toward(0.0, -1.0)
         .unwrap()
         .line(1.0)
         .unwrap()
@@ -222,7 +239,7 @@ fn retired_mid_chain_doors_record_the_radius_row() {
             spec: profile::ArcData::Radius { r, side },
             radius,
         } => {
-            assert_eq!(r.to_bits(), 3.0_f64.to_bits(), "derived |anchor − centre|");
+            assert_eq!(r.to_bits(), 3.0_f64.to_bits(), "|anchor − centre|");
             assert_eq!(side, profile::ArcSide::Right, "Cw travel = centre right");
             assert_eq!(radius.to_bits(), 0.3_f64.to_bits());
         }
@@ -231,20 +248,30 @@ fn retired_mid_chain_doors_record_the_radius_row() {
     validate_ok(&pinned(closed));
 }
 
-/// **The retired doors record the fused vocabulary**: an
-/// `at_on … fillet … to_on` chain (the eye) comes out as ONE fused
-/// `ArcFilletArc` step — the compat shim's program surgery — and that
-/// program replays to the same bits. When the shim deletes (PR-2),
-/// this row moves onto the fused spelling it already asserts.
+/// **A whole loop in ONE fused step**: the eye — arc-carrier entry,
+/// fillet, arc-arrival close — is authored by a single
+/// `arc_fillet_arc(Center { .. }, r, Center { .., p: Start })` and so
+/// records as exactly one `ArcFilletArc` step, whose payload is the two
+/// authored carrier specs and the radius; that program replays to the
+/// same bits.
 #[test]
-fn retired_doors_record_the_fused_vocabulary() {
+fn the_eye_is_one_fused_step() {
+    use profile::Center;
     let tip = 0.75f64.sqrt();
     let closed = Open
-        .at_on(p2(0.0, -tip), p2(-0.5, 0.0), ArcSweep::Ccw)
-        .unwrap()
-        .fillet(0.35)
-        .unwrap()
-        .to_on(Start, p2(0.5, 0.0), ArcSweep::Ccw)
+        .arc_fillet_arc(
+            Center {
+                c: p2(-0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(0.0, -tip),
+            },
+            0.35,
+            Center {
+                c: p2(0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
+        )
         .unwrap();
     assert_eq!(verbs(&program_of(&closed)), vec![Verb::ArcFilletArc]);
     match closed.program[0] {
@@ -349,15 +376,19 @@ fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
 
 /// **`arc_continue`'s declared subdivision (LIB-SWITCH §5-1 fallback,
 /// the half-disc's equator vertex).** Two quarter arcs on ONE carrier:
-/// the first authored (`arc_to` with bulge tan(π/8)), the second a
-/// structural subdivision — same carrier, derived bulge, no junction
-/// claim, nothing declared tangent. Replays bit-identically.
+/// the first authored (`arc_to(Bulge { .. })` with bulge tan(π/8)), the
+/// second a structural subdivision — same carrier, derived bulge, no
+/// junction claim, nothing declared tangent. Replays bit-identically.
 #[test]
 fn arc_continue_subdivides_the_carrier_structurally() {
+    use profile::Bulge;
     let q = std::f64::consts::FRAC_PI_8.tan();
     let closed = Open
         .at(p2(0.0, -0.5))
-        .arc_to(p2(0.5, 0.0), q)
+        .arc_to(Bulge {
+            p: p2(0.5, 0.0),
+            b: q,
+        })
         .unwrap()
         .arc_continue(p2(0.0, 0.5))
         .unwrap()
@@ -389,13 +420,20 @@ fn arc_continue_subdivides_the_carrier_structurally() {
 /// subdivide; an off-carrier target is contradictory authored data.
 #[test]
 fn arc_continue_refuses_lines_and_off_carrier_targets() {
+    use profile::Bulge;
     let after_line = Open.at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0)).unwrap();
     match after_line.arc_continue(p2(2.0, 0.0)) {
         Err(PathError::ArcContinueNeedsArcCarrier) => {}
         other => panic!("a straight leg must refuse arc_continue, got {other:?}"),
     }
     let q = std::f64::consts::FRAC_PI_8.tan();
-    let after_arc = Open.at(p2(0.0, -0.5)).arc_to(p2(0.5, 0.0), q).unwrap();
+    let after_arc = Open
+        .at(p2(0.0, -0.5))
+        .arc_to(Bulge {
+            p: p2(0.5, 0.0),
+            b: q,
+        })
+        .unwrap();
     match after_arc.arc_continue(p2(0.3, 0.5)) {
         Err(PathError::ArcContinueOffCarrier { .. }) => {}
         other => panic!("an off-carrier target must refuse, got {other:?}"),

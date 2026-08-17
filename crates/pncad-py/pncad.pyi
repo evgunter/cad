@@ -16,8 +16,11 @@ ATTRIBUTES, never as prose to be parsed.
 
 Profile authoring is the PATHS lattice (`Open`, `PathOpen`,
 `PathPoint`, `PathDirectedPoint`, `PathAngle`, `PathDirected`,
-`Start`, `circle`, `circle_split`) plus the straight-segment shortcut
-`Node.polygon`; one loop or a list of them, on any sketch plane.
+`PathOnArc` and the arrival builders, `Start`, `circle`,
+`circle_split`) plus the straight-segment shortcut `Node.polygon`;
+one loop or a list of them, on any sketch plane. Arcs — sharp legs
+and the fillet family alike — are authored by SPEC MODE (`Bulge`,
+`Via`, `Center`, `Radius`, `Sweep`, `ArcLen`).
 
 Selection is materialize-then-store: the `Evaluation.all_*` doors
 answer a whole kind, and `Evaluation.select` / `select_where` narrow
@@ -34,7 +37,7 @@ detect/declare protocol that would build the `Node.declare`
 `Node.boolean`'s `declare=` consumes.
 """
 
-from typing import Any, Final, Optional, overload
+from typing import Any, Final, Generic, Optional, TypeAlias, TypeVar, overload
 
 # --- errors -----------------------------------------------------------
 # Every subclass carries its refusal as ATTRIBUTES, never as parsed
@@ -245,6 +248,60 @@ class ClosedLoop:
     @property
     def step_count(self) -> int: ...
 
+_T = TypeVar("_T")
+
+class ArcSide:
+    """Which half-plane of the departure tangent a DERIVED centre sits
+    on — structural, the one discrete bit the derived modes carry."""
+
+    Left: Final[ArcSide]
+    Right: Final[ArcSide]
+
+# The `ArcData` spec modes (PATHS-DESIGN §2c). Each is a standalone
+# value; which ones a verb accepts IS the admissibility matrix, and the
+# target parameter carries whether the mode ENDS the chain: `p=Start`
+# closes, so the mode's own type says what the verb returns.
+
+class Bulge(Generic[_T]):
+    """`Bulge(p, b)` — chord-relative: legs and fused incomings only."""
+
+    def __init__(self, p: _T, b: float) -> None: ...
+
+class Via(Generic[_T]):
+    """`Via(q, p)` — the arc through an authored point."""
+
+    def __init__(self, q: tuple[Length, Length], p: _T) -> None: ...
+
+class Center(Generic[_T]):
+    """`Center(c, winding, p)` — the arc about an authored centre."""
+
+    def __init__(
+        self, c: tuple[Length, Length], winding: ArcSweep, p: _T
+    ) -> None: ...
+
+class Radius:
+    """`Radius(r, side)` — centre DERIVED from the directed anchor."""
+
+    def __init__(self, r: Length, side: ArcSide) -> None: ...
+
+class Sweep:
+    """`Sweep(r, side, angle)` — endpoint-free, extent as an angle."""
+
+    def __init__(self, r: Length, side: ArcSide, angle: Angle) -> None: ...
+
+class ArcLen:
+    """`ArcLen(r, side, len)` — endpoint-free, extent as arc length."""
+
+    def __init__(self, r: Length, side: ArcSide, len: Length) -> None: ...
+
+_Pt: TypeAlias = tuple[Length, Length]
+# The endpoint-full modes at an interior target, at `Start`, and the
+# incoming-side set (a fused verb's incoming ends at its own anchor, so
+# `Start` is not one of them).
+_PointLeg: TypeAlias = Bulge[_Pt] | Via[_Pt] | Center[_Pt]
+_PointClose: TypeAlias = Bulge[StartToken] | Via[StartToken] | Center[StartToken]
+_Tangent: TypeAlias = Sweep | ArcLen
+
 class Open:
     """The entry: nothing bound. A token, not a value you construct."""
 
@@ -255,44 +312,106 @@ class Open:
     @staticmethod
     def toward(dx: float, dy: float) -> PathAngle: ...
     @staticmethod
-    def at_on(
-        p: tuple[Length, Length],
-        centre: tuple[Length, Length],
-        winding: ArcSweep,
-    ) -> PathDirected: ...
+    def arc_fillet(spec: Center[_Pt], radius: Length) -> PathOpen: ...
+    @overload
+    @staticmethod
+    def arc_fillet_arc(
+        spec: Center[_Pt], radius: Length, spec2: Center[_Pt]
+    ) -> PathOnArc: ...
+    @overload
+    @staticmethod
+    def arc_fillet_arc(
+        spec: Center[_Pt], radius: Length, spec2: Center[StartToken]
+    ) -> ClosedLoop: ...
+    @overload
+    @staticmethod
+    def arc_fillet_arc(
+        spec: Center[_Pt], radius: Length, spec2: Radius
+    ) -> PathRadiusArrival: ...
+    @overload
+    @staticmethod
+    def arc_fillet_arc(
+        spec: Center[_Pt], radius: Length, spec2: Via[_Pt]
+    ) -> PathViaArrival: ...
+    @overload
+    @staticmethod
+    def arc_fillet_arc(
+        spec: Center[_Pt], radius: Length, spec2: Via[StartToken]
+    ) -> PathViaArrivalStart: ...
 
 class PathOpen:
-    """A fillet's freshly opened arrival side: nothing bound, and
-    `Start` reachable because the entry is behind us."""
+    """A fillet's freshly opened LINE arrival side: nothing bound, and
+    `Start` reachable because the entry is behind us. An ARC arrival is
+    authored in the fillet verb itself, never here."""
 
     def at(self, p: tuple[Length, Length]) -> PathPoint: ...
     def angle(self, theta: Angle) -> PathAngle: ...
     def toward(self, dx: float, dy: float) -> PathAngle: ...
     def to(self, target: StartToken) -> ClosedLoop: ...
-    def at_on(
-        self,
-        p: tuple[Length, Length],
-        centre: tuple[Length, Length],
-        winding: ArcSweep,
-    ) -> PathDirected: ...
-    def at_toward(
-        self,
-        p: tuple[Length, Length],
-        dx: float,
-        dy: float,
-    ) -> PathDirected: ...
-    def to_on(
-        self,
-        target: StartToken,
-        centre: tuple[Length, Length],
-        winding: ArcSweep,
-    ) -> ClosedLoop: ...
 
 class PathAngle:
     """Direction bound, position pending."""
 
     def at(self, p: tuple[Length, Length]) -> PathDirected: ...
     def to(self, anchor: tuple[Length, Length]) -> PathDirectedPoint: ...
+
+class PathOnArc:
+    """A tip continuing ON an arrival carrier: position and tangent
+    bound, the carrier run into the next trim still unemitted. Only the
+    verbs that AUTHOR their incoming carrier continue it, and `Radius`
+    is the one mode that re-derives it from these two bits."""
+
+    def arc_fillet(self, spec: Radius, radius: Length) -> PathOpen: ...
+    @overload
+    def arc_fillet_arc(
+        self, spec: Radius, radius: Length, spec2: Center[_Pt]
+    ) -> PathOnArc: ...
+    @overload
+    def arc_fillet_arc(
+        self, spec: Radius, radius: Length, spec2: Center[StartToken]
+    ) -> ClosedLoop: ...
+    @overload
+    def arc_fillet_arc(
+        self, spec: Radius, radius: Length, spec2: Radius
+    ) -> PathRadiusArrival: ...
+    @overload
+    def arc_fillet_arc(
+        self, spec: Radius, radius: Length, spec2: Via[_Pt]
+    ) -> PathViaArrival: ...
+    @overload
+    def arc_fillet_arc(
+        self, spec: Radius, radius: Length, spec2: Via[StartToken]
+    ) -> PathViaArrivalStart: ...
+
+class PathRadiusArrival:
+    """A `Radius` arrival awaiting both binders, in either order."""
+
+    def at(self, p: tuple[Length, Length]) -> PathRadiusArrivalAt: ...
+    def angle(self, theta: Angle) -> PathRadiusArrivalDir: ...
+    def toward(self, dx: float, dy: float) -> PathRadiusArrivalDir: ...
+
+class PathRadiusArrivalAt:
+    """A `Radius` arrival with its anchor bound, director pending."""
+
+    def angle(self, theta: Angle) -> PathOnArc: ...
+    def toward(self, dx: float, dy: float) -> PathOnArc: ...
+
+class PathRadiusArrivalDir:
+    """A `Radius` arrival with its director bound, anchor pending."""
+
+    def at(self, p: tuple[Length, Length]) -> PathOnArc: ...
+
+class PathViaArrival:
+    """A `Via` arrival: the anchor rides the spec, one director left."""
+
+    def angle(self, theta: Angle) -> PathOnArc: ...
+    def toward(self, dx: float, dy: float) -> PathOnArc: ...
+
+class PathViaArrivalStart:
+    """A `Via` arrival that CLOSES: one director left, at the entry."""
+
+    def angle(self, theta: Angle) -> ClosedLoop: ...
+    def toward(self, dx: float, dy: float) -> ClosedLoop: ...
 
 class PathPoint:
     """A plain point: position bound, no incoming carrier. There is
@@ -305,33 +424,30 @@ class PathPoint:
     @overload
     def line_to(self, target: StartToken) -> ClosedLoop: ...
     @overload
-    def arc_to(
-        self, target: tuple[Length, Length], bulge: float
-    ) -> PathDirectedPoint: ...
+    def arc_to(self, spec: _PointLeg) -> PathDirectedPoint: ...
     @overload
-    def arc_to(self, target: StartToken, bulge: float) -> ClosedLoop: ...
+    def arc_to(self, spec: _PointClose) -> ClosedLoop: ...
+    def arc_fillet(self, spec: _PointLeg, radius: Length) -> PathOpen: ...
     @overload
-    def arc_via(
-        self, via: tuple[Length, Length], target: tuple[Length, Length]
-    ) -> PathDirectedPoint: ...
+    def arc_fillet_arc(
+        self, spec: _PointLeg, radius: Length, spec2: Center[_Pt]
+    ) -> PathOnArc: ...
     @overload
-    def arc_via(
-        self, via: tuple[Length, Length], target: StartToken
+    def arc_fillet_arc(
+        self, spec: _PointLeg, radius: Length, spec2: Center[StartToken]
     ) -> ClosedLoop: ...
     @overload
-    def arc_center(
-        self,
-        centre: tuple[Length, Length],
-        target: tuple[Length, Length],
-        winding: ArcSweep,
-    ) -> PathDirectedPoint: ...
+    def arc_fillet_arc(
+        self, spec: _PointLeg, radius: Length, spec2: Radius
+    ) -> PathRadiusArrival: ...
     @overload
-    def arc_center(
-        self,
-        centre: tuple[Length, Length],
-        target: StartToken,
-        winding: ArcSweep,
-    ) -> ClosedLoop: ...
+    def arc_fillet_arc(
+        self, spec: _PointLeg, radius: Length, spec2: Via[_Pt]
+    ) -> PathViaArrival: ...
+    @overload
+    def arc_fillet_arc(
+        self, spec: _PointLeg, radius: Length, spec2: Via[StartToken]
+    ) -> PathViaArrivalStart: ...
 
 class PathDirectedPoint:
     """A leg end: position bound, and the leg's incoming end tangent
@@ -342,38 +458,48 @@ class PathDirectedPoint:
     def tangent(self) -> PathDirected: ...
     def turn(self, delta: Angle) -> PathDirected: ...
     def arc_continue(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
+    def fillet(self, radius: Length) -> PathOpen: ...
+    @overload
+    def fillet_arc(self, radius: Length, spec: Center[_Pt]) -> PathOnArc: ...
+    @overload
+    def fillet_arc(self, radius: Length, spec: Center[StartToken]) -> ClosedLoop: ...
+    @overload
+    def fillet_arc(self, radius: Length, spec: Radius) -> PathRadiusArrival: ...
+    @overload
+    def fillet_arc(self, radius: Length, spec: Via[_Pt]) -> PathViaArrival: ...
+    @overload
+    def fillet_arc(
+        self, radius: Length, spec: Via[StartToken]
+    ) -> PathViaArrivalStart: ...
     @overload
     def line_to(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
     @overload
     def line_to(self, target: StartToken) -> ClosedLoop: ...
     @overload
-    def arc_to(
-        self, target: tuple[Length, Length], bulge: float
-    ) -> PathDirectedPoint: ...
+    def arc_to(self, spec: _PointLeg) -> PathDirectedPoint: ...
     @overload
-    def arc_to(self, target: StartToken, bulge: float) -> ClosedLoop: ...
+    def arc_to(self, spec: _PointClose) -> ClosedLoop: ...
+    def arc_fillet(self, spec: _PointLeg, radius: Length) -> PathOpen: ...
     @overload
-    def arc_via(
-        self, via: tuple[Length, Length], target: tuple[Length, Length]
-    ) -> PathDirectedPoint: ...
+    def arc_fillet_arc(
+        self, spec: _PointLeg, radius: Length, spec2: Center[_Pt]
+    ) -> PathOnArc: ...
     @overload
-    def arc_via(
-        self, via: tuple[Length, Length], target: StartToken
+    def arc_fillet_arc(
+        self, spec: _PointLeg, radius: Length, spec2: Center[StartToken]
     ) -> ClosedLoop: ...
     @overload
-    def arc_center(
-        self,
-        centre: tuple[Length, Length],
-        target: tuple[Length, Length],
-        winding: ArcSweep,
-    ) -> PathDirectedPoint: ...
+    def arc_fillet_arc(
+        self, spec: _PointLeg, radius: Length, spec2: Radius
+    ) -> PathRadiusArrival: ...
     @overload
-    def arc_center(
-        self,
-        centre: tuple[Length, Length],
-        target: StartToken,
-        winding: ArcSweep,
-    ) -> ClosedLoop: ...
+    def arc_fillet_arc(
+        self, spec: _PointLeg, radius: Length, spec2: Via[_Pt]
+    ) -> PathViaArrival: ...
+    @overload
+    def arc_fillet_arc(
+        self, spec: _PointLeg, radius: Length, spec2: Via[StartToken]
+    ) -> PathViaArrivalStart: ...
 
 class PathDirected:
     """Both bits bound — the only state legs and `fillet` consume.
@@ -381,6 +507,40 @@ class PathDirected:
 
     def line(self, len: Length) -> PathDirectedPoint: ...
     def fillet(self, radius: Length) -> PathOpen: ...
+    @overload
+    def fillet_arc(self, radius: Length, spec: Center[_Pt]) -> PathOnArc: ...
+    @overload
+    def fillet_arc(self, radius: Length, spec: Center[StartToken]) -> ClosedLoop: ...
+    @overload
+    def fillet_arc(self, radius: Length, spec: Radius) -> PathRadiusArrival: ...
+    @overload
+    def fillet_arc(self, radius: Length, spec: Via[_Pt]) -> PathViaArrival: ...
+    @overload
+    def fillet_arc(
+        self, radius: Length, spec: Via[StartToken]
+    ) -> PathViaArrivalStart: ...
+    def arc_to(self, spec: _Tangent) -> PathDirectedPoint: ...
+    def arc_fillet(self, spec: _Tangent, radius: Length) -> PathOpen: ...
+    @overload
+    def arc_fillet_arc(
+        self, spec: _Tangent, radius: Length, spec2: Center[_Pt]
+    ) -> PathOnArc: ...
+    @overload
+    def arc_fillet_arc(
+        self, spec: _Tangent, radius: Length, spec2: Center[StartToken]
+    ) -> ClosedLoop: ...
+    @overload
+    def arc_fillet_arc(
+        self, spec: _Tangent, radius: Length, spec2: Radius
+    ) -> PathRadiusArrival: ...
+    @overload
+    def arc_fillet_arc(
+        self, spec: _Tangent, radius: Length, spec2: Via[_Pt]
+    ) -> PathViaArrival: ...
+    @overload
+    def arc_fillet_arc(
+        self, spec: _Tangent, radius: Length, spec2: Via[StartToken]
+    ) -> PathViaArrivalStart: ...
     @overload
     def tangent_arc_to(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
     @overload

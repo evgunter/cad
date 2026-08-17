@@ -59,20 +59,21 @@ pub enum BooleanOp {
 )]
 #[serde(deny_unknown_fields)]
 pub enum StepArg {
-    /// An authored on-path point's x (`at`, `at_on`, the far-end `to`).
+    /// An authored on-path point's x (`at`, an arc spec's anchor, the
+    /// far-end `to`).
     PointX,
     /// That point's y.
     PointY,
-    /// A leg target's x (`line_to`, `arc_to`, `arc_via`, `arc_center`,
+    /// A leg target's x (`line_to`, `arc_to`'s endpoint-full modes,
     /// `tangent_arc_to` — the `Point` target form).
     TargetX,
     /// That target's y.
     TargetY,
-    /// An `arc_via` through-point's x.
+    /// A `Via` mode's through-point x.
     ViaX,
     /// That through-point's y.
     ViaY,
-    /// A carrier centre's x (`at_on`, `arc_center`, `to_on`, `circle`,
+    /// A carrier centre's x (the `Center` mode, `circle`,
     /// `circle_split`).
     CenterX,
     /// That centre's y.

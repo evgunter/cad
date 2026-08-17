@@ -16,7 +16,7 @@ use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, Tolerance, Vec2};
-use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, mass_properties};
@@ -42,11 +42,26 @@ fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
 /// The concave-notched prism at the certified scalar.
 fn notched() -> Body<Interval> {
     let b = iv(FRAC_PI_8.tan());
-    let lp = ProfileLoop::builder(p2(0.0, 0.0))
-        .arc_to(p2(2.0, 0.0), b)
-        .line_to(p2(2.0, 1.5))
-        .arc_to(p2(0.0, 1.5), iv(0.0) - b)
-        .close();
+    // Leaving bulges: the bottom arc bows out (+b), the top one bows
+    // into the region (-b); the two sides are straight.
+    let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
+        ProfileVertex {
+            pos: p2(0.0, 0.0),
+            bulge: b,
+        },
+        ProfileVertex {
+            pos: p2(2.0, 0.0),
+            bulge: iv(0.0),
+        },
+        ProfileVertex {
+            pos: p2(2.0, 1.5),
+            bulge: iv(0.0) - b,
+        },
+        ProfileVertex {
+            pos: p2(0.0, 1.5),
+            bulge: iv(0.0),
+        },
+    ]);
     extrude(&validated(vec![lp]), Extrusion::Distance(iv(1.0)))
         .unwrap()
         .body
@@ -54,11 +69,12 @@ fn notched() -> Body<Interval> {
 
 /// The pellet strictly inside the notch (the S10 witness fixture).
 fn pellet() -> Body<Interval> {
-    let lp = ProfileLoop::builder(p2(0.9, 1.25))
-        .line_to(p2(1.1, 1.25))
-        .line_to(p2(1.1, 1.35))
-        .line_to(p2(0.9, 1.35))
-        .close();
+    let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
+        p2(0.9, 1.25),
+        p2(1.1, 1.25),
+        p2(1.1, 1.35),
+        p2(0.9, 1.35),
+    ]);
     let plane = SketchPlane::from_frame(
         p3(0.0, 0.0, 0.3),
         geom_core::Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
