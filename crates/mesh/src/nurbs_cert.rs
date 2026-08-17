@@ -133,15 +133,22 @@
 //! `muv = 0`) leaves that direction unconstrained — step ∞, one cell.
 //!
 //! **Since TESS-SPAN (the #320 span promotion) the shipped grid is
-//! sized PER KNOT-SPAN CELL**: the trimmed lane consumes
+//! sized PER KNOT-SPAN CELL in `v`**: the trimmed lane consumes
 //! [`nurbs_cell_grid`] — the same certified assembly reported cell by
-//! cell — and applies the step rule above inside each cell with that
-//! cell's own `(muu, muv, mvv)`, placing its grid lines on the cell
+//! cell — and builds a TENSOR grid whose v-rows apply the step rule
+//! above per v-band with that band's own bounds
+//! ([`NurbsCellGrid::row_bound`]), rows landing on the band
 //! boundaries so a grid triangle's certificate is the certificate of
-//! the cell containing it ([`NurbsCellGrid::cert`]). The point-
-//! selection rule (the `2·a_u·a_v ≤ a_u² + a_v²` grouping) is
-//! deliberately UNCHANGED — decoupling it is the split unit's open
-//! aspect-policy question, out of scope here.
+//! the band containing it ([`NurbsCellGrid::cert`]). The u-columns
+//! deliberately KEEP the whole-patch schedule: they stay
+//! phase-aligned with the chord pass's boundary points (sized from
+//! the same steps), which is what keeps anisotropic boundary slivers
+//! certified (`crate::trimmed` module docs tell the measured story);
+//! the u-direction's per-cell share of the span slack is forfeited
+//! and metered. The point-selection rule (the
+//! `2·a_u·a_v ≤ a_u² + a_v²` grouping) is deliberately UNCHANGED —
+//! decoupling it is the split unit's open aspect-policy question, out
+//! of scope here.
 //!
 //! The whole-patch steps still bound the BOUNDARY chord schedule of
 //! every adjacent edge (`chords`: the adjacent-torus tightening
@@ -427,8 +434,10 @@ impl NurbsCellGrid {
         }
     }
 
-    /// Cell boundary values in `u` (sizing consumer: the trimmed lane
-    /// places its grid lines on these).
+    /// Cell boundary values in `u`. Since the shipped columns went
+    /// back to the whole-patch schedule (module docs), only the tests
+    /// read this; the certificate lookup uses the field directly.
+    #[cfg(test)]
     pub fn u_cuts(&self) -> &[f64] {
         &self.u_cuts
     }
@@ -443,42 +452,35 @@ impl NurbsCellGrid {
         self.bounds[ci * (self.v_cuts.len() - 1) + ri]
     }
 
-    /// The SIZING bound of the cell containing `(u, v)` — the sizing
-    /// consumer's lookup (the trimmed lane hands each clipped cell's
-    /// midpoint, which lies strictly inside one cell): the
-    /// componentwise max of the cell's own certified bound and its
-    /// one-ring neighbours' (3×3 dilation).
+    /// The SIZING bound of the v-band `ri` (the ROW schedule's
+    /// input): the componentwise max over the band's cells across all
+    /// of `u`, dilated one band each way.
     ///
-    /// **Why the schedule dilates while the certificate does not**
-    /// (measured, not hypothesized — the pure per-cell schedule
-    /// refused `CertificateExceeded` on the #316 lily leaf): grid
-    /// lines on the cell boundaries put every GRID triangle inside
-    /// one cell, but near a trim boundary a region of the polygon can
-    /// cross a cell boundary where the shared line's candidates fall
-    /// outside the polygon — the CDT then bridges a coarse cell's
-    /// spacing into the fine neighbour, and a triangle sized by the
-    /// coarse bound genuinely deviates by the fine cell's curvature.
-    /// Sizing each cell against its neighbourhood's worst bound
-    /// restores the property the uniform schedule had (local spacing
-    /// everywhere respects the local curvature one cell around), so a
-    /// one-cell protrusion stays inside the budget. It is a
-    /// HEURISTIC, exactly as the whole schedule is (module docs: the
-    /// certificate is the guarantee) — the per-triangle certificate,
-    /// taken from the raw per-cell bounds, still refuses loudly if a
-    /// triangle reaches further. Steps only shrink under dilation, so
-    /// no certificate weakens; the cost against the pure per-cell
-    /// ideal is metered (`crate::budget`'s agreement column).
-    pub fn step_bound_at(&self, u: f64, v: f64) -> NurbsFaceBound {
-        let ci = Self::cell_lo(&self.u_cuts, u);
-        let ri = Self::cell_lo(&self.v_cuts, v);
+    /// **Why rows are banded and dilated while the certificate is
+    /// not** (measured, not hypothesized — see `crate::trimmed`'s
+    /// module docs for the sliver mechanics): the shipped schedule is
+    /// a TENSOR grid whose u-columns keep the whole-patch schedule
+    /// (phase-aligned with the chord pass's boundary points, which is
+    /// what makes anisotropic boundary slivers certify) and whose
+    /// v-rows are per-knot-span-band. A row line runs the full trim
+    /// box, so its spacing answers to the band's WORST cell; the ±1
+    /// dilation keeps a triangle protruding one band past a cut
+    /// inside its budget. It is a HEURISTIC, exactly as the whole
+    /// schedule is (module docs: the certificate is the guarantee) —
+    /// the per-triangle certificate, taken from the raw per-cell
+    /// bounds, still refuses loudly if a triangle reaches further.
+    /// Steps only shrink under banding/dilation against the band's
+    /// own cells, so no certificate weakens; the cost against the
+    /// pure per-cell ideal is metered (`crate::budget`).
+    pub fn row_bound(&self, ri: usize) -> NurbsFaceBound {
         let (cols, rows) = (self.u_cuts.len() - 1, self.v_cuts.len() - 1);
         let mut m = NurbsFaceBound {
             muu: 0.0,
             muv: 0.0,
             mvv: 0.0,
         };
-        for c in ci.saturating_sub(1)..=(ci + 1).min(cols - 1) {
-            for r in ri.saturating_sub(1)..=(ri + 1).min(rows - 1) {
+        for r in ri.saturating_sub(1)..=(ri + 1).min(rows - 1) {
+            for c in 0..cols {
                 let b = self.bound(c, r);
                 m.muu = m.muu.max(b.muu);
                 m.muv = m.muv.max(b.muv);
@@ -486,6 +488,11 @@ impl NurbsCellGrid {
             }
         }
         m
+    }
+
+    /// The v-band index containing `v` (clamped as [`Self::cell_lo`]).
+    pub fn row_of(&self, v: f64) -> usize {
+        Self::cell_lo(&self.v_cuts, v)
     }
 
     /// The index of the half-open cell `[cut_i, cut_{i+1})` containing

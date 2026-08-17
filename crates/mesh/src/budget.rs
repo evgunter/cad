@@ -424,7 +424,8 @@ mod live {
             // counterfactual (TESS-SPAN D-4): same steps, same ceil.
             let (phu, phv) = bound.grid_steps(delta_s);
             let (nu, nv) = (divisions(du, phu), divisions(dv, phv));
-            let (span_cells, span_opt_cells) = span_sized_cells(cells, &cell_grid, u, v, delta_s);
+            let (span_cells, span_opt_cells) =
+                span_sized_cells(cells, &cell_grid, bound, u, v, delta_s);
             #[allow(clippy::cast_precision_loss)]
             let grid_cells = grid_cells as f64;
             st.pending = Some(NurbsBudget {
@@ -608,51 +609,72 @@ mod live {
         best
     }
 
-    /// What the per-cell-sized grid costs over the trim box: each cell
-    /// clipped to the box, rounded up independently — the `ceil` per
-    /// cell is a real cost of aligning grid lines to cell boundaries,
-    /// and it is charged here rather than amortized away. Since
-    /// TESS-SPAN this is the meter's INDEPENDENT prediction of the
-    /// shipped schedule (the agreement column's denominator),
-    /// deliberately its own arithmetic rather than a call into the
-    /// lane's, so the two can disagree loudly if either drifts.
+    /// The meter's INDEPENDENT prediction of the shipped grid and the
+    /// pure per-cell ideal, over the trim box.
     ///
-    /// Returns `(lane, cheapest split)`: the lane prediction sizes
-    /// each clipped cell exactly as the shipped schedule does — the
-    /// one-ring-DILATED bound (`NurbsCellGrid::step_bound_at`, which
-    /// documents why the schedule dilates) through
-    /// [`NurbsFaceBound::grid_steps`]; the cheapest-split ideal keeps
-    /// each cell's own raw bound through [`best_split_cells`] — the
-    /// recoverable-slack denominator stays the pure per-cell ideal.
+    /// Returns `(lane, cheapest split)`:
     ///
-    /// **Why aligning the grid to the cells is enough**: with grid lines
-    /// on the cell boundaries, every grid triangle's UV box lies inside
-    /// one cell, so that cell's own certified bound is the one its
-    /// certificate uses. Cells are half-open — a knot is exactly where
-    /// a C¹ surface's second derivative jumps — but the shared boundary
-    /// is measure-zero, and the Taylor remainder the certificate is
-    /// built on needs only an a.e. bound. That is the same fact the
-    /// shipped whole-patch assembly already rests on at its own
-    /// interior knots (`nurbs_cert` docs).
+    /// * `lane` models the SHIPPED tensor schedule exactly —
+    ///   whole-patch u-columns times per-v-band rows from the dilated
+    ///   band bound (`NurbsCellGrid::row_bound`, which documents why),
+    ///   each band's `ceil` paid. Deliberately its own arithmetic
+    ///   rather than a call into the lane's, so the two can disagree
+    ///   loudly if either drifts (the agreement column).
+    /// * `opt` keeps each cell's own RAW bound through
+    ///   [`best_split_cells`], clipped to the box with the `ceil` paid
+    ///   per cell — the pure per-cell-and-cheapest-split ideal, which
+    ///   is the recoverable-slack denominator. It deliberately still
+    ///   counts the u-direction's per-cell share (the shipped columns
+    ///   forfeit it for chord-phase alignment — `crate::trimmed`), so
+    ///   that forfeit stays visible as recoverable slack.
+    ///
+    /// **Why aligning rows to the band cuts is enough for the
+    /// certificate**: with rows on the band boundaries, every grid
+    /// triangle's UV box lies inside one band, so the band's own
+    /// certified bounds are the ones its certificate uses. Cells are
+    /// half-open — a knot is exactly where a C¹ surface's second
+    /// derivative jumps — but the shared boundary is measure-zero, and
+    /// the Taylor remainder the certificate is built on needs only an
+    /// a.e. bound. That is the same fact the shipped whole-patch
+    /// assembly already rests on at its own interior knots
+    /// (`nurbs_cert` docs).
     pub(super) fn span_sized_cells(
         cells: &[CellBound],
         grid: &crate::nurbs_cert::NurbsCellGrid,
+        patch: NurbsFaceBound,
         u: (f64, f64),
         v: (f64, f64),
         delta_s: f64,
     ) -> (f64, f64) {
-        let (mut lane, mut opt) = (0.0, 0.0);
+        // The shipped schedule, re-derived: patch columns x banded rows.
+        let (phu, _) = patch.grid_steps(delta_s);
+        let nu = divisions(u.1 - u.0, phu);
+        let mut rows = 0.0;
+        let mut prev = v.0;
+        for &c in grid.v_cuts() {
+            if c > v.0 && c < v.1 {
+                let (_, hv) = grid
+                    .row_bound(grid.row_of(0.5 * (prev + c)))
+                    .grid_steps(delta_s);
+                rows += divisions(c - prev, hv);
+                prev = c;
+            }
+        }
+        if v.1 > prev {
+            let (_, hv) = grid
+                .row_bound(grid.row_of(0.5 * (prev + v.1)))
+                .grid_steps(delta_s);
+            rows += divisions(v.1 - prev, hv);
+        }
+        let lane = nu * rows;
+        // The pure per-cell ideal at the cheapest split per cell.
+        let mut opt = 0.0;
         for c in cells {
-            let (u0, u1) = (c.u.0.max(u.0), c.u.1.min(u.1));
-            let (v0, v1) = (c.v.0.max(v.0), c.v.1.min(v.1));
-            let (du, dv) = (u1 - u0, v1 - v0);
+            let du = c.u.1.min(u.1) - c.u.0.max(u.0);
+            let dv = c.v.1.min(v.1) - c.v.0.max(v.0);
             if !(du > 0.0 && dv > 0.0) {
                 continue; // cell outside the trim box
             }
-            let (hu, hv) = grid
-                .step_bound_at(0.5 * (u0 + u1), 0.5 * (v0 + v1))
-                .grid_steps(delta_s);
-            lane += divisions(du, hu) * divisions(dv, hv);
             opt += best_split_cells(c.bound, du, dv, delta_s);
         }
         (lane, opt)

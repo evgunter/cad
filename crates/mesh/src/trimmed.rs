@@ -98,7 +98,7 @@ use topo::{Body, EdgeKey, FaceKey};
 use crate::cert;
 use crate::chords::{ceil_count, sagitta_angle};
 use crate::curved::Tol;
-use crate::nurbs_cert::{NurbsCellGrid, nurbs_cell_grid};
+use crate::nurbs_cert::{NurbsCellGrid, NurbsFaceBound, nurbs_cell_grid, nurbs_face_bound};
 use crate::planar::{classify_faces, edge_key, shoelace2};
 use crate::types::TessellateError;
 
@@ -118,8 +118,13 @@ enum Lane {
     },
     /// The M7 trimmed-NURBS lane (closed-form pcurve images, Hessian
     /// interpolation certificate — `crate::nurbs_cert`; since
-    /// TESS-SPAN sized and certified per knot-span cell).
-    Nurbs { grid: NurbsCellGrid },
+    /// TESS-SPAN certified per knot-span cell, v-rows sized per band,
+    /// u-columns kept on the whole-patch schedule the chord pass
+    /// shares).
+    Nurbs {
+        grid: NurbsCellGrid,
+        patch: NurbsFaceBound,
+    },
 }
 
 /// Does this face's outer loop carry a non-iso trim carrier (conic or
@@ -179,6 +184,7 @@ pub(crate) fn tessellate_trimmed(
             }
             Lane::Nurbs {
                 grid: nurbs_cell_grid(payload, fk)?,
+                patch: nurbs_face_bound(payload, fk)?,
             }
         }
         _ => return Err(trim_frontier(body, fk, face.outer)?),
@@ -217,8 +223,11 @@ pub(crate) fn tessellate_trimmed(
             let nv = ceil_count(v1 - v0, radius * hu)?;
             (uniform_candidates((u0, u1), (v0, v1), nu, nv), None)
         }
-        Lane::Nurbs { ref grid } => {
-            let (cand, cells) = per_cell_candidates(grid, (u0, u1), (v0, v1), tol.delta_s)?;
+        Lane::Nurbs {
+            ref grid,
+            ref patch,
+        } => {
+            let (cand, cells) = per_cell_candidates(grid, patch, (u0, u1), (v0, v1), tol.delta_s)?;
             (cand, Some(cells))
         }
     };
@@ -447,7 +456,7 @@ pub(crate) fn tessellate_trimmed(
                 // the triangle's UV box — for a grid triangle, the one
                 // cell containing it (`NurbsCellGrid::cert` argues the
                 // half-open boundary case).
-                Lane::Nurbs { ref grid } => grid.cert(uv),
+                Lane::Nurbs { ref grid, .. } => grid.cert(uv),
             };
             // REVIEW PROBE (env-gated): per-triangle falsification of
             // the NURBS certificate — dense barycentric samples of
@@ -551,104 +560,107 @@ fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec
     cand
 }
 
-/// The per-knot-span-cell candidates of the NURBS lane (TESS-SPAN):
-/// the trim box cut at every interior cell boundary, and each clipped
-/// cell divided by its own certified bound — one-ring dilated, see
-/// [`crate::nurbs_cert::NurbsCellGrid::step_bound_at`] — through the
-/// unchanged point-selection rule
-/// ([`crate::nurbs_cert::NurbsFaceBound::grid_steps`]).
-/// Cell-boundary lines get points from BOTH adjacent cells' schedules
-/// (their union — the shared cut value is the same f64 from the same
-/// cut array, so the dedup merges the line itself). Points on the trim
-/// box boundary are excluded exactly as the uniform grid excludes its
-/// `i = 0, nu` indices.
+/// The NURBS lane's interior grid candidates (TESS-SPAN): a TENSOR
+/// grid of **whole-patch-scheduled u-columns × per-v-band rows**.
 ///
-/// Also returns the grid-cell count `Σ nuc·nvc` over the clipped cells
-/// — the budget meter's `grid_cells` column, read off the sizing that
+/// * Columns: the historical whole-patch schedule, in the historical
+///   arithmetic (`u0 + (u1-u0)·i/nu`). Deliberately NOT per-cell: the
+///   chord pass sizes every adjacent edge's chords from the same
+///   whole-patch steps, so full-width iso rims' chord points sit
+///   exactly ON these columns — the phase alignment that keeps
+///   anisotropic boundary slivers certified (see "why the columns
+///   stay global", below). The u direction's per-cell share of the
+///   span slack is forfeited and metered.
+/// * Rows: per v-band from the band's own certified bound
+///   ([`crate::nurbs_cert::NurbsCellGrid::row_bound`] — band max
+///   across `u`, dilated one band each way) through the unchanged
+///   point-selection rule
+///   ([`crate::nurbs_cert::NurbsFaceBound::grid_steps`]); rows land
+///   exactly on the band cuts (never through the lerp, whose rounding
+///   would put two almost-coincident lines an ulp apart on a shared
+///   boundary), so a grid triangle sits inside one band and its
+///   certificate is that band's cells'. Points on the trim box
+///   boundary are excluded exactly as the uniform grid excludes its
+///   `i = 0, nu` indices.
+///
+/// Also returns the grid-cell count `nu · Σ nvc` over the v-bands —
+/// the budget meter's `grid_cells` column, read off the sizing that
 /// actually ran.
 ///
-/// The two-grid-cells-per-triangle-axis budget survives per cell: the
-/// spacing within a cell is that cell's own `(h_u, h_v)`, so a
-/// Delaunay triangle among these candidates spans at most ~2 spacings
-/// per axis of the cells its box covers — and the per-triangle
-/// certificate, checked from those same cells, remains the guarantee
-/// exactly as before.
-///
-/// # Why a schedule alone cannot finish the job (the refinement ladder)
+/// # Why the columns stay global (measured, twice)
 ///
 /// The pre-TESS-SPAN lane was accidentally protected against tall
-/// anisotropic BOUNDARY slivers: the chord pass sizes edge chords from
-/// the same whole-patch steps the old grid used, so a full-width iso
-/// rim's chord points sat EXACTLY on the grid columns, and every
-/// boundary vertex had a lattice point one row above it. Per-cell
-/// sizing breaks that phase alignment by construction, and the
-/// certificate promptly caught the consequence on the #316 lily leaf
-/// (measured): a rim vertex BETWEEN two columns of a 12:1-anisotropic
-/// grid admits an empty circumcircle reaching ~half a column spacing
-/// upward — a Delaunay-legal sliver spanning ~6 rows, whose honest
-/// per-cell certificate exceeds δ. Local "anchor" points under such
-/// vertices only RELOCATE the sliver (the anchor column's own top is
-/// again an unaligned point mid-cell — measured too). The cure is the
-/// certificate-driven refinement ladder in [`tessellate_trimmed`]'s
-/// retry loop, which needs no sliver taxonomy at all.
+/// anisotropic BOUNDARY slivers by exactly this alignment: on the
+/// #316 lily leaf (u-ruled walls, ~12:1 grid anisotropy, rim chords
+/// at `k/29`), re-sizing the columns per cell put rim vertices
+/// BETWEEN columns, and a boundary vertex mid-strip admits an empty
+/// circumcircle reaching ~half a column spacing upward — a
+/// Delaunay-legal sliver spanning ~6 rows whose honest per-cell
+/// certificate exceeded δ (4.4e-3 vs 2e-3). Local cures fail
+/// structurally: anchor points under the vertex only relocate the
+/// empty circle to the anchor column's own unaligned top (measured),
+/// and centroid refinement mints fresh unaligned points the same way
+/// — any point of an anisotropic lattice strip that is not on a
+/// column re-admits the sliver above itself. Keeping the columns on
+/// the chord pass's schedule removes the unaligned points at the
+/// source; the certificate-driven refinement ladder in
+/// [`tessellate_trimmed`]'s retry loop remains as the backstop for
+/// what alignment cannot promise (arc rims never had it — the class
+/// the old lane already shipped).
 fn per_cell_candidates(
     grid: &NurbsCellGrid,
+    patch: &NurbsFaceBound,
     u: (f64, f64),
     v: (f64, f64),
     delta_s: f64,
 ) -> Result<(Vec<(f64, f64)>, usize), TessellateError> {
-    // The trim box cut at interior cell boundaries. Each slab remembers
-    // its cell index via a midpoint lookup — the midpoint is strictly
-    // inside one cell because no interior cut crosses a slab.
-    let slabs = |cuts: &[f64], lo: f64, hi: f64| -> Vec<(f64, f64)> {
-        let mut edges = vec![lo];
-        edges.extend(cuts.iter().copied().filter(|c| *c > lo && *c < hi));
-        edges.push(hi);
-        edges.windows(2).map(|w| (w[0], w[1])).collect()
-    };
-    let u_slabs = slabs(grid.u_cuts(), u.0, u.1);
-    let v_slabs = slabs(grid.v_cuts(), v.0, v.1);
-    let mut cand: Vec<(f64, f64)> = Vec::new();
+    let (phu, _) = patch.grid_steps(delta_s);
+    let nu = ceil_count(u.1 - u.0, phu)?;
+    // The trim box cut at interior band boundaries. Each v-slab's
+    // band is found by its midpoint — strictly inside one band, since
+    // no interior cut crosses a slab.
+    let mut edges = vec![v.0];
+    edges.extend(
+        grid.v_cuts()
+            .iter()
+            .copied()
+            .filter(|c| *c > v.0 && *c < v.1),
+    );
+    edges.push(v.1);
+    let mut rows: Vec<f64> = Vec::new();
     let mut grid_cells = 0usize;
-    for &(va, vb) in &v_slabs {
-        for &(ua, ub) in &u_slabs {
-            // One-ring-dilated sizing bound (`step_bound_at` docs) —
-            // the certificate below still reads the raw per-cell
-            // bounds.
-            let bound = grid.step_bound_at(0.5 * (ua + ub), 0.5 * (va + vb));
-            let (hu, hv) = bound.grid_steps(delta_s);
-            let nuc = ceil_count(ub - ua, hu)?;
-            let nvc = ceil_count(vb - va, hv)?;
-            grid_cells += nuc * nvc;
-            // Slab-boundary indices reproduce the cut values EXACTLY
-            // (never through the lerp, whose rounding would put two
-            // almost-coincident lines an ulp apart on a shared
-            // boundary).
-            let at = |lo: f64, hi: f64, i: usize, n: usize| -> f64 {
-                if i == 0 {
-                    lo
-                } else if i == n {
-                    hi
-                } else {
-                    #[allow(clippy::cast_precision_loss)]
-                    {
-                        lo + (hi - lo) * (i as f64 / n as f64)
-                    }
+    for w in edges.windows(2) {
+        let (va, vb) = (w[0], w[1]);
+        let (_, hv) = grid
+            .row_bound(grid.row_of(0.5 * (va + vb)))
+            .grid_steps(delta_s);
+        let nvc = ceil_count(vb - va, hv)?;
+        grid_cells += nu * nvc;
+        // Band-boundary indices reproduce the cut values EXACTLY.
+        for j in 0..=nvc {
+            let vv = if j == 0 {
+                va
+            } else if j == nvc {
+                vb
+            } else {
+                #[allow(clippy::cast_precision_loss)]
+                {
+                    va + (vb - va) * (j as f64 / nvc as f64)
                 }
             };
-            for j in 0..=nvc {
-                let vv = at(va, vb, j, nvc);
-                if !(vv > v.0 && vv < v.1) {
-                    continue;
-                }
-                for i in 0..=nuc {
-                    let uu = at(ua, ub, i, nuc);
-                    if !(uu > u.0 && uu < u.1) {
-                        continue;
-                    }
-                    cand.push((uu, vv));
-                }
+            if vv > v.0 && vv < v.1 {
+                rows.push(vv);
             }
+        }
+    }
+    rows.sort_unstable_by(f64::total_cmp);
+    rows.dedup();
+    let mut cand: Vec<(f64, f64)> = Vec::with_capacity(rows.len() * nu.saturating_sub(1));
+    for &vv in &rows {
+        for i in 1..nu {
+            #[allow(clippy::cast_precision_loss)]
+            let uu = u.0 + (u.1 - u.0) * (i as f64 / nu as f64);
+            cand.push((uu, vv));
         }
     }
     sort_candidates(&mut cand);
