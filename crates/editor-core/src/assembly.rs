@@ -365,6 +365,14 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Option<Mi
         ValidationError::ContactContradicted { declaration, .. } => {
             by_pair(declaration.a, declaration.b)
         }
+        // A declared FACE-PAIR record the kernel could not confirm —
+        // the other direction of the certification diff. The record's
+        // own faces are in the error, so it names its mate exactly.
+        ValidationError::StaleContactDeclaration {
+            declaration:
+                topo::StaleDeclaration::Patch { face_a, face_b, .. }
+                | topo::StaleDeclaration::CurveLocus { face_a, face_b, .. },
+        } => by_pair(*face_a, *face_b),
         // A carrier kind the census inventory cannot certify. The
         // entity is a single face; a declaration naming it is the
         // reason it was examined at all.

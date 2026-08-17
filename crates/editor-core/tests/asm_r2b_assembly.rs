@@ -164,28 +164,35 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
     }
 }
 
-/// A `Rest` mate seating instance `b`'s bottom cap on instance `a`'s
-/// top cap, at `offset` (0 = touching; negative lifts `b` clear —
-/// the offset runs along the TARGET frame's own axis, which the
-/// opposed sense has already flipped, per ASM-R2a's row 1).
-fn rest_mate(a: RecipeNodeId, b: RecipeNodeId, offset: f64) -> Node<editor_core::ProfileProgram> {
+/// A `Rest` mate declaring instance `a`'s TOP cap against instance
+/// `b`'s BOTTOM cap, seating `b` at height `seat` by frame
+/// coincidence.
+///
+/// Frame coincidence rather than a bare planar rest because ONE
+/// planar rest leaves a positive-dimensional residual and A11 rule 4
+/// refuses an UNDER pair — the pair must be DETERMINED for the
+/// instances to have poses at all, and this unit is about what a
+/// solved mate DECLARES, not about re-testing the coset fold.
+/// `seat = 1.0` puts `b`'s bottom exactly on `a`'s top (the unit cube
+/// is z ∈ [0,1]); anything larger leaves a definite gap.
+fn rest_mate(a: RecipeNodeId, b: RecipeNodeId, seat: f64) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
         a: in_part(a, CapEnd::Top),
         b: in_part(b, CapEnd::Bottom),
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0]),
-            b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-            primitive: MatePrimitive::PlanarRest { offset },
-            sense: AxisSense::Opposed,
+            a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
+            b: frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Aligned,
             clocking: None,
         },
     }
 }
 
-/// Two instances of the unit cube, plus the seating mate at `offset`.
+/// Two instances of the unit cube, plus the seating mate at `seat`.
 /// Returns (document, instance ids, mate id, store).
-fn stacked(label: &str, offset: f64) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId, StubStore) {
+fn stacked(label: &str, seat: f64) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId, StubStore) {
     let mut store = StubStore::default();
     let doc_ref = store.insert(cube_part(&format!("{label}-part")));
     let mut doc = ProfileDoc::empty(DocumentId::derive(label));
@@ -198,7 +205,7 @@ fn stacked(label: &str, offset: f64) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNo
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(ids[0], ids[1], offset),
+            node: rest_mate(ids[0], ids[1], seat),
         },
     );
     (doc, ids, mate.expect("the mate mints"), store)
@@ -304,7 +311,7 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
 /// type, no adapter (A3).
 #[test]
 fn row2_a_solved_rest_mate_mints_its_declaration() {
-    let (doc, ids, mate, store) = stacked("asm-r2b-row2", 0.0);
+    let (doc, ids, mate, store) = stacked("asm-r2b-row2", 1.0);
     let ev = run(&doc, &opts(store));
     let result = assemble(&doc, &ev);
     let minted = match &result {
@@ -364,28 +371,55 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
     let _ = minted;
 }
 
-/// INVARIANT: minting is DECLARATION, not verification — a
-/// non-tree (DECLARING) mate mints identically to the tree mate that
-/// placed its child. Two mates on the same pair: the second solved
-/// nothing, and it still says what touches what.
+/// INVARIANT: minting is DECLARATION, not verification — a NON-TREE
+/// (`Declaring`) mate mints identically to the tree mate that placed
+/// its child. Roles are assigned per PAIR (a second mate on a tree
+/// pair is a co-determiner, not a declarer), so the declaring case is
+/// a CYCLE: three instances stacked in a column, mated 0-1, 0-2 and
+/// 1-2. The spanning tree from the gauge takes the first two; the
+/// third solved nothing, and it still says what touches what.
 #[test]
 fn row2_b_a_declaring_mate_mints_identically() {
-    let (doc, ids, _, store) = stacked("asm-r2b-row2b", 0.0);
-    // A second Rest mate on the SAME pair, same statement: the solve
-    // makes it non-tree (its pair is already determined).
+    let mut store = StubStore::default();
+    let doc_ref = store.insert(cube_part("asm-r2b-row2b-part"));
+    let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-row2b"));
+    let mut ids = Vec::new();
+    for _ in 0..3 {
+        let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
+        doc = next;
+        ids.push(id);
+    }
+    // The column: instance 1 seats on 0 (z ∈ [1,2]), instance 2 on
+    // that (z ∈ [2,3]). Both are edges from the gauge, so both are
+    // TREE edges.
+    let (doc, _) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: rest_mate(ids[0], ids[1], 1.0),
+        },
+    );
+    let (doc, _) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: rest_mate(ids[0], ids[2], 2.0),
+        },
+    );
+    // The cycle-closing mate: instance 1's top against instance 2's
+    // bottom. Consistent with the poses already solved, and non-tree.
     let (doc, second) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(ids[0], ids[1], 0.0),
+            node: rest_mate(ids[1], ids[2], 1.0),
         },
     );
-    let second = second.expect("the second mate mints");
+    let second = second.expect("the third mate mints");
     let poses = editor_core::solve_document(&doc);
     assert_eq!(
         poses.role(second),
         Some(editor_core::MateRole::Declaring),
-        "the second mate solved nothing"
+        "the cycle-closing mate solved nothing"
     );
+
     let ev = run(&doc, &opts(store));
     let declared: Vec<RecipeNodeId> = match assemble(&doc, &ev) {
         Ok(a) => a.minted.iter().map(|m| m.mate).collect(),
@@ -417,7 +451,7 @@ fn row3_a_an_undeclared_touching_pair_is_the_hard_error() {
     // The same touching geometry, with the mate DELETED after it
     // solved the pose — the placement survives as document data, so
     // the instances still touch and nothing declares it.
-    let (doc, ids, mate, store) = stacked("asm-r2b-row3a", 0.0);
+    let (doc, ids, mate, store) = stacked("asm-r2b-row3a", 1.0);
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: mate });
     let ev = run(&doc, &opts(store));
     let result = assemble(&doc, &ev);
@@ -438,7 +472,7 @@ fn row3_a_an_undeclared_touching_pair_is_the_hard_error() {
 /// this layer's).
 #[test]
 fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
-    let (doc, _, _, store) = stacked("asm-r2b-row3b", 0.0);
+    let (doc, _, _, store) = stacked("asm-r2b-row3b", 1.0);
     let ev = run(&doc, &opts(store));
     let result = assemble(&doc, &ev);
     let errs = findings(&result);
@@ -463,7 +497,7 @@ fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
 fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     // offset −1 lifts b a full unit clear: the declared faces are a
     // unit apart, definitely.
-    let (doc, ids, mate, store) = stacked("asm-r2b-row4", -1.0);
+    let (doc, ids, mate, store) = stacked("asm-r2b-row4", 2.0);
     let ev = run(&doc, &opts(store));
     let err = assemble(&doc, &ev).err().expect("a gapped Rest refuses");
     let AssemblyError::AtRest { findings } = &err else {
@@ -495,115 +529,173 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     );
 }
 
-// ---- Row 5: split, the crossing record, and re-verification ----
+// ---- Rows 5 and 6: the crossing record ----
+//
+// **A finding, pinned rather than papered over.** ASM-R2b D-4 says
+// split populates the record "for every mate whose ends land on
+// opposite sides of the cut". No such cut exists today: a mate's two
+// ends are two instances, a mate joins them into ONE placement
+// cluster by A11 rule 2, and ASM-R2a's ratified cut precondition
+// refuses any cut that is not a union of WHOLE clusters
+// (`SplitError::TornCluster`). So opposite sides of a cut and the
+// same cluster are mutually exclusive, and `split` mints an EMPTY
+// record for every cut it accepts. A4's sentence and A11's cut rule
+// are in tension; the resolution is a design ruling, not an
+// implementer's choice, so the rows below pin what is TRUE — split's
+// collector, the refusal that makes it vacuous, and every other
+// reachable path through the now-inhabited record (it is public data
+// through `Node::instantiate_part_with`, on the wire, keyed, and
+// re-verified at evaluation).
 
-/// INVARIANT: split populates the interface record with EXACTLY the
-/// mates whose ends land on opposite sides of the cut (A4: "the seam
-/// is the crossing declarations"), spelling the part-side reference in
-/// the PART's own names; inline dissolves it and the document
-/// round-trips.
+/// INVARIANT (the tension, executable): cutting ONE instance of a
+/// mated pair refuses `TornCluster` — which is exactly why no mate
+/// can cross a cut — and the whole-cluster cut that IS accepted
+/// carries both of the mate's ends, so its record is empty.
 #[test]
-fn row5_a_split_populates_the_crossing_record_and_inline_dissolves_it() {
-    let (doc, ids, mate, store) = stacked("asm-r2b-row5", 0.0);
-    // Cut out instance 1: the mate's `b` end goes, its `a` end stays.
-    let cut = [ids[1]].into_iter().collect();
-    let out =
-        split(&doc, &cut, DocumentId::derive("asm-r2b-row5-split")).expect("the split succeeds");
+fn row5_a_no_mate_can_cross_a_cut_today_and_split_says_so_both_ways() {
+    let (doc, ids, _, store) = stacked("asm-r2b-row5", 1.0);
+
+    // One instance alone: the cut tears the cluster.
+    let torn = split(
+        &doc,
+        &[ids[1]].into_iter().collect(),
+        DocumentId::derive("asm-r2b-row5-torn"),
+    )
+    .expect_err("a torn cluster refuses");
+    assert!(
+        matches!(torn, editor_core::SplitError::TornCluster { .. }),
+        "the ratified whole-cluster precondition is what makes a \
+         crossing unreachable: {torn:?}"
+    );
+
+    // The whole cluster: accepted, and nothing crosses.
+    let out = split(
+        &doc,
+        &ids.iter().copied().collect(),
+        DocumentId::derive("asm-r2b-row5-whole"),
+    )
+    .expect("a whole-cluster cut splits");
     let Some(Node::InstantiatePart { interface, .. }) = out.remainder.node(out.instance) else {
         panic!("the split minted an instance");
     };
-    assert_eq!(
-        interface.crossings.len(),
-        1,
-        "one mate crossed the cut: {:?}",
+    assert!(
+        interface.is_empty(),
+        "both ends moved together, so no declaration crossed: {:?}",
         interface.crossings
     );
-    let InterfaceCrossing::Mate {
-        mate: crossed,
-        class,
-        outer,
-        inner,
-    } = &interface.crossings[0];
-    assert_eq!(*crossed, mate, "the crossing names its mate");
-    assert_eq!(*class, ContactClass::Rest, "and the class it declares");
-    assert_eq!(
-        *outer,
-        in_part(ids[0], CapEnd::Top),
-        "the remainder-side reference is unchanged"
-    );
-    assert_eq!(
-        inner.node, out.node_map[&ids[1]],
-        "the part-side reference is spelled in the PART's own ids"
-    );
-
-    // Inline is the inverse: the record dissolves with the instance.
-    let mut store2 = store.clone();
-    store2.insert(out.part.clone());
-    let back = inline(&out.remainder, out.instance, &store2).expect("inline succeeds");
-    assert!(
-        back.doc.node(out.instance).is_none(),
-        "the instance is gone, and its record with it"
-    );
-    assert!(
-        back.doc
-            .order()
-            .iter()
-            .any(|&id| matches!(back.doc.node(id), Some(Node::Mate { .. }))),
-        "the declaration itself survives, as the mate node it always was"
-    );
+    let _ = store;
 }
 
-/// INVARIANT (A13 clause 4 + A4's "does it actually fit"): a pin move
-/// that changes the part so a crossing declaration's reference no
-/// longer names anything re-verifies at the NEXT EVALUATION and
-/// refuses typed, naming the crossing. Pre-move the same document
-/// evaluates.
+/// INVARIANT (A4's "does it actually fit" + A13 clause 4): an
+/// instance carrying a crossing declaration RE-VERIFIES it against
+/// the pinned part at every evaluation. Pre-move it resolves and the
+/// instance evaluates; a pin move to a part that no longer names the
+/// declared entity refuses TYPED, naming the crossing — the swap is
+/// never accepted with the declaration quietly dropped.
 #[test]
 fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
-    let (doc, ids, _, store) = stacked("asm-r2b-row5b", 0.0);
-    let cut = [ids[1]].into_iter().collect();
-    let part_id = DocumentId::derive("asm-r2b-row5b-split");
-    let out = split(&doc, &cut, part_id).expect("the split succeeds");
-    let mut store = store;
-    store.insert(out.part.clone());
-
-    // Pre-move: the crossing re-verifies, so the instance evaluates.
-    let ev = run(&out.remainder, &opts(store.clone()));
-    assert!(
-        ev.node_error(out.instance).is_none(),
-        "the crossing re-verifies against the pinned part: {:?}",
-        ev.node_error(out.instance).map(ToString::to_string)
+    let part_id = DocumentId::derive("asm-r2b-row5b-part");
+    let mut store = StubStore::default();
+    let doc_ref = store.insert({
+        let (d, _) = block(ProfileDoc::empty(part_id), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+        d
+    });
+    // The part-local name of the cube's top cap: profile is node 0,
+    // extrude node 1.
+    let inner = StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(1),
+        path: vec![RoleSeg::Cap(CapEnd::Top)],
+    };
+    let record = editor_core::InterfaceRecord {
+        crossings: vec![InterfaceCrossing::Mate {
+            mate: RecipeNodeId(7),
+            class: ContactClass::Rest,
+            outer: inner.clone(),
+            inner: inner.clone(),
+        }],
+    };
+    let (doc, instance) = insert(
+        ProfileDoc::empty(DocumentId::derive("asm-r2b-row5b")),
+        Node::instantiate_part_with(doc_ref, record),
     );
 
-    // The move: a part whose contact face is gone — the instantiate
-    // node's own extrude replaced by one the crossing cannot name.
-    let mut replaced = ProfileDoc::empty(part_id);
-    for &old in out.part.order() {
-        if let Some(Node::Profile(_)) = out.part.node(old) {
-            let (next, _) = insert(replaced, out.part.node(old).unwrap().clone());
-            replaced = next;
-        }
-    }
-    let new_pin = content_pin(&replaced).expect("the pin computes");
-    store.docs.insert(part_id, replaced);
+    let ev = run(&doc, &opts(store.clone()));
+    assert!(
+        ev.node_error(instance).is_none(),
+        "the crossing re-verifies against the pinned part: {:?}",
+        ev.node_error(instance).map(ToString::to_string)
+    );
+
+    // The move: the SAME document id, re-modelled so the declared
+    // entity's minting node is no longer the one the crossing names.
+    // A leading datum shifts the extrude off node 1 — the part still
+    // has a product, and the crossing's reference is simply gone.
+    let (shifted, _) = insert(
+        ProfileDoc::empty(part_id),
+        Node::Datum(editor_core::Datum::Point {
+            position: [len(0.0), len(0.0), len(0.0)],
+        }),
+    );
+    let (shifted, _) = block(shifted, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let new_pin = content_pin(&shifted).expect("the pin computes");
+    store.docs.insert(part_id, shifted);
     let moved = editor_core::apply(
-        &out.remainder,
+        &doc,
         &DocEdit::UpdateReference {
-            node: out.instance,
+            node: instance,
             new_pin,
         },
     )
     .expect("the pin moves")
     .doc;
 
-    let ev2 = run(&moved, &opts(store));
-    let err = ev2
-        .node_error(out.instance)
+    let err = run(&moved, &opts(store))
+        .node_error(instance)
         .expect("the moved pin refuses")
         .to_string();
     assert!(
-        err.contains("crossing") || err.contains("does not re-verify") || err.contains("part"),
+        err.contains("does not re-verify"),
         "the refusal names the crossing that no longer fits: {err}"
+    );
+}
+
+/// INVARIANT: inline CONSUMES the record — every crossing's part-side
+/// reference must re-anchor onto a spliced local name — and then the
+/// record dissolves with the instance it rode on.
+#[test]
+fn row5_c_inline_dissolves_the_crossing_record() {
+    let part_id = DocumentId::derive("asm-r2b-row5c-part");
+    let mut store = StubStore::default();
+    let doc_ref = store.insert({
+        let (d, _) = block(ProfileDoc::empty(part_id), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+        d
+    });
+    let inner = StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(1),
+        path: vec![RoleSeg::Cap(CapEnd::Top)],
+    };
+    let record = editor_core::InterfaceRecord {
+        crossings: vec![InterfaceCrossing::Mate {
+            mate: RecipeNodeId(9),
+            class: ContactClass::Rest,
+            outer: inner.clone(),
+            inner,
+        }],
+    };
+    let (doc, instance) = insert(
+        ProfileDoc::empty(DocumentId::derive("asm-r2b-row5c")),
+        Node::instantiate_part_with(doc_ref, record),
+    );
+    let back = inline(&doc, instance, &store).expect("inline succeeds");
+    assert!(
+        back.doc.node(instance).is_none(),
+        "the instance is gone, and its record with it"
+    );
+    assert!(
+        !back.doc.order().is_empty(),
+        "the part's recipe is spliced in"
     );
 }
 
@@ -611,56 +703,49 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
 
 /// INVARIANT (the content-key half of ASM-4's hook obligation): a
 /// crossing-record edit MOVES the instantiate node's content key. Two
-/// documents that differ only in the record must not share a memo
+/// documents differing ONLY in the record must not share a memo
 /// entry — otherwise a crossing edit would be served the pre-edit
 /// answer, re-verification and all.
 #[test]
 fn row6_a_crossing_record_edit_moves_the_content_key() {
-    let (doc, ids, _, store) = stacked("asm-r2b-row6", 0.0);
-    let cut = [ids[1]].into_iter().collect();
-    let out =
-        split(&doc, &cut, DocumentId::derive("asm-r2b-row6-split")).expect("the split succeeds");
-    let mut store = store;
-    store.insert(out.part.clone());
-
-    // The same document with the record EMPTIED, built by replaying
-    // the split's own recorded edits with only the instance's node
-    // swapped: same ids (the mint counter is deterministic), same
-    // reference, same pin, same placement — the record is the ONLY
-    // difference, which is what makes the key comparison mean
-    // something.
-    let mut emptied = doc.clone();
-    for e in &out.remainder_edits {
-        let e = match e {
-            DocEdit::InsertNode {
-                node: Node::InstantiatePart { doc_ref, .. },
-            } => DocEdit::InsertNode {
-                node: Node::instantiate_part(*doc_ref),
-            },
-            other => other.clone(),
-        };
-        emptied = editor_core::apply(&emptied, &e)
-            .expect("the split's edits replay")
-            .doc;
-    }
-    assert!(
-        matches!(
-            emptied.node(out.instance),
-            Some(Node::InstantiatePart { interface, .. }) if interface.is_empty()
-        ),
-        "the replay reproduced the same instance id with an empty record"
+    let part_id = DocumentId::derive("asm-r2b-row6-part");
+    let mut store = StubStore::default();
+    let doc_ref = store.insert({
+        let (d, _) = block(ProfileDoc::empty(part_id), (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+        d
+    });
+    let inner = StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(1),
+        path: vec![RoleSeg::Cap(CapEnd::Top)],
+    };
+    let record = editor_core::InterfaceRecord {
+        crossings: vec![InterfaceCrossing::Mate {
+            mate: RecipeNodeId(4),
+            class: ContactClass::Rest,
+            outer: inner.clone(),
+            inner,
+        }],
+    };
+    let (with, id_with) = insert(
+        ProfileDoc::empty(DocumentId::derive("asm-r2b-row6")),
+        Node::instantiate_part_with(doc_ref, record),
     );
+    let (without, id_without) = insert(
+        ProfileDoc::empty(DocumentId::derive("asm-r2b-row6")),
+        Node::instantiate_part(doc_ref),
+    );
+    assert_eq!(id_with, id_without, "same id, same reference, same pin");
 
-    let with = run(&out.remainder, &opts(store.clone()));
-    let without = run(&emptied, &opts(store));
-    let key = |ev: &Evaluation<f64>| {
-        ev.value(out.instance)
+    let key = |d: &ProfileDoc, id| {
+        run(d, &opts(store.clone()))
+            .value(id)
             .expect("the instance evaluates")
             .content_key
     };
     assert_ne!(
-        key(&with),
-        key(&without),
+        key(&with, id_with),
+        key(&without, id_without),
         "the inhabited record feeds the key"
     );
 }
@@ -672,7 +757,7 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
 /// bit-identical record set and the same at-rest verdict.
 #[test]
 fn row7_the_minted_record_set_is_deterministic() {
-    let (doc, _, _, store) = stacked("asm-r2b-row7", 0.0);
+    let (doc, _, _, store) = stacked("asm-r2b-row7", 1.0);
     let a = run(&doc, &opts(store.clone()));
     let b = run(&doc, &opts(store));
     let pa = product_recorded(&doc, &a).expect("gathers");
@@ -699,8 +784,8 @@ fn row7_the_minted_record_set_is_deterministic() {
 /// witness (module docs' honest boundary).
 #[test]
 fn a_tangent_mate_refuses_at_the_mint_door() {
-    let (doc, ids, _, store) = stacked("asm-r2b-tangent", 0.0);
-    let mut node = rest_mate(ids[0], ids[1], 0.0);
+    let (doc, ids, _, store) = stacked("asm-r2b-tangent", 1.0);
+    let mut node = rest_mate(ids[0], ids[1], 1.0);
     if let Node::Mate { class, .. } = &mut node {
         *class = ContactClass::Tangent;
     }
@@ -718,8 +803,8 @@ fn a_tangent_mate_refuses_at_the_mint_door() {
 /// refuses typed — never resolved by picking, never widened.
 #[test]
 fn a_mate_reference_that_names_nothing_refuses_typed() {
-    let (doc, ids, _, store) = stacked("asm-r2b-vanish", 0.0);
-    let mut node = rest_mate(ids[0], ids[1], 0.0);
+    let (doc, ids, _, store) = stacked("asm-r2b-vanish", 1.0);
+    let mut node = rest_mate(ids[0], ids[1], 1.0);
     if let Node::Mate { a, .. } = &mut node {
         a.path = vec![RoleSeg::InPart {
             of: Box::new(StableName {
