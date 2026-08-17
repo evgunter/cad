@@ -1012,13 +1012,14 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 ///    (the cradle witness), value-equal walls at gap zero
 ///    (boss-in-hole), and the embedded ball cap (the delta witness)
 ///    land here; the certified excluder this stands in for is the C9
-///    exclusion ring. The reach box is the face's boundary-vertex
-///    hull padded by a SOUND per-kind bulge bound (plane: zero;
-///    cylinder/sphere: the radius — see `pad_of`'s derivations);
-///    cone/torus/NURBS have no sound cheap bound and their pairs
-///    refuse WITHOUT a distance test (the `separation.rs` poison
-///    posture). A planar face vf-NAMED by the other solid's records
-///    defers to the confirm pass (the declared boss-on-plate class).
+///    exclusion ring. The reach boxes are SOUND per-kind supersets
+///    (`reach_box` — the `boolean::boxes::face_box` construction:
+///    plane hull ⊕ largest boundary-arc radius, cylinder axial span
+///    ⊕ radius, the sphere's whole ball); cone/torus/NURBS have no
+///    sound cheap box and their pairs refuse WITHOUT a distance test
+///    (the `separation.rs` poison posture). A planar face vf-NAMED
+///    by the other solid's records defers to the confirm pass (the
+///    declared boss-on-plate class).
 /// 2. **Instance containment** (C6's interference class): one solid's
 ///    vertex-extent box contained in another's — a nested placement
 ///    makes no boundary event at all (the reviewed nested-cube
@@ -1097,37 +1098,92 @@ fn sweep_cross_solid_backstop<T: Decide>(
     };
     // Per-kind bulge pad (doc comment): how far the face can reach
     // beyond its boundary-vertex hull.
-    // The reach pad: how far a face can extend beyond its
-    // boundary-vertex hull, SOUND per kind (F5 delta ruling):
+    // The per-kind SOUND reach box (F5 delta refinement — the
+    // `boolean::boxes::face_box` construction re-derived in the
+    // evaluation lane, after the isotropic vertex-hull+pad filter
+    // falsely refused the corpus's cube-beside-cylinder file):
     //
-    // - Plane: exactly zero (the face lies in the hull of its
-    //   boundary; boundary line segments lie in the vertex hull).
-    // - Cylinder: the radius. A cylinder is RULED, so every interior
-    //   point lies on a ruling segment between boundary points, and a
-    //   boundary arc of radius r bulges at most r from its chord —
-    //   face ⊂ vertex-hull ⊕ r.
-    // - Sphere: the radius. Every surface point is within r of the
-    //   CENTER, and the center lies in the vertex hull of any
-    //   boundary that spans it (seam meridians hold the poles, whose
-    //   chord passes through the center) — face ⊂ vertex-hull ⊕ r.
-    //   A boundary NOT spanning the center still satisfies the bound:
-    //   any surface point is within 2r of any boundary vertex and
-    //   within r of the center's projection… the conservative
-    //   statement actually used is |P − c| = r with c in the hull of
-    //   the pole-bearing seam; sphere faces the kernel mints carry
-    //   their seam (revolve/import), so the argument applies to the
-    //   minted inventory.
-    // - Cone / Torus / described NURBS: NO cheap sound constant
-    //   exists (a torus spine can lie far from a sparse vertex hull;
-    //   a fitted patch can bulge arbitrarily past its boundary) —
-    //   `None`, and the pair REFUSES without a distance test, the
-    //   same posture as `separation.rs`'s poisoned boxes for these
-    //   kinds: refuse to claim a reach rather than under-claim one.
-    let pad_of = |f: FK| -> Option<T> {
+    // - Plane: the boundary-vertex hull, padded by the largest
+    //   boundary-arc radius (a straight edge lies in the hull; a
+    //   circular/elliptic arc bulges at most its radius/semi-major
+    //   from its chord; the face interior lies in the hull of its
+    //   boundary). A planar face with any OTHER curved boundary kind
+    //   has no cheap sound pad — `None`.
+    // - Cylinder: boundary vertices' axial span, swept along the
+    //   axis and widened by the radius in every component — sound
+    //   because the surface is ruled (interior points lie on ruling
+    //   segments between boundary points, so the axial extent is the
+    //   boundary's) and every surface point is within r of the axis.
+    // - Sphere: the whole ball, center ± r — every surface point is
+    //   within r of the center (the S13 `face_box` posture).
+    // - Cone / Torus / described NURBS: no cheap sound box — `None`,
+    //   and the pair REFUSES without a distance test (the
+    //   `separation.rs` poison posture: refuse to claim a reach
+    //   rather than under-claim one).
+    let plane_arc_pad = |f: FK| -> Option<T> {
+        let face = body.get_face(f)?;
+        let mut pad = T::zero();
+        for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+            let l = body.loops.get(lk)?;
+            let LoopBoundary::Cycle { first } = l.boundary else {
+                continue;
+            };
+            for he in body.loop_cycle(first)? {
+                let ek = body.half_edges.get(he)?.edge;
+                let curve = body.edges.get(ek).and_then(|e| body.curves.get(e.curve));
+                match curve
+                    .and_then(CurveGeom::certified)
+                    .map(geom_brep::EdgeCurve::carrier)
+                {
+                    Some(geom_curves::Curve3::Line { .. }) => {}
+                    Some(geom_curves::Curve3::Circle { radius, .. }) => pad = pad.max(*radius),
+                    Some(geom_curves::Curve3::Ellipse { major, .. }) => pad = pad.max(*major),
+                    _ => return None,
+                }
+            }
+        }
+        Some(pad)
+    };
+    let reach_box = |f: FK, pts: &[Point3<T>]| -> Option<(Point3<T>, Point3<T>)> {
         match body.get_face(f).and_then(|d| body.surfaces.get(d.surface)) {
-            Some(geom_surfaces::Surface::Plane { .. }) => Some(T::zero()),
-            Some(geom_surfaces::Surface::Cylinder { radius, .. })
-            | Some(geom_surfaces::Surface::Sphere { radius, .. }) => Some(*radius),
+            Some(geom_surfaces::Surface::Plane { .. }) => {
+                let (lo, hi) = hull(pts)?;
+                let p = plane_arc_pad(f)?;
+                Some((
+                    Point3::new(lo.x - p, lo.y - p, lo.z - p),
+                    Point3::new(hi.x + p, hi.y + p, hi.z + p),
+                ))
+            }
+            Some(geom_surfaces::Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            }) => {
+                let mut it = pts.iter();
+                let first = it.next()?;
+                let h0 = (*first - *origin).dot(*axis);
+                let (mut h_min, mut h_max) = (h0, h0);
+                for p in it {
+                    let h = (*p - *origin).dot(*axis);
+                    h_min = h_min.min(h);
+                    h_max = h_max.max(h);
+                }
+                let a = *origin + *axis * h_min;
+                let b = *origin + *axis * h_max;
+                let r = *radius;
+                Some((
+                    Point3::new(a.x.min(b.x) - r, a.y.min(b.y) - r, a.z.min(b.z) - r),
+                    Point3::new(a.x.max(b.x) + r, a.y.max(b.y) + r, a.z.max(b.z) + r),
+                ))
+            }
+            Some(geom_surfaces::Surface::Sphere { center, radius, .. }) => {
+                let r = *radius;
+                Some((
+                    Point3::new(center.x - r, center.y - r, center.z - r),
+                    Point3::new(center.x + r, center.y + r, center.z + r),
+                ))
+            }
             _ => None,
         }
     };
@@ -1139,11 +1195,10 @@ fn sweep_cross_solid_backstop<T: Decide>(
     struct Reach<T: Real> {
         face: crate::entity::FaceKey,
         solid: crate::entity::SolidKey,
-        lo: Point3<T>,
-        hi: Point3<T>,
-        /// `None`: a kind with no sound cheap pad (pad_of docs) —
-        /// its pairs refuse without a distance test.
-        pad: Option<T>,
+        /// The sound reach box (`reach_box` docs), or `None` for a
+        /// kind with no cheap sound box — its pairs refuse without a
+        /// distance test.
+        boxed: Option<(Point3<T>, Point3<T>)>,
         verts: BTreeSet<VertexKey>,
         planar: bool,
     }
@@ -1167,20 +1222,20 @@ fn sweep_cross_solid_backstop<T: Decide>(
         }
         let Some(solid) = solid_of(f) else { continue };
         let pts = face_points(f);
-        let Some((lo, hi)) = hull(&pts) else { continue };
+        if pts.is_empty() {
+            continue;
+        }
         let verts = geo
             .vertex_faces
             .iter()
             .filter(|(_, fs)| fs.contains(&f))
             .map(|(&v, _)| v)
             .collect();
-        let pad = pad_of(f);
+        let boxed = reach_box(f, &pts);
         reaches.push(Reach {
             face: f,
             solid,
-            lo,
-            hi,
-            pad,
+            boxed,
             verts,
             planar,
         });
@@ -1243,29 +1298,29 @@ fn sweep_cross_solid_backstop<T: Decide>(
             if vf_deferred {
                 continue; // the declared interface — confirm pass's pair
             }
-            // A kind with no sound reach pad refuses without a
-            // distance test (pad_of docs — the loud direction).
-            let (Some(pa), Some(pb)) = (a.pad, b.pad) else {
+            // A kind with no sound reach box refuses without a
+            // distance test (reach_box docs — the loud direction).
+            let (Some((alo, ahi)), Some((blo, bhi))) = (a.boxed, b.boxed) else {
                 errors.push(ValidationError::CensusUndecidable {
                     a: EntityId::Face(a.face),
                     b: EntityId::Face(b.face),
                     what: "a cross-solid face pair with a carrier kind that has no \
-                           sound cheap reach bound (cone/torus/NURBS) — the C9 \
+                           sound cheap reach bound (cone/torus/NURBS, or a planar \
+                           face with a non-conic curved boundary) — the C9 \
                            exclusion ring is the certified excluder",
                 });
                 continue;
             };
             // Definite separation on ANY axis clears the pair: the
-            // margin is the inter-hull gap minus both reach pads —
-            // a metre coordinate difference (audit row).
-            let pads = pa + pb;
+            // margin is the gap between the sound reach boxes — a
+            // metre coordinate difference (audit row).
             let mut cleared = false;
             for (alo, ahi, blo, bhi) in [
-                (a.lo.x, a.hi.x, b.lo.x, b.hi.x),
-                (a.lo.y, a.hi.y, b.lo.y, b.hi.y),
-                (a.lo.z, a.hi.z, b.lo.z, b.hi.z),
+                (alo.x, ahi.x, blo.x, bhi.x),
+                (alo.y, ahi.y, blo.y, bhi.y),
+                (alo.z, ahi.z, blo.z, bhi.z),
             ] {
-                let gap = (blo - ahi).max(alo - bhi) - pads;
+                let gap = (blo - ahi).max(alo - bhi);
                 if matches!(
                     decide("census_backstop_gap", Margin::of(gap), band),
                     Ok(Sign::Positive)
