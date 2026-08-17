@@ -241,6 +241,81 @@ impl core::fmt::Display for ChartRegionError {
 
 impl std::error::Error for ChartRegionError {}
 
+/// **The per-scalar chart-region lane** — the static split the PR-1
+/// `Decide + Bounds` seam ratification promised its first
+/// `Decide`-generic consumer (the census arms; see the M9-2 entry in
+/// `geom-core/src/real.rs`'s Bounds scope rule): bracket-carrying
+/// scalars (`f64`, `Probe`, the interval scalar) reach
+/// [`chart_region_overlap`]; the dual scalar has no bracket to read
+/// the C6 structure gate from and REFUSES statically — its impl
+/// instantiates none of the predicate (the `PropsQuadLane` shape).
+pub trait ChartRegionLane: Decide {
+    /// The overlap door at this scalar, or `None` when the scalar
+    /// carries no bracket lane (dual) — the census maps `None` to its
+    /// typed unsupported refusal, never to a silent skip.
+    fn chart_overlap(
+        body_a: &Body<Self>,
+        face_a: FaceKey,
+        body_b: &Body<Self>,
+        face_b: FaceKey,
+        band: Band,
+    ) -> Option<Result<ChartOverlap, ChartRegionError>>;
+}
+
+impl ChartRegionLane for f64 {
+    fn chart_overlap(
+        body_a: &Body<Self>,
+        face_a: FaceKey,
+        body_b: &Body<Self>,
+        face_b: FaceKey,
+        band: Band,
+    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
+        Some(chart_region_overlap(body_a, face_a, body_b, face_b, band))
+    }
+}
+
+#[cfg(feature = "probe")]
+impl ChartRegionLane for geom_core::Probe {
+    fn chart_overlap(
+        body_a: &Body<Self>,
+        face_a: FaceKey,
+        body_b: &Body<Self>,
+        face_b: FaceKey,
+        band: Band,
+    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
+        Some(chart_region_overlap(body_a, face_a, body_b, face_b, band))
+    }
+}
+
+#[cfg(feature = "interval")]
+impl ChartRegionLane for geom_core::interval::Interval {
+    fn chart_overlap(
+        body_a: &Body<Self>,
+        face_a: FaceKey,
+        body_b: &Body<Self>,
+        face_b: FaceKey,
+        band: Band,
+    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
+        Some(chart_region_overlap(body_a, face_a, body_b, face_b, band))
+    }
+}
+
+/// The dual lane: statically no chart-region predicate (trait docs).
+impl<T> ChartRegionLane for geom_core::Dual<T>
+where
+    geom_core::Dual<T>: Decide,
+{
+    fn chart_overlap(
+        _body_a: &Body<Self>,
+        _face_a: FaceKey,
+        _body_b: &Body<Self>,
+        _face_b: FaceKey,
+        _band: Band,
+    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
+        None
+    }
+}
+
 /// The diagnostic for a DEFINITE margin whose outcome is nevertheless
 /// uncertifiable (the conservative-deduction escalations): the margin
 /// was validly posed and classified — `MarginDiag::Invalid` would

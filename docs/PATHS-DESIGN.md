@@ -186,26 +186,36 @@ authoring act.
   (endpoint-full from a Point, endpoint-free from a Directed tip)
   plus the two carrier-continuation rows: `Center{c, winding, p}`
   from the ENTRY (the entry bound ON a carrier — the retired
-  `at_on` entry, fused) and `Radius{r, side}` alone from an OnArc
-  tip (an interior arc arrival's directed point): the centre is
-  DERIVED from the tip's binding bits, so tangency holds by
-  construction. `Center@OnArc` is EXCLUDED by the same doctrine
-  as `Center@Directed` — the tip's direction is bound, so an
-  authored centre's derived tangent would have to value-match it,
-  and no direction remains for the centre to supply retroactively
-  (adjudicated at the re-spell unit; authored-once decides).
+  `at_on` entry, fused) and `Radius{r, side}` from any DIRECTED
+  POINT — **arc extension**, the arc analog of ray extension
+  (§2c dissolution amendment below): the centre is DERIVED from
+  the tip's binding bits, so tangency holds by construction, and
+  the incoming run extends FORWARD from the tip along the derived
+  carrier. When that carrier continues the incoming segment's own
+  carrier, the extension MOVES that segment's end vertex to the
+  trim point (the §4 item 4 exemption, exactly as a straight
+  leg's ray extension); otherwise the joint at the tip is a
+  constructed tangency onto a new carrier — sound for every
+  authored `r`. A trim that would eat the tip's authored anchor
+  refuses (`AnchorOutsideTrimmedExtent`). `Center` from a
+  directed tip stays EXCLUDED — the tip's direction is bound, so
+  an authored centre's derived tangent would have to value-match
+  it, and no direction remains for the centre to supply
+  retroactively (authored-once decides).
 - **Line arrivals** keep the uniform builder: `.at(p)` /
   `.angle(θ)` / `.toward(dx, dy)` in either order, the far-end
   `.to(p)`, and the seam `.to(Start)` (straight first side only —
   the seam retrims the entry vertex).
 - **Arc arrivals** are the spec's own completion story:
   `Center{c, winding, p}` is complete at the verb (interior `p`:
-  the tip continues ON the carrier at `p`, the OnArc state;
-  `p: Start`: the close that KEEPS the entry vertex — the retired
-  `to_on`); `Radius{r, side}` derives its centre from the
-  arrival's directed anchor, so both binders stay free; `Via{q, p}`
-  carries its anchor and awaits one director. `Bulge` is never an
-  arrival (no chord exists there).
+  the run to `p` is EMITTED at the verb and the tip is an
+  ORDINARY DIRECTED POINT at `p` — a hard anchor, uniform with
+  line arrivals; the §2c dissolution amendment below retired the
+  OnArc state; `p: Start`: the close that KEEPS the entry vertex
+  — the retired `to_on`); `Radius{r, side}` derives its centre
+  from the arrival's directed anchor, so both binders stay free;
+  `Via{q, p}` carries its anchor and awaits one director.
+  `Bulge` is never an arrival (no chord exists there).
 - Once both carriers are fixed, the r-arc tangent to both is
   inserted at their implicit virtual corner, trimming both — the
   resolution machinery of the retired register, unchanged bit for
@@ -719,6 +729,57 @@ in a follow-up unit, which also re-spells the program Step
 vocabulary (pre-release clean break; the v8 step set is not a
 compatibility surface).
 
+### §2c dissolution amendment — OnArc RETIRES (RATIFIED
+### 2026-08-16; Evan's in-chat ruling, ratification delegated
+### on a clean blast-radius census)
+
+The re-spell unit shipped a fifth tip state, `OnArc` (an
+interior arc arrival's tip, its carrier run to the anchor left
+un-emitted for the NEXT fused verb to trim). Evan's ruling: the
+axiom's own state vocabulary is the four binding states and the
+directed point suffices — carrier continuation folds into the
+fused verbs the way `arc_fillet` already folds carrier
+authorship. OnArc is an emission-deferral trick wearing a
+typestate, and it retires:
+
+- **Arc arrivals emit their run at the verb** — the arrival
+  carrier is the verb's own authored spec, so the emission is
+  axiom-clean — and the tip lands as an ordinary directed
+  point at the authored anchor (a HARD anchor, uniform with
+  line arrivals).
+- **Arc extension** replaces the `Radius@OnArc` row: from any
+  directed point, a fused verb's `Radius{r, side}` incoming
+  derives its carrier from the tip's binding bits and extends
+  it FORWARD. Same-carrier continuation moves the incoming
+  segment's end vertex (the §4 item 4 exemption, exactly as
+  ray extension); a different `r` is a legal new tangent
+  carrier with a constructed tangency at the tip — sound for
+  every authored `r`, where the retired row was UNGUARDED for
+  mismatched `r` (`bulge_from_center` computes from angles
+  alone; the emitted run's bulge, claimed centre, and declared
+  tangency went mutually inconsistent — a latent defect this
+  amendment deletes structurally; the implementing unit pins
+  it with an executed probe first).
+- **Sharp-after-arc-arrival is restored**: the directed point
+  takes an ordinary director. This closes the vocabulary gap
+  the #576 §3 continuation-verb proposal named — that proposal
+  is RETIRED (the state deletes instead) — and with it the
+  LoopBuilder shim's last caller class, so the shim DELETES
+  and #377 closes.
+- **Deletions**: `OnArc`, `OnArcIncoming`, `TipState::OnArc`,
+  the `DynTip::OnArc` replay arm, Python's `PathOnArc` + its
+  arrival-builder returns (the builders re-target the directed
+  point), and every doc surface that teaches the state.
+- **What is unchanged**: shipped geometry — the census
+  (2026-08-16, in LIB-LOG) found the fit gate already refuses
+  a trim that would eat the authored anchor
+  (`AnchorOutsideTrimmedExtent`), so every constructing chain
+  already has its trim at/after the anchor and re-emits the
+  IDENTICAL final vertex chain; `p: Start` closes; the entry
+  fused rows. The all-blended-loop entry gap is NOT addressed
+  here — it lives in the entry/seam machinery and stays a
+  named gap.
+
 ## 3. Surface vocabulary
 
 | Form | Lattice transition | Notes |
@@ -733,11 +794,11 @@ compatibility surface).
 | `arc_to(spec)` | Point → Point (Bulge/Via/Center); Directed → Point (Sweep/ArcLen) | **§2c** — the sharp arc leg over the `ArcData` family; admissibility = the state-keyed trait matrix; `p: Start` closes |
 | `fillet(r)` | Directed \| leg end → Open | line incoming (ray extension off a leg end), line arrival |
 | `fillet_arc(r, spec)` | Directed \| leg end → per spec | line incoming, ARC arrival (see arrival rows below) |
-| `arc_fillet(spec, r)` | Entry \| Point \| Directed \| OnArc → Open | fused arc incoming, line arrival |
+| `arc_fillet(spec, r)` | Entry \| Point \| Directed → Open | fused arc incoming (arc extension from a directed point), line arrival |
 | `arc_fillet_arc(spec, r, spec₂)` | as `arc_fillet` → per spec₂ | fused arc incoming, arc arrival |
-| arrival `Center{c, w, p}` | (open fillet) → OnArc; `p: Start` → complete loop | complete at the verb; interior `p` KEEPS the tip on the carrier; `Start` keeps the entry vertex |
-| arrival `Radius{r, side}` | (open fillet) → builder → OnArc | centre DERIVED from the directed anchor the binders supply |
-| arrival `Via{q, p}` | (open fillet) → builder → OnArc; `p: Start` closes | anchor in the spec; one director pending |
+| arrival `Center{c, w, p}` | (open fillet) → directed Point; `p: Start` → complete loop | complete at the verb; interior `p` is a HARD anchor (run emitted, ordinary directed point); `Start` keeps the entry vertex |
+| arrival `Radius{r, side}` | (open fillet) → builder → directed Point | centre DERIVED from the directed anchor the binders supply |
+| arrival `Via{q, p}` | (open fillet) → builder → directed Point; `p: Start` closes | anchor in the spec; one director pending |
 | `Start` | directed-point VALUE | targeting it closes, structurally |
 | `.to(p)` on a bound arrival direction | Angle → Point | **G1** — the far-end anchor: the arrival side ENDS at its authored anchor |
 | `circle(c, r)` | — → complete loop | **G1** — closed-carrier program form; a whole loop, not a chain step; authors no seam, so PQ4 is untouched |

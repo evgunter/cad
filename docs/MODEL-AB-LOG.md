@@ -1076,3 +1076,16 @@ baked the literal 13 and went red on the shift; repaired in #575
 (the second occurrence of the RESPELL literal class — the
 SCHEMA_VERSION+1 derivation is now the norm both places).
 | ASM-R2A | 2026-08-16 | the mate solve: Node::Mate leaf (kernel ContactClass, shared wire table), A12 reading edges + partitions (roots.rs UNCHANGED — sink-set theorem needed no carve-out), cluster-gauge placement re-key w/ Applied-carried maintenance, the coset algebra (7-subgroup closure, decided case splits, uniform construct-and-check representative), solve-once-per-eval through OpEnv, hoist rider ii, schema v13 (shifted TWICE: 11→12 at M9-1, 12→13 at PlacedUnion — both caught ONLY by the by-eye read) | L / NUMERIC (pre-logged at spec) | OPUS (block ASM-3 slot 1) | single (ordinal 50, frozen 59d7bfda, v4) — **NOT-MERGEABLE-AS-IS 2/2/3 → delta re-review APPROVE** (the ladder's designed path: MAJOR-1 = parallel-axes clocking never solved, assemblable two-pin patterns falsely CONTRADICTORY incl. A11's own determined plate — reviewer probe-demonstrated, fix = closed-form clocking solve with the probes shipped as rows; MAJOR-2 = torn-cluster cut silently dropped the torn frame — typed TornCluster refusal landed; reviewer re-derived all 10 coset arms by hand, 3 mutations caught, ran all three clippy lanes locally closing the implementer's slot-starved gap, proved the v12 by-eye claim from git history; round 2: original probes pass, degenerate pin-on-axis honest, mutation turns new rows red) | 0 silent (6 reported; both deviations UPHELD as spec amendments — row 1 was unsatisfiable under the binding table, D-3's wording conflicted with ratified A11 rule 2 itself) | 5 | 3→4 | 4 | IMPLEMENTER-INHERITED, substantial (clocking_about + rows; TornCluster + rows; gauge-exact rewording; the mated cross-process D9 row; TWO schema shifts w/ future-version literal repairs both times) | MERGED #575 32/32 at 31c01cb6; MATES SOLVE — R2-a complete, the constructive-solve boundary is executable | impl ~492k + fix ~552k / review ~244k + delta ~284k | impl ~5h + gaps / review ~4h + delta ~1.5h (2 usage-window kills absorbed across the unit) |
+Block ASM-4 draw (2026-08-17, at the R2-B dispatch — the block's
+first): byte 228 (<252) mod 4 = 0 = fable's position → **(fable,
+opus, opus, opus)**. Slot 1 = TESS-SPLIT (the standing ledger
+commitment) = FABLE, still GATED on TESS-SPAN's merge. Slot 2 =
+**R2-B (docs/ASM-R2B-SPEC.md, binding) = OPUS**, dispatching NOW
+— the M9-2 PR-2 gate LIFTED EARLY by Evan's ruling (the R2-a
+precedent: the consumed shapes are delivered and review-frozen;
+the fix pass absorbs at routine re-merges). Pre-draw fields
+logged at spec time: **M / STRUCTURAL** (re-assessed from the
+draft's numeric-predicate guess per its own flag: the unit mints
+and wires; every decided predicate it exercises is M9-1/M9-2's,
+called as-is — no new numeric decision; reasoning in the spec
+header). Slots 3-4 bank. Row at merge.
