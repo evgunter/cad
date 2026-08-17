@@ -101,6 +101,24 @@ Binding spec docs/M9-D1-SPEC.md; dispatch = block M8-15 position
 pre-logged. Board: M9-1 (kernel) + M9-2a (predicate, fable @
 position 2) implementing; D1 dispatches on this spec's merge.
 
+## M9-2 PR-1 MERGED (#527 at b8fd8a95, 2026-08-16) — the predicate exists
+
+The chart-region overlap predicate landed through the FIRST M9-side
+cross-model dual (sample #14, ordinal 42, R1 fable 0/3/4 + R2 opus
+0/4/5+1silent, concurrent frozen cfe4616b): CONVERGED at zero
+MAJORs, and both independently found the same near-MAJOR — rung 2
+trusting GeomSource equality without a surface bit-check (R2
+executed a forged pair to a false PositiveArea). The union fix pass
+took all five items and exceeded U2's ask: the clip-walk crossing
+order is now CERTIFIED (new metered K row chart_region_cross_order
++ audit row) rather than comment-asserted; the forged-source class
+is red-then-green pinned. 52 chart_region rows at merge (19 shipped
++ 33 adopted probes). Unit row records at PR-2 per the two-PR
+pattern; PR-2 (the census door) dispatches after M9-1 PR-1's fix
+pass lands. Cross-model calibration point: comparable depth,
+converged findings, disjoint MINOR tails — the pattern of sample
+#12 repeating.
+
 ## M9-D1 MERGED (#530, 2026-08-16) — the natural meridian revolves
 
 The D1 candidate is done: the sweep exports its poles as a
@@ -139,3 +157,19 @@ collision machinery, never to be trimmed. Dual #13 was the FIFTH
 qualifying sample (tally 5-of-6). Board: dual #16 running on the
 census door (#564 — a MAJOR there ENDS the dual experiment);
 then M9-0 → M9-3 spec → M9-5.
+
+## M9-2 MERGED (#564 at 0b0185c8, 2026-08-17) — the A5 door exists; SWITCH SEAM
+
+The census door landed through the project's sixth NOT-MERGEABLE
+arc: dual #16's converged silent-validation MAJORs → the
+conservative loudness backstop → the delta round's ball-cap
+witness → the F5 curved×planar extension with per-kind sound
+boxes (the stop-and-report fired on a wild-corpus false-positive
+and was resolved by the reviewer's own pre-named refinement) →
+delta-APPROVE. #382 CLOSED; kiss and boss_union retired by their
+own texts; instance.rs's "nothing validates silently" is
+exhaustively true. Owed one-liner (successor): the reflex-arc
+plane-pad lemma scope + final-probes adoption (row NOTE).
+ORCHESTRATOR SWITCH at this seam per Evan: remaining slate =
+M9-0 → M9-3 (spec from scratch, block M9-16 draw) → M9-5 (after
+TESS-SPAN) → exit walk. Handoff: handoff-prompt-m9b.md.

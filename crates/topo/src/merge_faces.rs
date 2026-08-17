@@ -28,7 +28,9 @@
 //! generalization — the boolean zip's cylinder-wall re-merge is the
 //! named consumer); only the per-call declared-PAIR rung stays planar
 //! (its verification predicate is `oriented_plane_eq`; the curved
-//! counterpart belongs to the curved census design, OQ5).
+//! counterpart's verification is the contact census's — CONTACT-DESIGN
+//! C2's decision procedure and C4's per-class tables — not a
+//! merge-local predicate).
 //!
 //! Serves the ch. 15 boolean pipeline's operand precondition and
 //! output stage (M3 PRs 4–5).
@@ -658,7 +660,8 @@ impl<T: Decide> Body<T> {
         }
         // The declared-PAIR rung stays planar (its verification is
         // `oriented_plane_eq`; the curved-pair verification predicate
-        // is the curved census's design, OQ5 — not minted here).
+        // is the contact census's — CONTACT-DESIGN C2/C4 — not minted
+        // here).
         let (
             Surface::Plane {
                 origin: o1,
