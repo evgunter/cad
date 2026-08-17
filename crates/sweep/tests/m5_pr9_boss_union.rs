@@ -400,3 +400,87 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
         "{errs:?}"
     );
 }
+
+/// **R1 DELTA probe (backstop exclusion attack): curved x planar
+/// transverse overlap with NO vertex/line/planar evidence.** A unit
+/// ball (revolved meridian — curved faces and curved seam edges only,
+/// no line edges) grafted with a plate whose slab swallows the ball's
+/// upper cap: genuine cross-instance material overlap. The backstop
+/// excludes curved x planar pairs ("their contact classes either
+/// leave vertex/line/planar evidence ... or are the pure-tangency
+/// class"); this configuration leaves neither, and is transverse
+/// interference, not tangency. The probe records the gate's answer.
+#[test]
+fn r1_delta_probe_ball_cap_embedded_in_plate() {
+    let ball_lp = ProfileLoop::new(vec![
+        ProfileVertex {
+            pos: p2(0.0, -1.0),
+            bulge: 1.0,
+        },
+        ProfileVertex {
+            pos: p2(0.0, 1.0),
+            bulge: 0.0,
+        },
+    ]);
+    let axis = sweep::RevolveAxis {
+        origin: p2(0.0, 0.0),
+        dir: geom_core::Vec2::new(0.0, 1.0),
+    };
+    let profile = Profile::new(SketchPlane::xy(), vec![ball_lp])
+        .validate(Tolerance::get())
+        .unwrap();
+    let ball = sweep::revolve(&profile, axis, sweep::Revolution::Full)
+        .unwrap()
+        .body;
+    assert_eq!(topo::validate_geometric(&ball), Ok(()), "ball is tier-3");
+    // The plate: x, y in [-3, 3], z in [0.3, 1.3] — the ball's upper
+    // cap (z > 0.3) is inside the plate's material; the ball's poles
+    // (y = +/-1, z = 0) and seam circles (z = 0 plane) never meet the
+    // plate's boundary, and the plate's line edges (|x| = 3 or
+    // |y| = 3) are far from the ball.
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex {
+            pos: p2(-3.0, -3.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(3.0, -3.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(3.0, 3.0),
+            bulge: 0.0,
+        },
+        ProfileVertex {
+            pos: p2(-3.0, 3.0),
+            bulge: 0.0,
+        },
+    ]);
+    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
+    let plate = extrude(
+        &Profile::new(plane, vec![lp])
+            .validate(Tolerance::get())
+            .unwrap(),
+        Extrusion::Distance(1.0),
+    )
+    .unwrap()
+    .body;
+    assert_eq!(topo::validate_geometric(&plate), Ok(()), "plate is tier-3");
+    let mut body = plate.clone();
+    topo::graft_disjoint(&mut body, &ball).unwrap();
+    let verdict = topo::validate_pseudomanifold(&body, &topo::ContactRecords::default());
+    println!("ball-cap-in-plate verdict: {verdict:?}");
+    let errs = verdict.expect_err(
+        "R1 DELTA FINDING if this fires as Ok: a curved x planar transverse \
+         overlap validated SILENTLY — the class the backstop's curved x planar \
+         exclusion claims always leaves evidence or is pure tangency",
+    );
+    assert!(
+        errs.iter().any(|e| matches!(
+            e,
+            topo::ValidationError::CensusUndecidable { .. }
+                | topo::ValidationError::UndeclaredContact { .. }
+        )),
+        "loud somehow: {errs:?}"
+    );
+}

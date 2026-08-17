@@ -348,3 +348,28 @@ fn r1_probe_tangent_locus_gap_row_is_scale_covariant() {
         other => panic!("mm twin gap 3e-12 is decisively tangent: {other:?}"),
     }
 }
+
+/// **R1 DELTA probe (backstop jurisdiction, the record-bridged
+/// exclusion): a NESTED instance pair whose solids are bridged by a
+/// BOGUS v-v record.** The containment arm defers bridged pairs to
+/// the confirm pass; the deferral is honest only if that pass still
+/// refuses. The bogus record (two vertices 4 m apart) must answer
+/// STALE — the assembly must never validate through the bridge.
+#[test]
+fn r1_delta_probe_bridged_nested_pair_stays_loud() {
+    let outer = common::mapped_cube(|x, y, z| Point3::new(4.0 * x, 4.0 * y, 4.0 * z));
+    let inner = cube_at(1.5, 1.5, 1.5);
+    let body = assembly(&outer, &inner);
+    // Bridge the solids with a bogus record: one vertex of each cube.
+    let va = body.vertices().next().unwrap().0;
+    let vb = body.vertices().last().unwrap().0;
+    let mut records = ContactRecords::default();
+    records.vv.push(VvContact { a: va, b: vb });
+    let errs = validate_pseudomanifold(&body, &records)
+        .expect_err("the bridge must not silence the nested pair");
+    assert!(
+        errs.iter()
+            .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
+        "the bogus bridge is stale: {errs:?}"
+    );
+}
