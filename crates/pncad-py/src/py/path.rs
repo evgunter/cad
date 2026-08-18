@@ -346,6 +346,18 @@ enum ArrivalSpec {
     Via(Via),
 }
 
+/// The modes a DIRECTED-POINT tip (leg end) admits as a fused
+/// incoming: the endpoint-full trio plus `Radius` — ARC EXTENSION, the
+/// arc analog of ray extension (the carrier is derived from the tip's
+/// own position and tangent; the incoming side's anchor is the tip).
+#[derive(FromPyObject, Clone, Copy)]
+enum LegEndSpec {
+    Bulge(Bulge),
+    Via(Via),
+    Center(Center),
+    Radius(Radius),
+}
+
 /// A fused verb's incoming side ends at its own authored anchor, so a
 /// `Start` target there names no anchor.
 fn incoming_needs_anchor(py: Python<'_>) -> PyErr {
@@ -354,23 +366,6 @@ fn incoming_needs_anchor(py: Python<'_>) -> PyErr {
         "a fused verb's incoming spec authors the incoming side's anchor, so its `p` must be a \
          point; `Start` targets belong to a LEG (arc_to) or to the ARRIVAL spec, which closes",
     )
-}
-
-/// A tip continuing ON an arrival carrier: position and tangent bound,
-/// and the carrier run into the next trim still unemitted.
-///
-/// Its only continuations are the fused verbs that AUTHOR their own
-/// incoming carrier — which is why `Radius` is the one mode here: it
-/// re-derives the carrier from these two bits.
-#[pyclass(frozen, module = "pncad")]
-pub(crate) struct PathOnArc(pf::OnArc<f64>);
-
-/// An arrival that landed on a carrier at its anchor.
-fn out_onarc(py: Python<'_>, r: Result<pf::OnArc<f64>, KPathError>) -> PyResult<Py<PyAny>> {
-    match r {
-        Ok(a) => Ok(Py::new(py, PathOnArc(a))?.into_any()),
-        Err(err) => Err(path_err(py, &err)),
-    }
 }
 
 /// A `Radius` arrival awaiting both binders, in either order.
@@ -418,20 +413,20 @@ impl PathRadiusArrival {
 #[pymethods]
 impl PathRadiusArrivalAt {
     /// Bind the remaining director; the centre follows from it.
-    fn angle(&self, py: Python<'_>, theta: Angle) -> PyResult<PathOnArc> {
+    fn angle(&self, py: Python<'_>, theta: Angle) -> PyResult<PathDirectedPoint> {
         self.0
             .clone()
             .angle(theta.0.radians())
-            .map(PathOnArc)
+            .map(PathDirectedPoint)
             .map_err(|err| path_err(py, &err))
     }
 
     /// Bind the remaining director as exact components.
-    fn toward(&self, py: Python<'_>, dx: f64, dy: f64) -> PyResult<PathOnArc> {
+    fn toward(&self, py: Python<'_>, dx: f64, dy: f64) -> PyResult<PathDirectedPoint> {
         self.0
             .clone()
             .toward(dx, dy)
-            .map(PathOnArc)
+            .map(PathDirectedPoint)
             .map_err(|err| path_err(py, &err))
     }
 }
@@ -439,11 +434,11 @@ impl PathRadiusArrivalAt {
 #[pymethods]
 impl PathRadiusArrivalDir {
     /// Bind the remaining anchor.
-    fn at(&self, py: Python<'_>, p: (Length, Length)) -> PyResult<PathOnArc> {
+    fn at(&self, py: Python<'_>, p: (Length, Length)) -> PyResult<PathDirectedPoint> {
         self.0
             .clone()
             .at(pt(p))
-            .map(PathOnArc)
+            .map(PathDirectedPoint)
             .map_err(|err| path_err(py, &err))
     }
 }
@@ -451,20 +446,20 @@ impl PathRadiusArrivalDir {
 #[pymethods]
 impl PathViaArrival {
     /// Bind the arrival direction at the spec's anchor.
-    fn angle(&self, py: Python<'_>, theta: Angle) -> PyResult<PathOnArc> {
+    fn angle(&self, py: Python<'_>, theta: Angle) -> PyResult<PathDirectedPoint> {
         self.0
             .clone()
             .angle(theta.0.radians())
-            .map(PathOnArc)
+            .map(PathDirectedPoint)
             .map_err(|err| path_err(py, &err))
     }
 
     /// Bind the arrival direction as exact components.
-    fn toward(&self, py: Python<'_>, dx: f64, dy: f64) -> PyResult<PathOnArc> {
+    fn toward(&self, py: Python<'_>, dx: f64, dy: f64) -> PyResult<PathDirectedPoint> {
         self.0
             .clone()
             .toward(dx, dy)
-            .map(PathOnArc)
+            .map(PathDirectedPoint)
             .map_err(|err| path_err(py, &err))
     }
 }
@@ -506,7 +501,7 @@ macro_rules! arrival {
                     winding: winding.to_kernel(),
                     p: t,
                 };
-                out_onarc($py, $call)
+                out_point($py, $call)
             }
             ArrivalSpec::Center(Center {
                 c,
@@ -577,6 +572,46 @@ macro_rules! point_incoming {
                     winding: winding.to_kernel(),
                     p: t,
                 };
+                $call
+            }
+            _ => return Err(incoming_needs_anchor($py)),
+        }
+    };
+}
+
+/// A fused verb's INCOMING half from a DIRECTED-POINT tip: the
+/// endpoint-full modes plus `Radius` (arc extension).
+macro_rules! leg_end_incoming {
+    ($py:expr, $spec:expr, |$s:ident| $call:expr) => {
+        match $spec {
+            LegEndSpec::Bulge(Bulge {
+                p: Tgt::Point(t),
+                b,
+            }) => {
+                let $s = pf::Bulge { p: t, b };
+                $call
+            }
+            LegEndSpec::Via(Via {
+                q,
+                p: Tgt::Point(t),
+            }) => {
+                let $s = pf::Via { q, p: t };
+                $call
+            }
+            LegEndSpec::Center(Center {
+                c,
+                winding,
+                p: Tgt::Point(t),
+            }) => {
+                let $s = pf::Center {
+                    c,
+                    winding: winding.to_kernel(),
+                    p: t,
+                };
+                $call
+            }
+            LegEndSpec::Radius(spec) => {
+                let $s = spec.to_kernel();
                 $call
             }
             _ => return Err(incoming_needs_anchor($py)),
@@ -681,6 +716,20 @@ macro_rules! point_state {
             }
         }
 
+            $($extra)*
+        }
+    };
+}
+
+point_state!(
+    PathPoint,
+    Plain,
+    "A plain point: position bound, no incoming carrier — the entry \
+     point, or a fillet arrival stopped at its anchor.\n\n\
+     `.tangent()` is absent here, and that absence is what makes \
+     \"fillets sit between defined geometry\" structural rather than a \
+     rule: a plain point has no direction to inherit.",
+    {
         /// The FUSED verb: author the incoming arc (mode per `spec`,
         /// its `p` the incoming side's anchor) and fillet off it in
         /// ONE act — the arc and the trim that shapes it are one
@@ -699,8 +748,8 @@ macro_rules! point_state {
 
         /// The fused verb with an ARC arrival too: the arrival's own
         /// mode decides what the chain becomes (a `Center` anchor
-        /// lands ON the carrier, `Center(p=Start)` closes, `Radius`
-        /// and `Via` await their binders).
+        /// lands at a directed point, `Center(p=Start)` closes,
+        /// `Radius` and `Via` await their binders).
         fn arc_fillet_arc(
             &self,
             py: Python<'_>,
@@ -710,27 +759,11 @@ macro_rules! point_state {
         ) -> PyResult<Py<PyAny>> {
             let path = self.0.clone();
             let r = radius.0.meters();
-            point_incoming!(py, spec, |si| arrival!(
-                py,
-                spec2,
-                |s2| path.clone().arc_fillet_arc(si, r, s2)
-            ))
+            point_incoming!(py, spec, |si| arrival!(py, spec2, |s2| path
+                .clone()
+                .arc_fillet_arc(si, r, s2)))
         }
-
-            $($extra)*
-        }
-    };
-}
-
-point_state!(
-    PathPoint,
-    Plain,
-    "A plain point: position bound, no incoming carrier — the entry \
-     point, or a fillet arrival stopped at its anchor.\n\n\
-     `.tangent()` is absent here, and that absence is what makes \
-     \"fillets sit between defined geometry\" structural rather than a \
-     rule: a plain point has no direction to inherit.",
-    {}
+    }
 );
 
 point_state!(
@@ -781,6 +814,40 @@ point_state!(
             let path = self.0.clone();
             let r = radius.0.meters();
             arrival!(py, spec, |s| path.clone().fillet_arc(r, s))
+        }
+
+        /// The FUSED verb from a leg end: the endpoint-full modes
+        /// (junction-checked at the tip) plus `Radius` — ARC
+        /// EXTENSION: the carrier is derived from this tip's own
+        /// position and tangent, so tangency there holds by
+        /// construction; the same carrier extends the arriving leg,
+        /// a different one departs on a new tangent carrier. Line
+        /// arrival.
+        fn arc_fillet(
+            &self,
+            py: Python<'_>,
+            spec: LegEndSpec,
+            radius: Length,
+        ) -> PyResult<PathOpen> {
+            let path = self.0.clone();
+            let r = radius.0.meters();
+            let out = leg_end_incoming!(py, spec, |s| path.arc_fillet(s, r));
+            out.map(PathOpen).map_err(|err| path_err(py, &err))
+        }
+
+        /// The fused verb with an ARC arrival too.
+        fn arc_fillet_arc(
+            &self,
+            py: Python<'_>,
+            spec: LegEndSpec,
+            radius: Length,
+            spec2: ArrivalSpec,
+        ) -> PyResult<Py<PyAny>> {
+            let path = self.0.clone();
+            let r = radius.0.meters();
+            leg_end_incoming!(py, spec, |si| arrival!(py, spec2, |s2| path
+                .clone()
+                .arc_fillet_arc(si, r, s2)))
         }
 
         /// Continue the incoming ARC carrier to an authored on-carrier
@@ -1109,34 +1176,6 @@ impl PathDirected {
     }
 }
 
-#[pymethods]
-impl PathOnArc {
-    /// Continue along the carrier and fillet off it: `Radius(r, side)`
-    /// re-derives the carrier from this tip's own position and tangent,
-    /// so the run into the trim is emitted by this verb. Line arrival.
-    fn arc_fillet(&self, py: Python<'_>, spec: Radius, radius: Length) -> PyResult<PathOpen> {
-        self.0
-            .clone()
-            .arc_fillet(spec.to_kernel(), radius.0.meters())
-            .map(PathOpen)
-            .map_err(|err| path_err(py, &err))
-    }
-
-    /// The same, with an ARC arrival.
-    fn arc_fillet_arc(
-        &self,
-        py: Python<'_>,
-        spec: Radius,
-        radius: Length,
-        spec2: ArrivalSpec,
-    ) -> PyResult<Py<PyAny>> {
-        let path = self.0.clone();
-        let si = spec.to_kernel();
-        let r = radius.0.meters();
-        arrival!(py, spec2, |s2| path.clone().arc_fillet_arc(si, r, s2))
-    }
-}
-
 // ------------------------------------------------------------------
 // The complete-loop program forms
 // ------------------------------------------------------------------
@@ -1208,7 +1247,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ClosedLoop>()?;
     m.add_class::<ArcSweep>()?;
     m.add_class::<ArcSide>()?;
-    m.add_class::<PathOnArc>()?;
     m.add_class::<PathRadiusArrival>()?;
     m.add_class::<PathRadiusArrivalAt>()?;
     m.add_class::<PathRadiusArrivalDir>()?;
