@@ -144,6 +144,16 @@ class SelectRefusal(PncadError):
     found: Optional[str]
     dim: Optional[str]
 
+class FrameError(PncadError):
+    """A frame constructor refused its inputs — a direction that was
+    not DEFINITELY usable, or a tolerance yielding no usable band.
+
+    `variant` is `degenerate_aim`, `degenerate_tangent`,
+    `degenerate_roll_reference`, `degenerate_reference_ladder`,
+    `degenerate_mirror_normal`, or `band`."""
+
+    variant: str
+
 # --- quantities -------------------------------------------------------
 # Canonical metres and radians underneath (GQ5). The arithmetic is
 # exactly `crates/quantity`'s infallible subset; anything else raises
@@ -614,6 +624,108 @@ class SketchPlane:
     # unchanged. A sketch plane carries no epsilon, so `-0.0` keeps its
     # own identity rather than being folded into `0.0`.
 
+class Frame:
+    """An ABSOLUTE placement: a linear part and a translation.
+
+    The value `PatternKind.explicit` lists and `Node.placed_union_at`
+    places a prototype at. It is authored through constructors rather
+    than field by field — a linear part is a MATRIX, and that is how a
+    mirror or a shear arrives by accident. Improper frames
+    (determinant <= 0) are refused at the edit door, not admitted.
+
+    Rigidity is not claimed here: the edit door checks that the
+    coordinates are finite and the determinant positive, and the
+    kernel's placement door owns the rest.
+    """
+
+    @staticmethod
+    def translation(v: tuple[Length, Length, Length]) -> Frame: ...
+    @staticmethod
+    def rotate_then_translate(
+        axis: tuple[float, float, float],
+        angle: Angle,
+        v: tuple[Length, Length, Length],
+    ) -> Frame:
+        """Rotate about `axis` through the WORLD ORIGIN, THEN
+        translate — `Node.transform`'s own order, so a placement and a
+        modeled transform of the same part agree BIT FOR BIT. A
+        zero-length axis yields a non-finite frame, refused typed at
+        the edit door."""
+
+    @staticmethod
+    def point_at(
+        eye: tuple[Length, Length, Length],
+        target: tuple[Length, Length, Length],
+        roll_reference: tuple[float, float, float],
+    ) -> Frame:
+        """The frame at `eye` whose local +Z aims at `target`, rolled
+        by `roll_reference`. A reference parallel to the aim, or a
+        zero-length aim, raises FrameError."""
+
+    @staticmethod
+    def path_start_frame(
+        origin: tuple[Length, Length, Length],
+        tangent: tuple[float, float, float],
+    ) -> Frame:
+        """The frame at `origin` whose local +Z is `tangent`, so the
+        local XY plane is a swept profile's plane. The roll comes from
+        a stated ladder (world +Z, then world +X); if neither is
+        definitely off the tangent line it raises FrameError."""
+
+    @staticmethod
+    def mirror_across_plane(
+        point: tuple[Length, Length, Length],
+        normal: tuple[float, float, float],
+    ) -> Frame:
+        """Reflection across the plane through `point` — an IMPROPER
+        frame (determinant -1). Constructible as a value; NOT
+        placeable, since the edit door refuses a mirror placement."""
+
+    @property
+    def columns(self) -> tuple[
+        tuple[float, float, float],
+        tuple[float, float, float],
+        tuple[float, float, float],
+    ]: ...
+    @property
+    def origin(self) -> tuple[Length, Length, Length]:
+        """The image of the coordinate origin — the Rust value's
+        `translation` field. Spelled `origin` because `translation` is
+        already this class's pure-translation constructor."""
+
+    @property
+    def determinant(self) -> float: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+    # Equality is BIT-exact — Rust's `Frame::bit_eq`, crossing
+    # unchanged: a frame carries no epsilon, so `-0.0` keeps its own
+    # identity rather than being folded into `0.0`.
+
+class PatternKind:
+    """A pattern's replication rule: how a prototype's placements are
+    generated.
+
+    Three rules and no fourth. The two PARAMETRIC ones step and take
+    their count from the node's structural slot; the EXPLICIT one
+    lists absolute frames, and the list IS the count — which is why
+    `Node.placed_union_at` takes no count at all.
+    """
+
+    @staticmethod
+    def linear(
+        direction: tuple[float, float, float], spacing: Length
+    ) -> PatternKind: ...
+    @staticmethod
+    def circular(axis: NodeId, step: Angle) -> PatternKind:
+        """Stepped around `axis`, an upstream `datum_axis` node."""
+
+    @staticmethod
+    def explicit(frames: list[Frame]) -> PatternKind:
+        """Instances at the frames listed, in order — the index is
+        what a name's instance segment carries. An empty list raises
+        EditError (`empty_placement_list`) at insert."""
+
 class Node:
     """A recipe node, before insertion."""
 
@@ -699,6 +811,32 @@ class Node:
         detects (the ruled no-fusion boundary), and an empty list
         raises EditError (`no_findings`)."""
 
+    @staticmethod
+    def placed_union(input: NodeId, count: int, kind: PatternKind) -> Node:
+        """The group boolean over a PARAMETRIC rule: one prototype,
+        `count` placements stepped by `kind`, ONE body out.
+
+        The value is an ordinary body, so every downstream door
+        consumes it with no new arms — which is exactly what a
+        pattern's plural payload cannot do. `count` is a plain `int`,
+        the structural-slot exception to the typed-quantity rule
+        (`Node.loft`'s `v_degree` precedent): a Count is an integer in
+        the kernel's own expression language, not a measurement.
+
+        Disjointness is CERTIFIED: overlapping placements raise
+        EvaluationError (`placements_uncertified`) naming the pair,
+        and the certificate is sufficient-not-necessary, so a
+        touching-but-disjoint arrangement refuses too. An `explicit`
+        rule raises EditError (`placement_rule_mismatch`) here — it
+        carries its own count, and `placed_union_at` is its door."""
+
+    @staticmethod
+    def placed_union_at(input: NodeId, frames: list[Frame]) -> Node:
+        """The group boolean over LISTED absolute frames. No count
+        argument, because the list IS the count. An empty list, a
+        non-finite frame, or an improper one raises EditError at
+        insert."""
+
 class ParamName:
     """A document-level parameter name (guide §3.2). NOT an arena
     key: the same plain name the recipe's expressions reference."""
@@ -742,6 +880,17 @@ class DocEdit:
     def set_tolerance(eps: float) -> DocEdit: ...
     @staticmethod
     def set_doc_param(name: ParamName, value: DocParam) -> DocEdit: ...
+    @staticmethod
+    def bind_count_param(node: NodeId, name: ParamName) -> DocEdit:
+        """Bind `node`'s STRUCTURAL count slot to the document
+        parameter `name`, so one `set_doc_param` re-counts the
+        placements and recomputes exactly what is downstream.
+
+        Deliberately narrow: the slot is the count and the expression
+        is a parameter reference, so no expression algebra crosses and
+        the edit cannot be aimed at a continuous slot. The edit's own
+        refusals stay live — a node with no count slot, an unknown
+        parameter, a parameter of the wrong dimension."""
 
 class Doc:
     """A parametric document: the recipe, not the geometry."""
