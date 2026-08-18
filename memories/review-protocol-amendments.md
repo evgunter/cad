@@ -63,7 +63,9 @@ claims they are handed, and they do it well. A code-free module, an accumulated
 so nothing points a reviewer at them.
 
 **The rule.** Review briefs carry structural questions alongside the claims to
-falsify. The ones with the best evidence behind them:
+falsify. **The brief text is `docs/REVIEW-STYLE-BRIEF.md`** — dispatchers paste
+its §2 (the stance) and §3 (the questions) verbatim; §1 and §4 are dispatcher
+context. The eight questions, in short:
 
 - **Does this duplicate something?** §C11 is the cheapest mechanism this whole
   exercise produced: every duplication found is **self-declared in prose at the

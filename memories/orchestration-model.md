@@ -149,7 +149,10 @@ git history and the M-logs):**
   it; the slot-queue flavor — agents assuming the flock will
   notify them — recurred 3× on 2026-08-08 even with the shorter
   sentence).
-- **Reviews**: assign reviewers explicit claims to falsify; promote
+- **Reviews**: assign reviewers explicit claims to falsify AND paste the
+  style lane's stance + questions ([[../docs/REVIEW-STYLE-BRIEF]] 2-3) —
+  the claims lane is strong and structurally blind, so the second lane is
+  what catches parallel roles, unfailable tests and stale premises; promote
   reviewer suites into CI after the fix pass
   ([[review-and-dependency-policy]]). Dual-review sampling per the
   A/B v3 amendment: every 3rd merged BLINDED-LANE implementation
