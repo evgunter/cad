@@ -598,7 +598,8 @@ mod tests {
         );
 
         let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-        body.set_face_surface(face, FaceSurface::New(surface)).unwrap();
+        body.set_face_surface(face, FaceSurface::New(surface))
+            .unwrap();
         let b = face_box(&body, face, pad()).unwrap();
         assert!(
             holds(&b, mid),

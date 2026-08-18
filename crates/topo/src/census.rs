@@ -1218,16 +1218,8 @@ fn sweep_cross_solid_backstop<T: Decide>(
                 Some((lo, hi))
             }
             crate::boolean::boxes::FaceBoxRule::WholeBall { center, radius } => Some((
-                Point3::new(
-                    center.x - radius,
-                    center.y - radius,
-                    center.z - radius,
-                ),
-                Point3::new(
-                    center.x + radius,
-                    center.y + radius,
-                    center.z + radius,
-                ),
+                Point3::new(center.x - radius, center.y - radius, center.z - radius),
+                Point3::new(center.x + radius, center.y + radius, center.z + radius),
             )),
             crate::boolean::boxes::FaceBoxRule::CylinderSlab {
                 origin,
@@ -1447,7 +1439,10 @@ fn sweep_cross_solid_backstop<T: Decide>(
     // witness point outside the container is genuinely outside. A
     // solid carrying a face with no cheap sound box has no claimable
     // extent at all and can never be the container.
-    let mut solid_reach: std::collections::BTreeMap<SolidKey, Option<(Point3<T>, Point3<T>)>> =
+    /// A solid's claimable extent, or `None` when one of its faces has
+    /// no cheap sound box (so the solid can never be the container).
+    type SolidReach<T> = Option<(Point3<T>, Point3<T>)>;
+    let mut solid_reach: std::collections::BTreeMap<SolidKey, SolidReach<T>> =
         std::collections::BTreeMap::new();
     for (f, _) in body.faces.iter() {
         let Some(solid) = solid_of(f) else { continue };
