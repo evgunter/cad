@@ -587,9 +587,8 @@ pub enum PathError<T: Real> {
         /// **G2 §3c**: that side's CARRIER KIND, carrying the angular
         /// margin `(extent − setback)/R` for a circular side. A bare
         /// linear setback says nothing on a circle, so the payload is
-        /// metered in the carrier's own currency — the
-        /// `FilletDoesNotFit` diagnostic the constructor door has
-        /// carried since M5 S2, now at the algebra door too.
+        /// metered in the carrier's own currency (M5 S2's
+        /// does-not-fit diagnostic shape, at the algebra door).
         carrier: FilletLegCarrier,
         /// The tangent setback from the corner, meters (diagnostic; an
         /// arc length `R·Δθ` on a circular side).
@@ -604,9 +603,8 @@ pub enum PathError<T: Real> {
     /// the tangent point is recovered over, is shorter than the least
     /// lever the run's band supports at the corner's scale.
     ///
-    /// The algebra's spelling of
-    /// [`crate::ProfileError::FilletOffsetLeverTooShort`]; the
-    /// derivation lives on `sugar::ArcCarrier::offset_circles`. The
+    /// The derivation of the least lever lives on
+    /// `sugar::ArcCarrier::offset_circles`. The
     /// situation is a fillet radius too close to that side's own
     /// carrier radius, so the recourse is to move one of the two.
     FilletOffsetLeverTooShort {
