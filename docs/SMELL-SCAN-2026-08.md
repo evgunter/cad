@@ -1269,6 +1269,44 @@ each ruled *keep, with the frontier named*.
 wants the record); `hull.rs`'s non-rational half; the two inlined fillet
 helpers; and `ProfileError`'s five now-zero-constructor variants.
 
+### D4 CHECKED (2026-08-18): two of the five rows move
+
+Each remaining row was chased to its spec and its call graph. Two change.
+
+**`hull.rs` — the sort was right, the *scope* was not. Recommend KEEP.**
+`domain_hull` is not unconsumed: it is the body of `sup_norm_bound`
+(`hull.rs:347`), a documented public certified-bounds function, and
+`domain_hull_rational` likewise backs `sup_norm_bound_rational`
+(`hull.rs:358`). Those wrappers' own callers are still only tests (4 in
+`geom-core/tests/spline_hull.rs`, 3 in `geom-curves/tests/review_m5_pr2_e2e.rs`),
+so "no named consumer" holds at the *top* of the chain — but the deletion
+on offer is not one dead helper, it is **retiring the `sup_norm_bound*`
+API**, and the rational limb of that API sits on the banked #390/#453
+lane. Different decision from the one the row describes.
+
+**`PairSolve` — the evidence points the other way from "R2-b will want it".**
+R2-b has already merged (**#591**, and `ASM-LOG.md:297` records *"R2 IS
+CLOSED"*), and on `origin/main` today `PairSolve` is still exactly two
+lines: the `pub struct` at `mate/solve.rs:66` and the re-export at
+`mate.rs:57`. No constructor, no reader. R2-a's own commissioning spec is
+`ASM-R2A-SPEC.md` D-4 ("the per-pair coset solve"), and what it makes
+binding is the fold's *verdicts* (DETERMINED / UNDER / CONTRADICTORY) and
+the tree/non-tree *roles* — obligations `SolvedPoses` and `MateRole`
+already discharge. It never asks for a public per-pair record type. The
+one banked follow-on unit is ASM-XSPLIT (the AQ8 conversion door), which
+is the F1/census gap, not the coset record.
+
+So the unit that would have consumed it has closed without doing so. That
+is not proof it has no future — but it removes the reason to assume one.
+
+**Unchanged:** `Mat2`/`Affine2` (only the `lib.rs:38` re-export and one
+review test); the two fillet helpers (inline duplicates confirmed at
+`surgery.rs:1556` / `build.rs:1185` for `TangentIntersection`, and
+throughout `surgery.rs` for `Curve3::Circle` — but `trimline_description`'s
+doc is the only place D7's prefer-intrinsic obligation is *named*, so that
+sentence needs migrating, not dropping); `ProfileError`'s five variants
+(`test_support.rs` is gone from the tree, so they have zero constructors).
+
 ## S12. Euler atomicity is enforced by convention: every write silently no-ops on a missed precondition
 
 - **Where**: `crates/topo/src/euler.rs:1940`,
@@ -3185,7 +3223,7 @@ calls that no agent should make.
 | **D1** | **S44 — what is `Bounds`?** Is it "carries a bracket" (a semantic property, definable for `Dual` as lo=hi=value) or "may enter certified code" (an access-control marker)? | **S3** entirely; colours **S1**, **S2** | The lane traits exist only to mediate the second meaning. The answer picks the target: one lane trait in `geom-core` (the steelman compiled one, 16 impls → 2), or none at all and `Bounds` split in two. **PRICED 2026-08-18 (see S44's pricing entry): the split costs *nothing* in `src` — no production code instantiates any lane at `Dual`. It costs one deleted test and four D9 bit-identity assertions re-expressed.** |
 | **D2** | **S43 — the bug-vs-invalid-state taxonomy.** D9 currently sanctions only "typed error where cheaply detectable, or documented garbage-out"; the kernel uses five idioms, two of them mutual negations. | **S19** (which it *generates* — ~239 of ~260 sites); resolves **S12**/**S14** residue | Restating D9 decides three findings at one stroke. Touching any error enum first means redoing it. |
 | **D3** | **S7 — run the one-line experiment.** Swap the arms at `fillet/build.rs:205`, `cargo test -p sweep --test all`. | **S6**, and all fillet work in **S36**/**S38** | **EXPERIMENT RUN 2026-08-18 — see S7's experiment entry.** The surgery succeeds on the cube and yields the same solid (identical census and coordinate set; volume one ulp apart). The two doors *are* redundant, so the decision is now purely retire-or-keep against a measured price: one naming test rewritten, two goldens regenerated, one FreeCAD acceptance re-run. |
-| **D4** | **S11's four undecided rows** — `Mat2`/`Affine2`, `PairSolve`, `hull.rs`'s non-rational unused half, the two inlined fillet helpers. | Cleanup in those files | Each is delete-or-keep. Cheap to answer, and answering stops anyone documenting them. |
+| **D4** | **S11's four undecided rows** — `Mat2`/`Affine2`, `PairSolve`, `hull.rs`'s non-rational unused half, the two inlined fillet helpers. | Cleanup in those files | Each is delete-or-keep. Cheap to answer, and answering stops anyone documenting them. **CHECKED 2026-08-18 (see S11's D4 entry): `hull.rs` should be struck — the deletion is really "retire the `sup_norm_bound*` API", whose rational limb is on the #390/#453 lane. `PairSolve`'s consuming unit (R2-b, #591) has merged without constructing it.** |
 
 ---
 
