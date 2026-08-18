@@ -629,23 +629,24 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
 // docs/ASSEMBLY-DESIGN.md, whose proposed resolution is a conversion
 // door (ASM-XSPLIT) rather than a change to either rule.
 //
-// **The collector is WIDER than A4's edge**, and that is the corrected
-// claim: `split`'s predicate is over name-derivation sides, so a mate
-// with a DANGLING head — one reference naming non-instance geometry,
-// or a node id that is not in the document — contributes no cluster
-// edge, leaves its instance a singleton, and DOES mint a populated
-// crossing record through a cut the precondition accepts. `row5_d`
-// pins that behaviour as it stands. Whether such a mate should mint,
-// be skipped, or refuse the split is **AQ8's open sub-question**
-// (docs/ASSEMBLY-DESIGN.md) — the row names it as current behaviour,
-// not as settled semantics.
+// **And ONLY an edge can cross** (AQ8, ruled — option (b), SKIP). The
+// review found the collector's predicate (name-derivation sides) was
+// wider than A4's edge: a mate with a DANGLING head — one reference
+// naming non-instance geometry, or a node id not in the document —
+// contributes no cluster edge, leaves its instance a singleton, and
+// so slipped a populated record through a cut the precondition
+// accepts. The ruling closes that: such a mate never solved, so a
+// record minted from it would be trusted-at-rest state, which AQ8's
+// ratification condition forbids. The collector now gates on both
+// heads being live instances, and `row5_d` asserts the SKIP as an
+// invariant.
 
 /// INVARIANT (the A4-vs-A11 tension for a PROPER MATE EDGE,
 /// executable): cutting ONE instance of a mated pair refuses
 /// `TornCluster` — which is exactly why a mate EDGE cannot cross a cut
 /// — and the whole-cluster cut that IS accepted carries both of the
-/// mate's ends, so its record is empty. Scoped to edges: the wider
-/// collector is `row5_d`'s subject.
+/// mate's ends, so its record is empty. Scoped to edges: the
+/// non-edge case is `row5_d`'s subject.
 #[test]
 fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     let (doc, ids, _, store) = stacked("asm-r2b-row5", 1.0);
@@ -795,25 +796,26 @@ fn row5_c_inline_dissolves_the_crossing_record() {
     );
 }
 
-/// CURRENT BEHAVIOUR, pinned — **semantics pending Evan's AQ8 ruling**
-/// (review MAJOR-2). A mate one of whose references names NON-INSTANCE
-/// geometry has no A12 reading edge (`head_of` requires an
-/// instantiate node), so it joins no placement cluster; its instance
-/// stays a singleton, a cut of that instance alone is a whole-cluster
-/// cut, and the split ACCEPTS — minting a populated crossing record,
-/// because the collector's predicate is over name-derivation sides and
-/// is therefore WIDER than A4's "mate edge".
+/// INVARIANT (**AQ8, ruled — option (b), SKIP**): only a mate EDGE can
+/// cross a cut, so a mate with a DANGLING head contributes NO crossing
+/// record however its names fall across the cut.
 ///
-/// This row asserts what the code does, and says so in its name. It is
-/// deliberately NOT an invariant claim: whether such a mate should
-/// mint (current), be skipped (A4's letter — no edge, no crossing), or
-/// refuse the split is **AQ8**'s open sub-question
-/// (docs/ASSEMBLY-DESIGN.md — the recorded entry rules the mate-EDGE
-/// composition gap and proposes ASM-XSPLIT's conversion door, but does
-/// not yet reach the collector's width). When it is ruled, this row is
-/// the one that changes.
+/// A12's reading edge exists only when BOTH heads are live instances
+/// (`head_of` requires an instantiate node). A mate naming
+/// non-instance geometry is therefore not an edge: it joins no
+/// placement cluster, its instance stays a singleton, and a cut of
+/// that instance alone IS a whole-cluster cut the precondition
+/// accepts — but the record it produces is empty. The ruling's reason
+/// is the load-bearing one: such a mate never solved, so a record
+/// minted from it would be trusted-at-rest state, which AQ8's
+/// ratification condition forbids. A4's letter says the same thing
+/// from the other side — no edge, no crossing.
+///
+/// The mate itself survives in the document (N5) and its names rebind
+/// like any other reference to cut material; it simply says nothing
+/// about the seam.
 #[test]
-fn row5_d_a_dangling_head_mate_currently_mints_a_crossing_pending_aq8() {
+fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(cube_part("asm-r2b-row5d-part"));
     let (doc, instance) = insert(
@@ -845,22 +847,18 @@ fn row5_d_a_dangling_head_mate_currently_mints_a_crossing_pending_aq8() {
     let Some(Node::InstantiatePart { interface, .. }) = out.remainder.node(out.instance) else {
         panic!("the split minted an instance");
     };
-    assert_eq!(
-        interface.crossings.len(),
-        1,
-        "CURRENT behaviour: the collector mints for a dangling-head \
-         mate — wider than A4's edge, pending AQ8: {:?}",
+    assert!(
+        interface.is_empty(),
+        "AQ8 (b): a dangling-head mate is not an EDGE, so it crosses \
+         nothing — a never-solved declaration's record would be \
+         trusted-at-rest state: {:?}",
         interface.crossings
     );
-    let InterfaceCrossing::Mate {
-        mate: crossed,
-        outer,
-        ..
-    } = &interface.crossings[0];
-    assert_eq!(*crossed, mate, "the crossing names the mate it came from");
-    assert_eq!(
-        outer.node, local,
-        "and the remainder-side reference is the non-instance head"
+    // And the mate is still there, saying what it said — the skip is
+    // about the RECORD, not about deleting the declaration (N5).
+    assert!(
+        matches!(out.remainder.node(mate), Some(Node::Mate { .. })),
+        "the mate survives the split; only its crossing does not exist"
     );
 }
 

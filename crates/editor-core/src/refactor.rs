@@ -1123,24 +1123,20 @@ pub fn split(
     // touched the cut. Collected in the pre-split document's node
     // order, which is what makes the record D9-deterministic.
     //
-    // **This predicate is WIDER than A4's "mate edge", deliberately
-    // noted rather than silently relied on.** A4 speaks of edges, and
-    // an A12 reading edge exists only when BOTH heads are live
-    // instances. For a PROPER mate edge no accepted cut can put the
-    // ends on opposite sides at all — the mate joins its instances
-    // into one placement cluster and the whole-cluster precondition
-    // below refuses to tear it — so the only crossings this loop ever
-    // mints today are for mates with a DANGLING head (a reference to
-    // non-instance geometry, or to a node not in the document), whose
-    // instance is a singleton cluster. Whether such a mate should mint
-    // a crossing (what happens now — the declaration does name both
-    // sides), be skipped (A4's letter: no edge, no crossing), or
-    // refuse the split is the OPEN SUB-QUESTION of **AQ8**
-    // (docs/ASSEMBLY-DESIGN.md), whose recorded entry rules the
-    // mate-EDGE composition gap and proposes the ASM-XSPLIT
-    // conversion door but does not yet reach the collector's width.
-    // The behaviour is pinned by `row5_d` in editor-core's ASM-R2b
-    // suite, so the ruling changes one row and one arm.
+    // **Only a mate EDGE can cross** (AQ8, RULED — option (b), SKIP).
+    // A4 says "every mate EDGE crossing the cut", and an A12 reading
+    // edge exists only when BOTH heads are live instances. A mate with
+    // a DANGLING head — a reference to non-instance geometry, or to a
+    // node not in the document — is therefore not an edge and
+    // contributes NO crossing, however its names fall across the cut.
+    // The ruling's reason is the one that matters here: such a mate
+    // never solved, so a record minted from it would be
+    // trusted-at-rest state, which AQ8's ratification condition
+    // forbids. The mate itself stays in the document (N5) and its
+    // names rebind like any other; it simply says nothing about the
+    // seam.
+    let is_mate_edge_end =
+        |name: &StableName| matches!(doc.node(name.node), Some(Node::InstantiatePart { .. }));
     let mut crossings: Vec<InterfaceCrossing> = Vec::new();
     for &id in doc.order() {
         if cut.contains(&id) {
@@ -1149,6 +1145,10 @@ pub fn split(
         let Some(Node::Mate { a, b, class, .. }) = doc.node(id) else {
             continue;
         };
+        // The edge gate, before the sides are even looked at.
+        if !(is_mate_edge_end(a) && is_mate_edge_end(b)) {
+            continue;
+        }
         let inside = |name: &StableName| derivation_nodes(name).is_subset(cut);
         let (outer, inner) = match (inside(a), inside(b)) {
             (false, true) => (a, b),
