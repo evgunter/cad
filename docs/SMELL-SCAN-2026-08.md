@@ -539,16 +539,20 @@ serde grep exists in `ci.yml` or `ci-local.sh`. The only mechanical check is
 | units | **DOES NOT SURVIVE as counted** — `parse.rs` uses the shared table; `step-import`'s `UnitKind` is a *different vocabulary* (STEP `SI_UNIT` names). Real duplicates: two-and-a-half, one of them **measured and justified** (PR #291 MAJOR-2: inlining the 32-byte row grew every `Expr` by ~40 bytes). |
 | Euler vector | **SURVIVES IN PART** — the 6-vector and the 7 arena deltas are **different quantities**; Δh is not an arena count and cannot be derived from them. What survives: the 7-tuple is **unnamed and positional**, passed at 16 sites across 6 files, in a project whose ratified style is "named, never positional". |
 
-*Drift (a) CONFIRMED, and it contradicts ratified design text.* **FIXED by
-#618.** `Node::payload_names` and its rewriting twin are now the one answer to
-which payloads carry a `StableName`, and both list the nameless variants rather
-than wildcarding them, so a future name-carrying variant breaks the compile;
-the `Rebind` loop, the insert door, the split's re-anchoring, edit-time name
-resolution and the load check all read them. The sweep found two further
-mate-blind sites of the same shape: the insert door silently ADMITTED a mate
-head naming no node, and `persist/check.rs` never id-checked mate heads against
-the mint counter — a file that got one in was unrepairable, `Rebind`'s source
-door refusing a never-minted id.
+*Drift (a) CONFIRMED, and it contradicts ratified design text.* Note the
+contrast in the same file: `refactor::remap_node` **is** wildcard-free and
+**does** handle `Mate` — the exhaustive sites stayed in sync; the wildcard sites
+did not. **FIXED by #618**, which took that lesson as its shape:
+`Node::payload_names` and its rewriting twin are the one answer to which
+payloads carry a `StableName`, both list the nameless variants rather than
+wildcarding them (a future name-carrying variant breaks the compile — verified
+by a reviewer's probe variant, `E0004`), and the `Rebind` loop, the insert door,
+the split's and inline's re-anchoring, edit-time name resolution and the load
+check all read them. The sweep found two further mate-blind sites of the same
+shape: the insert door silently ADMITTED a mate head naming no node, and
+`persist/check.rs` never id-checked mate heads against the mint counter — a
+file that got one in could previously be opened and salvaged by deleting the
+mate, and now refuses to load at all.
 
 *Drift (b) CONFIRMED with a qualification:* the `Fragment(SideOf)` disagreement
 is **documented and intentional**. The drift is narrower — the fourth site uses
