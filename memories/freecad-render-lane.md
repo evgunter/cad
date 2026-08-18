@@ -6,6 +6,38 @@ type: operational
 
 # FreeCAD render lane
 
+## Re-baselining (2026-08-17 — read this before reaching for a download)
+
+CI **commits its own renders**. A run whose kernel / freecad / wild
+lane differs from the committed cells pushes the new cells to that
+branch and posts a check run with conclusion `neutral` — GitHub's "!",
+not its "x" — whose text says: *if the render looks right, this job is
+a success, no re-run needed*. So:
+
+    push -> wait for CI -> git pull -> look at the images
+
+That is the whole flow. There is nothing to download and nothing to
+install, and a re-baseline is **not a failure** — do not re-run the job
+to try to make it green.
+
+What still needs `local-scripts/render-hosted.sh`: the **uv lane**
+(deliberately excluded — ci.yml's `uv sheet drift (demos)` row gates
+it, and a self-re-baselining lane would make that gate unfalsifiable),
+a dispatch aimed at a bare SHA (no branch to commit to), `--on-demand`,
+and `--verify`.
+
+What still FAILS loudly, unchanged: a wedged pass, and the
+`assert no matplotlib fallback` check. The re-baseline is only reached
+when the render itself succeeded, so a wedge is still reported as a
+wedge and never as drift.
+
+Why neutral rather than red: nothing here is branch-protected and
+agents self-merge, so a red X was never blocking — it was a signal that
+happened to be red, and a render change is a normal event, not an
+error. The cost, chosen deliberately: an agent polling "any failures?"
+sails past a neutral check; one polling "is everything success?" stops
+on it. Reasoning in `.github/actions/rebaseline-lane`.
+
 `demos/render.sh` drives two montage lanes through headless `freecadcmd`.
 Both are byte-reproducible: a re-render that changes nothing leaves
 `git status` clean. That is a standing rule, not a nicety.

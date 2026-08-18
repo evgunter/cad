@@ -8,17 +8,33 @@
 #   local-scripts/render-hosted.sh --on-demand          # render fresh instead
 #   local-scripts/render-hosted.sh --run 12345678       # pull a specific run
 #
-# TAKING IS THE DEFAULT; RENDERING IS THE FLAG. Every CI run on a pushed
-# branch renders all four lanes and gates them (ci.yml's `renders` job
-# calls render.yml with `gate: true`), so once your branch has a CI run
-# the frames already exist — a dispatch would render the same tree a
-# second time, for ~5 more runner-minutes and no new information.
-# `--on-demand` is for what CI has not covered: an unpushed branch, no
-# CI run yet, or a deliberate re-render at a different scene budget.
+# FIRST, THE SHORT ANSWER: FOR THREE OF THE FOUR LANES YOU WANT
+# `git pull`, NOT THIS SCRIPT (2026-08-17). CI now RE-BASELINES the
+# kernel, freecad and wild lanes itself — a run whose render differs
+# from the committed cells commits the new ones straight back to your
+# branch and marks the run neutral ("!", not "x") asking you to glance
+# at the images. So the ordinary flow is: push, wait for CI, `git pull`,
+# look at the frames. Nothing to download, nothing to install.
 #
-# It takes the CI run WHATEVER ITS CONCLUSION. A stale committed lane is
-# what makes the render gate fail, so the failing run is precisely the
-# one whose artifact you want; lanes upload before the gate compares.
+# WHAT THIS SCRIPT IS STILL FOR:
+#   * THE UV LANE. It is deliberately NOT re-baselined — ci.yml's `uv
+#     sheet drift (demos)` row gates it, and a lane that fixed itself
+#     would make that gate unfalsifiable. `--lane uv` is the fix path.
+#   * A DISPATCH AIMED AT A BARE SHA, which has no branch to commit to;
+#     those runs report the drift and name this command, as before.
+#   * `--on-demand` renders CI has not covered: an unpushed branch, no
+#     CI run yet, or a deliberate re-render at a different scene budget.
+#   * `--verify`, the byte-exactness round trip (see below).
+#
+# TAKING IS THE DEFAULT; RENDERING IS THE FLAG. Every CI run on a pushed
+# branch renders all four lanes (ci.yml's `renders` job calls
+# render.yml), so once your branch has a CI run the frames already
+# exist — a dispatch would render the same tree a second time, for ~5
+# more runner-minutes and no new information.
+#
+# It takes the CI run WHATEVER ITS CONCLUSION: a run can still fail for
+# a wedged pass or the matplotlib-fallback assertion, and lanes upload
+# before any of that is decided, so the artifact is there either way.
 #
 # Renders are hosted (`.github/workflows/render.yml`); the local entry
 # points refuse without an explicit override (demos/hosted-render-guard.sh).

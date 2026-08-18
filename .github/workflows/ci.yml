@@ -1597,7 +1597,10 @@ jobs:
             # Re-sync to main. This also restores the local-only trees
             # the prune step deleted, so the commit below can only ever
             # contain the one new file.
-            git fetch origin main
+            # --depth=1: the checkout is shallow and this only needs
+            # main's TIP to commit onto; the server holds the ancestry,
+            # so the push is an ordinary fast-forward.
+            git fetch --depth=1 origin main
             git reset --hard origin/main
             mkdir -p docs/perf-data/rebuild-latency
             cp "$MEASUREMENT" "$dest"
@@ -1900,9 +1903,19 @@ jobs:
   # `k-lint` uses — a render depends on the whole kernel, so "whenever
   # anything builds at all" is the right trigger for it too.
   #
-  # A FAILING ROW HANDS OVER ITS OWN FIX: each lane uploads its render
-  # to THIS run and names the command that installs it, so a stale lane
-  # costs a download and a commit, never a second render.
+  # A DRIFTING LANE FIXES ITSELF (2026-08-17): each lane commits its
+  # re-rendered cells straight back to this PR's branch and marks the
+  # run NEUTRAL — "!", not "x" — so accepting an intended render change
+  # is `git pull` and a glance at the images, not a download-install-
+  # commit-rerun cycle. See render.yml's header and
+  # .github/actions/rebaseline-lane for why neutral rather than red.
+  #
+  # `push_to` is the BRANCH, while the render itself runs on
+  # `github.ref` — the PR's MERGE commit on a pull_request, main's tip
+  # on a push. Rendering the merge preview and committing to the head
+  # branch is self-consistent because this gate always compares against
+  # that same merge preview, and main's own push run re-renders and
+  # re-baselines again after the merge if the two ever part.
   #
   # Scene concurrency is left to render.yml's own default (2, the
   # runner's core count) rather than restated here: this job renders the
@@ -1913,6 +1926,13 @@ jobs:
     needs: filter
     if: needs.filter.outputs.run_k_lint == 'true'
     uses: ./.github/workflows/render.yml
+    # A reusable workflow gets the CALLER's token scope, and this
+    # workflow declares none at the top level — so the lanes' own
+    # `permissions:` blocks cannot grant what this job never had.
+    permissions:
+      contents: write
+      checks: write
     with:
       gate: true
       lanes: all
+      push_to: ${{ github.head_ref || github.ref_name }}

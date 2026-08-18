@@ -72,8 +72,38 @@
 #     (demos)` row. Reported here, never re-gated: one gate per
 #     obligation.
 #
-# NO JOB COMMITS OR PUSHES, in either mode. A failing gate hands over an
-# artifact and a command; committing it stays a human's call.
+# THE LANES COMMIT THEIR OWN RE-BASELINES (2026-08-17, Evan's ruling —
+# this REVISES the "NO JOB COMMITS OR PUSHES, in either mode" rule that
+# stood here from the commit that first gated the lanes).
+#
+# That rule was written WITH the gate and was shaped by it: if a gate
+# committed the bytes it was comparing against, it could never fail, so
+# "no commits" was the only way to keep the comparison honest. Phrasing
+# it "in either mode" was the overreach — a DISPATCH has no comparison
+# to defend. It is someone explicitly asking for new frames, and making
+# them then go download and install those frames was pure ceremony.
+#
+# What replaced it keeps the honesty and drops the ceremony. Both modes
+# now re-baseline: a drifting lane is committed back to its branch and
+# the run publishes a check run whose conclusion is NEUTRAL — GitHub's
+# "!" rather than its "x" — saying, in as many words, that if the
+# render looks right the job is a success and needs no re-run. The
+# mechanical half (fetch, install, commit, push, wait for a second run)
+# is gone; the judgement half (are these images what I meant?) is
+# exactly what the neutral check asks for and is the only thing it asks
+# for. `.github/actions/rebaseline-lane` carries the full reasoning,
+# including why neutral rather than red and why not silent green.
+#
+# What did NOT change: a wedged pass still fails, the matplotlib-
+# fallback assertion still fails, and the re-baseline is only reached
+# when the render itself succeeded — so a wedge is still a wedge and is
+# never re-reported as drift.
+#
+# THE UV LANE IS DELIBERATELY EXCLUDED from all of this. Its sheet is
+# gated by ci.yml's own `uv sheet drift (demos)` row, and a lane that
+# re-baselined itself here would make that gate unfalsifiable. It stays
+# reported-here / gated-there, and stays a manual fix. One gate per
+# obligation, still.
 name: render (demos)
 
 on:
@@ -116,6 +146,16 @@ on:
         description: "Branch/tag/SHA to render (default: this workflow's ref)"
         required: false
         default: ""
+      # Left empty, this resolves to the branch you dispatched ON — but
+      # only when `ref` is also empty. Naming a `ref` makes the target
+      # ambiguous (it takes a branch OR a bare SHA, and a SHA has
+      # nowhere to commit to), so that combination requires saying
+      # `push_to` explicitly; without it the lanes report the drift and
+      # name the install command, exactly as the old gate did.
+      push_to:
+        description: "Branch to commit re-baselined lanes to (empty: this workflow's branch, unless `ref` is set)"
+        required: false
+        default: ""
 
   # ci.yml's render gate. Same inputs, plus the one that turns the
   # lanes' drift reports into failures.
@@ -145,8 +185,16 @@ on:
         type: string
         required: false
         default: ""
+      push_to:
+        description: "Branch to commit re-baselined lanes to (empty: no commit, report only)"
+        type: string
+        required: false
+        default: ""
       gate:
-        description: "Fail the lane when its committed directory does not match this render"
+        description: >
+          Kept for the caller's intent and for the concurrency group. It
+          no longer turns drift into a failure — drift is re-baselined
+          and marked neutral in both modes; see the header.
         type: boolean
         required: false
         default: false
@@ -313,6 +361,12 @@ jobs:
   montage:
     name: ${{ matrix.lane }} montage
     runs-on: ubuntu-latest
+    # The re-baseline step commits the lane and posts the neutral
+    # check run. Nothing else in this workflow writes anything, which
+    # is why these sit on the two lane jobs rather than at the top.
+    permissions:
+      contents: write
+      checks: write
     needs: tour
     if: ${{ contains(fromJSON('["all","kernel","freecad"]'), inputs.lanes) }}
     # A wedged pass is bounded by render.sh's own per-scene budget (two
@@ -490,56 +544,25 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # THE GATE. Deliberately NOT `always()`: it must only be reached
-      # when the pass itself succeeded, so a wedge fails as a wedge and
-      # is never re-reported as drift (the lane directory a failed pass
-      # leaves behind is the COMMITTED one, untouched — it would read as
-      # "no drift" and quietly pass).
+      # RE-BASELINE, NOT A GATE (2026-08-17 — see the header). Drift
+      # is committed back to the branch and marked NEUTRAL rather than
+      # failing the run; the action's own header carries the reasoning.
       #
-      # The fix named here installs the artifact this job just uploaded,
-      # on this very run, so it costs a download rather than another
-      # render. It goes through `render-hosted.sh` rather than a bare
-      # `gh run download`: that command REFUSES to overwrite existing
-      # files, so aimed straight at a populated lane directory — which
-      # is the only situation this message is ever printed in — it fails
-      # on the first cell. The script stages into a temp dir, installs
-      # over the lane, and runs the provenance guard on what landed.
-      - name: committed lane is current (gate)
-        if: ${{ inputs.gate }}
-        run: |
-          drift="$(git status --porcelain -- "demos/$LANE_DIR/")"
-          if [ -z "$drift" ]; then
-            echo "demos/$LANE_DIR/ matches this render."
-            exit 0
-          fi
-          fix="local-scripts/render-hosted.sh --run ${{ github.run_id }} --lane ${{ matrix.lane }}"
-          # The annotation is one line by necessity (workflow commands
-          # cannot carry newlines); the log above it is where the
-          # explanation fits.
-          cat <<EOF
-
-          ================================================================
-           demos/$LANE_DIR/ IS STALE — it is not what this code renders.
-
-           $drift
-
-           Two things cause this, and both are fixed the same way:
-             * the geometry changed and these cells need re-baselining;
-             * the runner image's mesa bumped and re-rasterised them —
-               expect that roughly monthly. The committed cells are meant
-               to track the canonical (hosted) producer, so that is this
-               gate working, not failing.
-
-           Fix it from THIS run — the command below installs the render
-           this job just uploaded, so nothing is rendered again:
-
-             $fix
-             git add demos/$LANE_DIR/ && git commit
-
-          ================================================================
-          EOF
-          echo "::error title=demos/$LANE_DIR is stale::Committed ${{ matrix.lane }} cells do not match this render. Fix from this run: $fix — then commit. (Geometry change, or a monthly mesa re-baseline; see the log above.)"
-          exit 1
+      # Deliberately NOT `always()`, and that is inherited from the gate
+      # this replaces: it must only be reached when the pass itself
+      # succeeded, so a wedge fails as a wedge and is never re-reported
+      # as drift. (The lane directory a failed pass leaves behind is the
+      # COMMITTED one, untouched — it would read as "no drift" and
+      # quietly pass, and would now also quietly commit nothing.)
+      - name: re-baseline committed lane
+        uses: ./.github/actions/rebaseline-lane
+        with:
+          lane: ${{ matrix.lane }}
+          dir: demos/${{ env.LANE_DIR }}
+          # inputs.push_to wins; otherwise the dispatched branch, but
+          # only when no explicit `ref` made the target ambiguous.
+          push_to: ${{ inputs.push_to != '' && inputs.push_to || (inputs.ref == '' && github.ref_name || '') }}
+          token: ${{ github.token }}
 
   # THE WILD-CORPUS LANE. FreeCAD-free by ratified scope (its cells are
   # third-party STEP imported by `step-import` and tessellated by the
@@ -557,6 +580,12 @@ jobs:
   wild:
     name: wild-corpus montage
     runs-on: ubuntu-latest
+    # The re-baseline step commits the lane and posts the neutral
+    # check run. Nothing else in this workflow writes anything, which
+    # is why these sit on the two lane jobs rather than at the top.
+    permissions:
+      contents: write
+      checks: write
     if: ${{ contains(fromJSON('["all","wild"]'), inputs.lanes) }}
     timeout-minutes: 45
     env:
@@ -666,35 +695,18 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Same gate as the PNG lanes, minus their one excuse: no GL is
-      # involved anywhere in this lane, so a diff here is never a mesa
-      # re-baseline — it is a real pixel change or a determinism finding.
-      - name: committed lane is current (gate)
-        if: ${{ inputs.gate }}
-        run: |
-          drift="$(git status --porcelain -- demos/renders-wild/)"
-          if [ -z "$drift" ]; then
-            echo "demos/renders-wild/ matches this render."
-            exit 0
-          fi
-          fix="local-scripts/render-hosted.sh --run ${{ github.run_id }} --lane wild"
-          cat <<EOF
-
-          ================================================================
-           demos/renders-wild/ IS STALE — it is not what this code renders.
-
-           $drift
-
-           This lane is matplotlib Agg over the kernel's own tessellation,
-           pinned and GL-free, so it is byte-reproducible on any box: this
-           is a real pixel change or a determinism finding, never a
-           re-rasterisation. If the change is intended, install this run's
-           own render — nothing is rendered again:
-
-             $fix
-             git add demos/renders-wild/ && git commit
-
-          ================================================================
-          EOF
-          echo "::error title=demos/renders-wild is stale::Committed wild cells do not match this render (GL-free lane — a real pixel or determinism change). Fix from this run: $fix — then commit."
-          exit 1
+      # Same treatment as the PNG lanes, minus their one excuse: no GL
+      # is involved anywhere in this lane, so a re-baseline here is
+      # never a mesa re-rasterisation — it is a real pixel change or a
+      # determinism finding. That makes the neutral check's "look at
+      # the images" more pointed here than anywhere else, which is
+      # exactly why it is still a check and not a log line.
+      - name: re-baseline committed lane
+        uses: ./.github/actions/rebaseline-lane
+        with:
+          lane: wild
+          dir: demos/renders-wild
+          # inputs.push_to wins; otherwise the dispatched branch, but
+          # only when no explicit `ref` made the target ambiguous.
+          push_to: ${{ inputs.push_to != '' && inputs.push_to || (inputs.ref == '' && github.ref_name || '') }}
+          token: ${{ github.token }}
