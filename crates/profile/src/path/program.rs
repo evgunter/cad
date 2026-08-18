@@ -278,10 +278,161 @@ macro_rules! transition_table {
 
 transition_table! {
     #[doc = " `.at(p)` — bind the position bit."]
-    verb At(Point2<T>) bind (p) rows {}
+    verb At(Point2<T>) bind (p) rows {
+        row {
+            /// Binds the entry position: `Open → Point` (plain flavor — the
+            /// entry has no incoming carrier; its junction check happens at
+            /// the seam).
+            on [] Open;
+            fn at [<T: Real>(self, p: Point2<T>) -> PartialPath<T, HasPos<Plain>, NoAng>] {
+                let mut path = self.at_kernel(p);
+                path.core.record(Step::At(p));
+                path
+            }
+            arms {
+                DynTip::Entry => Ok(Applied::Tip(DynTip::PlainPoint(Open.at(p)))),
+            }
+        }
+        row {
+            /// Adds the position bit (`Open → Point`, `Angle → Directed`) —
+            /// written once, generic over the angle slot it does not touch.
+            ///
+            /// On a fillet arrival whose angle is already bound, completing
+            /// the position resolves the fillet (both carriers fixed): the
+            /// corner construction and anchor-fit gates run here — see
+            /// [`PathError`]. On the angle-first entry, this seeds the chain.
+            /// `p` is absolute (profile frame), a real on-path point (the
+            /// side's anchor).
+            on [T: Decide, A: super::AngMarker] PartialPath<T, NoPos, A>;
+            fn at [(mut self, p: Point2<T>)
+                -> Result<PartialPath<T, HasPos<Plain>, A>, PathError<T>>] {
+                self.core.record(Step::At(p));
+                self.at_kernel(p)
+            }
+            arms {
+                DynTip::Open(p0) => Ok(Applied::Tip(DynTip::PlainPoint(p0.at(p)?))),
+                DynTip::Angle(p0) => Ok(Applied::Tip(DynTip::DirectedPlain(p0.at(p)?))),
+            }
+        }
+        row {
+            /// Binds the arrival's anchor — a real on-path point on the
+            /// derived carrier.
+            on [T: Decide] super::family::RadiusArrival<T>;
+            fn at [(mut self, p: Point2<T>) -> super::family::RadiusArrivalAt<T>] {
+                self.core.record(Step::At(p));
+                self.at_kernel(p)
+            }
+            arms {
+                DynTip::RadiusArrival(p0) => Ok(Applied::Tip(DynTip::RadiusArrivalAt(p0.at(p)))),
+            }
+        }
+        row {
+            /// Completes the arrival with its anchor; the fillet resolves.
+            on [T: Decide] super::family::RadiusArrivalDir<T>;
+            fn at [(mut self, p: Point2<T>)
+                -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core.record(Step::At(p));
+                self.at_kernel(p)
+            }
+            arms {
+                DynTip::RadiusArrivalDir(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.at(p)?))),
+            }
+        }
+    }
 
     #[doc = " `.angle(θ)` — bind the outgoing direction as an angle (radians)."]
-    verb Angle(T) bind (theta) rows {}
+    verb Angle(T) bind (theta) rows {
+        row {
+            /// Binds the entry direction first: `Open → Angle` (radians, in
+            /// the sketch plane; position pending).
+            on [] Open;
+            fn angle [<T: Real>(self, theta: T) -> PartialPath<T, NoPos, HasAng>] {
+                let mut path = self.director(super::Dir::from_angle(theta));
+                path.core.record(Step::Angle(theta));
+                path
+            }
+            arms {
+                DynTip::Entry => Ok(Applied::Tip(DynTip::Angle(Open.angle(theta)))),
+            }
+        }
+        row {
+            /// Adds the angle bit wherever it is missing (`Point → Directed`,
+            /// `Open → Angle`) — one generic function; the junction check
+            /// reads the flavor's optional incoming tangent at runtime.
+            ///
+            /// On a directed point this classifies `theta` against the
+            /// incoming tangent and its reverse (PATHS-DESIGN §4 item 1):
+            /// definitely-sharp proceeds; within ε_input of tangent refuses
+            /// [`PathError::JunctionTangent`] (one refusal, one recourse:
+            /// `.tangent()` makes intended tangency exact by construction);
+            /// within ε_input of the reverse refuses
+            /// [`PathError::JunctionCusp`] (no declaration door — #131). On a
+            /// plain point there is nothing to check (an arrival side meets
+            /// its fillet arc tangentially by construction; the entry's check
+            /// happens at the seam). On a fillet arrival whose position is
+            /// already bound, completing the direction resolves the fillet.
+            on [T: Decide, P: super::PosMarker] PartialPath<T, P, NoAng>;
+            fn angle [(mut self, theta: T)
+                -> Result<PartialPath<T, P, HasAng>, PathError<T>>] {
+                self.core.record(Step::Angle(theta));
+                self.director(super::Dir::from_angle(theta))
+            }
+            arms {
+                DynTip::Open(p0) => Ok(Applied::Tip(DynTip::Angle(p0.angle(theta)?))),
+                DynTip::PlainPoint(p0) => Ok(Applied::Tip(DynTip::DirectedPlain(p0.angle(theta)?))),
+                DynTip::DirectedPoint(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.angle(theta)?))),
+            }
+        }
+        row {
+            /// Binds the arrival direction (angle-first order).
+            on [T: Decide] super::family::RadiusArrival<T>;
+            fn angle [(mut self, theta: T) -> super::family::RadiusArrivalDir<T>] {
+                self.core.record(Step::Angle(theta));
+                self.angle_kernel(theta)
+            }
+            arms {
+                DynTip::RadiusArrival(p0) =>
+                    Ok(Applied::Tip(DynTip::RadiusArrivalDir(p0.angle(theta)))),
+            }
+        }
+        row {
+            /// Completes the arrival with its direction; the fillet resolves.
+            on [T: Decide] super::family::RadiusArrivalAt<T>;
+            fn angle [(mut self, theta: T)
+                -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core.record(Step::Angle(theta));
+                self.angle_kernel(theta)
+            }
+            arms {
+                DynTip::RadiusArrivalAt(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta)?))),
+            }
+        }
+        row {
+            /// Completes the directed anchor with an angle; the fillet resolves.
+            on [T: Decide] super::family::ViaArrival<T>;
+            fn angle [(mut self, theta: T)
+                -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core.record(Step::Angle(theta));
+                self.angle_kernel(theta)
+            }
+            arms {
+                DynTip::ViaArrival(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta)?))),
+            }
+        }
+        row {
+            /// Completes the close with an angle at the entry anchor.
+            on [T: Decide] super::family::ViaArrivalStart<T>;
+            fn angle [(mut self, theta: T) -> Result<ClosedLoop<T>, PathError<T>>] {
+                self.core.record(Step::Angle(theta));
+                self.angle_kernel(theta)
+            }
+            arms {
+                DynTip::ViaArrivalStart(p0) => Ok(Applied::Closed(p0.angle(theta)?.loop_)),
+            }
+        }
+    }
 
     #[doc = " `.toward(dx, dy)` — bind it as exact components (ratio-only)."]
     verb Toward {
@@ -289,7 +440,108 @@ transition_table! {
         dx: T,
         #[doc = " y component."]
         dy: T,
-    } bind { dx, dy } rows {}
+    } bind { dx, dy } rows {
+        row {
+            /// Binds the entry direction first as exact COMPONENTS
+            /// (`Open → Angle`): the direction-valued alternative to
+            /// [`angle`](Self::angle) — see [`PartialPath::toward`] for the
+            /// exactness contract and the refusal.
+            on [] Open;
+            fn toward [<T: Decide>(
+                self,
+                dx: T,
+                dy: T,
+            ) -> Result<PartialPath<T, NoPos, HasAng>, PathError<T>>] {
+                let mut path = self.director(super::unit_from_components(dx, dy)?);
+                path.core.record(Step::Toward { dx, dy });
+                Ok(path)
+            }
+            arms {
+                DynTip::Entry => Ok(Applied::Tip(DynTip::Angle(Open.toward(dx, dy)?))),
+            }
+        }
+        row {
+            /// The direction-valued director (G1 constructor 5): binds the same
+            /// angular DOF as [`angle`](Self::angle) — the same lattice slot,
+            /// set at most once per side — from exact COMPONENTS instead of an
+            /// angle. `(dx, dy)` is normalized and the unit ray stored verbatim,
+            /// so the departure never makes a trig round-trip: `.toward(-1, 0)`
+            /// gives the ray `(-1, 0)` exactly, where `.angle(PI)` gives
+            /// `(-1, 1.2246e-16)` and carries that ulp into every corner and
+            /// trim point downstream. Only the components' RATIO is read
+            /// (magnitude is not a length and binds nothing).
+            ///
+            /// `(0, 0)` — and any norm within ε_input of zero — refuses
+            /// [`PathError::ZeroDirection`]: it names no direction, and the
+            /// recourse is free, since scaling the components changes nothing
+            /// else. Junction/fillet semantics are otherwise identical to
+            /// [`angle`](Self::angle), including the §4 item 1 check on a
+            /// directed point and the fillet resolution on a bound arrival.
+            on [T: Decide, P: super::PosMarker] PartialPath<T, P, NoAng>;
+            fn toward [(mut self, dx: T, dy: T)
+                -> Result<PartialPath<T, P, HasAng>, PathError<T>>] {
+                self.core.record(Step::Toward { dx, dy });
+                self.director(super::unit_from_components(dx, dy)?)
+            }
+            arms {
+                DynTip::Open(p0) => Ok(Applied::Tip(DynTip::Angle(p0.toward(dx, dy)?))),
+                DynTip::PlainPoint(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedPlain(p0.toward(dx, dy)?))),
+                DynTip::DirectedPoint(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.toward(dx, dy)?))),
+            }
+        }
+        row {
+            /// Binds the arrival direction as exact components.
+            on [T: Decide] super::family::RadiusArrival<T>;
+            fn toward [(mut self, dx: T, dy: T)
+                -> Result<super::family::RadiusArrivalDir<T>, PathError<T>>] {
+                self.core.record(Step::Toward { dx, dy });
+                self.toward_kernel(dx, dy)
+            }
+            arms {
+                DynTip::RadiusArrival(p0) =>
+                    Ok(Applied::Tip(DynTip::RadiusArrivalDir(p0.toward(dx, dy)?))),
+            }
+        }
+        row {
+            /// Completes the arrival with exact components; the fillet resolves.
+            on [T: Decide] super::family::RadiusArrivalAt<T>;
+            fn toward [(mut self, dx: T, dy: T)
+                -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core.record(Step::Toward { dx, dy });
+                self.toward_kernel(dx, dy)
+            }
+            arms {
+                DynTip::RadiusArrivalAt(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.toward(dx, dy)?))),
+            }
+        }
+        row {
+            /// Completes the directed anchor with exact components.
+            on [T: Decide] super::family::ViaArrival<T>;
+            fn toward [(mut self, dx: T, dy: T)
+                -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core.record(Step::Toward { dx, dy });
+                self.toward_kernel(dx, dy)
+            }
+            arms {
+                DynTip::ViaArrival(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.toward(dx, dy)?))),
+            }
+        }
+        row {
+            /// Completes the close with exact components at the entry anchor.
+            on [T: Decide] super::family::ViaArrivalStart<T>;
+            fn toward [(mut self, dx: T, dy: T) -> Result<ClosedLoop<T>, PathError<T>>] {
+                self.core.record(Step::Toward { dx, dy });
+                self.toward_kernel(dx, dy)
+            }
+            arms {
+                DynTip::ViaArrivalStart(p0) => Ok(Applied::Closed(p0.toward(dx, dy)?.loop_)),
+            }
+        }
+    }
 
     #[doc = " `.tangent()` — inherit the incoming end tangent and DECLARE the joint."]
     verb Tangent bind {} rows {}

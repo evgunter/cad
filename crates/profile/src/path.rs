@@ -1821,13 +1821,11 @@ fn leg_end_tip<T: Real>(at: Point2<T>, ang: Dir<T>, arm: T, carrier: Option<ArcD
 }
 
 impl Open {
-    /// Binds the entry position: `Open → Point` (plain flavor — the
-    /// entry has no incoming carrier; its junction check happens at
-    /// the seam).
-    pub fn at<T: Real>(self, p: Point2<T>) -> PartialPath<T, HasPos<Plain>, NoAng> {
+    /// The kernel behind the table's `Open → Point` row: seeds the
+    /// chain at `p` (recording is the row's, not the kernel's).
+    fn at_kernel<T: Real>(self, p: Point2<T>) -> PartialPath<T, HasPos<Plain>, NoAng> {
         let mut core = Core::empty();
         core.seed(p);
-        core.record(Step::At(p));
         in_state(
             core,
             Tip {
@@ -1839,28 +1837,6 @@ impl Open {
                 ang_by_tangent: false,
             },
         )
-    }
-
-    /// Binds the entry direction first: `Open → Angle` (radians, in
-    /// the sketch plane; position pending).
-    pub fn angle<T: Real>(self, theta: T) -> PartialPath<T, NoPos, HasAng> {
-        let mut path = self.director(Dir::from_angle(theta));
-        path.core.record(Step::Angle(theta));
-        path
-    }
-
-    /// Binds the entry direction first as exact COMPONENTS
-    /// (`Open → Angle`): the direction-valued alternative to
-    /// [`angle`](Self::angle) — see [`PartialPath::toward`] for the
-    /// exactness contract and the refusal.
-    pub fn toward<T: Decide>(
-        self,
-        dx: T,
-        dy: T,
-    ) -> Result<PartialPath<T, NoPos, HasAng>, PathError<T>> {
-        let mut path = self.director(unit_from_components(dx, dy)?);
-        path.core.record(Step::Toward { dx, dy });
-        Ok(path)
     }
 
     fn director<T: Real>(self, dir: Dir<T>) -> PartialPath<T, NoPos, HasAng> {
@@ -2008,17 +1984,10 @@ pub fn circle_split<T: Decide>(
 }
 
 impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
-    /// Adds the position bit (`Open → Point`, `Angle → Directed`) —
-    /// written once, generic over the angle slot it does not touch.
-    ///
-    /// On a fillet arrival whose angle is already bound, completing
-    /// the position resolves the fillet (both carriers fixed): the
-    /// corner construction and anchor-fit gates run here — see
-    /// [`PathError`]. On the angle-first entry, this seeds the chain.
-    /// `p` is absolute (profile frame), a real on-path point (the
-    /// side's anchor).
-    pub fn at(mut self, p: Point2<T>) -> Result<PartialPath<T, HasPos<Plain>, A>, PathError<T>> {
-        self.core.record(Step::At(p));
+    /// The kernel behind the table's position-binding rows: resolves a
+    /// bound-angle fillet arrival, or seeds the chain (recording is the
+    /// row's, not the kernel's).
+    fn at_kernel(mut self, p: Point2<T>) -> Result<PartialPath<T, HasPos<Plain>, A>, PathError<T>> {
         match (self.tip.ang, self.core.pending.is_some()) {
             (Some(theta), true) => {
                 self.core.resolve_fillet(p, theta, ArrivalKind::Continues)?;
@@ -2046,47 +2015,6 @@ impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
 }
 
 impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
-    /// Adds the angle bit wherever it is missing (`Point → Directed`,
-    /// `Open → Angle`) — one generic function; the junction check
-    /// reads the flavor's optional incoming tangent at runtime.
-    ///
-    /// On a directed point this classifies `theta` against the
-    /// incoming tangent and its reverse (PATHS-DESIGN §4 item 1):
-    /// definitely-sharp proceeds; within ε_input of tangent refuses
-    /// [`PathError::JunctionTangent`] (one refusal, one recourse:
-    /// `.tangent()` makes intended tangency exact by construction);
-    /// within ε_input of the reverse refuses
-    /// [`PathError::JunctionCusp`] (no declaration door — #131). On a
-    /// plain point there is nothing to check (an arrival side meets
-    /// its fillet arc tangentially by construction; the entry's check
-    /// happens at the seam). On a fillet arrival whose position is
-    /// already bound, completing the direction resolves the fillet.
-    pub fn angle(mut self, theta: T) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
-        self.core.record(Step::Angle(theta));
-        self.director(Dir::from_angle(theta))
-    }
-
-    /// The direction-valued director (G1 constructor 5): binds the same
-    /// angular DOF as [`angle`](Self::angle) — the same lattice slot,
-    /// set at most once per side — from exact COMPONENTS instead of an
-    /// angle. `(dx, dy)` is normalized and the unit ray stored verbatim,
-    /// so the departure never makes a trig round-trip: `.toward(-1, 0)`
-    /// gives the ray `(-1, 0)` exactly, where `.angle(PI)` gives
-    /// `(-1, 1.2246e-16)` and carries that ulp into every corner and
-    /// trim point downstream. Only the components' RATIO is read
-    /// (magnitude is not a length and binds nothing).
-    ///
-    /// `(0, 0)` — and any norm within ε_input of zero — refuses
-    /// [`PathError::ZeroDirection`]: it names no direction, and the
-    /// recourse is free, since scaling the components changes nothing
-    /// else. Junction/fillet semantics are otherwise identical to
-    /// [`angle`](Self::angle), including the §4 item 1 check on a
-    /// directed point and the fillet resolution on a bound arrival.
-    pub fn toward(mut self, dx: T, dy: T) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
-        self.core.record(Step::Toward { dx, dy });
-        self.director(unit_from_components(dx, dy)?)
-    }
-
     fn director(mut self, dir: Dir<T>) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
         if let Some(pos) = &self.tip.pos {
             if let Some(inc) = &pos.incoming {
