@@ -961,6 +961,60 @@ doors are not redundant and S7 collapses.
 supports in place), so they need rewriting, not deleting — and
 `FilletNaming::supports` becomes dead.
 
+### D3 EXPERIMENT RUN (2026-08-18): the surgery door handles the whole-body input
+
+The experiment §D's D3 row asks for has been run. Arms swapped at
+`build.rs:205` so `fillet_surgery` receives every input — including the
+whole-body shape it had never once been given — then reverted. Nothing is
+proposed here; this records only the result.
+
+**The construction succeeds.** `fillet_edges` on a cube with all twelve
+edges requested returns `Ok` through the surgery door. The largest unknown
+the steelman named — *"whether the construction succeeds when every
+boundary vertex is a corner and every source edge dies"* — is closed: it
+does.
+
+**And it builds the same solid.** Exported to STEP and compared against the
+committed `filleted_die.step` golden as an unordered multiset:
+
+| Check | Result |
+|---|---|
+| Entity-type multiset (625 entities) | **identical** |
+| Distinct `CARTESIAN_POINT` coordinates (51) | **identical sets** |
+| Total `CARTESIAN_POINT` count (99) | **identical** |
+| Circle / sphere radius multiset | **identical** |
+| Kernel census (F / E / V) | **identical** — 26 / 48 / 24 |
+| Certified volume | `965230999.4765309` vs pinned `965230999.476531` — **adjacent f64s** |
+
+What differs is emission *order*, and how the two doors distribute
+duplicate points across use-sites (twelve coordinates shift multiplicity,
+3→2 and 1→2, netting zero). **No coordinate, radius, or entity exists in
+one file and not the other.**
+
+**The retirement price, measured rather than estimated.** With the arms
+swapped:
+
+- `cargo test -p sweep --test all` — 376 pass, **1 fails**:
+  `m6_5_fillet_naming::the_whole_body_door_records_every_entity_it_mints`,
+  on the `supports` row (0 vs 6). This is precisely the by-design
+  difference the steelman predicted — the fresh-arena door retires every
+  source face and writes a `supports` row per face; the surgery leaves the
+  support in place, so the source key survives and no row is written. It
+  needs rewriting, not deleting.
+- `cargo test -p step-export` — 50 pass, **2 fail**: the byte-golden
+  fixture and the `KERNEL_VOLUME_MM3` sidecar. Both are the regeneration
+  chore the steelman priced, not a contract breach: the volume moves one
+  ulp, the census does not move at all.
+
+So the subset claim holds **constructively**, not just predicately, and the
+cost of retiring the whole-body door is one naming test rewritten, two
+goldens regenerated, and one FreeCAD acceptance re-run. **S7 does not
+collapse.**
+
+*Still open, and still Evan's:* whether to actually retire the ~890
+whole-body-exclusive lines. This entry closes the blocking unknown and
+confirms the price already quoted; it does not make the call.
+
 ## S8. The fitted (rung-3) pcurve lane has no producer anywhere in `src`
 
 - **Where**: `crates/geom-brep/src/pcurve_cache.rs:1379`,
@@ -3086,7 +3140,7 @@ calls that no agent should make.
 |---|---|---|---|
 | **D1** | **S44 — what is `Bounds`?** Is it "carries a bracket" (a semantic property, definable for `Dual` as lo=hi=value) or "may enter certified code" (an access-control marker)? | **S3** entirely; colours **S1**, **S2** | The lane traits exist only to mediate the second meaning. The answer picks the target: one lane trait in `geom-core` (the steelman compiled one, 16 impls → 2), or none at all and `Bounds` split in two. |
 | **D2** | **S43 — the bug-vs-invalid-state taxonomy.** D9 currently sanctions only "typed error where cheaply detectable, or documented garbage-out"; the kernel uses five idioms, two of them mutual negations. | **S19** (which it *generates* — ~239 of ~260 sites); resolves **S12**/**S14** residue | Restating D9 decides three findings at one stroke. Touching any error enum first means redoing it. |
-| **D3** | **S7 — run the one-line experiment.** Swap the arms at `fillet/build.rs:205`, `cargo test -p sweep --test all`. | **S6**, and all fillet work in **S36**/**S38** | Decides whether ~890 lines are deleted. The surgery door has *never* been run on a whole-body input; if it fails on a cube the two doors are not redundant and S7 collapses. |
+| **D3** | **S7 — run the one-line experiment.** Swap the arms at `fillet/build.rs:205`, `cargo test -p sweep --test all`. | **S6**, and all fillet work in **S36**/**S38** | **EXPERIMENT RUN 2026-08-18 — see S7's experiment entry.** The surgery succeeds on the cube and yields the same solid (identical census and coordinate set; volume one ulp apart). The two doors *are* redundant, so the decision is now purely retire-or-keep against a measured price: one naming test rewritten, two goldens regenerated, one FreeCAD acceptance re-run. |
 | **D4** | **S11's four undecided rows** — `Mat2`/`Affine2`, `PairSolve`, `hull.rs`'s non-rational unused half, the two inlined fillet helpers. | Cleanup in those files | Each is delete-or-keep. Cheap to answer, and answering stops anyone documenting them. |
 
 ---
