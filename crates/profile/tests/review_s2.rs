@@ -108,7 +108,7 @@ impl OracleLeg {
     /// `Center` spec.
     fn winding(&self) -> ArcSweep {
         match *self {
-            OracleLeg::Line { .. } => unreachable!("windings are asked of arc legs only"),
+            OracleLeg::Line { .. } => panic!("windings are asked of arc legs only"),
             OracleLeg::Arc { tau, .. } => {
                 if tau > 0.0 {
                     ArcSweep::Ccw

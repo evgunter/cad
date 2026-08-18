@@ -13,6 +13,7 @@
 //! mismatched `r` is a LEGAL new tangent carrier constructed at the
 //! tip — sound by construction for every authored `r`. The same chain
 //! now emits mutually consistent segments and validates.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tolerance};
 use profile::{ArcSide, ArcSweep, Center, Open, Profile, Radius, SketchPlane, Start};
