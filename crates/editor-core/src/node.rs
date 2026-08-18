@@ -1,6 +1,6 @@
-//! The v1 recipe-node vocabulary AS DATA (ratified F4; spec D3). No
-//! node here evaluates anything — PR 2's evaluation service interprets
-//! this data against the kernel ops.
+//! The recipe-node vocabulary AS DATA (ratified F4; spec D3). No node
+//! here evaluates anything — the evaluation service interprets this
+//! data against the kernel ops.
 
 use crate::expr::{Dimension, Expr};
 // The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
@@ -949,12 +949,8 @@ impl<P> Node<P> {
     /// strand it, which is NAMING-DESIGN N5's dangling-reference
     /// semantics with `Rebind` as the one repair.
     ///
-    /// **The single answer to "which payloads carry a name."** Listing
-    /// the nameless variants rather than wildcarding them is what makes
-    /// that true: a future variant carrying a [`StableName`] cannot
-    /// compile until it is classified here, and every reader — the
-    /// insert door, the split's re-anchoring, edit-time name resolution
-    /// — reads this rather than its own copy of the list.
+    /// The single answer to "which payloads carry a name": every reader
+    /// reads this rather than its own copy of the list.
     pub fn payload_names(&self) -> Vec<&StableName> {
         match self {
             Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a, b]).collect(),
@@ -984,9 +980,9 @@ impl<P> Node<P> {
     /// already-selected edge SHRINKS the set by one rather than
     /// duplicating it.
     ///
-    /// Exhaustive for the reason [`Node::payload_names`] is: the two
-    /// must name the same variants, so neither may wildcard.
-    pub fn rebind_payload_names(&mut self, from: &StableName, to: &StableName) -> usize {
+    /// The two must name the same variants, which is why neither
+    /// wildcards.
+    pub(crate) fn rebind_payload_names(&mut self, from: &StableName, to: &StableName) -> usize {
         fn rewrite(name: &mut StableName, from: &StableName, to: &StableName) -> usize {
             if name == from {
                 *name = to.clone();

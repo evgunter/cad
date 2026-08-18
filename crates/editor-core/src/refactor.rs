@@ -795,14 +795,6 @@ fn node_param_refs(node: &Node<ProfileProgram>) -> BTreeSet<crate::doc::ParamNam
     refs.into_iter().map(|(name, _)| name).collect()
 }
 
-/// The names a node's PAYLOAD references — the document-data sites the
-/// split's re-anchoring rewrites, beside the appearance keys. Which
-/// payloads those are is [`Node::payload_names`]' answer, never a
-/// second copy of it.
-fn payload_names(node: &Node<ProfileProgram>) -> Vec<&StableName> {
-    node.payload_names()
-}
-
 // ---- Split ----
 
 /// Cuts `cut` out of `doc` into a new document under `part_id` (the
@@ -953,7 +945,7 @@ pub fn split(
             continue;
         }
         let Some(node) = doc.node(id) else { continue };
-        for name in payload_names(node) {
+        for name in node.payload_names() {
             if !derivation_nodes(name).is_subset(cut) {
                 return Err(SplitError::PartNameReachesRemainder {
                     node: id,
@@ -989,7 +981,7 @@ pub fn split(
             continue;
         }
         let Some(node) = doc.node(id) else { continue };
-        for name in payload_names(node) {
+        for name in node.payload_names() {
             classify(name)?;
         }
     }
@@ -1367,7 +1359,7 @@ pub fn inline(
     };
     for &id in doc.order() {
         let Some(node) = doc.node(id) else { continue };
-        for name in payload_names(node) {
+        for name in node.payload_names() {
             classify(name)?;
         }
     }
