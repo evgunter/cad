@@ -40,6 +40,8 @@ mod declared_tangency;
 mod interval_lane;
 #[path = "lift_census.rs"]
 mod lift_census;
+#[path = "onarc_probe.rs"]
+mod onarc_probe;
 #[path = "path_differential.rs"]
 mod path_differential;
 #[path = "path_program.rs"]
