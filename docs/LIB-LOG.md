@@ -935,3 +935,39 @@ transition table over the post-dissolution row set, closing the
 STRUCTURAL. Lane lib-rtable, branch lib/rtable. The RESPELL-TABLE
 register entry closes at its merge — the register's last
 scheduled unit.
+
+**RTABLE MERGED (2026-08-18, #616 34/34, merge db0a4c21;
+ordinal-58 A-W-F→fixed, the first v5-instrument LIB row — in
+MODEL-AB-LOG). RESPELL-TABLE register entry CLOSED — the
+register's SCHEDULED column is EMPTY.** The v5 style lane earned
+its keep on row one: the census fix (every table row's replay
+coverage pinned) closes a class, not an instance. What remains in
+the register is Evan-paced or cross-program: the
+enclosing-tangency vocabulary question (#608's named residue),
+G8's multi-solid-operand kernel gap + the evaluate-memo door,
+the G2 sweep/tube design conversation (U4/frontier), die_tool's
+Python re-authoring (banked), Q9, and whatever #614's smell-scan
+schedule routes to LIB (the orphaned ProfileError fillet
+variants are claimed).
+
+**LIB-PERR DISPATCHED (2026-08-18, block LIB-12 slot 1 = FABLE)**:
+the smell-scan finding LIB claimed on #613 — ProfileError's five
+fillet variants (validate.rs:411-507) became fully orphaned when
+#608 deleted test_support.rs, their only constructor. Brief-as-
+spec (S size): delete the five variants + their payload-only
+support types IF those go dead too (FilletLeg/FilletLegCarrier/
+NoCornerReason are LIVE via NoCornerForFillet — verify, don't
+assume); sweep pncad-py's tag mirror, doc references
+(PATHS-DESIGN, rustdoc), and any match arms; closure = the
+workspace compiles with zero dangling references and the tag
+parity tests stay green; zero behavior change (no live path can
+mint them — prove by the compiler after deletion). Fence: nothing
+else from the smell scan; no other error surface changes.
+
+**PERR MERGED (2026-08-18, #622, merge ecf43ab6; ordinal-59
+APPROVE — row in MODEL-AB-LOG). LIB's claimed #614 item is
+discharged.** Resting state: NO active lanes; LIB-12 slots 2-4
+banked (opus ×3). Everything scheduled is done — remaining
+register items need Evan (enclosing-tangency vocabulary, Wave 0
+D1-D4, Q9) or another program (G8 kernel gap, G2 sweep/tube),
+or a #614 routing.

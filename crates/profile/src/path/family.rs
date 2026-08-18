@@ -525,10 +525,10 @@ fn radius_complete<T: geom_core::Decide>(
 }
 
 impl<T: geom_core::Decide> RadiusArrival<T> {
-    /// Binds the arrival's anchor — a real on-path point on the
-    /// derived carrier.
-    pub fn at(mut self, p: Point2<T>) -> RadiusArrivalAt<T> {
-        self.core.record(Step::At(p));
+    /// The kernel behind the table's anchor-binding row (recording is
+    /// the row's, not the kernel's).
+    pub(super) fn at_kernel(mut self, step: Step<T>, p: Point2<T>) -> RadiusArrivalAt<T> {
+        self.core.record(step);
         RadiusArrivalAt {
             core: self.core,
             spec: self.spec,
@@ -537,9 +537,10 @@ impl<T: geom_core::Decide> RadiusArrival<T> {
         }
     }
 
-    /// Binds the arrival direction (angle-first order).
-    pub fn angle(mut self, theta: T) -> RadiusArrivalDir<T> {
-        self.core.record(Step::Angle(theta));
+    /// The kernel behind the table's angle-first row (recording is the
+    /// row's, not the kernel's).
+    pub(super) fn angle_kernel(mut self, step: Step<T>, theta: T) -> RadiusArrivalDir<T> {
+        self.core.record(step);
         RadiusArrivalDir {
             core: self.core,
             spec: self.spec,
@@ -548,9 +549,15 @@ impl<T: geom_core::Decide> RadiusArrival<T> {
         }
     }
 
-    /// Binds the arrival direction as exact components.
-    pub fn toward(mut self, dx: T, dy: T) -> Result<RadiusArrivalDir<T>, PathError<T>> {
-        self.core.record(Step::Toward { dx, dy });
+    /// The kernel behind the table's components-first row (recording is
+    /// the row's, not the kernel's).
+    pub(super) fn toward_kernel(
+        mut self,
+        step: Step<T>,
+        dx: T,
+        dy: T,
+    ) -> Result<RadiusArrivalDir<T>, PathError<T>> {
+        self.core.record(step);
         let dir = verbs::director(dx, dy)?;
         Ok(RadiusArrivalDir {
             core: self.core,
@@ -562,12 +569,14 @@ impl<T: geom_core::Decide> RadiusArrival<T> {
 }
 
 impl<T: geom_core::Decide> RadiusArrivalAt<T> {
-    /// Completes the arrival with its direction; the fillet resolves.
-    pub fn angle(
+    /// The kernel behind the table's arrival-completing row (recording
+    /// is the row's, not the kernel's).
+    pub(super) fn angle_kernel(
         mut self,
+        step: Step<T>,
         theta: T,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        self.core.record(Step::Angle(theta));
+        self.core.record(step);
         radius_complete(
             self.core,
             self.spec,
@@ -577,25 +586,29 @@ impl<T: geom_core::Decide> RadiusArrivalAt<T> {
         )
     }
 
-    /// Completes the arrival with exact components; the fillet resolves.
-    pub fn toward(
+    /// The kernel behind the table's arrival-completing row (recording
+    /// is the row's, not the kernel's).
+    pub(super) fn toward_kernel(
         mut self,
+        step: Step<T>,
         dx: T,
         dy: T,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        self.core.record(Step::Toward { dx, dy });
+        self.core.record(step);
         let dir = verbs::director(dx, dy)?;
         radius_complete(self.core, self.spec, self.at, dir, self.resolver)
     }
 }
 
 impl<T: geom_core::Decide> RadiusArrivalDir<T> {
-    /// Completes the arrival with its anchor; the fillet resolves.
-    pub fn at(
+    /// The kernel behind the table's arrival-completing row (recording
+    /// is the row's, not the kernel's).
+    pub(super) fn at_kernel(
         mut self,
+        step: Step<T>,
         p: Point2<T>,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        self.core.record(Step::At(p));
+        self.core.record(step);
         radius_complete(self.core, self.spec, p, self.dir, self.resolver)
     }
 }
@@ -610,12 +623,14 @@ pub struct ViaArrival<T: Real> {
 }
 
 impl<T: geom_core::Decide> ViaArrival<T> {
-    /// Completes the directed anchor with an angle; the fillet resolves.
-    pub fn angle(
+    /// The kernel behind the table's anchor-completing row (recording is
+    /// the row's, not the kernel's).
+    pub(super) fn angle_kernel(
         mut self,
+        step: Step<T>,
         theta: T,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        self.core.record(Step::Angle(theta));
+        self.core.record(step);
         via_complete(
             self.core,
             self.q,
@@ -625,13 +640,15 @@ impl<T: geom_core::Decide> ViaArrival<T> {
         )
     }
 
-    /// Completes the directed anchor with exact components.
-    pub fn toward(
+    /// The kernel behind the table's anchor-completing row (recording is
+    /// the row's, not the kernel's).
+    pub(super) fn toward_kernel(
         mut self,
+        step: Step<T>,
         dx: T,
         dy: T,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        self.core.record(Step::Toward { dx, dy });
+        self.core.record(step);
         let dir = verbs::director(dx, dy)?;
         via_complete(self.core, self.q, self.p, dir, self.resolver)
     }
@@ -660,15 +677,26 @@ pub struct ViaArrivalStart<T: Real> {
 }
 
 impl<T: geom_core::Decide> ViaArrivalStart<T> {
-    /// Completes the close with an angle at the entry anchor.
-    pub fn angle(mut self, theta: T) -> Result<ClosedLoop<T>, PathError<T>> {
-        self.core.record(Step::Angle(theta));
+    /// The kernel behind the table's Via-close row (recording is the
+    /// row's, not the kernel's).
+    pub(super) fn angle_kernel(
+        mut self,
+        step: Step<T>,
+        theta: T,
+    ) -> Result<ClosedLoop<T>, PathError<T>> {
+        self.core.record(step);
         via_close(self.core, self.q, Dir::from_angle(theta), self.resolver)
     }
 
-    /// Completes the close with exact components at the entry anchor.
-    pub fn toward(mut self, dx: T, dy: T) -> Result<ClosedLoop<T>, PathError<T>> {
-        self.core.record(Step::Toward { dx, dy });
+    /// The kernel behind the table's Via-close row (recording is the
+    /// row's, not the kernel's).
+    pub(super) fn toward_kernel(
+        mut self,
+        step: Step<T>,
+        dx: T,
+        dy: T,
+    ) -> Result<ClosedLoop<T>, PathError<T>> {
+        self.core.record(step);
         let dir = verbs::director(dx, dy)?;
         via_close(self.core, self.q, dir, self.resolver)
     }
@@ -949,24 +977,16 @@ impl<T: ArcCarrierScalar> LegEndIncoming<T> for Radius<T> {
 // ------------------------------------------------------------------
 
 impl Open {
-    /// **§2c, the entry fused verb**: authors the ENTRY side ON an arc
-    /// carrier — the spec's `p` is the entry anchor, the direction is
-    /// the carrier's tangent there (derived, never authored) — and
-    /// opens a fillet of `radius` off that carrier, line arrival.
-    ///
-    /// The entry's carrier and the fillet that trims it are ONE
-    /// authoring act, which is what the axiom demands: a fillet that
-    /// needs an arc carrier cannot learn it, so it authors it.
-    pub fn arc_fillet<T: ArcCarrierScalar>(
+    /// The kernel behind the table's entry fused-arc row: the row
+    /// records the step, the kernel constructs the side.
+    pub(super) fn arc_fillet_kernel<T: ArcCarrierScalar>(
         self,
+        step: Step<T>,
         spec: Center<T, Point2<T>>,
         radius: T,
     ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
         let mut core = Core::empty();
-        core.record(Step::ArcFillet {
-            spec: PointIncoming::to_wire(&spec),
-            radius,
-        });
+        core.record(step);
         entry_arc_open(&mut core, &spec, radius)?;
         Ok(in_state(
             core,
@@ -978,22 +998,17 @@ impl Open {
         ))
     }
 
-    /// The entry fused verb with an ARC arrival: `arc_fillet` whose
-    /// arrival is the spec₂ mode's own completion (a `Center` interior
-    /// anchor resolves at the verb; `Center { p: Start }` would close a
-    /// two-sided loop; `Radius`/`Via` await their binders).
-    pub fn arc_fillet_arc<T: ArcCarrierScalar, S2: ArrivalSpec<T>>(
+    /// The kernel behind the table's entry fused-arc/arc-arrival row:
+    /// the row records the step, the kernel constructs the side.
+    pub(super) fn arc_fillet_arc_kernel<T: ArcCarrierScalar, S2: ArrivalSpec<T>>(
         self,
+        step: Step<T>,
         spec: Center<T, Point2<T>>,
         radius: T,
         spec2: S2,
     ) -> S2::Out {
         let mut core = Core::empty();
-        core.record(Step::ArcFilletArc {
-            spec: PointIncoming::to_wire(&spec),
-            radius,
-            spec2: spec2.to_wire(),
-        });
+        core.record(step);
         if let Err(e) = entry_arc_open(&mut core, &spec, radius) {
             return S2::fail(e);
         }
@@ -1026,14 +1041,9 @@ fn entry_arc_open<T: ArcCarrierScalar>(
 }
 
 impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
-    /// **§2c**: line incoming, ARC arrival — consumes the directed tip
-    /// (the incoming side is its ray) and opens/resolves the arc
-    /// arrival per the spec mode's own completion story.
-    pub fn fillet_arc<S: ArrivalSpec<T>>(mut self, radius: T, spec: S) -> S::Out {
-        self.core.record(Step::FilletArc {
-            radius,
-            spec: spec.to_wire(),
-        });
+    /// The kernel behind the table's line-incoming/arc-arrival row
+    /// (recording is the row's, not the kernel's).
+    pub(super) fn fillet_arc_kernel<S: ArrivalSpec<T>>(mut self, radius: T, spec: S) -> S::Out {
         let (at, ang) = match self.dep() {
             Ok(v) => v,
             Err(e) => return S::fail(e),
@@ -1051,19 +1061,13 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         S::apply(self.core, spec)
     }
 
-    /// **§2c**: fused ARC incoming from a directed tip — the
-    /// endpoint-free pair departs tangentially and derives its
-    /// endpoint, which becomes the incoming side's anchor; the fillet
-    /// of `radius` trims off its far end. Line arrival.
-    pub fn arc_fillet<S: TangentIncoming<T>>(
+    /// The kernel behind the table's tangent-departing fused row
+    /// (recording is the row's, not the kernel's).
+    pub(super) fn arc_fillet_kernel<S: TangentIncoming<T>>(
         mut self,
         spec: S,
         radius: T,
     ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
-        self.core.record(Step::ArcFillet {
-            spec: spec.to_wire(),
-            radius,
-        });
         self.tangent_arc_open(&spec, radius)?;
         Ok(in_state(
             self.core,
@@ -1075,18 +1079,14 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         ))
     }
 
-    /// **§2c**: fused arc incoming AND arc arrival.
-    pub fn arc_fillet_arc<Si: TangentIncoming<T>, S2: ArrivalSpec<T>>(
+    /// The kernel behind the table's tangent-departing fused/arrival
+    /// row (recording is the row's, not the kernel's).
+    pub(super) fn arc_fillet_arc_kernel<Si: TangentIncoming<T>, S2: ArrivalSpec<T>>(
         mut self,
         spec: Si,
         radius: T,
         spec2: S2,
     ) -> S2::Out {
-        self.core.record(Step::ArcFilletArc {
-            spec: spec.to_wire(),
-            radius,
-            spec2: spec2.to_wire(),
-        });
         if let Err(e) = self.tangent_arc_open(&spec, radius) {
             return S2::fail(e);
         }
@@ -1128,15 +1128,12 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         )
     }
 
-    /// **§2c**: the endpoint-free SHARP arc legs — `arc_to(spec)` with
-    /// `Sweep`/`ArcLen`, the arc analogs of `line(len)`: tangent
-    /// departure (already junction-checked when the director bound),
-    /// endpoint derived, terminating at a directed point.
-    pub fn arc_to<S: TangentIncoming<T>>(
+    /// The kernel behind the table's endpoint-free sharp-leg row
+    /// (recording is the row's, not the kernel's).
+    pub(super) fn arc_to_kernel<S: TangentIncoming<T>>(
         mut self,
         spec: S,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        self.core.record(Step::ArcTo(spec.to_wire()));
         let (at, ang) = self.dep()?;
         let leg = spec.leg(DirectedPoint { at, dir: ang })?;
         let carrier = SegArc {
@@ -1159,18 +1156,13 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
 }
 
 impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
-    /// **§2c**: fused arc incoming from a PLAIN point tip — the
-    /// endpoint-full modes author the incoming side's carrier and its
-    /// anchor `p` in one act. Line arrival.
-    pub fn arc_fillet<S: PointIncoming<T>>(
+    /// The kernel behind the table's plain-point fused row (recording
+    /// is the row's, not the kernel's).
+    pub(super) fn arc_fillet_kernel<S: PointIncoming<T>>(
         mut self,
         spec: S,
         radius: T,
     ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
-        self.core.record(Step::ArcFillet {
-            spec: spec.to_wire(),
-            radius,
-        });
         self.point_arc_open(&spec, radius)?;
         Ok(in_state(
             self.core,
@@ -1182,18 +1174,14 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
         ))
     }
 
-    /// **§2c**: fused arc incoming (point modes) AND arc arrival.
-    pub fn arc_fillet_arc<Si: PointIncoming<T>, S2: ArrivalSpec<T>>(
+    /// The kernel behind the table's plain-point fused/arrival row
+    /// (recording is the row's, not the kernel's).
+    pub(super) fn arc_fillet_arc_kernel<Si: PointIncoming<T>, S2: ArrivalSpec<T>>(
         mut self,
         spec: Si,
         radius: T,
         spec2: S2,
     ) -> S2::Out {
-        self.core.record(Step::ArcFilletArc {
-            spec: spec.to_wire(),
-            radius,
-            spec2: spec2.to_wire(),
-        });
         if let Err(e) = self.point_arc_open(&spec, radius) {
             return S2::fail(e);
         }
@@ -1231,14 +1219,12 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
 }
 
 impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
-    /// **§2c round 10 — RAY EXTENSION**: bare `fillet(r)` directly on a
-    /// leg end. The incoming contact sits on the TANGENT RAY ahead of
-    /// the directed point, as new path: the surviving ray piece is a
-    /// genuine line leg extending from the leg's end (declared tangent
-    /// by construction — the ray IS the tangent), whatever leg came
-    /// before. Line arrival.
-    pub fn fillet(mut self, radius: T) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
-        self.core.record(Step::Fillet { radius });
+    /// The kernel behind the table's ray-extension fillet row (recording
+    /// is the row's, not the kernel's).
+    pub(super) fn fillet_kernel(
+        mut self,
+        radius: T,
+    ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
         self.ray_extend(radius)?;
         Ok(in_state(
             self.core,
@@ -1250,12 +1236,9 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         ))
     }
 
-    /// Ray extension with an ARC arrival (`fillet_arc` off a leg end).
-    pub fn fillet_arc<S: ArrivalSpec<T>>(mut self, radius: T, spec: S) -> S::Out {
-        self.core.record(Step::FilletArc {
-            radius,
-            spec: spec.to_wire(),
-        });
+    /// The kernel behind the table's leg-end ray-extension/arrival row
+    /// (recording is the row's, not the kernel's).
+    pub(super) fn fillet_arc_kernel<S: ArrivalSpec<T>>(mut self, radius: T, spec: S) -> S::Out {
         if let Err(e) = self.ray_extend(radius) {
             return S::fail(e);
         }
@@ -1278,19 +1261,13 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         open_ray(&mut self.core, at, inc.ang, radius, true, Some(inc))
     }
 
-    /// **§2c**: fused arc incoming from a DIRECTED POINT — the
-    /// endpoint-full modes (junction-checked at the tip, as the sharp
-    /// legs check theirs) plus `Radius`: ARC EXTENSION, the arc analog
-    /// of ray extension (see [`LegEndIncoming`]). Line arrival.
-    pub fn arc_fillet<S: LegEndIncoming<T>>(
+    /// The kernel behind the table's leg-end fused row (recording is
+    /// the row's, not the kernel's).
+    pub(super) fn arc_fillet_kernel<S: LegEndIncoming<T>>(
         mut self,
         spec: S,
         radius: T,
     ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
-        self.core.record(Step::ArcFillet {
-            spec: spec.to_wire(),
-            radius,
-        });
         self.leg_end_arc_open(&spec, radius)?;
         Ok(in_state(
             self.core,
@@ -1302,19 +1279,14 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         ))
     }
 
-    /// **§2c**: fused arc incoming (directed-point modes) AND arc
-    /// arrival.
-    pub fn arc_fillet_arc<Si: LegEndIncoming<T>, S2: ArrivalSpec<T>>(
+    /// The kernel behind the table's leg-end fused/arrival row
+    /// (recording is the row's, not the kernel's).
+    pub(super) fn arc_fillet_arc_kernel<Si: LegEndIncoming<T>, S2: ArrivalSpec<T>>(
         mut self,
         spec: Si,
         radius: T,
         spec2: S2,
     ) -> S2::Out {
-        self.core.record(Step::ArcFilletArc {
-            spec: spec.to_wire(),
-            radius,
-            spec2: spec2.to_wire(),
-        });
         if let Err(e) = self.leg_end_arc_open(&spec, radius) {
             return S2::fail(e);
         }
@@ -1494,27 +1466,4 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Start> {
     }
 }
 
-impl<T: geom_core::Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
-    /// **§2c**: the SHARP arc leg from a point tip — one verb over the
-    /// endpoint-full `ArcData` modes (`Bulge{p, b}` chord-relative,
-    /// `Via{q, p}` through a point, `Center{c, winding, p}` about a
-    /// centre). `p: Start` is the sharp arc seam.
-    ///
-    /// Each mode's authored data is stored VERBATIM and its bulge
-    /// derived by the one closed form the raw chain uses
-    /// ([`crate::bulge_from_via`] / [`crate::bulge_from_center`]), so
-    /// the doors emit the same bits. On a directed point the §4 item 1
-    /// junction check runs on the arc's START TANGENT.
-    ///
-    /// Refusals: a through-point within ε_input of the chord LINE
-    /// ([`PathError::ArcViaCollinear`] — the whole collinear class);
-    /// coincident endpoints ([`PathError::DegenerateArcChord`]); a
-    /// centre whose two radii disagree definitely
-    /// ([`PathError::ArcCenterNotEquidistant`] — checked, never
-    /// repaired: re-projecting would move an authored point, which §4
-    /// item 3 forbids) or sits within ε_input of an endpoint
-    /// ([`PathError::DegenerateArcCenter`]).
-    pub fn arc_to<S: PointLeg<T, F>>(self, spec: S) -> S::Out {
-        S::leg_from(self, spec)
-    }
-}
+impl<T: geom_core::Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {}
