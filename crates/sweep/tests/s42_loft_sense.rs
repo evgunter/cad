@@ -275,11 +275,27 @@ fn the_probe_inverts_when_a_wall_sense_flips() {
 /// bit-identical too. This row pins that state: if NURBS coverage ever
 /// lands in check 6 it fails, and the guard moves from these rows into
 /// the validator where it belongs.
+///
+/// # Cost
+///
+/// Only the LIED body is metered. The honest body's `3.0` is
+/// `concave_arc_loft_walls_point_out_of_the_material`'s row, so
+/// comparing the inside-out volume against that analytic constant says
+/// exactly what a honest-vs-lied comparison would and pays one fewer
+/// rational quadrature (the m8-3 test-cost discipline).
 #[test]
 fn a_flipped_loft_wall_sense_still_passes_tier_three() {
     let lofted = loft_pair(&notched_loops(1.0), 1.0);
-    let honest = topo::props::mass_properties(&lofted.body).unwrap().volume;
     let wall = lofted.side_faces[0][2];
+    // Segment order is the profile's: the third is the CONCAVE arc, the
+    // one whose extruded twin mints `sense: false`. Pinned, so the row
+    // cannot drift onto a planar wall and keep passing.
+    let (p, _) = wall_outward(&lofted.body, wall);
+    assert!(
+        (p.y - (2.5 - 2.0_f64.sqrt())).abs() < 1e-9,
+        "the flipped wall is the concave arc, whose mid-chart sample sits \
+         on the notch floor y = 2.5 − √2; got {p:?}"
+    );
     let lied = lofted.body.flipped_face_sense_for_tests(wall).unwrap();
     assert_eq!(topo::validate(&lied), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&lied), Ok(()), "tier 2");
@@ -291,9 +307,9 @@ fn a_flipped_loft_wall_sense_still_passes_tier_three() {
     );
     let lied_vol = topo::props::mass_properties(&lied).unwrap().volume;
     assert!(
-        (lied_vol - honest).abs() < 1e-12,
-        "the flux is winding-derived, so the flip is invisible to props: \
-         {lied_vol} vs {honest}"
+        (lied_vol - 3.0).abs() < 1e-7,
+        "the flux is winding-derived, so props meter the inside-out body at \
+         the honest 3.0 — the bit is invisible to them; got {lied_vol}"
     );
 }
 
