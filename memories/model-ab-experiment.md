@@ -57,6 +57,16 @@ cost — measured, not vibed ("with actual random numbers").
   {opus×3, fable}, byte mod 4, reject ≥252. Dual sample numbers
   follow ORDINALS (#398-thread ratification).
 
+- **Protocol v5 (Evan, 2026-08-18)** — full text in the log:
+  reviews gain a STYLE LANE alongside the claims to falsify
+  (brief text: `docs/REVIEW-STYLE-BRIEF.md`, pasted verbatim into
+  dispatches), and a disclosed deviation that is not an improvement
+  owes a concretely scheduled followup before merge. **Seam: review
+  figures are not comparable across 2026-08-18** — the instrument
+  changed, so expect findings counts to rise without any change in
+  implementation quality; a readout spanning the boundary reports the
+  two eras separately.
+
 **Every live number of this experiment — block, slot, ordinal,
 dual tally — is claimed from `docs/MODEL-AB-LOG.md` ON MAIN at
 dispatch.** No copy lives in this memory, in a plan, or in an

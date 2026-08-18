@@ -59,6 +59,10 @@ usable-as-a-library (`docs/LIB-LOG.md`), ASM — assemblies
 
 ## Kernel rules
 
+- [Output stability as justification](output-stability-as-justification.md)
+  — byte/bit-preservation may choose among equivalent implementations,
+  never justify keeping code; and the three uses of that vocabulary it
+  does not touch
 - [K telemetry state](../docs/K-REPORT.md) — not a memory: K = 10 is the
   permanent ratified default, #89 CLOSED; check a landing's margin
   DIMENSION before reading it as K evidence

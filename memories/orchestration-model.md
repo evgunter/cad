@@ -96,7 +96,9 @@ in git history and the M-logs, not here):
   monitors, or background chains for your own builds/tests; when the
   build-slot queue is busy, a BLOCKING foreground wait is the correct
   state — re-issue a timed-out call rather than parking".
-- **Reviews**: assign reviewers explicit claims to falsify; promote
+- **Reviews**: assign reviewers explicit claims to falsify, AND paste the
+  style lane (`docs/REVIEW-STYLE-BRIEF.md` §2-3) — the claims lane is
+  strong on soundness and blind to structure; promote
   reviewer suites into CI after the fix pass
   ([[review-and-dependency-policy]]). Dual-review sampling per the A/B
   amendment in `docs/MODEL-AB-LOG.md`, which owns the ordinal.
