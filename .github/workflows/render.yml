@@ -235,6 +235,19 @@ on:
         required: false
         default: false
 
+env:
+  # THE COMMIT TARGET, RESOLVED ONCE (three copies of this expression
+  # drifted into a bug: the dispatch fallback fired in GATE mode too and
+  # turned ci.yml's deliberate empty value into `github.ref_name`, which
+  # on a pull_request is `NNN/merge` — not a branch. `couldn't find
+  # remote ref 598/merge`, PR #598.)
+  #
+  # In GATE mode ci.yml is AUTHORITATIVE and an empty value MUST mean
+  # "do not commit" — it passes the branch on main pushes and nothing on
+  # PRs. Only a DISPATCH may fall back to the branch it was fired on,
+  # and only when no explicit `ref` made the target ambiguous.
+  PUSH_TARGET: ${{ inputs.push_to != '' && inputs.push_to || (!inputs.gate && inputs.ref == '' && github.ref_name || '') }}
+
 concurrency:
   # On demand, a render someone ASKED for is never cancelled — a second
   # dispatch queues behind the first. As ci.yml's gate the opposite is
@@ -409,9 +422,7 @@ jobs:
         with:
           lane: uv
           dir: demos/renders-uv
-          # inputs.push_to wins; otherwise the dispatched branch, but
-          # only when no explicit `ref` made the target ambiguous.
-          push_to: ${{ inputs.push_to != '' && inputs.push_to || (inputs.ref == '' && github.ref_name || '') }}
+          push_to: ${{ env.PUSH_TARGET }}
           # On a pull_request `github.sha` is the MERGE commit; a check
           # posted there never shows on the PR. ci.yml passes the PR's
           # head sha explicitly.
@@ -623,9 +634,7 @@ jobs:
         with:
           lane: ${{ matrix.lane }}
           dir: demos/${{ env.LANE_DIR }}
-          # inputs.push_to wins; otherwise the dispatched branch, but
-          # only when no explicit `ref` made the target ambiguous.
-          push_to: ${{ inputs.push_to != '' && inputs.push_to || (inputs.ref == '' && github.ref_name || '') }}
+          push_to: ${{ env.PUSH_TARGET }}
           # On a pull_request `github.sha` is the MERGE commit; a check
           # posted there never shows on the PR. ci.yml passes the PR's
           # head sha explicitly.
@@ -774,9 +783,7 @@ jobs:
         with:
           lane: wild
           dir: demos/renders-wild
-          # inputs.push_to wins; otherwise the dispatched branch, but
-          # only when no explicit `ref` made the target ambiguous.
-          push_to: ${{ inputs.push_to != '' && inputs.push_to || (inputs.ref == '' && github.ref_name || '') }}
+          push_to: ${{ env.PUSH_TARGET }}
           # On a pull_request `github.sha` is the MERGE commit; a check
           # posted there never shows on the PR. ci.yml passes the PR's
           # head sha explicitly.

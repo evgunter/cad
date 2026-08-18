@@ -86,6 +86,21 @@ runs:
         echo "$DIR drifted from the committed cells:"
         echo "$drift"
 
+        # A MISSING CELL IS A RENDER FAILURE, NOT A RE-BASELINE.
+        # `git add -A` would happily stage a deletion, so a lane that
+        # dropped a frame — a scene that failed to draw, a scene silently
+        # falling out of the tour — would have its loss COMMITTED, and
+        # the committed lane would quietly shrink. render.sh publishes
+        # only a whole pass and local-scripts/render-hosted.sh "reports
+        # rather than deletes" for exactly this reason; this is that same
+        # rule on the write path. Modifications and additions are an
+        # ordinary re-baseline; deletions stop the job.
+        deleted="$(git status --porcelain -- "$DIR/" | awk '$1 ~ /D/ {print $2}')"
+        if [ -n "$deleted" ]; then
+          echo "::error title=${DIR} lost cells::This render did not produce cells that are committed, so it is a failed or partial pass, not a re-baseline. Nothing was committed. Missing: $(echo "$deleted" | tr '\n' ' ')"
+          exit 1
+        fi
+
         # REPORT-ONLY MODE (`push_to` empty). Two situations reach it,
         # and both want the same thing — say so, commit nothing:
         #
