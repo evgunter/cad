@@ -1206,3 +1206,9 @@ deleted) = FABLE. Pre-draw fields logged at dispatch: **S /
 STRUCTURAL** (a deletion with closure verification; no spec file
 — the brief is the spec, recorded in LIB-LOG). Lane lib-perr,
 branch lib/perr. Row at merge. Slots 2-4 bank.
+LIB-PERR review ordinal fixed at dispatch (2026-08-18, PR #622
+open, frozen head 826e07fa): claimed through 58 (RTABLE) + 1 =
+**59 → SINGLE** (60 is the next third — cross-model per #572).
+Reviewer fable, v5 instrument. Pre-draw fields logged at the
+LIB-12 draw: S / STRUCTURAL (brief-as-spec in LIB-LOG; arm =
+block LIB-12 slot 1). Row at merge.
