@@ -643,7 +643,7 @@ mod tests {
         // A rim at height `z`: the cylinder cut by the plane there.
         // The descending rim runs on the reversed axis so its own
         // parameters increase, exactly as the split lane mints them.
-        let mut rim = |body: &mut Body<f64>, z: f64, ccw: bool| {
+        let rim = |body: &mut Body<f64>, z: f64, ccw: bool| {
             let plane = body.add_surface(Surface::Plane {
                 origin: Point3::new(0.0, 0.0, z),
                 normal: Vec3::unit_z(),
