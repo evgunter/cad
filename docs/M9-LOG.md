@@ -194,11 +194,63 @@ pair-level soundness gap R1's pac-man probe exposed
 the probe branch adopted authorship-preserving; 393/393 topo +
 6/6 boss_union locally, hosted matrix green. GROUP-BOOLEAN's
 lowering sentence corrected per the #571 adjudication (rides this
-seam). Machine note: the previous session's usage-kill orphaned a
-lib-seal workspace battery whose children still hold BOTH main
-build-slot flocks (the fd-inheritance shape, misleading
-dead-holder files); kill is classifier-blocked from this session
-— escalated to Evan; express lane unaffected and in use
-meanwhile. Board: M9-3 substrate DONE (report in the substrate
-lane; the recl.rs second wall site is its headline), germ-
-reachability spike running; spec + block M9-16 draw next.
+seam). Machine note (#590, filed and CLOSED same day): a timed-out
+battery call from the lib-seal implementer left fd-inheriting
+orphans holding BOTH main build-slot flocks — the documented
+leak shape, with dead-holder files that misleadingly read
+"free". Kill was classifier-blocked from this session; the ASM
+orchestrator's session had the permission and cleared it. Two
+corrections to that filing, recorded on its thread: the LIB
+orchestrator is ALIVE (its bash pane is the mngr wrapper — a
+dead-pane misread on my part, and the takeover-courtesy rule
+says message first), and the two legacy-file watchlist entries
+were already-ruled items, since removed rather than stranded.
+Board: M9-3 substrate DONE (the recl.rs second wall site is its
+headline), germ-reachability spike running; spec + block M9-16
+draw next.
+
+## M9-3 PAUSED MID-SPEC (2026-08-18) — resume point
+
+This thread stopped between the substrate and the dispatch; the
+resume affordance is its own issue, pointing here and at the
+spec. State, precisely:
+
+- **NOTHING IN FLIGHT.** No implementer or reviewer agents alive;
+  no ordinal claimed on the M9 side; the **block M9-16 draw has
+  NOT been made** (draw it at dispatch, byte mod 4, reject ≥252).
+- **docs/M9-3-SPEC.md exists as a DRAFT** — binding in substance
+  (both wall sites, the door-by-inventory ruling, the
+  no-new-metered-predicate default, the U2 emission constraint,
+  the two-PR shape, the acceptance rows) with ONE ruling left
+  open: the PR boundary, which depends on whether curved germ /
+  v-v records reach the rest lane on a two-peg body.
+- **The spike that answers it was authored and never run** — the
+  substrate agent hit a model usage limit mid-authorship.
+  Salvaged to branch `m9/3-spike-wip` (2c618982,
+  crates/sweep/tests/spike_peg.rs); **never merge it**, finish and
+  run it, then fix the ruling and drop DRAFT.
+- The substrate report was lane-private; its load-bearing
+  file:line anchors are folded into the spec's evidence appendix,
+  so the lane is safe to sweep.
+
+Cross-program movement during the pause, which the resumer must
+read as CHANGED state: **TESS-SPAN MERGED (#594, 2026-08-18) —
+M9-5's stated dependency is DISCHARGED**, and its at-merge entry
+in ASM-LOG carries the fresh-state pointer the lily rebuild's
+baselines need, so M9-5's spec is now unblocked (walls 1+7
+retire, wall 2 stays deferred by ruling, wall 8 still rides the
+post-M9 pcurve migration, #554 rides-or-banks as a question for
+Evan). ASM also opened R2-b (#591) and the AQ8 design
+conversation (#592); LIB landed LIB-SEAL (#596) and has lib/pypu
+(#604) open. **Review ordinals moved while M9 was paused** (53
+ASM-R2b, 54 TESS-SPAN cross-model, 55 LIB-SEAL) — claim from the
+ledger ON MAIN at review dispatch, never from this entry. Filed
+by other programs and worth a read before the next dispatch:
+#598 (CI committing its own measurements), #601 (feature-gated
+test lanes rot uncompiled), #600 (two orchestrators dead at
+usage-credit walls — Evan's decision, not this program's).
+
+Next actions, in order: finish + run the spike → fix the spec's
+PR-boundary ruling and drop DRAFT → draw block M9-16 → dispatch
+PR-A with the standard brief lines → M9-5 spec (now unblocked) →
+the M9 exit walk.
