@@ -1135,9 +1135,12 @@ pub fn split(
     // instance is a singleton cluster. Whether such a mate should mint
     // a crossing (what happens now — the declaration does name both
     // sides), be skipped (A4's letter: no edge, no crossing), or
-    // refuse the split is PENDING Evan's AQ8-addendum ruling; the
-    // behaviour is pinned by `row5_d` in editor-core's ASM-R2b suite
-    // so the ruling changes one row and one arm.
+    // refuse the split is the OPEN SUB-QUESTION of **AQ8**
+    // (docs/ASSEMBLY-DESIGN.md), whose recorded entry rules the
+    // mate-EDGE composition gap and proposes the ASM-XSPLIT
+    // conversion door but does not yet reach the collector's width.
+    // The behaviour is pinned by `row5_d` in editor-core's ASM-R2b
+    // suite, so the ruling changes one row and one arm.
     let mut crossings: Vec<InterfaceCrossing> = Vec::new();
     for &id in doc.order() {
         if cut.contains(&id) {

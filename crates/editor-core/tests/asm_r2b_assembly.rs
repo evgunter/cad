@@ -625,8 +625,9 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
 // refuses any cut that is not a union of WHOLE clusters
 // (`SplitError::TornCluster`). Opposite sides of a cut and the same
 // cluster are mutually exclusive. A4's sentence and A11's cut rule are
-// in tension for proper edges; resolving it is a design ruling, not an
-// implementer's choice.
+// in tension for proper edges; that gap is now recorded as **AQ8** in
+// docs/ASSEMBLY-DESIGN.md, whose proposed resolution is a conversion
+// door (ASM-XSPLIT) rather than a change to either rule.
 //
 // **The collector is WIDER than A4's edge**, and that is the corrected
 // claim: `split`'s predicate is over name-derivation sides, so a mate
@@ -635,9 +636,9 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
 // edge, leaves its instance a singleton, and DOES mint a populated
 // crossing record through a cut the precondition accepts. `row5_d`
 // pins that behaviour as it stands. Whether such a mate should mint,
-// be skipped, or refuse the split is **pending Evan's ruling on the
-// AQ8 thread** — the row names it as current behaviour, not as
-// settled semantics.
+// be skipped, or refuse the split is **AQ8's open sub-question**
+// (docs/ASSEMBLY-DESIGN.md) — the row names it as current behaviour,
+// not as settled semantics.
 
 /// INVARIANT (the A4-vs-A11 tension for a PROPER MATE EDGE,
 /// executable): cutting ONE instance of a mated pair refuses
@@ -806,8 +807,11 @@ fn row5_c_inline_dissolves_the_crossing_record() {
 /// This row asserts what the code does, and says so in its name. It is
 /// deliberately NOT an invariant claim: whether such a mate should
 /// mint (current), be skipped (A4's letter — no edge, no crossing), or
-/// refuse the split is the AQ8 addendum's to decide. When it is ruled,
-/// this row is the one that changes.
+/// refuse the split is **AQ8**'s open sub-question
+/// (docs/ASSEMBLY-DESIGN.md — the recorded entry rules the mate-EDGE
+/// composition gap and proposes ASM-XSPLIT's conversion door, but does
+/// not yet reach the collector's width). When it is ruled, this row is
+/// the one that changes.
 #[test]
 fn row5_d_a_dangling_head_mate_currently_mints_a_crossing_pending_aq8() {
     let mut store = StubStore::default();
