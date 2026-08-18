@@ -134,7 +134,7 @@ impl ClosedLoop {
     /// points included, the trimmed-away virtual corner not.
     #[getter]
     fn vertex_count(&self) -> usize {
-        self.0.loop_.vertices.len()
+        self.0.loop_.vertices().len()
     }
 
     /// How many steps the recorded program has.

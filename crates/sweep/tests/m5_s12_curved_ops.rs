@@ -72,10 +72,7 @@ fn rect(w: f64, h: f64) -> ProfileLoop<f64> {
     ProfileLoop::new(
         [(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: p2(x, y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .collect(),
     )
 }
@@ -99,11 +96,7 @@ fn boss(n: usize, z0: f64, len: f64) -> Body<f64> {
         let th = theta * i as f64;
         p2(1.2 + R * th.cos(), 1.7 + R * th.sin())
     };
-    let lp = ProfileLoop::new(
-        (0..n)
-            .map(|i| ProfileVertex { pos: at(i), bulge })
-            .collect(),
-    );
+    let lp = ProfileLoop::new((0..n).map(|i| ProfileVertex::new(at(i), bulge)).collect());
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tolerance::get())
@@ -116,30 +109,12 @@ fn boss(n: usize, z0: f64, len: f64) -> Body<f64> {
 /// the operand that makes the mixed-sense split reachable.
 fn notched() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(3.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(3.0, 1.0),
-            bulge: -1.0,
-        },
-        ProfileVertex {
-            pos: p2(3.0, 2.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(3.0, 3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 3.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+        ProfileVertex::new(p2(3.0, 0.0), 0.0),
+        ProfileVertex::new(p2(3.0, 1.0), -1.0),
+        ProfileVertex::new(p2(3.0, 2.0), 0.0),
+        ProfileVertex::new(p2(3.0, 3.0), 0.0),
+        ProfileVertex::new(p2(0.0, 3.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -155,14 +130,8 @@ const NOTCH: f64 = PI * 0.25 / 2.0;
 /// sphere surface, translated to `centre`.
 fn ball_at(centre: Vec3<f64>) -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -1.0), 1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -412,10 +381,7 @@ fn a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit() {
     let sq = ProfileLoop::new(
         [(2.0, 0.5), (4.0, 0.5), (4.0, 2.5), (2.0, 2.5)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: p2(x, y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .collect(),
     );
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));

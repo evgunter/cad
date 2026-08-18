@@ -47,10 +47,10 @@ fn rectangle_canonical_form() {
     // preserved verbatim.
     let vs = lp.vertices();
     assert_eq!(vs.len(), 4);
-    assert_eq!((vs[0].pos.x, vs[0].pos.y), (0.0, 0.0));
-    assert_eq!((vs[1].pos.x, vs[1].pos.y), (2.0, 0.0));
-    assert_eq!((vs[2].pos.x, vs[2].pos.y), (2.0, 2.0));
-    assert_eq!((vs[3].pos.x, vs[3].pos.y), (0.0, 2.0));
+    assert_eq!((vs[0].pos().x, vs[0].pos().y), (0.0, 0.0));
+    assert_eq!((vs[1].pos().x, vs[1].pos().y), (2.0, 0.0));
+    assert_eq!((vs[2].pos().x, vs[2].pos().y), (2.0, 2.0));
+    assert_eq!((vs[3].pos().x, vs[3].pos().y), (0.0, 2.0));
     assert_eq!(kinds(&vp, 0), vec!['L'; 4]);
     // Segment chain is coherent: segment k runs vertex k → k+1.
     let segs = lp.segments();
@@ -70,7 +70,7 @@ fn clockwise_rectangle_canonicalizes_to_the_same_form() {
 fn l_profile_validates_with_canonical_start() {
     let vp = ok(&profile(vec![l_profile()]));
     assert_eq!(vp.loops()[0].role(), LoopRole::Outer);
-    let v0 = vp.loops()[0].vertices()[0].pos;
+    let v0 = vp.loops()[0].vertices()[0].pos();
     assert_eq!((v0.x, v0.y), (0.0, 0.0));
     assert_eq!(kinds(&vp, 0), vec!['L'; 6]);
 }
@@ -81,7 +81,7 @@ fn circle_as_two_arcs_is_the_minimal_closed_carrier() {
     let lp = &vp.loops()[0];
     assert_eq!(lp.role(), LoopRole::Outer);
     // Canonical start: the lexicographic minimum (−2, 0).
-    let v0 = lp.vertices()[0].pos;
+    let v0 = lp.vertices()[0].pos();
     assert_eq!((v0.x, v0.y), (-2.0, 0.0));
     assert_eq!(kinds(&vp, 0), vec!['+', '+']);
     for s in lp.segments() {
@@ -110,10 +110,10 @@ fn annulus_roles_and_hole_reorientation() {
     // re-oriented clockwise (bulges negated by the reversal).
     assert_eq!(kinds(&vp, 0), vec!['+', '+']);
     assert_eq!(kinds(&vp, 1), vec!['-', '-']);
-    assert_eq!(vp.loops()[1].vertices()[0].bulge, -1.0);
+    assert_eq!(vp.loops()[1].vertices()[0].bulge(), -1.0);
     // Canonical starts: lexicographic minima of each circle.
-    let o0 = vp.loops()[0].vertices()[0].pos;
-    let h0 = vp.loops()[1].vertices()[0].pos;
+    let o0 = vp.loops()[0].vertices()[0].pos();
+    let h0 = vp.loops()[1].vertices()[0].pos();
     assert_eq!((o0.x, o0.y), (-2.0, 0.0));
     assert_eq!((h0.x, h0.y), (-1.0, 0.0));
 }
@@ -137,7 +137,7 @@ fn rounded_rectangle_alternates_lines_and_ccw_arcs() {
     assert_eq!(lp.role(), LoopRole::Outer);
     // Lexicographic minimum vertex: (0, 0.5) — the input's closing
     // vertex — so the canonical chain starts with its corner arc.
-    let v0 = lp.vertices()[0].pos;
+    let v0 = lp.vertices()[0].pos();
     assert_eq!((v0.x, v0.y), (0.0, 0.5));
     assert_eq!(kinds(&vp, 0), vec!['+', 'L', '+', 'L', '+', 'L', '+', 'L']);
     // Corner arc geometry: the first canonical segment is the corner
@@ -158,7 +158,7 @@ fn lens_two_vertex_loop_with_distinct_carriers() {
     let lp = &vp.loops()[0];
     assert_eq!(lp.role(), LoopRole::Outer);
     assert_eq!(kinds(&vp, 0), vec!['+', '-']);
-    let v0 = lp.vertices()[0].pos;
+    let v0 = lp.vertices()[0].pos();
     assert_eq!((v0.x, v0.y), (0.0, 0.0));
 }
 
@@ -182,14 +182,14 @@ fn reversal_is_a_bit_exact_involution() {
     ];
     for lp in &loops {
         let back = lp.reversed().reversed();
-        assert_eq!(back.vertices.len(), lp.vertices.len());
+        assert_eq!(back.vertices().len(), lp.vertices().len());
         // Declared-tangent joints round-trip exactly too (the reversal
         // remap is an involution).
-        assert_eq!(back.tangent_joints, lp.tangent_joints);
-        for (a, b) in lp.vertices.iter().zip(back.vertices.iter()) {
-            assert_eq!(a.pos.x.to_bits(), b.pos.x.to_bits());
-            assert_eq!(a.pos.y.to_bits(), b.pos.y.to_bits());
-            assert_eq!(a.bulge.to_bits(), b.bulge.to_bits());
+        assert_eq!(back.tangent_joints(), lp.tangent_joints());
+        for (a, b) in lp.vertices().iter().zip(back.vertices().iter()) {
+            assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits());
+            assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits());
+            assert_eq!(a.bulge().to_bits(), b.bulge().to_bits());
         }
     }
 }

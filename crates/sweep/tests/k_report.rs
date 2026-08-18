@@ -31,10 +31,7 @@ fn p2(x: f64, y: f64) -> Point2<Probe> {
 }
 
 fn v(x: f64, y: f64, b: f64) -> ProfileVertex<Probe> {
-    ProfileVertex {
-        pos: p2(x, y),
-        bulge: Probe(b),
-    }
+    ProfileVertex::new(p2(x, y), Probe(b))
 }
 
 fn validated(loops: Vec<ProfileLoop<Probe>>) -> ValidatedProfile<Probe> {

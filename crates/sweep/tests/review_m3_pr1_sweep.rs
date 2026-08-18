@@ -26,22 +26,11 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
 /// plus lines - gives cap rims carrying Arc sketch segments.
 fn d_profile() -> ValidatedProfile<f64> {
     validated(vec![ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.0),
-            bulge: (core::f64::consts::PI / 8.0).tan(), // 90-degree arc
-        },
-        ProfileVertex {
-            pos: p2(1.0, 1.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+        // 90-degree arc
+        ProfileVertex::new(p2(1.0, 0.0), (core::f64::consts::PI / 8.0).tan()),
+        ProfileVertex::new(p2(1.0, 1.0), 0.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ])])
 }
 

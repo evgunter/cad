@@ -149,10 +149,7 @@ fn quasi_uniform_vocabulary_reads_the_same_surface() {
 /// cylinder track's own-corpus exercise.
 fn straight_arc_prism() -> topo::Body<f64> {
     let arc_section = || -> sweep::Section {
-        let v = |x: f64, y: f64, bulge: f64| profile::ProfileVertex {
-            pos: Point2::new(x, y),
-            bulge,
-        };
+        let v = |x: f64, y: f64, bulge: f64| profile::ProfileVertex::new(Point2::new(x, y), bulge);
         vec![profile::ProfileLoop::new(vec![
             v(-1.0, -1.0, 0.0),
             // tan(π/8): a quarter-circle bulge on the +x side.
@@ -186,10 +183,7 @@ fn straight_arc_prism() -> topo::Body<f64> {
 /// rest, which is what the arc prism's rational wall cannot be.
 fn offset_square_prism() -> topo::Body<f64> {
     let square = || -> sweep::Section {
-        let v = |x: f64, y: f64| profile::ProfileVertex {
-            pos: Point2::new(x, y),
-            bulge: 0.0,
-        };
+        let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
         vec![profile::ProfileLoop::new(vec![
             v(-1.0, -1.0),
             v(1.0, -1.0),

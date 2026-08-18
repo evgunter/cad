@@ -145,8 +145,8 @@
 //!     .fillet(r)?.at(Point2::new(0.0, 1.0))?.angle(west)?
 //!     .fillet(r)?.at(Point2::new(-1.0, 0.0))?.angle(south)?
 //!     .fillet(r)?.to(Start)?;
-//! assert_eq!(square.loop_.vertices.len(), 8);
-//! assert_eq!(square.loop_.tangent_joints.len(), 8);
+//! assert_eq!(square.loop_.vertices().len(), 8);
+//! assert_eq!(square.loop_.tangent_joints().len(), 8);
 //! // The chain also RECORDED itself: the program replays to the same
 //! // loop, bit for bit (profiles-as-programs v2 — see [`program`]).
 //! assert_eq!(square.program.len(), 13);

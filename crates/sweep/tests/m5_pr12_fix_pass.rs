@@ -24,10 +24,7 @@ fn band() -> Band {
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
         pts.iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: Point2::new(*x, *y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(Point2::new(*x, *y), 0.0))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])

@@ -58,7 +58,7 @@
 //!     .line_to(p(0.0, 0.0))?
 //!     .toward(1.0_f64, 0.0)?
 //!     .fillet_arc(0.5, Center { c: p(0.0, 0.0), winding: ArcSweep::Ccw, p: Start })?;
-//! assert_eq!(quarter.loop_.vertices.len(), 4);
+//! assert_eq!(quarter.loop_.vertices().len(), 4);
 //! # Ok(())
 //! # }
 //! ```
@@ -86,7 +86,7 @@
 //!     .toward(-4.1, 0.3)?
 //!     .line(1.0)?
 //!     .line_to(Start)?;
-//! assert!(boss.loop_.tangent_joints.len() >= 4);
+//! assert!(boss.loop_.tangent_joints().len() >= 4);
 //! # Ok(())
 //! # }
 //! ```
@@ -110,7 +110,7 @@
 //!     .toward(-1.0, 0.0)?
 //!     .line(1.0)?
 //!     .line_to(Start)?;
-//! assert_eq!(hook.loop_.vertices.len(), 5);
+//! assert_eq!(hook.loop_.vertices().len(), 5);
 //! # Ok(())
 //! # }
 //! ```

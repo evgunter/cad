@@ -95,10 +95,7 @@ fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) ->
 /// arc-bearing profile whose lofted wall is RATIONAL (weights
 /// `1, cos 22.5°, 1` over two 45° sub-arcs).
 fn arc_section(s: f64) -> Section {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex {
-        pos: Point2::new(x, y),
-        bulge,
-    };
+    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
     vec![ProfileLoop::new(vec![
         v(-s, -s, 0.0),
         // tan(π/8): a quarter-circle bulge-out.

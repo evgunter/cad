@@ -45,22 +45,10 @@ fn notched() -> Body<Interval> {
     // Leaving bulges: the bottom arc bows out (+b), the top one bows
     // into the region (-b); the two sides are straight.
     let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: b,
-        },
-        ProfileVertex {
-            pos: p2(2.0, 0.0),
-            bulge: iv(0.0),
-        },
-        ProfileVertex {
-            pos: p2(2.0, 1.5),
-            bulge: iv(0.0) - b,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.5),
-            bulge: iv(0.0),
-        },
+        ProfileVertex::new(p2(0.0, 0.0), b),
+        ProfileVertex::new(p2(2.0, 0.0), iv(0.0)),
+        ProfileVertex::new(p2(2.0, 1.5), iv(0.0) - b),
+        ProfileVertex::new(p2(0.0, 1.5), iv(0.0)),
     ]);
     extrude(&validated(vec![lp]), Extrusion::Distance(iv(1.0)))
         .unwrap()

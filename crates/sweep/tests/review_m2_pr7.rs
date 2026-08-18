@@ -20,10 +20,7 @@ use topo::{Body, mass_properties, validate, validate_closed, validate_geometric}
 use revolve_common::{axis_y, p2, validated};
 
 fn v(x: f64, y: f64, b: f64) -> ProfileVertex<f64> {
-    ProfileVertex {
-        pos: p2(x, y),
-        bulge: b,
-    }
+    ProfileVertex::new(p2(x, y), b)
 }
 
 fn check(body: &Body<f64>, what: &str, volume: f64, area: f64) {

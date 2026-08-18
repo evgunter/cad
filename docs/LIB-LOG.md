@@ -872,3 +872,13 @@ NOT-MERGEABLE-AS-IS (2 MAJ / 2 MIN / 3 NOTE, 2 silent — both
 MAJORs feature-lane compile breaks; MAJOR-1 = the D7 pncad-py
 fix, already landed post-freeze); fix pass IMPLEMENTER-INHERITED,
 in flight; delta re-review next per the v4 ladder.
+
+**SEAL MERGED (2026-08-17, #596 35/35, merge badbfb1b; ordinal-55
+NMAI→delta APPROVE — the row is in MODEL-AB-LOG).** #431's open
+question SETTLED (struct-literal sealing executed). The review's
+durable finds: the feature-lane CI rot class (#601, both MAJORs'
+mechanism — no hosted lane compiles whole-file feature-gated
+tests) and D1's honest boundary (the tour names `profile`
+directly for lily's #433-gap loop — the gap now lives in the
+dependency graph, not an invisible literal). ONARC dispatches
+now on LIB-11 slot 3 = FABLE (lane lib-onarc, pre-staged).

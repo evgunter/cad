@@ -37,10 +37,7 @@ use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
 /// walls, every weight 1.
 fn offset_square_prism() -> Body<f64> {
     let square = || -> sweep::Section {
-        let v = |x: f64, y: f64| profile::ProfileVertex {
-            pos: Point2::new(x, y),
-            bulge: 0.0,
-        };
+        let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
         vec![profile::ProfileLoop::new(vec![
             v(-1.0, -1.0),
             v(1.0, -1.0),
