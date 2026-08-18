@@ -512,10 +512,9 @@ fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
     // vacuous truth over an empty vector is how a weakened row hides.
     let AssemblyError::AtRest { findings } = result
         .as_ref()
-        .err()
-        .expect("the declared pair does NOT validate today — see the module docs")
+        .expect_err("the declared pair does NOT validate today — see the module docs")
     else {
-        panic!("expected the at-rest verdict, got {:?}", result.err());
+        panic!("expected the at-rest verdict, got {errs:?}");
     };
     assert_eq!(
         findings.len(),
