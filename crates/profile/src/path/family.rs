@@ -261,8 +261,13 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
     } else {
         // Exact fit: the fillet arc IS the whole arrival side — the
         // authored anchor is absorbed into the tangent point the fit
-        // gate classified as coincident with it, and the tip sits at
-        // the arc's end (still on the arrival carrier).
+        // gate classified as coincident with it. The tip's DIRECTION
+        // comes from the ARRIVAL carrier's tangent at the arc's end
+        // (the authored spec's own bits), while its recorded CARRIER
+        // is the fillet arc's — the segment actually behind the tip,
+        // which is what the §4 item 4 bookkeeping must compare
+        // against. The two circles are tangent there by construction,
+        // so the direction agrees between them to the band.
         let head = core.head()?;
         let end_dir = carrier_tangent(head, centre, winding, band)?;
         let chord = (head - trims.t1).norm_squared().sqrt();
@@ -1205,9 +1210,10 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
         })?;
         let at = pos.at;
         let (centre, winding, start, anchor) = spec.carrier(at)?;
-        if let Some(inc) = &pos.incoming {
-            junction_check(inc, start, false)?;
-        }
+        // A Plain point carries no incoming tangent, so there is no
+        // junction to check here — the directed-point flavor runs it in
+        // `leg_end_arc_open`. What a Plain tip CAN be is the entry
+        // (`Open.at(p)`), whose departure direction is bound now.
         if self.core.start_ang.is_none() {
             self.core.start_ang = Some(start);
         }
@@ -1335,6 +1341,10 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         let inc = pos.incoming.ok_or(PathError::UnderdeterminedLeg {
             site: "fused arc incoming on a leg end without incoming data",
         })?;
+        // No `start_ang` seeding here, deliberately: a WithIncoming tip
+        // exists only downstream of a leg, and every leg's chain bound
+        // its entry direction before emitting — the Plain entry path
+        // (`point_arc_open`) is where seeding lives.
         match spec.incoming(DirectedPoint { at, dir: inc.ang })? {
             FusedIncoming::Anchored((centre, winding, start, anchor)) => {
                 junction_check(&inc, start, false)?;

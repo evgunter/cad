@@ -783,11 +783,15 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
     // with `CAD_FUZZ_EFFORT` instead of turning red at low effort. The
     // fractions are the review's own (500 and 50 out of 20 000). Both
     // describe the BULK of the draw distribution — a fraction is only a
-    // safe floor when the class it names is common; the rare class that
-    // used to sit here alongside them is a fixture now. Measured at 1 500
-    // corners over 22 fresh-seed runs: ~955 accepted against a floor of
-    // 38, ~277 arc-by-arc against a floor of 4. Neither is a witness
-    // search in disguise.
+    // safe floor when the class it names is common. RE-CALIBRATED at
+    // the lattice door (the mirror-survivor skip removes ~17% of draws
+    // whose oracle would speak about the wrong crossing): measured at
+    // 1 500 corners over 10 fresh-seed runs, accepted 741-796
+    // (mean ~771, 51%) against a floor of 38, arc-by-arc 179-229
+    // (mean ~206, 14%) against a floor of 4 — the unchanged fractions
+    // now bind TIGHTER relative to the distribution than the raw-door
+    // numbers did (~20x and ~55x slack, down from ~25x and ~74x).
+    // Neither is a witness search in disguise.
     let corners = corners as u64;
     assert!(
         n_ok * 40 > corners,
@@ -802,9 +806,11 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
     // `n_enclosing` and `n_major` are a COVERAGE REPORT, not a gate.
     //
     // `n_enclosing` used to be gated by an absolute floor, which is what
-    // forced this count to 12 500; the class is now constructed
-    // deterministically, so what the sweep stumbles onto is information
-    // about the draw distribution and nothing has to hold.
+    // forced this count to 12 500. At the lattice door the count is
+    // structurally 0 — the door never emits an enclosing tangency (see
+    // `the_lattice_door_never_emits_an_enclosing_tangency`) — so the
+    // report line is the sweep corroborating that boundary, and
+    // nothing has to hold.
     //
     // `n_major` comes out 0, which is the fuzz corroborating the bound
     // `fillet_bulge`'s docs argue for — the corner-side extent gates keep
@@ -952,22 +958,37 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
                  claims (rho = R - sigma*tau*r < 0 iff sigma*tau = +1 and r > R)"
             );
         }
-        if let Ok(lp) = build_corner(case.corner, case.leg_in, case.leg_out, case.r) {
-            // The door built SOMETHING — it must not be the enclosing
-            // tangency: the emitted fillet swallows neither carrier.
-            let (t1, t2, b) = fillet_segment(&lp, case.r, &|| name.to_string());
-            let (pf, _) = circle_from_bulge(t1, t2, b);
-            for leg in [case.leg_in, case.leg_out] {
-                let OracleLeg::Arc { center, radius, .. } = leg else {
-                    panic!("{name}: the table is arc x arc by construction");
-                };
-                let d = (pf.x - center.x).hypot(pf.y - center.y);
-                assert!(
-                    d + radius > case.r - 1e-9,
-                    "{name}: the door emitted an ENCLOSING tangency (|P-O| + R = {} < r = {}) \
-                     — the pinned boundary has moved; re-derive before trusting either claim",
-                    d + radius,
-                    case.r
+        match build_corner(case.corner, case.leg_in, case.leg_out, case.r) {
+            // The PINNED branch: under the bracketing harness every
+            // table row REFUSES, on every shipped band (measured at
+            // 1e-6 / 1e-9 / 1e-12) — the enclosing demand has no
+            // corner the gates and extents can both admit.
+            Err(_) => {}
+            Ok(lp) => {
+                // A door or harness change that starts building here
+                // must flip this pin deliberately. The assertions
+                // below run FIRST so the failure names what got
+                // built: whatever it is, it must not be the enclosing
+                // tangency (the emitted fillet swallows neither
+                // carrier).
+                let (t1, t2, b) = fillet_segment(&lp, case.r, &|| name.to_string());
+                let (pf, _) = circle_from_bulge(t1, t2, b);
+                for leg in [case.leg_in, case.leg_out] {
+                    let OracleLeg::Arc { center, radius, .. } = leg else {
+                        panic!("{name}: the table is arc x arc by construction");
+                    };
+                    let d = (pf.x - center.x).hypot(pf.y - center.y);
+                    assert!(
+                        d + radius > case.r - 1e-9,
+                        "{name}: the door emitted an ENCLOSING tangency \
+                         (|P-O| + R = {} < r = {}) — the boundary claim itself has moved",
+                        d + radius,
+                        case.r
+                    );
+                }
+                panic!(
+                    "{name}: the pinned REFUSE branch moved — the row now BUILDS (a \
+                     non-swallowing fillet, verified above); re-pin deliberately"
                 );
             }
         }
@@ -1025,22 +1046,22 @@ fn an_enclosing_leg_forces_an_equally_enclosing_partner() {
         (
             "line incoming, swallowed arc outgoing",
             line_leg(c, 0.0, 1.8),
-            arc_leg(c, PI, 0.25, 1.0, 3.0, false),
+            arc_leg(c, PI, 0.25, 1.0, 4.0, false),
         ),
         (
             "swallowed arc incoming, line outgoing",
-            arc_leg(c, 0.0, 0.25, 1.0, 3.0, true),
+            arc_leg(c, 0.0, 0.25, 1.0, 4.0, true),
             line_leg(c, PI, 1.8),
         ),
         (
             "swallowed arc incoming, OPPOSITE-sense arc outgoing (sigma*tau = -1)",
-            arc_leg(c, 0.0, 0.25, 1.0, 3.0, true),
-            arc_leg(c, -FRAC_PI_2, 0.3, -1.0, 3.0, false),
+            arc_leg(c, 0.0, 0.25, 1.0, 4.0, true),
+            arc_leg(c, -FRAC_PI_2, 0.3, -1.0, 4.0, false),
         ),
         (
             "swallowed arc incoming, same-sense arc outgoing but LARGER than the fillet \
              (rho > 0)",
-            arc_leg(c, 0.0, 0.25, 1.0, 3.0, true),
+            arc_leg(c, 0.0, 0.25, 1.0, 4.0, true),
             arc_leg(c, FRAC_PI_2, 1.5, 1.0, 1.3, false),
         ),
     ];
@@ -1297,18 +1318,27 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
             "the {side} leg must still demand rho < 0"
         );
     }
-    if let Ok(lp) = build_corner(corner, leg_in, leg_out, r) {
-        let (t1, t2, b) = fillet_segment(&lp, r, &|| {
-            "enclosing_fillet_swallows_both_leg_carriers".to_string()
-        });
-        let (pf, _) = circle_from_bulge(t1, t2, b);
-        for (o, rl) in [(o1, r1), (o2, r2)] {
-            let d = (pf.x - o.x).hypot(pf.y - o.y);
-            assert!(
-                d + rl > r - 1e-9,
-                "the door emitted an ENCLOSING tangency (|P-O| + R = {} < r = {r}) — the \
-                 pinned boundary has moved; re-derive before trusting either claim",
-                d + rl
+    match build_corner(corner, leg_in, leg_out, r) {
+        // The PINNED branch: the mined geometry REFUSES on every
+        // shipped band (measured at 1e-6 / 1e-9 / 1e-12).
+        Err(_) => {}
+        Ok(lp) => {
+            let (t1, t2, b) = fillet_segment(&lp, r, &|| {
+                "enclosing_fillet_swallows_both_leg_carriers".to_string()
+            });
+            let (pf, _) = circle_from_bulge(t1, t2, b);
+            for (o, rl) in [(o1, r1), (o2, r2)] {
+                let d = (pf.x - o.x).hypot(pf.y - o.y);
+                assert!(
+                    d + rl > r - 1e-9,
+                    "the door emitted an ENCLOSING tangency (|P-O| + R = {} < r = {r}) — \
+                     the boundary claim itself has moved",
+                    d + rl
+                );
+            }
+            panic!(
+                "the pinned REFUSE branch moved — the mined corner now BUILDS (a \
+                 non-swallowing fillet, verified above); re-pin deliberately"
             );
         }
     }
@@ -1402,77 +1432,100 @@ fn an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier() {
     );
 }
 
-/// **The collapsed offset lever refuses TYPED on every band — through
-/// the lattice door's own funnel.**
+/// **The collapsed offset lever refuses TYPED on every band — and the
+/// band decides WHICH gate speaks, pinned exactly.**
 ///
 /// The mined witness collapses the outgoing offset lever to
 /// |ρ| = 1.2e-7, and that collapse is STRUCTURAL company: the fillet
 /// centre must sit |ρ_in| from o_in and ~0 from o_out, so the carriers
 /// themselves are within |ρ| of mutual tangency — a hairline lens. The
 /// raw builder, handed the AUTHORED corner, sailed past that and hit
-/// the lever gate (`FilletOffsetLeverTooShort`). The lattice DERIVES
-/// the corner, and on a hairline lens the earlier funnels legitimately
-/// speak first: the carrier-meet / corner-turn classifications refuse
-/// the pair as tangent (`NoCornerForFillet { CarriersParallel }`)
-/// before any lever is measured. Both are honest typed refusals of the
-/// same underlying degeneracy; which one fires is band-keyed. What
-/// must NEVER happen — on any band — is a silent build: a tangent
-/// point placed over a lever the band cannot support. The lever gate's
-/// own refusal arm stays pinned by
-/// [`an_uncertifiable_tangent_point_refuses_instead_of_being_returned`]
-/// on the 1e-12 leg.
+/// the lever gate. The lattice DERIVES the corner, and on a hairline
+/// lens the corner-turn classification is band-keyed:
+///
+/// - at ε = 1e-6 and 1e-9 the derived corner's turn margin lands in
+///   the tangent band, so the pair refuses one gate earlier as
+///   `NoCornerForFillet { CarriersParallel }` — the same degeneracy,
+///   classified at the carriers;
+/// - at ε = 1e-12 the turn is definite, the construction reaches the
+///   M8 conditioning gate, and `FilletOffsetLeverTooShort` fires its
+///   DEFINITE arm — and, per the resolve doctrine, ABORTS the whole
+///   resolve rather than being outranked by the hairline pair's twin
+///   corner (the silent-build class this pin caught once already).
+///
+/// What must never happen — on any band — is a build.
 #[test]
 fn a_collapsed_offset_lever_refuses_typed_at_every_band() {
     let corner = p2(-0.466_393_541_070_097, -0.036_421_594_587_948_69);
+    // The mined orientation, verbatim: the collapsed leg is the
+    // OUTGOING one — the side whose offset lever the M8 gate measures.
     let leg_in = arc_leg(
         corner,
-        2.166_547_354_045_76,
-        0.672_869_286_050_959_2,
-        -1.0,
-        2.679_318_364_718_840_3,
+        2.166_517_959_434_531_6,
+        2.271_512_339_781_247,
+        1.0,
+        1.205_372_593_734_55,
         true,
     );
     let leg_out = arc_leg(
         corner,
-        2.166_517_959_434_531_6,
-        2.271_512_339_781_247,
-        -1.0,
-        1.205_372_593_734_55,
+        2.166_547_354_045_76,
+        0.672_869_286_050_959_2,
+        1.0,
+        2.679_318_364_718_840_3,
         false,
     );
     let r = 0.672_869_165_673_333_2;
+    let eps = tol().eps;
 
     match build_corner(corner, leg_in, leg_out, r) {
         Err(PathError::FilletOffsetLeverTooShort {
+            side,
+            carrier_radius,
             offset_radius,
             least_lever,
-            ..
+            margin,
         }) => {
-            // The lever gate spoke: the pin's collapse must be what it
-            // reports, and the corner must sit well inside the refused
-            // region, not on a hairline.
+            // The lever gate's own definite arm (ε = 1e-12 and
+            // tighter): naming the exposed leg and carrying the lever,
+            // the threshold and the shortfall.
+            assert!(
+                eps < 1e-10,
+                "at eps = {eps:e} the hairline lens should refuse at the carriers, \
+                 not reach the lever gate"
+            );
+            assert_eq!(side, profile::FilletLeg::Outgoing);
+            assert!(
+                (carrier_radius - 0.672_869_286_050_959_2).abs() < 1e-15,
+                "the refusal reports carrier radius {carrier_radius}, not the leg's"
+            );
             assert!(
                 offset_radius.abs() < 1e-6,
                 "the pin's offset lever is {offset_radius}, not the collapse it was mined for"
             );
             assert!(
                 least_lever > 10.0 * offset_radius.abs(),
-                "least lever {least_lever} against |rho| {}",
+                "least lever {least_lever} against |rho| {}: the pin must sit well inside \
+                 the refused region",
                 offset_radius.abs()
+            );
+            assert!(
+                margin < 0.0,
+                "margin {margin} must be the definite arm's negative shortfall"
             );
         }
         Err(PathError::NoCornerForFillet {
             reason: PathNoCornerReason::CarriersParallel,
             ..
         }) => {
-            // The carrier-level tangency funnel spoke first — the same
-            // degeneracy, classified one gate earlier (see the docs
-            // above); equally typed, equally loud.
-        }
-        Err(PathError::Escalated { .. }) => {
-            // An in-band classification along the way: the funnel
-            // refusing to guess on a knife-edge is the third honest
-            // voice this pair can raise.
+            // The carrier-level tangency classification (ε = 1e-9 and
+            // looser): the hairline lens's turn margin is in-band, so
+            // the funnel refuses one gate earlier.
+            assert!(
+                eps >= 1e-10,
+                "at eps = {eps:e} the turn is definite, so the lever gate — not the \
+                 carrier classification — must speak"
+            );
         }
         Ok(_) => panic!(
             "a collapsed offset lever must never BUILD: a tangent point placed over a \

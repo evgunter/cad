@@ -50,7 +50,7 @@ fn check(
     s1: ArcSweep,
     o2: (f64, f64),
     s2: ArcSweep,
-    _corner: (f64, f64),
+    corner: (f64, f64),
     far1: (f64, f64),
     far2: (f64, f64),
     r: f64,
@@ -76,6 +76,30 @@ fn check(
         .expect("the sharp seam closes")
         .loop_;
     let t1 = lp.vertices()[1].pos();
+    // The pick must round the DUMPED corner, not the pair's mirror
+    // crossing (the corner is the +y-side root; the mirror is its
+    // reflection across the centre line): the emitted incoming tangent
+    // point sits strictly nearer the dumped corner.
+    let (c, m) = {
+        let d = (o2.0 - o1.0, o2.1 - o1.1);
+        let len2 = d.0 * d.0 + d.1 * d.1;
+        let v = (corner.0 - o1.0, corner.1 - o1.1);
+        let t = (v.0 * d.0 + v.1 * d.1) / len2;
+        let foot = (o1.0 + t * d.0, o1.1 + t * d.1);
+        (
+            p2(corner.0, corner.1),
+            p2(2.0 * foot.0 - corner.0, 2.0 * foot.1 - corner.1),
+        )
+    };
+    let (dc, dm) = (
+        ((t1.x - c.x).powi(2) + (t1.y - c.y).powi(2)).sqrt(),
+        ((t1.x - m.x).powi(2) + (t1.y - m.y).powi(2)).sqrt(),
+    );
+    assert!(
+        dc < dm,
+        "the emitted trim rounds the mirror crossing, not the dumped corner \
+         (|t1-corner|={dc}, |t1-mirror|={dm})"
+    );
     let dw = ((t1.x - win.0).powi(2) + (t1.y - win.1).powi(2)).sqrt();
     let dl = ((t1.x - lose.0).powi(2) + (t1.y - lose.1).powi(2)).sqrt();
     assert!(

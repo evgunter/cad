@@ -302,27 +302,36 @@ pub(crate) enum ArcFilletOutcome<T: Real> {
 /// it reports; the remaining payload fields stay because they are the
 /// CONSTRUCTION's diagnostics, not one caller's.
 #[derive(Clone, Copy, Debug)]
-#[allow(dead_code)]
 pub(crate) enum ArcTrimRefusal<T: Real> {
     /// `fillet_corner_arm` not Positive: no length scale, so the
     /// corner's angle means nothing. Both arms ride so the door can name
     /// the shorter leg on its own channel.
     LegDegenerate {
-        /// The incoming leg's lever arm.
+        /// The incoming leg's lever arm. Construction diagnostic: the
+        /// surviving door reads only `arm` (the raw builder's mapper,
+        /// which named the shorter leg, retired with #377).
+        #[allow(dead_code)]
         leg_in_arm: T,
-        /// The outgoing leg's lever arm.
+        /// The outgoing leg's lever arm (same status).
+        #[allow(dead_code)]
         leg_out_arm: T,
         /// Their minimum — the gate's margin.
         arm: T,
     },
     /// `fillet_corner_turn` Zero: the legs meet tangentially or double
-    /// back, so there is no corner to cut.
+    /// back, so there is no corner to cut. The payload is the gate's
+    /// own diagnostic; the surviving door maps the VARIANT (to the
+    /// parallel-carriers refusal) and reads none of it — kept because
+    /// it is the CONSTRUCTION's channel, not one caller's.
     AlreadyTangent {
         /// `dir_in · dir_out` — negative means the legs double back.
+        #[allow(dead_code)]
         align: T,
         /// The turn margin in meters.
+        #[allow(dead_code)]
         margin: T,
         /// The lever arm it was levered by.
+        #[allow(dead_code)]
         arm: T,
     },
     /// `fillet_offset_lever` not Positive: the leg's **offset radius**
