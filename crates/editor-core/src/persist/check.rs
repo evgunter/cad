@@ -366,25 +366,23 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
                 return Err(SnapshotError::ForwardInput { node: id, input });
             }
         }
-        if let Node::Declare { pairs } = node {
-            for ((a, b), _) in pairs {
-                for n in derivation_nodes(a).iter().chain(derivation_nodes(b).iter()) {
-                    check_id(*n)?;
-                }
+        // Every name-carrying payload's references, by the one list of
+        // which payloads those are: an id past the counter inside a
+        // mate head or a fillet selection is as corrupt as one inside a
+        // Declare pair, and unrepairable by `Rebind` (whose source door
+        // refuses a never-minted id) if it loads.
+        for name in node.payload_names() {
+            for n in derivation_nodes(name) {
+                check_id(n)?;
             }
         }
-        // The fillet selection (M6-5): the same name-reference id
-        // check, PLUS the canonical-form assertion. `Node::fillet` is
-        // the only construction door and it canonicalizes, so a
-        // non-canonical selection on the wire is a CORRUPT file — it
-        // is refused, never quietly re-sorted (a repair would change
-        // the node's content key behind the caller's back).
+        // The fillet selection carries one check of its own (M6-5): the
+        // canonical form. `Node::fillet` is the only construction door
+        // and it canonicalizes, so a non-canonical selection on the
+        // wire is a CORRUPT file — refused, never quietly re-sorted (a
+        // repair would change the node's content key behind the
+        // caller's back).
         if let Node::Fillet { selection, .. } = node {
-            for name in selection {
-                for n in derivation_nodes(name) {
-                    check_id(n)?;
-                }
-            }
             if selection.windows(2).any(|w| w[0] >= w[1]) {
                 return Err(SnapshotError::FilletSelectionNotCanonical { node: id });
             }
