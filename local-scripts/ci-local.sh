@@ -250,7 +250,6 @@ discipline() {
     | grep -vE '^crates/topo/src/separation\.rs$' \
     | grep -vE '^crates/topo/src/props\.rs$' \
     | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
-    | grep -vE '^crates/profile/src/test_support\.rs$' \
     | grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
     | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' \
     | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \

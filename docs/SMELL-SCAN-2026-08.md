@@ -80,6 +80,7 @@ cases. A finding is a *question worth answering*, not a defect.
 - [Tier 2 — significant](#tier-2--significant) (S16–S37)
 - [Tier 3 — real but lower stakes](#tier-3--real-but-lower-stakes) (S38–S48)
 - [§A. Where I would start](#a-where-i-would-start)
+- [§D. A schedule for fixes](#d-a-schedule-for-fixes)
 - [§C. Process observations](#c-process-observations)
 - [§B. Negative results and coverage](#b-negative-results-and-coverage)
 
@@ -3056,6 +3057,107 @@ but about which questions look most worth answering first.
 4. **S4.** The two observed drifts (mate names not rewritten by
    `Rebind`; `name_args`' fail-quiet wildcard) are worth checking
    regardless of what is decided about the pattern.
+
+---
+
+# §D. A schedule for fixes
+
+**Status: a proposal, not a plan.** Ordered by value-for-time, with the
+dependency edges made explicit so nothing polishes code that is about to be
+deleted. Wave 0 is decisions only — most of the rest is gated on it.
+
+Two ordering rules govern the whole thing:
+
+1. **Decide before you delete; delete before you polish.** Comment trimming
+   (S38) and test-suite combing (S36) must come *last*, because both operate on
+   files whose fate Wave 0 has not yet settled.
+2. **A finding whose steelman said SURVIVES IN PART is scoped by the steelman,
+   not by the original finding.** Several findings shrank materially under
+   scrutiny; the retracted parts are marked in each entry.
+
+---
+
+## Wave 0 — decisions (Evan). Nothing large should start before these.
+
+Cheap in wall-clock, enormous in what they unblock. All four are judgement
+calls that no agent should make.
+
+| # | Decision | Gates | Why first |
+|---|---|---|---|
+| **D1** | **S44 — what is `Bounds`?** Is it "carries a bracket" (a semantic property, definable for `Dual` as lo=hi=value) or "may enter certified code" (an access-control marker)? | **S3** entirely; colours **S1**, **S2** | The lane traits exist only to mediate the second meaning. The answer picks the target: one lane trait in `geom-core` (the steelman compiled one, 16 impls → 2), or none at all and `Bounds` split in two. |
+| **D2** | **S43 — the bug-vs-invalid-state taxonomy.** D9 currently sanctions only "typed error where cheaply detectable, or documented garbage-out"; the kernel uses five idioms, two of them mutual negations. | **S19** (which it *generates* — ~239 of ~260 sites); resolves **S12**/**S14** residue | Restating D9 decides three findings at one stroke. Touching any error enum first means redoing it. |
+| **D3** | **S7 — run the one-line experiment.** Swap the arms at `fillet/build.rs:205`, `cargo test -p sweep --test all`. | **S6**, and all fillet work in **S36**/**S38** | Decides whether ~890 lines are deleted. The surgery door has *never* been run on a whole-body input; if it fails on a cube the two doors are not redundant and S7 collapses. |
+| **D4** | **S11's four undecided rows** — `Mat2`/`Affine2`, `PairSolve`, `hull.rs`'s non-rational unused half, the two inlined fillet helpers. | Cleanup in those files | Each is delete-or-keep. Cheap to answer, and answering stops anyone documenting them. |
+
+---
+
+## Wave 1 — correctness. Fully parallel; no cross-dependencies.
+
+The findings most likely to be a live wrong answer. Every one is disjoint from
+every other, so these can run as five concurrent lanes.
+
+| # | Finding | Effort | Note |
+|---|---|---|---|
+| **W1a** | **S16** — `boolean/boxes.rs`'s planar arm uses a bare vertex hull, but a cylinder's planar cap has a circular rim that bulges past its endpoints, so the box is not a superset and the BVH can prune a pair silently. | S–M | **Highest single-item value in the report.** The fix is already named in `PERF-SCAN-2026-08.md` Tier A finding 1, and `separation.rs` already contains the corrected planar rule. |
+| **W1b** | **S23** — the SSI exhaustiveness sweep switches duty on `tubes.is_empty()`, so an all-seeds-fail run returns `Ok` *plus an exhaustiveness receipt* instead of `ExhaustivenessInconclusive`. | M | Make the duty a stated parameter. The acceptance row also needs replacing — its premise (`..._even_though_branches_were_found`) excludes the failing mode. |
+| **W1c** | **S41** — `Bounds for Interval` forwards `lo()`/`hi()` without consulting the decoration, and `bracket<E: Enclosure>` crosses operands into `RingInterval` by endpoints. A `Trv`-but-nonempty enclosure may be dropping a domain violation **today**. | S to test, ? to fix | Also the gating question for S1 — until this is settled, "swap `RingInterval` for `Interval`" is unsound. |
+| **W1d** | **S4 drift (a)** — `Rebind`'s rewrite loop ends `_ => {}` and never reaches `Node::Mate`'s two `StableName`s, so a mate head is either falsely refused as `RebindNoReferences` or silently left dangling. Contradicts `ASSEMBLY-DESIGN.md:566`. | S | Needs a red-then-green test and an A12 read. No issue is filed. |
+| **W1e** | **S42** — loft's `sense = true` is pinned only on `loft_prism`: no concave arcs, no holes, i.e. the shape that did not break extrude either. | S | Loft a concave-arc section pair and a holed one, run the S11 union check. Cheap; may find nothing. |
+
+---
+
+## Wave 1b — hygiene. Parallel with Wave 1, trivially disjoint.
+
+Good work for filling parallel capacity. None blocks anything.
+
+| # | Item | Effort |
+|---|---|---|
+| **H1** | **ci-local mirror parity** — the local mirror has no `EvalScalar` step and no interval-square `powi(2)` step; hosted has both. Decide add-or-document. (The `separation.rs` and dead-`test_support.rs` halves are fixed in this PR.) | S |
+| **H2** | **S39 stale claims** — nine rows, each classified **benign rot** vs **lost invariant** *before* its sentence is touched. `enters.rs:14` is the (ii) candidate: the outward-normal property was devolved onto every caller with no type enforcing it. | M |
+| **H3** | **S40 residue** — start with the two that are not cosmetic: `emit_topo.rs:1266`'s unreachable fallback would mint `Seam{ae, ae}`, a well-formed name for the wrong thing; `seqgen.rs:853`'s discarded counter means the property suite cannot tell an all-skipped run from a full one. | S |
+| **H4** | **S37** — shipped-artifact naming: the STL header's `cad-kernel-m2`, `UnsupportedCurve.note`'s runtime-visible PR number, ~124 internal spec codes in public rustdoc and the Python stub. Evan: *"can be fixed earlier"* than S36. | S–M |
+| **H5** | **S4 drift (b)** — `names/select.rs:319`'s `_ => Vec::new()`, the fail-quiet wildcard its three siblings forbid by comment. One function. | XS |
+| **H6** | **Euler postcondition 7-tuple → named struct** — unnamed positional, 16 sites, 6 files, all `cfg(debug_assertions)`. Mechanical. | S |
+
+---
+
+## Wave 2 — structural. Sequenced by dependency.
+
+| # | Finding | Gate | Note |
+|---|---|---|---|
+| **W2a** | **S3** — lane-trait collapse, or its dissolution | **D1** | The steelman has a working `geom-core` design (compiled, cross-crate, stable): one trait + a rank-2 job callback, 16 impls → 2. Three confirmed defects go with it (`PcurveFittedLane`'s pure-indirection `Option`, `lane_name()` 6/8 dead, `ChartRegionLane`'s collapsing `Option<Result>`). |
+| **W2b** | **S1 / S2** — `RingInterval`, and whether `Interval` becomes always-on | **D1**, **W1c** | Blast radius is **535 refs in 15 files**, not the ~600 sites this report first claimed; five files carry 60%. Build cost measured at ~zero. The real obstacle is the decoration seam (W1c), not licensing or build time. |
+| **W2c** | **S19** — the three big error catch-alls | **D2** | `AssemblyUnsupported` (146), `MissingEntity` (49), `SplitJoinError::Corrupt` (42). These *are* D9's only sanctioned option today, so D2 must land first or the work is undone. |
+| **W2d** | **S6** — sweep helper unification (~230 token-identical lines) | **D3** | Must follow D3: S6 and S7 are in one crate and will collide. K-telemetry does **not** block it — both funnels already take the predicate name as a parameter. Retracted: `SweptSeg`, `strut_spec`, `full::build_lamina` and the `let _ = k;` inference are *not* duplication. |
+| **W2e** | **S5** — `splitting/` vs `boolean/` | — | The largest. Start with the narrowest, highest-value piece: the **forked sector predicates**, which are dimensionally identical line-for-line and split one K population 29:1, with the 64-sample tail the one reaching margin 0. The repo already forced the reverse fix once (`M3-LOG.md:264`). |
+| **W2f** | **S4** — the vocabulary mirrors, cheapest first | partly **W2c** | `BooleanOp` → `pub use topo::BooleanOp` + `serde(with)` (its constraint provably lapsed the day it was minted, and the technique is shipped); then units; then `ProgramStep`/`WireStep`, which is cheap in isolation but **blocked behind OnArc + RESPELL-TABLE** and crosses the same files. |
+
+---
+
+## Wave 3 — last, deliberately.
+
+| # | Item | Why last |
+|---|---|---|
+| **W3a** | **S36** — comb-and-rename, **per suite** | Evan: *"they should only be renamed after an actual review and fixup to become normal test suites."* A PR-numbered name currently *carries signal* — it marks a suite not yet combed. Renaming first converts a visible backlog into an invisible one. Explicitly **not** a rename pass. Note the 2026-08-13 retirement licence has produced **zero** deletions in five days against ~10 new review-named suites, so this needs an owner and a slot, not just permission. |
+| **W3b** | **S38** — comment trimming | Must follow every deletion above. Trimming comments on code that Wave 0 is about to delete is pure waste. |
+| **W3c** | Remaining **S35** roll-up rows | Lowest value density; several will be resolved incidentally by Waves 1–2. |
+
+---
+
+## The dependency edges, in one place
+
+```
+D1 (Bounds?) ────────────► W2a (S3 lane traits)
+             └───────────► W2b (S1/S2 scalars) ◄─── W1c (S41 decoration seam)
+D2 (bug-vs-invalid) ─────► W2c (S19 error catch-alls)
+D3 (fillet experiment) ──► W2d (S6 sweep) ──┐
+D4 (dead rows) ─────────────────────────────┼──► W3b (S38 comments)
+all deletions ──────────────────────────────┘
+                                              └──► W3a (S36 suites, per suite)
+```
+
+Everything in **Wave 1** and **Wave 1b** is free of these edges and can start
+immediately, in parallel, in any order.
 
 ---
 
