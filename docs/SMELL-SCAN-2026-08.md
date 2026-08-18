@@ -502,6 +502,72 @@ Steelman pass commissioned for the constraint map: how much of the
 duplication the G1 no-serde-in-kernel rule actually forces, given that
 the `ContactClass` `#[serde(with)]` remote derive shows the mirror was
 avoidable at least once. Includes verifying the two observed drifts.
+**Steelman (2026-08-18): SURVIVES IN PART — row by row, and the diagnosis of
+the `BooleanOp`/`ContactClass` tell was wrong in a way that makes the finding
+*stronger*.**
+
+*The corrected tell.* `BooleanOp` was **never a serde decision**. PR #81 (M4
+PR 1) forbade `editor-core` from depending on `topo` **at all** — that is why
+the enum was minted locally. `git log -S` shows the dependency was added the
+**same day** (`baec1fd9`, M4 PR 2). The mirror has outlived its reason by four
+weeks, and `BooleanOp`'s rustdoc **defends nothing**; the only place it is
+characterised as a deliberate pattern is inside `ContactClass`'s doc, written
+by a different author three weeks later. Meanwhile `ContactClass` **was**
+ruled: `M9-1-SPEC.md:22` — *"never a parallel enum… One enum, defined lowest,
+re-exported upward"* — and PR #552 states the collision explicitly and resolves
+it with `#[serde(with)]`. That technique **did not exist as a repo idiom** when
+`BooleanOp` (2026-07-23) or `WireStep` (2026-08-09) were written; it was
+invented 2026-08-16. Ordinary accretion — but the project's own most recent
+ratification now points at the collapse.
+
+*Also corrected:* `RoleSeg` is **not** a kernel enum — it lives at
+`editor-core/src/names/role.rs:226`. Both ends of that chain are editor-core.
+And `DESIGN.md:1914`'s *"(layering enforced by CI grep)"* is **stale**: no
+serde grep exists in `ci.yml` or `ci-local.sh`. The only mechanical check is
+`profile/tests/seal.rs:87`, covering `profile` only.
+
+| Row | Verdict |
+|---|---|
+| profile `Step` verbs | **SURVIVES** — `WireStep`/`WireTarget`/`WireArcData` are field-for-field mirrors differing in **nothing**. Only `WireSide`/`WireWinding` wrap kernel-foreign types (two two-variant tags), plus `SketchPlane<f64>` needing `WirePlacement`. The scheduled RESPELL-TABLE unit does **not** reach these. |
+| `RoleSeg` → `SegTag` | **SURVIVES IN PART** — three of four links are compile-enforced and the python lane runs in CI. Genuine gaps: the `.pyi`'s 40 members are **unpinned** (`test_stubs.py` parses only top-level names, never class bodies), and the py mirror is **forced by the orphan rule** — not collapsible, only generatable. |
+| node kinds (~10 tables) | **DOES NOT SURVIVE as stated** — 10 operations over a 12-variant sum type is the design working. Re-scoped to *wildcard* arms it survives: `node.rs` 9, `eval/mod.rs` 5, `resolve/mod.rs` 4, `edit.rs` 3, `refactor.rs` 3, `persist/check.rs` 2. |
+| `RoleSeg` arg sites | **SURVIVES IN PART** — the four answer four genuinely different questions and *should* differ. What survives is exact: three carry "exhaustive on purpose or the compile breaks", the fourth ends `_ => Vec::new()` with no note saying why it is exempt. |
+| `StableName` payload lists | **SURVIVES** — see the confirmed drift below. |
+| "no usable value" | **SURVIVES IN PART** — the four enums have genuinely different membership and closure (`RunStatus` is serde-persisted), but all four embed the identical triple, and the stringly fifth is a real fail-quiet. |
+| units | **DOES NOT SURVIVE as counted** — `parse.rs` uses the shared table; `step-import`'s `UnitKind` is a *different vocabulary* (STEP `SI_UNIT` names). Real duplicates: two-and-a-half, one of them **measured and justified** (PR #291 MAJOR-2: inlining the 32-byte row grew every `Expr` by ~40 bytes). |
+| Euler vector | **SURVIVES IN PART** — the 6-vector and the 7 arena deltas are **different quantities**; Δh is not an arena count and cannot be derived from them. What survives: the 7-tuple is **unnamed and positional**, passed at 16 sites across 6 files, in a project whose ratified style is "named, never positional". |
+
+*Drift (a) CONFIRMED, and it contradicts ratified design text.* `Rebind`'s
+rewrite loop ends `_ => {}` and never reaches `Node::Mate`'s two `StableName`s.
+Two bad outcomes: if a mate head is the only reference, the rebind returns
+`RebindNoReferences` — a **loud but false** refusal; if a `Declare` also
+references it, the mate is **silently left dangling**. `ASSEMBLY-DESIGN.md:566`
+states *"A dangling head (N5) contributes no edge until `Rebind`"* — that
+repair path does not exist. A third site is also mate-blind
+(`resolve/mod.rs:911`). **No issue is filed.** Note the contrast in the same
+file: `refactor::remap_node` **is** wildcard-free and **does** handle `Mate` —
+the exhaustive sites stayed in sync; the wildcard sites did not.
+
+*Drift (b) CONFIRMED with a qualification:* the `Fragment(SideOf)` disagreement
+is **documented and intentional**. The drift is narrower — the fourth site uses
+the exact fail-quiet wildcard its three siblings prohibit, without saying it is
+exempt. A future variant carrying sub-names compiles in as "no arguments".
+
+*One confirmation this report did not cite: the hand-synced tag table has
+already produced a live measured bug.* `MODEL-AB-LOG.md:782` — *"**MAJOR-1 =
+`Step::AtToward`'s memo content-key tag 28 COLLIDED with `ArcContinue`'s
+existing 28 — latent memo collision, a hit would serve wrong geometry**"*.
+Caught by a reviewer, not a type. S4's failure mode, realised.
+
+*Ranked cheapest-to-hardest to act on:* (1) `BooleanOp` → import +
+`serde(with)`; (2) `name_args`' wildcard → exhaustive; (3) the `Mate` arms —
+small but a **behaviour** fix; (4) the Euler 7-tuple → named struct
+(debug-only); (5) units; (6) `ProgramStep`/`WireStep` — cheap in isolation,
+**expensive in sequence** (blocked behind OnArc + RESPELL-TABLE, and it
+crosses the same files); (7) the "no usable value" core (blocked by a
+persisted format); (8) `SegTag` (needs the workspace's first proc-macro
+crate); (9) `profile::Step` re-parameterised — *"I would not do it."*
+
 ## S5. `splitting/` and `boolean/` are one pipeline built twice, with the shared core hosted inside one half
 
 - **Where**: `crates/topo/src/splitting/join.rs:478`,
@@ -1060,6 +1126,25 @@ question: is a migration mechanism planned for when the format
 stabilises (scaffolding awaiting its first real migration), or was
 "clean break, no migration" ratified — in which case the mechanism is
 dead by decision and the fourteen-version ledger is the residue.
+**Steelman (2026-08-18): DELIBERATE-FRONTIER with a PLANNED post-release
+consumer — the mechanism does not survive as a finding; the ledger does.**
+
+The empty table is **doubly ratified doctrine**, not drift.
+`docs/archive/M4-LOG.md:1916` already records the emptiness decision verbatim:
+*"The migration MECHANISM stays (an explicit, currently empty step table)…
+the next non-breaking format change adds its step there."* And **LQ7a**
+(`LIBRARY-DESIGN.md:332`): *"NO backwards-compatibility machinery of any kind
+before release — no migration chains, no deprecation shims."* Restated as
+binding in three more specs. The future consumer is named in-code and in
+`DESIGN.md:1701` Band 4.
+
+What survives is the **ledger, not the mechanism** — and it has measurably
+drifted: there is **no "Version 12" entry** (v12 was LIB-PLACEDUNION #571,
+which took the number and skipped the entry), while
+`memories/schema-claim-discipline.md` calls that prose *the tripwire* for the
+same-number merge race. Note **LQ7b**: version numbers **reset immediately
+before release**, so all fourteen numbers are planned to be thrown away.
+
 ## S11. Substantial machinery shipped as live, with no producer (roll-up)
 
 - **Confidence**: sure for each row unless noted
@@ -1095,6 +1180,39 @@ ones that are superseded." Steelman pass commissioned to sort every row
 into PLANNED (naming the scheduled consumer) / SUPERSEDED /
 DELIBERATE-FRONTIER / GENUINELY DEAD, with evidence. **This table should
 not be acted on until that sort lands.**
+**Steelman (2026-08-18): sorted. Most rows are frontiers with named blockers,
+not dead code — but four need a decision and one changed while this scan was
+being written.**
+
+| Row | Sort |
+|---|---|
+| `bspline_green_integral` + `DerivLadder` | **DELIBERATE-FRONTIER**, blocker named at `topo/src/props.rs:581` (it is S8's missing producer; rational half banked at #390/#453). But the `quad.rs:42` liveness claim is **SUPERSEDED** — see S39. |
+| `pcurve.rs` ellipse constructors | **SUPERSEDED**, in writing, with a measured deviation (`pcurve_cache.rs:32`). |
+| `hull.rs`'s 8 unused fns | **Split**: the rational half is spec-commissioned with a banked lane (#390/#453, register row in #250); `domain_hull` and `derivative_span_hull` have **no named consumer**. |
+| `boxes` in both geom crates | **PLANNED**, three named consumers — and one is a *correctness* item: `PERF-SCAN-2026-08.md:208` Tier A finding 1 names `nurbs_surface_aabb` as the fix for S16's unsound `face_box`. |
+| `Node::Sweep` | **DELIBERATE-FRONTIER → now PLANNED with a landed first half.** LQ3 ratified (#362); the door landed (`compose_chain`); the `wire_sweep` discharge is explicitly fenced out of U4A as its own later unit. |
+| STEP cylinder recognition | **DELIBERATE-FRONTIER** — the refusal is the honest result and the module doc says so in advance; the algebraic tightening is banked but tied to **no issue or plan**. |
+| `ProfileError`'s five fillet variants | **SUPERSEDED — and now fully orphaned.** #377 closed 2026-08-18 by PR #608; `test_support.rs` **no longer exists on `origin/main`**. The retirement removed their producer and left the variants. *This row's sort changed while the scan was being written.* |
+| `Mat2`/`Affine2` | **GENUINELY DEAD?** — the only row with **no source at all** for a future consumer, against the M0 review's own norm *"add only on consumer demand"*. |
+| `PatchContact` | **PLANNED — the strongest row.** Producer is spec-written and queued: `ASM-R2B-SPEC.md` D-2 mints it; `M9-3-SPEC.md:143` is its acceptance row. |
+| `trace_plane_nurbs_uncertified` | **DELIBERATE-FRONTIER** — `M5-PR7B-SPEC.md:71` authorised exactly this fate. |
+| `flips_on_path`/`flips_at` | **DELIBERATE-FRONTIER** — `M4-PR4-SPEC.md` D2 mandated a general engine: *"must not be specialized to either consumer"*. |
+| `jet.rs` cone/torus arms | **DELIBERATE-FRONTIER**, structurally forced by the closed `Surface` enum (D3); the refusal is downstream and reasoned. |
+| `CornerBall::surface` | **SUPERSEDED** — both callers replace the chart, with the reason in code. |
+| `corner_contact_circle`, `trimline_description` | **SUPERSEDED** — inlined duplicates; the spec's obligation is met by the inline form. |
+| `PairSolve` | **GENUINELY DEAD?** — written by ASM-R2a, unmentioned by ASM-R2b, which is the unit that consumes the solve. |
+| `CLASS_DEFERRAL` | **This report's claim is WRONG** — it **is** read, at `mate.rs:350`. What is unreachable is the *variant*, kept knowingly (PR #575 deviation 5). |
+
+*On `DESIGN.md`'s "dead-code pattern M5's reviews repeatedly punished":* that
+sentence is the grounds for **parking** the canal-surface blend — a rule
+against *building* unconsumed machinery, invoked at a decision **not** to
+build. None of these rows was flagged under it; the reviews that touched them
+each ruled *keep, with the frontier named*.
+
+*Needing a decision:* `Mat2`/`Affine2`; `PairSolve` (ask R2-b's spec whether it
+wants the record); `hull.rs`'s non-rational half; the two inlined fillet
+helpers; and `ProfileError`'s five now-zero-constructor variants.
+
 ## S12. Euler atomicity is enforced by convention: every write silently no-ops on a missed precondition
 
 - **Where**: `crates/topo/src/euler.rs:1940`,
@@ -1205,6 +1323,51 @@ the repo's own lint crate, so the capability exists — why are these rules
 greps rather than lints or types? Some CI greps are the right tool
 (`memories/interval-square-poison.md` documents one that caught a real
 bug class); the pass is asked to say which are which.
+**Steelman (2026-08-18): SURVIVES IN PART — and the premise "greps instead of
+types" is largely false.**
+
+*What the types actually do.* The type-level encoding is real and does most of
+the work: `Real` is comparison-free **by construction**; `Bounds`/`Decide`/
+`SpanLocate` are separate subtraits; **`Bounds` has no `Dual` impl**, so the
+whole bracket-reading surface is uninstantiable at duals; and three static lane
+splits with refusing arms exist (S3). Each ledger amendment litigates a *type*
+question, and M5 PR 12 **explicitly costs the type-level fix and rejects it on
+the merits** (*"would have had an EMPTY refusing side"*). The greps enforce only
+the residue — **which files may *name* a bound** — which Rust cannot express
+across crate boundaries, since sealing controls who may *implement*, not who may
+*name*. Nobody has written that down.
+
+*Two gates could not be types or lints at all.* The interval-square rule guards
+a **whole-program** property (`ci.yml:437`: *"whether THIS enclosure can
+straddle zero is a global property of upstream callers that refactors change
+silently"*), and the env ban has a measured receipt. And `EvalScalar` is
+evidence the encoded alternative was **tried and needed more grep, not less**:
+`ci.yml:354` — *"the trait is `pub`… so without this step any file in any crate
+could acquire a compound Bounds bound invisibly to the grep above."*
+
+*The brief's premise about `tools/k-lint` was wrong, and it matters.* `k-lint`
+is a **CSV gate** over probe sweeps, not a source lint; it does not parse Rust.
+**The repo has zero Rust-AST lint capability today.**
+
+*What does not survive.* (1) **A lint/tool alternative was never evaluated** —
+the only mention is a one-line "optional escalation" in `M0-LOG.md:74`, dropped
+silently; no `dylint`, `clippy::disallowed*`, `clippy.toml` or proc-macro
+appears anywhere in the history. The record is silence, not rejection. (2) The
+dual-maintained allowlist is a **proven drift class**, and (3) the greps' own
+known defects go unfixed — the `x*x` lookahead fix has sat in a log since
+2026-08-04; `Real +` strips no comments while its four siblings do; only one of
+six has a self-test. The regex is also leaky both ways: it **cannot see**
+`self.x * self.x`, and `linalg/vec.rs:311` contains exactly that shape in
+production generic-over-`Real` code.
+
+*On the `decide_flagged` count of 8 — it is a real census, not a tripwire.* It
+is tracked as **issue #214** with a per-family retirement plan; `ledger_row` is
+`let _ =` at runtime, existing only to force the author to name a row; and the
+count **has moved exactly once, downward** (12 → 8, `d92f56b5`, authored by
+Evan, in the same diff that converted the ledger rows). Growth is the forbidden
+move. Its inherited weakness is the one `schema-claim-discipline.md` names: it
+asserts a **total**, so one site added and one retired nets to 8 and passes.
+
 ## S14. `Span` validity is prose, and the guard's removal turned poison into a documented panic
 
 - **Where**: `crates/geom-core/src/spline/knots.rs:166`,
@@ -1357,6 +1520,53 @@ ignoring carriers that have been real since M2.
 
 # Tier 2 — significant
 
+**Steelman (2026-08-18): the three bug-shaped claims verified; sorted row by
+row; and one *fourth* false claim this report missed.**
+
+**(a) The `emit_fillet` `Retired` face hole — CONFIRMED, and the repo's own
+tests state both halves of the contradiction.** `build.rs:701` fills `Retired`
+under the comment *"every source entity is retired by construction"*;
+`emit_fillet.rs:239` excuses faces with *"Faces are never retired by either
+door"*. The acceptance suite asserts the surgery-door claim at
+`m6_5_fillet_naming.rs:275` and the whole-body claim at `:382` **for edges and
+vertices only** — the face claim is absent because it would fail. Honest
+severity: defence-in-depth, not a live bug (the guard is documented as
+unreachable in production) — but the hole is in the **majority** of the guard's
+surface, since faces are the bulk of what the whole-body door mints.
+
+**(b) `split_edge` shares `mev`'s Euler vector and is absent from the fuzz
+lane — CONFIRMED**, with a mitigation this report omitted: `split_edge` and
+`movefac` each carry the **same tier-1 debug postcondition** as the eleven, so
+D9's *conclusion* holds; what is stale is the *enumeration* it rests on. The
+count is stale in **four** places, one of them ratified (`DESIGN.md:1103`);
+the real public `&mut self` surface is **≥ sixteen**. The genuine loss is
+randomised site coverage over exactly the cases `split.rs:94` calls delicate.
+
+**(c) `topo::iso` — CONFIRMED stale, OVERSTATED as to consequence.** Vertex
+points **are** compared bitwise, so "entirely different geometry" is too
+strong. And the same bullet gives a **second, non-stale reason**: surface
+anchors are construction-history artifacts, so including them would make
+legitimate `kfmrh ∘ mfkrh` roundtrips compare unequal. A stale sentence in
+front of a still-correct decision; the fix is the sentence.
+
+**A fourth false claim, not in this report:** `pcurves.rs:91` lists
+`merge_coplanar_faces` among the ops that *"neither clear nor re-mint"*. That
+list was written 2026-07-30; on 2026-08-05 `merge_coplanar_faces` **started
+re-minting** (`merge_faces.rs:193`, typed `MergeCoplanarError::Pcurve`). The
+convention worked and the index rotted.
+
+*Row sort:* **three deliberate-and-argued** (fillet provenance —
+`build.rs:41` is an unusually honest written self-assessment;
+`flipped_face_sense_for_tests`, which confers no capability `set_face_sense`
+lacks; the ray schedule, byte-identical today, verified); **two
+deliberate-with-stale-prose** (`iso`, pcurve staleness); **three accretion
+with no tracking** (the `Retired` face hole, the eleven, tie propagation).
+
+**Zero rows have a tracked issue** — the sharpest structural fact here, since
+the repo demonstrably knows how to do all three alternatives: issue #214 for a
+census, `attach.rs:119`'s **KNOWN HAZARD** block for a named-and-pinned gap,
+and `review_s11_adv` for a reachability pin.
+
 ## S16. Three face bounding-box constructions with three different soundness rules
 
 - **Where**: `crates/topo/src/boolean/boxes.rs:179`,
@@ -1383,8 +1593,11 @@ sentence asserting the opposite.
 
 This is the finding most likely to correspond to a live wrong answer.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). On this cluster: "huh, i wonder
+how these even happened. they should certainly be unified." Postmortem pass
+commissioned — the sharpest question is who wrote `boolean/boxes.rs`'s KNOWN
+GAP note about the NURBS half and whether the planar-with-conic-rim half was
+considered at the same time.
 ## S17. Three ray-parity point-in-polygon implementations, one an admitted transcription
 
 - **Where**: `crates/topo/src/chart_region.rs:897`,
@@ -1407,8 +1620,7 @@ decides both the segment-length degeneracy gate and the point-to-segment
 distance — exactly the drift `splitting/rules.rs:117` explicitly mints a
 distinct name to avoid.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18) — see S16.
 ## S18. Certified numeric derivations duplicated across crates (roll-up)
 
 - **Confidence**: sure for each row
@@ -1425,8 +1637,8 @@ distinct name to avoid.
 | Negative-zero flush helper | 3 in one crate, three separate doc blocks making the identical argument, plus a 4th inline | `step-import/src/geometry.rs:30`, `recognize.rs:160`, `recognize_curve.rs:222` |
 | Deep-snapshot test helper | ≥4 in `topo` alone, duplication named as intentional in its own doc comment | `fixtures.rs:87`, `review_m1_pr2/mod.rs:35`, `review_m1_pr3.rs:44`, `tests/box_with_hole.rs:368` |
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18) — see S16. "They should certainly
+be unified."
 ## S19. Stringly-typed catch-alls in a codebase whose thesis is closed typed errors
 
 - **Confidence**: sure
@@ -1443,8 +1655,11 @@ distinct name to avoid.
 | `SkippedMerge { reason: String }` | — | `merge_coplanar_faces` runs two incompatible failure regimes depending on a property of the input, and flattens typed errors into `format!` strings for one of them | `merge_faces.rs:489` |
 | `ProgramRefusal::Geometry` | — | Degrades a kernel typed refusal to `String` because `PathError` is not `PartialEq` | `program.rs:846` |
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). "Ha these are funny (and also show
+again that we need a bug vs reachable invalid state distinction)" — i.e. this
+finding is **downstream of S43**. The postmortem pass is asked to substantiate
+or refute that: how many of these catch-alls exist because the author had no
+vocabulary for "this can only be a kernel bug"?
 ## S20. The façade layers each invented a vocabulary instead of forwarding
 
 - **Where**: `crates/pncad/src/closure.rs:1`,
@@ -1468,8 +1683,8 @@ directory scanning, header parsing, duplicate-id detection, save/resave,
 OS entropy, and an `impl PartResolver` that classifies kernel resolve
 faults by **string-matching** on `PersistError` variants (`:432`).
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). "Yikes, nice catches, will need to
+think about how to fix these."
 ## S21. Two concrete holes in the Python surface
 
 - **Where**: `crates/pncad-py/src/py/doc.rs:200`,
@@ -1494,8 +1709,7 @@ exception is raised only for the first; the actual dimension checker
 surfaces in Python as `LiteralError` with a `kind` tag. A user who
 catches `DimensionError` for a dimension mistake catches the wrong one.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18) — see S20.
 ## S22. Ambient state contradicting the purity thesis
 
 - **Confidence**: sure for each row
@@ -1507,8 +1721,22 @@ catches `DimensionError` for a dimension mistake catches the wrong one.
 | `mesh` reads ε twice where the crate docs and `DESIGN.md` D4 say once — and the second read **snaps** a value | `walk.rs:730`, `walk.rs:496` | The mesh is a function of (body, δ, **ε**), not (body, δ) as the determinism/memo-key contract claims. F6 also bans "EPS snapping anywhere in the pipeline" |
 | `same_chart` decides chart identity by `core::ptr::eq` on two `&Body` | `chart_region.rs:394` | In a module whose premise is "structural identity, never numeric identity". A caller passing a clone silently drops to the weaker rung |
 
-**Verdict:**
+**Verdict:** ACCEPTED WITH QUALIFICATIONS, row by row (Evan, 2026-08-18):
 
+- **`CAD_TOLERANCE_EPS`**: *"worth an investigation for good alternatives but I
+  think this state is unfortunately basically correct — we need epsilon to be
+  the same everywhere and so it's risky to pass it individually, but we also
+  want it to be configurable without completely rebuilding. Would be very open
+  to better ways to achieve those goals though!"* So the constraint is
+  **two-sided** — uniformity *and* configurability-without-rebuild — and the
+  finding should be read as an open design question, not a defect.
+- **`k_stats` verdict log**: *"as you saw this is already tracked but is
+  absolutely a problem that should be fixed."*
+- **`mesh` double ε read + snap**: *"mesh should be streamlined and made clear
+  but I think snapping is what we want? Not sure… maybe it should be delta
+  rather than epsilon?"* — the open question is whether δ is the dimensionally
+  correct parameter, not whether to snap.
+- **`same_chart` by pointer equality**: *"good catch as well."*
 ## S23. The exhaustiveness sweep degrades silently to seed-generation
 
 - **Where**: `crates/geom-brep/src/ssi/exhaust.rs:140`, `:267`,
@@ -1530,8 +1758,8 @@ prevent. The documented receipt identity `examined == excluded +
 accounted + refined` also quietly stops holding in that mode, since the
 pushed leaves land in no bucket.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
+baffle me with how they ever happened." Postmortem pass commissioned.
 ## S24. The assembly gate's success path is documented as unreachable
 
 - **Where**: `crates/editor-core/src/assembly.rs:42`, `:314`,
@@ -1552,8 +1780,8 @@ that a shipped door whose success arm is known-unreachable, with the
 explanation living in prose rather than in the type or a feature gate,
 is hard to tell apart from a bug when it fires.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
+baffle me with how they ever happened." Postmortem pass commissioned.
 ## S25. Two ε vocabularies flow through SSI with nothing reconciling them
 
 - **Where**: `crates/geom-brep/src/ssi.rs:488`, `:507`,
@@ -1570,8 +1798,8 @@ and derive `eps = band.zero()` — one says so in a comment — while the
 SSI arms keep the independent knob. Same quantity, two sources of truth,
 reconciled by convention at some call sites and not others.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
+baffle me with how they ever happened." Postmortem pass commissioned.
 ## S26. The certified area enclosure is never metered against anything
 
 - **Where**: `crates/geom-brep/src/props/quad.rs:469`, `:803`, `:1800`
@@ -1588,8 +1816,8 @@ certify with an area bracket orders of magnitude wider than its own
 value; the only way it surfaces is the indirect `DegenerateFace` when
 the symmetric pad drags `area.lo()` below zero.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
+baffle me with how they ever happened." Postmortem pass commissioned.
 ## S27. `props/quad.rs` is four independent quadrature engines sharing a file
 
 - **Where**: `crates/geom-brep/src/props/quad.rs:509`, `:2381`, `:2107`,
@@ -1611,8 +1839,8 @@ Two parallel constant families track this: `QUAD_INIT_PIECES`/
 `QUAD2_REFINE_SPANS` — six hand-tuned magic sizes named after *which
 lane arrived second* rather than what they bound.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
+baffle me with how they ever happened." Postmortem pass commissioned.
 ## S28. Three tessellation lanes are parallel pipelines with no shared core
 
 - **Where**: `crates/mesh/src/curved.rs:114`,
@@ -1634,8 +1862,8 @@ What sharing exists is ad hoc: `trimmed` imports `classify_faces`/
 `tessellate` import the tolerance bundle `Tol` from `curved`. The common
 code lives in whichever lane happened to grow it first.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
+baffle me with how they ever happened." Postmortem pass commissioned.
 ## S29. Sizing and certification vocabulary has fragmented across five modules
 
 - **Where**: `crates/mesh/src/nurbs_cert.rs:356`,
@@ -1659,8 +1887,8 @@ whose own doc says the derived line is √15 ≈ 3.87 and the gap is held by
 sizing *policy* is — and `trimmed`'s refinement backstop exists precisely
 because the schedule cannot be trusted to hit its own target.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
+baffle me with how they ever happened." Postmortem pass commissioned.
 ## S30. `budget` and `probe_stats` are ~1,050 lines of instrument in the kernel's hot loop
 
 - **Where**: `crates/mesh/src/budget.rs:1`,
@@ -1684,8 +1912,8 @@ tessellation, because the chord pass memoizes `nurbs_face_bound` locally
 and the trimmed lane computes it again with no memo shared between
 passes (`trimmed.rs:192`, `chords.rs:581`).
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
+baffle me with how they ever happened." Postmortem pass commissioned.
 ## S31. `geom-curves` / `geom-surfaces`: a crate split that buys nothing and is paid for in duplication
 
 - **Where**: `crates/geom-surfaces/src/lib.rs:12`,
@@ -1711,8 +1939,8 @@ arm of a `match` whose other arm calls the named predicate. And
 `SurfaceProjection` was lifted to a generic scalar at M6-2 while
 `Projection3` is still `f64`-only.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
+baffle me with how they ever happened." Postmortem pass commissioned.
 ## S32. `Surface`'s one-partial-per-call API created a second surface enum
 
 - **Where**: `crates/geom-surfaces/src/lib.rs:403`, `:460`,
@@ -1730,8 +1958,8 @@ with its own `eval`/`jet3`, re-implementing plane evaluation and
 hand-filling a `SurfaceJet3` of zeros. The natural query being
 unavailable at the enum is what created the second enum.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
+baffle me with how they ever happened." Postmortem pass commissioned.
 ## S33. Neither geometry enum can lift itself to another scalar
 
 - **Where**: `crates/geom-curves/src/lib.rs:870`, `:990`,
@@ -1750,8 +1978,8 @@ twice again in `geom-surfaces`, and roughly ten more across `topo`,
 be kept exhaustive by hand as variants are added, and each silently maps
 `Nurbs(_)` to the placeholder rather than lifting the payload.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
+baffle me with how they ever happened." Postmortem pass commissioned.
 ## S34. `readback.rs` is a body-wide accessor module housed in `sweep`
 
 - **Where**: `crates/sweep/src/readback.rs:163`, `:379`, `:559`
@@ -1769,8 +1997,8 @@ own doctests. `vertex_point` is additionally a near-copy of
 was chosen by provenance ("these questions arose from sweep ops") rather
 than by what the code depends on.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
+baffle me with how they ever happened." Postmortem pass commissioned.
 ## S35. Remaining Tier-2 items (roll-up)
 
 - **Confidence**: as noted
@@ -1844,8 +2072,8 @@ than by what the code depends on.
 | `crates/bvh`: the tree has two live call sites and earns its place, but four crates depend on it **only** for `Aabb`, a plain box type unrelated to hierarchies — the load-bearing export and the crate name disagree, and two of the three duties in its own header are "not yet wired" | `bvh/src/lib.rs:1` | likely |
 | The `mekr`/`fillet`/`boolean` files carry seven `#[allow(clippy::too_many_arguments)]` in one file and five near-verbatim copies of one justification comment in another — the shared context these passes need was never given a type | `emit_topo.rs`, `revolve/partial.rs:369` | sure |
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
+baffle me with how they ever happened." Postmortem pass commissioned.
 ---
 
 # Tier 3 — real but lower stakes
