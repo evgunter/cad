@@ -65,7 +65,7 @@ fn check(
         )
         .expect("two-survivor corner must construct")
         .close_arc_center(p2(o2.0, o2.1), s2);
-    let t1 = lp.vertices[1].pos;
+    let t1 = lp.vertices()[1].pos();
     let dw = ((t1.x - win.0).powi(2) + (t1.y - win.1).powi(2)).sqrt();
     let dl = ((t1.x - lose.0).powi(2) + (t1.y - lose.1).powi(2)).sqrt();
     assert!(

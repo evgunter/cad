@@ -97,8 +97,13 @@ Three levers, not one — reach for the right one:
   own header says "REPORTING (measured, never gated) … there is no
   threshold gate", and a dedicated `rebuild latency (reporting)` job
   had existed for it since 2026-07-26 — yet the aggregation guard was
-  ALSO running it in all five ε rows, where its two assertions are a
-  strict subset of `m4_pr8_corpus`'s. Six payments for one report. Note
+  ALSO running it in all five ε rows, where its green-document and
+  counted-reuse assertions are a strict subset of `m4_pr8_corpus`'s.
+  Six payments for one report. (It has since grown assertions of its
+  OWN — the corpus manifest's nodes/cone pins, 2026-08-17 — so it is no
+  longer wholly redundant with the corpus row; the ignore still holds,
+  because those pins are ε-independent by construction and one run per
+  gate covers them.) Note
   the shape: the job already existed, so the fix was one attribute and
   one flag. Reach for this lever when a reporting row is being paid for
   by the matrix as well; it is not an instruction to stand up a new job

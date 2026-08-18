@@ -65,10 +65,7 @@ fn wall_pcurve_kinds(body: &Body<f64>, face: FaceKey) -> Vec<&'static str> {
 
 #[test]
 fn an_iso_line_wall_extracts_and_refuses_at_the_arm_gate() {
-    let v = |x: f64, y: f64| ProfileVertex {
-        pos: Point2::new(x, y),
-        bulge: 0.0,
-    };
+    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
     let square = || {
         vec![ProfileLoop::new(vec![
             v(-1.0, -1.0),
@@ -107,10 +104,7 @@ fn an_iso_line_wall_extracts_and_refuses_at_the_arm_gate() {
 fn an_iso_arc_wall_extracts_and_refuses_at_the_arm_gate() {
     // A square with one bulged (arc) edge: the swept wall over the
     // arc is RATIONAL and its cap rims store `IsoArc` caches (M8-3).
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex {
-        pos: Point2::new(x, y),
-        bulge,
-    };
+    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
     let bulged = || {
         vec![ProfileLoop::new(vec![
             v(0.0, 0.0, 0.0),

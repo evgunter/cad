@@ -83,9 +83,9 @@ mod certified {
         // Three equal 120° arcs: every vertex leaves with the same
         // bulge, the third one closing the circle.
         let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex { pos: at(0), bulge },
-            ProfileVertex { pos: at(1), bulge },
-            ProfileVertex { pos: at(2), bulge },
+            ProfileVertex::new(at(0), bulge),
+            ProfileVertex::new(at(1), bulge),
+            ProfileVertex::new(at(2), bulge),
         ]);
         let plane = SketchPlane::from_frame(
             geom_core::Point3::new(iv(0.0), iv(0.0), iv(z0)),
@@ -104,30 +104,12 @@ mod certified {
         // Only (3, 1) leaves on an arc: the semicircular notch bowing
         // into the plate.
         let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex {
-                pos: p2(0.0, 0.0),
-                bulge: iv(0.0),
-            },
-            ProfileVertex {
-                pos: p2(3.0, 0.0),
-                bulge: iv(0.0),
-            },
-            ProfileVertex {
-                pos: p2(3.0, 1.0),
-                bulge: iv(-1.0),
-            },
-            ProfileVertex {
-                pos: p2(3.0, 2.0),
-                bulge: iv(0.0),
-            },
-            ProfileVertex {
-                pos: p2(3.0, 3.0),
-                bulge: iv(0.0),
-            },
-            ProfileVertex {
-                pos: p2(0.0, 3.0),
-                bulge: iv(0.0),
-            },
+            ProfileVertex::new(p2(0.0, 0.0), iv(0.0)),
+            ProfileVertex::new(p2(3.0, 0.0), iv(0.0)),
+            ProfileVertex::new(p2(3.0, 1.0), iv(-1.0)),
+            ProfileVertex::new(p2(3.0, 2.0), iv(0.0)),
+            ProfileVertex::new(p2(3.0, 3.0), iv(0.0)),
+            ProfileVertex::new(p2(0.0, 3.0), iv(0.0)),
         ]);
         extrude(&validated(vec![lp]), Extrusion::Distance(iv(1.0)))
             .unwrap()
@@ -261,14 +243,8 @@ mod certified {
         // The half-disc lamina: a semicircle out of (0, -1) and the
         // straight diameter back.
         let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex {
-                pos: p2(0.0, -1.0),
-                bulge: iv(1.0),
-            },
-            ProfileVertex {
-                pos: p2(0.0, 1.0),
-                bulge: iv(0.0),
-            },
+            ProfileVertex::new(p2(0.0, -1.0), iv(1.0)),
+            ProfileVertex::new(p2(0.0, 1.0), iv(0.0)),
         ]);
         let axis = RevolveAxis {
             origin: p2(0.0, 0.0),

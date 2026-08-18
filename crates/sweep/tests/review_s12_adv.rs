@@ -42,10 +42,7 @@ fn boxy(x0: f64, y0: f64, w: f64, h: f64, z0: f64, t: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
         [(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: p2(x, y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .collect(),
     );
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
@@ -60,14 +57,8 @@ fn boxy(x0: f64, y0: f64, w: f64, h: f64, z0: f64, t: f64) -> Body<f64> {
 fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
     let at = |th: f64| p2(r * th.cos(), r * th.sin());
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(phi),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: at(phi + PI),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(at(phi), 1.0),
+        ProfileVertex::new(at(phi + PI), 1.0),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
@@ -83,14 +74,8 @@ fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
 fn probe_torus_union_is_never_silently_wrong() {
     // Circle profile centred (1.5, 0) radius 0.4, revolved about y.
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(1.1, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(1.9, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(1.1, 0.0), 1.0),
+        ProfileVertex::new(p2(1.9, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -255,10 +240,7 @@ fn probe_involution_on_a_boolean_result_body() {
         let at = |th: f64| p2(1.2 + 0.35 * th.cos(), 1.7 + 0.35 * th.sin());
         let lp = ProfileLoop::new(
             (0..3)
-                .map(|i| ProfileVertex {
-                    pos: at(2.0 * PI * i as f64 / 3.0),
-                    bulge: (PI / 6.0).tan(),
-                })
+                .map(|i| ProfileVertex::new(at(2.0 * PI * i as f64 / 3.0), (PI / 6.0).tan()))
                 .collect(),
         );
         let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));

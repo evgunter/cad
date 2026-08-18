@@ -158,14 +158,8 @@ fn survives_near_axis_vertex_arc_endpoint() {
     // produce a watertight certified mesh — never a broken one.
     let d = 1e-7;
     let lp = ProfileLoop::new(vec![
-        profile::ProfileVertex {
-            pos: p2(d, -1.0),
-            bulge: 1.0,
-        },
-        profile::ProfileVertex {
-            pos: p2(d, 1.0),
-            bulge: 0.0,
-        },
+        profile::ProfileVertex::new(p2(d, -1.0), 1.0),
+        profile::ProfileVertex::new(p2(d, 1.0), 0.0),
     ]);
     let profile = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
         .validate(geom_core::Tolerance::get());

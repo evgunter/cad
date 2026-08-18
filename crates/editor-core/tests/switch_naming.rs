@@ -115,7 +115,7 @@ fn lex_min_swap_cannot_renumber_program_names() {
         let c = (0..a.len)
             .find(|&k| a.segment(k) == 0)
             .expect("program segment 0 exists");
-        let start = pv.validated.loops()[0].vertices()[c as usize].pos;
+        let start = pv.validated.loops()[0].vertices()[c as usize].pos();
         assert_eq!(start.x.to_bits(), 1.0_f64.to_bits());
         assert_eq!(start.y.to_bits(), 0.0_f64.to_bits());
     }
@@ -209,7 +209,7 @@ fn program_vertex_zero_is_the_authored_entry() {
         let canonical_of_program_zero = (0..anchor.len)
             .find(|&k| anchor.vertex(k) == 0)
             .expect("program vertex 0 exists");
-        let v = verts[canonical_of_program_zero as usize].pos;
+        let v = verts[canonical_of_program_zero as usize].pos();
         assert_eq!(
             v.x.to_bits(),
             1.0_f64.to_bits(),
@@ -275,13 +275,13 @@ fn hole_circle_anchor_recovers_reversal() {
         // carries the NEGATED bulge — bit-exact both.
         let p_end = (p_seg + 1) % n as usize;
         assert_eq!(
-            verts[c as usize].pos.x.to_bits(),
-            program.vertices[p_end].pos.x.to_bits(),
+            verts[c as usize].pos().x.to_bits(),
+            program.vertices()[p_end].pos().x.to_bits(),
             "canonical seg {c} starts at program vertex {p_end}"
         );
         assert_eq!(
-            verts[c as usize].bulge.to_bits(),
-            (-program.vertices[p_seg].bulge).to_bits(),
+            verts[c as usize].bulge().to_bits(),
+            (-program.vertices()[p_seg].bulge()).to_bits(),
             "canonical seg {c} carries program seg {p_seg}'s negated bulge"
         );
     }

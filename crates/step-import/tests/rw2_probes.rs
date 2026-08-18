@@ -42,10 +42,7 @@ use profile::{ProfileLoop, ProfileVertex};
 use sweep::{Section, loft_body};
 
 fn arc_section(s: f64) -> Section {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex {
-        pos: Point2::new(x, y),
-        bulge,
-    };
+    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
     vec![ProfileLoop::new(vec![
         v(-s, -s, 0.0),
         v(s, -s, 0.4142135623730951),

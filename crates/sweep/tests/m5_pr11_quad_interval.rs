@@ -23,14 +23,8 @@ fn i(x: f64) -> Interval {
 
 fn halves() -> (Body<Interval>, Body<Interval>) {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(i(-R), i(0.0)),
-            bulge: i(1.0),
-        },
-        ProfileVertex {
-            pos: Point2::new(i(R), i(0.0)),
-            bulge: i(1.0),
-        },
+        ProfileVertex::new(Point2::new(i(-R), i(0.0)), i(1.0)),
+        ProfileVertex::new(Point2::new(i(R), i(0.0)), i(1.0)),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())

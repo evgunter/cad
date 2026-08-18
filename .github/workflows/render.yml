@@ -22,13 +22,19 @@
 #   gh run download <run-id> -n renders-uv          # UV trim-loop sheet
 #   gh run download <run-id> -n renders-wild        # wild-corpus montage
 #
-# `local-scripts/render-hosted.sh` is the one-command front end for all of
-# that (push check -> dispatch -> poll -> install the artifacts back
-# into the working tree at their committed paths), and is the path the
-# local entry points now point at: they refuse to run without an
-# explicit override (demos/hosted-render-guard.sh), and every step here
-# that renders sets that override in the file, because this workflow is
-# the sanctioned renderer.
+# THOUGH YOU RARELY WANT THOSE. Since 2026-08-17 every lane RE-BASELINES
+# itself — a run whose render differs from the committed cells commits
+# the new ones to the branch and marks the run neutral — so the ordinary
+# way to re-render is `git push`, wait, `git pull`, and look at the
+# images. The artifacts above are for a dispatch aimed at a bare SHA
+# (nowhere to commit to) and for `--verify`.
+#
+# `local-scripts/render-hosted.sh` is the one-command front end for the
+# DISPATCH path (push check -> dispatch -> poll -> install), and is what
+# the local entry points name after the push-and-pull flow: they refuse
+# to run without an explicit override (demos/hosted-render-guard.sh),
+# and every step here that renders sets that override in the file,
+# because this workflow is the sanctioned renderer.
 #
 # THE KERNEL LANE'S FALLBACK HOLE IS PLUGGED HERE. That lane has a
 # matplotlib fallback which EXITS 0 and writes the gitignored preview
@@ -40,15 +46,15 @@
 # render.sh's own #221 routing invariant: on fallback it touches nothing
 # under the committed lane and everything under renders-preview/.
 #
-# TWO ENTRY POINTS, ONE PIPELINE. `workflow_dispatch` renders on demand
-# and hands back artifacts. `workflow_call` is ci.yml's render gate: the
-# SAME lanes over a PR's merge commit, failing when a committed lane no
-# longer matches what this code renders. One definition of how a lane
-# renders, so the gate cannot drift from the thing it gates — and the
-# artifacts a failing gate points you at are the ones it just produced,
-# so fixing it is a download, never a re-render.
+# TWO ENTRY POINTS, ONE PIPELINE. `workflow_dispatch` renders on demand;
+# `workflow_call` is ci.yml's render lane, the SAME lanes over a PR's
+# merge commit. Both re-baseline: a committed lane that no longer
+# matches what this code renders is committed back to the branch and
+# the run goes neutral, so accepting a render change is `git pull` and
+# a glance at the images. One definition of how a lane renders, so the
+# check cannot drift from the thing it checks.
 #
-# WHY A GATE IS POSSIBLE NOW. It was not, when the committed cells came
+# WHY THIS IS POSSIBLE AT ALL. It was not, when the committed cells came
 # from a developer's GL stack and these came from llvmpipe. Hosted is
 # the canonical producer since Evan's #338 ruling, and a repeat hosted
 # render of one commit is byte-identical — measured across all 55 cells
@@ -68,12 +74,62 @@
 #     committed STEP fixtures, pinned, no GL anywhere in the path.
 #     Byte-reproducible on any box, so its diff is unambiguous and it
 #     carries no mesa exposure at all.
-#   * UV — renderer-free, and already gated by ci.yml's `uv sheet drift
-#     (demos)` row. Reported here, never re-gated: one gate per
-#     obligation.
+#   * UV — renderer-free and text, so byte-reproducible on any box
+#     like the wild lane, and re-baselined like it. ci.yml's duplicate
+#     `uv sheet drift (demos)` row was retired when that started; this
+#     workflow owns the obligation outright.
 #
-# NO JOB COMMITS OR PUSHES, in either mode. A failing gate hands over an
-# artifact and a command; committing it stays a human's call.
+# THE LANES COMMIT THEIR OWN RE-BASELINES (2026-08-17, Evan's ruling —
+# this REVISES the "NO JOB COMMITS OR PUSHES, in either mode" rule that
+# stood here from the commit that first gated the lanes).
+#
+# That rule was written WITH the gate and was shaped by it: if a gate
+# committed the bytes it was comparing against, it could never fail, so
+# "no commits" was the only way to keep the comparison honest. Phrasing
+# it "in either mode" was the overreach — a DISPATCH has no comparison
+# to defend. It is someone explicitly asking for new frames, and making
+# them then go download and install those frames was pure ceremony.
+#
+# What replaced it keeps the honesty and drops the ceremony. A drifting
+# lane publishes a check run whose conclusion is NEUTRAL — GitHub's "!"
+# rather than its "x" — saying, in as many words, that if the render
+# looks right the job is a success and needs no re-run. The mechanical
+# half (fetch, install, commit by hand) is gone; the judgement half
+# (are these images what I meant?) is what the neutral check asks for
+# and the only thing it asks for.
+#
+# WHO ACTUALLY COMMITS: `main` and dispatches, never a PR. A bot commit
+# onto a PR branch becomes the PR's HEAD, and a GITHUB_TOKEN push
+# triggers no run of its own — so the PR shows that one neutral check
+# and NOTHING else, every green check stranded on the parent commit.
+# Measured on this workflow's own PR (#598): 30 green jobs on one sha,
+# a head commit carrying a single check. The recursion guard and that
+# blank slate are the same fact; you cannot have the commit skip CI and
+# carry CI's checks with the same token. So PRs REPORT and main
+# COMMITS, which is also the rebuild-latency history's rule — one rule
+# for both, rather than two answers to one question. The accepted cost:
+# a PR merges with stale cells, and main heals within minutes.
+# `.github/actions/rebaseline-lane` carries the full reasoning,
+# including why neutral rather than red and why not silent green.
+#
+# What did NOT change: a wedged pass still fails, the matplotlib-
+# fallback assertion still fails, and the re-baseline is only reached
+# when the render itself succeeded — so a wedge is still a wedge and is
+# never re-reported as drift.
+#
+# ALL FOUR LANES, INCLUDING UV. The uv sheet was briefly held back —
+# ci.yml had its own `uv sheet drift (demos)` row, and a self-
+# re-baselining lane looked like it would undercut it. It would not
+# have: the two fired on the same condition and read the SAME cached
+# tour output (they shared a cache key by construction), so it was a
+# duplicate signal, and keeping both would have made every intended
+# sheet change report red there and neutral here. uv is also the same
+# CATEGORY as wild — renderer-free, text, byte-reproducible on any box
+# — so there was no principled line to draw between them. That ci.yml
+# row is retired and the obligation lives here; its local mirror in
+# local-scripts/ci-local.sh stays, because a developer box cannot
+# re-baseline itself and a failing check is the right shape there.
+# One gate per obligation, still.
 name: render (demos)
 
 on:
@@ -116,9 +172,24 @@ on:
         description: "Branch/tag/SHA to render (default: this workflow's ref)"
         required: false
         default: ""
+      # Left empty, this resolves to the branch you dispatched ON — but
+      # only when `ref` is also empty. Naming a `ref` makes the target
+      # ambiguous (it takes a branch OR a bare SHA, and a SHA has
+      # nowhere to commit to), so that combination requires saying
+      # `push_to` explicitly; without it the lanes report the drift and
+      # name the install command, exactly as the old gate did.
+      push_to:
+        description: "Branch to commit re-baselined lanes to (empty: this workflow's branch, unless `ref` is set)"
+        required: false
+        default: ""
+      report_sha:
+        description: "Commit the drift check is posted against when nothing is committed (leave empty: this run's own sha)"
+        required: false
+        default: ""
 
-  # ci.yml's render gate. Same inputs, plus the one that turns the
-  # lanes' drift reports into failures.
+  # ci.yml's render lane. Same inputs, plus `gate` — which no longer
+  # turns drift into a failure (both modes re-baseline) and survives as
+  # the caller's declared intent and the concurrency-group discriminator.
   workflow_call:
     inputs:
       lanes:
@@ -145,11 +216,37 @@ on:
         type: string
         required: false
         default: ""
+      push_to:
+        description: "Branch to commit re-baselined lanes to (empty: no commit, report only)"
+        type: string
+        required: false
+        default: ""
+      report_sha:
+        description: "Commit the neutral drift check is posted against when nothing is committed (must be the PR HEAD sha, not the merge commit)"
+        type: string
+        required: false
+        default: ""
       gate:
-        description: "Fail the lane when its committed directory does not match this render"
+        description: >
+          Kept for the caller's intent and for the concurrency group. It
+          no longer turns drift into a failure — drift is re-baselined
+          and marked neutral in both modes; see the header.
         type: boolean
         required: false
         default: false
+
+env:
+  # THE COMMIT TARGET, RESOLVED ONCE (three copies of this expression
+  # drifted into a bug: the dispatch fallback fired in GATE mode too and
+  # turned ci.yml's deliberate empty value into `github.ref_name`, which
+  # on a pull_request is `NNN/merge` — not a branch. `couldn't find
+  # remote ref 598/merge`, PR #598.)
+  #
+  # In GATE mode ci.yml is AUTHORITATIVE and an empty value MUST mean
+  # "do not commit" — it passes the branch on main pushes and nothing on
+  # PRs. Only a DISPATCH may fall back to the branch it was fired on,
+  # and only when no explicit `ref` made the target ambiguous.
+  PUSH_TARGET: ${{ inputs.push_to != '' && inputs.push_to || (!inputs.gate && inputs.ref == '' && github.ref_name || '') }}
 
 concurrency:
   # On demand, a render someone ASKED for is never cancelled — a second
@@ -200,18 +297,21 @@ jobs:
       # the tour reads is in the hash (the kernel crates, the tour
       # crate, the lockfiles, the pinned toolchain), so a hit means the
       # same bytes a rebuild would have produced — the tour is
-      # deterministic, which is what ci.yml's `uv sheet drift (demos)`
+      # deterministic, which is what the `uv` lane's own re-baseline
+      # asserts on every run.
+      #
       # DIRECTLY UNDER THE CHECKOUT, BEFORE ANY CARGO STEP. `hashFiles`
       # globs the working tree, so a cargo step running first would put
       # `demos/tour/target/` inside the `demos/tour/**` pattern and the
       # key would describe build artifacts instead of sources. ci.yml's
       # copy of this step was placed after a clippy row and computed a
       # different hash for the same commit, in the same run — a
-      # permanent miss that still looked like a working cache.
+      # permanent miss that still looked like a working cache. (ci.yml's
+      # copy is gone as of 2026-08-17 — it fed only the retired `uv
+      # sheet drift` gate — so this is now the only one.)
       #
-      # gate asserts on every run. `tour_cache: refresh` forces the
-      # rebuild anyway, for when you want that assertion re-earned
-      # rather than assumed.
+      # `tour_cache: refresh` forces the rebuild anyway, for when you
+      # want that assertion re-earned rather than assumed.
       - name: tour output cache
         id: tour-cache
         if: ${{ inputs.tour_cache != 'refresh' }}
@@ -248,6 +348,12 @@ jobs:
   uv:
     name: uv trim-loop sheet
     runs-on: ubuntu-latest
+    # Same as the other lanes since 2026-08-17: this one re-baselines
+    # too, and ci.yml's duplicate `uv sheet drift` gate was retired
+    # when it did.
+    permissions:
+      contents: write
+      checks: write
     needs: tour
     if: ${{ contains(fromJSON('["all","uv"]'), inputs.lanes) }}
     timeout-minutes: 15
@@ -288,9 +394,10 @@ jobs:
           retention-days: 14
       # This lane IS byte-reproducible off-box (no renderer, and the
       # sheet is text), so a diff here is a real finding rather than a
-      # GL-stack difference — the same finding ci.yml's `uv sheet drift`
-      # step already gates on. Reported, not re-gated: one gate per
-      # obligation.
+      # GL-stack difference — an intended sheet change, or a D9
+      # determinism finding. Recorded here; acted on by the re-baseline
+      # step below, which owns the obligation outright since ci.yml's
+      # duplicate `uv sheet drift` gate was retired (2026-08-17).
       - name: sheet drift vs the committed lane (informational)
         if: always()
         run: |
@@ -298,13 +405,29 @@ jobs:
             echo "### UV lane — hosted vs committed"
             echo
             echo "Renderer-free and byte-reproducible: an empty diff is the"
-            echo "expected result. Already gated by ci.yml's \`uv sheet drift"
-            echo "(demos)\` step — reported here, not re-gated."
+            echo "expected result, so a diff is an intended sheet change or a"
+            echo "determinism finding — re-baselined by the step below."
             echo
             echo '```'
             git status --porcelain -- demos/renders-uv/ || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Same treatment as the other three lanes. This one carries the
+      # least ambiguity of any of them: renderer-free, text output,
+      # byte-reproducible on any box — so a re-baseline here is an
+      # intended sheet change or a determinism bug, never a mesa bump.
+      - name: re-baseline committed lane
+        uses: ./.github/actions/rebaseline-lane
+        with:
+          lane: uv
+          dir: demos/renders-uv
+          push_to: ${{ env.PUSH_TARGET }}
+          # On a pull_request `github.sha` is the MERGE commit; a check
+          # posted there never shows on the PR. ci.yml passes the PR's
+          # head sha explicitly.
+          report_sha: ${{ inputs.report_sha }}
+          token: ${{ github.token }}
 
   # The two FreeCAD-drawn montages. ONE definition, two legs: the lanes
   # differ only in render.sh's flag and the directory it publishes to
@@ -313,6 +436,12 @@ jobs:
   montage:
     name: ${{ matrix.lane }} montage
     runs-on: ubuntu-latest
+    # The re-baseline step commits the lane and posts the neutral
+    # check run. Nothing else in this workflow writes anything, which
+    # is why these sit on the two lane jobs rather than at the top.
+    permissions:
+      contents: write
+      checks: write
     needs: tour
     if: ${{ contains(fromJSON('["all","kernel","freecad"]'), inputs.lanes) }}
     # A wedged pass is bounded by render.sh's own per-scene budget (two
@@ -490,56 +619,27 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # THE GATE. Deliberately NOT `always()`: it must only be reached
-      # when the pass itself succeeded, so a wedge fails as a wedge and
-      # is never re-reported as drift (the lane directory a failed pass
-      # leaves behind is the COMMITTED one, untouched — it would read as
-      # "no drift" and quietly pass).
+      # RE-BASELINE, NOT A GATE (2026-08-17 — see the header). Drift
+      # is committed back to the branch and marked NEUTRAL rather than
+      # failing the run; the action's own header carries the reasoning.
       #
-      # The fix named here installs the artifact this job just uploaded,
-      # on this very run, so it costs a download rather than another
-      # render. It goes through `render-hosted.sh` rather than a bare
-      # `gh run download`: that command REFUSES to overwrite existing
-      # files, so aimed straight at a populated lane directory — which
-      # is the only situation this message is ever printed in — it fails
-      # on the first cell. The script stages into a temp dir, installs
-      # over the lane, and runs the provenance guard on what landed.
-      - name: committed lane is current (gate)
-        if: ${{ inputs.gate }}
-        run: |
-          drift="$(git status --porcelain -- "demos/$LANE_DIR/")"
-          if [ -z "$drift" ]; then
-            echo "demos/$LANE_DIR/ matches this render."
-            exit 0
-          fi
-          fix="local-scripts/render-hosted.sh --run ${{ github.run_id }} --lane ${{ matrix.lane }}"
-          # The annotation is one line by necessity (workflow commands
-          # cannot carry newlines); the log above it is where the
-          # explanation fits.
-          cat <<EOF
-
-          ================================================================
-           demos/$LANE_DIR/ IS STALE — it is not what this code renders.
-
-           $drift
-
-           Two things cause this, and both are fixed the same way:
-             * the geometry changed and these cells need re-baselining;
-             * the runner image's mesa bumped and re-rasterised them —
-               expect that roughly monthly. The committed cells are meant
-               to track the canonical (hosted) producer, so that is this
-               gate working, not failing.
-
-           Fix it from THIS run — the command below installs the render
-           this job just uploaded, so nothing is rendered again:
-
-             $fix
-             git add demos/$LANE_DIR/ && git commit
-
-          ================================================================
-          EOF
-          echo "::error title=demos/$LANE_DIR is stale::Committed ${{ matrix.lane }} cells do not match this render. Fix from this run: $fix — then commit. (Geometry change, or a monthly mesa re-baseline; see the log above.)"
-          exit 1
+      # Deliberately NOT `always()`, and that is inherited from the gate
+      # this replaces: it must only be reached when the pass itself
+      # succeeded, so a wedge fails as a wedge and is never re-reported
+      # as drift. (The lane directory a failed pass leaves behind is the
+      # COMMITTED one, untouched — it would read as "no drift" and
+      # quietly pass, and would now also quietly commit nothing.)
+      - name: re-baseline committed lane
+        uses: ./.github/actions/rebaseline-lane
+        with:
+          lane: ${{ matrix.lane }}
+          dir: demos/${{ env.LANE_DIR }}
+          push_to: ${{ env.PUSH_TARGET }}
+          # On a pull_request `github.sha` is the MERGE commit; a check
+          # posted there never shows on the PR. ci.yml passes the PR's
+          # head sha explicitly.
+          report_sha: ${{ inputs.report_sha }}
+          token: ${{ github.token }}
 
   # THE WILD-CORPUS LANE. FreeCAD-free by ratified scope (its cells are
   # third-party STEP imported by `step-import` and tessellated by the
@@ -557,6 +657,12 @@ jobs:
   wild:
     name: wild-corpus montage
     runs-on: ubuntu-latest
+    # The re-baseline step commits the lane and posts the neutral
+    # check run. Nothing else in this workflow writes anything, which
+    # is why these sit on the two lane jobs rather than at the top.
+    permissions:
+      contents: write
+      checks: write
     if: ${{ contains(fromJSON('["all","wild"]'), inputs.lanes) }}
     timeout-minutes: 45
     env:
@@ -666,35 +772,20 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Same gate as the PNG lanes, minus their one excuse: no GL is
-      # involved anywhere in this lane, so a diff here is never a mesa
-      # re-baseline — it is a real pixel change or a determinism finding.
-      - name: committed lane is current (gate)
-        if: ${{ inputs.gate }}
-        run: |
-          drift="$(git status --porcelain -- demos/renders-wild/)"
-          if [ -z "$drift" ]; then
-            echo "demos/renders-wild/ matches this render."
-            exit 0
-          fi
-          fix="local-scripts/render-hosted.sh --run ${{ github.run_id }} --lane wild"
-          cat <<EOF
-
-          ================================================================
-           demos/renders-wild/ IS STALE — it is not what this code renders.
-
-           $drift
-
-           This lane is matplotlib Agg over the kernel's own tessellation,
-           pinned and GL-free, so it is byte-reproducible on any box: this
-           is a real pixel change or a determinism finding, never a
-           re-rasterisation. If the change is intended, install this run's
-           own render — nothing is rendered again:
-
-             $fix
-             git add demos/renders-wild/ && git commit
-
-          ================================================================
-          EOF
-          echo "::error title=demos/renders-wild is stale::Committed wild cells do not match this render (GL-free lane — a real pixel or determinism change). Fix from this run: $fix — then commit."
-          exit 1
+      # Same treatment as the PNG lanes, minus their one excuse: no GL
+      # is involved anywhere in this lane, so a re-baseline here is
+      # never a mesa re-rasterisation — it is a real pixel change or a
+      # determinism finding. That makes the neutral check's "look at
+      # the images" more pointed here than anywhere else, which is
+      # exactly why it is still a check and not a log line.
+      - name: re-baseline committed lane
+        uses: ./.github/actions/rebaseline-lane
+        with:
+          lane: wild
+          dir: demos/renders-wild
+          push_to: ${{ env.PUSH_TARGET }}
+          # On a pull_request `github.sha` is the MERGE commit; a check
+          # posted there never shows on the PR. ci.yml passes the PR's
+          # head sha explicitly.
+          report_sha: ${{ inputs.report_sha }}
+          token: ${{ github.token }}

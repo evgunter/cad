@@ -60,14 +60,8 @@ fn survives_interval_donut_wrap_run() {
     // The 2-arc circle profile: cosurface wrap pair + kfmrh/zip at
     // Interval; ONE torus key, both meridians Seam.
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(1.0, 0.5),
-            bulge: Interval::from_f64(1.0),
-        },
-        ProfileVertex {
-            pos: p2(2.0, 0.5),
-            bulge: Interval::from_f64(1.0),
-        },
+        ProfileVertex::new(p2(1.0, 0.5), Interval::from_f64(1.0)),
+        ProfileVertex::new(p2(2.0, 0.5), Interval::from_f64(1.0)),
     ]);
     let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
     assert_tiers(&t.body);

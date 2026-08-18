@@ -219,6 +219,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         // dangling head carry different recourses, so a caller
         // branches on which one fired, not on "a mate failed".
         NodeErrorKind::Mate(fault) => mate_fault_tag(fault),
+        NodeErrorKind::CrossingUnverified { .. } => "crossing_unverified",
     }
 }
 
@@ -329,6 +330,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         E::SolidInvalid { .. } => "solid_invalid",
         E::ProductInvalid { .. } => "product_invalid",
         E::Naming { .. } => "product_naming",
+        E::ContactLineage { .. } => "contact_lineage",
     }
 }
 
