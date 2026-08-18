@@ -529,13 +529,41 @@ jobs:
       # software GL stack and Xvfb. QT_QPA_PLATFORM=offscreen (set per
       # scene by render.sh) keeps Qt itself headless regardless; the
       # display is there for Coin, not for Qt.
+      # HANG BUDGET (2026-08-18). This is an apt install that normally
+      # takes ~15 s, and it WEDGED TWICE in one evening — both times on
+      # the kernel leg, while the freecad leg's identical step finished
+      # on its own runner, so nothing in this repo distinguishes them
+      # and the cause is upstream. With no timeout a wedge sits on the
+      # JOB's 90-minute budget reporting nothing, and a run nobody can
+      # cancel blocks the lane's own re-baseline for an hour and a half.
+      #
+      # THE TWO GUARDS DO DIFFERENT JOBS, and both are needed:
+      #   * `timeout` around each apt call kills a HUNG attempt so the
+      #     retry can happen at all — a hang never returns, so a bare
+      #     retry loop would sit in the first attempt forever;
+      #   * `timeout-minutes` on the step is the outer bound, so three
+      #     bad attempts still fail in minutes rather than tens of them.
+      # The retry itself is the same lever, for the same stated reason,
+      # as .github/actions/install-nextest: one host's bad minute must
+      # not be a whole-gate failure.
       - name: renderer system deps (software GL + Xvfb + venv)
+        timeout-minutes: 8
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq \
-            xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libglu1-mesa \
-            libxrender1 libxcursor1 libxinerama1 libxft2 libfontconfig1 \
-            python3-venv
+          set -uo pipefail
+          for attempt in 1 2 3; do
+            # -k: apt ignores TERM mid-transaction often enough to matter.
+            if timeout -k 10 120 sudo apt-get update -qq \
+               && timeout -k 10 240 sudo apt-get install -y -qq \
+                 xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libglu1-mesa \
+                 libxrender1 libxcursor1 libxinerama1 libxft2 libfontconfig1 \
+                 python3-venv; then
+              exit 0
+            fi
+            echo "::warning::renderer system deps: apt attempt ${attempt} failed or hung; retrying"
+            sleep $((attempt * 5))
+          done
+          echo "::error title=renderer system deps unavailable::apt failed or hung on three attempts. This is an upstream/mirror problem, not a repo one — re-run the lane."
+          exit 1
 
       # render.sh builds its own pinned venv (numpy/matplotlib) on first
       # run, stages every scene, publishes only a whole pass, strips the
@@ -738,7 +766,22 @@ jobs:
       # Needed on BOTH paths: render-wild.sh builds the venv itself, so
       # this is the renderer's dependency, not the generator's.
       - name: venv deps
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-venv
+        # Same guard as the montage lanes' bigger install above, for the
+        # same reason — a smaller package list is not a different
+        # failure mode, just a shorter one.
+        timeout-minutes: 6
+        run: |
+          set -uo pipefail
+          for attempt in 1 2 3; do
+            if timeout -k 10 120 sudo apt-get update -qq \
+               && timeout -k 10 120 sudo apt-get install -y -qq python3-venv; then
+              exit 0
+            fi
+            echo "::warning::python3-venv: apt attempt ${attempt} failed or hung; retrying"
+            sleep $((attempt * 5))
+          done
+          echo "::error title=python3-venv unavailable::apt failed or hung on three attempts. Upstream/mirror problem — re-run the lane."
+          exit 1
       - name: wild generator (import + tessellate + STL + scenes.json)
         if: steps.wild-cache.outputs.cache-hit != 'true'
         run: cd demos/wild && cargo run --release -- out
