@@ -935,3 +935,17 @@ transition table over the post-dissolution row set, closing the
 STRUCTURAL. Lane lib-rtable, branch lib/rtable. The RESPELL-TABLE
 register entry closes at its merge — the register's last
 scheduled unit.
+
+**RTABLE MERGED (2026-08-18, #616 34/34, merge db0a4c21;
+ordinal-58 A-W-F→fixed, the first v5-instrument LIB row — in
+MODEL-AB-LOG). RESPELL-TABLE register entry CLOSED — the
+register's SCHEDULED column is EMPTY.** The v5 style lane earned
+its keep on row one: the census fix (every table row's replay
+coverage pinned) closes a class, not an instance. What remains in
+the register is Evan-paced or cross-program: the
+enclosing-tangency vocabulary question (#608's named residue),
+G8's multi-solid-operand kernel gap + the evaluate-memo door,
+the G2 sweep/tube design conversation (U4/frontier), die_tool's
+Python re-authoring (banked), Q9, and whatever #614's smell-scan
+schedule routes to LIB (the orphaned ProfileError fillet
+variants are claimed).
