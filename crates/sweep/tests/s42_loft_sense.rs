@@ -183,10 +183,14 @@ fn concave_arc_loft_walls_point_out_of_the_material() {
     assert_eq!(topo::validate_closed(body), Ok(()), "tier 2 (watertight)");
     assert_eq!(topo::validate_geometric(body), Ok(()), "tier 3 at rest");
     let vol = topo::props::mass_properties(body).unwrap().volume;
+    // The arc walls are RATIONAL, so their patch flux is the certified
+    // quadrature rather than a closed form: the accuracy target is
+    // absolute and stated, never the returned pad (a pad-relative
+    // bracket loosens exactly as the enclosure degrades).
     assert!(
-        (vol - 3.0).abs() < 1e-9,
+        (vol - 3.0).abs() < 1e-7,
         "the equal-area segments make the region exactly 3, so the unit \
-         prism meters 3.0; got {vol}"
+         prism meters 3.0 to the rational quadrature's accuracy; got {vol}"
     );
     assert_eq!(
         probe_all_walls(&lofted, &extruded_twin(&loops, 1.0), 0.02),
@@ -363,10 +367,12 @@ fn the_union_check_refuses_typed_on_a_lofted_operand() {
 /// also the shape S42 objects to. This row lofts a GENUINELY tapered
 /// concave-arc pair (the top section scaled to 0.8) and requires each
 /// wall's outward normal to agree in direction with the verified
-/// prism's. A 20% taper over unit height tilts a wall by at most
-/// `atan(0.2) ≈ 11.3°`, nowhere near the 90° a direction disagreement
-/// needs, so the bound is generous by construction — while a flipped
-/// `sense` lands at `−1` and fails.
+/// prism's. Scaling the top section by 0.8 about the sketch origin
+/// displaces a wall at radius `d` by `0.2·d` over unit height, and the
+/// fixture's farthest wall sits at `d = 2.5`, so the tilt is at most
+/// `atan(0.5) ≈ 26.6°`. The row asserts `45°`: comfortably above that
+/// geometric maximum and comfortably below the `180°` a flipped `sense`
+/// produces, so it discriminates the bit and nothing else.
 #[test]
 fn a_tapered_concave_loft_keeps_the_verified_wall_directions() {
     let base = notched_loops(1.0);
@@ -393,7 +399,7 @@ fn a_tapered_concave_loft_keeps_the_verified_wall_directions() {
             let (_, prism_n) = wall_outward(&prism.body, prism.side_faces[li][si]);
             let dot = taper_n.dot(prism_n);
             assert!(
-                dot > (PI / 16.0).cos(),
+                dot > (PI / 4.0).cos(),
                 "loop {li} segment {si}: the taper may tilt the wall, not \
                  reverse it; cos = {dot}"
             );
