@@ -583,15 +583,16 @@ fn assert_walls_face_out(lofted: &Lofted<f64>, oracle: &Body<f64>, delta: f64, e
 fn loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below() {
     let loops = notched_loops();
     let lofted = loft_pair(&loops, 1.0);
+    let twin = extruded_twin(&loops, 1.0);
     assert_eq!(topo::validate(&lofted.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&lofted.body), Ok(()), "tier 2");
-    assert_walls_face_out(&lofted, &extruded_twin(&loops, 1.0), 0.02, 4);
+    assert_walls_face_out(&lofted, &twin, 0.02, 4);
     assert!(
         sense_of(&lofted.body, lofted.top) && sense_of(&lofted.body, lofted.bottom),
         "the caps keep sense = true (the bottom cap's loop is reversed at mint)"
     );
     // The twin's flux is a closed form and holds at every ε.
-    let twin_vol = vol(&extruded_twin(&loops, 1.0));
+    let twin_vol = vol(&twin);
     assert!(
         (twin_vol - 3.0).abs() < 1e-9,
         "the twin's analytic flux is the closed form: 3.0; got {twin_vol}"
@@ -640,8 +641,8 @@ fn loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below() {
             )
         })
         .count();
-    assert!(
-        orientation_errors == 0,
+    assert_eq!(
+        orientation_errors, 0,
         "no tier reads a lofted wall's sense, so an inside-out wall draws \
          no orientation complaint: {report:?}"
     );
