@@ -387,6 +387,78 @@ semantically valid type-wise for duals to enter a pipeline that can only
 refuse them — adopted."* So the question is not "why do these refuse"
 but "should `Dual` be in `Real` at all" — i.e. S3 is downstream of S2.
 
+**Steelman (2026-08-18): SURVIVES IN PART — not cargo-culted, the stated
+obstacle is real, and a working collapse exists anyway (compiled).**
+
+*Not accretion.* Four dated rulings. Instance 1 (`PropsQuadLane`, PR
+#157) replaced an already-written runtime mechanism on **Evan's own
+pushback** — `M5-LOG.md:3451`: *"it is not semantically valid type-wise
+for duals to enter a pipeline that can only refuse them — adopted."*
+Instance 2 (PR #176) states its blocker as **measured**: putting the
+bound on `certify` cascaded through every public boolean door — *"7
+compile errors at the first hop alone"*. Instance 4 was **pre-committed
+a PR in advance** (`real.rs:474`). And the pattern was twice
+**deliberately declined** (the fillet battery, `ssi/enclose.rs`).
+
+*The real obstacle is the crate DAG plus coherence — not `Bounds`'
+shape.* `PropsQuadLane`/`ChartRegionLane` name `topo` types;
+`PcurveFittedLane`/`EdgeNurbsLane` name `geom_brep` types **and are
+consumed inside `geom-brep`**. **No single crate can host all four
+methods without a dependency cycle.** The agent then *tested* the
+obvious blanket-impl collapse in a downstream crate and got
+`error[E0119]: upstream crates may add a new impl of Bounds for Dual` —
+so given the trait lives in `topo`/`geom-brep`, hand-enumerating the
+four scalars is genuinely forced.
+
+*`Dual`'s refusing impl is load-bearing.*
+`sweep/tests/extrude_acceptance.rs:565` calls `validate_geometric` on a
+`Dual64` body. Delete the impls and that **stops compiling** — a dual
+body becomes un-validatable, contradicting Q1's ratified instantiation
+set. A missing impl would not do the same job.
+
+*But a collapse exists, and it compiles.* One trait plus a rank-2 job
+callback, **both in `geom-core`** — where the blanket impl is legal
+because `Bounds` and `Dual` are both local there — takes 4 traits × 4
+impls down to **one trait and two impls**, keeps every call site's
+arguments and crate, keeps the certified bodies at `T: Decide + Bounds`
+in their already-allowlisted files, and preserves the static guarantee
+that `Dual` instantiates none of the certified machinery. Verified on
+stable (`rustc 1.94.1`), cross-crate: `Ok(2.0)` at `Interval`,
+`Err(LaneUnsupported("dual"))` at `Dual`.
+
+*Three defects confirmed at source:* `PcurveFittedLane`'s `Option` layer
+is pure indirection — its sole consumer (`pcurve_cache.rs:2423`)
+converts `Ok(None)` straight into the `EdgeNurbsLane` shape.
+`lane_name()` is **6/8 dead** (the `f64`/`Probe`/`Interval` impls are
+unreachable; nothing else in `crates/` reads it) — and only 2 of the 4
+traits have it at all, so this report's "plus a `lane_name()`" is 2/4.
+`ChartRegionLane`'s `Option<Result<..>>` routes `None` and `Some(Err)`
+to the **identical** `CensusUnsupported` at both consumers.
+
+*What does not survive:* "cargo-culted" as a characterisation, and
+"entire information content is 'does this scalar carry a bracket?'" —
+`PropsQuadLane`'s `None` also carries *"not attempted"*, a channel the
+other three lack (`props.rs:230`).
+
+*Hidden costs:* no new crate dependency (the collapse runs **downward**
+into `geom-core`). But the CI gate gains a row and loses granularity —
+four *narrow* trait names carrying the compound bound into a bounded
+blast radius become one *workspace-wide* name, which would want its own
+name-gate like `EvalScalar`'s. Net saving ~250–300 lines, not ~360:
+each call site swaps forwarders for a job struct, and
+`fitted_certificate` has **seven** arguments, six of them references.
+`PropsQuadLane` also does a naming job (`EvalScalar`'s component) that
+`BracketLane` cannot, so a `topo`-side alias trait may survive. And
+`DESIGN.md:562` names a coming cascade — the mint pass needs this bound
+on every constructor — so doing the collapse first makes it one bound
+instead of two migrations over the same signatures.
+
+*Could not determine:* **whether a `geom-core`-level mechanism was ever
+considered.** Every recorded deliberation is about *whether to split at
+all* or *parallel bound vs supertrait*. Nothing anywhere discusses
+moving the dispatch into `geom-core`. It appears never to have been on
+the table.
+
 ## S4. One vocabulary, N hand-synced copies — the dominant repo-wide shape
 
 - **Confidence**: sure
@@ -477,6 +549,96 @@ dependency, whether unification is already scheduled (M9 = the C7 join
 lane), and above all whether the forked `bool_sector_*`/`split_sector_*`
 predicates are dimensionally identical — if so they split one K
 population for nothing.
+**Steelman (2026-08-18): SURVIVES — and the sharpest claim survives
+exactly as written, with numbers.**
+
+*Not a lane-isolation artifact.* `splitting/` landed as PR #55; the
+boolean's `sectors.rs` was authored **6 h 45 m later**, on a branch that
+had already merged the split branch. Its own module doc says *"PR 2's
+geometry reused"* — what was reused was the **derivation**; the code was
+re-typed.
+
+*The backwards dependency was ratified, once, narrowly.*
+`M3-PLAN.md:230` (RATIFIED #42) item 5: *"Ch. 14 join **reused** with
+A↔B correspondence disambiguation"*. Item 4 — boolean reduction and
+classification — carries **no reuse instruction at all**. That one
+sentence is the whole origin: the plan named ch. 14's join as the shared
+asset, ch. 14's join lives in `splitting/`, so the shared core was born
+inside one half **by instruction**, not by drift. `JoinLane::BoolPlanar`
+is likewise deliberate and argued (PR #152): the planar side of a curved
+germ pair has no chart of its own, so the azimuth window must arrive by
+value.
+
+*The predicate fork is dimensionally IDENTICAL — not merely similar.*
+Line-for-line, with `dir_a ↔ dir_end`: same `min` of the same two chord
+norms for the arm; same `Margin::levered(u_start.cross(u_end).dot(n),
+arm)` for reflex; same `.dot()` for straight; same bisectors; same spike
+guard. `Margin::levered(x, arm) = x * arm`, documented as
+*"bit-identical to the bare `x * arm`"*. Both arms are the same metres
+from the same `edge_extent` machinery; both normals are `chart_normal *
+sense_sign`. **The same computation on the same quantity under two
+names.** `docs/predicate-dimension-audit.md:189` lists both families
+with the same dimension column — a systematic sweep that saw both and
+never noticed they were one population.
+
+*The K cost is measured, not hypothetical* (`m7-eps-1e-6.csv.gz`):
+
+| predicate | samples | min margin |
+|---|---|---|
+| `bool_sector_arm` | 1880 | 4.11e-2 |
+| `split_sector_arm` | 64 | 1.95e-2 |
+| `bool_sector_reflex` | 1880 | −0.25 |
+| `split_sector_reflex` | 64 | **0** |
+
+One geometric question, two populations at **29:1** — and the 64-sample
+tail is the one that actually reaches margin 0.
+
+*The project already treats name/margin bijection as a correctness
+property, in one direction only.* `M3-LOG.md:264` records PR #55's
+review MINOR-1: two margins sharing one K name **had to be split** by
+reviewer instruction. One margin under two names has never been
+examined. And the counter-precedent exists in-tree:
+`bool_planar_chord_spec` and `chord_spec` deliberately **share** the K
+name `split_arc_window`, documented as *"same margins, same predicate
+names"*.
+
+*The wrong-way dependency is now bidirectional in fact.* A K predicate
+literally named `bool_between_arc_window` is decided at
+**`splitting/join.rs:1611`**.
+
+*Drift confirmed with dates:* three cross-cutting sweeps had to edit
+both files **in one commit** (S10 sense audit #155, clause-(i) `Margin`
+migration #213, LB9 rename #270), and M5 PR 9's curved work landed as
+two separate commits. The lanes are now unequal — splitting has the
+C12.2 conic jet and refuses `Sphere`; boolean has the `Sphere` arm and
+no jet.
+
+*Weakened sub-claims:* the shared error variants are not simple
+duplicates — every boolean twin carries `operand: Operand`, so
+unification means an optional field on a **public API** re-exported into
+four crates. And `SectorEntry` vs `BoolSector` is a **correct**
+divergence: splitting classifies against one plane so resolves the side
+eagerly; the boolean classifies pairwise so must retain the bound
+geometry. Only the *producer* is duplicated.
+
+*One quiet mismatch worth your eye:* `DESIGN.md:1275` describes the
+crate as *"the boolean engine and its splitting/census machinery"* — the
+ratified architecture names **one** engine with splitting subordinate.
+The code has two engines with the dependency running the other way.
+
+*Hidden costs:* merging the K names is a schema break in an append-only
+dataset (`K-REPORT.md:738` tracks a 233-name census); ~267 tests across
+36 files; open issue **#561** notes the Python refusal-tag *values* are
+pinned nowhere, so an enum reshape can silently change strings the
+Python surface exposes; and the sphere asymmetry forces a per-lane kind
+gate — so unification **converts** the `JoinLane` cost rather than
+eliminating it.
+
+*Could not determine:* whether PR #62's implementer weighed extraction
+and rejected it — no spec was committed and the log is silent, so this
+reads as *"happened, then documented"*. PRs #62 and #65 have **zero
+comments**; the fork was never surfaced to Evan.
+
 ## S6. The four sweep verbs share no core; extrude's pipeline is hand-copied four times
 
 - **Where**: `crates/sweep/src/revolve/mod.rs:511`,
@@ -658,6 +820,79 @@ or is the justification defending nothing? (b) worth generalising the
 demo-scoped byte-identity note into a repo-wide rule, distinguishing
 load-bearing determinism contracts (D2/D9) from defensive
 golden-churn-avoidance.
+**Steelman (2026-08-18): SURVIVES IN PART — dated precisely; the
+"defending nothing" framing is wrong; the subset claim is provable; and
+the repo already caught this exact claim once.**
+
+*The date, settled.* Two commits, both 2026-08-03, both in PR #171:
+`701e1b5a` (15:59) shipped the two-door routing with only an inline
+parenthetical; `11f3efb0` (17:28) rewrote the module doc and added
+today's `build.rs:26`. **The `^4c8a757` blame boundary was a merge
+commit, not the author.** So it predates `memories/demo-purpose.md`
+(2026-08-09) **by six days** — your hope was right after all, though
+that memory is demo-scoped and would not have bound it anyway.
+
+*Happened, then rationalized — with the commit order as the tell.* The
+routing shipped first; the *"kept (not subsumed)"* paragraph was written
+89 minutes later, when the module doc had to be reconciled with what the
+code now did. **PR #171 was opened 06:28 UTC and self-merged at 06:55 —
+27 minutes, zero comments.** `DESIGN.md:503` marks the frontier
+DISCHARGED and describes only the surgery; **it does not mention a
+whole-body door at all.**
+
+*The repo has already formally recorded this claim as unfounded, once.*
+The M6-5 PR-2 adversarial review (finding F-D) rejected a test that
+claimed to pin the bit-preservation, and commit `252a4126` wrote the
+correction into the test: *"It does NOT, and cannot, check
+bit-PRESERVATION across the change… That claim was executed out-of-tree
+instead."* The fix pass corrected the test and **left `build.rs:26`
+untouched.**
+
+*But "defending nothing" is wrong on the facts.* Three artifacts pin
+whole-body bytes: `step-export/tests/fixtures/filleted_die.step` is
+byte-golden and asserted; `filleted_die.expect` carries
+`KERNEL_VOLUME_MM3=965230999.476531`, asserted by **byte equality
+against the live kernel**; and `filleted_die` is one of three tight STEP
+round-trip fixtures. A different summation order fails CI today.
+
+*The subset claim is provable in three steps, and no counterexample
+exists.* Whole-body requires every vertex trivalent and every edge
+requested ⇒ every vertex has three requested links ⇒ `walk_chains`'
+junction closure only chains through **two**-link vertices ⇒ every
+whole-body chain is a single-link open chain, which is exactly surgery's
+front door. Ring clearance is vacuous (whole-body refuses faces with
+rings). **Surgery's door strictly contains whole-body's.** Corollaries:
+all **eleven** `unsupported(...)` sites in `whole_body_links` are
+unreachable as user-visible messages, and `build.rs:213` is dead.
+
+*Two corrections:* "~1200 lines" overstates — `face_cycle`,
+`vertex_faces`, `octant_chart` and `outward_of` are **shared** with the
+surgery, so the whole-body-exclusive part is **~890 lines**.
+
+*What the pins actually cost is a regeneration chore, not a contract.*
+Both goldens are explicitly regenerable (*"Regenerate deliberately
+with…"*), the FreeCAD volume is rounded and door-independent, and the
+rebuild-latency series is *"DELIBERATELY NOT A GATE"*. So the honest
+form of `build.rs:26` is *"kept because retiring it would require
+regenerating two goldens and re-running the FreeCAD acceptance once"* —
+a real cost, but not the one the sentence claims, and not a reason a
+reader would accept for a second 890-line implementation.
+
+*The largest unknown, and it is cheap to close:* **the surgery has never
+been run on a whole-body input, not once.** `fillet_surgery` is
+`pub(super)` with exactly one call site, behind the whole-body door. The
+proof above is about a *predicate*; whether the construction succeeds
+when every boundary vertex is a corner and every source edge dies is
+unknown. The experiment is one line — swap the arms at `build.rs:205` —
+plus `cargo test -p sweep --test all`. **This finding's disposition
+should probably wait on it:** if the surgery fails on a cube, the two
+doors are not redundant and S7 collapses.
+
+*Also real:* three naming tests are whole-body-specific **by design**
+(the fresh-arena door retires every source entity; the surgery leaves
+supports in place), so they need rewriting, not deleting — and
+`FilletNaming::supports` becomes dead.
+
 ## S8. The fitted (rung-3) pcurve lane has no producer anywhere in `src`
 
 - **Where**: `crates/geom-brep/src/pcurve_cache.rs:1379`,
@@ -685,6 +920,51 @@ be sorted out from the ones that are superseded." Steelman pass
 commissioned to make exactly that determination, and to price the
 concrete cost — `Arc<NurbsCurve2>` is what denies `Pcurve`/`PcurveCache`
 their `Copy` for every other variant.
+**Steelman (2026-08-18): PLANNED (unscheduled) — SURVIVES IN PART, and
+the stated price has already evaporated.**
+
+*It discharged a ratified acceptance obligation*, not a speculation:
+`M5-EXIT-WALK.md:110` records *"a non-vacuous fitted-cache-at-rest
+row… recorded as an **acceptance obligation** of that unit"*. The
+`Copy` cost was sized **in advance** (the *"~35-site ripple"*) and was a
+named reviewer attack at dispatch.
+
+*"LIVE since M6-2" meant the certified route exists, not that a
+constructor mints one* — and PR #176 **said so in the merged body**:
+*"no kernel constructor mints a `Fitted` cache into a body until the
+banked join lane lands."* It did not ship with a producer that was later
+removed; it shipped producerless, knowingly.
+
+*Three named consumers, decreasing firmness:* (a) the **mint-side
+general-circle wiring** for the oblique-trihedron octant — a
+*currently-reached* coverage gap (`pcurves.rs:940`), named in ratified
+`DESIGN.md:557`, but scheduled into **no milestone plan and absent from
+#250**, the carried-items register Evan asked to be total; (b) U2's
+`General` arm, **ratified 2026-08-15 — three days before this scan** —
+with lily wall 8 depending on it (`M9-LOG` tail); (c) the germ-chord
+lane, explicitly banked by Evan's M9-5 ruling.
+
+**The stated price is gone.** `Pcurve::IsoArc` carries a `Vec`-backed
+`KnotVector` and is minted in production since M8-3. **Deleting `Fitted`
+would not restore `Copy` to `Pcurve` or `PcurveCache`.** The doc at
+`pcurve_cache.rs:1242` blaming the `Arc` is **stale** — true at M6-2,
+false since M8-3. The residual cost is three `.clone()` sites.
+
+*"Machinery with no caller" is overstated by ~10×.* `PcurveCache::recertify`
+dispatches `Fitted → run_fitted_checks` and **is called from production
+tier-3** (`topo/src/pcurves.rs:1353`, check 8, ungated) — which is why
+`validate_pcurves` is `<T: PcurveFittedLane>` and why `PropsQuadLane`
+carries it as a supertrait. Only `certify_fitted` itself (~40 lines
+including docs) is genuinely callerless.
+
+*Hidden costs of removal:* it is all-or-nothing (`certify_fitted` is the
+sole constructor of the variant); ratified docs go false (`M6-EXIT-WALK`
+row 3 "MET… DISCHARGED non-vacuously", `DESIGN.md` frontier (b)
+"CLOSED (M6-2)"); six test files including adversarially-adopted probes
+delete or rewrite; and it **reopens a design ratified three days before
+this scan** (U2 defines `General` as certifying *"at the honest Fitted
+grade"*), against `CLAUDE.md`'s do-not-re-litigate rule.
+
 ## S9. The trim-containment limb is vacuous on both production paths
 
 - **Where**: `crates/topo/src/pcurves.rs:1028`,
@@ -711,6 +991,46 @@ lever-arm helpers (`azimuth_lever`/`chart_arms`/`chart_arms_at`) and a
 question for the steelman: was the trim-containment check designed
 against an *attach path* that was planned and never built? If so this is
 a planned-work row, not a superseded one.
+**Steelman (2026-08-18): NEITHER planned nor superseded — SURVIVES IN
+PART. The mechanism claim held under attack; the inventory claim did
+not; and the justifying comment is demonstrably false.**
+
+*The mechanism claim is correct and could not be broken.* Containment is
+an identity on **both** production paths (`pcurves.rs:1040` and `:1302`
+each hull exactly the set they then check), and there is **no planned
+attach path** — content-keyed cache transfer is banked (`DESIGN.md:1576`),
+and the one `src` site that copies a cache between bodies is explicitly
+transient. So this is a "neither" row.
+
+*The justifying comment is false, and post-dates the code that falsifies
+it.* `validate_pcurves` landed in `9e80547f`; the *"where this limb has
+teeth"* comment at `pcurves.rs:1028` landed **later, in the same PR's
+fix pass** (`a842090b`, *"trim-limb teeth comment"*) — i.e. a reviewer
+NOTE flagged the mint-time vacuity, and the response was a comment
+asserting teeth at re-certification, written against code already in the
+same branch that builds its window the same self-referential way.
+
+*What the design genuinely buys.* `PcurveCache` is a **certify-only
+public door**, and this repo's review discipline treats attach-path
+inputs as in scope — M5 PR 6's best MINOR was exactly an attach-path
+falsification whose fix is now permanent production code. And check 5 is
+the cache's **only branch constraint**: on a periodic chart a τ-shifted
+pcurve certifies every other check identically, and `TrimEscape` is the
+only thing separating them.
+
+*The inventory claim does not survive.* Only `trim_containment`,
+`TrimEscape`, `ChartWindow::hull`, the `window` threading and two hull
+loops are check-5-only. `ChartWindow` is `chart_box`'s return type;
+`chart_box` feeds check 2's azimuth headroom; `azimuth_lever` feeds
+harmonic check 2 and check 4's snap slack; `chart_arms` feeds the fitted
+lane's check 2. **They die only if S8 is acted on too — the two findings
+are coupled in the removal direction, which neither writes down.**
+
+*Cheaper action that captures most of the value:* truth the comment at
+`pcurves.rs:1028` and downgrade the limb's documented status from
+"bites at re-certification" to "a precondition on the public door,
+vacuous on every in-tree caller".
+
 ## S10. The schema migration mechanism is dead, and fourteen versions are ceremony around it
 
 - **Where**: `crates/editor-core/src/persist/mod.rs:602`,
@@ -802,6 +1122,60 @@ it's hitting the tension here" — the tension being S14's question of what
 the no-panic principle actually says. Steelman pass commissioned jointly
 with S14; it also asks whether the plan structs could carry
 proof-carrying resolved handles so the mutation phase cannot fail.
+**Steelman (2026-08-18): SURVIVES IN PART — right on the census, wrong
+on the enforcement, and the residue is real. See S43 for the larger
+question this turned out to be part of.**
+
+*Right on the census:* 58 discarding sites (`euler.rs` 20,
+`euler_ring.rs` 20, `euler_kill.rs` 18), and `link_half_edges` is
+exactly as described.
+
+*Wrong on "in release builds, with no postcondition".*
+`assert_euler_postcondition` (`euler.rs:1975`) runs the arena-delta
+check **and full tier-1 `validate`** after every successful operator
+under `cfg(debug_assertions)`, which the root `Cargo.toml` keeps on by
+default in dev. A half-spliced loop is precisely what tier-1 validate
+catches, so the whole test suite and CI do detect it.
+
+*Wrong on "by convention".* The release disposition is **ratified and
+deliberately tested**: D9's footnote ("documented garbage-out in
+release"), `euler.rs:47`, and a dedicated adversarial suite
+`crates/topo/src/review_m1_pr2/release_corruption.rs` whose header
+reads *"typed errors or garbage bodies — never a panic, never a hang."*
+
+*What genuinely survives, sharper than written.* The ratified
+garbage-out contract is scoped to **corrupt in-crate input** — a body
+already tier-1-invalid on arrival. The 58 discards also cover the other
+case: a **valid** body plus a defect in the operator's own plan phase.
+D9 says nothing about that case, because its footnote asserts it cannot
+occur. So what is actually held by convention is the claim that the plan
+phase resolves everything the mutation phase touches — and
+`link_half_edges`' comment *is* that claim, in prose. Exactly as
+unenforced as `Span`'s pairing, which is why the instinct that S12 and
+S14 are one question is right.
+
+*Two supporting facts.* The direction contradicts the repo's own most
+recent argued position — PR #447's merged body: indexing *"panics where
+a `zip` silently drops control points. **That is the fail-loud
+direction**"* — and `euler.rs` takes the silently-drops side 58 times.
+And `release_corruption.rs` instructs *"Run this under BOTH profiles"*;
+**CI does not** — the only `--release` test invocation in `ci.yml` is
+the `oracle-inari` lane.
+
+*What blocks constructive validity:* not slotmap
+(`get_disjoint_mut` still returns `Option` — it relocates the discard).
+The real blocker is that the mutation phase **mutates the same arenas
+between its own writes** (`mev_fan_execute` interleaves mints with
+splices; `euler_kill` removes from six arenas mid-phase), so any
+pre-resolved `&mut` is invalidated by the next mint and any pre-resolved
+key is what the plan structs already carry. Key liveness across the
+phase's own operations is not a type fact under slotmap's `&mut self`
+insertion API. What is *not* blocked: making the write helpers unable to
+silently do nothing — e.g. a sticky corruption flag that `validate` and
+every public entry refuse on, converting silent release corruption into
+a typed refusal at the next public call, for one branch per write.
+Whether that is worth paying is a D9 question — which is the point.
+
 ## S13. Load-bearing invariants held by CI grep, allowlists, and a magic count
 
 - **Where**: `.github/workflows/ci.yml:322`, `:420`, `:444`,
@@ -873,6 +1247,90 @@ today — the scan found at least four different idioms, which would be a
 bigger finding than this one, and (c) determine whether a mismatched
 `Span` is reachable by *misuse* through any public entry point, in which
 case the honesty defence does not cover it.
+**Steelman (2026-08-18): SURVIVES — the honesty defence fails on
+reachability, and it fails concretely.**
+
+*The ratified text, quoted* (`DESIGN.md:1100`): *"The kernel never
+panics **on any input**: panics are bugs; every failure is a typed
+error."* Three things are load-bearing: the rule is scoped to **input**;
+the footnote grants its one exemption **only to `debug_assert`s**, on an
+explicit unreachability-by-input argument; and where D9 addresses the
+can-only-be-a-bug case in release it names two dispositions — *typed
+error where cheaply detectable, or documented garbage-out* — and **panic
+is not among them.**
+
+*Is the reframe a clarification or a change? Both, in separable
+halves.* *"No panic on any reachable state"* is a **clarification** —
+D9 already says "on any input", and no existing `debug_assert` would
+move. *"Yes panic on things that can only indicate a bug"* is a
+**change**: it licenses panics **in release**, which D9 does not, and on
+the one such class D9 explicitly disposes of it chose typed error or
+garbage-out with *"never a hang"* as the floor. So `hull.rs:80` is not
+covered by the reframe as a clarification — only as an amendment.
+
+*But the reframe is not novel — it was already adopted, unnoticed.* PR
+#447's merged body argues for panicking indexing on the merits:
+*"indexing is the safer shape: it **panics** where a `zip` silently
+drops control points. That is the fail-loud direction."* It was simply
+never taken back to D9 — and `crates/topo` was meanwhile ratified in the
+opposite direction.
+
+*Why the honesty defence fails: the mismatch is reachable by **misuse**,
+not only by bug.* All `Span` producers are `pub` on a `pub` type, and
+consumers come in two shapes — two independent arguments (`basis_funs`,
+`ders_basis_funs`, `span_hull`, `sup_norm_bound_span`) and vector-in-`self`
+(`NurbsCurve{2,3}::{eval,ders,deriv,deriv2}_in_span`,
+`NurbsSurface::window_of`). **Build two clamped `KnotVector`s of equal
+degree and different length, take `long_kv.span(k)`, hand it to a curve
+built on the short one: `eval_in_span` indexes out of bounds.** Safe
+Rust, public API only, no kernel bug anywhere in the trace.
+
+*The surface case is worse than a panic.* `window_of`'s own docs
+concede: *"The **argument order is load-bearing and nothing checks
+it**: a `Span` carries no direction, so `window_of(span_v, span_u)`
+typechecks and builds a window that is **wrong rather than refused**."*
+A swapped-but-valid pair from the correct surface yields a silently
+wrong answer through a public method with no bug involved.
+
+*The "no cheap guard" premise is false, and the cost was already
+measured.* The deleted guard was one three-way check **per call**, not
+per index. `kv.span(span.index()) == Some(span)` reproduces it exactly
+in O(1) from existing code — and a degree check alone (this report's
+weaker suggestion) misses the equal-degree/longer-vector case for the
+same price. #463's own benchmark puts the gains in the upper quartiles.
+
+*The decisive blocker nobody has named:* **Option A does not close the
+doors that matter.** Removing the `kv` parameter makes the mismatch
+unrepresentable for the *free functions* — but `curve.eval_in_span` and
+`surface.window_of` hold their vector in `self`, and a `Span<'a>` that
+merely borrows *some* `KnotVector` still typechecks against a different
+curve, because lifetimes are covariant. So the type-level options are
+**strictly weaker** than `knots.rs:174` and issue #475 present them, and
+the O(1) re-validation is the only candidate closing the whole surface.
+`knots.rs:174` costs out two options and declines both **without ever
+naming the cheap third** — that omission, more than the declining, is
+what does not hold up.
+
+*What the finding gets wrong:* it implies negligence. This is documented
+three times and **issue #475 is already open** (filed 2026-08-13, five
+days before the scan) costing out Options A/B/C. Every in-tree
+construction site draws its span from the vector it then uses — all were
+checked — so the hazard is not live in-tree. But #475's own test (*"No
+live caller does this"*) is the wrong test for an API-first project: the
+public signature is the product, and it admits the mismatch. #475's
+disposal of Option C is the standard to judge by: *"defensible — but
+then the docs should say it is a **decision** rather than a deferral."*
+Today the docs promise the brand and call it deferred, which is neither
+honest state.
+
+*One stale deferral worth its own look:* `indexing_slicing` was deferred
+in `M0-LOG.md:59` with *"revisit at PR 6"*. PR 6 completed the same day
+with no mention; nine milestones later the `Cargo.toml` comment still
+reads as though evaluation code does not yet exist. Issue #475 notes the
+S14 panic is *"one clippy's panic-family gate cannot see because it is
+an index expression"* — the one mechanism that would have caught it is
+held open by a stale 2026-07 deferral.
+
 ## S15. Other invariants held by prose rather than by types (roll-up)
 
 - **Confidence**: sure for each row
@@ -1627,9 +2085,49 @@ produce two shells).
 
 **Verdict:**
 
-## S43–S48 — reserved
+## S43. The kernel has five different answers to "this state can only be a bug"
 
-IDs `S43`–`S48` are intentionally unallocated, so that items promoted
+- **Where**: `crates/topo/src/euler.rs:1940` (and 57 siblings),
+  `crates/geom-curves/src/nurbs.rs:162`,
+  `crates/mesh/src/walk.rs:395`, `crates/geom-core/src/spline/hull.rs:80`,
+  `docs/DESIGN.md:1100`, `Cargo.toml` (the `indexing_slicing` deferral)
+- **Importance**: high
+- **Confidence**: sure
+- **Raised by**: the S12/S14 steelman pass, 2026-08-18, which argues
+  *"this, not S12 or S14, is the finding."*
+
+| # | Idiom | Instances | Prose justification |
+|---|---|---|---|
+| 1 | Typed error, plan phase | `EulerOpError::{FanOrbitBroken, LoopCycleBroken, OrbitBroken, UnclaimedHalfEdge, …}` | "tier-1-invalid input" |
+| 2 | Typed error, pure dispatch defect | `TessellateError::MissingEntity { what: "… (router defect)" }` | "reaching one is a dispatch defect, **surfaced typed**" |
+| 3 | `debug_assert`, compiled out | `assert_euler_postcondition` (arena deltas + full tier-1 validate) | D9's ratified exemption |
+| 4 | Silent `if let Some` discard | **58 sites** across the three Euler modules | D9's "documented garbage-out in release" |
+| 5 | Bare indexing that panics, **chosen deliberately** | `nurbs.rs:162`, `hull.rs` `coeffs[j]`, `mesh/chords.rs:465` | "the fail-loud direction" (PR #447) |
+
+Idioms 4 and 5 are **opposite answers to one question**, each argued in
+its own module's prose by appeal to the same principle. `geom-curves`
+writes that silently dropping data is the wrong direction and panicking
+is the right one; `crates/topo` does the silently-dropping thing 58
+times and has it blessed by D9's footnote. Both believe they implement
+"fail loud" (`memories/MEMORY.md`). Neither is wrong locally. **D9's
+text supports idioms 1, 3 and 4, but not idiom 2's confidence and not
+idiom 5 at all** — and idiom 5 was argued into existence in a merged PR
+body that was never taken back to D9.
+
+The restatement the steelman proposes is a taxonomy with one row per
+state class: reachable by input → typed error (unchanged); reachable
+only by kernel bug, cheaply detectable → typed error, not `debug_assert`
+and not panic; reachable only by kernel bug, not cheaply detectable →
+`debug_assert` + documented garbage-out; **reachable by API misuse →
+typed error or poison, never a bare index**. That last row is the one
+the codebase has no rule for, and it is where `Span` lives. Settling it
+decides S12's residue and S14 at one stroke.
+
+**Verdict:**
+
+## S44–S48 — reserved
+
+IDs `S44`–`S48` are intentionally unallocated, so that items promoted
 out of the S35/S40 roll-ups during review can be given stable IDs
 without renumbering anything above.
 
