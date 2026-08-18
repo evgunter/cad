@@ -1654,7 +1654,12 @@ fn do_arc_to_directed<T: ArcCarrierScalar, F: Flavor>(
         ArcData::ArcLen { r, side, len } => Ok(Applied::Tip(DynTip::DirectedPoint(
             p.arc_to(super::ArcLen { r, side, len })?,
         ))),
-        _ => violation(state, Verb::ArcTo),
+        // Spelled out rather than `_`: a mode the table gains must be
+        // ADJUDICATED at every dispatcher, not silently refused here.
+        ArcData::Radius { .. }
+        | ArcData::Bulge { .. }
+        | ArcData::Via { .. }
+        | ArcData::Center { .. } => violation(state, Verb::ArcTo),
     }
 }
 
@@ -1749,7 +1754,21 @@ fn do_fused_point<T: ArcCarrierScalar>(
             winding,
             target: Target::Point(t),
         } => Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius)?),
-        _ => Err(ReplayErrorKind::Transition {
+        ArcData::Bulge {
+            target: Target::Start,
+            ..
+        }
+        | ArcData::Via {
+            target: Target::Start,
+            ..
+        }
+        | ArcData::Center {
+            target: Target::Start,
+            ..
+        }
+        | ArcData::Radius { .. }
+        | ArcData::Sweep { .. }
+        | ArcData::ArcLen { .. } => Err(ReplayErrorKind::Transition {
             state,
             verb: Some(verb),
         }),
@@ -1780,7 +1799,20 @@ fn do_fused_leg_end<T: ArcCarrierScalar>(
             target: Target::Point(t),
         } => Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius)?),
         ArcData::Radius { r, side } => Ok(p.arc_fillet(super::Radius { r, side }, radius)?),
-        _ => Err(ReplayErrorKind::Transition {
+        ArcData::Bulge {
+            target: Target::Start,
+            ..
+        }
+        | ArcData::Via {
+            target: Target::Start,
+            ..
+        }
+        | ArcData::Center {
+            target: Target::Start,
+            ..
+        }
+        | ArcData::Sweep { .. }
+        | ArcData::ArcLen { .. } => Err(ReplayErrorKind::Transition {
             state,
             verb: Some(verb),
         }),
@@ -1802,7 +1834,10 @@ fn do_fused_directed<T: ArcCarrierScalar, F: Flavor>(
         ArcData::ArcLen { r, side, len } => {
             Ok(p.arc_fillet(super::ArcLen { r, side, len }, radius)?)
         }
-        _ => Err(ReplayErrorKind::Transition {
+        ArcData::Radius { .. }
+        | ArcData::Bulge { .. }
+        | ArcData::Via { .. }
+        | ArcData::Center { .. } => Err(ReplayErrorKind::Transition {
             state,
             verb: Some(verb),
         }),
@@ -1820,7 +1855,15 @@ fn do_fused_entry<T: ArcCarrierScalar>(
             winding,
             target: Target::Point(t),
         } => Ok(Open.arc_fillet(super::Center { c, winding, p: t }, radius)?),
-        _ => Err(ReplayErrorKind::Transition {
+        ArcData::Center {
+            target: Target::Start,
+            ..
+        }
+        | ArcData::Radius { .. }
+        | ArcData::Bulge { .. }
+        | ArcData::Via { .. }
+        | ArcData::Sweep { .. }
+        | ArcData::ArcLen { .. } => Err(ReplayErrorKind::Transition {
             state: TipState::Entry,
             verb: Some(Verb::ArcFillet),
         }),
