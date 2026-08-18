@@ -854,3 +854,21 @@ PathOnArc, bit-identity pinned per census site, shim DELETES
 (same crate, overlapping tests); RESPELL-TABLE stays gated behind
 it. Draw at dispatch (LIB-11 slots 2-4 banked: opus, fable,
 opus remaining).
+
+**LIB-PYPU DISPATCHED (2026-08-17, block LIB-11 slot 2 = OPUS,
+banked draw consumed)**: PlacedUnion's Python/audit slice —
+docs/LIB-PYPU-SPEC.md, cut from a full census (Frame/PatternKind
+unbound, refusal tags ALREADY crossed via tags.rs, the loft
+Expr::count precedent governs the count spelling, the fused-base
+wall stays kernel-side). Pre-draw fields logged at spec time:
+M / STRUCTURAL. Lane lib-pypu, branch lib/pypu — pncad-py +
+audit page only, disjoint from the SEAL fix pass and ONARC by
+fence. Evan's load ruling (in-chat, 2026-08-17): LIB runs at
+full efficient parallelism while the third orchestrator's
+account is down. Also filed: #601 (the SEAL review's MAJOR-2
+class made durable — CI compiles no whole-file feature-gated
+test lane). SEAL state: review ordinal 55 returned
+NOT-MERGEABLE-AS-IS (2 MAJ / 2 MIN / 3 NOTE, 2 silent — both
+MAJORs feature-lane compile breaks; MAJOR-1 = the D7 pncad-py
+fix, already landed post-freeze); fix pass IMPLEMENTER-INHERITED,
+in flight; delta re-review next per the v4 ladder.
