@@ -34,9 +34,12 @@ reference things that we don't plan on doing unless it's a change
 from before"). When retiring a mechanism, a one-line pointer at
 the log/PR suffices; cut the story.
 
-**Writing memories (Evan, 2026-08-18).** Every memory is read at
-every session start, so its cost scales with read frequency and its
-justification has to clear two tests:
+**Writing memories (Evan, 2026-08-18).** `MEMORY.md` is read at the
+start of every session and its pointers are followed as relevance
+dictates — so an index line is paid for every session, and a file is
+paid for whenever anyone follows its pointer, which for the
+operational ones is most of them. Cost scales with read frequency,
+and the justification has to clear two tests:
 
 - **Is it unnecessary?** If deleting it would cost little, delete it.
   That covers the obvious, the repetitive, and anything already
