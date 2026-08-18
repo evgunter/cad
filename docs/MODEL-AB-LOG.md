@@ -984,7 +984,23 @@ branch's paragraph was newer than #571's ledger edit, so the two
 prose blocks merged cleanly TOO, and the collision was visible only
 in the constant read. Recorded as the sharper lesson: prose is a
 tripwire, not a guarantee — the explicit read at every re-merge is
-the thing that actually holds. Review
+the thing that actually holds.
+
+**ASM-R2b SCHEMA CLAIM: v14** (2026-08-17, branch
+asm/r2b-minting-gate) — the interface record INHABITED
+(`InterfaceCrossing::Mate`), discharging the obligation ASM-4 wrote
+into that enum's doc comment: it was uninhabited, so every record
+was provably empty, absent from the wire, and fed no content key;
+now a split that a mate crosses writes a populated record, and that
+record is file data a v13 reader has no variant for. Claimed as
+main's next number after reading main's ACTUAL constant by eye at
+the final re-merge (`git show
+origin/main:crates/editor-core/src/persist/mod.rs | grep
+SCHEMA_VERSION` → 13, at the merge that brought M9-2 PR-2 #564 in).
+This paragraph is the tripwire: any other in-flight branch claiming
+14 collides HERE, because the constant will not.
+
+Review
 ordinal claims at review dispatch (note: the next third is 48 —
 the pending dual, tally 5-of-6).
 M9-2 PR-2 review ordinal fixed at dispatch (2026-08-16, PR #564
@@ -1109,3 +1125,13 @@ OPUS, concurrent same-head, v4 ladder, blinded to each other.
 Pre-draw fields logged at spec time: M-L / NUMERIC
 (docs/TESS-SPAN-SPEC.md; arm = block ASM-3 slot 4 = fable). Row
 at merge.
+LIB-SEAL review ordinal fixed at dispatch (2026-08-17, PR #596
+open, frozen head 5aaef93f): claimed through 54 (TESS-SPAN's
+cross-model dual) + 1 = **55 → SINGLE** (57 is the next third —
+cross-model per #572). Reviewer fable, v4 ladder. Pre-draw
+fields were logged at spec time: S-M / STRUCTURAL
+(docs/LIB-SEAL-SPEC.md; arm = block LIB-11 slot 1). Implementer
+report: 6 deviations ALL reported (D1 structural — the tour's
+direct profile dependency for lily's #433-gap loop — goes to the
+reviewer as an adjudication claim). Row at merge.
+| SEAL | 2026-08-17 | ProfileLoop/ProfileVertex fields PRIVATE + ValidatedLoop-shape accessors; RawLoop::with_tangent_joints + ProfileVertex::new doors; ~460-site mechanical literal migration (sweep/mesh/stl/step-export/step-import tests, 2 production scalar-lifts, k-lint litmus); E0451 compile_fail pin; serde cannot-mint proof (scan row + wire.rs argument); façade guard grows the literal pattern (whitespace-stripped per NOTE-1); lily = the one non-kernel consumer, direct profile dep with the #433 gap stated (D1) | S-M / STRUCTURAL (pre-draw logged) | OPUS (block LIB-11 slot 1) | single (ordinal 55, frozen 5aaef93f, v4) — **NOT-MERGEABLE-AS-IS 2/2/3 → delta re-review APPROVE** (both MAJORs = feature-lane compile breaks NO CI lane builds: pncad-py python lane via ClosedLoop.loop_ indirect field reach; profile probe lane ×6 — reviewer found them by compiling the gated lanes; mutation-proved the E0451 pin, a one-ulp fixture perturbation → 3 pinned rows RED, planted serde derive → scan row RED, planted façade literal → guard RED; D1 adjudicated CORRECT and honest — the presented surface genuinely has no spelling for lily's loop; MINORs = body figures not reconciling (457/6/25 measured vs 429/8/18 claimed) + missing executed bit-identity statement) | 2 silent at the frozen head (both MAJORs; D7 fix landed post-freeze pre-verdict), rest reported incl. D1 | 3 | 3 | 4 | IMPLEMENTER-INHERITED (D8 probe migration + 13-file gated-lane sibling sweep all compiling; figures corrected to measured with commands stated; executed bit-identity added; NOTE-1 adopted in 4 lines, falsified red/green at delta) | MERGED #596 35/35 at ba41c340 (merge badbfb1b); THE FUNNEL IS COMPILER-ENFORCED at every crate boundary — #431's struct-literal question SETTLED; #433's gap now visible in the dependency graph; #601 filed (the feature-lane CI rot class, both MAJORs' shared mechanism) | impl ~242k-cum (one 529 kill + two resumes absorbed) / review ~162k + delta re-review | impl ~6.5h fragmented, slot-contended / review ~8h slot-contended + delta |

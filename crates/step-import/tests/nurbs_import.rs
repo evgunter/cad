@@ -59,10 +59,7 @@ use sweep::{Section, loft_body};
 /// carry.
 fn native_arc_loft() -> topo::Body<f64> {
     let arc_section = |s: f64| -> Section {
-        let v = |x: f64, y: f64, bulge: f64| ProfileVertex {
-            pos: Point2::new(x, y),
-            bulge,
-        };
+        let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
         vec![ProfileLoop::new(vec![
             v(-s, -s, 0.0),
             // tan(π/8) on the +x side: a quarter-circle bulge-out.

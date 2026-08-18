@@ -14,7 +14,7 @@ mod common;
 
 use common::{annulus, lift, near_tangent_hole, profile, rect, tangent_hole, tol};
 use geom_core::{Interval, MarginDiag, Real, Sign};
-use profile::{LoopRole, ProfileError, SegmentKind};
+use profile::{LoopRole, ProfileError, RawLoop, SegmentKind};
 
 #[test]
 fn rectangle_validates_at_interval() {
@@ -30,7 +30,7 @@ fn rectangle_validates_at_interval() {
             .all(|s| matches!(s.kind, SegmentKind::Line))
     );
     // The canonical start's enclosure is the exact point (0, 0).
-    let v0 = vp.loops()[0].vertices()[0].pos;
+    let v0 = vp.loops()[0].vertices()[0].pos();
     use geom_core::Bounds;
     assert_eq!((v0.x.lo(), v0.x.hi()), (0.0, 0.0));
     assert_eq!((v0.y.lo(), v0.y.hi()), (0.0, 0.0));
@@ -129,10 +129,9 @@ fn declared_tangency_discipline_holds_at_interval() {
         .validate(tol())
         .expect("declared bracket validates at Interval");
 
-    let mut undeclared = common::bracket();
-    undeclared.tangent_joints.clear();
-    let mut contradicted = common::bracket();
-    contradicted.tangent_joints = vec![1, 3, 4]; // joint 1 is a corner
+    let undeclared = common::bracket().with_tangent_joints(Vec::new());
+    // joint 1 is a corner
+    let contradicted = common::bracket().with_tangent_joints(vec![1, 3, 4]);
     for lp in [undeclared, contradicted] {
         let p = profile(vec![lp]);
         let at_f64 = p.validate(tol()).expect_err("must refuse at f64");
@@ -188,7 +187,7 @@ fn arc_leg_fillet_constructs_and_validates_at_interval() {
         )
         .expect("the arc-carrier fillet constructs at Interval")
         .loop_;
-    assert_eq!(lp.tangent_joints, vec![2, 3]);
+    assert_eq!(lp.tangent_joints(), [2, 3]);
     profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
         .validate(tol())
         .expect("the arc-leg fillet validates at Interval");

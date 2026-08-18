@@ -24,21 +24,12 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 fn holed_plate() -> Body<f64> {
     let outer = ProfileLoop::new(
         [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
-            .map(|(x, y)| ProfileVertex {
-                pos: p2(x, y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .to_vec(),
     );
     let hole = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(2.5, 2.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(1.5, 2.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(2.5, 2.0), 1.0),
+        ProfileVertex::new(p2(1.5, 2.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(Tolerance::get())
@@ -57,18 +48,9 @@ fn through_boss() -> Body<f64> {
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(90.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(210.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(330.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(90.0), b120),
+        ProfileVertex::new(at(210.0), b120),
+        ProfileVertex::new(at(330.0), b120),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
     let profile = Profile::new(plane, vec![lp])

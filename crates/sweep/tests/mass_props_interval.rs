@@ -75,14 +75,8 @@ fn l_prism_interval_encloses_closed_forms() {
 #[test]
 fn ball_interval_encloses_closed_forms() {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: Interval::from_f64(1.0),
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: Interval::from_f64(0.0),
-        },
+        ProfileVertex::new(p2(0.0, -1.0), Interval::from_f64(1.0)),
+        ProfileVertex::new(p2(0.0, 1.0), Interval::from_f64(0.0)),
     ]);
     let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
     check(&t.body, "ball", 4.0 * PI / 3.0, 4.0 * PI);
@@ -120,27 +114,15 @@ fn wedge_interval_encloses_closed_forms() {
 fn f64_value_within_interval_enclosure() {
     // Ball at both scalars.
     let lp_i = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: Interval::from_f64(1.0),
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: Interval::from_f64(0.0),
-        },
+        ProfileVertex::new(p2(0.0, -1.0), Interval::from_f64(1.0)),
+        ProfileVertex::new(p2(0.0, 1.0), Interval::from_f64(0.0)),
     ]);
     let t_i = revolve(&validated(vec![lp_i]), axis_y(), Revolution::Full).unwrap();
     let enc = mass_properties(&t_i.body).unwrap().volume;
 
     let lp_f = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(Point2::new(0.0, -1.0), 1.0),
+        ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
     ]);
     let vp_f = Profile::new(SketchPlane::xy(), vec![lp_f])
         .validate(geom_core::Tolerance::get())

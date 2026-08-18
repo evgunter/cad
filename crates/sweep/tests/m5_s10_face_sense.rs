@@ -53,14 +53,8 @@ fn ball() -> Body<f64> {
 /// row needs: it makes the `c·A⃗` terms nonzero.
 fn ball_at(cy: f64) -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, cy - 1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, cy + 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, cy - 1.0), 1.0),
+        ProfileVertex::new(p2(0.0, cy + 1.0), 0.0),
     ]);
     revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
         .unwrap()
@@ -255,22 +249,10 @@ fn mixed_turn_arcs() -> sweep::Extruded<f64> {
     // Leaving bulges: the bottom arc bows out (+b), the top one bows
     // into the region (-b); the two sides are straight.
     let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: b,
-        },
-        ProfileVertex {
-            pos: p2(2.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(2.0, 1.5),
-            bulge: -b,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.5),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), b),
+        ProfileVertex::new(p2(2.0, 0.0), 0.0),
+        ProfileVertex::new(p2(2.0, 1.5), -b),
+        ProfileVertex::new(p2(0.0, 1.5), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())

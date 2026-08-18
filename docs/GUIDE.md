@@ -199,7 +199,7 @@ let outline: ProfileLoop<f64> = Open
     .line_to(p2(mm(0.0), mm(40.0)))?
     .line_to(Start)?
     .into();
-assert_eq!(outline.vertices.len(), 4);
+assert_eq!(outline.vertices().len(), 4);
 # Ok::<(), pncad::profile::PathError<f64>>(())
 ```
 
@@ -227,7 +227,7 @@ let rounded: ProfileLoop<f64> = Open
     .into();
 // Five vertices: two sharp corners, and the arc's two tangent points
 // where the fourth corner used to be.
-assert_eq!(rounded.vertices.len(), 5);
+assert_eq!(rounded.vertices().len(), 5);
 # Ok::<(), pncad::profile::PathError<f64>>(())
 ```
 
@@ -354,7 +354,7 @@ let blended: ProfileLoop<f64> = Open
     .into();
 // The entry, the trim point on the circle, the arc's far tangent
 // point, and the straight side's end.
-assert_eq!(blended.vertices.len(), 4);
+assert_eq!(blended.vertices().len(), 4);
 # Ok::<(), pncad::profile::PathError<f64>>(())
 ```
 

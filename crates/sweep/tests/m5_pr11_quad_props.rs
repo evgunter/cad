@@ -26,14 +26,8 @@ const PHI: f64 = 0.3;
 
 fn disc() -> ValidatedProfile<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(-R, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(R, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(Point2::new(-R, 0.0), 1.0),
+        ProfileVertex::new(Point2::new(R, 0.0), 1.0),
     ]);
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -153,14 +147,8 @@ fn dual_lane_keeps_the_closed_form_refusal() {
     use geom_core::Dual64;
     let d = |x: f64| Dual64::constant(x);
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(d(-R), d(0.0)),
-            bulge: d(1.0),
-        },
-        ProfileVertex {
-            pos: Point2::new(d(R), d(0.0)),
-            bulge: d(1.0),
-        },
+        ProfileVertex::new(Point2::new(d(-R), d(0.0)), d(1.0)),
+        ProfileVertex::new(Point2::new(d(R), d(0.0)), d(1.0)),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())

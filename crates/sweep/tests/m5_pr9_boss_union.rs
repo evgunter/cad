@@ -21,22 +21,10 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// The plate: a 4×4×1 block, z ∈ [0, 1].
 fn plate() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(4.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(4.0, 4.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 4.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+        ProfileVertex::new(p2(4.0, 0.0), 0.0),
+        ProfileVertex::new(p2(4.0, 4.0), 0.0),
+        ProfileVertex::new(p2(0.0, 4.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -59,18 +47,9 @@ fn boss() -> Body<f64> {
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(0.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(120.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(240.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(0.0), b120),
+        ProfileVertex::new(at(120.0), b120),
+        ProfileVertex::new(at(240.0), b120),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
     let profile = Profile::new(plane, vec![lp])
@@ -166,18 +145,9 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(0.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(120.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(240.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(0.0), b120),
+        ProfileVertex::new(at(120.0), b120),
+        ProfileVertex::new(at(240.0), b120),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
     let profile = Profile::new(plane, vec![lp])
@@ -251,18 +221,9 @@ fn r1_pin(z0: f64, h: f64) -> Body<f64> {
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(60.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(180.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(300.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(60.0), b120),
+        ProfileVertex::new(at(180.0), b120),
+        ProfileVertex::new(at(300.0), b120),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
@@ -280,30 +241,12 @@ fn r1_cradle(bulge: f64) -> Body<f64> {
     // Bite endpoints at +/-30 degrees: x = 2 + 0.5 cos 30, y = 2 +/- 0.25.
     let xw = 2.0 + 0.5 * (30f64).to_radians().cos();
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(5.0, 1.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(5.0, 3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(xw, 3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(xw, 2.25),
-            bulge,
-        },
-        ProfileVertex {
-            pos: p2(xw, 1.75),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(xw, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(5.0, 1.0), 0.0),
+        ProfileVertex::new(p2(5.0, 3.0), 0.0),
+        ProfileVertex::new(p2(xw, 3.0), 0.0),
+        ProfileVertex::new(p2(xw, 2.25), bulge),
+        ProfileVertex::new(p2(xw, 1.75), 0.0),
+        ProfileVertex::new(p2(xw, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -413,14 +356,8 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
 #[test]
 fn r1_delta_probe_ball_cap_embedded_in_plate() {
     let ball_lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -1.0), 1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     let axis = sweep::RevolveAxis {
         origin: p2(0.0, 0.0),
@@ -439,22 +376,10 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
     // plate's boundary, and the plate's line edges (|x| = 3 or
     // |y| = 3) are far from the ball.
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(-3.0, -3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(3.0, -3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(3.0, 3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(-3.0, 3.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(-3.0, -3.0), 0.0),
+        ProfileVertex::new(p2(3.0, -3.0), 0.0),
+        ProfileVertex::new(p2(3.0, 3.0), 0.0),
+        ProfileVertex::new(p2(-3.0, 3.0), 0.0),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
     let plate = extrude(
@@ -502,14 +427,10 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
         p2(th.cos(), th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(135.0),
-            bulge: 0.0, // chord from 135 to 225 (straight)
-        },
-        ProfileVertex {
-            pos: at(225.0),
-            bulge: b270, // the 270-degree arc from 225 around to 135
-        },
+        // chord from 135 to 225 (straight)
+        ProfileVertex::new(at(135.0), 0.0),
+        // the 270-degree arc from 225 around to 135
+        ProfileVertex::new(at(225.0), b270),
     ]);
     let pac = extrude(
         &Profile::new(SketchPlane::xy(), vec![lp])
@@ -526,14 +447,8 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
     // the +x half of the disc is beyond hull + pad on no axis... the
     // probe asks the gate, not the box).
     let ball_lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -0.3),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 0.3),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -0.3), 1.0),
+        ProfileVertex::new(p2(0.0, 0.3), 0.0),
     ]);
     let axis = sweep::RevolveAxis {
         origin: p2(0.0, 0.0),

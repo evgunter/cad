@@ -12,14 +12,8 @@ use sweep::{Extrusion, extrude};
 #[test]
 fn symmetric_double_rim_split_volume_at_base() {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(-0.5, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.5, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(Point2::new(-0.5, 0.0), 1.0),
+        ProfileVertex::new(Point2::new(0.5, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())

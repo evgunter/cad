@@ -62,14 +62,8 @@ fn probe_coincident_stacking_refuses_degenerate() {
 fn probe_measure_revolve_minor_radius_drift() {
     let (major, minor) = (2.0f64, 0.5f64);
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(major - minor, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(major + minor, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(Point2::new(major - minor, 0.0), 1.0),
+        ProfileVertex::new(Point2::new(major + minor, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())

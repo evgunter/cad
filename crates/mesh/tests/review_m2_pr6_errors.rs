@@ -61,14 +61,8 @@ fn survives_certificate_exceeded_unreachable_over_body_sweep() {
         // R ≫ r: the conservative (~24×) torus bound at its most
         // stressed relative to the grid heuristic.
         let lp = ProfileLoop::new(vec![
-            profile::ProfileVertex {
-                pos: p2(10.0, -0.05),
-                bulge: 1.0,
-            },
-            profile::ProfileVertex {
-                pos: p2(10.0, 0.05),
-                bulge: 1.0,
-            },
+            profile::ProfileVertex::new(p2(10.0, -0.05), 1.0),
+            profile::ProfileVertex::new(p2(10.0, 0.05), 1.0),
         ]);
         revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
             .unwrap()
@@ -100,14 +94,8 @@ fn survives_torus_wedge_outside_pole_window() {
     // Torus faces carry no poles: the θ ∈ (3π/2, 2π) pole-junction
     // window must NOT affect a partial donut.
     let lp = ProfileLoop::new(vec![
-        profile::ProfileVertex {
-            pos: p2(2.0, -0.5),
-            bulge: 1.0,
-        },
-        profile::ProfileVertex {
-            pos: p2(2.0, 0.5),
-            bulge: 1.0,
-        },
+        profile::ProfileVertex::new(p2(2.0, -0.5), 1.0),
+        profile::ProfileVertex::new(p2(2.0, 0.5), 1.0),
     ]);
     let body = revolve(
         &validated(vec![lp]),
