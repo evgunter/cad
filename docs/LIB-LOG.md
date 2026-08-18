@@ -895,3 +895,16 @@ memo-observability door (evaluate takes no prior — the banked
 third claim). Audit marks unchanged at 25+3+6 by measurement,
 not omission. die_tool's Python re-authoring = a banked
 candidate behind the Revolve/datum half.
+
+**ONARC DELIVERED (2026-08-18, PR #608; ordinal-57 cross-model
+dual dispatched).** Orchestrator disposition of the implementer's
+deviation 1: the enclosing-tangency (ρ<0) sub-class is
+UNREACHABLE through the §2c door — the other crossing always
+carries a strictly-nearer ordinary candidate the gates cannot
+exclude; only the retired corner-authoring spelling ever reached
+it, so nothing shipped is lost and the delegation's wall clause
+is NOT tripped. Recorded as boundary pins (the door must
+refuse-or-round, never emit the class) + a NAMED low-priority
+design question for Evan: should enclosing tangency ever be
+authorable, it needs a corner-authoring-shaped verb — vocabulary,
+not a defect. #377 completes at #608's merge.

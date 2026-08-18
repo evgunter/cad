@@ -1129,3 +1129,17 @@ Frame origin-vs-translation naming, the U4b trio ADOPTED with
 FrameError plumbing, the audit re-diagnosis flips NO rows — the
 YES* marks depended on the fusion half G8 still names). Row at
 merge.
+LIB-ONARC review ordinal fixed at dispatch (2026-08-18, PR #608
+open, frozen head cafd622f): claimed through 56 (PYPU) + 1 =
+**57 → a third → DUAL, CROSS-MODEL per #572** (R1 fable + R2
+opus, concurrent same-head). Pre-draw fields logged at spec time:
+M / STRUCTURAL (docs/LIB-ONARC-SPEC.md; arm = block LIB-11 slot
+3, the fable slot). Implementer report: 6 deviations ALL
+reported; headline = the ENCLOSING-TANGENCY class is unreachable
+at the lattice door (analytic + executed; shim-only historically
+— disposed as boundary pins + a named design question, NOT a
+delegation wall since no shipped spelling is lost); the §1.1
+probe pinned the mismatched-r hole as late-validate
+TangencyContradicted, sound-by-construction after; a SECOND
+latent defect found (the old Zero-fit gapped-chain shape). Row at
+merge.
