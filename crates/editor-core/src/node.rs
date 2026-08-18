@@ -942,25 +942,99 @@ impl<P> Node<P> {
         }
     }
 
-    /// The node ids REFERENCED BY NAME from this payload (Declare
-    /// pairs) — validated for existence at edit time per the spec D3
-    /// carve-out, but NOT DAG edges ([`Node::inputs`] excludes them;
-    /// a later delete may strand them, N5 semantics).
-    pub fn named_nodes(&self) -> Vec<RecipeNodeId> {
+    /// The [`StableName`]s this payload REFERENCES — `Declare` pairs, a
+    /// fillet's selection, a mate's two heads. Document data, never DAG
+    /// edges ([`Node::inputs`] excludes them): the edit door checks at
+    /// insertion that each one names a live node, and a later delete may
+    /// strand it, which is NAMING-DESIGN N5's dangling-reference
+    /// semantics with `Rebind` as the one repair.
+    ///
+    /// **The single answer to "which payloads carry a name."** Listing
+    /// the nameless variants rather than wildcarding them is what makes
+    /// that true: a future variant carrying a [`StableName`] cannot
+    /// compile until it is classified here, and every reader — the
+    /// insert door, the split's re-anchoring, edit-time name resolution
+    /// — reads this rather than its own copy of the list.
+    pub fn payload_names(&self) -> Vec<&StableName> {
         match self {
-            Node::Declare { pairs } => pairs
-                .iter()
-                .flat_map(|((a, b), _)| [a.node, b.node])
-                .collect(),
-            // A12: a mate's two heads carry the SAME carve-out — the
-            // edit door checks they exist, a later delete may strand
-            // them (N5), and `Rebind` is the one repair.
-            Node::Mate { a, b, .. } => vec![a.node, b.node],
-            // The fillet selection references names the same way, and
-            // carries the same N5 carve-out (M6-5).
-            Node::Fillet { selection, .. } => selection.iter().map(|n| n.node).collect(),
-            _ => Vec::new(),
+            Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a, b]).collect(),
+            Node::Fillet { selection, .. } => selection.iter().collect(),
+            // A12: a mate's two heads are the instance-qualified
+            // references its reading edges are recomputed from.
+            Node::Mate { a, b, .. } => vec![a, b],
+            Node::Datum(_)
+            | Node::Profile(_)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Transform { .. }
+            | Node::Pattern { .. }
+            | Node::PlacedUnion { .. }
+            | Node::InstantiatePart { .. } => Vec::new(),
         }
+    }
+
+    /// Rewrites every payload reference EXACTLY equal to `from` into
+    /// `to`, returning how many it rewrote — the substrate of `Rebind`,
+    /// N5's one repair. A set-shaped payload re-canonicalizes, because
+    /// `to` may sort elsewhere or already be present: a rebind onto an
+    /// already-selected edge SHRINKS the set by one rather than
+    /// duplicating it.
+    ///
+    /// Exhaustive for the reason [`Node::payload_names`] is: the two
+    /// must name the same variants, so neither may wildcard.
+    pub fn rebind_payload_names(&mut self, from: &StableName, to: &StableName) -> usize {
+        fn rewrite(name: &mut StableName, from: &StableName, to: &StableName) -> usize {
+            if name == from {
+                *name = to.clone();
+                1
+            } else {
+                0
+            }
+        }
+        let mut hits = 0usize;
+        match self {
+            Node::Declare { pairs } => {
+                for name in pairs.iter_mut().flat_map(|((a, b), _)| [a, b]) {
+                    hits += rewrite(name, from, to);
+                }
+            }
+            Node::Fillet { selection, .. } => {
+                for name in selection.iter_mut() {
+                    hits += rewrite(name, from, to);
+                }
+                if hits > 0 {
+                    selection.sort();
+                    selection.dedup();
+                }
+            }
+            Node::Mate { a, b, .. } => {
+                hits += rewrite(a, from, to);
+                hits += rewrite(b, from, to);
+            }
+            Node::Datum(_)
+            | Node::Profile(_)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Transform { .. }
+            | Node::Pattern { .. }
+            | Node::PlacedUnion { .. }
+            | Node::InstantiatePart { .. } => {}
+        }
+        hits
+    }
+
+    /// The node ids [`Node::payload_names`] reaches: the heads whose
+    /// existence the insert door checks.
+    pub fn named_nodes(&self) -> Vec<RecipeNodeId> {
+        self.payload_names().iter().map(|name| name.node).collect()
     }
 
     /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
