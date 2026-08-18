@@ -917,3 +917,21 @@ family; the implementer falsified the orchestrator's diagnosis
 and built the correct arm — recorded as the model behavior for
 handed-down-diagnosis briefs). LIB-11 slots 1-3 consumed
 (SEAL/PYPU/ONARC); slot 4 (opus) banks for RESPELL-TABLE.
+
+**ONARC MERGED (2026-08-18, #608 fully green at de6ff336;
+ordinal-57 cross-model dual: R1 NMAI→APPROVE, R2 A-W-F — the row
+incl. the divergence calibration is in MODEL-AB-LOG).** #377
+CLOSED — the LoopBuilder retirement arc that began at #377/#386
+is COMPLETE. The §2c surface now matches the ratified axiom
+exactly. RESPELL-TABLE dispatches next on LIB-11 slot 4 (opus) —
+the four-projection transition table, now over the
+post-dissolution row set.
+
+**LIB-RTABLE DISPATCHED (2026-08-18, block LIB-11 slot 4 = OPUS
+— LIB-11 fully consumed: SEAL opus / PYPU opus / ONARC fable /
+RTABLE opus).** docs/LIB-RTABLE-SPEC.md: the four-projection
+transition table over the post-dissolution row set, closing the
+#531 interim's gap; pre-draw fields logged at spec time: M /
+STRUCTURAL. Lane lib-rtable, branch lib/rtable. The RESPELL-TABLE
+register entry closes at its merge — the register's last
+scheduled unit.
