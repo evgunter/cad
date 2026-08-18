@@ -12,9 +12,9 @@
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
+use super::quantity::{Angle, Length};
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use super::quantity::{Angle, Length};
 use pncad::document as d;
 
 /// Raise `FrameError` carrying the refusal's stable tag.
@@ -252,14 +252,14 @@ impl PatternKind {
     /// The direction is a dimensionless triple (`SlotId::Direction` is
     /// `Scalar`); the spacing is a `Length`.
     #[staticmethod]
-    fn linear(
-        py: Python<'_>,
-        direction: (f64, f64, f64),
-        spacing: &Length,
-    ) -> PyResult<Self> {
+    fn linear(py: Python<'_>, direction: (f64, f64, f64), spacing: &Length) -> PyResult<Self> {
         let scalar = |v: f64| super::doc::literal(py, v, d::Dimension::Scalar);
         Ok(Self(d::PatternKind::Linear {
-            direction: [scalar(direction.0)?, scalar(direction.1)?, scalar(direction.2)?],
+            direction: [
+                scalar(direction.0)?,
+                scalar(direction.1)?,
+                scalar(direction.2)?,
+            ],
             spacing: super::doc::literal(py, spacing.0.meters(), d::Dimension::Length)?,
         }))
     }
@@ -267,11 +267,7 @@ impl PatternKind {
     /// Instances stepped `step` apart around `axis`, an upstream
     /// `datum_axis` node.
     #[staticmethod]
-    fn circular(
-        py: Python<'_>,
-        axis: &super::doc::NodeId,
-        step: &Angle,
-    ) -> PyResult<Self> {
+    fn circular(py: Python<'_>, axis: &super::doc::NodeId, step: &Angle) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Circular {
             axis: axis.0,
             step: super::doc::literal(py, step.0.radians(), d::Dimension::Angle)?,

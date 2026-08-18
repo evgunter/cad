@@ -933,8 +933,8 @@ impl Node {
         count: i64,
         kind: &super::place::PatternKind,
     ) -> PyResult<Self> {
-        let node = d::Node::placed_union(input.0, d::Expr::count(count), kind.0.clone()).ok_or_else(
-            || {
+        let node = d::Node::placed_union(input.0, d::Expr::count(count), kind.0.clone())
+            .ok_or_else(|| {
                 typed_err(
                     py,
                     ErrorClass::Edit,
@@ -952,8 +952,7 @@ impl Node {
                         .into_any(),
                     )],
                 )
-            },
-        )?;
+            })?;
         Ok(Self { inner: node })
     }
 
