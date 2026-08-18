@@ -2117,8 +2117,18 @@ Three things make this more than a naming preference:
 probes as subject-named *inline* modules (`mod review_fuzz`,
 `mod review_outerness`).
 
-**Verdict:**
+**Verdict:** ACCEPTED, BUT SEQUENCED — DO NOT RENAME FIRST (Evan,
+2026-08-18). *"The milestone naming would be good to clean up eventually but
+right now it's implicitly flagging stuff that probably has messy test suites
+that need to be streamlined, so they should only be renamed after an actual
+review and fixup to become normal test suites."*
 
+This inverts the obvious action. A PR-numbered name is currently **carrying
+signal**: it marks a suite that has not been combed into a subject-organised
+one. Renaming ahead of that review would destroy the only marker of which
+suites still need the work, and would convert a visible backlog into an
+invisible one. The unit of work is **review-and-fixup, then rename** — per
+suite, not a repo-wide rename pass.
 ## S37. Milestone naming leaks into shipped artifacts and the public API
 
 - **Where**: `crates/mesh/src/types.rs:164`, `crates/stl/src/ascii.rs:8`,
@@ -2143,8 +2153,15 @@ does, and are unresolvable outside this repository. Several also record
 history the reader does not need ("an earlier revision of this comment
 claimed that, and it was false").
 
-**Verdict:**
+**Verdict:** ACCEPTED, AND SEPARABLE — CAN BE FIXED EARLIER (Evan,
+2026-08-18). *"The shipped artifact comments can be fixed earlier."*
 
+Distinguished from S36 deliberately: milestone naming **inside** test files is
+a backlog marker worth keeping until the suite is combed (S36), but milestone
+naming that **escapes into shipped output** — `solid cad-kernel-m2` in every
+STL, the PR number runtime-visible through `UnsupportedCurve.note`'s `Debug`,
+and ~124 internal spec codes in public rustdoc and the Python stub — carries no
+such signal and can go now.
 ## S38. Comments that argue rather than describe
 
 - **Confidence**: sure
@@ -2171,8 +2188,8 @@ already have — `planar.rs:277`'s 33-line sense-sign argument is repeated
 near-verbatim at `curved.rs:90`, and S15's `Retired` comment is a
 justification that is simply false for one of the two doors it covers.
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). *"The comments should definitely
+be trimmed down to what's actually necessary."*
 ## S39. Stale claims that other code is instructed to rely on
 
 - **Confidence**: sure
@@ -2189,8 +2206,33 @@ justification that is simply false for one of the two doors it covers.
 | `props/quad.rs:42`: "the patch flux engine consumes this machinery at rest" | It runs a separate near-parallel copy; the claim reads as a stale justification for keeping S11's dead lane | `props/quad.rs:42` |
 | `assemble::build`'s doc: "the assembly both doors share verbatim" | Only one door remains, and `build_one_solid` is a one-line forward to it | `step-import/assemble.rs:810` |
 
-**Verdict:**
+**Verdict:** ACCEPTED, WITH A SHARPENED READING (Evan, 2026-08-18). *"The
+stale claims should also be fixed carefully rather than just removed since they
+may flag cases where the code deviated from something that should've been
+projected as invariant."*
 
+This reframes the finding. A stale claim is **two-valued evidence**: either the
+doc rotted while the code was right, or **the code drifted away from something
+that was meant to hold**. The second case is a latent defect wearing a
+documentation costume, and deleting the sentence would erase the only surviving
+record of the intended invariant.
+
+Two rows in this finding look like candidates for the second reading rather
+than the first:
+
+- **`enters.rs:14`** derives M3's entire sign chain from *"every face's stored
+  normal is the outward normal"* and instructs future callers to cite that
+  sentence. `step-export/src/volume.rs:36` says it has been false since M5 S10.
+  Callers currently pass sense-corrected normals, so the code works — but the
+  question the claim raises is whether the outward-normal property *should*
+  have been preserved rather than devolved onto every caller.
+- **`pcurves.rs:91`** (found by the S15 steelman, not the original scan) lists
+  `merge_coplanar_faces` among ops that neither clear nor re-mint the pcurve
+  cache. It **started re-minting on 2026-08-05**. Here the code moved in the
+  *safe* direction and the index rotted behind it — the benign reading.
+
+Each row needs the same question asked before its sentence is touched: **which
+of the two happened?**
 ## S40. Residue and editing artifacts
 
 - **Confidence**: sure
@@ -2252,8 +2294,12 @@ justification that is simply false for one of the two doors it covers.
   both cheaper and consistent with the rule" — for a set used at three
   sites (`topo/src/lib.rs:60`).
 
-**Verdict:**
-
+**Verdict:** ACCEPTED (Evan, 2026-08-18). *"The residue stuff should also be
+fixed."* Note two rows are not purely cosmetic: `emit_topo.rs:1266`'s
+unreachable `unwrap_or_else` would mint `Seam{ae, ae}` — a well-formed name
+denoting the wrong thing — if it ever fired, and `seqgen.rs:853`'s discarded
+counter means the property suite cannot distinguish an all-skipped run from a
+fully-exercised one.
 ## S41. The `Enclosure` seam launders `Interval` decorations, possibly today
 
 - **Where**: `crates/geom-core/src/spline/hull.rs:98`,
