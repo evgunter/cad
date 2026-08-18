@@ -926,3 +926,12 @@ is COMPLETE. The §2c surface now matches the ratified axiom
 exactly. RESPELL-TABLE dispatches next on LIB-11 slot 4 (opus) —
 the four-projection transition table, now over the
 post-dissolution row set.
+
+**LIB-RTABLE DISPATCHED (2026-08-18, block LIB-11 slot 4 = OPUS
+— LIB-11 fully consumed: SEAL opus / PYPU opus / ONARC fable /
+RTABLE opus).** docs/LIB-RTABLE-SPEC.md: the four-projection
+transition table over the post-dissolution row set, closing the
+#531 interim's gap; pre-draw fields logged at spec time: M /
+STRUCTURAL. Lane lib-rtable, branch lib/rtable. The RESPELL-TABLE
+register entry closes at its merge — the register's last
+scheduled unit.
