@@ -20,14 +20,24 @@
 //! then a theorem about enclosures, or it is a typed failure. It is
 //! never silence.
 //!
-//! # The subdivision is also the seed generator
+//! # The subdivision is also the seed generator — on the caller's word
 //!
-//! The same recursion, run with an empty tube set and the coarser
-//! [`SSI_SEED_FLOOR`]·extent floor, returns the cells that survived
-//! exclusion. Their centers are the marcher's seeds. A branch that
-//! touches no domain boundary — the interior small loop that boundary
-//! seeding provably cannot reach — is found here or the operation
-//! refuses; there is no third outcome.
+//! The same recursion, run at the coarser [`SSI_SEED_FLOOR`]·extent
+//! floor, returns the cells that survived exclusion. Their centers are
+//! the marcher's seeds. A branch that touches no domain boundary — the
+//! interior small loop that boundary seeding provably cannot reach — is
+//! found here or the operation refuses; there is no third outcome.
+//!
+//! One structure, two duties — and **which duty is a parameter the
+//! caller states**, never a condition the recursion reads off its own
+//! input. [`seed_r3`] and [`seed_chart_plane`] generate seeds: they take
+//! no tube set and cannot refuse at the floor. [`account_r3`] and
+//! [`account_chart_plane`] discharge the obligation: they return the
+//! receipt and nothing else, and they refuse at the floor unconditionally
+//! — including when their tube set is empty, which is precisely the run
+//! that has proved nothing (every seed failed to refine, or every branch
+//! lacked a pcurve). Nothing in either signature can express the other
+//! duty's answer.
 //!
 //! # Brute force, deliberately, for now
 //!
@@ -70,6 +80,12 @@ pub struct Exhaustiveness {
     /// the subdivision tree. Reported so the receipt adds up:
     /// `examined == excluded + accounted + refined`, with every LEAF in
     /// one of the first two. That identity is the theorem.
+    ///
+    /// It holds for every receipt that escapes this module, because only
+    /// the accounting duty returns one: there, a leaf is excluded,
+    /// accounted, or the typed refusal, so no leaf can land outside a
+    /// bucket. The seeding duty's surviving leaves are the seeds, and
+    /// [`seed_r3`] / [`seed_chart_plane`] hand back no receipt at all.
     pub refined: u32,
     /// The deepest recursion reached.
     pub max_depth: u32,
@@ -77,16 +93,58 @@ pub struct Exhaustiveness {
     pub floor: f64,
 }
 
-/// Subdivide a 3-D session-box slab against an analytic pair.
+/// **Which of the subdivision's two duties the caller is asking for.**
 ///
-/// With `tubes` empty this is **seed generation**: the returned points
-/// are the centers of the cells that survived exclusion. With `tubes`
-/// populated it is **accounting**: any surviving cell at the floor is
-/// the typed refusal.
+/// The recursion is one structure with two jobs, and the job is named
+/// by the caller. It is deliberately not inferable from the data: an
+/// empty tube set is a legitimate accounting input — the run where
+/// nothing was found, and therefore nothing is proved — not a request
+/// to generate seeds.
 ///
-/// Iterative (an explicit stack, so recursion depth is not a stack-
-/// overflow path) and depth-first with the two halves pushed in a fixed
-/// order — same cells, same order, every run (D9).
+/// Private to this module, and every constructor of it is inside one of
+/// the four entry points below, so no caller can name the wrong duty.
+#[derive(Clone, Copy)]
+enum SweepDuty<'a, C> {
+    /// Return the centers of the cells that survived exclusion.
+    Seed,
+    /// Prove every leaf is excluded or lies inside one of these
+    /// uniqueness tubes; refuse at the floor otherwise.
+    Account(&'a [C]),
+}
+
+impl<'a, C> SweepDuty<'a, C> {
+    /// The tubes to test cells against. Seeding has none — which is a
+    /// consequence of the duty, not the definition of it.
+    fn tubes(self) -> &'a [C] {
+        match self {
+            Self::Seed => &[],
+            Self::Account(t) => t,
+        }
+    }
+}
+
+/// **Seed generation**, ℝ³ lane: the centers of the cells that survived
+/// exclusion over `root` at `floor`.
+///
+/// # Errors
+///
+/// As [`account_r3`], minus the floor refusal — seeding has no
+/// obligation to discharge, so a cell that reaches the floor is a seed.
+pub(crate) fn seed_r3(
+    s1: &Surface<f64>,
+    s2: &Surface<f64>,
+    root: Box3,
+    floor: f64,
+) -> Result<Vec<Point3<f64>>, SsiError> {
+    let (_, seeds) = sweep_r3(s1, s2, root, SweepDuty::Seed, floor)?;
+    Ok(seeds)
+}
+
+/// **The accounting proof**, ℝ³ lane: every leaf of the subdivision of
+/// `root` is excluded by enclosure or lies inside one of `tubes`.
+///
+/// A cell that is neither, at the floor, is the typed refusal —
+/// whatever `tubes` holds, empty included.
 ///
 /// # Errors
 ///
@@ -94,11 +152,27 @@ pub struct Exhaustiveness {
 /// [`SsiError::CellBudget`] if the enumeration exceeds
 /// [`SSI_MAX_CELLS`], [`SsiError::UnsupportedCertificate`] when a
 /// surface kind has no ring-computable enclosure.
-pub(crate) fn sweep_r3(
+pub(crate) fn account_r3(
     s1: &Surface<f64>,
     s2: &Surface<f64>,
     root: Box3,
     tubes: &[Box3],
+    floor: f64,
+) -> Result<Exhaustiveness, SsiError> {
+    let (stats, _) = sweep_r3(s1, s2, root, SweepDuty::Account(tubes), floor)?;
+    Ok(stats)
+}
+
+/// The shared recursion behind [`seed_r3`] and [`account_r3`].
+///
+/// Iterative (an explicit stack, so recursion depth is not a stack-
+/// overflow path) and depth-first with the two halves pushed in a fixed
+/// order — same cells, same order, every run (D9).
+fn sweep_r3(
+    s1: &Surface<f64>,
+    s2: &Surface<f64>,
+    root: Box3,
+    duty: SweepDuty<'_, Box3>,
     floor: f64,
 ) -> Result<(Exhaustiveness, Vec<Point3<f64>>), SsiError> {
     let mut stats = Exhaustiveness {
@@ -131,21 +205,25 @@ pub(crate) fn sweep_r3(
             continue;
         }
         // (ii) accounted: inside a found branch's uniqueness tube.
-        if tubes.iter().any(|t| cell.contained_in(*t)) {
+        if duty.tubes().iter().any(|t| cell.contained_in(*t)) {
             stats.accounted += 1;
             continue;
         }
         // (iii) refine, unless we are at the floor.
         if cell.width() <= floor {
-            if tubes.is_empty() {
-                out.push(cell.center());
-                continue;
+            match duty {
+                SweepDuty::Seed => {
+                    out.push(cell.center());
+                    continue;
+                }
+                SweepDuty::Account(_) => {
+                    return Err(SsiError::ExhaustivenessInconclusive {
+                        cell_width: cell.width(),
+                        floor,
+                        examined: stats.examined,
+                    });
+                }
             }
-            return Err(SsiError::ExhaustivenessInconclusive {
-                cell_width: cell.width(),
-                floor,
-                examined: stats.examined,
-            });
         }
         stats.refined += 1;
         let (a, b) = cell.split();
@@ -210,23 +288,70 @@ impl UvRect {
     }
 }
 
-/// Subdivide a NURBS surface's parameter rectangle against a **plane**:
-/// the locus is `φ(u,v) = n·(S(u,v) − p₀) = 0`, so exclusion is a
-/// zero-free enclosure of `φ`, computed from the surface's certified
-/// first-order box.
-///
-/// Same two modes as [`sweep_r3`]: empty `tubes` generates seeds,
-/// populated `tubes` proves accounting.
+/// **Seed generation**, chart lane: the centers of the parameter cells
+/// that survived exclusion against the plane.
 ///
 /// # Errors
 ///
-/// As [`sweep_r3`].
-pub(crate) fn sweep_chart_plane(
+/// As [`account_chart_plane`], minus the floor refusal.
+pub(crate) fn seed_chart_plane(
+    surface: &NurbsSurface<f64>,
+    plane_origin: Point3<f64>,
+    plane_normal: Vec3<f64>,
+    root: UvRect,
+    floor_uv: f64,
+) -> Result<Vec<(f64, f64)>, SsiError> {
+    let (_, seeds) = sweep_chart_plane(
+        surface,
+        plane_origin,
+        plane_normal,
+        root,
+        SweepDuty::Seed,
+        floor_uv,
+    )?;
+    Ok(seeds)
+}
+
+/// **The accounting proof**, chart lane: every leaf of the parameter
+/// rectangle is excluded or lies inside one of `tubes`; a cell that is
+/// neither, at the floor, is the typed refusal — `tubes` empty
+/// included.
+///
+/// # Errors
+///
+/// As [`account_r3`].
+pub(crate) fn account_chart_plane(
     surface: &NurbsSurface<f64>,
     plane_origin: Point3<f64>,
     plane_normal: Vec3<f64>,
     root: UvRect,
     tubes: &[UvRect],
+    floor_uv: f64,
+) -> Result<Exhaustiveness, SsiError> {
+    let (stats, _) = sweep_chart_plane(
+        surface,
+        plane_origin,
+        plane_normal,
+        root,
+        SweepDuty::Account(tubes),
+        floor_uv,
+    )?;
+    Ok(stats)
+}
+
+/// Subdivide a NURBS surface's parameter rectangle against a **plane**:
+/// the locus is `φ(u,v) = n·(S(u,v) − p₀) = 0`, so exclusion is a
+/// zero-free enclosure of `φ`, computed from the surface's certified
+/// first-order box.
+///
+/// The shared recursion behind [`seed_chart_plane`] and
+/// [`account_chart_plane`].
+fn sweep_chart_plane(
+    surface: &NurbsSurface<f64>,
+    plane_origin: Point3<f64>,
+    plane_normal: Vec3<f64>,
+    root: UvRect,
+    duty: SweepDuty<'_, UvRect>,
     floor_uv: f64,
 ) -> Result<(Exhaustiveness, Vec<(f64, f64)>), SsiError> {
     let boxes = NurbsBoxes::new(surface);
@@ -259,20 +384,24 @@ pub(crate) fn sweep_chart_plane(
             stats.excluded += 1;
             continue;
         }
-        if tubes.iter().any(|t| cell.contained_in(*t)) {
+        if duty.tubes().iter().any(|t| cell.contained_in(*t)) {
             stats.accounted += 1;
             continue;
         }
         if cell.width() <= floor_uv {
-            if tubes.is_empty() {
-                out.push(cell.center());
-                continue;
+            match duty {
+                SweepDuty::Seed => {
+                    out.push(cell.center());
+                    continue;
+                }
+                SweepDuty::Account(_) => {
+                    return Err(SsiError::ExhaustivenessInconclusive {
+                        cell_width: cell.width(),
+                        floor: floor_uv,
+                        examined: stats.examined,
+                    });
+                }
             }
-            return Err(SsiError::ExhaustivenessInconclusive {
-                cell_width: cell.width(),
-                floor: floor_uv,
-                examined: stats.examined,
-            });
         }
         stats.refined += 1;
         let (a, c) = cell.split();

@@ -658,7 +658,7 @@ pub fn cylinder_sphere_ssi(
     let slab = domain.slab();
 
     // ---- seeds: the subdivision, with no tubes ----
-    let (_, seeds) = exhaust::sweep_r3(a, b, slab, &[], domain.seed_floor())?;
+    let seeds = exhaust::seed_r3(a, b, slab, domain.seed_floor())?;
     let seed_count = seeds.len() as u32;
 
     // ---- march, fit, certify ----
@@ -708,7 +708,7 @@ pub fn cylinder_sphere_ssi(
     }
 
     // ---- accounting: the same subdivision, now with the tubes ----
-    let (exhaustiveness, _) = exhaust::sweep_r3(a, b, slab, &tubes, domain.floor())?;
+    let exhaustiveness = exhaust::account_r3(a, b, slab, &tubes, domain.floor())?;
     Ok(SsiOutcome {
         branches,
         exhaustiveness,
@@ -820,8 +820,7 @@ pub fn plane_nurbs_ssi(
     }
 
     // ---- seeds ----
-    let (_, seeds) =
-        exhaust::sweep_chart_plane(wall, p0, normal, root, &[], domain.seed_floor() / speed)?;
+    let seeds = exhaust::seed_chart_plane(wall, p0, normal, root, domain.seed_floor() / speed)?;
     let seed_count = seeds.len() as u32;
 
     let v_ref = normal.cross(u_ref);
@@ -862,8 +861,8 @@ pub fn plane_nurbs_ssi(
         branches.push(branch);
     }
 
-    let (exhaustiveness, _) =
-        exhaust::sweep_chart_plane(wall, p0, normal, root, &tubes, domain.floor() / speed)?;
+    let exhaustiveness =
+        exhaust::account_chart_plane(wall, p0, normal, root, &tubes, domain.floor() / speed)?;
     Ok(SsiOutcome {
         branches,
         exhaustiveness,
