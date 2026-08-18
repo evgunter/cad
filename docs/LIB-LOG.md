@@ -17,7 +17,7 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
    viable." Genuine design forks still escalate.
 2. **Façade placeholder crate name: `pncad`** ("pending-name CAD")
    — greppable, carries the Q9 rename debt visibly. See the
-   name-candidates memory for the rename-time grep note.
+   docs/NAME-CANDIDATES.md for the rename-time grep note.
 3. **v2 profiles-as-programs spec timing**: the design-conversation
    draft waits for U2's algebra to be implemented AND the demo
    corpus reworked onto it — the rework is the evidence base for

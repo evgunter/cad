@@ -22,7 +22,9 @@ built-in per-project memory directory does NOT persist between sessions.
 session start; save new memories there (same format — one file per fact
 with name/description/type frontmatter, plus an index line in
 `memories/MEMORY.md`); commit them like any other change. The in-repo
-copies are canonical.
+copies are canonical. Before adding one, read the memory-writing
+criteria in `memories/cad-working-style.md` — everything in
+`memories/` is read at every session start, so it has to earn that.
 
 ## Working style
 

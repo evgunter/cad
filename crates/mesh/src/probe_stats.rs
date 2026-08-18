@@ -46,8 +46,10 @@
 //! as `pncad::mesh::probe_stats`), so the sampling block, its `assert!`,
 //! and the public arming API all shipped, reachable by any caller
 //! willing to call `arm(true)`. This module boundary is that half's
-//! close. The standing rule both halves come from is
-//! `memories/telemetry-gating.md`.
+//! close. The standing rule both halves come from: instrumentation is
+//! feature-gated at its MODULE boundary and armed by an explicit call,
+//! never by the environment (the `discipline` job's "no ambient
+//! environment in the kernel" grep enforces the second half).
 //!
 //! # Thread-local, and why
 //!

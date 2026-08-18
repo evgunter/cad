@@ -402,9 +402,9 @@ jobs:
       # into the binary, and cannot be an ambient channel.
       #
       # Telemetry is the recurring offender, so it has a rule of its
-      # own (memories/telemetry-gating.md): gate it behind a feature at
-      # the module boundary from the first commit, and arm it by an
-      # explicit call — never by the environment.
+      # own: gate it behind a feature at the module boundary from the
+      # first commit, and arm it by an explicit call — never by the
+      # environment. Worked examples: `mesh::budget`, `mesh::probe_stats`.
       - name: no ambient environment in the kernel
         run: |
           hits=$(grep -rPn '\benv::vars?(_os)?\s*\(' crates/*/src --include='*.rs' \

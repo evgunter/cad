@@ -971,7 +971,7 @@ Claimed as main's next number after reading main's ACTUAL constant
 by eye immediately before setting it (`git show
 origin/main:crates/editor-core/src/persist/mod.rs | grep
 SCHEMA_VERSION`). This paragraph IS the tripwire the
-`schema-claim-discipline` memory asks for: any other in-flight
+schema-claim discipline then in force asked for: any other in-flight
 branch claiming 13 collides HERE, because the constant will not —
 one line of identical text merges clean.
 
