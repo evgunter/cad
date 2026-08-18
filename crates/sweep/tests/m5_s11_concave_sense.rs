@@ -443,6 +443,71 @@ fn extruded_twin(loops: &[ProfileLoop<f64>], h: f64) -> Body<f64> {
         .body
 }
 
+/// A rational body's volume, pinned across the ε schedule (the m8-3
+/// posture, in the one form these rows need). The certified quadrature
+/// runs a FIXED schedule against a `1024·ε` target, so the same body is
+/// computable at the default ε and honestly out of budget at a tighter
+/// one. Both are pinned and the target is never widened: a `Certified`
+/// result must hit `want`, a `Budget` refusal must carry a width that
+/// really missed a target that really is `1024·ε`, and only the
+/// convergence predicate may escalate. Anything else is a real failure.
+fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
+    let target = 1024.0 * Tolerance::get().eps;
+    match topo::props::mass_properties(body) {
+        Ok(m) => {
+            // ACCURACY: the certified enclosure must CONTAIN the
+            // independent oracle (`want` is the extruded twin's closed
+            // form, pad exactly 0).
+            assert!(
+                (m.volume - want).abs() <= m.volume_pad,
+                "{row}: the rational enclosure must contain the analytic \
+                 volume: got {} ± {}, oracle {want}",
+                m.volume,
+                m.volume_pad
+            );
+            // PAD CEILING, pinned SEPARATELY: accuracy alone gets
+            // easier as the enclosure degrades, so a loosening pad
+            // cannot absorb it without tripping this. Keyed to ε
+            // because the schedule is fixed and the pad is what the
+            // schedule achieves.
+            let ceiling = 2.0 * target;
+            assert!(
+                m.volume_pad.is_finite() && m.volume_pad < ceiling,
+                "{row}: volume pad {} vs {ceiling:e}",
+                m.volume_pad
+            );
+        }
+        Err(topo::MassPropsError::Face {
+            source:
+                geom_brep::PropsError::QuadratureBudget {
+                    width_len,
+                    target_len,
+                },
+            ..
+        }) => {
+            assert!(
+                width_len.is_finite() && width_len > target_len,
+                "{row}: a budget refusal must carry a width that really \
+                 missed: {width_len:e} vs {target_len:e}"
+            );
+            assert!(
+                (target_len - target).abs() <= target * 1e-12,
+                "{row}: the refused target must BE 1024·ε for this run: \
+                 {target_len:e} vs {target:e}"
+            );
+        }
+        Err(topo::MassPropsError::Face {
+            source: geom_brep::PropsError::Escalated { cause },
+            ..
+        }) => assert_eq!(
+            cause.predicate,
+            Some("props_quad_converged"),
+            "{row}: only the convergence predicate may escalate: {cause:?}"
+        ),
+        Err(other) => panic!("{row}: not an honest quadrature posture: {other}"),
+    }
+}
+
 /// One lofted wall's mid-chart point and the OUTWARD normal it claims:
 /// the shipped surface's `S_u × S_v` with the stored `sense` folded in.
 fn wall_outward(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, Vec3<f64>) {
@@ -525,20 +590,17 @@ fn loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below() {
         sense_of(&lofted.body, lofted.top) && sense_of(&lofted.body, lofted.bottom),
         "the caps keep sense = true (the bottom cap's loop is reversed at mint)"
     );
-    // The arc walls are RATIONAL, so the flux is quadrature, not a
-    // closed form: the target is absolute and stated, never the
-    // returned pad (a pad-relative bracket loosens as the enclosure
-    // degrades).
+    // The twin's flux is a closed form and holds at every ε.
     let twin_vol = vol(&extruded_twin(&loops, 1.0));
     assert!(
         (twin_vol - 3.0).abs() < 1e-9,
         "the twin's analytic flux is the closed form: 3.0; got {twin_vol}"
     );
-    let honest = vol(&lofted.body);
-    assert!(
-        (honest - 3.0).abs() < 1e-7,
-        "the same solid through the rational quadrature: 3.0; got {honest}"
-    );
+    // The loft's arc walls are RATIONAL, so its flux is the certified
+    // quadrature against a FIXED schedule: honest at the default ε,
+    // honestly out of budget at a tighter one (the m8-3 posture). Both
+    // outcomes are pinned; neither target is ever widened.
+    assert_rational_volume("the lofted concave prism", &lofted.body, 3.0);
 
     // The residual. Segment 2 is the concave arc — the wall whose
     // extruded twin mints `sense: false` — pinned by its mid-chart
@@ -553,15 +615,35 @@ fn loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below() {
     let lied = lofted.body.flipped_face_sense_for_tests(wall).unwrap();
     assert_eq!(topo::validate(&lied), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&lied), Ok(()), "tier 2");
-    // Check 6's curved arm skips `Surface::Nurbs` by name and its
-    // planar arm is line-bounded, so no tier reads this bit; check 7
-    // inside this same call meters the inside-out body's flux and
-    // accepts it, which is props' blindness executed rather than
-    // re-metered (a second rational quadrature for one bool).
-    assert_eq!(
-        topo::validate_geometric(&lied),
-        Ok(()),
-        "an inside-out lofted wall is tier-3 green — the recorded residual"
+    // The recorded residual, stated as what it is: a CHANGE DETECTOR,
+    // not a guarantee. Check 6's curved arm skips `Surface::Nurbs` by
+    // name and its planar arm is line-bounded, so an orientation error
+    // on a lofted wall is unreachable today and this assertion cannot
+    // fail — which is the point. It fires the day that skip is
+    // removed, i.e. exactly when the guard should move out of these
+    // rows and into the validator where it belongs.
+    //
+    // Phrased over the whole report, not `== Ok(())`, so a tighter ε
+    // that makes the rational flux honestly out of budget leaves the
+    // claim intact.
+    let report = topo::validate_geometric(&lied);
+    let orientation_errors = report
+        .as_ref()
+        .err()
+        .into_iter()
+        .flatten()
+        .filter(|e| {
+            matches!(
+                e,
+                topo::ValidationError::LoopRoleInverted { .. }
+                    | topo::ValidationError::CurvedSenseInverted { .. }
+            )
+        })
+        .count();
+    assert!(
+        orientation_errors == 0,
+        "no tier reads a lofted wall's sense, so an inside-out wall draws \
+         no orientation complaint: {report:?}"
     );
 }
 
