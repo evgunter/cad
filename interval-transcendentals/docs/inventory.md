@@ -16,7 +16,7 @@ them.
 | `atan` | `geom-brep/src/edge_geometry.rs:148`; `profile/src/validate.rs:1129`; `sweep/src/revolve/mod.rs:585` + `sweep/src/extrude.rs:484` (`arc_span`: angle from bulge); `sweep/src/revolve/axis.rs:321` |
 | `atan2` | `profile/src/sugar.rs:62,91,92` (turn angles); `editor-core/src/expr.rs:679` |
 | `sqrt` | pervasive (norms, `linalg`, residuals) — exact-family, not transcendental, but part of the enclosure surface |
-| `powi` | pervasive; **load-bearing for soundness**: interval squares of zero-straddling quantities MUST route through `powi(2)`, never `x*x` (memories/interval-square-poison.md) |
+| `powi` | pervasive; **load-bearing for soundness**: interval squares of zero-straddling quantities MUST route through `powi(2)`, never `x*x`; gated by ci.yml's "interval-square powi(2) allowlist" |
 | `pi()` / `tau()` constants | `Real` trait constants; used by revolve/validate angle logic |
 
 ## On the trait, implemented by `Interval`, but with NO generic call site today

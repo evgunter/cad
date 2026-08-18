@@ -149,7 +149,7 @@ fn atan2_branch_cut_and_signed_zero() {
 
 #[test]
 fn powi_straddle_square_is_tight_at_zero() {
-    // The interval-square-poison contract: even powers of straddling
+    // The tight-square contract: even powers of straddling
     // intervals have lower bound EXACTLY 0.0 — sqrt downstream stays Com.
     let x = DInterval::from_bounds(-3.0, 2.0);
     let sq = x.powi(2);

@@ -297,9 +297,9 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// constant — both sides had written the identical line, so git
 /// merged it silently, exactly as the v11 and v12 entries above
 /// predicted. Three consecutive units have now reproduced that
-/// failure mode; the discipline (`memories/schema-claim-discipline`)
-/// is that the CLAIM lives as prose in `docs/MODEL-AB-LOG.md`, where
-/// it collides, and the number is re-read by eye at every re-merge.
+/// failure mode. The claim lives as prose in `docs/MODEL-AB-LOG.md`,
+/// where it collides, and the number was re-read by eye at the
+/// re-merge.
 /// A gap in the sequence would cost nothing; a collision costs a
 /// human eye.
 ///
@@ -328,10 +328,10 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// vocabulary, one wire spelling of it, third consumer, still not
 /// re-spelled.
 ///
-/// Per `memories/schema-claim-discipline`, this number was taken by an
-/// explicit by-eye read of main's constant at the final re-merge, and
-/// the claim also lives as prose in `docs/MODEL-AB-LOG.md`, where a
-/// second claimant collides instead of merging clean.
+/// This number was taken by an explicit by-eye read of main's
+/// constant at the final re-merge, and the claim also lives as prose
+/// in `docs/MODEL-AB-LOG.md`, where a second claimant collides
+/// instead of merging clean.
 ///
 /// Bump ONLY with a ratified format change — plus its
 /// [`migration_step`] entry, or a ratified break like these thirteen.

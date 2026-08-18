@@ -167,7 +167,7 @@ pub fn point_in_loop<T: Decide>(
         let (a, b) = (points[i], points[(i + 1) % n]);
         let e = b - a;
         let w = q - a;
-        // norm_squared, not e·e: the interval-square-poison rule (a
+        // norm_squared, not e·e: the powi(2) rule (a
         // straddling enclosure squared via Mul gets a spurious negative
         // lower bound; powi keeps the tight nonnegative one).
         let len2 = e.norm_squared();

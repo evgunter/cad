@@ -589,7 +589,8 @@ mod live {
         // homogeneous of degree 2 in h_u, so h_u falls straight out.
         let steps = |t: f64| -> (f64, f64) {
             // `powi(2)`, not `t * t`: the discipline the CI lint
-            // enforces tree-wide (memories/interval-square-poison.md).
+            // enforces tree-wide (ci.yml's "interval-square powi(2)
+            // allowlist").
             // These are f64, so the two agree bit for bit — which is
             // exactly why there is no reason to be the exception.
             let q = mvv.mul_add(t.powi(2), 2.0f64.mul_add(muv * t, muu));

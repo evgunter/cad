@@ -26,7 +26,10 @@ resampling and its `assert!` into that release artifact),
 `mesh::nurbs_cert::nurbs_cell_bounds` (the certificate assembly
 reported per knot-span cell — a SECOND path, so the shipped bound stays
 bit-identical), and `tools/tess-lint` (report + regression gate,
-`k-lint`'s posture). CI runs them in the `k-lint` job, plus a
+`k-lint`'s posture). **When you gate telemetry behind a feature, budget
+for its CI row** — the default rows then only exercise the inert half,
+and that row has teeth only if it is unconditional. CI runs them in the
+`k-lint` job, plus a
 `--features budget` row for the armed half (and, beside it, a
 `--features probe-stats` row for the falsifier's); the committed
 baseline is `docs/tess-budget-data/`.
