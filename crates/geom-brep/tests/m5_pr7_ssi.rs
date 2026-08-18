@@ -936,6 +936,14 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
         1,
         "SUBSTRATE: one open branch, edge to edge"
     );
+    // The receipt identity, on the chart lane's own accounting pass:
+    // every leaf excluded or accounted, every interior node split.
+    let e = out.exhaustiveness;
+    assert_eq!(
+        e.examined,
+        e.excluded + e.accounted + e.refined,
+        "SUBSTRATE RECEIPT: the receipt must add up: {e:?}"
+    );
     let b = &out.branches[0];
     let cert = &b.certificate;
     assert_eq!(cert.samples, CERT_SAMPLES, "SUBSTRATE: the PR 6 schedule");
