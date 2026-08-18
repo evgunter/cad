@@ -170,9 +170,18 @@ impl Frame {
 
     /// The linear part's columns: `columns[j]` is the image of basis
     /// vector `j` — dimensionless, as the matrix entries are.
+    ///
+    /// Tuples, not lists: the frame is frozen, and a mutable read-back
+    /// would let a caller edit a copy and believe the placement moved.
     #[getter]
-    fn columns(&self) -> [[f64; 3]; 3] {
-        self.0.columns
+    #[allow(clippy::type_complexity)]
+    fn columns(&self) -> ((f64, f64, f64), (f64, f64, f64), (f64, f64, f64)) {
+        let [c0, c1, c2] = self.0.columns;
+        (
+            (c0[0], c0[1], c0[2]),
+            (c1[0], c1[1], c1[2]),
+            (c2[0], c2[1], c2[2]),
+        )
     }
 
     /// The image of the coordinate origin, as a displacement from it —
