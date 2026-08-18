@@ -2056,21 +2056,23 @@ mod tests {
         volume_backstop(BooleanOp::Subtract, &plate, &plate, &plate, band).unwrap();
     }
 
-    /// **The NURBS re-gate, pinned (M5 S13 §1).** The fallback's
-    /// curved-extent test is UNWRITABLE for NURBS today
-    /// (`implicit_residual` is poison there, and no
+    /// **The NURBS re-gate, pinned (M5 S13 §1), and the placeholder's
+    /// own door.** The fallback's curved-extent test is UNWRITABLE for
+    /// NURBS today (`implicit_residual` is poison there, and no
     /// projection-based extent argument has been written — the
     /// `NurbsSurface::project` half of the old blocker retired at
     /// M6-2's lift), so the class is re-gated AT THE FALLBACK with a
     /// typed refusal naming its TRUE blocker — a future NURBS body
     /// constructor inherits this door, never the vertex-probe silence
-    /// the S12 finding executed. The fixture is the `ops_cube` shape
-    /// (every face on the `mvfs` `Nurbs` placeholder surface): two of
-    /// them, far apart, produce no crossings and land exactly on the
-    /// fallback; before S13 that pair would have been silently
-    /// vertex-probed into an assembly.
+    /// the S12 finding executed. That re-gate is pinned here at the
+    /// mechanism, because a body on the `mvfs` `Nurbs` PLACEHOLDER
+    /// surface can no longer reach the fallback at all: a placeholder's
+    /// control net is poison, so its face box is poison, so it is never
+    /// pruned and its pairs meet the crossing layer's typed refusal
+    /// first. Both doors are pinned below; what neither may become is a
+    /// silent assembly.
     #[test]
-    fn nurbs_fallback_is_regated_typed() {
+    fn nurbs_faces_refuse_typed_at_both_doors() {
         use crate::boolean::{BooleanDeclarations, SweepStrategy, boolean_op_with};
         use crate::euler::{MefSite, MevSite};
         use crate::fixtures::ops_cube;
@@ -2124,7 +2126,25 @@ mod tests {
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
         )
-        .expect_err("the NURBS fallback must be re-gated, never vertex-probed");
+        .expect_err("a NURBS operand must refuse typed, never be vertex-probed");
+        // Door 1 — the placeholder is unbounded, so the pair is a
+        // candidate and the crossing layer refuses it by kind.
+        let BooleanError::CurvedBooleanUnsupported {
+            kind: geom_brep::SurfaceKind::Nurbs,
+            ..
+        } = err
+        else {
+            panic!("expected the crossing-layer refusal, got {err:?}");
+        };
+
+        // Door 2 — the fallback's own re-gate, at the mechanism: any
+        // fallback entry carrying a NURBS face refuses BEFORE a vertex
+        // is probed. Reachable end-to-end only from a real control net
+        // (a lofted body), which no `topo`-side constructor mints.
+        let band = Band::linear().unwrap();
+        let Err(err) = super::sphere_extent_scan(&a, &b, band) else {
+            panic!("the NURBS fallback must be re-gated, never vertex-probed");
+        };
         let BooleanError::NurbsExtentUnsupported { .. } = err else {
             panic!("expected the NURBS re-gate, got {err:?}");
         };
