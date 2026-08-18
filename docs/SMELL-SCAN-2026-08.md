@@ -962,6 +962,60 @@ doors are not redundant and S7 collapses.
 supports in place), so they need rewriting, not deleting — and
 `FilletNaming::supports` becomes dead.
 
+### D3 EXPERIMENT RUN (2026-08-18): the surgery door handles the whole-body input
+
+The experiment §D's D3 row asks for has been run. Arms swapped at
+`build.rs:205` so `fillet_surgery` receives every input — including the
+whole-body shape it had never once been given — then reverted. Nothing is
+proposed here; this records only the result.
+
+**The construction succeeds.** `fillet_edges` on a cube with all twelve
+edges requested returns `Ok` through the surgery door. The largest unknown
+the steelman named — *"whether the construction succeeds when every
+boundary vertex is a corner and every source edge dies"* — is closed: it
+does.
+
+**And it builds the same solid.** Exported to STEP and compared against the
+committed `filleted_die.step` golden as an unordered multiset:
+
+| Check | Result |
+|---|---|
+| Entity-type multiset (625 entities) | **identical** |
+| Distinct `CARTESIAN_POINT` coordinates (51) | **identical sets** |
+| Total `CARTESIAN_POINT` count (99) | **identical** |
+| Circle / sphere radius multiset | **identical** |
+| Kernel census (F / E / V) | **identical** — 26 / 48 / 24 |
+| Certified volume | `965230999.4765309` vs pinned `965230999.476531` — **adjacent f64s** |
+
+What differs is emission *order*, and how the two doors distribute
+duplicate points across use-sites (twelve coordinates shift multiplicity,
+3→2 and 1→2, netting zero). **No coordinate, radius, or entity exists in
+one file and not the other.**
+
+**The retirement price, measured rather than estimated.** With the arms
+swapped:
+
+- `cargo test -p sweep --test all` — 376 pass, **1 fails**:
+  `m6_5_fillet_naming::the_whole_body_door_records_every_entity_it_mints`,
+  on the `supports` row (0 vs 6). This is precisely the by-design
+  difference the steelman predicted — the fresh-arena door retires every
+  source face and writes a `supports` row per face; the surgery leaves the
+  support in place, so the source key survives and no row is written. It
+  needs rewriting, not deleting.
+- `cargo test -p step-export` — 50 pass, **2 fail**: the byte-golden
+  fixture and the `KERNEL_VOLUME_MM3` sidecar. Both are the regeneration
+  chore the steelman priced, not a contract breach: the volume moves one
+  ulp, the census does not move at all.
+
+So the subset claim holds **constructively**, not just predicately, and the
+cost of retiring the whole-body door is one naming test rewritten, two
+goldens regenerated, and one FreeCAD acceptance re-run. **S7 does not
+collapse.**
+
+*Still open, and still Evan's:* whether to actually retire the ~890
+whole-body-exclusive lines. This entry closes the blocking unknown and
+confirms the price already quoted; it does not make the call.
+
 ## S8. The fitted (rung-3) pcurve lane has no producer anywhere in `src`
 
 - **Where**: `crates/geom-brep/src/pcurve_cache.rs:1379`,
@@ -1215,6 +1269,44 @@ each ruled *keep, with the frontier named*.
 *Needing a decision:* `Mat2`/`Affine2`; `PairSolve` (ask R2-b's spec whether it
 wants the record); `hull.rs`'s non-rational half; the two inlined fillet
 helpers; and `ProfileError`'s five now-zero-constructor variants.
+
+### D4 CHECKED (2026-08-18): two of the five rows move
+
+Each remaining row was chased to its spec and its call graph. Two change.
+
+**`hull.rs` — the sort was right, the *scope* was not. Recommend KEEP.**
+`domain_hull` is not unconsumed: it is the body of `sup_norm_bound`
+(`hull.rs:347`), a documented public certified-bounds function, and
+`domain_hull_rational` likewise backs `sup_norm_bound_rational`
+(`hull.rs:358`). Those wrappers' own callers are still only tests (4 in
+`geom-core/tests/spline_hull.rs`, 3 in `geom-curves/tests/review_m5_pr2_e2e.rs`),
+so "no named consumer" holds at the *top* of the chain — but the deletion
+on offer is not one dead helper, it is **retiring the `sup_norm_bound*`
+API**, and the rational limb of that API sits on the banked #390/#453
+lane. Different decision from the one the row describes.
+
+**`PairSolve` — the evidence points the other way from "R2-b will want it".**
+R2-b has already merged (**#591**, and `ASM-LOG.md:297` records *"R2 IS
+CLOSED"*), and on `origin/main` today `PairSolve` is still exactly two
+lines: the `pub struct` at `mate/solve.rs:66` and the re-export at
+`mate.rs:57`. No constructor, no reader. R2-a's own commissioning spec is
+`ASM-R2A-SPEC.md` D-4 ("the per-pair coset solve"), and what it makes
+binding is the fold's *verdicts* (DETERMINED / UNDER / CONTRADICTORY) and
+the tree/non-tree *roles* — obligations `SolvedPoses` and `MateRole`
+already discharge. It never asks for a public per-pair record type. The
+one banked follow-on unit is ASM-XSPLIT (the AQ8 conversion door), which
+is the F1/census gap, not the coset record.
+
+So the unit that would have consumed it has closed without doing so. That
+is not proof it has no future — but it removes the reason to assume one.
+
+**Unchanged:** `Mat2`/`Affine2` (only the `lib.rs:38` re-export and one
+review test); the two fillet helpers (inline duplicates confirmed at
+`surgery.rs:1556` / `build.rs:1185` for `TangentIntersection`, and
+throughout `surgery.rs` for `Curve3::Circle` — but `trimline_description`'s
+doc is the only place D7's prefer-intrinsic obligation is *named*, so that
+sentence needs migrating, not dropping); `ProfileError`'s five variants
+(`test_support.rs` is gone from the tree, so they have zero constructors).
 
 ## S12. Euler atomicity is enforced by convention: every write silently no-ops on a missed precondition
 
@@ -3030,6 +3122,50 @@ whether the collapse target is "one lane trait in `geom-core`" (S3's steelman,
 compiled and working) or "no lane traits at all, and a `Bounds` split into its
 two meanings."
 
+### D1 PRICED (2026-08-18): the lane traits cost nothing in `src`
+
+To price the split, the four refusing `Dual` impls were commented out
+(`pcurve_cache.rs:1214`, `chart_region.rs:304`, `props.rs:422`,
+`edge_nurbs.rs:561`) and the workspace rechecked. Reverted afterwards;
+this records only the measurement.
+
+**`cargo check --workspace` succeeds.** The entire production tree
+compiles with no `Dual` lane at all. **Nothing in `src` instantiates any
+of the four lanes at `Dual`** — the only `Dual` mentions in `props.rs` and
+`chart_region.rs` are the refusing impls themselves.
+
+Everything that breaks is a **test**, and there are five sites:
+
+| Site | What it does |
+|---|---|
+| `topo/tests/geometric_cube.rs:236` | `validate_geometric` on a `Dual64` body |
+| `topo/tests/review_m2_pr3.rs:224` | `validate_geometric` on a `Dual64` body |
+| `sweep/tests/extrude_acceptance.rs:565` | `validate_geometric` on a `Dual64` body |
+| `sweep/tests/m5_pr11_quad_props.rs:165` | `mass_properties` on a `Dual` body |
+| `topo/tests/fixture/mod.rs:302` | `certify_at_dual` — *"the dual lane's refusal, executed"* |
+
+They fall into two kinds. The last one is a test **of the refusing
+machinery itself**: if the lane traits go, its subject goes with them and
+it deletes rather than being rewritten. The other four assert D9's
+bit-identity contract — *"the value channel of a `Dual` build takes the
+identical certified path"* — and they express it by literally running the
+certified validator at `Dual`.
+
+**So the whole 16-impl pattern's only load-bearing job is making those
+four bit-identity assertions compile.** That is worth stating plainly,
+because it is also the sharpest form of S44's objection: the tests assert
+that a dual **can** enter the certified pipeline, which is the thing the
+remembered founding sentence says is not semantically valid. The pattern
+and the ruling it cites are asserting opposite things, and the tests are
+where they meet.
+
+**Price of the split, then:** zero production edits; one test deleted;
+four bit-identity assertions re-expressed without routing a `Dual` through
+certified code (validate at `f64`, compare the dual's value channel
+through an uncertified path). Whether that re-expression is acceptable is
+the actual question D1 has to answer — it is a question about what the
+bit-identity contract is allowed to say, not about trait ergonomics.
+
 ## S45–S48 — reserved
 
 IDs `S45`–`S48` are intentionally unallocated, so that items promoted
@@ -3211,10 +3347,10 @@ calls that no agent should make.
 
 | # | Decision | Gates | Why first |
 |---|---|---|---|
-| **D1** | **S44 — what is `Bounds`?** Is it "carries a bracket" (a semantic property, definable for `Dual` as lo=hi=value) or "may enter certified code" (an access-control marker)? | **S3** entirely; colours **S1**, **S2** | The lane traits exist only to mediate the second meaning. The answer picks the target: one lane trait in `geom-core` (the steelman compiled one, 16 impls → 2), or none at all and `Bounds` split in two. |
+| **D1** | **S44 — what is `Bounds`?** Is it "carries a bracket" (a semantic property, definable for `Dual` as lo=hi=value) or "may enter certified code" (an access-control marker)? | **S3** entirely; colours **S1**, **S2** | The lane traits exist only to mediate the second meaning. The answer picks the target: one lane trait in `geom-core` (the steelman compiled one, 16 impls → 2), or none at all and `Bounds` split in two. **PRICED 2026-08-18 (see S44's pricing entry): the split costs *nothing* in `src` — no production code instantiates any lane at `Dual`. It costs one deleted test and four D9 bit-identity assertions re-expressed.** |
 | **D2** | **S43 — the bug-vs-invalid-state taxonomy.** D9 currently sanctions only "typed error where cheaply detectable, or documented garbage-out"; the kernel uses five idioms, two of them mutual negations. | **S19** (which it *generates* — ~239 of ~260 sites); resolves **S12**/**S14** residue | Restating D9 decides three findings at one stroke. Touching any error enum first means redoing it. |
-| **D3** | **S7 — run the one-line experiment.** Swap the arms at `fillet/build.rs:205`, `cargo test -p sweep --test all`. | **S6**, and all fillet work in **S36**/**S38** | Decides whether ~890 lines are deleted. The surgery door has *never* been run on a whole-body input; if it fails on a cube the two doors are not redundant and S7 collapses. |
-| **D4** | **S11's four undecided rows** — `Mat2`/`Affine2`, `PairSolve`, `hull.rs`'s non-rational unused half, the two inlined fillet helpers. | Cleanup in those files | Each is delete-or-keep. Cheap to answer, and answering stops anyone documenting them. |
+| **D3** | **S7 — run the one-line experiment.** Swap the arms at `fillet/build.rs:205`, `cargo test -p sweep --test all`. | **S6**, and all fillet work in **S36**/**S38** | **EXPERIMENT RUN 2026-08-18 — see S7's experiment entry.** The surgery succeeds on the cube and yields the same solid (identical census and coordinate set; volume one ulp apart). The two doors *are* redundant, so the decision is now purely retire-or-keep against a measured price: one naming test rewritten, two goldens regenerated, one FreeCAD acceptance re-run. |
+| **D4** | **S11's four undecided rows** — `Mat2`/`Affine2`, `PairSolve`, `hull.rs`'s non-rational unused half, the two inlined fillet helpers. | Cleanup in those files | Each is delete-or-keep. Cheap to answer, and answering stops anyone documenting them. **CHECKED 2026-08-18 (see S11's D4 entry): `hull.rs` should be struck — the deletion is really "retire the `sup_norm_bound*` API", whose rational limb is on the #390/#453 lane. `PairSolve`'s consuming unit (R2-b, #591) has merged without constructing it.** |
 
 ---
 
