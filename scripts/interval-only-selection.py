@@ -31,6 +31,31 @@ FAILS CLOSED. An empty difference, a malformed list, or a list whose
 shape this script does not recognise is an ERROR (exit 1), never an
 empty filter that would silently run nothing.
 
+ONE legitimate empty case, decided from OUTSIDE the two lists. The
+guard above was written when this ran over the whole workspace, where
+"the interval build adds nothing" really is impossible. Under a SCOPED
+run it is ordinary: a change closure can scope both builds to crates
+that carry no interval-gated tests at all, and then an empty difference
+means "nothing to run here", not "coverage was lost". `-p pncad-py` is
+the first such closure to exist — that crate contains not one
+`cfg(feature = "interval")` item, in src or tests.
+
+The two lists CANNOT tell those apart: a scope with no gated tests and
+a scope whose lists were built with the same features both produce two
+identical lists. So the legitimacy signal is not read from them. It is
+read from the SOURCE: for every crate in the scope (taken from the
+lists' own suites), does that crate contain any cfg naming the interval
+feature? If not one of them does, no interval-gated test can exist in
+this scope, the empty difference is proved rather than assumed, and
+`none()` goes to stdout with exit 0.
+
+That implication only runs one way, which is what keeps it safe. No
+gate in the source ⇒ no gated test. A crate that HAS gates and still
+contributes no difference takes the exit-1 arm exactly as before — so
+deleted interval lanes (whose src-side impls remain) and lists built
+with the same features both still fail closed, and every full-workspace
+run still passes through crates full of gates.
+
 Usage:
     interval-only-selection.py <default.json> <interval.json>
 
@@ -38,34 +63,93 @@ Writes a nextest filter expression to stdout.
 """
 
 import json
+import os
 import sys
+
+# The text a cfg naming the interval feature must contain, whatever the
+# surrounding shape (`not(...)`, `all(...)`, a gated test, a gated
+# impl). Kept as a substring rather than a regex on purpose: this is a
+# PRESENCE question, and the narrower question — is the gate additive —
+# is check-interval-cfg-additive.py's, gated separately.
+FEATURE_CFG = 'feature = "interval"'
 
 
 def load(path):
-    """(binary_id, test_name) pairs from `cargo nextest list
-    --message-format json`. Fails closed on any unexpected shape."""
+    """`((binary_id, test_name) pairs, package names)` from `cargo
+    nextest list --message-format json`. Fails closed on any unexpected
+    SHAPE.
+
+    Emptiness is not a shape error here. A missing or non-dict
+    `rust-suites` still means the schema moved and is fatal, but an
+    EMPTY suite set is a real answer nextest gives for a scope with no
+    Rust test binaries at all, and whether that is legitimate is a
+    question about the SOURCE, not about this list. Deciding it here
+    was what made the scoped-no-op closure unrepresentable.
+
+    The package names come back because they ARE the scope — the set of
+    crates both builds were pointed at, taken from the run rather than
+    re-derived from a CLI string this script never sees.
+    """
     with open(path) as f:
         doc = json.load(f)
     suites = doc.get("rust-suites")
-    if not isinstance(suites, dict) or not suites:
+    if not isinstance(suites, dict):
         raise SystemExit(
             "error: {}: no 'rust-suites' object — nextest's list schema "
-            "changed, or the list is empty; refusing to guess".format(path)
+            "changed; refusing to guess".format(path)
         )
     out = set()
+    packages = set()
     for key, suite in suites.items():
         binary_id = suite.get("binary-id")
         cases = suite.get("testcases")
-        if not isinstance(binary_id, str) or not isinstance(cases, dict):
+        package = suite.get("package-name")
+        if (
+            not isinstance(binary_id, str)
+            or not isinstance(cases, dict)
+            or not isinstance(package, str)
+        ):
             raise SystemExit(
-                "error: {}: suite {!r} lacks 'binary-id'/'testcases' — "
-                "nextest's list schema changed; refusing to guess".format(path, key)
+                "error: {}: suite {!r} lacks 'binary-id'/'testcases'/"
+                "'package-name' — nextest's list schema changed; refusing "
+                "to guess".format(path, key)
             )
+        packages.add(package)
         for name in cases:
             out.add((binary_id, name))
-    if not out:
-        raise SystemExit("error: {}: listed zero tests".format(path))
-    return out
+    return out, packages
+
+
+def crates_with_interval_gates(root, packages):
+    """Which of `packages` contain any cfg naming the interval feature.
+
+    A syntactic scan of the crate's whole source, both halves, matching
+    the tripwire in check-interval-cfg-additive.py — deliberately
+    COARSER than "has a gated test", because the two ways it can be
+    wrong are not symmetric. Over-reporting (a crate whose only gates
+    are src-side impls) sends an empty difference to the exit-1 arm,
+    which is the safe direction. Under-reporting cannot happen: a gated
+    test is text that names the feature.
+
+    A package with no crate directory is reported as gated, for the same
+    reason — absence cannot be proved from a directory that is not
+    there.
+    """
+    gated = set()
+    for package in sorted(packages):
+        crate = os.path.join(root, "crates", package)
+        if not os.path.isdir(crate):
+            gated.add(package)
+            continue
+        for half in ("src", "tests"):
+            for dirpath, _dirs, files in os.walk(os.path.join(crate, half)):
+                for name in files:
+                    if not name.endswith(".rs"):
+                        continue
+                    with open(os.path.join(dirpath, name)) as f:
+                        if FEATURE_CFG in f.read():
+                            gated.add(package)
+    return gated
 
 
 # Characters that need no quoting in nextest's filterset grammar, and
@@ -100,8 +184,10 @@ def term(kind, s):
 def main(argv):
     if len(argv) != 3:
         raise SystemExit(__doc__)
-    default_tests = load(argv[1])
-    interval_tests = load(argv[2])
+    default_tests, default_packages = load(argv[1])
+    interval_tests, interval_packages = load(argv[2])
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    scope = default_packages | interval_packages
 
     only_interval = sorted(interval_tests - default_tests)
     # The reverse direction — tests the DEFAULT build has and the interval
@@ -134,11 +220,32 @@ def main(argv):
             sys.stderr.write("    {} {}\n".format(b, n))
 
     if not only_interval:
+        # The scoped no-op, PROVED from the source rather than inferred
+        # from the empty difference: not one crate in this scope carries
+        # a cfg naming the feature, so no interval-gated test can exist
+        # here and there is nothing for these legs to run. See the
+        # header for why the one-way implication is what keeps the
+        # catastrophe on the other branch.
+        gated = crates_with_interval_gates(root, scope)
+        if not gated:
+            sys.stderr.write(
+                "NOTE: scoped no-op — the {} crate(s) in this scope ({}) "
+                "contain no `{}` cfg at all, so this scope HAS no "
+                "interval-gated tests and these legs have nothing to run. "
+                "Emitting `none()`. If you expected tests here, the SCOPE "
+                "is wrong, not this selection.\n".format(
+                    len(scope), ", ".join(sorted(scope)) or "none", FEATURE_CFG
+                )
+            )
+            print("none()")
+            return 0
         raise SystemExit(
-            "error: the interval build adds NO tests of its own. Either the "
-            "interval test lanes were deleted (in which case delete the "
-            "interval run legs too, deliberately) or the two lists were "
-            "built with the same features. Refusing to emit an empty filter."
+            "error: the interval build adds NO tests of its own, and this "
+            "scope DOES carry interval cfgs ({}) — so this is not the "
+            "scoped no-op. Either the interval test lanes were deleted (in "
+            "which case delete the interval run legs too, deliberately) or "
+            "the two lists were built with the same features. Refusing to "
+            "emit an empty filter.".format(", ".join(sorted(gated)))
         )
 
     sys.stderr.write(

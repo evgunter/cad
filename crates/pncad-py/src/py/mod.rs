@@ -3,6 +3,7 @@
 mod doc;
 mod flush;
 mod path;
+mod place;
 mod quantity;
 mod select;
 mod value;
@@ -106,6 +107,16 @@ pyo3::create_exception!(
      ...). Carries `reason`, the stable tag of the refusing arm, plus \
      the arm's payload as attributes (`None` where inapplicable)."
 );
+pyo3::create_exception!(
+    pncad,
+    FrameError,
+    PncadError,
+    "A frame constructor refused its inputs — the same typed refusal \
+     the Rust door returns: a direction that was not DEFINITELY \
+     usable (coincident eye and target, a roll reference along the \
+     aim, a zero mirror normal), or a tolerance yielding no usable \
+     band. Carries `variant`, the stable tag of the refusing arm."
+);
 
 /// Raise the exception class [`ErrorClass`] names, with `fields`
 /// attached as instance attributes.
@@ -131,6 +142,7 @@ pub(crate) fn typed_err(
         ErrorClass::StepImport => StepImportError::new_err(message),
         ErrorClass::Path => PathError::new_err(message),
         ErrorClass::Select => SelectRefusal::new_err(message),
+        ErrorClass::Frame => FrameError::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -169,9 +181,11 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("StepImportError", py.get_type::<StepImportError>())?;
     m.add("PathError", py.get_type::<PathError>())?;
     m.add("SelectRefusal", py.get_type::<SelectRefusal>())?;
+    m.add("FrameError", py.get_type::<FrameError>())?;
 
     quantity::register(m)?;
     path::register(m)?;
+    place::register(m)?;
     doc::register(m)?;
     select::register(m)?;
     flush::register(m)?;
