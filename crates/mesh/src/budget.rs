@@ -623,7 +623,7 @@ mod live {
     ///
     /// Returns `(lane, cheapest split)`:
     ///
-    /// * `lane` sums the SAME [`NurbsCellGrid::band_schedule`] the
+    /// * `lane` sums the SAME [`crate::nurbs_cert::NurbsCellGrid::band_schedule`] the
     ///   lane consumes — deliberately one derivation, so the agreement
     ///   column verifies the lane's REALISATION of it (candidate
     ///   generation, dedup, counting), and a bug in `band_schedule`
