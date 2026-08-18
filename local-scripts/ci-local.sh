@@ -412,16 +412,28 @@ interval_selection() {
          target/ci-local/nextest-list-default.json \
          target/ci-local/nextest-list-interval.json > "$INTERVAL_SEL"
 }
+# `--no-tests` is decided by the SELECTION, mirroring hosted's identical
+# conditional: nextest exits 4 on a zero-test run, which is the alarm we
+# want when a real filter matches nothing, and exactly wrong for the
+# `none()` the selection script emits for a scope carrying no
+# interval-gated tests. Any other filter that selects nothing still
+# fails the row.
 # shellcheck disable=SC2086
 interval_tests() {
-  nextest_check && interval_selection \
-    && cargo nextest run $SCOPE --features interval -E "$(cat "$INTERVAL_SEL")"
+  nextest_check && interval_selection || return 1
+  local sel extra=""
+  sel=$(cat "$INTERVAL_SEL")
+  [ "$sel" = "none()" ] && extra="--no-tests=pass"
+  cargo nextest run $SCOPE --features interval -E "$sel" $extra
 }
 # shellcheck disable=SC2086
 interval_eps() {
-  nextest_check && interval_selection \
-    && CAD_TOLERANCE_EPS=1e-6 cargo nextest run $SCOPE --features interval \
-         -E "$(cat "$INTERVAL_SEL")"
+  nextest_check && interval_selection || return 1
+  local sel extra=""
+  sel=$(cat "$INTERVAL_SEL")
+  [ "$sel" = "none()" ] && extra="--no-tests=pass"
+  CAD_TOLERANCE_EPS=1e-6 cargo nextest run $SCOPE --features interval \
+    -E "$sel" $extra
 }
 # shellcheck disable=SC2086
 interval_doc_tests() { cargo test --doc $SCOPE --features interval; }

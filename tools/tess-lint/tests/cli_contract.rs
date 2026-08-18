@@ -19,9 +19,9 @@ use tess_lint::EXPECTED_HEADER as HEADER;
 fn scene(tris: usize, span_opt: f64) -> String {
     format!(
         "{HEADER}\n\
-         s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,\n\
-         s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,10,20,1e0,1e0,1e0,4,\
-         2e2,5e1,1e2,{span_opt:e},1e-4,5e-5,99\n"
+         s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,,\n\
+         s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,4,\
+         1e2,2e2,5e1,1e2,{span_opt:e},1e-4,5e-5,99\n"
     )
 }
 
@@ -115,10 +115,11 @@ fn an_unreadable_file_exits_one() {
 }
 
 /// A REPORT IS NOT A VERDICT: without `--baseline` the tool prints
-/// whatever slack it finds — here a 4x split and an 8x recoverable —
-/// and still exits 0. The absolute factors are known and tracked in
-/// #320; making them fail a row would only pressure someone to coarsen
-/// δ, which is the one move the discipline forbids.
+/// whatever slack it finds — here a 2x held span gain and a 100x
+/// recoverable split — and still exits 0. The absolute factors are
+/// known and tracked in #320; making them fail a row would only
+/// pressure someone to coarsen δ, which is the one move the
+/// discipline forbids.
 #[test]
 fn a_report_without_a_baseline_never_fails() {
     let path = csv("report.csv", &scene(100_000, 1.0));
@@ -126,7 +127,8 @@ fn a_report_without_a_baseline_never_fails() {
     assert_eq!(out.status.code(), Some(0), "a report is not a verdict");
     let o = out_of(&out);
     assert!(o.contains("no gate ran"), "{o}");
-    assert!(o.contains("4.0x"), "the split factor is reported: {o}");
+    assert!(o.contains("2.0x"), "the held span gain is reported: {o}");
+    assert!(o.contains("100.0x"), "the split factor is reported: {o}");
 }
 
 /// The report's own arithmetic, end to end through the binary: the

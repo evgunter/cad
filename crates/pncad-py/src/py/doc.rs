@@ -899,6 +899,77 @@ impl Node {
         let node = pncad::select::declare_node(&kernel).map_err(|err| declare_err(py, &err))?;
         Ok(Self { inner: node })
     }
+
+    /// **The group boolean** over a PARAMETRIC rule: one prototype,
+    /// `count` placements stepped by `kind`, ONE body out — the union
+    /// of the prototype at each placement.
+    ///
+    /// The value is an ordinary body, so every downstream door
+    /// consumes it with no new arms; that is exactly what a `Pattern`
+    /// node's plural `Instances` payload cannot do. Per-instance
+    /// naming is the `Instance(i)` qualifier, ONE segment deep
+    /// whatever the count.
+    ///
+    /// `count` crosses as a plain `int`, the structural-slot exception
+    /// to §L4's typed quantities (`Node.loft`'s `v_degree` precedent):
+    /// a Count is an integer in the kernel's own expression language,
+    /// not a dimensioned measurement, and there is no `Count` quantity
+    /// to wrap it in.
+    ///
+    /// Disjointness is CERTIFIED, never declared: overlapping
+    /// placements refuse typed at `evaluate` (`placements_uncertified`,
+    /// naming the pair), and the certificate is
+    /// sufficient-not-necessary — a touching-but-genuinely-disjoint
+    /// arrangement refuses honestly rather than passing on a guess.
+    ///
+    /// An `explicit` rule brings its OWN placements, so pairing it
+    /// with a count is the two-sources-of-truth state: it refuses here
+    /// (`EditError`, `placement_rule_mismatch`) and
+    /// `Node.placed_union_at` is its door.
+    #[staticmethod]
+    fn placed_union(
+        py: Python<'_>,
+        input: &NodeId,
+        count: i64,
+        kind: &super::place::PatternKind,
+    ) -> PyResult<Self> {
+        let node = d::Node::placed_union(input.0, d::Expr::count(count), kind.0.clone())
+            .ok_or_else(|| {
+                typed_err(
+                    py,
+                    ErrorClass::Edit,
+                    "an explicit placement rule carries its own placements, so it has no \
+                     count slot: use Node.placed_union_at",
+                    &[(
+                        "variant",
+                        PyString::new(
+                            py,
+                            crate::tags::placement_rule_fault_tag(
+                                &d::PlacementRuleFault::CountSpelling,
+                            ),
+                        )
+                        .unbind()
+                        .into_any(),
+                    )],
+                )
+            })?;
+        Ok(Self { inner: node })
+    }
+
+    /// **The group boolean** over LISTED absolute frames: one
+    /// prototype placed at each of `frames`, unioned into ONE body.
+    ///
+    /// There is no count argument because the list IS the count — one
+    /// number, one spelling. An EMPTY list is this rule's `count < 1`
+    /// and refuses typed at `Doc.insert` (`empty_placement_list`), as
+    /// does a non-finite (`non_finite_placement`) or improper
+    /// (`improper_placement`) frame.
+    #[staticmethod]
+    fn placed_union_at(input: &NodeId, frames: Vec<super::place::Frame>) -> Self {
+        Self {
+            inner: d::Node::placed_union_at(input.0, frames.into_iter().map(|f| f.0).collect()),
+        }
+    }
 }
 
 /// A document-level parameter name (guide §3.2) — a plain string
@@ -1034,11 +1105,15 @@ impl DocParam {
 /// names as the ONE API surface shared by the GUI, the bindings, macro
 /// recording and headless tests.
 ///
-/// Four edits are exposed today: `insert_node`, `delete_node`,
-/// `set_tolerance` and `set_doc_param` (R1-PARAMS). The remaining
-/// variants (slot edits, re-witnessing, appearance, rebinds,
-/// expression paths) are mechanical additions once the surface they
-/// need is curated — tracked as named gaps in
+/// Five edits are exposed today: `insert_node`, `delete_node`,
+/// `set_tolerance`, `set_doc_param` (R1-PARAMS) and
+/// `bind_count_param`, the structural-slot edit narrowed to the Count
+/// slot and a parameter reference. The remaining variants (continuous
+/// slot edits, re-witnessing, appearance, rebinds, expression paths)
+/// are mechanical additions once the surface they need is curated —
+/// each waits on an expression vocabulary, which is the reason the
+/// count edit crosses in this narrowed form rather than as the
+/// general door. Tracked as named gaps in
 /// `docs/guide/north-star-audit.md`.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
@@ -1084,6 +1159,38 @@ impl DocEdit {
             inner: d::DocEdit::SetDocParam {
                 name: name.0.clone(),
                 value: value.0.clone(),
+            },
+        }
+    }
+
+    /// Bind `node`'s STRUCTURAL count slot to the document parameter
+    /// `name` — the edit that makes a pattern's or a group's
+    /// replication count a named, editable number.
+    ///
+    /// With the binding in place, one `set_doc_param` re-counts the
+    /// placements and recomputes exactly the nodes downstream of the
+    /// count; without it a count is a literal and each new number is a
+    /// new document.
+    ///
+    /// # Why the door is this narrow
+    ///
+    /// The underlying edit replaces a slot's EXPRESSION, and its two
+    /// remaining degrees of freedom are the slot and the expression
+    /// tree. Both stay closed here: the slot is `Count` — the only
+    /// structural slot there is — and the expression is a parameter
+    /// reference at `Count` dimension, so no expression algebra
+    /// crosses and there is no way to aim this edit at a continuous
+    /// slot (the refusal the general door would need). What DOES stay
+    /// live is every refusal the edit itself carries: a node with no
+    /// count slot, an unknown parameter, a parameter of the wrong
+    /// dimension — each arrives as its own typed `EditError`.
+    #[staticmethod]
+    fn bind_count_param(node: &NodeId, name: &ParamName) -> Self {
+        Self {
+            inner: d::DocEdit::SetStructuralParam {
+                node: node.0,
+                slot: d::SlotId::Count,
+                expr: d::Expr::param(name.0.clone(), d::Dimension::Count),
             },
         }
     }

@@ -1061,8 +1061,23 @@ jobs:
       # covered by the default legs.
       - name: derive the interval-only test selection
         run: scripts/interval-only-selection.py nextest-list-default.json nextest-list-interval.json > interval-selection.txt
+      # `--no-tests` is decided by the SELECTION, not passed blindly:
+      # nextest exits 4 on a zero-test run, which is exactly the alarm
+      # we want when a real filter matches nothing, and exactly wrong
+      # for the `none()` the script emits for a scope carrying no Rust
+      # tests at all (see its header — a pncad-py-only closure is the
+      # first). Conditioning on the literal keeps both behaviours: any
+      # other filter that selects nothing still fails this leg.
       - name: run archived tests (interval-only)
-        run: ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 -E "$(cat interval-selection.txt)"
+        run: |
+          selection=$(cat interval-selection.txt)
+          if [ "$selection" = "none()" ]; then
+            echo "scoped no-op: the selection is none(), so this leg runs 0 tests"
+            no_tests="--no-tests=pass"
+          else
+            no_tests=""
+          fi
+          ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 -E "$selection" $no_tests
       # M4 PR 6 D6.1, Interval member: the save/load/replay-identity row
       # at the certified interval scalar (already inside the full archive
       # run above; named here so the obligation is visible). One leg only
@@ -1802,7 +1817,7 @@ jobs:
       # |S - Pi| on every emitted triangle to fill `worst_dev`, which is
       # ~1.15M triangles x 28 barycentric samples — tens of millions of
       # surface evaluations — and the gate reads NONE of it. What
-      # `compare` looks at is triangle counts and `uniform_cells /
+      # `compare` looks at is triangle counts and `grid_cells /
       # span_opt_cells`, all of them sizing columns the lane produces
       # for free. The deviation pass is what the WRITEUP needed
       # (docs/TESS-BUDGET.md's total-slack column, and the committed

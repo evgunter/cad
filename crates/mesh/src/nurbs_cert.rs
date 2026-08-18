@@ -131,9 +131,32 @@
 //!
 //! A zero group (e.g. a degree-1 direction of a ruled wall with
 //! `muv = 0`) leaves that direction unconstrained — step ∞, one cell.
-//! The same steps bound the BOUNDARY chord schedule of every adjacent
-//! edge (`chords`: the adjacent-torus tightening pattern), so boundary
-//! triangles obey the same budget.
+//!
+//! **Since TESS-SPAN (the #320 span promotion) the shipped grid is
+//! sized PER KNOT-SPAN CELL in `v`**: the trimmed lane consumes
+//! [`nurbs_cell_grid`] — the same certified assembly reported cell by
+//! cell — and builds a TENSOR grid whose v-rows apply the step rule
+//! above per v-band with that band's own bounds
+//! ([`NurbsCellGrid::row_bound`]), rows landing on the band
+//! boundaries so a grid triangle's certificate is the certificate of
+//! the band containing it ([`NurbsCellGrid::cert`]). The u-columns
+//! deliberately KEEP the whole-patch schedule: they stay
+//! phase-aligned with the chord pass's boundary points (sized from
+//! the same steps), which is what keeps anisotropic boundary slivers
+//! certified (`crate::trimmed` module docs tell the measured story);
+//! the u-direction's per-cell share of the span slack is forfeited
+//! and metered. The point-selection rule (the
+//! `2·a_u·a_v ≤ a_u² + a_v²` grouping) is deliberately UNCHANGED —
+//! decoupling it is the split unit's open aspect-policy question, out
+//! of scope here.
+//!
+//! The whole-patch steps still bound the BOUNDARY chord schedule of
+//! every adjacent edge (`chords`: the adjacent-torus tightening
+//! pattern) — the reported TESS-SPAN D-2 choice: an edge's chords are
+//! shared with the neighbouring face, so they keep the conservative
+//! whole-patch schedule and forfeit the span gain along boundaries
+//! (quantified by `crate::budget`'s meter), rather than teaching the
+//! chord pass which cells a pcurve image crosses.
 //!
 //! # Covered vs refused (partial coverage, stated)
 //!
@@ -214,13 +237,6 @@ fn min3(a: f64, b: f64, c: f64) -> f64 {
 /// cell's UV extent and the three per-component squared sums the bound
 /// is assembled from. Kept as ring enclosures so poison flows exactly
 /// as the whole-patch assembly's does (`rational_face_bound`).
-//
-// The UV extents are read only by the `budget` half (the shipped bound
-// maxes the squared sums and never asks where a cell was), so with the
-// feature off they are honestly dead — allowed rather than gated,
-// because gating FIELDS would put a `#[cfg]` on every construction
-// site of a type the shipped path builds.
-#[cfg_attr(not(feature = "budget"), allow(dead_code))]
 pub(crate) struct CellRaw {
     /// The cell's `u` extent, `[lo, hi]`.
     pub u: (f64, f64),
@@ -234,7 +250,6 @@ pub(crate) struct CellRaw {
     pub sq_vv: RingInterval,
 }
 
-#[cfg(feature = "budget")]
 /// One knot-span cell's own certified Hessian bound (the
 /// [`nurbs_face_bound`] assembly restricted to the cell's active
 /// coefficient window) with the UV rectangle it is valid on.
@@ -265,23 +280,22 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
     )
 }
 
-#[cfg(feature = "budget")]
-/// **The sizing diagnostic's per-cell bounds** (`crate::budget`): the
-/// same certified assembly as [`nurbs_face_bound`], reported per
-/// knot-span cell instead of maxed over the patch.
+/// **The per-cell bounds** (TESS-SPAN, promoted from the #320 sizing
+/// diagnostic): the same certified assembly as [`nurbs_face_bound`],
+/// reported per knot-span cell instead of maxed over the patch.
 ///
-/// This is DIAGNOSTIC-ONLY and deliberately a second path rather than
-/// a refactor of the integral arm: the shipped bound stays the
-/// whole-patch hull it has always been, bit for bit, and nothing here
-/// can tighten or loosen a certificate. What it answers is issue #320's
-/// measurement question — how much of the grid density a whole-patch
-/// sup buys is paid for by cells that are nowhere near that sup.
+/// Since TESS-SPAN this is the SHIPPED lane's sizing input (through
+/// [`nurbs_cell_grid`]); `crate::budget`'s meter reads it too, for the
+/// span-sizing prediction it checks the lane against. Nothing here can
+/// loosen a certificate: every cell's bound is the same hull assembly
+/// over a SUBSET of the whole-patch coefficient window.
 ///
 /// Granularity differs by arm, because each arm reports at the
 /// granularity its own certified assembly already works in: the
 /// integral arm's cells are the raw knot spans, the rational arm's are
-/// the cells of the fixed [`RATIONAL_CERT_SPLITS`] refinement. The row
-/// carries the cell count, so a reader is never guessing which.
+/// the cells of the fixed [`RATIONAL_CERT_SPLITS`] refinement. The
+/// budget row carries the cell count, so a reader is never guessing
+/// which.
 ///
 /// The max over the returned cells is `≤` the face bound in every arm
 /// (the whole-patch hull is over a superset of every cell's window);
@@ -315,7 +329,370 @@ pub(crate) fn nurbs_cell_bounds(
         .collect())
 }
 
-#[cfg(feature = "budget")]
+/// The realized-anisotropy line beyond which a band snaps to the
+/// patch column count ([`NurbsCellGrid::band_schedule`] derives the
+/// sliver certificate `(aspect² + 1)/8 · δ_s` and what happens at the
+/// line).
+///
+/// **5.0 is a MEASURED constant, not a derived one** (dual review of
+/// PR #594, MAJ-3): the sliver formula's own "certifies under δ" line
+/// is `aspect ≤ √15 ≈ 3.87` — in the gap `(3.87, 5]` a worst-case
+/// off-lattice sliver can certify up to ~1.6·δ, and what holds the
+/// lane there is measured margin (worst tour face certificate
+/// 0.60·δ) plus the typed [`TessellateError::CertificateExceeded`]
+/// refusal as the backstop — a bad mesh is unrepresentable either
+/// way; the constant only trades snap cost against refusal risk.
+/// Measured at 5.0: the tour's certificates hold with the refinement
+/// arm cold, and the #316 leaf's 12:1 band and the split-shadow
+/// interfaces (the classes the snap exists for) sit above the line —
+/// dropping to the derived 3.87 was measured to cost a large share of
+/// the span gain for margin the tour does not need. Malignity is
+/// judged on REALIZED spacings (`s_u/s_v`, post-`ceil`, up to ~2x the
+/// ideal-step aspect near one-step bands), so the line is applied to
+/// the lattice that actually exists; moving the test from the ideal
+/// step to the realized one cost +3.0% of the tour's cells (leaf_a
+/// 3.35x → 3.10x, still over the acceptance line) for correctly
+/// snapping the near-one-step bands the ideal-step test missed.
+pub(crate) const SAFE_ASPECT: f64 = 5.0;
+
+/// One v-band of the shipped schedule ([`NurbsCellGrid::band_schedule`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BandDivisions {
+    /// The band's clipped v-extent, low end.
+    pub va: f64,
+    /// The band's clipped v-extent, high end.
+    pub vb: f64,
+    /// Column divisions.
+    pub nuc: usize,
+    /// Row divisions.
+    pub nvc: usize,
+}
+
+/// **The shipped per-cell certificate table** (TESS-SPAN): one face's
+/// [`nurbs_cell_bounds`] assembled into a tensor lookup — sorted cell
+/// boundary values per direction, and each cell's own certified
+/// Hessian bound. The trimmed lane sizes its grid from it (per-cell
+/// steps, grid lines on the cell boundaries) and certifies each
+/// triangle from it ([`Self::cert`]).
+#[derive(Clone, Debug)]
+pub(crate) struct NurbsCellGrid {
+    /// Sorted cell boundary values in `u` (`cols + 1` entries); cell
+    /// column `ci` covers `[u_cuts[ci], u_cuts[ci + 1])`, half-open —
+    /// the same convention the certificate lookup argues from.
+    u_cuts: Vec<f64>,
+    /// Sorted cell boundary values in `v` (`rows + 1` entries).
+    v_cuts: Vec<f64>,
+    /// Per-cell bounds, u-major: `bounds[ci * rows + ri]`.
+    bounds: Vec<NurbsFaceBound>,
+}
+
+/// The shipped lane's entry to per-cell sizing: [`nurbs_cell_bounds`]
+/// finite-checked cell by cell (the [`nurbs_face_bound`] refusal,
+/// applied where the shipped consumer now reads) and assembled into a
+/// [`NurbsCellGrid`].
+///
+/// # Errors
+///
+/// As [`nurbs_cell_bounds`], plus the unbounded/poisoned refusal when
+/// any single cell's bound fails the finite check.
+pub(crate) fn nurbs_cell_grid(
+    n: &NurbsSurface<f64>,
+    fk: FaceKey,
+) -> Result<NurbsCellGrid, TessellateError> {
+    let cells = nurbs_cell_bounds(n, fk)?;
+    for c in &cells {
+        let b = c.bound;
+        if !(b.muu.is_finite() && b.muv.is_finite() && b.mvv.is_finite()) {
+            return Err(TessellateError::UnsupportedNurbsFace {
+                face: fk,
+                note: "NURBS face second-derivative hull is unbounded/poisoned — \
+                       outside the certified inventory",
+            });
+        }
+    }
+    Ok(NurbsCellGrid::from_cells(&cells))
+}
+
+impl NurbsCellGrid {
+    /// Assembles the tensor lookup. Both arms of [`nurbs_cell_bounds`]
+    /// emit one cell per (nonempty u-span × nonempty v-span) of their
+    /// own knot structure, so the cell rectangles ARE a tensor grid;
+    /// the asserts are the fail-loud statement of that invariant, not
+    /// a recovery path.
+    fn from_cells(cells: &[CellBound]) -> Self {
+        let mut u_cuts: Vec<f64> = cells.iter().flat_map(|c| [c.u.0, c.u.1]).collect();
+        let mut v_cuts: Vec<f64> = cells.iter().flat_map(|c| [c.v.0, c.v.1]).collect();
+        for cuts in [&mut u_cuts, &mut v_cuts] {
+            cuts.sort_unstable_by(f64::total_cmp);
+            cuts.dedup();
+        }
+        let cols = u_cuts.len().saturating_sub(1);
+        let rows = v_cuts.len().saturating_sub(1);
+        assert_eq!(
+            cells.len(),
+            cols * rows,
+            "nurbs_cell_bounds emitted a non-tensor cell layout — kernel bug"
+        );
+        let nan = NurbsFaceBound {
+            muu: f64::NAN,
+            muv: f64::NAN,
+            mvv: f64::NAN,
+        };
+        let mut bounds = vec![nan; cols * rows];
+        let mut filled = vec![false; cols * rows];
+        for c in cells {
+            // The cell's own corner is a member of the cut set by
+            // construction, so partition_point lands exactly on it.
+            let ci = u_cuts.partition_point(|x| x.total_cmp(&c.u.0).is_lt());
+            let ri = v_cuts.partition_point(|x| x.total_cmp(&c.v.0).is_lt());
+            assert!(
+                u_cuts.get(ci).copied() == Some(c.u.0)
+                    && u_cuts.get(ci + 1).copied() == Some(c.u.1)
+                    && v_cuts.get(ri).copied() == Some(c.v.0)
+                    && v_cuts.get(ri + 1).copied() == Some(c.v.1),
+                "nurbs_cell_bounds emitted overlapping cells — kernel bug"
+            );
+            let idx = ci * rows + ri;
+            assert!(
+                !filled[idx],
+                "duplicate cell in nurbs_cell_bounds — kernel bug"
+            );
+            filled[idx] = true;
+            bounds[idx] = c.bound;
+        }
+        // Count + no-duplicates + in-range ⇒ every slot filled; stated
+        // anyway so a violation names itself.
+        assert!(
+            filled.iter().all(|f| *f),
+            "nurbs_cell_bounds left a tensor slot empty — kernel bug"
+        );
+        Self {
+            u_cuts,
+            v_cuts,
+            bounds,
+        }
+    }
+
+    /// Cell boundary values in `u`. Since the shipped columns went
+    /// back to the whole-patch schedule (module docs), only the tests
+    /// read this; the certificate lookup uses the field directly.
+    #[cfg(test)]
+    pub fn u_cuts(&self) -> &[f64] {
+        &self.u_cuts
+    }
+
+    /// Cell boundary values in `v`. As [`Self::u_cuts`]: the schedule
+    /// consumers go through [`Self::band_schedule`] now, so only the
+    /// tests read this.
+    #[cfg(test)]
+    pub fn v_cuts(&self) -> &[f64] {
+        &self.v_cuts
+    }
+
+    /// The certified bound of cell `(ci, ri)`.
+    pub fn bound(&self, ci: usize, ri: usize) -> NurbsFaceBound {
+        self.bounds[ci * (self.v_cuts.len() - 1) + ri]
+    }
+
+    /// The SIZING bound of the v-band `ri` (the ROW schedule's
+    /// input): the componentwise max over the band's cells across all
+    /// of `u`. A row line runs the full trim box, so its spacing
+    /// answers to the band's WORST cell — and to nothing more: rows
+    /// land exactly on the band cuts, so a grid triangle never
+    /// crosses a band (a ±1-band dilation was measured to cost ~a
+    /// third of the span gain for insurance the refinement ladder
+    /// already provides). It is a HEURISTIC, exactly as the whole
+    /// schedule is (module docs: the certificate is the guarantee) —
+    /// the per-triangle certificate, taken from the raw per-cell
+    /// bounds of every covered cell, still refuses loudly if a
+    /// triangle reaches further.
+    pub fn row_bound(&self, ri: usize) -> NurbsFaceBound {
+        let cols = self.u_cuts.len() - 1;
+        let mut m = NurbsFaceBound {
+            muu: 0.0,
+            muv: 0.0,
+            mvv: 0.0,
+        };
+        for c in 0..cols {
+            let b = self.bound(c, ri);
+            m.muu = m.muu.max(b.muu);
+            m.muv = m.muv.max(b.muv);
+            m.mvv = m.mvv.max(b.mvv);
+        }
+        m
+    }
+
+    /// The v-band index containing `v` (clamped as [`Self::cell_lo`]).
+    pub fn row_of(&self, v: f64) -> usize {
+        Self::cell_lo(&self.v_cuts, v)
+    }
+
+    /// **The shipped band schedule** (TESS-SPAN): the trim box cut at
+    /// interior band boundaries, each band's `(nuc, nvc)` divisions —
+    /// one derivation consumed by BOTH the trimmed lane's candidate
+    /// generation and the budget meter's prediction, so the two
+    /// cannot drift.
+    ///
+    /// Per band: `nvc` from the band bound's own `h_v`; `nuc` from
+    /// the band bound's own `h_u` — EXCEPT that a MALIGN band
+    /// (subdividing in `u`, realized aspect `s_u/h_v` beyond
+    /// [`SAFE_ASPECT`]) and its immediate neighbours take the
+    /// whole-patch column count instead. The point selection inside
+    /// `grid_steps` is untouched either way (TESS-SPAN's binding
+    /// constraint); only WHICH bound feeds it changes, and the patch
+    /// count only ever adds columns.
+    ///
+    /// **Why (measured, three times over)**: any point of an
+    /// anisotropic lattice strip that is not ON a column admits an
+    /// empty circumcircle reaching up to a full column spacing past
+    /// it — a Delaunay-legal sliver whose certificate is
+    /// ~`(aspect² + 1)/8 · δ_s`, malign beyond ~aspect 4. Band
+    /// interfaces deliver exactly such points (the neighbour band's
+    /// columns sit on the shared cut line), and no local insertion
+    /// cures it (anchors and centroids each re-admit the circle
+    /// beside themselves — both measured on the #316 leaf). Snapping
+    /// a malign band AND its neighbours to the patch count makes
+    /// those interfaces coincide column-for-column — the phase
+    /// alignment the uniform schedule had everywhere, restored
+    /// exactly where it is load-bearing — and the patch count is also
+    /// the chord pass's schedule, so a full-width iso rim on a malign
+    /// band lands its chord points ON the columns as before
+    /// (`chords::nurbs_tighten`, the D-2 whole-patch arm). Benign
+    /// interfaces keep their own counts: below the derived
+    /// `√15 ≈ 3.87` line a foreign point's sliver certifies under δ
+    /// outright; in the measured `(3.87, SAFE_ASPECT]` gap the tour's
+    /// margin holds it (SAFE_ASPECT docs) and the certificate refusal
+    /// plus the refinement ladder backstop the rest.
+    ///
+    /// # Errors
+    ///
+    /// [`TessellateError::ResolutionOverflow`] via
+    /// [`crate::chords::ceil_count`], as the uniform schedule.
+    pub fn band_schedule(
+        &self,
+        patch: NurbsFaceBound,
+        u: (f64, f64),
+        v: (f64, f64),
+        delta_s: f64,
+    ) -> Result<Vec<BandDivisions>, TessellateError> {
+        let du = u.1 - u.0;
+        let mut edges = vec![v.0];
+        edges.extend(self.v_cuts.iter().copied().filter(|c| *c > v.0 && *c < v.1));
+        edges.push(v.1);
+        let (phu, _) = patch.grid_steps(delta_s);
+        let patch_nuc = crate::chords::ceil_count(du, phu)?;
+        let mut bands = Vec::with_capacity(edges.len().saturating_sub(1));
+        let mut malign = Vec::with_capacity(edges.len().saturating_sub(1));
+        for w in edges.windows(2) {
+            let (va, vb) = (w[0], w[1]);
+            // The band is found by the slab midpoint — strictly inside
+            // one band, since no interior cut crosses a slab.
+            let (hu, hv) = self
+                .row_bound(self.row_of(0.5 * (va + vb)))
+                .grid_steps(delta_s);
+            let nuc = crate::chords::ceil_count(du, hu)?;
+            let nvc = crate::chords::ceil_count(vb - va, hv)?;
+            // Malignity is judged on the REALIZED spacings `s_u/s_v`,
+            // not the pre-`ceil` ideal steps: the lattice a sliver
+            // lives in has rows every `s_v = (vb−va)/nvc ≤ h_v`, so
+            // testing against `h_v` under-estimates the aspect by up
+            // to ~2x whenever a band's extent barely exceeds one step
+            // (R2's review fixture, pinned in the tests below).
+            #[allow(clippy::cast_precision_loss)]
+            let su = du / nuc as f64;
+            #[allow(clippy::cast_precision_loss)]
+            let sv = (vb - va) / nvc as f64;
+            malign.push(nuc >= 2 && sv.is_finite() && sv > 0.0 && su > SAFE_ASPECT * sv);
+            bands.push(BandDivisions { va, vb, nuc, nvc });
+        }
+        for (i, b) in bands.iter_mut().enumerate() {
+            let near_malign = malign[i]
+                || (i > 0 && malign[i - 1])
+                || malign.get(i + 1).copied().unwrap_or(false);
+            if near_malign {
+                b.nuc = b.nuc.max(patch_nuc);
+            }
+        }
+        Ok(bands)
+    }
+
+    /// The index of the half-open cell `[cut_i, cut_{i+1})` containing
+    /// `x`, clamped to the covered range (a trim polygon evaluated
+    /// through pcurve arithmetic can stray an ulp outside the chart
+    /// rectangle; the edge cell's bound is the honest answer there —
+    /// the surface is not defined beyond it).
+    fn cell_lo(cuts: &[f64], x: f64) -> usize {
+        cuts.partition_point(|c| *c <= x)
+            .saturating_sub(1)
+            .min(cuts.len().saturating_sub(2))
+    }
+
+    /// As [`Self::cell_lo`] for a box's UPPER end: an end exactly on a
+    /// cut belongs to the cell BELOW it — the box only touches the cut
+    /// itself, a measure-zero set the Taylor remainder never charges
+    /// (see [`Self::cert`]).
+    fn cell_hi(cuts: &[f64], x: f64) -> usize {
+        cuts.partition_point(|c| *c < x)
+            .saturating_sub(1)
+            .min(cuts.len().saturating_sub(2))
+    }
+
+    /// The per-triangle deviation certificate `Q/4`
+    /// ([`NurbsFaceBound::cert`]) with the componentwise sup of the
+    /// second partials over the triangle's UV box, read from the cells
+    /// the box covers.
+    ///
+    /// **Why per-cell bounds certify across half-open cell
+    /// boundaries**: the `Q/4` derivation is the integral Taylor
+    /// remainder (module docs), which needs only C¹ plus an a.e.
+    /// second-derivative bound along the segments it integrates. A
+    /// knot is exactly where a C¹ surface's second derivative jumps,
+    /// but the cell boundaries are measure-zero, and each cell's hull
+    /// bounds its polynomial piece on the cell's CLOSURE — so the
+    /// componentwise max over the covered cells dominates the second
+    /// partials a.e. on the whole box. This is the same fact the
+    /// whole-patch assembly has always rested on at its own interior
+    /// knots. (The componentwise max is the CONSERVATIVE choice of two
+    /// sound bounds: the max of the per-cell certificates also bounds
+    /// the remainder — pointwise, the integrand is the local cell's
+    /// form at the fixed direction, so the max of the per-cell forms
+    /// dominates it along every segment, with the same constant — and
+    /// is strictly tighter on straddling boxes (dual review of PR
+    /// #594, settled by derivation and dense numeric sup). The shipped
+    /// semantics is the componentwise sup, pinned bit-for-bit by
+    /// `cert_is_pinned_to_the_componentwise_sup`; adopting the tighter
+    /// bound is possible future work, worth little — straddlers are
+    /// boundary fans only.)
+    ///
+    /// For the common case — the trimmed lane places its grid lines on
+    /// the cell boundaries, so a grid triangle's box lies inside ONE
+    /// cell — this is exactly that cell's own certificate.
+    pub fn cert(&self, uv: [[f64; 2]; 3]) -> f64 {
+        let u_lo = min3(uv[0][0], uv[1][0], uv[2][0]);
+        let u_hi = max3(uv[0][0], uv[1][0], uv[2][0]);
+        let v_lo = min3(uv[0][1], uv[1][1], uv[2][1]);
+        let v_hi = max3(uv[0][1], uv[1][1], uv[2][1]);
+        let ci0 = Self::cell_lo(&self.u_cuts, u_lo);
+        let ci1 = Self::cell_hi(&self.u_cuts, u_hi).max(ci0);
+        let ri0 = Self::cell_lo(&self.v_cuts, v_lo);
+        let ri1 = Self::cell_hi(&self.v_cuts, v_hi).max(ri0);
+        let mut m = NurbsFaceBound {
+            muu: 0.0,
+            muv: 0.0,
+            mvv: 0.0,
+        };
+        for ci in ci0..=ci1 {
+            for ri in ri0..=ri1 {
+                let b = self.bound(ci, ri);
+                m.muu = m.muu.max(b.muu);
+                m.muv = m.muv.max(b.muv);
+                m.mvv = m.mvv.max(b.mvv);
+            }
+        }
+        m.cert(uv)
+    }
+}
+
 /// The integral arm of [`nurbs_cell_bounds`]: the same knot-differenced
 /// coefficient nets [`integral_face_bound`] hulls whole, hulled instead
 /// over each span's own active window (`Span::derived_window`, the
@@ -591,7 +968,6 @@ fn window_tilde_hull(
     acc.unwrap_or_else(RingInterval::poison)
 }
 
-#[cfg(feature = "budget")]
 /// The signed hull of `net[i][j]` over the window `wu × wv`.
 /// Out-of-range indices poison.
 ///
@@ -1290,16 +1666,19 @@ mod tests {
         }
     }
 
-    /// **The per-cell bounds are honest, cell by cell** — the claim
-    /// `crate::budget`'s span-slack column rests on, and the one that
-    /// would be easy to get subtly wrong (an off-by-one in a derived
-    /// window silently reports a cell as flatter than it is).
+    /// **The per-cell bounds are honest, cell by cell** — since
+    /// TESS-SPAN the claim the SHIPPED grid schedule and per-triangle
+    /// certificate rest on (and still the budget meter's span
+    /// prediction), and the one that would be easy to get subtly wrong
+    /// (an off-by-one in a derived window silently reports a cell as
+    /// flatter than it is). Runs in the default lane for exactly that
+    /// reason — the falsifier guards a shipped bound now, not a
+    /// diagnostic.
     ///
     /// Falsified the same way the whole-patch bound is: dense-sample
     /// the TRUE second partials, but inside each cell's own rectangle,
     /// and require that cell's own sups to dominate them.
     #[test]
-    #[cfg(feature = "budget")]
     fn every_cell_bound_dominates_its_own_sampled_hessian() {
         for (name, s) in [
             ("wavy", wavy()),
@@ -1348,7 +1727,6 @@ mod tests {
     /// window, so a cell reporting MORE than the patch would mean the
     /// two assemblies disagree.
     #[test]
-    #[cfg(feature = "budget")]
     fn no_cell_exceeds_the_whole_patch_bound() {
         for (name, s) in [
             ("wavy", wavy()),
@@ -1371,6 +1749,179 @@ mod tests {
                     whole.muu,
                     whole.muv,
                     whole.mvv
+                );
+            }
+        }
+    }
+
+    /// **The shipped `cert` semantics, pinned bit-for-bit** (R1 MIN-2 /
+    /// R2 MAJ-1 of the PR #594 dual review): the certificate of a
+    /// straddling box IS the componentwise sup over covered cells fed
+    /// through [`NurbsFaceBound::cert`] — asserted with exact values on
+    /// an asymmetric fixture (one band `muu`-dominated, one
+    /// `mvv`-dominated) where the max-of-per-cell-certificates
+    /// alternative is strictly smaller, so substituting it goes RED
+    /// here. The review settled by derivation and by dense numeric sup
+    /// that max-of-cells is ALSO sound (per-segment form bound, same
+    /// constant) — the shipped choice is the more conservative of two
+    /// sound bounds, and THIS test pins which one ships.
+    #[test]
+    fn cert_is_pinned_to_the_componentwise_sup() {
+        let mk = |muu: f64, mvv: f64| NurbsFaceBound { muu, muv: 0.0, mvv };
+        let cells = [
+            CellBound {
+                u: (0.0, 1.0),
+                v: (0.0, 0.3),
+                bound: mk(8.0, 0.0),
+            },
+            CellBound {
+                u: (0.0, 1.0),
+                v: (0.3, 0.7),
+                bound: mk(0.5, 0.5),
+            },
+            CellBound {
+                u: (0.0, 1.0),
+                v: (0.7, 1.0),
+                bound: mk(0.0, 8.0),
+            },
+        ];
+        let grid = NurbsCellGrid::from_cells(&cells);
+        // Straddles all three bands.
+        let uv = [[0.1, 0.05], [0.9, 0.05], [0.5, 0.95]];
+        let expected = mk(8.0, 8.0).cert(uv);
+        assert_eq!(
+            grid.cert(uv).to_bits(),
+            expected.to_bits(),
+            "shipped cert must BE the componentwise-sup bound, exactly"
+        );
+        let max_of_cells = cells
+            .iter()
+            .map(|c| c.bound.cert(uv))
+            .fold(0.0f64, f64::max);
+        assert!(
+            expected > 1.5 * max_of_cells,
+            "fixture must separate the semantics (componentwise {expected:e} vs \
+             max-of-cells {max_of_cells:e}) or this test cannot catch a substitution"
+        );
+    }
+
+    /// **`band_schedule` judges malignity on REALIZED spacings** (R2
+    /// MAJ-2's executed fixture, adopted): a band whose extent barely
+    /// exceeds one ideal step has `s_v = extent/nvc` down to ~half of
+    /// `h_v`, so testing `s_u` against `SAFE_ASPECT·h_v` under-detects
+    /// by up to ~2x. This fixture measures 4.79 against the ideal step
+    /// (benign — the pre-fix test left `nuc = 11`) but 9.09 realized
+    /// (malign): the band and its neighbour must snap to the patch
+    /// column count, and the snap only ever adds columns.
+    #[test]
+    fn band_schedule_snaps_on_realized_aspect() {
+        let cells = [
+            CellBound {
+                u: (0.0, 1.0),
+                v: (0.0, 0.02),
+                bound: NurbsFaceBound {
+                    muu: 0.1108,
+                    muv: 0.0,
+                    mvv: 2.77,
+                },
+            },
+            CellBound {
+                u: (0.0, 1.0),
+                v: (0.02, 1.0),
+                bound: NurbsFaceBound {
+                    muu: 0.1,
+                    muv: 0.0,
+                    mvv: 0.1,
+                },
+            },
+        ];
+        let grid = NurbsCellGrid::from_cells(&cells);
+        let patch = NurbsFaceBound {
+            muu: 2.0,
+            muv: 0.0,
+            mvv: 2.77,
+        };
+        let delta_s = 2e-3;
+        let bands = grid
+            .band_schedule(patch, (0.0, 1.0), (0.0, 1.0), delta_s)
+            .expect("schedules");
+        assert_eq!(bands.len(), 2);
+        // Band 0's own schedule: h_u ≈ 0.0950 → nuc 11; h_v ≈ 0.0190
+        // with extent 0.02 → nvc 2, s_v = 0.01, s_u = 1/11 ≈ 0.0909:
+        // realized aspect 9.09 > SAFE_ASPECT while 5·h_v = 0.095 >
+        // s_u would have read it benign. Patch h_u ≈ 0.02236 → 45.
+        assert_eq!(bands[0].nvc, 2, "the fixture's nvc must be 2: {bands:?}");
+        assert_eq!(
+            bands[0].nuc, 45,
+            "the malign band snaps to the patch column count: {bands:?}"
+        );
+        assert_eq!(
+            bands[1].nuc, 45,
+            "the malign band's neighbour snaps too: {bands:?}"
+        );
+        // The snap only ever ADDS columns: both own counts were below.
+        assert!(bands[1].nvc >= 1);
+    }
+
+    /// The shipped cell-grid lookup ([`NurbsCellGrid::cert`]): a box
+    /// inside one cell certifies at exactly that cell's own bound; a
+    /// box crossing a knot line certifies at the componentwise sup
+    /// over the cells it covers (the SHIPPED semantics — pinned
+    /// exactly, against the tighter max-of-cells alternative, by
+    /// `cert_is_pinned_to_the_componentwise_sup` above), and never
+    /// more than the whole-patch certificate.
+    #[test]
+    fn cell_grid_cert_is_the_covered_cells_componentwise_sup() {
+        for (name, s) in [("wavy", wavy()), ("wavy_rational", wavy_rational())] {
+            let grid = nurbs_cell_grid(&s, FaceKey::default()).expect("covered");
+            let cells = nurbs_cell_bounds(&s, FaceKey::default()).expect("covered");
+            let whole = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
+            assert!(
+                grid.u_cuts().len() >= 2 && grid.v_cuts().len() >= 2,
+                "{name}"
+            );
+            // A triangle strictly inside each cell: its certificate is
+            // the cell's own.
+            for c in &cells {
+                let (u0, u1) = (
+                    c.u.0 + 0.25 * (c.u.1 - c.u.0),
+                    c.u.0 + 0.75 * (c.u.1 - c.u.0),
+                );
+                let (v0, v1) = (
+                    c.v.0 + 0.25 * (c.v.1 - c.v.0),
+                    c.v.0 + 0.75 * (c.v.1 - c.v.0),
+                );
+                let uv = [[u0, v0], [u1, v0], [u0, v1]];
+                let got = grid.cert(uv);
+                let own = c.bound.cert(uv);
+                assert!(
+                    (got - own).abs() <= f64::EPSILON * own.abs(),
+                    "{name}: in-cell cert {got:e} is not the cell's own {own:e}"
+                );
+                assert!(
+                    got <= whole.cert(uv),
+                    "{name}: per-cell cert exceeds the whole-patch one"
+                );
+            }
+            // A triangle spanning the whole chart: componentwise sup
+            // over ALL cells — dominated by the whole-patch bound, and
+            // dominating every cell's own certificate of the same box.
+            let (ul, uh) = (
+                *grid.u_cuts().first().unwrap(),
+                *grid.u_cuts().last().unwrap(),
+            );
+            let (vl, vh) = (
+                *grid.v_cuts().first().unwrap(),
+                *grid.v_cuts().last().unwrap(),
+            );
+            let uv = [[ul, vl], [uh, vl], [ul, vh]];
+            let got = grid.cert(uv);
+            assert!(got <= whole.cert(uv), "{name}: spanning cert exceeds patch");
+            for c in &cells {
+                assert!(
+                    got >= c.bound.cert(uv) - f64::EPSILON,
+                    "{name}: spanning cert below a covered cell's — the componentwise \
+                     sup is missing a cell"
                 );
             }
         }
