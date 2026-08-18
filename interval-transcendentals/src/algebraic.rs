@@ -2,7 +2,8 @@
 //! surface the kernel consumes — and `powi` carries a soundness-critical
 //! tightness contract: an even power of a zero-straddling interval has
 //! lower bound EXACTLY 0.0 (no pad), so downstream `sqrt` never sees a
-//! spurious negative (memories/interval-square-poison.md).
+//! spurious negative (the rule ci.yml's "interval-square powi(2)
+//! allowlist" step gates in the kernel).
 
 use crate::interval::{DInterval, Decoration};
 use crate::round::{down1, mul_hi, mul_lo, up1};

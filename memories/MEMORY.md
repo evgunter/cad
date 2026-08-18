@@ -59,8 +59,6 @@ usable-as-a-library (`docs/LIB-LOG.md`), ASM — assemblies
 
 ## Kernel rules
 
-- [Interval square poison](interval-square-poison.md) — interval squares
-  of possibly-zero quantities use `powi(2)`, never `x*x`; CI-enforced
 - [K telemetry state](../docs/K-REPORT.md) — not a memory: K = 10 is the
   permanent ratified default, #89 CLOSED; check a landing's margin
   DIMENSION before reading it as K evidence

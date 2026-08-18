@@ -1825,7 +1825,8 @@ fn unit_from_components<T: Decide>(dx: T, dy: T) -> Result<Dir<T>, PathError<T>>
     // by construction (every axis direction has a zero component), and
     // the plain product treats its factors as independent, so an
     // interval enclosure picks up a spurious negative lower bound and
-    // poisons this `sqrt` (memories/interval-square-poison.md).
+    // poisons this `sqrt`. Gated by ci.yml's "interval-square powi(2)
+    // allowlist".
     let norm = (dx.powi(2) + dy.powi(2)).sqrt();
     match decide("path_director_norm", Margin::of(norm), band) {
         Ok(Sign::Positive) => {}
