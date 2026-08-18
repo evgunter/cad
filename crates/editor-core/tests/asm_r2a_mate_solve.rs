@@ -1246,6 +1246,40 @@ fn a12_the_insert_door_refuses_a_mate_head_naming_no_node() {
     );
 }
 
+/// A saved file is DATA: a mate head naming an id past the mint counter
+/// is as corrupt as a `Declare` pair naming one, and worse to let in —
+/// `Rebind`'s source door refuses a never-minted id, so the document
+/// would load unrepairable.
+#[test]
+fn a12_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
+    let (doc, ids, _) = assembly("asm-r2a-mate-wire-id", 3);
+    let (doc, _) = mint(
+        doc,
+        DocEdit::InsertNode {
+            node: mate(
+                ids[0],
+                ids[2],
+                MatePrimitive::Coaxial,
+                AxisSense::Aligned,
+                z_up(),
+                z_up(),
+                Some(0.0),
+            ),
+        },
+    );
+    let text = save(&doc, &[]).expect("saves");
+    // The `b` head is the document's only reference to instance 2; the
+    // part-document ids inside `InPart` are 1 and are never local.
+    let doctored = text.replacen("\"node\": 2", "\"node\": 99", 1);
+    assert_ne!(doctored, text, "the fixture carries the head id");
+    match load(&doctored) {
+        Err(editor_core::PersistError::Snapshot(
+            editor_core::SnapshotError::IdBeyondCounter { id, .. },
+        )) => assert_eq!(id, RecipeNodeId(99)),
+        other => panic!("expected IdBeyondCounter, got {other:?}"),
+    }
+}
+
 #[test]
 fn row6e_a_non_tree_mate_declares_rather_than_determining() {
     let (doc, ids, _, rest) = determined_pair();
