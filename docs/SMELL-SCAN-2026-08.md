@@ -2882,19 +2882,23 @@ zero-straddling enclosure), pushing it through `span_hull` /
 - **Raised by**: the S6 steelman pass, 2026-08-18.
 
 **VERIFIED by #619 — no defect found.** Loft's derivation holds on both
-shapes: a section pair with a concave arc and one with a hole now carry
-permanent rows (`crates/sweep/tests/s42_loft_sense.rs`) that evaluate
-each shipped wall's `S_u × S_v`, fold in the stored `sense`, and require
-the *same solid built by extrude* to read material on the inward side
-and void on the outward one — a probe a flipped bit inverts, executed as
-its own row. The rows also pin what #619 found on the way: the S11
-swallow is closed for loft **by refusal, not by the bit** (the booleans
-reject a rung-3 NURBS operand, `point_in_solid` has no NURBS door), and
-**nothing validates a lofted wall's sense today** — check 6's curved arm
-skips `Surface::Nurbs`, so an inside-out lofted wall is tier-3 green.
-The class sweep found one open instance next door: fillet's corner
-patches mint a bare `sense: true` beside blends that consult
-`Convexity::blend_sense()`, pinned only on a cube's eight convex corners.
+shapes. A concave-arc section pair and a holed one now form the third
+verb's chapter of the S11 constructor audit
+(`crates/sweep/tests/m5_s11_concave_sense.rs`), reusing that file's own
+fixtures: each row evaluates the shipped wall's `S_u × S_v`, folds in
+the stored `sense`, and requires the *same solid built by extrude* to
+read material on the inward side and void on the outward one — a probe
+a flipped bit inverts, executed as its own row. The prescribed union
+check could not be run and was substituted for a direct test of the
+property it is a symptom of: a lofted operand is refused typed at
+boolean admission, so the swallow is closed **by refusal, not by the
+bit**. The rows also pin the residual that makes them load-bearing:
+**no tier, prop or boolean in the kernel reads a lofted wall's sense**
+— check 6's curved arm skips `Surface::Nurbs` — so an inside-out lofted
+wall is tier-3 green. The class sweep turned up no second orientation
+instance; fillet's bare `sense: true` on corner patches is guarded by
+three typed concave-chain refusals, i.e. an unstated precondition
+rather than an S11 defect.
 
 **Verdict:**
 
@@ -3099,7 +3103,7 @@ every other, so these can run as five concurrent lanes.
 | **W1b** | **S23** — the SSI exhaustiveness sweep switches duty on `tubes.is_empty()`, so an all-seeds-fail run returns `Ok` *plus an exhaustiveness receipt* instead of `ExhaustivenessInconclusive`. | M | Make the duty a stated parameter. The acceptance row also needs replacing — its premise (`..._even_though_branches_were_found`) excludes the failing mode. |
 | **W1c** | **S41** — `Bounds for Interval` forwards `lo()`/`hi()` without consulting the decoration, and `bracket<E: Enclosure>` crosses operands into `RingInterval` by endpoints. A `Trv`-but-nonempty enclosure may be dropping a domain violation **today**. | S to test, ? to fix | Also the gating question for S1 — until this is settled, "swap `RingInterval` for `Interval`" is unsound. |
 | **W1d** | **S4 drift (a)** — `Rebind`'s rewrite loop ends `_ => {}` and never reaches `Node::Mate`'s two `StableName`s, so a mate head is either falsely refused as `RebindNoReferences` or silently left dangling. Contradicts `ASSEMBLY-DESIGN.md:566`. | S | Needs a red-then-green test and an A12 read. No issue is filed. |
-| **W1e** | **S42** — loft's `sense = true` is pinned only on `loft_prism`: no concave arcs, no holes, i.e. the shape that did not break extrude either. | S | **#619 — verified, no defect.** Concave-arc, holed and tapered fixtures now pin the bit against the extruded twin. Sweep found fillet's corner patches as the open instance. |
+| **W1e** | **S42** — loft's `sense = true` is pinned only on `loft_prism`: no concave arcs, no holes, i.e. the shape that did not break extrude either. | S | **#619 — verified, no defect.** Concave-arc, holed and tapered fixtures pin the bit against the extruded twin, folded into the S11 constructor audit. |
 
 ---
 
