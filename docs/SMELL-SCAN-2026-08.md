@@ -117,6 +117,118 @@ the full `Interval` — but I'd want to double check that there's no hidden
 cost." Steelman pass commissioned: what would deleting `RingInterval`
 actually cost (feature-gating, build graph, the poison-vs-clamp semantic
 difference at the ~600 call sites)?
+**Steelman (2026-08-18): SURVIVES IN PART — the core claim is confirmed
+and strengthened; two sub-claims are wrong; and the obstacle to acting
+is not the one anyone expected.**
+
+*Original basis — found, and it is unambiguous.* `CURVED-DESIGN.md`
+OQ8/C9, signed off by Evan in PR #85 on 2026-07-24: *"Sign off on adding
+a second interval type … **alongside inari** … This is a
+**licensing**/architecture fork."* C9's stated constraint
+(`:521`): interval arithmetic is load-bearing on the default build path,
+*"which at the time meant dragging the `interval` feature's LGPL
+transcendental stack (issue #4) into every consumer."* The binding spec
+is blunter — `docs/archive/M5-PR2-SPEC.md:20`: *"NO feature gating (this
+is the DEFAULT build path — **that is its reason to exist**)."*
+
+*The premise died 2 h 44 m before the type merged.* PR #127 (inari →
+in-house backend; *"kernel is now copyleft-free in every build
+configuration"*) merged **2026-07-28T03:24:19Z**. PR #130
+(`RingInterval`) merged **2026-07-28T06:08:41Z**. The ring's module doc
+(*"always compiled, no feature gate — that is its reason to exist"*) was
+authored 2026-07-27, while inari was still the backend, and never
+revised. C9's retrospective header concedes *"C9's inari quarantine is
+dead vocabulary"* — but retires the quarantine, not the second type the
+quarantine was the reason for. **No document since #127 re-derives the
+split on any other ground**, and there is no issue on it.
+
+*A justification that postdates the thing it cites.*
+`crates/geom-brep/src/ssi/enclose.rs:7` defends ring-only certification
+with *"always compiled, no feature gate, **no LGPL**"* — committed
+2026-07-30, two days after the LGPL left the tree.
+
+*C9's technical premise is also falsified in the tree.* C9 argued the
+ring needed *"±, ×, ÷ … no sin, no exp"*. The tree then hand-rolled,
+over the ring: `cos_step`/`sin_step` as degree-8/9 alternating-Taylor
+enclosures (`props/quad.rs:157`), `sqrt_enclosure` (`:829`), an
+`AbsEnclosure` trait (`:383`), and three more ad-hoc
+`sq.hi().sqrt().next_up()` sites. `DInterval` already ships every one of
+those with a proven pad. The transcendental-free premise held about two
+weeks.
+
+*The keep-argument is circular.* `GENERICS-BUILD-COST.md:421` gives as
+a reason to keep the feature gate that *"`ring_interval.rs`'s docs lean
+on the gate"*; `ring_interval.rs:11` gives as the ring's reason to exist
+that it is always-compiled because of the gate. Each artifact cites the
+other.
+
+**Two sub-claims of this finding do NOT survive, and both are my
+errors:**
+
+1. **"requires `sqr()` instead of `x * x`" is not a difference between
+   the two types.** It is the general interval-lane rule; per
+   `memories/interval-square-poison.md` it *originated on the `Interval`
+   lane* (all four occurrences were found there), and the CI regex
+   allowlists `interval.rs` and `ring_interval.rs` identically. I
+   presented a spelling difference as a semantic one.
+2. **"~600 references" overstates the blast radius.** Measured: **535
+   `src` references in 15 files**, with five files carrying 60%
+   (`props/quad.rs` 177, `mesh/nurbs_cert.rs` 66, `ssi/enclose.rs` 57,
+   `spline/compose{,/tensor}.rs` 102). `topo` has 13, in one file. This
+   is a 15-file change.
+
+*The real obstacle, which is not build cost or licensing.* **The
+decoration channel does not survive the `Enclosure` seam.** The seam is
+`lo()`/`hi()` and nothing else (`real.rs:564`), and the certification
+test is `residual.hi() <= eps`. `RingInterval` puts its failure state
+*in the endpoints* (NaN), so poison cannot be lost. `Interval` puts its
+failure state in the **decoration**, and `impl Bounds for Interval`
+(`interval.rs:451`) forwards `self.0.lo()` **without consulting it**. A
+one-signed divisor *touching* zero returns `dec = Trv` with one finite
+side (`interval-transcendentals/src/arith.rs:89`) — e.g.
+`[-2,-1]/[0,1] = [-inf,-1]`, `hi() = -1`. The ring poisons there. So a
+blind type swap would **convert a refusal into a pass on exactly the
+case the ring was specified to refuse**. That is not a mechanical
+substitution.
+
+*Costs that turn out not to be real.* Build cost is ~zero: measured on a
+4-core box with `cargo clean` before each, `cargo build --workspace` =
+**24 s**, `--features geom-core/interval` = **24 s**. The feature adds
+~1,400 lines of pure-Rust libm-only code and no new external dependency
+— `inari`/gmp is optional behind `oracle-inari`, which geom-core never
+enables. **The LGPL risk is genuinely gone.** And every workspace member
+is `publish = false` with no external consumers, so the ring's presence
+in five crates' public API is an internal rename, not a break.
+
+*Costs that are real:* re-pinning every certificate number computed by
+this arithmetic (#130's `2.8e-14 m²`, the 12,000/12,000 planted-corruption
+refusals, `mesh`'s sagitta budgets in `docs/tess-budget-data/`); ~6,600
+lines of ring-specific tests across 12 files validating an arithmetic
+that would no longer exist; ungating the feature is a `DESIGN.md` Q1
+revision, i.e. a design conversation, not an agent-merged PR; and an
+unmeasured runtime question — `DInterval` is 24 bytes vs 16 and performs
+exactness-witness FMAs per op, inside the SSI subdivision and
+per-triangle mesh certificates, **with no ring-vs-`DInterval` benchmark
+anywhere in the repo**.
+
+*A genuine subtraction on the other side:* `Enclosure` exists **only** to
+admit `RingInterval` alongside `Bounds` (two impls: the ring, and a
+blanket over `Bounds`). Delete the ring and `Enclosure` collapses into
+`Bounds` — which also removes the `bracket<E: Enclosure>` laundering door
+at `spline/hull.rs:98`. See **S41**.
+
+*Could not determine:* whether the ~72k cases where the ring is tighter
+(its nonneg sign clamp and zero annihilator, out of ~3M differential
+comparisons) are rules `DInterval` should simply adopt; whether any of
+the 15 sites depends on poison-on-zero-divisor in a way `Interval` would
+change (settled by a differential run comparing **certify/refuse
+verdicts**, not endpoints — the existing `ring_interval_differential.rs`
+harness already does the endpoint half); and whether Evan ever
+independently wanted a decoration-free certification substrate, or only
+wanted LGPL off the default path. OQ8's sign-off adds *"doubling as the
+seed of the eventual inari replacement"*, which #127 discharged three
+days later by a different route.
+
 ## S2. `T: Real` genericity costs friction everywhere and monomorphizes at one-and-a-half types
 
 - **Where**: `crates/editor-core/src/eval/mod.rs:865`,
@@ -1351,9 +1463,40 @@ justification that is simply false for one of the two doors it covers.
 
 **Verdict:**
 
-## S41–S48 — reserved
+## S41. The `Enclosure` seam launders `Interval` decorations, possibly today
 
-IDs `S41`–`S48` are intentionally unallocated, so that items promoted
+- **Where**: `crates/geom-core/src/spline/hull.rs:98`,
+  `crates/geom-brep/src/ssi/enclose.rs:45`,
+  `crates/geom-core/src/interval.rs:143`,
+  `crates/geom-core/src/interval.rs:451`
+- **Importance**: high
+- **Confidence**: unsure — this is a *lead*, not a confirmed defect
+- **Raised by**: the S1 steelman pass, 2026-08-18. Not part of the
+  original scan.
+
+`impl Bounds for Interval` forwards `self.0.lo()`/`hi()` without
+consulting the decoration. `bracket<E: Enclosure>` at `hull.rs:98` and
+the M6-2 lift at `ssi/enclose.rs:45` both cross `T: Bounds` operands
+into `RingInterval` **by endpoints**, via `RingInterval::from_bounds` —
+dropping the decoration. That is exactly the round trip
+`interval.rs:143` warns against.
+
+Empty and NaI do surface as NaN, and `interval.rs:432` argues that at
+length. The gap is the **`Trv`-decorated but nonempty** enclosure: a
+domain violation with finite endpoints. If one of those ever reaches
+these entry points, the violation is silently dropped **now**, before
+any change contemplated in S1. No guard and no test pinning it was
+found.
+
+Settled by: constructing a `Trv` `Interval` (e.g. `sqrt` of a
+zero-straddling enclosure), pushing it through `span_hull` /
+`implicit_enclosure`, and asserting the resulting bound refuses.
+
+**Verdict:**
+
+## S42–S48 — reserved
+
+IDs `S42`–`S48` are intentionally unallocated, so that items promoted
 out of the S35/S40 roll-ups during review can be given stable IDs
 without renumbering anything above.
 
