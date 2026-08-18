@@ -58,75 +58,137 @@ fn corrupt(what: &'static str) -> BooleanError {
     BooleanError::ClassificationInvariant { what }
 }
 
-/// The face's certified box, padded. Planar faces: the vertex-extent
-/// box (straight edges make the polygon lie in its vertex hull).
-/// Cylinder faces (M5 PR 9): the vertex hull is NOT a superset (the
-/// wall's belly bulges past its chords), so the box is the full
-/// cylinder slab over the face's axial range — axial extents from the
-/// boundary edges' own certified boxes (the axial coordinate is
-/// linear, so its face extremes lie on the boundary), widened by the
-/// full radius in EVERY coordinate (deliberately loose; a bigger box
-/// only admits candidates — the conservative direction).
+/// **The one soundness rule for a face's box**, stated per surface
+/// kind: which cheap construction yields a genuine SUPERSET of the
+/// face's locus. Every consumer that bounds a face reads its arm from
+/// here, so no two of them can quietly disagree about which kinds are
+/// boxable.
 ///
-/// **KNOWN GAP — `Nurbs` faces reach the vertex-hull fallthrough and
-/// the hull is NOT a superset for them.** This doc used to say other
-/// curved kinds "fall through to the vertex hull only if they reach
-/// here at all (the operand gate refuses them first)". That is no
-/// longer true: [`super::reduce::gate_planar`] admits
-/// `Surface::Nurbs(_)`, and a patch's interior bulges past the hull of
-/// its boundary vertices exactly as a sphere's belly bulges past its
-/// poles — the same reasoning the `Cylinder` and `Sphere` arms above
-/// are written to respect. So this function can currently hand
-/// `Bvh::overlapping` a box that prunes a pair the exact predicate
-/// would have examined, which breaks the conservative-superset
-/// contract (see the module docs) and turns what should be
-/// `curved_face_arm`'s typed refusal into a silently wrong result.
-/// [`edge_box`] already guards the matching case by poisoning its
-/// `Nurbs` arm; this one has no such arm. The sound constructor exists
-/// unused: `geom_surfaces::boxes::nurbs_surface_aabb` returns the
-/// control-net hull. Reachable today via **Union** with a lofted
-/// operand (`boolean_op_with` refuses non-planar operands only for
-/// Subtract and Intersect); no corpus document exercises it, which is
-/// why it has not bitten. `tests/m5_pr8_bvh_diff.rs` cannot catch it —
-/// every scenario there is built from planar bricks.
-/// LIB-PLACEDUNION note: [`crate::separation`] does NOT rely on this
-/// function's planar or curved fallthrough. Its `certified_face_box`
-/// takes the cylinder and sphere arms here (both whole-extent by
-/// construction), hulls the planar arm with the boundary EDGE boxes
-/// (a circular rim bulges past its vertices too), and hands every
-/// other surface kind — `Nurbs` included, for exactly the reason
-/// above — the poison box, so an uncertifiable prototype refuses
-/// instead of certifying wrongly.
+/// The variants carry the surface payload the construction needs, so
+/// the kind is matched ONCE and each lane only performs its own
+/// arithmetic. The soundness argument per arm:
+///
+/// - [`BoundaryHull`](Self::BoundaryHull) — **Plane.** A planar face
+///   lies in the convex hull of its boundary, so the hull of the
+///   boundary's own certified boxes contains it whatever the boundary
+///   curves are. The hull of the boundary VERTICES alone does not: a
+///   circular rim bulges past its endpoints, and this engine's
+///   plane×cylinder lane mints exactly that face.
+/// - [`CylinderSlab`](Self::CylinderSlab) — **Cylinder.** The wall's
+///   belly bulges past its chords, so the box is the whole cylinder
+///   slab over the face's axial range (the axial coordinate is linear
+///   along the surface, so the face's axial extremes lie on its
+///   boundary), widened by the full radius in every coordinate.
+/// - [`WholeBall`](Self::WholeBall) — **Sphere.** A band's belly
+///   bulges past its poles and seam arcs, so the box is the whole ball
+///   `center ± r`; every surface point is within `r` of the center.
+/// - [`ControlNet`](Self::ControlNet) — **NURBS.** The patch bulges
+///   past the hull of its boundary exactly as the sphere does, but it
+///   lies in the hull of its CONTROL NET (nonnegative basis, strictly
+///   positive weights — `geom_surfaces::boxes::nurbs_surface_aabb`
+///   carries the citation), over the whole domain and a fortiori over
+///   any trim.
+/// - [`NoSoundBox`](Self::NoSoundBox) — **Cone, Torus**, and a face
+///   whose surface is missing. No cheap superset is known, so nothing
+///   is claimed: the box is poison (never prunes) where a box is
+///   built, and a refusal where a certificate is wanted.
+///
+/// Both loose arms are loose in the conservative direction on purpose:
+/// a bigger box only admits candidates.
+pub(crate) enum FaceBoxRule<'a, T: Real> {
+    /// Hull the boundary's certified loci — see the type docs.
+    BoundaryHull,
+    /// The axial slab widened by the radius — see the type docs.
+    CylinderSlab {
+        /// The `v = 0` point on the axis.
+        origin: Point3<T>,
+        /// The unit axis direction.
+        axis: Vec3<T>,
+        /// The cylinder's radius.
+        radius: T,
+    },
+    /// The whole ball `center ± r` — see the type docs.
+    WholeBall {
+        /// The sphere's center.
+        center: Point3<T>,
+        /// The sphere's radius.
+        radius: T,
+    },
+    /// The control net's hull — see the type docs.
+    ControlNet(&'a NurbsSurface<T>),
+    /// No cheap superset exists — see the type docs.
+    NoSoundBox,
+}
+
+/// The [`FaceBoxRule`] for a face's surface — the single kind→rule
+/// mapping. A kind added to [`Surface`] lands on
+/// [`FaceBoxRule::NoSoundBox`] only by being written here, never by
+/// falling through a wildcard in some consumer.
+pub(crate) fn face_box_rule<T: Real>(surface: Option<&Surface<T>>) -> FaceBoxRule<'_, T> {
+    match surface {
+        Some(Surface::Plane { .. }) => FaceBoxRule::BoundaryHull,
+        Some(Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        }) => FaceBoxRule::CylinderSlab {
+            origin: *origin,
+            axis: *axis,
+            radius: *radius,
+        },
+        Some(Surface::Sphere { center, radius, .. }) => FaceBoxRule::WholeBall {
+            center: *center,
+            radius: *radius,
+        },
+        Some(Surface::Nurbs(patch)) => FaceBoxRule::ControlNet(patch),
+        Some(Surface::Cone { .. } | Surface::Torus { .. }) | None => FaceBoxRule::NoSoundBox,
+    }
+}
+
+/// The face's certified box, padded — [`FaceBoxRule`]'s
+/// `f64`-bracket instantiation, and therefore a genuine superset of
+/// the face's locus for every kind that has one, the poison box for
+/// every kind that does not.
+///
+/// Poison here is not a refusal: it overlaps everything, so a face
+/// whose kind has no cheap superset is simply never pruned and reaches
+/// the exact predicates — which is where a `Cone`/`Torus` operand
+/// meets its typed refusal anyway.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] when the face's topology
+/// is corrupt (a lost entity, an unwalkable loop).
 pub(crate) fn face_box<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
     pad: f64,
 ) -> Result<Aabb, BooleanError> {
     let f = body.get_face(face).ok_or(corrupt("face box: face lost"))?;
-    if let Some(geom_surfaces::Surface::Cylinder {
-        origin,
-        axis,
-        radius,
-        ..
-    }) = body.get_surface(f.surface)
-    {
-        let (origin, axis) = (*origin, *axis);
-        let radius = radius.hi();
-        let mut h_min = f64::INFINITY;
-        let mut h_max = f64::NEG_INFINITY;
-        let mut walk = |lk: LoopKey| -> Result<(), BooleanError> {
-            let l = body.get_loop(lk).ok_or(corrupt("face box: loop lost"))?;
-            let LoopBoundary::Cycle { first } = l.boundary else {
-                return Ok(());
-            };
-            for he in body
-                .loop_cycle(first)
-                .ok_or(corrupt("face box: unwalkable loop"))?
-            {
-                let ek = body
-                    .get_half_edge(he)
-                    .ok_or(corrupt("face box: half-edge lost"))?
-                    .edge;
+    let boxed = match face_box_rule(body.get_surface(f.surface)) {
+        FaceBoxRule::NoSoundBox => return Ok(Aabb::poison()),
+        FaceBoxRule::ControlNet(patch) => geom_surfaces::boxes::nurbs_surface_aabb(patch),
+        FaceBoxRule::WholeBall { center, radius } => {
+            let r = radius.hi();
+            Aabb {
+                min_x: center.x.lo() - r,
+                min_y: center.y.lo() - r,
+                min_z: center.z.lo() - r,
+                max_x: center.x.hi() + r,
+                max_y: center.y.hi() + r,
+                max_z: center.z.hi() + r,
+            }
+        }
+        FaceBoxRule::CylinderSlab {
+            origin,
+            axis,
+            radius,
+        } => {
+            let radius = radius.hi();
+            let mut h_min = f64::INFINITY;
+            let mut h_max = f64::NEG_INFINITY;
+            for ek in boundary_edges(body, f)? {
                 let eb = edge_box(body, ek, 0.0)?;
                 for &(x, y, z) in &[
                     (eb.min_x, eb.min_y, eb.min_z),
@@ -145,88 +207,107 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                     h_max = h_max.max(h);
                 }
             }
-            Ok(())
-        };
-        walk(f.outer)?;
-        for &ring in &f.rings {
-            walk(ring)?;
-        }
-        if !(h_min.is_finite() && h_max.is_finite()) {
-            return Ok(Aabb::poison());
-        }
-        // Pad the axial range too (interval-lane bracket slop is
-        // dominated by the pad; conservative direction).
-        h_min -= pad;
-        h_max += pad;
-        let along = |c: f64, a: f64| (c + a * h_min, c + a * h_max);
-        let (x0, x1) = along(origin.x.lo(), axis.x.lo());
-        let (y0, y1) = along(origin.y.lo(), axis.y.lo());
-        let (z0, z1) = along(origin.z.lo(), axis.z.lo());
-        return Ok(Aabb {
-            min_x: x0.min(x1) - radius,
-            min_y: y0.min(y1) - radius,
-            min_z: z0.min(z1) - radius,
-            max_x: x0.max(x1) + radius,
-            max_y: y0.max(y1) + radius,
-            max_z: z0.max(z1) + radius,
-        }
-        .padded(pad));
-    }
-    // Sphere faces (M5 S13): the vertex hull is NOT a superset (a
-    // band's belly bulges past its poles and seam arcs), so the box is
-    // the whole ball `center ± r` — deliberately loose, the
-    // conservative direction (a bigger box only admits candidates).
-    if let Some(&geom_surfaces::Surface::Sphere { center, radius, .. }) =
-        body.get_surface(f.surface)
-    {
-        let r = radius.hi();
-        return Ok(Aabb {
-            min_x: center.x.lo() - r,
-            min_y: center.y.lo() - r,
-            min_z: center.z.lo() - r,
-            max_x: center.x.hi() + r,
-            max_y: center.y.hi() + r,
-            max_z: center.z.hi() + r,
-        }
-        .padded(pad));
-    }
-    let mut points: Vec<Point3<T>> = Vec::new();
-    let mut push_loop = |lk: LoopKey| -> Result<(), BooleanError> {
-        let l = body.get_loop(lk).ok_or(corrupt("face box: loop lost"))?;
-        match l.boundary {
-            LoopBoundary::Empty { vertex } => points.push(vertex_point(body, vertex)?),
-            LoopBoundary::Cycle { first } => {
-                for he in body
-                    .loop_cycle(first)
-                    .ok_or(corrupt("face box: unwalkable loop"))?
-                {
-                    let start = body
-                        .get_half_edge(he)
-                        .ok_or(corrupt("face box: half-edge lost"))?
-                        .start;
-                    points.push(vertex_point(body, start)?);
-                }
+            if !(h_min.is_finite() && h_max.is_finite()) {
+                return Ok(Aabb::poison());
+            }
+            // Pad the axial range too (interval-lane bracket slop is
+            // dominated by the pad; conservative direction).
+            h_min -= pad;
+            h_max += pad;
+            let along = |c: f64, a: f64| (c + a * h_min, c + a * h_max);
+            let (x0, x1) = along(origin.x.lo(), axis.x.lo());
+            let (y0, y1) = along(origin.y.lo(), axis.y.lo());
+            let (z0, z1) = along(origin.z.lo(), axis.z.lo());
+            Aabb {
+                min_x: x0.min(x1) - radius,
+                min_y: y0.min(y1) - radius,
+                min_z: z0.min(z1) - radius,
+                max_x: x0.max(x1) + radius,
+                max_y: y0.max(y1) + radius,
+                max_z: z0.max(z1) + radius,
             }
         }
-        Ok(())
+        FaceBoxRule::BoundaryHull => {
+            // Every boundary edge's own certified box, plus the
+            // isolated-vertex loops (which have no edge to speak for
+            // them).
+            let mut b: Option<Aabb> = None;
+            let mut grow = |x: Aabb| b = Some(b.map_or(x, |acc: Aabb| acc.hull(&x)));
+            for lk in loops_of(f) {
+                let l = body.get_loop(lk).ok_or(corrupt("face box: loop lost"))?;
+                match l.boundary {
+                    LoopBoundary::Empty { vertex } => {
+                        let p = vertex_point(body, vertex)?;
+                        grow(Aabb::from_points([p]).unwrap_or_else(Aabb::poison));
+                    }
+                    LoopBoundary::Cycle { first } => {
+                        for he in body
+                            .loop_cycle(first)
+                            .ok_or(corrupt("face box: unwalkable loop"))?
+                        {
+                            let ek = body
+                                .get_half_edge(he)
+                                .ok_or(corrupt("face box: half-edge lost"))?
+                                .edge;
+                            grow(edge_box(body, ek, 0.0)?);
+                        }
+                    }
+                }
+            }
+            b.unwrap_or_else(Aabb::poison)
+        }
     };
-    push_loop(f.outer)?;
-    for &ring in &f.rings {
-        push_loop(ring)?;
-    }
-    Ok(Aabb::from_points(points)
-        .unwrap_or_else(Aabb::poison)
-        .padded(pad))
+    Ok(boxed.padded(pad))
 }
 
-/// The edge's certified box, padded. `Line` carriers: the two
-/// endpoints (the locus is the chord up to certification residual —
-/// inside the pad). Conic carriers (M5 PR 9): the FULL conic's
-/// center-±-amplitude box hulled with the endpoints — a superset of
-/// any arc of it (an arc's belly bulges past its chord; the full-turn
-/// box is deliberately loose, the conservative direction). `Nurbs`
-/// carriers land on the poison box (never prunes) until a rung-3
-/// operand gate admits them with a control-hull box.
+/// A face's loop keys, outer first — the walk order every arm here
+/// shares (D9: fixed, so two boxes of one face fold identically).
+fn loops_of(f: &crate::entity::Face) -> impl Iterator<Item = LoopKey> + '_ {
+    core::iter::once(f.outer).chain(f.rings.iter().copied())
+}
+
+/// Every edge on the face's boundary, in [`loops_of`] order.
+fn boundary_edges<T: Decide + Bounds>(
+    body: &Body<T>,
+    f: &crate::entity::Face,
+) -> Result<Vec<EdgeKey>, BooleanError> {
+    let mut out = Vec::new();
+    for lk in loops_of(f) {
+        let l = body.get_loop(lk).ok_or(corrupt("face box: loop lost"))?;
+        let LoopBoundary::Cycle { first } = l.boundary else {
+            continue;
+        };
+        for he in body
+            .loop_cycle(first)
+            .ok_or(corrupt("face box: unwalkable loop"))?
+        {
+            out.push(
+                body.get_half_edge(he)
+                    .ok_or(corrupt("face box: half-edge lost"))?
+                    .edge,
+            );
+        }
+    }
+    Ok(out)
+}
+
+/// The edge's certified box, padded — the module contract's
+/// curve-side arm: a superset of the edge's locus, or poison.
+///
+/// - `Line`: the two endpoints (the locus is the chord up to
+///   certification residual — inside the pad).
+/// - `Circle`, `Ellipse`: the FULL conic's center-±-amplitude box
+///   hulled with the endpoints — a superset of any arc of it (an
+///   arc's belly bulges past its chord; the full-turn box is
+///   deliberately loose, the conservative direction).
+/// - `Nurbs`, and an edge whose carrier is null scaffolding: poison
+///   (never prunes). Nothing is certified about the locus, so nothing
+///   is claimed — the chord is NOT a bound for either.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] when the edge's topology
+/// is corrupt.
 pub(crate) fn edge_box<T: Decide + Bounds>(
     body: &Body<T>,
     edge: EdgeKey,
@@ -242,26 +323,29 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
     };
     let (a, b) = (start_of(e.he_plus)?, start_of(e.he_minus)?);
     let vertex_box = Aabb::from_points([a, b]).unwrap_or_else(Aabb::poison);
-    let carrier = body
+    let Some(carrier) = body
         .get_curve_geom(e.curve)
         .and_then(crate::null::CurveGeom::certified)
-        .map(geom_brep::EdgeCurve::carrier);
+        .map(geom_brep::EdgeCurve::carrier)
+    else {
+        return Ok(Aabb::poison());
+    };
     let conic = match carrier {
-        Some(geom_curves::Curve3::Circle {
+        geom_curves::Curve3::Circle {
             center,
             axis,
             radius,
             u_ref,
-        }) => Some((*center, *axis, *radius, *radius, *u_ref)),
-        Some(geom_curves::Curve3::Ellipse {
+        } => Some((*center, *axis, *radius, *radius, *u_ref)),
+        geom_curves::Curve3::Ellipse {
             center,
             axis,
             major,
             minor,
             u_ref,
-        }) => Some((*center, *axis, *major, *minor, *u_ref)),
-        Some(geom_curves::Curve3::Nurbs(_)) => return Ok(Aabb::poison()),
-        Some(geom_curves::Curve3::Line { .. }) | None => None,
+        } => Some((*center, *axis, *major, *minor, *u_ref)),
+        geom_curves::Curve3::Nurbs(_) => return Ok(Aabb::poison()),
+        geom_curves::Curve3::Line { .. } => None,
     };
     let boxed = match conic {
         None => vertex_box,
