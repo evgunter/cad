@@ -963,3 +963,11 @@ workspace compiles with zero dangling references and the tag
 parity tests stay green; zero behavior change (no live path can
 mint them — prove by the compiler after deletion). Fence: nothing
 else from the smell scan; no other error surface changes.
+
+**PERR MERGED (2026-08-18, #622, merge ecf43ab6; ordinal-59
+APPROVE — row in MODEL-AB-LOG). LIB's claimed #614 item is
+discharged.** Resting state: NO active lanes; LIB-12 slots 2-4
+banked (opus ×3). Everything scheduled is done — remaining
+register items need Evan (enclosing-tangency vocabulary, Wave 0
+D1-D4, Q9) or another program (G8 kernel gap, G2 sweep/tube),
+or a #614 routing.

@@ -1206,3 +1206,10 @@ deleted) = FABLE. Pre-draw fields logged at dispatch: **S /
 STRUCTURAL** (a deletion with closure verification; no spec file
 — the brief is the spec, recorded in LIB-LOG). Lane lib-perr,
 branch lib/perr. Row at merge. Slots 2-4 bank.
+LIB-PERR review ordinal fixed at dispatch (2026-08-18, PR #622
+open, frozen head 826e07fa): claimed through 58 (RTABLE) + 1 =
+**59 → SINGLE** (60 is the next third — cross-model per #572).
+Reviewer fable, v5 instrument. Pre-draw fields logged at the
+LIB-12 draw: S / STRUCTURAL (brief-as-spec in LIB-LOG; arm =
+block LIB-12 slot 1). Row at merge.
+| PERR | 2026-08-18 | the smell-scan claimed item (#613/#614): ProfileError's five producer-less fillet variants DELETED (FilletDoesNotFit / FilletCornerAlreadyTangent / NoCornerForFillet / FilletOffsetLeverTooShort / FilletLegDegenerate — orphaned when #608 deleted test_support.rs) + Display arms + two dead recourse constants; FilletLeg/FilletLegCarrier/NoCornerReason KEPT (live as PathError payloads — the same-named-variant-across-enums trap correctly resolved); −211/+44 | S / STRUCTURAL (pre-logged at the LIB-12 draw) | FABLE (block LIB-12 slot 1) | single (ordinal 59, frozen 826e07fa, v5) — **APPROVE 0/1/2, rubric 5/4/5** (all five orphan claims independently re-verified at the parent; the enum distinction re-proven — every live minting site is PathError's; kept-types' liveness verified per type; MINOR = the brief's tag-parity closure criterion was SUBSTITUTED by a compile check + verified-absence argument without naming the substitution) | 0 silent (the substitution's facts were disclosed; the naming gap is the MINOR) | 5 | 4 | 5 | prose-only, ORCHESTRATOR-applied (the substitution named in the PR body; the constant count corrected 4→5) | MERGED #622 34/34 (merge ecf43ab6); the smell-scan ProfileError row discharges — LIB's first #614 item closed | impl ~84k / review ~61k | impl ~0.6h / review ~0.6h |
