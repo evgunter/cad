@@ -1105,11 +1105,15 @@ impl DocParam {
 /// names as the ONE API surface shared by the GUI, the bindings, macro
 /// recording and headless tests.
 ///
-/// Four edits are exposed today: `insert_node`, `delete_node`,
-/// `set_tolerance` and `set_doc_param` (R1-PARAMS). The remaining
-/// variants (slot edits, re-witnessing, appearance, rebinds,
-/// expression paths) are mechanical additions once the surface they
-/// need is curated — tracked as named gaps in
+/// Five edits are exposed today: `insert_node`, `delete_node`,
+/// `set_tolerance`, `set_doc_param` (R1-PARAMS) and
+/// `bind_count_param`, the structural-slot edit narrowed to the Count
+/// slot and a parameter reference. The remaining variants (continuous
+/// slot edits, re-witnessing, appearance, rebinds, expression paths)
+/// are mechanical additions once the surface they need is curated —
+/// each waits on an expression vocabulary, which is the reason the
+/// count edit crosses in this narrowed form rather than as the
+/// general door. Tracked as named gaps in
 /// `docs/guide/north-star-audit.md`.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
