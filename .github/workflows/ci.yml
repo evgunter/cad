@@ -1802,7 +1802,7 @@ jobs:
       # |S - Pi| on every emitted triangle to fill `worst_dev`, which is
       # ~1.15M triangles x 28 barycentric samples — tens of millions of
       # surface evaluations — and the gate reads NONE of it. What
-      # `compare` looks at is triangle counts and `uniform_cells /
+      # `compare` looks at is triangle counts and `grid_cells /
       # span_opt_cells`, all of them sizing columns the lane produces
       # for free. The deviation pass is what the WRITEUP needed
       # (docs/TESS-BUDGET.md's total-slack column, and the committed
