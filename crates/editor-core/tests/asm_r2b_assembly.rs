@@ -539,13 +539,27 @@ fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
 /// certified nor contradicted — it escalates TYPED, and the escalation
 /// carries the kernel's predicate name.
 ///
-/// The seat is 1.0 + 3e-9 against the committed `Band { 1e-9, 1e-8 }`:
-/// definitely inside the band, so the plane-offset predicate is
-/// Indeterminate and the certifier's first door escalates before the
-/// chart door is ever reached. (Adopted from the review's probe.)
+/// The gap is DERIVED FROM THE COMMITTED BAND, never spelled as a
+/// literal: the hosted matrix runs ε = 1e-12 and 1e-6 as well as the
+/// default, and a hard-coded 3e-9 is definitely-separated in one lane
+/// and definitely-zero in another — the row would pin an ε, not an
+/// invariant. `Band::linear()` is the same band the at-rest door
+/// builds, and the geometric mean of its two thresholds is strictly
+/// between them in every lane, which is exactly what "in band" means.
+/// (Row adopted from the review's probe; the band-relative derivation
+/// is the repo's own precedent for literal-ε rows.)
 #[test]
 fn row4_b_an_in_band_authored_gap_escalates_typed_and_predicate_named() {
-    let (doc, _, mate, store) = stacked("asm-r2b-row4b", 1.0 + 3e-9);
+    let band = geom_core::predicate::Band::linear().expect("the committed band builds");
+    let gap = (band.zero() * band.escalate()).sqrt();
+    assert!(
+        gap > band.zero() && gap < band.escalate(),
+        "the derived gap is strictly inside the band in THIS lane: \
+         {gap} vs [{}, {}]",
+        band.zero(),
+        band.escalate()
+    );
+    let (doc, _, mate, store) = stacked("asm-r2b-row4b", 1.0 + gap);
     let ev = run(&doc, &opts(store));
     let result = assemble(&doc, &ev);
     let errs = findings(&result);
