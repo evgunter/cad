@@ -221,3 +221,7 @@ mod m9_2_chart_region_loft;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+
+// SPIKE (M9-3 substrate, throwaway — never commit).
+#[path = "spike_peg.rs"]
+mod spike_peg;
