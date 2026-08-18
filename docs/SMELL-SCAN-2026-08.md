@@ -2940,9 +2940,97 @@ decides S12's residue and S14 at one stroke.
 
 **Verdict:**
 
-## S44–S48 — reserved
+## S44. The founding ruling for the lane-trait pattern exists only as an agent's paraphrase
 
-IDs `S44`–`S48` are intentionally unallocated, so that items promoted
+- **Where**: `docs/archive/M5-LOG.md:3451`, `crates/geom-core/src/real.rs:348`,
+  and the four lane traits of **S3**
+- **Importance**: high
+- **Confidence**: sure
+- **Raised by**: Evan, 2026-08-18, on reading S3's steelman.
+
+The entire lane-trait pattern — four traits, 16 impls, a supertrait bundle, and
+six `Bounds` ledger amendments — rests on one sentence in a milestone log:
+
+> **certification_bracket RESTRUCTURED (Evan pushback, 2026-08-02): the static
+> split replaces the runtime Option.** Evan: *it is not semantically valid
+> type-wise for duals to enter a pipeline that can only refuse them* —
+> adopted.
+
+**There is no primary record.** I searched `docs/`, `memories/`, `crates/`, and
+PR #157's comment thread: the sentence appears **only** in `M5-LOG.md:3451`, as
+an agent's one-line paraphrase of an in-session chat. PR #157's comments are
+entirely about a rebuild-latency mystery. No issue, no design-conversation PR,
+no `DESIGN.md` entry.
+
+Worse, **the same log page records that this channel was known to be
+unreliable**, forty lines earlier:
+
+> **CHANNEL CORRECTION recorded: consultations posted to merged-PR #148 threads
+> do NOT reliably reach Evan** (he saw it only via the in-session mention);
+> future forks go out as a NEW issue or design-conversation PR per the standing
+> memory.
+
+**Evan, on being shown the paraphrase (2026-08-18):** *"ha that the original
+source was my comment on things being semantically valid type-wise; it sounds
+like the agent must've construed that pretty much backwards / i was confused by
+what exactly they were proposing."*
+
+### Why "backwards" is the plausible reading
+
+The remembered sentence most naturally argues that **a dual is not a bracket,
+so `Bounds` must not be implemented for it** — a statement about what the trait
+*means*. The repo's own text agrees, at `M5-LOG.md:2871`: *"`Bounds` is
+implemented for `f64`, the interval scalar and the telemetry probe — never for
+`Dual`, **which has no bracket to offer**."*
+
+If that is the content, the correct consequence is a plain `T: Decide + Bounds`
+bound on certification code — **which is exactly what the fillet battery seam
+does**, and the same log ratifies it: *"A `PropsQuadLane`-style static split
+would therefore have had an EMPTY refusing side… So the seam is RATIFIED
+rather than split."*
+
+The lane traits do the **opposite**: they let a `Dual` body call
+`validate_geometric` and receive a typed refusal from the quadrature arm. That
+is, on its face, *duals entering a pipeline that can only refuse them* — the
+thing the remembered sentence says is not semantically valid.
+
+Both readings survive the sentence in isolation. What does not survive is the
+provenance: a 16-impl pattern, a CI gate with nineteen allowlisted files, and
+six ratification amendments all cite a chat nobody can reproduce, and the
+person quoted does not recognise the conclusion drawn from it.
+
+### The bundling question underneath it
+
+Evan, same message: *"it does seem like there must be multiple semantic things
+bundled together into `Real` if there are things that exist just to refuse
+`Dual`."*
+
+`Bounds` is `fn lo(self) -> f64` / `fn hi(self) -> f64`. It is doing two jobs:
+
+1. **A semantic property** — "this scalar carries a bracket." Genuinely true of
+   `Interval`, degenerate-but-definable for `f64`/`Probe`, and **definable for
+   `Dual` too** (lo = hi = the value channel, discarding the tangent — the
+   value channel is already contractually bit-identical to the f64 run).
+2. **An access-control marker** — "this scalar may enter certified code." This
+   is the job the *absence* of the impl performs, and it is the only reason not
+   to write the definable impl in (1).
+
+For every other scalar those two coincide. For `Dual` they coincide **only by
+choice**, and the lane traits exist to paper over that choice at the four sites
+where a `Dual` body must still be able to make the call. So the pattern is not
+"four traits encoding one bit" (S3's framing) so much as **one overloaded trait
+whose second meaning has to be re-implemented per-site wherever the first
+meaning would let the wrong scalar through**.
+
+**Verdict:** OPEN — this is Evan's own question and supersedes S3's disposition.
+S3 should not be acted on until it is answered, since the answer determines
+whether the collapse target is "one lane trait in `geom-core`" (S3's steelman,
+compiled and working) or "no lane traits at all, and a `Bounds` split into its
+two meanings."
+
+## S45–S48 — reserved
+
+IDs `S45`–`S48` are intentionally unallocated, so that items promoted
 out of the S35/S40 roll-ups during review can be given stable IDs
 without renumbering anything above.
 
