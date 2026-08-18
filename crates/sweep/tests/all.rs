@@ -174,6 +174,8 @@ mod revolve_interval;
 mod revolve_partial;
 #[path = "revolve_washer.rs"]
 mod revolve_washer;
+#[path = "s16_census_containment.rs"]
+mod s16_census_containment;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.
