@@ -2454,7 +2454,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
 impl<T: Decide> PartialPath<T, NoPos, HasAng> {
     /// The kernel behind the table's far-end-anchor row (recording is
     /// the row's, not the kernel's).
-    fn to_kernel(
+    fn end_side_at(
         mut self,
         anchor: Point2<T>,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
@@ -2497,7 +2497,7 @@ impl<T: Decide> PartialPath<T, NoPos, HasAng> {
 impl<T: Decide> PartialPath<T, NoPos, NoAng> {
     /// The kernel behind the table's seam-close row (recording is the
     /// row's, not the kernel's).
-    fn to_kernel(mut self) -> Result<ClosedLoop<T>, PathError<T>> {
+    fn close_at_seam(mut self) -> Result<ClosedLoop<T>, PathError<T>> {
         let start_pos = self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry position is bound",
         })?;

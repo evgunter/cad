@@ -1208,7 +1208,7 @@ transition_table! {
                 anchor: Point2<T>,
             ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
                 self.core.record(Step::FarEndTo(anchor));
-                self.to_kernel(anchor)
+                self.end_side_at(anchor)
             }
             arms {
                 DynTip::Angle(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.to(anchor)?))),
@@ -1229,7 +1229,7 @@ transition_table! {
             fn to [(mut self, target: Start) -> Result<ClosedLoop<T>, PathError<T>>] {
                 let Start = target;
                 self.core.record(Step::CloseTo);
-                self.to_kernel()
+                self.close_at_seam()
             }
             arms {
                 DynTip::Open(p0) => Ok(Applied::Closed(p0.to(Start)?.loop_)),
