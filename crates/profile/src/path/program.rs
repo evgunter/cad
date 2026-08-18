@@ -950,7 +950,7 @@ transition_table! {
             /// **§2c**: fused arc incoming from a DIRECTED POINT — the
             /// endpoint-full modes (junction-checked at the tip, as the sharp
             /// legs check theirs) plus `Radius`: ARC EXTENSION, the arc analog
-            /// of ray extension (see [`LegEndIncoming`]). Line arrival.
+            /// of ray extension (see [`LegEndIncoming`](super::LegEndIncoming)). Line arrival.
             on [T: ArcCarrierScalar] PartialPath<T, HasPos<WithIncoming>, NoAng>;
             fn arc_fillet [<S: super::family::LegEndIncoming<T>>(
                 mut self,
