@@ -882,3 +882,16 @@ tests) and D1's honest boundary (the tour names `profile`
 directly for lily's #433-gap loop — the gap now lives in the
 dependency graph, not an invisible literal). ONARC dispatches
 now on LIB-11 slot 3 = FABLE (lane lib-onarc, pre-staged).
+
+**PYPU DELIVERED (2026-08-17, PR #604, suite 140→160; review
+ordinal 56 dispatched).** Register fold (the implementer's
+deviation-9 flag, orchestrator-applied): category B's G8 text is
+NARROWED — replication (Node.placed_union/placed_union_at,
+Frame/PatternKind values, U4b trio) and the structural-param
+count edit (DocEdit.bind_count_param) are CLOSED from Python;
+G8's residual = the kernel's multi-solid boolean operand
+(combine's single-solid contract, JoinDesync) + the
+memo-observability door (evaluate takes no prior — the banked
+third claim). Audit marks unchanged at 25+3+6 by measurement,
+not omission. die_tool's Python re-authoring = a banked
+candidate behind the Revolve/datum half.
