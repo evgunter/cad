@@ -487,7 +487,7 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Via<T, Start> {
 /// A `Radius` arrival awaiting both binders (either order).
 #[derive(Clone, Debug)]
 pub struct RadiusArrival<T: Real> {
-    pub(super) core: Core<T>,
+    core: Core<T>,
     spec: Radius<T>,
     resolver: verbs::ArcResolver<T>,
 }
@@ -495,7 +495,7 @@ pub struct RadiusArrival<T: Real> {
 /// A `Radius` arrival with its anchor bound, director pending.
 #[derive(Clone, Debug)]
 pub struct RadiusArrivalAt<T: Real> {
-    pub(super) core: Core<T>,
+    core: Core<T>,
     spec: Radius<T>,
     at: Point2<T>,
     resolver: verbs::ArcResolver<T>,
@@ -504,7 +504,7 @@ pub struct RadiusArrivalAt<T: Real> {
 /// A `Radius` arrival with its director bound, anchor pending.
 #[derive(Clone, Debug)]
 pub struct RadiusArrivalDir<T: Real> {
-    pub(super) core: Core<T>,
+    core: Core<T>,
     spec: Radius<T>,
     dir: Dir<T>,
     resolver: verbs::ArcResolver<T>,
@@ -527,7 +527,8 @@ fn radius_complete<T: geom_core::Decide>(
 impl<T: geom_core::Decide> RadiusArrival<T> {
     /// The kernel behind the table's anchor-binding row (recording is
     /// the row's, not the kernel's).
-    pub(super) fn at_kernel(self, p: Point2<T>) -> RadiusArrivalAt<T> {
+    pub(super) fn at_kernel(mut self, step: Step<T>, p: Point2<T>) -> RadiusArrivalAt<T> {
+        self.core.record(step);
         RadiusArrivalAt {
             core: self.core,
             spec: self.spec,
@@ -538,7 +539,8 @@ impl<T: geom_core::Decide> RadiusArrival<T> {
 
     /// The kernel behind the table's angle-first row (recording is the
     /// row's, not the kernel's).
-    pub(super) fn angle_kernel(self, theta: T) -> RadiusArrivalDir<T> {
+    pub(super) fn angle_kernel(mut self, step: Step<T>, theta: T) -> RadiusArrivalDir<T> {
+        self.core.record(step);
         RadiusArrivalDir {
             core: self.core,
             spec: self.spec,
@@ -549,7 +551,13 @@ impl<T: geom_core::Decide> RadiusArrival<T> {
 
     /// The kernel behind the table's components-first row (recording is
     /// the row's, not the kernel's).
-    pub(super) fn toward_kernel(self, dx: T, dy: T) -> Result<RadiusArrivalDir<T>, PathError<T>> {
+    pub(super) fn toward_kernel(
+        mut self,
+        step: Step<T>,
+        dx: T,
+        dy: T,
+    ) -> Result<RadiusArrivalDir<T>, PathError<T>> {
+        self.core.record(step);
         let dir = verbs::director(dx, dy)?;
         Ok(RadiusArrivalDir {
             core: self.core,
@@ -564,9 +572,11 @@ impl<T: geom_core::Decide> RadiusArrivalAt<T> {
     /// The kernel behind the table's arrival-completing row (recording
     /// is the row's, not the kernel's).
     pub(super) fn angle_kernel(
-        self,
+        mut self,
+        step: Step<T>,
         theta: T,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+        self.core.record(step);
         radius_complete(
             self.core,
             self.spec,
@@ -579,10 +589,12 @@ impl<T: geom_core::Decide> RadiusArrivalAt<T> {
     /// The kernel behind the table's arrival-completing row (recording
     /// is the row's, not the kernel's).
     pub(super) fn toward_kernel(
-        self,
+        mut self,
+        step: Step<T>,
         dx: T,
         dy: T,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+        self.core.record(step);
         let dir = verbs::director(dx, dy)?;
         radius_complete(self.core, self.spec, self.at, dir, self.resolver)
     }
@@ -592,9 +604,11 @@ impl<T: geom_core::Decide> RadiusArrivalDir<T> {
     /// The kernel behind the table's arrival-completing row (recording
     /// is the row's, not the kernel's).
     pub(super) fn at_kernel(
-        self,
+        mut self,
+        step: Step<T>,
         p: Point2<T>,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+        self.core.record(step);
         radius_complete(self.core, self.spec, p, self.dir, self.resolver)
     }
 }
@@ -602,7 +616,7 @@ impl<T: geom_core::Decide> RadiusArrivalDir<T> {
 /// A `Via` arrival: anchor authored in the spec, director pending.
 #[derive(Clone, Debug)]
 pub struct ViaArrival<T: Real> {
-    pub(super) core: Core<T>,
+    core: Core<T>,
     q: Point2<T>,
     p: Point2<T>,
     resolver: verbs::ArcResolver<T>,
@@ -612,9 +626,11 @@ impl<T: geom_core::Decide> ViaArrival<T> {
     /// The kernel behind the table's anchor-completing row (recording is
     /// the row's, not the kernel's).
     pub(super) fn angle_kernel(
-        self,
+        mut self,
+        step: Step<T>,
         theta: T,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+        self.core.record(step);
         via_complete(
             self.core,
             self.q,
@@ -627,10 +643,12 @@ impl<T: geom_core::Decide> ViaArrival<T> {
     /// The kernel behind the table's anchor-completing row (recording is
     /// the row's, not the kernel's).
     pub(super) fn toward_kernel(
-        self,
+        mut self,
+        step: Step<T>,
         dx: T,
         dy: T,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+        self.core.record(step);
         let dir = verbs::director(dx, dy)?;
         via_complete(self.core, self.q, self.p, dir, self.resolver)
     }
@@ -653,7 +671,7 @@ fn via_complete<T: geom_core::Decide>(
 /// A `Via` CLOSE: anchor at the entry, director pending.
 #[derive(Clone, Debug)]
 pub struct ViaArrivalStart<T: Real> {
-    pub(super) core: Core<T>,
+    core: Core<T>,
     q: Point2<T>,
     resolver: verbs::ArcResolver<T>,
 }
@@ -661,13 +679,24 @@ pub struct ViaArrivalStart<T: Real> {
 impl<T: geom_core::Decide> ViaArrivalStart<T> {
     /// The kernel behind the table's Via-close row (recording is the
     /// row's, not the kernel's).
-    pub(super) fn angle_kernel(self, theta: T) -> Result<ClosedLoop<T>, PathError<T>> {
+    pub(super) fn angle_kernel(
+        mut self,
+        step: Step<T>,
+        theta: T,
+    ) -> Result<ClosedLoop<T>, PathError<T>> {
+        self.core.record(step);
         via_close(self.core, self.q, Dir::from_angle(theta), self.resolver)
     }
 
     /// The kernel behind the table's Via-close row (recording is the
     /// row's, not the kernel's).
-    pub(super) fn toward_kernel(self, dx: T, dy: T) -> Result<ClosedLoop<T>, PathError<T>> {
+    pub(super) fn toward_kernel(
+        mut self,
+        step: Step<T>,
+        dx: T,
+        dy: T,
+    ) -> Result<ClosedLoop<T>, PathError<T>> {
+        self.core.record(step);
         let dir = verbs::director(dx, dy)?;
         via_close(self.core, self.q, dir, self.resolver)
     }

@@ -210,9 +210,13 @@ pub enum ArcData<T: Real> {
 /// }
 /// ```
 ///
-/// The row's `fn` body is the DECLARATION side: it records the step
-/// and calls the kernel — the pure geometry, which stays in
-/// `path.rs` / `family.rs` under its own name. The `arms` name the
+/// The row's `fn` body is the DECLARATION side: it constructs the step
+/// and calls the kernel — the pure geometry, which stays in `path.rs`
+/// / `family.rs` under its own name. The row records the step itself
+/// where the state's `core` is in scope, and HANDS it to the kernel
+/// where it is not (the `family` arrival states, whose fields stay
+/// private to their module); either way the `Step::` construction is
+/// the row's, which is what makes a deleted row break the variant. The `arms` name the
 /// concrete [`DynTip`] variants the row's (possibly marker-generic)
 /// state covers; a state the row does not name falls through to the
 /// table's one lattice-violation arm.
@@ -362,9 +366,8 @@ transition_table! {
             /// Binds the arrival's anchor — a real on-path point on the
             /// derived carrier.
             on [T: Decide] super::family::RadiusArrival<T>;
-            fn at [(mut self, p: Point2<T>) -> super::family::RadiusArrivalAt<T>] {
-                self.core.record(Step::At(p));
-                self.at_kernel(p)
+            fn at [(self, p: Point2<T>) -> super::family::RadiusArrivalAt<T>] {
+                self.at_kernel(Step::At(p), p)
             }
             arms {
                 DynTip::RadiusArrival(p0) => Ok(Applied::Tip(DynTip::RadiusArrivalAt(p0.at(p)))),
@@ -373,10 +376,9 @@ transition_table! {
         row {
             /// Completes the arrival with its anchor; the fillet resolves.
             on [T: Decide] super::family::RadiusArrivalDir<T>;
-            fn at [(mut self, p: Point2<T>)
+            fn at [(self, p: Point2<T>)
                 -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
-                self.core.record(Step::At(p));
-                self.at_kernel(p)
+                self.at_kernel(Step::At(p), p)
             }
             arms {
                 DynTip::RadiusArrivalDir(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.at(p)?))),
@@ -431,9 +433,8 @@ transition_table! {
         row {
             /// Binds the arrival direction (angle-first order).
             on [T: Decide] super::family::RadiusArrival<T>;
-            fn angle [(mut self, theta: T) -> super::family::RadiusArrivalDir<T>] {
-                self.core.record(Step::Angle(theta));
-                self.angle_kernel(theta)
+            fn angle [(self, theta: T) -> super::family::RadiusArrivalDir<T>] {
+                self.angle_kernel(Step::Angle(theta), theta)
             }
             arms {
                 DynTip::RadiusArrival(p0) =>
@@ -443,10 +444,9 @@ transition_table! {
         row {
             /// Completes the arrival with its direction; the fillet resolves.
             on [T: Decide] super::family::RadiusArrivalAt<T>;
-            fn angle [(mut self, theta: T)
+            fn angle [(self, theta: T)
                 -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
-                self.core.record(Step::Angle(theta));
-                self.angle_kernel(theta)
+                self.angle_kernel(Step::Angle(theta), theta)
             }
             arms {
                 DynTip::RadiusArrivalAt(p0) =>
@@ -456,10 +456,9 @@ transition_table! {
         row {
             /// Completes the directed anchor with an angle; the fillet resolves.
             on [T: Decide] super::family::ViaArrival<T>;
-            fn angle [(mut self, theta: T)
+            fn angle [(self, theta: T)
                 -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
-                self.core.record(Step::Angle(theta));
-                self.angle_kernel(theta)
+                self.angle_kernel(Step::Angle(theta), theta)
             }
             arms {
                 DynTip::ViaArrival(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta)?))),
@@ -468,9 +467,8 @@ transition_table! {
         row {
             /// Completes the close with an angle at the entry anchor.
             on [T: Decide] super::family::ViaArrivalStart<T>;
-            fn angle [(mut self, theta: T) -> Result<ClosedLoop<T>, PathError<T>>] {
-                self.core.record(Step::Angle(theta));
-                self.angle_kernel(theta)
+            fn angle [(self, theta: T) -> Result<ClosedLoop<T>, PathError<T>>] {
+                self.angle_kernel(Step::Angle(theta), theta)
             }
             arms {
                 DynTip::ViaArrivalStart(p0) => Ok(Applied::Closed(p0.angle(theta)?.loop_)),
@@ -538,10 +536,9 @@ transition_table! {
         row {
             /// Binds the arrival direction as exact components.
             on [T: Decide] super::family::RadiusArrival<T>;
-            fn toward [(mut self, dx: T, dy: T)
+            fn toward [(self, dx: T, dy: T)
                 -> Result<super::family::RadiusArrivalDir<T>, PathError<T>>] {
-                self.core.record(Step::Toward { dx, dy });
-                self.toward_kernel(dx, dy)
+                self.toward_kernel(Step::Toward { dx, dy }, dx, dy)
             }
             arms {
                 DynTip::RadiusArrival(p0) =>
@@ -551,10 +548,9 @@ transition_table! {
         row {
             /// Completes the arrival with exact components; the fillet resolves.
             on [T: Decide] super::family::RadiusArrivalAt<T>;
-            fn toward [(mut self, dx: T, dy: T)
+            fn toward [(self, dx: T, dy: T)
                 -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
-                self.core.record(Step::Toward { dx, dy });
-                self.toward_kernel(dx, dy)
+                self.toward_kernel(Step::Toward { dx, dy }, dx, dy)
             }
             arms {
                 DynTip::RadiusArrivalAt(p0) =>
@@ -564,10 +560,9 @@ transition_table! {
         row {
             /// Completes the directed anchor with exact components.
             on [T: Decide] super::family::ViaArrival<T>;
-            fn toward [(mut self, dx: T, dy: T)
+            fn toward [(self, dx: T, dy: T)
                 -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
-                self.core.record(Step::Toward { dx, dy });
-                self.toward_kernel(dx, dy)
+                self.toward_kernel(Step::Toward { dx, dy }, dx, dy)
             }
             arms {
                 DynTip::ViaArrival(p0) =>
@@ -577,9 +572,8 @@ transition_table! {
         row {
             /// Completes the close with exact components at the entry anchor.
             on [T: Decide] super::family::ViaArrivalStart<T>;
-            fn toward [(mut self, dx: T, dy: T) -> Result<ClosedLoop<T>, PathError<T>>] {
-                self.core.record(Step::Toward { dx, dy });
-                self.toward_kernel(dx, dy)
+            fn toward [(self, dx: T, dy: T) -> Result<ClosedLoop<T>, PathError<T>>] {
+                self.toward_kernel(Step::Toward { dx, dy }, dx, dy)
             }
             arms {
                 DynTip::ViaArrivalStart(p0) => Ok(Applied::Closed(p0.toward(dx, dy)?.loop_)),
@@ -1842,8 +1836,10 @@ fn do_fused_entry<T: ArcCarrierScalar>(
 /// A chain program must end in a `Start`-targeting verb; a
 /// [`Step::Circle`] program is exactly one step. **The program replay
 /// re-records is DISCARDED** — the input program is the authority, and
-/// the round-trip is pinned by the differential suite rather than
-/// trusted.
+/// the round-trip is pinned rather than trusted: bit-identity by the
+/// blanket differential every closing verb funnels through
+/// (`common::pinned`), and per-verb reachability by the
+/// replay-coverage census (see the module docs).
 ///
 /// # Errors
 ///
