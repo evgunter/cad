@@ -1918,16 +1918,16 @@ fn asm_r2b_child_crossing_probe() {
 
     // The whole cluster split out — accepted, and the remainder is
     // itself a crossing-bearing document.
-    let out = pncad::document::split(
+    let split = pncad::document::split(
         &doc,
         &ids.iter().copied().collect(),
         pncad::document::DocumentId::derive("asm-r2b-probe-split"),
     )
     .expect("a whole-cluster cut splits");
-    let text = pncad::document::save(&out.remainder, &[]).expect("the remainder saves");
+    let text = pncad::document::save(&split.remainder, &[]).expect("the remainder saves");
     dir.write(
         "split.pncad",
-        &pncad::document::save(&out.part, &[]).expect("the part saves"),
+        &pncad::document::save(&split.part, &[]).expect("the part saves"),
     );
 
     let ev = asm2a_eval(&doc, &ws);
@@ -1941,7 +1941,7 @@ fn asm_r2b_child_crossing_probe() {
             "{}\n{}\n{}\n{}",
             v.to_bits(),
             pncad::document::content_pin(&doc).expect("the pin computes"),
-            pncad::document::content_pin(&out.remainder).expect("the pin computes"),
+            pncad::document::content_pin(&split.remainder).expect("the pin computes"),
             text.len()
         ),
     )
