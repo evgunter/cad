@@ -2128,20 +2128,15 @@ is not what F6 forbids. What it violates is the narrower mesh-local claim.
   `crates/geom-brep/src/ssi.rs:711`
 - **Confidence**: likely
 
-`sweep_r3`/`sweep_chart_plane` do two completely different jobs — seed
-generation and the never-silence accounting proof — and the switch
-between them is `tubes.is_empty()`, a data condition rather than a mode
-the caller states. If every seed fails Newton refinement
-(`SeedRefinementFailed => continue`), or the ℝ⁴ arm's branches all lack
-`pcurve_b`, the "accounting" call receives an empty slice, takes the
-seeding branch, pushes surviving floor cells into a discarded vector,
-and returns `Ok` instead of `ExhaustivenessInconclusive`.
-
-The operation then reports zero branches *plus an exhaustiveness
-receipt* — exactly the silent incompleteness this module exists to
-prevent. The documented receipt identity `examined == excluded +
-accounted + refined` also quietly stops holding in that mode, since the
-pushed leaves land in no bucket.
+**FIXED by #617.** The subdivision's duty is now a parameter the caller
+states rather than a condition read off `tubes.is_empty()`: seeding
+(`seed_r3` / `seed_chart_plane`) takes no tube set and returns no
+receipt, accounting (`account_r3` / `account_chart_plane`) returns only
+the receipt and refuses `ExhaustivenessInconclusive` at the floor
+whatever its tube set holds, empty included. Since only the accounting
+duty can produce a receipt, the identity `examined == excluded +
+accounted + refined` now holds by construction for every receipt that
+escapes the module.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
@@ -3099,7 +3094,7 @@ every other, so these can run as five concurrent lanes.
 | # | Finding | Effort | Note |
 |---|---|---|---|
 | **W1a** | **S16** — `boolean/boxes.rs`'s planar arm uses a bare vertex hull, but a cylinder's planar cap has a circular rim that bulges past its endpoints, so the box is not a superset and the BVH can prune a pair silently. | S–M | **Highest single-item value in the report.** The fix is already named in `PERF-SCAN-2026-08.md` Tier A finding 1, and `separation.rs` already contains the corrected planar rule. |
-| **W1b** | **S23** — the SSI exhaustiveness sweep switches duty on `tubes.is_empty()`, so an all-seeds-fail run returns `Ok` *plus an exhaustiveness receipt* instead of `ExhaustivenessInconclusive`. | M | Make the duty a stated parameter. The acceptance row also needs replacing — its premise (`..._even_though_branches_were_found`) excludes the failing mode. |
+| **W1b** ✅ #617 | **S23** — the SSI exhaustiveness sweep switches duty on `tubes.is_empty()`, so an all-seeds-fail run returns `Ok` *plus an exhaustiveness receipt* instead of `ExhaustivenessInconclusive`. | M | **FIXED by #617**: the duty is a stated parameter (seed/account entry points over a private `SweepDuty`), and a new row enters the all-seeds-fail mode the old row's premise excluded. |
 | **W1c** | **S41** — `Bounds for Interval` forwards `lo()`/`hi()` without consulting the decoration, and `bracket<E: Enclosure>` crosses operands into `RingInterval` by endpoints. A `Trv`-but-nonempty enclosure may be dropping a domain violation **today**. | S to test, ? to fix | Also the gating question for S1 — until this is settled, "swap `RingInterval` for `Interval`" is unsound. |
 | **W1d** | **S4 drift (a)** — `Rebind`'s rewrite loop ends `_ => {}` and never reaches `Node::Mate`'s two `StableName`s, so a mate head is either falsely refused as `RebindNoReferences` or silently left dangling. Contradicts `ASSEMBLY-DESIGN.md:566`. | S | Needs a red-then-green test and an A12 read. No issue is filed. |
 | **W1e** | **S42** — loft's `sense = true` is pinned only on `loft_prism`: no concave arcs, no holes, i.e. the shape that did not break extrude either. | S | Loft a concave-arc section pair and a holed one, run the S11 union check. Cheap; may find nothing. |
