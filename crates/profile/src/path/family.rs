@@ -1230,14 +1230,12 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
 }
 
 impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
-    /// **§2c round 10 — RAY EXTENSION**: bare `fillet(r)` directly on a
-    /// leg end. The incoming contact sits on the TANGENT RAY ahead of
-    /// the directed point, as new path: the surviving ray piece is a
-    /// genuine line leg extending from the leg's end (declared tangent
-    /// by construction — the ray IS the tangent), whatever leg came
-    /// before. Line arrival.
-    pub fn fillet(mut self, radius: T) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
-        self.core.record(Step::Fillet { radius });
+    /// The kernel behind the table's ray-extension fillet row (recording
+    /// is the row's, not the kernel's).
+    pub(super) fn fillet_kernel(
+        mut self,
+        radius: T,
+    ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
         self.ray_extend(radius)?;
         Ok(in_state(
             self.core,

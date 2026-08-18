@@ -2034,14 +2034,9 @@ impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
 }
 
 impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
-    /// Consumes a **directed point only**: re-uses the incoming end
-    /// tangent as the departure — exact by construction, nothing for
-    /// verification to contradict — and emits the DECLARED flag on
-    /// lowering. Ill-typed on plain points (no direction to inherit),
-    /// which is what makes "fillets sit between defined geometry"
-    /// structural rather than a rule.
-    pub fn tangent(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
-        self.core.record(Step::Tangent);
+    /// The kernel behind the table's tangent-inheritance row (recording
+    /// is the row's, not the kernel's).
+    fn tangent_kernel(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
         self.tip.ang = self
             .tip
             .pos
@@ -2053,15 +2048,12 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         in_state(self.core, self.tip)
     }
 
-    /// `.angle(incoming + δ)` sugar on a directed point: turns by `δ`
-    /// radians from the incoming tangent. `turn(0)` lands in the
-    /// tangent band and refuses (use [`tangent`](Self::tangent));
-    /// `turn(±π)` lands in the reverse band and refuses as a cusp.
-    pub fn turn(
+    /// The kernel behind the table's turn row (recording is the row's,
+    /// not the kernel's).
+    fn turn_kernel(
         mut self,
         delta: T,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, HasAng>, PathError<T>> {
-        self.core.record(Step::Turn(delta));
         let inc = self.tip.pos.as_ref().and_then(|p| p.incoming).ok_or(
             PathError::UnderdeterminedLeg {
                 site: "turn on a tip without incoming data",
@@ -2074,34 +2066,12 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         Ok(in_state(self.core, self.tip))
     }
 
-    /// **The declared-subdivision step** (LIB-SWITCH §5-1 fallback,
-    /// ruled 2026-08-08): continue the incoming ARC CARRIER to
-    /// `target`, minting a STRUCTURAL subdivision vertex — a vertex the
-    /// author placed on the carrier deliberately (the half-disc's
-    /// equator vertex, which revolve naming's pole elimination anchors
-    /// on), not a junction claim of any kind.
-    ///
-    /// Semantics, precisely: the leg runs on the SAME carrier circle as
-    /// the incoming leg, in the same travel sense, from the tip to
-    /// `target`. The junction at the tip is a same-carrier IDENTITY —
-    /// exactly the class [`circle`]'s two poles are — so NO §4 junction
-    /// check runs (there is no departure to classify: the carrier
-    /// continues) and NOTHING is declared tangent (there is no tangency
-    /// claim to verify; #101's same-carrier-is-identity rule applies at
-    /// validation unchanged). The bulge is DERIVED from the carrier and
-    /// the target — authored data is the target alone.
-    ///
-    /// Refusals: no incoming arc carrier
-    /// ([`PathError::ArcContinueNeedsArcCarrier`] — a straight leg has
-    /// nothing to subdivide); a target off the carrier
-    /// ([`PathError::ArcContinueOffCarrier`] — authored points never
-    /// re-project); a degenerate chord
-    /// ([`PathError::DegenerateArcChord`]).
-    pub fn arc_continue(
+    /// The kernel behind the table's declared-subdivision row (recording
+    /// is the row's, not the kernel's).
+    fn arc_continue_kernel(
         mut self,
         target: Point2<T>,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        self.core.record(Step::ArcContinue(target));
         let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
             site: "arc_continue on a tip without a position",
         })?;
@@ -2166,26 +2136,12 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         Ok((pos.at, ang))
     }
 
-    /// A straight leg of length `len` along the bound departure,
-    /// terminating at a directed point. After a fillet this extends
-    /// the arrival side's one leg past its anchor (no collinear
-    /// neighbor is minted — §4 item 4's by-construction exemption).
-    ///
-    /// A declared straight continuation of a straight leg
-    /// (`.tangent().line(len)` after a line) IS the same carrier and
-    /// refuses [`PathError::SameCarrierJunction`] — extend the
-    /// original leg instead.
-    ///
-    /// `len` must classify definitely positive
-    /// ([`PathError::NonpositiveLeg`] otherwise): a negative length
-    /// would run the side backward, silently detaching the tip's
-    /// anchored points from the final path — the §4 item 3 invariant
-    /// is gated here, at the one verb that takes a signed length.
-    pub fn line(
+    /// The kernel behind the table's straight-leg row (recording is the
+    /// row's, not the kernel's).
+    fn line_kernel(
         mut self,
         len: T,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        self.core.record(Step::Line(len));
         let (at, ang) = self.dep()?;
         let band = linear_band()?;
         match decide("path_leg_length", Margin::of(len), band) {
@@ -2206,21 +2162,9 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         Ok(in_state(self.core, leg_end_tip(end, ang, arm, None)))
     }
 
-    /// Opens a corner fillet of radius `radius`: consumes the incoming
-    /// Directed (the departure ray) and opens the arrival side Open,
-    /// bound in either order (`.at(dd).angle(θ)`, `.angle(θ).at(dd)`,
-    /// or `.to(Start)` for the seam). Once the arrival is Directed the
-    /// r-arc tangent to both carriers is inserted at their implicit
-    /// virtual corner, trimming both — the corner is never authored
-    /// (it exists only as the carrier intersection), and authoring a
-    /// point then filleting it away is unrepresentable.
-    ///
-    /// `radius` must classify definitely positive
-    /// ([`PathError::NonpositiveFilletRadius`] otherwise), gated here —
-    /// before an arrival can be authored against a fillet that has no
-    /// tangent construction to offer.
-    pub fn fillet(mut self, radius: T) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
-        self.core.record(Step::Fillet { radius });
+    /// The kernel behind the table's corner-fillet row (recording is the
+    /// row's, not the kernel's).
+    fn fillet_kernel(mut self, radius: T) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
         let (at, ang) = self.dep()?;
         let band = linear_band()?;
         match decide("path_fillet_radius", Margin::of(radius), band) {
@@ -2246,14 +2190,6 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
                 ang_by_tangent: false,
             },
         ))
-    }
-
-    /// The unique arc tangent to the bound departure through the
-    /// target: `tangent_arc_to(p)` continues to a directed point;
-    /// `tangent_arc_to(Start)` is the tangent-seam close (the seam's
-    /// junction check runs at `Start` with both directions known).
-    pub fn tangent_arc_to<Tgt: TangentArcTarget<T, F>>(self, target: Tgt) -> Tgt::Out {
-        Tgt::tangent_arc_from(self, target)
     }
 
     /// The tangent arc's geometry toward `p`: the tangent-chord angle
@@ -2347,18 +2283,6 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
 // ------------------------------------------------------------------
 
 impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
-    /// `.angle(toward target).line(distance)` in one call
-    /// (`Point → Point`, also from arrivals): on a directed point the
-    /// junction check runs on the computed direction; on a fillet
-    /// arrival this binds the arrival direction toward the target,
-    /// resolves the fillet, and ends the side at the target.
-    /// `line_to(Start)` is the sharp straight seam (both seam-side
-    /// junction checks run; a within-band-tangent straight closer is
-    /// the overdetermined tangent line close and refuses always).
-    pub fn line_to<Tgt: LineTarget<T, F>>(self, target: Tgt) -> Tgt::Out {
-        Tgt::line_from(self, target)
-    }
-
     fn tip_pos(&self) -> Result<&PosData<T>, PathError<T>> {
         self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
             site: "point tip without a position",
@@ -2576,56 +2500,12 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
 }
 
 impl<T: Decide> PartialPath<T, NoPos, HasAng> {
-    /// **The far-end anchor** (G1 constructor 4, the W5 wall): binds an
-    /// arrival side's position bit to `anchor` AND ends the side there —
-    /// the `to`-family's combined step, read on the arrival side.
-    ///
-    /// PATHS-DESIGN §3 already says every side is anchored by a real
-    /// on-path point plus a direction, and `.angle(θ).at(p)` binds
-    /// exactly that pair. What was missing was only the ability for the
-    /// side to STOP at its anchor: `.at(p)` leaves the tip Directed at
-    /// `p`, and the only continuations run PAST it, so a side whose
-    /// natural end is its far vertex had to be authored as a synthetic
-    /// mid-side anchor plus a length — a point that is not a vertex, and
-    /// a number nobody measured. `.to(p)` says the natural thing: this
-    /// side ends at `p`.
-    ///
-    /// It adds no geometry and no new determination — `.angle(θ).to(p)`
-    /// fixes exactly what `.angle(θ).at(p)` fixes (the arrival carrier
-    /// is the line through `p` in direction θ; the corner is still the
-    /// carrier intersection, never authored). The difference is where
-    /// the leg terminates, so the fillet resolution, its corner gates,
-    /// and the anchor-fit checks are all `.at(p)`'s, unchanged; `p` is
-    /// on the final path either way, authored once. The result is a
-    /// directed point (incoming tangent θ), so the next verb's junction
-    /// check runs exactly as after any leg.
-    ///
-    /// The direction must be bound FIRST (`.angle(θ).to(p)` /
-    /// `.toward(dx, dy).to(p)`): with the anchor as the terminus, the
-    /// side's carrier is what the director supplies.
-    ///
-    /// **Exact trim fit** — the fillet arc reaching `anchor` with no
-    /// straight run left — is not an error. The side simply IS the arc:
-    /// no degenerate segment is emitted, the tip carries the arc as its
-    /// incoming carrier, the arc's outgoing joint is left UNDECLARED
-    /// (the side ends here, so the next direction is free — declaring
-    /// would be a claim, not a construction), and the authored anchor is
-    /// ABSORBED into the tangent point the fit gate just classified as
-    /// coincident with it, rather than emitted as a second vertex a
-    /// hair away. That absorption is the hand door's behaviour too, and
-    /// keeping it is what keeps the two doors emitting identical bits.
-    ///
-    /// At the ENTRY (direction bound, no fillet open) there is no
-    /// arrival side to end, and this refuses
-    /// [`PathError::FarEndAnchorWithoutFillet`] — the entry authors its
-    /// first side with `.at(p)`, and the seam is authored at the back
-    /// (§2's entry rule). Targeting [`Start`] with the far-end form is
-    /// deliberately NOT in this surface; see the module docs.
-    pub fn to(
+    /// The kernel behind the table's far-end-anchor row (recording is
+    /// the row's, not the kernel's).
+    fn to_kernel(
         mut self,
         anchor: Point2<T>,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        self.core.record(Step::FarEndTo(anchor));
         let dir = self.tip.ang.ok_or(PathError::UnderdeterminedLeg {
             site: "far-end anchor on a tip without a bound direction",
         })?;
@@ -2663,15 +2543,9 @@ impl<T: Decide> PartialPath<T, NoPos, HasAng> {
 }
 
 impl<T: Decide> PartialPath<T, NoPos, NoAng> {
-    /// The combined binder consuming a directed-point VALUE
-    /// (`Open → Directed` in one step). [`Start`] is its canonical
-    /// argument, and using it is closing: `.angle(θ).fillet(r)
-    /// .to(Start)` is the seam fillet — both carriers bound, nothing
-    /// pending, loop closed. (Curve-pose arguments — `c.start()` /
-    /// `c.end()` — arrive with NURBS legs in v2; see the module docs.)
-    pub fn to(mut self, target: Start) -> Result<ClosedLoop<T>, PathError<T>> {
-        let Start = target;
-        self.core.record(Step::CloseTo);
+    /// The kernel behind the table's seam-close row (recording is the
+    /// row's, not the kernel's).
+    fn to_kernel(mut self) -> Result<ClosedLoop<T>, PathError<T>> {
         let start_pos = self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry position is bound",
         })?;

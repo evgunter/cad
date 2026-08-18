@@ -544,32 +544,221 @@ transition_table! {
     }
 
     #[doc = " `.tangent()` — inherit the incoming end tangent and DECLARE the joint."]
-    verb Tangent bind {} rows {}
+    verb Tangent bind {} rows {
+        row {
+            /// Consumes a **directed point only**: re-uses the incoming end
+            /// tangent as the departure — exact by construction, nothing for
+            /// verification to contradict — and emits the DECLARED flag on
+            /// lowering. Ill-typed on plain points (no direction to inherit),
+            /// which is what makes "fillets sit between defined geometry"
+            /// structural rather than a rule.
+            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn tangent [(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng>] {
+                self.core.record(Step::Tangent);
+                self.tangent_kernel()
+            }
+            arms {
+                DynTip::DirectedPoint(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.tangent()))),
+            }
+        }
+    }
 
     #[doc = " `.turn(δ)` — depart at the incoming tangent rotated by δ."]
-    verb Turn(T) bind (delta) rows {}
+    verb Turn(T) bind (delta) rows {
+        row {
+            /// `.angle(incoming + δ)` sugar on a directed point: turns by `δ`
+            /// radians from the incoming tangent. `turn(0)` lands in the
+            /// tangent band and refuses (use [`tangent`](Self::tangent));
+            /// `turn(±π)` lands in the reverse band and refuses as a cusp.
+            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn turn [(
+                mut self,
+                delta: T,
+            ) -> Result<PartialPath<T, HasPos<WithIncoming>, HasAng>, PathError<T>>] {
+                self.core.record(Step::Turn(delta));
+                self.turn_kernel(delta)
+            }
+            arms {
+                DynTip::DirectedPoint(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.turn(delta)?))),
+            }
+        }
+    }
 
     #[doc = " `line(len)` — a straight leg along the bound direction."]
-    verb Line(T) bind (len) rows {}
+    verb Line(T) bind (len) rows {
+        row {
+            /// A straight leg of length `len` along the bound departure,
+            /// terminating at a directed point. After a fillet this extends
+            /// the arrival side's one leg past its anchor (no collinear
+            /// neighbor is minted — §4 item 4's by-construction exemption).
+            ///
+            /// A declared straight continuation of a straight leg
+            /// (`.tangent().line(len)` after a line) IS the same carrier and
+            /// refuses [`PathError::SameCarrierJunction`] — extend the
+            /// original leg instead.
+            ///
+            /// `len` must classify definitely positive
+            /// ([`PathError::NonpositiveLeg`] otherwise): a negative length
+            /// would run the side backward, silently detaching the tip's
+            /// anchored points from the final path — the §4 item 3 invariant
+            /// is gated here, at the one verb that takes a signed length.
+            on [T: Decide, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
+            fn line [(
+                mut self,
+                len: T,
+            ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core.record(Step::Line(len));
+                self.line_kernel(len)
+            }
+            arms {
+                DynTip::DirectedPlain(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len)?))),
+                DynTip::DirectedIncoming(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len)?))),
+            }
+        }
+    }
 
     #[doc = " `line_to(target)` — a straight leg to the target."]
-    verb LineTo(Target<T>) bind (target) rows {}
+    verb LineTo(Target<T>) bind (target) rows {
+        row {
+            /// `.angle(toward target).line(distance)` in one call
+            /// (`Point → Point`, also from arrivals): on a directed point the
+            /// junction check runs on the computed direction; on a fillet
+            /// arrival this binds the arrival direction toward the target,
+            /// resolves the fillet, and ends the side at the target.
+            /// `line_to(Start)` is the sharp straight seam (both seam-side
+            /// junction checks run; a within-band-tangent straight closer is
+            /// the overdetermined tangent line close and refuses always).
+            on [T: Decide, F: Flavor] PartialPath<T, HasPos<F>, NoAng>;
+            fn line_to [<Tgt: super::LineTarget<T, F>>(self, target: Tgt) -> Tgt::Out] {
+                <Tgt as super::LineTarget<T, F>>::line_from(self, target)
+            }
+            arms {
+                DynTip::PlainPoint(p0) => do_line_to(p0, target),
+                DynTip::DirectedPoint(p0) => do_line_to(p0, target),
+            }
+        }
+    }
     #[doc = " `arc_to(spec)` — the sharp arc leg, every mode in the one"]
     #[doc = " unified [`ArcData`] record; the mode the author wrote is"]
     #[doc = " what is kept, because the VQ contracts rely on it."]
     verb ArcTo(ArcData<T>) bind (spec) rows {}
 
     #[doc = " `tangent_arc_to(target)` — the unique tangent arc to the target."]
-    verb TangentArcTo(Target<T>) bind (target) rows {}
+    verb TangentArcTo(Target<T>) bind (target) rows {
+        row {
+            /// The unique arc tangent to the bound departure through the
+            /// target: `tangent_arc_to(p)` continues to a directed point;
+            /// `tangent_arc_to(Start)` is the tangent-seam close (the seam's
+            /// junction check runs at `Start` with both directions known).
+            on [T: Decide, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
+            fn tangent_arc_to [
+                <Tgt: super::TangentArcTarget<T, F>>(self, target: Tgt) -> Tgt::Out
+            ] {
+                <Tgt as super::TangentArcTarget<T, F>>::tangent_arc_from(self, target)
+            }
+            arms {
+                DynTip::DirectedPlain(p0) => do_tangent_arc_to(p0, target),
+                DynTip::DirectedIncoming(p0) => do_tangent_arc_to(p0, target),
+            }
+        }
+    }
 
     #[doc = " `arc_continue(target)` — the declared-subdivision step."]
-    verb ArcContinue(Point2<T>) bind (p) rows {}
+    verb ArcContinue(Point2<T>) bind (p) rows {
+        row {
+            /// **The declared-subdivision step** (LIB-SWITCH §5-1 fallback,
+            /// ruled 2026-08-08): continue the incoming ARC CARRIER to
+            /// `target`, minting a STRUCTURAL subdivision vertex — a vertex the
+            /// author placed on the carrier deliberately (the half-disc's
+            /// equator vertex, which revolve naming's pole elimination anchors
+            /// on), not a junction claim of any kind.
+            ///
+            /// Semantics, precisely: the leg runs on the SAME carrier circle as
+            /// the incoming leg, in the same travel sense, from the tip to
+            /// `target`. The junction at the tip is a same-carrier IDENTITY —
+            /// exactly the class [`circle`]'s two poles are — so NO §4 junction
+            /// check runs (there is no departure to classify: the carrier
+            /// continues) and NOTHING is declared tangent (there is no tangency
+            /// claim to verify; #101's same-carrier-is-identity rule applies at
+            /// validation unchanged). The bulge is DERIVED from the carrier and
+            /// the target — authored data is the target alone.
+            ///
+            /// Refusals: no incoming arc carrier
+            /// ([`PathError::ArcContinueNeedsArcCarrier`] — a straight leg has
+            /// nothing to subdivide); a target off the carrier
+            /// ([`PathError::ArcContinueOffCarrier`] — authored points never
+            /// re-project); a degenerate chord
+            /// ([`PathError::DegenerateArcChord`]).
+            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn arc_continue [(
+                mut self,
+                target: Point2<T>,
+            ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core.record(Step::ArcContinue(target));
+                self.arc_continue_kernel(target)
+            }
+            arms {
+                DynTip::DirectedPoint(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.arc_continue(p)?))),
+            }
+        }
+    }
 
     #[doc = " `.fillet(r)` — line incoming (the tangent ray), line arrival."]
     verb Fillet {
         #[doc = " The fillet radius."]
         radius: T,
-    } bind { radius } rows {}
+    } bind { radius } rows {
+        row {
+            /// Opens a corner fillet of radius `radius`: consumes the incoming
+            /// Directed (the departure ray) and opens the arrival side Open,
+            /// bound in either order (`.at(dd).angle(θ)`, `.angle(θ).at(dd)`,
+            /// or `.to(Start)` for the seam). Once the arrival is Directed the
+            /// r-arc tangent to both carriers is inserted at their implicit
+            /// virtual corner, trimming both — the corner is never authored
+            /// (it exists only as the carrier intersection), and authoring a
+            /// point then filleting it away is unrepresentable.
+            ///
+            /// `radius` must classify definitely positive
+            /// ([`PathError::NonpositiveFilletRadius`] otherwise), gated here —
+            /// before an arrival can be authored against a fillet that has no
+            /// tangent construction to offer.
+            on [T: Decide, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
+            fn fillet [(
+                mut self,
+                radius: T,
+            ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
+                self.core.record(Step::Fillet { radius });
+                self.fillet_kernel(radius)
+            }
+            arms {
+                DynTip::DirectedPlain(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius)?))),
+                DynTip::DirectedIncoming(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius)?))),
+            }
+        }
+        row {
+            /// **§2c round 10 — RAY EXTENSION**: bare `fillet(r)` directly on a
+            /// leg end. The incoming contact sits on the TANGENT RAY ahead of
+            /// the directed point, as new path: the surviving ray piece is a
+            /// genuine line leg extending from the leg's end (declared tangent
+            /// by construction — the ray IS the tangent), whatever leg came
+            /// before. Line arrival.
+            on [T: ArcCarrierScalar] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn fillet [(
+                mut self,
+                radius: T,
+            ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
+                self.core.record(Step::Fillet { radius });
+                self.fillet_kernel(radius)
+            }
+            arms {
+                DynTip::DirectedPoint(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius)?))),
+            }
+        }
+    }
 
     #[doc = " `fillet_arc(r, spec)` — line incoming, ARC arrival per the spec."]
     verb FilletArc {
@@ -598,10 +787,87 @@ transition_table! {
     } bind { spec, radius, spec2 } rows {}
 
     #[doc = " `.to(anchor)` — the far-end anchor: end the arrival side there."]
-    verb FarEndTo(Point2<T>) bind (anchor) rows {}
+    verb FarEndTo(Point2<T>) bind (anchor) rows {
+        row {
+            /// **The far-end anchor** (G1 constructor 4, the W5 wall): binds an
+            /// arrival side's position bit to `anchor` AND ends the side there —
+            /// the `to`-family's combined step, read on the arrival side.
+            ///
+            /// PATHS-DESIGN §3 already says every side is anchored by a real
+            /// on-path point plus a direction, and `.angle(θ).at(p)` binds
+            /// exactly that pair. What was missing was only the ability for the
+            /// side to STOP at its anchor: `.at(p)` leaves the tip Directed at
+            /// `p`, and the only continuations run PAST it, so a side whose
+            /// natural end is its far vertex had to be authored as a synthetic
+            /// mid-side anchor plus a length — a point that is not a vertex, and
+            /// a number nobody measured. `.to(p)` says the natural thing: this
+            /// side ends at `p`.
+            ///
+            /// It adds no geometry and no new determination — `.angle(θ).to(p)`
+            /// fixes exactly what `.angle(θ).at(p)` fixes (the arrival carrier
+            /// is the line through `p` in direction θ; the corner is still the
+            /// carrier intersection, never authored). The difference is where
+            /// the leg terminates, so the fillet resolution, its corner gates,
+            /// and the anchor-fit checks are all `.at(p)`'s, unchanged; `p` is
+            /// on the final path either way, authored once. The result is a
+            /// directed point (incoming tangent θ), so the next verb's junction
+            /// check runs exactly as after any leg.
+            ///
+            /// The direction must be bound FIRST (`.angle(θ).to(p)` /
+            /// `.toward(dx, dy).to(p)`): with the anchor as the terminus, the
+            /// side's carrier is what the director supplies.
+            ///
+            /// **Exact trim fit** — the fillet arc reaching `anchor` with no
+            /// straight run left — is not an error. The side simply IS the arc:
+            /// no degenerate segment is emitted, the tip carries the arc as its
+            /// incoming carrier, the arc's outgoing joint is left UNDECLARED
+            /// (the side ends here, so the next direction is free — declaring
+            /// would be a claim, not a construction), and the authored anchor is
+            /// ABSORBED into the tangent point the fit gate just classified as
+            /// coincident with it, rather than emitted as a second vertex a
+            /// hair away. That absorption is the hand door's behaviour too, and
+            /// keeping it is what keeps the two doors emitting identical bits.
+            ///
+            /// At the ENTRY (direction bound, no fillet open) there is no
+            /// arrival side to end, and this refuses
+            /// [`PathError::FarEndAnchorWithoutFillet`] — the entry authors its
+            /// first side with `.at(p)`, and the seam is authored at the back
+            /// (§2's entry rule). Targeting [`Start`] with the far-end form is
+            /// deliberately NOT in this surface; see the module docs.
+            on [T: Decide] PartialPath<T, NoPos, HasAng>;
+            fn to [(
+                mut self,
+                anchor: Point2<T>,
+            ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core.record(Step::FarEndTo(anchor));
+                self.to_kernel(anchor)
+            }
+            arms {
+                DynTip::Angle(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.to(anchor)?))),
+            }
+        }
+    }
 
     #[doc = " `.to(Start)` — the seam-fillet close (entry vertex retrimmed)."]
-    verb CloseTo bind {} rows {}
+    verb CloseTo bind {} rows {
+        row {
+            /// The combined binder consuming a directed-point VALUE
+            /// (`Open → Directed` in one step). [`Start`] is its canonical
+            /// argument, and using it is closing: `.angle(θ).fillet(r)
+            /// .to(Start)` is the seam fillet — both carriers bound, nothing
+            /// pending, loop closed. (Curve-pose arguments — `c.start()` /
+            /// `c.end()` — arrive with NURBS legs in v2; see the module docs.)
+            on [T: Decide] PartialPath<T, NoPos, NoAng>;
+            fn to [(mut self, target: Start) -> Result<ClosedLoop<T>, PathError<T>>] {
+                let Start = target;
+                self.core.record(Step::CloseTo);
+                self.to_kernel()
+            }
+            arms {
+                DynTip::Open(p0) => Ok(Applied::Closed(p0.to(Start)?.loop_)),
+            }
+        }
+    }
     #[doc = " `circle(centre, r)` — the one-step complete-loop program form."]
     verb Circle {
         #[doc = " The circle's centre."]
