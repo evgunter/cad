@@ -265,3 +265,31 @@ place clusters, UNDER/CONTRADICTORY refuse naming subgroup and
 clash, Δc ≡ 0 by construction. Seam sweep next (asm-r2a +
 asm-r2a-r1). Remaining: TESS-SPAN (sweep + re-cut in flight) →
 TESS-SPLIT; R2-b spec finalization once M9-2 PR-2 settles.
+
+## Seam: checkpoint at usage-window edge (2026-08-18)
+
+RESTING STATE (both fix passes mid-flight, all work committed in
+lanes): **ASM-R2b** PR #591 — review AWF 2/2/3+4 adjudicated
+(MAJ-1 F1 honesty, MAJ-2 unreachability re-scope); fix pass at
+"pncad cross-process D9 row" commit (12061817); remaining: cold
+clippy + final re-merge (by-eye v14 check) + push green + PR
+body/report updates. PR currently shows 4 reds at the PRE-fix
+head — expected to clear at the fix push; diagnose if not.
+**TESS-SPAN** PR #594 — cross-model dual #17 (R1 fable 0/4/5,
+R2 opus 4/5/3, both AWF; reports in cad-work; R2's plant section
+orchestrator-restored after a 500) adjudicated; fix pass has the
+realized-aspect fix + baseline re-cut committed (1aba0704);
+remaining per dispatch: the max-of-cells EXPERIMENT (decides the
+R1-vs-R2 math dispute + the doc claim), SAFE_ASPECT doc ruling,
+meter truth pass, body tail. Then: merge both on green, rows at
+merge (53 single; 54 = cross-model pair #5 toward the 12), sweep
+lanes (asm-r2b, asm-r2b-r1, tess-span, tess-span-r1/r2).
+**Pending Evan**: AQ8 dangling-head addendum 👍 (#592 comment
+5319576300, watchlisted — recommend (b) skip). **Then**:
+TESS-SPLIT dispatches on TESS-SPAN's merge (fable, slot 1;
+RECONCILE its spec with the sliver lesson first — realized
+aspect ≤~4 vs the ratified A=16 FFF cap: distinct quantities,
+but the spec must bind BOTH, cite memories/tessellation-budget);
+ASM-XSPLIT (the AQ8 conversion door) specs after the addendum
+ruling; then the R2 exit walk + assembly demo + program
+wind-down per ASM-PLAN's exit shape.
