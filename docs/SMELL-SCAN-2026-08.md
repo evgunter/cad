@@ -509,6 +509,111 @@ pass commissioned: confirm the unification trigger named at
 `revolve/mod.rs:507` ("a third sweep or a shared lowering layer") has in
 fact fired, and check whether the four lamina-plus-holes copies are
 genuinely the same Euler-operator sequence.
+**Steelman (2026-08-18): SURVIVES IN PART — the helper duplication and
+the record-keeping failure are confirmed; four specific claims in this
+finding are wrong, and one of them inverts a load-bearing correctness
+decision.**
+
+*The note's lineage, and a goalpost that moved.* The revolve fork was
+written 2026-07-20 (M2 PR 5, #37), two days after extrude. The
+**original** note was not an indefinite deferral — it read *"PR
+7-adjacent unification"*, a commitment. On the same day, M2 PR 7 (#43)
+**rewrote that sentence in the same diff hunk** to the version this
+report quotes. So a trigger about to expire was replaced with a later
+one in the very commit that let it lapse. PR #43's body — 45k additions,
+exhaustively listing every deviation — does not mention it, and neither
+does `docs/archive/M2-LOG.md`. The justification never entered the
+PR-description record that `CLAUDE.md` designates as canonical.
+
+*The trigger has fired, on both readings — and was half-answered.*
+`crates/sweep/src/loft.rs:68` reads `use crate::extrude::{SweptSeg,
+cap_points, face_surface_key, rim_spec, swept_segments};`. The third
+sweep's author picked an owner — `extrude` — and imported from it. They
+did not migrate `revolve` to that owner or revisit the note. The
+condition was satisfied and half-executed 14 days before this scan.
+
+*A ratified convention that speaks directly to this landed in between
+and was not applied.* `docs/DESIGN.md:1176`, sharpened by Evan
+personally at the M4 exit sweep (#119, 2026-07-27 — after the fork note,
+before the fourth copy): *"structural sharing beats a sweep — **code
+that is literally the same cannot drift**."*
+
+**Four claims in this finding do NOT survive:**
+
+1. **`SweptSeg` is not duplicated, and the divergence is load-bearing
+   correctness.** Extrude's carries a `wall_sense: bool` that revolve's
+   does not. M5 S11 (`docs/archive/M5-LOG.md:1975`) found concave arc
+   walls minting `sense: true`, so a public `union` silently swallowed a
+   body — *"volume 3.000 for 3.008, one shell for two, no refusal"*. The
+   fix is three genuinely different rules: extrude `(canonical turn ==
+   Positive)`; revolve `(canonical Δz > 0)` for cylinder and cone,
+   `(canonical Δr < 0)` for plane annuli, turn-sign for sphere/torus;
+   loft `sense = true` throughout. **A shared `SweptSeg` carrying one
+   `wall_sense` bit would have been wrong.**
+2. **`strut_spec` is not a duplicate** — same name and arity, entirely
+   different bodies. Extrude mints `MappedCurve::ExtrudedPoint` on a
+   `Curve3::Line`; revolve mints `RevolvedPoint { axis_origin, axis_dir,
+   angle }` on a `Curve3::Circle`. A name collision read as duplication.
+3. **`full::build_lamina` is not the lamina-plus-holes construction** —
+   it has no holes (a full revolve of a holed profile is the typed
+   `FullRevolveHoles` refusal, ratified in #37) and no Newell cap.
+4. **The `let _ = k;` inference is wrong.** `k = sections.len()` is a
+   **loft-only** quantity — extrude has no `k` — so it cannot be a
+   transcription artifact. It is dead code from loft's own drafting.
+   Two lines of lint debt, not evidence of mechanical copying.
+
+**What survives, verified by diff:** the `cosurface` bodies
+(`extrude.rs:565` vs `revolve/surfaces.rs:177`) are **token-identical** —
+same `t = (prev.b - prev.a).normalize()`, same `t.perp_dot(d)`, same
+`c1.distance(*c2) + (*r1 - *r2).abs()` — differing only in two
+`&'static str` predicate names. Same for `rim_spec`/`chain_spec`,
+`cap_points`, `arc_apex`, `arc_span`, `turn_axis`, `face_surface_key`,
+`decide` and `SweptKind`. **~230 lines of genuinely identical code.**
+
+*The K-telemetry objection does not block unification.* The names must
+stay distinct — `docs/k-report-data/` shows `die_composed`, `die_pips`
+and `kitchen_sink` each emitting **both** `side_planes_cosurface` and
+`wall_arcs_cosurface`, so the shape column no longer disambiguates the
+verb. But both funnels already delegate to `k_stats::decide(name, …)`
+with `name` as a parameter, so a shared body taking a name pair
+preserves every existing name bit-for-bit.
+
+*The tightest duplication is one this report missed: it is inside
+`revolve/` itself.* `partial.rs:73` and `full.rs:73` build the same
+mvfs → mev(Lone) → mev(Fan) → mef chain with the same `chain_spec` calls
+and the same `frame.n3`, differing only in the closing `mef`'s surface
+and partial's pole tracking. **Same module, same error type, same
+imports — none of the axis, error-type or scope barriers that justify
+the extrude↔revolve fork apply here at all.**
+
+*The strongest part of the finding is the record-keeping.* The S11
+incident is precisely the failure mode the ratified convention names:
+the fix had to be spec'd as a manual audit (*"grep for Face literals
+with curved surfaces"*, `M5-S11-SPEC.md:23`), and that audit **found the
+same defect class already shipped in revolve's bore cylinders, inward
+cones and under-side plane annulus**.
+
+*A small live regression found in passing:* `loft.rs:517` writes
+`face_surface_key(…).map_err(|_| LoftError::SectionStructure)?`, so a
+stale-key operator fault reaches the user as a structural section
+refusal — caused by naive sharing across a typed-error boundary.
+
+*Hidden costs of acting:* the predicate names are a gate, not a detail
+(`K-REPORT.md` tracks a 233-name census and reviewers byte-reproduce the
+CSVs); three closed error enums (D4) make every fallible shared helper
+generic or lossy, and PR #192 deviation 7 already refused that bound
+ripple once as *"out of scale for this unit"*; the test surface is **425
+tests across 77 files, 21,634 lines, 63 of 77 PR-named**, not organized
+by code structure, so a refactor cannot be scoped to a subset; and
+unifying `swept_segments` hands loft extrude's `reverse` arm, which PR
+#192 deliberately refused as untested (*"an untested orientation arm is
+worse than a typed refusal"*).
+
+*Could not determine:* whether Evan was ever shown the fork decision
+(#37's "Notes for retroactive review" lists three items; this is not
+among them), and whether the S11 defect class has a live analogue in
+loft — see **S42**.
+
 ## S7. Two complete fillet assembly implementations, and the older one shadows the newer
 
 - **Where**: `crates/sweep/src/fillet/build.rs:205`,
@@ -1494,9 +1599,37 @@ zero-straddling enclosure), pushing it through `span_hull` /
 
 **Verdict:**
 
-## S42–S48 — reserved
+## S42. Loft's `sense = true` derivation is untested against the shape that broke extrude
 
-IDs `S42`–`S48` are intentionally unallocated, so that items promoted
+- **Where**: `crates/sweep/src/loft.rs:30`,
+  `docs/archive/M5-LOG.md:1975`, `docs/archive/M5-S11-SPEC.md:23`
+- **Importance**: medium
+- **Confidence**: unsure — a lead, not a defect
+- **Raised by**: the S6 steelman pass, 2026-08-18.
+
+M5 S11 found extrude minting `sense: true` on concave arc walls, so a
+public `union` silently swallowed a body (*"volume 3.000 for 3.008, one
+shell for two, no refusal"*). The remediating audit then found the same
+defect class **already shipped** in revolve's bore cylinders, inward
+cones and under-side plane annulus — i.e. the class has recurred once
+per verb.
+
+Loft derives `sense = true` on every wall, argued from the skinned
+chart's normal following the traversal (`loft.rs:30`). The argument
+looks sound. But PR #192 pins *"all six loft faces keep `sense =
+true`"* on a single fixture — `loft_prism`, a prism, with **no concave
+arcs and no holes**: precisely the shape that did not break extrude
+either.
+
+Settled by: lofting a section pair with a concave arc, and one with a
+hole, then running the S11 union check (two operands whose union must
+produce two shells).
+
+**Verdict:**
+
+## S43–S48 — reserved
+
+IDs `S43`–`S48` are intentionally unallocated, so that items promoted
 out of the S35/S40 roll-ups during review can be given stable IDs
 without renumbering anything above.
 
