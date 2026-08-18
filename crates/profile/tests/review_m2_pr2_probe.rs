@@ -42,7 +42,13 @@ fn probe_canonical_form_is_bit_identical_to_f64() {
             .loops()
             .iter()
             .flat_map(|l| l.vertices().iter())
-            .map(|v| (v.pos.x.to_bits(), v.pos.y.to_bits(), v.bulge.to_bits()))
+            .map(|v| {
+                (
+                    v.pos().x.to_bits(),
+                    v.pos().y.to_bits(),
+                    v.bulge().to_bits(),
+                )
+            })
             .collect();
         let qb: Vec<(u64, u64, u64)> = q
             .loops()
@@ -50,9 +56,9 @@ fn probe_canonical_form_is_bit_identical_to_f64() {
             .flat_map(|l| l.vertices().iter())
             .map(|v| {
                 (
-                    v.pos.x.0.to_bits(),
-                    v.pos.y.0.to_bits(),
-                    v.bulge.0.to_bits(),
+                    v.pos().x.0.to_bits(),
+                    v.pos().y.0.to_bits(),
+                    v.bulge().0.to_bits(),
                 )
             })
             .collect();

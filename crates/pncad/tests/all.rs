@@ -681,8 +681,8 @@ fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
     let minting = [
         ["ProfileLoop::", "new("].concat(),
         ["ProfileLoop::", "polygon("].concat(),
-        ["ProfileLoop ", "{"].concat(),
-        ["ProfileVertex ", "{"].concat(),
+        ["ProfileLoop", "{"].concat(),
+        ["ProfileVertex", "{"].concat(),
     ];
 
     let mut violations: Vec<String> = Vec::new();
@@ -703,8 +703,12 @@ fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
                     n + 1
                 ));
             }
+            // Matched against the line with ALL whitespace removed, so
+            // `ProfileLoop{`, `ProfileLoop  {` and `ProfileLoop::new (`
+            // are one pattern to this guard.
+            let squashed: String = t.chars().filter(|c| !c.is_whitespace()).collect();
             for m in &minting {
-                if t.contains(m.as_str()) {
+                if squashed.contains(m.as_str()) {
                     violations.push(format!(
                         "{name}:{}: the façade authors through `{m}` — the retired raw tier",
                         n + 1
