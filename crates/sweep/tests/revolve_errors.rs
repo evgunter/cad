@@ -133,18 +133,9 @@ fn axis_crossing_tube_is_an_unsupported_toroid() {
     // every arc point stays at r > 0, but the carrier reaches across
     // the axis — a spindle torus, refused per D3's ring convention.
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(1.1, 0.0),
-            bulge: FRAC_PI_8.tan(),
-        },
-        ProfileVertex {
-            pos: p2(0.5, 0.6),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.5, 0.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(1.1, 0.0), FRAC_PI_8.tan()),
+        ProfileVertex::new(p2(0.5, 0.6), 0.0),
+        ProfileVertex::new(p2(0.5, 0.0), 0.0),
     ]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Partial(1.0)).unwrap_err();
@@ -156,14 +147,8 @@ fn arc_interior_across_the_axis_is_typed() {
     // A clockwise semicircle from (0, −1) to (0, 1) bulging through
     // (−1, 0): endpoints on the axis, apex definitely across it.
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: -1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -1.0), -1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Partial(1.0)).unwrap_err();

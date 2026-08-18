@@ -44,14 +44,8 @@ use topo::boolean::{PointInSolidError, SolidContainment, point_in_solid};
 /// (0, −1) through (1, 0) to (0, 1), closed by the on-axis diameter.
 fn half_disc() -> ProfileLoop<f64> {
     ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -1.0), 1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ])
 }
 

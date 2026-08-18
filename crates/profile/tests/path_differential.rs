@@ -67,11 +67,16 @@ fn recorded(name: &str, algebra: &ProfileLoop<f64>) -> ProfileLoop<f64> {
         println!("    (");
         println!("        {name:?},");
         println!("        &[");
-        for v in &algebra.vertices {
-            println!("            [{:?}, {:?}, {:?}],", v.pos.x, v.pos.y, v.bulge);
+        for v in algebra.vertices() {
+            println!(
+                "            [{:?}, {:?}, {:?}],",
+                v.pos().x,
+                v.pos().y,
+                v.bulge()
+            );
         }
         println!("        ],");
-        println!("        &{:?},", algebra.tangent_joints);
+        println!("        &{:?},", algebra.tangent_joints());
         println!("    ),");
         // Blessing mode compares the lowering against itself so the rest
         // of the row still runs; the printed table is the new contract.
@@ -85,13 +90,10 @@ fn recorded(name: &str, algebra: &ProfileLoop<f64>) -> ProfileLoop<f64> {
     let mut lp = ProfileLoop::new(
         table
             .iter()
-            .map(|&[x, y, bulge]| profile::ProfileVertex {
-                pos: p2(x, y),
-                bulge,
-            })
+            .map(|&[x, y, bulge]| profile::ProfileVertex::new(p2(x, y), bulge))
             .collect(),
     );
-    lp.tangent_joints = joints.to_vec();
+    lp = lp.with_tangent_joints(joints.to_vec());
     lp
 }
 
@@ -232,32 +234,36 @@ static FIXTURES: &[(&str, &[[f64; 3]], &[usize])] = &[
 /// by `to_bits`, and the declared-joint SET (declaration order is not
 /// semantic — `tangent_joints` documents set semantics).
 fn assert_loops_identical(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f64>) {
-    assert_eq!(algebra.vertices.len(), hand.vertices.len(), "vertex count");
-    for (i, (a, h)) in algebra.vertices.iter().zip(&hand.vertices).enumerate() {
+    assert_eq!(
+        algebra.vertices().len(),
+        hand.vertices().len(),
+        "vertex count"
+    );
+    for (i, (a, h)) in algebra.vertices().iter().zip(hand.vertices()).enumerate() {
         assert_eq!(
-            a.pos.x.to_bits(),
-            h.pos.x.to_bits(),
+            a.pos().x.to_bits(),
+            h.pos().x.to_bits(),
             "vertex {i} x: {} vs {}",
-            a.pos.x,
-            h.pos.x
+            a.pos().x,
+            h.pos().x
         );
         assert_eq!(
-            a.pos.y.to_bits(),
-            h.pos.y.to_bits(),
+            a.pos().y.to_bits(),
+            h.pos().y.to_bits(),
             "vertex {i} y: {} vs {}",
-            a.pos.y,
-            h.pos.y
+            a.pos().y,
+            h.pos().y
         );
         assert_eq!(
-            a.bulge.to_bits(),
-            h.bulge.to_bits(),
+            a.bulge().to_bits(),
+            h.bulge().to_bits(),
             "vertex {i} bulge: {} vs {}",
-            a.bulge,
-            h.bulge
+            a.bulge(),
+            h.bulge()
         );
     }
-    let mut ta = algebra.tangent_joints.clone();
-    let mut th = hand.tangent_joints.clone();
+    let mut ta = algebra.tangent_joints().to_vec();
+    let mut th = hand.tangent_joints().to_vec();
     ta.sort_unstable();
     ta.dedup();
     th.sort_unstable();
@@ -346,10 +352,10 @@ fn tangent_arc_leg_matches_loopbuilder() {
     // now it is asserted directly): vertex 1's bulge is tan(delta/2)
     // from the documented closed form, bit for bit.
     assert_eq!(
-        algebra.vertices[1].bulge.to_bits(),
+        algebra.vertices()[1].bulge().to_bits(),
         expected_bulge.to_bits(),
         "tangent-arc bulge: {} vs the closed form {}",
-        algebra.vertices[1].bulge,
+        algebra.vertices()[1].bulge(),
         expected_bulge
     );
     let hand = recorded("tangent_arc_leg_matches_loopbuilder", &algebra);
@@ -534,8 +540,8 @@ fn rounded_square_with_seam_fillet_matches_explicit_hand_chain() {
 
     assert_loops_identical(&algebra, &hand);
     assert_validate_identically(&algebra, &hand);
-    assert_eq!(algebra.vertices.len(), 8);
-    assert_eq!(algebra.tangent_joints.len(), 8);
+    assert_eq!(algebra.vertices().len(), 8);
+    assert_eq!(algebra.tangent_joints().len(), 8);
 }
 
 /// D6 — a fillet arrival bound by `line_to` ("also from arrivals"):
@@ -585,14 +591,8 @@ fn circle_matches_the_raw_corpus_convention() {
         let algebra = profile::circle(p2(cx, cy), r).unwrap();
         let algebra = pinned(algebra);
         let hand = ProfileLoop::new(vec![
-            profile::ProfileVertex {
-                pos: p2(cx + r, cy),
-                bulge: 1.0,
-            },
-            profile::ProfileVertex {
-                pos: p2(cx - r, cy),
-                bulge: 1.0,
-            },
+            profile::ProfileVertex::new(p2(cx + r, cy), 1.0),
+            profile::ProfileVertex::new(p2(cx - r, cy), 1.0),
         ]);
         assert_loops_identical(&algebra, &hand);
         assert_validate_identically(&algebra, &hand);
@@ -724,10 +724,10 @@ fn bracket_matches_loopbuilder_via_toward_and_far_end_anchor() {
     // axis-aligned, so the setback is exactly r along each leg from the
     // virtual corner — trim 1 at (corner.x + r, corner.y), trim 2 at
     // (corner.x, corner.y + r), exactly.
-    assert_eq!(algebra.vertices[3].pos.x, corner.x + r);
-    assert_eq!(algebra.vertices[3].pos.y, corner.y);
-    assert_eq!(algebra.vertices[4].pos.x, corner.x);
-    assert_eq!(algebra.vertices[4].pos.y, corner.y + r);
+    assert_eq!(algebra.vertices()[3].pos().x, corner.x + r);
+    assert_eq!(algebra.vertices()[3].pos().y, corner.y);
+    assert_eq!(algebra.vertices()[4].pos().x, corner.x);
+    assert_eq!(algebra.vertices()[4].pos().y, corner.y + r);
     let hand = recorded(
         "bracket_matches_loopbuilder_via_toward_and_far_end_anchor",
         &algebra,
@@ -775,15 +775,19 @@ fn angle_directors_drift_where_toward_is_exact() {
     let exact = pinned(build(true));
     let drifted = pinned(build(false));
     // Same shape to any tolerance anyone could care about …
-    for (a, b) in exact.vertices.iter().zip(&drifted.vertices) {
-        assert!((a.pos - b.pos).norm_squared().sqrt() < 1e-12);
-        assert!((a.bulge - b.bulge).abs() < 1e-12);
+    for (a, b) in exact.vertices().iter().zip(drifted.vertices()) {
+        assert!((a.pos() - b.pos()).norm_squared().sqrt() < 1e-12);
+        assert!((a.bulge() - b.bulge()).abs() < 1e-12);
     }
     // … and NOT the same bits: the two trim vertices differ, which is
     // exactly the SAID-not-shape drift that kept the bracket raw.
-    let same_bits = exact.vertices.iter().zip(&drifted.vertices).all(|(a, b)| {
-        a.pos.x.to_bits() == b.pos.x.to_bits() && a.pos.y.to_bits() == b.pos.y.to_bits()
-    });
+    let same_bits = exact
+        .vertices()
+        .iter()
+        .zip(drifted.vertices())
+        .all(|(a, b)| {
+            a.pos().x.to_bits() == b.pos().x.to_bits() && a.pos().y.to_bits() == b.pos().y.to_bits()
+        });
     assert!(
         !same_bits,
         "the angle-director spelling is expected to drift; if it no longer does, \
@@ -819,7 +823,7 @@ fn toward_axis_rays_are_exact() {
             .line_to(Start)
             .unwrap();
         let lowered = pinned(lowered);
-        let v = lowered.vertices[1].pos;
+        let v = lowered.vertices()[1].pos();
         assert_eq!(v.x.to_bits(), expected.x.to_bits(), "toward({dx},{dy}) x");
         assert_eq!(v.y.to_bits(), expected.y.to_bits(), "toward({dx},{dy}) y");
     }
@@ -872,7 +876,7 @@ fn eye_arc_by_arc_fillet_matches_loopbuilder_fillet_corner() {
     // The S8 pick, independently: the fillet arc's centre must be the
     // NEAR pocket (0, √0.3125), not the rival at the sharp tip.
     let want = 0.3125f64.sqrt();
-    let mid = algebra.vertices[1].pos;
+    let mid = algebra.vertices()[1].pos();
     assert!(
         mid.y > 0.0,
         "the trimmed incoming run must reach the TOP tip's pocket, got {mid:?}"
@@ -986,7 +990,7 @@ fn the_advance_gate_discards_the_root_at_the_incoming_anchor() {
     // Vertex 1 is the trim point on the straight side: it must sit
     // short of the FAR corner (4, 0), not of the discarded one at the
     // origin (which would have put it behind the entry).
-    let t1 = lowered.vertices[1].pos;
+    let t1 = lowered.vertices()[1].pos();
     assert!(t1.x > 3.0 && t1.x < 4.0, "trim point on side 1: {t1:?}");
     // On the ray y = 0 to rounding: `t1` is the offset-carrier centre
     // pushed back by the offset normal, so its y is a cancellation

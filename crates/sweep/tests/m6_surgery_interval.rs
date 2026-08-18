@@ -86,14 +86,8 @@ mod certified {
         // The half-disc lamina: a semicircle out of the south pole and
         // the straight diameter back.
         let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex {
-                pos: p2(0.0, -PIP_R),
-                bulge: iv(1.0),
-            },
-            ProfileVertex {
-                pos: p2(0.0, PIP_R),
-                bulge: iv(0.0),
-            },
+            ProfileVertex::new(p2(0.0, -PIP_R), iv(1.0)),
+            ProfileVertex::new(p2(0.0, PIP_R), iv(0.0)),
         ]);
         let profile = Profile::new(
             SketchPlane::from_frame(

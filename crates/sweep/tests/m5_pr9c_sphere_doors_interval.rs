@@ -30,14 +30,8 @@ fn p3(x: f64, y: f64, z: f64) -> Point3<Interval> {
 /// The unit ball at the certified scalar (the `revolve_ball` fixture).
 fn ball() -> topo::Body<Interval> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(iv(0.0), iv(-1.0)),
-            bulge: iv(1.0),
-        },
-        ProfileVertex {
-            pos: Point2::new(iv(0.0), iv(1.0)),
-            bulge: iv(0.0),
-        },
+        ProfileVertex::new(Point2::new(iv(0.0), iv(-1.0)), iv(1.0)),
+        ProfileVertex::new(Point2::new(iv(0.0), iv(1.0)), iv(0.0)),
     ]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tolerance::get())

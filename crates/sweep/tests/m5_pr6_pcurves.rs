@@ -25,14 +25,8 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// cylinder surface.
 fn disc() -> ValidatedProfile<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(-0.5, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.5, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(-0.5, 0.0), 1.0),
+        ProfileVertex::new(p2(0.5, 0.0), 1.0),
     ]);
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -45,22 +39,10 @@ fn disc() -> ValidatedProfile<f64> {
 /// one face, on one surface.
 fn revolved_tube() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.4, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.8, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.8, 0.6),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.4, 0.6),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.4, 0.0), 0.0),
+        ProfileVertex::new(p2(0.8, 0.0), 0.0),
+        ProfileVertex::new(p2(0.8, 0.6), 0.0),
+        ProfileVertex::new(p2(0.4, 0.6), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -238,22 +220,10 @@ fn a_seam_edge_carries_two_different_pcurves_on_one_surface() {
 #[test]
 fn planar_bodies_carry_zero_stored_pcurves() {
     let square = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 1.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+        ProfileVertex::new(p2(1.0, 0.0), 0.0),
+        ProfileVertex::new(p2(1.0, 1.0), 0.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![square])
         .validate(Tolerance::get())
@@ -455,14 +425,8 @@ fn caches_certify_on_the_interval_lane() {
 
     let ip2 = |x: f64, y: f64| Point2::new(Interval::from_f64(x), Interval::from_f64(y));
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: ip2(-0.5, 0.0),
-            bulge: Interval::from_f64(1.0),
-        },
-        ProfileVertex {
-            pos: ip2(0.5, 0.0),
-            bulge: Interval::from_f64(1.0),
-        },
+        ProfileVertex::new(ip2(-0.5, 0.0), Interval::from_f64(1.0)),
+        ProfileVertex::new(ip2(0.5, 0.0), Interval::from_f64(1.0)),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())

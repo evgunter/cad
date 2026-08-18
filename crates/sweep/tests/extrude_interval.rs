@@ -73,14 +73,8 @@ fn interval_disc_extrudes_a_shared_cylinder() {
     // through `sqrt`; geom-core's tight per-component `powi(2)` fix
     // landed in the PR 3 fix pass and this build now certifies clean.)
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(-0.5, 0.0),
-            bulge: Interval::from_f64(1.0),
-        },
-        ProfileVertex {
-            pos: p2(0.5, 0.0),
-            bulge: Interval::from_f64(1.0),
-        },
+        ProfileVertex::new(p2(-0.5, 0.0), Interval::from_f64(1.0)),
+        ProfileVertex::new(p2(0.5, 0.0), Interval::from_f64(1.0)),
     ]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tolerance::get())

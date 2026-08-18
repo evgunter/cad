@@ -291,11 +291,11 @@ fn check_corner(
         enclosing: 0,
         major: 0,
     };
-    let nv = lp.vertices.len();
+    let nv = lp.vertices().len();
     assert!(nv == 2 || nv == 3, "chain shape: {nv} vertices — {}", ctx());
-    let t2 = lp.vertices[nv - 1].pos;
-    let t1 = lp.vertices[nv - 2].pos;
-    let b = lp.vertices[nv - 2].bulge;
+    let t2 = lp.vertices()[nv - 1].pos();
+    let t1 = lp.vertices()[nv - 2].pos();
+    let b = lp.vertices()[nv - 2].bulge();
     assert!(
         b.is_finite() && b != 0.0,
         "degenerate fillet bulge {b} — {}",
@@ -923,8 +923,8 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
                  build rather than refuse; got {e:?}"
             )
         });
-        let nv = lp.vertices.len();
-        let t2 = lp.vertices[nv - 1].pos;
+        let nv = lp.vertices().len();
+        let t2 = lp.vertices()[nv - 1].pos();
         let res = leg_out.carrier_residual(corner, t2);
         // 8 ulps of the ~1 m scene, not `eps`: the measured-spoke scaling
         // puts this at 0.0, and holding it to the band would be a far
@@ -1009,11 +1009,11 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
         "enclosing_fillet_swallows_both_leg_carriers".to_string()
     });
     assert_eq!(c.enclosing, 2, "both legs must classify as enclosing");
-    let nv = lp.vertices.len();
+    let nv = lp.vertices().len();
     let (t1, t2, b) = (
-        lp.vertices[nv - 2].pos,
-        lp.vertices[nv - 1].pos,
-        lp.vertices[nv - 2].bulge,
+        lp.vertices()[nv - 2].pos(),
+        lp.vertices()[nv - 1].pos(),
+        lp.vertices()[nv - 2].bulge(),
     );
     let (pf, rf) = circle_from_bulge(t1, t2, b);
     assert!((rf - r).abs() < 1e-11, "recovered radius {rf} vs {r}");
@@ -1100,8 +1100,8 @@ fn an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier() {
         "ill-conditioned tangent-point pin".to_string()
     });
 
-    let nv = lp.vertices.len();
-    let t2 = lp.vertices[nv - 1].pos;
+    let nv = lp.vertices().len();
+    let t2 = lp.vertices()[nv - 1].pos();
     let res_out = leg_out.carrier_residual(corner, t2);
     let bound = ULPS * f64::EPSILON * SCENE;
     assert!(

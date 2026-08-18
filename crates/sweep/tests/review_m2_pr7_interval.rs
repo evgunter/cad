@@ -21,10 +21,7 @@ fn p2(x: f64, y: f64) -> Point2<Interval> {
 }
 
 fn v(x: f64, y: f64, b: f64) -> ProfileVertex<Interval> {
-    ProfileVertex {
-        pos: p2(x, y),
-        bulge: Interval::from_f64(b),
-    }
+    ProfileVertex::new(p2(x, y), Interval::from_f64(b))
 }
 
 fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {

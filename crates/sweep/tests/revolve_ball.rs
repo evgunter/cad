@@ -28,14 +28,8 @@ use sweep::{Revolution, RevolvedKind, revolve};
 /// (bulge tan(π/4) = 1), closed by the on-axis diameter. CCW.
 fn half_disc() -> ProfileLoop<f64> {
     ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -1.0), 1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ])
 }
 

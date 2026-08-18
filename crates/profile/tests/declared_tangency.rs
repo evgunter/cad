@@ -18,7 +18,7 @@ mod common;
 
 use common::{bracket, chain, circle_h, pinned, profile, quarter_bulge, tol};
 use geom_core::Point2;
-use profile::{Open, PathError, ProfileError, ProfileLoop, Start};
+use profile::{Open, PathError, ProfileError, ProfileLoop, RawLoop, Start};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -74,7 +74,7 @@ fn undeclared_line_arc_tangency_is_refused_typed() {
 #[test]
 fn declaring_the_joints_repairs_the_refusal() {
     let mut lp = undeclared_bracket();
-    lp.tangent_joints = vec![3, 4];
+    lp = lp.with_tangent_joints(vec![3, 4]);
     let vp = profile(vec![lp])
         .validate(tol())
         .expect("declared tangency validates");
@@ -89,7 +89,7 @@ fn declaring_the_joints_repairs_the_refusal() {
 fn declared_tangency_on_a_transversal_joint_is_contradicted() {
     // The L-profile's corners are definite right angles.
     let mut lp = common::l_profile();
-    lp.tangent_joints = vec![2];
+    lp = lp.with_tangent_joints(vec![2]);
     match profile(vec![lp])
         .validate(tol())
         .expect_err("contradicted declaration must refuse")
@@ -125,7 +125,7 @@ fn declared_tangency_on_collinear_lines_is_contradicted_as_continuation() {
     // ...but a tangency declaration there is refused: continuation is
     // not a tangency.
     let mut lp = redundant();
-    lp.tangent_joints = vec![1];
+    lp = lp.with_tangent_joints(vec![1]);
     match profile(vec![lp]).validate(tol()).expect_err("continuation") {
         ProfileError::TangencyContradicted {
             joint,
@@ -145,7 +145,7 @@ fn declared_tangency_on_a_cocircular_joint_is_contradicted() {
     // legal undeclared (asserted all over the corpus), contradicted
     // declared.
     let mut lp = circle_h(0.0, 0.0, 1.0);
-    lp.tangent_joints = vec![0];
+    lp = lp.with_tangent_joints(vec![0]);
     match profile(vec![lp]).validate(tol()).expect_err("cocircular") {
         ProfileError::TangencyContradicted { same_carrier, .. } => assert!(same_carrier),
         other => panic!("expected same-carrier contradiction, got {other:?}"),
@@ -155,7 +155,7 @@ fn declared_tangency_on_a_cocircular_joint_is_contradicted() {
 #[test]
 fn out_of_range_declaration_is_refused_typed() {
     let mut lp = common::rect(0.0, 0.0, 2.0, 1.0);
-    lp.tangent_joints = vec![4];
+    lp = lp.with_tangent_joints(vec![4]);
     match profile(vec![lp]).validate(tol()).expect_err("range") {
         ProfileError::TangentJointOutOfRange {
             loop_index,
@@ -183,7 +183,7 @@ fn s_curve(joints: Vec<usize>) -> ProfileLoop<f64> {
         (5.0, 4.0, 0.0),
         (5.0, 0.0, 0.0),
     ]);
-    lp.tangent_joints = joints;
+    lp = lp.with_tangent_joints(joints);
     lp
 }
 
@@ -222,7 +222,7 @@ fn internal_tangent_loop(joints: Vec<usize>) -> ProfileLoop<f64> {
         (3.0, -1.0, 0.0),
         (0.0, -1.0, 0.0),
     ]);
-    lp.tangent_joints = joints;
+    lp = lp.with_tangent_joints(joints);
     lp
 }
 
@@ -246,14 +246,14 @@ fn internal_arc_arc_tangency_must_be_declared() {
 fn fillet_computes_exact_tangent_points_and_declares() {
     let lp = bracket();
     // Right-angle corner, dyadic legs: T1/T2 are bit-exact.
-    assert_eq!(lp.vertices[3].pos.x.to_bits(), 1.5f64.to_bits());
-    assert_eq!(lp.vertices[3].pos.y.to_bits(), 1.0f64.to_bits());
-    assert_eq!(lp.vertices[4].pos.x.to_bits(), 1.0f64.to_bits());
-    assert_eq!(lp.vertices[4].pos.y.to_bits(), 1.5f64.to_bits());
+    assert_eq!(lp.vertices()[3].pos().x.to_bits(), 1.5f64.to_bits());
+    assert_eq!(lp.vertices()[3].pos().y.to_bits(), 1.0f64.to_bits());
+    assert_eq!(lp.vertices()[4].pos().x.to_bits(), 1.0f64.to_bits());
+    assert_eq!(lp.vertices()[4].pos().y.to_bits(), 1.5f64.to_bits());
     // The arc bulge is tan(-pi/8) to rounding.
-    assert!((lp.vertices[3].bulge + quarter_bulge()).abs() < 1e-15);
+    assert!((lp.vertices()[3].bulge() + quarter_bulge()).abs() < 1e-15);
     // Declares by construction, and the declarations verify.
-    assert_eq!(lp.tangent_joints, vec![3, 4]);
+    assert_eq!(lp.tangent_joints(), vec![3, 4]);
     let vp = profile(vec![lp])
         .validate(tol())
         .expect("fillet-authored bracket validates");
@@ -277,7 +277,7 @@ fn abandoning_a_fillet_exit_leg_is_contradicted_loudly() {
         (0.5, 3.0, 0.0), // NOT along the arc's tangent (0, 1)
         (0.0, 3.0, 0.0),
     ]);
-    lp.tangent_joints = vec![3, 4];
+    lp = lp.with_tangent_joints(vec![3, 4]);
     match profile(vec![lp]).validate(tol()).expect_err("broken exit") {
         ProfileError::TangencyContradicted { joint, .. } => assert_eq!(joint, 4),
         other => panic!("expected TangencyContradicted, got {other:?}"),
@@ -405,8 +405,8 @@ fn largest_fitting_radius_succeeds_with_exact_tangency() {
             .expect("the straight seam closes"),
     );
     // 4 vertices: (0,0), (3,0) [arc springs here], T2, (0,2).
-    assert_eq!(lp.vertices.len(), 4);
-    assert_eq!(lp.tangent_joints, vec![2]);
+    assert_eq!(lp.vertices().len(), 4);
+    assert_eq!(lp.tangent_joints(), vec![2]);
     let vp = profile(vec![lp])
         .validate(tol())
         .expect("exact-fit fillet validates with verified tangency");

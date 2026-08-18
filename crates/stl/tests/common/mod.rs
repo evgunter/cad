@@ -72,14 +72,8 @@ pub fn acceptance_bodies() -> Vec<(&'static str, Body<f64>, f64)> {
 pub fn tiltedcut() -> (Body<f64>, Body<f64>) {
     use topo::splitting::{SplitPart, SplitPlane, split};
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(-1.0, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(-1.0, 0.0), 1.0),
+        ProfileVertex::new(p2(1.0, 0.0), 1.0),
     ]);
     let cylinder = extrude(&validated(vec![lp]), Extrusion::Distance(2.5))
         .unwrap()
@@ -111,18 +105,9 @@ pub fn boss_plate() -> Body<f64> {
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let boss_loop = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(0.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(120.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(240.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(0.0), b120),
+        ProfileVertex::new(at(120.0), b120),
+        ProfileVertex::new(at(240.0), b120),
     ]);
     let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
     let boss_profile = Profile::new(sketch, vec![boss_loop])
@@ -220,14 +205,8 @@ pub fn l_prism() -> Body<f64> {
 pub fn holed_prism() -> Body<f64> {
     let outer = ProfileLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, 2.0), p2(-2.0, 2.0)]);
     let hole = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(1.0, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(-1.0, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(1.0, 0.0), 1.0),
+        ProfileVertex::new(p2(-1.0, 0.0), 1.0),
     ]);
     extrude(&validated(vec![outer, hole]), Extrusion::Distance(1.0))
         .unwrap()
@@ -236,14 +215,8 @@ pub fn holed_prism() -> Body<f64> {
 
 pub fn ball() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -1.0), 1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
         .unwrap()
@@ -266,14 +239,8 @@ pub fn washer() -> Body<f64> {
 
 pub fn donut() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(2.0, -0.5),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(2.0, 0.5),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(2.0, -0.5), 1.0),
+        ProfileVertex::new(p2(2.0, 0.5), 1.0),
     ]);
     revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
         .unwrap()

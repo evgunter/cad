@@ -134,14 +134,8 @@ fn conic_trimmed_flip_slips_both_gates() {
     use sweep::{Extrusion, extrude};
     use topo::splitting::{SplitPart, SplitPlane, split};
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(-1.0, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(1.0, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(Point2::new(-1.0, 0.0), 1.0),
+        ProfileVertex::new(Point2::new(1.0, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())

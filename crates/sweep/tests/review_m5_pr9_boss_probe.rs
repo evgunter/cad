@@ -22,10 +22,7 @@ fn rect(w: f64, h: f64) -> ProfileLoop<f64> {
     ProfileLoop::new(
         [(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: p2(x, y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .collect(),
     )
 }
@@ -47,11 +44,7 @@ fn boss(n: usize, z0: f64, len: f64) -> Body<f64> {
         let th = theta * i as f64;
         p2(1.2 + 0.35 * th.cos(), 1.7 + 0.35 * th.sin())
     };
-    let lp = ProfileLoop::new(
-        (0..n)
-            .map(|i| ProfileVertex { pos: at(i), bulge })
-            .collect(),
-    );
+    let lp = ProfileLoop::new((0..n).map(|i| ProfileVertex::new(at(i), bulge)).collect());
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tolerance::get())
@@ -221,14 +214,8 @@ fn du_of_rims_sums_equal_span_arcs_the_shape_the_old_rule_silently_halved() {
     // merge the face has two arcs per rim level; volume must be the
     // closed-form half-cylinder.
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(-0.5, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.5, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(-0.5, 0.0), 1.0),
+        ProfileVertex::new(p2(0.5, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -262,14 +249,8 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
     // them). The gate lets it in; the pipeline must then either work
     // correctly or refuse typed — never a silently wrong body.
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(-0.5, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.5, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(-0.5, 0.0), 1.0),
+        ProfileVertex::new(p2(0.5, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -286,10 +267,7 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
     let lp2 = ProfileLoop::new(
         [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: p2(x, y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .collect(),
     );
     let plane2 = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
@@ -329,11 +307,7 @@ fn a_boss_overhanging_the_plate_edge_hits_the_curved_pierce_frontier() {
         let th = theta * i as f64;
         p2(0.0 + 0.35 * th.cos(), 1.5 + 0.35 * th.sin())
     };
-    let lp = ProfileLoop::new(
-        (0..3)
-            .map(|i| ProfileVertex { pos: at(i), bulge })
-            .collect(),
-    );
+    let lp = ProfileLoop::new((0..3).map(|i| ProfileVertex::new(at(i), bulge)).collect());
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tolerance::get())

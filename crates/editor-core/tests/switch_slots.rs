@@ -97,7 +97,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
     let ValuePayload::Profile(pv) = &v.payload else {
         panic!("profile payload");
     };
-    let x = pv.validated.loops()[0].vertices()[0].pos.x;
+    let x = pv.validated.loops()[0].vertices()[0].pos().x;
     assert_eq!(
         x.to_bits(),
         (-0.75_f64).to_bits(),

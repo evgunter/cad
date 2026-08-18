@@ -23,14 +23,8 @@ use topo::splitting::{SplitPlane, split};
 
 fn disc_cylinder() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(-0.5, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.5, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(Point2::new(-0.5, 0.0), 1.0),
+        ProfileVertex::new(Point2::new(0.5, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -115,14 +109,8 @@ fn distinct_key_curved_neighbors_stay_unmerged() {
     // value-different cylinder walls (a lens) never merge — no rung
     // licenses, the op is a no-op.
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(-0.5, 0.0),
-            bulge: 0.3,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.5, 0.0),
-            bulge: 0.3,
-        },
+        ProfileVertex::new(Point2::new(-0.5, 0.0), 0.3),
+        ProfileVertex::new(Point2::new(0.5, 0.0), 0.3),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
