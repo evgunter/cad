@@ -69,22 +69,10 @@ fn notched() -> sweep::Extruded<f64> {
     // Leaving bulges: the bottom arc bows out (+b), the top one bows
     // into the region (-b); the two sides are straight.
     let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: b,
-        },
-        ProfileVertex {
-            pos: p2(2.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(2.0, 1.5),
-            bulge: -b,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.5),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), b),
+        ProfileVertex::new(p2(2.0, 0.0), 0.0),
+        ProfileVertex::new(p2(2.0, 1.5), -b),
+        ProfileVertex::new(p2(0.0, 1.5), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -133,22 +121,10 @@ fn downward_extrusion_keeps_the_same_senses() {
     // Leaving bulges: the bottom arc bows out (+b), the top one bows
     // into the region (-b); the two sides are straight.
     let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: b,
-        },
-        ProfileVertex {
-            pos: p2(2.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(2.0, 1.5),
-            bulge: -b,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.5),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), b),
+        ProfileVertex::new(p2(2.0, 0.0), 0.0),
+        ProfileVertex::new(p2(2.0, 1.5), -b),
+        ProfileVertex::new(p2(0.0, 1.5), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -191,14 +167,8 @@ fn downward_extrusion_keeps_the_same_senses() {
 fn hole_walls_mint_sense_false_and_the_door_reads_the_hole_as_void() {
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(4.0, 0.0), p2(4.0, 4.0), p2(0.0, 4.0)]);
     let hole = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(1.0, 2.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(3.0, 2.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(1.0, 2.0), 1.0),
+        ProfileVertex::new(p2(3.0, 2.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(Tolerance::get())
@@ -360,26 +330,11 @@ fn dimple_sphere_wall_mints_sense_false() {
     // Leaving bulges: three straight legs, then the dimple arc (-b)
     // from (0.5, 2) to the axis; the closing leg is straight.
     let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 2.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.5, 2.0),
-            bulge: -b,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.5),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+        ProfileVertex::new(p2(1.0, 0.0), 0.0),
+        ProfileVertex::new(p2(1.0, 2.0), 0.0),
+        ProfileVertex::new(p2(0.5, 2.0), -b),
+        ProfileVertex::new(p2(0.0, 1.5), 0.0),
     ]);
     let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
     assert_all_tiers(&t.body);
@@ -418,22 +373,10 @@ fn notched_ring_torus_band_mints_sense_false() {
     let b = FRAC_PI_8.tan();
     // The notched profile shifted to x ∈ [1, 3]: same leaving bulges.
     let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex {
-            pos: p2(1.0, 0.0),
-            bulge: b,
-        },
-        ProfileVertex {
-            pos: p2(3.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(3.0, 1.5),
-            bulge: -b,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 1.5),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(1.0, 0.0), b),
+        ProfileVertex::new(p2(3.0, 0.0), 0.0),
+        ProfileVertex::new(p2(3.0, 1.5), -b),
+        ProfileVertex::new(p2(1.0, 1.5), 0.0),
     ]);
     let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
     assert_all_tiers(&t.body);

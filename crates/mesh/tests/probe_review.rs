@@ -34,10 +34,7 @@ fn loft_at(zs: &[f64]) -> Body<f64> {
 /// the class M8-2's rational span meter made BUILDABLE and whose
 /// Hessian/sagitta bounds M8-5 certifies (`nurbs_cert`/`chords`).
 fn rational_pie() -> Body<f64> {
-    let v = |x: f64, y: f64, bulge: f64| sweep::ProfileVertex {
-        pos: Point2::new(x, y),
-        bulge,
-    };
+    let v = |x: f64, y: f64, bulge: f64| sweep::ProfileVertex::new(Point2::new(x, y), bulge);
     let lp = sweep::ProfileLoop::new(vec![v(1.0, 0.0, 0.4), v(0.0, 1.0, 0.0), v(0.0, 0.0, 0.0)]);
     let sections = vec![vec![lp.clone()], vec![lp]];
     let places: Vec<Affine3<f64>> = [0.0, 1.0]

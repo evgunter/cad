@@ -95,14 +95,8 @@ fn donut_two_arc_profile_shares_one_torus() {
     // torus's u = 0 minor circle and carry `Seam { torus }`. Also the
     // minimal (m = 2) exercise of the kfmrh + zip closure.
     let lp = ProfileLoop::new(vec![
-        profile::ProfileVertex {
-            pos: p2(1.0, 0.5),
-            bulge: 1.0,
-        },
-        profile::ProfileVertex {
-            pos: p2(2.0, 0.5),
-            bulge: 1.0,
-        },
+        profile::ProfileVertex::new(p2(1.0, 0.5), 1.0),
+        profile::ProfileVertex::new(p2(2.0, 0.5), 1.0),
     ]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full).unwrap();

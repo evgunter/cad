@@ -28,7 +28,7 @@ fn schema_version_is_current() {
     // M9-1's declaration class (v11), by LIB-PLACEDUNION's group
     // boolean (v12), and by ASM-R2a's `Node::Mate` arm (v13); this
     // file keeps pinning the v3 refusal fixture below.
-    assert_eq!(SCHEMA_VERSION, 13);
+    assert_eq!(SCHEMA_VERSION, 14);
 }
 
 #[test]

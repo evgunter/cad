@@ -50,14 +50,8 @@ fn interval_washer_builds_tier_valid() {
 #[test]
 fn interval_ball_builds_tier_valid() {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: Interval::from_f64(1.0),
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: Interval::from_f64(0.0),
-        },
+        ProfileVertex::new(p2(0.0, -1.0), Interval::from_f64(1.0)),
+        ProfileVertex::new(p2(0.0, 1.0), Interval::from_f64(0.0)),
     ]);
     let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
     assert_tiers(&t.body);

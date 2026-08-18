@@ -21,22 +21,10 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// The plate: a 4×4×1 block, z ∈ [0, 1].
 fn plate() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(4.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(4.0, 4.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 4.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+        ProfileVertex::new(p2(4.0, 0.0), 0.0),
+        ProfileVertex::new(p2(4.0, 4.0), 0.0),
+        ProfileVertex::new(p2(0.0, 4.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -59,18 +47,9 @@ fn boss() -> Body<f64> {
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(0.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(120.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(240.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(0.0), b120),
+        ProfileVertex::new(at(120.0), b120),
+        ProfileVertex::new(at(240.0), b120),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
     let profile = Profile::new(plane, vec![lp])
@@ -166,18 +145,9 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(0.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(120.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(240.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(0.0), b120),
+        ProfileVertex::new(at(120.0), b120),
+        ProfileVertex::new(at(240.0), b120),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
     let profile = Profile::new(plane, vec![lp])
@@ -251,18 +221,9 @@ fn r1_pin(z0: f64, h: f64) -> Body<f64> {
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(60.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(180.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(300.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(60.0), b120),
+        ProfileVertex::new(at(180.0), b120),
+        ProfileVertex::new(at(300.0), b120),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
@@ -280,30 +241,12 @@ fn r1_cradle(bulge: f64) -> Body<f64> {
     // Bite endpoints at +/-30 degrees: x = 2 + 0.5 cos 30, y = 2 +/- 0.25.
     let xw = 2.0 + 0.5 * (30f64).to_radians().cos();
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(5.0, 1.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(5.0, 3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(xw, 3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(xw, 2.25),
-            bulge,
-        },
-        ProfileVertex {
-            pos: p2(xw, 1.75),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(xw, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(5.0, 1.0), 0.0),
+        ProfileVertex::new(p2(5.0, 3.0), 0.0),
+        ProfileVertex::new(p2(xw, 3.0), 0.0),
+        ProfileVertex::new(p2(xw, 2.25), bulge),
+        ProfileVertex::new(p2(xw, 1.75), 0.0),
+        ProfileVertex::new(p2(xw, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())
@@ -413,14 +356,8 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
 #[test]
 fn r1_delta_probe_ball_cap_embedded_in_plate() {
     let ball_lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -1.0), 1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     let axis = sweep::RevolveAxis {
         origin: p2(0.0, 0.0),
@@ -439,22 +376,10 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
     // plate's boundary, and the plate's line edges (|x| = 3 or
     // |y| = 3) are far from the ball.
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(-3.0, -3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(3.0, -3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(3.0, 3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(-3.0, 3.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(-3.0, -3.0), 0.0),
+        ProfileVertex::new(p2(3.0, -3.0), 0.0),
+        ProfileVertex::new(p2(3.0, 3.0), 0.0),
+        ProfileVertex::new(p2(-3.0, 3.0), 0.0),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
     let plate = extrude(
@@ -482,5 +407,78 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
                 | topo::ValidationError::UndeclaredContact { .. }
         )),
         "loud somehow: {errs:?}"
+    );
+}
+
+/// **R1 FINAL-DELTA probe (F5 lemma edge): a REFLEX (270-degree) arc
+/// cap.** The plane reach box's lemma says an arc bulges at most its
+/// radius from its chord — false for major arcs (sagitta up to 2r),
+/// so the cap's box misses the far half of the disc. A ball tangent
+/// to the cap INSIDE that uncovered zone probes whether the system
+/// still refuses (the arc's neighbouring wall face's own sound box
+/// must catch the ball) or validates silently through the lemma gap.
+#[test]
+fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
+    // Pac-man prism: 270-degree arc r 1 about the origin, endpoints
+    // at angles -135/+135 degrees (chord on the left), extruded 1.
+    let b270 = (67.5f64).to_radians().tan();
+    let at = |deg: f64| {
+        let th = deg.to_radians();
+        p2(th.cos(), th.sin())
+    };
+    let lp = ProfileLoop::new(vec![
+        // chord from 135 to 225 (straight)
+        ProfileVertex::new(at(135.0), 0.0),
+        // the 270-degree arc from 225 around to 135
+        ProfileVertex::new(at(225.0), b270),
+    ]);
+    let pac = extrude(
+        &Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(Tolerance::get())
+            .unwrap(),
+        Extrusion::Distance(1.0),
+    )
+    .unwrap()
+    .body;
+    assert_eq!(topo::validate_geometric(&pac), Ok(()), "pac prism tier-3");
+    // The ball: radius 0.3, tangent to the top cap (z = 1) at
+    // (0.65, 0), i.e. resting on the cap deep inside the reflex zone
+    // (the cap's vertex hull is the chord x = cos 135 ~ -0.707, so
+    // the +x half of the disc is beyond hull + pad on no axis... the
+    // probe asks the gate, not the box).
+    let ball_lp = ProfileLoop::new(vec![
+        ProfileVertex::new(p2(0.0, -0.3), 1.0),
+        ProfileVertex::new(p2(0.0, 0.3), 0.0),
+    ]);
+    let axis = sweep::RevolveAxis {
+        origin: p2(0.0, 0.0),
+        dir: geom_core::Vec2::new(0.0, 1.0),
+    };
+    // Place the ball by translating the SKETCH plane: center lands at
+    // (0.65, 0, 1.3) — beyond even the cap's padded box on x (box hi
+    // ~ 0.293), tangent to the cap plane z = 1 at (0.65, 0, 1).
+    let ball_plane = SketchPlane::new(Affine3::translation(Vec3::new(0.65, 0.0, 1.3)));
+    let ball = sweep::revolve(
+        &Profile::new(ball_plane, vec![ball_lp])
+            .validate(Tolerance::get())
+            .unwrap(),
+        axis,
+        sweep::Revolution::Full,
+    )
+    .unwrap()
+    .body;
+    assert_eq!(topo::validate_geometric(&ball), Ok(()), "ball tier-3");
+    let mut body = pac.clone();
+    topo::graft_disjoint(&mut body, &ball).unwrap();
+    let verdict = topo::validate_pseudomanifold(&body, &topo::ContactRecords::default());
+    println!("reflex-arc cap + tangent ball verdict: {verdict:?}");
+    let errs = verdict.expect_err(
+        "R1 FINAL-DELTA FINDING if Ok: the reflex-arc lemma gap admits a silent \
+         tangent touch",
+    );
+    assert!(
+        errs.iter()
+            .any(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
+        "loud somehow else: {errs:?}"
     );
 }

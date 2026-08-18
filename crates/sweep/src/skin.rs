@@ -829,13 +829,16 @@ fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f
     let vs = lp.vertices();
     let a = vs[j];
     let b = vs[(j + 1) % vs.len()];
-    if a.bulge == 0.0 {
-        SketchSegment::Line { a: a.pos, b: b.pos }
+    if a.bulge() == 0.0 {
+        SketchSegment::Line {
+            a: a.pos(),
+            b: b.pos(),
+        }
     } else {
         SketchSegment::Arc {
-            a: a.pos,
-            b: b.pos,
-            bulge: a.bulge,
+            a: a.pos(),
+            b: b.pos(),
+            bulge: a.bulge(),
         }
     }
 }

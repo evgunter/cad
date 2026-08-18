@@ -55,14 +55,8 @@ fn notched() -> Body<f64> {
 fn hole_plate() -> Body<f64> {
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(4.0, 0.0), p2(4.0, 4.0), p2(0.0, 4.0)]);
     let hole = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(1.0, 2.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(3.0, 2.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(1.0, 2.0), 1.0),
+        ProfileVertex::new(p2(3.0, 2.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(geom_core::Tolerance::get())

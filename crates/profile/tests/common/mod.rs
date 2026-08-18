@@ -32,16 +32,19 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
         SketchPlane::xy(),
         p.loops
             .iter()
-            .map(|lp| ProfileLoop {
-                vertices: lp
-                    .vertices
-                    .iter()
-                    .map(|v| ProfileVertex {
-                        pos: Point2::new(T::from_f64(v.pos.x), T::from_f64(v.pos.y)),
-                        bulge: T::from_f64(v.bulge),
-                    })
-                    .collect(),
-                tangent_joints: lp.tangent_joints.clone(),
+            .map(|lp| {
+                ProfileLoop::new(
+                    lp.vertices()
+                        .iter()
+                        .map(|v| {
+                            ProfileVertex::new(
+                                Point2::new(T::from_f64(v.pos().x), T::from_f64(v.pos().y)),
+                                T::from_f64(v.bulge()),
+                            )
+                        })
+                        .collect(),
+                )
+                .with_tangent_joints(lp.tangent_joints().to_vec())
             })
             .collect(),
     )
@@ -51,10 +54,7 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
 pub fn chain(vs: &[(f64, f64, f64)]) -> ProfileLoop<f64> {
     ProfileLoop::new(
         vs.iter()
-            .map(|&(x, y, bulge)| ProfileVertex {
-                pos: Point2::new(x, y),
-                bulge,
-            })
+            .map(|&(x, y, bulge)| ProfileVertex::new(Point2::new(x, y), bulge))
             .collect(),
     )
 }
@@ -115,7 +115,8 @@ pub fn rounded_rect(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
     ]);
     // Every joint is an exact quarter-arc/side tangency — declared
     // (the #101 discipline).
-    lp.tangent_joints = (0..lp.vertices.len()).collect();
+    let n = lp.vertices().len();
+    lp = lp.with_tangent_joints((0..n).collect());
     lp
 }
 
@@ -231,17 +232,22 @@ pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
 /// where the two sides are the algebra and the hand builder.)
 pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f64>) {
     assert_eq!(
-        lowered.vertices.len(),
-        replayed.vertices.len(),
+        lowered.vertices().len(),
+        replayed.vertices().len(),
         "vertex count: lowered vs replayed"
     );
-    for (i, (a, b)) in lowered.vertices.iter().zip(&replayed.vertices).enumerate() {
-        assert_eq!(a.pos.x.to_bits(), b.pos.x.to_bits(), "vertex {i} x");
-        assert_eq!(a.pos.y.to_bits(), b.pos.y.to_bits(), "vertex {i} y");
-        assert_eq!(a.bulge.to_bits(), b.bulge.to_bits(), "vertex {i} bulge");
+    for (i, (a, b)) in lowered
+        .vertices()
+        .iter()
+        .zip(replayed.vertices())
+        .enumerate()
+    {
+        assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits(), "vertex {i} x");
+        assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits(), "vertex {i} y");
+        assert_eq!(a.bulge().to_bits(), b.bulge().to_bits(), "vertex {i} bulge");
     }
-    let mut la = lowered.tangent_joints.clone();
-    let mut lb = replayed.tangent_joints.clone();
+    let mut la = lowered.tangent_joints().to_vec();
+    let mut lb = replayed.tangent_joints().to_vec();
     la.sort_unstable();
     lb.sort_unstable();
     assert_eq!(la, lb, "declared tangent joints (multiset)");

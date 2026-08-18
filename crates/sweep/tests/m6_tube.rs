@@ -41,14 +41,8 @@ fn tube_donut() -> Body<f64> {
 /// construction: a bulge-encoded circle profile about the y-axis).
 fn revolve_donut() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(R - MINOR, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(R + MINOR, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(Point2::new(R - MINOR, 0.0), 1.0),
+        ProfileVertex::new(Point2::new(R + MINOR, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())

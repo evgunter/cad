@@ -23,14 +23,8 @@ const DELTAS: [f64; 3] = [0.1, 0.01, 0.001];
 
 fn disc() -> ValidatedProfile<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(-R, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(R, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(Point2::new(-R, 0.0), 1.0),
+        ProfileVertex::new(Point2::new(R, 0.0), 1.0),
     ]);
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tolerance::get())

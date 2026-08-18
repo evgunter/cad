@@ -45,22 +45,10 @@ fn sense_of(body: &Body<f64>, f: FaceKey) -> bool {
 fn adv_mixed_convex_concave_hole() {
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(6.0, 0.0), p2(6.0, 6.0), p2(0.0, 6.0)]);
     let hole = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex {
-            pos: p2(2.0, 2.0),
-            bulge: 0.5,
-        },
-        ProfileVertex {
-            pos: p2(4.0, 2.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(4.0, 4.0),
-            bulge: -0.5,
-        },
-        ProfileVertex {
-            pos: p2(2.0, 4.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(2.0, 2.0), 0.5),
+        ProfileVertex::new(p2(4.0, 2.0), 0.0),
+        ProfileVertex::new(p2(4.0, 4.0), -0.5),
+        ProfileVertex::new(p2(2.0, 4.0), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(Tolerance::get())
@@ -195,32 +183,14 @@ fn adv_eye_slot_outer_and_hole_senses() {
 fn adv_asymmetric_downward_invariance() {
     let mk = || {
         <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-            ProfileVertex {
-                pos: p2(0.0, 0.0),
-                bulge: 0.0,
-            },
+            ProfileVertex::new(p2(0.0, 0.0), 0.0),
             // concave bite on the right edge
-            ProfileVertex {
-                pos: p2(3.0, 0.0),
-                bulge: -0.4,
-            },
-            ProfileVertex {
-                pos: p2(3.0, 1.0),
-                bulge: 0.0,
-            },
+            ProfileVertex::new(p2(3.0, 0.0), -0.4),
+            ProfileVertex::new(p2(3.0, 1.0), 0.0),
             // convex bulge on top, off-center
-            ProfileVertex {
-                pos: p2(3.0, 2.0),
-                bulge: 0.7,
-            },
-            ProfileVertex {
-                pos: p2(1.0, 2.0),
-                bulge: 0.0,
-            },
-            ProfileVertex {
-                pos: p2(0.0, 2.0),
-                bulge: 0.0,
-            },
+            ProfileVertex::new(p2(3.0, 2.0), 0.7),
+            ProfileVertex::new(p2(1.0, 2.0), 0.0),
+            ProfileVertex::new(p2(0.0, 2.0), 0.0),
         ])
     };
     let up = extrude(
@@ -308,30 +278,12 @@ fn adv_bore_groove_torus_band() {
     // Only (1, 0.75) leaves on an arc: the semicircular groove cut
     // into the bore.
     let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex {
-            pos: p2(1.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(2.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(2.0, 1.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 1.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.75),
-            bulge: -1.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.25),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(1.0, 0.0), 0.0),
+        ProfileVertex::new(p2(2.0, 0.0), 0.0),
+        ProfileVertex::new(p2(2.0, 1.0), 0.0),
+        ProfileVertex::new(p2(1.0, 1.0), 0.0),
+        ProfileVertex::new(p2(1.0, 0.75), -1.0),
+        ProfileVertex::new(p2(1.0, 0.25), 0.0),
     ]);
     let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
     assert_all_tiers(&t.body);

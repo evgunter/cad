@@ -147,8 +147,8 @@ pub use editor_core::{
 // ordinary recorded edits producing them; persistence of the results
 // is the workspace write side (`workspace::Workspace::create` /
 // `resave`). `InterfaceRecord`/`InterfaceCrossing` are the split
-// seam's crossing-declaration record — uninhabited-empty in v1, the
-// hook R2's mates extend.
+// seam's crossing-declaration record — INHABITED as of ASM-R2b
+// (`InterfaceCrossing::Mate`), which is what schema v14 bumped for.
 pub use editor_core::{
     InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
     SplitOutcome, inline, split,
