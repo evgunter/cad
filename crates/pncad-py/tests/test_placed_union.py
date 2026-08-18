@@ -16,12 +16,17 @@ from pncad import (
     DocEdit,
     DocParam,
     EditError,
+    EntityKind,
     EvaluationError,
     Frame,
     FrameError,
+    NamePat,
     Node,
     ParamName,
     PatternKind,
+    SegPat,
+    SegTag,
+    Selector,
     deg,
     evaluate,
     m,
@@ -119,7 +124,6 @@ class TestTheFinGroup(unittest.TestCase):
 
         chain_ev, group_ev = evaluate(chain_doc), evaluate(group_doc)
 
-
         def census(ev, node):
             return (
                 len(ev.all_faces(node)),
@@ -139,12 +143,28 @@ class TestTheFinGroup(unittest.TestCase):
                 fin_only(doc), 5, PatternKind.linear((1.0, 0.0, 0.0), PITCH * m)
             )
         )
-        names = evaluate(doc).all_faces(group)
-        # Six faces per fin, five fins, and no name deeper than its
-        # neighbours: a name set with a growing qualifier stack would
-        # not be uniform in length across instances.
+        ev = evaluate(doc)
+        names = ev.all_faces(group)
+        # Six faces per fin, five fins, all distinct.
         self.assertEqual(len(names), 30)
         self.assertEqual(len(set(names)), 30)
+
+        # DEPTH, asserted through the selector's role-path shape (which
+        # is an EXACT length, segment for segment) rather than by
+        # reading inside the opaque name text: every one of those faces
+        # sits under exactly ONE instance segment...
+        one_deep = Selector.of(
+            NamePat.of_kind(EntityKind.Face).path([SegPat.tag(SegTag.Instance)])
+        )
+        self.assertEqual(sorted(ev.select(group, one_deep)), sorted(names))
+        # ...and none sits under two, which is the shape a pairwise
+        # union chain would have grown one segment at a time.
+        two_deep = Selector.of(
+            NamePat.of_kind(EntityKind.Face).path(
+                [SegPat.tag(SegTag.Instance), SegPat.any()]
+            )
+        )
+        self.assertEqual(ev.select(group, two_deep), [])
 
 
 class TestThePlacementRuleRefuses(unittest.TestCase):
@@ -370,8 +390,9 @@ class TestTheCountParamBinding(unittest.TestCase):
                 fin_only(doc), [Frame.translation((0 * m, 0 * m, 0 * m))]
             )
         )
-        with self.assertRaises(EditError):
+        with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.bind_count_param(group, ParamName("fins")))
+        self.assertEqual(caught.exception.variant, "unknown_slot")
 
 
 if __name__ == "__main__":
