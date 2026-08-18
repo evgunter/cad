@@ -30,8 +30,8 @@
 //! the SHIPPED surface's chart normal, fold in the stored `sense`, and
 //! require the twin's door to read material on the inward side and void
 //! on the outward one. A flipped bit swaps both answers, so the
-//! assertion is two-sided by construction — [`the_probe_inverts_when_a
-//! _wall_sense_flips`] executes that.
+//! assertion is two-sided by construction, and
+//! `the_probe_inverts_when_a_wall_sense_flips` executes that.
 //!
 //! # Why this file has to exist
 //!
@@ -39,9 +39,8 @@
 //! check 6's curved arm skips `Surface::Nurbs` by name (a recorded
 //! residual in `topo::validate`), the flux lanes are winding-derived
 //! and bit-free, and `point_in_solid` and the booleans refuse a NURBS
-//! operand outright. [`a_flipped_loft_wall_sense_still_passes_tier_
-//! three`] pins that residual, so these rows are the only guard the
-//! bit has.
+//! operand outright. `a_flipped_loft_wall_sense_still_passes_tier_three`
+//! pins that residual, so these rows are the only guard the bit has.
 
 // Panicking is a test's failure mechanism (workspace lint policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -52,8 +51,8 @@ use geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec3};
 use geom_surfaces::Surface;
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Lofted, Section, extrude, loft_body};
-use topo::boolean::{SolidContainment, point_in_solid};
 use topo::Body;
+use topo::boolean::{SolidContainment, point_in_solid};
 
 fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
     ProfileVertex::new(Point2::new(x, y), bulge)
@@ -128,7 +127,12 @@ fn wall_outward(body: &Body<f64>, face: topo::FaceKey) -> (Point3<f64>, Vec3<f64
 /// The S11 probe, one wall: step `delta` off the wall along the stored
 /// outward normal and against it, and ask the extruded twin's door.
 /// Returns `(inward_side, outward_side)` — a flipped `sense` swaps them.
-fn probe(oracle: &Body<f64>, p: Point3<f64>, outward: Vec3<f64>, delta: f64) -> (SolidContainment, SolidContainment) {
+fn probe(
+    oracle: &Body<f64>,
+    p: Point3<f64>,
+    outward: Vec3<f64>,
+    delta: f64,
+) -> (SolidContainment, SolidContainment) {
     let band = Band::linear().unwrap();
     (
         point_in_solid(oracle, p - outward * delta, band).expect("inward probe decides"),
