@@ -324,3 +324,51 @@ experiment-settled), unit entry, sweep tess-span + r1 + r2 lanes.
 THEN: TESS-SPLIT (fable, ASM-4 slot 1) — reconcile spec with the
 sliver lesson BEFORE dispatch; R2 exit walk + assembly demo;
 ASM-XSPLIT specs on the AQ8 addendum ruling (b, ratified).
+
+## TESS-SPAN MERGED (#594, 2026-08-18) — and session wind-down
+
+The over-tessellation span half closed on the program's FIRST
+CROSS-MODEL dual (ordinal 54, sample #17): R1 fable AWF 0/4/5,
+R2 opus AWF 4/5/3 — labels far apart, substance converged (both
+re-derived the certificate sound, both reproduced every number,
+both demanded the same missing mutation test). The disjoint
+tails were each real and each landed: R2's realized-aspect
+malignity defect and the SAFE_ASPECT doc falsehood; R1's
+refutation of the unit's own "max-of-cells is unsound"
+justification — settled BY EXPERIMENT in the fix pass (dense sup
+never exceeded max-of-cells; docs now say "conservative choice
+of two sound bounds", with the shipped semantics pinned so both
+reviewers' mutation goes red). leaf_a 261,780 → 84,524
+triangles; tour NURBS share 68% → ~34%.
+
+### RESTING STATE (handoff issue filed; this seam is the resume point)
+
+MERGED THIS SESSION: ASM-4 (#525, R1 complete), ASM-UPD (#549),
+MESH-PROBEGATE (#579, #558 closed), ASM-R2a (#575), ASM-R2b
+(#591, R2 CLOSED), TESS-SPAN (#594). RATIFIED: A12 (#522, AQ7),
+A13 (#544, AQ2), AQ8 + its dangling-head addendum (#592, both
+Evan-signed), the TESS aspect policy (#568, A=16 FFF cap).
+**The program's ratified v1 scope (R1+R2) is CODE-COMPLETE.**
+
+QUEUED, IN PRIORITY ORDER:
+1. **TESS-SPLIT** — spec written (docs/TESS-SPLIT-SPEC.md),
+   arm drawn (FABLE, block ASM-4 slot 1), gate now OPEN
+   (TESS-SPAN merged). **Reconcile the spec with TESS-SPAN's
+   sliver lesson BEFORE dispatch**: the ratified A=16 FFF cap
+   and the measured "realized aspect ≤ ~4 or preserve
+   chord/column alignment" constraint are DIFFERENT quantities
+   (3-D vs lattice) and the spec must bind both — see
+   memories/tessellation-budget.md and TESS-SPAN's report.
+2. **R2 exit walk + assembly demo** — ASM-PLAN's exit shape,
+   demo per the demo-purpose rule (real usage, awkwardness
+   recorded not hidden).
+3. **ASM-XSPLIT** — the AQ8 conversion door (crossing mates
+   passed explicitly at split; construction-time refusals bind
+   so only fit defers). Banked, spec not yet written.
+OPEN FINDINGS: the F1 census Door-2 structural-identity gap
+(steered to M9 on #591's thread — ASM's F1 row pins the honest
+boundary meanwhile); #601 (feature-gated test lanes rot — LIB
+owns the guard, ASM's two mesh features already covered).
+PROTOCOL: claims through 56 (LIB-PYPU); next third = 57 (dual,
+cross-model per #572 until 12 pairs — 5 done). Schema at v14
+(ASM-R2b); the by-eye read is the only guard.
