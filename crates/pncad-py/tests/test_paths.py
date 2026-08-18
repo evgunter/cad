@@ -173,6 +173,23 @@ class TestTheLatticeWalks(unittest.TestCase):
         )
         self.assertEqual(loop.vertex_count, 6)
 
+    def test_sharp_after_an_arc_arrival_takes_an_ordinary_director(self):
+        # The interior arc arrival lands on an ordinary directed point
+        # (the run to the hard anchor is emitted at the verb), so a
+        # SHARP continuation is an ordinary director + leg — the
+        # spelling the retired on-carrier state made unrepresentable.
+        loop = (
+            Open.at((5.05 * m, -1.6 * m))
+            .toward(2.1, 0.8)
+            .fillet_arc(0.5 * m, Center((7 * m, 0 * m), ArcSweep.Ccw, (8.5 * m, 0 * m)))
+            .angle(2.6 * rad)
+            .line(1 * m)
+            .line_to(Start)
+        )
+        # Entry, trim, fillet arc, hard anchor, leg end: five vertices,
+        # the authored anchor among them as a genuine sharp corner.
+        self.assertEqual(loop.vertex_count, 5)
+
     def test_the_complete_loop_carrier_forms_are_one_step(self):
         self.assertEqual(circle(ORIGIN, 1 * m).step_count, 1)
         self.assertEqual(circle(ORIGIN, 1 * m).vertex_count, 2)

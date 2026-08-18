@@ -55,7 +55,7 @@ pub use ::profile::{k_stats, lift, path};
 
 // The lattice: authoring states, targets, the closed-carrier verbs.
 pub use ::profile::{
-    ArcCarrierScalar, ArcData, ArcLen, ArcSide, Bulge, Center, ClosedLoop, LineTarget, OnArc, Open,
+    ArcCarrierScalar, ArcData, ArcLen, ArcSide, Bulge, Center, ClosedLoop, LineTarget, Open,
     PartialPath, PathError, PointLeg, Radius, ReplayError, ReplayErrorKind, Start, Step, Sweep,
     TangentArcTarget, Target, TipState, Verb, Via, circle, circle_split, replay,
 };
@@ -63,7 +63,7 @@ pub use ::profile::{
 // matrix (one impl per admissible (state, mode) pair) and the states a
 // spec that leaves binders free completes through.
 pub use ::profile::path::{
-    ArrivalSpec, OnArcIncoming, PointIncoming, RadiusArrival, RadiusArrivalAt, RadiusArrivalDir,
+    ArrivalSpec, LegEndIncoming, PointIncoming, RadiusArrival, RadiusArrivalAt, RadiusArrivalDir,
     TangentIncoming, ViaArrival, ViaArrivalStart,
 };
 

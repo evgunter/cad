@@ -1,0 +1,154 @@
+//! **The mismatched-r probe** (LIB-ONARC §1.1).
+//!
+//! Executed at the PRE-dissolution head (the commit that introduced
+//! this file), the same authored chain pinned the retired
+//! `Radius@OnArc` hole: the mismatched radius was accepted unguarded,
+//! the emitted run's recovered carrier matched NEITHER the derived nor
+//! the true circle (bulge computed from angles alone about the derived
+//! centre, chord anchored off it), and nothing refused until the late
+//! validate pass (`TangencyContradicted`).
+//!
+//! RE-POINTED at the dissolution (§2c amendment): the arrival verb now
+//! emits its own run to the anchor along the TRUE carrier, and a
+//! mismatched `r` is a LEGAL new tangent carrier constructed at the
+//! tip — sound by construction for every authored `r`. The same chain
+//! now emits mutually consistent segments and validates.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use geom_core::{Point2, Tolerance};
+use profile::{ArcSide, ArcSweep, Center, Open, Profile, Radius, SketchPlane, Start};
+
+fn p2(x: f64, y: f64) -> Point2<f64> {
+    Point2::new(x, y)
+}
+
+/// Recover the circle (center, radius) an emitted chord + bulge pair
+/// actually describes — the independent decoding of the stored form.
+fn circle_from_bulge(t1: Point2<f64>, t2: Point2<f64>, b: f64) -> (Point2<f64>, f64) {
+    let (cx, cy) = (t2.x - t1.x, t2.y - t1.y);
+    let l = cx.hypot(cy);
+    let d = l / 2.0;
+    let radius = d * (1.0 + b * b) / (2.0 * b.abs());
+    let k = d * (1.0 - b * b) / (2.0 * b);
+    let (mx, my) = ((t1.x + t2.x) / 2.0, (t1.y + t2.y) / 2.0);
+    let (ux, uy) = (cx / l, cy / l);
+    (Point2::new(mx - uy * k, my + ux * k), radius)
+}
+
+/// The boss chain of the family.rs module doc, with ONE change: the
+/// continuation's `Radius` names r = 1.2 where the arrival carrier has
+/// r = 1.5 (centre (7, 0)), so the derived centre is (7.3, 0).
+#[test]
+fn mismatched_radius_continuation() {
+    let closed = Open
+        .at(p2(5.05, -1.6))
+        .toward(2.1_f64, 0.8)
+        .unwrap()
+        .fillet_arc(
+            0.5,
+            Center {
+                c: p2(7.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(8.5, 0.0),
+            },
+        )
+        .unwrap()
+        // A different r than the arrival carrier's: a legal NEW tangent
+        // carrier, constructed at the anchor.
+        .arc_fillet(
+            Radius {
+                r: 1.2,
+                side: ArcSide::Left,
+            },
+            0.5,
+        )
+        .expect("a mismatched r names a sound construction")
+        .at(p2(4.05, 1.35))
+        .unwrap()
+        .toward(-4.1, 0.3)
+        .unwrap()
+        .line(1.0)
+        .unwrap()
+        .line_to(Start)
+        .expect("the chain closes");
+    let lp = &closed.loop_;
+    // The arrival emitted ITS OWN run to the hard anchor (8.5, 0),
+    // riding the true carrier (7, 0) r 1.5 …
+    let anchor_idx = lp
+        .vertices()
+        .iter()
+        .position(|v| (v.pos() - p2(8.5, 0.0)).norm_squared().sqrt() < 1e-12)
+        .expect("the authored anchor is a vertex of the final chain");
+    let before = lp.vertices()[anchor_idx - 1];
+    let (run_c, run_r) = circle_from_bulge(before.pos(), p2(8.5, 0.0), before.bulge());
+    assert!(
+        (run_c - p2(7.0, 0.0)).norm_squared().sqrt() < 1e-9 && (run_r - 1.5).abs() < 1e-9,
+        "the arrival's run rides the true carrier; got ({}, {}) r {run_r}",
+        run_c.x,
+        run_c.y
+    );
+    // … and the mismatched-r continuation departs the anchor on the
+    // DERIVED carrier (7.3, 0) r 1.2, tangent there by construction —
+    // a declared joint at the anchor.
+    let anchor_v = lp.vertices()[anchor_idx];
+    let next = lp.vertices()[anchor_idx + 1];
+    let (dep_c, dep_r) = circle_from_bulge(p2(8.5, 0.0), next.pos(), anchor_v.bulge());
+    assert!(
+        (dep_c - p2(7.3, 0.0)).norm_squared().sqrt() < 1e-9 && (dep_r - 1.2).abs() < 1e-9,
+        "the continuation rides the derived carrier; got ({}, {}) r {dep_r}",
+        dep_c.x,
+        dep_c.y
+    );
+    assert!(
+        lp.tangent_joints().contains(&anchor_idx),
+        "the constructed tangency at the anchor is declared"
+    );
+    // The defect class is gone structurally: the loop validates.
+    Profile::new(SketchPlane::xy(), vec![lp.clone()])
+        .validate(Tolerance::get())
+        .expect("every authored r is sound under the dissolution");
+}
+
+/// **Sharp-after-arc-arrival, restored** (§2c dissolution): the
+/// interior arc arrival lands on an ordinary directed point, so an
+/// ordinary DIRECTOR — a genuine corner, junction-checked — and a
+/// straight leg continue it, the spelling the OnArc state made
+/// unrepresentable.
+#[test]
+fn sharp_after_arc_arrival() {
+    let closed = Open
+        .at(p2(5.05, -1.6))
+        .toward(2.1_f64, 0.8)
+        .unwrap()
+        .fillet_arc(
+            0.5,
+            Center {
+                c: p2(7.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(8.5, 0.0),
+            },
+        )
+        .unwrap()
+        // The arrival tip's tangent is +y; 2.6 rad is a genuine corner.
+        .angle(2.6)
+        .unwrap()
+        .line(1.0)
+        .unwrap()
+        .line_to(Start)
+        .expect("the sharp continuation closes");
+    let lp = &closed.loop_;
+    // The authored anchor is a VERTEX (the hard-anchor rule) and its
+    // joint is SHARP: not in the declared-tangency set.
+    let anchor_idx = lp
+        .vertices()
+        .iter()
+        .position(|v| (v.pos() - p2(8.5, 0.0)).norm_squared().sqrt() < 1e-12)
+        .expect("the authored anchor is a vertex");
+    assert!(
+        !lp.tangent_joints().contains(&anchor_idx),
+        "the sharp junction at the anchor is not declared tangent"
+    );
+    Profile::new(SketchPlane::xy(), vec![lp.clone()])
+        .validate(Tolerance::get())
+        .expect("the restored junction validates");
+}

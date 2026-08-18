@@ -316,9 +316,6 @@ pub enum TipState {
     DirectedPlain,
     /// `Directed` = {both}, over a leg-end position.
     DirectedIncoming,
-    /// **§2c**: an interior arc arrival's tip (position + carrier
-    /// tangent bound; continuations are the fused verbs).
-    OnArc,
     /// **§2c**: a `Radius` arrival awaiting both binders.
     RadiusArrival,
     /// **§2c**: a `Radius` arrival with its anchor bound.
@@ -434,7 +431,6 @@ enum DynTip<T: Real> {
     DirectedPoint(PartialPath<T, HasPos<WithIncoming>, NoAng>),
     DirectedPlain(PartialPath<T, HasPos<Plain>, HasAng>),
     DirectedIncoming(PartialPath<T, HasPos<WithIncoming>, HasAng>),
-    OnArc(super::OnArc<T>),
     RadiusArrival(super::family::RadiusArrival<T>),
     RadiusArrivalAt(super::family::RadiusArrivalAt<T>),
     RadiusArrivalDir(super::family::RadiusArrivalDir<T>),
@@ -452,7 +448,6 @@ impl<T: Real> DynTip<T> {
             DynTip::DirectedPoint(_) => TipState::DirectedPoint,
             DynTip::DirectedPlain(_) => TipState::DirectedPlain,
             DynTip::DirectedIncoming(_) => TipState::DirectedIncoming,
-            DynTip::OnArc(_) => TipState::OnArc,
             DynTip::RadiusArrival(_) => TipState::RadiusArrival,
             DynTip::RadiusArrivalAt(_) => TipState::RadiusArrivalAt,
             DynTip::RadiusArrivalDir(_) => TipState::RadiusArrivalDir,
@@ -599,7 +594,7 @@ fn do_arrival<T: ArcCarrierScalar>(
             c,
             winding,
             target: Target::Point(p),
-        } => Ok(Applied::Tip(DynTip::OnArc(ArrivalSpec::apply(
+        } => Ok(Applied::Tip(DynTip::DirectedPoint(ArrivalSpec::apply(
             core,
             super::Center { c, winding, p },
         )?))),
@@ -642,9 +637,9 @@ fn do_arrival<T: ArcCarrierScalar>(
     }
 }
 
-/// The fused incoming from a POINT tip (the endpoint-full modes).
-fn do_fused_point<T: ArcCarrierScalar, F: Flavor>(
-    p: PartialPath<T, HasPos<F>, NoAng>,
+/// The fused incoming from a PLAIN point tip (the endpoint-full modes).
+fn do_fused_point<T: ArcCarrierScalar>(
+    p: PartialPath<T, HasPos<Plain>, NoAng>,
     spec: ArcData<T>,
     radius: T,
     state: TipState,
@@ -671,6 +666,37 @@ fn do_fused_point<T: ArcCarrierScalar, F: Flavor>(
     }
 }
 
+/// The fused incoming from a DIRECTED POINT (leg end): the endpoint-full
+/// modes plus `Radius` — arc extension (§2c dissolution).
+fn do_fused_leg_end<T: ArcCarrierScalar>(
+    p: PartialPath<T, HasPos<WithIncoming>, NoAng>,
+    spec: ArcData<T>,
+    radius: T,
+    state: TipState,
+    verb: Verb,
+) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
+    match spec {
+        ArcData::Bulge {
+            target: Target::Point(q),
+            b,
+        } => Ok(p.arc_fillet(super::Bulge { p: q, b }, radius)?),
+        ArcData::Via {
+            q,
+            target: Target::Point(t),
+        } => Ok(p.arc_fillet(super::Via { q, p: t }, radius)?),
+        ArcData::Center {
+            c,
+            winding,
+            target: Target::Point(t),
+        } => Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius)?),
+        ArcData::Radius { r, side } => Ok(p.arc_fillet(super::Radius { r, side }, radius)?),
+        _ => Err(ReplayErrorKind::Transition {
+            state,
+            verb: Some(verb),
+        }),
+    }
+}
+
 /// The fused incoming from a DIRECTED tip (the endpoint-free modes).
 fn do_fused_directed<T: ArcCarrierScalar, F: Flavor>(
     p: PartialPath<T, HasPos<F>, HasAng>,
@@ -686,26 +712,6 @@ fn do_fused_directed<T: ArcCarrierScalar, F: Flavor>(
         ArcData::ArcLen { r, side, len } => {
             Ok(p.arc_fillet(super::ArcLen { r, side, len }, radius)?)
         }
-        _ => Err(ReplayErrorKind::Transition {
-            state,
-            verb: Some(verb),
-        }),
-    }
-}
-
-/// The fused incoming from an [`super::OnArc`] tip.
-fn do_fused_on_arc<T: ArcCarrierScalar>(
-    p: super::OnArc<T>,
-    spec: ArcData<T>,
-    radius: T,
-    state: TipState,
-    verb: Verb,
-) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
-    match spec {
-        // `Radius` is the ONE admissible OnArc incoming (`Center` falls
-        // to the Center@Directed value-match exclusion — see
-        // `family::OnArcIncoming`).
-        ArcData::Radius { r, side } => Ok(p.arc_fillet(super::Radius { r, side }, radius)?),
         _ => Err(ReplayErrorKind::Transition {
             state,
             verb: Some(verb),
@@ -857,7 +863,7 @@ fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
             Verb::FilletArc,
         ),
         (DynTip::DirectedPoint(p0), Step::ArcFillet { spec, radius }) => {
-            Ok(Applied::Tip(DynTip::Open(do_fused_point(
+            Ok(Applied::Tip(DynTip::Open(do_fused_leg_end(
                 p0,
                 spec,
                 radius,
@@ -873,7 +879,7 @@ fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
                 spec2,
             },
         ) => do_arrival(
-            do_fused_point(
+            do_fused_leg_end(
                 p0,
                 spec,
                 radius,
@@ -967,24 +973,6 @@ fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
             Verb::ArcFilletArc,
         ),
 
-        // --- OnArc (§2c: an interior arc arrival's tip) ---------------
-        (DynTip::OnArc(p0), Step::ArcFillet { spec, radius }) => Ok(Applied::Tip(DynTip::Open(
-            do_fused_on_arc(p0, spec, radius, TipState::OnArc, Verb::ArcFillet)?,
-        ))),
-        (
-            DynTip::OnArc(p0),
-            Step::ArcFilletArc {
-                spec,
-                radius,
-                spec2,
-            },
-        ) => do_arrival(
-            do_fused_on_arc(p0, spec, radius, TipState::OnArc, Verb::ArcFilletArc)?,
-            spec2,
-            TipState::OnArc,
-            Verb::ArcFilletArc,
-        ),
-
         // --- The arc-arrival builders (§2c) ---------------------------
         (DynTip::RadiusArrival(p0), Step::At(p)) => {
             Ok(Applied::Tip(DynTip::RadiusArrivalAt(p0.at(p))))
@@ -996,17 +984,19 @@ fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
             Ok(Applied::Tip(DynTip::RadiusArrivalDir(p0.toward(dx, dy)?)))
         }
         (DynTip::RadiusArrivalAt(p0), Step::Angle(theta)) => {
-            Ok(Applied::Tip(DynTip::OnArc(p0.angle(theta)?)))
+            Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta)?)))
         }
         (DynTip::RadiusArrivalAt(p0), Step::Toward { dx, dy }) => {
-            Ok(Applied::Tip(DynTip::OnArc(p0.toward(dx, dy)?)))
+            Ok(Applied::Tip(DynTip::DirectedPoint(p0.toward(dx, dy)?)))
         }
-        (DynTip::RadiusArrivalDir(p0), Step::At(p)) => Ok(Applied::Tip(DynTip::OnArc(p0.at(p)?))),
+        (DynTip::RadiusArrivalDir(p0), Step::At(p)) => {
+            Ok(Applied::Tip(DynTip::DirectedPoint(p0.at(p)?)))
+        }
         (DynTip::ViaArrival(p0), Step::Angle(theta)) => {
-            Ok(Applied::Tip(DynTip::OnArc(p0.angle(theta)?)))
+            Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta)?)))
         }
         (DynTip::ViaArrival(p0), Step::Toward { dx, dy }) => {
-            Ok(Applied::Tip(DynTip::OnArc(p0.toward(dx, dy)?)))
+            Ok(Applied::Tip(DynTip::DirectedPoint(p0.toward(dx, dy)?)))
         }
         (DynTip::ViaArrivalStart(p0), Step::Angle(theta)) => {
             Ok(Applied::Closed(p0.angle(theta)?.loop_))
