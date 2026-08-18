@@ -317,6 +317,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
         editor_core::NodeResult::Ok(editor_core::NodeValue {
             payload: editor_core::ValuePayload::Declarations(vec![]),
             name_table: Arc::new(table),
+            contacts: Arc::new(topo::ContactRecords::default()),
             verdicts: Arc::new(vec![]),
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
@@ -1191,6 +1192,7 @@ fn one_node_eval(node: RecipeNodeId, t: NameTable) -> Evaluation<f64> {
         editor_core::NodeResult::Ok(editor_core::NodeValue {
             payload: editor_core::ValuePayload::Declarations(vec![]),
             name_table: Arc::new(t),
+            contacts: Arc::new(topo::ContactRecords::default()),
             verdicts: Arc::new(vec![]),
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),

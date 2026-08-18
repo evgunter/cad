@@ -36,7 +36,7 @@ fn schema_version_is_current() {
     // updates every pin it invalidates, so the number stays exact
     // here. Named for the PROPERTY rather than the number, since the
     // number is exactly what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 13);
+    assert_eq!(SCHEMA_VERSION, 14);
 }
 
 #[test]

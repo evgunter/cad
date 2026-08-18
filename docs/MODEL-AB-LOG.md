@@ -984,7 +984,23 @@ branch's paragraph was newer than #571's ledger edit, so the two
 prose blocks merged cleanly TOO, and the collision was visible only
 in the constant read. Recorded as the sharper lesson: prose is a
 tripwire, not a guarantee — the explicit read at every re-merge is
-the thing that actually holds. Review
+the thing that actually holds.
+
+**ASM-R2b SCHEMA CLAIM: v14** (2026-08-17, branch
+asm/r2b-minting-gate) — the interface record INHABITED
+(`InterfaceCrossing::Mate`), discharging the obligation ASM-4 wrote
+into that enum's doc comment: it was uninhabited, so every record
+was provably empty, absent from the wire, and fed no content key;
+now a split that a mate crosses writes a populated record, and that
+record is file data a v13 reader has no variant for. Claimed as
+main's next number after reading main's ACTUAL constant by eye at
+the final re-merge (`git show
+origin/main:crates/editor-core/src/persist/mod.rs | grep
+SCHEMA_VERSION` → 13, at the merge that brought M9-2 PR-2 #564 in).
+This paragraph is the tripwire: any other in-flight branch claiming
+14 collides HERE, because the constant will not.
+
+Review
 ordinal claims at review dispatch (note: the next third is 48 —
 the pending dual, tally 5-of-6).
 M9-2 PR-2 review ordinal fixed at dispatch (2026-08-16, PR #564

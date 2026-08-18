@@ -270,16 +270,43 @@ pub enum Datum {
 /// A4: "the seam is the crossing declarations" — each entry is a
 /// (wrapped name, declaration) pair against the pinned document).
 ///
-/// UNINHABITED in v1: no mate vocabulary exists yet, so no crossing
-/// declaration can be spelled — every [`InterfaceRecord`] is provably
-/// empty, which is why the record feeds no content key and never
-/// appears on the wire. R2 EXTENDS this enum with the mate-edge
-/// variants (rather than retrofitting a record type onto the node);
-/// making it inhabited is a format change that must feed the
-/// instantiate node's content key and ride a schema-version bump.
+/// **INHABITED as of ASM-R2b D-4** — the hook ASM-4 named is taken up
+/// by its one intended inhabitant, the crossing MATE EDGE. The
+/// obligation ASM-4 recorded here is discharged with it: the record
+/// now feeds the instantiate node's content key, and the format change
+/// rode a schema-version bump (see [`crate::SCHEMA_VERSION`]'s ledger).
+///
+/// An enum with a single variant, not a struct, for the reason ASM-4
+/// gave: a crossing is whatever KIND of edge crossed, and mates are
+/// the only kind of edge that can cross today. A second kind extends
+/// this enum rather than retrofitting a shape onto the first.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum InterfaceCrossing {}
+pub enum InterfaceCrossing {
+    /// A mate whose two ends landed on OPPOSITE SIDES of the split cut
+    /// (A4: "every mate edge crossing the cut becomes the interface
+    /// record in the remainder").
+    ///
+    /// `outer` is the reference that stayed in the remainder; `inner`
+    /// is the reference that moved into the part, spelled in the
+    /// PART's own names — unwrapped, because that is what the part's
+    /// product answers to and re-verification resolves against. The
+    /// wrapped form (`outer_head / InPart{ inner }`) is what the
+    /// remainder's mate now reads, and re-wrapping is the split's
+    /// rebind, so storing the wrapper twice would be storing a
+    /// derivable fact.
+    Mate {
+        /// The crossing mate, in the remainder.
+        mate: RecipeNodeId,
+        /// The class the crossing declares.
+        #[serde(with = "crate::mate::class_wire")]
+        class: crate::mate::ContactClass,
+        /// The remainder-side reference.
+        outer: StableName,
+        /// The part-side reference, in the part's own names.
+        inner: StableName,
+    },
+}
 
 /// The interface record of an instantiate seam (ASM-4 D-2): the
 /// declarations that crossed the cut when the referenced document was
@@ -294,8 +321,9 @@ pub enum InterfaceCrossing {}
 #[serde(deny_unknown_fields)]
 pub struct InterfaceRecord {
     /// The crossing declarations, in the deterministic order the split
-    /// collected them. Provably empty in v1 ([`InterfaceCrossing`] is
-    /// uninhabited).
+    /// collected them (the pre-split document's mate order). Empty for
+    /// a directly-authored instance, and for a split that no mate
+    /// crossed.
     pub crossings: Vec<InterfaceCrossing>,
 }
 
@@ -636,13 +664,13 @@ pub enum Node<P> {
         /// — an edit to the referenced document never retargets this
         /// reference; moving the pin is its own recorded edit.
         doc_ref: crate::ident::DocRef,
-        /// The split seam's interface record (ASM-4 D-2): the
-        /// declarations that crossed the cut this instance was minted
-        /// by. Empty for directly-authored instances — and provably
-        /// empty in v1, since [`InterfaceCrossing`] is uninhabited
-        /// until R2's mates give a crossing something to say. Absent
-        /// from the wire while empty, so it feeds no content key and
-        /// moves no pin.
+        /// The split seam's interface record (ASM-4 D-2; inhabited by
+        /// ASM-R2b D-4): the declarations that crossed the cut this
+        /// instance was minted by. Empty for directly-authored
+        /// instances, and absent from the wire while empty — so an
+        /// instance that no mate crosses still costs no bytes and
+        /// moves no pin. A NON-empty record is on-wire data and feeds
+        /// the node's content key.
         #[serde(default, skip_serializing_if = "InterfaceRecord::is_empty")]
         interface: InterfaceRecord,
     },
@@ -941,10 +969,19 @@ impl<P> Node<P> {
     /// crossing a cut (none can in v1: [`InterfaceCrossing`] is
     /// uninhabited).
     pub fn instantiate_part(doc_ref: crate::ident::DocRef) -> Self {
-        Node::InstantiatePart {
-            doc_ref,
-            interface: InterfaceRecord::default(),
-        }
+        Self::instantiate_part_with(doc_ref, InterfaceRecord::default())
+    }
+
+    /// Builds a [`Node::InstantiatePart`] carrying a SEAM record
+    /// (ASM-R2b D-4): the split's door, since only a split knows what
+    /// crossed its cut. Authoring an instance by hand goes through
+    /// [`Node::instantiate_part`] — an authored instance crosses
+    /// nothing.
+    pub fn instantiate_part_with(
+        doc_ref: crate::ident::DocRef,
+        interface: InterfaceRecord,
+    ) -> Self {
+        Node::InstantiatePart { doc_ref, interface }
     }
 
     /// Builds a [`Node::PlacedUnion`] with a PARAMETRIC rule (linear

@@ -303,9 +303,39 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// A gap in the sequence would cost nothing; a collision costs a
 /// human eye.
 ///
+/// Version 14 is the **interface record inhabited** (ASM-R2b D-4,
+/// discharging the obligation ASM-4 wrote down at
+/// [`crate::InterfaceCrossing`]): the enum that was UNINHABITED — so
+/// that every [`crate::InterfaceRecord`] was provably empty, absent
+/// from the wire, and fed no content key — gained its
+/// `Mate { mate, class, outer, inner }` variant. A split that a mate
+/// crosses now writes a non-empty record onto the remainder's
+/// instantiate node, and that record is file data.
+///
+/// The claim reasoning, stated because a schema number is the one
+/// thing in this repo that two units can silently agree on: this is a
+/// FORMAT change, not merely a new value of an existing field. Before
+/// v14 the instantiate node's `interface` key could not appear on the
+/// wire at all (no `InterfaceCrossing` value exists to put in it), so
+/// a v13 reader handed a v14 file with a populated record reaches
+/// serde and dies on an unknown shape — exactly the direction the
+/// version gate exists to fail cleanly. Forward-additive as ever (a
+/// v13 file has no crossings), and the migration table stays empty:
+/// a v13 file refuses TYPED with the regenerate recourse.
+///
+/// The record's `class` rides the SAME `class_wire` spelling v11 gave
+/// `Declare`'s pairs and v13 gave `Node::Mate` — one contact
+/// vocabulary, one wire spelling of it, third consumer, still not
+/// re-spelled.
+///
+/// Per `memories/schema-claim-discipline`, this number was taken by an
+/// explicit by-eye read of main's constant at the final re-merge, and
+/// the claim also lives as prose in `docs/MODEL-AB-LOG.md`, where a
+/// second claimant collides instead of merging clean.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these twelve.
-pub const SCHEMA_VERSION: u32 = 13;
+/// [`migration_step`] entry, or a ratified break like these thirteen.
+pub const SCHEMA_VERSION: u32 = 14;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]

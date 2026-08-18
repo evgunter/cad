@@ -117,6 +117,32 @@ So the only trustworthy runtime signal in the repo today is the
 full/incremental **ratio** within the single verified-quiet run. Every
 absolute-millisecond claim in this report is provisional and labelled.
 
+> **Update, 2026-08-17 — the producer moved; this section's findings
+> stand as written.** The single committed baseline described above no
+> longer exists in that form. It was split along the rot line: the
+> machine-independent half (`about` / `nodes` / `cone`) stays in
+> `crates/editor-core/tests/baseline/rebuild-latency.json` as an
+> asserted structural manifest, and the timings moved to
+> `docs/perf-data/rebuild-latency/` — one append-only entry per merge
+> to `main`, produced and committed by ci.yml's `rebuild latency
+> (reporting)` job on a hosted runner, each carrying its own
+> `environment` block (runner, nproc, memory, toolchain, RUSTFLAGS,
+> `CARGO_PROFILE_*`, debug-assertions, ε).
+>
+> What this does and does not fix. It does **not** resolve
+> `disputed_measurement` retroactively — those three workstation
+> refreshes remain mutually incomparable, and every absolute-
+> millisecond claim in this report stays provisional. It makes the
+> failure unable to recur: one reproducible box class produces the
+> numbers, every entry records the environment the argument went
+> unresolved for want of, and the history accumulates instead of being
+> overwritten, so drift is recoverable rather than laundered. The
+> `die_composed` caveat is superseded by the first hosted entry —
+> re-measured on the same box as its neighbours, it is a datum again.
+>
+> The measurements are still **REPORTING ONLY**, still dev-profile, and
+> still never gated. What changed is that they are now comparable.
+
 **What partially rescues the situation:** `docs/k-report-data/` holds
 per-document *predicate decision counts* — 1 792 926 recorded decisions
 across 15 corpus documents and 19 demo scenes in the 1e-9 row alone —

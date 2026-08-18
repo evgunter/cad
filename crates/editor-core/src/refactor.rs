@@ -97,7 +97,7 @@ use crate::doc::Doc;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
 use crate::names::{Qualifier, RoleSeg, StableName};
-use crate::node::{Node, PatternKind, RecipeNodeId};
+use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
 use crate::program::{ProfileDoc, ProfileProgram};
@@ -1114,6 +1114,63 @@ pub fn split(
         error: Box::new(error),
     })?;
 
+    // ---- The interface record (ASM-R2b D-4; A4's seam) ----
+    //
+    // INVARIANT: a mate CROSSES iff its two references land on
+    // opposite sides of the cut. A mate with both ends inside is
+    // part-internal (its names rebind wholesale and it declares
+    // nothing about the seam); a mate with both ends outside never
+    // touched the cut. Collected in the pre-split document's node
+    // order, which is what makes the record D9-deterministic.
+    //
+    // **Only a mate EDGE can cross** (AQ8, RULED — option (b), SKIP).
+    // A4 says "every mate EDGE crossing the cut", and an A12 reading
+    // edge exists only when BOTH heads are live instances. A mate with
+    // a DANGLING head — a reference to non-instance geometry, or to a
+    // node not in the document — is therefore not an edge and
+    // contributes NO crossing, however its names fall across the cut.
+    // The ruling's reason is the one that matters here: such a mate
+    // never solved, so a record minted from it would be
+    // trusted-at-rest state, which AQ8's ratification condition
+    // forbids. The mate itself stays in the document (N5) and its
+    // names rebind like any other; it simply says nothing about the
+    // seam.
+    let is_mate_edge_end =
+        |name: &StableName| matches!(doc.node(name.node), Some(Node::InstantiatePart { .. }));
+    let mut crossings: Vec<InterfaceCrossing> = Vec::new();
+    for &id in doc.order() {
+        if cut.contains(&id) {
+            continue;
+        }
+        let Some(Node::Mate { a, b, class, .. }) = doc.node(id) else {
+            continue;
+        };
+        // The edge gate, before the sides are even looked at.
+        if !(is_mate_edge_end(a) && is_mate_edge_end(b)) {
+            continue;
+        }
+        let inside = |name: &StableName| derivation_nodes(name).is_subset(cut);
+        let (outer, inner) = match (inside(a), inside(b)) {
+            (false, true) => (a, b),
+            (true, false) => (b, a),
+            _ => continue,
+        };
+        // The part-side reference is stored in the PART's own names:
+        // that is what the part's product answers to, and what
+        // re-verification resolves against. `classify` above already
+        // refused a name that straddles, so the remap is total here —
+        // and it refuses typed rather than assuming so.
+        let inner = remap_name(inner, &node_map).map_err(|_| SplitError::NameStraddlesCut {
+            name: Box::new(inner.clone()),
+        })?;
+        crossings.push(InterfaceCrossing::Mate {
+            mate: id,
+            class: *class,
+            outer: outer.clone(),
+            inner,
+        });
+    }
+
     // ---- The remainder, as recorded edits from the input ----
     let mut remainder = doc.clone();
     let mut remainder_edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
@@ -1132,7 +1189,10 @@ pub fn split(
         &mut remainder,
         &mut remainder_edits,
         DocEdit::InsertNode {
-            node: Node::instantiate_part(DocRef { id: part_id, pin }),
+            node: Node::instantiate_part_with(
+                DocRef { id: part_id, pin },
+                InterfaceRecord { crossings },
+            ),
         },
     )?;
     let Some(instance) = minted else {
@@ -1229,10 +1289,15 @@ pub fn split(
 /// own ([`crate::Frame::compose`]). Pure — `doc` is untouched; undo is
 /// keeping it.
 ///
-/// The instance's interface record needs no re-anchoring in v1: it is
-/// provably empty ([`crate::InterfaceCrossing`] is uninhabited). When
-/// R2 inhabits it, inline must splice the crossings back into local
-/// declarations.
+/// The instance's INTERFACE RECORD dissolves here (ASM-R2b D-4, the
+/// inverse of split's populate): each crossing's part-side reference
+/// is re-anchored to the local name the splice minted, which is
+/// exactly what the wrapped-name rebind below does to the mate that
+/// declared it — so once every crossing's inner name is confirmed to
+/// land locally, the record has no remaining content and goes with the
+/// deleted instance. Confirmed, not assumed: a crossing that does not
+/// re-anchor refuses [`InlineError::StrandedPartName`] rather than
+/// being dropped with the node.
 ///
 /// # Errors
 ///
@@ -1246,7 +1311,10 @@ pub fn inline(
     let Some(node) = doc.node(instance) else {
         return Err(InlineError::UnknownNode { id: instance });
     };
-    let Node::InstantiatePart { doc_ref, .. } = node else {
+    let Node::InstantiatePart {
+        doc_ref, interface, ..
+    } = node
+    else {
         return Err(InlineError::NotAnInstance { node: instance });
     };
     for &by in doc.order() {
@@ -1454,6 +1522,17 @@ pub fn inline(
                 to,
             },
         )?;
+    }
+    // The record dissolves (ASM-R2b D-4, and the function docs): every
+    // crossing's part-side reference must land on a spliced local
+    // name. The declaration itself survives in the mate node, which is
+    // in the host and whose wrapped reference the loop above just
+    // re-anchored — so the record's job ends here, CHECKED.
+    for crossing in &interface.crossings {
+        let InterfaceCrossing::Mate { inner, .. } = crossing;
+        remap_name(inner, &node_map).map_err(|_| InlineError::StrandedPartName {
+            name: Box::new(inner.clone()),
+        })?;
     }
     step(
         &mut current,

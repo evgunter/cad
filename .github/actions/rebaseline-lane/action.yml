@@ -1,0 +1,240 @@
+name: re-baseline a committed render lane
+description: >
+  Commit a lane's freshly-rendered cells back to its branch when they
+  drift from what is committed, and mark the run NEUTRAL so the change
+  demands a look without failing the build.
+
+# WHY THIS REPLACED A FAILING GATE (2026-08-17, Evan's ruling).
+#
+# The old gate did the right thing for the wrong cost. A drifting lane
+# failed the run and printed a `render-hosted.sh --run <id> --lane <x>`
+# command, so accepting an intended render change meant: read the
+# failure, run a download, commit the bytes, push, wait for a second
+# run. Every step of that except ONE is mechanical — the exception is
+# looking at the images and deciding they are right.
+#
+# So: the mechanical half moves here, and the judgement half stays with
+# a person. This action commits the cells and publishes a check run
+# whose conclusion is `neutral` — GitHub's "!" rather than its "x".
+#
+# WHY NEUTRAL AND NOT FAILURE. Nothing in this repo is branch-protected
+# and agents merge their own PRs, so a red X was never actually
+# blocking; it was a signal that happened to be red. Neutral is the
+# same signal without the false claim that something broke — a render
+# change is a normal event, not an error. What it costs: an agent
+# polling for "any failures?" will sail past a neutral check, while one
+# polling for "is everything success?" will stop on it. That asymmetry
+# is deliberate and is the whole reason this is not just a log line.
+#
+# WHY NOT PASS SILENTLY. A geometry regression changes the images too,
+# and the images are the only place some regressions are visible at
+# all. If a re-baseline were green, nothing would ever ask anyone to
+# look. The neutral check IS the ask.
+#
+# WHAT STILL FAILS LOUDLY, unchanged: a wedged pass, and the
+# `assert no matplotlib fallback` check. This action is only reached
+# when the render itself succeeded, so a wedge is still a wedge and is
+# never re-reported as drift.
+
+inputs:
+  lane:
+    description: "Lane name, for messages (kernel / freecad / uv / wild)"
+    required: true
+  dir:
+    description: "The committed lane directory, repo-relative"
+    required: true
+  push_to:
+    description: >
+      Branch to commit the re-baselined cells to. EMPTY means this run
+      has no branch to write (a dispatch aimed at a bare SHA), in which
+      case the action reports the drift and the install command exactly
+      as the old gate did, and commits nothing.
+    required: false
+    default: ""
+  report_sha:
+    description: >
+      The commit the neutral check is posted against WHEN NOTHING IS
+      COMMITTED (see `push_to`). Must be the PR's HEAD sha on a
+      pull_request — `github.sha` there is the merge commit, and a check
+      posted against that never appears on the PR.
+    required: false
+    default: ""
+  token:
+    description: "GITHUB_TOKEN. Needs contents:write and checks:write."
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        LANE: ${{ inputs.lane }}
+        DIR: ${{ inputs.dir }}
+        PUSH_TO: ${{ inputs.push_to }}
+        REPORT_SHA: ${{ inputs.report_sha }}
+        GH_TOKEN: ${{ inputs.token }}
+        RUN_ID: ${{ github.run_id }}
+      run: |
+        set -euo pipefail
+
+        drift="$(git status --porcelain -- "$DIR/")"
+        if [ -z "$drift" ]; then
+          echo "$DIR matches this render."
+          exit 0
+        fi
+
+        echo "$DIR drifted from the committed cells:"
+        echo "$drift"
+
+        # A MISSING CELL IS A RENDER FAILURE, NOT A RE-BASELINE.
+        # `git add -A` would happily stage a deletion, so a lane that
+        # dropped a frame — a scene that failed to draw, a scene silently
+        # falling out of the tour — would have its loss COMMITTED, and
+        # the committed lane would quietly shrink. render.sh publishes
+        # only a whole pass and local-scripts/render-hosted.sh "reports
+        # rather than deletes" for exactly this reason; this is that same
+        # rule on the write path. Modifications and additions are an
+        # ordinary re-baseline; deletions stop the job.
+        deleted="$(git status --porcelain -- "$DIR/" | awk '$1 ~ /D/ {print $2}')"
+        if [ -n "$deleted" ]; then
+          echo "::error title=${DIR} lost cells::This render did not produce cells that are committed, so it is a failed or partial pass, not a re-baseline. Nothing was committed. Missing: $(echo "$deleted" | tr '\n' ' ')"
+          exit 1
+        fi
+
+        # REPORT-ONLY MODE (`push_to` empty). Two situations reach it,
+        # and both want the same thing — say so, commit nothing:
+        #
+        #   * A PULL REQUEST. ci.yml deliberately withholds `push_to`
+        #     there. A bot commit onto the PR branch would become the
+        #     PR's head, and because it is pushed with GITHUB_TOKEN it
+        #     triggers no run of its own — so the PR would show this
+        #     one neutral check and NOTHING else, with every green check
+        #     stranded on the parent commit. The recursion guard and
+        #     that blank slate are the same fact, so the fix is to not
+        #     commit here: main's own push run re-baselines after merge.
+        #   * A DISPATCH AIMED AT A BARE SHA, which has no branch to
+        #     commit onto at all.
+        #
+        # The check goes on REPORT_SHA, not $GITHUB_SHA: on a
+        # pull_request the latter is the merge commit, and a check
+        # posted there never appears on the PR.
+        if [ -z "$PUSH_TO" ]; then
+          fix="local-scripts/render-hosted.sh --run ${RUN_ID} --lane ${LANE}"
+          report_summary="$(printf '%s\n' \
+            "\`$DIR\` does not match what this code renders." \
+            "" \
+            "**Nothing is broken, and there is nothing to commit by hand.** This run" \
+            "did not re-baseline: on a pull request the cells are left alone and" \
+            "\`main\`'s own run commits them right after the merge. If the render is" \
+            "what you intended, this check is a PASS — no re-run, no second commit." \
+            "" \
+            "To LOOK at the new cells before merging, take this run's artifact:" \
+            "" \
+            '```' \
+            "$fix" \
+            '```' \
+            "" \
+            "Two things cause drift, and they need different reactions:" \
+            "" \
+            "* **the geometry changed** — the new cells are the truth; check they look like what you intended;" \
+            "* **the runner image's mesa bumped** and re-rasterised them (roughly monthly) — pixels moved, geometry did not." \
+            "" \
+            "Cells that differ:" \
+            "" \
+            '```' \
+            "$drift" \
+            '```')"
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/check-runs" \
+            -f "name=render drift (${LANE})" \
+            -f "head_sha=${REPORT_SHA:-$GITHUB_SHA}" \
+            -f "status=completed" \
+            -f "conclusion=neutral" \
+            -f "output[title]=${DIR} differs from this render — re-baselined on merge to main" \
+            -f "output[summary]=${report_summary}" \
+            --silent
+          echo "reported drift on ${REPORT_SHA:-$GITHUB_SHA} (no commit: push_to empty)"
+          exit 0
+        fi
+
+        # The rendered cells are in the working tree, and the retry
+        # below resets the tree to the remote — so stash them somewhere
+        # the reset cannot reach first.
+        staged="$(mktemp -d)"
+        cp -a "$DIR/." "$staged/"
+
+        git config user.name  "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        # LANES PUSH CONCURRENTLY (kernel and freecad are matrix legs;
+        # uv and wild are their own jobs), so a push can lose the race.
+        # Each lane only ever writes its OWN directory, so re-syncing
+        # and re-applying converges rather than clobbering: the retry
+        # takes the winner's commit as the new base and lands this
+        # lane's cells on top of it.
+        pushed=""
+        for attempt in 1 2 3 4; do
+          # --depth=1: actions/checkout is shallow by default, and this
+          # only ever needs the branch TIP to commit onto. The server
+          # holds the ancestry, so the resulting child commit is an
+          # ordinary fast-forward push.
+          git fetch --depth=1 origin "$PUSH_TO"
+          git reset --hard "origin/$PUSH_TO"
+          mkdir -p "$DIR"
+          cp -a "$staged/." "$DIR/"
+          git add -A -- "$DIR/"
+          if git diff --cached --quiet; then
+            echo "$DIR already current on $PUSH_TO (another run landed it)."
+            exit 0
+          fi
+          git commit -m "render($LANE): re-baseline committed cells [skip ci]"
+          if git push origin "HEAD:$PUSH_TO"; then
+            pushed="$(git rev-parse HEAD)"
+            break
+          fi
+          echo "push rejected ($PUSH_TO moved); retry ${attempt}"
+          sleep $((attempt * 4))
+        done
+
+        if [ -z "$pushed" ]; then
+          echo "::error title=${DIR} re-baseline failed::Could not land the re-rendered cells on ${PUSH_TO} after 4 attempts."
+          exit 1
+        fi
+
+        echo "re-baselined $DIR on $PUSH_TO as $pushed"
+
+        # THE NEUTRAL CHECK. A workflow JOB cannot conclude `neutral` —
+        # job conclusions are success/failure/cancelled/skipped — so the
+        # "!" has to be a check run of its own, posted here against the
+        # commit that was just pushed so it lands on what the PR shows
+        # as its head.
+        summary="$(printf '%s\n' \
+          "\`$DIR\` did not match what this code renders, so this run re-rendered it and committed the result as \`${pushed}\`." \
+          "" \
+          "**Nothing is broken.** If the render looks right, this job is a SUCCESS and" \
+          "there is nothing else to do — no re-run, no second commit. Re-run only if" \
+          "something ELSE in the run failed. That is why this check is neutral (\"!\")" \
+          "and not a failure: the run did its job, and the one thing it cannot do for" \
+          "you is look at the pictures." \
+          "" \
+          "Two things cause a re-baseline, and they need different reactions:" \
+          "" \
+          "* **the geometry changed** — then these cells are the new truth, and the thing to check is that they look like what you intended;" \
+          "* **the runner image's mesa bumped** and re-rasterised them, which happens roughly monthly — then the pixels moved and the geometry did not, and there is nothing to review beyond that." \
+          "" \
+          "Changed cells:" \
+          "" \
+          '```' \
+          "$drift" \
+          '```' \
+          "" \
+          "Pull it with \`git pull\`. The artifact for this run is \`renders-${LANE}\` if you want the files without the commit.")"
+
+        gh api -X POST "repos/${GITHUB_REPOSITORY}/check-runs" \
+          -f "name=render re-baselined (${LANE})" \
+          -f "head_sha=${pushed}" \
+          -f "status=completed" \
+          -f "conclusion=neutral" \
+          -f "output[title]=${DIR} re-rendered and committed — glance at the images; if they look right, this is a pass" \
+          -f "output[summary]=${summary}" \
+          --silent
+        echo "posted neutral check run against ${pushed}"

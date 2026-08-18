@@ -31,10 +31,34 @@ bit-identical), and `tools/tess-lint` (report + regression gate,
 `--features probe-stats` row for the falsifier's); the committed
 baseline is `docs/tess-budget-data/`.
 
+## TESS-SPAN landed the span half (2026-08-17, PR #594)
+
+The shipped NURBS schedule is now a **per-v-band tensor** from
+`NurbsCellGrid::band_schedule` (one derivation, consumed by the lane
+AND the meter's prediction — the `agree` column verifies the lane's
+realisation): per-band `(nuc, nvc)` through the UNCHANGED `grid_steps`
+point selection; bands subdividing `u` at realized aspect >
+`SAFE_ASPECT = 5` plus their ±1 neighbours snap `nuc` to the
+whole-patch count. THE LESSON PAID FOR SIX TIMES (each variant's
+failing face + certificate in asm/tess-span's commit messages): an
+anisotropic lattice strip admits a Delaunay-legal sliver of cert
+~`(aspect²+1)/8·δ_s` beside ANY off-lattice point (trim chords, band
+interfaces' foreign columns, anchor tops, refinement centroids — no
+local insertion converges), and the OLD lane was safe only because
+chords and grid shared the whole-patch steps (accidental phase
+alignment). The snap restores that alignment exactly where it is
+load-bearing; the chord pass keeps whole-patch steps (D-2 safe arm,
+now deliberate). Results: leaf_a 3.35x fewer triangles, tour NURBS
+cells 390,100 → 158,444 (held 2.46x of the measured 2.5x span share),
+NURBS share of the mesh 68% → 33%, worst cert 0.60·δ. Meter columns
+re-derived (`grid_cells`/`patch_cells` counterfactual/`span_cells`
+prediction; report prints held/agree/split/total); baseline re-cut.
+The SPLIT half (aspect policy) stays open — docs/TESS-SPLIT-SPEC.md.
+
 ## The findings, so they are not re-derived
 
 Full writeup: `docs/TESS-BUDGET.md`. The headline, at the head where
-the instrument was written:
+the instrument was written (PRE-TESS-SPAN record):
 
 - 64 NURBS faces (6.2%) carry 68% of the tour's 1.15M triangles.
 - 390,100 grid cells used against 44,457 the SAME certificates admit —
