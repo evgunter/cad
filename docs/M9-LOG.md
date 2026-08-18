@@ -258,5 +258,6 @@ usage-credit walls — Evan's decision, not this program's).
 
 Next actions, in order: finish + run the spike → fix the spec's
 PR-boundary ruling and drop DRAFT → draw block M9-16 → dispatch
-PR-A with the standard brief lines → M9-5 spec (now unblocked) →
-the M9 exit walk.
+PR-A with the standard brief lines → M9-5 spec (dependency
+discharged in code, baseline pointer still owed — see the
+caveat above) → the M9 exit walk.
