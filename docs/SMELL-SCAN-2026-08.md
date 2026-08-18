@@ -3078,7 +3078,10 @@ reviewer of that diff could check.
 Settled by: deciding which lane owns the planar-face-on-curved-solid pair,
 then pinning it with a row that goes red if none of them does.
 
-**Verdict:**
+**Verdict:** ACCEPTED (Evan, 2026-08-18) — *"should be scheduled but i have
+no opinion on when"*. The jurisdiction call itself is part of the unit, not a
+prerequisite decision: whoever takes it decides which of the three lanes owns
+a planar face on a curved solid, and says so in the code.
 
 ## S50. Fillet corner patches mint `sense` bare, between siblings that derive it
 
@@ -3120,7 +3123,11 @@ better covered than the first report of this claimed:
 Settled by: stating the precondition at the mint site, or deriving the bit
 there as its siblings do. The second costs nothing and cannot rot.
 
-**Verdict:**
+**Verdict:** ACCEPTED (Evan, 2026-08-18), **and the resolution is chosen**:
+*"deriving at mint makes sense"* — derive the bit at the corner sites as the
+sibling blend and rim-band sites already do, rather than documenting the
+precondition and leaving the bare `true` in place. A derived bit cannot rot
+when the front-door gates change; a stated precondition can.
 
 ## S51. S42's verification never varies the loft's `v` direction
 
@@ -3149,7 +3156,11 @@ traversal-following chart could plausibly twist.
 Settled by: lofting a convexity-flipping pair and a three-section curved-`v`
 loft, then re-running #619's own probe. Cheap; may find nothing.
 
-**Verdict:**
+**Verdict:** ACCEPTED (Evan, 2026-08-18) — worth a lane on its own terms:
+*"those tests are valuable even if they don't find anything today"*. Note
+this makes the finding's own "may find nothing" explicitly **not** a reason
+to defer it: the rows are the deliverable, and pinning `sense` on a chart
+that can actually twist is worth having whether or not it is red on arrival.
 
 ---
 
