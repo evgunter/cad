@@ -3083,6 +3083,50 @@ whether the collapse target is "one lane trait in `geom-core`" (S3's steelman,
 compiled and working) or "no lane traits at all, and a `Bounds` split into its
 two meanings."
 
+### D1 PRICED (2026-08-18): the lane traits cost nothing in `src`
+
+To price the split, the four refusing `Dual` impls were commented out
+(`pcurve_cache.rs:1214`, `chart_region.rs:304`, `props.rs:422`,
+`edge_nurbs.rs:561`) and the workspace rechecked. Reverted afterwards;
+this records only the measurement.
+
+**`cargo check --workspace` succeeds.** The entire production tree
+compiles with no `Dual` lane at all. **Nothing in `src` instantiates any
+of the four lanes at `Dual`** — the only `Dual` mentions in `props.rs` and
+`chart_region.rs` are the refusing impls themselves.
+
+Everything that breaks is a **test**, and there are five sites:
+
+| Site | What it does |
+|---|---|
+| `topo/tests/geometric_cube.rs:236` | `validate_geometric` on a `Dual64` body |
+| `topo/tests/review_m2_pr3.rs:224` | `validate_geometric` on a `Dual64` body |
+| `sweep/tests/extrude_acceptance.rs:565` | `validate_geometric` on a `Dual64` body |
+| `sweep/tests/m5_pr11_quad_props.rs:165` | `mass_properties` on a `Dual` body |
+| `topo/tests/fixture/mod.rs:302` | `certify_at_dual` — *"the dual lane's refusal, executed"* |
+
+They fall into two kinds. The last one is a test **of the refusing
+machinery itself**: if the lane traits go, its subject goes with them and
+it deletes rather than being rewritten. The other four assert D9's
+bit-identity contract — *"the value channel of a `Dual` build takes the
+identical certified path"* — and they express it by literally running the
+certified validator at `Dual`.
+
+**So the whole 16-impl pattern's only load-bearing job is making those
+four bit-identity assertions compile.** That is worth stating plainly,
+because it is also the sharpest form of S44's objection: the tests assert
+that a dual **can** enter the certified pipeline, which is the thing the
+remembered founding sentence says is not semantically valid. The pattern
+and the ruling it cites are asserting opposite things, and the tests are
+where they meet.
+
+**Price of the split, then:** zero production edits; one test deleted;
+four bit-identity assertions re-expressed without routing a `Dual` through
+certified code (validate at `f64`, compare the dual's value channel
+through an uncertified path). Whether that re-expression is acceptable is
+the actual question D1 has to answer — it is a question about what the
+bit-identity contract is allowed to say, not about trait ergonomics.
+
 ## S45–S48 — reserved
 
 IDs `S45`–`S48` are intentionally unallocated, so that items promoted
@@ -3138,7 +3182,7 @@ calls that no agent should make.
 
 | # | Decision | Gates | Why first |
 |---|---|---|---|
-| **D1** | **S44 — what is `Bounds`?** Is it "carries a bracket" (a semantic property, definable for `Dual` as lo=hi=value) or "may enter certified code" (an access-control marker)? | **S3** entirely; colours **S1**, **S2** | The lane traits exist only to mediate the second meaning. The answer picks the target: one lane trait in `geom-core` (the steelman compiled one, 16 impls → 2), or none at all and `Bounds` split in two. |
+| **D1** | **S44 — what is `Bounds`?** Is it "carries a bracket" (a semantic property, definable for `Dual` as lo=hi=value) or "may enter certified code" (an access-control marker)? | **S3** entirely; colours **S1**, **S2** | The lane traits exist only to mediate the second meaning. The answer picks the target: one lane trait in `geom-core` (the steelman compiled one, 16 impls → 2), or none at all and `Bounds` split in two. **PRICED 2026-08-18 (see S44's pricing entry): the split costs *nothing* in `src` — no production code instantiates any lane at `Dual`. It costs one deleted test and four D9 bit-identity assertions re-expressed.** |
 | **D2** | **S43 — the bug-vs-invalid-state taxonomy.** D9 currently sanctions only "typed error where cheaply detectable, or documented garbage-out"; the kernel uses five idioms, two of them mutual negations. | **S19** (which it *generates* — ~239 of ~260 sites); resolves **S12**/**S14** residue | Restating D9 decides three findings at one stroke. Touching any error enum first means redoing it. |
 | **D3** | **S7 — run the one-line experiment.** Swap the arms at `fillet/build.rs:205`, `cargo test -p sweep --test all`. | **S6**, and all fillet work in **S36**/**S38** | **EXPERIMENT RUN 2026-08-18 — see S7's experiment entry.** The surgery succeeds on the cube and yields the same solid (identical census and coordinate set; volume one ulp apart). The two doors *are* redundant, so the decision is now purely retire-or-keep against a measured price: one naming test rewritten, two goldens regenerated, one FreeCAD acceptance re-run. |
 | **D4** | **S11's four undecided rows** — `Mat2`/`Affine2`, `PairSolve`, `hull.rs`'s non-rational unused half, the two inlined fillet helpers. | Cleanup in those files | Each is delete-or-keep. Cheap to answer, and answering stops anyone documenting them. |
