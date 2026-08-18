@@ -40,7 +40,7 @@ the line numbers, are what was re-verified.** What changed:
   and this scan mis-sized it on both axes. `armed()` is now
   `ARMED.with(Cell::get)`. Residual, tracked upstream as issue #558: the
   module is still `pub` and unconditionally compiled; the standing rule
-  is `memories/telemetry-gating.md`.
+  is the `discipline` job's "no ambient environment in the kernel" grep.
 - **Everything else still holds**, re-checked in the merged tree:
   finding 1 (`boxes.rs` untouched by main, still no `Nurbs` arm),
   finding 2 (still no `benches/`, still no `criterion`), finding 3

@@ -69,8 +69,9 @@
 //! lower bound is raised back to `0.0`. That is a fact about the reals,
 //! not a claim about floating-point exactness, and it is what keeps
 //! even powers of zero-straddling quantities from acquiring a spurious
-//! negative lower bound (`memories/interval-square-poison.md` — the
-//! bug class that cost M2 three separate occurrences).
+//! negative lower bound — the bug class that cost M2 three separate
+//! occurrences, and that ci.yml's "interval-square powi(2) allowlist"
+//! step now gates tree-wide.
 //!
 //! # Determinism (D9)
 //!
@@ -282,7 +283,7 @@ impl RingInterval {
     /// zero. `[-a, b]` squared is `[0, max(a², b²)]`, but the product
     /// of two *independent* enclosures `[-a, b] · [-a, b]` is
     /// `[-ab, …]`: a spurious negative lower bound that poisons a
-    /// downstream `sqrt` (`memories/interval-square-poison.md`).
+    /// downstream `sqrt`.
     ///
     /// The zero lower bound of a straddling square is exact — a fact
     /// about the reals — so it is not widened.
@@ -538,7 +539,7 @@ mod tests {
 
     #[test]
     fn even_powers_of_straddling_enclosures_keep_lower_bound_zero() {
-        // The memories/interval-square-poison lesson, at the ring.
+        // The zero-straddling-square lesson, at the ring.
         let x = ri(-3.0, 2.0);
         assert!(x.sqr().lo() == 0.0 && x.sqr().hi() >= 9.0);
         for n in [2, 4, 6, 8, 10, 12] {

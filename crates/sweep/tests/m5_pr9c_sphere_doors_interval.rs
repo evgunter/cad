@@ -5,7 +5,7 @@
 //! enclosures, not f64 luck: the boundary residual
 //! `(|q − c|² − r²)/2r` and the ray discriminant `b² − c` are both
 //! squares of quantities that STRADDLE ZERO on a probe near the wall,
-//! so they go through `powi(2)` (the interval-square-poison rule) —
+//! so they go through `powi(2)` (the zero-straddling-square rule) —
 //! plain multiplication would hand `decide` a spurious negative lower
 //! bound and the whole lane would refuse geometry it should accept.
 //! Exact dyadic fixtures decide definitely from point enclosures.

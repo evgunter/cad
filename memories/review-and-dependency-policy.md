@@ -124,4 +124,4 @@ migrate or get pruned at that PR like any other test.
 tools/crates as needed is fine, as long as it isn't genuinely risky
 supply-chain-wise; put roughly a **2-week minimum age** on dependency
 versions (avoid brand-new releases). Combine with the existing
-crate-landscape vetting in DESIGN.md ([[cad-project-state]]).
+crate-landscape vetting in DESIGN.md.

@@ -192,7 +192,7 @@ true powers of nonnegative reals are `>= 0`), overflow saturates the
 upper bound at `+inf`. Even powers of zero-straddling intervals return
 lower bound EXACTLY `0.0` (the infimum is attained at `0 ∈ x`) — the
 tight-square contract that keeps `sqrt(x² + …)` from seeing spurious
-negatives (memories/interval-square-poison.md). Negative exponents are
+negatives. Negative exponents are
 the reciprocal of the positive power; division supplies pole semantics
 (`Trv`, unbounded) when the base encloses 0.
 

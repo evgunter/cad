@@ -205,8 +205,8 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     let v1 = corner - head;
     let v2 = next - corner;
     // powi(2)-discipline squares (interval lane: a straddling-zero
-    // factor must not poison the enclosure — memories/
-    // interval-square-poison.md); norm_squared is powi inside.
+    // factor must not poison the enclosure — ci.yml's
+    // "interval-square powi(2) allowlist"); norm_squared is powi inside.
     let m = (v1.norm_squared() * v2.norm_squared()).sqrt();
     let half_tan = v1.perp_dot(v2) / (m + v1.dot(v2));
     let bulge = half_tan / (T::one() + (T::one() + half_tan.powi(2)).sqrt());
@@ -840,7 +840,7 @@ impl<T: Real> Leg<T> {
             .map_err(ArcTrimRefusal::Escalated)?
             {
                 // powi(2)-discipline squares: ρ and h both straddle zero
-                // in general (memories/interval-square-poison.md).
+                // in general (ci.yml's "interval-square powi(2) allowlist").
                 Sign::Positive => {
                     let half = (rho.powi(2) - h.powi(2)).sqrt();
                     vec![foot + self.dir * half, foot - self.dir * half]
@@ -1019,7 +1019,7 @@ impl<T: Real> ArcCarrier<T> {
         // keeps its own (stronger) refusal unchanged.
         //
         // powi(2)-discipline squares: both ρ straddle zero in general
-        // (memories/interval-square-poison.md). No sqrt anywhere — the
+        // (ci.yml's "interval-square powi(2) allowlist"). No sqrt — the
         // law is linear in 1/|ρ₂|, so scale² is wanted as it stands.
         let scale_squared = dist_squared + rho1.powi(2) + rho2.powi(2);
         let least_lever = T::from_f64(LEVER_ULPS * f64::EPSILON) * other.radius * scale_squared
