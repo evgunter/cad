@@ -1,10 +1,21 @@
-//! Certified-conservative boxes for the reduction sweep's candidate
-//! generation (M5 PR 8, C10): planar-face and `Line`-edge boxes from
-//! **vertex extents** plus the sweep pad. The tree these feed only
-//! ever PRUNES — every box here must contain everything the exact
-//! predicates could accept for its entity, and [`sweep_pad`] is sized
-//! for exactly that (its derivation below). No Q1 predicate runs on a
-//! box; classification is untouched (`reduce` module docs).
+//! Certified-conservative boxes for candidate generation (M5 PR 8,
+//! C10) and its siblings.
+//!
+//! **The contract, in one sentence: every box this module returns
+//! contains the entity's whole locus, or is the poison box.** The
+//! trees these feed only ever PRUNE, so a box that is not a superset
+//! silently loses a pair the exact predicates would have accepted; a
+//! poison box overlaps everything and therefore prunes nothing, which
+//! is the honest answer when no cheap superset is known. No Q1
+//! predicate runs on a box; classification is untouched (`reduce`
+//! module docs). [`sweep_pad`] is sized so the padding can never lose
+//! an accepted pair (its derivation below).
+//!
+//! [`FaceBoxRule`] is the ONE statement of which surface kinds have a
+//! cheap sound box and by what construction; [`face_box`] is its
+//! `f64`-bracket instantiation, and `census`'s `reach_box` is its
+//! scalar-lane instantiation (that module's docs carry why there are
+//! two arithmetics and only one rule).
 //!
 //! An allowlisted [`geom_core::Bounds`] seam (ratified 2026-07-29 —
 //! see geom-core `real.rs`, Bounds scope rule; the C10 tree is the
@@ -12,7 +23,9 @@
 //! poison flows to the poison box, which never prunes.
 
 use bvh::Aabb;
-use geom_core::{Band, Bounds, Decide, Point3};
+use geom_core::{Band, Bounds, Decide, Point3, Real, Vec3};
+use geom_surfaces::Surface;
+use geom_surfaces::nurbs::NurbsSurface;
 
 use super::BooleanError;
 use crate::body::Body;
