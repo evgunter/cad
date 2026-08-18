@@ -644,7 +644,57 @@ transition_table! {
     #[doc = " `arc_to(spec)` — the sharp arc leg, every mode in the one"]
     #[doc = " unified [`ArcData`] record; the mode the author wrote is"]
     #[doc = " what is kept, because the VQ contracts rely on it."]
-    verb ArcTo(ArcData<T>) bind (spec) rows {}
+    verb ArcTo(ArcData<T>) bind (spec) rows {
+        row {
+            /// **§2c**: the SHARP arc leg from a point tip — one verb over the
+            /// endpoint-full `ArcData` modes (`Bulge{p, b}` chord-relative,
+            /// `Via{q, p}` through a point, `Center{c, winding, p}` about a
+            /// centre). `p: Start` is the sharp arc seam.
+            ///
+            /// Each mode's authored data is stored VERBATIM and its bulge
+            /// derived by the one closed form the raw chain uses
+            /// ([`crate::bulge_from_via`] / [`crate::bulge_from_center`]), so
+            /// the doors emit the same bits. On a directed point the §4 item 1
+            /// junction check runs on the arc's START TANGENT.
+            ///
+            /// Refusals: a through-point within ε_input of the chord LINE
+            /// ([`PathError::ArcViaCollinear`] — the whole collinear class);
+            /// coincident endpoints ([`PathError::DegenerateArcChord`]); a
+            /// centre whose two radii disagree definitely
+            /// ([`PathError::ArcCenterNotEquidistant`] — checked, never
+            /// repaired: re-projecting would move an authored point, which §4
+            /// item 3 forbids) or sits within ε_input of an endpoint
+            /// ([`PathError::DegenerateArcCenter`]).
+            on [T: Decide, F: Flavor] PartialPath<T, HasPos<F>, NoAng>;
+            fn arc_to [<S: super::family::PointLeg<T, F>>(self, spec: S) -> S::Out] {
+                <S as super::family::PointLeg<T, F>>::leg_from(self, spec)
+            }
+            arms {
+                DynTip::PlainPoint(p0) => do_arc_to_point(p0, spec, TipState::PlainPoint),
+                DynTip::DirectedPoint(p0) => do_arc_to_point(p0, spec, TipState::DirectedPoint),
+            }
+        }
+        row {
+            /// **§2c**: the endpoint-free SHARP arc legs — `arc_to(spec)` with
+            /// `Sweep`/`ArcLen`, the arc analogs of `line(len)`: tangent
+            /// departure (already junction-checked when the director bound),
+            /// endpoint derived, terminating at a directed point.
+            on [T: ArcCarrierScalar, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
+            fn arc_to [<S: super::family::TangentIncoming<T>>(
+                mut self,
+                spec: S,
+            ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core
+                    .record(Step::ArcTo(super::family::TangentIncoming::to_wire(&spec)));
+                self.arc_to_kernel(spec)
+            }
+            arms {
+                DynTip::DirectedPlain(p0) => do_arc_to_directed(p0, spec, TipState::DirectedPlain),
+                DynTip::DirectedIncoming(p0) =>
+                    do_arc_to_directed(p0, spec, TipState::DirectedIncoming),
+            }
+        }
+    }
 
     #[doc = " `tangent_arc_to(target)` — the unique tangent arc to the target."]
     verb TangentArcTo(Target<T>) bind (target) rows {
@@ -766,7 +816,62 @@ transition_table! {
         radius: T,
         #[doc = " The arc-arrival spec."]
         spec: ArcData<T>,
-    } bind { radius, spec } rows {}
+    } bind { radius, spec } rows {
+        row {
+            /// **§2c**: line incoming, ARC arrival — consumes the directed tip
+            /// (the incoming side is its ray) and opens/resolves the arc
+            /// arrival per the spec mode's own completion story.
+            on [T: ArcCarrierScalar, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
+            fn fillet_arc [<S: super::family::ArrivalSpec<T>>(
+                mut self,
+                radius: T,
+                spec: S,
+            ) -> S::Out] {
+                self.core.record(Step::FilletArc {
+                    radius,
+                    spec: super::family::ArrivalSpec::to_wire(&spec),
+                });
+                self.fillet_arc_kernel(radius, spec)
+            }
+            arms {
+                DynTip::DirectedPlain(p0) => do_arrival(
+                    p0.fillet(radius)?,
+                    spec,
+                    TipState::DirectedPlain,
+                    Verb::FilletArc,
+                ),
+                DynTip::DirectedIncoming(p0) => do_arrival(
+                    p0.fillet(radius)?,
+                    spec,
+                    TipState::DirectedIncoming,
+                    Verb::FilletArc,
+                ),
+            }
+        }
+        row {
+            /// Ray extension with an ARC arrival (`fillet_arc` off a leg end).
+            on [T: ArcCarrierScalar] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn fillet_arc [<S: super::family::ArrivalSpec<T>>(
+                mut self,
+                radius: T,
+                spec: S,
+            ) -> S::Out] {
+                self.core.record(Step::FilletArc {
+                    radius,
+                    spec: super::family::ArrivalSpec::to_wire(&spec),
+                });
+                self.fillet_arc_kernel(radius, spec)
+            }
+            arms {
+                DynTip::DirectedPoint(p0) => do_arrival(
+                    p0.fillet(radius)?,
+                    spec,
+                    TipState::DirectedPoint,
+                    Verb::FilletArc,
+                ),
+            }
+        }
+    }
 
     #[doc = " `arc_fillet(spec, r)` — fused ARC incoming, line arrival."]
     verb ArcFillet {
@@ -774,7 +879,120 @@ transition_table! {
         spec: ArcData<T>,
         #[doc = " The fillet radius."]
         radius: T,
-    } bind { spec, radius } rows {}
+    } bind { spec, radius } rows {
+        row {
+            /// **§2c, the entry fused verb**: authors the ENTRY side ON an arc
+            /// carrier — the spec's `p` is the entry anchor, the direction is
+            /// the carrier's tangent there (derived, never authored) — and
+            /// opens a fillet of `radius` off that carrier, line arrival.
+            ///
+            /// The entry's carrier and the fillet that trims it are ONE
+            /// authoring act, which is what the axiom demands: a fillet that
+            /// needs an arc carrier cannot learn it, so it authors it.
+            on [] Open;
+            fn arc_fillet [<T: ArcCarrierScalar>(
+                self,
+                spec: Center<T, Point2<T>>,
+                radius: T,
+            ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
+                let step = Step::ArcFillet {
+                    spec: super::family::PointIncoming::to_wire(&spec),
+                    radius,
+                };
+                self.arc_fillet_kernel(step, spec, radius)
+            }
+            arms {
+                DynTip::Entry => Ok(Applied::Tip(DynTip::Open(do_fused_entry(spec, radius)?))),
+            }
+        }
+        row {
+            /// **§2c**: fused arc incoming from a PLAIN point tip — the
+            /// endpoint-full modes author the incoming side's carrier and its
+            /// anchor `p` in one act. Line arrival.
+            on [T: ArcCarrierScalar] PartialPath<T, HasPos<Plain>, NoAng>;
+            fn arc_fillet [<S: super::family::PointIncoming<T>>(
+                mut self,
+                spec: S,
+                radius: T,
+            ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
+                self.core.record(Step::ArcFillet {
+                    spec: super::family::PointIncoming::to_wire(&spec),
+                    radius,
+                });
+                self.arc_fillet_kernel(spec, radius)
+            }
+            arms {
+                DynTip::PlainPoint(p0) => Ok(Applied::Tip(DynTip::Open(do_fused_point(
+                    p0,
+                    spec,
+                    radius,
+                    TipState::PlainPoint,
+                    Verb::ArcFillet,
+                )?))),
+            }
+        }
+        row {
+            /// **§2c**: fused arc incoming from a DIRECTED POINT — the
+            /// endpoint-full modes (junction-checked at the tip, as the sharp
+            /// legs check theirs) plus `Radius`: ARC EXTENSION, the arc analog
+            /// of ray extension (see [`LegEndIncoming`]). Line arrival.
+            on [T: ArcCarrierScalar] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn arc_fillet [<S: super::family::LegEndIncoming<T>>(
+                mut self,
+                spec: S,
+                radius: T,
+            ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
+                self.core.record(Step::ArcFillet {
+                    spec: super::family::LegEndIncoming::to_wire(&spec),
+                    radius,
+                });
+                self.arc_fillet_kernel(spec, radius)
+            }
+            arms {
+                DynTip::DirectedPoint(p0) => Ok(Applied::Tip(DynTip::Open(do_fused_leg_end(
+                    p0,
+                    spec,
+                    radius,
+                    TipState::DirectedPoint,
+                    Verb::ArcFillet,
+                )?))),
+            }
+        }
+        row {
+            /// **§2c**: fused ARC incoming from a directed tip — the
+            /// endpoint-free pair departs tangentially and derives its
+            /// endpoint, which becomes the incoming side's anchor; the fillet
+            /// of `radius` trims off its far end. Line arrival.
+            on [T: ArcCarrierScalar, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
+            fn arc_fillet [<S: super::family::TangentIncoming<T>>(
+                mut self,
+                spec: S,
+                radius: T,
+            ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>>] {
+                self.core.record(Step::ArcFillet {
+                    spec: super::family::TangentIncoming::to_wire(&spec),
+                    radius,
+                });
+                self.arc_fillet_kernel(spec, radius)
+            }
+            arms {
+                DynTip::DirectedPlain(p0) => Ok(Applied::Tip(DynTip::Open(do_fused_directed(
+                    p0,
+                    spec,
+                    radius,
+                    TipState::DirectedPlain,
+                    Verb::ArcFillet,
+                )?))),
+                DynTip::DirectedIncoming(p0) => Ok(Applied::Tip(DynTip::Open(do_fused_directed(
+                    p0,
+                    spec,
+                    radius,
+                    TipState::DirectedIncoming,
+                    Verb::ArcFillet,
+                )?))),
+            }
+        }
+    }
 
     #[doc = " `arc_fillet_arc(spec, r, spec₂)` — fused arc incoming, arc arrival."]
     verb ArcFilletArc {
@@ -784,7 +1002,142 @@ transition_table! {
         radius: T,
         #[doc = " The arc-arrival spec."]
         spec2: ArcData<T>,
-    } bind { spec, radius, spec2 } rows {}
+    } bind { spec, radius, spec2 } rows {
+        row {
+            /// The entry fused verb with an ARC arrival: `arc_fillet` whose
+            /// arrival is the spec₂ mode's own completion (a `Center` interior
+            /// anchor resolves at the verb; `Center { p: Start }` would close a
+            /// two-sided loop; `Radius`/`Via` await their binders).
+            on [] Open;
+            fn arc_fillet_arc [<T: ArcCarrierScalar, S2: super::family::ArrivalSpec<T>>(
+                self,
+                spec: Center<T, Point2<T>>,
+                radius: T,
+                spec2: S2,
+            ) -> S2::Out] {
+                let step = Step::ArcFilletArc {
+                    spec: super::family::PointIncoming::to_wire(&spec),
+                    radius,
+                    spec2: super::family::ArrivalSpec::to_wire(&spec2),
+                };
+                self.arc_fillet_arc_kernel(step, spec, radius, spec2)
+            }
+            arms {
+                DynTip::Entry => do_arrival(
+                    do_fused_entry(spec, radius)?,
+                    spec2,
+                    TipState::Entry,
+                    Verb::ArcFilletArc,
+                ),
+            }
+        }
+        row {
+            /// **§2c**: fused arc incoming (point modes) AND arc arrival.
+            on [T: ArcCarrierScalar] PartialPath<T, HasPos<Plain>, NoAng>;
+            fn arc_fillet_arc [
+                <Si: super::family::PointIncoming<T>, S2: super::family::ArrivalSpec<T>>(
+                    mut self,
+                    spec: Si,
+                    radius: T,
+                    spec2: S2,
+                ) -> S2::Out
+            ] {
+                self.core.record(Step::ArcFilletArc {
+                    spec: super::family::PointIncoming::to_wire(&spec),
+                    radius,
+                    spec2: super::family::ArrivalSpec::to_wire(&spec2),
+                });
+                self.arc_fillet_arc_kernel(spec, radius, spec2)
+            }
+            arms {
+                DynTip::PlainPoint(p0) => do_arrival(
+                    do_fused_point(p0, spec, radius, TipState::PlainPoint, Verb::ArcFilletArc)?,
+                    spec2,
+                    TipState::PlainPoint,
+                    Verb::ArcFilletArc,
+                ),
+            }
+        }
+        row {
+            /// **§2c**: fused arc incoming (directed-point modes) AND arc
+            /// arrival.
+            on [T: ArcCarrierScalar] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn arc_fillet_arc [
+                <Si: super::family::LegEndIncoming<T>, S2: super::family::ArrivalSpec<T>>(
+                    mut self,
+                    spec: Si,
+                    radius: T,
+                    spec2: S2,
+                ) -> S2::Out
+            ] {
+                self.core.record(Step::ArcFilletArc {
+                    spec: super::family::LegEndIncoming::to_wire(&spec),
+                    radius,
+                    spec2: super::family::ArrivalSpec::to_wire(&spec2),
+                });
+                self.arc_fillet_arc_kernel(spec, radius, spec2)
+            }
+            arms {
+                DynTip::DirectedPoint(p0) => do_arrival(
+                    do_fused_leg_end(
+                        p0,
+                        spec,
+                        radius,
+                        TipState::DirectedPoint,
+                        Verb::ArcFilletArc,
+                    )?,
+                    spec2,
+                    TipState::DirectedPoint,
+                    Verb::ArcFilletArc,
+                ),
+            }
+        }
+        row {
+            /// **§2c**: fused arc incoming AND arc arrival.
+            on [T: ArcCarrierScalar, F: Flavor] PartialPath<T, HasPos<F>, HasAng>;
+            fn arc_fillet_arc [
+                <Si: super::family::TangentIncoming<T>, S2: super::family::ArrivalSpec<T>>(
+                    mut self,
+                    spec: Si,
+                    radius: T,
+                    spec2: S2,
+                ) -> S2::Out
+            ] {
+                self.core.record(Step::ArcFilletArc {
+                    spec: super::family::TangentIncoming::to_wire(&spec),
+                    radius,
+                    spec2: super::family::ArrivalSpec::to_wire(&spec2),
+                });
+                self.arc_fillet_arc_kernel(spec, radius, spec2)
+            }
+            arms {
+                DynTip::DirectedPlain(p0) => do_arrival(
+                    do_fused_directed(
+                        p0,
+                        spec,
+                        radius,
+                        TipState::DirectedPlain,
+                        Verb::ArcFilletArc,
+                    )?,
+                    spec2,
+                    TipState::DirectedPlain,
+                    Verb::ArcFilletArc,
+                ),
+                DynTip::DirectedIncoming(p0) => do_arrival(
+                    do_fused_directed(
+                        p0,
+                        spec,
+                        radius,
+                        TipState::DirectedIncoming,
+                        Verb::ArcFilletArc,
+                    )?,
+                    spec2,
+                    TipState::DirectedIncoming,
+                    Verb::ArcFilletArc,
+                ),
+            }
+        }
+    }
 
     #[doc = " `.to(anchor)` — the far-end anchor: end the arrival side there."]
     verb FarEndTo(Point2<T>) bind (anchor) rows {
@@ -874,7 +1227,46 @@ transition_table! {
         centre: Point2<T>,
         #[doc = " The circle's radius (definitely positive)."]
         radius: T,
-    } bind { centre, radius } rows {}
+    } bind { centre, radius } rows {
+        free {
+            /// The circle primitive (G1 constructor 1): a **one-step complete-loop
+            /// program form**, not a chain — `circle(center, r)` IS the whole loop,
+            /// so it returns the lowered [`ProfileLoop`] directly and there is
+            /// nothing to continue, close, or bind.
+            ///
+            /// **It authors no seam.** That is the whole point, and it is what
+            /// keeps PQ4 (PATHS-DESIGN §6: a chain's seam sits at a junction or
+            /// fillet, never mid-carrier) untouched: a chain still cannot close
+            /// mid-carrier, because the split this primitive uses is not authored
+            /// at all. The conventional split — two semicircles at the ±x poles,
+            /// counterclockwise — is the primitive's PRIVATE lowering, exactly the
+            /// M2 closed-carrier precedent: a detail of how a closed carrier
+            /// reaches a vertex+bulge document, not a junction anyone said. The two
+            /// joints are same-carrier identities, so nothing is declared tangent
+            /// (there is no tangency to declare — it is one circle).
+            ///
+            /// `radius` must classify definitely positive
+            /// ([`PathError::NonpositiveCircleRadius`]), through the same funnel as
+            /// the other sign gates. A circle is one loop among others: profiles
+            /// mix circle loops and chain loops freely (per-loop wholesale, which
+            /// is the mixed-authoring rule of §6 read at loop granularity).
+            fn circle [<T: Decide>(
+                center: Point2<T>,
+                radius: T,
+            ) -> Result<ClosedLoop<T>, PathError<T>>] {
+                Ok(ClosedLoop {
+                    loop_: super::circle_kernel(center, radius)?,
+                    program: vec![Step::Circle {
+                        centre: center,
+                        radius,
+                    }],
+                })
+            }
+            arms {
+                DynTip::Entry => Ok(Applied::Closed(circle(centre, radius)?.loop_)),
+            }
+        }
+    }
 
     #[doc = " `circle_split(centre, r, n, phase)` — the declared-subdivision closed carrier."]
     verb CircleSplit {
@@ -886,7 +1278,53 @@ transition_table! {
         n: usize,
         #[doc = " The first vertex's angle from +x (continuous)."]
         phase: T,
-    } bind { centre, radius, n, phase } rows {}
+    } bind { centre, radius, n, phase } rows {
+        free {
+            /// The declared-subdivision closed carrier (LIB-SWITCH §0 corpus
+            /// ruling): one circle, authored WITH its seam structure — `n` arcs of
+            /// equal sweep, the first vertex at angle `phase` from the +x axis,
+            /// counterclockwise. Like [`circle`] it is a **one-step complete-loop
+            /// program form**, not a chain, so PQ4 is untouched: the vertices are
+            /// STRUCTURAL subdivisions of one carrier (same-carrier identities,
+            /// nothing declared tangent), not junctions anyone claimed — the
+            /// difference from [`circle`] is only that here the subdivision COUNT
+            /// and PHASE are authored data rather than a private lowering detail,
+            /// for the loops whose downstream naming depends on the seam count
+            /// (the boss corpus document is the recorded use case).
+            ///
+            /// Numerics, stated plainly: vertex `k` sits at
+            /// `center + radius·(cos θ_k, sin θ_k)`, `θ_k = phase + k·2π/n`, and
+            /// every bulge is `tan(π/(2n))` — all through the scalar's libm-pure
+            /// trig (D9-deterministic; no exactness promise at axis crossings, the
+            /// same posture as `.angle(θ)` directors).
+            ///
+            /// `radius` must classify definitely positive (the [`circle`] gate,
+            /// same funnel row); `n` must be ≥ 2 ([`PathError::CircleSplitCount`]
+            /// — a one-vertex full turn has no bulge representation). `n` is
+            /// structural (a count, never a value); `phase` is continuous.
+            fn circle_split [<T: Decide>(
+                center: Point2<T>,
+                radius: T,
+                n: usize,
+                phase: T,
+            ) -> Result<ClosedLoop<T>, PathError<T>>] {
+                Ok(ClosedLoop {
+                    loop_: super::circle_split_kernel(center, radius, n, phase)?,
+                    program: vec![Step::CircleSplit {
+                        centre: center,
+                        radius,
+                        n,
+                        phase,
+                    }],
+                })
+            }
+            arms {
+                DynTip::Entry => Ok(Applied::Closed(
+                    circle_split(centre, radius, n, phase)?.loop_,
+                )),
+            }
+        }
+    }
 }
 
 /// A closing verb's result: the lowered loop AND the program that
@@ -1190,14 +1628,6 @@ fn do_tangent_arc_to<T: Decide, F: Flavor>(
         Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.tangent_arc_to(q)?))),
         Target::Start => Ok(Applied::Closed(p.tangent_arc_to(Start)?.loop_)),
     }
-}
-
-fn do_line<T: Decide, F: Flavor>(p: PartialPath<T, HasPos<F>, HasAng>, len: T) -> Applying<T> {
-    Ok(Applied::Tip(DynTip::DirectedPoint(p.line(len)?)))
-}
-
-fn do_fillet<T: Decide, F: Flavor>(p: PartialPath<T, HasPos<F>, HasAng>, radius: T) -> Applying<T> {
-    Ok(Applied::Tip(DynTip::Open(p.fillet(radius)?)))
 }
 
 /// Applies an ARC-ARRIVAL spec to an opened fillet — the shared second

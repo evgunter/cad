@@ -368,6 +368,11 @@ pub use family::{
     ArrivalSpec, LegEndIncoming, PointIncoming, PointLeg, RadiusArrival, RadiusArrivalAt,
     RadiusArrivalDir, TangentIncoming, ViaArrival, ViaArrivalStart,
 };
+/// The complete-loop program forms are declared as table rows (they
+/// are `Entry → Closed` transitions), so they are defined in
+/// [`program`]; this module is their public home.
+#[doc(inline)]
+pub use program::{circle, circle_split};
 pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
 #[doc(hidden)]
 pub use verbs::{DirectedPoint, TangentArcLeg};
@@ -1877,80 +1882,35 @@ fn unit_from_components<T: Decide>(dx: T, dy: T) -> Result<Dir<T>, PathError<T>>
     Ok(Dir::from_unit(Vec2::new(dx / norm, dy / norm)))
 }
 
-/// The circle primitive (G1 constructor 1): a **one-step complete-loop
-/// program form**, not a chain — `circle(center, r)` IS the whole loop,
-/// so it returns the lowered [`ProfileLoop`] directly and there is
-/// nothing to continue, close, or bind.
-///
-/// **It authors no seam.** That is the whole point, and it is what
-/// keeps PQ4 (PATHS-DESIGN §6: a chain's seam sits at a junction or
-/// fillet, never mid-carrier) untouched: a chain still cannot close
-/// mid-carrier, because the split this primitive uses is not authored
-/// at all. The conventional split — two semicircles at the ±x poles,
-/// counterclockwise — is the primitive's PRIVATE lowering, exactly the
-/// M2 closed-carrier precedent: a detail of how a closed carrier
-/// reaches a vertex+bulge document, not a junction anyone said. The two
-/// joints are same-carrier identities, so nothing is declared tangent
-/// (there is no tangency to declare — it is one circle).
-///
-/// `radius` must classify definitely positive
-/// ([`PathError::NonpositiveCircleRadius`]), through the same funnel as
-/// the other sign gates. A circle is one loop among others: profiles
-/// mix circle loops and chain loops freely (per-loop wholesale, which
-/// is the mixed-authoring rule of §6 read at loop granularity).
-pub fn circle<T: Decide>(center: Point2<T>, radius: T) -> Result<ClosedLoop<T>, PathError<T>> {
+/// The kernel behind the table's circle row: the lowered loop (the
+/// row supplies the one-step program).
+fn circle_kernel<T: Decide>(center: Point2<T>, radius: T) -> Result<ProfileLoop<T>, PathError<T>> {
     let band = linear_band()?;
     match decide("path_circle_radius", Margin::of(radius), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(PathError::NonpositiveCircleRadius { radius }),
         Err(source) => return Err(PathError::Escalated { source }),
     }
-    Ok(ClosedLoop {
-        loop_: ProfileLoop::new(vec![
-            ProfileVertex {
-                pos: Point2::new(center.x + radius, center.y),
-                bulge: T::one(),
-            },
-            ProfileVertex {
-                pos: Point2::new(center.x - radius, center.y),
-                bulge: T::one(),
-            },
-        ]),
-        program: vec![Step::Circle {
-            centre: center,
-            radius,
-        }],
-    })
+    Ok(ProfileLoop::new(vec![
+        ProfileVertex {
+            pos: Point2::new(center.x + radius, center.y),
+            bulge: T::one(),
+        },
+        ProfileVertex {
+            pos: Point2::new(center.x - radius, center.y),
+            bulge: T::one(),
+        },
+    ]))
 }
 
-/// The declared-subdivision closed carrier (LIB-SWITCH §0 corpus
-/// ruling): one circle, authored WITH its seam structure — `n` arcs of
-/// equal sweep, the first vertex at angle `phase` from the +x axis,
-/// counterclockwise. Like [`circle`] it is a **one-step complete-loop
-/// program form**, not a chain, so PQ4 is untouched: the vertices are
-/// STRUCTURAL subdivisions of one carrier (same-carrier identities,
-/// nothing declared tangent), not junctions anyone claimed — the
-/// difference from [`circle`] is only that here the subdivision COUNT
-/// and PHASE are authored data rather than a private lowering detail,
-/// for the loops whose downstream naming depends on the seam count
-/// (the boss corpus document is the recorded use case).
-///
-/// Numerics, stated plainly: vertex `k` sits at
-/// `center + radius·(cos θ_k, sin θ_k)`, `θ_k = phase + k·2π/n`, and
-/// every bulge is `tan(π/(2n))` — all through the scalar's libm-pure
-/// trig (D9-deterministic; no exactness promise at axis crossings, the
-/// same posture as `.angle(θ)` directors).
-///
-/// `radius` must classify definitely positive (the [`circle`] gate,
-/// same funnel row); `n` must be ≥ 2 ([`PathError::CircleSplitCount`]
-/// — a one-vertex full turn has no bulge representation). `n` is
-/// structural (a count, never a value); `phase` is continuous.
-pub fn circle_split<T: Decide>(
+/// The kernel behind the table's split-circle row: the lowered loop
+/// (the row supplies the one-step program).
+fn circle_split_kernel<T: Decide>(
     center: Point2<T>,
     radius: T,
     n: usize,
     phase: T,
-) -> Result<ClosedLoop<T>, PathError<T>> {
+) -> Result<ProfileLoop<T>, PathError<T>> {
     let band = linear_band()?;
     match decide("path_circle_radius", Margin::of(radius), band) {
         Ok(Sign::Positive) => {}
@@ -1972,15 +1932,7 @@ pub fn circle_split<T: Decide>(
             }
         })
         .collect();
-    Ok(ClosedLoop {
-        loop_: ProfileLoop::new(vertices),
-        program: vec![Step::CircleSplit {
-            centre: center,
-            radius,
-            n,
-            phase,
-        }],
-    })
+    Ok(ProfileLoop::new(vertices))
 }
 
 impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
