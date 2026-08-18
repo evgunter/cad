@@ -174,8 +174,6 @@ mod revolve_interval;
 mod revolve_partial;
 #[path = "revolve_washer.rs"]
 mod revolve_washer;
-#[path = "s42_loft_sense.rs"]
-mod s42_loft_sense;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.
