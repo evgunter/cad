@@ -13,9 +13,7 @@
 //! derived; validate refuses `TangencyContradicted` at that joint.
 
 use geom_core::{Point2, Tolerance};
-use profile::{
-    ArcSide, ArcSweep, Center, Open, Profile, ProfileError, Radius, SketchPlane, Start,
-};
+use profile::{ArcSide, ArcSweep, Center, Open, Profile, ProfileError, Radius, SketchPlane, Start};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
