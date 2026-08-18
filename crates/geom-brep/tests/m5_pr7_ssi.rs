@@ -595,6 +595,67 @@ fn the_floor_clamped_variant_refuses_typed_even_though_branches_were_found() {
     }
 }
 
+/// **The mode the row above cannot reach**: no branch is found at all,
+/// so the accounting pass runs on an *empty* tube set.
+///
+/// The fixture is a near-miss pair — a cylinder whose wall clears the
+/// unit sphere by 1 mm, so the locus is genuinely **empty** — with the
+/// accounting floor clamped to 0.1 m, a hundred times coarser than the
+/// clearance. Every seeded march fails to refine (there is no root to
+/// refine onto), so no uniqueness tube is ever banked; and at the
+/// clamped floor the enclosures cannot separate the two surfaces
+/// either. Nothing is proved about the domain, so nothing may be
+/// claimed about it.
+///
+/// An `Ok` here is precisely the silent incompleteness this module
+/// exists to prevent: zero branches reported *together with* an
+/// exhaustiveness receipt. The row above cannot see it — its premise is
+/// that branches were found, which is the one case that cannot exhibit
+/// it.
+#[test]
+fn an_unseeded_run_refuses_typed_rather_than_receipting_an_unprovable_domain() {
+    let s = sphere();
+    // |d − r| = 1 + clearance > 1: the wall clears the unit sphere, so
+    // the pair does not intersect at all. The clearance sits above the
+    // escalation threshold at every battery ε, so the within-pair
+    // tangency trilean passes and the run reaches the subdivision.
+    let clearance = 1.0e-3;
+    assert!(
+        clearance > band().escalate(),
+        "the fixture's clearance must be a definite sign at this ε"
+    );
+    let c = Surface::Cylinder {
+        origin: Point3::new(1.5 + clearance, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 0.5,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let d = SsiDomain {
+        center: Point3::new(1.0, 0.0, 0.0),
+        half_extent: 0.2,
+        extent: 0.4,
+        eps: eps(),
+        // floor = 0.1 m at every ε: two orders coarser than the
+        // clearance, so no enclosure at the floor can separate the
+        // surfaces.
+        floor_scale: 0.1 / eps(),
+    };
+    match ssi::cylinder_sphere_ssi(&c, &s, d, band()) {
+        Err(SsiError::ExhaustivenessInconclusive {
+            cell_width, floor, ..
+        }) => {
+            assert!(cell_width <= floor, "{cell_width} vs {floor}");
+        }
+        Err(other) => panic!("expected the exhaustiveness refusal, got {other}"),
+        Ok(out) => panic!(
+            "SILENT: an unprovable domain returned Ok with {} branches \
+             and an exhaustiveness receipt {:?}",
+            out.branches.len(),
+            out.exhaustiveness
+        ),
+    }
+}
+
 // ---------------------------------------------------------------------
 // The σ₂-sliver row
 // ---------------------------------------------------------------------
