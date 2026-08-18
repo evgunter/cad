@@ -1817,6 +1817,34 @@ pushed leaves land in no bucket.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
+**Postmortem (2026-08-18). Ratified before it was written — and the acceptance
+row's premise excluded the failing mode.**
+
+The dual role was **design, not drift**: `CURVED-DESIGN.md:796` argues the cost
+of in-op exhaustiveness away with *"the exclusion subdivision doubles as the
+marcher's seed generator (C3) … one structure, two duties"*, and PR #146 sells
+it as a feature. The implementation expressed "two duties" as one function
+branching on `tubes.is_empty()`, and both call-site pairs pass `&[]` vs
+`&tubes` **positionally** — nothing in the type or signature records which duty
+is being asked for.
+
+*Was the acceptance row written so it could not fail?* Effectively yes, and the
+name says it: `the_floor_clamped_variant_refuses_typed_even_though_branches_were_found`
+— its **premise is that branches were found**, i.e. `tubes` is non-empty, which
+is exactly the mode that cannot exhibit the bug. A later ε-honesty fix then
+*widened* that row to accept a second error variant too.
+
+**NEVER FLAGGED.** Checked PR #146's body (2 MAJOR / 6 MINOR, all named),
+`M5-LOG.md:1359` (the full review return), `MODEL-AB-LOG.md:249`, and the
+GitHub reviews. The closest anyone came is the reviewer's **own adopted probe**
+`the_tiny_pair_floor_variant_refuses_typed`, which panics on *any* `Ok` — the
+one row in the repo that would catch this mode. Its fixture just never enters
+it.
+
+*Lesson:* when a design doc argues a cost away by giving one structure two
+duties, the duty must become a parameter the caller states — otherwise duty B's
+acceptance row gets written on a fixture that guarantees duty B.
+
 ## S24. The assembly gate's success path is documented as unreachable
 
 - **Where**: `crates/editor-core/src/assembly.rs:42`, `:314`,
@@ -1857,6 +1885,25 @@ reconciled by convention at some call sites and not others.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
+**Postmortem (2026-08-18).** Both vocabularies were born in the **same commit**
+for a real structural reason: the marcher is deliberately the untrusted f64
+candidate generator (`SSI_NEWTON_TOL`, `SSI_STEP_DEVIATION` are bare `f64`),
+while the certificate's trilean decisions go through the generic `Band`. Nobody
+wrote the bridge, so `certify_rung3` took both as independent arguments — and
+each later non-SSI caller rediscovered the tie on its own (`pcurve_cache.rs:1012`
+with a comment stating it; `edge_nurbs.rs:343` silently).
+
+**NEVER FLAGGED** — searched #146's body, M5-LOG's nine fix items,
+`M6-EXIT-WALK.md:30`, `M7-LOG.md:1042`, `MODEL-AB-LOG.md`, and
+`predicate-dimension-audit.md`. The nearest thing on record is a *different*
+rule: `M4-PR6-SPEC.md:51`, *"a process may not host two ε values simultaneously
+— refuse loudly on conflict"*, which was scoped to the ambient/document ε and
+never read as applying to a parameter list.
+
+*Lesson:* a ratified "one ε per process" rule needs a signature-level
+counterpart, because the second copy enters as an innocent `eps: f64` beside
+the `Band`.
+
 ## S26. The certified area enclosure is never metered against anything
 
 - **Where**: `crates/geom-brep/src/props/quad.rs:469`, `:803`, `:1800`
@@ -1875,6 +1922,31 @@ the symmetric pad drags `area.lo()` below zero.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
+**Postmortem (2026-08-18). Area was never meant to be an answer — it landed as
+a denominator, and inherited no acceptance obligation of its own.**
+
+PR #192's **numbered deviation 1** says the spec had area refused *"because no
+gate consumes it"*; it shipped only because tier-3 check 7 meters
+`v_hi / surface_area`. The commit message is blunter still: *"fixed-resolution
+hull-rule area (the +V meter's denominator, **deviation report pending**)"*.
+
+*Was the acceptance row written so it could not fail?* Yes — provably, by
+contrast with its neighbour in the same file. `m5_pr11_quad_props.rs:71`
+asserts `volume_pad < 1e-3 * half_exact` (a real tightness bound); the area row
+at `:80` asserts only `area_pad > 0.0` plus containment. **Both conditions get
+*easier* as the pad widens**, so no width regression can turn that row red.
+
+**FLAGGED AND PARTLY FIXED, remainder explicitly deferred.** PR #472 hit the
+extreme case head-on — it measured an area enclosure of
+`[-1.7e20, +1.7e20]`, *"symmetric to the bit"* — fixed the unguarded division,
+and ruled the metering question out of scope **in writing**: *"Metering against
+`area.lo()` is the certified-conservative gauge and deserves its own proposal
+with re-measured floors — not smuggling under a guard."*
+
+*Lesson:* a quantity introduced as a denominator inherits no acceptance
+obligation, and containment-plus-positivity is monotone in the wrong direction
+— every certified **width** needs a row that goes red when it grows.
+
 ## S27. `props/quad.rs` is four independent quadrature engines sharing a file
 
 - **Where**: `crates/geom-brep/src/props/quad.rs:509`, `:2381`, `:2107`,
@@ -1898,6 +1970,24 @@ lane arrived second* rather than what they bound.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
+**Postmortem (2026-08-18).** Pure accretion under the ratified per-arm
+retirement doctrine (C12.1, *"retiring per-arm, never wholesale"*): 878 → 1910
+→ 2759 → 3559 lines across four units. `QUAD2_*` exists because the first
+family's names were taken. Each arrived as its own reviewed unit whose
+acceptance was "this arm certifies", **so nobody ever owned the file**.
+
+**FLAGGED IN A NEIGHBOURING PR / PARTLY FIXED — twice, each time only as far as
+the immediate bug reached.** #313 shared *one* rule after a duplication-born
+defect (the reviewer executed a certificate off by ~1111 widths and proved the
+hole latent on main). PR #472 then **measured the duplication precisely** —
+*"Unguarded at **four sites** — cylinder, rational, integral-exact,
+integral-composite lanes"* — and factored out exactly the divisor, leaving the
+convergence block triplicated. No review ever proposed splitting the file.
+
+*Lesson:* when a fix pass has to state "unguarded at four sites", **that count
+is the structural finding** and should be raised as one, not absorbed into the
+bug's blast radius.
+
 ## S28. Three tessellation lanes are parallel pipelines with no shared core
 
 - **Where**: `crates/mesh/src/curved.rs:114`,
@@ -1921,6 +2011,31 @@ code lives in whichever lane happened to grow it first.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
+**Postmortem (2026-08-18). The warning postdates the lane it appears to
+indict.**
+
+`planar.rs` and `curved.rs` were born together in PR #39 (M2 PR 6), already
+divergent; `trimmed.rs` arrived two milestones later. The warning at
+`planar.rs:227` was written **five days after `curved.rs`**, by PR #116, as a
+*local precondition of that PR's new even-odd flood fill* (*"would invalidate
+the crossing bookkeeping built below"*). So it was never a claim about
+`curved`, which has no crossing bookkeeping — and still inserts its grid after
+constraining.
+
+The third author read `planar` and reused it (`trimmed.rs:104` imports
+`classify_faces`/`edge_key`/`shoelace2`); neither #116 nor #157 touches or
+mentions `curved.rs`.
+
+**FLAGGED IN A NEIGHBOURING PR — the hazard class, never the lane.** The exact
+failure mode was raised twice by reviewers and closed inside the lane at hand
+each time: #116's root-cause writeup and pre-scan, and #157's fix **F2
+(MIN-1)**, which added `TessellateError::SelfTouchingTrimLoop`. `curved`'s
+ordering was never re-examined against either.
+
+*Lesson:* an invariant discovered by a bugfix has to be swept across every
+existing implementation of the same pipeline **in that same PR**, or it
+protects only the code that already knew.
+
 ## S29. Sizing and certification vocabulary has fragmented across five modules
 
 - **Where**: `crates/mesh/src/nurbs_cert.rs:356`,
@@ -1946,6 +2061,25 @@ because the schedule cannot be trusted to hit its own target.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
+**Postmortem (2026-08-18).** The vocabulary accreted one certified-face class
+at a time, and the newest constants came from **measured falsification rather
+than derivation** — PR #594 records six schedule variants implemented and
+killed by the tour before the landed one, with `SAFE_ASPECT` chosen as the
+value that survived. `MAX_GRID_RETRIES`'s *"was 4"* comment is literally the
+deviation ledger inlined into the source.
+
+**FLAGGED AND DEFERRED — by the author, deliberately, into an open design
+conversation.** #594's deviations name both headline constants: *"`SAFE_ASPECT
+= 5` is a MEASURED constant, above the derived certifies-under-delta line
+(sqrt(15) ~ 3.87); the (3.87, 5] gap is held by measured margin"*. The
+**policy** question was routed out rather than answered — *"the aspect-policy
+question stays open"*, with PR #568 and `docs/TESS-SPLIT-SPEC.md` as the
+designated venue, still unexecuted.
+
+*Lesson:* reporting each magic constant as its own honestly-argued deviation is
+a **substitute** for stating the policy, not a step toward it — N well-defended
+deviations read as N decisions when they are one undecided question.
+
 ## S30. `budget` and `probe_stats` are ~1,050 lines of instrument in the kernel's hot loop
 
 - **Where**: `crates/mesh/src/budget.rs:1`,
@@ -1971,6 +2105,29 @@ passes (`trimmed.rs:192`, `chords.rs:581`).
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
+**Postmortem (2026-08-18). The meter complies with the rule its own incident
+produced; the volume question was never asked.**
+
+`budget.rs` was authored (#547) in the same 24 hours as the `NURBS_PROBE`
+incident and **satisfies every clause of the rule that came out of it** — the
+live/inert split, zero `#[cfg]` in the hot files, `arm`/`take` in the live half
+only, its own CI row. `memories/telemetry-gating.md` cites `mesh::budget` as
+**the worked example**. The third full pass is spec-driven too: TESS-SPAN's
+**D-4 "the meter stays sighted"** required the whole-patch counterfactual.
+
+**FLAGGED AND PARTLY FIXED — on the gating axis only.** #547 itself caught the
+sibling (`probe_stats::armed()` reading an env var once per triangle, 261k
+times on the leaf) and hoisted it. Evan then reviewed the meter directly and
+cleared it: *"does this affect production behavior? (no: properly gated) and
+does anything need fixing? (nothing egregious, three notes)"*. The
+volume-and-placement question — 1,050 of ~7,900 mesh lines, eight call sites in
+the emit loop, a numerical optimizer in the kernel crate — was **never raised**
+in #547, #560, #579, the spec, or the memory.
+
+*Lesson:* a gating rule answers "does it run in shipped builds?" and is easy to
+certify green; it says nothing about how much instrument the kernel should
+**contain**, so the compliance check quietly became the whole review.
+
 ## S31. `geom-curves` / `geom-surfaces`: a crate split that buys nothing and is paid for in duplication
 
 - **Where**: `crates/geom-surfaces/src/lib.rs:12`,
@@ -2549,6 +2706,67 @@ INVARIANT, not the history: no retired-type archaeology, no unit tags"*
 (2026-08-08) — which is exactly what `closure.rs:135` and `select.rs`'s
 unit-tagged sections violate, having been written days before it and never
 re-swept.
+
+## C6. Some of these were ratified before they were written
+
+Three of the seven findings in this batch trace to a **design document or spec
+clause**, not to a lapse: S23's data-switched dual role
+(`CURVED-DESIGN.md:796`, *"one structure, two duties"*), S26's
+area-as-denominator (PR #192 deviation 1), and S30's counterfactual third pass
+(TESS-SPAN D-4). **The design conversation is where these entered, and it is
+the only place they could have been caught.** No amount of implementation
+review would have found them, because the implementation was faithful.
+
+## C7. The deviation ledger works as an amnesty, not an alarm
+
+Independently confirmed by two postmortem passes over different scopes. PR
+bodies disclose the shape with near-perfect honesty — *"deviation report
+pending"*, *"no gate consumes it"*, *"`SAFE_ASPECT = 5` … above the derived
+line"*, *"`MAX_GRID_RETRIES` 4 -> 6"* — and **disclosure closes the item**.
+Nothing escalates when the same deviation appears in a third PR. Cf. **C2**:
+disclosure also scores as a *positive* on the A/B rubric's "silent devs"
+column.
+
+## C8. The acceptance rows for degenerate modes are written so they cannot fail
+
+Both correctness-shaped findings in this batch share one failure, and it is
+mechanical enough to be a rule.
+
+- S23's floor row is named
+  `..._refuses_typed_even_though_branches_were_found` — **the premise excludes
+  the failing mode.**
+- S26's area row asserts `area_pad > 0.0` plus containment — **both monotone
+  in the wrong direction**; the row gets *easier* as the enclosure degrades.
+  Its neighbour twelve lines up asserts a real tightness bound, so the file
+  contains both the right and the wrong shape.
+
+Neither is a weak assertion by accident; each was written to pin the *feature*,
+and the degenerate mode was never a row. The candidate rule: **every "never
+silent" or "certified enclosure" claim needs a row that goes red when the
+guarantee degrades, not merely when it is violated at a chosen fixture.**
+
+## C9. Reviewers are exceptionally strong at soundness and blind to structure
+
+This is the sharpest characterisation the postmortems produced, and it is
+evidenced in both directions. The same reviews ran 8000-matrix SVD
+differentials, re-derived a meters conversion by hand, found a certificate
+excluding true 2π by ~1111 widths, and wrote the strictest floor-refusal probe
+in the repo — and produced **zero** findings on: a mode switch on
+`is_empty()`, a two-ε signature, a file holding four engines, or three
+parallel CDT pipelines.
+
+Structural findings appear only as **side-effects of bug hunts** (#472's
+"unguarded at four sites", #313's shared area rule). Nothing in the protocol
+asks a structural question directly.
+
+## C10. Cross-lane invariants do not propagate; only imports do
+
+`planar.rs:229`'s warning, PR #116's pre-scan, and PR #157's
+`SelfTouchingTrimLoop` are **three encounters with one hazard**, each closed
+inside its own lane — while the lane that predates all three (`curved.rs`)
+still carries the ordering the warning describes. A fix that establishes an
+invariant needs an explicit sweep of sibling implementations as part of its
+**acceptance**, not just its own regression row.
 
 ---
 
