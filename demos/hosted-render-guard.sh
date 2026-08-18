@@ -40,8 +40,8 @@ require_hosted_render() {
     if [ "$got" = "$CAD_RENDER_LOCAL_OVERRIDE_SENTENCE" ]; then
         echo "[$entry] LOCAL RENDER OVERRIDE in effect — this pass is PREVIEW ONLY." >&2
         echo "[$entry]   Frames it publishes carry THIS box's renderer/GL stack." >&2
-        echo "[$entry]   The hosted lanes (local-scripts/render-hosted.sh) are what the" >&2
-        echo "[$entry]   committed tree is meant to be refreshed from." >&2
+        echo "[$entry]   The committed tree is refreshed by CI, which re-baselines" >&2
+        echo "[$entry]   every lane on a push — do NOT commit what this pass draws." >&2
         return 0
     fi
 
@@ -49,21 +49,27 @@ require_hosted_render() {
         echo
         echo "REFUSING: renders are hosted now. $entry is not the default path."
         echo
-        echo "Your branch's CI run almost certainly rendered this already —"
-        echo "ci.yml renders and gates all four lanes on every push — so the"
-        echo "usual move is to install what it produced rather than render:"
+        echo "THE DEFAULT WAY TO RE-RENDER IS TO PUSH AND ACCEPT CI'S COMMIT."
+        echo "ci.yml renders all four lanes on every push, and since 2026-08-17"
+        echo "a lane that no longer matches is RE-BASELINED for you: CI commits"
+        echo "the new cells straight to your branch and marks the run neutral"
+        echo "(\"!\", not \"x\") asking you to look at them. So:"
         echo
-        echo "  local-scripts/render-hosted.sh"
+        echo "  git push          # then wait for CI"
+        echo "  git pull          # the new frames are already committed"
+        echo
+        echo "Then look at the images. If they are what you intended, you are"
+        echo "DONE — the neutral check is not a failure and needs no re-run."
+        echo "Nothing to download, nothing to install, no second commit."
         echo
         echo "If the branch has no CI run yet (not pushed, no PR), render on"
         echo "demand instead:"
         echo
-        echo "  local-scripts/render-hosted.sh --lane <kernel|freecad|uv|wild|all>"
+        echo "  local-scripts/render-hosted.sh --on-demand --lane <kernel|freecad|uv|wild|all>"
         echo
-        echo "That triggers .github/workflows/render.yml on your PUSHED branch,"
-        echo "polls the run, and installs the artifacts back into the working"
-        echo "tree at their committed paths — the frames you then review and"
-        echo "commit. See demos/README.md, \"Off-box: the hosted lanes\"."
+        echo "That triggers .github/workflows/render.yml on your PUSHED branch"
+        echo "and polls it; that run re-baselines too, so it also ends in a"
+        echo "pull. See demos/README.md, \"Off-box: the hosted lanes\"."
         echo
         echo "For preview-only local iteration (a scene you are still shaping,"
         echo "frames you do NOT intend to commit):"

@@ -121,44 +121,47 @@ load 13–19** (61% CPU — CPU/cache contention, not I/O). A full pass is
 a render pass and a build battery on the same box is a bad trade in
 both directions.
 
-## GET RENDERS FROM CI, NOT BY DISPATCHING (2026-08-11)
+## GET RENDERS BY PULLING (2026-08-17, supersedes the 2026-08-11 rule)
 
-`ci.yml`'s `renders` job calls `render.yml` as a **gate** on every push
-that builds anything: it renders all four lanes over the PR's merge
-commit and FAILS when a committed lane no longer matches. So the frames
-for your tree normally already exist as artifacts on your branch's CI
-run, and the way to get them is
+`ci.yml`'s `renders` job calls `render.yml` on every push that builds
+anything, and a lane that no longer matches is **re-baselined for you**
+— CI commits the new cells to your branch and marks the run neutral.
+So the way to re-render is:
 
-    local-scripts/render-hosted.sh          # <- the DEFAULT is to take CI's
+    git push        # then wait for CI
+    git pull        # the frames are already committed
 
-which resolves that run and installs each lane at its committed path,
-waiting only on the render lanes rather than on the whole CI run. It
-works on a FAILED CI run too — a stale committed lane is exactly what
-makes the gate fail, and that run's artifact is the fix (lanes upload
-before the gate compares). The failing row prints that exact command.
-
-Note the failing row does NOT print a bare `gh run download`: that
-command refuses to overwrite existing files, so aimed at a populated
-lane directory — the only case it would ever be printed in — it fails
-on the first cell. `render-hosted.sh` stages into a temp dir first.
+Then look at the images; if they are what you meant, you are done. It
+supersedes the old `local-scripts/render-hosted.sh` default, which
+resolved the run and installed each lane by hand.
 
 **Dispatch (`--on-demand`, or `render.yml` directly) only when CI has
 not covered the tree**: unpushed branch, no CI run, or a deliberate
 re-render at a different scene budget. Dispatching otherwise renders
-the same tree twice.
+the same tree twice — and that run re-baselines too, so it also ends
+in a pull.
 
 Expect the two PNG lanes to re-baseline when the runner image's mesa
-bumps (roughly monthly). That is the gate working, not failing; it
-costs one mechanical commit of the artifact.
+bumps (roughly monthly). That is the lane working, and it now costs a
+pull rather than a mechanical commit.
+
+Historical note worth keeping: the old failing row deliberately did NOT
+print a bare `gh run download`, because that command refuses to
+overwrite existing files and so fails on the first cell when aimed at a
+populated lane directory. `render-hosted.sh` stages into a temp dir
+first — still true, and still why the bare-SHA fallback path names the
+script rather than the raw command.
 
 ## RENDER-IN-ACTIONS IS THE NORM (Evan's ruling, 2026-08-10; hosted = CANONICAL PRODUCER)
 
 The hosted "render (demos)" workflow (#323/#324, wedge root-caused
 and fixed by #331 — a FreeCAD NotificationArea SELF-DEADLOCK, not
-this host's stall or budget calibration) runs all lanes on demand
-(`local-scripts/render-hosted.sh`, the #338 wrapper — trigger, poll,
-byte-exact artifact pull-back; local entry points refuse without
-the explicit CAD_RENDER_LOCAL_OVERRIDE sentence). Measured
+this host's stall or budget calibration) runs all lanes on every push and
+on demand (`local-scripts/render-hosted.sh`, the #338 wrapper —
+trigger, poll, byte-exact artifact pull-back — is now the DISPATCH
+front end only; the ordinary path is push-and-pull, above. Local entry
+points still refuse without the explicit CAD_RENDER_LOCAL_OVERRIDE
+sentence). Measured
 2026-08-10 on a 2-core runner (llvmpipe under Xvfb): 19 scenes,
 median 3 s, max 6 s, 62 s total — faster than this host, and it
 does not compete with the build lanes.

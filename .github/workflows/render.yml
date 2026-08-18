@@ -22,13 +22,19 @@
 #   gh run download <run-id> -n renders-uv          # UV trim-loop sheet
 #   gh run download <run-id> -n renders-wild        # wild-corpus montage
 #
-# `local-scripts/render-hosted.sh` is the one-command front end for all of
-# that (push check -> dispatch -> poll -> install the artifacts back
-# into the working tree at their committed paths), and is the path the
-# local entry points now point at: they refuse to run without an
-# explicit override (demos/hosted-render-guard.sh), and every step here
-# that renders sets that override in the file, because this workflow is
-# the sanctioned renderer.
+# THOUGH YOU RARELY WANT THOSE. Since 2026-08-17 every lane RE-BASELINES
+# itself — a run whose render differs from the committed cells commits
+# the new ones to the branch and marks the run neutral — so the ordinary
+# way to re-render is `git push`, wait, `git pull`, and look at the
+# images. The artifacts above are for a dispatch aimed at a bare SHA
+# (nowhere to commit to) and for `--verify`.
+#
+# `local-scripts/render-hosted.sh` is the one-command front end for the
+# DISPATCH path (push check -> dispatch -> poll -> install), and is what
+# the local entry points name after the push-and-pull flow: they refuse
+# to run without an explicit override (demos/hosted-render-guard.sh),
+# and every step here that renders sets that override in the file,
+# because this workflow is the sanctioned renderer.
 #
 # THE KERNEL LANE'S FALLBACK HOLE IS PLUGGED HERE. That lane has a
 # matplotlib fallback which EXITS 0 and writes the gitignored preview
@@ -40,15 +46,15 @@
 # render.sh's own #221 routing invariant: on fallback it touches nothing
 # under the committed lane and everything under renders-preview/.
 #
-# TWO ENTRY POINTS, ONE PIPELINE. `workflow_dispatch` renders on demand
-# and hands back artifacts. `workflow_call` is ci.yml's render gate: the
-# SAME lanes over a PR's merge commit, failing when a committed lane no
-# longer matches what this code renders. One definition of how a lane
-# renders, so the gate cannot drift from the thing it gates — and the
-# artifacts a failing gate points you at are the ones it just produced,
-# so fixing it is a download, never a re-render.
+# TWO ENTRY POINTS, ONE PIPELINE. `workflow_dispatch` renders on demand;
+# `workflow_call` is ci.yml's render lane, the SAME lanes over a PR's
+# merge commit. Both re-baseline: a committed lane that no longer
+# matches what this code renders is committed back to the branch and
+# the run goes neutral, so accepting a render change is `git pull` and
+# a glance at the images. One definition of how a lane renders, so the
+# check cannot drift from the thing it checks.
 #
-# WHY A GATE IS POSSIBLE NOW. It was not, when the committed cells came
+# WHY THIS IS POSSIBLE AT ALL. It was not, when the committed cells came
 # from a developer's GL stack and these came from llvmpipe. Hosted is
 # the canonical producer since Evan's #338 ruling, and a repeat hosted
 # render of one commit is byte-identical — measured across all 55 cells
@@ -166,8 +172,9 @@ on:
         required: false
         default: ""
 
-  # ci.yml's render gate. Same inputs, plus the one that turns the
-  # lanes' drift reports into failures.
+  # ci.yml's render lane. Same inputs, plus `gate` — which no longer
+  # turns drift into a failure (both modes re-baseline) and survives as
+  # the caller's declared intent and the concurrency-group discriminator.
   workflow_call:
     inputs:
       lanes:

@@ -159,17 +159,23 @@ lanes_of() {
 # ------------------------------------------------------- take CI's render
 
 # THE DEFAULT IS TO TAKE, NOT TO RENDER. ci.yml's `renders` job calls
-# render.yml as a gate on every push that builds anything, so a pushed
-# branch's newest CI run already holds all four lanes' artifacts — the
-# same bytes a dispatch would produce, from the same pipeline, at no
-# extra runner cost. Rendering again would render the same tree twice,
-# so that is the flag (`--on-demand`) and this is the default.
+# render.yml on every push that builds anything, so a pushed branch's
+# newest CI run already holds all four lanes' artifacts — the same
+# bytes a dispatch would produce, from the same pipeline, at no extra
+# runner cost. Rendering again would render the same tree twice, so
+# that is the flag (`--on-demand`) and this is the default.
+#
+# NOTE THAT TAKING IS USUALLY UNNECESSARY NOW (2026-08-17): a lane that
+# drifted has already been re-baselined and COMMITTED by that same run,
+# so `git pull` gets you the frames and this script gets you a copy of
+# what you already have. What is left for it: a bare-SHA dispatch (no
+# branch to commit to), `--verify`, `--no-install`, and pulling a
+# specific run's bytes for comparison.
 #
 # The run is taken WHATEVER ITS CONCLUSION, which is the point rather
-# than a leniency: a render gate fails precisely when the committed lane
-# is stale, and that run's artifact is what makes it current. The
-# artifacts are uploaded before the gate step runs, so a failed gate
-# still has them.
+# than a leniency: a run can still fail on a wedged pass or the
+# matplotlib-fallback assertion, and the artifacts are uploaded before
+# any of that is decided, so a failed run still has them.
 if [ "$ON_DEMAND" = 0 ] && [ -z "$RUN_ID" ]; then
     if [ -z "$REF" ]; then
         REF="$(git rev-parse --abbrev-ref HEAD)"

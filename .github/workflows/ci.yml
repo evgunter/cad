@@ -1825,13 +1825,15 @@ jobs:
             ../../target/k-fresh/k-eps-1e-12.csv
 
   # THE RENDER GATE. The committed montages are build products of the
-  # kernel that nothing checked: `k-lint` above gates the UV sheet
-  # because it is the only lane a FreeCAD-less runner can reproduce, and
-  # the other three rotted silently between hand-run refreshes. They are
-  # gateable now — hosted is their canonical producer (#338) and a repeat
-  # hosted render is byte-identical — so this calls render.yml rather
-  # than restating how a lane renders: ONE definition, gated here and
-  # dispatched on demand there.
+  # kernel that nothing checked: for a while `k-lint` gated the UV sheet
+  # alone, because it was the only lane a FreeCAD-less runner could
+  # reproduce, and the other three rotted silently between hand-run
+  # refreshes. All four are checkable now — hosted is their canonical
+  # producer (#338) and a repeat hosted render is byte-identical — so
+  # this calls render.yml rather than restating how a lane renders: ONE
+  # definition, checked here and dispatched on demand there. (That
+  # k-lint row was retired 2026-08-17 when the uv lane started
+  # re-baselining itself; see the note where it stood.)
   #
   # It is free in wall clock. The lanes finish in ~150 s against this
   # workflow's ~460 s critical path (the test shards), so they cost
