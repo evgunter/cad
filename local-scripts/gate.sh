@@ -55,6 +55,11 @@
 #     up interval-transcendentals' own inari dev-oracle lane.
 set -euo pipefail
 
+# HOSTED CI IS THE GATE; this runner is the fallback (see STATUS above).
+# shellcheck source=local-scripts/hosted-ci-guard.sh
+. "$(dirname "$0")/hosted-ci-guard.sh"
+require_hosted_ci "local-scripts/gate.sh"
+
 [[ $# -eq 1 ]] || { echo "usage: $0 <sha-or-ref>" >&2; exit 2; }
 REF="$1"
 

@@ -113,6 +113,31 @@ amended:
   - Record WHO executed the fix pass (implementer-inherited vs
     orchestrator-applied) — inconsistent execution contaminates
     the fix-pass proxies.
+- **Protocol v5 (Evan, 2026-08-18, from the SMELL-SCAN process
+  findings). REVIEW SCOPE WIDENS — SCORES ARE NOT COMPARABLE ACROSS
+  THIS BOUNDARY.**
+  1. **Review briefs now carry structural questions alongside the
+     claims to falsify**, per `docs/REVIEW-STYLE-BRIEF.md` (the brief
+     text; dispatchers paste its §2-3 verbatim): does this duplicate something (the self-declared-copy grep —
+     "verbatim", "re-derived", "ported from"); does the acceptance row
+     go red when the guarantee *degrades* or only when it is violated
+     at a chosen fixture; did this PR invalidate a premise something
+     else cites; is the comment true and attached to the right item.
+  2. **Disclosed deviations that are not improvements now owe a
+     concretely scheduled followup** (an issue number or a named unit
+     in a plan) before merge — A1. Disclosure itself stays rewarded;
+     the "silent devs" column is unchanged.
+  3. **THE DISCONTINUITY.** (1) changes what reviewers are asked to
+     look for and (2) changes what a clean deviation list costs, so
+     **findings counts, MAJOR/MINOR mix, and the docs column are NOT
+     directly comparable before and after 2026-08-18.** Expect
+     findings counts to rise on rows drawn after this entry without
+     that indicating any change in implementation quality — the
+     instrument changed, not the thing measured. **Any readout whose
+     window spans this boundary must say so and should report the two
+     eras separately.** Rows before this entry stay valid within their
+     own era.
+
 - **Protocol v4 (Evan, in-chat, 2026-08-11, from the dual-review
   analysis). Four amendments; in-flight blocks complete under v3;
   v4 governs every block drawn after this entry.**
