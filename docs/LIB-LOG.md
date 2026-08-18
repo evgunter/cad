@@ -908,3 +908,12 @@ refuse-or-round, never emit the class) + a NAMED low-priority
 design question for Evan: should enclosing tangency ever be
 authorable, it needs a corner-authoring-shaped verb — vocabulary,
 not a defect. #377 completes at #608's merge.
+
+**PYPU MERGED (2026-08-18, #604 35/35, merge 8d404bd7; ordinal-56
+APPROVE 5/5/5 — row in MODEL-AB-LOG).** The en-route CI fix is
+the durable part beyond the bindings: interval-only-selection.py
+now proves scoped no-ops from SOURCE (the #601-adjacent guard
+family; the implementer falsified the orchestrator's diagnosis
+and built the correct arm — recorded as the model behavior for
+handed-down-diagnosis briefs). LIB-11 slots 1-3 consumed
+(SEAL/PYPU/ONARC); slot 4 (opus) banks for RESPELL-TABLE.
