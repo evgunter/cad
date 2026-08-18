@@ -235,9 +235,15 @@ spec. State, precisely:
 
 Cross-program movement during the pause, which the resumer must
 read as CHANGED state: **TESS-SPAN MERGED (#594, 2026-08-18) —
-M9-5's stated dependency is DISCHARGED**, and its at-merge entry
-in ASM-LOG carries the fresh-state pointer the lily rebuild's
-baselines need, so M9-5's spec is now unblocked (walls 1+7
+M9-5's stated dependency is DISCHARGED in the code.** Read the
+next sentence before relying on it: **ASM-LOG has NO at-merge
+entry for TESS-SPAN** (its tail still ends at ASM-R2A and calls
+TESS-SPAN in-flight), because the ASM orchestrator died at a
+monthly spend cap before writing one (#600). So the fresh-state
+pointer M9-5's baselines were to consume DOES NOT EXIST yet: the
+resumer either waits for ASM's entry or derives the baselines
+from #594 itself, and says which in M9-5's spec. Subject to
+that, M9-5 is unblocked (walls 1+7
 retire, wall 2 stays deferred by ruling, wall 8 still rides the
 post-M9 pcurve migration, #554 rides-or-banks as a question for
 Evan). ASM also opened R2-b (#591) and the AQ8 design
