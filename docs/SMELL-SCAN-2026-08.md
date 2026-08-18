@@ -2136,7 +2136,12 @@ the receipt and refuses `ExhaustivenessInconclusive` at the floor
 whatever its tube set holds, empty included. Since only the accounting
 duty can produce a receipt, the identity `examined == excluded +
 accounted + refined` now holds by construction for every receipt that
-escapes the module.
+escapes the module. The floor row the Postmortem below names by its old
+premise-carrying name is now
+`the_floor_clamped_planted_fixture_refuses_typed`: the body is kept (it
+is the only row exercising the floor with a NON-empty tube set) and the
+premise it never checked is gone from the name. The chart lane's own
+empty-tube row is scheduled as **H7**.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
@@ -3094,7 +3099,7 @@ every other, so these can run as five concurrent lanes.
 | # | Finding | Effort | Note |
 |---|---|---|---|
 | **W1a** | **S16** — `boolean/boxes.rs`'s planar arm uses a bare vertex hull, but a cylinder's planar cap has a circular rim that bulges past its endpoints, so the box is not a superset and the BVH can prune a pair silently. | S–M | **Highest single-item value in the report.** The fix is already named in `PERF-SCAN-2026-08.md` Tier A finding 1, and `separation.rs` already contains the corrected planar rule. |
-| **W1b** ✅ #617 | **S23** — the SSI exhaustiveness sweep switches duty on `tubes.is_empty()`, so an all-seeds-fail run returns `Ok` *plus an exhaustiveness receipt* instead of `ExhaustivenessInconclusive`. | M | **FIXED by #617**: the duty is a stated parameter (seed/account entry points over a private `SweepDuty`), and a new row enters the all-seeds-fail mode the old row's premise excluded. |
+| **W1b** ✅ #617 | **S23** — the SSI exhaustiveness sweep switches duty on `tubes.is_empty()`, so an all-seeds-fail run returns `Ok` *plus an exhaustiveness receipt* instead of `ExhaustivenessInconclusive`. | M | **FIXED by #617**: the duty is a stated parameter (seed/account entry points over a private `SweepDuty`), and a new row enters the all-seeds-fail mode the old row's premise excluded. Chart-lane twin of that row scheduled as **H7**. |
 | **W1c** | **S41** — `Bounds for Interval` forwards `lo()`/`hi()` without consulting the decoration, and `bracket<E: Enclosure>` crosses operands into `RingInterval` by endpoints. A `Trv`-but-nonempty enclosure may be dropping a domain violation **today**. | S to test, ? to fix | Also the gating question for S1 — until this is settled, "swap `RingInterval` for `Interval`" is unsound. |
 | **W1d** | **S4 drift (a)** — `Rebind`'s rewrite loop ends `_ => {}` and never reaches `Node::Mate`'s two `StableName`s, so a mate head is either falsely refused as `RebindNoReferences` or silently left dangling. Contradicts `ASSEMBLY-DESIGN.md:566`. | S | Needs a red-then-green test and an A12 read. No issue is filed. |
 | **W1e** | **S42** — loft's `sense = true` is pinned only on `loft_prism`: no concave arcs, no holes, i.e. the shape that did not break extrude either. | S | Loft a concave-arc section pair and a holed one, run the S11 union check. Cheap; may find nothing. |
@@ -3113,6 +3118,7 @@ Good work for filling parallel capacity. None blocks anything.
 | **H4** | **S37** — shipped-artifact naming: the STL header's `cad-kernel-m2`, `UnsupportedCurve.note`'s runtime-visible PR number, ~124 internal spec codes in public rustdoc and the Python stub. Evan: *"can be fixed earlier"* than S36. | S–M |
 | **H5** | **S4 drift (b)** — `names/select.rs:319`'s `_ => Vec::new()`, the fail-quiet wildcard its three siblings forbid by comment. One function. | XS |
 | **H6** | **Euler postcondition 7-tuple → named struct** — unnamed positional, 16 sites, 6 files, all `cfg(debug_assertions)`. Mechanical. | S |
+| **H7** | **The chart lane's empty-tube acceptance row** — #617 fixed both SSI lanes but its red row covers ℝ³ only, so the chart lane's `account_chart_plane` refusal is asserted by construction and not by a fixture. Needs a NURBS wall whose true surface misses the cutting plane *inside* its own control-net hull slack (the M5 substrate wall's hull is tight exactly where the near-miss must sit), then the same two-run shape: certify-empty at a healthy floor, refuse at a clamped one. The narrowing is #617's, so this row closes it. | S–M |
 
 ---
 
