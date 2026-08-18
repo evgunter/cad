@@ -1368,8 +1368,10 @@ fn fused_tangent_incomings_and_the_far_end_arrival() {
 /// binder ORDER cannot move a bit.
 #[test]
 fn radius_and_via_arrivals_complete_via_their_binders() {
-    let close_from = |on_arc: profile::OnArc<f64>| {
-        on_arc
+    type ArrivalTip =
+        PartialPath<f64, profile::path::HasPos<profile::path::WithIncoming>, profile::path::NoAng>;
+    let close_from = |arrival: ArrivalTip| {
+        arrival
             .arc_fillet(
                 Radius {
                     r: 1.0,

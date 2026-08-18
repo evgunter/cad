@@ -15,10 +15,10 @@
 //!
 //! | mode | leg (`arc_to`) | fused incoming | arrival |
 //! |---|---|---|---|
-//! | `Bulge{p,b}` | Point | Point | — (no chord) |
-//! | `Via{q,p}` | Point | Point | Directed anchor (director pending) |
-//! | `Center{c,w,p}` | Point | Entry, Point | complete (resolves at the verb; `p: Start` closes) |
-//! | `Radius{r,side}` | — | OnArc (centre DERIVED from the tip's bits — the sole OnArc mode; `Center@OnArc` is excluded by the `Center@Directed` value-match doctrine) | Directed anchor (binders pending) |
+//! | `Bulge{p,b}` | Point | Point (both flavors) | — (no chord) |
+//! | `Via{q,p}` | Point | Point (both flavors) | Directed anchor (director pending) |
+//! | `Center{c,w,p}` | Point | Entry, Point (both flavors) | complete (resolves at the verb; interior `p` lands on a directed point; `p: Start` closes) |
+//! | `Radius{r,side}` | — | directed point — ARC EXTENSION (centre DERIVED from the tip's two binding bits; a plain point has no tangent to derive from, so the pair is a missing impl) | Directed anchor (binders pending) |
 //! | `Sweep{r,side,angle}` | Directed | Directed | — |
 //! | `ArcLen{r,side,len}` | Directed | Directed | — |
 //!
@@ -63,12 +63,13 @@
 //! # }
 //! ```
 //!
-//! **The on-carrier tip re-authors its carrier.** An interior `Center`
-//! arrival leaves the tip ON that carrier, carrying position and
-//! tangent and nothing else — so the verb that continues it AUTHORS
-//! the carrier again, and `Radius { r, side }` is the one mode that
-//! can: its centre is DERIVED from those two bits, so tangency there
-//! holds by construction and nothing is value-matched.
+//! **Arc extension.** An interior `Center` arrival emits its run to
+//! the authored anchor and lands on an ordinary directed point there —
+//! position plus incoming tangent, uniform with every leg end. A
+//! `Radius { r, side }` fused incoming DERIVES its carrier from those
+//! two bits, so tangency at the tip holds by construction: the same
+//! `r` continues the arrival carrier (the run extends forward), and
+//! any other `r` is a new tangent carrier constructed at the tip.
 //!
 //! ```
 //! use geom_core::Point2;
@@ -128,36 +129,9 @@ use super::program::{ArcData, ClosedLoop, Step, Target};
 use super::verbs::{self, ArcLen, Center, DirectedPoint, PendingArc, Radius, Sweep, Via};
 use super::{
     ArcData as SegArc, Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open,
-    PartialPath, PathError, PendingMeta, Start, Tip, WithIncoming, in_state, junction_check,
-    leg_end_tip, linear_band,
+    PartialPath, PathError, PendingMeta, Plain, Start, Tip, WithIncoming, carriers_are_identical,
+    in_state, junction_check, leg_end_tip, linear_band,
 };
-
-// ------------------------------------------------------------------
-// The OnArc state.
-// ------------------------------------------------------------------
-
-/// The tip left by an INTERIOR arc arrival: a directed point whose side
-/// runs on an arc carrier that is not yet ended. Its binding bits are
-/// position + tangent, nothing else (§2c axiom) — which is exactly why
-/// its only continuations are the fused verbs that AUTHOR their
-/// incoming carrier (`Radius` re-derives it from these bits; `Center`
-/// re-states it): the carrier run into the next trim is emitted by that
-/// verb, from the chain's head, along the carrier its spec names.
-#[derive(Clone, Debug)]
-pub struct OnArc<T: Real> {
-    pub(super) core: Core<T>,
-    pub(super) at: Point2<T>,
-    pub(super) dir: Dir<T>,
-}
-
-impl<T: Real> OnArc<T> {
-    fn dp(&self) -> DirectedPoint<T> {
-        DirectedPoint {
-            at: self.at,
-            dir: self.dir,
-        }
-    }
-}
 
 // ------------------------------------------------------------------
 // Shared plumbing: `pub(super)` because the fused verbs here and the
@@ -186,6 +160,7 @@ pub(super) fn open_ray<T: geom_core::Decide>(
     core.pending_meta = Some(PendingMeta {
         by_tangent,
         origin_incoming,
+        extends_carrier: false,
     });
     Ok(())
 }
@@ -195,6 +170,19 @@ pub(super) fn open_arc<T: ArcCarrierScalar>(
     core: &mut Core<T>,
     arc: PendingArc<T>,
 ) -> Result<(), PathError<T>> {
+    open_arc_from_tip(core, arc, false, None)
+}
+
+/// [`open_arc`] with the DIRECTED-POINT bookkeeping: `extends_carrier`
+/// marks a same-carrier arc extension (the incoming emission moves the
+/// origin leg's end vertex — the §4 item 4 exemption) and
+/// `origin_incoming` records the tip the side departs from.
+pub(super) fn open_arc_from_tip<T: ArcCarrierScalar>(
+    core: &mut Core<T>,
+    arc: PendingArc<T>,
+    extends_carrier: bool,
+    origin_incoming: Option<Incoming<T>>,
+) -> Result<(), PathError<T>> {
     let band = linear_band()?;
     verbs::gate_positive("path_fillet_radius", arc.radius, band, |r| {
         PathError::NonpositiveFilletRadius { radius: r }
@@ -202,33 +190,48 @@ pub(super) fn open_arc<T: ArcCarrierScalar>(
     core.pending = Some(verbs::Pending::Arc(arc));
     core.pending_meta = Some(PendingMeta {
         by_tangent: false,
-        origin_incoming: None,
+        origin_incoming,
+        extends_carrier,
     });
     Ok(())
 }
 
+/// Whether the pending side's incoming emission EXTENDS the chain's
+/// last leg (ray extension of a straight leg; arc extension of a
+/// carrier leg) — the §4 item 4 vertex-move exemption, decided at the
+/// verb and read at every resolution site.
+fn merge_of<T: Real>(pending: &verbs::Pending<T>, meta: &PendingMeta<T>) -> bool {
+    match pending {
+        verbs::Pending::Ray(_) => {
+            meta.by_tangent
+                && meta
+                    .origin_incoming
+                    .as_ref()
+                    .is_some_and(|i| i.carrier.is_none())
+        }
+        verbs::Pending::Arc(_) => meta.extends_carrier,
+    }
+}
+
 /// Resolves the open fillet against an ARC ARRIVAL about `centre`,
-/// anchored at `anchor` — the interior form: the tip continues ON the
-/// arrival carrier at the anchor (the run into the next trim is the
-/// NEXT verb's emission). Returns the pieces so each door shapes its
-/// own tip type.
+/// anchored at `anchor` — the interior form (§2c dissolution): the
+/// verb emits its WHOLE arrival side — the fillet arc, then the
+/// carrier run to the authored anchor (the carrier is the verb's own
+/// authored spec, so the emission is axiom-clean) — and the tip lands
+/// as an ordinary directed point at the anchor (a HARD anchor,
+/// uniform with line arrivals).
 pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
-    core: &mut Core<T>,
+    mut core: Core<T>,
     resolver: verbs::ArcResolver<T>,
     anchor: Point2<T>,
     centre: Point2<T>,
     winding: crate::sugar::ArcSweep,
-) -> Result<Dir<T>, PathError<T>> {
+) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
     let band = linear_band()?;
     let dir = carrier_tangent(anchor, centre, winding, band)?;
     let (pending, meta) =
         core.take_pending("arc-carrier fillet arrival without an opened fillet")?;
-    let merge = matches!(&pending, verbs::Pending::Ray(_))
-        && meta.by_tangent
-        && meta
-            .origin_incoming
-            .as_ref()
-            .is_some_and(|i| i.carrier.is_none());
+    let merge = merge_of(&pending, &meta);
     let trims = resolver(
         pending.side(),
         arc_fillet::FilletSide {
@@ -239,10 +242,33 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
         Tolerance::get(),
     )?;
     core.emit_fillet_in(&trims, merge)?;
-    // The continuation rides the arrival carrier from `t2` by
-    // construction, so the joint there IS a constructed tangency.
-    core.emit_fillet_arc(&trims, true)?;
-    Ok(dir)
+    // The carrier run to the anchor follows the fillet arc tangentially
+    // by construction, so the arc's outgoing joint is declared exactly
+    // when that run exists; on an exact fit the fillet arc ends the
+    // side at the anchor itself and the outgoing direction stays free.
+    core.emit_fillet_arc(&trims, trims.fit_out == Sign::Positive)?;
+    let tip = if trims.fit_out == Sign::Positive {
+        let head = core.head()?;
+        let bulge = crate::sugar::bulge_from_center(head, anchor, centre, winding);
+        let radius = (anchor - centre).norm_squared().sqrt();
+        let carrier = SegArc {
+            center: centre,
+            radius,
+        };
+        core.push_arc(anchor, bulge, carrier)?;
+        let chord = (anchor - head).norm_squared().sqrt();
+        leg_end_tip(anchor, dir, radius.min(chord), Some(carrier))
+    } else {
+        // Exact fit: the fillet arc IS the whole arrival side — the
+        // authored anchor is absorbed into the tangent point the fit
+        // gate classified as coincident with it, and the tip sits at
+        // the arc's end (still on the arrival carrier).
+        let head = core.head()?;
+        let end_dir = carrier_tangent(head, centre, winding, band)?;
+        let chord = (head - trims.t1).norm_squared().sqrt();
+        leg_end_tip(head, end_dir, trims.arc.radius.min(chord), Some(trims.arc))
+    };
+    Ok(in_state(core, tip))
 }
 
 /// Resolves the open fillet against the ARC ARRIVAL that CLOSES at the
@@ -268,12 +294,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     // point — the incoming half of the seam junction.
     let end_ang = carrier_tangent(start_pos, centre, winding, band)?;
     let (pending, meta) = core.take_pending("arc-carrier close without an opened fillet")?;
-    let merge = matches!(&pending, verbs::Pending::Ray(_))
-        && meta.by_tangent
-        && meta
-            .origin_incoming
-            .as_ref()
-            .is_some_and(|i| i.carrier.is_none());
+    let merge = merge_of(&pending, &meta);
     let trims = resolver(
         pending.side(),
         arc_fillet::FilletSide {
@@ -345,23 +366,12 @@ pub trait ArrivalSpec<T: ArcCarrierScalar> {
 
 /// `Center { c, winding, p }` with an INTERIOR anchor: complete at the
 /// verb (the anchor and the derived direction are one authored act —
-/// the arrival's own carrier). The tip continues ON the
-/// carrier at `p`.
+/// the arrival's own carrier, so the verb emits its whole side) and
+/// land on an ordinary directed point at `p`.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Point2<T>> {
-    type Out = Result<OnArc<T>, PathError<T>>;
-    fn apply(mut core: Core<T>, spec: Self) -> Self::Out {
-        let dir = resolve_arc_arrival(
-            &mut core,
-            arc_fillet::resolve::<T>,
-            spec.p,
-            spec.c,
-            spec.winding,
-        )?;
-        Ok(OnArc {
-            core,
-            at: spec.p,
-            dir,
-        })
+    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
+    fn apply(core: Core<T>, spec: Self) -> Self::Out {
+        resolve_arc_arrival(core, arc_fillet::resolve::<T>, spec.p, spec.c, spec.winding)
     }
     fn fail(err: PathError<T>) -> Self::Out {
         Err(err)
@@ -498,16 +508,15 @@ pub struct RadiusArrivalDir<T: Real> {
 /// Completes a Radius arrival: derive the centre from the directed
 /// anchor + the spec, then resolve exactly as the Center form does.
 fn radius_complete<T: geom_core::Decide>(
-    mut core: Core<T>,
+    core: Core<T>,
     spec: Radius<T>,
     at: Point2<T>,
     dir: Dir<T>,
     resolver: verbs::ArcResolver<T>,
-) -> Result<OnArc<T>, PathError<T>> {
+) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
     let band = linear_band()?;
     let (centre, winding) = verbs::radius_carrier(DirectedPoint { at, dir }, spec, band)?;
-    let dir = resolve_arc_arrival(&mut core, resolver, at, centre, winding)?;
-    Ok(OnArc { core, at, dir })
+    resolve_arc_arrival(core, resolver, at, centre, winding)
 }
 
 impl<T: geom_core::Decide> RadiusArrival<T> {
@@ -549,7 +558,10 @@ impl<T: geom_core::Decide> RadiusArrival<T> {
 
 impl<T: geom_core::Decide> RadiusArrivalAt<T> {
     /// Completes the arrival with its direction; the fillet resolves.
-    pub fn angle(mut self, theta: T) -> Result<OnArc<T>, PathError<T>> {
+    pub fn angle(
+        mut self,
+        theta: T,
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         self.core.record(Step::Angle(theta));
         radius_complete(
             self.core,
@@ -561,7 +573,11 @@ impl<T: geom_core::Decide> RadiusArrivalAt<T> {
     }
 
     /// Completes the arrival with exact components; the fillet resolves.
-    pub fn toward(mut self, dx: T, dy: T) -> Result<OnArc<T>, PathError<T>> {
+    pub fn toward(
+        mut self,
+        dx: T,
+        dy: T,
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         self.core.record(Step::Toward { dx, dy });
         let dir = verbs::director(dx, dy)?;
         radius_complete(self.core, self.spec, self.at, dir, self.resolver)
@@ -570,7 +586,10 @@ impl<T: geom_core::Decide> RadiusArrivalAt<T> {
 
 impl<T: geom_core::Decide> RadiusArrivalDir<T> {
     /// Completes the arrival with its anchor; the fillet resolves.
-    pub fn at(mut self, p: Point2<T>) -> Result<OnArc<T>, PathError<T>> {
+    pub fn at(
+        mut self,
+        p: Point2<T>,
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         self.core.record(Step::At(p));
         radius_complete(self.core, self.spec, p, self.dir, self.resolver)
     }
@@ -587,7 +606,10 @@ pub struct ViaArrival<T: Real> {
 
 impl<T: geom_core::Decide> ViaArrival<T> {
     /// Completes the directed anchor with an angle; the fillet resolves.
-    pub fn angle(mut self, theta: T) -> Result<OnArc<T>, PathError<T>> {
+    pub fn angle(
+        mut self,
+        theta: T,
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         self.core.record(Step::Angle(theta));
         via_complete(
             self.core,
@@ -599,7 +621,11 @@ impl<T: geom_core::Decide> ViaArrival<T> {
     }
 
     /// Completes the directed anchor with exact components.
-    pub fn toward(mut self, dx: T, dy: T) -> Result<OnArc<T>, PathError<T>> {
+    pub fn toward(
+        mut self,
+        dx: T,
+        dy: T,
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         self.core.record(Step::Toward { dx, dy });
         let dir = verbs::director(dx, dy)?;
         via_complete(self.core, self.q, self.p, dir, self.resolver)
@@ -609,16 +635,15 @@ impl<T: geom_core::Decide> ViaArrival<T> {
 /// Completes a Via arrival: the carrier is the circle tangent to the
 /// bound direction at the anchor, through `q`.
 fn via_complete<T: geom_core::Decide>(
-    mut core: Core<T>,
+    core: Core<T>,
     q: Point2<T>,
     p: Point2<T>,
     dir: Dir<T>,
     resolver: verbs::ArcResolver<T>,
-) -> Result<OnArc<T>, PathError<T>> {
+) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
     let band = linear_band()?;
     let (centre, winding) = verbs::via_carrier(DirectedPoint { at: p, dir }, q, band)?;
-    let dir = resolve_arc_arrival(&mut core, resolver, p, centre, winding)?;
-    Ok(OnArc { core, at: p, dir })
+    resolve_arc_arrival(core, resolver, p, centre, winding)
 }
 
 /// A `Via` CLOSE: anchor at the entry, director pending.
@@ -831,37 +856,80 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
     }
 }
 
-/// A fused verb's INCOMING spec from an [`OnArc`] tip: the side already
-/// runs on a carrier the state cannot carry (§2c axiom), so the verb
-/// re-authors it from the tip's own binding bits. `Radius { r, side }`
-/// is the ONE admissible mode: the centre is DERIVED
-/// (`at + side·r·n̂(tangent)`), so tangency at the tip holds by
-/// construction and nothing is value-matched.
+/// A fused verb's INCOMING spec from a DIRECTED POINT (leg end): the
+/// endpoint-full modes exactly as from any point tip, PLUS
+/// `Radius { r, side }` — **arc extension**, the arc analog of ray
+/// extension: the carrier is DERIVED from the tip's two binding bits
+/// (centre = at + side·r·n̂(tangent)), so tangency at the tip holds by
+/// construction and nothing is value-matched, and the incoming side's
+/// anchor is the tip itself. When the derived carrier IS the tip's own
+/// incoming carrier (the chain-side `Incoming.carrier` bookkeeping
+/// decides, on the §4 item 4 identity margin) the incoming run extends
+/// the arriving leg — its end vertex MOVES to the trim point (the §4
+/// exemption, exactly as ray extension); a different carrier emits its
+/// run from the tip with a constructed tangency there.
 ///
-/// `Center` is EXCLUDED here by the same §2c round-6 doctrine that
-/// excludes `Center@Directed`: an OnArc tip's direction is BOUND
-/// (position + tangent), so an authored centre's derived tangent at
-/// the anchor would have to value-match it — and unlike the Point
-/// state there is no direction left for the centre to supply
-/// retroactively. Authored-once decides: the pair is a missing impl,
-/// unrepresentable.
-pub trait OnArcIncoming<T: ArcCarrierScalar> {
+/// `Center` here stays the anchored mode (its derived START tangent is
+/// junction-checked against the incoming): restating the tip's own
+/// carrier through an authored centre would land in the junction
+/// check's tangent band and refuse — declared tangency is CONSTRUCTED
+/// (`Radius`), never value-matched (§2c round 6).
+pub trait LegEndIncoming<T: ArcCarrierScalar> {
     #[doc(hidden)]
-    fn side(
-        &self,
-        dp: DirectedPoint<T>,
-    ) -> Result<(Point2<T>, Point2<T>, crate::sugar::ArcSweep), PathError<T>>;
+    fn incoming(&self, dp: DirectedPoint<T>) -> Result<FusedIncoming<T>, PathError<T>>;
     #[doc(hidden)]
     fn to_wire(&self) -> ArcData<T>;
 }
 
-impl<T: ArcCarrierScalar> OnArcIncoming<T> for Radius<T> {
-    fn side(
-        &self,
-        dp: DirectedPoint<T>,
-    ) -> Result<(Point2<T>, Point2<T>, crate::sugar::ArcSweep), PathError<T>> {
+/// What a directed-point fused incoming resolves to (see
+/// [`LegEndIncoming`]).
+#[doc(hidden)]
+pub enum FusedIncoming<T: Real> {
+    /// An endpoint-full mode's authored side: carrier + derived start
+    /// tangent + authored anchor (junction-checked at the tip).
+    Anchored(PointCarrier<T>),
+    /// Arc extension: the carrier derived at the tip (centre, winding);
+    /// the anchor is the tip itself.
+    FromTip(Point2<T>, crate::sugar::ArcSweep),
+}
+
+impl<T: ArcCarrierScalar> LegEndIncoming<T> for verbs::Bulge<T, Point2<T>> {
+    fn incoming(&self, dp: DirectedPoint<T>) -> Result<FusedIncoming<T>, PathError<T>> {
+        Ok(FusedIncoming::Anchored(PointIncoming::carrier(
+            self, dp.at,
+        )?))
+    }
+    fn to_wire(&self) -> ArcData<T> {
+        PointIncoming::to_wire(self)
+    }
+}
+
+impl<T: ArcCarrierScalar> LegEndIncoming<T> for Via<T, Point2<T>> {
+    fn incoming(&self, dp: DirectedPoint<T>) -> Result<FusedIncoming<T>, PathError<T>> {
+        Ok(FusedIncoming::Anchored(PointIncoming::carrier(
+            self, dp.at,
+        )?))
+    }
+    fn to_wire(&self) -> ArcData<T> {
+        PointIncoming::to_wire(self)
+    }
+}
+
+impl<T: ArcCarrierScalar> LegEndIncoming<T> for Center<T, Point2<T>> {
+    fn incoming(&self, dp: DirectedPoint<T>) -> Result<FusedIncoming<T>, PathError<T>> {
+        Ok(FusedIncoming::Anchored(PointIncoming::carrier(
+            self, dp.at,
+        )?))
+    }
+    fn to_wire(&self) -> ArcData<T> {
+        PointIncoming::to_wire(self)
+    }
+}
+
+impl<T: ArcCarrierScalar> LegEndIncoming<T> for Radius<T> {
+    fn incoming(&self, dp: DirectedPoint<T>) -> Result<FusedIncoming<T>, PathError<T>> {
         let (centre, winding) = verbs::radius_carrier(dp, *self, linear_band()?)?;
-        Ok((dp.at, centre, winding))
+        Ok(FusedIncoming::FromTip(centre, winding))
     }
     fn to_wire(&self) -> ArcData<T> {
         ArcData::Radius {
@@ -1085,12 +1153,10 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     }
 }
 
-impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
-    /// **§2c**: fused arc incoming from a POINT tip — the endpoint-full
-    /// modes author the incoming side's carrier and its anchor `p` in
-    /// one act; on a leg-end tip the derived start tangent is
-    /// junction-checked exactly as the sharp legs check theirs. Line
-    /// arrival.
+impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
+    /// **§2c**: fused arc incoming from a PLAIN point tip — the
+    /// endpoint-full modes author the incoming side's carrier and its
+    /// anchor `p` in one act. Line arrival.
     pub fn arc_fillet<S: PointIncoming<T>>(
         mut self,
         spec: S,
@@ -1205,13 +1271,12 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         self.core.declare_last();
         open_ray(&mut self.core, at, inc.ang, radius, true, Some(inc))
     }
-}
 
-impl<T: ArcCarrierScalar> OnArc<T> {
-    /// **§2c**: the fused verb off an [`OnArc`] tip — the one place the
-    /// carrier run into the next trim is emitted (from the chain's
-    /// head, along the carrier the spec authors). Line arrival.
-    pub fn arc_fillet<S: OnArcIncoming<T>>(
+    /// **§2c**: fused arc incoming from a DIRECTED POINT — the
+    /// endpoint-full modes (junction-checked at the tip, as the sharp
+    /// legs check theirs) plus `Radius`: ARC EXTENSION, the arc analog
+    /// of ray extension (see [`LegEndIncoming`]). Line arrival.
+    pub fn arc_fillet<S: LegEndIncoming<T>>(
         mut self,
         spec: S,
         radius: T,
@@ -1220,17 +1285,7 @@ impl<T: ArcCarrierScalar> OnArc<T> {
             spec: spec.to_wire(),
             radius,
         });
-        let (anchor, centre, winding) = spec.side(self.dp())?;
-        open_arc(
-            &mut self.core,
-            PendingArc {
-                anchor,
-                centre,
-                winding,
-                radius,
-                resolver: arc_fillet::resolve::<T>,
-            },
-        )?;
+        self.leg_end_arc_open(&spec, radius)?;
         Ok(in_state(
             self.core,
             Tip {
@@ -1241,8 +1296,9 @@ impl<T: ArcCarrierScalar> OnArc<T> {
         ))
     }
 
-    /// The [`OnArc`] fused verb with an ARC arrival.
-    pub fn arc_fillet_arc<Si: OnArcIncoming<T>, S2: ArrivalSpec<T>>(
+    /// **§2c**: fused arc incoming (directed-point modes) AND arc
+    /// arrival.
+    pub fn arc_fillet_arc<Si: LegEndIncoming<T>, S2: ArrivalSpec<T>>(
         mut self,
         spec: Si,
         radius: T,
@@ -1253,23 +1309,75 @@ impl<T: ArcCarrierScalar> OnArc<T> {
             radius,
             spec2: spec2.to_wire(),
         });
-        let (anchor, centre, winding) = match spec.side(self.dp()) {
-            Ok(v) => v,
-            Err(e) => return S2::fail(e),
-        };
-        if let Err(e) = open_arc(
-            &mut self.core,
-            PendingArc {
-                anchor,
-                centre,
-                winding,
-                radius,
-                resolver: arc_fillet::resolve::<T>,
-            },
-        ) {
+        if let Err(e) = self.leg_end_arc_open(&spec, radius) {
             return S2::fail(e);
         }
         S2::apply(self.core, spec2)
+    }
+
+    /// The directed-point fused opening: an anchored mode is
+    /// junction-checked at the tip and opens exactly as from a plain
+    /// point; `Radius` derives its carrier from the tip's binding bits
+    /// and the chain decides between EXTENDING the arriving leg (the
+    /// derived carrier IS its carrier — the incoming emission moves the
+    /// leg's end vertex) and a NEW tangent carrier constructed at the
+    /// tip (the joint there is declared, exactly as ray extension
+    /// declares its origin).
+    fn leg_end_arc_open<S: LegEndIncoming<T>>(
+        &mut self,
+        spec: &S,
+        radius: T,
+    ) -> Result<(), PathError<T>> {
+        let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
+            site: "fused arc incoming on a tip without a position",
+        })?;
+        let at = pos.at;
+        let inc = pos.incoming.ok_or(PathError::UnderdeterminedLeg {
+            site: "fused arc incoming on a leg end without incoming data",
+        })?;
+        match spec.incoming(DirectedPoint { at, dir: inc.ang })? {
+            FusedIncoming::Anchored((centre, winding, start, anchor)) => {
+                junction_check(&inc, start, false)?;
+                open_arc(
+                    &mut self.core,
+                    PendingArc {
+                        anchor,
+                        centre,
+                        winding,
+                        radius,
+                        resolver: arc_fillet::resolve::<T>,
+                    },
+                )
+            }
+            FusedIncoming::FromTip(centre, winding) => {
+                let derived = SegArc {
+                    center: centre,
+                    radius: (at - centre).norm_squared().sqrt(),
+                };
+                let extends = match &inc.carrier {
+                    Some(prev) => carriers_are_identical(prev, &derived)?,
+                    None => false,
+                };
+                if !extends {
+                    // A new tangent carrier CONSTRUCTED at the tip:
+                    // both sides share the tip's tangent by
+                    // construction, so the joint is a real tangency.
+                    self.core.declare_last();
+                }
+                open_arc_from_tip(
+                    &mut self.core,
+                    PendingArc {
+                        anchor: at,
+                        centre,
+                        winding,
+                        radius,
+                        resolver: arc_fillet::resolve::<T>,
+                    },
+                    extends,
+                    Some(inc),
+                )
+            }
+        }
     }
 }
 

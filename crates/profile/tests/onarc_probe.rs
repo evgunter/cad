@@ -1,19 +1,21 @@
-//! **The mismatched-r probe** (LIB-ONARC §1.1, executed at the
-//! pre-dissolution head): a `Radius` continuation of an interior arc
-//! arrival whose `r` differs from the arrival carrier's is UNGUARDED —
-//! the verb constructs, and the emitted run's bulge (computed by
-//! `bulge_from_center` from angles alone, about the newly derived
-//! centre) describes a circle that matches NEITHER the derived carrier
-//! nor the true one, contradicting the tangency declared at the fillet
-//! arc's end. Nothing refuses until the LATE validate pass
-//! (`TangencyContradicted`).
+//! **The mismatched-r probe** (LIB-ONARC §1.1).
 //!
-//! Executed finding at this head, pinned below: chain constructs; the
-//! run's recovered carrier sits ~0.26 m off the carrier the verb
-//! derived; validate refuses `TangencyContradicted` at that joint.
+//! Executed at the PRE-dissolution head (the commit that introduced
+//! this file), the same authored chain pinned the retired
+//! `Radius@OnArc` hole: the mismatched radius was accepted unguarded,
+//! the emitted run's recovered carrier matched NEITHER the derived nor
+//! the true circle (bulge computed from angles alone about the derived
+//! centre, chord anchored off it), and nothing refused until the late
+//! validate pass (`TangencyContradicted`).
+//!
+//! RE-POINTED at the dissolution (§2c amendment): the arrival verb now
+//! emits its own run to the anchor along the TRUE carrier, and a
+//! mismatched `r` is a LEGAL new tangent carrier constructed at the
+//! tip — sound by construction for every authored `r`. The same chain
+//! now emits mutually consistent segments and validates.
 
 use geom_core::{Point2, Tolerance};
-use profile::{ArcSide, ArcSweep, Center, Open, Profile, ProfileError, Radius, SketchPlane, Start};
+use profile::{ArcSide, ArcSweep, Center, Open, Profile, Radius, SketchPlane, Start};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -33,7 +35,7 @@ fn circle_from_bulge(t1: Point2<f64>, t2: Point2<f64>, b: f64) -> (Point2<f64>, 
 }
 
 /// The boss chain of the family.rs module doc, with ONE change: the
-/// continuation's `Radius` names r = 1.2 where the tip's carrier has
+/// continuation's `Radius` names r = 1.2 where the arrival carrier has
 /// r = 1.5 (centre (7, 0)), so the derived centre is (7.3, 0).
 #[test]
 fn mismatched_radius_continuation() {
@@ -50,7 +52,8 @@ fn mismatched_radius_continuation() {
             },
         )
         .unwrap()
-        // The hole: r = 1.2 on an r = 1.5 carrier is accepted as-is.
+        // A different r than the arrival carrier's: a legal NEW tangent
+        // carrier, constructed at the anchor.
         .arc_fillet(
             Radius {
                 r: 1.2,
@@ -58,7 +61,7 @@ fn mismatched_radius_continuation() {
             },
             0.5,
         )
-        .expect("UNGUARDED: the mismatched radius is accepted at the verb")
+        .expect("a mismatched r names a sound construction")
         .at(p2(4.05, 1.35))
         .unwrap()
         .toward(-4.1, 0.3)
@@ -66,35 +69,41 @@ fn mismatched_radius_continuation() {
         .line(1.0)
         .unwrap()
         .line_to(Start)
-        .expect("UNGUARDED: the chain closes without any refusal");
+        .expect("the chain closes");
     let lp = &closed.loop_;
-    // The run leaves the arrival tangent point v2 for the next trim v3;
-    // decode the circle its emitted chord + bulge actually describe.
-    let (t2, t1p, b) = (
-        lp.vertices()[2].pos(),
-        lp.vertices()[3].pos(),
-        lp.vertices()[2].bulge(),
-    );
-    let (rec_c, _rec_r) = circle_from_bulge(t2, t1p, b);
-    // The carrier the verb derived from the tip's bits and r = 1.2:
-    // centre = (8.5, 0) + 1.2 * n̂(+y) = (7.3, 0). The emitted run is on
-    // NEITHER that circle nor the true (7, 0) carrier — a mutually
-    // inconsistent (bulge, claimed centre, declared tangency) triple.
-    let off_derived = (rec_c - p2(7.3, 0.0)).norm_squared().sqrt();
-    let off_true = (rec_c - p2(7.0, 0.0)).norm_squared().sqrt();
+    // The arrival emitted ITS OWN run to the hard anchor (8.5, 0),
+    // riding the true carrier (7, 0) r 1.5 …
+    let anchor_idx = lp
+        .vertices()
+        .iter()
+        .position(|v| (v.pos() - p2(8.5, 0.0)).norm_squared().sqrt() < 1e-12)
+        .expect("the authored anchor is a vertex of the final chain");
+    let before = lp.vertices()[anchor_idx - 1];
+    let (run_c, run_r) = circle_from_bulge(before.pos(), p2(8.5, 0.0), before.bulge());
     assert!(
-        off_derived > 0.1 && off_true > 0.1,
-        "recovered centre ({}, {}) — {off_derived} off the derived carrier, \
-         {off_true} off the true one",
-        rec_c.x,
-        rec_c.y
+        (run_c - p2(7.0, 0.0)).norm_squared().sqrt() < 1e-9 && (run_r - 1.5).abs() < 1e-9,
+        "the arrival's run rides the true carrier; got ({}, {}) r {run_r}",
+        run_c.x,
+        run_c.y
     );
-    // Only the LATE validate pass catches the contradiction.
-    let err = Profile::new(SketchPlane::xy(), vec![lp.clone()])
+    // … and the mismatched-r continuation departs the anchor on the
+    // DERIVED carrier (7.3, 0) r 1.2, tangent there by construction —
+    // a declared joint at the anchor.
+    let anchor_v = lp.vertices()[anchor_idx];
+    let next = lp.vertices()[anchor_idx + 1];
+    let (dep_c, dep_r) = circle_from_bulge(p2(8.5, 0.0), next.pos(), anchor_v.bulge());
+    assert!(
+        (dep_c - p2(7.3, 0.0)).norm_squared().sqrt() < 1e-9 && (dep_r - 1.2).abs() < 1e-9,
+        "the continuation rides the derived carrier; got ({}, {}) r {dep_r}",
+        dep_c.x,
+        dep_c.y
+    );
+    assert!(
+        lp.tangent_joints().contains(&anchor_idx),
+        "the constructed tangency at the anchor is declared"
+    );
+    // The defect class is gone structurally: the loop validates.
+    Profile::new(SketchPlane::xy(), vec![lp.clone()])
         .validate(Tolerance::get())
-        .expect_err("the defect is caught only at validation");
-    assert!(
-        matches!(err, ProfileError::TangencyContradicted { .. }),
-        "expected TangencyContradicted, got {err:?}"
-    );
+        .expect("every authored r is sound under the dissolution");
 }

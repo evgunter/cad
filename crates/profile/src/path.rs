@@ -285,21 +285,25 @@
 //!     .fillet_arc(0.25, Bulge { p: Point2::new(2.0, 2.0), b: 0.5 });
 //! ```
 //!
-//! … an [`OnArc`] tip's side runs ON its carrier, so the straight
-//! verbs do not exist on it (the fused verbs re-author the carrier
-//! from its binding bits) …
+//! … an interior arc arrival EMITS its run at the verb and lands on an
+//! ordinary directed point (§2c dissolution), so a SHARP continuation
+//! after an arc arrival is spelled with an ordinary director — the
+//! junction check guards the geometry there, not the lattice:
 //!
-//! ```compile_fail,E0599
+//! ```
 //! use geom_core::Point2;
 //! use profile::{ArcSweep, Center, Open};
-//! let on_arc = Open.at(Point2::new(0.0, 0.0_f64)).angle(0.0).unwrap()
-//!     .fillet_arc(0.25, Center {
-//!         c: Point2::new(2.0, 2.0),
+//! let sharp = Open.at(Point2::new(5.05, -1.6_f64)).toward(2.1, 0.8).unwrap()
+//!     .fillet_arc(0.5, Center {
+//!         c: Point2::new(7.0, 0.0),
 //!         winding: ArcSweep::Ccw,
-//!         p: Point2::new(2.0, 4.0),
+//!         p: Point2::new(8.5, 0.0),
 //!     })
-//!     .unwrap();
-//! let off = on_arc.line(1.0);
+//!     .unwrap()
+//!     // The arrival tip's tangent is +y; 2.6 rad is a genuine corner.
+//!     .angle(2.6).unwrap()
+//!     .line(0.5);
+//! assert!(sharp.is_ok());
 //! ```
 //!
 //! … and the arc-arrival CLOSE (`Center { p: Start }`) is a complete
@@ -358,8 +362,10 @@ pub mod program;
 pub(crate) mod verbs;
 
 pub use arc_fillet::ArcCarrierScalar;
+#[doc(hidden)]
+pub use family::FusedIncoming;
 pub use family::{
-    ArrivalSpec, OnArc, OnArcIncoming, PointIncoming, PointLeg, RadiusArrival, RadiusArrivalAt,
+    ArrivalSpec, LegEndIncoming, PointIncoming, PointLeg, RadiusArrival, RadiusArrivalAt,
     RadiusArrivalDir, TangentIncoming, ViaArrival, ViaArrivalStart,
 };
 pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
@@ -1125,6 +1131,12 @@ struct PendingMeta<T: Real> {
     by_tangent: bool,
     /// The ray origin's incoming carrier, if the origin was a leg end.
     origin_incoming: Option<Incoming<T>>,
+    /// **Arc extension** (§2c): the fused arc incoming CONTINUES the
+    /// origin leg's own carrier, so the incoming run's emission MOVES
+    /// that leg's end vertex to the trim point (the §4 item 4
+    /// exemption, exactly as ray extension) instead of pushing a
+    /// co-carrier neighbour.
+    extends_carrier: bool,
 }
 
 /// The accumulated lowering state: the vertex chain emitted so far
@@ -1348,6 +1360,25 @@ fn junction_check<T: Decide>(
     }
 }
 
+/// **§2c arc extension's same-carrier decision**: whether the carrier a
+/// fused `Radius` incoming derives from a directed point IS that
+/// point's own incoming carrier — the same d + |Δr| identity margin as
+/// [`refuse_identical_carriers`], read as a DECISION: `Zero` continues
+/// the arriving leg (the vertex-move exemption), definite non-zero is
+/// a new tangent carrier constructed at the tip. Both outcomes are
+/// legal spellings, which is what deletes the old mismatched-r hole
+/// structurally: every authored `r` names a sound construction.
+fn carriers_are_identical<T: Decide>(a: &ArcData<T>, b: &ArcData<T>) -> Result<bool, PathError<T>> {
+    let band = linear_band()?;
+    let d = (a.center - b.center).norm_squared().sqrt();
+    let margin = d + (a.radius - b.radius).abs();
+    match decide("path_carrier_identity", Margin::of(margin), band) {
+        Ok(Sign::Zero) => Ok(true),
+        Ok(_) => Ok(false),
+        Err(source) => Err(PathError::Escalated { source }),
+    }
+}
+
 /// §4 item 4: refuses a declared continuation whose constructed
 /// carrier is the incoming carrier itself (cocircular arcs) — the
 /// `carrier_circles_identity` margin d + |Δr| on the linear band.
@@ -1413,6 +1444,7 @@ impl<T: Decide> Core<T> {
         let meta = self.pending_meta.take().unwrap_or(PendingMeta {
             by_tangent: false,
             origin_incoming: None,
+            extends_carrier: false,
         });
         Ok((pending, meta))
     }
@@ -1426,7 +1458,7 @@ impl<T: Decide> Core<T> {
     fn resolve_arc_pending_ray_arrival(
         &mut self,
         arc: verbs::PendingArc<T>,
-        _meta: PendingMeta<T>,
+        meta: PendingMeta<T>,
         arr_pos: Point2<T>,
         arr_ang: Dir<T>,
         kind: ArrivalKind,
@@ -1449,7 +1481,7 @@ impl<T: Decide> Core<T> {
             carrier: arc_fillet::SideCarrier::Ray(arr_ang.unit),
         };
         let trims = (arc.resolver)(incoming, arrival, arc.radius, Tolerance::get())?;
-        self.emit_fillet_in(&trims, false)?;
+        self.emit_fillet_in(&trims, meta.extends_carrier)?;
         match kind {
             ArrivalKind::Seam => {
                 // The fillet arc IS the closing segment; the entry
@@ -1645,6 +1677,7 @@ impl<T: Decide> Core<T> {
             match t.in_arc {
                 None if merge => self.extend_leg_to(t.t1)?,
                 None => self.push_line(t.t1)?,
+                Some((centre, sweep)) if merge => self.extend_arc_to(t.t1, centre, sweep)?,
                 Some((centre, sweep)) => {
                     let head = self.head()?;
                     let bulge = bulge_from_center(head, t.t1, centre, sweep);
@@ -1689,6 +1722,39 @@ impl<T: Decide> Core<T> {
                 site: "ray extension on an empty chain",
             }),
         }
+    }
+
+    /// **§2c (arc extension after an ARC leg)**: the surviving carrier
+    /// run and the leg it continues share one circle, so emitting it as
+    /// a separate segment would mint the co-carrier neighbour §4 item 4
+    /// forbids — instead the leg's own end vertex MOVES forward along
+    /// the carrier to the trim point (the §4 exemption, exactly as
+    /// [`Self::extend_leg_to`]) and the segment's bulge is re-derived
+    /// for the longer sweep. The leg's authored end stays on the final
+    /// path, interior to the extended segment.
+    fn extend_arc_to(
+        &mut self,
+        t1: Point2<T>,
+        centre: Point2<T>,
+        sweep: ArcSweep,
+    ) -> Result<(), PathError<T>> {
+        let n = self.verts.len();
+        let from = n
+            .checked_sub(2)
+            .and_then(|i| self.verts.get(i))
+            .map(|v| v.pos)
+            .ok_or(PathError::UnderdeterminedLeg {
+                site: "arc extension without an incoming segment",
+            })?;
+        let bulge = bulge_from_center(from, t1, centre, sweep);
+        self.verts[n - 2].bulge = bulge;
+        self.verts[n - 1].pos = t1;
+        let radius = (t1 - centre).norm_squared().sqrt();
+        self.last_arc = Some(ArcData {
+            center: centre,
+            radius,
+        });
+        Ok(())
     }
 
     /// **G2**: emits the fillet arc itself as a chain segment, declaring
@@ -2242,6 +2308,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         self.core.pending_meta = Some(PendingMeta {
             by_tangent: self.tip.ang_by_tangent,
             origin_incoming: self.tip.pos.as_ref().and_then(|p| p.incoming),
+            extends_carrier: false,
         });
         Ok(in_state(
             self.core,
