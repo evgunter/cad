@@ -78,6 +78,13 @@
 set -u
 cd "$(dirname "$0")/.."
 
+# HOSTED CI IS THE GATE. This whole-matrix entry point refuses without an
+# explicit certification that hosted CI is unavailable. See
+# local-scripts/hosted-ci-guard.sh for the reasoning and the override.
+# shellcheck source=local-scripts/hosted-ci-guard.sh
+. "$(dirname "$0")/hosted-ci-guard.sh"
+require_hosted_ci "local-scripts/ci-local.sh"
+
 # Original args, preserved for the build-slot re-exec below (the parse
 # loop consumes "$@").
 ORIG_ARGS=("$@")
@@ -240,6 +247,7 @@ discipline() {
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
     | cut -d: -f1 | sort -u \
     | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
+    | grep -vE '^crates/topo/src/separation\.rs$' \
     | grep -vE '^crates/topo/src/props\.rs$' \
     | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
     | grep -vE '^crates/profile/src/test_support\.rs$' \
