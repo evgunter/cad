@@ -5,7 +5,9 @@
 //! MECHANICAL PROJECTIONS of one declaration (PATHS-DESIGN §2c rounds
 //! 13–15).
 //!
-//! Four things live here:
+//! Four things carry the design; the rest of the module is their
+//! vocabulary ([`Target`], [`ArcData`], [`TipState`], [`ReplayError`],
+//! [`DynTip`]) and the mode dispatchers the arms call.
 //!
 //! 1. `transition_table!` — the one declaration. One row per
 //!    (state, verb, kernel fn, next state), expanded into all four
@@ -49,20 +51,36 @@
 //! **Still writable, and NOT prevented by either:** a row whose arm
 //! IGNORES the carried value — a no-op arm returning the tip unchanged,
 //! or a laundering arm that MINTS a fresh tip from the step's own
-//! arguments. Those compile. They are deliberate authorship rather than
-//! drift (nobody writes one by accident while adding a verb), and they
-//! are backstopped downstream, not upstream: the no-op shape is caught
-//! by the refusal census
-//! (`lattice_violations_refuse_as_the_transition_class`), the
-//! laundering shape by review of the table — which is why every arm
-//! there is one expression of the form "destructure, call the one
-//! binder, re-wrap".
+//! arguments — and a row whose arm is merely OVER-STRICT, refusing a
+//! pair the typed method accepts. Those compile. The table's grammar
+//! rules out only the emptiest case: `arms { }` is a parse error, so a
+//! row cannot ship with NO driver projection at all.
 //!
-//! What remains is the safe direction — a row that declares FEWER tips
-//! than its typed method covers, i.e. an over-strict refusal — and that
-//! is exactly what the differential pin catches
-//! (`tests/path_program.rs`: every typed chain's recorded program must
-//! replay to a bit-identical loop).
+//! The rest is backstopped downstream, by tests, and it is worth being
+//! exact about which test catches which shape, because a stale claim
+//! here is how an unpinned arm hides:
+//!
+//! - the **no-op** shape → the refusal census
+//!   (`lattice_violations_refuse_as_the_transition_class`);
+//! - the **over-strict / missing** shape → the replay-coverage census
+//!   (`every_table_verb_is_replayed_by_the_corpus`), which replays a
+//!   chain for every verb the table declares, anchored on
+//!   [`Verb::ALL`] so a new verb cannot join unpinned. It is VERB
+//!   granular: an arm of a multi-row verb is covered only where the
+//!   corpus reaches its state;
+//! - a **laundering** arm, and everything finer than verb granularity
+//!   → review of the table, plus the blanket record→replay differential
+//!   every closing verb in the corpus funnels through
+//!   (`common::pinned`: the recorded program must replay to a
+//!   bit-identical loop).
+//!
+//! Most arms are one expression of the form "destructure, call the one
+//! binder, re-wrap". The exceptions are honest and deliberate: the
+//! fused `FilletArc`/`ArcFilletArc` arms compose the two HALVES of
+//! their verb (open the incoming side, then apply the arrival spec)
+//! rather than calling the fused binder, because the wire's arrival
+//! mode is an `ArcData` value while the binder takes the mode's own
+//! type. They are pinned by the fused-family corpus.
 //!
 //! # Serde plays no role
 //!
@@ -216,14 +234,14 @@ macro_rules! transition_table {
                         $(#[doc = $mdoc:literal])*
                         on [ $($gen:tt)* ] $self_ty:ty ;
                         fn $mname:ident [ $($sig:tt)* ] $mbody:block
-                        arms { $( $tip:pat => $arm:expr ),* $(,)? }
+                        arms { $tip0:pat => $arm0:expr $(, $tip:pat => $arm:expr)* $(,)? }
                     }
                 )*
                 $(
                     free {
                         $(#[doc = $fndoc:literal])*
                         fn $fname:ident [ $($fsig:tt)* ] $fbody:block
-                        arms { $( $ftip:pat => $farm:expr ),* $(,)? }
+                        arms { $ftip0:pat => $farm0:expr $(, $ftip:pat => $farm:expr)* $(,)? }
                     }
                 )*
             }
@@ -244,6 +262,15 @@ macro_rules! transition_table {
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         pub enum Verb {
             $( $(#[doc = $doc])* $name ),*
+        }
+
+        impl Verb {
+            /// Every verb the table declares, in declaration order —
+            /// the row set, enumerated from the same declaration, so
+            /// the replay-coverage census cannot fall behind a verb
+            /// the table gains (`tests/path_program.rs`).
+            #[doc(hidden)]
+            pub const ALL: &'static [Verb] = &[$( Verb::$name ),*];
         }
 
         impl<T: Real> Step<T> {
@@ -277,11 +304,13 @@ macro_rules! transition_table {
         #[allow(clippy::too_many_lines)]
         fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>) -> Applying<T> {
             match (tip, step) {
-                $($($(
-                    ($tip, Step::$name $bind) => $arm,
-                )*)*$($(
-                    ($ftip, Step::$name $bind) => $farm,
-                )*)*)*
+                $($(
+                    ($tip0, Step::$name $bind) => $arm0,
+                    $( ($tip, Step::$name $bind) => $arm, )*
+                )*$(
+                    ($ftip0, Step::$name $bind) => $farm0,
+                    $( ($ftip, Step::$name $bind) => $farm, )*
+                )*)*
                 (other, unusable) => Err(ReplayErrorKind::Transition {
                     state: other.state(),
                     verb: Some(unusable.verb()),

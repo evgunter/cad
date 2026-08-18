@@ -441,16 +441,247 @@ fn arc_continue_refuses_lines_and_off_carrier_targets() {
 }
 
 // ------------------------------------------------------------------
-// The `turn(δ)` arm (review MINOR-1)
-//
-// `.turn(δ)` is the one verb the corpus exercised ONLY in refusal rows
-// that never close, so the (DirectedPoint, Turn) arm had zero
-// record->replay coverage: swapping its binder for `.tangent()` left the
-// whole battery green. These rows close that hole. Each turns by a δ far
-// from both 0 (which refuses, → `.tangent()`) and ±π (the reverse
-// class), so a `.tangent()` substitution moves real geometry and the pin
-// goes red on the first vertex it reaches.
+// The replay-coverage census (LIB-RTABLE)
 // ------------------------------------------------------------------
+
+/// **Every verb the transition table declares is exercised by a
+/// record→replay round-trip.** The failure class this pins is a row
+/// whose DRIVER projection silently stops working: the four-projection
+/// invariant makes a deleted ROW a compile error everywhere, but a row
+/// that keeps its typed method while its arm goes missing or
+/// over-strict still compiles, and the only thing standing behind that
+/// direction is a test that actually replays the verb.
+///
+/// The census is anchored on [`Verb::ALL`], projected from the same
+/// declaration as the rows, so it cannot fall behind a verb the table
+/// gains — a new verb with no corpus chain fails HERE, by name, rather
+/// than quietly acquiring an unpinned arm. (`.turn(δ)` is the standing
+/// example: its round-trip rows were retired with the V2 census in
+/// 68d80104 and nothing replaced them, leaving the (DirectedPoint,
+/// Turn) arm pinned by nothing until this row.)
+///
+/// Granularity is honest: this is verb coverage, not per-arm coverage.
+/// The arms of a multi-row verb are covered here only where the corpus
+/// happens to reach both states; what is NOT possible is a verb with
+/// no replayed arm at all.
+#[test]
+fn every_table_verb_is_replayed_by_the_corpus() {
+    let mut seen: Vec<Verb> = Vec::new();
+    for closed in coverage_corpus() {
+        seen.extend(verbs(&closed.program));
+        // The round-trip itself: replay the recording, bit-identical.
+        pinned(closed);
+    }
+    let missing: Vec<&Verb> = Verb::ALL.iter().filter(|v| !seen.contains(v)).collect();
+    assert!(
+        missing.is_empty(),
+        "these table verbs are declared but never replayed by the corpus: {missing:?} \
+         — every row's driver arm must be exercised by a record->replay chain, \
+         so add one to `coverage_corpus` (see this test's rustdoc)"
+    );
+}
+
+/// The census corpus: closed chains whose union covers every declared
+/// verb. Each is authored through the typed surface, so its recorded
+/// program is the table's own output.
+fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
+    use profile::{ArcSide, Bulge, Center, Radius, Sweep};
+    use std::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI};
+
+    // 1. The fused entry verb, the plain binders and the straight legs.
+    let fused = Open
+        .arc_fillet(
+            Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(5.0, 0.0),
+            },
+            0.5,
+        )
+        .unwrap()
+        .at(p2(0.0, 3.0))
+        .unwrap()
+        .toward(-1.0, 0.0)
+        .unwrap()
+        .line(3.0)
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+
+    // 2. An endpoint-free sharp leg, ray extension, an arc arrival and
+    //    the mid-chain Radius arc extension.
+    let walk = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0)
+        .unwrap()
+        .arc_to(Sweep {
+            r: 2.0,
+            side: ArcSide::Left,
+            angle: 0.6,
+        })
+        .unwrap()
+        .fillet(0.2)
+        .unwrap()
+        .at(p2(4.0, 3.0))
+        .unwrap()
+        .toward(0.0, 1.0)
+        .unwrap()
+        .fillet_arc(
+            0.25,
+            Center {
+                c: p2(2.0, 6.0),
+                winding: ArcSweep::Ccw,
+                p: p2(2.0, 9.0),
+            },
+        )
+        .unwrap()
+        .arc_fillet(
+            Radius {
+                r: 3.0,
+                side: ArcSide::Left,
+            },
+            0.25,
+        )
+        .unwrap()
+        .at(p2(1.0, 4.0))
+        .unwrap()
+        .toward(0.0, -1.0)
+        .unwrap()
+        .line(3.0)
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+
+    // 3. `.turn(δ)` at the corners. Each δ is far from both 0 (which
+    //    refuses — `.tangent()` is its recourse) and ±π (the reverse
+    //    class), so substituting any other director moves real geometry
+    //    and the round-trip reddens on the first vertex it reaches.
+    let turned = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0)
+        .unwrap()
+        .line(3.0)
+        .unwrap()
+        .turn(FRAC_PI_2)
+        .unwrap()
+        .line(3.0)
+        .unwrap()
+        .turn(FRAC_PI_2)
+        .unwrap()
+        .line(3.0)
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+
+    // 4. The seam-fillet close: mid-side anchors, every corner filleted
+    //    including the one under the entry vertex, which `.to(Start)`
+    //    retrims.
+    let seam = Open
+        .at(p2(1.5, 0.0))
+        .angle(0.0)
+        .unwrap()
+        .fillet(0.5)
+        .unwrap()
+        .at(p2(3.0, 1.5))
+        .unwrap()
+        .angle(FRAC_PI_2)
+        .unwrap()
+        .fillet(0.5)
+        .unwrap()
+        .at(p2(1.5, 3.0))
+        .unwrap()
+        .angle(PI)
+        .unwrap()
+        .fillet(0.5)
+        .unwrap()
+        .at(p2(0.0, 1.5))
+        .unwrap()
+        .angle(-FRAC_PI_2)
+        .unwrap()
+        .fillet(0.5)
+        .unwrap()
+        .to(Start)
+        .unwrap();
+
+    // 5. The declared tangent joint and the unique tangent arc.
+    let tangent_arc = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0))
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(p2(3.0, 1.0))
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+
+    // 6. The declared-subdivision step on an arc carrier.
+    let subdivided = Open
+        .at(p2(0.0, -0.5))
+        .arc_to(Bulge {
+            p: p2(0.5, 0.0),
+            b: FRAC_PI_8.tan(),
+        })
+        .unwrap()
+        .arc_continue(p2(0.0, 0.5))
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+
+    // 7. The far-end anchor: the arrival side ENDS at its authored point.
+    let far_end = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(3.0, 0.0))
+        .unwrap()
+        .line_to(p2(3.0, 1.0))
+        .unwrap()
+        .toward(-1.0, 0.0)
+        .unwrap()
+        .fillet(0.5)
+        .unwrap()
+        .toward(0.0, 1.0)
+        .unwrap()
+        .to(p2(1.0, 3.0))
+        .unwrap()
+        .line_to(p2(0.0, 3.0))
+        .unwrap()
+        .line_to(Start)
+        .unwrap();
+
+    // 8. The fused verb with an ARC arrival, closing on the far lobe.
+    let tip = 0.75f64.sqrt();
+    let eye = Open
+        .arc_fillet_arc(
+            Center {
+                c: p2(-0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(0.0, -tip),
+            },
+            0.25,
+            Center {
+                c: p2(0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
+        )
+        .unwrap();
+
+    // 9/10. The complete-loop program forms.
+    let circle = profile::circle(p2(1.0, 2.0), 0.75).unwrap();
+    let split = profile::circle_split(p2(0.0, 0.0), 1.0, 5, 0.3).unwrap();
+
+    vec![
+        fused,
+        walk,
+        turned,
+        seam,
+        tangent_arc,
+        subdivided,
+        far_end,
+        eye,
+        circle,
+        split,
+    ]
+}
 
 fn assert_transition(program: &[Step<f64>], step: usize, state: TipState, verb: Option<Verb>) {
     match replay(program) {
