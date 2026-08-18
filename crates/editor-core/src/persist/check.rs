@@ -382,10 +382,10 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         // wire is a CORRUPT file — refused, never quietly re-sorted (a
         // repair would change the node's content key behind the
         // caller's back).
-        if let Node::Fillet { selection, .. } = node {
-            if selection.windows(2).any(|w| w[0] >= w[1]) {
-                return Err(SnapshotError::FilletSelectionNotCanonical { node: id });
-            }
+        if let Node::Fillet { selection, .. } = node
+            && selection.windows(2).any(|w| w[0] >= w[1])
+        {
+            return Err(SnapshotError::FilletSelectionNotCanonical { node: id });
         }
         // The placement RULE (GROUP-BOOLEAN-DESIGN), re-checked for the
         // same reason the A11 registry is below: a saved file is DATA,
