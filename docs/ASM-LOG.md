@@ -311,3 +311,16 @@ TESS-SPLIT (spec reconciled with the sliver lesson first); the
 R2 exit walk + assembly demo; ASM-XSPLIT (the AQ8 conversion
 door) as the one banked follow-on unit. Seam sweep: asm-r2b +
 asm-r2b-r1 lanes.
+
+## Checkpoint (2026-08-18, second window edge)
+
+TESS-SPAN #594: dual fix pass COMPLETE (the max-of-cells
+experiment ruled for R1 — both bounds sound, docs honest, shipped
+semantics pinned; realized-aspect fix +3.0% cells, rows hold at
+3.10x / +5.9%); post-R2b conflict resolved; merge-on-green waiter
+armed. At merge: row 54 (cross-model pair #5: R1 fable 0/4/5, R2
+opus 4/5/3, labels diverged/substance converged, the math dispute
+experiment-settled), unit entry, sweep tess-span + r1 + r2 lanes.
+THEN: TESS-SPLIT (fable, ASM-4 slot 1) — reconcile spec with the
+sliver lesson BEFORE dispatch; R2 exit walk + assembly demo;
+ASM-XSPLIT specs on the AQ8 addendum ruling (b, ratified).
