@@ -304,6 +304,15 @@ fn boundary_edges<T: Decide + Bounds>(
 ///   (never prunes). Nothing is certified about the locus, so nothing
 ///   is claimed — the chord is NOT a bound for either.
 ///
+/// The `Nurbs` arm is the ONE place a sound cheap box exists and is
+/// deliberately not taken: `geom_curves::boxes::nurbs_curve_aabb`
+/// would give the control-net hull, exactly as the face rule's
+/// [`FaceBoxRule::ControlNet`] arm does. Taking it would TIGHTEN this
+/// box — it would start pruning pairs that are examined today — and
+/// tightening is a different obligation from soundness: a rung-3
+/// operand gate has to admit the kind first. Poison is already the
+/// conservative answer, so nothing is unsound while it waits.
+///
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] when the edge's topology
